@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # Copyright 2021 University of Manchester
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,16 +47,28 @@ histfile_size = 1000
 
 MAX_BITBYTES = 16384
 
-fabulousRoot = os.getenv("FAB_ROOT")
-if fabulousRoot is None:
-    print("FAB_ROOT environment variable not set!")
-    print("Use 'export FAB_ROOT=<path to FABulous root>'")
-    sys.exit(-1)
-
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     format="[%(levelname)s]-%(asctime)s - %(message)s", level=logging.INFO
 )
+
+metaDataDir = ".FABulous"
+
+fabulousRoot = os.getenv('FAB_ROOT')
+if fabulousRoot is None:
+    fabulousRoot = os.path.dirname(os.path.realpath(__file__))
+    logger.warning("FAB_ROOT environment variable not set!")
+    logger.warning(f"Using {fabulousRoot} as FAB_ROOT")
+else:
+    if not os.path.exists(fabulousRoot):
+        logger.error(
+            f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist")
+        sys.exit()
+    else:
+        if os.path.exists(f"{fabulousRoot}/FABulous"):
+            fabulousRoot = f"{fabulousRoot}/FABulous"
+
+    logger.info(f"FAB_ROOT set to {fabulousRoot}")
 
 
 # Create a FABulous Verilog project that contains all the required files
@@ -161,8 +175,8 @@ You have started the FABulous shell with following options:
 
 Type help or ? to list commands
 To see documentation for a command type:
-    help <command> 
-or 
+    help <command>
+or
     ?<command>
 
 To execute a shell command type:
@@ -230,8 +244,7 @@ To run the complete FABulous flow with the default project, run the following co
                 if fun.startswith("do_"):
                     name = fun.strip("do_")
                     tcl.createcommand(
-                        name, wrap_with_except_handling(getattr(self, fun))
-                    )
+                        name, wrap_with_except_handling(getattr(self, fun)))
 
         # os.chdir(args.project_dir)
         tcl.eval(script)
@@ -1182,7 +1195,7 @@ To run the complete FABulous flow with the default project, run the following co
         return self._complete_path(text)
 
 
-if __name__ == "__main__":
+def main():
     if sys.version_info < (3, 9, 0):
         print("Need Python 3.9 or above to run FABulous")
         exit(-1)
@@ -1235,7 +1248,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     args.top = args.project_dir.split("/")[-1]
-    metaDataDir = ".FABulous"
 
     if args.createProject:
         create_project(args.project_dir, args.writer)
@@ -1270,3 +1282,7 @@ if __name__ == "__main__":
                     fabShell.cmdloop()
         else:
             fabShell.cmdloop()
+
+
+if __name__ == "__main__":
+    main()
