@@ -15,7 +15,7 @@ The following packages need to be installed for generating fabric HDLs
 
     git clone https://github.com/FPGA-Research-Manchester/FABulous
 
-:Python: 
+:Python:
  version >= 3.9
 
 :python dependencies:
@@ -38,6 +38,10 @@ The following packages need to be installed for the CAD toolchain:
 :`Nextpnr-generic <https://github.com/YosysHQ/nextpnr#nextpnr-generic>`_:
  version > 0.4-28-gac17c36b
 
+Install FABulous with "editable" option:
+.. code-block:: console
+
+    pip3 install -e .
 
 Building Fabric and Bitstream
 -----------------------------
@@ -45,20 +49,20 @@ Building Fabric and Bitstream
 
 .. code-block:: console
 
-   python3 FABulous.py -c <name_of_project>
-   python3 FABulous.py <name_of_project>
+   FABulous -c <name_of_project>
+   FABulous <name_of_project>
    # inside the FABulous shell
    load_fabric
    run_FABulous_fabric
    run_FABulous_bitstream npnr user_design/sequential_16bit_en.v
-   
 
-After a successful call with the command ``run_FABulous_fabric`` the RTL file of each of the tiles can be found in the ``Tile`` folder and the fabric RTL file can be found in the ``Fabric`` folder. 
 
-After a successful call with the command ``run_FABulous_bitstream npnr user_design/sequential_16bit_en.v``. 
-The bitstream and all the log files generated during synthesis and place and route can be found under 
-the ``user_design`` folder. The bitstream will be named as ``sequential_16bit_en.bin`` The above command is using 
-the ``npnr`` options which suggest we are using Yosys for synthesis and Nextpnr for placement and routing. Another 
+After a successful call with the command ``run_FABulous_fabric`` the RTL file of each of the tiles can be found in the ``Tile`` folder and the fabric RTL file can be found in the ``Fabric`` folder.
+
+After a successful call with the command ``run_FABulous_bitstream npnr user_design/sequential_16bit_en.v``.
+The bitstream and all the log files generated during synthesis and place and route can be found under
+the ``user_design`` folder. The bitstream will be named as ``sequential_16bit_en.bin`` The above command is using
+the ``npnr`` options which suggest we are using Yosys for synthesis and Nextpnr for placement and routing. Another
 option would be using ``vpr``, which will allow for using Yosys for synthesis and VPR for placement and routing.
 (currently, the VPR flow is not working after the refactoring)
 

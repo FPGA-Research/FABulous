@@ -67,14 +67,14 @@ To set up FABulous:
 ```
 git clone https://github.com/FPGA-Research-Manchester/FABulous
 cd FABulous
-export FAB_ROOT=`pwd`
+pip install -e .
 ```
 
 We have provided a Python Command Line Interface (CLI) as well as a project structure for easy access of the FABulous toolchain.
 
 The `Tile` folder contains all the definitions of the fabric primitive as well as the fabric matrix configuration. `fabric.csv` is what defining the architecture of the fabric. The FABulous project folder also contains a `.FABulous` folder which contains all the metadata during the generation of the fabric.
 
-We can initiate the FABulous shell with `python3 FABulous.py <project_dir>`. After that you will see a shell interface which allow for interactive fabric generation. To generate a fabric we first need to run `load_fabric [fabric_CSV]` to load in the fabric definition. Then we can call `run_FABulous_fabric` to generate a fabric.
+We can initiate the FABulous shell with `FABulous <project_dir>`. After that you will see a shell interface which allow for interactive fabric generation. To generate a fabric we first need to run `load_fabric [fabric_CSV]` to load in the fabric definition. Then we can call `run_FABulous_fabric` to generate a fabric.
 
 To generate a model and bitstream for a specific design call `run_FABulous_bitstream npnr <dir_to_top>` which will
 generate a bitstream for the provided design in the same folder as the design.
@@ -84,8 +84,9 @@ To exit the shell simply type `exit` and this will terminate the shell.
 A demo of the whole flow:
 
 ```
-python3 FABulous.py -c demo
-# In the FABulous shell (python3 FABulous.py demo)
+FABulous -c demo # Create a demo project
+FABulous demo # Run Fabulous interactive shell for demo project
+# In the FABulous shell
 load_fabric
 run_FABulous_fabric
 run_FABulous_bitstream npnr ./user_design/sequential_16bit_en.v
@@ -101,7 +102,7 @@ cd demo/Test
 ```
 
 The tool also supports using TCL script to drive the build process. Assuming you have created a demo project using
-`python3 FABulous.py -c demo`, you can call `python3 FABulous.py demo -s ./demo/FABulous.tcl` to run the demo flow with the TCL interface.
+`FABulous -c demo`, you can call `FABulous demo -s ./demo/FABulous.tcl` to run the demo flow with the TCL interface.
 
 More details on bitstream generation can be found [here](https://fabulous.readthedocs.io/en/latest/FPGA-to-bitstream/Bitstream%20generation.html).
 
