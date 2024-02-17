@@ -16,7 +16,7 @@ oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST
 
 def parseFabricCSV(fileName: str) -> Fabric:
     """
-    Pares a csv file and returns a fabric object.
+    Parses a csv file and returns a fabric object.
 
     Args:
         fileName (str): the directory of the csv file.
@@ -65,204 +65,68 @@ def parseFabricCSV(fileName: str) -> Fabric:
     else:
         raise ValueError("Cannot find ParametersBegin and ParametersEnd in csv file")
 
-    tilesData = re.findall(r"TILE(.*?)EndTILE", file, re.MULTILINE | re.DOTALL)
-
-    superTile = re.findall(
-        r"SuperTILE(.*?)EndSuperTILE", file, re.MULTILINE | re.DOTALL
-    )
-
-    # parse the tile description
     fabricDescription = fabricDescription.split("\n")
     parameters = parameters.split("\n")
+
+    # Lists for tiles
     tileTypes = []
     tileDefs = []
     commonWirePair: List[Tuple[str, str]] = []
-    for t in tilesData:
-        t = t.split("\n")
-        tileName = t[0].split(",")[1]
-        tileTypes.append(tileName)
-        ports: List[Port] = []
-        bels: List[Bel] = []
-        matrixDir = ""
-        withUserCLK = False
-        configBit = 0
-        for item in t:
-            temp: List[str] = item.split(",")
-            if not temp or temp[0] == "":
-                continue
-            if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST"]:
-                ports.append(
-                    Port(
-                        Direction[temp[0]],
-                        temp[1],
-                        int(temp[2]),
-                        int(temp[3]),
-                        temp[4],
-                        int(temp[5]),
-                        temp[1],
-                        IO.OUTPUT,
-                        Side[temp[0]],
-                    )
-                )
-
-                ports.append(
-                    Port(
-                        Direction[temp[0]],
-                        temp[1],
-                        int(temp[2]),
-                        int(temp[3]),
-                        temp[4],
-                        int(temp[5]),
-                        temp[4],
-                        IO.INPUT,
-                        Side[oppositeDic[temp[0]].upper()],
-                    )
-                )
-                # wireCount = (abs(int(temp[2])) +
-                #              abs(int(temp[3])))*int(temp[5])
-                # for i in range(wireCount):
-                commonWirePair.append((f"{temp[1]}", f"{temp[4]}"))
-
-            elif temp[0] == "JUMP":
-                ports.append(
-                    Port(
-                        Direction.JUMP,
-                        temp[1],
-                        int(temp[2]),
-                        int(temp[3]),
-                        temp[4],
-                        int(temp[5]),
-                        temp[1],
-                        IO.OUTPUT,
-                        Side.ANY,
-                    )
-                )
-                ports.append(
-                    Port(
-                        Direction.JUMP,
-                        temp[1],
-                        int(temp[2]),
-                        int(temp[3]),
-                        temp[4],
-                        int(temp[5]),
-                        temp[4],
-                        IO.INPUT,
-                        Side.ANY,
-                    )
-                )
-            elif temp[0] == "BEL":
-                belFilePath = os.path.join(filePath, temp[1])
-                if temp[1].endswith(".vhdl"):
-                    result = parseFileVHDL(belFilePath, temp[2])
-                elif temp[1].endswith(".v"):
-                    result = parseFileVerilog(belFilePath, temp[2])
-                else:
-                    raise ValueError(
-                        "Invalid file type, only .vhdl and .v are supported"
-                    )
-                internal, external, config, shared, configBit, userClk, belMap = result
-                bels.append(
-                    Bel(
-                        belFilePath,
-                        temp[2],
-                        internal,
-                        external,
-                        config,
-                        shared,
-                        configBit,
-                        belMap,
-                        userClk,
-                    )
-                )
-                withUserCLK |= userClk
-            elif temp[0] == "MATRIX":
-                matrixDir = os.path.join(filePath, temp[1])
-                configBit = 0
-                if temp[1].endswith(".list"):
-                    for _, v in parseList(matrixDir, "source").items():
-                        muxSize = len(v)
-                        if muxSize >= 2:
-                            configBit += muxSize.bit_length() - 1
-                elif temp[1].endswith("_matrix.csv"):
-                    for _, v in parseMatrix(matrixDir, tileName).items():
-                        muxSize = len(v)
-                        if muxSize >= 2:
-                            configBit += muxSize.bit_length() - 1
-                elif temp[1].endswith(".vhdl") or temp[1].endswith(".v"):
-                    with open(matrixDir, "r") as f:
-                        f = f.read()
-                        if configBit := re.search(r"NumberOfConfigBits: (\d+)", f):
-                            configBit = int(configBit.group(1))
-                        else:
-                            configBit = 0
-                            print(
-                                f"Cannot find NumberOfConfigBits in {matrixDir} assume 0 config bits"
-                            )
-
-                else:
-                    raise ValueError("Unknown file extension for matrix")
-            else:
-                raise ValueError(f"Unknown tile description {temp[0]} in tile {t}")
-
-        tileDefs.append(Tile(tileName, ports, bels, matrixDir, withUserCLK, configBit))
 
     fabricTiles = []
-    tileDic = dict(zip(tileTypes, tileDefs))
 
-    # parse the super tile
+    # List for supertiles
     superTileDic = {}
-    for t in superTile:
-        description = t.split("\n")
-        name = description[0].split(",")[1]
-        tileMap = []
-        tiles = []
-        bels = []
-        withUserCLK = False
-        for i in description[1:-1]:
-            line = i.split(",")
-            line = [i for i in line if i != "" and i != " "]
-            row = []
 
-            if line[0] == "BEL":
-                belFilePath = os.path.join(filePath, line[1])
-                if line[0].endswith("VHDL"):
-                    result = parseFileVHDL(belFilePath, line[2])
-                else:
-                    result = parseFileVerilog(belFilePath, line[2])
-                internal, external, config, shared, configBit, userClk, belMap = result
-                bels.append(
-                    Bel(
-                        belFilePath,
-                        line[2],
-                        internal,
-                        external,
-                        config,
-                        shared,
-                        configBit,
-                        belMap,
-                        userClk,
-                    )
-                )
-                withUserCLK |= userClk
-                continue
+    # parse the parameters
+    height = 0
+    width = 0
+    configBitMode = ConfigBitMode.FRAME_BASED
+    frameBitsPerRow = 32
+    maxFramesPerCol = 20
+    package = "use work.my_package.all;"
+    generateDelayInSwitchMatrix = 80
+    multiplexerStyle = MultiplexerStyle.CUSTOM
+    superTileEnable = True
 
-            for j in line:
-                if j in tileDic:
-                    # mark the tile as part of super tile
-                    tileDic[j].partOfSuperTile = True
-                    t = deepcopy(tileDic[j])
-                    row.append(t)
-                    if t not in tiles:
-                        tiles.append(t)
-                elif j == "Null" or j == "NULL" or j == "None":
-                    row.append(None)
-                else:
-                    raise ValueError(
-                        f"The super tile {name} contains definitions that are not tiles or Null."
-                    )
-            tileMap.append(row)
-
-        superTileDic[name] = SuperTile(name, tiles, tileMap, bels, withUserCLK)
+    for i in parameters:
+        i = i.split(",")
+        i = [j for j in i if j != ""]
+        if not i:
+            continue
+        if i[0].startswith("Tile"):
+            parseTile(os.path.abspath(os.path.join(filePath, i[1])), tileTypes, tileDefs, commonWirePair)
+            tileDic = dict(zip(tileTypes, tileDefs))
+        elif i[0].startswith("Supertile"):
+            parseSupertile(os.path.abspath(os.path.join(filePath, i[1])), superTileDic, tileDic)
+        elif i[0].startswith("ConfigBitMode"):
+            if i[1] == "frame_based":
+                configBitMode = ConfigBitMode.FRAME_BASED
+            elif i[1] == "FlipFlopChain":
+                configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
+            else:
+                raise ValueError(
+                    f"Invalid config bit mode {i[1]} in parameters. Valid options are frame_based and FlipFlopChain")
+        elif i[0].startswith("FrameBitsPerRow"):
+            frameBitsPerRow = int(i[1])
+        elif i[0].startswith("MaxFramesPerCol"):
+            maxFramesPerCol = int(i[1])
+        elif i[0].startswith("Package"):
+            package = i[1]
+        elif i[0].startswith("GenerateDelayInSwitchMatrix"):
+            generateDelayInSwitchMatrix = int(i[1])
+        elif i[0].startswith("MultiplexerStyle"):
+            if i[1] == "custom":
+                multiplexerStyle = MultiplexerStyle.CUSTOM
+            elif i[1] == "generic":
+                multiplexerStyle = MultiplexerStyle.GENERIC
+            else:
+                raise ValueError(
+                    f"Invalid multiplexer style {i[1]} in parameters. Valid options are custom and generic")
+        elif i[0].startswith("SuperTileEnable"):
+            superTileEnable = i[1] == "TRUE"
+        else:
+            raise ValueError(f"The following parameter is not valid: {i}")
 
     # form the fabric data structure
     usedTile = set()
@@ -293,53 +157,6 @@ def parseFabricCSV(fileName: str) -> Fabric:
             )
             del superTileDic[i]
 
-    # parse the parameters
-    height = 0
-    width = 0
-    configBitMode = ConfigBitMode.FRAME_BASED
-    frameBitsPerRow = 32
-    maxFramesPerCol = 20
-    package = "use work.my_package.all;"
-    generateDelayInSwitchMatrix = 80
-    multiplexerStyle = MultiplexerStyle.CUSTOM
-    superTileEnable = True
-
-    for i in parameters:
-        i = i.split(",")
-        i = [j for j in i if j != ""]
-        if not i:
-            continue
-        if i[0].startswith("ConfigBitMode"):
-            if i[1] == "frame_based":
-                configBitMode = ConfigBitMode.FRAME_BASED
-            elif i[1] == "FlipFlopChain":
-                configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
-            else:
-                raise ValueError(
-                    f"Invalid config bit mode {i[1]} in parameters. Valid options are frame_based and FlipFlopChain"
-                )
-        elif i[0].startswith("FrameBitsPerRow"):
-            frameBitsPerRow = int(i[1])
-        elif i[0].startswith("MaxFramesPerCol"):
-            maxFramesPerCol = int(i[1])
-        elif i[0].startswith("Package"):
-            package = i[1]
-        elif i[0].startswith("GenerateDelayInSwitchMatrix"):
-            generateDelayInSwitchMatrix = int(i[1])
-        elif i[0].startswith("MultiplexerStyle"):
-            if i[1] == "custom":
-                multiplexerStyle = MultiplexerStyle.CUSTOM
-            elif i[1] == "generic":
-                multiplexerStyle = MultiplexerStyle.GENERIC
-            else:
-                raise ValueError(
-                    f"Invalid multiplexer style {i[1]} in parameters. Valid options are custom and generic"
-                )
-        elif i[0].startswith("SuperTileEnable"):
-            superTileEnable = i[1] == "TRUE"
-        else:
-            raise ValueError(f"The following parameter is not valid: {i}")
-
     height = len(fabricTiles)
     width = len(fabricTiles[0])
 
@@ -365,6 +182,187 @@ def parseFabricCSV(fileName: str) -> Fabric:
         commonWirePair=commonWirePair,
     )
 
+def parseTile(fileName, tileTypes, tileDefs, commonWirePair: List[Tuple[str, str]]):
+    """
+    Parses a csv tile configuration file and appends it to various tile lists.
+    
+        Args:
+        fileName (str): the path to the csv file.
+        tileTypes (str): list of tile names.
+        tileDefs (Tile): list of tile definitions.
+        commonWirePair ([(str, str)]): common wire pairs.
+    """
+
+    print(f'Reading tile configuration: {fileName}')
+
+    if not fileName.endswith(".csv"):
+        raise ValueError("File must be a csv file")
+
+    if not os.path.exists(fileName):
+        raise ValueError(f"File {fileName} does not exist")
+
+    filePath, _ = os.path.split(os.path.abspath(fileName))
+
+    with open(fileName, 'r') as f:
+        file = f.read()
+        file = re.sub(r"#.*", "", file)
+
+    tileData = re.findall(r"TILE(.*?)EndTILE", file,
+                           re.MULTILINE | re.DOTALL)
+
+    if not tileData:
+        raise ValueError(f"The following tile config is not valid: {fileName}")
+        
+    if len(tileData) > 1:
+        raise ValueError(f"Multiple configurations in tile config: {fileName}")
+
+    tileData = tileData[0].split("\n")
+    tileName = tileData[0].split(",")[1]
+    tileTypes.append(tileName)
+    ports: List[Port] = []
+    bels: List[Bel] = []
+    matrixDir = ""
+    withUserCLK = False
+    configBit = 0
+    for item in tileData:
+        temp: List[str] = item.split(",")
+        if not temp or temp[0] == "":
+            continue
+        if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST"]:
+            ports.append(Port(Direction[temp[0]], temp[1], int(
+                temp[2]), int(temp[3]), temp[4], int(temp[5]), temp[1], IO.OUTPUT, Side[temp[0]]))
+
+            ports.append(Port(Direction[temp[0]], temp[1], int(
+                temp[2]), int(temp[3]), temp[4], int(temp[5]), temp[4], IO.INPUT, Side[oppositeDic[temp[0]].upper()]))
+            # wireCount = (abs(int(temp[2])) +
+            #              abs(int(temp[3])))*int(temp[5])
+            # for i in range(wireCount):
+            commonWirePair.append(
+                (f"{temp[1]}", f"{temp[4]}"))
+
+        elif temp[0] == "JUMP":
+            ports.append(Port(Direction.JUMP, temp[1], int(
+                temp[2]), int(temp[3]), temp[4], int(temp[5]), temp[1], IO.OUTPUT, Side.ANY))
+            ports.append(Port(Direction.JUMP, temp[1], int(
+                temp[2]), int(temp[3]), temp[4], int(temp[5]), temp[4], IO.INPUT, Side.ANY))
+        elif temp[0] == "BEL":
+            belFilePath = os.path.join(filePath, temp[1])
+            if temp[1].endswith(".vhdl"):
+                result = parseFileVHDL(belFilePath, temp[2])
+            elif temp[1].endswith(".v"):
+                result = parseFileVerilog(belFilePath, temp[2])
+            else:
+                raise ValueError(
+                    "Invalid file type, only .vhdl and .v are supported")
+            internal, external, config, shared, configBit, userClk, belMap = result
+            bels.append(Bel(belFilePath, temp[2], internal,
+                        external, config, shared, configBit, belMap, userClk))
+            withUserCLK |= userClk
+        elif temp[0] == "MATRIX":
+            matrixDir = os.path.join(filePath, temp[1])
+            configBit = 0
+            if temp[1].endswith(".list"):
+                for _, v in parseList(matrixDir, "source").items():
+                    muxSize = len(v)
+                    if muxSize >= 2:
+                        configBit += muxSize.bit_length()-1
+            elif temp[1].endswith("_matrix.csv"):
+                for _, v in parseMatrix(matrixDir, tileName).items():
+                    muxSize = len(v)
+                    if muxSize >= 2:
+                        configBit += muxSize.bit_length()-1
+            elif temp[1].endswith(".vhdl") or temp[1].endswith(".v"):
+                with open(matrixDir, "r") as f:
+                    f = f.read()
+                    if configBit := re.search(r"NumberOfConfigBits: (\d+)", f):
+                        configBit = int(configBit.group(1))
+                    else:
+                        configBit = 0
+                        print(
+                            f"Cannot find NumberOfConfigBits in {matrixDir} assume 0 config bits")
+
+            else:
+                raise ValueError(
+                    'Unknown file extension for matrix')
+        else:
+            raise ValueError(
+                f"Unknown tile description {temp[0]} in tile {tileData}")
+
+    tileDefs.append(Tile(tileName, ports, bels,
+                    matrixDir, withUserCLK, configBit))
+
+def parseSupertile(fileName, superTileDic, tileDic):
+    """
+    Parses a csv supertile configuration file and appends it to the superTileDic.
+    
+        Args:
+        fileName (str): the path to the csv file.
+        superTileDic ({str: SuperTile}): dict of supertiles.
+        tileDic ({str: Tile}): dict of tiles.
+    """
+    
+    print(f'Reading supertile configuration: {fileName}')
+
+    if not fileName.endswith(".csv"):
+        raise ValueError("File must be a csv file")
+
+    if not os.path.exists(fileName):
+        raise ValueError(f"File {fileName} does not exist")
+
+    filePath, _ = os.path.split(os.path.abspath(fileName))
+
+    with open(fileName, 'r') as f:
+        file = f.read()
+        file = re.sub(r"#.*", "", file)
+
+    superTile = re.findall(r"SuperTILE(.*?)EndSuperTILE",
+                           file, re.MULTILINE | re.DOTALL)
+
+    if not superTile:
+        raise ValueError(f"The following supertile config is not valid: {fileName}")
+        
+    if len(superTile) > 1:
+        raise ValueError(f"Multiple configurations in supertile config: {fileName}")
+
+    description = superTile[0].split("\n")
+    name = description[0].split(",")[1]
+    tileMap = []
+    tiles = []
+    bels = []
+    withUserCLK = False
+    for i in description[1:-1]:
+        line = i.split(",")
+        line = [i for i in line if i != "" and i != " "]
+        row = []
+
+        if line[0] == "BEL":
+            belFilePath = os.path.join(filePath, line[1])
+            if line[0].endswith("VHDL"):
+                result = parseFileVHDL(belFilePath, line[2])
+            else:
+                result = parseFileVerilog(belFilePath, line[2])
+            internal, external, config, shared, configBit, userClk, belMap = result
+            bels.append(Bel(belFilePath, line[2], internal,
+                        external, config, shared, configBit, belMap, userClk))
+            withUserCLK |= userClk
+            continue
+
+        for j in line:
+            if j in tileDic:
+                # mark the tile as part of super tile
+                tileDic[j].partOfSuperTile = True
+                t = deepcopy(tileDic[j])
+                row.append(t)
+                if t not in tiles:
+                    tiles.append(t)
+            elif j == "Null" or j == "NULL" or j == "None":
+                row.append(None)
+            else:
+                raise ValueError(
+                    f"The super tile {name} contains definitions that are not tiles or Null.")
+        tileMap.append(row)
+
+    superTileDic[name] = SuperTile(name, tiles, tileMap, bels, withUserCLK)
 
 @overload
 def parseList(
