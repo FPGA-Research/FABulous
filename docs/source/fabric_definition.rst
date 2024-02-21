@@ -20,15 +20,16 @@ The following figure shows a small fabric, which we will model throughout this s
     
 The full model of a fabric is described by the following files:
 
-* A file :ref:`fabric_csv` providing the :ref:`fabric_layout`, some global settings, and the descriptions of the :ref:`tiles`-
-* A set of list files (\*.list) describing the adjacency list of the switch matrix for each of the used tiles or the corresponding adjacency matrix as a CSV file
+* A file :ref:`fabric_csv` providing the :ref:`fabric_layout` and some global settings
+* A file :ref:`tile_csv` for each tile describing wires, BELs and a link to the switch matrix
+* A set of list files (\*.list) desribing the adjacency list of the switch matrix for each of the used tiles or the corresponding adjacency matrix as a CSV file
 * A set of optional bitstream mapping CSV files
 * A set of primitives used
 
 The following block provides a fabric.csv example. 
 
 .. code-block:: python
-   :emphasize-lines: 1,6,8,15,17,24,26
+   :emphasize-lines: 1,6,8,32
 
    FabricBegin      # explained in subsection Fabric layout
    NULL,  N_term,   N_term,   N_term,  N_term,  NULL
@@ -43,9 +44,31 @@ The following block provides a fabric.csv example.
    MaxFramesPerCol, 20               # configuration bits per tile column
    Package, use work.my_package.all; # populate package fields in VHDL code generation
    GenerateDelayInSwitchMatrix, 80   # we can annotate some delay to multiplexers
-   MultiplexerStyle, custom          # 
-   ParametersEnd        
+   MultiplexerStyle, custom          #
    
+   # Links to tile configuration files
+   Tile,./Tile/LUT4AB/LUT4AB.csv
+   Tile,./Tile/N_term_single/N_term_single.csv
+   Tile,./Tile/S_term_single/S_term_single.csv
+   Tile,./Tile/CPU_IO/CPU_IO.csv
+   Tile,./Tile/RegFile/RegFile.csv
+   Tile,./Tile/N_term_single2/N_term_single2.csv
+   Tile,./Tile/S_term_single2/S_term_single2.csv
+   Tile,./Tile/W_IO/W_IO.csv
+   Tile,./Tile/DSP/DSP_top/DSP_top.csv
+   Tile,./Tile/DSP/DSP_bot/DSP_bot.csv
+   Tile,./Tile/N_term_DSP/N_term_DSP.csv
+   Tile,./Tile/S_term_DSP/S_term_DSP.csv
+
+   Supertile,./Tile/DSP/DSP.csv
+
+   ParametersEnd
+
+And the following block provides a tile.csv example (in this case LUT4AB.csv).
+
+.. code-block:: python
+   :emphasize-lines: 1,8
+
    TILE, LUT4AB      # explained in subsection Tiles            
    #direction  source_name  X-offset  Y-offset  destination_name  wires
    NORTH,      N1BEG,       0,        1,        N1END,            4
@@ -53,10 +76,7 @@ The following block provides a fabric.csv example.
    BEL,      LUT4c_frame_config_OQ.vhdl,  LA_
    ...
    MATRIX,   LUT4AB_switch_matrix.vhdl               
-   EndTILE        
-
-   TILE, DSP         # all other tiles follow the same scheme
-   ...   
+   EndTILE
 
 .. _fabric_csv:
 
@@ -124,6 +144,16 @@ Fabric CSV description
     .. note::  So far, FABulous fabrics use fully (binary) encoded multiplexers (e.g., a MUX16 requires 4 configuration bits). However, the major vendors Xilinx and Intel use highly optimized SRAM cells where a configuration cell may directly control a pass transistor (e.g., as used in Xilinx UltraScale fabrics). For a MUX16, this requires 2 x 4 = 8 configuration bits, but is slightly better in area as omits a decoder.
 	We plan to extend the FABulous switch matrix compiler accordingly.
 
+  * ``Tile``, ``path``
+
+    Specify a path to a tile configuration file that will be loaded.
+
+  * ``Supertile``, ``path``
+
+    Specify a path to a supertile configuration file that will be loaded.
+
+    .. warning::  Previously, tile definitions were contained in the fabric.csv file. This has been deprecated and it is recommended to move the tile descriptions to the respective tile.csv files.
+
 .. _fabric_layout:
 
 Fabric layout
@@ -169,7 +199,7 @@ The following figure shows the fabric.csv representation of our example fabric a
 .. _tiles:
 
 Tiles
--------------
+-----
 
 .. figure:: figs/tile_CLB_example.*
     :alt: Basic tile illustration
@@ -187,8 +217,14 @@ A tile is the smallest unit in a fabric and a tile provides
 * A central configuration storage module 
 
 A tile typically hosts primitives like a CLB with LUTs or an I/O block.
-Multiple smaller tiles can be combined into :ref:`supertiles` to accommodate complex blocks like DSPs.
-Each tile that is referred to in the :ref:`fabric_layout` requires specification of the corresponding tile description in the fabric.csv file that has the following format:  
+Multiple smaller tiles can be combined into :ref:`supertiles` to accomodate complex blocks like DSPs.
+
+.. _tile_csv:
+
+Tile CSV description
+--------------------
+
+Each tile that is referred to in the :ref:`fabric_layout` requires specification of the corresponding tile description in a tile.csv file that has the following format:  
 
 .. code-block:: python
    :emphasize-lines: 1,12
@@ -732,7 +768,7 @@ In any case: supertiles must provide wire interfaces that match the surroundings
 Modelling
 ~~~~~~~~~
 
-Supertiles are modelled from elementary tiles in a spreadsheet/csv file similar to how we model the whole FPGA fabric. Shapes can be defined arbitrary and NULL tiles can be used to skip fields. Examples:
+Supertiles are modelled from elementary tiles in a supertile.csv file similar to how we model the whole FPGA fabric. Shapes can be defined arbitrary and NULL tiles can be used to skip fields. Examples:
 
 .. code-block:: python
    :emphasize-lines: 1,5,7,11,13,17
@@ -768,7 +804,7 @@ If a basic tile has a **border to the outside world** (i.e. the surrounding fabr
 
 A basic tile instantiated in a supertile may not implement interfaces to all NORTH, EAST, SOUTH, WEST directions. For instance, a supertile may include basic terminate tiles if the supertile is supposed to be placed at the border of the fabric.
 
-Tile ports that are declared ``EXTERNAL`` in the basic tiles will be exported all the way to the top-level, in the same way it is done for :ref:`tiles`
+Tile ports that are declared ``EXTERNAL`` in the basic tiles will be exported all the way to the top-level, in the same way as is done for :ref:`tiles`
 
 .. code-block:: VHDL
    :emphasize-lines: 1
@@ -792,7 +828,7 @@ The left example concentrates the DSP functionality in the bottom tile and is mo
 (Note the two extra NORTH and SOUTH wires that provide the connections between the DSP BEL (located bot) and the top basic tile). 
 
 .. code-block:: python
-   :emphasize-lines: 1,5,9,13,15,19,23,28,30,33
+   :emphasize-lines: 1,5,9,13,15,19,23,28
 
    TILE,       DSP_top             
    #direction  source   X-offset  Y-offset destination wires
@@ -821,8 +857,11 @@ The left example concentrates the DSP functionality in the bottom tile and is mo
    JUMP,       J_BEG,   0,        0,       J_END,      8
    BEL,        MULADD.vhdl                 # this is the actual functionality
    MATRIX,     DSP_bot_switch_matrix.vhdl      
-   EndTILE                 
-                       
+   EndTILE
+
+.. code-block:: python
+   :emphasize-lines: 1,4
+
    SuperTILE   DSP  # declace supertile  (Functionality concentrated in DSP_bot)   
    DSP_top                 
    DSP_bot                 
@@ -832,7 +871,7 @@ The right example provides the tile functionality in the supertile wrapper and i
 (Note the two wire entries with the LOCAL attribute in each basic tile to define that these wires are usable in the supertile wrapper. Furthermore, configuration bits for the DSP primitive will be provided through a ConfigBits BEL. This allows it to distribute the number of configuration bits among the basic tiles as needed. Note that configuration bits are organized at basic tile level.)
 
 .. code-block:: python
-   :emphasize-lines: 1,8,9,12,14,21,22,25,27,30,31
+   :emphasize-lines: 1,8,9,12,14,21,22,25
 
    TILE,       DSP_top             
    #direction  source   X-offset  Y-offset destination wires
@@ -858,8 +897,11 @@ The right example provides the tile functionality in the supertile wrapper and i
    LOCAL,      bot2DSP, 0,        0,       NULL,       18 
    BEL,        ConfigBits.vhdl
    MATRIX,     DSP_top_switch_matrix.vhdl      
-   EndTILE                 
-                       
+   EndTILE
+
+.. code-block:: python
+   :emphasize-lines: 1,4,5
+
    SuperTILE   DSP     # declare supertile DSP      
    DSP_top                 
    DSP_bot    
