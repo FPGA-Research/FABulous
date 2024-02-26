@@ -33,14 +33,12 @@ class GeometryGenerator:
         self.fabric = fabric
         self.fabricGeometry = None
 
-
     def generateGeometry(self, padding: int = 8) -> None:
         """
         Starts generation of the geometry for the given fabric.
 
         """
         self.fabricGeometry = FabricGeometry(self.fabric, padding)
-
 
     def saveToCSV(self, fileName: str) -> None:
         """

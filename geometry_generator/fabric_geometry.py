@@ -25,6 +25,7 @@ class FabricGeometry:
         height          (int)                       :   Height of the fabric
 
     """
+
     fabric: Fabric
     tileNames: Set[str]
     tileGeomMap: Dict[str, TileGeometry]
@@ -43,33 +44,6 @@ class FabricGeometry:
         self.height = 0
 
         self.generateGeometry()
-
-    def genNeighbourConstraints(self, queried: TileGeometry) -> None:
-        for i in range(self.fabric.numberOfRows):
-            for j in range(self.fabric.numberOfColumns):
-                tile = self.fabric.tile[i][j]
-                if tile is None:
-                    continue
-                tileName = tile.name
-                tileGeom = self.tileGeomMap[tileName]
-
-                if tileGeom == queried:
-                    searchedTile = None
-                    if queried.border == Border.NORTHSOUTH:
-                        if i == 0:
-                            searchedTile = self.fabric.tile[i + 1][j]
-                        else:
-                            searchedTile = self.fabric.tile[i - 1][j]
-
-                    elif queried.border == Border.EASTWEST:
-                        if j == 0:
-                            searchedTile = self.fabric.tile[i][j + 1]
-                        else:
-                            searchedTile = self.fabric.tile[i][j - 1]
-
-                    if searchedTile is not None:
-                        searchedTileName = searchedTile.name
-                        queried.neighbourConstraints = self.tileGeomMap[searchedTileName].wireConstraints
 
     def generateGeometry(self) -> None:
         """
@@ -94,8 +68,8 @@ class FabricGeometry:
                         self.tileGeomMap[tile.name] = TileGeometry()
 
                     tileGeom = self.tileGeomMap[tile.name]
-                    northSouth = (i == 0 or i + 1 == self.fabric.numberOfRows)
-                    eastWest = (j == 0 or j + 1 == self.fabric.numberOfColumns)
+                    northSouth = i == 0 or i + 1 == self.fabric.numberOfRows
+                    eastWest = j == 0 or j + 1 == self.fabric.numberOfColumns
 
                     if northSouth and eastWest:
                         tileGeom.border = Border.CORNER
@@ -103,23 +77,6 @@ class FabricGeometry:
                         tileGeom.border = Border.NORTHSOUTH
                     elif eastWest:
                         tileGeom.border = Border.EASTWEST
-
-        # generate geometry for central tiles first
-        # to avoid conflicts at outer tiles:
-        # with the geometry of inner tiles already
-        # generated, outer tiles can simply generate
-        # their wires such that everything lines up.
-        innerTileNames = []
-        outerTileNames = []
-
-        for tileName in self.tileNames:
-            tileGeom = self.tileGeomMap[tileName]
-            self.genNeighbourConstraints(tileGeom)
-
-            if tileGeom.border == Border.NONE:
-                innerTileNames.append(tileName)
-            else:
-                outerTileNames.append(tileName)
 
         for tileName in self.tileNames:
             tile = self.fabric.getTileByName(tileName)
@@ -184,7 +141,7 @@ class FabricGeometry:
                         maxWidthInColumn,
                         maxHeightInRow,
                         maxSmWidthInColumn,
-                        maxSmRelXInColumn
+                        maxSmRelXInColumn,
                     )
 
         for i in range(self.fabric.numberOfRows):
@@ -249,36 +206,6 @@ class FabricGeometry:
             tileGeom = self.tileGeomMap[tileName]
             tileGeom.generateWires(self.padding)
 
-        for tileName in outerTileNames:
-            tileGeom = self.tileGeomMap[tileName]
-            tileGeom.generateWires(self.padding)
-
-    def totalWireLines(self) -> int:
-        """
-        Returns the total amount of lines (segments)
-        of wires of the fabrics routing.
-        Can, for instance, be used to initialize
-        the size of datastructures in the frontend.
-
-        """
-        lineGeomMap = {}
-        totalWireLines = 0
-
-        for i in range(self.fabric.numberOfRows):
-            for j in range(self.fabric.numberOfColumns):
-                tile = self.fabric.tile[i][j]
-                if tile is None: continue
-
-                if tile.name not in lineGeomMap:
-                    tileGeom = self.tileGeomMap[tile.name]
-                    tileLines = tileGeom.totalWireLines()
-                    lineGeomMap[tile.name] = tileLines
-                    totalWireLines += tileLines
-                else:
-                    totalWireLines += lineGeomMap[tile.name]
-
-        return totalWireLines
-
     def saveToCSV(self, fileName: str) -> None:
         """
         Saves the generated geometric information of the
@@ -289,31 +216,40 @@ class FabricGeometry:
             fileName (str): the name of the csv file
 
         """
-        logger.info(f"Generating geometry csv file for {self.fabric.name} # file name: {fileName}")
+        logger.info(
+            f"Generating geometry csv file for {self.fabric.name} # file name: {fileName}"
+        )
 
         with open(f"{fileName}", "w", newline="", encoding="utf-8") as file:
             writer = csvWriter(file)
 
-            writer.writerows([
-                ["PARAMS"],
-                ["GeneratorVersion"] + [GENERATOR_VERSION],
-                ["Name"] + [self.fabric.name],
-                ["Rows"] + [str(self.fabric.numberOfRows)],
-                ["Columns"] + [str(self.fabric.numberOfColumns)],
-                ["Width"] + [str(self.width)],
-                ["Height"] + [str(self.height)],
-                ["Lines"] + [str(self.totalWireLines())],
-                []
-            ])
+            writer.writerows(
+                [
+                    ["PARAMS"],
+                    ["Name"] + [self.fabric.name],
+                    ["Rows"] + [str(self.fabric.numberOfRows)],
+                    ["Columns"] + [str(self.fabric.numberOfColumns)],
+                    ["Width"] + [str(self.width)],
+                    ["Height"] + [str(self.height)],
+                    [],
+                ]
+            )
 
             writer.writerow(["FABRIC_DEF"])
             for i in range(self.fabric.numberOfRows):
-                writer.writerow([tile.name if tile is not None else "Null" for tile in self.fabric.tile[i]])
+                writer.writerow(
+                    [
+                        tile.name if tile is not None else "Null"
+                        for tile in self.fabric.tile[i]
+                    ]
+                )
             writer.writerow([])
 
             writer.writerow(["FABRIC_LOCS"])
             for i in range(self.fabric.numberOfRows):
-                writer.writerow([loc if loc is not None else "Null" for loc in self.tileLocs[i]])
+                writer.writerow(
+                    [loc if loc is not None else "Null" for loc in self.tileLocs[i]]
+                )
             writer.writerows([[], []])
 
             for tileName in self.tileNames:

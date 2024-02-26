@@ -23,7 +23,7 @@ class codeGenerator(abc.ABC):
         if self._outFileName == "":
             print("OutFileName is not set")
             exit(-1)
-        with open(self._outFileName, 'w') as f:
+        with open(self._outFileName, "w") as f:
             self._content = [i for i in self._content if i is not None]
             f.write("\n".join(self._content))
         self._content = []
@@ -62,7 +62,7 @@ class codeGenerator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def addHeader(self, name: str, package='', indentLevel=0):
+    def addHeader(self, name: str, package="", indentLevel=0):
         """
         Add a header to the code.
 
@@ -87,7 +87,7 @@ class codeGenerator(abc.ABC):
         Add end to header. Only useful with VHDL.
 
         Examples :
-            | Verilog: 
+            | Verilog:
             | VHDL: end entity **name**;
 
         Args:
@@ -136,7 +136,7 @@ class codeGenerator(abc.ABC):
         Args:
             name (str): name of the parameter
             type (_type_): type of the parameter. Only useful with VHDL.
-            value (_type_): value of the parameter. 
+            value (_type_): value of the parameter.
             indentLevel (int, optional): The indentation Level. Defaults to 0.
         """
         pass
@@ -221,7 +221,7 @@ class codeGenerator(abc.ABC):
     @abc.abstractmethod
     def addDesignDescriptionEnd(self, indentLevel=0):
         """
-        Add end of design description. 
+        Add end of design description.
 
         Examples :
             | Verilog: endmodule
@@ -274,7 +274,7 @@ class codeGenerator(abc.ABC):
 
         Args:
             name (str): name of the connection
-            startIndex : Start index of the vector. Can be a string. 
+            startIndex : Start index of the vector. Can be a string.
             endIndex (int, optional): End index of the vector. Can be a string. Defaults to 0.
             indentLevel (int, optional): The indentation Level. Defaults to 0.
         """
@@ -286,7 +286,7 @@ class codeGenerator(abc.ABC):
         Add start of logic. Only useful with VHDL.
 
         Examples :
-            | Verilog: 
+            | Verilog:
             | VHDL: begin
 
         Args:
@@ -309,7 +309,15 @@ class codeGenerator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def addInstantiation(self, compName: str, compInsName: str, portsPairs: List[Tuple[str, str]], paramPairs: List[Tuple[str, str]] = [], emulateParamPairs: List[Tuple[str, str]] = [], indentLevel=0):
+    def addInstantiation(
+        self,
+        compName: str,
+        compInsName: str,
+        portsPairs: List[Tuple[str, str]],
+        paramPairs: List[Tuple[str, str]] = [],
+        emulateParamPairs: List[Tuple[str, str]] = [],
+        indentLevel=0,
+    ):
         """
         Add an instantiation. This will line up the ports and signals. So ports[0] will have signals[0] and so on. This is also the same case for paramPorts and paramSignals.
 
@@ -319,7 +327,7 @@ class codeGenerator(abc.ABC):
             |             . **paramPorts[1]** (**paramSignals[1]**),
             |             ...
             |             . **paramPorts[n]** (**paramSignals[n]**)
-            |             ) ( 
+            |             ) (
             |             . **compPorts[0]** (**signals[0]**),
             |             . **compPorts[1]** (**signals[1]**),
             |             ...
@@ -391,9 +399,9 @@ class codeGenerator(abc.ABC):
     @abc.abstractmethod
     def addAssignScalar(self, left, right, delay=0, indentLevel=0):
         """
-        Add a scalar assign statement. Delay is provided by currently not being used by any of the code generator. 
-        If **right** is a list, it will be concatenated. 
-        Verilog will be concatenated with comma ','. 
+        Add a scalar assign statement. Delay is provided by currently not being used by any of the code generator.
+        If **right** is a list, it will be concatenated.
+        Verilog will be concatenated with comma ','.
         VHDL will be concatenated with ampersand '&'.
 
         Examples :
@@ -440,7 +448,6 @@ class codeGenerator(abc.ABC):
             indentLevel (int, optional): The indentation Level. Defaults to 0.
         """
         pass
-
 
     @abc.abstractmethod
     def addPreprocIfNotDef(self, macro, indentLevel=0):

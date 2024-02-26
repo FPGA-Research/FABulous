@@ -9,7 +9,6 @@ class PortType(Enum):
     BEL = "BEL_PORT"
 
 
-
 class PortGeometry:
     """
     A datastruct representing the geometry of a Port
@@ -29,6 +28,7 @@ class PortGeometry:
         relY            (int)       :   Y coordinate of the port, relative to its parent (bel, switch matrix)
 
     """
+
     name: str
     sourceName: str
     destName: str
@@ -42,7 +42,6 @@ class PortGeometry:
     relY: int
 
     nextId = 1
-
 
     def __init__(self):
         self.name = None
@@ -58,15 +57,16 @@ class PortGeometry:
         self.relX = 0
         self.relY = 0
 
-
-    def generateGeometry(self,
-                         name: str,
-                         sourceName: str,
-                         destName: str,
-                         type: PortType,
-                         ioDirection: IO,
-                         relX: int, 
-                         relY: int) -> None:
+    def generateGeometry(
+        self,
+        name: str,
+        sourceName: str,
+        destName: str,
+        type: PortType,
+        ioDirection: IO,
+        relX: int,
+        relY: int,
+    ) -> None:
         self.name = name
         self.sourceName = sourceName
         self.destName = destName
@@ -75,15 +75,16 @@ class PortGeometry:
         self.relX = relX
         self.relY = relY
 
-
     def saveToCSV(self, writer: csvWriter) -> None:
-        writer.writerows([
-            [self.type.value],
-            ["Name"]    + [self.name],
-            ["Source"]  + [self.sourceName],
-            ["Dest"]    + [self.destName],
-            ["IO"]      + [self.ioDirection.value],
-            ["RelX"]    + [str(self.relX)],
-            ["RelY"]    + [str(self.relY)],
-            []
-        ])
+        writer.writerows(
+            [
+                [self.type.value],
+                ["Name"] + [self.name],
+                ["Source"] + [self.sourceName],
+                ["Dest"] + [self.destName],
+                ["IO"] + [self.ioDirection.value],
+                ["RelX"] + [str(self.relX)],
+                ["RelY"] + [str(self.relY)],
+                [],
+            ]
+        )

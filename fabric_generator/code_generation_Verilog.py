@@ -15,13 +15,11 @@ class VerilogWriter(codeGenerator):
         if onNewLine:
             self._add("")
         if self._content:
-            self._content[-1] += f"{' ':<{indentLevel*4}}" + \
-                f"//{comment}"f"{end}"
+            self._content[-1] += f"{' ':<{indentLevel*4}}" + f"//{comment}" f"{end}"
         else:
-            self._add(f"{' ':<{indentLevel*4}}" +
-                      f"// {comment}"f"{end}")
+            self._add(f"{' ':<{indentLevel*4}}" + f"// {comment}" f"{end}")
 
-    def addHeader(self, name, package='', indentLevel=0):
+    def addHeader(self, name, package="", indentLevel=0):
         self._add(f"module {name}", indentLevel)
 
     def addHeaderEnd(self, name, indentLevel=0):
@@ -51,9 +49,10 @@ class VerilogWriter(codeGenerator):
 
     def addPortEnd(self, indentLevel=0):
         def deComma(x):
-            cpos = x.rfind(',')
+            cpos = x.rfind(",")
             assert cpos != -1, x
-            return x[:cpos] + x[cpos+1:]
+            return x[:cpos] + x[cpos + 1 :]
+
         temp = self._content.pop()
         if "//" in temp and "," not in temp:
             temp2 = deComma(self._content.pop())
@@ -84,8 +83,7 @@ class VerilogWriter(codeGenerator):
         self._add(f"wire {name};", indentLevel)
 
     def addConnectionVector(self, name, startIndex, endIndex=0, indentLevel=0):
-        self._add(
-            f"wire[{startIndex}:{endIndex}] {name};", indentLevel)
+        self._add(f"wire[{startIndex}:{endIndex}] {name};", indentLevel)
 
     def addLogicStart(self, indentLevel=0):
         pass
@@ -93,29 +91,39 @@ class VerilogWriter(codeGenerator):
     def addLogicEnd(self, indentLevel=0):
         pass
 
-    def addInstantiation(self, compName, compInsName, portsPairs, paramPairs=[], emulateParamPairs=[], indentLevel=0):
+    def addInstantiation(
+        self,
+        compName,
+        compInsName,
+        portsPairs,
+        paramPairs=[],
+        emulateParamPairs=[],
+        indentLevel=0,
+    ):
         if paramPairs:
             port = [f".{i[0]}({i[1]})" for i in paramPairs]
+            self._add(f"{compName}", indentLevel=indentLevel)
+            self._add("#(", indentLevel=indentLevel + 1)
             self._add(
-                f"{compName}", indentLevel=indentLevel)
-            self._add("#(", indentLevel=indentLevel+1)
-            self._add(
-                (",\n"f"{' ':<{4*(indentLevel + 1)}}").join(port), indentLevel=indentLevel + 1)
-            self._add(")", indentLevel=indentLevel+1)
-            self._add(f"{compInsName}", indentLevel=indentLevel+1)
-            self._add("(", indentLevel=indentLevel+1)
+                (",\n" f"{' ':<{4*(indentLevel + 1)}}").join(port),
+                indentLevel=indentLevel + 1,
+            )
+            self._add(")", indentLevel=indentLevel + 1)
+            self._add(f"{compInsName}", indentLevel=indentLevel + 1)
+            self._add("(", indentLevel=indentLevel + 1)
         elif emulateParamPairs:
             port = [f".{i[0]}({i[1]})" for i in emulateParamPairs]
-            self._add(
-                f"{compName}", indentLevel=indentLevel)
+            self._add(f"{compName}", indentLevel=indentLevel)
             self._add("`ifdef EMULATION", indentLevel=0)
-            self._add("#(", indentLevel=indentLevel+1)
+            self._add("#(", indentLevel=indentLevel + 1)
             self._add(
-                (",\n"f"{' ':<{4*(indentLevel + 1)}}").join(port), indentLevel=indentLevel + 1)
-            self._add(")", indentLevel=indentLevel+1)
+                (",\n" f"{' ':<{4*(indentLevel + 1)}}").join(port),
+                indentLevel=indentLevel + 1,
+            )
+            self._add(")", indentLevel=indentLevel + 1)
             self._add("`endif", indentLevel=0)
-            self._add(f"{compInsName}", indentLevel=indentLevel+1)
-            self._add("(", indentLevel=indentLevel+1)
+            self._add(f"{compInsName}", indentLevel=indentLevel + 1)
+            self._add("(", indentLevel=indentLevel + 1)
         else:
             self._add(f"{compName} {compInsName} (", indentLevel=indentLevel)
 
@@ -128,18 +136,22 @@ class VerilogWriter(codeGenerator):
             connectPair.append(f".{i[0]}({tmp})")
 
         self._add(
-            (",\n"f"{' ':<{4*(indentLevel + 1)}}").join(connectPair), indentLevel=indentLevel + 1)
+            (",\n" f"{' ':<{4*(indentLevel + 1)}}").join(connectPair),
+            indentLevel=indentLevel + 1,
+        )
         self._add(");", indentLevel=indentLevel)
         self.addNewLine()
 
     def addComponentDeclarationForFile(self, fileName):
         configPortUsed = 0  # 1 means is used
-        with open(fileName, 'r') as f:
+        with open(fileName, "r") as f:
             data = f.read()
 
-        if result := re.search(r"NumberOfConfigBits.*?(\d+)", data, flags=re.IGNORECASE):
+        if result := re.search(
+            r"NumberOfConfigBits.*?(\d+)", data, flags=re.IGNORECASE
+        ):
             configPortUsed = 1
-            if result.group(1) == '0':
+            if result.group(1) == "0":
                 configPortUsed = 0
 
         return configPortUsed
@@ -159,7 +171,7 @@ class VerilogWriter(codeGenerator):
         self._add(template, indentLevel)
 
     def addFlipFlopChain(self, configBits, indentLevel=0):
-        cfgBit = int(math.ceil(configBits/2.0))*2
+        cfgBit = int(math.ceil(configBits / 2.0)) * 2
         template = f"""
     genvar k;
     assign ConfigBitsInput = {{ConfigBits[{cfgBit}-1-1:0], CONFin;}}
@@ -187,8 +199,7 @@ class VerilogWriter(codeGenerator):
             self._add(f"assign {left} = {right};")
 
     def addAssignVector(self, left, right, widthL, widthR, indentLevel=0):
-        self._add(
-            f"assign {left} = {right}[{widthL}:{widthR}];", indentLevel)
+        self._add(f"assign {left} = {right}[{widthL}:{widthR}];", indentLevel)
 
     def addPreprocIfDef(self, macro, indentLevel=0):
         self._add(f"`ifdef {macro}", indentLevel)

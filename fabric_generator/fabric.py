@@ -39,7 +39,7 @@ class ConfigBitMode(Enum):
 
 
 @dataclass(frozen=True, eq=True)
-class Port():
+class Port:
     """
     The port data class contains all the port information from the CSV file.
     The `name`, `inOut` and `sideOfTile` are added attributes to aid the generation of the fabric.
@@ -60,6 +60,7 @@ class Port():
         inOut (IO): The IO direction of the port
         sideOfTile (Side): The side which the port is physically located on the tile
     """
+
     wireDirection: Direction
     sourceName: str
     xOffset: int
@@ -75,36 +76,45 @@ class Port():
 
     def expandPortInfoByName(self, indexed=False) -> List[str]:
         if self.sourceName == "NULL" or self.destinationName == "NULL":
-            wireCount = (abs(self.xOffset)+abs(self.yOffset)) * self.wireCount
+            wireCount = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
         else:
             wireCount = self.wireCount
         if not indexed:
             return [f"{self.name}{i}" for i in range(wireCount) if self.name != "NULL"]
         else:
-            return [f"{self.name}[{i}]" for i in range(wireCount) if self.name != "NULL"]
+            return [
+                f"{self.name}[{i}]" for i in range(wireCount) if self.name != "NULL"
+            ]
 
     def expandPortInfoByNameTop(self, indexed=False) -> List[str]:
         if self.sourceName == "NULL" or self.destinationName == "NULL":
             startIndex = 0
         else:
-            startIndex = (
-                (abs(self.xOffset)+abs(self.yOffset))-1) * self.wireCount
+            startIndex = ((abs(self.xOffset) + abs(self.yOffset)) - 1) * self.wireCount
 
-        wireCount = (abs(self.xOffset)+abs(self.yOffset)) * self.wireCount
+        wireCount = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
 
         if not indexed:
-            return [f"{self.name}{i}" for i in range(startIndex, wireCount) if self.name != "NULL"]
+            return [
+                f"{self.name}{i}"
+                for i in range(startIndex, wireCount)
+                if self.name != "NULL"
+            ]
         else:
-            return [f"{self.name}[{i}]" for i in range(startIndex, wireCount) if self.name != "NULL"]
+            return [
+                f"{self.name}[{i}]"
+                for i in range(startIndex, wireCount)
+                if self.name != "NULL"
+            ]
 
     def expandPortInfo(self, mode="SwitchMatrix") -> Tuple[List[str], List[str]]:
         """
         Expanding the port information to individual bit signal. If indexed is in the mode, then brackets are added to the signal name.
 
         Args:
-            mode (str, optional): mode for expansion. Defaults to "SwitchMatrix". 
-                                  Possible modes are 'all', 'allIndexed', 'Top', 'TopIndexed', 'AutoTop', 
-                                  'AutoTopIndexed', 'SwitchMatrix', 'SwitchMatrixIndexed', 'AutoSwitchMatrix', 
+            mode (str, optional): mode for expansion. Defaults to "SwitchMatrix".
+                                  Possible modes are 'all', 'allIndexed', 'Top', 'TopIndexed', 'AutoTop',
+                                  'AutoTopIndexed', 'SwitchMatrix', 'SwitchMatrixIndexed', 'AutoSwitchMatrix',
                                   'AutoSwitchMatrixIndexed'
         Returns:
             Tuple[List[str], List[str]]: A tuple of two lists. The first list contains the source names of the ports and the second list contains the destination names of the ports.
@@ -124,46 +134,49 @@ class Port():
         elif mode == "AutoSwitchMatrix" or mode == "AutoSwitchMatrixIndexed":
             if self.sourceName == "NULL" or self.destinationName == "NULL":
                 # the following line connects all wires to the switch matrix in the case one port is NULL (typically termination)
-                thisRange = (
-                    abs(self.xOffset)+abs(self.yOffset)) * self.wireCount
+                thisRange = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
             else:
                 # the following line connects all bottom wires to the switch matrix in the case begin and end ports are used
                 thisRange = self.wireCount
         # range ((wires*distance)-1 downto 0) as connected to the tile top
-        elif mode in ['all', 'allIndexed', 'Top', 'TopIndexed', 'AutoTop', 'AutoTopIndexed']:
-            thisRange = (
-                abs(self.xOffset)+abs(self.yOffset)) * self.wireCount
+        elif mode in [
+            "all",
+            "allIndexed",
+            "Top",
+            "TopIndexed",
+            "AutoTop",
+            "AutoTopIndexed",
+        ]:
+            thisRange = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
 
         # the following three lines are needed to get the top line[wires] that are actually the connection from a switch matrix to the routing fabric
         startIndex = 0
-        if mode in ['Top', 'TopIndexed']:
-            startIndex = (
-                (abs(self.xOffset)+abs(self.yOffset))-1) * self.wireCount
+        if mode in ["Top", "TopIndexed"]:
+            startIndex = ((abs(self.xOffset) + abs(self.yOffset)) - 1) * self.wireCount
 
-        elif mode in ['AutoTop', 'AutoTopIndexed']:
-            if self.sourceName == 'NULL' or self.destinationName == 'NULL':
+        elif mode in ["AutoTop", "AutoTopIndexed"]:
+            if self.sourceName == "NULL" or self.destinationName == "NULL":
                 # in case one port is NULL, then the all the other port wires get connected to the switch matrix.
                 startIndex = 0
             else:
                 # "normal" case as for the CLBs
                 startIndex = (
-                    (abs(self.xOffset)+abs(self.yOffset))-1) * self.wireCount
+                    (abs(self.xOffset) + abs(self.yOffset)) - 1
+                ) * self.wireCount
         if startIndex == thisRange:
             thisRange = 1
 
         for i in range(startIndex, thisRange):
             if self.sourceName != "NULL":
-                inputs.append(
-                    f"{self.sourceName}{openIndex}{str(i)}{closeIndex}")
+                inputs.append(f"{self.sourceName}{openIndex}{str(i)}{closeIndex}")
 
             if self.destinationName != "NULL":
-                outputs.append(
-                    f"{self.destinationName}{openIndex}{str(i)}{closeIndex}")
+                outputs.append(f"{self.destinationName}{openIndex}{str(i)}{closeIndex}")
         return inputs, outputs
 
 
 @dataclass(frozen=True, eq=True)
-class Wire():
+class Wire:
     """
     This class is for wire connection that span across multiple tiles. If working for connection between two adjacent tiles, the Port class should have all the required information. The main use of this class is to assist model generation, where information at individual wire level is needed.
 
@@ -176,6 +189,7 @@ class Wire():
         sourceTile (str): The source tile name of the wire
         destinationTile (str): The destination tile name of the wire
     """
+
     direction: Direction
     source: str
     xOffset: int
@@ -194,14 +208,14 @@ class Wire():
 
 
 @dataclass
-class Bel():
+class Bel:
     """
     Contains all the information about a single BEL. The information is parsed from the directory of the BEL in the CSV
-    definition file. There are something to be noted. 
+    definition file. There are something to be noted.
 
-    * The parsed name will contains the prefix of the bel. 
-    * The `sharedPort` attribute is a list of Tuples with name of the port and IO information which is not expanded out yet. 
-    * If a port is marked as both shared and external, the port is considered as shared. As a result signal like UserCLK will be in shared port list, but not in external port list. 
+    * The parsed name will contains the prefix of the bel.
+    * The `sharedPort` attribute is a list of Tuples with name of the port and IO information which is not expanded out yet.
+    * If a port is marked as both shared and external, the port is considered as shared. As a result signal like UserCLK will be in shared port list, but not in external port list.
 
 
     Attributes:
@@ -218,6 +232,7 @@ class Bel():
         belFeatureMap (Dict[str, dict]) : The feature map of the BEL.
         withUserCLK (bool) : Whether the BEL has userCLK port. Default is False.
     """
+
     src: str
     prefix: str
     name: str
@@ -231,7 +246,18 @@ class Bel():
     belFeatureMap: Dict[str, dict] = field(default_factory=dict)
     withUserCLK: bool = False
 
-    def __init__(self, src: str, prefix: str, internal, external, configPort, sharedPort, configBit: int, belMap: Dict[str, dict], userCLK: bool) -> None:
+    def __init__(
+        self,
+        src: str,
+        prefix: str,
+        internal,
+        external,
+        configPort,
+        sharedPort,
+        configBit: int,
+        belMap: Dict[str, dict],
+        userCLK: bool,
+    ) -> None:
         self.src = src
         self.prefix = prefix
         self.name = src.split("/")[-1].split(".")[0]
@@ -247,7 +273,7 @@ class Bel():
 
 
 @dataclass(frozen=True, eq=True)
-class ConfigMem():
+class ConfigMem:
     """
     Data structure to store the information about a config memory. Each structure represent a row of entry in the config memory csv file.
 
@@ -256,8 +282,9 @@ class ConfigMem():
         frameIndex (int) : The index of the frame
         bitUsedInFrame (int) : The number of bits used in the frame
         usedBitMask (int) : The bit mask of the bits used in the frame
-        configBitRanges (List[int]) : A list of config bit mapping values 
+        configBitRanges (List[int]) : A list of config bit mapping values
     """
+
     frameName: str
     frameIndex: int
     bitsUsedInFrame: int
@@ -266,9 +293,9 @@ class ConfigMem():
 
 
 @dataclass
-class Tile():
+class Tile:
     """
-    This class is for storing the information about a tile. 
+    This class is for storing the information about a tile.
 
     attributes:
         name (str) : The name of the tile
@@ -290,7 +317,15 @@ class Tile():
     filePath: str = "."
     partOfSuperTile = False
 
-    def __init__(self, name: str, ports: List[Port], bels: List[Bel], matrixDir: str, userCLK: bool, configBit: int = 0) -> None:
+    def __init__(
+        self,
+        name: str,
+        ports: List[Port],
+        bels: List[Bel],
+        matrixDir: str,
+        userCLK: bool,
+        configBit: int = 0,
+    ) -> None:
         self.name = name
         self.portsInfo = ports
         self.bels = bels
@@ -309,38 +344,74 @@ class Tile():
         return self.name == __o.name
 
     def getWestSidePorts(self) -> List[Port]:
-        return [p for p in self.portsInfo if p.sideOfTile == Side.WEST and p.name != "NULL"]
+        return [
+            p for p in self.portsInfo if p.sideOfTile == Side.WEST and p.name != "NULL"
+        ]
 
     def getEastSidePorts(self) -> List[Port]:
-        return [p for p in self.portsInfo if p.sideOfTile == Side.EAST and p.name != "NULL"]
+        return [
+            p for p in self.portsInfo if p.sideOfTile == Side.EAST and p.name != "NULL"
+        ]
 
     def getNorthSidePorts(self) -> List[Port]:
-        return [p for p in self.portsInfo if p.sideOfTile == Side.NORTH and p.name != "NULL"]
+        return [
+            p for p in self.portsInfo if p.sideOfTile == Side.NORTH and p.name != "NULL"
+        ]
 
     def getSouthSidePorts(self) -> List[Port]:
-        return [p for p in self.portsInfo if p.sideOfTile == Side.SOUTH and p.name != "NULL"]
+        return [
+            p for p in self.portsInfo if p.sideOfTile == Side.SOUTH and p.name != "NULL"
+        ]
 
     def getNorthPorts(self, io: IO) -> List[Port]:
-        return [p for p in self.portsInfo if p.wireDirection == Direction.NORTH and p.name != "NULL" and p.inOut == io]
+        return [
+            p
+            for p in self.portsInfo
+            if p.wireDirection == Direction.NORTH and p.name != "NULL" and p.inOut == io
+        ]
 
     def getSouthPorts(self, io: IO) -> List[Port]:
-        return [p for p in self.portsInfo if p.wireDirection == Direction.SOUTH and p.name != "NULL" and p.inOut == io]
+        return [
+            p
+            for p in self.portsInfo
+            if p.wireDirection == Direction.SOUTH and p.name != "NULL" and p.inOut == io
+        ]
 
     def getEastPorts(self, io: IO) -> List[Port]:
-        return [p for p in self.portsInfo if p.wireDirection == Direction.EAST and p.name != "NULL" and p.inOut == io]
+        return [
+            p
+            for p in self.portsInfo
+            if p.wireDirection == Direction.EAST and p.name != "NULL" and p.inOut == io
+        ]
 
     def getWestPorts(self, io: IO) -> List[Port]:
-        return [p for p in self.portsInfo if p.wireDirection == Direction.WEST and p.name != "NULL" and p.inOut == io]
+        return [
+            p
+            for p in self.portsInfo
+            if p.wireDirection == Direction.WEST and p.name != "NULL" and p.inOut == io
+        ]
 
     def getTileInputNames(self) -> List[str]:
-        return [p.destinationName for p in self.portsInfo if p.destinationName != "NULL" and p.wireDirection != Direction.JUMP and p.inOut == IO.INPUT]
+        return [
+            p.destinationName
+            for p in self.portsInfo
+            if p.destinationName != "NULL"
+            and p.wireDirection != Direction.JUMP
+            and p.inOut == IO.INPUT
+        ]
 
     def getTileOutputNames(self) -> List[str]:
-        return [p.sourceName for p in self.portsInfo if p.sourceName != "NULL" and p.wireDirection != Direction.JUMP and p.inOut == IO.OUTPUT]
+        return [
+            p.sourceName
+            for p in self.portsInfo
+            if p.sourceName != "NULL"
+            and p.wireDirection != Direction.JUMP
+            and p.inOut == IO.OUTPUT
+        ]
 
 
-@ dataclass
-class SuperTile():
+@dataclass
+class SuperTile:
     """
     This class is for storing the information about a super tile.
 
@@ -371,13 +442,13 @@ class SuperTile():
                 if self.tileMap[y][x] == None:
                     continue
                 ports[f"{x},{y}"] = []
-                if y - 1 < 0 or self.tileMap[y-1][x] == None:
+                if y - 1 < 0 or self.tileMap[y - 1][x] == None:
                     ports[f"{x},{y}"].append(tile.getNorthSidePorts())
-                if x + 1 >= len(self.tileMap[y]) or self.tileMap[y][x+1] == None:
+                if x + 1 >= len(self.tileMap[y]) or self.tileMap[y][x + 1] == None:
                     ports[f"{x},{y}"].append(tile.getEastSidePorts())
-                if y + 1 >= len(self.tileMap) or self.tileMap[y+1][x] == None:
+                if y + 1 >= len(self.tileMap) or self.tileMap[y + 1][x] == None:
                     ports[f"{x},{y}"].append(tile.getSouthSidePorts())
-                if x - 1 < 0 or self.tileMap[y][x-1] == None:
+                if x - 1 < 0 or self.tileMap[y][x - 1] == None:
                     ports[f"{x},{y}"].append(tile.getWestSidePorts())
         return ports
 
@@ -392,26 +463,22 @@ class SuperTile():
         internalConnections = []
         for y, row in enumerate(self.tileMap):
             for x, tile in enumerate(row):
-                if 0 <= y - 1 < len(self.tileMap) and self.tileMap[y-1][x] != None:
-                    internalConnections.append(
-                        (tile.getNorthSidePorts(), x, y))
-                if 0 <= x + 1 < len(self.tileMap[0]) and self.tileMap[y][x+1] != None:
-                    internalConnections.append(
-                        (tile.getEastSidePorts(), x, y))
-                if 0 <= y + 1 < len(self.tileMap) and self.tileMap[y+1][x] != None:
-                    internalConnections.append(
-                        (tile.getSouthSidePorts(), x, y))
-                if 0 <= x - 1 < len(self.tileMap[0]) and self.tileMap[y][x-1] != None:
-                    internalConnections.append(
-                        (tile.getWestSidePorts(), x, y))
+                if 0 <= y - 1 < len(self.tileMap) and self.tileMap[y - 1][x] != None:
+                    internalConnections.append((tile.getNorthSidePorts(), x, y))
+                if 0 <= x + 1 < len(self.tileMap[0]) and self.tileMap[y][x + 1] != None:
+                    internalConnections.append((tile.getEastSidePorts(), x, y))
+                if 0 <= y + 1 < len(self.tileMap) and self.tileMap[y + 1][x] != None:
+                    internalConnections.append((tile.getSouthSidePorts(), x, y))
+                if 0 <= x - 1 < len(self.tileMap[0]) and self.tileMap[y][x - 1] != None:
+                    internalConnections.append((tile.getWestSidePorts(), x, y))
         return internalConnections
 
 
-@ dataclass
-class Fabric():
+@dataclass
+class Fabric:
     """
-    This class is for storing the information and hyper parameter of the fabric. All the information is parsed from the 
-    CSV file. 
+    This class is for storing the information and hyper parameter of the fabric. All the information is parsed from the
+    CSV file.
 
     Attributes:
         tile (List[List[Tile]]) : The tile map of the fabric
@@ -421,15 +488,15 @@ class Fabric():
         configMitMode (ConfigBitMode): The configuration bit mode of the fabric. Currently support frame based or ff chain
         frameBitsPerRow (int) : The number of frame bits per row of the fabric
         maxFramesPerCol (int) : The maximum number of frames per column of the fabric
-        package (str) : The extra package used by the fabric. Only useful for VHDL output. 
-        generateDelayInSwitchMatrix (int) : The amount of delay in a switch matrix. 
+        package (str) : The extra package used by the fabric. Only useful for VHDL output.
+        generateDelayInSwitchMatrix (int) : The amount of delay in a switch matrix.
         multiplexerStyle (MultiplexerStyle) : The style of the multiplexer used in the fabric. Currently support custom or generic
         frameSelectWidth (int) : The width of the frame select signal.
         rowSelectWidth (int) : The width of the row select signal.
-        desync_flag (int): 
+        desync_flag (int):
         numberOfBRAMs (int) : The number of BRAMs in the fabric.
         superTileEnable (bool) : Whether the fabric has super tile.
-        tileDic (Dict[str, Tile]) : A dictionary of tiles used in the fabric. The key is the name of the tile and the value is the tile. 
+        tileDic (Dict[str, Tile]) : A dictionary of tiles used in the fabric. The key is the name of the tile and the value is the tile.
         superTileDic (Dict[str, SuperTile]) : A dictionary of super tiles used in the fabric. The key is the name of the super tile and the value is the super tile.
 
     """
@@ -458,7 +525,7 @@ class Fabric():
 
     def __post_init__(self) -> None:
         """
-        Generate all the wire pair in the fabric and get all the wire in the fabric. 
+        Generate all the wire pair in the fabric and get all the wire in the fabric.
         The wire pair are used during model generation when some of the signals have source or destination of "NULL".
         The wires are used during model generation to work with wire that going cross tile.
         """
@@ -467,81 +534,105 @@ class Fabric():
                 if tile == None:
                     continue
                 for port in tile.portsInfo:
-                    self.commonWirePair.append(
-                        (port.sourceName, port.destinationName))
+                    self.commonWirePair.append((port.sourceName, port.destinationName))
 
         self.commonWirePair = list(dict.fromkeys(self.commonWirePair))
         self.commonWirePair = [
-            (i, j) for i, j in self.commonWirePair if i != "NULL" and j != "NULL"]
+            (i, j) for i, j in self.commonWirePair if i != "NULL" and j != "NULL"
+        ]
 
         for y, row in enumerate(self.tile):
             for x, tile in enumerate(row):
                 if tile == None:
                     continue
                 for port in tile.portsInfo:
-                    if abs(port.xOffset) <= 1 and abs(port.yOffset) <= 1 and port.sourceName != "NULL" and port.destinationName != "NULL":
+                    if (
+                        abs(port.xOffset) <= 1
+                        and abs(port.yOffset) <= 1
+                        and port.sourceName != "NULL"
+                        and port.destinationName != "NULL"
+                    ):
                         for i in range(port.wireCount):
-                            tile.wireList.append(Wire(direction=port.wireDirection,
-                                                      source=f"{port.sourceName}{i}",
-                                                      xOffset=port.xOffset,
-                                                      yOffset=port.yOffset,
-                                                      destination=f"{port.destinationName}{i}",
-                                                      sourceTile="",
-                                                      destinationTile=""))
+                            tile.wireList.append(
+                                Wire(
+                                    direction=port.wireDirection,
+                                    source=f"{port.sourceName}{i}",
+                                    xOffset=port.xOffset,
+                                    yOffset=port.yOffset,
+                                    destination=f"{port.destinationName}{i}",
+                                    sourceTile="",
+                                    destinationTile="",
+                                )
+                            )
                     elif port.sourceName != "NULL" and port.destinationName != "NULL":
                         # clamp the xOffset to 1 or -1
                         value = min(max(port.xOffset, -1), 1)
                         cascadedI = 0
-                        for i in range(port.wireCount*abs(port.xOffset)):
+                        for i in range(port.wireCount * abs(port.xOffset)):
                             if i < port.wireCount:
-                                cascadedI = i + port.wireCount * \
-                                    (abs(port.xOffset)-1)
+                                cascadedI = i + port.wireCount * (abs(port.xOffset) - 1)
                             else:
                                 cascadedI = i - port.wireCount
-                                tile.wireList.append(Wire(direction=Direction.JUMP,
-                                                          source=f"{port.destinationName}{i}",
-                                                          xOffset=0,
-                                                          yOffset=0,
-                                                          destination=f"{port.sourceName}{i}",
-                                                          sourceTile=f"X{x}Y{y}",
-                                                          destinationTile=f"X{x}Y{y}"))
-                            tile.wireList.append(Wire(direction=port.wireDirection,
-                                                      source=f"{port.sourceName}{i}",
-                                                      xOffset=value,
-                                                      yOffset=port.yOffset,
-                                                      destination=f"{port.destinationName}{cascadedI}",
-                                                      sourceTile=f"X{x}Y{y}",
-                                                      destinationTile=f"X{x+value}Y{y+port.yOffset}"))
+                                tile.wireList.append(
+                                    Wire(
+                                        direction=Direction.JUMP,
+                                        source=f"{port.destinationName}{i}",
+                                        xOffset=0,
+                                        yOffset=0,
+                                        destination=f"{port.sourceName}{i}",
+                                        sourceTile=f"X{x}Y{y}",
+                                        destinationTile=f"X{x}Y{y}",
+                                    )
+                                )
+                            tile.wireList.append(
+                                Wire(
+                                    direction=port.wireDirection,
+                                    source=f"{port.sourceName}{i}",
+                                    xOffset=value,
+                                    yOffset=port.yOffset,
+                                    destination=f"{port.destinationName}{cascadedI}",
+                                    sourceTile=f"X{x}Y{y}",
+                                    destinationTile=f"X{x+value}Y{y+port.yOffset}",
+                                )
+                            )
 
                         # clamp the yOffset to 1 or -1
                         value = min(max(port.yOffset, -1), 1)
                         cascadedI = 0
-                        for i in range(port.wireCount*abs(port.yOffset)):
+                        for i in range(port.wireCount * abs(port.yOffset)):
                             if i < port.wireCount:
-                                cascadedI = i + port.wireCount * \
-                                    (abs(port.yOffset)-1)
+                                cascadedI = i + port.wireCount * (abs(port.yOffset) - 1)
                             else:
                                 cascadedI = i - port.wireCount
-                                tile.wireList.append(Wire(direction=Direction.JUMP,
-                                                          source=f"{port.destinationName}{i}",
-                                                          xOffset=0,
-                                                          yOffset=0,
-                                                          destination=f"{port.sourceName}{i}",
-                                                          sourceTile=f"X{x}Y{y}",
-                                                          destinationTile=f"X{x}Y{y}"))
-                            tile.wireList.append(Wire(direction=port.wireDirection,
-                                                      source=f"{port.sourceName}{i}",
-                                                      xOffset=port.xOffset,
-                                                      yOffset=value,
-                                                      destination=f"{port.destinationName}{cascadedI}",
-                                                      sourceTile=f"X{x}Y{y}",
-                                                      destinationTile=f"X{x+port.xOffset}Y{y+value}"))
+                                tile.wireList.append(
+                                    Wire(
+                                        direction=Direction.JUMP,
+                                        source=f"{port.destinationName}{i}",
+                                        xOffset=0,
+                                        yOffset=0,
+                                        destination=f"{port.sourceName}{i}",
+                                        sourceTile=f"X{x}Y{y}",
+                                        destinationTile=f"X{x}Y{y}",
+                                    )
+                                )
+                            tile.wireList.append(
+                                Wire(
+                                    direction=port.wireDirection,
+                                    source=f"{port.sourceName}{i}",
+                                    xOffset=port.xOffset,
+                                    yOffset=value,
+                                    destination=f"{port.destinationName}{cascadedI}",
+                                    sourceTile=f"X{x}Y{y}",
+                                    destinationTile=f"X{x+port.xOffset}Y{y+value}",
+                                )
+                            )
                     elif port.sourceName != "NULL" and port.destinationName == "NULL":
                         sourceName = port.sourceName
                         destName = ""
                         try:
                             index = [i for i, _ in self.commonWirePair].index(
-                                port.sourceName)
+                                port.sourceName
+                            )
                             sourceName = self.commonWirePair[index][0]
                             destName = self.commonWirePair[index][1]
                         except:
@@ -549,24 +640,32 @@ class Fabric():
                             destName = sourceName
 
                         value = min(max(port.xOffset, -1), 1)
-                        for i in range(port.wireCount*abs(port.xOffset)):
-                            tile.wireList.append(Wire(direction=port.wireDirection,
-                                                      source=f"{sourceName}{i}",
-                                                      xOffset=value,
-                                                      yOffset=port.yOffset,
-                                                      destination=f"{destName}{i}",
-                                                      sourceTile=f"X{x}Y{y}",
-                                                      destinationTile=f"X{x+value}Y{y+port.yOffset}"))
+                        for i in range(port.wireCount * abs(port.xOffset)):
+                            tile.wireList.append(
+                                Wire(
+                                    direction=port.wireDirection,
+                                    source=f"{sourceName}{i}",
+                                    xOffset=value,
+                                    yOffset=port.yOffset,
+                                    destination=f"{destName}{i}",
+                                    sourceTile=f"X{x}Y{y}",
+                                    destinationTile=f"X{x+value}Y{y+port.yOffset}",
+                                )
+                            )
 
                         value = min(max(port.yOffset, -1), 1)
-                        for i in range(port.wireCount*abs(port.yOffset)):
-                            tile.wireList.append(Wire(direction=port.wireDirection,
-                                                      source=f"{sourceName}{i}",
-                                                      xOffset=port.xOffset,
-                                                      yOffset=value,
-                                                      destination=f"{destName}{i}",
-                                                      sourceTile=f"X{x}Y{y}",
-                                                      destinationTile=f"X{x+port.xOffset}Y{y+value}"))
+                        for i in range(port.wireCount * abs(port.yOffset)):
+                            tile.wireList.append(
+                                Wire(
+                                    direction=port.wireDirection,
+                                    source=f"{sourceName}{i}",
+                                    xOffset=port.xOffset,
+                                    yOffset=value,
+                                    destination=f"{destName}{i}",
+                                    sourceTile=f"X{x}Y{y}",
+                                    destinationTile=f"X{x+port.xOffset}Y{y+value}",
+                                )
+                            )
                 tile.wireList = list(dict.fromkeys(tile.wireList))
 
     def __repr__(self) -> str:
@@ -574,7 +673,7 @@ class Fabric():
         for i in range(self.numberOfRows):
             for j in range(self.numberOfColumns):
                 if self.tile[i][j] is None:
-                    fabric += "Null".ljust(15)+"\t"
+                    fabric += "Null".ljust(15) + "\t"
                 else:
                     fabric += f"{str(self.tile[i][j].name).ljust(15)}\t"
             fabric += "\n"

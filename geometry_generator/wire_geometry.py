@@ -13,6 +13,7 @@ class WireGeometry:
         path    List[Location]  :   Path of the wire
 
     """
+
     name: str
     path: List[Location]
 
@@ -24,15 +25,11 @@ class WireGeometry:
         self.path.append(pathLoc)
 
     def saveToCSV(self, writer: csvWriter) -> None:
-        writer.writerows([
-            ["WIRE"],
-            ["Name"] + [self.name]
-        ])
+        writer.writerows([["WIRE"], ["Name"] + [self.name]])
         for pathPoint in self.path:
-            writer.writerows([
-                ["RelX"] + [str(pathPoint.x)],
-                ["RelY"] + [str(pathPoint.y)]
-            ])
+            writer.writerows(
+                [["RelX"] + [str(pathPoint.x)], ["RelY"] + [str(pathPoint.y)]]
+            )
         writer.writerow([])
 
 
@@ -75,6 +72,7 @@ class StairWires:
     represents a south stair (These being the directions of the wires).
 
     """
+
     name: str
     refX: int
     refY: int
@@ -96,9 +94,16 @@ class StairWires:
         self.tileHeight = 0
         self.wireGeoms = []
 
-    def generateGeometry(self, refX: int, refY: int,
-                         offset: int, direction: Direction, groupWires: int,
-                         tileWidth: int, tileHeight: int) -> None:
+    def generateGeometry(
+        self,
+        refX: int,
+        refY: int,
+        offset: int,
+        direction: Direction,
+        groupWires: int,
+        tileWidth: int,
+        tileHeight: int,
+    ) -> None:
         self.refX = refX
         self.refY = refY
         self.offset = offset
@@ -125,10 +130,10 @@ class StairWires:
 
         for i in range(totalWires):
             wireGeom = WireGeometry(f"{self.name} #{i}")
-            start = Location(refX, 0)
-            nextToStart = Location(refX, refY)
-            nextToEnd = Location(refX - self.groupWires, refY)
-            end = Location(refX - self.groupWires, self.tileHeight)
+            start = Location(self.refX, 0)
+            nextToStart = Location(self.refX, self.refY)
+            nextToEnd = Location(self.refX - self.groupWires, self.refY)
+            end = Location(self.refX - self.groupWires, self.tileHeight)
 
             wireGeom.addPathLoc(start)
             wireGeom.addPathLoc(nextToStart)
@@ -136,8 +141,8 @@ class StairWires:
             wireGeom.addPathLoc(end)
             self.wireGeoms.append(wireGeom)
 
-            refX -= 1
-            refY -= 1
+            self.refX -= 1
+            self.refY -= 1
 
     def generateSouthStairWires(self) -> None:
         totalWires = self.groupWires * (abs(self.offset) - 1)
@@ -146,10 +151,10 @@ class StairWires:
 
         for i in range(totalWires):
             wireGeom = WireGeometry(f"{self.name} #{i}")
-            start = Location(refX, 0)
-            nextToStart = Location(refX, refY)
-            nextToEnd = Location(refX + self.groupWires, refY)
-            end = Location(refX + self.groupWires, self.tileHeight)
+            start = Location(self.refX, 0)
+            nextToStart = Location(self.refX, self.refY)
+            nextToEnd = Location(self.refX + self.groupWires, self.refY)
+            end = Location(self.refX + self.groupWires, self.tileHeight)
 
             wireGeom.addPathLoc(start)
             wireGeom.addPathLoc(nextToStart)
@@ -157,8 +162,8 @@ class StairWires:
             wireGeom.addPathLoc(end)
             self.wireGeoms.append(wireGeom)
 
-            refX += 1
-            refY -= 1
+            self.refX += 1
+            self.refY -= 1
 
     def generateEastStairWires(self) -> None:
         totalWires = self.groupWires * (abs(self.offset) - 1)
@@ -167,10 +172,10 @@ class StairWires:
 
         for i in range(totalWires):
             wireGeom = WireGeometry(f"{self.name} #{i}")
-            start = Location(self.tileWidth, refY)
-            nextToStart = Location(refX, refY)
-            nextToEnd = Location(refX, refY + self.groupWires)
-            end = Location(0, refY + self.groupWires)
+            start = Location(self.tileWidth, self.refY)
+            nextToStart = Location(self.refX, self.refY)
+            nextToEnd = Location(self.refX, self.refY + self.groupWires)
+            end = Location(0, self.refY + self.groupWires)
 
             wireGeom.addPathLoc(start)
             wireGeom.addPathLoc(nextToStart)
@@ -178,8 +183,8 @@ class StairWires:
             wireGeom.addPathLoc(end)
             self.wireGeoms.append(wireGeom)
 
-            refX += 1
-            refY += 1
+            self.refX += 1
+            self.refY += 1
 
     def generateWestStairWires(self) -> None:
         totalWires = self.groupWires * (abs(self.offset) - 1)
@@ -188,10 +193,10 @@ class StairWires:
 
         for i in range(totalWires):
             wireGeom = WireGeometry(f"{self.name} #{i}")
-            start = Location(self.tileWidth, refY)
-            nextToStart = Location(refX, refY)
-            nextToEnd = Location(refX, refY - self.groupWires)
-            end = Location(0, refY - self.groupWires)
+            start = Location(self.tileWidth, self.refY)
+            nextToStart = Location(self.refX, self.refY)
+            nextToEnd = Location(self.refX, self.refY - self.groupWires)
+            end = Location(0, self.refY - self.groupWires)
 
             wireGeom.addPathLoc(start)
             wireGeom.addPathLoc(nextToStart)
@@ -199,8 +204,8 @@ class StairWires:
             wireGeom.addPathLoc(end)
             self.wireGeoms.append(wireGeom)
 
-            refX += 1
-            refY -= 1
+            self.refX += 1
+            self.refY -= 1
 
     def saveToCSV(self, writer: csvWriter) -> None:
         for wireGeom in self.wireGeoms:

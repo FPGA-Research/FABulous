@@ -18,13 +18,11 @@ class VHDLWriter(codeGenerator):
         if onNewLine:
             self._add("")
         if self._content:
-            self._content[-1] += f"{' ':<{indentLevel*4}}" + \
-                f"-- {comment}"f"{end}"
+            self._content[-1] += f"{' ':<{indentLevel*4}}" + f"-- {comment}" f"{end}"
         else:
-            self._add(f"{' ':<{indentLevel*4}}" +
-                      f"-- {comment}"f"{end}")
+            self._add(f"{' ':<{indentLevel*4}}" + f"-- {comment}" f"{end}")
 
-    def addHeader(self, name, package='', indentLevel=0):
+    def addHeader(self, name, package="", indentLevel=0):
         #   library template
         self._add("library IEEE;", indentLevel)
         self._add("use IEEE.STD_LOGIC_1164.ALL;", indentLevel)
@@ -58,9 +56,10 @@ class VHDLWriter(codeGenerator):
 
     def addPortEnd(self, indentLevel=0):
         def deSemiColon(x):
-            cpos = x.rfind(';')
+            cpos = x.rfind(";")
             assert cpos != -1, x
-            return x[:cpos] + x[cpos+1:]
+            return x[:cpos] + x[cpos + 1 :]
+
         temp = self._content.pop()
         if "--" in temp and ";" not in temp:
             temp2 = deSemiColon(self._content.pop())
@@ -76,8 +75,7 @@ class VHDLWriter(codeGenerator):
             ioVHDL = "in"
         elif io.value.lower() == "output":
             ioVHDL = "out"
-        self._add(f"{name:<10} : {ioVHDL} STD_LOGIC;",
-                  indentLevel=indentLevel)
+        self._add(f"{name:<10} : {ioVHDL} STD_LOGIC;", indentLevel=indentLevel)
 
     def addPortVector(self, name, io: IO, msbIndex, indentLevel=0):
         ioVHDL = ""
@@ -86,11 +84,12 @@ class VHDLWriter(codeGenerator):
         elif io.value.lower() == "output":
             ioVHDL = "out"
         self._add(
-            f"{name:<10} : {ioVHDL} STD_LOGIC_VECTOR( {msbIndex} downto 0 );", indentLevel=indentLevel)
+            f"{name:<10} : {ioVHDL} STD_LOGIC_VECTOR( {msbIndex} downto 0 );",
+            indentLevel=indentLevel,
+        )
 
     def addDesignDescriptionStart(self, name, indentLevel=0):
-        self._add(
-            f"architecture Behavioral of {name} is", indentLevel)
+        self._add(f"architecture Behavioral of {name} is", indentLevel)
 
     def addDesignDescriptionEnd(self, indentLevel=0):
         self._add(f"end architecture Behavioral;", indentLevel)
@@ -103,72 +102,89 @@ class VHDLWriter(codeGenerator):
 
     def addConnectionVector(self, name, startIndex, endIndex=0, indentLevel=0):
         self._add(
-            f"signal {name} : STD_LOGIC_VECTOR( { startIndex } downto {endIndex} );", indentLevel)
+            f"signal {name} : STD_LOGIC_VECTOR( { startIndex } downto {endIndex} );",
+            indentLevel,
+        )
 
     def addLogicStart(self, indentLevel=0):
-        self._add("\n"f"begin""\n", indentLevel)
+        self._add("\n" f"begin" "\n", indentLevel)
 
     def addLogicEnd(self, indentLevel=0):
-        self._add("\n"f"end""\n", indentLevel)
+        self._add("\n" f"end" "\n", indentLevel)
 
     def addAssignScalar(self, left, right, delay=0, indentLevel=0):
         if type(right) == list:
             self._add(f"{left} <= {' & '.join(right)} after {delay} ps;", indentLevel)
         else:
-            left = str(left).replace(":", " downto ").replace(
-                "[", "(").replace("]", ")")
-            right = str(right).replace(":", " downto ").replace(
-                "[", "(").replace("]", ")")
+            left = (
+                str(left).replace(":", " downto ").replace("[", "(").replace("]", ")")
+            )
+            right = (
+                str(right).replace(":", " downto ").replace("[", "(").replace("]", ")")
+            )
             self._add(f"{left} <= {right} after {delay} ps;", indentLevel)
 
     def addAssignVector(self, left, right, widthL, widthR, indentLevel=0):
-        self._add(
-            f"{left} <= {right}( {widthL} downto {widthR} );", indentLevel)
+        self._add(f"{left} <= {right}( {widthL} downto {widthR} );", indentLevel)
 
-    def addInstantiation(self, compName, compInsName, portsPairs, paramPairs=[], emulateParamPairs=[], indentLevel=0):
+    def addInstantiation(
+        self,
+        compName,
+        compInsName,
+        portsPairs,
+        paramPairs=[],
+        emulateParamPairs=[],
+        indentLevel=0,
+    ):
         self._add(f"{compInsName} : {compName}", indentLevel=indentLevel)
         if paramPairs:
             connectPair = []
-            self._add(f"generic map (", indentLevel=indentLevel+1)
+            self._add(f"generic map (", indentLevel=indentLevel + 1)
             for i in paramPairs:
-                connectPair.append(
-                    f"{i[0]} => {i[1]}")
+                connectPair.append(f"{i[0]} => {i[1]}")
             self._add(
-                (",\n"f"{' ':<{4*(indentLevel + 2)}}").join(connectPair), indentLevel=indentLevel + 2)
-            self._add(f")", indentLevel=indentLevel+1)
+                (",\n" f"{' ':<{4*(indentLevel + 2)}}").join(connectPair),
+                indentLevel=indentLevel + 2,
+            )
+            self._add(f")", indentLevel=indentLevel + 1)
 
         self._add(f"Port map(", indentLevel=indentLevel + 1)
         connectPair = []
         for i in portsPairs:
             if "[" in i[0]:
-                port = i[0].replace(
-                    "[", "(").replace("]", ")").replace(":", " downto ")
+                port = i[0].replace("[", "(").replace("]", ")").replace(":", " downto ")
             else:
                 port = i[0]
             if "[" in i[1]:
-                signal = i[1].replace(
-                    "[", "(").replace("]", ")").replace(":", " downto ")
+                signal = (
+                    i[1].replace("[", "(").replace("]", ")").replace(":", " downto ")
+                )
             else:
                 signal = i[1]
             connectPair.append(f"{port} => {signal}")
 
         self._add(
-            (",\n"f"{' ':<{4*(indentLevel + 2)}}").join(connectPair), indentLevel=indentLevel + 2)
+            (",\n" f"{' ':<{4*(indentLevel + 2)}}").join(connectPair),
+            indentLevel=indentLevel + 2,
+        )
         self._add(");", indentLevel=indentLevel + 1)
         self.addNewLine()
 
     def addComponentDeclarationForFile(self, fileName):
         configPortUsed = 0  # 1 means is used
-        with open(fileName, 'r') as f:
+        with open(fileName, "r") as f:
             data = f.read()
 
-        if result := re.search(r"NumberOfConfigBits.*?(\d+)", data, flags=re.IGNORECASE):
+        if result := re.search(
+            r"NumberOfConfigBits.*?(\d+)", data, flags=re.IGNORECASE
+        ):
             configPortUsed = 1
-            if result.group(1) == '0':
+            if result.group(1) == "0":
                 configPortUsed = 0
 
-        if result := re.search(r"^entity.*?end entity.*?;",
-                               data, flags=re.MULTILINE | re.DOTALL):
+        if result := re.search(
+            r"^entity.*?end entity.*?;", data, flags=re.MULTILINE | re.DOTALL
+        ):
             result = result.group(0)
             result = result.replace("entity", "component")
 
@@ -211,7 +227,6 @@ CONFout <= ConfigBits(ConfigBits'high);
 
     """
         self._add(template, indentLevel)
-
 
     def addPreprocIfDef(self, macro, indentLevel=0):
         assert False, "preprocessor not supported in VHDL"
