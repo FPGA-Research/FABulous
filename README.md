@@ -1,6 +1,8 @@
 # FABulous: an Embedded FPGA Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python](https://img.shields.io/badge/Python-3.9-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
+[![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ## Introduction
 
@@ -36,10 +38,11 @@ sudo apt-get install python3-tk
 ```
 
 The following packages need to be installed for the CAD toolchain
- - [Yosys](https://github.com/YosysHQ/yosys)
- - [nextpnr-generic](https://github.com/YosysHQ/nextpnr#nextpnr-generic)
- 
- A flow using VPR, the place and route tool from the [VTR project](https://github.com/verilog-to-routing/vtr-verilog-to-routing) is also available. However, this still requires Yosys, as well as the FABulous nextpnr fork, since this contains files for design synthesis.
+
+- [Yosys](https://github.com/YosysHQ/yosys)
+- [nextpnr-generic](https://github.com/YosysHQ/nextpnr#nextpnr-generic)
+
+A flow using VPR, the place and route tool from the [VTR project](https://github.com/verilog-to-routing/vtr-verilog-to-routing) is also available. However, this still requires Yosys, as well as the FABulous nextpnr fork, since this contains files for design synthesis.
 
 To build the docs locally, some further Python dependencies are required - to install these, run
 ```
