@@ -2,6 +2,8 @@
 
 from enum import Enum
 
+from FABulous.fabric_definition.define import IO
+
 
 class Location:
     """A simple data structure for storing a location.
@@ -51,3 +53,13 @@ class Border(Enum):
     EASTWEST = "EASTWEST"
     CORNER = "CORNER"
     NONE = "NONE"
+
+
+def oppositeIO(io: IO):
+    if io == IO.INPUT:
+        return IO.OUTPUT
+    if io == IO.OUTPUT:
+        return IO.INPUT
+    if io == IO.INOUT:
+        return IO.INOUT
+    return IO.NULL

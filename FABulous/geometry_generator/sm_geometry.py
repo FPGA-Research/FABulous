@@ -8,7 +8,7 @@ from FABulous.fabric_definition.define import IO, Direction, Side
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.geometry_generator.bel_geometry import BelGeometry
-from FABulous.geometry_generator.geometry_obj import Border
+from FABulous.geometry_generator.geometry_obj import Border, oppositeIO
 from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 
 
@@ -113,8 +113,16 @@ class SmGeometry:
         This is needed, as these are not contained in the (north...west)SidePorts
         in FABulous.
         """
-        # TODO: check if numbering is generated correctly
-        #  for augmented ports
+        # This step ensures correct ordering, this is important
+        # for the wire generation step.
+        self.northPorts = sorted(self.northPorts, key=lambda port: abs(port.yOffset))
+        self.southPorts = sorted(self.southPorts, key=lambda port: abs(port.yOffset))
+        self.eastPorts = sorted(self.eastPorts, key=lambda port: abs(port.xOffset))
+        self.westPorts = sorted(self.westPorts, key=lambda port: abs(port.xOffset))
+
+        # This step augments ports in border tiles.
+        # This is needed, as these are not contained
+        # in the (north...west)SidePorts in FABulous.
         if tileBorder == Border.NORTHSOUTH or tileBorder == Border.CORNER:
             augmentedSouthPorts = []
             for southPort in self.southPorts:
@@ -193,13 +201,6 @@ class SmGeometry:
                     augmentedWestPorts.append(westPort)
             self.westPorts = augmentedWestPorts
 
-        # This step ensures correct ordering, this is important
-        # for the wire generation step.
-        self.northPorts = sorted(self.northPorts, key=lambda port: abs(port.yOffset))
-        self.southPorts = sorted(self.southPorts, key=lambda port: abs(port.yOffset))
-        self.eastPorts = sorted(self.eastPorts, key=lambda port: abs(port.xOffset))
-        self.westPorts = sorted(self.westPorts, key=lambda port: abs(port.xOffset))
-
         # This step merges connected jump ports into
         # a single port.
         mergedJumpPorts = []
@@ -263,9 +264,9 @@ class SmGeometry:
         padding : int
             The padding space to add around the switch matrix
         """
-        self.name = f"{tile.name}_switch_matrix"
-        self.src = tile.tileDir.parent.joinpath(f"{self.name}.v")
-        self.csv = tile.tileDir.parent.joinpath(f"{self.name}.csv")
+        self.name = tile.name + "_switch_matrix"
+        self.src = tile.tileDir / f"{self.name}.v"
+        self.csv = tile.tileDir / f"{self.name}.csv"
 
         self.jumpPorts = [
             port for port in tile.portsInfo if port.wireDirection == Direction.JUMP
@@ -496,7 +497,7 @@ class SmGeometry:
                     belPortGeom.sourceName,
                     belPortGeom.destName,
                     PortType.SWITCH_MATRIX,
-                    belPortGeom.ioDirection,
+                    oppositeIO(belPortGeom.ioDirection),
                     portX,
                     portY,
                 )
