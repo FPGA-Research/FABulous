@@ -1,4 +1,5 @@
 from enum import Enum
+from fabric_generator.fabric import IO
 
 
 class Location:
@@ -28,3 +29,14 @@ class Border(Enum):
     EASTWEST = "EASTWEST"
     CORNER = "CORNER"
     NONE = "NONE"
+
+
+
+def oppositeIO(io: IO):
+    if io == IO.INPUT:
+        return IO.OUTPUT
+    if io == IO.OUTPUT:
+        return IO.INPUT
+    if io == IO.INOUT:
+        return IO.INOUT
+    return IO.NULL

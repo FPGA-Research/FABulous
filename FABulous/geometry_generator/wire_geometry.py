@@ -142,13 +142,15 @@ class StairWires:
 
     def generateNorthStairWires(self) -> None:
         totalWires = self.groupWires * (abs(self.offset) - 1)
+        refX = self.refX
+        refY = self.refY
 
         for i in range(totalWires):
             wireGeom = WireGeometry(f"{self.name} #{i}")
-            start = Location(self.refX, 0)
-            nextToStart = Location(self.refX, self.refY)
-            nextToEnd = Location(self.refX - self.groupWires, self.refY)
-            end = Location(self.refX - self.groupWires, self.tileHeight)
+            start = Location(refX, 0)
+            nextToStart = Location(refX, refY)
+            nextToEnd = Location(refX - self.groupWires, refY)
+            end = Location(refX - self.groupWires, self.tileHeight)
 
             wireGeom.addPathLoc(start)
             wireGeom.addPathLoc(nextToStart)
@@ -156,18 +158,20 @@ class StairWires:
             wireGeom.addPathLoc(end)
             self.wireGeoms.append(wireGeom)
 
-            self.refX -= 1
-            self.refY -= 1
+            refX -= 1
+            refY -= 1
 
     def generateSouthStairWires(self) -> None:
         totalWires = self.groupWires * (abs(self.offset) - 1)
+        refX = self.refX
+        refY = self.refY
 
         for i in range(totalWires):
             wireGeom = WireGeometry(f"{self.name} #{i}")
-            start = Location(self.refX, 0)
-            nextToStart = Location(self.refX, self.refY)
-            nextToEnd = Location(self.refX + self.groupWires, self.refY)
-            end = Location(self.refX + self.groupWires, self.tileHeight)
+            start = Location(refX, 0)
+            nextToStart = Location(refX, refY)
+            nextToEnd = Location(refX + self.groupWires, refY)
+            end = Location(refX + self.groupWires, self.tileHeight)
 
             wireGeom.addPathLoc(start)
             wireGeom.addPathLoc(nextToStart)
@@ -175,18 +179,20 @@ class StairWires:
             wireGeom.addPathLoc(end)
             self.wireGeoms.append(wireGeom)
 
-            self.refX += 1
-            self.refY -= 1
+            refX += 1
+            refY -= 1
 
     def generateEastStairWires(self) -> None:
         totalWires = self.groupWires * (abs(self.offset) - 1)
+        refX = self.refX
+        refY = self.refY
 
         for i in range(totalWires):
             wireGeom = WireGeometry(f"{self.name} #{i}")
-            start = Location(self.tileWidth, self.refY)
-            nextToStart = Location(self.refX, self.refY)
-            nextToEnd = Location(self.refX, self.refY + self.groupWires)
-            end = Location(0, self.refY + self.groupWires)
+            start = Location(self.tileWidth, refY)
+            nextToStart = Location(refX, refY)
+            nextToEnd = Location(refX, refY + self.groupWires)
+            end = Location(0, refY + self.groupWires)
 
             wireGeom.addPathLoc(start)
             wireGeom.addPathLoc(nextToStart)
@@ -194,18 +200,20 @@ class StairWires:
             wireGeom.addPathLoc(end)
             self.wireGeoms.append(wireGeom)
 
-            self.refX += 1
-            self.refY += 1
+            refX += 1
+            refY += 1
 
     def generateWestStairWires(self) -> None:
         totalWires = self.groupWires * (abs(self.offset) - 1)
+        refX = self.refX
+        refY = self.refY
 
         for i in range(totalWires):
             wireGeom = WireGeometry(f"{self.name} #{i}")
-            start = Location(self.tileWidth, self.refY)
-            nextToStart = Location(self.refX, self.refY)
-            nextToEnd = Location(self.refX, self.refY - self.groupWires)
-            end = Location(0, self.refY - self.groupWires)
+            start = Location(self.tileWidth, refY)
+            nextToStart = Location(refX, refY)
+            nextToEnd = Location(refX, refY - self.groupWires)
+            end = Location(0, refY - self.groupWires)
 
             wireGeom.addPathLoc(start)
             wireGeom.addPathLoc(nextToStart)
@@ -213,9 +221,69 @@ class StairWires:
             wireGeom.addPathLoc(end)
             self.wireGeoms.append(wireGeom)
 
-            self.refX += 1
-            self.refY -= 1
+            refX += 1
+            refY -= 1
 
     def saveToCSV(self, writer: csvWriter) -> None:
         for wireGeom in self.wireGeoms:
             wireGeom.saveToCSV(writer)
+
+
+class WireConstraints:
+    """
+        A simple datastruct for storing
+        information on where wires arrive
+        at the border of a tile.
+
+        Attributes:
+            northPositions: List[int]
+            southPositions: List[int]
+            eastPositions: List[int]
+            westPositions: List[int]
+
+    """
+    northPositions: List[int]
+    southPositions: List[int]
+    eastPositions: List[int]
+    westPositions: List[int]
+
+    def __init__(self):
+        self.northPositions = []
+        self.southPositions = []
+        self.eastPositions = []
+        self.westPositions = []
+
+    def addConstraintsOf(self, stairWires: StairWires) -> None:
+        totalWires = stairWires.groupWires * (abs(stairWires.offset) - 1)
+
+        if stairWires.direction == Direction.NORTH:
+            refX = stairWires.refX
+
+            for i in range(totalWires):
+                self.northPositions.append(refX)
+                self.southPositions.append(refX - stairWires.groupWires)
+                refX -= 1
+
+        if stairWires.direction == Direction.SOUTH:
+            refX = stairWires.refX
+
+            for i in range(totalWires):
+                self.northPositions.append(refX)
+                self.southPositions.append(refX + stairWires.groupWires)
+                refX += 1
+
+        if stairWires.direction == Direction.EAST:
+            refY = stairWires.refY
+
+            for i in range(totalWires):
+                self.eastPositions.append(refY)
+                self.westPositions.append(refY + stairWires.groupWires)
+                refY += 1
+
+        if stairWires.direction == Direction.WEST:
+            refY = stairWires.refY
+
+            for i in range(totalWires):
+                self.eastPositions.append(refY)
+                self.westPositions.append(refY - stairWires.groupWires)
+                refY -= 1
