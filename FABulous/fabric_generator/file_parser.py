@@ -1,4 +1,6 @@
 import csv
+import math
+import os
 import re
 import subprocess
 import json
@@ -95,7 +97,6 @@ def parseFabricCSV(fileName: str) -> Fabric:
     tileTypes = []
     tileDefs = []
     commonWirePair: list[tuple[str, str]] = []
-
     fabricTiles = []
     tileDic = {}
 
@@ -476,6 +477,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
 
     new_tiles = []
     commonWirePairs = []
+    proj_dir = Path(os.getenv("FAB_PROJ_DIR"))
 
     # Parse each tile config
     for t in tilesData:
@@ -486,6 +488,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
         matrixDir: Path | None = None
         withUserCLK = False
         configBit = 0
+        genMatrixList = False
         for item in t:
             temp: list[str] = item.split(",")
             if not temp or temp[0] == "":
@@ -506,33 +509,37 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         f"Invalid file type in {belFilePath} only .vhdl and .v are supported."
                     )
             elif temp[0] == "MATRIX":
-                matrixDir = fileName.parent.joinpath(temp[1])
                 configBit = 0
 
-                match matrixDir.suffix:
-                    case ".list":
-                        for _, v in parseList(matrixDir, "source").items():
-                            muxSize = len(v)
-                            if muxSize >= 2:
-                                configBit += muxSize.bit_length() - 1
-                    case "_matrix.csv":
-                        for _, v in parseMatrix(matrixDir, tileName).items():
-                            muxSize = len(v)
-                            if muxSize >= 2:
-                                configBit += muxSize.bit_length() - 1
-                    case ".vhdl" | ".v":
-                        with open(matrixDir, "r") as f:
-                            f = f.read()
-                            if configBit := re.search(r"NumberOfConfigBits: (\d+)", f):
-                                configBit = int(configBit.group(1))
-                            else:
-                                configBit = 0
-                                logger.warning(
-                                    f"Cannot find NumberOfConfigBits in {matrixDir} assume 0 config bits."
-                                )
-                    case _:
-                        logger.error("Unknown file extension for matrix.")
-                        raise ValueError("Unknown file extension for matrix.")
+                if temp[1] == "GENERATE":
+                    matrixDir = fileName.parent.joinpath(f"{tileName}_generated_switchmatrix.list")
+                    genMatrixList = True
+                else:
+                    matrixDir = fileName.parent.joinpath(temp[1])
+                    match matrixDir.suffix:
+                        case ".list":
+                            for _, v in parseList(matrixDir, "source").items():
+                                muxSize = len(v)
+                                if muxSize >= 2:
+                                    configBit += muxSize.bit_length() - 1
+                        case "_matrix.csv":
+                            for _, v in parseMatrix(matrixDir, tileName).items():
+                                muxSize = len(v)
+                                if muxSize >= 2:
+                                    configBit += muxSize.bit_length() - 1
+                        case ".vhdl" | ".v":
+                            with open(matrixDir, "r") as f:
+                                f = f.read()
+                                if configBit := re.search(r"NumberOfConfigBits: (\d+)", f):
+                                    configBit = int(configBit.group(1))
+                                else:
+                                    configBit = 0
+                                    logger.warning(
+                                        f"Cannot find NumberOfConfigBits in {matrixDir} assume 0 config bits."
+                                    )
+                        case _:
+                            logger.error("Unknown file extension for matrix.")
+                            raise ValueError("Unknown file extension for matrix.")
 
             elif temp[0] == "INCLUDE":
                 p = fileName.parent.joinpath(temp[1])
@@ -556,6 +563,10 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                 logger.error(f"Unknown tile description {temp[0]} in tile {t}.")
                 raise ValueError
             withUserCLK = any(bel.withUserCLK for bel in bels)
+            #  TODO: move gen switchmatrix to file_parser, remove tile import and just use bels as inputs and return config bits. 
+            if genMatrixList:
+                configBit += generateSwitchmatrixList(tileName, bels, matrixDir)
+
             new_tiles.append(
                 Tile(
                     name=tileName,
@@ -1238,3 +1249,132 @@ def parseConfigMem(
                 )
 
     return configMemEntry
+
+
+def generateSwitchmatrixList(tileName: str, bels: List[Bel], outFile: str) -> int:
+    """
+    Generate a swichtmatrix listfile.
+    """
+    projdir = Path(os.getenv("FAB_PROJ_DIR"))
+    fab_root = Path(os.getenv("FAB_ROOT"))
+    CLBDummyFile = (
+        fab_root / "fabric_files" / "dummy_files" / "DUMMY_switch_matrix.list"
+    )
+
+    with open(CLBDummyFile, 'r') as f:
+        file = f.read()
+        #  file = re.sub(r"#.*", "", file)
+
+    belIn = sum(len(bel.inputs) for bel in bels)
+    belOut = sum(len(bel.outputs) for bel in bels)
+
+    if belIn > 32:
+        raise ValueError(
+            f"Tile {tileName} has {belIn} Bel inputs, switchmatrix gen can only handle 32 inputs"
+        )
+
+    if belOut > 8:
+        raise ValueError(
+            f"Tile {tileName} has {belOut} Bel outputs, switchmatrix gen can only handle 8 outputs"
+        )
+
+    ## Copied from fileparser -> parseList()
+    ## Converts listfile to portpairs
+    ## TODO cleanup
+    file = re.sub(r"#.*", "", file)
+    file = file.split("\n")
+    resultList = []
+    for i, line in enumerate(file):
+        line = line.replace(" ", "").replace("\t", "").split(",")
+        line = [i for i in line if i != ""]
+        if not line:
+            continue
+        if len(line) != 2:
+            print(line)
+            raise ValueError(
+                f"Invalid list formatting in file: {line}")
+        left, right = line[0], line[1]
+
+        leftList = []
+        rightList = []
+        _expandListPorts(left, leftList)
+        _expandListPorts(right, rightList)
+        resultList += list(zip(leftList, rightList))
+
+    # build a dict, with the old names from the list file and the replacement from the bels
+    replaceDic = {}
+    in_i = 0
+    out_i = 0
+    for bel in bels:
+        for port in bel.inputs:
+            replaceDic[f"CLB{math.floor(in_i/4)}_I{in_i%4}"] = f"{port}"
+            in_i = in_i + 1
+        for port in bel.outputs:
+            replaceDic[f"CLB{out_i%8}_O"] = f"{port}"
+            out_i = out_i + 1
+
+    # generate a list of sinks, with their connection count, if they have at least 5 connections
+    sinks_num = [sink for _, sink in resultList]
+    sinks_num = {i:sinks_num.count(i) for i in sinks_num if sinks_num.count(i) > 4}
+
+    connections = {}
+    for source, sink in resultList:
+        # replace the old names with the new ones
+        if source in replaceDic:
+            source = replaceDic[source]
+        if sink in replaceDic:
+            sink = replaceDic[sink]
+        if "CLB" in source:
+            # drop the whole multiplexer, if its not connected
+            continue
+        if "CLB" in sink:
+            # replace sink with the sink with the lowest connection count
+            sink = min(sinks_num, key=sinks_num.get)
+            sinks_num[sink] = sinks_num[sink] + 1
+
+        if source not in connections:
+            connections[source] = []
+        connections[source].append(sink)
+
+    # generate listfile strings
+    configBit = 0
+    listfile = []
+    for source, sinks in connections.items():
+        muxsize = len(sinks)
+        if muxsize%2 != 0 and muxsize > 1:
+            logger.warning(f"For source {source} mux size is {len(sinks)} with sinks: {sinks}")
+            listfile.append(f"# WARNING: Muxsize {muxsize} for source {source}")
+
+        if muxsize == 1:
+            listfile.append(f"{source},{sinks[0]}")
+        else: # generate a line for listfile
+            configBit += muxsize.bit_length()-1
+            #  listfile.append(f"# Muxsize {muxsize} for source {source}")
+            ltmp = f"[{source}"
+            rtmp = f"[{sinks[0]}"
+            for sink in sinks[1:]:
+                ltmp += f"|{source}"
+                rtmp += f"|{sink}"
+            rtmp += "]"
+            ltmp += "]"
+            listfile.append(f"{ltmp},{rtmp}")
+
+    f = open(outFile, "w")
+    f.write("\n".join(str(line) for line in listfile))
+    f.close()
+
+    return configBit
+
+
+if __name__ == '__main__':
+    # result = parseFabricCSV('fabric.csv')
+    # result1 = parseList('RegFile_switch_matrix.list', collect="source")
+    # result = parseFileVerilog('./LUT4c_frame_config_dffesr.v')
+
+    result2 = parseFileVerilog("./test.txt")
+    # print(result[0])
+    # print(result[1])
+    # print(result[2])
+    # print(result[3])
+
+    # print(result.tileDic["W_IO"].portsInfo)
