@@ -43,6 +43,8 @@ readline.set_completer_delims(" \t\n")
 histfile = ""
 histfile_size = 1000
 
+MAX_BITBYTES = 16384
+
 fabulousRoot = os.getenv("FAB_ROOT")
 if fabulousRoot is None:
     print("FAB_ROOT environment variable not set!")
@@ -70,6 +72,53 @@ def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
         f"{project_dir}/",
         dirs_exist_ok=True,
     )
+
+    adjust_directory_in_verilog_tb(project_dir)
+
+
+def copy_verilog_files(src, dst):
+    for root, _, files in os.walk(src):
+        for file in files:
+            if file.endswith(".v"):
+                source_path = os.path.join(root, file)
+                destination_path = os.path.join(dst, file)
+                shutil.copy(source_path, destination_path)
+
+
+def remove_dir(path):
+    try:
+        shutil.rmtree(path)
+        pass
+    except OSError as e:
+        logger.error(f"{e}")
+
+
+def make_hex(binfile, outfile):
+    with open(binfile, "rb") as f:
+        bindata = f.read()
+
+    if len(bindata) > MAX_BITBYTES:
+        logger.error("Binary file too big.")
+        return
+
+    with open(outfile, "w") as f:
+        for i in range(MAX_BITBYTES):
+            if i < len(bindata):
+                print(f"{bindata[i]:02x}", file=f)
+            else:
+                print("0", file=f)
+
+
+def adjust_directory_in_verilog_tb(project_dir):
+    with open(
+        f"{fabulousRoot}/fabric_files/FABulous_project_template_verilog/Test/sequential_16bit_en_tb.v",
+        "rt",
+    ) as fin:
+        with open(
+            f"{fabulousRoot}/{project_dir}/Test/sequential_16bit_en_tb.v", "wt"
+        ) as fout:
+            for line in fin:
+                fout.write(line.replace("PROJECT_DIR", f"{project_dir}"))
 
 
 def get_path(path):
