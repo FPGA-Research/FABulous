@@ -1,4 +1,4 @@
-This assumes the default instructions were followed to build a 8x14 fabric in `../fabric_generator`.
+This assumes the default instructions were followed to build a 8x14 fabric in `../../fabric_generator`.
 
 Latest Yosys and `nextpnr-generic` from upstream (_not_ the old FABulous nextpnr fork) are used
 to build the test design.
