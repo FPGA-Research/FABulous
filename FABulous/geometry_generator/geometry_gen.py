@@ -15,8 +15,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-from fabric_generator.fabric import Fabric
-from geometry_generator.fabric_geometry import FabricGeometry
+from FABulous.fabric_generator.fabric import Fabric
+from FABulous.geometry_generator.fabric_geometry import FabricGeometry
 
 
 class GeometryGenerator:

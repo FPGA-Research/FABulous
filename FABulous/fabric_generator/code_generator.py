@@ -1,6 +1,7 @@
 import abc
 from typing import List, Tuple
-from fabric_generator.fabric import Bel, IO, ConfigBitMode
+
+from FABulous.fabric_generator.fabric import IO, Bel, ConfigBitMode
 
 
 class codeGenerator(abc.ABC):

@@ -1,7 +1,8 @@
-from typing import List
-from fabric_generator.fabric import Direction
-from geometry_generator.geometry_obj import Location
 from csv import writer as csvWriter
+from typing import List
+
+from FABulous.fabric_generator.fabric import Direction
+from FABulous.geometry_generator.geometry_obj import Location
 
 
 class WireGeometry:

@@ -1,14 +1,9 @@
-# Python 3
-from array import array
+#!/usr/bin/env python
+
+import pickle
 import re
 import sys
-from contextlib import redirect_stdout
-from io import StringIO
-import math
-import os
-import numpy
-import pickle
-import csv
+
 from fasm import *  # Remove this line if you do not have the fasm library installed and will not be generating a bitstream
 
 
@@ -260,39 +255,40 @@ class Fabric:
 #####################################################################################
 # Main
 #####################################################################################
+def bit_gen():
+    # Strip arguments
+    caseProcessedArguments = list(map(lambda x: x.strip(), sys.argv))
+    processedArguments = list(map(lambda x: x.lower(), caseProcessedArguments))
+    flagRE = re.compile("-\S*")
+    if "-genBitstream".lower() in str(sys.argv).lower():
+        argIndex = processedArguments.index("-genBitstream".lower())
+        if len(processedArguments) <= argIndex + 3:
+            raise ValueError(
+                "\nError: -genBitstream expect three file names - the fasm file, the spec file and the output file"
+            )
+        elif (
+            flagRE.match(caseProcessedArguments[argIndex + 1])
+            or flagRE.match(caseProcessedArguments[argIndex + 2])
+            or flagRE.match(caseProcessedArguments[argIndex + 3])
+        ):
+            raise ValueError(
+                "\nError: -genBitstream expect three file names, but found a flag in the arguments:"
+                f" {caseProcessedArguments[argIndex + 1]}, {caseProcessedArguments[argIndex + 2]}, {caseProcessedArguments[argIndex + 3]}\n"
+            )
 
-# Strip arguments
-caseProcessedArguments = list(map(lambda x: x.strip(), sys.argv))
-processedArguments = list(map(lambda x: x.lower(), caseProcessedArguments))
-flagRE = re.compile("-\S*")
+        FasmFileName = caseProcessedArguments[argIndex + 1]
+        SpecFileName = caseProcessedArguments[argIndex + 2]
+        OutFileName = caseProcessedArguments[argIndex + 3]
 
-if "-genBitstream".lower() in str(sys.argv).lower():
-    argIndex = processedArguments.index("-genBitstream".lower())
+        genBitstream(FasmFileName, SpecFileName, OutFileName)
 
-    if len(processedArguments) <= argIndex + 3:
-        raise ValueError(
-            "\nError: -genBitstream expect three file names - the fasm file, the spec file and the output file"
+    if ("-help".lower() in str(sys.argv).lower()) or ("-h" in str(sys.argv).lower()):
+        print("")
+        print("Options/Switches")
+        print(
+            "  -genBitstream foo.fasm spec.txt bitstream.txt - generates a bitstream - the first file is the fasm file, the second is the bitstream spec and the third is the fasm file to write to"
         )
-    elif (
-        flagRE.match(caseProcessedArguments[argIndex + 1])
-        or flagRE.match(caseProcessedArguments[argIndex + 2])
-        or flagRE.match(caseProcessedArguments[argIndex + 3])
-    ):
-        raise ValueError(
-            "\nError: -genBitstream expect three file names, but found a flag in the arguments:"
-            f" {caseProcessedArguments[argIndex + 1]}, {caseProcessedArguments[argIndex + 2]}, {caseProcessedArguments[argIndex + 3]}\n"
-        )
-
-    FasmFileName = caseProcessedArguments[argIndex + 1]
-    SpecFileName = caseProcessedArguments[argIndex + 2]
-    OutFileName = caseProcessedArguments[argIndex + 3]
-
-    genBitstream(FasmFileName, SpecFileName, OutFileName)
 
 
-if ("-help".lower() in str(sys.argv).lower()) or ("-h" in str(sys.argv).lower()):
-    print("")
-    print("Options/Switches")
-    print(
-        "  -genBitstream foo.fasm spec.txt bitstream.txt - generates a bitstream - the first file is the fasm file, the second is the bitstream spec and the third is the fasm file to write to"
-    )
+if __name__ == "__main__":
+    bit_gen()

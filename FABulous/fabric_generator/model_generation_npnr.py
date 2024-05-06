@@ -1,8 +1,9 @@
 import string
 from typing import Tuple
-from fabric_generator.utilities import *
-from fabric_generator.fabric import Fabric, Tile
-from fabric_generator.file_parser import parseMatrix, parseList
+
+from FABulous.fabric_generator.fabric import Fabric, Tile
+from FABulous.fabric_generator.file_parser import parseList, parseMatrix
+from FABulous.fabric_generator.utilities import *
 
 
 def genNextpnrModel(fabric: Fabric):

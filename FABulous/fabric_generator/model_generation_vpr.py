@@ -1,14 +1,15 @@
+import logging
+import os
 import string
+import xml.etree.ElementTree as ET
 from sys import prefix
 from typing import List
-from fabric_generator.fabric_gen import FabricGenerator
-from fabric_generator.utilities import *
-from fabric_generator.fabric import IO, Bel, Fabric
-import xml.etree.ElementTree as ET
-import os
 from xml.dom import minidom
-from fabric_generator.file_parser import parseMatrix, parseList
-import logging
+
+from FABulous.fabric_generator.fabric import IO, Bel, Fabric
+from FABulous.fabric_generator.fabric_gen import FabricGenerator
+from FABulous.fabric_generator.file_parser import parseList, parseMatrix
+from FABulous.fabric_generator.utilities import *
 
 logger = logging.getLogger(__name__)
 

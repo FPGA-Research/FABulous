@@ -1,13 +1,13 @@
-import fabric_generator.model_generation_vpr as model_gen_vpr
-import fabric_generator.model_generation_npnr as model_gen_npnr
-from fabric_generator.code_generation_VHDL import VHDLWriter
-import fabric_generator.code_generator as codeGen
-import fabric_generator.file_parser as fileParser
-from fabric_generator.fabric import Fabric, Tile
-from fabric_generator.fabric_gen import FabricGenerator
-from geometry_generator.geometry_gen import GeometryGenerator
-
 import logging
+
+import FABulous.fabric_generator.code_generator as codeGen
+import FABulous.fabric_generator.file_parser as fileParser
+import FABulous.fabric_generator.model_generation_npnr as model_gen_npnr
+import FABulous.fabric_generator.model_generation_vpr as model_gen_vpr
+from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
+from FABulous.fabric_generator.fabric import Fabric, Tile
+from FABulous.fabric_generator.fabric_gen import FabricGenerator
+from FABulous.geometry_generator.geometry_gen import GeometryGenerator
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(

@@ -1,11 +1,22 @@
+import csv
+import os
 import re
 from copy import deepcopy
 from typing import Dict, List, Literal, Tuple, Union, overload
-import csv
-import os
 
-from fabric_generator.fabric import Fabric, Port, Bel, Tile, SuperTile, ConfigMem
-from fabric_generator.fabric import IO, Direction, Side, MultiplexerStyle, ConfigBitMode
+from FABulous.fabric_generator.fabric import (
+    IO,
+    Bel,
+    ConfigBitMode,
+    ConfigMem,
+    Direction,
+    Fabric,
+    MultiplexerStyle,
+    Port,
+    Side,
+    SuperTile,
+    Tile,
+)
 
 # from fabric import Fabric, Port, Bel, Tile, SuperTile, ConfigMem
 # from fabric import IO, Direction, Side, MultiplexerStyle, ConfigBitMode

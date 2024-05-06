@@ -1,7 +1,8 @@
-from typing import List
-from fabric_generator.fabric import Bel, IO
-from geometry_generator.port_geometry import PortGeometry, PortType
 from csv import writer as csvWriter
+from typing import List
+
+from FABulous.fabric_generator.fabric import IO, Bel
+from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 
 
 class BelGeometry:

@@ -1,8 +1,44 @@
 [build-system]
-requires = ["flit_core >=3.2,<4"]
-build-backend = "flit_core.buildapi"
+requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
 
 [project]
-name = "FABulous Documentation"
+name = "FABulous-FPGA"
 authors = [{name = "Jing, Nguyen, Bea, Bardia, Dirk", email = "dirk.koch@manchester.ac.uk"}]
-dynamic = ["version", "description"]
+description = "FABulous FPGA Fabric generator"
+readme = "README.md"
+requires-python = ">=3.9"
+dynamic = ["version"]
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+
+
+dependencies = [
+    'numpy',
+    'fasm',
+    'docker',
+]
+
+[project.urls]
+"Homepage" = "https://github.com/FPGA-Research-Manchester/FABulous"
+"Bug Tracker" = "https://github.com/FPGA-Research-Manchester/FABulous/issues"
+
+
+[project.scripts]
+FABulous = "FABulous.FABulous:main"
+bit_gen = "FABulous.fabric_cad.bit_gen:bit_gen"
+
+[tool.setuptools_scm]
+version_scheme = "post-release"
+local_scheme = "dirty-tag"
+
+
+[tool.setuptools.packages.find]
+exclude = ["docs, demo"]  # exclude packages matching these glob patterns (empty by default)
+
+[tool.setuptools.package-data]
+mypkg = ["FABulous/**/*"]

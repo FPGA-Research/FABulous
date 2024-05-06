@@ -11,15 +11,15 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - uses: actions/checkout@v2
+            - uses: actions/checkout@v4
               with:
                   submodules: recursive
             - name: Set up Python 3.9
-              uses: actions/setup-python@v2
+              uses: actions/setup-python@v4
               with:
                   python-version: 3.9
             - name: Set up OSS CAD suite
-              uses: YosysHQ/setup-oss-cad-suite@v1
+              uses: YosysHQ/setup-oss-cad-suite@v2
             - name: Install dependencies
               run: |
                   python3 -m pip install --upgrade pip
@@ -31,15 +31,16 @@ jobs:
             - name: Lint with flake8
               run: |
                   # stop the build if there are Python syntax errors or undefined names
-                  flake8 FABulous/fabric_generator/ --count --select=E9,F63,F7,F82 --show-source --statistics
+                  flake8 FABulous/**/*.py --count --select=E9,F63,F7,F82 --show-source --statistics
                   # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-                  flake8 FABulous/fabric_generator --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+                  flake8 FABulous/**/*.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+            - name: Install FABulous
+              run: |
+                  pip3 install -e .
             - name: Run fabric generator flow
               run: |
-                  export FAB_ROOT=.
-                  python3.9 FABulous/FABulous.py -c demo
-                  python3.9 FABulous/FABulous.py demo --script ./demo/FABulous.tcl
-
+                  FABulous -c demo
+                  FABulous demo --script ./demo/FABulous.tcl
             - name: Run simulation smoketest
               run: |
                   cd ./demo/Test

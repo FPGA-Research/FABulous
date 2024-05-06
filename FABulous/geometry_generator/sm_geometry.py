@@ -1,10 +1,11 @@
-from typing import List
-from fabric_generator.fabric import Port, Tile, Direction, Side, IO
-from geometry_generator.geometry_obj import Border, oppositeIO
-from geometry_generator.bel_geometry import BelGeometry
-from geometry_generator.port_geometry import PortGeometry, PortType
-from csv import writer as csvWriter
 import logging
+from csv import writer as csvWriter
+from typing import List
+
+from FABulous.fabric_generator.fabric import IO, Direction, Port, Side, Tile
+from FABulous.geometry_generator.bel_geometry import BelGeometry
+from FABulous.geometry_generator.geometry_obj import Border
+from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 
 logger = logging.getLogger(__name__)
 
