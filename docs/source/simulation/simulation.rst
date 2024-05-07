@@ -5,18 +5,18 @@ The following series of commands can be used to easily run a simulation with a t
 
 .. code-block:: console
 
-        cd demo/Test
-        ./build_test_design.sh
-        ./run_simulation.sh
+        (venv)$ cd demo/Test
+        (venv)$ ./build_test_design.sh
+        (venv)$ ./run_simulation.sh
 
 FABulous comes with 3 different simulation methods _`configuration module`,
 
 #. Serial (Mode 0)
 
-   Send configuration in through UART 
+   Send configuration in through UART
 
 #. Parallel (Mode 1) - default in the testbench
-   
+
    Use parallel configuration port
 
 #. Bitbang configuration port (To be supported in the testbench)
@@ -34,7 +34,7 @@ FABulous comes with 3 different simulation methods _`configuration module`,
 
    The next figure shows the generation (and input sampling) of the enable signals for
 
-   * the control shift register and 
+   * the control shift register and
    * the data shift register.
 
    .. figure:: ../figs/bitbang2.*

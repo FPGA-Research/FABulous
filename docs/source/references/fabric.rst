@@ -1,5 +1,5 @@
 fabric.py
 =========
 
-.. automodule:: fabric_generator.fabric
+.. automodule:: FABulous.fabric_generator.fabric
    :members:

@@ -43,8 +43,7 @@ The following packages need to be installed for generating fabric HDL models and
 Install python dependencies
 
 ```
-pip3 install -r requirements.txt
-sudo apt-get install python3-tk
+$ sudo apt-get install python3-tk python3-virtualenv
 ```
 
 The following packages need to be installed for the CAD toolchain
@@ -62,12 +61,23 @@ from the top directory of the repository.
 
 ## Getting started
 
-To set up FABulous:
+We recommend using Python virtual environments for the usage of FABulous.
+If you are not sure what this is and why you should use it, please read the [virtualenv documentation](https://virtualenv.pypa.io/en/latest/index.html).
 
 ```
-git clone https://github.com/FPGA-Research-Manchester/FABulous
-cd FABulous
-pip install -e .
+$ git clone https://github.com/FPGA-Research-Manchester/FABulous
+$ cd FABulous
+$ virtualenv venv
+$ source venv/bin/activate
+(venv)$ pip install -r requirements.txt
+(venv)$ pip install -e .
+```
+
+You can deactivate the virtual environment with the `deactivate` command.
+Please note, that you always have to enable the virtual environment to use FABulous:
+```
+$ cd <path to FABulous>
+$ source venv/bin/activate
 ```
 
 We have provided a Python Command Line Interface (CLI) as well as a project structure for easy access of the FABulous toolchain.
@@ -84,21 +94,22 @@ To exit the shell simply type `exit` and this will terminate the shell.
 A demo of the whole flow:
 
 ```
-FABulous -c demo # Create a demo project
-FABulous demo # Run Fabulous interactive shell for demo project
+(venv)$ FABulous -c demo # Create a demo project
+(venv)$ FABulous demo # Run Fabulous interactive shell for demo project
+
 # In the FABulous shell
-load_fabric
-run_FABulous_fabric
-run_FABulous_bitstream npnr ./user_design/sequential_16bit_en.v
-exit
+FABulous> load_fabric
+FABulous> run_FABulous_fabric
+FABulous> run_FABulous_bitstream npnr ./user_design/sequential_16bit_en.v
+FABulous> exit
 ```
 
 To run a simulation of a test bitstream on the design with Icarus Verilog:
 
 ```
-cd demo/Test
-./build_test_design.sh
-./run_simulation.sh
+(venv)$ cd demo/Test
+(venv)$ ./build_test_design.sh
+(venv)$ ./run_simulation.sh
 ```
 
 The tool also supports using TCL script to drive the build process. Assuming you have created a demo project using

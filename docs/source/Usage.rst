@@ -9,26 +9,42 @@ Prerequisites
 
 The following packages need to be installed for generating fabric HDLs
 
+:Python:
+ Version >= 3.9
+
+:Dependencies:
+
+.. code-block:: console
+
+    $ sudo apt-get install python3-tk python3-virtualenv
+
 :FABulous repository:
 
 .. code-block:: console
 
-    git clone https://github.com/FPGA-Research-Manchester/FABulous
+    $ git clone https://github.com/FPGA-Research-Manchester/FABulous
 
-:Python:
- version >= 3.9
+:Virtual environment:
+We recommend using python virtual environments for the usage of FABulous.
+If you are not sure what this is and why you should use it, please read the
+:`virtualenv documentation <https://virtualenv.pypa.io/en/latest/index.html>`_:
 
-:python dependencies:
+.. code-block:: console
+    $ cd FABulous
+    $ virtualenv venv
+    $ source venv/bin/activate
+
+Now there is a ``(venv)`` at the beginning of your command prompt.
+You can deactivate the virtual environment with the ``deactivate`` command.
+Please note, that you always have to enable the virtual environment
+with ``source venv/bin/activate`` to use FABulous.
+
+:Python dependencies:
 
 .. code-block:: console
 
-    pip3 install -r requirements.txt
+    (venv)$ pip install -r requirements.txt
 
-This will also require installing `Tkinter` for the TCL facilities. To install `Tkinter` on Ubuntu, run:
-
-.. code-block:: console
-
-    sudo apt-get install python3-tk
 
 The following packages need to be installed for the CAD toolchain:
 
@@ -41,7 +57,7 @@ The following packages need to be installed for the CAD toolchain:
 Install FABulous with "editable" option:
 .. code-block:: console
 
-    pip3 install -e .
+    (venv)$ pip install -e .
 
 Building Fabric and Bitstream
 -----------------------------
@@ -49,12 +65,13 @@ Building Fabric and Bitstream
 
 .. code-block:: console
 
-   FABulous -c <name_of_project>
-   FABulous <name_of_project>
+   (venv)$ FABulous -c <name_of_project>
+   (venv)$ FABulous <name_of_project>
+   
    # inside the FABulous shell
-   load_fabric
-   run_FABulous_fabric
-   run_FABulous_bitstream npnr user_design/sequential_16bit_en.v
+   FABulous> load_fabric
+   FABulous> run_FABulous_fabric
+   FABulous> run_FABulous_bitstream npnr user_design/sequential_16bit_en.v
 
 
 After a successful call with the command ``run_FABulous_fabric`` the RTL file of each of the tiles can be found in the ``Tile`` folder and the fabric RTL file can be found in the ``Fabric`` folder.
@@ -78,7 +95,7 @@ To set up the Docker environment, navigate to the FABulous root directory and ru
 
 .. code-block:: console
 
-     docker build -t fabulous .
+     $ docker build -t fabulous .
 
 :Running the Docker environment:
 
@@ -86,7 +103,7 @@ To run the Docker environment, stay in the FABulous root directory (this is vita
 
 .. code-block:: console
 
-     docker run -it -v $PWD:/workspace fabulous
+     $ docker run -it -v $PWD:/workspace fabulous
 
 This will bring up an interactive bash environment within the Docker container, within which you can use FABulous as if hosted natively on your machine. When you are finished using FABulous, simply type ``exit``, and all changes made will have been made to your copy of the FABulous repository.
 
