@@ -1,3 +1,4 @@
 demo/
 **/__pycache__
 *.egg-info/
+.venv
