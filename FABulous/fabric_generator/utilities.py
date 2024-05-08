@@ -1,4 +1,152 @@
 import re
+from typing import overload, Literal
+import os
+
+
+def parseMatrix(fileName: str, tileName: str) -> dict[str, list[str]]:
+    """
+    parse the matrix csv into a dictionary from destination to source
+
+    Args:
+        fileName (str): directory of the matrix csv file
+        tileName (str): name of the tile need to be parsed
+
+    Raises:
+        ValueError: Non matching matrix file content and tile name
+
+    Returns:
+        dict[str, list[str]]: dictionary from destination to a list of source
+    """
+
+    connectionsDic = {}
+    with open(fileName, "r") as f:
+        file = f.read()
+        file = re.sub(r"#.*", "", file)
+        file = file.split("\n")
+
+    if file[0].split(",")[0] != tileName:
+        print(fileName)
+        print(file[0].split(","))
+        print(tileName)
+        raise ValueError(
+            "Tile name (top left element) in csv file does not match tile name in tile object"
+        )
+
+    destList = file[0].split(",")[1:]
+
+    for i in file[1:]:
+        i = i.split(",")
+        portName, connections = i[0], i[1:]
+        if portName == "":
+            continue
+        indices = [k for k, v in enumerate(connections) if v == "1"]
+        connectionsDic[portName] = [destList[j] for j in indices]
+    return connectionsDic
+
+
+@overload
+def parseList(
+    fileName: str, collect: Literal["pair"] = "pair"
+) -> list[tuple[str, str]]:
+    pass
+
+
+@overload
+def parseList(
+    fileName: str, collect: Literal["source", "sink"]
+) -> dict[str, list[str]]:
+    pass
+
+
+def parseList(
+    fileName: str, collect: Literal["pair", "source", "sink"] = "pair"
+) -> list[tuple[str, str]] | dict[str, list[str]]:
+    """
+    parse a list file and expand the list file information into a list of tuples.
+
+    Args:
+        fileName (str): ""
+        collect (Literal[&quot;&quot;, &quot;source&quot;, &quot;sink&quot;], optional): Collect value by source, sink or just as pair. Defaults to "pair".
+
+    Raises:
+        ValueError: The file does not exist.
+        ValueError: Invalid format in the list file.
+
+    Returns:
+        Union[list[tuple[str, str]], dict[str, list[str]]]: Return either a list of connection pair or a dictionary of lists which is collected by the specified option, source or sink.
+    """
+
+    if not os.path.exists(fileName):
+        raise ValueError(f"The file {fileName} does not exist.")
+
+    resultList = []
+    with open(fileName, "r") as f:
+        file = f.read()
+        file = re.sub(r"#.*", "", file)
+    file = file.split("\n")
+    for i, line in enumerate(file):
+        line = line.replace(" ", "").replace("\t", "").split(",")
+        line = [i for i in line if i != ""]
+        if not line:
+            continue
+        if len(line) != 2:
+            print(line)
+            raise ValueError(f"Invalid list formatting in file: {fileName} at line {i}")
+        left, right = line[0], line[1]
+
+        leftList = []
+        rightList = []
+        _expandListPorts(left, leftList)
+        _expandListPorts(right, rightList)
+        resultList += list(zip(leftList, rightList))
+
+    result = list(dict.fromkeys(resultList))
+    resultDic = {}
+    if collect == "source":
+        for k, v in result:
+            if k not in resultDic:
+                resultDic[k] = []
+            resultDic[k].append(v)
+        return resultDic
+
+    if collect == "sink":
+        for k, v in result:
+            for i in v:
+                if i not in resultDic:
+                    resultDic[i] = []
+                resultDic[i].append(k)
+        return resultDic
+
+    return result
+
+
+def _expandListPorts(port, PortList):
+    """
+    expand the .list file entry into list of tuple.
+    """
+    # a leading '[' tells us that we have to expand the list
+    if "[" in port:
+        if "]" not in port:
+            raise ValueError(
+                "\nError in function ExpandListPorts: cannot find closing ]\n"
+            )
+        # port.find gives us the first occurrence index in a string
+        left_index = port.find("[")
+        right_index = port.find("]")
+        before_left_index = port[0:left_index]
+        # right_index is the position of the ']' so we need everything after that
+        after_right_index = port[(right_index + 1) :]
+        ExpandList = []
+        ExpandList = re.split(r"\|", port[left_index + 1 : right_index])
+        for entry in ExpandList:
+            ExpandListItem = before_left_index + entry + after_right_index
+            _expandListPorts(ExpandListItem, PortList)
+
+    else:
+        # print('DEBUG: else, just:',port)
+        PortList.append(port)
+    return
+
 
 # Default parameters (will be overwritten if defined in fabric between 'ParametersBegin' and 'ParametersEnd'
 # Parameters = [ 'ConfigBitMode', 'FrameBitsPerRow' ]

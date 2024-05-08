@@ -28,18 +28,20 @@ from typing import Dict, List, Tuple
 from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.fabric_generator.code_generator import codeGenerator
-from FABulous.fabric_generator.fabric import (
-    IO,
-    ConfigBitMode,
-    ConfigMem,
+from FABulous.fabric_definition.Fabric import Fabric
+from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_definition.Port import Port
+from FABulous.fabric_definition.SuperTile import SuperTile
+from FABulous.fabric_definition.ConfigMem import ConfigMem
+from FABulous.fabric_definition.define import (
     Direction,
-    Fabric,
+    IO,
     MultiplexerStyle,
-    Port,
-    SuperTile,
-    Tile,
+    ConfigBitMode,
 )
-from FABulous.fabric_generator.file_parser import parseConfigMem, parseList, parseMatrix
+
+from FABulous.fabric_generator.file_parser import parseConfigMem
+from FABulous.fabric_generator.utilities import parseList, parseMatrix
 from fasm import *  # Remove this line if you do not have the fasm library installed and will not be generating a bitstream
 
 SWITCH_MATRIX_DEBUG_SIGNAL = True

@@ -2,7 +2,7 @@ import logging
 from csv import writer as csvWriter
 from typing import Dict, List, Set
 
-from FABulous.fabric_generator.fabric import Fabric
+from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.geometry_generator.geometry_obj import Border, Location
 from FABulous.geometry_generator.tile_geometry import TileGeometry
 

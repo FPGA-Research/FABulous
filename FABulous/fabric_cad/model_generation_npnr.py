@@ -1,8 +1,8 @@
 import string
 from typing import Tuple
 
-from FABulous.fabric_generator.fabric import Fabric, Tile
-from FABulous.fabric_generator.file_parser import parseList, parseMatrix
+from FABulous.fabric_definition.Fabric import Fabric, Tile
+from FABulous.fabric_generator.utilities import parseMatrix, parseList
 from FABulous.fabric_generator.utilities import *
 
 

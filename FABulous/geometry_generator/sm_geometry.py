@@ -2,7 +2,9 @@ import logging
 from csv import writer as csvWriter
 from typing import List
 
-from FABulous.fabric_generator.fabric import IO, Direction, Port, Side, Tile
+from FABulous.fabric_definition.define import IO, Direction, Side
+from FABulous.fabric_definition.Port import Port
+from FABulous.fabric_definition.Tile import Tile
 from FABulous.geometry_generator.bel_geometry import BelGeometry
 from FABulous.geometry_generator.geometry_obj import Border
 from FABulous.geometry_generator.port_geometry import PortGeometry, PortType

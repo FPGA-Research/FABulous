@@ -1,10 +1,7 @@
 import math
-import os
 import re
-from typing import Literal, Tuple
-
 from FABulous.fabric_generator.code_generator import codeGenerator
-from FABulous.fabric_generator.fabric import IO, Bel, ConfigBitMode, Fabric, Port, Tile
+from FABulous.fabric_definition.define import Direction, IO, Side
 
 
 class VHDLWriter(codeGenerator):

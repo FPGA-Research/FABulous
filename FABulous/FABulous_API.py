@@ -2,10 +2,10 @@ import logging
 
 import FABulous.fabric_generator.code_generator as codeGen
 import FABulous.fabric_generator.file_parser as fileParser
-import FABulous.fabric_generator.model_generation_npnr as model_gen_npnr
-import FABulous.fabric_generator.model_generation_vpr as model_gen_vpr
+import FABulous.fabric_cad.model_generation_npnr as model_gen_npnr
+import FABulous.fabric_cad.model_generation_vpr as model_gen_vpr
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
-from FABulous.fabric_generator.fabric import Fabric, Tile
+from FABulous.fabric_definition.Fabric import Fabric, Tile
 from FABulous.fabric_generator.fabric_gen import FabricGenerator
 from FABulous.geometry_generator.geometry_gen import GeometryGenerator
 

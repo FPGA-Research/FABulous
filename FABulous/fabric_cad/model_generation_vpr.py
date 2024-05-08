@@ -6,9 +6,9 @@ from sys import prefix
 from typing import List
 from xml.dom import minidom
 
-from FABulous.fabric_generator.fabric import IO, Bel, Fabric
+from FABulous.fabric_definition.Fabric import IO, Bel, Fabric
 from FABulous.fabric_generator.fabric_gen import FabricGenerator
-from FABulous.fabric_generator.file_parser import parseList, parseMatrix
+from FABulous.fabric_generator.utilities import parseList, parseMatrix
 from FABulous.fabric_generator.utilities import *
 
 logger = logging.getLogger(__name__)

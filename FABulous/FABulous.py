@@ -36,7 +36,7 @@ from pathlib import PurePosixPath, PureWindowsPath
 from typing import List, Literal
 
 import docker
-import FABulous.fabric_generator.model_generation_npnr as model_gen_npnr
+import FABulous.fabric_cad.model_generation_npnr as model_gen_npnr
 from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.fabric_generator.utilities import GetFabric, genFabricObject

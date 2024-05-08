@@ -1,7 +1,8 @@
 from csv import writer as csvWriter
 from typing import List
 
-from FABulous.fabric_generator.fabric import Direction, Side, Tile
+from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_definition.define import Direction, Side
 from FABulous.geometry_generator.bel_geometry import BelGeometry
 from FABulous.geometry_generator.geometry_obj import Border, Location
 from FABulous.geometry_generator.port_geometry import PortGeometry

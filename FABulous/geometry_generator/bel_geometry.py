@@ -1,7 +1,7 @@
 from csv import writer as csvWriter
 from typing import List
 
-from FABulous.fabric_generator.fabric import IO, Bel
+from FABulous.fabric_definition.Fabric import IO, Bel
 from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 
 
