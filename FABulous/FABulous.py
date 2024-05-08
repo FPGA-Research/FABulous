@@ -260,6 +260,7 @@ To run the complete FABulous flow with the default project, run the following co
 
     def postloop(self):
         readline.set_history_length(histfile_size)
+        histfile = f"{self.projectDir}/.FABulous/.fabulous_history"
         readline.write_history_file(histfile)
 
     def precmd(self, line: str) -> str:
@@ -1259,7 +1260,7 @@ def main():
         exit(0)
 
     if not os.path.exists(f"{args.project_dir}/.FABulous"):
-        print(
+        logger.error(
             "The directory provided is not a FABulous project as it does not have a .FABulous folder"
         )
         exit(-1)
@@ -1280,6 +1281,7 @@ def main():
         histfile = os.path.expanduser(
             f"{args.project_dir}/{metaDataDir}/.fabulous_history"
         )
+        readline.write_history_file(histfile)
 
         if args.log:
             with open(args.log, "w") as log:
