@@ -112,8 +112,8 @@ def parseList(
 
         leftList = []
         rightList = []
-        _expandListPorts(left, leftList)
-        _expandListPorts(right, rightList)
+        expandListPorts(left, leftList)
+        expandListPorts(right, rightList)
         resultList += list(zip(leftList, rightList))
 
     result = list(dict.fromkeys(resultList))
@@ -136,21 +136,9 @@ def parseList(
     return result
 
 
-def _expandListPorts(port, PortList):
-    """Expand the .list file entry into a list of tuples.
-
-    Parameters
-    ----------
-    port : str
-        The port entry to epand. if it contains "[", it's split
-        into multiple entries based on "|".
-    PortList : list
-        The list where expanded port entries are appended.
-
-    Raises
-    ------
-    ValueError
-        If the port entry contains "[" without matching "]".
+def expandListPorts(port, PortList):
+    """
+    expand the .list file entry into list of tuple.
     """
     # a leading '[' tells us that we have to expand the list
     if "[" in port:
@@ -167,12 +155,11 @@ def _expandListPorts(port, PortList):
         ExpandList = re.split(r"\|", port[left_index + 1 : right_index])
         for entry in ExpandList:
             ExpandListItem = before_left_index + entry + after_right_index
-            _expandListPorts(ExpandListItem, PortList)
+            expandListPorts(ExpandListItem, PortList)
 
     else:
         # print('DEBUG: else, just:',port)
         PortList.append(port)
-    return
 
 
 # Default parameters (will be overwritten if defined in fabric between 'ParametersBegin' and 'ParametersEnd'
