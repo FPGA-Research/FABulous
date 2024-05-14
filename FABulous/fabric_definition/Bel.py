@@ -1,5 +1,8 @@
-from dataclasses import dataclass, field
 import pathlib
+from dataclasses import dataclass, field
+
+from loguru import logger
+
 from FABulous.fabric_definition.define import IO
 
 
@@ -52,6 +55,8 @@ class Bel:
     ports_vectors: dict[str, dict[str, tuple[IO, int]]]
         Dict structure to save vectorized port information
         {<porttype>:{<portname>:(IO, <portwidth>)}}
+    carry : dict[IO, str]
+        Carry chain input and output
     """
 
     src: pathlib.Path
@@ -70,6 +75,7 @@ class Bel:
     withUserCLK: bool = False
     individually_declared: bool = False
     ports_vectors: dict[str, dict[str, tuple[IO, int]]] = field(default_factory=dict)
+    carry: dict[IO, str] = field(default_factory=dict)
 
     def __init__(
         self,
@@ -85,6 +91,7 @@ class Bel:
         userCLK: bool,
         individually_declared: bool,
         ports_vectors: dict[str, dict[str, tuple[IO, int]]],
+        carry: dict[IO, str],
     ) -> None:
         self.src = src
         self.prefix = prefix
@@ -108,3 +115,4 @@ class Bel:
         else:
             logger.error(f"Unknown file type {self.src.suffix} for BEL {self.src}")
             raise ValueError
+        self.carry = carry
