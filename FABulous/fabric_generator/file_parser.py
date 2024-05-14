@@ -538,38 +538,17 @@ def parseFileVHDL(filename: str, belPrefix: str = "") -> tuple[
         if not result:
             continue
         portName = f"{belPrefix}{result.group(1)}"
+        direction = IO[result.group(2).upper()]
 
         if isExternal and not isShared:
-            if result.group(2).lower() == "in":
-                external.append((portName, IO.INPUT))
-            elif result.group(2).lower() == "out":
-                external.append((portName, IO.OUTPUT))
+            external.append((portName, direction))
         elif isConfig:
-            if result.group(2).lower() == "in":
-                config.append((portName, IO.INPUT))
-            elif result.group(2).lower() == "out":
-                config.append((portName, IO.OUTPUT))
+            config.append((portName, direction))
         elif isShared:
             # shared port do not have a prefix
-            if result.group(2).lower() == "in":
-                shared.append((result.group(1), IO.INOUT))
-            elif result.group(2).lower() == "out":
-                shared.append((result.group(1), IO.OUTPUT))
-            elif result.group(2).lower() == "inout":
-                shared.append((result.group(1), IO.INOUT))
-            else:
-                logger.error(f"Invalid port type {result.group(2)} in file {filename}")
-                raise ValueError
+            shared.append((portName.removeprefix(belPrefix), direction))
         else:
-            if result.group(2).lower() == "in":
-                internal.append((portName, IO.INPUT))
-            elif result.group(2).lower() == "out":
-                internal.append((portName, IO.OUTPUT))
-            elif result.group(2).lower() == "inout":
-                internal.append((portName, IO.INOUT))
-            else:
-                logger.error(f"Invalid port type {result.group(2)} in file {filename}")
-                raise ValueError
+            internal.append((portName, direction))
 
         if "UserCLK" in portName:
             userClk = True
@@ -733,27 +712,25 @@ def parseFileVerilog(filename: str, belPrefix: str = "") -> tuple[
             if attribute := re.search(r"\(\*FABulous,(.*)\*\)", cleanedLine):
                 if "EXTERNAL" in attribute.group(1):
                     isExternal = True
-
                 if "CONFIG" in attribute.group(1):
                     isConfig = True
-
                 if "SHARED_PORT" in attribute.group(1):
                     isShared = True
-
                 if "GLOBAL" in attribute.group(1):
                     break
 
             portName = f"{belPrefix}{result.group(2)}"
+            direction = IO[result.group(1).upper()]
 
             if isExternal and not isShared:
-                external.append((portName, IO[result.group(1).upper()]))
+                external.append((portName, direction))
             elif isConfig:
-                config.append((portName, IO[result.group(1).upper()]))
+                config.append((portName, direction))
             elif isShared:
                 # shared port do not have a prefix
-                shared.append((result.group(2), IO[result.group(1).upper()]))
+                shared.append((portName.removeprefix(belPrefix), direction))
             else:
-                internal.append((portName, IO[result.group(1).upper()]))
+                internal.append((portName, direction))
 
             if "UserCLK" in portName:
                 userClk = True
