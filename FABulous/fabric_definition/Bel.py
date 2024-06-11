@@ -55,8 +55,9 @@ class Bel:
     ports_vectors: dict[str, dict[str, tuple[IO, int]]]
         Dict structure to save vectorized port information
         {<porttype>:{<portname>:(IO, <portwidth>)}}
-    carry : dict[IO, str]
-        Carry chain input and output
+    carry : dict[str, dict[IO, str]]
+        Carry chains by name.
+        carry_name : {direction : port_name}
     """
 
     src: pathlib.Path
@@ -75,7 +76,7 @@ class Bel:
     withUserCLK: bool = False
     individually_declared: bool = False
     ports_vectors: dict[str, dict[str, tuple[IO, int]]] = field(default_factory=dict)
-    carry: dict[IO, str] = field(default_factory=dict)
+    carry: dict[str, dict[IO, str]] = field(default_factory=dict)
 
     def __init__(
         self,
@@ -91,7 +92,7 @@ class Bel:
         userCLK: bool,
         individually_declared: bool,
         ports_vectors: dict[str, dict[str, tuple[IO, int]]],
-        carry: dict[IO, str],
+        carry: dict[str, dict[IO, str]],
     ) -> None:
         self.src = src
         self.prefix = prefix
