@@ -30,6 +30,8 @@ class Bel:
         The name of the module in the bel.
         For verlog we can extract this from the RTL.
         For VHDL this is currently the same as name.
+    filetype : str
+        The file type of the BEL.
     inputs : list[str]
         All the normal input ports of the BEL.
     outputs : list[str]
@@ -64,6 +66,7 @@ class Bel:
     prefix: str
     name: str
     module_name: str
+    filetype: str
     inputs: list[str]
     outputs: list[str]
     externalInput: list[str]
@@ -83,6 +86,7 @@ class Bel:
         src: pathlib.Path,
         prefix: str,
         module_name: str,
+        filetype: str,
         internal,
         external,
         configPort,
@@ -98,6 +102,7 @@ class Bel:
         self.prefix = prefix
         self.name = src.stem
         self.module_name = module_name
+        self.filetype = filetype
         self.inputs = [p for p, io in internal if io == IO.INPUT]
         self.outputs = [p for p, io in internal if io == IO.OUTPUT]
         self.externalInput = [p for p, io in external if io == IO.INPUT]
