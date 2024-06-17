@@ -101,13 +101,15 @@ class FabricGenerator:
                 for p in b.outputs + b.externalOutput:
                     destName.append(f"{p}")
 
-            # GEN_IO wire
+            # GEN_IO wire if its not an config access port
+            # Config access ports are not connected to the switch matrix
             for gio in tile.gen_ios:
-                for j in range(gio.pins):
-                    if gio.IO == IO.INPUT:
-                        sourceName.append(f"{gio.prefix}{j}")
-                    elif gio.IO == IO.OUTPUT:
-                        destName.append(f"{gio.prefix}{j}")
+                if not gio.configAccess:
+                    for j in range(gio.pins):
+                        if gio.IO == IO.INPUT:
+                            sourceName.append(f"{gio.prefix}{j}")
+                        elif gio.IO == IO.OUTPUT:
+                            destName.append(f"{gio.prefix}{j}")
 
             # jump wire
             for i in tile.portsInfo:
@@ -503,12 +505,16 @@ class FabricGenerator:
 
         # gen_io wire input
         # GIO output is a switch matrix input
+        # Config access ports are not connected to the switch matrix
         for gio in tile.gen_ios:
-            for j in range(gio.pins):
-                if gio.IO == IO.OUTPUT:
-                    self.writer.addPortScalar(
-                        f"{gio.prefix}{j}", IO.INPUT, indentLevel=2
-                    )
+            if not gio.configAccess:
+                for j in range(gio.pins):
+                    if gio.IO == IO.OUTPUT:
+                        self.writer.addPortScalar(
+                            f"{gio.prefix}{j}", IO.INPUT, indentLevel=2
+                        )
+                        # if gio.inverted:
+                        #     self.writer.addPortScalar(f"{gio.prefix}{j}_N", IO.INPUT, indentLevel=2)
 
         # jump wire input
         for i in tile.portsInfo:
@@ -529,12 +535,14 @@ class FabricGenerator:
 
         # gen_io wire output
         # GIO input is a switch matrix output
+        # Config access ports are not connected to the switch matrix
         for gio in tile.gen_ios:
-            for j in range(gio.pins):
-                if gio.IO == IO.INPUT:
-                    self.writer.addPortScalar(
-                        f"{gio.prefix}{j}", IO.OUTPUT, indentLevel=2
-                    )
+            if not gio.configAccess:
+                for j in range(gio.pins):
+                    if gio.IO == IO.INPUT:
+                        self.writer.addPortScalar(
+                            f"{gio.prefix}{j}", IO.OUTPUT, indentLevel=2
+                        )
 
         # jump wire output
         for i in tile.portsInfo:
@@ -846,13 +854,20 @@ class FabricGenerator:
                     )
                     externalPorts.append((f"{gio.prefix}{j}_top", IO.OUTPUT))
                 elif gio.IO == IO.OUTPUT:
-                    self.writer.addPortScalar(
-                        f"{gio.prefix}{j}", IO.OUTPUT, indentLevel=2
-                    )
-                    self.writer.addPortScalar(
-                        f"{gio.prefix}{j}_top", IO.INPUT, indentLevel=2
-                    )
-                    externalPorts.append((f"{gio.prefix}{j}_top", IO.INPUT))
+                    if not gio.configAccess:
+                        self.writer.addPortScalar(
+                            f"{gio.prefix}{j}", IO.OUTPUT, indentLevel=2
+                        )
+                        self.writer.addPortScalar(
+                            f"{gio.prefix}{j}_top", IO.INPUT, indentLevel=2
+                        )
+                        externalPorts.append((f"{gio.prefix}{j}_top", IO.INPUT))
+                    else:
+                        # if the GIO is a config access port, we need to add it to the external ports
+                        self.writer.addPortScalar(
+                            f"{gio.prefix}{j}", IO.OUTPUT, indentLevel=2
+                        )
+                        externalPorts.append((f"{gio.prefix}{j}", IO.OUTPUT))
 
         self.writer.addComment("Tile IO ports from BELs", onNewLine=True, indentLevel=1)
 
@@ -1114,7 +1129,10 @@ class FabricGenerator:
             )
 
         # BEL component instantiations
-        self.writer.addComment("BEL component instantiations", onNewLine=True)
+        if tile.bels:
+            self.writer.addNewLine()
+            self.writer.addComment("BEL component instantiations", onNewLine=True)
+
         belCounter = 0
         belConfigBitsCounter = 0
         for bel in tile.bels:
@@ -1199,17 +1217,37 @@ class FabricGenerator:
             # for the next BEL (if any) for cascading configuration chain (this information is also needed for chaining the switch matrix)
             belCounter += 1
 
-        # gen_io wire assignments
+        # gen_io config bit access
+        if any(gio.configAccess for gio in tile.gen_ios):
+            self.writer.addNewLine()
+            self.writer.addComment("gen_io config bit access", onNewLine=True)
         for gio in tile.gen_ios:
-            for j in range(gio.pins):
-                if gio.IO == IO.INPUT:
+            for j in range(gio.configBit):
+                if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
                     self.writer.addAssignScalar(
-                        f"{gio.prefix}{j}_top", f"{gio.prefix}{j}"
+                        f"{gio.prefix}{j}", f"ConfigBits[{belConfigBitsCounter}]"
                     )
-                elif gio.IO == IO.OUTPUT:
-                    self.writer.addAssignScalar(
-                        f"{gio.prefix}{j}", f"{gio.prefix}{j}_top"
+                    belConfigBitsCounter += 1
+                elif self.fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+                    raise ValueError(
+                        "gen_io config bit access not implemented for ConfigBitMode.FLIPFLOP_CHAIN"
                     )
+
+        # gen_io wire assignments
+        if tile.gen_ios:
+            self.writer.addNewLine()
+            self.writer.addComment("gen_io wire assignments", onNewLine=True)
+        for gio in tile.gen_ios:
+            if not gio.configAccess:
+                for j in range(gio.pins):
+                    if gio.IO == IO.INPUT:
+                        self.writer.addAssignScalar(
+                            f"{gio.prefix}{j}_top", f"{gio.prefix}{j}"
+                        )
+                    elif gio.IO == IO.OUTPUT:
+                        self.writer.addAssignScalar(
+                            f"{gio.prefix}{j}", f"{gio.prefix}{j}_top"
+                        )
         if tile.gen_ios:
             self.writer.addNewLine()
 
@@ -1241,9 +1279,10 @@ class FabricGenerator:
 
         # gen_io input wire
         for gio in tile.gen_ios:
-            for j in range(gio.pins):
-                if gio.IO == IO.OUTPUT:
-                    portsPairs.append((f"{gio.prefix}{j}", f"{gio.prefix}{j}"))
+            if not gio.configAccess:
+                for j in range(gio.pins):
+                    if gio.IO == IO.OUTPUT:
+                        portsPairs.append((f"{gio.prefix}{j}", f"{gio.prefix}{j}"))
 
         # jump input wire
         port, signal = [], []
@@ -1270,11 +1309,12 @@ class FabricGenerator:
             for p in bel.inputs:
                 portsPairs.append((p, p))
 
-        # gen_io input wire
+        # gen_io output wire
         for gio in tile.gen_ios:
-            for j in range(gio.pins):
-                if gio.IO == IO.INPUT:
-                    portsPairs.append((f"{gio.prefix}{j}", f"{gio.prefix}{j}"))
+            if not gio.configAccess:
+                for j in range(gio.pins):
+                    if gio.IO == IO.INPUT:
+                        portsPairs.append((f"{gio.prefix}{j}", f"{gio.prefix}{j}"))
 
         # jump output wire
         port, signal = [], []
@@ -1384,17 +1424,25 @@ class FabricGenerator:
                         continue
                     self.writer.addPortScalar(p[0], p[1], indentLevel=2)
             for gio in i.gen_ios:
-                for j in range(gio.pins):
-                    # Since the _top ports are the only external ports, we only add them here
-                    # But they need to be inverted direction
-                    if gio.IO == IO.INPUT:
-                        self.writer.addPortScalar(
-                            f"{gio.prefix}{j}_top", IO.INPUT, indentLevel=2
-                        )
-                    elif gio.IO == IO.OUTPUT:
-                        self.writer.addPortScalar(
-                            f"{gio.prefix}{j}_top", IO.OUTPUT, indentLevel=2
-                        )
+                if not gio.configAccess:
+                    for j in range(gio.pins):
+                        # Since the _top ports are the only external ports, we only add them here
+                        # But they need to be inverted direction
+                        # TODO: is this still true?
+                        if gio.IO == IO.INPUT:
+                            self.writer.addPortScalar(
+                                f"{gio.prefix}{j}_top", IO.INPUT, indentLevel=2
+                            )
+                        elif gio.IO == IO.OUTPUT:
+                            self.writer.addPortScalar(
+                                f"{gio.prefix}{j}_top", IO.OUTPUT, indentLevel=2
+                            )
+                else:
+                    for j in range(gio.pins):
+                        if gio.IO == IO.OUTPUT:
+                            self.writer.addPortScalar(
+                                f"{gio.prefix}{j}", IO.OUTPUT, indentLevel=2
+                            )
 
         # add userCLK port
         # self.writer.addPortScalar("userCLK", IO.INPUT, indentLevel=2)
@@ -1683,11 +1731,18 @@ class FabricGenerator:
                                     indentLevel=2,
                                 )
                             elif gio.IO == IO.OUTPUT:
-                                self.writer.addPortScalar(
-                                    f"Tile_X{x}Y{y}_{gio.prefix}{j}_top",
-                                    IO.INPUT,
-                                    indentLevel=2,
-                                )
+                                if not gio.configAccess:
+                                    self.writer.addPortScalar(
+                                        f"Tile_X{x}Y{y}_{gio.prefix}{j}_top",
+                                        IO.INPUT,
+                                        indentLevel=2,
+                                    )
+                                else:
+                                    self.writer.addPortScalar(
+                                        f"Tile_X{x}Y{y}_{gio.prefix}{j}",
+                                        IO.OUTPUT,
+                                        indentLevel=2,
+                                    )
                             self.writer.addComment("EXTERNAL", onNewLine=False)
 
         if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
@@ -2020,13 +2075,22 @@ class FabricGenerator:
                                 portsPairs.append(("UserCLK", p[0]))
 
                     for gio in self.fabric.tile[y + j][x + i].gen_ios:
-                        for k in range(gio.pins):
-                            portsPairs.append(
-                                (
-                                    f"{gio.prefix}{k}_top",
-                                    f"Tile_X{x+i}Y{y+j}_{gio.prefix}{k}",
+                        if not gio.configAccess:
+                            for k in range(gio.pins):
+                                portsPairs.append(
+                                    (
+                                        f"{gio.prefix}{k}_top",
+                                        f"Tile_X{x+i}Y{y+j}_{gio.prefix}{k}",
+                                    )
                                 )
-                            )
+                        else:
+                            for k in range(gio.pins):
+                                portsPairs.append(
+                                    (
+                                        f"{gio.prefix}{k}",
+                                        f"Tile_X{x+i}Y{y+j}_{gio.prefix}{k}",
+                                    )
+                                )
 
                 if not superTile:
                     # for userCLK
@@ -2230,9 +2294,15 @@ class FabricGenerator:
                                     (IO.OUTPUT, f"Tile_X{x}Y{y}_{gio.prefix}{j}_top")
                                 )
                             elif gio.IO == IO.OUTPUT:
-                                externalPorts.append(
-                                    (IO.INPUT, f"Tile_X{x}Y{y}_{gio.prefix}{j}_top")
-                                )
+                                if not gio.configAccess:
+                                    externalPorts.append(
+                                        (IO.INPUT, f"Tile_X{x}Y{y}_{gio.prefix}{j}_top")
+                                    )
+                                else:
+                                    externalPorts.append(
+                                        (IO.OUTPUT, f"Tile_X{x}Y{y}_{gio.prefix}{j}")
+                                    )
+
         for iodir, name in externalPorts:
             yx, indices, port = split_port(name)
             if port not in portGroups:
@@ -2605,6 +2675,17 @@ class FabricGenerator:
                                     }
                                 curBitOffset += len(keyDict[entry])
 
+                # TODO: Ckeck how Datastrucutre is actually working, and if 1 is always needed as Vlaue!
+                for gio in tile.gen_ios:
+                    for j in range(gio.configBit):
+                        curTileMap[f"{gio.prefix}{j}"] = {
+                            encodeDict[curBitOffset + j]: "1"
+                        }
+                        curTileMapNoMask[f"{gio.prefix}{j}"] = {
+                            encodeDict[curBitOffset + j]: "1"
+                        }
+                    curBitOffset += gio.configBit
+
                 # All the generation will be working on the tile level with the tileDic
                 # This is added to propagate the updated switch matrix to each of the tile in the fabric
                 if tile.matrixDir.suffix == ".list":
@@ -2643,4 +2724,3 @@ class FabricGenerator:
                 specData["TileSpecs_No_Mask"][f"X{x}Y{y}"] = curTileMapNoMask
 
         return specData
-

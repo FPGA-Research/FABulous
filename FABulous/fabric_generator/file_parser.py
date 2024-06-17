@@ -1,4 +1,4 @@
-        import csv
+import csv
 import re
 import subprocess
 import json
@@ -506,7 +506,37 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         f"Invalid file type in {belFilePath} only .vhdl and .v are supported."
                     )
             elif temp[0] == "GEN_IO":
-                gen_ios.append(Gen_IO(temp[3], int(temp[1]), IO[temp[2]]))
+                configBit = 0
+                configAccess = False
+                inverted = False
+                # Additional params can be added
+                for param in temp[4:]:
+                    param = param.strip()
+                    param = param.upper()
+
+                    if param == "CONFIGACCESS":
+                        if temp[2] != "OUTPUT":
+                            raise ValueError(
+                                "CONFIGACCESS can only be used with OUTPUT"
+                            )
+                        configAccess = True
+                        configBit = int(temp[1])
+                    elif param == "INVERTED":
+                        inverted = True
+                    elif param is None or param == "":
+                        continue
+                    else:
+                        raise ValueError(f"Unknown parameter {param} in GEN_IO")
+                gen_ios.append(
+                    Gen_IO(
+                        temp[3],
+                        int(temp[1]),
+                        IO[temp[2]],
+                        configBit,
+                        configAccess,
+                        inverted,
+                    )
+                )
             elif temp[0] == "MATRIX":
                 matrixDir = fileName.parent.joinpath(temp[1])
                 configBit = 0

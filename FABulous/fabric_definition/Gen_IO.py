@@ -13,9 +13,19 @@ class Gen_IO:
         prefix (str): The prefix of the GEN_IO given in the CSV file.
         pins (int): Number of IOs.
         IO (IO) : Direction of the IOs, either INPUT or OUTPUT.
-        params (Dict[str, str]): Additional parameters for GEN_IO.
+        configBit (int) : The number of accessible config bits for config access GEN_IO.
+        params : Additional parameters of GEN_IOs.
+            - configAccess (bool) : Whether the GEN_IO is config access.
+                                    Routes access to config bits, directly to TOP.
+                                    This GEN_IOs are not connected to the switchmatrix,
+                                    Can only be used as an OUTPUT.
     """
 
     prefix: str
     pins: int
     IO: IO
+    configBit: int = 0
+
+    # Paramters for GEN_IO:
+    configAccess: bool = False
+    inverted: bool = False

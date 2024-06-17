@@ -69,6 +69,10 @@ class Tile:
         for b in self.bels:
             self.globalConfigBits += b.configBit
 
+        for gio in self.gen_ios:
+            if gio.configAccess:
+                self.globalConfigBits += gio.configBit
+
     def __eq__(self, __o: Any) -> bool:
         if __o is None or not isinstance(__o, Tile):
             return False
