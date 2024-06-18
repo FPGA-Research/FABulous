@@ -877,15 +877,6 @@ class FabricGenerator:
                     f"Could not find {tile.name}_ConfigMem.vhdl in {basePath} config_mem generation first"
                 )
 
-            if (
-                self.fabric.configBitMode == ConfigBitMode.FRAME_BASED
-                and tile.globalConfigBits > 0
-            ):
-                if os.path.exists(f"{basePath}/{tile.name}_ConfigMem.vhdl"):
-                    self.writer.addComponentDeclarationForFile(
-                        f"{basePath}/{tile.name}_ConfigMem.vhdl"
-                    )
-
         # VHDL signal declarations
         self.writer.addComment("signal declarations", onNewLine=True)
         # BEL port wires
