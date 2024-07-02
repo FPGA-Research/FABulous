@@ -1,4 +1,4 @@
-import csv
+        import csv
 import re
 import subprocess
 import json
@@ -9,6 +9,7 @@ from typing import Literal, overload
 from pathlib import Path
 from FABulous.fabric_generator.utilities import expandListPorts
 from FABulous.fabric_definition.Bel import Bel
+from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_definition.SuperTile import SuperTile
@@ -21,7 +22,6 @@ from FABulous.fabric_definition.define import (
     ConfigBitMode,
     MultiplexerStyle,
 )
-
 
 oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST"}
 
@@ -95,7 +95,6 @@ def parseFabricCSV(fileName: str) -> Fabric:
     tileTypes = []
     tileDefs = []
     commonWirePair: list[tuple[str, str]] = []
-
     fabricTiles = []
     tileDic = {}
 
@@ -484,6 +483,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
         ports: list[Port] = []
         bels: list[Bel] = []
         matrixDir: Path | None = None
+        gen_ios: list[Gen_IO] = []
         withUserCLK = False
         configBit = 0
         for item in t:
@@ -505,6 +505,8 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     raise ValueError(
                         f"Invalid file type in {belFilePath} only .vhdl and .v are supported."
                     )
+            elif temp[0] == "GEN_IO":
+                gen_ios.append(Gen_IO(temp[3], int(temp[1]), IO[temp[2]]))
             elif temp[0] == "MATRIX":
                 matrixDir = fileName.parent.joinpath(temp[1])
                 configBit = 0
@@ -563,6 +565,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     bels=bels,
                     tileDir=fileName,
                     matrixDir=matrixDir,
+                    gen_ios=gen_ios,
                     userCLK=withUserCLK,
                     configBit=configBit,
                 )

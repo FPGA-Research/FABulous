@@ -72,6 +72,7 @@ class FabricGenerator:
         The order of the signal will be:
         - standard wire
         - BEL signal with prefix
+        - GEN_IO signals with prefix
         - jump wire
 
         The order is important as this order will be used during switch matrix generation.
@@ -99,6 +100,14 @@ class FabricGenerator:
                     sourceName.append(f"{p}")
                 for p in b.outputs + b.externalOutput:
                     destName.append(f"{p}")
+
+            # GEN_IO wire
+            for gio in tile.gen_ios:
+                for j in range(gio.pins):
+                    if gio.IO == IO.INPUT:
+                        sourceName.append(f"{gio.prefix}{j}")
+                    elif gio.IO == IO.OUTPUT:
+                        destName.append(f"{gio.prefix}{j}")
 
             # jump wire
             for i in tile.portsInfo:
@@ -492,6 +501,15 @@ class FabricGenerator:
             for p in b.outputs:
                 self.writer.addPortScalar(p, IO.INPUT, indentLevel=2)
 
+        # gen_io wire input
+        # GIO output is a switch matrix input
+        for gio in tile.gen_ios:
+            for j in range(gio.pins):
+                if gio.IO == IO.OUTPUT:
+                    self.writer.addPortScalar(
+                        f"{gio.prefix}{j}", IO.INPUT, indentLevel=2
+                    )
+
         # jump wire input
         for i in tile.portsInfo:
             if i.wireDirection == Direction.JUMP and i.inOut == IO.INPUT:
@@ -508,6 +526,15 @@ class FabricGenerator:
         for b in tile.bels:
             for p in b.inputs:
                 self.writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+
+        # gen_io wire output
+        # GIO input is a switch matrix output
+        for gio in tile.gen_ios:
+            for j in range(gio.pins):
+                if gio.IO == IO.INPUT:
+                    self.writer.addPortScalar(
+                        f"{gio.prefix}{j}", IO.OUTPUT, indentLevel=2
+                    )
 
         # jump wire output
         for i in tile.portsInfo:
@@ -803,6 +830,29 @@ class FabricGenerator:
         sharedExternalPorts = set()
         for i in tile.bels:
             sharedExternalPorts.update(i.sharedPort)
+
+        # Append generative IO ports as tile ports and also as external ports
+        # Since one port goes to the fabric and one to the top level, we need to generate both
+        # Only the top-level ports are added to the externalPorts list
+        self.writer.addComment("Generative IO ports", onNewLine=True, indentLevel=1)
+        for gio in tile.gen_ios:
+            for j in range(gio.pins):
+                if gio.IO == IO.INPUT:
+                    self.writer.addPortScalar(
+                        f"{gio.prefix}{j}", IO.INPUT, indentLevel=2
+                    )
+                    self.writer.addPortScalar(
+                        f"{gio.prefix}{j}_top", IO.OUTPUT, indentLevel=2
+                    )
+                    externalPorts.append((f"{gio.prefix}{j}_top", IO.OUTPUT))
+                elif gio.IO == IO.OUTPUT:
+                    self.writer.addPortScalar(
+                        f"{gio.prefix}{j}", IO.OUTPUT, indentLevel=2
+                    )
+                    self.writer.addPortScalar(
+                        f"{gio.prefix}{j}_top", IO.INPUT, indentLevel=2
+                    )
+                    externalPorts.append((f"{gio.prefix}{j}_top", IO.INPUT))
 
         self.writer.addComment("Tile IO ports from BELs", onNewLine=True, indentLevel=1)
 
@@ -1149,6 +1199,20 @@ class FabricGenerator:
             # for the next BEL (if any) for cascading configuration chain (this information is also needed for chaining the switch matrix)
             belCounter += 1
 
+        # gen_io wire assignments
+        for gio in tile.gen_ios:
+            for j in range(gio.pins):
+                if gio.IO == IO.INPUT:
+                    self.writer.addAssignScalar(
+                        f"{gio.prefix}{j}_top", f"{gio.prefix}{j}"
+                    )
+                elif gio.IO == IO.OUTPUT:
+                    self.writer.addAssignScalar(
+                        f"{gio.prefix}{j}", f"{gio.prefix}{j}_top"
+                    )
+        if tile.gen_ios:
+            self.writer.addNewLine()
+
         # switch matrix component instantiation
         # important to know:
         # Each switch matrix entity is build up is a specific order:
@@ -1175,6 +1239,12 @@ class FabricGenerator:
             for p in bel.outputs:
                 portsPairs.append((p, p))
 
+        # gen_io input wire
+        for gio in tile.gen_ios:
+            for j in range(gio.pins):
+                if gio.IO == IO.OUTPUT:
+                    portsPairs.append((f"{gio.prefix}{j}", f"{gio.prefix}{j}"))
+
         # jump input wire
         port, signal = [], []
         for i in tile.portsInfo:
@@ -1199,6 +1269,12 @@ class FabricGenerator:
         for bel in tile.bels:
             for p in bel.inputs:
                 portsPairs.append((p, p))
+
+        # gen_io input wire
+        for gio in tile.gen_ios:
+            for j in range(gio.pins):
+                if gio.IO == IO.INPUT:
+                    portsPairs.append((f"{gio.prefix}{j}", f"{gio.prefix}{j}"))
 
         # jump output wire
         port, signal = [], []
@@ -1307,6 +1383,18 @@ class FabricGenerator:
                     if p[0] == "UserCLK":
                         continue
                     self.writer.addPortScalar(p[0], p[1], indentLevel=2)
+            for gio in i.gen_ios:
+                for j in range(gio.pins):
+                    # Since the _top ports are the only external ports, we only add them here
+                    # But they need to be inverted direction
+                    if gio.IO == IO.INPUT:
+                        self.writer.addPortScalar(
+                            f"{gio.prefix}{j}_top", IO.INPUT, indentLevel=2
+                        )
+                    elif gio.IO == IO.OUTPUT:
+                        self.writer.addPortScalar(
+                            f"{gio.prefix}{j}_top", IO.OUTPUT, indentLevel=2
+                        )
 
         # add userCLK port
         # self.writer.addPortScalar("userCLK", IO.INPUT, indentLevel=2)
@@ -1583,6 +1671,23 @@ class FabricGenerator:
                             self.writer.addPortScalar(
                                 f"Tile_X{x}Y{y}_{i}", IO.OUTPUT, indentLevel=2
                             )
+                            self.writer.addComment("EXTERNAL", onNewLine=False)
+                    for gio in tile.gen_ios:
+                        for j in range(gio.pins):
+                            # Since the _top ports are the only external ports, we add them here
+                            # But they need to be inverted direction, since the _top ports are the opposite direction
+                            if gio.IO == IO.INPUT:
+                                self.writer.addPortScalar(
+                                    f"Tile_X{x}Y{y}_{gio.prefix}{j}_top",
+                                    IO.OUTPUT,
+                                    indentLevel=2,
+                                )
+                            elif gio.IO == IO.OUTPUT:
+                                self.writer.addPortScalar(
+                                    f"Tile_X{x}Y{y}_{gio.prefix}{j}_top",
+                                    IO.INPUT,
+                                    indentLevel=2,
+                                )
                             self.writer.addComment("EXTERNAL", onNewLine=False)
 
         if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
@@ -1914,6 +2019,15 @@ class FabricGenerator:
                             if "UserCLK" not in p[0]:
                                 portsPairs.append(("UserCLK", p[0]))
 
+                    for gio in self.fabric.tile[y + j][x + i].gen_ios:
+                        for k in range(gio.pins):
+                            portsPairs.append(
+                                (
+                                    f"{gio.prefix}{k}_top",
+                                    f"Tile_X{x+i}Y{y+j}_{gio.prefix}{k}",
+                                )
+                            )
+
                 if not superTile:
                     # for userCLK
                     if (
@@ -2109,6 +2223,16 @@ class FabricGenerator:
                             externalPorts.append((IO.INPUT, f"Tile_X{x}Y{y}_{i}"))
                         for i in bel.externalOutput:
                             externalPorts.append((IO.OUTPUT, f"Tile_X{x}Y{y}_{i}"))
+                    for gio in tile.gen_ios:
+                        for j in range(gio.pins):
+                            if gio.IO == IO.INPUT:
+                                externalPorts.append(
+                                    (IO.OUTPUT, f"Tile_X{x}Y{y}_{gio.prefix}{j}_top")
+                                )
+                            elif gio.IO == IO.OUTPUT:
+                                externalPorts.append(
+                                    (IO.INPUT, f"Tile_X{x}Y{y}_{gio.prefix}{j}_top")
+                                )
         for iodir, name in externalPorts:
             yx, indices, port = split_port(name)
             if port not in portGroups:
@@ -2519,3 +2643,4 @@ class FabricGenerator:
                 specData["TileSpecs_No_Mask"][f"X{x}Y{y}"] = curTileMapNoMask
 
         return specData
+
