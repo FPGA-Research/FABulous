@@ -513,10 +513,10 @@ class codeGenerator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def addAssignScalar(self, left, right, delay=0, indentLevel=0):
-        """Add a scalar assign statement.
-
-        Delay is provided but currently not used by any of the code generators.
+    def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
+        """
+        Add a scalar assign statement.
+        Delay is provided by currently not being used by any of the code generator.
         If **right** is a list, it will be concatenated.
         Verilog will concatenate with comma ','.
         VHDL will concatenate with ampersand '&' instead.
@@ -531,6 +531,8 @@ class codeGenerator(abc.ABC):
             Delay in the assignment. Defaults to 0.
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
+        inverted : bool, optional
+            Invert **right**. Default False.
 
         Examples
         --------
@@ -545,8 +547,11 @@ class codeGenerator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def addAssignVector(self, left, right, widthL, widthR, indentLevel=0):
-        """Add a vector assign statement.
+    def addAssignVector(
+        self, left, right, widthL, widthR, indentLevel=0, inverted=False
+    ):
+        """
+        Add a vector assign statement.
 
         Parameters
         ----------
@@ -560,6 +565,8 @@ class codeGenerator(abc.ABC):
             The end index of the vector. Can be a string.
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
+        inverted : bool, optional
+            Invert **right**. Default False.
 
         Examples
         --------

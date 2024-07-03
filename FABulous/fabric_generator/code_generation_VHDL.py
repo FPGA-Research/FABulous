@@ -108,9 +108,12 @@ class VHDLWriter(codeGenerator):
     def addLogicEnd(self, indentLevel=0):
         self._add("\n" f"end" "\n", indentLevel)
 
-    def addAssignScalar(self, left, right, delay=0, indentLevel=0):
+    def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
+        inv = "not" if inverted else ""
         if type(right) == list:
-            self._add(f"{left} <= {' & '.join(right)} after {delay} ps;", indentLevel)
+            self._add(
+                f"{left} <= {inv}{' & '.join(right)} after {delay} ps;", indentLevel
+            )
         else:
             left = (
                 str(left).replace(":", " downto ").replace("[", "(").replace("]", ")")
@@ -118,10 +121,13 @@ class VHDLWriter(codeGenerator):
             right = (
                 str(right).replace(":", " downto ").replace("[", "(").replace("]", ")")
             )
-            self._add(f"{left} <= {right} after {delay} ps;", indentLevel)
+            self._add(f"{left} <= {inv}{right} after {delay} ps;", indentLevel)
 
-    def addAssignVector(self, left, right, widthL, widthR, indentLevel=0):
-        self._add(f"{left} <= {right}( {widthL} downto {widthR} );", indentLevel)
+    def addAssignVector(
+        self, left, right, widthL, widthR, indentLevel=0, inverted=False
+    ):
+        inv = "not" if inverted else ""
+        self._add(f"{left} <= {inv}{right}( {widthL} downto {widthR} );", indentLevel)
 
     def addInstantiation(
         self,

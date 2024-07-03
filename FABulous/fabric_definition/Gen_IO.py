@@ -19,6 +19,7 @@ class Gen_IO:
                                     Routes access to config bits, directly to TOP.
                                     This GEN_IOs are not connected to the switchmatrix,
                                     Can only be used as an OUTPUT.
+            - inverted (bool) : GEN_IO will be inverted.
     """
 
     prefix: str

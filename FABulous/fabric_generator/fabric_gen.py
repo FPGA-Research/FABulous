@@ -1225,7 +1225,9 @@ class FabricGenerator:
             for j in range(gio.configBit):
                 if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
                     self.writer.addAssignScalar(
-                        f"{gio.prefix}{j}", f"ConfigBits[{belConfigBitsCounter}]"
+                        f"{gio.prefix}{j}",
+                        f"ConfigBits[{belConfigBitsCounter}]",
+                        inverted=gio.inverted,
                     )
                     belConfigBitsCounter += 1
                 elif self.fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
@@ -1242,11 +1244,15 @@ class FabricGenerator:
                 for j in range(gio.pins):
                     if gio.IO == IO.INPUT:
                         self.writer.addAssignScalar(
-                            f"{gio.prefix}{j}_top", f"{gio.prefix}{j}"
+                            f"{gio.prefix}{j}_top",
+                            f"{gio.prefix}{j}",
+                            inverted=gio.inverted,
                         )
                     elif gio.IO == IO.OUTPUT:
                         self.writer.addAssignScalar(
-                            f"{gio.prefix}{j}", f"{gio.prefix}{j}_top"
+                            f"{gio.prefix}{j}",
+                            f"{gio.prefix}{j}_top",
+                            inverted=gio.inverted,
                         )
         if tile.gen_ios:
             self.writer.addNewLine()
