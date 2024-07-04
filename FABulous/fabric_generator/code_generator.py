@@ -513,6 +513,26 @@ class codeGenerator(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def addRegister(self, reg, regIn, clk="CLK", inverted=False, indentLevel=0):
+        """
+        Add a register.
+
+        Parameters
+        ----------
+        reg : str
+            The name of the register.
+        regIn : str
+            The input signal of the register.
+        clk : str, optional
+            The clock signal of the register. Defaults to "CLK".
+        inverted : bool, optional
+            Invert the input signal. Defaults to False.
+        indentLevel : int, optional
+            The level of indentation. Defaults to 0.
+        """
+        pass
+
+    @abc.abstractmethod
     def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
         """
         Add a scalar assign statement.

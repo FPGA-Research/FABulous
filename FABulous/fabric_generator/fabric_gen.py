@@ -513,8 +513,6 @@ class FabricGenerator:
                         self.writer.addPortScalar(
                             f"{gio.prefix}{j}", IO.INPUT, indentLevel=2
                         )
-                        # if gio.inverted:
-                        #     self.writer.addPortScalar(f"{gio.prefix}{j}_N", IO.INPUT, indentLevel=2)
 
         # jump wire input
         for i in tile.portsInfo:
@@ -1235,12 +1233,14 @@ class FabricGenerator:
                         "gen_io config bit access not implemented for ConfigBitMode.FLIPFLOP_CHAIN"
                     )
 
-        # gen_io wire assignments
+        # gen_io assignments
         if tile.gen_ios:
             self.writer.addNewLine()
-            self.writer.addComment("gen_io wire assignments", onNewLine=True)
+            self.writer.addComment(
+                "gen_io wire and register assignments", onNewLine=True
+            )
         for gio in tile.gen_ios:
-            if not gio.configAccess:
+            if not gio.configAccess and not gio.clocked:
                 for j in range(gio.pins):
                     if gio.IO == IO.INPUT:
                         self.writer.addAssignScalar(
@@ -1254,6 +1254,21 @@ class FabricGenerator:
                             f"{gio.prefix}{j}_top",
                             inverted=gio.inverted,
                         )
+            elif gio.clocked:
+                for j in range(gio.pins):
+                    if gio.IO == IO.INPUT:
+                        self.writer.addRegister(
+                            f"{gio.prefix}{j}_top",
+                            f"{gio.prefix}{j}",
+                            inverted=gio.inverted,
+                        )
+                    elif gio.IO == IO.OUTPUT:
+                        self.writer.addRegister(
+                            f"{gio.prefix}{j}",
+                            f"{gio.prefix}{j}_top",
+                            inverted=gio.inverted,
+                        )
+
         if tile.gen_ios:
             self.writer.addNewLine()
 
@@ -2278,6 +2293,10 @@ class FabricGenerator:
                 assert basename[0] in "ABCDEFGH"
                 indices.append(-(ord(basename[0]) - ord("A")))
                 basename = basename[2:]
+            # GEN_IO top level ports basename ends with __top, after the port indices
+            # are extractected, so we fix this here as it just looks odd. :)
+            if basename.endswith("__top"):
+                basename = basename.replace("__top", "_top")
 
             # Y is in reverse order
             return ((-y, x), tuple(indices), basename)

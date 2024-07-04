@@ -22,7 +22,7 @@ class Tile:
         The list of ports of the tile
     matrixDir : str
         The directory of the tile matrix
-    gen_ios : (List[Gen_IO])
+    gen_ios : List[Gen_IO]
         The list of GEN_IOs of the tile
     globalConfigBits : int
         The number of config bits the tile has
@@ -38,7 +38,7 @@ class Tile:
     portsInfo: list[Port]
     bels: list[Bel]
     matrixDir: pathlib.Path
-    gen_ios = list[Gen_IO]
+    gen_ios: list[Gen_IO]
     globalConfigBits: int = 0
     withUserCLK: bool = False
     wireList: list[Wire] = field(default_factory=list)

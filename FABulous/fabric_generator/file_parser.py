@@ -509,6 +509,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                 configBit = 0
                 configAccess = False
                 inverted = False
+                clocked = False
                 # Additional params can be added
                 for param in temp[4:]:
                     param = param.strip()
@@ -523,10 +524,16 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         configBit = int(temp[1])
                     elif param == "INVERTED":
                         inverted = True
+                    elif param == "CLOCKED":
+                        clocked = True
                     elif param is None or param == "":
                         continue
                     else:
                         raise ValueError(f"Unknown parameter {param} in GEN_IO")
+
+                    if configAccess and clocked:
+                        raise ValueError("CONFIGACCESS GEN_IO can not be clocked")
+
                 gen_ios.append(
                     Gen_IO(
                         temp[3],
@@ -535,6 +542,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         configBit,
                         configAccess,
                         inverted,
+                        clocked,
                     )
                 )
             elif temp[0] == "MATRIX":

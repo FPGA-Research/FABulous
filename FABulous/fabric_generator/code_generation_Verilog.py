@@ -192,6 +192,17 @@ class VerilogWriter(codeGenerator):
 """
         self._add(template, indentLevel)
 
+    def addRegister(self, reg, regIn, clk="CLK", inverted=False, indentLevel=0):
+        inv = "~" if inverted else ""
+        template = f"""
+reg {reg};
+always @ (posedge {clk})
+begin
+    {reg} <= {inv}{regIn};
+end
+"""
+        self._add(template, indentLevel)
+
     def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
         inv = "~" if inverted else ""
         if type(right) == list:
