@@ -105,7 +105,7 @@ class FabricGeometry:
             maxWidth = 0
             maxSmRelX = 0
             maxSmWidth = 0
-            for i in range(self.fabric.numberOfColumns):
+            for i in range(self.fabric.numberOfRows):
                 maxWidth = max(maxWidth, tileGeometries[i][j].width)
                 maxSmRelX = max(maxSmRelX, tileGeometries[i][j].smGeometry.relX)
                 maxSmWidth = max(maxSmWidth, tileGeometries[i][j].smGeometry.width)
