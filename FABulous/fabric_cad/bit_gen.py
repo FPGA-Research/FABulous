@@ -4,6 +4,7 @@ import pickle
 import re
 import sys
 
+from loguru import logger
 from fasm import *  # Remove this line if you do not have the fasm library installed and will not be generating a bitstream
 
 
@@ -49,7 +50,8 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
             tileLoc = tileVals[0]
             featureName = ".".join((tileVals[1], tileVals[2]))
             if tileLoc not in specDict["TileMap"].keys():
-                raise Exception("Tile found in fasm file not found in bitstream spec")
+                logger.critical("Tile found in fasm file not found in bitstream spec")
+                raise Exception
             tileType = specDict["TileMap"][tileLoc]  # Set the necessary bits high
             if featureName in specDict["TileSpecs"][tileLoc].keys():
                 if specDict["TileSpecs"][tileLoc][featureName]:
@@ -71,9 +73,10 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
                 print(tileType)
                 print(tileLoc)
                 print(featureName)
-                raise Exception(
+                logger.critical(
                     "Feature found in fasm file was not found in the bitstream spec"
                 )
+                raise Exception
 
     # Write output string and introduce mask
     coordsRE = re.compile("X(\d*)Y(\d*)")
@@ -263,18 +266,20 @@ def bit_gen():
     if "-genBitstream".lower() in str(sys.argv).lower():
         argIndex = processedArguments.index("-genBitstream".lower())
         if len(processedArguments) <= argIndex + 3:
-            raise ValueError(
-                "\nError: -genBitstream expect three file names - the fasm file, the spec file and the output file"
+            logger.error(
+                "genBitstream expect three file names - the fasm file, the spec file and the output file"
             )
+            raise ValueError
         elif (
             flagRE.match(caseProcessedArguments[argIndex + 1])
             or flagRE.match(caseProcessedArguments[argIndex + 2])
             or flagRE.match(caseProcessedArguments[argIndex + 3])
         ):
-            raise ValueError(
-                "\nError: -genBitstream expect three file names, but found a flag in the arguments:"
-                f" {caseProcessedArguments[argIndex + 1]}, {caseProcessedArguments[argIndex + 2]}, {caseProcessedArguments[argIndex + 3]}\n"
+            logger.error(
+                "genBitstream expect three file names, but found a flag in the arguments:"
+                f" {caseProcessedArguments[argIndex + 1]}, {caseProcessedArguments[argIndex + 2]}, {caseProcessedArguments[argIndex + 3]}"
             )
+            raise ValueError
 
         FasmFileName = caseProcessedArguments[argIndex + 1]
         SpecFileName = caseProcessedArguments[argIndex + 2]

@@ -1,18 +1,20 @@
 from csv import writer as csvWriter
 from typing import List
+from loguru import logger
 
 from FABulous.fabric_definition.Fabric import Direction
 from FABulous.geometry_generator.geometry_obj import Location
 
 
 class WireGeometry:
-    """
-    A datastruct representing the geometry of a wire within a tile.
+    """A datastruct representing the geometry of a wire within a tile.
 
-    Attributes:
-        name    (str)           :   Name of the wire
-        path    List[Location]  :   Path of the wire
-
+    Attributes
+    ----------
+    name : str
+        Name of the wire
+    path : List[Location]
+        Path of the wire
     """
 
     name: str
@@ -35,21 +37,33 @@ class WireGeometry:
 
 
 class StairWires:
-    """
-    A datastruct representing a stair-like collection of wires
+    """A datastruct representing a stair-like collection of wires
 
-    Attributes:
-        name        (str)               :   Name of the structure
-        refX        (int)               :   Reference point x coord of the stair structure
-        refY        (int)               :   Reference point y coord of the stair structure
-        offset      (int)               :   Offset of the wires
-        direction   (Direction)         :   Direction of the wires
-        groupWires  (int)               :   Amount of wires of a single "strand"
-        tileWidth   (int)               :   Width of the tile containing the wires
-        tileHeight  (int)               :   Height of the tile containing the wires
-        wireGeoms   List[WireGeometry]  :   List of the wires geometries
+    Attributes
+    ----------
+    name : str
+        Name of the structure
+    refX : int
+        Reference point x coord of the stair structure
+    refY : int
+        Reference point y coord of the stair structure
+    offset : int
+        Offset of the wires
+    direction : Direction
+        Direction of the wires
+    groupWires : int
+        Amount of wires of a single "strand"
+    tileWidth : int
+        Width of the tile containing the wires
+    tileHeight : int
+        Height of the tile containing the wires
+    wireGeoms : List[WireGeometry]
+        List of the wires geometries
 
+    Structure
+    ---------
     The (refX, refY) point refers to the following location(s) of the stair-like structure:
+    ::
 
                @   @   @                  @@  @@  @@
                @   @   @                  @@  @@  @@
@@ -122,7 +136,8 @@ class StairWires:
         elif self.direction == Direction.WEST:
             self.generateWestStairWires()
         else:
-            raise Exception("Invalid direction!")
+            logger.critical("Invalid direction!")
+            raise Exception
 
     def generateNorthStairWires(self) -> None:
         totalWires = self.groupWires * (abs(self.offset) - 1)

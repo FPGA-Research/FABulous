@@ -20,13 +20,14 @@ from FABulous.geometry_generator.fabric_geometry import FabricGeometry
 
 
 class GeometryGenerator:
-    """
-    This class handles the generation of the geometry for a fabric
+    """This class handles the generation of the geometry for a fabric
 
-    Attributes:
-        fabric          (Fabric)        :   The passed fabric object from the CSV definition files
-        fabricGeometry  (FabricGeometry):   The generated geometry object
-
+    Attributes
+    ----------
+    fabric : Fabric
+        The passed fabric object from the CSV definition files
+    fabricGeometry : FabricGeometry
+        The generated geometry object
     """
 
     def __init__(self, fabric: Fabric):
@@ -34,16 +35,11 @@ class GeometryGenerator:
         self.fabricGeometry = None
 
     def generateGeometry(self, padding: int = 8) -> None:
-        """
-        Starts generation of the geometry for the given fabric.
-
-        """
+        """Starts generation of the geometry for the given fabric."""
         self.fabricGeometry = FabricGeometry(self.fabric, padding)
 
     def saveToCSV(self, fileName: str) -> None:
-        """
-        Saves the generated geometry into a file specified by the given file name.
+        """Saves the generated geometry into a file specified by the given file name.
         This file can then be imported into the FABulous Editor.
-
         """
         self.fabricGeometry.saveToCSV(fileName)

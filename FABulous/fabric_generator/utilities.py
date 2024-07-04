@@ -1,21 +1,28 @@
 import re
+from loguru import logger
 from typing import overload, Literal
 import os
 
 
 def parseMatrix(fileName: str, tileName: str) -> dict[str, list[str]]:
-    """
-    parse the matrix csv into a dictionary from destination to source
+    """parse the matrix csv into a dictionary from destination to source
 
-    Args:
-        fileName (str): directory of the matrix csv file
-        tileName (str): name of the tile need to be parsed
+    Parameters
+    ----------
+    fileName : str
+        directory of the matrix csv file
+    tileName : str
+        name of the tile need to be parsed
 
-    Raises:
-        ValueError: Non matching matrix file content and tile name
+    Raises
+    ------
+    ValueError
+        Non matching matrix file content and tile name
 
-    Returns:
-        dict[str, list[str]]: dictionary from destination to a list of source
+    Returns
+    -------
+    dict : [str, list[str]]
+        dictionary from destination to a list of source
     """
 
     connectionsDic = {}
@@ -28,10 +35,10 @@ def parseMatrix(fileName: str, tileName: str) -> dict[str, list[str]]:
         print(fileName)
         print(file[0].split(","))
         print(tileName)
-        raise ValueError(
+        logger.error(
             "Tile name (top left element) in csv file does not match tile name in tile object"
         )
-
+        raise ValueError
     destList = file[0].split(",")[1:]
 
     for i in file[1:]:
@@ -61,23 +68,31 @@ def parseList(
 def parseList(
     fileName: str, collect: Literal["pair", "source", "sink"] = "pair"
 ) -> list[tuple[str, str]] | dict[str, list[str]]:
-    """
-    parse a list file and expand the list file information into a list of tuples.
+    """parse a list file and expand the list file information into a list of tuples.
 
-    Args:
-        fileName (str): ""
-        collect (Literal[&quot;&quot;, &quot;source&quot;, &quot;sink&quot;], optional): Collect value by source, sink or just as pair. Defaults to "pair".
+    Parameters
+    ----------
+    fileName : str
+        ""
+    collect : (Literal["", "source", "sink"], optional)
+        Collect value by source, sink or just as pair. Defaults to "pair".
 
-    Raises:
-        ValueError: The file does not exist.
-        ValueError: Invalid format in the list file.
+    Raises
+    ------
+    ValueError
+        The file does not exist.
+    ValueError
+        Invalid format in the list file.
 
-    Returns:
-        Union[list[tuple[str, str]], dict[str, list[str]]]: Return either a list of connection pair or a dictionary of lists which is collected by the specified option, source or sink.
+    Returns
+    -------
+    Union : [list[tuple[str, str]], dict[str, list[str]]]
+        Return either a list of connection pair or a dictionary of lists which is collected by the specified option, source or sink.
     """
 
     if not os.path.exists(fileName):
-        raise ValueError(f"The file {fileName} does not exist.")
+        logger.error(f"The file {fileName} does not exist.")
+        raise ValueError
 
     resultList = []
     with open(fileName, "r") as f:
@@ -91,7 +106,8 @@ def parseList(
             continue
         if len(line) != 2:
             print(line)
-            raise ValueError(f"Invalid list formatting in file: {fileName} at line {i}")
+            logger.error(f"Invalid list formatting in file: {fileName} at line {i}")
+            raise ValueError
         left, right = line[0], line[1]
 
         leftList = []
@@ -121,15 +137,26 @@ def parseList(
 
 
 def _expandListPorts(port, PortList):
-    """
-    expand the .list file entry into list of tuple.
+    """Expand the .list file entry into a list of tuples.
+
+    Parameters
+    ----------
+    port : str
+        The port entry to epand. if it contains "[", it's split
+        into multiple entries based on "|".
+    PortList : list
+        The list where expanded port entries are appended.
+
+    Raises
+    ------
+    ValueError
+        If the port entry contains "[" without matching "]".
     """
     # a leading '[' tells us that we have to expand the list
     if "[" in port:
         if "]" not in port:
-            raise ValueError(
-                "\nError in function ExpandListPorts: cannot find closing ]\n"
-            )
+            logger.error("Error in function ExpandListPorts: cannot find closing ]")
+            raise ValueError
         # port.find gives us the first occurrence index in a string
         left_index = port.find("[")
         right_index = port.find("]")
@@ -785,9 +812,8 @@ def ExpandListPorts(port, PortList):
     # a leading '[' tells us that we have to expand the list
     if re.search("\[", port):
         if not re.search("\]", port):
-            raise ValueError(
-                "\nError in function ExpandListPorts: cannot find closing ]\n"
-            )
+            logger.error("Error in function ExpandListPorts: cannot find closing ]")
+            raise ValueError
         # port.find gives us the first occurrence index in a string
         left_index = port.find("[")
         right_index = port.find("]")
@@ -1094,7 +1120,8 @@ def genFabricObject(fabric: list, FabricFile):
                                 belHasClockInput = True
 
                     except:
-                        raise Exception(f"{wire[1]} file for BEL not found")
+                        logger.error(f"{wire[1]} file for BEL not found")
+                        raise Exception
 
                     if len(wire) > 2:
                         prefix = wire[2]

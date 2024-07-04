@@ -1,5 +1,6 @@
 import string
 from typing import Tuple
+from loguru import logger
 
 from FABulous.fabric_definition.Fabric import Fabric, Tile
 from FABulous.fabric_generator.utilities import parseMatrix, parseList
@@ -7,6 +8,26 @@ from FABulous.fabric_generator.utilities import *
 
 
 def genNextpnrModel(fabric: Fabric):
+    """Generates Nextpnr model for given fabric
+
+    Parameters
+    ----------
+    fabric : Fabric
+        Fabric object containing tile information.
+
+    Returns
+    -------
+    Tuple[str, str, str, str]
+        - pipStr: A string with tile-internal and tile-external pip descriptions.
+        - belStr: A string with old style BEL definitions.
+        - belv2Str: A string with new style BEL definitions.
+        - constrainStr: A string with constraint definitions.
+
+    Raises
+    ------
+    ValueError
+        If matrixDir of a tile is not '.csv' or '.list' file.
+    """
     pipStr = []
     belStr = []
     belv2Str = []
@@ -37,9 +58,10 @@ def genNextpnrModel(fabric: Fabric):
                         f"X{x}Y{y},{source},X{x}Y{y},{sink},{8},{source}.{sink}"
                     )
             else:
-                raise ValueError(
+                logger.error(
                     f"For model generation {tile.matrixDir} need to a csv or list file"
                 )
+                raise ValueError
 
             pipStr.append(f"#Tile-external pips on tile X{x}Y{y}:")
             for wire in tile.wireList:
@@ -223,7 +245,7 @@ def genNextpnrModelOld(
 
             if generatePairs:
                 # Generate wire beginning to wire beginning pairs for timing analysis
-                print("Generating pairs for: " + tile.genTileLoc())
+                logger.info("Generating pairs for: " + tile.genTileLoc())
                 pairStr += "#" + tileLoc + "\n"
                 for wire in tile.wires:
                     for i in range(int(wire["wire-count"])):

@@ -14,29 +14,45 @@ from FABulous.fabric_definition.ConfigMem import ConfigMem
 
 @dataclass
 class Fabric:
-    """
-    This class is for storing the information and hyper parameter of the fabric. All the information is parsed from the
+    """This class is for storing the information and hyper parameter of the fabric. All the information is parsed from the
     CSV file.
 
-    Attributes:
-        tile (list[list[Tile]]) : The tile map of the fabric
-        name (str) : The name of the fabric
-        numberOfRow (int) : The number of row of the fabric
-        numberOfColumn (int) : The number of column of the fabric
-        configMitMode (ConfigBitMode): The configuration bit mode of the fabric. Currently support frame based or ff chain
-        frameBitsPerRow (int) : The number of frame bits per row of the fabric
-        maxFramesPerCol (int) : The maximum number of frames per column of the fabric
-        package (str) : The extra package used by the fabric. Only useful for VHDL output.
-        generateDelayInSwitchMatrix (int) : The amount of delay in a switch matrix.
-        multiplexerStyle (MultiplexerStyle) : The style of the multiplexer used in the fabric. Currently support custom or generic
-        frameSelectWidth (int) : The width of the frame select signal.
-        rowSelectWidth (int) : The width of the row select signal.
-        desync_flag (int):
-        numberOfBRAMs (int) : The number of BRAMs in the fabric.
-        superTileEnable (bool) : Whether the fabric has super tile.
-        tileDic (dict[str, Tile]) : A dictionary of tiles used in the fabric. The key is the name of the tile and the value is the tile.
-        superTileDic (dict[str, SuperTile]) : A dictionary of super tiles used in the fabric. The key is the name of the super tile and the value is the super tile.
-
+    Attributes
+    ----------
+    tile : list[list[Tile]]
+        The tile map of the fabric
+    name : str
+        The name of the fabric
+    numberOfRow : int
+        The number of row of the fabric
+    numberOfColumn : int
+        The number of column of the fabric
+    configMitMode : ConfigBitMode
+        The configuration bit mode of the fabric. Currently support frame based or ff chain
+    frameBitsPerRow : int
+        The number of frame bits per row of the fabric
+    maxFramesPerCol : int
+        The maximum number of frames per column of the fabric
+    package : str
+        The extra package used by the fabric. Only useful for VHDL output.
+    generateDelayInSwitchMatrix : int
+        The amount of delay in a switch matrix.
+    multiplexerStyle : MultiplexerStyle
+        The style of the multiplexer used in the fabric. Currently support custom or generic
+    frameSelectWidth : int
+        The width of the frame select signal.
+    rowSelectWidth : int
+        The width of the row select signal.
+    desync_flag : int
+        The flag indicating desynchronization status, used to manage timing issues within the fabric.
+    numberOfBRAMs : int
+        The number of BRAMs in the fabric.
+    superTileEnable : bool
+        Whether the fabric has super tile.
+    tileDic : dict[str, Tile]
+        A dictionary of tiles used in the fabric. The key is the name of the tile and the value is the tile.
+    superTileDic : dict[str, SuperTile]
+        A dictionary of super tiles used in the fabric. The key is the name of the super tile and the value is the super tile.
     """
 
     tile: list[list[Tile]] = field(default_factory=list)
@@ -62,9 +78,10 @@ class Fabric:
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        """
-        Generate all the wire pair in the fabric and get all the wire in the fabric.
+        """Generate all the wire pair in the fabric and get all the wire in the fabric.
+
         The wire pair are used during model generation when some of the signals have source or destination of "NULL".
+
         The wires are used during model generation to work with wire that going cross tile.
         """
         for row in self.tile:

@@ -1,5 +1,5 @@
 model_generation_vpr.py
 =======================
 
-.. automodule:: FABulous.fabric_generator.model_generation_vpr
+.. automodule:: FABulous.fabric_cad.model_generation_vpr
     :members:

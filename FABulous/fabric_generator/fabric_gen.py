@@ -17,11 +17,11 @@
 
 
 import csv
-import logging
 import math
 import os
 import re
 import string
+from loguru import logger
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -45,19 +45,19 @@ from FABulous.fabric_generator.utilities import parseList, parseMatrix
 from fasm import *  # Remove this line if you do not have the fasm library installed and will not be generating a bitstream
 
 SWITCH_MATRIX_DEBUG_SIGNAL = True
-logger = logging.getLogger(__name__)
 
 
 class FabricGenerator:
-    """
-    This class contains all the function require to generate a fabric from csv files
+    """This class contains all the function require to generate a fabric from csv files
     to RTL file. To use the class the information will need to be parsed first using the
     function from file_parser.py.
 
-    Attributes:
-        fabric (Fabric): The parsed fabric object from CSV definition files
-        writer (codeGenerator): The code generator object to write the RTL files
-
+    Attributes
+    ----------
+    fabric : Fabric
+        The parsed fabric object from CSV definition files
+    writer : codeGenerator
+        The code generator object to write the RTL files
     """
 
     fabric: Fabric
@@ -69,19 +69,22 @@ class FabricGenerator:
 
     @staticmethod
     def bootstrapSwitchMatrix(tile: Tile, outputDir: str) -> None:
-        """
-        Generates a blank switch matrix csv file for the given tile. The top left corner will
+        """Generates a blank switch matrix csv file for the given tile. The top left corner will
         contain the name of the tile. Columns are the source signals and rows are the destination signals.
+
         The order of the signal will be:
-        * standard wire
-        * BEL signal with prefix
-        * jump wire
+        - standard wire
+        - BEL signal with prefix
+        - jump wire
 
         The order is important as this order will be used during switch matrix generation
 
-        Args:
-            tile (Tile): The tile to generate the switch matrix for
-            outputDir (str): The output directory to write the switch matrix to
+        Parameters
+        ----------
+        tile : Tile
+            The tile to generate the switch matrix for
+        outputDir : str
+            The output directory to write the switch matrix to
         """
         logger.info(f"Generate matrix csv for {tile.name} # filename: {outputDir}")
         with open(f"{outputDir}", "w") as f:
@@ -114,17 +117,21 @@ class FabricGenerator:
 
     @staticmethod
     def list2CSV(InFileName: str, OutFileName: str) -> None:
-        """
-        This function is export a given list description into its equivalent CSV switch matrix description.
+        """This function is export a given list description into its equivalent CSV switch matrix description.
         A comment will be appended to the end of the column and row of the matrix, which will indicate the number
         of signal in a given row.
 
-        Args:
-            InFileName (str): The input file name of the list file
-            OutFileName (str): The directory of the CSV file to be written
+        Parameters
+        ----------
+        InFileName : str
+            The input file name of the list file
+        OutFileName : str
+            The directory of the CSV file to be written
 
-        Raises:
-            ValueError: If the list file contains signals that are not in the matrix file
+        Raises
+        ------
+        ValueError
+            If the list file contains signals that are not in the matrix file
         """
 
         logger.info(f"Adding {InFileName} to {OutFileName}")
@@ -201,12 +208,14 @@ class FabricGenerator:
 
     @staticmethod
     def CSV2list(InFileName: str, OutFileName: str) -> None:
-        """
-        this function is export a given CSV switch matrix description into its equivalent list description
+        """This function is export a given CSV switch matrix description into its equivalent list description
 
-        Args:
-            InFileName (str): The input file name of the CSV file
-            OutFileName (str): The directory of the list file to be written
+        Parameters
+        ----------
+        InFileName : str
+            The input file name of the CSV file
+        OutFileName : str
+            The directory of the list file to be written
         """
         InFile = [i.strip("\n").split(",") for i in open(InFileName)]
         with open(OutFileName, "w") as f:
@@ -229,15 +238,17 @@ class FabricGenerator:
         return
 
     def generateConfigMemInit(self, file: str, globalConfigBitsCounter: int) -> None:
-        """
-        This function is used to generate the config memory initialization file for a given amount of configuration
+        """This function is used to generate the config memory initialization file for a given amount of configuration
         bits. THe amount of configuration bits is determined by the `frameBitsPerRow` attribute of the fabric.
         The function will pack the configuration bit from the highest to the lowest bit in the config memory.
-        ie. if have 100 configuration bits, with 32 frame bit per row, the function will pack from bit 99 starting from bit 31 of frame 0 to bit 28 of frame 3.
+        ie. If have 100 configuration bits, with 32 frame bit per row, the function will pack from bit 99 starting from bit 31 of frame 0 to bit 28 of frame 3.
 
-        Args:
-            file (str): The output file of the config memory initialization file
-            globalConfigBitsCounter (int): The number of global config bits of the tile
+        Parameters
+        ----------
+        file : str
+            The output file of the config memory initialization file.
+        globalConfigBitsCounter : int
+            The number of global config bits of the tile.
         """
         bitsLeftToPackInFrames = globalConfigBitsCounter
 
@@ -292,12 +303,14 @@ class FabricGenerator:
                 writer.writerow(entry)
 
     def generateConfigMem(self, tile: Tile, configMemCsv: str) -> None:
-        """
-        This function will generate the RTL code for configuration memory of the given tile. It the given configMemCsv file does not exist, it will be created using `generateConfigMemInit`.
+        """This function will generate the RTL code for configuration memory of the given tile. It the given configMemCsv file does not exist, it will be created using `generateConfigMemInit`.
 
-        Args:
-            tile (Tile): A tile object
-            configMemCsv (str): The directory of the config memory csv file
+        Parameters
+        ----------
+        tile : Tile
+            A tile object.
+        configMemCsv : str
+            The directory of the config memory csv file.
         """
         # we use a file to describe the exact configuration bits to frame mapping
         # the following command generates an init file with a simple enumerated default mapping (e.g. 'LUT4AB_ConfigMem.init.csv')
@@ -413,18 +426,21 @@ class FabricGenerator:
         self.writer.writeToFile()
 
     def genTileSwitchMatrix(self, tile: Tile) -> None:
-        """
-        This function will generate the RTL code for the tile switch matrix of the given tile. The switch matrix
+        """This function will generate the RTL code for the tile switch matrix of the given tile. The switch matrix
         generated will be based on `matrixDir` attribute of the tile. If the given file format is CSV type it will be
         parsed as a switch matrix CSV file. If the given file format is a `.list` file, the tool will convert the `.list`
         file into a switch matrix with specific ordering first before progressing. If the given file format is Verilog of
         VHDL, then the function will not generate anything.
 
-        Args:
-            tile (Tile): _description_
+        Parameters
+        ----------
+        tile : Tile
+            A tile object.
 
-        Raises:
-            ValueError: If `matrixDir` do not contain a valid file format
+        Raises
+        ------
+        ValueError
+            If `matrixDir` do not contain a valid file format.
         """
 
         # convert the matrix to a dictionary map and performs entry check
@@ -450,7 +466,8 @@ class FabricGenerator:
             )
             return
         else:
-            raise ValueError("Invalid matrix file format")
+            logger.error("Invalid matrix file format")
+            raise ValueError
 
         noConfigBits = 0
         for i in connections:
@@ -732,12 +749,12 @@ class FabricGenerator:
         self.writer.writeToFile()
 
     def generateTile(self, tile: Tile) -> None:
-        """
-        Generate the RTL code for a tile given the tile object.
+        """Generate the RTL code for a tile given the tile object.
 
-        Args:
-            tile (Tile): The tile object
-
+        Parameters
+        ----------
+        tile : Tile
+            The tile object.
         """
         allJumpWireList = []
         numberOfSwitchMatricesWithConfigPort = 0
@@ -864,18 +881,20 @@ class FabricGenerator:
                     f"{basePath}/{tile.name}_switch_matrix.vhdl"
                 )
             else:
-                raise ValueError(
+                logger.error(
                     f"Could not find {tile.name}_switch_matrix.vhdl in {basePath} Need to run matrix generation first"
                 )
+                raise ValueError
 
             if os.path.exists(f"{basePath}/{tile.name}_ConfigMem.vhdl"):
                 self.writer.addComponentDeclarationForFile(
                     f"{basePath}/{tile.name}_ConfigMem.vhdl"
                 )
             else:
-                raise ValueError(
+                logger.error(
                     f"Could not find {tile.name}_ConfigMem.vhdl in {basePath} config_mem generation first"
                 )
+                raise ValueError
 
         # VHDL signal declarations
         self.writer.addComment("signal declarations", onNewLine=True)
@@ -1206,11 +1225,12 @@ class FabricGenerator:
         self.writer.writeToFile()
 
     def generateSuperTile(self, superTile: SuperTile) -> None:
-        """
-        Generate a super tile wrapper for given super tile.
+        """Generate a super tile wrapper for given super tile.
 
-        Args:
-            superTile (SuperTile): Super tile object
+        Parameters
+        ----------
+        superTile : SuperTile
+            Super tile object.
         """
 
         self.writer.addHeader(f"{superTile.name}")
@@ -1511,9 +1531,7 @@ class FabricGenerator:
         self.writer.writeToFile()
 
     def generateFabric(self) -> None:
-        """
-        Generate the fabric. The fabric description will be a flat description.
-        """
+        """Generate the fabric. The fabric description will be a flat description."""
 
         # There are of course many possibilities for generating the fabric.
         # I decided to generate a flat description as it may allow for a little easier debugging.
@@ -2022,9 +2040,7 @@ class FabricGenerator:
         self.writer.writeToFile()
 
     def generateTopWrapper(self) -> None:
-        """
-        Generate the top wrapper of the fabric including feature that are not located inside the fabric such as BRAM.
-        """
+        """Generate the top wrapper of the fabric including feature that are not located inside the fabric such as BRAM."""
 
         def split_port(p):
             # split a port according to how we want to sort external ports:
@@ -2167,17 +2183,22 @@ class FabricGenerator:
         if isinstance(self.writer, VHDLWriter):
             basePath = Path(self.writer.outFileName).parent
             if not os.path.exists(f"{basePath}/Frame_Data_Reg.vhdl"):
-                raise FileExistsError("Frame_Data_Reg.vhdl not found in Fabric folder")
+                logger.error("Frame_Data_Reg.vhdl not found in Fabric folder")
+                raise FileExistsError
             if not os.path.exists(f"{basePath}/Frame_Select.vhdl"):
-                raise FileExistsError("Frame_Select.vhdl not found in Fabric folder")
+                logger.error("Frame_Select.vhdl not found in Fabric folder")
+                raise FileExistsError
             if not os.path.exists(f"{basePath}/eFPGA_Config.vhdl"):
-                raise FileExistsError("Config.vhdl not found in Fabric folder")
+                logger.error("Config.vhdl not found in Fabric folder")
+                raise FileExistsError
             if not os.path.exists(f"{basePath}/eFPGA.vhdl"):
-                raise FileExistsError(
+                logger.error(
                     "eFPGA.vhdl not found in Fabric folder, need to generate the eFPGA first"
                 )
+                raise FileExistsError
             if not os.path.exists(f"{basePath}/BlockRAM_1KB.vhdl"):
-                raise FileExistsError("BlockRAM_1KB.vhdl not found in Fabric folder")
+                logger.error("BlockRAM_1KB.vhdl not found in Fabric folder")
+                raise FileExistsError
             self.writer.addComponentDeclarationForFile(
                 f"{basePath}/Frame_Data_Reg.vhdl"
             )
@@ -2335,11 +2356,12 @@ class FabricGenerator:
         self.writer.writeToFile()
 
     def generateBitsStreamSpec(self) -> Dict[str, Dict]:
-        """
-        Generate the bits stream specification of the fabric. This is need and will be further parsed by the bit_gen.py
+        """Generate the bits stream specification of the fabric. This is need and will be further parsed by the bit_gen.py
 
-        Returns:
-            dict[str, dict]: The bits stream specification of the fabric
+        Returns
+        -------
+        dict [str, dict]
+            The bits stream specification of the fabric.
         """
 
         specData = {

@@ -6,22 +6,34 @@ from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 
 
 class BelGeometry:
-    """
-    A datastruct representing the geometry of a Bel.
+    """A datastruct representing the geometry of a Bel.
 
-    Attributes:
-        name                (str)               :   Name of the bel
-        src                 (str)               :   File path of the bel HDL source file
-        width               (int)               :   Width of the bel
-        height              (int)               :   Height of the bel
-        relX                (int)               :   X coordinate of the bel, relative within the tile
-        relY                (int)               :   Y coordinate of the bel, relative within the tile
-        internalInputs      (List[str])         :   Internal input port names of the bel
-        internalOutputs     (List[str])         :   Internal output port names of the bel
-        externalInputs      (List[str])         :   External input port names of the bel
-        externalOutputs     (List[str])         :   External output port names of the bel
-        internalPortGeoms   (List[PortGeometry]):   List of geometries of the internal ports of the bel
-        externalPortGeoms   (List[PortGeometry]):   List of geometries of the external ports of the bel
+    Attributes
+    ----------
+    name : str
+        Name of the bel
+    src : str
+        File path of the bel HDL source file
+    width : int
+        Width of the bel
+    height : int
+        Height of the bel
+    relX : int
+        X coordinate of the bel, relative within the tile
+    relY : int
+        Y coordinate of the bel, relative within the tile
+    internalInputs : List[str]
+        Internal input port names of the bel
+    internalOutputs : List[str]
+        Internal output port names of the bel
+    externalInputs : List[str]
+        External input port names of the bel
+    externalOutputs : List[str]
+        External output port names of the bel
+    internalPortGeoms : List[PortGeometry]
+        List of geometries of the internal ports of the bel
+    externalPortGeoms : List[PortGeometry]
+        List of geometries of the external ports of the bel
 
     """
 

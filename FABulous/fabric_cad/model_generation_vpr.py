@@ -1,7 +1,7 @@
-import logging
 import os
 import string
 import xml.etree.ElementTree as ET
+from loguru import logger
 from sys import prefix
 from typing import List
 from xml.dom import minidom
@@ -11,11 +11,22 @@ from FABulous.fabric_generator.fabric_gen import FabricGenerator
 from FABulous.fabric_generator.utilities import parseList, parseMatrix
 from FABulous.fabric_generator.utilities import *
 
-logger = logging.getLogger(__name__)
-
 
 def genVPRModel(fabric: Fabric, customXMLfile: str = "") -> str:
+    """Generates a VPR model representation for given FPGA fabric configuration.
 
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric object containing the FPGA tile configuration.
+    customXMLfile : str, optional
+        Path to custom XML file for additional configuration, by default ""
+
+    Returns
+    -------
+    str
+        String representation of the generated VPR model.
+    """
     if customXMLfile != "":
         with open(customXMLfile, "r") as f:
             customXML = ET.fromstring(f.read())
@@ -369,6 +380,31 @@ def genVPRModel(fabric: Fabric, customXMLfile: str = "") -> str:
 
 
 def genVPRRoutingResourceGraph(fabric: Fabric) -> (str, int):
+    """Generates VPR routing resource graph in XML based on
+    given fabric configuration.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric object containing configuration of the FPGA fabric.
+
+    Returns
+    -------
+    tuple[str, int]
+        XML string representation of routing resource graph and
+        Maximum width of channels in the graph
+
+    Raises
+    ------
+    ValueError
+        If diagonal wires are encountered as VPR routing does not support it.
+    ValueError
+        If channel PTC value exceeds the maximum allowed for VPR
+    ValueError
+        If tile file is not CSV or list.
+    Exception
+        If pin ptc is not found in block_type designation for RR Graph generation.
+    """
     root = ET.Element("rr_graph")
     root.attrib = {
         "tool_name": "vpr",
@@ -551,9 +587,10 @@ def genVPRRoutingResourceGraph(fabric: Fabric) -> (str, int):
             doneWire = set()
             for wire in tile.wireList:
                 if wire.xOffset != 0 and wire.yOffset != 0:
-                    raise ValueError(
+                    logger.error(
                         "Diagonal wires not currently supported for VPR routing resource model"
                     )
+                    raise ValueError
                 if (wire.source, wire.destination) in doneWire:
                     continue
                 doneWire.add((wire.source, wire.destination))
@@ -587,16 +624,18 @@ def genVPRRoutingResourceGraph(fabric: Fabric) -> (str, int):
                     wirePtc = colPtcArr[x]
                     colPtcArr[x] += 1
                     if wirePtc > colMaxPtc:
-                        raise ValueError(
+                        logger.error(
                             "Channel PTC value too high - FABulous' VPR flow may not currently be able to support this many overlapping wires."
                         )
+                        raise ValueError
                 else:  # i.e. if nodeType == "CHANX"
                     wirePtc = rowPtcArr[y]
                     rowPtcArr[y] += 1
                     if wirePtc > rowMaxPtc:
-                        raise ValueError(
+                        logger.error(
                             "Channel PTC value too high - FABulous' VPR flow may not currently be able to support this many overlapping wires."
                         )
+                        raise ValueError
 
                 nodes.append(ET.Comment(f"Wire {wireSource} -> {wireDest}"))
                 node = ET.SubElement(
@@ -630,9 +669,10 @@ def genVPRRoutingResourceGraph(fabric: Fabric) -> (str, int):
                     if tile.name in ptcMap and input in ptcMap[tile.name]:
                         thisPtc = ptcMap[tile.name][input]
                     else:
-                        raise Exception(
+                        logger.critical(
                             f"Could not find pin {input} of ptc in block_type {tile.name} designation for RR Graph generation."
                         )
+                        raise Exception
 
                     nodes.append(ET.Comment(f"Bel input: {input}"))
                     node = ET.SubElement(
@@ -670,9 +710,10 @@ def genVPRRoutingResourceGraph(fabric: Fabric) -> (str, int):
                     if tile.name in ptcMap and output in ptcMap[tile.name]:
                         thisPtc = ptcMap[tile.name][output]
                     else:
-                        raise Exception(
+                        logger.critical(
                             "Could not find pin ptc in block_type designation for RR Graph generation."
                         )
+                        raise Exception
 
                     nodes.append(ET.Comment(f"Bel output: {output}"))
                     node = ET.SubElement(
@@ -787,9 +828,10 @@ def genVPRRoutingResourceGraph(fabric: Fabric) -> (str, int):
                 tile.matrixDir = matrixDir
                 connections = parseMatrix(tile.matrixDir, tile.name)
             else:
-                raise ValueError(
+                logger.error(
                     f"For model generation {tile.matrixDir} need to a csv or list file"
                 )
+                raise ValueError
 
             doneEdge = set()
             for source, sinkList in connections.items():
@@ -945,6 +987,18 @@ def genVPRRoutingResourceGraph(fabric: Fabric) -> (str, int):
 
 
 def genVPRConstrainsXML(fabric: Fabric) -> str:
+    """Generates VPR constraints XML for given fabric configuration.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric object containing configuration of the FPGA fabric.
+
+    Returns
+    -------
+    str
+        Generated VPR constraints XML as a string.
+    """
     letter = string.ascii_uppercase
     root = ET.Element("vpr_constraints")
     root.attrib = {"tool_name": "vpr"}
@@ -1019,6 +1073,20 @@ def genVPRConstrainsXML(fabric: Fabric) -> str:
 
 # Generates constraint XML for VPR flow
 def genVPRModelConstraints(archObject: FabricModelGen):
+    """Generates constraints XML for VPR flow based on
+    given architecture object.
+
+    Parameters
+    ----------
+    archObject : FabricModelGen
+        Instance of FabricModelGen representing architecture
+        object containing tile and bel configurations.
+
+    Returns
+    -------
+    str
+        String repersenting generated constraints XML.
+    """
     constraintString = '<vpr_constraints tool_name="vpr">\n'
     constraintString += "  <partition_list>\n"
 
@@ -1072,7 +1140,32 @@ clockY = 0
 
 
 def genVPRModelXML(archObject: FabricModelGen, customXmlFilename, generatePairs=True):
+    """Generates XML representation of VPR model based on fabric model data
+    and custom XML configuration file.
 
+    Parameters
+    ----------
+    archObject : FabricModelGen
+        Object representing fabric model to be converted into VPR XML format.
+    customXmlFilename : str
+        Path to custom XML file containing additional configuration.
+    generatePairs : bool, optional
+        Flag indicating whether to generate pairings, by default True
+
+    Returns
+    -------
+    outputString : str
+        XML string representing complete architecture configuration for VPR.
+
+    Raises
+    ------
+    ValueError
+        If uknown tag in custom XML file.
+    ValueError
+        If multiple bel_pb tags are within one bel_info tag in the custom XML file.
+    ValueError
+        If channel PTC is too high for VPR.
+    """
     # STYLE NOTE: As this function uses f-strings so regularly, as a standard these f-strings should be denoted with single quotes ('...') instead of double quotes ("...")
     # This is because the XML being generated uses double quotes to denote values, so every attribute set introduces a pair of quotes to escape
     # This is doable but frustrating and leaves room for error, so as standard single quotes are recommended.
@@ -1093,26 +1186,30 @@ def genVPRModelXML(archObject: FabricModelGen, customXmlFilename, generatePairs=
     for bel_info in root:
         # Check that the tag is valid
         if bel_info.tag != "bel_info":
-            raise ValueError(f"Error: Unknown tag in custom XML file: {bel_info.tag}")
+            logger.error(f"Error: Unknown tag in custom XML file: {bel_info.tag}")
+            raise ValueError
 
         bel_name = bel_info.attrib["name"]
 
         # Check only one of each tag is present
 
         if len(bel_info.findall("bel_pb")) > 1:
-            raise ValueError(
+            logger.error(
                 "Error: Found multiple bel_pb tags within one bel_info tag in custom XML file. Please provide only one."
             )
+            raise ValueError
 
         if len(bel_info.findall("bel_model")) > 1:
-            raise ValueError(
+            logger.error(
                 "Error: Found multiple bel_model tags within one bel_info tag in custom XML file. Please provide at most one."
             )
+            raise ValueError
 
         if len(bel_info.findall("bel_interconnect")) > 1:
-            raise ValueError(
+            logger.error(
                 "Error: Found multiple bel_interconnect tags within one bel_info tag in custom XML file. Please provide at most one."
             )
+            raise ValueError
 
         # Fetch data and store in appropriate dicts
         if bel_info.find("bel_pb"):
@@ -1548,6 +1645,29 @@ def genVPRModelXML(archObject: FabricModelGen, customXmlFilename, generatePairs=
 
 
 def genVPRModelRRGraph(archObject: FabricModelGen, generatePairs=True):
+    """Generates a VPR routing resource graph based on given FabricModelGen object.
+
+    Parameters
+    ----------
+    archObject : FabricModelGen
+        FabricModelGen object containing architecture information.
+    generatePairs : bool, optional
+        Flag indicating whether to generate pairs, by default True
+
+    Returns
+    -------
+    str
+        String containing the VPR routing resource graph description.
+
+    Raises
+    ------
+    ValueError
+        If channel PTC is too high for VPR.
+    Exception
+        If Diagonal wires are encountered which VPR doesn't support.
+    Exception
+        If could not find pin ptc in block_type designation for RR Graph generation.
+    """
     # Calculate clock X and Y coordinates considering variations in coordinate systems and EMPTY padding around VPR model
     newClockX = clockX + 1
     newClockY = clockY + 1
@@ -1741,9 +1861,10 @@ def genVPRModelRRGraph(archObject: FabricModelGen, generatePairs=True):
                 # We want to find the length of the wire based on the x and y offset - either it's a jump, or in theory goes off in only one direction - let's find which
                 if wire["yoffset"] != "0" and wire["xoffset"] != "0":
                     # Stop if there are diagonal wires just in case they get put in a fabric
-                    raise Exception(
+                    logger.critical(
                         "Diagonal wires not currently supported for VPR routing resource model"
                     )
+                    raise Exception
                 # Then we check which one isn't zero and take that as the length
                 if wire["yoffset"] != "0":
                     nodeType = (
@@ -1785,16 +1906,18 @@ def genVPRModelRRGraph(archObject: FabricModelGen, generatePairs=True):
                         wirePtc = colPtcArr[tile.x]
                         colPtcArr[tile.x] += 1
                         if wirePtc > colMaxPtc:
-                            raise ValueError(
+                            logger.error(
                                 "Channel PTC value too high - FABulous' VPR flow may not currently be able to support this many overlapping wires."
                             )
+                            raise ValueError
                     else:  # i.e. if nodeType == "CHANX"
                         wirePtc = rowPtcArr[tile.y]
                         rowPtcArr[tile.y] += 1
                         if wirePtc > rowMaxPtc:
-                            raise ValueError(
+                            logger.error(
                                 "Channel PTC value too high - FABulous' VPR flow may not currently be able to support this many overlapping wires."
                             )
+                            raise ValueError
 
                     # Coordinates until now have been relative to the fabric - only account for padding when formatting actual string
                     # Comment destination for clarity
@@ -1822,9 +1945,10 @@ def genVPRModelRRGraph(archObject: FabricModelGen, generatePairs=True):
                 if wire["yoffset"] != "0" and wire["xoffset"] != "0":
                     print(wire["yoffset"], wire["xoffset"])
                     # Stop if there are diagonal wires just in case they get put in a fabric
-                    raise Exception(
+                    logger.critical(
                         "Diagonal wires not currently supported for VPR routing resource model"
                     )
+                    raise Exception
                 # Then we check which one isn't zero and take that as the length
                 if wire["yoffset"] != "0":
                     nodeType = (
@@ -1858,16 +1982,18 @@ def genVPRModelRRGraph(archObject: FabricModelGen, generatePairs=True):
                     wirePtc = colPtcArr[tile.x]
                     colPtcArr[tile.x] += 1
                     if wirePtc > colMaxPtc:
-                        raise ValueError(
+                        logger.error(
                             "Channel PTC value too high - FABulous' VPR flow may not currently be able to support this many overlapping wires."
                         )
+                        raise ValueError
                 else:  # i.e. if nodeType == "CHANX"
                     wirePtc = rowPtcArr[tile.y]
                     rowPtcArr[tile.y] += 1
                     if wirePtc > rowMaxPtc:
-                        raise ValueError(
+                        logger.error(
                             "Channel PTC value too high - FABulous' VPR flow may not currently be able to support this many overlapping wires."
                         )
+                        raise ValueError
 
                 # Comment destination for clarity
                 nodesString += f"  <!-- Atomic Wire: {wireSource} -> {wireDest} -->\n"
@@ -1891,9 +2017,10 @@ def genVPRModelRRGraph(archObject: FabricModelGen, generatePairs=True):
                     if tile.tileType in ptcMap and cInput in ptcMap[tile.tileType]:
                         thisPtc = ptcMap[tile.tileType][cInput]
                     else:
-                        raise Exception(
+                        logger.critical(
                             "Could not find pin ptc in block_type designation for RR Graph generation."
                         )
+                        raise Exception
                     nodesString += f"  <!-- BEL input: {cInput} -->\n"
                     # Generate tag for each node
                     nodesString += (
@@ -1923,9 +2050,10 @@ def genVPRModelRRGraph(archObject: FabricModelGen, generatePairs=True):
                     if tile.tileType in ptcMap and cOutput in ptcMap[tile.tileType]:
                         thisPtc = ptcMap[tile.tileType][cOutput]
                     else:
-                        raise Exception(
+                        logger.critical(
                             "Could not find pin ptc in block_type designation for RR Graph generation."
                         )
+                        raise Exception
                     nodesString += f"  <!-- BEL output: {cOutput} -->\n"
 
                     # Generate tag for each node

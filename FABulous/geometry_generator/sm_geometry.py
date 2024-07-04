@@ -1,4 +1,4 @@
-import logging
+from loguru import logger
 from csv import writer as csvWriter
 from typing import List
 
@@ -9,34 +9,50 @@ from FABulous.geometry_generator.bel_geometry import BelGeometry
 from FABulous.geometry_generator.geometry_obj import Border
 from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 
-logger = logging.getLogger(__name__)
-
 
 class SmGeometry:
-    """
-    A datastruct representing the geometry of a Switch Matrix.
+    """A datastruct representing the geometry of a Switch Matrix.
 
-    Attributes:
-        name        (str)               :   Name of the switch matrix
-        src         (str)               :   File path of the switch matrix HDL source file
-        csv         (str)               :   File path of the switch matrix CSV file
-        width       (int)               :   Width of the switch matrix
-        height      (int)               :   Height of the switch matrix
-        relX        (int)               :   X coordinate of the switch matrix, relative within the tile
-        relY        (int)               :   Y coordinate of the switch matrix, relative within the tile
-        northPorts  (List[Port])        :   List of the ports of the switch matrix in north direction
-        southPorts  (List[Port])        :   List of the ports of the switch matrix in south direction
-        eastPorts   (List[Port])        :   List of the ports of the switch matrix in east direction
-        westPorts   (List[Port])        :   List of the ports of the switch matrix in west direction
-        jumpPorts   (List[Port])        :   List of the jump ports of the switch matrix
-        portGeoms   (List[PortGeometry]):   List of geometries of the ports of the switch matrix
-        northWiresReservedWidth (int)   :   Reserved width for wires going north
-        southWiresReservedWidth (int)   :   Reserved width for wires going south
-        eastWiresReservedHeight (int)   :   Reserved height for wires going east
-        westWiresReservedHeight (int)   :   Reserved height for wires going west
-        southPortsTopY          (int)   :   Top most y coord of any south port, reference for stair-wires
-        westPortsRightX         (int)   :   Right most x coord of any west port, reference for stair-wires
-
+    Attributes
+    ----------
+    name : str
+        Name of the switch matrix
+    src : str
+        File path of the switch matrix HDL source file
+    csv : str
+        File path of the switch matrix CSV file
+    width : int
+        Width of the switch matrix
+    height : int
+        Height of the switch matrix
+    relX : int
+        X coordinate of the switch matrix, relative within the tile
+    relY : int
+        Y coordinate of the switch matrix, relative within the tile
+    northPorts : List[Port]
+        List of the ports of the switch matrix in north direction
+    southPorts : List[Port]
+        List of the ports of the switch matrix in south direction
+    eastPorts : List[Port]
+        List of the ports of the switch matrix in east direction
+    westPorts : List[Port]
+        List of the ports of the switch matrix in west direction
+    jumpPorts : List[Port]
+        List of the jump ports of the switch matrix
+    portGeoms : List[PortGeometry]
+        List of geometries of the ports of the switch matrix
+    northWiresReservedWidth : int
+        Reserved width for wires going north
+    southWiresReservedWidth : int
+        Reserved width for wires going south
+    eastWiresReservedHeight : int
+        Reserved height for wires going east
+    westWiresReservedHeight : int
+        Reserved height for wires going west
+    southPortsTopY : int
+        Top most y coord of any south port, reference for stair-wires
+    westPortsRightX : int
+        Right most x coord of any west port, reference for stair-wires
     """
 
     name: str

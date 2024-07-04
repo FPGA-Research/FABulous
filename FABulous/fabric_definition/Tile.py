@@ -10,17 +10,24 @@ from typing import Any
 
 @dataclass
 class Tile:
-    """
-    This class is for storing the information about a tile.
+    """This class is for storing the information about a tile.
 
-    attributes:
-        name (str) : The name of the tile
-        portsInfo (list[Port]) : The list of ports of the tile
-        matrixDir (str) : The directory of the tile matrix
-        globalConfigBits (int) : The number of config bits the tile have
-        withUserCLK (bool) : Whether the tile has userCLK port. Default is False.
-        wireList (list[Wire]) : The list of wires of the tile
-        filePath (str) : The path of the matrix file
+    Attributes
+    ----------
+    name : str
+        The name of the tile
+    portsInfo : list[Port]
+        The list of ports of the tile
+    matrixDir : str
+        The directory of the tile matrix
+    globalConfigBits : int
+        The number of config bits the tile have
+    withUserCLK : bool
+        Whether the tile has userCLK port. Default is False.
+    wireList : list[Wire]
+        The list of wires of the tile
+    filePath : str
+        The path of the matrix file
     """
 
     name: str

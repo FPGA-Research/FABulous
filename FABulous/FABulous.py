@@ -19,7 +19,6 @@
 import argparse
 import cmd
 import csv
-import logging
 import os
 import pickle
 import platform
@@ -30,6 +29,7 @@ import subprocess as sp
 import sys
 import tkinter as tk
 import traceback
+from loguru import logger
 from contextlib import redirect_stdout
 from glob import glob
 from pathlib import PurePosixPath, PureWindowsPath
@@ -48,10 +48,18 @@ histfile_size = 1000
 
 MAX_BITBYTES = 16384
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    format="[%(levelname)s]-%(asctime)s - %(message)s", level=logging.INFO
+# Remove the default logger to avoid duplicate logs
+logger.remove()
+
+# Sets logger format
+log_format = (
+    "<cyan>[{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}]</cyan>"
+    "<green>[{time:DD-MM-YYYY HH:mm:ss}]</green> "
+    "<level>{level:}</level> - "
+    "<level>{message}</level>"
 )
+# Adds logger to write logs to a file
+logger.add(sys.stdout, format=log_format, level="DEBUG", colorize=True)
 
 metaDataDir = ".FABulous"
 
@@ -73,10 +81,23 @@ else:
     logger.info(f"FAB_ROOT set to {fabulousRoot}")
 
 
-# Create a FABulous Verilog project that contains all the required files
 def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
+    """Creates a FABulous project containing all required files by copying
+    appropriate project template and the synthesis directory.
+
+    File structure as follows:
+        FABulous_project_template --> project_dir/
+        fabic_cad/synth --> project_dir/Test/synth
+
+    Parameters
+    ----------
+    project_dir : str
+        Directory where the project will be created.
+    type : Literal["verilog", "vhdl"], optional
+        The type of project to create ("verilog" or "vhdl"), by default "verilog".
+    """
     if os.path.exists(project_dir):
-        print("Project directory already exists!")
+        logger.error("Project directory already exists!")
         sys.exit()
     else:
         os.mkdir(f"{project_dir}")
@@ -98,6 +119,15 @@ def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
 
 
 def copy_verilog_files(src, dst):
+    """Copies all Verilog files from source directory to the destination directory.
+
+    Parameters
+    ----------
+    src : str
+        Source directory.
+    dst : str
+        Destination directory
+    """
     for root, _, files in os.walk(src):
         for file in files:
             if file.endswith(".v"):
@@ -107,6 +137,15 @@ def copy_verilog_files(src, dst):
 
 
 def remove_dir(path):
+    """Removes a directory and all its contents.
+
+    If directory cannot be removed, logs OS error.
+
+    Parameters
+    ----------
+    path : str
+        Path of the directory to remove.
+    """
     try:
         shutil.rmtree(path)
         pass
@@ -115,6 +154,17 @@ def remove_dir(path):
 
 
 def make_hex(binfile, outfile):
+    """Converts binary file into hex file.
+
+    If the binary file exceeds MAX_BITBYTES, logs error.
+
+    Parameters
+    ----------
+    binfile : str
+        Path to binary file.
+    outfile : str
+        Path to ouput hex file.
+    """
     with open(binfile, "rb") as f:
         bindata = f.read()
 
@@ -131,6 +181,15 @@ def make_hex(binfile, outfile):
 
 
 def adjust_directory_in_verilog_tb(project_dir):
+    """Adjusts directory paths in a Verilog testbench file by replacing
+    the string "PROJECT_DIR" in the project_template with the actual
+    project directory.
+
+    Parameters
+    ----------
+    project_dir : str
+        Projet directory where the testbench file is located.
+    """
     with open(
         f"{fabulousRoot}/fabric_files/FABulous_project_template_verilog/Test/sequential_16bit_en_tb.v",
         "rt",
@@ -141,6 +200,23 @@ def adjust_directory_in_verilog_tb(project_dir):
 
 
 def get_path(path):
+    """Returns system-specific path object.
+
+    Parameters
+    ----------
+    path : str
+        File system path.
+
+    Returns
+    -------
+    PurePath
+        System-specific path object (PurePosixPath or PureWindowsPath)
+
+    Raises
+    ------
+    NotImplementedError
+        If the operating system is not supported.
+    """
     system = platform.system()
     # Darwin corresponds to MacOS, which also uses POSIX-style paths
     if system == "Linux" or system == "Darwin":
@@ -148,7 +224,8 @@ def get_path(path):
     elif system == "Windows":
         return PureWindowsPath(path)
     else:
-        raise NotImplementedError(f"Unsupported operating system: {system}")
+        logger.error(f"Unsupported operating system: {system}")
+        raise NotImplementedError
 
 
 class PlaceAndRouteError(Exception):
@@ -207,6 +284,20 @@ To run the complete FABulous flow with the default project, run the following co
     script: str = ""
 
     def __init__(self, fab: FABulous, projectDir: str, script: str = ""):
+        """Initialises the FABulous shell instance.
+
+        Determines file extension based on the type of writer used in 'fab'
+        and sets fabricLoaded to true if 'fab' has 'fabric' attribute.
+
+        Parameters
+        ----------
+        fab : FABulous
+            Instance of the FABulous class used for fabric generation.
+        projectDir : str
+            Path to the project directory.
+        script : str, optional
+            Path to optional Tcl script to be executed, by default ""
+        """
         super().__init__()
         self.fabricGen = fab
         self.projectDir = projectDir
@@ -223,13 +314,35 @@ To run the complete FABulous flow with the default project, run the following co
             self.fabricLoaded = True
 
     def preloop(self) -> None:
-
+        """Execution before entering main command loop.
+        Reads command history in 'histfile' if it exists, sets up exception
+        handling for Tcl commands, executes Tcl scripts and if Tcl script
+        contains 'exit' command, shell exits with code 0.
+        """
         # File does not exist when the shell is started the first time after creating a new project
         if os.path.exists(histfile):
             readline.read_history_file(histfile)
 
         def wrap_with_except_handling(fun_to_wrap):
+            """Decorator function that wraps 'fun_to_wrap' with exception handling.
+
+            Parameters
+            ----------
+            fun_to_wrap : callable
+                The function to be wrapped with exception handling.
+            """
+
             def inter(*args, **varargs):
+                """Wrapped function that excecutes 'fun_to_wrap' with arguments
+                and exception handling.
+
+                Parameters
+                ----------
+                *args : tuple
+                    Positional arguments to pass to 'fun_to_wrap'.
+                **varags : dict
+                    Keyword arguments to pass to 'fun_to_wrap'.
+                """
                 try:
                     fun_to_wrap(*args, **varargs)
                 except:
@@ -259,11 +372,32 @@ To run the complete FABulous flow with the default project, run the following co
             exit(0)
 
     def postloop(self):
+        """Excecution after exiting main command loop.
+        Sets history length for readline using 'histfile_size' and
+        writes command history to '.fabulous_history' file.
+        """
         readline.set_history_length(histfile_size)
         histfile = f"{self.projectDir}/.FABulous/.fabulous_history"
         readline.write_history_file(histfile)
 
     def precmd(self, line: str) -> str:
+        """Pre-processes command line before execution.
+
+        Checks if fabric is loaded before allowing commands 'gen' or 'run'.
+
+        If fabric is not loaded and command requires it, logs error and prevents
+        execution.
+
+        Parameters
+        ----------
+        line : str
+            Command line input to pre-process
+
+        Returns
+        -------
+        str
+            Processed command line input, modified or empty if execution blocked.
+        """
         if (
             ("gen" in line or "run" in line)
             and not self.fabricLoaded
@@ -281,26 +415,78 @@ To run the complete FABulous flow with the default project, run the following co
             print(traceback.format_exc())
             return False
 
-    # override the emptyline method, so empty command will just do nothing
     def emptyline(self):
+        """Over-ride of empty-line method, when pressing enter on a empty
+        command line input it will have no effect.
+        """
         pass
 
     def parse(self, line: str) -> List[str]:
+        """Parses command line into list of tokens.
+        Splits the input line based on whitespace.
+
+        Parameters
+        ----------
+        line : str
+            Command line input to parse.
+
+        Returns
+        -------
+        List[str]
+            List of tokens extraced from the input line.
+        """
         return line.split()
 
     def _complete_path(self, path):
+        """Completes partial or full file path.
+
+        If 'path' is a directory, returns list of files and directories inside.
+
+        If 'path' is a file, reutrns a list containg the file itself.
+
+        Parameters
+        ----------
+        path : str
+            Partial or full path to complete.
+
+        Returns
+        -------
+        List[str]
+            List of possible completions for given 'path'
+        """
         if os.path.isdir(path):
             return glob(os.path.join(path, "*"))
         else:
             return glob(path + "*")
 
     def _complete_tileName(self, text):
+        """Completes partial tile name using list of all tiles.
+
+        Finds tile names from 'self.allTile' that start with provided 'text'.
+
+        Parameters
+        ----------
+        text : srt
+            Partial text of tile name to complete.
+
+        Returns
+        -------
+        List[str]
+            List of tile names from 'self.allTile' starting with 'text'
+        """
         return [t for t in self.allTile if t.startswith(text)]
 
     def do_shell(self, args):
-        "Run a shell command"
+        """Runs a shell command, if no command is provided prints prompt,
+        if command execution fails, logs error messege.
+
+        Parameters
+        ----------
+        args : str
+            Shell command to be exectued.
+        """
         if not args:
-            print("Please provide a command to run")
+            logger.warning("Please provide a command to run")
             return
 
         try:
@@ -310,12 +496,40 @@ To run the complete FABulous flow with the default project, run the following co
             return
 
     def do_exit(self, *ignore):
-        "exit FABulous shell"
+        """Exits the FABulous shell and logs info messege.
+
+        Parameters
+        ----------
+        *ignore : tuple
+            Arguments passed with be ignored.
+
+        Returns
+        -------
+        bool
+            Always returns True to indicate the shell will exit.
+        """
         logger.info("Exiting FABulous shell")
         return True
 
     def do_load_fabric(self, args=""):
-        "load csv file and generate an internal representation of the fabric"
+        """Loads 'fabric.csv' file and generates an internal representation
+        of the fabric. Does this by parsing input arguments, sets an internal
+        state to indicate that fabric is loaded and determines the available tiles
+        by comparing directories in the project with tiles defined by fabric.
+
+        Logs errors if no csvfile is found.
+
+        Usage:
+            load_fabric /path/to/fabric.csv
+            load_fabric <defaults to path in 'set_fabric_csv'>
+
+        Parameters
+        ----------
+        args : str, optional
+            Path to the CSV file to load. If unavailable will use
+            path set by 'set_fabric_csv' or looks for 'fabric.csv'
+            in project directory, by default ""
+        """
         args = self.parse(args)
         # if no argument is given will use the one set by set_fabric_csv
         # else use the argument
@@ -349,19 +563,68 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Complete")
 
     def complete_load_fabric(self, text, *ignored):
+        """Autocompletes file path to load fabric command.
+
+        Parameters
+        ----------
+        text : str
+            Current text input to autocomplete.
+        *ignored : tuple
+            Ignored additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible file path completions.
+        """
         return self._complete_path(text)
 
     # TODO REMOVE once have transition the model gen to object based
     def do_set_fabric_csv(self, args):
-        "set the csv file to be used for fabric generation"
+        """Sets the csv file to be used for fabric generation.
+
+        Usage:
+            set_fabric_csv /path/to/fabric.csv
+
+        Parameters
+        ----------
+        args : str
+            Path to CSV file to be set.
+        """
         args = self.parse(args)
         self.csvFile = args[0]
 
     def complete_set_fabric_csv(self, text, *ignored):
+        """Autocomplete file path for the set fabric CSV command.
+
+        Parameters
+        ----------
+        text : str
+            The current text input to autocomplete.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible file path completions.
+        """
         return self._complete_path(text)
 
     def do_gen_config_mem(self, args):
-        "Generate the configuration memory of the given tile"
+        """Generates configuration memory of the given tile by
+        by parsing input arguments and calling 'genConfigMem'.
+
+        Logs generation processes for each specified tile.
+
+        Usage:
+            gen_config_mem
+
+        Parameters
+        ----------
+        args : str
+            Names of tiles which generate the configuration memory.
+        """
         args = self.parse(args)
         logger.info(f"Generating Config Memory for {' '.join(args)}")
         for i in args:
@@ -375,10 +638,36 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info(f"Generating configMem complete")
 
     def complete_gen_config_mem(self, text, *ignored):
+        """Autocompletes tile names for generate configuration memory.
+
+        Parameters
+        ----------
+        text : str
+            Current text input to autocomplete.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible tile name completions.
+        """
         return self._complete_tileName(text)
 
     def do_gen_switch_matrix(self, args):
-        "Generate switch matrix of the given tile"
+        """Generates switch matrix of given tile by parsing input arguments
+        and calling 'genSwitchMatrix'.
+
+        Also logs generation process for each specified tile.
+
+        Usage:
+            gen_switch_matrix
+
+        Parameters
+        ----------
+        args : str
+            Name of tiles which generate the switch matrix.
+        """
         args = self.parse(args)
         logger.info(f"Generating switch matrix for {' '.join(args)}")
         for i in args:
@@ -390,10 +679,37 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Switch matrix generation complete")
 
     def complete_gen_switch_matrix(self, text, *ignored):
+        """Autocompletes tile names for generate switch matrix.
+
+        Parameters
+        ----------
+        text : str
+            Current text input to autocomplete.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible tile name completions.
+        """
         return self._complete_tileName(text)
 
     def do_gen_tile(self, args):
-        "Generate the given tile with the switch matrix and configuration memory"
+        """Generates given tile with switch matrix and configuration memory
+        by parsing input arguments, calls functions such as 'genSwitchMatrix' and
+        'genConfigmem'. Handles both regular tiles and super tiles with sub-tiles.
+
+        Also logs generation process for each specified tile and sub-tile.
+
+        Usage:
+            gen_tile
+
+        Parameters
+        ----------
+        args : str
+            Names of tiles to be generated.
+        """
         if not isinstance(args, list):
             args = self.parse(args)
         logger.info(f"Generating tile {' '.join(args)}")
@@ -460,16 +776,50 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Tile generation complete")
 
     def complete_gen_tile(self, text: str, *ignored):
+        """Autocompletes tile names for generate tiles.
+
+        Parameters
+        ----------
+        text : str
+            Current text input to be autocompleted.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible tile name completions.
+        """
         return self._complete_tileName(text)
 
     def do_gen_all_tile(self, *ignored):
-        "Generate all tiles"
+        """Generates all tiles by calling 'do_gen_tile'.
+
+        Usage:
+            gen_all_tile
+
+        Parameters
+        ----------
+        *ignored : tuple
+            Ignores additional arguments.
+        """
         logger.info("Generating all tiles")
         self.do_gen_tile(self.allTile)
         logger.info("Generated all tiles")
 
     def do_gen_fabric(self, *ignored):
-        "Generate the fabric base on the loaded fabric"
+        """Generates fabric based on the loaded fabric by calling
+        'do_gen_all_tile' and 'genFabric'. Logs start and completion of
+        fabric generation process.
+
+        Usage:
+            gen_fabric
+
+        Parameters
+        ----------
+        *ignored : tuple
+            Ignores additional arguments.
+        """
         logger.info(f"Generating fabric {self.fabricGen.fabric.name}")
         self.do_gen_all_tile()
         self.fabricGen.setWriterOutputFile(
@@ -479,8 +829,27 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Fabric generation complete")
 
     def do_gen_geometry(self, *vargs):
-        "Generate the geometry of the fabric for the FABulous Editor.    Usage: gen_geometry [padding]"
+        """Generates geometry of fabric for the FABulous editor by chehcking if fabric
+        is loaded, and calling 'genGeometry' and passing on padding value. Default
+        padding is '8'.
 
+        Also logs geometry generation, the used padding value and any warning about faulty padding arguments,
+        as well as errors if the fabric is not loaded or the padding is not within the valid range of 4 to 32.
+
+        Usage:
+            gen_geometry [defaults to 8]
+            gen_geometry [4-32]
+
+        Parameters
+        ----------
+        *vargs : tuple
+            Optional padding argument. Should be an integer between 4 and 32.
+
+        Returns
+        -------
+        str
+            Returns empty string if fabric is not loaded.
+        """
         if not self.fabricLoaded:
             logger.error("Fabric not loaded")
             return ""
@@ -511,7 +880,19 @@ To run the complete FABulous flow with the default project, run the following co
             logger.error("padding has to be between 4 and 32 inclusively!")
 
     def do_gen_bitStream_spec(self, *ignored):
-        "Generate the bitstream specification of the fabric"
+        """Generates bitstream specification of the fabric by calling
+        'genBitStreamspec' and saving the specification to a binary and CSV file.
+
+        Also logs the paths of the output files.
+
+        Usage:
+            gen_bitStream_spec
+
+        Parameters
+        ----------
+        *ignored : tuple
+            Ignores additional arguments.
+        """
         logger.info("Generating bitstream specification")
         specObject = self.fabricGen.genBitStreamSpec()
 
@@ -531,7 +912,16 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Generated bitstream specification")
 
     def do_gen_top_wrapper(self, *ignored):
-        "Generate the top wrapper of the fabric"
+        """Generates top wrapper of the fabric by calling 'genTopWrapper'.
+
+        Usage:
+            gen_top_wrapper
+
+        Parameters
+        ----------
+        *ignored : tuple
+            Ignores additional arguments.
+        """
         logger.info("Generating top wrapper")
         self.fabricGen.setWriterOutputFile(
             f"{self.projectDir}/Fabric/{self.fabricGen.fabric.name}_top.{self.extension}"
@@ -540,7 +930,19 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Generated top wrapper")
 
     def do_run_FABulous_fabric(self, *ignored):
-        "Generate the fabric base on the CSV file, create the bitstream specification of the fabric, top wrapper of the fabric, Nextpnr model of the fabric and geometry information of the fabric."
+        """Generates the fabric based on the CSV file, creates bitstream specification
+        of the fabric, top wrapper of the fabric, Nextpnr model of the fabric and
+        geometry information of the fabric. Does this by calling the respective functions
+        'do_gen_[function]'.
+
+        Usage:
+            run_FABulous_fabric
+
+        Returns
+        -------
+        int
+            Returns 0 on completion.
+        """
         logger.info("Running FABulous")
         self.do_gen_fabric()
         self.do_gen_bitStream_spec()
@@ -551,7 +953,22 @@ To run the complete FABulous flow with the default project, run the following co
         return 0
 
     def do_gen_model_npnr(self, *ignored):
-        "Generate a npnr model of the fabric"
+        """Generates Nextpnr model of fabric by parsing various required files
+        for place and route such as 'pips.txt', 'bel.txt', 'bel.v2.txt' and
+        'templace.pcf'. Output files are written to directory specified by
+        'metaDataDir' within 'projectDir'.
+
+        Logs output file directories.
+
+        Usage:
+            gen_model_npnr
+
+        Parameters
+        ----------
+        *ignored : tuple
+            Ignores additional arugments.
+
+        """
         logger.info("Generating npnr model")
         npnrModel = self.fabricGen.genModelNpnr()
         logger.info(f"output file: {self.projectDir}/{metaDataDir}/pips.txt")
@@ -574,7 +991,18 @@ To run the complete FABulous flow with the default project, run the following co
 
     # TODO updater once have transition the model gen to object based
     def do_gen_model_npnr_pair(self):
-        "Generate a pair npnr model of the fabric. (Currently not working)"
+        """(Currently not working!)
+
+        Generates a pair Nextpnr (nprn) model of
+        the fabric by calling 'GetFabric' and 'genFabricObject' then saving
+        the nprn components in their respective files.
+
+        Also logs the path of the output files.
+
+        Usage:
+            gen_model_npnr_pair
+
+        """
         logger.info("Generating pair npnr model")
         if self.csvFile:
             FabricFile = [i.strip("\n").split(",") for i in open(self.csvFile)]
@@ -598,11 +1026,29 @@ To run the complete FABulous flow with the default project, run the following co
             pairFile.close()
 
         else:
-            print("Need to call sec_fabric_csv before running model_gen_npnr_pair")
+            logger.error(
+                "Need to call sec_fabric_csv before running model_gen_npnr_pair"
+            )
         logger.info("Generated pair npnr model")
 
     def do_gen_model_vpr(self, args):
-        "Generate a vpr model of the fabric"
+        """Generates a VPR (Versatile Place and Route) model of the fabric
+        by parsing arguments to get optional path to a custom XML files,
+        calling 'genModelVPR', saving the 'architecture.xml' file and
+        calling functions and saving variables for the routing resource graph,
+        maximum width information and the VPR constraints.
+
+        Also logs the path of the output files and an error if usage is incorrect.
+
+        Usage:
+            gen_model_vpr
+            gen_model_vpr path/to/custom.xml
+
+        Parameters
+        ----------
+        args : str
+            Path to custom xml, defaults to "".
+        """
         args = self.parse(args)
         if len(args) > 1:
             logger.error(f"Usage: gen_model_vpr [path_to_custom_xml]")
@@ -642,9 +1088,32 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Generated vpr model")
 
     def complete_gen_model_vpr(self, text, *ignored):
+        """Autocompletes path for VPR model generation.
+
+        Parameters
+        ----------
+        text : str
+            Current text input to be autocompleted.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible path name completions.
+        """
         return self._complete_path(text)
 
     def do_hls_create_project(self):
+        """Creates a High-Level Synthesis (HLS) project directory
+        and populates it with the necessary configuration files. Does this
+        by creating a directory names 'HLS' if it does not exist, creates
+        and writes a configuration TCL script, Makefile, a simple C program
+        and sets the permissions for the created files to be writable by all users.
+
+        Usage:
+            hls_create_project
+        """
         if not os.path.exists(f"./HLS"):
             os.makedirs(f"./HLS")
 
@@ -670,6 +1139,25 @@ To run the complete FABulous flow with the default project, run the following co
         os.chmod(f"./HLS/{name}.c", 0o666)
 
     def do_hls_generate_verilog(self):
+        """Generates Verilog code from the HLS project. Does this by
+        creating a directory for the generated files if it doesn't exist,
+        cleans up existing generated files if they do.
+
+        Runs LegUp tool inside the docker container to generate the Verilog code,
+        moves the generated files to directory, modifies the generated Verilog code
+        to comment out certain lines and appends the Verilog module definition to the
+        Verilog file.
+
+        If error occurs it is not logged but a string is printed.
+
+        Usage:
+            hls_generate_verilog
+
+        Raises
+        ------
+        SystemExit
+            If Verilog file is not generated potentialy due to an error in the C code.
+        """
         name = get_path(self.projectDir).name
         # create folder for the generated file
         if not os.path.exists(f"./HLS/generated_file"):
@@ -739,13 +1227,33 @@ To run the complete FABulous flow with the default project, run the following co
                 f.write("\n")
                 f.write(s)
         except:
-            print(
+            logger.critical(
                 "Verilog file is not generated, potentialy due to the error in the C code"
             )
             exit(-1)
 
     def do_synthesis_npnr(self, args):
-        "Run synthesis with Yosys using Nextpnr JSON backend Usage: synthesis_npnr <top_module_file>"
+        """Runs Yosys using Nextpnr JSON backend to synthesise the Verilog design specified
+        by <top_module_file> and generates a Nextpnr-compatible JSON file for further place
+        and route process.
+
+        Also logs usage errors or synthesis fail.
+
+        Usage:
+            synthesis_npnr <top_module_file>
+
+        Parameters
+        ----------
+        args : str
+            Command-line argument specifying top module Verilog file.
+
+        Raises
+        ------
+        TypeError
+            If number of arguments is not exactly 1.
+        SynthesisError
+            If synthesis process fails.
+        """
         args = self.parse(args)
         if len(args) != 1:
             logger.error("Usage: synthesis_npnr <top_module_file>")
@@ -782,10 +1290,43 @@ To run the complete FABulous flow with the default project, run the following co
             raise SynthesisError
 
     def complete_synthesis_npnr(self, text, *ignored):
+        """Autocompletes path for npnr synthesis.
+
+        Parameters
+        ----------
+        text : str
+            Current text input to be autocompleted.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible path name completions.
+        """
         return self._complete_path(text)
 
     def do_synthesis_blif(self, args):
-        "Run synthesis with Yosys using VPR BLIF backend Usage: synthesis_blif <top_module_file>"
+        """Runs Yosys using VPR BLIF backend to synthesise the Verilog design specified 
+        by <top_module_file> and generates a BLIF file for VPR.
+
+        Also logs usage errors or synthesis fail.
+
+        Usage:
+            synthesis_blif <top_module_file>
+
+        Parameters
+        ----------
+        args : str
+            Command-line argument specifying top module Verilog file.
+
+        Raises
+        ------
+        TypeError
+            If number of arguments is not exactly 1.
+        SynthesisError
+            If synthesis process fails.
+        """ """"""
         args = self.parse(args)
         if len(args) != 1:
             logger.error("Usage: synthesis_blif <top_module_file>")
@@ -823,13 +1364,44 @@ To run the complete FABulous flow with the default project, run the following co
             raise SynthesisError
 
     def complete_synthesis_blif(self, text, *ignored):
+        """Autocompletes path for VPR synthesis.
+
+        Parameters
+        ----------
+        text : str
+            Current text input to be autocompleted.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible path name completions.
+        """
         return self._complete_path(text)
 
     def do_place_and_route_npnr(self, args):
-        """
-        Run place and route with Nextpnr. Need to generate a Nextpnr model first.
-        Usage: place_and_route_npnr <json_file>
-        <json_file> is generated by Yosys. Generate it by running synthesis_npnr
+        """Runs place and route with Nextpnr for a given JSON file generated by Yosys,
+        which requires a Nextpnr model and JSON file first, generated by 'synthesis_npnr'.
+
+        Also logs place and route error, file not found error and type error.
+
+        Usage:
+            place_and_route_npnr <json_file>
+
+        Parameters
+        ----------
+        args : str
+            Path to the JSON file generated by Yosys during synthesis.
+
+        Raises
+        ------
+        TypeError
+            If number of arguments is not exactly 1.
+        FileNotFoundError
+            If JSON, Pips or Bel required for place and route cannot be found.
+        PlaceAndRouteError
+            When process exits with a non-zero exit status indicicating failure.
         """
         args = self.parse(args)
         if len(args) != 1:
@@ -908,10 +1480,47 @@ To run the complete FABulous flow with the default project, run the following co
             raise FileNotFoundError
 
     def complete_place_and_route_npnr(self, text, *ignored):
+        """Autocompletes path for Nextpnr place and route.
+
+        Parameters
+        ----------
+        text : str
+            Current text input to be autocompleted.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible path name completions.
+        """
         return self._complete_path(text)
 
     def do_place_and_route_vpr(self, args):
-        "Run place and route with VPR. Need to generate a VPR model first. Usage: place_and_route_vpr <blif_file> (Currently not working)"
+        """(Currently not working!)
+
+        Runs place and route with VPR for a given BLIF file generated by Yosys,
+        which requires a VPR model and BLIF file first, generated by 'synthesis_blif'
+
+        Also logs place and route error, file not found error and type error.
+
+        Usage:
+            place_and_route_vpr <blif_file>
+
+        Parameters
+        ----------
+        args : str
+            Path to the BLIF file generated by Yosys during synthesis.
+
+        Raises
+        ------
+        TypeError
+            If number of arguments is not exactly 1.
+        FileNotFoundError
+            If BLIF, Pips or Bel required for place and route cannot be found.
+        PlaceAndRouteError
+            When PlaceAndRoute exits with a non-zero exit status indicicating failure.
+        """
         args = self.parse(args)
         if len(args) != 1:
             logger.error("Usage: place_and_route_vpr <blif_file>")
@@ -955,10 +1564,38 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Placement and Routing completed")
 
     def complete_place_and_route_vpr(self, text, *ignored):
+        """Autocompletes path for VPR place and route.
+
+        Parameters
+        ----------
+        text : str
+            Current text input to be autocompleted.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible path name completions.
+        """
         return self._complete_path(text)
 
     def do_gen_bitStream_binary(self, args):
-        "Generate the bitstream of a given design. Need to generate bitstream specification before use. Usage: gen_bitStream_binary <fasm_file>"
+        """Generates bitstream of a giben design using FASM file and pre-generated
+        bitstream specification file 'bitStreamSpec.bin'. Requires bitstream specification
+        before usag by running 'gen_bitStream_spec' and place and route file generated
+        by running 'place_and_route_npnr' or 'place_and_route_vpr'.
+
+        Also logs output file directory, Bitstream generation error and file not found error.
+
+        Usage:
+            gen_bitStream_binary <fasm_file>
+
+        Raises
+        ------
+        BitstreamGenerationError
+            When 'bit_gen' exits with a non-zero exit status indicicating failure.
+        """
         args = self.parse(args)
         if len(args) != 1:
             logger.error("Usage: gen_bitStream_binary <fasm_file>")
@@ -1010,12 +1647,40 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Bitstream generated")
 
     def complete_gen_bitStream_binary(self, text, *ignored):
+        """Autocompletes path for bitstream generation.
+
+        Parameters
+        ----------
+        text : str
+            Current text input to be autocompleted.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible path name completions.
+        """
         return self._complete_path(text)
 
     def do_run_simulation(self, args):
-        """
-        Simulate the given design. Need to generate the bitstream before use.
-        Usage: run_simulation [<fst|vcd>] <bitstream_file>
+        """Simulate given FPGA design using Icarus Verilog (iverilog).
+
+        If <fst> is specified, waveform files in FST format will generate, <vcd>
+        with generate VCD format. bitstream_file argument should be a binary file
+        generated by 'gen_bitStream_binary'. Verilog files from 'Tile' and 'Fabric'
+        directories are copied to temporary directory 'tmp', 'tmp' is deleted
+        on simulation end.
+
+        Also logs simulation error and file not found error and value error.
+
+        Usage:
+            run_simulation [<fst|vcd>] <bitstream_file>
+
+        Parameters
+        ----------
+        args : List[str]
+            Arguments provided for simulation.
         """
         args = self.parse(args)
         bitsream_arg = ""
@@ -1123,10 +1788,40 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Simulation finished")
 
     def complete_run_simulation(self, text, *ignored):
+        """Autocompletes path for simulation.
+
+        Parameters
+        ----------
+        text : str
+            Current text input to be autocompleted.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible path name completions.
+        """
         return self._complete_path(text)
 
     def do_run_FABulous_bitstream(self, *args):
-        "Run FABulous to generate a bitstream on a given design starting from synthesis. Usage: run_FABulous_bitstream <npnr|vpr> <top_module_file> (vpr flow currently not working)"
+        """(VPR flow not working!)
+
+        Runs FABulous to generate bitstream on a given design starting from synthesis.
+
+        Does this by calling synthesis, place and route, bitstream generation functions for
+        either npnr or vpr. Requires Verilog file specified by <top_module_file>.
+
+        Also logs usage error and file not found error.
+
+        Usage:
+            run_FABulous_bitstream <npnr|vpr> <top_module_file>
+
+        Returns
+        -------
+        Int
+            returns 0 if process is completed successfully.
+        """
         if len(args) == 1:
             args = self.parse(args[0])
             if len(args) != 2:
@@ -1169,13 +1864,41 @@ To run the complete FABulous flow with the default project, run the following co
         return 0
 
     def complete_run_FABulous_bitstream(self, text, line, *ignored):
+        """Autocompletes path for run_FABulous_bitstream.
+
+        Parameters
+        ----------
+        text :str
+            Current text input being autocomplete.
+        line : str
+            Entire command line input.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible path name completions.
+        """
         value = ["npnr", "vpr"]
         if "npnr" not in line and "vpr" not in line:
             return [i for i in value if i.startswith(text)]
         return self._complete_path(text)
 
     def do_tcl(self, args):
-        """Execute a TCL script. The directory in the script is relative to the project directory."""
+        """Excecutes TCL script relative to project directory, specified by
+        <tcl_scripts>. Uses the 'tk' module to create TCL commands.
+
+        Also logs usage errors and file not found errors.
+
+        Usage:
+            tcl <tcl_scripts>
+
+        Parameters
+        ----------
+        args : str
+            Path to the TCL script.
+        """
         args = self.parse(args)
         if len(args) != 1:
             logger.error("Usage: tcl <tcl_script>")
@@ -1198,12 +1921,51 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("TCL script executed")
 
     def complete_tcl(self, text, *ignored):
+        """Autocompletes path for tcl script execution.
+
+        Parameters
+        ----------
+        text :str
+            Current text input being autocomplete.
+        line : str
+            Entire command line input.
+        *ignored : tuple
+            Ignores additional arguments.
+
+        Returns
+        -------
+        List[str]
+            List of possible path name completions.
+        """
         return self._complete_path(text)
 
 
 def main():
+    """Main function to run command line interface for FABulous,
+    sets up argument parsing, initialises required components and handles
+    FABulous CLI execution.
+
+    Also logs terminal output and if .FABulous folder is missing.
+
+    Command line arguments
+    ----------------------
+    Project_dir : str
+        Directory path to project folder.
+    -c, --createProject :  bool
+        Flag to create new project.
+    -csv : str, optional
+        Log all the output from the terminal.
+    -s, --script: str, optional
+        Run FABulous with FABulous script.
+    -log : str, optional
+        Log all the output from the terminal.
+    -w, --writer : <'verilog', 'vhdl'>, optional
+        Set type of HDL code generated. Currently supports .V and .VHDL (Default .V)
+    -md, --metaDataDir : str, optional
+        Set output directory for metadata files, e.g. pip.txt, bel.txt
+    """
     if sys.version_info < (3, 9, 0):
-        print("Need Python 3.9 or above to run FABulous")
+        logger.critical("Need Python 3.9 or above to run FABulous")
         exit(-1)
     parser = argparse.ArgumentParser(
         description="The command line interface for FABulous"
