@@ -56,8 +56,28 @@ napoleon_attr_annotations = True
 
 html_theme = "pydata_sphinx_theme"
 
-html_logo = "figs/FAB_logo.png"
+html_logo = "figs/FAB_logo_long.svg"
 
+# -- Over-riding theme options
+html_static_path = ["_static"]
+html_css_files = [
+    "custom.css",
+]
+
+# -- removing left side bar on pages that don't benefit
+html_sidebars = {
+    "Usage": [],
+    "Building fabric": [],
+    "fabric_definition": [],
+    "FPGA_CAD-tools/index": [],
+    "gallary/index": [],
+    "FPGA-to-bitstream/index": [],
+    "references/index": [],
+    "definitions": [],
+    "contact": [],
+    "publications": [],
+    "simulation/index": [],
+}
 
 # -- Options for EPUB output
 epub_show_urls = "footnote"
