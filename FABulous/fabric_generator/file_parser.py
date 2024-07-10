@@ -308,16 +308,13 @@ def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
             elif temp[0] == "BEL":
                 belFilePath = os.path.join(filePath, temp[1])
                 if temp[1].endswith(".vhdl"):
-                    result = parseFile(belFilePath, temp[2], "vhdl")
+                    bels.append(parseFile(belFilePath, temp[2], "vhdl"))
                 elif temp[1].endswith(".v"):
-                    result = parseFile(belFilePath, temp[2], "verilog")
+                    bels.append(parseFile(belFilePath, temp[2], "verilog"))
                 else:
-                    logger.error("Invalid file type, only .vhdl and .v are supported")
-                    raise ValueError
-                internal, external, config, shared, configBit, userClk, belMap = result
-                bels.append(Bel(belFilePath, temp[2], internal,
-                            external, config, shared, configBit, belMap, userClk))
-                withUserCLK |= userClk
+                    raise ValueError(
+                        f"Invalid file type in {belFilePath} only .vhdl and .v are supported."
+                    )
             elif temp[0] == "MATRIX":
                 matrixDir = os.path.join(filePath, temp[1])
                 configBit = 0
@@ -349,6 +346,7 @@ def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
                 logger.error(f"Unknown tile description {temp[0]} in tile {t}")
                 raise ValueError
 
+            withUserCLK = any(bel.withUserCLK for bel in bels)
             new_tiles.append(
                 Tile(tileName, ports, bels, matrixDir, withUserCLK, configBit)
             )
@@ -407,14 +405,14 @@ def parseSupertiles(fileName: str, tileDic: dict[str, Tile]) -> list[SuperTile]:
 
             if line[0] == "BEL":
                 belFilePath = os.path.join(filePath, line[1])
-                if line[0].endswith("VHDL"):
-                    result = parseFile(belFilePath, line[2], "vhdl")
+                if line[1].endswith(".vhdl"):
+                    bels.append(parseFile(belFilePath, line[2], "vhdl"))
+                elif line[1].endswith(".v"):
+                    bels.append(parseFile(belFilePath, line[2], "verilog"))
                 else:
-                    result = parseFile(belFilePath, line[2], "verilog")
-                internal, external, config, shared, configBit, userClk, belMap = result
-                bels.append(Bel(belFilePath, line[2], internal,
-                            external, config, shared, configBit, belMap, userClk))
-                withUserCLK |= userClk
+                    raise ValueError(
+                        f"Invalid file type in {belFilePath} only .vhdl and .v are supported."
+                    )
                 continue
 
             for j in line:
@@ -434,20 +432,13 @@ def parseSupertiles(fileName: str, tileDic: dict[str, Tile]) -> list[SuperTile]:
                     raise ValueError
             tileMap.append(row)
 
+        withUserCLK = any(bel.withUserCLK for bel in bels)
         new_supertiles.append(SuperTile(name, tiles, tileMap, bels, withUserCLK))
     
     return new_supertiles
 
 
-def parseFile(filename: str, belPrefix: str = "", filetype: str = "") -> tuple[
-    list[tuple[str, IO]],
-    list[tuple[str, IO]],
-    list[tuple[str, IO]],
-    list[tuple[str, IO]],
-    int,
-    bool,
-    dict[str, dict],
-]:
+def parseFile(filename: str, belPrefix: str = "", filetype: str = "") -> Bel:
     """
     Parse a Verilog or VHDL bel file and return all the related information of the bel.
     The tuple returned for relating to ports will be a list of (belName, IO) pair.
@@ -512,8 +503,8 @@ def parseFile(filename: str, belPrefix: str = "", filetype: str = "") -> tuple[
         ValueError: No permission to access the file
 
     Returns:
-        tuple[list[tuple[str, IO]], list[tuple[str, IO]], list[tuple[str, IO]], list[tuple[str, IO]], int, bool, dict[str, dict]]:
-        Bel internal ports, bel external ports, bel config ports, bel shared ports, number of configuration bit in the bel,
+        Bel:
+        Bel object contains internal ports, bel external ports, bel config ports, bel shared ports, number of configuration bit in the bel,
         whether the bel have UserCLK, and the bel config bit mapping.
     """
     internal: list[tuple[str, IO]] = []
@@ -588,7 +579,9 @@ def parseFile(filename: str, belPrefix: str = "", filetype: str = "") -> tuple[
                 elif result.group(2).upper() == "INOUT":
                     direction = IO["INOUT"]
                 else:
-                    direction = None
+                    raise ValueError(
+                        f"Invalid or Unknown port direction {result.group(2).upper()} in line {line}."
+                    )
             else:
                 continue
         if line:
@@ -618,7 +611,17 @@ def parseFile(filename: str, belPrefix: str = "", filetype: str = "") -> tuple[
         isConfig = False
         isShared = False
 
-    return internal, external, config, shared, noConfigBits, userClk, belMapDic
+    return Bel(
+        filename,
+        belPrefix,
+        internal,
+        external,
+        config,
+        shared,
+        noConfigBits,
+        belMapDic,
+        userClk,
+    )
 
 
 def _belMapProcessing(
