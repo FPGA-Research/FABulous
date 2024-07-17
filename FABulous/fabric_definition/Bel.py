@@ -9,7 +9,8 @@ class Bel:
 
     - The parsed name will contains the prefix of the bel.
     - The `sharedPort` attribute is a list of Tuples with name of the port and IO information which is not expanded out yet.
-    - If a port is marked as both shared and external, the port is considered as shared. As a result signal like UserCLK will be in shared port list, but not in external port list.
+    - If a port is marked as both shared and external, the port is considered as shared,
+    as a result signal like UserCLK will be in shared port list, but not in external port list.
 
 
     Attributes

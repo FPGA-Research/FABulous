@@ -34,7 +34,7 @@ class PortGeometry:
     groupId : int
         Id of the port group
     groupWires : int
-    Amount of wires of the port group
+        Amount of wires of the port group
     relX : int
         X coordinate of the port, relative to its parent (bel, switch matrix)
     relY : int

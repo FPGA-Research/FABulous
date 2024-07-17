@@ -5,7 +5,9 @@ from typing import Any
 
 @dataclass(frozen=True, eq=True)
 class Wire:
-    """This class is for wire connection that span across multiple tiles. If working for connection between two adjacent tiles, the Port class should have all the required information. The main use of this class is to assist model generation, where information at individual wire level is needed.
+    """This class is for wire connection that span across multiple tiles.
+    If working for connection between two adjacent tiles, the Port class should have all the required information.
+    The main use of this class is to assist model generation, where information at individual wire level is needed.
 
     Attributes
     ----------

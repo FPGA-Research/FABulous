@@ -56,7 +56,7 @@ napoleon_attr_annotations = True
 
 html_theme = "pydata_sphinx_theme"
 
-html_logo = "figs/FAB_logo_long.svg"
+html_logo = "figs/FABulouslogo_wide_2.png"
 
 # -- Over-riding theme options
 html_static_path = ["_static"]
