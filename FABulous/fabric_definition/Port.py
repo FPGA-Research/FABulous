@@ -8,8 +8,8 @@ class Port:
     The `name`, `inOut` and `sideOfTile` are added attributes to aid the generation of the fabric.
     The name and inOut are related. If the inOut is "INPUT" then the name is the source name of the port on the tile.
     Otherwise the name is the destination name of the port on the tile.
-    The `sideOfTile` is where the port physically located on the tile, since for a north direction wire, the input will
-    be physical located on the south side of the tile. The `sideOfTile` will make determine where the port is located
+    The `sideOfTile` defines where the port is physically located on the tile, since for a north direction wire, the input will
+    be physically located on the south side of the tile. The `sideOfTile` will make determining where the port is located
     much easier.
 
     Attributes
@@ -31,7 +31,7 @@ class Port:
     inOut : IO
         The IO direction of the port
     sideOfTile : Side
-        The side which the port is physically located on the tile
+        The side on which the port is physically located in the tile
     """
 
     wireDirection: Direction
@@ -81,7 +81,7 @@ class Port:
             ]
 
     def expandPortInfo(self, mode="SwitchMatrix") -> tuple[list[str], list[str]]:
-        """Expanding the port information to individual bit signal. If indexed is in the mode, then brackets are added to the signal name.
+        """Expanding the port information to the individual bit signal. If 'Indexed' is in the mode, then brackets are added to the signal name.
 
         Args
         ----

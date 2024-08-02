@@ -11,7 +11,7 @@ class PortType(Enum):
 
 
 class PortGeometry:
-    """A datastruct representing the geometry of a Port
+    """A data structure representing the geometry of a Port
 
     Attributes
     ----------

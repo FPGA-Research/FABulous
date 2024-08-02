@@ -14,7 +14,7 @@ class FabricGeometry:
     Attributes
     ----------
     fabric : Fabric
-        The passed fabric object from the CSV definition files
+        The fabric object passed from the CSV definition files
     tileNames : Set[str]
         Set of unique tileNames in the fabric
     tileGeomMap : Dict[str, TileGeometry]

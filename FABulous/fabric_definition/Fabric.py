@@ -14,7 +14,7 @@ from FABulous.fabric_definition.ConfigMem import ConfigMem
 
 @dataclass
 class Fabric:
-    """This class is for storing the information and hyper parameter of the fabric. All the information is parsed from the
+    """This class is for storing the information and hyperparameters of the fabric. All the information is parsed from the
     CSV file.
 
     Attributes
@@ -24,11 +24,11 @@ class Fabric:
     name : str
         The name of the fabric
     numberOfRow : int
-        The number of row of the fabric
+        The number of rows of the fabric
     numberOfColumn : int
-        The number of column of the fabric
+        The number of columns of the fabric
     configMitMode : ConfigBitMode
-        The configuration bit mode of the fabric. Currently support frame based or ff chain
+        The configuration bit mode of the fabric. Currently supports frame based or ff chain
     frameBitsPerRow : int
         The number of frame bits per row of the fabric
     maxFramesPerCol : int
@@ -38,7 +38,7 @@ class Fabric:
     generateDelayInSwitchMatrix : int
         The amount of delay in a switch matrix.
     multiplexerStyle : MultiplexerStyle
-        The style of the multiplexer used in the fabric. Currently support custom or generic
+        The style of the multiplexer used in the fabric. Currently supports custom or generic
     frameSelectWidth : int
         The width of the frame select signal.
     rowSelectWidth : int
@@ -78,7 +78,7 @@ class Fabric:
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        """Generate all the wire pair in the fabric and get all the wire in the fabric.
+        """Generate all the wire pairs in the fabric and get all the wires in the fabric.
 
         The wire pair are used during model generation when some of the signals have source or destination of "NULL".
 

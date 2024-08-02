@@ -26,28 +26,28 @@ oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST
 
 
 def parseFabricCSV(fileName: str) -> Fabric:
-    """Parses a csv file and returns a fabric object.
+    """Parses a CSV file and returns a fabric object.
 
     Parameters
     ----------
     fileName : str
-        Directory of the csv file.
+        Directory of the CSV file.
 
     Raises
     ------
     ValueError
-        - File provided is not a csv file.
-        - Csv file does not exist.
+        - File provided is not a CSV file.
+        - CSV file does not exist.
         - FabricBegin and FabricEnd regions cannot be found.
         - ParametersBegin and ParametersEnd regions cannot be found.
         - Bel entry extension is not ".v" or ".vhdl".
         - Matrix entry extension is not ".list", ".csv", ".v", or ".vhdl".
-        - Unknown tile description entry is found in the csv file.
-        - Unknown tile is found in the fabric entry in the csv file.
-        - Unknown super tile is found in the super tile entry in the csv file.
-        - Invalid ConfigBitMode is found in the parameter entry in the csv file.
-        - Invalid MultiplexerStyle is found in the parameter entry in the csv file.
-        - Invalid parameter entry is found in the csv file.
+        - Unknown tile description entry is found in the CSV file.
+        - Unknown tile is found in the fabric entry in the CSV file.
+        - Unknown super tile is found in the super tile entry in the CSV file.
+        - Invalid ConfigBitMode is found in the parameter entry in the CSV file.
+        - Invalid MultiplexerStyle is found in the parameter entry in the CSV file.
+        - Invalid parameter entry is found in the CSV file.
 
     Returns
     -------
@@ -59,7 +59,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         raise ValueError
 
     if not os.path.exists(fileName):
-        logger.error(f"File {fileName} does not exist")
+        logger.error(f"File {fileName} does not exist.")
         raise ValueError
 
     filePath, _ = os.path.split(os.path.abspath(fileName))
@@ -74,7 +74,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     ):
         fabricDescription = fabricDescription.group(1)
     else:
-        logger.error("Cannot find FabricBegin and FabricEnd in csv file")
+        logger.error("Cannot find FabricBegin and FabricEnd in csv file.")
         raise ValueError
 
     if parameters := re.search(
@@ -82,7 +82,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     ):
         parameters = parameters.group(1)
     else:
-        logger.error("Cannot find ParametersBegin and ParametersEnd in csv file")
+        logger.error("Cannot find ParametersBegin and ParametersEnd in csv file.")
         raise ValueError
 
     fabricDescription = fabricDescription.split("\n")
@@ -148,7 +148,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
                 configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
             else:
                 logger.error(
-                    f"Invalid config bit mode {i[1]} in parameters. Valid options are frame_based and FlipFlopChain"
+                    f"Invalid config bit mode {i[1]} in parameters. Valid options are frame_based and FlipFlopChain."
                 )
                 raise ValueError
         elif i[0].startswith("FrameBitsPerRow"):
@@ -166,7 +166,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
                 multiplexerStyle = MultiplexerStyle.GENERIC
             else:
                 logger.error(
-                    f"Invalid multiplexer style {i[1]} in parameters. Valid options are custom and generic"
+                    f"Invalid multiplexer style {i[1]} in parameters. Valid options are custom and generic."
                 )
                 raise ValueError
         elif i[0].startswith("SuperTileEnable"):
@@ -190,7 +190,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
             elif i == "Null" or i == "NULL" or i == "None":
                 fabricLine.append(None)
             else:
-                logger.error(f"Unknown tile {i}")
+                logger.error(f"Unknown tile {i}.")
                 raise ValueError
         fabricTiles.append(fabricLine)
 
@@ -234,12 +234,12 @@ def parseFabricCSV(fileName: str) -> Fabric:
 
 
 def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
-    """Parses a csv tile configuration file and returns all tile objects.
+    """Parses a CSV tile configuration file and returns all tile objects.
 
     Parameters
     ----------
     fileName : str
-        The path to the csv file.
+        The path to the CSV file.
 
     Returns
     -------
@@ -249,11 +249,11 @@ def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
     logger.info(f"Reading tile configuration: {fileName}")
 
     if not fileName.endswith(".csv"):
-        logger.error("File must be a csv file")
+        logger.error("File must be a CSV file.")
         raise ValueError
 
     if not os.path.exists(fileName):
-        logger.error(f"File {fileName} does not exist")
+        logger.error(f"File {fileName} does not exist.")
         raise ValueError
 
     filePath, _ = os.path.split(os.path.abspath(fileName))
@@ -336,14 +336,14 @@ def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
                         else:
                             configBit = 0
                             logger.warning(
-                                f"Cannot find NumberOfConfigBits in {matrixDir} assume 0 config bits"
+                                f"Cannot find NumberOfConfigBits in {matrixDir} assume 0 config bits."
                             )
 
                 else:
-                    logger.error("Unknown file extension for matrix")
+                    logger.error("Unknown file extension for matrix.")
                     raise ValueError
             else:
-                logger.error(f"Unknown tile description {temp[0]} in tile {t}")
+                logger.error(f"Unknown tile description {temp[0]} in tile {t}.")
                 raise ValueError
 
             withUserCLK = any(bel.withUserCLK for bel in bels)
@@ -372,11 +372,11 @@ def parseSupertiles(fileName: str, tileDic: dict[str, Tile]) -> list[SuperTile]:
     logger.info(f"Reading supertile configuration: {fileName}")
 
     if not fileName.endswith(".csv"):
-        logger.error("File must be a csv file")
+        logger.error("File must be a csv file.")
         raise ValueError
 
     if not os.path.exists(fileName):
-        logger.error(f"File {fileName} does not exist")
+        logger.error(f"File {fileName} does not exist.")
         raise ValueError
 
     filePath, _ = os.path.split(os.path.abspath(fileName))
@@ -725,34 +725,34 @@ def _belMapProcessing(
 def parseConfigMem(
     fileName: str, maxFramePerCol: int, frameBitPerRow: int, globalConfigBits: int
 ) -> list[ConfigMem]:
-    """Parse the config memory csv file into a list of ConfigMem objects
+    """Parse the config memory CSV file into a list of ConfigMem objects.
 
     Parameters
     ----------
     fileName : str
-        directory of the config memory csv file
+        Directory of the config memory CSV file
     maxFramePerCol : int
-        maximum number of frames per column
+        Maximum number of frames per colum
     frameBitPerRow : int
-        number of bits per row
+        Number of bits per row
     globalConfigBits : int
-        number of global config bits for the config memory
+        Number of global config bits for the config memory
 
     Raises
     ------
     ValueError
-        - Invalid amount of frame entries in the config memory csv file
-        - Too many value in bit mask
-        - Length of bit mask does not match with the number of frame bits per row
-        - Bit mast does not have enough value matching the number of the given config bits
-        - repeated config bit entry in ':' separated format in config bit range
-        - repeated config bit entry in list format in config bit range
+        - Invalid amount of frame entries in the config memory CSV file
+        - Too many values in bit mask
+        - Length of bit mask does not match the number of frame bits per row
+        - Bit mask does not have enough values matching the number of the given config bits
+        - Repeated config bit entry in ':' separated format in config bit range
+        - Repeated config bit entry in list format in config bit range
         - Invalid range entry in config bit range
 
     Returns
     -------
     list[ConfigMem]
-        List of ConfigMem objects parsed from the config memeory CSV file.
+        List of ConfigMem objects parsed from the config memory CSV file.
     """
     with open(fileName) as f:
         mappingFile = list(csv.DictReader(f))
@@ -766,7 +766,7 @@ def parseConfigMem(
         # we should have as many lines as we have frames (=framePerCol)
         if len(mappingFile) != maxFramePerCol:
             logger.error(
-                f"The bitstream mapping file has only {len(mappingFile)} entries but MaxFramesPerCol is {maxFramePerCol}"
+                f"The bitstream mapping file has only {len(mappingFile)} entries but MaxFramesPerCol is {maxFramePerCol}."
             )
             raise ValueError
 
@@ -787,7 +787,7 @@ def parseConfigMem(
 
         if usedBitsCounter != globalConfigBits:
             logger.error(
-                f"bitstream mapping file {fileName} has a bitmask miss match; bitmask has in total {usedBitsCounter} 1-values for {globalConfigBits} bits"
+                f"bitstream mapping file {fileName} has a bitmask mismatch; bitmask has in total {usedBitsCounter} 1-values for {globalConfigBits} bits."
             )
             raise ValueError
 
@@ -812,7 +812,7 @@ def parseConfigMem(
                 for i in numList:
                     if i in allConfigBitsOrder:
                         logger.error(
-                            f"Configuration bit index {i} already allocated in {fileName}, {entry['frame_name']}"
+                            f"Configuration bit index {i} already allocated in {fileName}, {entry['frame_name']}."
                         )
                         raise ValueError
                     configBitsOrder.append(i)
@@ -821,7 +821,7 @@ def parseConfigMem(
                 for item in entry["ConfigBits_ranges"].split(";"):
                     if int(item) in allConfigBitsOrder:
                         logger.error(
-                            f"Configuration bit index {item} already allocated in {fileName}, {entry['frame_name']}"
+                            f"Configuration bit index {item} already allocated in {fileName}, {entry['frame_name']}."
                         )
                         raise ValueError
                     configBitsOrder.append(int(item))
@@ -831,7 +831,7 @@ def parseConfigMem(
 
             else:
                 logger.error(
-                    f"Range {entry['ConfigBits_ranges']} is not a valid format. It should be in the form [int]:[int] or [int]. If there are multiple ranges it should be separated by ';'"
+                    f"Range {entry['ConfigBits_ranges']} is not a valid format. It should be in the form [int]:[int] or [int]. If there are multiple ranges it should be separated by ';'."
                 )
                 raise ValueError
 

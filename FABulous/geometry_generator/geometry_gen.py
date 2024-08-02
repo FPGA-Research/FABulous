@@ -25,7 +25,7 @@ class GeometryGenerator:
     Attributes
     ----------
     fabric : Fabric
-        The passed fabric object from the CSV definition files
+        The fabric object passed from the CSV definition files
     fabricGeometry : FabricGeometry
         The generated geometry object
     """
@@ -35,7 +35,7 @@ class GeometryGenerator:
         self.fabricGeometry = None
 
     def generateGeometry(self, padding: int = 8) -> None:
-        """Starts generation of the geometry for the given fabric."""
+        """Starts the geometry generation for the given fabric."""
         self.fabricGeometry = FabricGeometry(self.fabric, padding)
 
     def saveToCSV(self, fileName: str) -> None:

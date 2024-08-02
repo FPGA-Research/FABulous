@@ -267,7 +267,7 @@ def bit_gen():
         argIndex = processedArguments.index("-genBitstream".lower())
         if len(processedArguments) <= argIndex + 3:
             logger.error(
-                "genBitstream expect three file names - the fasm file, the spec file and the output file"
+                "genBitstream expects three file names - the fasm file, the spec file and the output file"
             )
             raise ValueError
         elif (
@@ -276,7 +276,7 @@ def bit_gen():
             or flagRE.match(caseProcessedArguments[argIndex + 3])
         ):
             logger.error(
-                "genBitstream expect three file names, but found a flag in the arguments:"
+                "genBitstream expects three file names, but found a flag in the arguments:"
                 f" {caseProcessedArguments[argIndex + 1]}, {caseProcessedArguments[argIndex + 2]}, {caseProcessedArguments[argIndex + 3]}"
             )
             raise ValueError

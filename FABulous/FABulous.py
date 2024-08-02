@@ -83,7 +83,7 @@ else:
 
 def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
     """Creates a FABulous project containing all required files by copying
-    appropriate project template and the synthesis directory.
+    the appropriate project template and the synthesis directory.
 
     File structure as follows:
         FABulous_project_template --> project_dir/
@@ -139,7 +139,7 @@ def copy_verilog_files(src, dst):
 def remove_dir(path):
     """Removes a directory and all its contents.
 
-    If directory cannot be removed, logs OS error.
+    If the directory cannot be removed, logs OS error.
 
     Parameters
     ----------
@@ -154,7 +154,7 @@ def remove_dir(path):
 
 
 def make_hex(binfile, outfile):
-    """Converts binary file into hex file.
+    """Converts a binary file into hex file.
 
     If the binary file exceeds MAX_BITBYTES, logs error.
 
@@ -333,7 +333,7 @@ To run the complete FABulous flow with the default project, run the following co
             """
 
             def inter(*args, **varargs):
-                """Wrapped function that excecutes 'fun_to_wrap' with arguments
+                """Wrapped function that executes 'fun_to_wrap' with arguments
                 and exception handling.
 
                 Parameters
@@ -416,7 +416,7 @@ To run the complete FABulous flow with the default project, run the following co
             return False
 
     def emptyline(self):
-        """Over-ride of empty-line method, when pressing enter on a empty
+        """Overrides the emptyline method, when pressing enter on an empty
         command line input it will have no effect.
         """
         pass
@@ -442,7 +442,7 @@ To run the complete FABulous flow with the default project, run the following co
 
         If 'path' is a directory, returns list of files and directories inside.
 
-        If 'path' is a file, reutrns a list containg the file itself.
+        If 'path' is a file, reutrns a list containing the file itself.
 
         Parameters
         ----------
@@ -478,7 +478,7 @@ To run the complete FABulous flow with the default project, run the following co
 
     def do_shell(self, args):
         """Runs a shell command, if no command is provided prints prompt,
-        if command execution fails, logs error messege.
+        if command execution fails, logs error message.
 
         Parameters
         ----------
@@ -496,7 +496,7 @@ To run the complete FABulous flow with the default project, run the following co
             return
 
     def do_exit(self, *ignore):
-        """Exits the FABulous shell and logs info messege.
+        """Exits the FABulous shell and logs info message.
 
         Parameters
         ----------
@@ -517,7 +517,7 @@ To run the complete FABulous flow with the default project, run the following co
         state to indicate that fabric is loaded and determines the available tiles
         by comparing directories in the project with tiles defined by fabric.
 
-        Logs errors if no csvfile is found.
+        Logs error if no CSV file is found.
 
         Usage:
             load_fabric /path/to/fabric.csv
@@ -581,7 +581,7 @@ To run the complete FABulous flow with the default project, run the following co
 
     # TODO REMOVE once have transition the model gen to object based
     def do_set_fabric_csv(self, args):
-        """Sets the csv file to be used for fabric generation.
+        """Sets the CSV file to be used for fabric generation.
 
         Usage:
             set_fabric_csv /path/to/fabric.csv
@@ -829,7 +829,7 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Fabric generation complete")
 
     def do_gen_geometry(self, *vargs):
-        """Generates geometry of fabric for the FABulous editor by chehcking if fabric
+        """Generates geometry of fabric for the FABulous editor by checking if fabric
         is loaded, and calling 'genGeometry' and passing on padding value. Default
         padding is '8'.
 
@@ -955,7 +955,7 @@ To run the complete FABulous flow with the default project, run the following co
     def do_gen_model_npnr(self, *ignored):
         """Generates Nextpnr model of fabric by parsing various required files
         for place and route such as 'pips.txt', 'bel.txt', 'bel.v2.txt' and
-        'templace.pcf'. Output files are written to directory specified by
+        'templace.pcf'. Output files are written to the directory specified by
         'metaDataDir' within 'projectDir'.
 
         Logs output file directories.
@@ -966,7 +966,7 @@ To run the complete FABulous flow with the default project, run the following co
         Parameters
         ----------
         *ignored : tuple
-            Ignores additional arugments.
+            Ignores additional arguments.
 
         """
         logger.info("Generating npnr model")
@@ -989,13 +989,13 @@ To run the complete FABulous flow with the default project, run the following co
 
         logger.info("Generated npnr model")
 
-    # TODO updater once have transition the model gen to object based
+    # TODO update once have transition the model gen to object based
     def do_gen_model_npnr_pair(self):
         """(Currently not working!)
 
-        Generates a pair Nextpnr (nprn) model of
+        Generates a pair Nextpnr (npnr) model of
         the fabric by calling 'GetFabric' and 'genFabricObject' then saving
-        the nprn components in their respective files.
+        the npnr components in their respective files.
 
         Also logs the path of the output files.
 
@@ -1107,7 +1107,7 @@ To run the complete FABulous flow with the default project, run the following co
     def do_hls_create_project(self):
         """Creates a High-Level Synthesis (HLS) project directory
         and populates it with the necessary configuration files. Does this
-        by creating a directory names 'HLS' if it does not exist, creates
+        by creating a directory named 'HLS' if it does not exist, creates
         and writes a configuration TCL script, Makefile, a simple C program
         and sets the permissions for the created files to be writable by all users.
 
@@ -1148,7 +1148,7 @@ To run the complete FABulous flow with the default project, run the following co
         to comment out certain lines and appends the Verilog module definition to the
         Verilog file.
 
-        If error occurs it is not logged but a string is printed.
+        If an error occurs it is not logged but a string is printed.
 
         Usage:
             hls_generate_verilog
@@ -1156,7 +1156,7 @@ To run the complete FABulous flow with the default project, run the following co
         Raises
         ------
         SystemExit
-            If Verilog file is not generated potentialy due to an error in the C code.
+            If Verilog file is not generated potentially due to an error in the C code.
         """
         name = get_path(self.projectDir).name
         # create folder for the generated file
@@ -1228,7 +1228,7 @@ To run the complete FABulous flow with the default project, run the following co
                 f.write(s)
         except:
             logger.critical(
-                "Verilog file is not generated, potentialy due to the error in the C code"
+                "Verilog file is not generated, potentially due to an error in the C code"
             )
             exit(-1)
 
@@ -1237,7 +1237,7 @@ To run the complete FABulous flow with the default project, run the following co
         by <top_module_file> and generates a Nextpnr-compatible JSON file for further place
         and route process.
 
-        Also logs usage errors or synthesis fail.
+        Also logs usage errors or synthesis failures.
 
         Usage:
             synthesis_npnr <top_module_file>
@@ -1310,7 +1310,7 @@ To run the complete FABulous flow with the default project, run the following co
         """Runs Yosys using VPR BLIF backend to synthesise the Verilog design specified 
         by <top_module_file> and generates a BLIF file for VPR.
 
-        Also logs usage errors or synthesis fail.
+        Also logs usage errors or synthesis failure.
 
         Usage:
             synthesis_blif <top_module_file>
@@ -1401,7 +1401,7 @@ To run the complete FABulous flow with the default project, run the following co
         FileNotFoundError
             If JSON, Pips or Bel required for place and route cannot be found.
         PlaceAndRouteError
-            When process exits with a non-zero exit status indicicating failure.
+            When process exits with a non-zero exit status indicating failure.
         """
         args = self.parse(args)
         if len(args) != 1:
@@ -1581,9 +1581,9 @@ To run the complete FABulous flow with the default project, run the following co
         return self._complete_path(text)
 
     def do_gen_bitStream_binary(self, args):
-        """Generates bitstream of a giben design using FASM file and pre-generated
+        """Generates bitstream of a given design using FASM file and pre-generated
         bitstream specification file 'bitStreamSpec.bin'. Requires bitstream specification
-        before usag by running 'gen_bitStream_spec' and place and route file generated
+        before use by running 'gen_bitStream_spec' and place and route file generated
         by running 'place_and_route_npnr' or 'place_and_route_vpr'.
 
         Also logs output file directory, Bitstream generation error and file not found error.
@@ -1594,7 +1594,7 @@ To run the complete FABulous flow with the default project, run the following co
         Raises
         ------
         BitstreamGenerationError
-            When 'bit_gen' exits with a non-zero exit status indicicating failure.
+            When 'bit_gen' exits with a non-zero exit status indicating failure.
         """
         args = self.parse(args)
         if len(args) != 1:
@@ -1667,9 +1667,9 @@ To run the complete FABulous flow with the default project, run the following co
         """Simulate given FPGA design using Icarus Verilog (iverilog).
 
         If <fst> is specified, waveform files in FST format will generate, <vcd>
-        with generate VCD format. bitstream_file argument should be a binary file
+        with generate VCD format. The bitstream_file argument should be a binary file
         generated by 'gen_bitStream_binary'. Verilog files from 'Tile' and 'Fabric'
-        directories are copied to temporary directory 'tmp', 'tmp' is deleted
+        directories are copied to the temporary directory 'tmp', 'tmp' is deleted
         on simulation end.
 
         Also logs simulation error and file not found error and value error.
@@ -1886,7 +1886,7 @@ To run the complete FABulous flow with the default project, run the following co
         return self._complete_path(text)
 
     def do_tcl(self, args):
-        """Excecutes TCL script relative to project directory, specified by
+        """Executes TCL script relative to the project directory, specified by
         <tcl_scripts>. Uses the 'tk' module to create TCL commands.
 
         Also logs usage errors and file not found errors.
@@ -1926,7 +1926,7 @@ To run the complete FABulous flow with the default project, run the following co
         Parameters
         ----------
         text :str
-            Current text input being autocomplete.
+            Current text input being autocompleted.
         line : str
             Entire command line input.
         *ignored : tuple

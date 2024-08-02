@@ -7,7 +7,7 @@ from FABulous.geometry_generator.geometry_obj import Location
 
 
 class WireGeometry:
-    """A datastruct representing the geometry of a wire within a tile.
+    """A data structure representing the geometry of a wire within a tile.
 
     Attributes
     ----------
@@ -37,7 +37,7 @@ class WireGeometry:
 
 
 class StairWires:
-    """A datastruct representing a stair-like collection of wires
+    """A data structure representing a stair-like collection of wires.
 
     Attributes
     ----------

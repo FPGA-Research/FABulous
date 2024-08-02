@@ -21,9 +21,9 @@ class Tile:
     matrixDir : str
         The directory of the tile matrix
     globalConfigBits : int
-        The number of config bits the tile have
+        The number of config bits the tile has
     withUserCLK : bool
-        Whether the tile has userCLK port. Default is False.
+        Whether the tile has a userCLK port. Default is False.
     wireList : list[Wire]
         The list of wires of the tile
     filePath : str

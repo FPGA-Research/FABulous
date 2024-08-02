@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True, eq=True)
 class ConfigMem:
-    """Data structure to store the information about a config memory. Each structure represent a row of entry in the config memory csv file.
+    """Data structure to store the information about a config memory. Each structure represents a row of entries in the config memory CSV file.
 
     Attributes
     ----------

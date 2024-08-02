@@ -6,7 +6,7 @@ from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 
 
 class BelGeometry:
-    """A datastruct representing the geometry of a Bel.
+    """A data structure representing the geometry of a bel.
 
     Attributes
     ----------

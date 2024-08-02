@@ -5,12 +5,12 @@ from FABulous.fabric_definition.define import IO
 @dataclass
 class Bel:
     """Contains all the information about a single BEL. The information is parsed from the directory of the BEL in the CSV
-    definition file. There are something to be noted.
+    definition file. There are some things to be noted.
 
-    - The parsed name will contains the prefix of the bel.
-    - The `sharedPort` attribute is a list of Tuples with name of the port and IO information which is not expanded out yet.
+    - The parsed name will contain the prefix of the bel.
+    - The `sharedPort` attribute is a list of Tuples with the name of the port and IO information, which is not expanded out yet.
     - If a port is marked as both shared and external, the port is considered as shared,
-    as a result signal like UserCLK will be in shared port list, but not in external port list.
+    as a result, signals like UserCLK will be in the shared port list, but not in the external port list.
 
 
     Attributes
@@ -34,7 +34,7 @@ class Bel:
     sharedPort : list[tuple[str, IO]]
         All the shared ports of the BEL.
     configBit : int
-        The number of config bits of the BEL have.
+        The number of config bits of the BEL.
     belFeatureMap : dict[str, dict]
         The feature map of the BEL.
     withUserCLK : bool

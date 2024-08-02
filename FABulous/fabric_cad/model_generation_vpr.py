@@ -20,7 +20,7 @@ def genVPRModel(fabric: Fabric, customXMLfile: str = "") -> str:
     fabric : Fabric
         The fabric object containing the FPGA tile configuration.
     customXMLfile : str, optional
-        Path to custom XML file for additional configuration, by default ""
+        Path to custom XML file for additional configuration, by default "".
 
     Returns
     -------
@@ -392,14 +392,14 @@ def genVPRRoutingResourceGraph(fabric: Fabric) -> (str, int):
     -------
     tuple[str, int]
         XML string representation of routing resource graph and
-        Maximum width of channels in the graph
+        Maximum width of channels in the graph.
 
     Raises
     ------
     ValueError
         If diagonal wires are encountered as VPR routing does not support it.
     ValueError
-        If channel PTC value exceeds the maximum allowed for VPR
+        If channel PTC value exceeds the maximum allowed for VPR.
     ValueError
         If tile file is not CSV or list.
     Exception
@@ -1085,7 +1085,7 @@ def genVPRModelConstraints(archObject: FabricModelGen):
     Returns
     -------
     str
-        String repersenting generated constraints XML.
+        String representing generated constraints XML.
     """
     constraintString = '<vpr_constraints tool_name="vpr">\n'
     constraintString += "  <partition_list>\n"
@@ -1150,7 +1150,7 @@ def genVPRModelXML(archObject: FabricModelGen, customXmlFilename, generatePairs=
     customXmlFilename : str
         Path to custom XML file containing additional configuration.
     generatePairs : bool, optional
-        Flag indicating whether to generate pairings, by default True
+        Flag indicating whether to generate pairings, by default True.
 
     Returns
     -------
@@ -1160,7 +1160,7 @@ def genVPRModelXML(archObject: FabricModelGen, customXmlFilename, generatePairs=
     Raises
     ------
     ValueError
-        If uknown tag in custom XML file.
+        If unknown tag in custom XML file.
     ValueError
         If multiple bel_pb tags are within one bel_info tag in the custom XML file.
     ValueError
@@ -1652,7 +1652,7 @@ def genVPRModelRRGraph(archObject: FabricModelGen, generatePairs=True):
     archObject : FabricModelGen
         FabricModelGen object containing architecture information.
     generatePairs : bool, optional
-        Flag indicating whether to generate pairs, by default True
+        Flag indicating whether to generate pairs, by default True.
 
     Returns
     -------
@@ -1666,7 +1666,7 @@ def genVPRModelRRGraph(archObject: FabricModelGen, generatePairs=True):
     Exception
         If Diagonal wires are encountered which VPR doesn't support.
     Exception
-        If could not find pin ptc in block_type designation for RR Graph generation.
+        If pin ptc could not be found in block_type designation for RR Graph generation.
     """
     # Calculate clock X and Y coordinates considering variations in coordinate systems and EMPTY padding around VPR model
     newClockX = clockX + 1

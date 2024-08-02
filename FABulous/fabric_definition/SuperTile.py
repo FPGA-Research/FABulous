@@ -13,13 +13,13 @@ class SuperTile:
     name : str
         The name of the super tile
     tiles : list[Tile]
-        The list of tiles of that build the super tile
+        The list of tiles that make up the super tile
     tileMap : list[list[Tile]]
-        The map of the tiles of which build the super tile
+        The map of the tiles that make up the super tile
     bels : list[Bel]
-        The list of bels of that the super tile have
+        The list of bels of that the super tile contains
     withUserCLK : bool
-        Whether the super tile has userCLK port. Default is False.
+        Whether the super tile has a userCLK port. Default is False.
     """
 
     name: str
@@ -30,7 +30,7 @@ class SuperTile:
 
     def getPortsAroundTile(self) -> dict[str, list[list[Port]]]:
         """Return all the ports that are around the super tile.
-        The dictionary key is the location of where the tile located in the super tile map with the format of "X{x}Y{y}",
+        The dictionary key is the location of where the tile is located in the super tile map with the format of "X{x}Y{y}",
         where x is the x coordinate of the tile and y is the y coordinate of the tile.
         The top left tile will have key "00".
 
@@ -61,7 +61,7 @@ class SuperTile:
         Returns
         -------
         list : [tuple[list[Port], int, int]]
-            A list of tuple which contains the internal connected port
+            A list of tuples which contains the internal connected port
             and the x and y coordinate of the tile.
         """
         internalConnections = []

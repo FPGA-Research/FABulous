@@ -12,7 +12,7 @@ from FABulous.geometry_generator.wire_geometry import StairWires, WireGeometry
 
 
 class TileGeometry:
-    """A datastruct representing the geometry of a tile.
+    """A data structure representing the geometry of a tile.
 
     Attributes
     ----------
@@ -283,7 +283,7 @@ class TileGeometry:
                     self.westMiddleY += 1
 
             else:
-                logger.critical("port with offset 1 and no tile side!")
+                logger.critical("Port with offset 1 and no tile side!")
                 raise Exception
 
             self.wireGeomList.append(wireGeom)
@@ -314,7 +314,7 @@ class TileGeometry:
             elif portGeom.sideOfTile == Side.WEST:
                 self.indirectWestSideWire(portGeom)
             else:
-                logger.critical("port with abs(offset) > 1 and no tile side!")
+                logger.critical("Port with abs(offset) > 1 and no tile side!")
                 raise Exception
 
     def indirectNorthSideWire(self, portGeom: PortGeometry, padding: int) -> None:

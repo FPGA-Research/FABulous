@@ -3,7 +3,7 @@ from fabric_generator.fabric import IO
 
 
 class Location:
-    """A simple datastruct for storing a Location.
+    """A simple data structure for storing a location.
 
     Attributes
     ----------

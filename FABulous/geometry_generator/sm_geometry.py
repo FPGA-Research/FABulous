@@ -11,7 +11,7 @@ from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 
 
 class SmGeometry:
-    """A datastruct representing the geometry of a Switch Matrix.
+    """A data structure representing the geometry of a Switch Matrix.
 
     Attributes
     ----------

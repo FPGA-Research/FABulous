@@ -16,7 +16,7 @@ class FABulous:
     """Class for managing fabric and geometry generation.
 
     This class parses fabric data from 'fabric.csv', generates fabric layouts,
-    geometries, models for both place and root tools (Npnr/VPR), as well as
+    geometries, models for both place and route tools (npnr/VPR), as well as
     other fabric-related functions.
 
     Attributes
@@ -42,7 +42,7 @@ class FABulous:
         If 'fabricCSV' is provided, parses fabric data and initialises
         'fabricGenerator' and 'geometryGenerator' with parsed data.
 
-        If using VHDL changes extension to '.vhdl' from '.v'.
+        If using VHDL, changes the extension from '.v' to'.vhdl'.
 
         Parameters
         ----------
@@ -94,21 +94,21 @@ class FABulous:
             raise ValueError
 
     def bootstrapSwitchMatrix(self, tileName: str, outputDir: str):
-        """Bootstraps the switch matrix for specified tile via 'bootstrapSwitchMatrix'
+        """Bootstraps the switch matrix for the specified tile via 'bootstrapSwitchMatrix'
         defined in 'fabric_gen.py'.
 
         Parameters
         ----------
         tileName : str
-            Name of the tile for which switch matrix will be bootstrapped.
+            Name of the tile for which the switch matrix will be bootstrapped.
         outputDir : str
-            Directory path where switch matrix will generate.
+            Directory path where the switch matrix will be generated.
         """
         tile = self.fabric.getTileByName(tileName)
         self.fabricGenerator.bootstrapSwitchMatrix(tile, outputDir)
 
     def addList2Matrix(self, list: str, matrix: str):
-        """Converts list into CSV matrix via 'list2CSV' definied in
+        """Converts list into CSV matrix via 'list2CSV' defined in
         'fabric_gen.py' and saves it.
 
         Parameters
@@ -126,7 +126,7 @@ class FABulous:
         Parameters
         ----------
         tileName : str
-            Name of the tile for which configuration memory will generate.
+            Name of the tile for which configuration memory will be generated.
         configMem : str
             File path where the configuration memory will be saved.
         """
@@ -152,7 +152,7 @@ class FABulous:
         Parameters
         ----------
         tileName : str
-            Name of the tile generated
+            Name of the tile generated.
         """
         tile = self.fabric.getTileByName(tileName)
         self.fabricGenerator.generateTile(tile)
@@ -239,7 +239,7 @@ class FABulous:
         return model_gen_vpr.genVPRRoutingResourceGraph(self.fabric)
 
     def genModelVPRConstrains(self):
-        """Generates XML constraits for VPR based on fabric data.
+        """Generates XML constraints for VPR based on fabric data.
 
         Returns
         -------
