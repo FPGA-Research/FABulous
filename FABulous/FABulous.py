@@ -48,18 +48,25 @@ histfile_size = 1000
 
 MAX_BITBYTES = 16384
 
-# Remove the default logger to avoid duplicate logs
-logger.remove()
 
-# Sets logger format
-log_format = (
-    "<cyan>[{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}]</cyan>"
-    "<green>[{time:DD-MM-YYYY HH:mm:ss}]</green> "
-    "<level>{level:}</level> - "
-    "<level>{message}</level>"
-)
-# Adds logger to write logs to a file
-logger.add(sys.stdout, format=log_format, level="DEBUG", colorize=True)
+def setup_logger(detailed: bool):
+    # Remove the default logger to avoid duplicate logs
+    logger.remove()
+
+    # Define logger format
+    if detailed:
+        log_format = (
+            "<level>{level:}</level> | "
+            "<cyan>[{time:DD-MM-YYYY HH:mm:ss]}</cyan> | "
+            "<green>[{name}</green>:<green>{function}</green>:<green>{line}]</green> - "
+            "<level>{message}</level>"
+        )
+    else:
+        log_format = "<level>{level:}</level> | " "<level>{message}</level>"
+
+    # Add logger to write logs to stdout
+    logger.add(sys.stdout, format=log_format, level="DEBUG", colorize=True)
+
 
 metaDataDir = ".FABulous"
 
@@ -486,7 +493,7 @@ To run the complete FABulous flow with the default project, run the following co
             Shell command to be exectued.
         """
         if not args:
-            logger.warning("Please provide a command to run")
+            logger.error("Please provide a command to run")
             return
 
         try:
@@ -501,7 +508,7 @@ To run the complete FABulous flow with the default project, run the following co
         Parameters
         ----------
         *ignore : tuple
-            Arguments passed with be ignored.
+            Arguments passed will be ignored.
 
         Returns
         -------
@@ -1963,6 +1970,8 @@ def main():
         Set type of HDL code generated. Currently supports .V and .VHDL (Default .V)
     -md, --metaDataDir : str, optional
         Set output directory for metadata files, e.g. pip.txt, bel.txt
+    -v, --verbose : bool, optional
+        Show detailed log information including function and line number.
     """
     if sys.version_info < (3, 9, 0):
         logger.critical("Need Python 3.9 or above to run FABulous")
@@ -2012,8 +2021,17 @@ def main():
         nargs=1,
         help="Set the output directory for the meta data files eg. pip.txt, bel.txt",
     )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        default=False,
+        action="store_true",
+        help="Show detailed log information including function and line number",
+    )
 
     args = parser.parse_args()
+
+    setup_logger(args.verbose)
 
     args.top = args.project_dir.split("/")[-1]
 
