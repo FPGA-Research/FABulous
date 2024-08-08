@@ -11,4 +11,3 @@ References
    FABulous_API
    file_parser
    model_gen_npnr
-   model_gen_vpr

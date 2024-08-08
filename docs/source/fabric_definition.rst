@@ -259,7 +259,7 @@ specifying:
   
   Jump wires are useful to model hierarchies, some sharing of multiplexers or tapping into routing paths, as shown in the examples below. 
   
-  In the VPR and Altera world, tiles separate between a connection switch matrix and the actual local wire switch matrix. The connection switch matrix is nothing else as a bank of multiplexers selecting from the local routing wires a pool of connection wires that can then be further routed to primitive pins (e.g, a LUT input). In FABulous, those connection wires would be modelled with a set of jump wires, which connect then somehow to the primitive input multiplexers.
+  In the Altera world, tiles separate between a connection switch matrix and the actual local wire switch matrix. The connection switch matrix is nothing else as a bank of multiplexers selecting from the local routing wires a pool of connection wires that can then be further routed to primitive pins (e.g, a LUT input). In FABulous, those connection wires would be modelled with a set of jump wires, which connect then somehow to the primitive input multiplexers.
   
   Older Xilinx architectures have a less hierarchical routing graph and local routing wires between the tiles connect directly to the input multiplexers of the primitives. 
   

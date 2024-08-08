@@ -4,8 +4,8 @@ import pickle
 import re
 import sys
 
-from loguru import logger
 from fasm import *  # Remove this line if you do not have the fasm library installed and will not be generating a bitstream
+from loguru import logger
 
 
 def replace(string, substitutions):
@@ -19,8 +19,6 @@ def bitstring_to_bytes(s):
 
 
 # CAD methods from summer vacation project 2020
-
-
 # Method to generate bitstream in the output format - more detail at the end
 def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
     lGen = parse_fasm_filename(fasmFile)
@@ -39,7 +37,7 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
         tileDict[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
         tileDict_No_Mask[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
 
-    ###NOTE: SOME OF THE FOLLOWING METHODS HAVE BEEN CHANGED DUE TO A MODIFIED BITSTREAM SPEC FORMAT
+    # NOTE: SOME OF THE FOLLOWING METHODS HAVE BEEN CHANGED DUE TO A MODIFIED BITSTREAM SPEC FORMAT
     # Please bear in mind that the tilespecs are now mapped by tile loc and not by cell type
 
     for line in canonList:
@@ -52,7 +50,8 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
             if tileLoc not in specDict["TileMap"].keys():
                 logger.critical("Tile found in fasm file not found in bitstream spec")
                 raise Exception
-            tileType = specDict["TileMap"][tileLoc]  # Set the necessary bits high
+            # Set the necessary bits high
+            tileType = specDict["TileMap"][tileLoc]
             if featureName in specDict["TileSpecs"][tileLoc].keys():
                 if specDict["TileSpecs"][tileLoc][featureName]:
                     for bitIndex in specDict["TileSpecs"][tileLoc][featureName]:
@@ -79,7 +78,7 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
                 raise Exception
 
     # Write output string and introduce mask
-    coordsRE = re.compile("X(\d*)Y(\d*)")
+    coordsRE = re.compile(r"X(\d*)Y(\d*)")
     num_columns = 0
     num_rows = 0
 
@@ -191,7 +190,8 @@ class Tile:
     tileType = ""
     bels = []
     wires = []
-    atomicWires = []  # For storing single wires (to handle cascading and termination)
+    # For storing single wires (to handle cascading and termination)
+    atomicWires = []
     pips = []
     belPorts = set()
     matrixFileName = ""
@@ -262,7 +262,7 @@ def bit_gen():
     # Strip arguments
     caseProcessedArguments = list(map(lambda x: x.strip(), sys.argv))
     processedArguments = list(map(lambda x: x.lower(), caseProcessedArguments))
-    flagRE = re.compile("-\S*")
+    flagRE = re.compile(r"-\S*")
     if "-genBitstream".lower() in str(sys.argv).lower():
         argIndex = processedArguments.index("-genBitstream".lower())
         if len(processedArguments) <= argIndex + 3:

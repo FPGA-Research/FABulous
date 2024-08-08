@@ -99,13 +99,9 @@ Building Fabric and Bitstream
    
 After a successful call with the command ``run_FABulous_fabric`` the RTL file of each of the tiles can be found in the ``Tile`` folder and the fabric RTL file can be found in the ``Fabric`` folder.
 
-After a successful call with the command ``run_FABulous_bitstream npnr user_design/sequential_16bit_en.v``.
+After a successful call with the command ``run_FABulous_bitstream user_design/sequential_16bit_en.v``.
 The bitstream and all the log files generated during synthesis and place and route can be found under
-the ``user_design`` folder. The bitstream will be named as ``sequential_16bit_en.bin`` The above command is using
-the ``npnr`` options which suggest we are using Yosys for synthesis and Nextpnr for placement and routing. Another
-option would be using ``vpr``, which will allow for using Yosys for synthesis and VPR for placement and routing.
-(currently, the VPR flow is not working after the refactoring)
-
+the ``user_design`` folder. The bitstream will be named as ``sequential_16bit_en.bin``
 
 Running in a Docker container
 -----------------------------
