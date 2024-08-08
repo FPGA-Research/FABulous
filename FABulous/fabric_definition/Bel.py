@@ -39,6 +39,8 @@ class Bel:
         The feature map of the BEL.
     withUserCLK : bool
         Whether the BEL has userCLK port. Default is False.
+    individually_declared : bool
+        Indicates if ports are individually declared. Default is False.
     """
 
     src: str
@@ -53,6 +55,7 @@ class Bel:
     configBit: int
     belFeatureMap: dict[str, dict] = field(default_factory=dict)
     withUserCLK: bool = False
+    individually_declared: bool = False
 
     def __init__(
         self,
@@ -65,6 +68,7 @@ class Bel:
         configBit: int,
         belMap: dict[str, dict],
         userCLK: bool,
+        individually_declared: bool,
     ) -> None:
         self.src = src
         self.prefix = prefix
@@ -78,3 +82,4 @@ class Bel:
         self.configBit = configBit
         self.belFeatureMap = belMap
         self.withUserCLK = userCLK
+        self.individually_declared = individually_declared

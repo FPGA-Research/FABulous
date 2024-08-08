@@ -24,6 +24,7 @@ import string
 from loguru import logger
 from pathlib import Path
 from typing import Dict, List, Tuple
+from collections import defaultdict
 
 from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
@@ -1085,23 +1086,57 @@ class FabricGenerator:
         belCounter = 0
         belConfigBitsCounter = 0
         for bel in tile.bels:
+            port_dict = defaultdict(list)
             portsPairs = []
             portList = []
             signal = []
+            userclk_pair = None
 
-            # internal port
+            # Internal ports
             for port in bel.inputs + bel.outputs:
-                port = port.removeprefix(bel.prefix)
-                portsPairs.append((port, f"{bel.prefix}{port}"))
+                port_name = port.removeprefix(bel.prefix)
+                if r := re.match(r"([a-zA-Z_]+)(\d*)", port_name):
+                    portname, number = r.groups()
+                    port_dict[portname].append((port, number))
 
-            # external port
+            # External ports
             for port in bel.externalInput + bel.externalOutput:
-                port = port.removeprefix(bel.prefix)
-                portsPairs.append((port, f"{bel.prefix}{port}"))
+                port_name = port.removeprefix(bel.prefix)
+                if r := re.match(r"([a-zA-Z_]+)(\d*)", port_name):
+                    portname, number = r.groups()
+                    port_dict[portname].append((port, number))
 
-            # shared port
+            # Shared ports
             for port in bel.sharedPort:
-                portsPairs.append((port[0], port[0]))
+                if port[0] == "UserCLK":
+                    userclk_pair = (port[0], port[0])
+                else:
+                    portsPairs.append((port[0], port[0]))
+
+            if bel.individually_declared:
+                for portname, ports in port_dict.items():
+                    for port, number in ports:
+                        # If there's a number, include it in the port name.
+                        if number:
+                            portsPairs.append((f"{portname}{number}", port))
+                        else:
+                            portsPairs.append((portname, port))
+            else:
+                for portname, ports in port_dict.items():
+                    if len(ports) > 1:
+                        # Sort ports based on bit significance.
+                        ports.sort(key=lambda x: int(x[1]) if x[1].isdigit() else -1)
+                        # Concatenate the ports in the correct order.
+                        concatenated_ports = ", ".join(port for port, _ in ports[::-1])
+                        portsPairs.append((portname, f"{{{concatenated_ports}}}"))
+                    else:
+                        # Single port, no need for concatenation.
+                        single_port = ports[0][0]
+                        portsPairs.append((portname, single_port))
+
+            # Makes sure UserCLK is after ports.
+            if userclk_pair is not None:
+                portsPairs.append(userclk_pair)
 
             if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
                 if bel.configBit > 0:

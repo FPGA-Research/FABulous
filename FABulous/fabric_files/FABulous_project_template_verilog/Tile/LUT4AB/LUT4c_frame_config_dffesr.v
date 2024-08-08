@@ -33,22 +33,17 @@ FF=16,
 IOmux=17,
 SET_NORESET=18
 *)
-module LUT4c_frame_config_dffesr (I0, I1, I2, I3, O, Ci, Co, SR, EN, UserCLK, ConfigBits);
-	parameter NoConfigBits = 19 ; // has to be adjusted manually (we don't use an arithmetic parser for the value)
-	// IMPORTANT: this has to be in a dedicated line
-	input I0; // LUT inputs
-	input I1;
-	input I2;
-	input I3;
-	output O; // LUT output (combinatorial or FF)
-	input Ci; // carry chain input
-	output Co; // carry chain output
-	input SR; // SHARED_RESET
-	input EN; // SHARED_ENABLE
-	(* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK; // EXTERNAL // SHARED_PORT // ## the EXTERNAL keyword will send this sisgnal all the way to top and the //SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
-	// GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-	(* FABulous, GLOBAL *) input [NoConfigBits-1 : 0] ConfigBits;
-
+module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
+	// ConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
+    input [3:0]  I,   // Vector for I0, I1, I2, I3
+    output       O,           // Single output for LUT result
+    input        Ci,          // Carry chain input
+    output       Co,          // Carry chain output
+    input        SR,          // SHARED_RESET
+    input        EN,          // SHARED_ENABLE
+    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK, // External and shared clock
+    (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits // Config bits as vector
+);
 	localparam LUT_SIZE = 4; 
 	localparam N_LUT_flops = 2 ** LUT_SIZE; 
 
@@ -68,13 +63,13 @@ module LUT4c_frame_config_dffesr (I0, I1, I2, I3, O, Ci, Co, SR, EN, UserCLK, Co
 
 	//assign I0mux = c_I0mux ? Ci : I0;
 	my_mux2 my_mux2_I0mux(
-	.A0(I0),
+	.A0(I[0]),
 	.A1(Ci),
 	.S(c_I0mux),
 	.X(I0mux)
 	);
 
-	assign LUT_index = {I3,I2,I1,I0mux};
+	assign LUT_index = {I[3],I[2],I[1],I0mux};
 
 // The LUT is just a multiplexer 
 // for a first shot, I am using a 16:1
@@ -138,7 +133,7 @@ module LUT4c_frame_config_dffesr (I0, I1, I2, I3, O, Ci, Co, SR, EN, UserCLK, Co
 	.X(O)
 	);
 	
-	assign Co = (Ci & I1) | (Ci & I2) | (I1 & I2);// iCE40 like carry chain (as this is supported in Yosys; would normally go for fractured LUT
+	assign Co = (Ci & I[1]) | (Ci & I[2]) | (I[1] & I[2]);// iCE40 like carry chain (as this is supported in Yosys; would normally go for fractured LUT)
 
 	always @ (posedge UserCLK) begin
 		if (EN) begin
