@@ -22,6 +22,7 @@ import csv
 import os
 import pickle
 import platform
+import pprint
 import readline
 import shutil
 import subprocess as sp
@@ -567,23 +568,68 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Complete")
 
     def complete_load_fabric(self, text, *ignored):
-        """Autocompletes file path to load fabric command.
+        return self._complete_path(text)
+
+    def do_print_bel(self, args):
+        """Prints a Bel object to the console.
+
+        Usage:
+            print_bel <bel_name>
 
         Parameters
         ----------
-        text : str
-            Current text input to autocomplete.
-        *ignored : tuple
-            Ignored additional arguments.
-
-        Returns
-        -------
-        List[str]
-            List of possible file path completions.
+        args : str
+            Name of the Bel object to print.
         """
-        return self._complete_path(text)
+        args = self.parse(args)
+        if len(args) != 1:
+            logger.error("Please provide a Bel name")
+            return
 
-    # TODO REMOVE once have transition the model gen to object based
+        if not self.fabricLoaded:
+            logger.error("Need to load fabric first")
+            return
+
+        bels = self.fabricGen.getBels()
+        for i in bels:
+            if i.name == args[0]:
+                logger.info(f"\n{pprint.pformat(i, width=200)}")
+                return
+        logger.error("Bel not found")
+
+    def complete_print_bel(self, text, *ignored):
+        return [i.name for i in self.fabricGen.getBels() if i.name.startswith(text)]
+
+    def do_print_tile(self, args):
+        """Prints a tile object to the console.
+
+        Usage:
+            print_tile <tile_name>
+
+        Parameters
+        ----------
+        args : str
+            Name of the tile object to print.
+        """
+        args = self.parse(args)
+        if len(args) != 1:
+            logger.error("Please provide a tile name")
+            return
+
+        if not self.fabricLoaded:
+            logger.error("Need to load fabric first")
+            return
+
+        if tile := self.fabricGen.getTile(args[0]):
+            logger.info(f"\n{pprint.pformat(tile, width=200)}")
+        elif tile := self.fabricGen.getSuperTile(args[0]):
+            logger.info(f"\n{pprint.pformat(tile, width=200)}")
+        else:
+            logger.error("Tile not found")
+
+    def complete_print_tile(self, text, *ignored):
+        return self._complete_tileName(text)
+
     def do_set_fabric_csv(self, args):
         """Sets the CSV file to be used for fabric generation.
 
@@ -599,20 +645,6 @@ To run the complete FABulous flow with the default project, run the following co
         self.csvFile = args[0]
 
     def complete_set_fabric_csv(self, text, *ignored):
-        """Autocomplete file path for the set fabric CSV command.
-
-        Parameters
-        ----------
-        text : str
-            The current text input to autocomplete.
-        *ignored : tuple
-            Ignores additional arguments.
-
-        Returns
-        -------
-        List[str]
-            List of possible file path completions.
-        """
         return self._complete_path(text)
 
     def do_gen_config_mem(self, args):
@@ -642,20 +674,6 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Generating configMem complete")
 
     def complete_gen_config_mem(self, text, *ignored):
-        """Autocompletes tile names for generate configuration memory.
-
-        Parameters
-        ----------
-        text : str
-            Current text input to autocomplete.
-        *ignored : tuple
-            Ignores additional arguments.
-
-        Returns
-        -------
-        List[str]
-            List of possible tile name completions.
-        """
         return self._complete_tileName(text)
 
     def do_gen_switch_matrix(self, args):
@@ -683,20 +701,6 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Switch matrix generation complete")
 
     def complete_gen_switch_matrix(self, text, *ignored):
-        """Autocompletes tile names for generate switch matrix.
-
-        Parameters
-        ----------
-        text : str
-            Current text input to autocomplete.
-        *ignored : tuple
-            Ignores additional arguments.
-
-        Returns
-        -------
-        List[str]
-            List of possible tile name completions.
-        """
         return self._complete_tileName(text)
 
     def do_gen_tile(self, args):
@@ -780,20 +784,6 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Tile generation complete")
 
     def complete_gen_tile(self, text: str, *ignored):
-        """Autocompletes tile names for generate tiles.
-
-        Parameters
-        ----------
-        text : str
-            Current text input to be autocompleted.
-        *ignored : tuple
-            Ignores additional arguments.
-
-        Returns
-        -------
-        List[str]
-            List of possible tile name completions.
-        """
         return self._complete_tileName(text)
 
     def do_gen_all_tile(self, *ignored):
@@ -1094,20 +1084,6 @@ To run the complete FABulous flow with the default project, run the following co
             raise SynthesisError
 
     def complete_synthesis(self, text, *ignored):
-        """Autocompletes path for synthesis.
-
-        Parameters
-        ----------
-        text : str
-            Current text input to be autocompleted.
-        *ignored : tuple
-            Ignores additional arguments.
-
-        Returns
-        -------
-        List[str]
-            List of possible path name completions.
-        """
         return self._complete_path(text)
 
     def do_place_and_route(self, args):
@@ -1210,20 +1186,6 @@ To run the complete FABulous flow with the default project, run the following co
             raise FileNotFoundError
 
     def complete_place_and_route(self, text, *ignored):
-        """Autocompletes path for Nextpnr place and route.
-
-        Parameters
-        ----------
-        text : str
-            Current text input to be autocompleted.
-        *ignored : tuple
-            Ignores additional arguments.
-
-        Returns
-        -------
-        List[str]
-            List of possible path name completions.
-        """
         return self._complete_path(text)
 
     def do_gen_bitStream_binary(self, args):
@@ -1292,20 +1254,6 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Bitstream generated")
 
     def complete_gen_bitStream_binary(self, text, *ignored):
-        """Autocompletes path for bitstream generation.
-
-        Parameters
-        ----------
-        text : str
-            Current text input to be autocompleted.
-        *ignored : tuple
-            Ignores additional arguments.
-
-        Returns
-        -------
-        List[str]
-            List of possible path name completions.
-        """
         return self._complete_path(text)
 
     def do_run_simulation(self, args):
@@ -1433,20 +1381,6 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Simulation finished")
 
     def complete_run_simulation(self, text, *ignored):
-        """Autocompletes path for simulation.
-
-        Parameters
-        ----------
-        text : str
-            Current text input to be autocompleted.
-        *ignored : tuple
-            Ignores additional arguments.
-
-        Returns
-        -------
-        List[str]
-            List of possible path name completions.
-        """
         return self._complete_path(text)
 
     def do_run_FABulous_bitstream(self, *args):
@@ -1461,10 +1395,6 @@ To run the complete FABulous flow with the default project, run the following co
         Usage:
             run_FABulous_bitstream <top_module_file>
 
-        Returns
-        -------
-        Int
-            returns 0 if process is completed successfully.
         """
         if len(args) != 1:
             logger.error("Usage: run_FABulous_bitstream <top_module_file>")
@@ -1489,25 +1419,7 @@ To run the complete FABulous flow with the default project, run the following co
         self.do_place_and_route(str(json_file_path))
         self.do_gen_bitStream_binary(str(fasm_file_path))
 
-        return 0
-
     def complete_run_FABulous_bitstream(self, text, line, *ignored):
-        """Autocompletes path for run_FABulous_bitstream.
-
-        Parameters
-        ----------
-        text :str
-            Current text input being autocomplete.
-        line : str
-            Entire command line input.
-        *ignored : tuple
-            Ignores additional arguments.
-
-        Returns
-        -------
-        List[str]
-            List of possible path name completions.
-        """
         return self._complete_path(text)
 
     def do_tcl(self, args):
@@ -1546,22 +1458,6 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("TCL script executed")
 
     def complete_tcl(self, text, *ignored):
-        """Autocompletes path for tcl script execution.
-
-        Parameters
-        ----------
-        text :str
-            Current text input being autocompleted.
-        line : str
-            Entire command line input.
-        *ignored : tuple
-            Ignores additional arguments.
-
-        Returns
-        -------
-        List[str]
-            List of possible path name completions.
-        """
         return self._complete_path(text)
 
 

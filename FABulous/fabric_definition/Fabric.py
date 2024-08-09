@@ -246,8 +246,14 @@ class Fabric:
         fabric += f"tileDic: {list(self.tileDic.keys())}\n"
         return fabric
 
-    def getTileByName(self, name: str) -> Tile:
-        return self.tileDic[name]
+    def getTileByName(self, name: str) -> Tile | None:
+        return self.tileDic.get(name)
 
-    def getSuperTileByName(self, name: str) -> SuperTile:
-        return self.superTileDic[name]
+    def getSuperTileByName(self, name: str) -> SuperTile | None:
+        return self.superTileDic.get(name)
+
+    def getAllUniqueBels(self) -> list[Bel]:
+        bels = list()
+        for tile in self.tileDic.values():
+            bels.extend(tile.bels)
+        return bels
