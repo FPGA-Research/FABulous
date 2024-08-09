@@ -1,12 +1,15 @@
 import csv
 import os
+import pathlib
 import re
 import subprocess
 import json
+from sys import prefix
 from loguru import logger
 from copy import deepcopy
 
-from typing import Literal
+from typing import Literal, overload
+from FABulous.fabric_generator.utilities import expandListPorts
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Wire import Wire
@@ -14,7 +17,6 @@ from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.ConfigMem import ConfigMem
-from FABulous.fabric_generator.utilities import parseList, parseMatrix
 from FABulous.fabric_definition.define import (
     IO,
     Direction,
@@ -56,17 +58,19 @@ def parseFabricCSV(fileName: str) -> Fabric:
     Fabric
         The fabric object.
     """
-    if not fileName.endswith(".csv"):
+
+    fName = pathlib.Path(fileName)
+    if fName.suffix != ".csv":
         logger.error("File must be a csv file")
         raise ValueError
 
-    if not os.path.exists(fileName):
-        logger.error(f"File {fileName} does not exist.")
+    if not fName.exists():
+        logger.error(f"File {fName} does not exist.")
         raise ValueError
 
-    filePath, _ = os.path.split(os.path.abspath(fileName))
+    filePath = fName.parent
 
-    with open(fileName, "r") as f:
+    with open(fName, "r") as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
@@ -102,19 +106,19 @@ def parseFabricCSV(fileName: str) -> Fabric:
     superTileDic = {}
     
     # For backwards compatibility parse tiles in fabric config
-    new_tiles, new_commonWirePair = parseTiles(fileName)
+    new_tiles, new_commonWirePair = parseTiles(fName)
     tileTypes += [new_tile.name for new_tile in new_tiles]
     tileDefs += new_tiles
     commonWirePair += new_commonWirePair
     tileDic = dict(zip(tileTypes, tileDefs))
 
-    new_supertiles = parseSupertiles(fileName, tileDic)
+    new_supertiles = parseSupertiles(fName, tileDic)
     for new_supertile in new_supertiles:
         superTileDic[new_supertile.name] = new_supertile
 
     if new_tiles or new_supertiles:
         logger.warning(
-            f"Deprecation warning: {fileName} should not contain tile descriptions."
+            f"Deprecation warning: {fName} should not contain tile descriptions."
         )
 
     # parse the parameters
@@ -134,13 +138,13 @@ def parseFabricCSV(fileName: str) -> Fabric:
         if not i:
             continue
         if i[0].startswith("Tile"):
-            new_tiles, new_commonWirePair = parseTiles(os.path.abspath(os.path.join(filePath, i[1])))
+            new_tiles, new_commonWirePair = parseTiles(filePath.joinpath(i[1]))
             tileTypes += [new_tile.name for new_tile in new_tiles]
             tileDefs += new_tiles
             commonWirePair += new_commonWirePair
             tileDic = dict(zip(tileTypes, tileDefs))
         elif i[0].startswith("Supertile"):
-            new_supertiles = parseSupertiles(os.path.abspath(os.path.join(filePath, i[1])), tileDic)
+            new_supertiles = parseSupertiles(filePath.joinpath(i[1]), tileDic)
             for new_supertile in new_supertiles:
                 superTileDic[new_supertile.name] = new_supertile
         elif i[0].startswith("ConfigBitMode"):
@@ -235,7 +239,210 @@ def parseFabricCSV(fileName: str) -> Fabric:
     )
 
 
-def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
+def parseMatrix(fileName: pathlib.Path, tileName: str) -> dict[str, list[str]]:
+    """Parse the matrix CSV into a dictionary from destination to source.
+
+    Parameters
+    ----------
+    fileName : pathlib.Path
+        Directory of the matrix CSV file.
+    tileName : str
+        Name of the tile needed to be parsed.
+
+    Raises
+    ------
+    ValueError
+        Non matching matrix file content and tile name
+
+    Returns
+    -------
+    dict : [str, list[str]]
+        Dictionary from destination to a list of sources.
+    """
+
+    connectionsDic = {}
+    with open(fileName, "r") as f:
+        file = f.read()
+        file = re.sub(r"#.*", "", file)
+        file = file.split("\n")
+
+    if file[0].split(",")[0] != tileName:
+        logger.error(f"{fileName} {file[0].split(',')} {tileName}")
+        logger.error(
+            "Tile name (top left element) in csv file does not match tile name in tile object"
+        )
+        raise ValueError
+    destList = file[0].split(",")[1:]
+
+    for i in file[1:]:
+        i = i.split(",")
+        portName, connections = i[0], i[1:]
+        if portName == "":
+            continue
+        indices = [k for k, v in enumerate(connections) if v == "1"]
+        connectionsDic[portName] = [destList[j] for j in indices]
+    return connectionsDic
+
+
+@overload
+def parseList(
+    filePath: pathlib.Path, collect: Literal["pair"] = "pair", prefix: str = ""
+) -> list[tuple[str, str]]:
+    pass
+
+
+@overload
+def parseList(
+    filePath: pathlib.Path, collect: Literal["source", "sink"], prefix: str = ""
+) -> dict[str, list[str]]:
+    pass
+
+
+def parseList(
+    filePath: pathlib.Path,
+    collect: Literal["pair", "source", "sink"] = "pair",
+    prefix: str = "",
+) -> list[tuple[str, str]] | dict[str, list[str]]:
+    """Parse a list file and expand the list file information into a list of tuples.
+
+    Parameters
+    ----------
+    fileName : pathlib.Path
+        ""
+    collect : (Literal["", "source", "sink"], optional)
+        Collect value by source, sink or just as pair. Defaults to "pair".
+
+    Raises
+    ------
+    ValueError
+        The file does not exist.
+    ValueError
+        Invalid format in the list file.
+
+    Returns
+    -------
+    Union : [list[tuple[str, str]], dict[str, list[str]]]
+        Return either a list of connection pairs or a dictionary of lists which is collected by the specified option, source or sink.
+    """
+    if not filePath.exists():
+        logger.error(f"The file {filePath} does not exist.")
+        raise ValueError
+
+    resultList = []
+    with open(filePath, "r") as f:
+        file = f.read()
+        file = re.sub(r"#.*", "", file)
+    file = file.split("\n")
+    for i, line in enumerate(file):
+        line = line.replace(" ", "").replace("\t", "").split(",")
+        line = [i for i in line if i != ""]
+        if not line:
+            continue
+        if len(line) != 2:
+            logger.error(f"Invalid list formatting in file: {filePath} at line {i}")
+            logger.error(f"Line: {line}")
+            raise ValueError
+        left, right = line[0], line[1]
+
+        if left == "INCLUDE":
+            resultList.extend(parseList(filePath.parent.joinpath(right), "pair"))
+            continue
+
+        leftList = []
+        rightList = []
+        expandListPorts(left, leftList)
+        expandListPorts(right, rightList)
+        resultList += list(zip(leftList, rightList))
+
+    result = list(dict.fromkeys(resultList))
+    resultDic = {}
+    if collect == "source":
+        for k, v in result:
+            if k not in resultDic:
+                resultDic[k] = []
+            resultDic[k].append(v)
+        return resultDic
+
+    if collect == "sink":
+        for k, v in result:
+            for i in v:
+                if i not in resultDic:
+                    resultDic[i] = []
+                resultDic[i].append(k)
+        return resultDic
+
+    return result
+
+
+def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
+    ports = []
+    commonWirePair: tuple[str, str] | None
+    temp: list[str] = line.split(",")
+    if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST"]:
+        ports.append(
+            Port(
+                Direction[temp[0]],
+                temp[1],
+                int(temp[2]),
+                int(temp[3]),
+                temp[4],
+                int(temp[5]),
+                temp[1],
+                IO.OUTPUT,
+                Side[temp[0]],
+            )
+        )
+
+        ports.append(
+            Port(
+                Direction[temp[0]],
+                temp[1],
+                int(temp[2]),
+                int(temp[3]),
+                temp[4],
+                int(temp[5]),
+                temp[4],
+                IO.INPUT,
+                Side[oppositeDic[temp[0]].upper()],
+            )
+        )
+        commonWirePair = (f"{temp[1]}", f"{temp[4]}")
+
+    elif temp[0] == "JUMP":
+        ports.append(
+            Port(
+                Direction.JUMP,
+                temp[1],
+                int(temp[2]),
+                int(temp[3]),
+                temp[4],
+                int(temp[5]),
+                temp[1],
+                IO.OUTPUT,
+                Side.ANY,
+            )
+        )
+        ports.append(
+            Port(
+                Direction.JUMP,
+                temp[1],
+                int(temp[2]),
+                int(temp[3]),
+                temp[4],
+                int(temp[5]),
+                temp[4],
+                IO.INPUT,
+                Side.ANY,
+            )
+        )
+        commonWirePair = None
+    else:
+        logger.error(f"Unknown port type: {temp[0]}")
+        raise ValueError("Unknown port type.")
+    return (ports, commonWirePair)
+
+
+def parseTiles(fileName: pathlib.Path) -> tuple[list[Tile], list[tuple[str, str]]]:
     """Parses a CSV tile configuration file and returns all tile objects.
 
     Parameters
@@ -248,17 +455,18 @@ def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
     Tuple[List[Tile], List[Tuple[str, str]]]
         A tuple containing a list of Tile objects and a list of common wire pairs.
     """
+
     logger.info(f"Reading tile configuration: {fileName}")
 
-    if not fileName.endswith(".csv"):
+    if fileName.suffix != ".csv":
         logger.error("File must be a CSV file.")
         raise ValueError
 
-    if not os.path.exists(fileName):
+    if not fileName.exists():
         logger.error(f"File {fileName} does not exist.")
         raise ValueError
 
-    filePath, _ = os.path.split(os.path.abspath(fileName))
+    filePathParent = fileName.parent
 
     with open(fileName, 'r') as f:
         file = f.read()
@@ -268,7 +476,7 @@ def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
                            re.MULTILINE | re.DOTALL)
 
     new_tiles = []
-    commonWirePair = []
+    commonWirePairs = []
 
     # Parse each tile config
     for t in tilesData:
@@ -276,87 +484,98 @@ def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
         tileName = t[0].split(",")[1]
         ports: list[Port] = []
         bels: list[Bel] = []
-        matrixDir = ""
+        matrixDir: pathlib.Path | None = None
         withUserCLK = False
         configBit = 0
         for item in t:
             temp: list[str] = item.split(",")
             if not temp or temp[0] == "":
                 continue
-            if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST"]:
-                ports.append(Port(Direction[temp[0]], temp[1], int(
-                    temp[2]), int(temp[3]), temp[4], int(temp[5]), temp[1], IO.OUTPUT, Side[temp[0]]))
-
-                ports.append(
-                    Port(
-                        Direction[temp[0]],
-                        temp[1],
-                        int(temp[2]),
-                        int(temp[3]),
-                        temp[4],
-                        int(temp[5]),
-                        temp[4],
-                        IO.INPUT,
-                        Side[oppositeDic[temp[0]].upper()],
-                    )
-                )
-                commonWirePair.append((f"{temp[1]}", f"{temp[4]}"))
-
-            elif temp[0] == "JUMP":
-                ports.append(Port(Direction.JUMP, temp[1], int(
-                    temp[2]), int(temp[3]), temp[4], int(temp[5]), temp[1], IO.OUTPUT, Side.ANY))
-                ports.append(Port(Direction.JUMP, temp[1], int(
-                    temp[2]), int(temp[3]), temp[4], int(temp[5]), temp[4], IO.INPUT, Side.ANY))
+            if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST", "JUMP"]:
+                port, commonWirePair = parsePortLine(item)
+                ports.extend(port)
+                if commonWirePair:
+                    commonWirePairs.append(commonWirePair)
             elif temp[0] == "BEL":
-                belFilePath = os.path.join(filePath, temp[1])
+                belFilePath = filePathParent.joinpath(temp[1])
                 if temp[1].endswith(".vhdl"):
-                    bels.append(parseFile(belFilePath, temp[2], "vhdl"))
+                    bels.append(parseBelFile(belFilePath, temp[2], "vhdl"))
                 elif temp[1].endswith(".v"):
-                    bels.append(parseFile(belFilePath, temp[2], "verilog"))
+                    bels.append(parseBelFile(belFilePath, temp[2], "verilog"))
                 else:
                     raise ValueError(
                         f"Invalid file type in {belFilePath} only .vhdl and .v are supported."
                     )
             elif temp[0] == "MATRIX":
-                matrixDir = os.path.join(filePath, temp[1])
+                matrixDir = fileName.parent.joinpath(temp[1])
                 configBit = 0
-                if temp[1].endswith(".list"):
-                    for _, v in parseList(matrixDir, "source").items():
-                        muxSize = len(v)
-                        if muxSize >= 2:
-                            configBit += muxSize.bit_length()-1
-                elif temp[1].endswith("_matrix.csv"):
-                    for _, v in parseMatrix(matrixDir, tileName).items():
-                        muxSize = len(v)
-                        if muxSize >= 2:
-                            configBit += muxSize.bit_length()-1
-                elif temp[1].endswith(".vhdl") or temp[1].endswith(".v"):
-                    with open(matrixDir, "r") as f:
-                        f = f.read()
-                        if configBit := re.search(r"NumberOfConfigBits: (\d+)", f):
-                            configBit = int(configBit.group(1))
-                        else:
-                            configBit = 0
-                            logger.warning(
-                                f"Cannot find NumberOfConfigBits in {matrixDir} assume 0 config bits."
-                            )
 
-                else:
-                    logger.error("Unknown file extension for matrix.")
+                match matrixDir.suffix:
+                    case ".list":
+                        for _, v in parseList(matrixDir, "source").items():
+                            muxSize = len(v)
+                            if muxSize >= 2:
+                                configBit += muxSize.bit_length() - 1
+                    case "_matrix.csv":
+                        for _, v in parseMatrix(matrixDir, tileName).items():
+                            muxSize = len(v)
+                            if muxSize >= 2:
+                                configBit += muxSize.bit_length() - 1
+                    case ".vhdl" | ".v":
+                        with open(matrixDir, "r") as f:
+                            f = f.read()
+                            if configBit := re.search(r"NumberOfConfigBits: (\d+)", f):
+                                configBit = int(configBit.group(1))
+                            else:
+                                configBit = 0
+                                logger.warning(
+                                    f"Cannot find NumberOfConfigBits in {matrixDir} assume 0 config bits."
+                                )
+                    case _:
+                        logger.error("Unknown file extension for matrix.")
+                        raise ValueError("Unknown file extension for matrix.")
+
+            elif temp[0] == "INCLUDE":
+                p = fileName.parent.joinpath(temp[1])
+                if not p.exists():
+                    logger.error(f"Cannot find {str(p)} in tile {tileName}")
                     raise ValueError
+                with open(p) as f:
+                    iFile = f.read()
+                    iFile = re.sub(r"#.*", "", iFile)
+                for line in iFile.split("\n"):
+                    lineItem = line.split(",")
+                    if not lineItem[0]:
+                        continue
+
+                    port, commonWirePair = parsePortLine(line)
+                    ports.extend(port)
+                    if commonWirePair:
+                        commonWirePairs.append(commonWirePair)
+
             else:
                 logger.error(f"Unknown tile description {temp[0]} in tile {t}.")
                 raise ValueError
 
             withUserCLK = any(bel.withUserCLK for bel in bels)
             new_tiles.append(
-                Tile(tileName, ports, bels, matrixDir, withUserCLK, configBit)
+                Tile(
+                    name=tileName,
+                    ports=ports,
+                    bels=bels,
+                    tileDir=fileName,
+                    matrixDir=matrixDir,
+                    userCLK=withUserCLK,
+                    configBit=configBit,
+                )
             )
 
-    return (new_tiles, commonWirePair)
+    return (new_tiles, commonWirePairs)
 
 
-def parseSupertiles(fileName: str, tileDic: dict[str, Tile]) -> list[SuperTile]:
+def parseSupertiles(
+    fileName: pathlib.Path, tileDic: dict[str, Tile]
+) -> list[SuperTile]:
     """Parses a CSV supertile configuration file and returns all SuperTile objects.
 
     Parameters
@@ -373,15 +592,15 @@ def parseSupertiles(fileName: str, tileDic: dict[str, Tile]) -> list[SuperTile]:
     """
     logger.info(f"Reading supertile configuration: {fileName}")
 
-    if not fileName.endswith(".csv"):
+    if not fileName.suffix == ".csv":
         logger.error("File must be a csv file.")
         raise ValueError
 
-    if not os.path.exists(fileName):
+    if not fileName.exists():
         logger.error(f"File {fileName} does not exist.")
         raise ValueError
 
-    filePath, _ = os.path.split(os.path.abspath(fileName))
+    filePath = fileName.parent
 
     with open(fileName, 'r') as f:
         file = f.read()
@@ -406,11 +625,11 @@ def parseSupertiles(fileName: str, tileDic: dict[str, Tile]) -> list[SuperTile]:
             row = []
 
             if line[0] == "BEL":
-                belFilePath = os.path.join(filePath, line[1])
+                belFilePath = filePath.joinpath(line[1])
                 if line[1].endswith(".vhdl"):
-                    bels.append(parseFile(belFilePath, line[2], "vhdl"))
+                    bels.append(parseBelFile(belFilePath, line[2], "vhdl"))
                 elif line[1].endswith(".v"):
-                    bels.append(parseFile(belFilePath, line[2], "verilog"))
+                    bels.append(parseBelFile(belFilePath, line[2], "verilog"))
                 else:
                     raise ValueError(
                         f"Invalid file type in {belFilePath} only .vhdl and .v are supported."
@@ -440,8 +659,10 @@ def parseSupertiles(fileName: str, tileDic: dict[str, Tile]) -> list[SuperTile]:
     return new_supertiles
 
 
-def parseFile(
-    filename: str, belPrefix: str = "", filetype: Literal["verilog", "vhdl"] = ""
+def parseBelFile(
+    filename: pathlib.Path,
+    belPrefix: str = "",
+    filetype: Literal["verilog", "vhdl"] = "",
 ) -> Bel:
     """
     Parse a Verilog or VHDL bel file and return all the related information of the bel.
@@ -602,7 +823,7 @@ def parseFile(
 
     if filetype == "verilog":
         # Runs yosys on verilog file, creates netlist, saves to json in same directory.
-        json_file = filename.replace(".v", ".json")
+        json_file = filename.with_suffix(".json")
         runCmd = [
             "yosys",
             "-qp"
@@ -820,7 +1041,10 @@ def vhdl_belMapProcessing(file: str, filename: str) -> dict:
 
 
 def parseConfigMem(
-    fileName: str, maxFramePerCol: int, frameBitPerRow: int, globalConfigBits: int
+    fileName: pathlib.Path,
+    maxFramePerCol: int,
+    frameBitPerRow: int,
+    globalConfigBits: int,
 ) -> list[ConfigMem]:
     """Parse the config memory CSV file into a list of ConfigMem objects.
 

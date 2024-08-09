@@ -3,7 +3,7 @@ import string
 from loguru import logger
 
 from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_generator.utilities import parseList, parseMatrix
+from FABulous.fabric_generator.file_parser import parseList, parseMatrix
 
 
 def genNextpnrModel(fabric: Fabric):
@@ -43,14 +43,14 @@ def genNextpnrModel(fabric: Fabric):
             if tile is None:
                 continue
             pipStr.append(f"#Tile-internal pips on tile X{x}Y{y}:")
-            if tile.matrixDir.endswith(".csv"):
+            if tile.matrixDir.suffix == ".csv":
                 connection = parseMatrix(tile.matrixDir, tile.name)
                 for source, sinkList in connection.items():
                     for sink in sinkList:
                         pipStr.append(
                             f"X{x}Y{y},{sink},X{x}Y{y},{source},{8},{sink}.{source}"
                         )
-            elif tile.matrixDir.endswith(".list"):
+            elif tile.matrixDir.suffix == ".list":
                 connection = parseList(tile.matrixDir)
                 for sink, source in connection:
                     pipStr.append(

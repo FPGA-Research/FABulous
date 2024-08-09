@@ -1283,7 +1283,6 @@ To run the complete FABulous flow with the default project, run the following co
             f"{self.projectDir}/.FABulous/bitStreamSpec.bin",
             f"{self.projectDir}/{parent}/{bitstream_file}",
         ]
-
         try:
             sp.run(runCmd, check=True)
         except sp.CalledProcessError:

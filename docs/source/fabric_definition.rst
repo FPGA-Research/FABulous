@@ -154,6 +154,7 @@ Fabric CSV description
 
     .. warning::  Previously, tile definitions were contained in the fabric.csv file. This has been deprecated and it is recommended to move the tile descriptions to the respective tile.csv files.
 
+
 .. _fabric_layout:
 
 Fabric layout
@@ -230,6 +231,7 @@ Each tile that is referred to in the :ref:`fabric_layout` requires specification
    :emphasize-lines: 1,12
 
    TILE, LUT4AB      # define tile name            
+   INCLUDE, ../include/Base.csv
    #direction  source_name  X-offset  Y-offset  destination_name  wires
    NORTH,      N1BEG,       0,        1,        N1END,            4
    EAST,       E2BEG,       1,        0,        N2END,            6
@@ -241,6 +243,40 @@ Each tile that is referred to in the :ref:`fabric_layout` requires specification
    ...
    MATRIX,   LUT4AB_switch_matrix.list               
    EndTILE  
+
+
+The ``INCLUDE`` keyword specifies a path to another tile configuration, and the configuration in that file will be added. The 
+entry within the target path will be appended to the file. For example if ``../include/Base.csv`` contains:
+
+.. code-block:: python
+   :emphasize-lines: 1,12
+
+   NORTH,      N2BEG,       0,        2,        N2END,            8
+   JUMP,       J2_BEG,      0,        0,        J2_END,           12
+
+
+The above configuration is equivalent to:
+
+.. code-block:: python
+   :emphasize-lines: 1,12
+
+   TILE, LUT4AB      # define tile name            
+   NORTH,      N2BEG,       0,        2,        N2END,            8
+   JUMP,       J2_BEG,      0,        0,        J2_END,           12
+   #direction  source_name  X-offset  Y-offset  destination_name  wires
+   NORTH,      N1BEG,       0,        1,        N1END,            4
+   EAST,       E2BEG,       1,        0,        N2END,            6
+   JUMP,       J_BEG,       0,        0,        J_END,            12
+   ...
+   #         RTL code                     optional prefix
+   BEL,      LUT4c_frame_config_OQ.vhdl,  LA_
+   BEL,      LUT4c_frame_config_OQ.vhdl,  LB_
+   ...
+   MATRIX,   LUT4AB_switch_matrix.list               
+   EndTILE  
+
+The path of the ``INCLUDE`` will be relative to where the base file is. For example if the base file is located 
+at ``foo/bar/LUT4AB.csv`` then the ``INCLUDE`` path will point to ``foo/bar/../Base.csv``.
 
 .. _wires:
 
@@ -446,6 +482,38 @@ A switch matrix multiplexer is modelled by having multiple connections for the s
 
    # the same in compact form:
    N2BEG[0|0|0|0],[N2END3|E2END2|S2END1|LB_O]
+
+
+The ``INCLUDE`` keyword can also be used to include another list file in the current list file. For example:
+
+.. code-block:: python
+
+   INCLUDE, ../include/Base.list
+
+   N2BEG0,N2END3 # cascade and twist wire index
+   N2BEG0,E2END2 # turn from east to north
+   N2BEG0,S2END1 # U-turn
+   N2BEG0,LB_O   # route LUT B output north
+
+and the target file ``../include/Base.list`` contains the following:
+
+.. code-block:: python
+
+   N1BEG0,N2END3 
+   N1BEG0,E2END2 
+
+The base file is equivalent to:
+.. code-block:: python
+
+   N1BEG0,N2END3 
+   N1BEG0,E2END2
+   N2BEG0,N2END3 # cascade and twist wire index
+   N2BEG0,E2END2 # turn from east to north
+   N2BEG0,S2END1 # U-turn
+   N2BEG0,LB_O   # route LUT B output north
+
+The directory defined by the ``INCLUDE`` keyword is relative to where the list file is located. For example if the file is located 
+at ``foo/bar/far.list`` then the load directory will be pointing to ``foo/bar/../include/Bar.list``.
 
 Adjacency lists are better for specifying and maintaining the connections while an adjacency matrix is better for monitoring and debug. 
 FABulous works on adjacency matrices and the tool can translate arbitrarily between both.

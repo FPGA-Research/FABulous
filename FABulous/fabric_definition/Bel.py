@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import pathlib
 from FABulous.fabric_definition.define import IO
 
 
@@ -15,7 +16,7 @@ class Bel:
 
     Attributes
     ----------
-    src : str
+    src : pathlib.Path
         The source directory of the BEL given in the CSV file.
     prefix : str
         The prefix of the BEL given in the CSV file.
@@ -43,7 +44,7 @@ class Bel:
         Indicates if ports are individually declared. Default is False.
     """
 
-    src: str
+    src: pathlib.Path
     prefix: str
     name: str
     inputs: list[str]
@@ -59,7 +60,7 @@ class Bel:
 
     def __init__(
         self,
-        src: str,
+        src: pathlib.Path,
         prefix: str,
         internal,
         external,
@@ -72,7 +73,7 @@ class Bel:
     ) -> None:
         self.src = src
         self.prefix = prefix
-        self.name = src.split("/")[-1].split(".")[0]
+        self.name = src.stem
         self.inputs = [p for p, io in internal if io == IO.INPUT]
         self.outputs = [p for p, io in internal if io == IO.OUTPUT]
         self.externalInput = [p for p, io in external if io == IO.INPUT]

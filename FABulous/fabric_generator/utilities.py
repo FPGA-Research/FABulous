@@ -1,140 +1,9 @@
 import os
 import re
 from typing import Literal, overload
+import pathlib
 
 from loguru import logger
-
-
-def parseMatrix(fileName: str, tileName: str) -> dict[str, list[str]]:
-    """Parse the matrix CSV into a dictionary from destination to source.
-
-    Parameters
-    ----------
-    fileName : str
-        Directory of the matrix CSV file.
-    tileName : str
-        Name of the tile needed to be parsed.
-
-    Raises
-    ------
-    ValueError
-        Non matching matrix file content and tile name
-
-    Returns
-    -------
-    dict : [str, list[str]]
-        Dictionary from destination to a list of sources.
-    """
-
-    connectionsDic = {}
-    with open(fileName, "r") as f:
-        file = f.read()
-        file = re.sub(r"#.*", "", file)
-        file = file.split("\n")
-
-    if file[0].split(",")[0] != tileName:
-        print(fileName)
-        print(file[0].split(","))
-        print(tileName)
-        logger.error(
-            "Tile name (top left element) in csv file does not match tile name in tile object"
-        )
-        raise ValueError
-    destList = file[0].split(",")[1:]
-
-    for i in file[1:]:
-        i = i.split(",")
-        portName, connections = i[0], i[1:]
-        if portName == "":
-            continue
-        indices = [k for k, v in enumerate(connections) if v == "1"]
-        connectionsDic[portName] = [destList[j] for j in indices]
-    return connectionsDic
-
-
-@overload
-def parseList(
-    fileName: str, collect: Literal["pair"] = "pair"
-) -> list[tuple[str, str]]:
-    pass
-
-
-@overload
-def parseList(
-    fileName: str, collect: Literal["source", "sink"]
-) -> dict[str, list[str]]:
-    pass
-
-
-def parseList(
-    fileName: str, collect: Literal["pair", "source", "sink"] = "pair"
-) -> list[tuple[str, str]] | dict[str, list[str]]:
-    """Parse a list file and expand the list file information into a list of tuples.
-
-    Parameters
-    ----------
-    fileName : str
-        ""
-    collect : (Literal["", "source", "sink"], optional)
-        Collect value by source, sink or just as pair. Defaults to "pair".
-
-    Raises
-    ------
-    ValueError
-        The file does not exist.
-    ValueError
-        Invalid format in the list file.
-
-    Returns
-    -------
-    Union : [list[tuple[str, str]], dict[str, list[str]]]
-        Return either a list of connection pairs or a dictionary of lists which is collected by the specified option, source or sink.
-    """
-
-    if not os.path.exists(fileName):
-        logger.error(f"The file {fileName} does not exist.")
-        raise ValueError
-
-    resultList = []
-    with open(fileName, "r") as f:
-        file = f.read()
-        file = re.sub(r"#.*", "", file)
-    file = file.split("\n")
-    for i, line in enumerate(file):
-        line = line.replace(" ", "").replace("\t", "").split(",")
-        line = [i for i in line if i != ""]
-        if not line:
-            continue
-        if len(line) != 2:
-            print(line)
-            logger.error(f"Invalid list formatting in file: {fileName} at line {i}")
-            raise ValueError
-        left, right = line[0], line[1]
-
-        leftList = []
-        rightList = []
-        expandListPorts(left, leftList)
-        expandListPorts(right, rightList)
-        resultList += list(zip(leftList, rightList))
-
-    result = list(dict.fromkeys(resultList))
-    resultDic = {}
-    if collect == "source":
-        for k, v in result:
-            if k not in resultDic:
-                resultDic[k] = []
-            resultDic[k].append(v)
-        return resultDic
-
-    if collect == "sink":
-        for k, v in result:
-            for i in v:
-                if i not in resultDic:
-                    resultDic[i] = []
-                resultDic[i].append(k)
-        return resultDic
-
-    return result
 
 
 def expandListPorts(port, PortList):
@@ -224,9 +93,9 @@ Opposite_Directions = {
 
 
 sDelay = "8"
-GNDRE = re.compile("GND(\d*)")
-VCCRE = re.compile("VCC(\d*)")
-VDDRE = re.compile("VDD(\d*)")
+GNDRE = re.compile(r"GND(\d*)")
+VCCRE = re.compile(r"VCC(\d*)")
+VDDRE = re.compile(r"VDD(\d*)")
 BracketAddingRE = re.compile(r"^(\S+?)(\d+)$")
 letters = [
     "A",

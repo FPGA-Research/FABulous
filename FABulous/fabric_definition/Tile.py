@@ -6,6 +6,7 @@ from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Wire import Wire
 from typing import Any
+import pathlib
 
 
 @dataclass
@@ -26,18 +27,18 @@ class Tile:
         Whether the tile has a userCLK port. Default is False.
     wireList : list[Wire]
         The list of wires of the tile
-    filePath : str
-        The path of the matrix file
+    tileDir : str
+        The path to the tile folder
     """
 
     name: str
     portsInfo: list[Port]
     bels: list[Bel]
-    matrixDir: str
+    matrixDir: pathlib.Path
     globalConfigBits: int = 0
     withUserCLK: bool = False
     wireList: list[Wire] = field(default_factory=list)
-    filePath: str = "."
+    tileDir: pathlib.Path = pathlib.Path(".")
     partOfSuperTile = False
 
     def __init__(
@@ -45,7 +46,8 @@ class Tile:
         name: str,
         ports: list[Port],
         bels: list[Bel],
-        matrixDir: str,
+        tileDir: pathlib.Path,
+        matrixDir: pathlib.Path,
         userCLK: bool,
         configBit: int = 0,
     ) -> None:
@@ -56,7 +58,7 @@ class Tile:
         self.withUserCLK = userCLK
         self.globalConfigBits = configBit
         self.wireList = []
-        self.filePath = os.path.split(matrixDir)[0]
+        self.tileDir = tileDir
 
         for b in self.bels:
             self.globalConfigBits += b.configBit

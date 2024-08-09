@@ -19,8 +19,10 @@
 import csv
 import math
 import os
+import pathlib
 import re
 import string
+from sys import prefix
 from loguru import logger
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -41,8 +43,7 @@ from FABulous.fabric_definition.define import (
     ConfigBitMode,
 )
 
-from FABulous.fabric_generator.file_parser import parseConfigMem
-from FABulous.fabric_generator.utilities import parseList, parseMatrix
+from FABulous.fabric_generator.file_parser import parseConfigMem, parseList, parseMatrix
 from fasm import *  # Remove this line if you do not have the fasm library installed and will not be generating a bitstream
 
 SWITCH_MATRIX_DEBUG_SIGNAL = True
@@ -68,7 +69,7 @@ class FabricGenerator:
         self.writer = writer
 
     @staticmethod
-    def bootstrapSwitchMatrix(tile: Tile, outputDir: str) -> None:
+    def bootstrapSwitchMatrix(tile: Tile, outputDir: pathlib.Path) -> None:
         """Generates a blank switch matrix CSV file for the given tile. The top left corner will
         contain the name of the tile. Columns are the source signals and rows are the destination signals.
 
@@ -87,7 +88,7 @@ class FabricGenerator:
             The output directory to write the switch matrix to
         """
         logger.info(f"Generate matrix csv for {tile.name} # filename: {outputDir}")
-        with open(f"{outputDir}", "w") as f:
+        with open(outputDir, "w") as f:
             writer = csv.writer(f)
             sourceName, destName = [], []
             # normal wire
@@ -116,7 +117,7 @@ class FabricGenerator:
                 writer.writerow([p] + [0] * len(destName))
 
     @staticmethod
-    def list2CSV(InFileName: str, OutFileName: str) -> None:
+    def list2CSV(InFileName: pathlib.Path, OutFileName: pathlib.Path) -> None:
         """This function is used to export a given list description into its equivalent CSV switch matrix description.
         A comment will be appended to the end of the column and row of the matrix, which will indicate the number
         of signals in a given row.
@@ -181,7 +182,7 @@ class FabricGenerator:
 
             if matrix[s_index][d_index] != 0:
                 logger.warning(
-                    f"connection ({s}, {d}) already exists in the original matrix"
+                    f"Connection ({s}, {d}) already exists in the original matrix"
                 )
             matrix[s_index][d_index] = 1
 
@@ -445,14 +446,14 @@ class FabricGenerator:
 
         # convert the matrix to a dictionary map and performs entry check
         connections: Dict[str, List[str]] = {}
-        if tile.matrixDir.endswith(".csv"):
+        if tile.matrixDir.suffix == ".csv":
             connections = parseMatrix(tile.matrixDir, tile.name)
-        elif tile.matrixDir.endswith(".list"):
+        elif tile.matrixDir.suffix == ".list":
             logger.info(f"{tile.name} matrix is a list file")
             logger.info(
-                f"bootstrapping {tile.name} to matrix form and adding the list file to the matrix"
+                f"Bootstrapping {tile.name} to matrix form and adding the list file to the matrix"
             )
-            matrixDir = tile.matrixDir.replace(".list", ".csv")
+            matrixDir = tile.matrixDir.with_suffix(".csv")
             self.bootstrapSwitchMatrix(tile, matrixDir)
             self.list2CSV(tile.matrixDir, matrixDir)
             logger.info(
@@ -460,7 +461,7 @@ class FabricGenerator:
             )
             tile.matrixDir = matrixDir
             connections = parseMatrix(tile.matrixDir, tile.name)
-        elif tile.matrixDir.endswith(".v") or tile.matrixDir.endswith(".vhdl"):
+        elif tile.matrixDir.suffix == ".v" or tile.matrixDir.suffix == ".vhdl":
             logger.info(
                 f"A switch matrix file is provided in {tile.name}, will skip the matrix generation process"
             )
@@ -2424,18 +2425,20 @@ class FabricGenerator:
             for x, tile in enumerate(row):
                 if tile == None:
                     continue
-                if os.path.exists(f"{tile.filePath}/{tile.name}_ConfigMem.csv"):
+                configMemPath = tile.tileDir.parent.joinpath(
+                    f"{tile.name}_ConfigMem.csv"
+                )
+                if configMemPath.exists():
                     configMemList = parseConfigMem(
-                        f"{tile.filePath}/{tile.name}_ConfigMem.csv",
+                        configMemPath,
                         self.fabric.maxFramesPerCol,
                         self.fabric.frameBitsPerRow,
                         tile.globalConfigBits,
                     )
                 elif tile.globalConfigBits > 0:
-                    logger.error(
+                    logger.critical(
                         f"No ConfigMem csv file found for {tile.name} which have config bits"
                     )
-                    exit(-1)
 
                 encodeDict = [-1] * (
                     self.fabric.maxFramesPerCol * self.fabric.frameBitsPerRow
@@ -2484,8 +2487,8 @@ class FabricGenerator:
 
                 # All the generation will be working on the tile level with the tileDic
                 # This is added to propagate the updated switch matrix to each of the tile in the fabric
-                if tile.matrixDir.endswith(".list"):
-                    tile.matrixDir = tile.matrixDir.replace(".list", ".csv")
+                if tile.matrixDir.suffix == ".list":
+                    tile.matrixDir = tile.matrixDir.with_suffix(".csv")
 
                 result = parseMatrix(tile.matrixDir, tile.name)
                 for source, sinkList in result.items():

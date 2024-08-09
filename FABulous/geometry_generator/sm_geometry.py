@@ -1,3 +1,4 @@
+import pathlib
 from loguru import logger
 from csv import writer as csvWriter
 from typing import List
@@ -56,8 +57,8 @@ class SmGeometry:
     """
 
     name: str
-    src: str
-    csv: str
+    src: pathlib.Path
+    csv: pathlib.Path
     width: int
     height: int
     relX: int
@@ -235,9 +236,9 @@ class SmGeometry:
     def generateGeometry(
         self, tile: Tile, tileBorder: Border, belGeoms: List[BelGeometry], padding: int
     ) -> None:
-        self.name = tile.name + "_switch_matrix"
-        self.src = tile.filePath + "/" + self.name + ".v"
-        self.csv = tile.filePath + "/" + self.name + ".csv"
+        self.name = f"{tile.name}_switch_matrix"
+        self.src = tile.tileDir.parent.joinpath(f"{self.name}.v")
+        self.csv = tile.tileDir.parent.joinpath(f"{self.name}.csv")
 
         self.jumpPorts = [
             port for port in tile.portsInfo if port.wireDirection == Direction.JUMP
