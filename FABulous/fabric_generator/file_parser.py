@@ -837,10 +837,10 @@ def parseBelFile(
 
         with open(f"{json_file}", "r") as f:
             data_dict = json.load(f)
-        # Default yosys list names added.
+
         modules = data_dict.get("modules", {})
         filtered_ports: dict[str, IO] = {}
-        # Gatheres port name and direction, filters out configbits as they show in ports.
+        # Gathers port name and direction, filters out configbits as they show in ports.
         for module_name, module_info in modules.items():
             ports = module_info["ports"]
             for port_name, details in ports.items():
@@ -853,6 +853,12 @@ def parseBelFile(
                 direction = IO[details["direction"].upper()]
                 bits = details.get("bits", [])
                 filtered_ports[port_name] = (direction, bits)
+
+        if individually_declared:
+            logger.warning(
+                f"Ports in {filename} have been individually declared rather than as a vector."
+            )
+            logger.warning("Ports will not be concatenated during fabric generation.")
 
         param_defaults = module_info.get("parameter_default_values")
         if param_defaults and "NoConfigBits" in param_defaults:
