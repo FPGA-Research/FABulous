@@ -40,6 +40,6 @@ class GeometryGenerator:
 
     def saveToCSV(self, fileName: str) -> None:
         """Saves the generated geometry into a file specified by the given file name.
-        This file can then be imported into the FABulous Editor.
+        This file can then be imported into FABulator.
         """
         self.fabricGeometry.saveToCSV(fileName)

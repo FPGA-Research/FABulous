@@ -823,7 +823,7 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Fabric generation complete")
 
     def do_gen_geometry(self, *vargs):
-        """Generates geometry of fabric for the FABulous editor by checking if fabric
+        """Generates geometry of fabric for FABulator by checking if fabric
         is loaded, and calling 'genGeometry' and passing on padding value. Default
         padding is '8'.
 
@@ -869,9 +869,43 @@ To run the complete FABulous flow with the default project, run the following co
         if 4 <= padding <= 32:
             self.fabricGen.genGeometry(padding)
             logger.info("Geometry generation complete")
-            logger.info(f"{geomFile} can now be imported into the FABulous Editor")
+            logger.info(f"{geomFile} can now be imported into FABulator")
         else:
             logger.error("padding has to be between 4 and 32 inclusively!")
+
+    def do_start_FABulator(self, *ignored):
+        """Starts FABulator if an installation can be found.
+        If no installation can be found, a warning is produced.
+
+        Usage:
+            start_FABulator
+
+        Parameters
+        ----------
+        *ignored : tuple
+            Ignores additional arguments.
+
+        """
+        logger.info("Checking for FABulator installation")
+        fabulatorRoot = os.getenv("FABULATOR_ROOT")
+        if fabulatorRoot is None:
+            logger.warning("FABULATOR_ROOT environment variable not set.")
+            logger.warning(
+                "Install FABulator and set the FABULATOR_ROOT environment variable to use this feature."
+            )
+        elif not os.path.exists(fabulatorRoot):
+            logger.warning(
+                f"FABULATOR_ROOT environment variable set to {fabulatorRoot} but the directory does not exist."
+            )
+        else:
+            logger.info(f"Found FABulator installation at {fabulatorRoot}")
+            logger.info(f"Trying to start FABulator...")
+
+            startupCmd = ["mvn", "-f", f"{fabulatorRoot}/pom.xml", "javafx:run"]
+            try:
+                sp.Popen(startupCmd)
+            except sp.SubprocessError:
+                logger.error("Startup of FABulator failed.")
 
     def do_gen_bitStream_spec(self, *ignored):
         """Generates bitstream specification of the fabric by calling
