@@ -1579,7 +1579,7 @@ def main():
         default=False,
         action="count",
         help="Show detailed log information including function and line number. For -vv additionally output from "
-             "FABulator is logged to the shell for the start_FABulator command",
+        "FABulator is logged to the shell for the start_FABulator command",
     )
 
     args = parser.parse_args()
