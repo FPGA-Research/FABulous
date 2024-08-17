@@ -47,12 +47,12 @@ histfile_size = 1000
 MAX_BITBYTES = 16384
 
 
-def setup_logger(detailed: bool):
+def setup_logger(verbosity: int):
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 
     # Define logger format
-    if detailed:
+    if verbosity >= 1:
         log_format = (
             "<level>{level:}</level> | "
             "<cyan>[{time:DD-MM-YYYY HH:mm:ss]}</cyan> | "
@@ -310,6 +310,7 @@ To run the complete FABulous flow with the default project, run the following co
         self.superTiles = []
         self.csvFile = ""
         self.script = script
+        self.verbose = False
         if isinstance(self.fabricGen.writer, VHDLWriter):
             self.extension = "vhdl"
         else:
@@ -903,7 +904,13 @@ To run the complete FABulous flow with the default project, run the following co
 
             startupCmd = ["mvn", "-f", f"{fabulatorRoot}/pom.xml", "javafx:run"]
             try:
-                sp.Popen(startupCmd)
+                if self.verbose:
+                    # log FABulator output to the FABulous shell
+                    sp.Popen(startupCmd)
+                else:
+                    # discard FABulator output
+                    sp.Popen(startupCmd, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+
             except sp.SubprocessError:
                 logger.error("Startup of FABulator failed.")
 
@@ -1570,8 +1577,8 @@ def main():
         "-v",
         "--verbose",
         default=False,
-        action="store_true",
-        help="Show detailed log information including function and line number",
+        action="count",
+        help="Show detailed log information including function and line number. For -vv additionally output from FABulator is logged to the shell for the start_FABulator command",
     )
 
     args = parser.parse_args()
@@ -1599,6 +1606,8 @@ def main():
         fabShell = FABulousShell(
             FABulous(writer, fabricCSV=args.csv), args.project_dir, args.script
         )
+        if args.verbose == 2:
+            fabShell.verbose = True
 
         if args.metaDataDir:
             metaDataDir = args.metaDataDir
