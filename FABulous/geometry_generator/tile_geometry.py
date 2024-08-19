@@ -1,4 +1,5 @@
 from csv import writer as csvWriter
+from loguru import logger
 from typing import List
 
 from FABulous.fabric_definition.Tile import Tile
@@ -11,19 +12,26 @@ from FABulous.geometry_generator.wire_geometry import StairWires, WireGeometry
 
 
 class TileGeometry:
-    """
-    A datastruct representing the geometry of a tile.
+    """A data structure representing the geometry of a tile.
 
-    Attributes:
-        name            (str)               :   Name of the tile
-        width           (int)               :   Width of the tile
-        height          (int)               :   Height of the tile
-        border          (Border)            :   Border of the fabric the tile is on
-        smGeometry      (SmGeometry)        :   Geometry of the tiles switch matrix
-        belGeomList     (List[BelGeometry]) :   List of the geometries of the tiles bels
-        wireGeomList    (List[WireGeometry]):   List of the geometries of the tiles wires
-        stairWiresList  (List[StairWires])  :   List of the stair-like wires of the tile
-
+    Attributes
+    ----------
+    name : str
+        Name of the tile
+    width : int
+        Width of the tile
+    height : int
+        Height of the tile
+    border : Border
+        Border of the fabric the tile is on
+    smGeometry : SmGeometry
+        Geometry of the tiles switch matrix
+    belGeomList : List[BelGeometry]
+        List of the geometries of the tiles bels
+    wireGeomList : List[WireGeometry]
+        List of the geometries of the tiles wires
+    stairWiresList : List[StairWires]
+        List of the stair-like wires of the tile
     """
 
     name: str
@@ -235,7 +243,8 @@ class TileGeometry:
                 self.westMiddleY += 1
 
             else:
-                raise Exception("port with offset 1 and no tile side!")
+                logger.critical("Port with offset 1 and no tile side!")
+                raise Exception
 
             self.wireGeomList.append(wireGeom)
 
@@ -265,7 +274,8 @@ class TileGeometry:
             elif portGeom.sideOfTile == Side.WEST:
                 self.indirectWestSideWire(portGeom)
             else:
-                raise Exception("port with abs(offset) > 1 and no tile side!")
+                logger.critical("Port with abs(offset) > 1 and no tile side!")
+                raise Exception
 
     def indirectNorthSideWire(self, portGeom: PortGeometry, padding: int) -> None:
         """

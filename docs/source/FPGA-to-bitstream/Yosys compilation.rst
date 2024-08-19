@@ -3,7 +3,7 @@
 Yosys compilation
 =================
 
-Yosys is used for logic synthesis and technology mapping of the Verilog Hardware Description Language (HDL) into a JSON (for nextpnr) or BLIF (for VPR) netlist.
+Yosys is used for logic synthesis and technology mapping of the Verilog Hardware Description Language (HDL) into a JSON netlist.
 
 Building
 --------
@@ -23,10 +23,8 @@ calling the following command:
 .. code-block:: console
 
         # Nextpnr backend synthesis (JSON)
-        synthesis_npnr <path_to_user_design>
+        synthesis <path_to_user_design>
         
-        # VPR backend synthesis (BLIF)
-        synthesis_vpr <path_to_user_design>
 
 
 The result of the synthesis will be located in the directory that contains the design file. For example, if the design 
@@ -41,8 +39,6 @@ file is located at ``user_design/sequential_16bit_en.v`` then the result of the 
 Manual Synthesis
 ^^^^^^^^^^^^^^^^
 FABulous is supported by upstream Yosys, using the ``synth_fabulous`` pass. First, run ``yosys``, which will open up an interactive Yosys shell. If synthesizing for the nextpnr flow, run this command: ``yosys -p "synth_fabulous -top <toplevel> -json <out.json>" <files.v>``.
-
-If you are synthesizing for use in the VPR flow, then run this command: ``yosys -p "synth_fabulous -top <toplevel> -blif <out.blif> -vpr" <files.v>``.
 
 * For any clocked benchmark, a clock tile blackbox module must be instantiated in the top module for clock generation.
 

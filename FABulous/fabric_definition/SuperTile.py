@@ -6,15 +6,20 @@ from FABulous.fabric_definition.Bel import Bel
 
 @dataclass
 class SuperTile:
-    """
-    This class is for storing the information about a super tile.
+    """This class is for storing the information about a super tile.
 
-    attributes:
-        name (str) : The name of the super tile
-        tiles (list[Tile]) : The list of tiles of that build the super tile
-        tileMap (list[list[Tile]]) : The map of the tiles of which build the super tile
-        bels (list[Bel]) : The list of bels of that the super tile have
-        withUserCLK (bool) : Whether the super tile has userCLK port. Default is False.
+    Attributes
+    ----------
+    name : str
+        The name of the super tile
+    tiles : list[Tile]
+        The list of tiles that make up the super tile
+    tileMap : list[list[Tile]]
+        The map of the tiles that make up the super tile
+    bels : list[Bel]
+        The list of bels of that the super tile contains
+    withUserCLK : bool
+        Whether the super tile has a userCLK port. Default is False.
     """
 
     name: str
@@ -24,11 +29,15 @@ class SuperTile:
     withUserCLK: bool = False
 
     def getPortsAroundTile(self) -> dict[str, list[list[Port]]]:
-        """
-        Return all the ports that are around the super tile. The dictionary key is the location of where the tile located in the super tile map with the format of "X{x}Y{y}" where x is the x coordinate of the tile and y is the y coordinate of the tile. The top left tile will have key "00".
+        """Return all the ports that are around the super tile.
+        The dictionary key is the location of where the tile is located in the super tile map with the format of "X{x}Y{y}",
+        where x is the x coordinate of the tile and y is the y coordinate of the tile.
+        The top left tile will have key "00".
 
-        Returns:
-            dict[str, list[list[Port]]]: The dictionary of the ports around the super tile
+        Returns
+        -------
+        dict : [str, list[list[Port]]]
+            The dictionary of the ports around the super tile.
         """
         ports = {}
         for y, row in enumerate(self.tileMap):
@@ -47,12 +56,13 @@ class SuperTile:
         return ports
 
     def getInternalConnections(self) -> list[tuple[list[Port], int, int]]:
-        """
-        Return all the internal connections of the super tile.
+        """Return all the internal connections of the super tile.
 
-        Returns:
-            list[tuple[list[Port], int, int]]: A list of tuple which contains the internal connected port and the
-                                               x and y coordinate of the tile.
+        Returns
+        -------
+        list : [tuple[list[Port], int, int]]
+            A list of tuples which contains the internal connected port
+            and the x and y coordinate of the tile.
         """
         internalConnections = []
         for y, row in enumerate(self.tileMap):

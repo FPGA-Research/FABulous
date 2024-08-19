@@ -106,13 +106,8 @@ tiles within the fabric.
 
    .. prompt:: bash FABulous>
 
-        gen_model_npnr
+        gen_model
 
-#. Generate the VPR model.
-
-   .. prompt:: bash FABulous>
-
-        gen_model_vpr
 
 #. Generate the meta data list for FASM --> Bitstream
 

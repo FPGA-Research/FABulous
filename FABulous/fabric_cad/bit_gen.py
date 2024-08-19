@@ -5,6 +5,7 @@ import re
 import sys
 
 from fasm import *  # Remove this line if you do not have the fasm library installed and will not be generating a bitstream
+from loguru import logger
 
 
 def replace(string, substitutions):
@@ -18,8 +19,6 @@ def bitstring_to_bytes(s):
 
 
 # CAD methods from summer vacation project 2020
-
-
 # Method to generate bitstream in the output format - more detail at the end
 def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
     lGen = parse_fasm_filename(fasmFile)
@@ -38,7 +37,7 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
         tileDict[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
         tileDict_No_Mask[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
 
-    ###NOTE: SOME OF THE FOLLOWING METHODS HAVE BEEN CHANGED DUE TO A MODIFIED BITSTREAM SPEC FORMAT
+    # NOTE: SOME OF THE FOLLOWING METHODS HAVE BEEN CHANGED DUE TO A MODIFIED BITSTREAM SPEC FORMAT
     # Please bear in mind that the tilespecs are now mapped by tile loc and not by cell type
 
     for line in canonList:
@@ -49,8 +48,10 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
             tileLoc = tileVals[0]
             featureName = ".".join((tileVals[1], tileVals[2]))
             if tileLoc not in specDict["TileMap"].keys():
-                raise Exception("Tile found in fasm file not found in bitstream spec")
-            tileType = specDict["TileMap"][tileLoc]  # Set the necessary bits high
+                logger.critical("Tile found in fasm file not found in bitstream spec")
+                raise Exception
+            # Set the necessary bits high
+            tileType = specDict["TileMap"][tileLoc]
             if featureName in specDict["TileSpecs"][tileLoc].keys():
                 if specDict["TileSpecs"][tileLoc][featureName]:
                     for bitIndex in specDict["TileSpecs"][tileLoc][featureName]:
@@ -71,12 +72,13 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
                 print(tileType)
                 print(tileLoc)
                 print(featureName)
-                raise Exception(
+                logger.critical(
                     "Feature found in fasm file was not found in the bitstream spec"
                 )
+                raise Exception
 
     # Write output string and introduce mask
-    coordsRE = re.compile("X(\d*)Y(\d*)")
+    coordsRE = re.compile(r"X(\d*)Y(\d*)")
     num_columns = 0
     num_rows = 0
 
@@ -188,7 +190,8 @@ class Tile:
     tileType = ""
     bels = []
     wires = []
-    atomicWires = []  # For storing single wires (to handle cascading and termination)
+    # For storing single wires (to handle cascading and termination)
+    atomicWires = []
     pips = []
     belPorts = set()
     matrixFileName = ""
@@ -259,22 +262,24 @@ def bit_gen():
     # Strip arguments
     caseProcessedArguments = list(map(lambda x: x.strip(), sys.argv))
     processedArguments = list(map(lambda x: x.lower(), caseProcessedArguments))
-    flagRE = re.compile("-\S*")
+    flagRE = re.compile(r"-\S*")
     if "-genBitstream".lower() in str(sys.argv).lower():
         argIndex = processedArguments.index("-genBitstream".lower())
         if len(processedArguments) <= argIndex + 3:
-            raise ValueError(
-                "\nError: -genBitstream expect three file names - the fasm file, the spec file and the output file"
+            logger.error(
+                "genBitstream expects three file names - the fasm file, the spec file and the output file"
             )
+            raise ValueError
         elif (
             flagRE.match(caseProcessedArguments[argIndex + 1])
             or flagRE.match(caseProcessedArguments[argIndex + 2])
             or flagRE.match(caseProcessedArguments[argIndex + 3])
         ):
-            raise ValueError(
-                "\nError: -genBitstream expect three file names, but found a flag in the arguments:"
-                f" {caseProcessedArguments[argIndex + 1]}, {caseProcessedArguments[argIndex + 2]}, {caseProcessedArguments[argIndex + 3]}\n"
+            logger.error(
+                "genBitstream expects three file names, but found a flag in the arguments:"
+                f" {caseProcessedArguments[argIndex + 1]}, {caseProcessedArguments[argIndex + 2]}, {caseProcessedArguments[argIndex + 3]}"
             )
+            raise ValueError
 
         FasmFileName = caseProcessedArguments[argIndex + 1]
         SpecFileName = caseProcessedArguments[argIndex + 2]

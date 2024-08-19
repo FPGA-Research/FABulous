@@ -17,27 +17,24 @@
 c0=0,
 c1=1
 *)
-module MUX8LUT_frame_config_mux (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M_AD, M_AH, M_EF, ConfigBits);
-	parameter NoConfigBits = 2;// has to be adjusted manually (we don't use an arithmetic parser for the value)
-	// IMPORTANT: this has to be in a dedicated line
-	input A; // MUX inputs
-	input B;
-	input C;
-	input D;
-	input E; 
-	input F;
-	input G;
-	input H;
-	input S0;
-	input S1;
-	input S2;
-	input S3;
-	output M_AB;
-	output M_AD;
-	output M_AH;
-	output M_EF;
+module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
+    // ConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
+	input A, // MUX inputs
+	input B,
+	input C,
+	input D,
+	input E, 
+	input F,
+	input G,
+	input H,
+	input [3:0] S,
+	output M_AB,
+	output M_AD,
+	output M_AH,
+	output M_EF,
 	// GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-	(* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits;
+	(* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
+);
 
 	wire AB, CD, EF, GH;
 	wire sCD, sEF, sGH, sEH;
@@ -50,11 +47,11 @@ module MUX8LUT_frame_config_mux (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M
 	assign c1 = ConfigBits[1];
 
 // see figure (column-wise left-to-right)
-	//assign AB = S0 ? B : A;
+	//assign AB = S[0] ? B : A;
     my_mux2 my_mux2_AB(
     .A0(A),
     .A1(B),
-    .S(S0),
+    .S(S[0]),
     .X(AB)
     );
 	//assign CD = sCD ? D : C;
@@ -79,17 +76,17 @@ module MUX8LUT_frame_config_mux (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M
     .X(GH)
     );
 
-	//assign sCD = c0 ? S0 : S1;
+	//assign sCD = c0 ? S[0] : S[1];
     my_mux2 my_mux2_sCD(
-    .A0(S1),
-    .A1(S0),
+    .A0(S[1]),
+    .A1(S[0]),
     .S(c0),
     .X(sCD)
     );
-	//assign sEF = c1 ? S0 : S2;
+	//assign sEF = c1 ? S[0] : S[2];
     my_mux2 my_mux2_sEF(
-    .A0(S2),
-    .A1(S0),
+    .A0(S[2]),
+    .A1(S[0]),
     .S(c1),
     .X(sEF)
     );
@@ -100,19 +97,19 @@ module MUX8LUT_frame_config_mux (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M
     .S(c0),
     .X(sGH)
     );
-	//assign sEH = c1 ? S1 : S3;
+	//assign sEH = c1 ? S[1] : S[3];
     my_mux2 my_mux2_sEH(
-    .A0(S3),
-    .A1(S1),
+    .A0(S[3]),
+    .A1(S[1]),
     .S(c1),
     .X(sEH)
     );
 
-	//assign AD = S1 ? CD : AB;
+	//assign AD = S[1] ? CD : AB;
     my_mux2 my_mux2_AD(
     .A0(AB),
     .A1(CD),
-    .S(S1),
+    .S(S[1]),
     .X(AD)
     );
 	//assign EH = sEH ? GH : EF;
@@ -123,11 +120,11 @@ module MUX8LUT_frame_config_mux (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M
     .X(EH)
     );
 
-	//assign AH = S3 ? EH : AD;
+	//assign AH = S[3] ? EH : AD;
     my_mux2 my_mux2_AH(
     .A0(AD),
     .A1(EH),
-    .S(S3),
+    .S(S[3]),
     .X(AH)
     );
 

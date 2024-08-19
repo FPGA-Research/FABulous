@@ -4,25 +4,34 @@ from FABulous.fabric_definition.define import IO, Direction, Side
 
 @dataclass(frozen=True, eq=True)
 class Port:
-    """
-    The port data class contains all the port information from the CSV file.
+    """The port data class contains all the port information from the CSV file.
     The `name`, `inOut` and `sideOfTile` are added attributes to aid the generation of the fabric.
     The name and inOut are related. If the inOut is "INPUT" then the name is the source name of the port on the tile.
     Otherwise the name is the destination name of the port on the tile.
-    The `sideOfTile` is where the port physically located on the tile, since for a north direction wire, the input will
-    be physical located on the south side of the tile. The `sideOfTile` will make determine where the port is located
+    The `sideOfTile` defines where the port is physically located on the tile, since for a north direction wire, the input will
+    be physically located on the south side of the tile. The `sideOfTile` will make determining where the port is located
     much easier.
 
-    Attributes:
-        wireDirection (Direction) : The direction attribute in the CSV file
-        sourceName (str) : The source_name attribute in the CSV file
-        xOffset (int): The X-offset attribute in the CSV file
-        yOffset (int): The Y-offset attribute in the CSV file
-        destinationName (str): The destination_name attribute in the CSV file
-        wireCount (int): The wires attribute in the CSV file
-        name (str): The name of the port
-        inOut (IO): The IO direction of the port
-        sideOfTile (Side): The side which the port is physically located on the tile
+    Attributes
+    ----------
+    wireDirection : Direction
+        The direction attribute in the CSV file
+    sourceName : str
+        The source_name attribute in the CSV file
+    xOffset : int
+        The X-offset attribute in the CSV file
+    yOffset : int
+        The Y-offset attribute in the CSV file
+    destinationName : str
+        The destination_name attribute in the CSV file
+    wireCount : int
+        The wires attribute in the CSV file
+    name : str
+        The name of the port
+    inOut : IO
+        The IO direction of the port
+    sideOfTile : Side
+        The side on which the port is physically located in the tile
     """
 
     wireDirection: Direction
@@ -72,16 +81,20 @@ class Port:
             ]
 
     def expandPortInfo(self, mode="SwitchMatrix") -> tuple[list[str], list[str]]:
-        """
-        Expanding the port information to individual bit signal. If indexed is in the mode, then brackets are added to the signal name.
+        """Expanding the port information to the individual bit signal. If 'Indexed' is in the mode, then brackets are added to the signal name.
 
-        Args:
-            mode (str, optional): mode for expansion. Defaults to "SwitchMatrix".
-                                  Possible modes are 'all', 'allIndexed', 'Top', 'TopIndexed', 'AutoTop',
-                                  'AutoTopIndexed', 'SwitchMatrix', 'SwitchMatrixIndexed', 'AutoSwitchMatrix',
-                                  'AutoSwitchMatrixIndexed'
-        Returns:
-            tuple[list[str], list[str]]: A tuple of two lists. The first list contains the source names of the ports and the second list contains the destination names of the ports.
+        Args
+        ----
+        mode : str, optional
+            Mode for expansion. Defaults to "SwitchMatrix".
+            Possible modes are 'all', 'allIndexed', 'Top', 'TopIndexed', 'AutoTop',
+            'AutoTopIndexed', 'SwitchMatrix', 'SwitchMatrixIndexed', 'AutoSwitchMatrix',
+            'AutoSwitchMatrixIndexed'
+        Returns
+        -------
+        Tuple : [list[str], list[str]]
+            A tuple of two lists. The first list contains the source names of the ports
+            and the second list contains the destination names of the ports.
         """
         inputs, outputs = [], []
         thisRange = 0
