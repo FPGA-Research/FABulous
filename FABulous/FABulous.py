@@ -32,7 +32,7 @@ import tkinter as tk
 import traceback
 from contextlib import redirect_stdout
 from glob import glob
-from pathlib import PurePosixPath, PureWindowsPath
+from pathlib import PurePosixPath, PureWindowsPath, Path
 from typing import List, Literal
 from dotenv import load_dotenv
 
@@ -102,8 +102,8 @@ def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
 
 
 def load_writer_from_env(project_dir):
-    env_path = os.path.join(project_dir, ".env")
-    if os.path.exists(env_path):
+    env_path = Path(project_dir) / ".env"
+    if env_path.exists():
         load_dotenv(env_path)
         return os.getenv("language", "verilog")
     return "verilog"  # Default writer
