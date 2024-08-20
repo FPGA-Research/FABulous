@@ -1,7 +1,7 @@
 # FABulous: an Embedded FPGA Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python](https://img.shields.io/badge/Python-3.9-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ## Introduction
@@ -38,13 +38,24 @@ Dirk Koch, Nguyen Dao, Bea Healy, Jing Yu, and Andrew Attwood. 2021. FABulous: A
 
 The following packages need to be installed for generating fabric HDL models and using the FABulous front end:
 
-- Python 3.9 or later
+- Python 3.12 or later
 
 Install python dependencies
 
 ```
 sudo apt-get install python3-tk python3-virtualenv
 ```
+
+> [!NOTE]
+>
+>If you get the warning `ModuleNotFoundError: No module named 'tkinter'` or
+>errors when installing the requirements, you have to install the dependencies
+>for your specific python version. For Python 3.12 use
+>
+>```
+>sudo apt-get install python3.12-tk python3.12-virtualenv
+>```
+
 
 The following packages need to be installed for the CAD toolchain
 
