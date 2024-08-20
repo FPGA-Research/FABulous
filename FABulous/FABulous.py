@@ -889,30 +889,34 @@ To run the complete FABulous flow with the default project, run the following co
         """
         logger.info("Checking for FABulator installation")
         fabulatorRoot = os.getenv("FABULATOR_ROOT")
+
         if fabulatorRoot is None:
             logger.warning("FABULATOR_ROOT environment variable not set.")
             logger.warning(
                 "Install FABulator and set the FABULATOR_ROOT environment variable to use this feature."
             )
-        elif not os.path.exists(fabulatorRoot):
-            logger.warning(
+            return
+
+        if not os.path.exists(fabulatorRoot):
+            logger.error(
                 f"FABULATOR_ROOT environment variable set to {fabulatorRoot} but the directory does not exist."
             )
-        else:
-            logger.info(f"Found FABulator installation at {fabulatorRoot}")
-            logger.info(f"Trying to start FABulator...")
+            return
 
-            startupCmd = ["mvn", "-f", f"{fabulatorRoot}/pom.xml", "javafx:run"]
-            try:
-                if self.verbose:
-                    # log FABulator output to the FABulous shell
-                    sp.Popen(startupCmd)
-                else:
-                    # discard FABulator output
-                    sp.Popen(startupCmd, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        logger.info(f"Found FABulator installation at {fabulatorRoot}")
+        logger.info(f"Trying to start FABulator...")
 
-            except sp.SubprocessError:
-                logger.error("Startup of FABulator failed.")
+        startupCmd = ["mvn", "-f", f"{fabulatorRoot}/pom.xml", "javafx:run"]
+        try:
+            if self.verbose:
+                # log FABulator output to the FABulous shell
+                sp.Popen(startupCmd)
+            else:
+                # discard FABulator output
+                sp.Popen(startupCmd, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+
+        except sp.SubprocessError:
+            logger.error("Startup of FABulator failed.")
 
     def do_gen_bitStream_spec(self, *ignored):
         """Generates bitstream specification of the fabric by calling
