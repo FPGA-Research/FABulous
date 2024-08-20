@@ -29,13 +29,13 @@ Version >= 3.9
 
 We recommend using python virtual environments for the usage of FABulous.
 If you are not sure what this is and why you should use it, please read the
-:`virtualenv documentation <https://virtualenv.pypa.io/en/latest/index.html>`_:
+`virtualenv documentation <https://virtualenv.pypa.io/en/latest/index.html>`_.
 
 .. code-block:: console
 
    $ cd FABulous
-    $ virtualenv venv
-    $ source venv/bin/activate
+   $ virtualenv venv
+   $ source venv/bin/activate
 
 Now there is a ``(venv)`` at the beginning of your command prompt.
 You can deactivate the virtual environment with the ``deactivate`` command.
@@ -58,6 +58,7 @@ The following packages need to be installed for the CAD toolchain
  version > 0.4-28-gac17c36b
 
 Install FABulous with "editable" option:
+
 .. code-block:: console
 
     (venv)$ pip install -e .
@@ -77,6 +78,7 @@ Building Fabric and Bitstream
    FABulous> run_FABulous_bitstream npnr user_design/sequential_16bit_en.v
 
 .. note::
+
   You will probably receive a warning for the FASM package like the following:
       .. code-block:: text
   
@@ -99,14 +101,14 @@ After a successful call with the command ``run_FABulous_fabric`` the RTL file of
 
 After a successful call with the command ``run_FABulous_bitstream user_design/sequential_16bit_en.v``.
 The bitstream and all the log files generated during synthesis and place and route can be found under
-the ``user_design`` folder. The bitstream will be named as ``sequential_16bit_en.bin``
+the ``user_design`` folder. The bitstream will be named as ``sequential_16bit_en.bin``.
 
 Running in a Docker container
 -----------------------------
 
 Within the FABulous repo we provide a Dockerfile that allows users to run the FABulous flow within a Docker container, installing all requirements automatically.
 
-:Setting up the Docker environment:
+**Setting up the Docker environment**
 
 To set up the Docker environment, navigate to the FABulous root directory and run:
 
@@ -114,7 +116,7 @@ To set up the Docker environment, navigate to the FABulous root directory and ru
 
      $ docker build -t fabulous .
 
-:Running the Docker environment:
+**Running the Docker environment**
 
 To run the Docker environment, stay in the FABulous root directory (this is vital as the command mounts the current directory as the container's filesystem) and run:
 
