@@ -76,26 +76,24 @@ Building Fabric and Bitstream
    FABulous> run_FABulous_fabric
    FABulous> run_FABulous_bitstream npnr user_design/sequential_16bit_en.v
 
-.. note:
-  You will probably recieve a Warning for the FASM package like the following:
+.. note::
+  You will probably receive a warning for the FASM package like the following:
+      .. code-block:: text
   
-  ```
-  RuntimeWarning: Unable to import fast Antlr4 parser implementation.
-  ImportError: cannot import name 'antlr_to_tuple' from partially initialized module 'fasm.parser' (most likely due to a circular import)
+          RuntimeWarning: Unable to import fast Antlr4 parser implementation.
+          ImportError: cannot import name 'antlr_to_tuple' from partially initialized module 'fasm.parser' (most likely due to a circular import)
 
-  Falling back to the much slower pure Python textX based parser
-  implementation.
+          Falling back to the much slower pure Python textX based parser
+          implementation.
 
-  Getting the faster antlr parser can normally be done by installing the
-  required dependencies and then reinstalling the fasm package with:
-    pip uninstall
-    pip install -v fasm
+          Getting the faster antlr parser can normally be done by installing the
+          required dependencies and then reinstalling the fasm package with:
+            pip uninstall
+            pip install -v fasm
 
-  ```
-  
   This usually happens when FASM can't find the Antlr4 package, but this is not mandatory for us.
   If you still want to fix this issue, you have to install FASM in your virtual environment from source.
-  Please have a look at the :`FASM documentation <https://github.com/chipsalliance/fasm>`_ for more information.
+  Please have a look at the `FASM documentation <https://github.com/chipsalliance/fasm>`_ for more information.
    
 After a successful call with the command ``run_FABulous_fabric`` the RTL file of each of the tiles can be found in the ``Tile`` folder and the fabric RTL file can be found in the ``Fabric`` folder.
 
