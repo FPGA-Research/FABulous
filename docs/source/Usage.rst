@@ -93,7 +93,7 @@ Building Fabric and Bitstream
 
   ```
   
-  This usually happens when FASM can't find the Antlr4 package, but this is not mendatory for us.
+  This usually happens when FASM can't find the Antlr4 package, but this is not mandatory for us.
   If you still want to fix this issue, you have to install FASM in your virtual environment from source.
   Please have a look at the :`FASM documentation <https://github.com/chipsalliance/fasm>`_ for more information.
    
