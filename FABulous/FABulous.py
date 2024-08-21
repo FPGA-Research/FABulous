@@ -48,12 +48,12 @@ histfile_size = 1000
 MAX_BITBYTES = 16384
 
 
-def setup_logger(detailed: bool):
+def setup_logger(verbosity: int):
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 
     # Define logger format
-    if detailed:
+    if verbosity >= 1:
         log_format = (
             "<level>{level:}</level> | "
             "<cyan>[{time:DD-MM-YYYY HH:mm:ss]}</cyan> | "
@@ -322,6 +322,7 @@ To run the complete FABulous flow with the default project, run the following co
         self.superTiles = []
         self.csvFile = ""
         self.script = script
+        self.verbose = False
         if isinstance(self.fabricGen.writer, VHDLWriter):
             self.extension = "vhdl"
         else:
@@ -835,7 +836,7 @@ To run the complete FABulous flow with the default project, run the following co
         logger.info("Fabric generation complete")
 
     def do_gen_geometry(self, *vargs):
-        """Generates geometry of fabric for the FABulous editor by checking if fabric
+        """Generates geometry of fabric for FABulator by checking if fabric
         is loaded, and calling 'genGeometry' and passing on padding value. Default
         padding is '8'.
 
@@ -881,9 +882,54 @@ To run the complete FABulous flow with the default project, run the following co
         if 4 <= padding <= 32:
             self.fabricGen.genGeometry(padding)
             logger.info("Geometry generation complete")
-            logger.info(f"{geomFile} can now be imported into the FABulous Editor")
+            logger.info(f"{geomFile} can now be imported into FABulator")
         else:
             logger.error("padding has to be between 4 and 32 inclusively!")
+
+    def do_start_FABulator(self, *ignored):
+        """Starts FABulator if an installation can be found.
+        If no installation can be found, a warning is produced.
+
+        Usage:
+            start_FABulator
+
+        Parameters
+        ----------
+        *ignored : tuple
+            Ignores additional arguments.
+
+        """
+        logger.info("Checking for FABulator installation")
+        fabulatorRoot = os.getenv("FABULATOR_ROOT")
+
+        if fabulatorRoot is None:
+            logger.warning("FABULATOR_ROOT environment variable not set.")
+            logger.warning(
+                "Install FABulator (https://github.com/FPGA-Research-Manchester/FABulator) "
+                "and set the FABULATOR_ROOT environment variable to the root directory to use this feature."
+            )
+            return
+
+        if not os.path.exists(fabulatorRoot):
+            logger.error(
+                f"FABULATOR_ROOT environment variable set to {fabulatorRoot} but the directory does not exist."
+            )
+            return
+
+        logger.info(f"Found FABulator installation at {fabulatorRoot}")
+        logger.info(f"Trying to start FABulator...")
+
+        startupCmd = ["mvn", "-f", f"{fabulatorRoot}/pom.xml", "javafx:run"]
+        try:
+            if self.verbose:
+                # log FABulator output to the FABulous shell
+                sp.Popen(startupCmd)
+            else:
+                # discard FABulator output
+                sp.Popen(startupCmd, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+
+        except sp.SubprocessError:
+            logger.error("Startup of FABulator failed.")
 
     def do_gen_bitStream_spec(self, *ignored):
         """Generates bitstream specification of the fabric by calling
@@ -1551,8 +1597,9 @@ def main():
         "-v",
         "--verbose",
         default=False,
-        action="store_true",
-        help="Show detailed log information including function and line number",
+        action="count",
+        help="Show detailed log information including function and line number. For -vv additionally output from "
+        "FABulator is logged to the shell for the start_FABulator command",
     )
 
     args = parser.parse_args()
@@ -1580,6 +1627,8 @@ def main():
         fabShell = FABulousShell(
             FABulous(writer, fabricCSV=args.csv), args.project_dir, args.script
         )
+        if args.verbose == 2:
+            fabShell.verbose = True
 
         if args.metaDataDir:
             metaDataDir = args.metaDataDir
