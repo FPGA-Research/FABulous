@@ -893,7 +893,8 @@ To run the complete FABulous flow with the default project, run the following co
         if fabulatorRoot is None:
             logger.warning("FABULATOR_ROOT environment variable not set.")
             logger.warning(
-                "Install FABulator and set the FABULATOR_ROOT environment variable to use this feature."
+                "Install FABulator (https://github.com/FPGA-Research-Manchester/FABulator) "
+                "and set the FABULATOR_ROOT environment variable to the root directory to use this feature."
             )
             return
 
