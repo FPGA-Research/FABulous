@@ -247,7 +247,6 @@ The ``INCLUDE`` keyword specifies a path to another tile configuration, and the 
 entry within the target path will be appended to the file. For example if ``../include/Base.csv`` contains:
 
 .. code-block:: python
-   :emphasize-lines: 1,12
 
    NORTH,      N2BEG,       0,        2,        N2END,            8
    JUMP,       J2_BEG,      0,        0,        J2_END,           12

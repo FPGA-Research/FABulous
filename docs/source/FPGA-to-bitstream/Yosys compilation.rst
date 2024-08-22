@@ -23,7 +23,7 @@ calling the following command:
 .. code-block:: console
 
         # Nextpnr backend synthesis (JSON)
-        synthesis <path_to_user_design>
+        FABulous> synthesis <path_to_user_design>
         
 
 
