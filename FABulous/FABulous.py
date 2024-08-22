@@ -1496,9 +1496,6 @@ def main():
     -v, --verbose : bool, optional
         Show detailed log information including function and line number.
     """
-    if sys.version_info < (3, 9, 0):
-        logger.critical("Need Python 3.9 or above to run FABulous")
-        exit(-1)
     parser = argparse.ArgumentParser(
         description="The command line interface for FABulous"
     )
