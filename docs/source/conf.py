@@ -24,6 +24,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx-prompt",
     "sphinx.ext.todo",
+    "sphinx_copybutton",
 ]
 
 intersphinx_mapping = {
@@ -83,3 +84,5 @@ html_sidebars = {
 epub_show_urls = "footnote"
 
 bibtex_bibfiles = ["publications.bib"]
+copybutton_prompt_text = r"\$ |FABulous> |\(venv\)\$ "
+copybutton_prompt_is_regexp = True

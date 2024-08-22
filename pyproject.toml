@@ -7,7 +7,7 @@ name = "FABulous-FPGA"
 authors = [{name = "Jing, Nguyen, Bea, Bardia, Dirk", email = "dirk.koch@manchester.ac.uk"}]
 description = "FABulous FPGA Fabric generator"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dynamic = ["version"]
 
 classifiers = [
