@@ -59,13 +59,25 @@ with ``source venv/bin/activate`` to use FABulous.
     (venv)$ pip install -r requirements.txt
 
 
-The following packages need to be installed for the CAD toolchain
+The following packages need to be installed for the CAD toolchain:
+
 
 :`Yosys <https://github.com/YosysHQ/yosys>`_:
  version > 0.26+0
 
 :`Nextpnr-generic <https://github.com/YosysHQ/nextpnr#nextpnr-generic>`_:
  version > 0.4-28-gac17c36b
+
+.. note::
+
+   We recommend using the `OSS CAD Suite
+   <https://github.com/YosysHQ/oss-cad-suite-build>`_ to
+   install the packages.
+
+   If you just want to install Yosys using **apt**, make
+   sure you have at least Ubuntu 23.10 (24.04 for the LTS
+   versions) installed to meet the above requirement.
+
 
 Install FABulous with "editable" option:
 
