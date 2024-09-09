@@ -44,8 +44,8 @@ from FABulous.FABulous_API import FABulous
 readline.set_completer_delims(" \t\n")
 histfile = ""
 histfile_size = 1000
-
 MAX_BITBYTES = 16384
+metaDataDir = ".FABulous"
 
 
 def setup_logger(verbosity: int):
@@ -67,24 +67,86 @@ def setup_logger(verbosity: int):
     logger.add(sys.stdout, format=log_format, level="DEBUG", colorize=True)
 
 
-metaDataDir = ".FABulous"
+def setup_global_env_vars(args: argparse.Namespace) -> None:
+    """
+    Set up global  environment variables
 
-fabulousRoot = os.getenv("FAB_ROOT")
-if fabulousRoot is None:
-    fabulousRoot = os.path.dirname(os.path.realpath(__file__))
-    logger.warning("FAB_ROOT environment variable not set!")
-    logger.warning(f"Using {fabulousRoot} as FAB_ROOT")
-else:
-    if not os.path.exists(fabulousRoot):
-        logger.error(
-            f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist"
-        )
-        sys.exit()
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Command line arguments
+    """
+    # Set FAB_ROOT environment variable
+    fabulousRoot = os.getenv("FAB_ROOT")
+    if fabulousRoot is None:
+        os.environ["FAB_ROOT"] = str(Path(__file__).resolve().parent)
+        logger.info("FAB_ROOT environment variable not set!")
+        logger.info(f"Using {fabulousRoot} as FAB_ROOT")
     else:
-        if os.path.exists(f"{fabulousRoot}/FABulous"):
-            fabulousRoot = f"{fabulousRoot}/FABulous"
+        # If there is the FABulous folder in the FAB_ROOT, then set the FAB_ROOT to the FABulous folder
+        if Path(fabulousRoot).exists():
+            if Path(fabulousRoot).joinpath("FABulous").exists():
+                fabulousRoot = str(Path(fabulousRoot).joinpath("FABulous"))
+            os.environ["FAB_ROOT"] = fabulousRoot
+        else:
+            logger.error(
+                f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist"
+            )
+            sys.exit()
 
-    logger.info(f"FAB_ROOT set to {fabulousRoot}")
+        logger.info(f"FAB_ROOT set to {fabulousRoot}")
+
+    # Load the .env file and make env variables available globally
+    if args.globalDotEnv:
+        gde = Path(args.globalDotEnv)
+        if gde.is_file():
+            load_dotenv(gde)
+            logger.info(f"Load global .env file from {gde}")
+        elif gde.joinpath(".env").exists() and gde.joinpath(".env").is_file():
+            load_dotenv(gde.joinpath(".env"))
+            logger.info(f"Load global .env file from {gde.joinpath('.env')}")
+        else:
+            logger.warning(f"No global .env file found at {gde}")
+    elif (
+        Path(os.getenv("FAB_ROOT")).joinpath(".env").exists()
+        and Path(os.getenv("FAB_ROOT")).joinpath(".env").is_file()
+    ):
+        load_dotenv(Path(os.getenv("FAB_ROOT")).joinpath(".env"))
+        logger.info(f"Loaded global .env file from {fabulousRoot}/.env")
+    else:
+        logger.warning("No global .env file found")
+
+    # Set project directory env var, this can not be saved in the .env file,
+    # since it can change if the project folder is moved
+    if not os.getenv("FAB_PROJ_DIR"):
+        os.environ["FAB_PROJ_DIR"] = args.project_dir
+
+
+def setup_project_env_vars(args: argparse.Namespace) -> None:
+    """
+    Set up environment variables for the project
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Command line arguments
+    """
+    # Load the .env file and make env variables available globally
+    fabDir = Path(os.getenv("FAB_PROJ_DIR")).joinpath(".FABulous")
+    if args.projectDotEnv:
+        pde = Path(args.projectDotEnv)
+        if pde.exists() and pde.is_file():
+            load_dotenv(pde)
+            logger.info(f"Loaded global .env file from pde")
+    elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
+        load_dotenv(fabDir.joinpath(".env"))
+        logger.info(f"Loaded project .env file from {fabDir}/.env')")
+    else:
+        logger.warning("No project .env file found")
+
+    # Overwrite project language param, if writer is specified as command line argument
+    if args.writer:
+        os.environ["FAB_PROJ_LANG"] = args.writer
 
 
 def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
@@ -109,6 +171,7 @@ def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
         os.mkdir(f"{project_dir}")
 
     os.mkdir(f"{project_dir}/.FABulous")
+    fabulousRoot = os.getenv("FAB_ROOT")
 
     shutil.copytree(
         f"{fabulousRoot}/fabric_files/FABulous_project_template_{type}/",
@@ -121,18 +184,10 @@ def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
         dirs_exist_ok=True,
     )
 
-    with open(os.path.join(project_dir, ".env"), "w") as env_file:
-        env_file.write(f"language={type}\n")
+    with open(os.path.join(project_dir, ".FABulous/.env"), "w") as env_file:
+        env_file.write(f"FAB_PROJ_LANG={type}\n")
 
     adjust_directory_in_verilog_tb(project_dir)
-
-
-def load_writer_from_env(project_dir):
-    env_path = Path(project_dir) / ".env"
-    if env_path.exists():
-        load_dotenv(env_path)
-        return os.getenv("language", "verilog")
-    return "verilog"  # Default writer
 
 
 def copy_verilog_files(src, dst):
@@ -208,7 +263,7 @@ def adjust_directory_in_verilog_tb(project_dir):
         Projet directory where the testbench file is located.
     """
     with open(
-        f"{fabulousRoot}/fabric_files/FABulous_project_template_verilog/Test/sequential_16bit_en_tb.v",
+        f"{os.getenv('FAB_ROOT')}/fabric_files/FABulous_project_template_verilog/Test/sequential_16bit_en_tb.v",
         "rt",
     ) as fin:
         with open(f"{project_dir}/Test/sequential_16bit_en_tb.v", "wt") as fout:
@@ -383,7 +438,7 @@ To run the complete FABulous flow with the default project, run the following co
                         name, wrap_with_except_handling(getattr(self, fun))
                     )
 
-        # os.chdir(args.project_dir)
+        # os.chdir(os.getenv('FAB_PROJ_DIR'))
         tcl.eval(script)
 
         if "exit" in script:
@@ -1128,7 +1183,7 @@ To run the complete FABulous flow with the default project, run the following co
 
         json_file = top_module_name + ".json"
         runCmd = [
-            "yosys",
+            f"{os.getenv('FAB_YOSYS_PATH', 'yosys')}",
             "-p",
             f"synth_fabulous -top top_wrapper -json {self.projectDir}/{parent}/{json_file}",
             f"{self.projectDir}/{parent}/{verilog_file}",
@@ -1209,7 +1264,7 @@ To run the complete FABulous flow with the default project, run the following co
             if f"{json_file}" in os.listdir(f"{self.projectDir}/{parent}"):
                 runCmd = [
                     f"FAB_ROOT={self.projectDir}",
-                    "nextpnr-generic",
+                    f"{os.getenv('FAB_NEXTPNR_PATH', 'nextpnr-generic')}",
                     "--uarch",
                     "fabulous",
                     "--json",
@@ -1401,7 +1456,7 @@ To run the complete FABulous flow with the default project, run the following co
 
         try:
             runCmd = [
-                "iverilog",
+                f"os.getenv('FAB_IVERILOG_PATH', 'iverilog')",
                 "-D",
                 f"{defined_option}",
                 "-s",
@@ -1425,7 +1480,10 @@ To run the complete FABulous flow with the default project, run the following co
         )
 
         try:
-            runCmd = ["vvp", f"{self.projectDir}/{path}/{vvp_file}"]
+            runCmd = [
+                f"{os.getenv('FAB_VVP_PATH', 'vvp')}",
+                f"{self.projectDir}/{path}/{vvp_file}",
+            ]
             sp.run(runCmd, check=True)
         except sp.CalledProcessError:
             logger.error("Simulation failed")
@@ -1541,6 +1599,10 @@ def main():
         Set output directory for metadata files, e.g. pip.txt, bel.txt
     -v, --verbose : bool, optional
         Show detailed log information including function and line number.
+    -gde, --globalDotEnv : str, optional
+        Set global .env file path. Default is $FAB_ROOT/.env
+    -pde, --projectDotEnv : str, optional
+        Set project .env file path. Default is $FAB_PROJ_DIR/.env
     """
     parser = argparse.ArgumentParser(
         description="The command line interface for FABulous"
@@ -1595,31 +1657,53 @@ def main():
         help="Show detailed log information including function and line number. For -vv additionally output from "
         "FABulator is logged to the shell for the start_FABulator command",
     )
+    parser.add_argument(
+        "-gde",
+        "--globalDotEnv",
+        nargs=1,
+        help="Set the global .env file path. Default is $FAB_ROOT/.env",
+    )
+    parser.add_argument(
+        "-pde",
+        "--projectDotEnv",
+        nargs=1,
+        help="Set the project .env file path. Default is $FAB_PROJ_DIR/.env",
+    )
 
     args = parser.parse_args()
 
     setup_logger(args.verbose)
 
-    args.top = args.project_dir.split("/")[-1]
+    setup_global_env_vars(args)
+
+    args.top = os.getenv("FAB_PROJ_DIR").split("/")[-1]
 
     if args.createProject:
-        create_project(args.project_dir, args.writer)
+        create_project(os.getenv("FAB_PROJ_DIR"), args.writer)
         exit(0)
 
-    if not os.path.exists(f"{args.project_dir}/.FABulous"):
+    if not os.path.exists(f"{os.getenv('FAB_PROJ_DIR')}/.FABulous"):
         logger.error(
             "The directory provided is not a FABulous project as it does not have a .FABulous folder"
         )
         exit(-1)
     else:
-        language = load_writer_from_env(args.project_dir)
-        if language == "vhdl":
+        setup_project_env_vars(args)
+
+        if os.getenv("FAB_PROJ_LANG") == "vhdl":
             writer = VHDLWriter()
-        if language == "verilog":
+        elif os.getenv("FAB_PROJ_LANG") == "verilog":
             writer = VerilogWriter()
+        else:
+            logger.error(
+                f"Invalid projct language specified: {os.getenv('FAB_PROJ_LANG')}"
+            )
+            raise ValueError(
+                f"Invalid projct language specified: {os.getenv('FAB_PROJ_LANG')}"
+            )
 
         fabShell = FABulousShell(
-            FABulous(writer, fabricCSV=args.csv), args.project_dir, args.script
+            FABulous(writer, fabricCSV=args.csv), os.getenv("FAB_PROJ_DIR"), args.script
         )
         if args.verbose == 2:
             fabShell.verbose = True
@@ -1628,7 +1712,7 @@ def main():
             metaDataDir = args.metaDataDir
 
         histfile = os.path.expanduser(
-            f"{args.project_dir}/{metaDataDir}/.fabulous_history"
+            f"{os.getenv('FAB_PROJ_DIR')}/{metaDataDir}/.fabulous_history"
         )
         readline.write_history_file(histfile)
 
