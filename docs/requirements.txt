@@ -1,5 +1,6 @@
 sphinx
 pydata_sphinx_theme
 sphinxcontrib-bibtex
+sphinx-copybutton
 sphinx-prompt
 fasm

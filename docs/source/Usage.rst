@@ -148,3 +148,49 @@ To run the Docker environment, stay in the FABulous root directory (this is vita
 
 This will bring up an interactive bash environment within the Docker container, within which you can use FABulous as if hosted natively on your machine. When you are finished using FABulous, simply type ``exit``, and all changes made will have been made to your copy of the FABulous repository.
 
+FABulous Environment Variables
+------------------------------
+
+FABulous can use environment variables to configure options, paths and projects. We distinguish between two types of environment variables: global and project specific environment variables.
+Global environment variables are used to configure FABulous itself, while project specific environment variables are used to configure a specific FABulous project.
+All environment variables can be set in the shell before running FABulous or can be set via .env files.
+
+.. note::
+
+   Environment variables can be set in the shell before running FABulous. Shell environment variables always have the highest priority.
+
+Global Environment Variables
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Global environment variables always start with ``FAB_``` and are used to configure FABulous itself.
+To add a global .env file, create a file named ``.env`` in the root directory of the FABulous repository or use the ``--globalDotEnv`` command line argument when running FABulous.
+The following global environment variables are available:
+
+=================== =============================================== ===========================================================================
+Variable Name        Description                                     Default Value
+=================== =============================================== ===========================================================================
+FAB_ROOT            The root directory of the FABulous repository   The directory where the FABulous repository is located
+FAB_FABULATOR_ROOT  The root directory of the FABulator repository  <None>
+FAB_YOSYS_PATH      Path to Yosys binary                            yosys  (Uses global Yosys installation)
+FAB_NEXTPNR_PATH    Path to Nextpnr binary                          nextpnr-generic  (Uses global Nextpnr installation)
+FAB_IVERILOG_PATH   Path to Icarus Verilog binary                   iverilog  (Uses global Icarus Verilog installation)
+FAB_VVP_PATH        Path to Verilog VVP binary                      vvp  (Uses global Verilog VVP installation)
+FAB_PROJ_DIR        The root directory of the FABulous project      The directory where the FABulous project is located, given by command line
+=================== =============================================== ===========================================================================
+
+Project Specific Environment Variables
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Project specific environment variables always start with ``FAB_PROJ_`` and are used to configure a specific FABulous project.
+To add a project specific .env file, create a file named ``.env`` in the ``.FABulous`` directory of the FABulous project or use the ``--projectDotEnv`` command line argument when running FABulous.
+The following project specific environment variables are available:
+
+.. note::
+
+  The project specific environment variables overwrite the global environment variables.
+
+=================== =============================================== ===========================================================================
+Variable Name       Description                                     Default Value
+=================== =============================================== ===========================================================================
+FAB_PROJ_LANG       The language of the project. (verilog/vhdl)     verilog (default) or language specified by ``-w`` command line argument
+=================== =============================================== ===========================================================================
+
+
