@@ -1,5 +1,4 @@
 import csv
-import pathlib
 import re
 import subprocess
 import json
@@ -7,6 +6,7 @@ from loguru import logger
 from copy import deepcopy
 
 from typing import Literal, overload
+from pathlib import Path
 from FABulous.fabric_generator.utilities import expandListPorts
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.Port import Port
@@ -56,7 +56,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         The fabric object.
     """
 
-    fName = pathlib.Path(fileName)
+    fName = Path(fileName)
     if fName.suffix != ".csv":
         logger.error("File must be a csv file")
         raise ValueError
@@ -236,12 +236,12 @@ def parseFabricCSV(fileName: str) -> Fabric:
     )
 
 
-def parseMatrix(fileName: pathlib.Path, tileName: str) -> dict[str, list[str]]:
+def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     """Parse the matrix CSV into a dictionary from destination to source.
 
     Parameters
     ----------
-    fileName : pathlib.Path
+    fileName : Path
         Directory of the matrix CSV file.
     tileName : str
         Name of the tile needed to be parsed.
@@ -283,20 +283,20 @@ def parseMatrix(fileName: pathlib.Path, tileName: str) -> dict[str, list[str]]:
 
 @overload
 def parseList(
-    filePath: pathlib.Path, collect: Literal["pair"] = "pair", prefix: str = ""
+    filePath: Path, collect: Literal["pair"] = "pair", prefix: str = ""
 ) -> list[tuple[str, str]]:
     pass
 
 
 @overload
 def parseList(
-    filePath: pathlib.Path, collect: Literal["source", "sink"], prefix: str = ""
+    filePath: Path, collect: Literal["source", "sink"], prefix: str = ""
 ) -> dict[str, list[str]]:
     pass
 
 
 def parseList(
-    filePath: pathlib.Path,
+    filePath: Path,
     collect: Literal["pair", "source", "sink"] = "pair",
     prefix: str = "",
 ) -> list[tuple[str, str]] | dict[str, list[str]]:
@@ -304,7 +304,7 @@ def parseList(
 
     Parameters
     ----------
-    fileName : pathlib.Path
+    fileName : Path
         ""
     collect : (Literal["", "source", "sink"], optional)
         Collect value by source, sink or just as pair. Defaults to "pair".
@@ -439,7 +439,7 @@ def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
     return (ports, commonWirePair)
 
 
-def parseTiles(fileName: pathlib.Path) -> tuple[list[Tile], list[tuple[str, str]]]:
+def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
     """Parses a CSV tile configuration file and returns all tile objects.
 
     Parameters
@@ -479,7 +479,7 @@ def parseTiles(fileName: pathlib.Path) -> tuple[list[Tile], list[tuple[str, str]
         tileName = t[0].split(",")[1]
         ports: list[Port] = []
         bels: list[Bel] = []
-        matrixDir: pathlib.Path | None = None
+        matrixDir: Path | None = None
         withUserCLK = False
         configBit = 0
         for item in t:
@@ -567,9 +567,7 @@ def parseTiles(fileName: pathlib.Path) -> tuple[list[Tile], list[tuple[str, str]
     return (new_tiles, commonWirePairs)
 
 
-def parseSupertiles(
-    fileName: pathlib.Path, tileDic: dict[str, Tile]
-) -> list[SuperTile]:
+def parseSupertiles(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]:
     """Parses a CSV supertile configuration file and returns all SuperTile objects.
 
     Parameters
@@ -655,7 +653,7 @@ def parseSupertiles(
 
 
 def parseBelFile(
-    filename: pathlib.Path,
+    filename: Path,
     belPrefix: str = "",
     filetype: Literal["verilog", "vhdl"] = "",
 ) -> Bel:
@@ -1056,7 +1054,7 @@ def vhdl_belMapProcessing(file: str, filename: str) -> dict:
 
 
 def parseConfigMem(
-    fileName: pathlib.Path,
+    fileName: Path,
     maxFramePerCol: int,
     frameBitPerRow: int,
     globalConfigBits: int,

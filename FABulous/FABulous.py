@@ -31,7 +31,7 @@ import tkinter as tk
 import traceback
 from contextlib import redirect_stdout
 from glob import glob
-from pathlib import PurePosixPath, PureWindowsPath, Path
+from pathlib import PurePath, Path
 from typing import List, Literal
 from dotenv import load_dotenv
 
@@ -269,35 +269,6 @@ def adjust_directory_in_verilog_tb(project_dir):
         with open(f"{project_dir}/Test/sequential_16bit_en_tb.v", "wt") as fout:
             for line in fin:
                 fout.write(line.replace("PROJECT_DIR", f"{project_dir}"))
-
-
-def get_path(path):
-    """Returns system-specific path object.
-
-    Parameters
-    ----------
-    path : str
-        File system path.
-
-    Returns
-    -------
-    PurePath
-        System-specific path object (PurePosixPath or PureWindowsPath)
-
-    Raises
-    ------
-    NotImplementedError
-        If the operating system is not supported.
-    """
-    system = platform.system()
-    # Darwin corresponds to MacOS, which also uses POSIX-style paths
-    if system == "Linux" or system == "Darwin":
-        return PurePosixPath(path)
-    elif system == "Windows":
-        return PureWindowsPath(path)
-    else:
-        logger.error(f"Unsupported operating system: {system}")
-        raise NotImplementedError
 
 
 class PlaceAndRouteError(Exception):
@@ -1168,7 +1139,7 @@ To run the complete FABulous flow with the default project, run the following co
                 f"do_synthesis takes exactly one argument ({len(args)} given)"
             )
         logger.info(f"Running synthesis that targeting Nextpnr with design {args[0]}")
-        path = get_path(args[0])
+        path = PurePath(args[0])
         parent = path.parent
         verilog_file = path.name
         top_module_name = path.stem
@@ -1231,7 +1202,7 @@ To run the complete FABulous flow with the default project, run the following co
                 f"do_place_and_route takes exactly one argument ({len(args)} given)"
             )
         logger.info(f"Running Placement and Routing with Nextpnr for design {args[0]}")
-        path = get_path(args[0])
+        path = PurePath(args[0])
         parent = path.parent
         json_file = path.name
         top_module_name = path.stem
@@ -1321,7 +1292,7 @@ To run the complete FABulous flow with the default project, run the following co
         if len(args) != 1:
             logger.error("Usage: gen_bitStream_binary <fasm_file>")
             return
-        path = get_path(args[0])
+        path = PurePath(args[0])
         parent = path.parent
         fasm_file = path.name
         top_module_name = path.stem
@@ -1510,11 +1481,11 @@ To run the complete FABulous flow with the default project, run the following co
 
         """
         if len(args) == 1:
-            verilog_file_path = get_path(args[0])
+            verilog_file_path = PurePath(args[0])
         elif len(args) == 2:
             # Backwards compatibility to older scripts
             if "npnr" in args[0]:
-                verilog_file_path = get_path(args[1])
+                verilog_file_path = PurePath(args[1])
             elif "vpr" in args[0]:
                 logger.error(
                     "run_FABulous_bitstream does not support vpr anymore, please use npnr or try a older FABulous version."
@@ -1569,7 +1540,7 @@ To run the complete FABulous flow with the default project, run the following co
             logger.error("Usage: tcl <tcl_script>")
             return
         path_str = args[0]
-        path = get_path(path_str)
+        path = PurePath(path_str)
         name = path.stem
         if not os.path.exists(path_str):
             logger.error(f"Cannot find {path_str}")
