@@ -2425,10 +2425,21 @@ class FabricGenerator:
             for x, tile in enumerate(row):
                 if tile == None:
                     continue
-                configMemPath = tile.tileDir.parent.joinpath(
-                    f"{tile.name}_ConfigMem.csv"
-                )
-                if configMemPath.exists():
+                if "fabric.csv" in str(tile.tileDir):
+                    # backward compatibility for old project structure
+                    configMemPath = (
+                        Path(os.getenv("FAB_PROJ_DIR"))
+                        / "Tile"
+                        / tile.name
+                        / f"{tile.name}_ConfigMem.csv"
+                    )
+                else:
+                    configMemPath = tile.tileDir.parent.joinpath(
+                        f"{tile.name}_ConfigMem.csv"
+                    )
+                logger.info(f"ConfigMemPath: {configMemPath}")
+
+                if configMemPath.exists() and configMemPath.is_file():
                     configMemList = parseConfigMem(
                         configMemPath,
                         self.fabric.maxFramesPerCol,
@@ -2439,6 +2450,10 @@ class FabricGenerator:
                     logger.critical(
                         f"No ConfigMem csv file found for {tile.name} which have config bits"
                     )
+                    configMemList = []
+                else:
+                    logger.info(f"No config memory for {tile.name}.")
+                    configMemList = []
 
                 encodeDict = [-1] * (
                     self.fabric.maxFramesPerCol * self.fabric.frameBitsPerRow

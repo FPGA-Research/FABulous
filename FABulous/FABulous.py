@@ -1509,11 +1509,26 @@ To run the complete FABulous flow with the default project, run the following co
             run_FABulous_bitstream <top_module_file>
 
         """
-        if len(args) != 1:
+        if len(args) == 1:
+            verilog_file_path = get_path(args[0])
+        elif len(args) == 2:
+            # Backwards compatibility to older scripts
+            if "npnr" in args[0]:
+                verilog_file_path = get_path(args[1])
+            elif "vpr" in args[0]:
+                logger.error(
+                    "run_FABulous_bitstream does not support vpr anymore, please use npnr or try a older FABulous version."
+                )
+                return
+
+            else:
+                logger.error(f"run_FABulous_bitstream does not support {args[0]}")
+                return
+
+        else:
             logger.error("Usage: run_FABulous_bitstream <top_module_file>")
             return
 
-        verilog_file_path = get_path(args[0])
         file_path_no_suffix = verilog_file_path.parent / verilog_file_path.stem
 
         if verilog_file_path.suffix != ".v":

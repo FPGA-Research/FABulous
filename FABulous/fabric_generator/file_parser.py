@@ -1,10 +1,8 @@
 import csv
-import os
 import pathlib
 import re
 import subprocess
 import json
-from sys import prefix
 from loguru import logger
 from copy import deepcopy
 
@@ -12,7 +10,6 @@ from typing import Literal, overload
 from FABulous.fabric_generator.utilities import expandListPorts
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.Port import Port
-from FABulous.fabric_definition.Wire import Wire
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Fabric import Fabric
@@ -455,7 +452,6 @@ def parseTiles(fileName: pathlib.Path) -> tuple[list[Tile], list[tuple[str, str]
     Tuple[List[Tile], List[Tuple[str, str]]]
         A tuple containing a list of Tile objects and a list of common wire pairs.
     """
-
     logger.info(f"Reading tile configuration: {fileName}")
 
     if fileName.suffix != ".csv":
@@ -555,7 +551,6 @@ def parseTiles(fileName: pathlib.Path) -> tuple[list[Tile], list[tuple[str, str]
             else:
                 logger.error(f"Unknown tile description {temp[0]} in tile {t}.")
                 raise ValueError
-
             withUserCLK = any(bel.withUserCLK for bel in bels)
             new_tiles.append(
                 Tile(
