@@ -19,7 +19,6 @@
 import csv
 import math
 import os
-import pathlib
 import re
 import string
 from sys import prefix
@@ -69,7 +68,7 @@ class FabricGenerator:
         self.writer = writer
 
     @staticmethod
-    def bootstrapSwitchMatrix(tile: Tile, outputDir: pathlib.Path) -> None:
+    def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
         """Generates a blank switch matrix CSV file for the given tile. The top left corner will
         contain the name of the tile. Columns are the source signals and rows are the destination signals.
 
@@ -117,7 +116,7 @@ class FabricGenerator:
                 writer.writerow([p] + [0] * len(destName))
 
     @staticmethod
-    def list2CSV(InFileName: pathlib.Path, OutFileName: pathlib.Path) -> None:
+    def list2CSV(InFileName: Path, OutFileName: Path) -> None:
         """This function is used to export a given list description into its equivalent CSV switch matrix description.
         A comment will be appended to the end of the column and row of the matrix, which will indicate the number
         of signals in a given row.
@@ -2425,10 +2424,21 @@ class FabricGenerator:
             for x, tile in enumerate(row):
                 if tile == None:
                     continue
-                configMemPath = tile.tileDir.parent.joinpath(
-                    f"{tile.name}_ConfigMem.csv"
-                )
-                if configMemPath.exists():
+                if "fabric.csv" in str(tile.tileDir):
+                    # backward compatibility for old project structure
+                    configMemPath = (
+                        Path(os.getenv("FAB_PROJ_DIR"))
+                        / "Tile"
+                        / tile.name
+                        / f"{tile.name}_ConfigMem.csv"
+                    )
+                else:
+                    configMemPath = tile.tileDir.parent.joinpath(
+                        f"{tile.name}_ConfigMem.csv"
+                    )
+                logger.info(f"ConfigMemPath: {configMemPath}")
+
+                if configMemPath.exists() and configMemPath.is_file():
                     configMemList = parseConfigMem(
                         configMemPath,
                         self.fabric.maxFramesPerCol,
@@ -2439,6 +2449,10 @@ class FabricGenerator:
                     logger.critical(
                         f"No ConfigMem csv file found for {tile.name} which have config bits"
                     )
+                    configMemList = []
+                else:
+                    logger.info(f"No config memory for {tile.name}.")
+                    configMemList = []
 
                 encodeDict = [-1] * (
                     self.fabric.maxFramesPerCol * self.fabric.frameBitsPerRow

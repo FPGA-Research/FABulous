@@ -31,7 +31,7 @@ import tkinter as tk
 import traceback
 from contextlib import redirect_stdout
 from glob import glob
-from pathlib import PurePosixPath, PureWindowsPath, Path
+from pathlib import PurePath, Path
 from typing import List, Literal
 from dotenv import load_dotenv
 
@@ -252,6 +252,37 @@ def make_hex(binfile, outfile):
                 print("0", file=f)
 
 
+def check_if_application_exists(application: str, throw_exception: bool = True) -> Path:
+    """Checks if an application is installed on the system.
+
+    Parameters
+    ----------
+    application : str
+        Name of the application to check.
+    throw_exception : bool, optional
+        If True, throws an exception if the application is not installed, by default True
+
+    Returns
+    -------
+    Path
+        Path to  the application, if installed.
+
+    Raises
+    ------
+    Exception
+        If the application is not installed and throw_exception is True.
+    """
+    path = shutil.which(application)
+    if path is not None:
+        return Path(path)
+    else:
+        logger.error(
+            f"{application} is not installed. Please install it or set FAB_<APPLICATION>_PATH in the .env file."
+        )
+        if throw_exception:
+            raise Exception(f"{application} is not installed.")
+
+
 def adjust_directory_in_verilog_tb(project_dir):
     """Adjusts directory paths in a Verilog testbench file by replacing
     the string "PROJECT_DIR" in the project_template with the actual
@@ -269,35 +300,6 @@ def adjust_directory_in_verilog_tb(project_dir):
         with open(f"{project_dir}/Test/sequential_16bit_en_tb.v", "wt") as fout:
             for line in fin:
                 fout.write(line.replace("PROJECT_DIR", f"{project_dir}"))
-
-
-def get_path(path):
-    """Returns system-specific path object.
-
-    Parameters
-    ----------
-    path : str
-        File system path.
-
-    Returns
-    -------
-    PurePath
-        System-specific path object (PurePosixPath or PureWindowsPath)
-
-    Raises
-    ------
-    NotImplementedError
-        If the operating system is not supported.
-    """
-    system = platform.system()
-    # Darwin corresponds to MacOS, which also uses POSIX-style paths
-    if system == "Linux" or system == "Darwin":
-        return PurePosixPath(path)
-    elif system == "Windows":
-        return PureWindowsPath(path)
-    else:
-        logger.error(f"Unsupported operating system: {system}")
-        raise NotImplementedError
 
 
 class PlaceAndRouteError(Exception):
@@ -1168,7 +1170,7 @@ To run the complete FABulous flow with the default project, run the following co
                 f"do_synthesis takes exactly one argument ({len(args)} given)"
             )
         logger.info(f"Running synthesis that targeting Nextpnr with design {args[0]}")
-        path = get_path(args[0])
+        path = PurePath(args[0])
         parent = path.parent
         verilog_file = path.name
         top_module_name = path.stem
@@ -1182,8 +1184,9 @@ To run the complete FABulous flow with the default project, run the following co
             return
 
         json_file = top_module_name + ".json"
+        yosys = check_if_application_exists(os.getenv("FAB_YOSYS_PATH", "yosys"))
         runCmd = [
-            f"{os.getenv('FAB_YOSYS_PATH', 'yosys')}",
+            f"{yosys}",
             "-p",
             f"synth_fabulous -top top_wrapper -json {self.projectDir}/{parent}/{json_file}",
             f"{self.projectDir}/{parent}/{verilog_file}",
@@ -1231,7 +1234,7 @@ To run the complete FABulous flow with the default project, run the following co
                 f"do_place_and_route takes exactly one argument ({len(args)} given)"
             )
         logger.info(f"Running Placement and Routing with Nextpnr for design {args[0]}")
-        path = get_path(args[0])
+        path = PurePath(args[0])
         parent = path.parent
         json_file = path.name
         top_module_name = path.stem
@@ -1261,10 +1264,13 @@ To run the complete FABulous flow with the default project, run the following co
 
         if os.path.exists(f"{self.projectDir}/{parent}"):
             # TODO rewriting the fab_arch script so no need to copy file for work around
+            npnr = check_if_application_exists(
+                os.getenv("FAB_NEXTPNR_PATH", "nextpnr-generic")
+            )
             if f"{json_file}" in os.listdir(f"{self.projectDir}/{parent}"):
                 runCmd = [
                     f"FAB_ROOT={self.projectDir}",
-                    f"{os.getenv('FAB_NEXTPNR_PATH', 'nextpnr-generic')}",
+                    f"{npnr}",
                     "--uarch",
                     "fabulous",
                     "--json",
@@ -1321,7 +1327,7 @@ To run the complete FABulous flow with the default project, run the following co
         if len(args) != 1:
             logger.error("Usage: gen_bitStream_binary <fasm_file>")
             return
-        path = get_path(args[0])
+        path = PurePath(args[0])
         parent = path.parent
         fasm_file = path.name
         top_module_name = path.stem
@@ -1454,9 +1460,12 @@ To run the complete FABulous flow with the default project, run the following co
             os.path.join(tmp_dir, filename) for filename in os.listdir(tmp_dir)
         ]
 
+        iverilog = check_if_application_exists(
+            os.getenv("FAB_IVERILOG_PATH", "iverilog")
+        )
         try:
             runCmd = [
-                f"os.getenv('FAB_IVERILOG_PATH', 'iverilog')",
+                f"{iverilog}",
                 "-D",
                 f"{defined_option}",
                 "-s",
@@ -1479,9 +1488,10 @@ To run the complete FABulous flow with the default project, run the following co
             f"{self.projectDir}/{path}/{bitstream_hex}",
         )
 
+        vvp = check_if_application_exists(os.getenv("FAB_VVP_PATH", "vvp"))
         try:
             runCmd = [
-                f"{os.getenv('FAB_VVP_PATH', 'vvp')}",
+                f"{vvp}",
                 f"{self.projectDir}/{path}/{vvp_file}",
             ]
             sp.run(runCmd, check=True)
@@ -1509,11 +1519,26 @@ To run the complete FABulous flow with the default project, run the following co
             run_FABulous_bitstream <top_module_file>
 
         """
-        if len(args) != 1:
+        if len(args) == 1:
+            verilog_file_path = PurePath(args[0])
+        elif len(args) == 2:
+            # Backwards compatibility to older scripts
+            if "npnr" in args[0]:
+                verilog_file_path = PurePath(args[1])
+            elif "vpr" in args[0]:
+                logger.error(
+                    "run_FABulous_bitstream does not support vpr anymore, please use npnr or try an older FABulous version."
+                )
+                return
+
+            else:
+                logger.error(f"run_FABulous_bitstream does not support {args[0]}")
+                return
+
+        else:
             logger.error("Usage: run_FABulous_bitstream <top_module_file>")
             return
 
-        verilog_file_path = get_path(args[0])
         file_path_no_suffix = verilog_file_path.parent / verilog_file_path.stem
 
         if verilog_file_path.suffix != ".v":
@@ -1554,7 +1579,7 @@ To run the complete FABulous flow with the default project, run the following co
             logger.error("Usage: tcl <tcl_script>")
             return
         path_str = args[0]
-        path = get_path(path_str)
+        path = PurePath(path_str)
         name = path.stem
         if not os.path.exists(path_str):
             logger.error(f"Cannot find {path_str}")
