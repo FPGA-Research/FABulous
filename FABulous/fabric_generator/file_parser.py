@@ -761,7 +761,7 @@ def parseBelFile(
         exit(-1)
 
     if filetype == "vhdl":
-        belMapDic = vhdl_belMapProcessing(file, filename, filetype)
+        belMapDic = vhdl_belMapProcessing(file, filename)
         if result := re.search(r"NoConfigBits.*?=.*?(\d+)", file, re.IGNORECASE):
             noConfigBits = int(result.group(1))
         else:
@@ -784,6 +784,8 @@ def parseBelFile(
             result = line
             result = re.sub(r"STD_LOGIC.*|;.*|--*", "", result, flags=re.IGNORECASE)
             result = result.replace(" ", "").replace("\t", "").replace(";", "")
+            portName = ""
+            direction = None
             if "IMPORTANT" in line:
                 continue
             if result := re.search(r"(.*):(.*)", result):
@@ -811,22 +813,25 @@ def parseBelFile(
                 if "GLOBAL" in line:
                     break
 
-        if isExternal and not isShared:
-            external.append((portName, direction))
-        elif isConfig:
-            config.append((portName, direction))
-        elif isShared:
-            # shared port do not have a prefix
-            shared.append((portName.removeprefix(belPrefix), direction))
-        else:
-            internal.append((portName, direction))
+            if portName == "" or direction is None:
+                logger.warning(f"Invalid port definition in line {line}.")
+                continue
+            elif isExternal and not isShared:
+                external.append((portName, direction))
+            elif isConfig:
+                config.append((portName, direction))
+            elif isShared:
+                # shared port do not have a prefix
+                shared.append((portName.removeprefix(belPrefix), direction))
+            else:
+                internal.append((portName, direction))
 
-        if "UserCLK" in portName:
-            userClk = True
+            if "UserCLK" in portName:
+                userClk = True
 
-        isExternal = False
-        isConfig = False
-        isShared = False
+            isExternal = False
+            isConfig = False
+            isShared = False
 
     if filetype == "verilog":
         # Runs yosys on verilog file, creates netlist, saves to json in same directory.
