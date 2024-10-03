@@ -1428,7 +1428,7 @@ class FabricGenerator:
                         indentLevel=1,
                     )
                     self.writer.addConnectionScalar(
-                        f"Tile_X{x}Y{y}_userCLKo", indentLevel=1
+                        f"Tile_X{x}Y{y}_UserCLKo", indentLevel=1
                     )
                 if (
                     0 <= x - 1 < len(superTile.tileMap[y])
