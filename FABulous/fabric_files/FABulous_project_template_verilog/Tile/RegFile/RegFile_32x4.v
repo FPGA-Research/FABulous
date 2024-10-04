@@ -38,8 +38,11 @@ module RegFile_32x4 #(parameter NoConfigBits = 2)(
 	//signal mem : memtype := (others => (others => '0'));
 	reg [3:0] mem [31:0];
 
-	reg [3:0] AD_reg;		// port A read data register
-	reg [3:0] BD_reg;		// port B read data register
+	wire [3:0] AD_comb;		// port A read data, combinatorial
+	wire [3:0] BD_comb;		// port B read data, combinatorial
+
+	reg [3:0] AD_reg;		// port A read data, registered
+	reg [3:0] BD_reg;		// port B read data, registered
 	
 	integer i;
 	
@@ -56,15 +59,15 @@ module RegFile_32x4 #(parameter NoConfigBits = 2)(
 		end
 	end
 
-	assign AD = mem[A_ADR];	
-	assign BD = mem[B_ADR];
+	assign AD_comb = mem[A_ADR];	
+	assign BD_comb = mem[B_ADR];
 
     always @ (posedge UserCLK) begin
-        AD_reg <= AD;
-        BD_reg <= BD;
+        AD_reg <= AD_comb;
+        BD_reg <= BD_comb;
     end
 
-	assign AD = ConfigBits[0] ? AD_reg : AD;
-	assign BD = ConfigBits[1] ? BD_reg : BD;
+	assign AD = ConfigBits[0] ? AD_reg : AD_comb;
+	assign BD = ConfigBits[1] ? BD_reg : BD_comb;
 
 endmodule
