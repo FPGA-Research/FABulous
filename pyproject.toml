@@ -18,9 +18,9 @@ classifiers = [
 
 
 dependencies = [
-    'numpy',
-    'fasm',
-    'docker',
+    'python-dotenv>=1.0.0',
+    'loguru>=0.7.0',
+    'fasm>=0.0.2',
 ]
 
 [project.urls]

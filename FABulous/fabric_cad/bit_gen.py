@@ -4,8 +4,17 @@ import pickle
 import re
 import sys
 
-from fasm import *  # Remove this line if you do not have the fasm library installed and will not be generating a bitstream
 from loguru import logger
+
+try:
+    from fasm import (
+        parse_fasm_filename,
+        fasm_tuple_to_string,
+        parse_fasm_string,
+        set_feature_to_str,
+    )
+except:
+    logger.critical("Could not import fasm. Bitstream generation not supported.")
 
 
 def replace(string, substitutions):
