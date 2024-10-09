@@ -43,7 +43,6 @@ from FABulous.fabric_definition.define import (
 )
 
 from FABulous.fabric_generator.file_parser import parseConfigMem, parseList, parseMatrix
-from fasm import *  # Remove this line if you do not have the fasm library installed and will not be generating a bitstream
 
 SWITCH_MATRIX_DEBUG_SIGNAL = True
 
