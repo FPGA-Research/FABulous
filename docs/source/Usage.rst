@@ -97,7 +97,7 @@ Building Fabric and Bitstream
    # inside the FABulous shell
    FABulous> load_fabric
    FABulous> run_FABulous_fabric
-   FABulous> run_FABulous_bitstream npnr user_design/sequential_16bit_en.v
+   FABulous> run_FABulous_bitstream user_design/sequential_16bit_en.v
 
 .. note::
 
