@@ -1,4 +1,3 @@
-#!/bin/env python3
 # Copyright 2021 University of Manchester
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -644,45 +643,26 @@ class FabricGenerator:
             elif muxSize >= 2:
                 # this is the case for a configurable switch matrix multiplexer
                 old_ConfigBitstreamPosition = configBitstreamPosition
-                # len(connections[portName]).bit_length()-1 tells us how many configuration bits a multiplexer takes
 
-                numGnd = 0
-                muxComponentName = ""
-                if (self.fabric.multiplexerStyle == MultiplexerStyle.CUSTOM) and (
-                    muxSize == 2
-                ):
-                    muxComponentName = "my_mux2"
-                elif (self.fabric.multiplexerStyle == MultiplexerStyle.CUSTOM) and (
-                    2 < muxSize <= 4
-                ):
-                    muxComponentName = "cus_mux41_buf"
-                    numGnd = 4 - muxSize
-                elif (self.fabric.multiplexerStyle == MultiplexerStyle.CUSTOM) and (
-                    4 < muxSize <= 8
-                ):
-                    muxComponentName = "cus_mux81_buf"
-                    numGnd = 8 - muxSize
-                elif (self.fabric.multiplexerStyle == MultiplexerStyle.CUSTOM) and (
-                    8 < muxSize <= 16
-                ):
-                    muxComponentName = "cus_mux161_buf"
-                    numGnd = 16 - muxSize
+                # Pad mux size to the next power of 2
+                paddedMuxSize = 2 ** (muxSize - 1).bit_length()
+                muxComponentName = f"cus_mux{paddedMuxSize}1_buf"
 
                 portsPairs = []
                 start = 0
                 for start in range(muxSize):
                     portsPairs.append((f"A{start}", f"{portName}_input[{start}]"))
 
-                for end in range(start, numGnd):
+                for end in range(start + 1, paddedMuxSize):
                     portsPairs.append((f"A{end}", "GND0"))
 
                 if self.fabric.multiplexerStyle == MultiplexerStyle.CUSTOM:
-                    if muxSize == 2:
+                    if paddedMuxSize == 2:
                         portsPairs.append(
                             ("S", f"ConfigBits[{configBitstreamPosition}+0]")
                         )
                     else:
-                        for i in range(muxSize.bit_length() - 1):
+                        for i in range(paddedMuxSize.bit_length() - 1):
                             portsPairs.append(
                                 (f"S{i}", f"ConfigBits[{configBitstreamPosition}+{i}]")
                             )
@@ -710,8 +690,8 @@ class FabricGenerator:
                         portsPairs=portsPairs,
                     )
                     if muxSize != 2 and muxSize != 4 and muxSize != 8 and muxSize != 16:
-                        print(
-                            f"HINT: creating a MUX-{muxSize} for port {portName} using MUX-{muxSize} in switch matrix for tile {tile.name}"
+                        logger.warning(
+                            f"creating a MUX-{muxSize} for port {portName} using MUX-{muxSize} in switch matrix for tile {tile.name}"
                         )
                 else:
                     # generic multiplexer
@@ -2521,9 +2501,9 @@ class FabricGenerator:
                                 curTileMapNoMask[pip] = {}
 
                             curTileMap[pip][encodeDict[curBitOffset + c]] = curChar
-                            curTileMapNoMask[pip][
-                                encodeDict[curBitOffset + c]
-                            ] = curChar
+                            curTileMapNoMask[pip][encodeDict[curBitOffset + c]] = (
+                                curChar
+                            )
 
                     curBitOffset += controlWidth
 
