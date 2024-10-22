@@ -51,28 +51,28 @@ module MUX8LUT_frame_config (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M_AD,
 
 // see figure (column-wise left-to-right)
 	//assign AB = S0 ? B : A;
-    my_mux2 my_mux2_AB(
+    cus_mux21_buf cus_mux21_buf_AB(
     .A0(A),
     .A1(B),
     .S(S0),
     .X(AB)
     );
 	//assign CD = sCD ? D : C;
-    my_mux2 my_mux2_CD(
+    cus_mux21_buf cus_mux21_buf_CD(
     .A0(C),
     .A1(D),
     .S(sCD),
     .X(CD)
     );
 	//assign EF = sEF ? F : E;
-    my_mux2 my_mux2_EF(
+    cus_mux21_buf cus_mux21_buf_EF(
     .A0(E),
     .A1(F),
     .S(sEF),
     .X(EF)
     );
 	//assign GH = sGH ? H : G;
-    my_mux2 my_mux2_GH(
+    cus_mux21_buf cus_mux21_buf_GH(
     .A0(G),
     .A1(H),
     .S(sGH),
@@ -80,28 +80,28 @@ module MUX8LUT_frame_config (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M_AD,
     );
 
 	//assign sCD = c0 ? S0 : S1;
-    my_mux2 my_mux2_sCD(
+    cus_mux21_buf cus_mux21_buf_sCD(
     .A0(S1),
     .A1(S0),
     .S(c0),
     .X(sCD)
     );
 	//assign sEF = c1 ? S0 : S2;
-    my_mux2 my_mux2_sEF(
+    cus_mux21_buf cus_mux21_buf_sEF(
     .A0(S2),
     .A1(S0),
     .S(c1),
     .X(sEF)
     );
 	//assign sGH = c0 ? sEF : sEH;
-    my_mux2 my_mux2_sGH(
+    cus_mux21_buf cus_mux21_buf_sGH(
     .A0(sEH),
     .A1(sEF),
     .S(c0),
     .X(sGH)
     );
 	//assign sEH = c1 ? S1 : S3;
-    my_mux2 my_mux2_sEH(
+    cus_mux21_buf cus_mux21_buf_sEH(
     .A0(S3),
     .A1(S1),
     .S(c1),
@@ -109,14 +109,14 @@ module MUX8LUT_frame_config (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M_AD,
     );
 
 	//assign AD = S1 ? CD : AB;
-    my_mux2 my_mux2_AD(
+    cus_mux21_buf cus_mux21_buf_AD(
     .A0(AB),
     .A1(CD),
     .S(S1),
     .X(AD)
     );
 	//assign EH = sEH ? GH : EF;
-    my_mux2 my_mux2_EH(
+    cus_mux21_buf cus_mux21_buf_EH(
     .A0(EF),
     .A1(GH),
     .S(sEH),
@@ -124,7 +124,7 @@ module MUX8LUT_frame_config (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M_AD,
     );
 
 	//assign AH = S3 ? EH : AD;
-    my_mux2 my_mux2_AH(
+    cus_mux21_buf cus_mux21_buf_AH(
     .A0(AD),
     .A1(EH),
     .S(S3),
@@ -132,7 +132,7 @@ module MUX8LUT_frame_config (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M_AD,
     );
 
 	//assign EH_GH = c0 ? EH : GH;
-    my_mux2 my_mux2_EH_GH(
+    cus_mux21_buf cus_mux21_buf_EH_GH(
     .A0(GH),
     .A1(EH),
     .S(c0),
@@ -141,14 +141,14 @@ module MUX8LUT_frame_config (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M_AD,
 
 	assign M_AB = AB;
 	//assign M_AD = c0 ? AD : CD;
-    my_mux2 my_mux2_M_AD(
+    cus_mux21_buf cus_mux21_buf_M_AD(
     .A0(CD),
     .A1(AD),
     .S(c0),
     .X(M_AD)
     );
 	//assign M_AH = c1 ? AH : EH_GH;
-    my_mux2 my_mux2_M_AH(
+    cus_mux21_buf cus_mux21_buf_M_AH(
     .A0(EH_GH),
     .A1(AH),
     .S(c1),

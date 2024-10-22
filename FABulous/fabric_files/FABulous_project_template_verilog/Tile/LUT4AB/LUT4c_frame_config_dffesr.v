@@ -62,7 +62,7 @@ module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
 //CONFout <= c_I0mux;
 
 	//assign I0mux = c_I0mux ? Ci : I0;
-	my_mux2 my_mux2_I0mux(
+	cus_mux21_buf cus_mux21_buf_I0mux(
 	.A0(I[0]),
 	.A1(Ci),
 	.S(c_I0mux),
@@ -126,7 +126,7 @@ module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
 	);
 
 	//assign O = c_out_mux ? LUT_flop : LUT_out;
-	my_mux2 my_mux2_O(
+	cus_mux21_buf cus_mux21_buf_O(
 	.A0(LUT_out),
 	.A1(LUT_flop),
 	.S(c_out_mux),
