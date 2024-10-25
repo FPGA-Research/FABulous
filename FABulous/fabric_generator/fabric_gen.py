@@ -645,7 +645,11 @@ class FabricGenerator:
 
                 # Pad mux size to the next power of 2
                 paddedMuxSize = 2 ** (muxSize - 1).bit_length()
-                muxComponentName = f"cus_mux{paddedMuxSize}1_buf"
+
+                if paddedMuxSize == 2:
+                    muxComponentName = f"cus_mux{paddedMuxSize}1"
+                else:
+                    muxComponentName = f"cus_mux{paddedMuxSize}1_buf"
 
                 portsPairs = []
                 start = 0

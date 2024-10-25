@@ -192,7 +192,7 @@ module cus_mux41_buf (A0, A1, A2, A3, S0, S0N, S1, S1N, X);
 	assign X =  S1 ? B1 : B0;
 endmodule
 
-module cus_mux21_buf (A0, A1, S, X);
+module cus_mux21 (A0, A1, S, X);
 	input A0;
 	input A1;
 	input S;
