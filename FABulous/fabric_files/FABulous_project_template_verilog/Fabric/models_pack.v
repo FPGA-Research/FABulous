@@ -249,7 +249,7 @@ module cus_mux81 (A0, A1, A2, A3, A4, A5, A6, A7, S0, S0N, S1, S1N, S2, S2N, X);
 	.X  (cus_mux41_out1)
 	);
 
-	cus_mux21_buf cus_mux21_buf_inst(
+	cus_mux21 cus_mux21_inst(
 	.A0(cus_mux41_out0),
 	.A1(cus_mux41_out1),
 	.S (S2),
@@ -301,7 +301,7 @@ module cus_mux81_buf (A0, A1, A2, A3, A4, A5, A6, A7, S0, S0N, S1, S1N, S2, S2N,
 	.X  (cus_mux41_buf_out1)
 	);
 
-	cus_mux21_buf cus_mux21_buf_inst(
+	cus_mux21 cus_mux21_inst(
 	.A0(cus_mux41_buf_out0),
 	.A1(cus_mux41_buf_out1),
 	.S (S2),

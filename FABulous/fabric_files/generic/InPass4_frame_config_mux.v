@@ -55,28 +55,28 @@ module InPass4_frame_config (I0, I1, I2, I3, O0, O1, O2, O3, UserCLK, ConfigBits
 	//assign O2 = ConfigBits[2] ? Q2 : I2;
 	//assign O3 = ConfigBits[3] ? Q3 : I3;
 
-    cus_mux21_buf cus_mux21_buf_inst0(
+    cus_mux21 cus_mux21_inst0(
     .A0(I0),
     .A1(Q0),
     .S(ConfigBits[0]),
     .X(O0)
     );
 
-    cus_mux21_buf cus_mux21_buf_inst1(
+    cus_mux21 cus_mux21_inst1(
     .A0(I1),
     .A1(Q1),
     .S(ConfigBits[1]),
     .X(O1)
     );
 
-    cus_mux21_buf cus_mux21_buf_inst2(
+    cus_mux21 cus_mux21_inst2(
     .A0(I2),
     .A1(Q2),
     .S(ConfigBits[2]),
     .X(O2)
     );
 
-    cus_mux21_buf cus_mux21_buf_inst3(
+    cus_mux21 cus_mux21_inst3(
     .A0(I3),
     .A1(Q3),
     .S(ConfigBits[3]),
