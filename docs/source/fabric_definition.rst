@@ -429,6 +429,9 @@ Configurable connections are defined in either an adjacency list or an adjacency
 
 A switch matrix entry is specified by a line <output_port>,<input_port>.
 For convenience, it is possible to specify multiple ports though a list operator [item1|item2|...].
+There is also a multiplier {N}, where N is the number of times the port should be repeated.
+So a {4}N2BEG0 will be expanded to [N2BEG0|N2BEG0|N2BEG0|N2BEG0]
+
 For instance, the following line in a list file
 
 .. code-block:: python
@@ -468,7 +471,13 @@ A switch matrix multiplexer is modelled by having multiple connections for the s
 
    # the same in compact form:
    N2BEG[0|0|0|0],[N2END3|E2END2|S2END1|LB_O]
+   # or even more compact:
+   {4}N2BEG0,[N2END3|E2END2|S2END1|LB_O]
 
+For completion, the following expressions are all equivalent:
+.. code-block:: python
+
+  N2BEG[0|0|0|0] <=> {4}N2BEG0 <=> N2BEG[{4}0] <=> {2}N2BEG[0|0] <=> {2}N2BEG[{2}0] <=> [N2BEG0|N2BEG0|N2BEG0|N2BEG0]
 
 The ``INCLUDE`` keyword can also be used to include another list file in the current list file. For example:
 

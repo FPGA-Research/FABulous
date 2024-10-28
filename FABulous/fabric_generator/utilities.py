@@ -20,13 +20,14 @@ def expandListPorts(port, PortList):
     Raises
     ------
     ValueError
-        If the port entry contains "[" without matching "]".
+        If the port entry contains "[" or "{" without matching closing
+        bracket "]"/"}".
     """
+    if port.count("[") != port.count("]") and port.count("{") != port.count("}"):
+        raise ValueError(f"Invalid port entry: {port}, mismatched brackets")
+
     # a leading '[' tells us that we have to expand the list
     if "[" in port:
-        if "]" not in port:
-            logger.error("Error in function ExpandListPorts: cannot find closing ]")
-            raise ValueError
         # port.find gives us the first occurrence index in a string
         left_index = port.find("[")
         right_index = port.find("]")
@@ -40,8 +41,20 @@ def expandListPorts(port, PortList):
             expandListPorts(ExpandListItem, PortList)
 
     else:
-        # print('DEBUG: else, just:',port)
-        PortList.append(port)
+        # Multiply ports by the number of multipliers, given in the curly braces.
+        # We let all curly braces in the port Expansion to be expanded and
+        # calculate the total number of ports to be added afterward, based on the number of multipliers.
+        # Also remove the multipliers from port name, before adding it to the list.
+        port = port.replace(" ", "")  # remove spaces
+        multipliers = re.findall(r"\{(\d+)\}", port)
+        portMultiplier = sum([int(m) for m in multipliers])
+        if portMultiplier != 0:
+            port = re.sub(r"\{(\d+)\}", "", port)
+            logger.debug(f"Port {port} has {portMultiplier} multipliers")
+            for i in range(portMultiplier):
+                PortList.append(port)
+        else:
+            PortList.append(port)
 
 
 # Default parameters (will be overwritten if defined in fabric between 'ParametersBegin' and 'ParametersEnd'
