@@ -349,6 +349,10 @@ def parseList(
         rightList = []
         expandListPorts(left, leftList)
         expandListPorts(right, rightList)
+        if len(leftList) != len(rightList):
+            raise ValueError(
+                f"List file {filePath} does not have the same number of source and sink ports."
+            )
         resultList += list(zip(leftList, rightList))
 
     result = list(dict.fromkeys(resultList))
