@@ -1,6 +1,5 @@
-sphinx
-pydata_sphinx_theme
-sphinxcontrib-bibtex
-sphinx-copybutton
-sphinx-prompt
-fasm
+Sphinx>=8.0.0
+pydata-sphinx-theme>=0.15.0
+sphinxcontrib-bibtex>=2.6.0
+sphinx-copybutton>=0.5.0
+sphinx-prompt>=1.9.0
