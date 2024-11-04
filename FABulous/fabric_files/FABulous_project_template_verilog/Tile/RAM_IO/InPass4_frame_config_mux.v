@@ -46,28 +46,28 @@ module InPass4_frame_config_mux #(parameter NoConfigBits = 4)(
 	//assign O[2] = ConfigBits[2] ? Q[2] : I[2];
 	//assign O[3] = ConfigBits[3] ? Q[3] : I[3];
 
-    my_mux2 my_mux2_inst0(
+    cus_mux21 cus_mux21_inst0(
     .A0(I[0]),
     .A1(Q[0]),
     .S(ConfigBits[0]),
     .X(O[0])
     );
 
-    my_mux2 my_mux2_inst1(
+    cus_mux21 cus_mux21_inst1(
     .A0(I[1]),
     .A1(Q[1]),
     .S(ConfigBits[1]),
     .X(O[1])
     );
 
-    my_mux2 my_mux2_inst2(
+    cus_mux21 cus_mux21_inst2(
     .A0(I[2]),
     .A1(Q[2]),
     .S(ConfigBits[2]),
     .X(O[2])
     );
 
-    my_mux2 my_mux2_inst3(
+    cus_mux21 cus_mux21_inst3(
     .A0(I[3]),
     .A1(Q[3]),
     .S(ConfigBits[3]),

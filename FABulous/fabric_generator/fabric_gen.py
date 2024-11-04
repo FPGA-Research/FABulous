@@ -1,4 +1,3 @@
-#!/bin/env python3
 # Copyright 2021 University of Manchester
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,27 +20,26 @@ import math
 import os
 import re
 import string
-from sys import prefix
-from loguru import logger
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
-from collections import defaultdict
 
+from loguru import logger
+
+from FABulous.fabric_definition.ConfigMem import ConfigMem
+from FABulous.fabric_definition.define import (
+    IO,
+    ConfigBitMode,
+    Direction,
+    MultiplexerStyle,
+)
+from FABulous.fabric_definition.Fabric import Fabric
+from FABulous.fabric_definition.Port import Port
+from FABulous.fabric_definition.SuperTile import SuperTile
+from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.fabric_generator.code_generator import codeGenerator
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_definition.Port import Port
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.ConfigMem import ConfigMem
-from FABulous.fabric_definition.define import (
-    Direction,
-    IO,
-    MultiplexerStyle,
-    ConfigBitMode,
-)
-
 from FABulous.fabric_generator.file_parser import parseConfigMem, parseList, parseMatrix
 
 SWITCH_MATRIX_DEBUG_SIGNAL = True
@@ -644,45 +642,30 @@ class FabricGenerator:
             elif muxSize >= 2:
                 # this is the case for a configurable switch matrix multiplexer
                 old_ConfigBitstreamPosition = configBitstreamPosition
-                # len(connections[portName]).bit_length()-1 tells us how many configuration bits a multiplexer takes
 
-                numGnd = 0
-                muxComponentName = ""
-                if (self.fabric.multiplexerStyle == MultiplexerStyle.CUSTOM) and (
-                    muxSize == 2
-                ):
-                    muxComponentName = "my_mux2"
-                elif (self.fabric.multiplexerStyle == MultiplexerStyle.CUSTOM) and (
-                    2 < muxSize <= 4
-                ):
-                    muxComponentName = "cus_mux41_buf"
-                    numGnd = 4 - muxSize
-                elif (self.fabric.multiplexerStyle == MultiplexerStyle.CUSTOM) and (
-                    4 < muxSize <= 8
-                ):
-                    muxComponentName = "cus_mux81_buf"
-                    numGnd = 8 - muxSize
-                elif (self.fabric.multiplexerStyle == MultiplexerStyle.CUSTOM) and (
-                    8 < muxSize <= 16
-                ):
-                    muxComponentName = "cus_mux161_buf"
-                    numGnd = 16 - muxSize
+                # Pad mux size to the next power of 2
+                paddedMuxSize = 2 ** (muxSize - 1).bit_length()
+
+                if paddedMuxSize == 2:
+                    muxComponentName = f"cus_mux{paddedMuxSize}1"
+                else:
+                    muxComponentName = f"cus_mux{paddedMuxSize}1_buf"
 
                 portsPairs = []
                 start = 0
                 for start in range(muxSize):
                     portsPairs.append((f"A{start}", f"{portName}_input[{start}]"))
 
-                for end in range(start, numGnd):
+                for end in range(start + 1, paddedMuxSize):
                     portsPairs.append((f"A{end}", "GND0"))
 
                 if self.fabric.multiplexerStyle == MultiplexerStyle.CUSTOM:
-                    if muxSize == 2:
+                    if paddedMuxSize == 2:
                         portsPairs.append(
                             ("S", f"ConfigBits[{configBitstreamPosition}+0]")
                         )
                     else:
-                        for i in range(muxSize.bit_length() - 1):
+                        for i in range(paddedMuxSize.bit_length() - 1):
                             portsPairs.append(
                                 (f"S{i}", f"ConfigBits[{configBitstreamPosition}+{i}]")
                             )
@@ -693,7 +676,7 @@ class FabricGenerator:
                                 )
                             )
 
-                portsPairs.append((f"X", f"{portName}"))
+                portsPairs.append(("X", f"{portName}"))
 
                 if self.fabric.multiplexerStyle == MultiplexerStyle.CUSTOM:
                     # we add the input signal in reversed order
@@ -710,8 +693,8 @@ class FabricGenerator:
                         portsPairs=portsPairs,
                     )
                     if muxSize != 2 and muxSize != 4 and muxSize != 8 and muxSize != 16:
-                        print(
-                            f"HINT: creating a MUX-{muxSize} for port {portName} using MUX-{muxSize} in switch matrix for tile {tile.name}"
+                        logger.warning(
+                            f"creating a MUX-{muxSize} for port {portName} using MUX-{muxSize} in switch matrix for tile {tile.name}"
                         )
                 else:
                     # generic multiplexer
@@ -1047,8 +1030,8 @@ class FabricGenerator:
 
         self.writer.addInstantiation(
             "clk_buf",
-            f"inst_clk_buf",
-            portsPairs=[("A", f"UserCLK"), ("X", f"UserCLKo")],
+            "inst_clk_buf",
+            portsPairs=[("A", "UserCLK"), ("X", "UserCLKo")],
         )
 
         self.writer.addNewLine()
@@ -1952,13 +1935,13 @@ class FabricGenerator:
                             pre = ""
                         # UserCLK signal
                         if y + 1 >= self.fabric.numberOfRows:
-                            portsPairs.append((f"{pre}UserCLK", f"UserCLK"))
+                            portsPairs.append((f"{pre}UserCLK", "UserCLK"))
 
                         elif (
                             y + 1 < self.fabric.numberOfRows
                             and self.fabric.tile[y + 1][x] == None
                         ):
-                            portsPairs.append((f"{pre}UserCLK", f"UserCLK"))
+                            portsPairs.append((f"{pre}UserCLK", "UserCLK"))
 
                         elif (x + i, y + j + 1) not in superTileLoc:
                             portsPairs.append(
@@ -2060,7 +2043,7 @@ class FabricGenerator:
                     name = tile.name
                     if y not in (0, self.fabric.numberOfRows - 1):
                         emulateParamPairs.append(
-                            (f"Emulate_Bitstream", f"`Tile_X{x}Y{y}_Emulate_Bitstream")
+                            ("Emulate_Bitstream", f"`Tile_X{x}Y{y}_Emulate_Bitstream")
                         )
 
                 self.writer.addInstantiation(
@@ -2278,7 +2261,7 @@ class FabricGenerator:
         # the frame data reg module
         for row in range(numberOfRows):
             self.writer.addInstantiation(
-                compName=f"Frame_Data_Reg",
+                compName="Frame_Data_Reg",
                 compInsName=f"inst_Frame_Data_Reg_{row}",
                 portsPairs=[
                     ("FrameData_I", "LocalWriteData"),
@@ -2300,7 +2283,7 @@ class FabricGenerator:
         # the frame select module
         for col in range(numberOfColumns):
             self.writer.addInstantiation(
-                compName=f"Frame_Select",
+                compName="Frame_Select",
                 compInsName=f"inst_Frame_Select_{col}",
                 portsPairs=[
                     ("FrameStrobe_I", "FrameAddressRegister[MaxFramesPerCol-1:0]"),
