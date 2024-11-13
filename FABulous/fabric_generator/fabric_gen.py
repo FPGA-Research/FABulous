@@ -704,7 +704,7 @@ class FabricGenerator:
                     )
 
                 # update the configuration bitstream position
-                configBitstreamPosition += len(connections[portName]).bit_length() - 1
+                configBitstreamPosition += paddedMuxSize.bit_length() - 1
 
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
