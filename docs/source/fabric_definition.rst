@@ -703,6 +703,72 @@ FABulous defines the following coding rules for BELs:
   
   * ``SHARED_PORT``: this directive can only be used together optionally with ``EXTERNAL``. If a port is set ``EXTERNAL`` but not ``SHARED_PORT``, then , a TODO ( shared  ports flagged with this directive are not connected to the switch matrix but are exported through the tile entity to the top-level fabric wrapper.
 
+
+Generative IOs (GEN_IO)
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The GEN_IO primitive generates a IO port at the top level and routes it to
+the switch matrix in the tile.
+
+GEN_IOs can be used as following in the fabric.csv::
+
+  GEN_IO,<Number of Pins>,<Direction>,<Prefix>,[<Parameters>]
+
+fabric.csv::
+
+  GEN_IO,2,OUTPUT,A_O,,,,,,,,,,,,,,
+  GEN_IO,2,INPUT,A_I,,,,,,,,,,,,,,
+
+This will generate four IOs, two input (A_I0, A_I1) and two output (A_O0, A_O1)
+IOs, which can be accessed in the tile through the switch matrix.
+This will also generate four external ports, (A_I0_top, A_I1_top,
+A_O0_top, A_O1_top) which are routed to the top level and are connected
+to the equivalent tile ports.
+
+
+GEN_IO Parameters
+*****************
+
+* **CONFIGACCESS**: This flag will generate config access bits for the tile.
+  Config access bits are simply config bit from the configuraion bitstream,
+  that are routed to the top level. They can be used to configure external
+  IPs or devcies through the bitstream. The number of config access bits
+  generated is equal to the number of pins in the GEN_IO.
+  The config access bits are routed to the top level where they can be
+  connected to external.
+
+  fabric.csv::
+
+    GEN_IO,2,OUTPUT,C_,CONFIGACCESS,,,,,,,,,,,,,
+
+  Will generate 2 config access bits for this tile, that will be routed to
+  top level.
+
+* **CLOCKED**: This flag will add a register to the GEN_IO,
+  which will be clocked by the UserCLK signal.
+
+  fabric.csv::
+
+     GEN_IO,2,OUTPUT,A_O_,CLOCKED,,,,,,,,,,,,,
+
+  Will generate 2 output ports for the fabric, that are clocked.
+
+* **INVERTED**: This flag will invert the generated IOs.
+
+  fabric.csv::
+
+     GEN_IO,2,OUTPUT,A_O_,INVERTED,,,,,,,,,,,,,
+
+  Will generate 2 output ports for the fabric, that are inverted.
+  Can be also used with CONFIGACCESS or CLOCKED:
+
+  fabric.csv::
+
+     GEN_IO,2,OUTPUT,C_,CONFIGACCESS,INVERTED,,,,,,,,,,,,
+
+  Will generate 2 config access bits for this tile, which are inverted.
+
+
 .. _bitstream:
 
 Bitstream remapping
