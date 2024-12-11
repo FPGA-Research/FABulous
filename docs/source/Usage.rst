@@ -17,17 +17,17 @@ Version >= 3.12
 
 .. code-block:: console
 
-    $ sudo apt-get install python3-tk python3-virtualenv
+    $ sudo apt-get install python3-virtualenv
 
 .. note::
 
-    If you get the warning ``ModuleNotFoundError: No module named 'tkinter'``
+    If you get the warning ``ModuleNotFoundError: No module named 'virtualenv'``
     or errors when installing the requirements, you have to install the
     dependencies for your specific python version. For Python 3.12 use
 
     .. code-block:: console
 
-       $ sudo apt-get install python3.12-tk python3.12-virtualenv
+       $ sudo apt-get install python3.12-virtualenv
 
 :FABulous repository:
 
