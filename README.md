@@ -43,17 +43,17 @@ The following packages need to be installed for generating fabric HDL models and
 Install python dependencies
 
 ```
-sudo apt-get install python3-tk python3-virtualenv
+sudo apt-get install python3-virtualenv
 ```
 
 > [!NOTE]
 >
->If you get the warning `ModuleNotFoundError: No module named 'tkinter'` or
+>If you get the warning `ModuleNotFoundError: No module named virtualenv` or
 >errors when installing the requirements, you have to install the dependencies
 >for your specific python version. For Python 3.12 use
 >
 >```
->sudo apt-get install python3.12-tk python3.12-virtualenv
+>sudo apt-get install python3.12-virtualenv
 >```
 
 
