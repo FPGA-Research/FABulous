@@ -25,6 +25,7 @@ extensions = [
     "sphinx-prompt",
     "sphinx.ext.todo",
     "sphinx_copybutton",
+    "sphinx.ext.imgconverter",
 ]
 
 intersphinx_mapping = {
