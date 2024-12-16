@@ -24,6 +24,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx-prompt",
     "sphinx_copybutton",
+    "sphinx.ext.imgconverter",
 ]
 
 intersphinx_mapping = {
