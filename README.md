@@ -56,6 +56,15 @@ sudo apt-get install python3-virtualenv
 >sudo apt-get install python3.12-virtualenv
 >```
 
+> [!NOTE]
+>
+>If you are using an older version than Ubuntu 24.04, you may need to install tkinter.
+>Otherwise, you might get the warning `ModuleNotFoundError: No module named 'tkinter'`.
+>
+>```
+>sudo apt-get install python3-tk
+>```
+
 
 The following packages need to be installed for the CAD toolchain
 
