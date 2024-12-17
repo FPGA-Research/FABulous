@@ -29,6 +29,15 @@ Version >= 3.12
 
        $ sudo apt-get install python3.12-virtualenv
 
+.. note::
+
+    If you are using an older version than Ubuntu 24.04, you may need to install tkinter.
+    Otherwise, you might get the warning ``ModuleNotFoundError: No module named 'tkinter'``.
+
+    .. code-block:: console
+
+      $ sudo apt-get install python3-tk
+
 :FABulous repository:
 
 .. code-block:: console
