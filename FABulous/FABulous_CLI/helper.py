@@ -1,5 +1,4 @@
 import argparse
-import functools
 import os
 import shutil
 import sys
@@ -54,9 +53,7 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
                 fabulousRoot = str(Path(fabulousRoot).joinpath("FABulous"))
             os.environ["FAB_ROOT"] = fabulousRoot
         else:
-            logger.error(
-                f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist"
-            )
+            logger.error(f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist")
             sys.exit()
 
         logger.info(f"FAB_ROOT set to {fabulousRoot}")
@@ -76,10 +73,7 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
     elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
         load_dotenv(fabDir.joinpath(".env"))
         logger.info(f"Loaded global .env file from {fabulousRoot}/.env")
-    elif (
-        fabDir.parent.joinpath(".env").exists()
-        and fabDir.parent.joinpath(".env").is_file()
-    ):
+    elif fabDir.parent.joinpath(".env").exists() and fabDir.parent.joinpath(".env").is_file():
         load_dotenv(fabDir.parent.joinpath(".env"))
         logger.info(f"Loaded global .env file from {fabDir.parent.joinpath('.env')}")
     else:
@@ -110,10 +104,7 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
     elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
         load_dotenv(fabDir.joinpath(".env"))
         logger.info(f"Loaded project .env file from {fabDir}/.env')")
-    elif (
-        fabDir.parent.joinpath(".env").exists()
-        and fabDir.parent.joinpath(".env").is_file()
-    ):
+    elif fabDir.parent.joinpath(".env").exists() and fabDir.parent.joinpath(".env").is_file():
         load_dotenv(fabDir.parent.joinpath(".env"))
         logger.info(f"Loaded project .env file from {fabDir.parent.joinpath('.env')}")
     else:
@@ -282,43 +273,3 @@ def check_if_application_exists(application: str, throw_exception: bool = True) 
         )
         if throw_exception:
             raise Exception(f"{application} is not installed.")
-
-
-def wrap_with_except_handling(fun_to_wrap):
-    """Decorator function that wraps 'fun_to_wrap' with exception handling.
-    Parameters
-    ----------
-    fun_to_wrap : callable
-        The function to be wrapped with exception handling.
-    """
-
-    def inter(*args, **varargs):
-        """Wrapped function that executes 'fun_to_wrap' with arguments
-        and exception handling.
-        Parameters
-        ----------
-        *args : tuple
-            Positional arguments to pass to 'fun_to_wrap'.
-        **varags : dict
-            Keyword arguments to pass to 'fun_to_wrap'.
-        """
-        try:
-            fun_to_wrap(*args, **varargs)
-        except Exception:
-            import traceback
-
-            traceback.print_exc()
-            sys.exit(1)
-
-    return inter
-
-
-def allow_blank(func):
-    @functools.wraps(func)
-    def _check_blank(*args):
-        if len(args) == 1:
-            func(*args, "")
-        else:
-            func(*args)
-
-    return _check_blank
