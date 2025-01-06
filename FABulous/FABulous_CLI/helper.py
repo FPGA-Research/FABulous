@@ -53,7 +53,9 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
                 fabulousRoot = str(Path(fabulousRoot).joinpath("FABulous"))
             os.environ["FAB_ROOT"] = fabulousRoot
         else:
-            logger.error(f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist")
+            logger.error(
+                f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist"
+            )
             sys.exit()
 
         logger.info(f"FAB_ROOT set to {fabulousRoot}")
@@ -73,7 +75,10 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
     elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
         load_dotenv(fabDir.joinpath(".env"))
         logger.info(f"Loaded global .env file from {fabulousRoot}/.env")
-    elif fabDir.parent.joinpath(".env").exists() and fabDir.parent.joinpath(".env").is_file():
+    elif (
+        fabDir.parent.joinpath(".env").exists()
+        and fabDir.parent.joinpath(".env").is_file()
+    ):
         load_dotenv(fabDir.parent.joinpath(".env"))
         logger.info(f"Loaded global .env file from {fabDir.parent.joinpath('.env')}")
     else:
@@ -104,7 +109,10 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
     elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
         load_dotenv(fabDir.joinpath(".env"))
         logger.info(f"Loaded project .env file from {fabDir}/.env')")
-    elif fabDir.parent.joinpath(".env").exists() and fabDir.parent.joinpath(".env").is_file():
+    elif (
+        fabDir.parent.joinpath(".env").exists()
+        and fabDir.parent.joinpath(".env").is_file()
+    ):
         load_dotenv(fabDir.parent.joinpath(".env"))
         logger.info(f"Loaded project .env file from {fabDir.parent.joinpath('.env')}")
     else:
