@@ -89,7 +89,6 @@ class FABulous_API:
         ValueError
             If 'dir' does not end with '.csv'
         """
-        print(dir)
         if dir.suffix == ".csv":
             self.fabric = fileParser.parseFabricCSV(dir)
             self.fabricGenerator = FabricGenerator(self.fabric, self.writer)

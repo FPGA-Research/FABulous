@@ -24,7 +24,6 @@ import pprint
 import subprocess as sp
 import sys
 import tkinter as tk
-from contextlib import redirect_stdout
 from pathlib import Path
 
 from cmd2 import (
@@ -37,18 +36,13 @@ from cmd2 import (
 )
 from loguru import logger
 
-from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.FABulous_API import FABulous_API
 from FABulous.FABulous_CLI.helper import (
     check_if_application_exists,
     copy_verilog_files,
-    create_project,
     make_hex,
     remove_dir,
-    setup_global_env_vars,
-    setup_logger,
-    setup_project_env_vars,
 )
 
 META_DATA_DIR = ".FABulous"
@@ -96,7 +90,7 @@ To run the complete FABulous flow with the default project, run the following co
 """
 
 
-class FABulousShell(Cmd):
+class FABulous_CLI(Cmd):
     prompt: str = "FABulous> "
     fabulousAPI: FABulous_API
     projectDir: Path
@@ -194,10 +188,11 @@ class FABulousShell(Cmd):
 
     filePathOptionalParser = Cmd2ArgumentParser()
     filePathOptionalParser.add_argument(
-        "--file",
+        "file",
         type=Path,
         help="Path to the target file",
-        required=False,
+        default="",
+        nargs=argparse.OPTIONAL,
         completer=Cmd.path_complete,
     )
 
@@ -236,7 +231,7 @@ class FABulousShell(Cmd):
         # if no argument is given will use the one set by set_fabric_csv
         # else use the argument
         logger.info("Loading fabric")
-        if not args.file:
+        if args.file == Path():
             if self.csvFile.exists():
                 logger.info(
                     "Found fabric.csv in the project directory loading that file as the definition of the fabric"
@@ -253,7 +248,7 @@ class FABulousShell(Cmd):
         self.fabricLoaded = True
         # self.projectDir = os.path.split(self.csvFile)[0]
         tileByPath = [
-            f.name for f in os.scandir(f"{str(self.projectDir)}/Tile/") if f.is_dir()
+            f.stem for f in (self.projectDir / "Tile/").iterdir() if f.is_dir()
         ]
         tileByFabric = list(self.fabulousAPI.fabric.tileDic.keys())
         superTileByFabric = list(self.fabulousAPI.fabric.superTileDic.keys())
@@ -323,13 +318,6 @@ class FABulousShell(Cmd):
 
         Also logs generation process for each specified tile.
 
-        Usage:
-            gen_switch_matrix
-
-        Parameters
-        ----------
-        args : str
-            Name of tiles which generate the switch matrix.
         """
         logger.info(f"Generating switch matrix for {' '.join(args.tiles)}")
         for i in args.tiles:
@@ -348,20 +336,12 @@ class FABulousShell(Cmd):
         'genConfigmem'. Handles both regular tiles and super tiles with sub-tiles.
 
         Also logs generation process for each specified tile and sub-tile.
-
-        Usage:
-            gen_tile
-
-        Parameters
-        ----------
-        args : str
-            Names of tiles to be generated.
         """
 
         logger.info(f"Generating tile {' '.join(args.tiles)}")
         for t in args.tiles:
             if subTiles := [
-                f.name for f in os.scandir(f"{self.projectDir}/Tile/{t}") if f.is_dir()
+                f.stem for f in (self.projectDir / f"Tile/{t}").iterdir() if f.is_dir()
             ]:
                 logger.info(
                     f"{t} is a super tile, generating {t} with sub tiles {' '.join(subTiles)}"
@@ -423,16 +403,7 @@ class FABulousShell(Cmd):
 
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_all_tile(self, *ignored):
-        """Generates all tiles by calling 'do_gen_tile'.
-
-        Usage:
-            gen_all_tile
-
-        Parameters
-        ----------
-        *ignored : tuple
-            Ignores additional arguments.
-        """
+        """Generates all tiles by calling 'do_gen_tile'."""
         logger.info("Generating all tiles")
         self.do_gen_tile(" ".join(self.allTile))
         logger.info("Generated all tiles")
@@ -442,14 +413,6 @@ class FABulousShell(Cmd):
         """Generates fabric based on the loaded fabric by calling
         'do_gen_all_tile' and 'genFabric'. Logs start and completion of
         fabric generation process.
-
-        Usage:
-            gen_fabric
-
-        Parameters
-        ----------
-        *ignored : tuple
-            Ignores additional arguments.
         """
         logger.info(f"Generating fabric {self.fabulousAPI.fabric.name}")
         self.do_gen_all_tile()
@@ -572,7 +535,7 @@ class FABulousShell(Cmd):
         self.do_gen_bitStream_spec()
         self.do_gen_top_wrapper()
         self.do_gen_model_npnr()
-        self.do_gen_geometry("")
+        self.do_gen_geometry()
         logger.info("FABulous fabric flow complete")
         return
 
@@ -910,191 +873,48 @@ class FABulousShell(Cmd):
 
         Also logs usage errors and file not found errors.
 
-        Usage:
-            tcl <tcl_scripts>
-
-        Parameters
-        ----------
-        args : str
-            Path to the TCL script.
         """
         if not args.file.exists():
             logger.error(f"Cannot find {args.file}")
             return
 
+        def wrap_with_except_handling(fun_to_wrap):
+            """Decorator function that wraps 'fun_to_wrap' with exception handling.
+            Parameters
+            ----------
+            fun_to_wrap : callable
+                The function to be wrapped with exception handling.
+            """
+
+            def inter(*args, **varargs):
+                """Wrapped function that executes 'fun_to_wrap' with arguments
+                and exception handling.
+                Parameters
+                ----------
+                *args : tuple
+                    Positional arguments to pass to 'fun_to_wrap'.
+                **varags : dict
+                    Keyword arguments to pass to 'fun_to_wrap'.
+                """
+                try:
+                    fun_to_wrap(*args, **varargs)
+                except Exception:
+                    import traceback
+
+                    traceback.print_exc()
+                    sys.exit(1)
+
+            return inter
+
         logger.info(f"Execute TCL script {args.file}")
         tcl = tk.Tcl()
         for fun in dir(self.__class__):
-            if fun.startswith("do_"):
+            f = getattr(self, fun)
+            if fun.startswith("do_") and callable(f):
                 name = fun.strip("do_")
-                tcl.createcommand(name, getattr(self, fun))
+                tcl.createcommand(name, wrap_with_except_handling(f))
 
-        tcl.evalfile(str(args.file))
+        with open(args.file, "r") as f:
+            tcl.eval(f.read())
+
         logger.info("TCL script executed")
-
-
-def main():
-    """Main function to run command line interface for FABulous,
-    sets up argument parsing, initialises required components and handles
-    FABulous CLI execution.
-
-    Also logs terminal output and if .FABulous folder is missing.
-
-    Command line arguments
-    ----------------------
-    Project_dir : str
-        Directory path to project folder.
-    -c, --createProject :  bool
-        Flag to create new project.
-    -csv : str, optional
-        Log all the output from the terminal.
-    -s, --script: str, optional
-        Run FABulous with FABulous script.
-    -log : str, optional
-        Log all the output from the terminal.
-    -w, --writer : <'verilog', 'vhdl'>, optional
-        Set type of HDL code generated. Currently supports .V and .VHDL (Default .V)
-    -md, --metaDataDir : str, optional
-        Set output directory for metadata files, e.g. pip.txt, bel.txt
-    -v, --verbose : bool, optional
-        Show detailed log information including function and line number.
-    -gde, --globalDotEnv : str, optional
-        Set global .env file path. Default is $FAB_ROOT/.env
-    -pde, --projectDotEnv : str, optional
-        Set project .env file path. Default is $FAB_PROJ_DIR/.env
-    """
-    parser = argparse.ArgumentParser(
-        description="The command line interface for FABulous"
-    )
-
-    parser.add_argument("project_dir", help="The directory to the project folder")
-
-    parser.add_argument(
-        "-c",
-        "--createProject",
-        default=False,
-        action="store_true",
-        help="Create a new project",
-    )
-
-    parser.add_argument(
-        "-csv", default="", nargs=1, help="Log all the output from the terminal"
-    )
-
-    parser.add_argument(
-        "-fs",
-        "--FABulousScript",
-        default="",
-        help="Run FABulous with a FABulous script",
-        type=Path,
-    )
-    parser.add_argument(
-        "-ts",
-        "--TCLScript",
-        default="",
-        help="Run FABulous with a TCL script",
-        type=Path,
-    )
-
-    parser.add_argument(
-        "-log",
-        default=False,
-        nargs="?",
-        const="FABulous.log",
-        help="Log all the output from the terminal",
-    )
-
-    parser.add_argument(
-        "-w",
-        "--writer",
-        default="verilog",
-        choices=["verilog", "vhdl"],
-        help="Set the type of HDL code generated by the tool. Currently support Verilog and VHDL (Default using Verilog)",
-    )
-
-    parser.add_argument(
-        "-md",
-        "--metaDataDir",
-        default=".FABulous",
-        nargs=1,
-        help="Set the output directory for the meta data files eg. pip.txt, bel.txt",
-    )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        default=False,
-        action="count",
-        help="Show detailed log information including function and line number. For -vv additionally output from "
-        "FABulator is logged to the shell for the start_FABulator command",
-    )
-    parser.add_argument(
-        "-gde",
-        "--globalDotEnv",
-        nargs=1,
-        help="Set the global .env file path. Default is $FAB_ROOT/.env",
-    )
-    parser.add_argument(
-        "-pde",
-        "--projectDotEnv",
-        nargs=1,
-        help="Set the project .env file path. Default is $FAB_PROJ_DIR/.env",
-    )
-
-    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
-
-    args = parser.parse_args()
-
-    setup_logger(args.verbose)
-
-    setup_global_env_vars(args)
-
-    args.top = os.getenv("FAB_PROJ_DIR").split("/")[-1]
-
-    if args.createProject:
-        create_project(os.getenv("FAB_PROJ_DIR"), args.writer)
-        exit(0)
-
-    if not os.path.exists(f"{os.getenv('FAB_PROJ_DIR')}/.FABulous"):
-        logger.error(
-            "The directory provided is not a FABulous project as it does not have a .FABulous folder"
-        )
-        exit(-1)
-    else:
-        setup_project_env_vars(args)
-
-        if os.getenv("FAB_PROJ_LANG") == "vhdl":
-            writer = VHDLWriter()
-            logger.debug("VHDL writer selected")
-        elif os.getenv("FAB_PROJ_LANG") == "verilog":
-            writer = VerilogWriter()
-            logger.debug("Verilog writer selected")
-        else:
-            logger.error(
-                f"Invalid projct language specified: {os.getenv('FAB_PROJ_LANG')}"
-            )
-            raise ValueError(
-                f"Invalid projct language specified: {os.getenv('FAB_PROJ_LANG')}"
-            )
-
-        fabShell = FABulousShell(
-            FABulous_API(writer, fabricCSV=args.csv),
-            Path(os.getenv("FAB_PROJ_DIR")),
-            FABulousScript=args.FABulousScript,
-            TCLScript=args.TCLScript,
-        )
-        fabShell.debug = args.debug
-        if args.verbose == 2:
-            fabShell.verbose = True
-        if args.metaDataDir:
-            metaDataDir = args.metaDataDir
-
-        if args.log:
-            with open(args.log, "w") as log:
-                with redirect_stdout(log):
-                    fabShell.cmdloop()
-        else:
-            fabShell.cmdloop(INTO_STRING)
-
-
-if __name__ == "__main__":
-    main()
