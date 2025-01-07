@@ -30,7 +30,7 @@ dependencies = [
 
 
 [project.scripts]
-FABulous = "FABulous.FABulous_CLI.FABulous:main"
+FABulous = "FABulous.FABulous:main"
 bit_gen = "FABulous.fabric_cad.bit_gen:bit_gen"
 
 [tool.setuptools_scm]
