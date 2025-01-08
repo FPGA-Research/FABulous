@@ -41,12 +41,10 @@ Manual Synthesis
 FABulous is supported by upstream Yosys, using the ``synth_fabulous`` pass. First, run ``yosys``, which will open up an interactive Yosys shell.  
 
 For Verilog projects:
- If synthesizing for the nextpnr flow, run this command: ``yosys -p "synth_fabulous -top <toplevel> -json <out.json>" <files.v>``.
-
- If you are synthesizing for the VPR flow, then run this command: ``yosys -p "synth_fabulous -top <toplevel> -blif <out.blif> -vpr" <files.v>``.
+ For the nextpnr flow, run this command: ``yosys -p "synth_fabulous -top <toplevel> -json <out.json>" <files.v>``.
 
 For  VHDL projects:
- If synthesizing for the nextpnr flow, run this command: ``yosys -m ghdl -p ghdl <files.vhdl> -e <top-entity>;read_verilog <top_wrapper(verilog constraint)>;synth_fabulous -top <top_wrapper> -json <out.json>``.
+ For the nextpnr flow, run this command: ``yosys -m ghdl -p ghdl <files.vhdl> -e <top-entity>;read_verilog <top_wrapper(verilog constraint)>;synth_fabulous -top <top_wrapper> -json <out.json>``.
  
  `Note:` For VHDL projects we used the top_wrapper as verilog because ghdl doesn't interpret the attributes(`*BEL*`);
 
