@@ -39,10 +39,12 @@ from loguru import logger
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.FABulous_API import FABulous_API
 from FABulous.FABulous_CLI.helper import (
+    allow_blank,
     check_if_application_exists,
     copy_verilog_files,
     make_hex,
     remove_dir,
+    wrap_with_except_handling,
 )
 
 META_DATA_DIR = ".FABulous"
@@ -166,6 +168,13 @@ class FABulous_CLI(Cmd):
         categorize(self.do_run_tcl, CMD_SCRIPT)
         categorize(self.do_run_pyscript, CMD_SCRIPT)
 
+        self.tcl = tk.Tcl()
+        for fun in dir(self.__class__):
+            f = getattr(self, fun)
+            if fun.startswith("do_") and callable(f):
+                name = fun.strip("do_")
+                self.tcl.createcommand(name, wrap_with_except_handling(f))
+
         self.disable_category(
             CMD_FABRIC_FLOW, "Fabric Flow commands are disabled until fabric is loaded"
         )
@@ -178,8 +187,13 @@ class FABulous_CLI(Cmd):
 
         if not TCLScript.is_dir() and TCLScript.exists():
             self._startup_commands.append(f"run_tcl {TCLScript}")
+            self._startup_commands.append("exit")
 
-    def do_exit(self, _):
+        if not FABulousScript.is_dir() and FABulousScript.exists():
+            self._startup_commands.append(f"run_script {FABulousScript}")
+            self._startup_commands.append("exit")
+
+    def do_exit(self, *ignored):
         """Exits the FABulous shell and logs info message."""
         logger.info("Exiting FABulous shell")
         return True
@@ -219,6 +233,7 @@ class FABulous_CLI(Cmd):
     )
 
     @with_category(CMD_SETUP)
+    @allow_blank
     @with_argparser(filePathOptionalParser)
     def do_load_fabric(self, args):
         """Loads 'fabric.csv' file and generates an internal representation
@@ -434,6 +449,7 @@ class FABulous_CLI(Cmd):
     )
 
     @with_category(CMD_FABRIC_FLOW)
+    @allow_blank
     @with_argparser(geometryParser)
     def do_gen_geometry(self, args):
         """Generates geometry of fabric for FABulator by checking if fabric
@@ -524,6 +540,7 @@ class FABulous_CLI(Cmd):
         logger.info("Generated top wrapper")
 
     @with_category(CMD_FABRIC_FLOW)
+    @allow_blank
     def do_run_FABulous_fabric(self, *ignored):
         """Generates the fabric based on the CSV file, creates bitstream specification
         of the fabric, top wrapper of the fabric, Nextpnr model of the fabric and
@@ -878,43 +895,13 @@ class FABulous_CLI(Cmd):
             logger.error(f"Cannot find {args.file}")
             return
 
-        def wrap_with_except_handling(fun_to_wrap):
-            """Decorator function that wraps 'fun_to_wrap' with exception handling.
-            Parameters
-            ----------
-            fun_to_wrap : callable
-                The function to be wrapped with exception handling.
-            """
-
-            def inter(*args, **varargs):
-                """Wrapped function that executes 'fun_to_wrap' with arguments
-                and exception handling.
-                Parameters
-                ----------
-                *args : tuple
-                    Positional arguments to pass to 'fun_to_wrap'.
-                **varags : dict
-                    Keyword arguments to pass to 'fun_to_wrap'.
-                """
-                try:
-                    fun_to_wrap(*args, **varargs)
-                except Exception:
-                    import traceback
-
-                    traceback.print_exc()
-                    sys.exit(1)
-
-            return inter
-
         logger.info(f"Execute TCL script {args.file}")
-        tcl = tk.Tcl()
-        for fun in dir(self.__class__):
-            f = getattr(self, fun)
-            if fun.startswith("do_") and callable(f):
-                name = fun.strip("do_")
-                tcl.createcommand(name, wrap_with_except_handling(f))
 
         with open(args.file, "r") as f:
-            tcl.eval(f.read())
+            script = f.read()
+        self.tcl.eval(script)
 
         logger.info("TCL script executed")
+
+        if "exit" in script:
+            return True

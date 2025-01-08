@@ -1,4 +1,5 @@
 import argparse
+import functools
 import os
 import shutil
 import sys
@@ -281,3 +282,43 @@ def check_if_application_exists(application: str, throw_exception: bool = True) 
         )
         if throw_exception:
             raise Exception(f"{application} is not installed.")
+
+
+def wrap_with_except_handling(fun_to_wrap):
+    """Decorator function that wraps 'fun_to_wrap' with exception handling.
+    Parameters
+    ----------
+    fun_to_wrap : callable
+        The function to be wrapped with exception handling.
+    """
+
+    def inter(*args, **varargs):
+        """Wrapped function that executes 'fun_to_wrap' with arguments
+        and exception handling.
+        Parameters
+        ----------
+        *args : tuple
+            Positional arguments to pass to 'fun_to_wrap'.
+        **varags : dict
+            Keyword arguments to pass to 'fun_to_wrap'.
+        """
+        try:
+            fun_to_wrap(*args, **varargs)
+        except Exception:
+            import traceback
+
+            traceback.print_exc()
+            sys.exit(1)
+
+    return inter
+
+
+def allow_blank(func):
+    @functools.wraps(func)
+    def _check_blank(*args):
+        if len(args) == 1:
+            func(*args, "")
+        else:
+            func(*args)
+
+    return _check_blank

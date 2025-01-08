@@ -65,14 +65,16 @@ def main():
         "-fs",
         "--FABulousScript",
         default="",
-        help="Run FABulous with a FABulous script. A FABulous script is a text file containing only FABulous commands",
+        help="Run FABulous with a FABulous script. A FABulous script is a text file containing only FABulous commands"
+        "This will automatically exit the CLI once the command finish execution, and the exit will always happen gracefully.",
         type=Path,
     )
     parser.add_argument(
         "-ts",
         "--TCLScript",
         default="",
-        help="Run FABulous with a TCL script. A TCL script is a text file containing a mix of TCL commands and FABulous commands",
+        help="Run FABulous with a TCL script. A TCL script is a text file containing a mix of TCL commands and FABulous commands."
+        "This will automatically exit the CLI once the command finish execution, and the exit will always happen gracefully.",
         type=Path,
     )
 
