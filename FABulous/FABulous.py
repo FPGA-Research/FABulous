@@ -1188,35 +1188,65 @@ To run the complete FABulous flow with the default project, run the following co
             raise TypeError(
                 f"do_synthesis takes exactly one argument ({len(args)} given)"
             )
+
         logger.info(f"Running synthesis that targeting Nextpnr with design {args[0]}")
         path = PurePath(args[0])
         parent = path.parent
-        verilog_file = path.name
+        file_name = path.name
         top_module_name = path.stem
-        if path.suffix != ".v":
+        top_wrapper_path = f"{self.projectDir}/{parent}/top_wrapper.v"
+
+        if path.suffix not in [".v", ".vhdl"]:
             logger.error(
                 """
-                No verilog file provided.
+                No Verilog or VHDL file provided.
                 Usage: synthesis <top_module_file>
                 """
             )
             return
 
         json_file = top_module_name + ".json"
+
         yosys = check_if_application_exists(os.getenv("FAB_YOSYS_PATH", "yosys"))
-        runCmd = [
-            f"{yosys}",
-            "-p",
-            f"synth_fabulous -top top_wrapper -json {self.projectDir}/{parent}/{json_file}",
-            f"{self.projectDir}/{parent}/{verilog_file}",
-            f"{self.projectDir}/{parent}/top_wrapper.v",
-        ]
-        try:
-            sp.run(runCmd, check=True)
-            logger.info("Synthesis completed")
-        except sp.CalledProcessError:
-            logger.error("Synthesis failed")
-            raise SynthesisError
+  
+        if path.suffix == ".v":
+            runCmd = [
+                "yosys",
+                "-p",
+                f"synth_fabulous -top top_wrapper -json {self.projectDir}/{parent}/{json_file}",
+                f"{self.projectDir}/{parent}/{file_name}",
+                top_wrapper_path,
+            ]
+            try:
+                logger.info(
+                    f"Running Yosys with the following command: {' '.join(runCmd)}"
+                )
+                sp.run(runCmd, check=True)
+                logger.info("Synthesis completed")
+            except sp.CalledProcessError:
+                logger.error("Synthesis failed")
+                raise SynthesisError
+
+        else:
+            # using yosys ghdl plugin for vhdl synthesis
+            runCmd = [
+                "yosys",
+                "-m",
+                "ghdl",
+                "-p",
+                f"ghdl {self.projectDir}/{parent}/{file_name} -e top; read_verilog {top_wrapper_path}; synth_fabulous -top top_wrapper -json {self.projectDir}/{parent}/{json_file}",
+            ]
+
+            try:
+                logger.info(
+                    f"Running Yosys with the following command: {' '.join(runCmd)}"
+                )
+                sp.run(runCmd, check=True)
+                logger.info("Synthesis completed")
+            except sp.CalledProcessError:
+                logger.error("Synthesis failed")
+                raise SynthesisError
+
 
     def complete_synthesis(self, text, *ignored):
         return self._complete_path(text)
@@ -1539,11 +1569,11 @@ To run the complete FABulous flow with the default project, run the following co
 
         """
         if len(args) == 1:
-            verilog_file_path = PurePath(args[0])
+            file_path = PurePath(args[0])
         elif len(args) == 2:
             # Backwards compatibility to older scripts
             if "npnr" in args[0]:
-                verilog_file_path = PurePath(args[1])
+                file_path = PurePath(args[1])
             elif "vpr" in args[0]:
                 logger.error(
                     "run_FABulous_bitstream does not support vpr anymore, please use npnr or try an older FABulous version."
@@ -1558,12 +1588,13 @@ To run the complete FABulous flow with the default project, run the following co
             logger.error("Usage: run_FABulous_bitstream <top_module_file>")
             return
 
-        file_path_no_suffix = verilog_file_path.parent / verilog_file_path.stem
+        file_path_no_suffix = file_path.parent / file_path.stem
 
-        if verilog_file_path.suffix != ".v":
+
+        if file_path.suffix not in [".v", ".vhdl"]:
             logger.error(
                 """
-                No verilog file provided.
+                No verilog or VHDL file provided.
                 Usage: run_FABulous_bitstream <top_module_file>
                 """
             )
@@ -1572,7 +1603,7 @@ To run the complete FABulous flow with the default project, run the following co
         json_file_path = file_path_no_suffix.with_suffix(".json")
         fasm_file_path = file_path_no_suffix.with_suffix(".fasm")
 
-        self.do_synthesis(str(verilog_file_path))
+        self.do_synthesis(str(file_path))
         self.do_place_and_route(str(json_file_path))
         self.do_gen_bitStream_binary(str(fasm_file_path))
 

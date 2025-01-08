@@ -38,7 +38,15 @@ file is located at ``user_design/sequential_16bit_en.v`` then the result of the 
 
 Manual Synthesis
 ^^^^^^^^^^^^^^^^
-FABulous is supported by upstream Yosys, using the ``synth_fabulous`` pass. First, run ``yosys``, which will open up an interactive Yosys shell. If synthesizing for the nextpnr flow, run this command: ``yosys -p "synth_fabulous -top <toplevel> -json <out.json>" <files.v>``.
+FABulous is supported by upstream Yosys, using the ``synth_fabulous`` pass. First, run ``yosys``, which will open up an interactive Yosys shell.  
+
+For Verilog projects:
+ For the nextpnr flow, run this command: ``yosys -p "synth_fabulous -top <toplevel> -json <out.json>" <files.v>``.
+
+For  VHDL projects:
+ For the nextpnr flow, run this command: ``yosys -m ghdl -p ghdl <files.vhdl> -e <top-entity>;read_verilog <top_wrapper(verilog constraint)>;synth_fabulous -top <top_wrapper> -json <out.json>``.
+ 
+ `Note:` For VHDL projects we used the top_wrapper as verilog because ghdl doesn't interpret the attributes(`*BEL*`);
 
 * For any clocked benchmark, a clock tile blackbox module must be instantiated in the top module for clock generation.
 
