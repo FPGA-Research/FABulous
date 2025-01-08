@@ -68,14 +68,20 @@ with ``source venv/bin/activate`` to use FABulous.
     (venv)$ pip install -r requirements.txt
 
 
+
 The following packages need to be installed for the CAD toolchain:
 
+
+If you are using yosys oss-cad-suite, no need to install the following packages.
 
 :`Yosys <https://github.com/YosysHQ/yosys>`_:
  version > 0.26+0
 
 :`Nextpnr-generic <https://github.com/YosysHQ/nextpnr#nextpnr-generic>`_:
  version > 0.4-28-gac17c36b
+
+:`Yosys ghdl plugin <https://github.com/ghdl/ghdl-yosys-plugin>`_:
+ Only needed for VHDL synthesis 
 
 .. note::
 
