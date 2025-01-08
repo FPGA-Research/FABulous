@@ -1,7 +1,7 @@
 # FABulous: an Embedded FPGA Framework
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python](https://img.shields.io/badge/Python-3.9-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
+[![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
 [![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ## Introduction
@@ -20,7 +20,7 @@ This guide describes everything you need to set up your system to use the FABulo
 
 The following paper can be used to cite FABulous:
 
-Dirk Koch, Nguyen Dao, Bea Healy, Jing Yu, and Andrew Attwood. 2021. FABulous: An Embedded FPGA Framework. In <i>The 2021 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays</i> (<i>FPGA '21</i>). Association for Computing Machinery, New York, NY, USA, 45–56. DOI: https://doi.org/10.1145/3431920.3439302
+Dirk Koch, Nguyen Dao, Bea Healy, Jing Yu, and Andrew Attwood. 2021. FABulous: An Embedded FPGA Framework. In <i>The 2021 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays</i> (<i>FPGA '21</i>). Association for Computing Machinery, New York, NY, USA, 45–56. DOI: <https://doi.org/10.1145/3431920.3439302>
 
 [Link to Paper](https://dl.acm.org/doi/pdf/10.1145/3431920.3439302)
 
@@ -38,20 +38,38 @@ Dirk Koch, Nguyen Dao, Bea Healy, Jing Yu, and Andrew Attwood. 2021. FABulous: A
 
 The following packages need to be installed for generating fabric HDL models and using the FABulous front end:
 
-- Python 3.9 or later
+- Python 3.12 or later
 
 Install python dependencies
 
 ```
-$ sudo apt-get install python3-tk python3-virtualenv
+sudo apt-get install python3-virtualenv
 ```
+
+> [!NOTE]
+>
+>If you get the warning `ModuleNotFoundError: No module named virtualenv` or
+>errors when installing the requirements, you have to install the dependencies
+>for your specific python version. For Python 3.12 use
+>
+>```
+>sudo apt-get install python3.12-virtualenv
+>```
+
+> [!NOTE]
+>
+>If you are using an older version than Ubuntu 24.04, you may need to install tkinter.
+>Otherwise, you might get the warning `ModuleNotFoundError: No module named 'tkinter'`.
+>
+>```
+>sudo apt-get install python3-tk
+>```
+
 
 The following packages need to be installed for the CAD toolchain
 
 - [Yosys](https://github.com/YosysHQ/yosys)
 - [nextpnr-generic](https://github.com/YosysHQ/nextpnr#nextpnr-generic)
-
-A flow using VPR, the place and route tool from the [VTR project](https://github.com/verilog-to-routing/vtr-verilog-to-routing) is also available. However, this still requires Yosys, as well as the FABulous nextpnr fork, since this contains files for design synthesis.
 
 ## Getting started
 
@@ -69,9 +87,10 @@ $ source venv/bin/activate
 
 You can deactivate the virtual environment with the `deactivate` command.
 Please note, that you always have to enable the virtual environment to use FABulous:
+
 ```
-$ cd <path to FABulous>
-$ source venv/bin/activate
+cd <path to FABulous>
+source venv/bin/activate
 ```
 
 We have provided a Python Command Line Interface (CLI) as well as a project structure for easy access of the FABulous toolchain.

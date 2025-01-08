@@ -1,4 +1,4 @@
-import logging
+from loguru import logger
 from csv import writer as csvWriter
 from typing import Dict, List, Set
 
@@ -6,23 +6,27 @@ from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.geometry_generator.geometry_obj import Border, Location
 from FABulous.geometry_generator.tile_geometry import TileGeometry
 
-logger = logging.getLogger(__name__)
-
 
 class FabricGeometry:
-    """
-    This class fetches and holds geometric information about a fabric.
+    """This class fetches and holds geometric information about a fabric.
     Objects of this class can be constructed by passing a Fabric object and optionally, padding.
 
-    Attributes:
-        fabric          (Fabric)                    :   The passed fabric object from the CSV definition files
-        tileNames       (Set[str])                  :   Set of unique tileNames in the fabric
-        tileGeomMap     Dict[str, TileGeometry])    :   Map of the geometry of each tile by name
-        tileLocs        (List[List[Loc]])           :   Locations of all tiles in the fabric
-        padding         (int)                       :   Padding used throughout the geometry, in multiples of the width between wires
-        width           (int)                       :   Width of the fabric
-        height          (int)                       :   Height of the fabric
-
+    Attributes
+    ----------
+    fabric : Fabric
+        The fabric object passed from the CSV definition files
+    tileNames : Set[str]
+        Set of unique tileNames in the fabric
+    tileGeomMap : Dict[str, TileGeometry]
+        Map of the geometry of each tile by name
+    tileLocs : List[List[Loc]]
+        Locations of all tiles in the fabric
+    padding : int
+        Padding used throughout the geometry, in multiples of the width between wires
+    width : int
+        Width of the fabric
+    height : int
+        Height of the fabric
     """
 
     fabric: Fabric
@@ -45,10 +49,7 @@ class FabricGeometry:
         self.generateGeometry()
 
     def generateGeometry(self) -> None:
-        """
-        Generates the geometric information from the given fabric object
-
-        """
+        """Generates the geometric information from the given fabric object"""
 
         # here, the border attribute is set for tiles that are
         # located at a border of the tile. This is done to
@@ -206,14 +207,14 @@ class FabricGeometry:
             tileGeom.generateWires(self.padding)
 
     def saveToCSV(self, fileName: str) -> None:
-        """
-        Saves the generated geometric information of the
+        """Saves the generated geometric information of the
         given fabric to a .csv file that can be imported
         into the graphical frontend.
 
-        Args:
-            fileName (str): the name of the csv file
-
+        Parameters
+        ----------
+        fileName : str
+            The name of the csv file
         """
         logger.info(
             f"Generating geometry csv file for {self.fabric.name} # file name: {fileName}"

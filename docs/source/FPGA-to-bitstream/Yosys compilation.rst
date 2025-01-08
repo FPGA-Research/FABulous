@@ -3,7 +3,7 @@
 Yosys compilation
 =================
 
-Yosys is used for logic synthesis and technology mapping of the Verilog Hardware Description Language (HDL) into a JSON (for nextpnr) or BLIF (for VPR) netlist.
+Yosys is used for logic synthesis and technology mapping of the Verilog Hardware Description Language (HDL) into a JSON netlist.
 
 Building
 --------
@@ -23,10 +23,8 @@ calling the following command:
 .. code-block:: console
 
         # Nextpnr backend synthesis (JSON)
-        synthesis_npnr <path_to_user_design>
+        FABulous> synthesis <path_to_user_design>
         
-        # VPR backend synthesis (BLIF)
-        synthesis_vpr <path_to_user_design>
 
 
 The result of the synthesis will be located in the directory that contains the design file. For example, if the design 

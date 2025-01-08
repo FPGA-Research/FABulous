@@ -8,4 +8,3 @@ FPGA CAD-tool parameterization
    
    yosys
    nextpnr
-   vpr

@@ -11,23 +11,34 @@ class PortType(Enum):
 
 
 class PortGeometry:
-    """
-    A datastruct representing the geometry of a Port
+    """A data structure representing the geometry of a Port
 
-    Attributes:
-        name            (str)       :   Name of the port
-        sourceName      (str)       :   Name of the port source
-        destName        (str)       :   Name of the port destination
-        type            (PortType)  :   Type of the port
-        ioDirection     (IO)        :   IO direction of the port
-        sideOfTile      (Side)      :   Side of the tile the ports wire is on
-        offset          (int)       :   Offset to the connected port
-        wireDirection   (Direction) :   Direction of the ports wire
-        groupId         (int)       :   Id of the port group
-        groupWires      (int)       :   Amount of wires of the port group
-        relX            (int)       :   X coordinate of the port, relative to its parent (bel, switch matrix)
-        relY            (int)       :   Y coordinate of the port, relative to its parent (bel, switch matrix)
-
+    Attributes
+    ----------
+    name : str
+        Name of the port
+    sourceName : str
+        Name of the port source
+    destName : str
+        Name of the port destination
+    type : PortType
+        Type of the port
+    ioDirection : IO
+        IO direction of the port
+    sideOfTile : Side
+        Side of the tile the ports wire is on
+    offset : int
+        Offset to the connected port
+    wireDirection : Direction
+        Direction of the ports wire
+    groupId : int
+        Id of the port group
+    groupWires : int
+        Amount of wires of the port group
+    relX : int
+        X coordinate of the port, relative to its parent (bel, switch matrix)
+    relY : int
+        Y coordinate of the port, relative to its parent (bel, switch matrix)
     """
 
     name: str

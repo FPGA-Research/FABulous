@@ -192,7 +192,7 @@ module cus_mux41_buf (A0, A1, A2, A3, S0, S0N, S1, S1N, X);
 	assign X =  S1 ? B1 : B0;
 endmodule
 
-module my_mux2 (A0, A1, S, X);
+module cus_mux21 (A0, A1, S, X);
 	input A0;
 	input A1;
 	input S;
@@ -203,7 +203,7 @@ module my_mux2 (A0, A1, S, X);
 	break_comb_loop break_comb_loop_inst1(.A (A1), .X (AIN[1]));
 
 	assign X = S ? AIN[1] : AIN[0];
-endmodule 
+endmodule
 
 module cus_mux81 (A0, A1, A2, A3, A4, A5, A6, A7, S0, S0N, S1, S1N, S2, S2N, X);
 	input A0;
@@ -249,7 +249,7 @@ module cus_mux81 (A0, A1, A2, A3, A4, A5, A6, A7, S0, S0N, S1, S1N, S2, S2N, X);
 	.X  (cus_mux41_out1)
 	);
 
-	my_mux2 my_mux2_inst(
+	cus_mux21 cus_mux21_inst(
 	.A0(cus_mux41_out0),
 	.A1(cus_mux41_out1),
 	.S (S2),
@@ -301,7 +301,7 @@ module cus_mux81_buf (A0, A1, A2, A3, A4, A5, A6, A7, S0, S0N, S1, S1N, S2, S2N,
 	.X  (cus_mux41_buf_out1)
 	);
 
-	my_mux2 my_mux2_inst(
+	cus_mux21 cus_mux21_inst(
 	.A0(cus_mux41_buf_out0),
 	.A1(cus_mux41_buf_out1),
 	.S (S2),

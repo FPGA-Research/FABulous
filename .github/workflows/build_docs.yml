@@ -2,15 +2,16 @@ name: "Docs Build Check"
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, FABulous2.0-development ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, FABulous2.0-development ]
 
 jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - uses: ammaraskar/sphinx-action@master
+    - uses: ammaraskar/sphinx-action@8.0.0
       with:
+        pre-build-command: "apt-get update -y && apt-get install tk git -y && pip install -r requirements.txt && pip install -e ."
         docs-folder: "docs/"

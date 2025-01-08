@@ -6,5 +6,4 @@ RTL to Bitstream
    
    Yosys compilation
    Nextpnr compilation
-   VPR compilation
    Bitstream generation

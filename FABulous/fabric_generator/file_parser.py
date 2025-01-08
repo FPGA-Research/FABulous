@@ -1,17 +1,19 @@
 import csv
-import os
 import re
+import subprocess
+import json
+from loguru import logger
 from copy import deepcopy
 
+from typing import Literal, overload
+from pathlib import Path
+from FABulous.fabric_generator.utilities import expandListPorts
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.Port import Port
-from FABulous.fabric_definition.Wire import Wire
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.ConfigMem import ConfigMem
-from FABulous.fabric_generator.utilities import parseList, parseMatrix
-from typing import Literal
 from FABulous.fabric_definition.define import (
     IO,
     Direction,
@@ -21,46 +23,51 @@ from FABulous.fabric_definition.define import (
 )
 
 
-# from fabric import Fabric, Port, Bel, Tile, SuperTile, ConfigMem
-# from fabric import IO, Direction, Side, MultiplexerStyle, ConfigBitMode
-
-
 oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST"}
 
 
 def parseFabricCSV(fileName: str) -> Fabric:
+    """Parses a CSV file and returns a fabric object.
+
+    Parameters
+    ----------
+    fileName : str
+        Directory of the CSV file.
+
+    Raises
+    ------
+    ValueError
+        - File provided is not a CSV file.
+        - CSV file does not exist.
+        - FabricBegin and FabricEnd regions cannot be found.
+        - ParametersBegin and ParametersEnd regions cannot be found.
+        - Bel entry extension is not ".v" or ".vhdl".
+        - Matrix entry extension is not ".list", ".csv", ".v", or ".vhdl".
+        - Unknown tile description entry is found in the CSV file.
+        - Unknown tile is found in the fabric entry in the CSV file.
+        - Unknown super tile is found in the super tile entry in the CSV file.
+        - Invalid ConfigBitMode is found in the parameter entry in the CSV file.
+        - Invalid MultiplexerStyle is found in the parameter entry in the CSV file.
+        - Invalid parameter entry is found in the CSV file.
+
+    Returns
+    -------
+    Fabric
+        The fabric object.
     """
-    Parses a csv file and returns a fabric object.
 
-    Args:
-        fileName (str): the directory of the csv file.
+    fName = Path(fileName)
+    if fName.suffix != ".csv":
+        logger.error("File must be a csv file")
+        raise ValueError
 
-    Raises:
-        ValueError: File provide need to be a csv file.
-        ValueError: The csv file does not exist.
-        ValueError: Cannot find the FabricBegin and FabricEnd region.
-        ValueError: Cannot find the ParametersBegin and ParametersEnd region.
-        ValueError: The bel entry extension can only be ".v" or ".vhdl".
-        ValueError: The matrix entry extension can only be ".list", ".csv", ".v" or ".vhdl".
-        ValueError: Unknown tile description entry in csv file.
-        ValueError: Unknown tile in the fabric entry in csv file.
-        ValueError: Unknown super tile in the super tile entry in csv file.
-        ValueError: Invalid ConfigBitMode in parameter entry in csv file.
-        ValueError: Invalid MultiplexerStyle in parameter entry in csv file.
-        ValueError: Invalid parameter entry in csv file.
+    if not fName.exists():
+        logger.error(f"File {fName} does not exist.")
+        raise ValueError
 
-    Returns:
-        Fabric: The fabric object.
-    """
-    if not fileName.endswith(".csv"):
-        raise ValueError("File must be a csv file")
+    filePath = fName.parent
 
-    if not os.path.exists(fileName):
-        raise ValueError(f"File {fileName} does not exist")
-
-    filePath, _ = os.path.split(os.path.abspath(fileName))
-
-    with open(fileName, "r") as f:
+    with open(fName, "r") as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
@@ -70,14 +77,16 @@ def parseFabricCSV(fileName: str) -> Fabric:
     ):
         fabricDescription = fabricDescription.group(1)
     else:
-        raise ValueError("Cannot find FabricBegin and FabricEnd in csv file")
+        logger.error("Cannot find FabricBegin and FabricEnd in csv file.")
+        raise ValueError
 
     if parameters := re.search(
         r"ParametersBegin(.*?)ParametersEnd", file, re.MULTILINE | re.DOTALL
     ):
         parameters = parameters.group(1)
     else:
-        raise ValueError("Cannot find ParametersBegin and ParametersEnd in csv file")
+        logger.error("Cannot find ParametersBegin and ParametersEnd in csv file.")
+        raise ValueError
 
     fabricDescription = fabricDescription.split("\n")
     parameters = parameters.split("\n")
@@ -94,18 +103,20 @@ def parseFabricCSV(fileName: str) -> Fabric:
     superTileDic = {}
 
     # For backwards compatibility parse tiles in fabric config
-    new_tiles, new_commonWirePair = parseTiles(fileName)
+    new_tiles, new_commonWirePair = parseTiles(fName)
     tileTypes += [new_tile.name for new_tile in new_tiles]
     tileDefs += new_tiles
     commonWirePair += new_commonWirePair
     tileDic = dict(zip(tileTypes, tileDefs))
 
-    new_supertiles = parseSupertiles(fileName, tileDic)
+    new_supertiles = parseSupertiles(fName, tileDic)
     for new_supertile in new_supertiles:
         superTileDic[new_supertile.name] = new_supertile
 
     if new_tiles or new_supertiles:
-        print(f"Deprecation warning: {fileName} should not contain tile descriptions.")
+        logger.warning(
+            f"Deprecation warning: {fName} should not contain tile descriptions."
+        )
 
     # parse the parameters
     height = 0
@@ -124,17 +135,13 @@ def parseFabricCSV(fileName: str) -> Fabric:
         if not i:
             continue
         if i[0].startswith("Tile"):
-            new_tiles, new_commonWirePair = parseTiles(
-                os.path.abspath(os.path.join(filePath, i[1]))
-            )
+            new_tiles, new_commonWirePair = parseTiles(filePath.joinpath(i[1]))
             tileTypes += [new_tile.name for new_tile in new_tiles]
             tileDefs += new_tiles
             commonWirePair += new_commonWirePair
             tileDic = dict(zip(tileTypes, tileDefs))
         elif i[0].startswith("Supertile"):
-            new_supertiles = parseSupertiles(
-                os.path.abspath(os.path.join(filePath, i[1])), tileDic
-            )
+            new_supertiles = parseSupertiles(filePath.joinpath(i[1]), tileDic)
             for new_supertile in new_supertiles:
                 superTileDic[new_supertile.name] = new_supertile
         elif i[0].startswith("ConfigBitMode"):
@@ -143,9 +150,10 @@ def parseFabricCSV(fileName: str) -> Fabric:
             elif i[1] == "FlipFlopChain":
                 configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
             else:
-                raise ValueError(
-                    f"Invalid config bit mode {i[1]} in parameters. Valid options are frame_based and FlipFlopChain"
+                logger.error(
+                    f"Invalid config bit mode {i[1]} in parameters. Valid options are frame_based and FlipFlopChain."
                 )
+                raise ValueError
         elif i[0].startswith("FrameBitsPerRow"):
             frameBitsPerRow = int(i[1])
         elif i[0].startswith("MaxFramesPerCol"):
@@ -160,13 +168,15 @@ def parseFabricCSV(fileName: str) -> Fabric:
             elif i[1] == "generic":
                 multiplexerStyle = MultiplexerStyle.GENERIC
             else:
-                raise ValueError(
-                    f"Invalid multiplexer style {i[1]} in parameters. Valid options are custom and generic"
+                logger.error(
+                    f"Invalid multiplexer style {i[1]} in parameters. Valid options are custom and generic."
                 )
+                raise ValueError
         elif i[0].startswith("SuperTileEnable"):
             superTileEnable = i[1] == "TRUE"
         else:
-            raise ValueError(f"The following parameter is not valid: {i}")
+            logger.error(f"The following parameter is not valid: {i}")
+            raise ValueError
 
     # form the fabric data structure
     usedTile = set()
@@ -183,16 +193,19 @@ def parseFabricCSV(fileName: str) -> Fabric:
             elif i == "Null" or i == "NULL" or i == "None":
                 fabricLine.append(None)
             else:
-                raise ValueError(f"Unknown tile {i}")
+                logger.error(f"Unknown tile {i}.")
+                raise ValueError
         fabricTiles.append(fabricLine)
 
     for i in list(tileDic.keys()):
         if i not in usedTile:
-            print(f"Tile {i} is not used in the fabric. Removing from tile dictionary.")
+            logger.info(
+                f"Tile {i} is not used in the fabric. Removing from tile dictionary."
+            )
             del tileDic[i]
     for i in list(superTileDic.keys()):
         if any(j.name not in usedTile for j in superTileDic[i].tiles):
-            print(
+            logger.info(
                 f"Supertile {i} is not used in the fabric. Removing from tile dictionary."
             )
             del superTileDic[i]
@@ -223,26 +236,237 @@ def parseFabricCSV(fileName: str) -> Fabric:
     )
 
 
-def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
+def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
+    """Parse the matrix CSV into a dictionary from destination to source.
+
+    Parameters
+    ----------
+    fileName : Path
+        Directory of the matrix CSV file.
+    tileName : str
+        Name of the tile needed to be parsed.
+
+    Raises
+    ------
+    ValueError
+        Non matching matrix file content and tile name
+
+    Returns
+    -------
+    dict : [str, list[str]]
+        Dictionary from destination to a list of sources.
     """
-    Parses a csv tile configuration file and returns all tile objects.
 
-    Args:
-        fileName (str): the path to the csv file.
+    connectionsDic = {}
+    with open(fileName, "r") as f:
+        file = f.read()
+        file = re.sub(r"#.*", "", file)
+        file = file.split("\n")
 
-    Returns:
-        ([Tile], [(str, str)] : tuple of tile objects and common wire pairs.
+    if file[0].split(",")[0] != tileName:
+        logger.error(f"{fileName} {file[0].split(',')} {tileName}")
+        logger.error(
+            "Tile name (top left element) in csv file does not match tile name in tile object"
+        )
+        raise ValueError
+    destList = file[0].split(",")[1:]
+
+    for i in file[1:]:
+        i = i.split(",")
+        portName, connections = i[0], i[1:]
+        if portName == "":
+            continue
+        indices = [k for k, v in enumerate(connections) if v == "1"]
+        connectionsDic[portName] = [destList[j] for j in indices]
+    return connectionsDic
+
+
+@overload
+def parseList(
+    filePath: Path, collect: Literal["pair"] = "pair", prefix: str = ""
+) -> list[tuple[str, str]]:
+    pass
+
+
+@overload
+def parseList(
+    filePath: Path, collect: Literal["source", "sink"], prefix: str = ""
+) -> dict[str, list[str]]:
+    pass
+
+
+def parseList(
+    filePath: Path,
+    collect: Literal["pair", "source", "sink"] = "pair",
+    prefix: str = "",
+) -> list[tuple[str, str]] | dict[str, list[str]]:
+    """Parse a list file and expand the list file information into a list of tuples.
+
+    Parameters
+    ----------
+    fileName : Path
+        ""
+    collect : (Literal["", "source", "sink"], optional)
+        Collect value by source, sink or just as pair. Defaults to "pair".
+
+    Raises
+    ------
+    ValueError
+        The file does not exist.
+    ValueError
+        Invalid format in the list file.
+
+    Returns
+    -------
+    Union : [list[tuple[str, str]], dict[str, list[str]]]
+        Return either a list of connection pairs or a dictionary of lists which is collected by the specified option, source or sink.
     """
+    if not filePath.exists():
+        logger.error(f"The file {filePath} does not exist.")
+        raise ValueError
 
-    print(f"Reading tile configuration: {fileName}")
+    resultList = []
+    with open(filePath, "r") as f:
+        file = f.read()
+        file = re.sub(r"#.*", "", file)
+    file = file.split("\n")
+    for i, line in enumerate(file):
+        line = line.replace(" ", "").replace("\t", "").split(",")
+        line = [i for i in line if i != ""]
+        if not line:
+            continue
+        if len(line) != 2:
+            logger.error(f"Invalid list formatting in file: {filePath} at line {i}")
+            logger.error(f"Line: {line}")
+            raise ValueError
+        left, right = line[0], line[1]
 
-    if not fileName.endswith(".csv"):
-        raise ValueError("File must be a csv file")
+        if left == "INCLUDE":
+            resultList.extend(parseList(filePath.parent.joinpath(right), "pair"))
+            continue
 
-    if not os.path.exists(fileName):
-        raise ValueError(f"File {fileName} does not exist")
+        leftList = []
+        rightList = []
+        expandListPorts(left, leftList)
+        expandListPorts(right, rightList)
+        if len(leftList) != len(rightList):
+            raise ValueError(
+                f"List file {filePath} does not have the same number of source and sink ports."
+            )
+        resultList += list(zip(leftList, rightList))
 
-    filePath, _ = os.path.split(os.path.abspath(fileName))
+    result = list(dict.fromkeys(resultList))
+    resultDic = {}
+    if collect == "source":
+        for k, v in result:
+            if k not in resultDic:
+                resultDic[k] = []
+            resultDic[k].append(v)
+        return resultDic
+
+    if collect == "sink":
+        for k, v in result:
+            for i in v:
+                if i not in resultDic:
+                    resultDic[i] = []
+                resultDic[i].append(k)
+        return resultDic
+
+    return result
+
+
+def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
+    ports = []
+    commonWirePair: tuple[str, str] | None
+    temp: list[str] = line.split(",")
+    if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST"]:
+        ports.append(
+            Port(
+                Direction[temp[0]],
+                temp[1],
+                int(temp[2]),
+                int(temp[3]),
+                temp[4],
+                int(temp[5]),
+                temp[1],
+                IO.OUTPUT,
+                Side[temp[0]],
+            )
+        )
+
+        ports.append(
+            Port(
+                Direction[temp[0]],
+                temp[1],
+                int(temp[2]),
+                int(temp[3]),
+                temp[4],
+                int(temp[5]),
+                temp[4],
+                IO.INPUT,
+                Side[oppositeDic[temp[0]].upper()],
+            )
+        )
+        commonWirePair = (f"{temp[1]}", f"{temp[4]}")
+
+    elif temp[0] == "JUMP":
+        ports.append(
+            Port(
+                Direction.JUMP,
+                temp[1],
+                int(temp[2]),
+                int(temp[3]),
+                temp[4],
+                int(temp[5]),
+                temp[1],
+                IO.OUTPUT,
+                Side.ANY,
+            )
+        )
+        ports.append(
+            Port(
+                Direction.JUMP,
+                temp[1],
+                int(temp[2]),
+                int(temp[3]),
+                temp[4],
+                int(temp[5]),
+                temp[4],
+                IO.INPUT,
+                Side.ANY,
+            )
+        )
+        commonWirePair = None
+    else:
+        logger.error(f"Unknown port type: {temp[0]}")
+        raise ValueError("Unknown port type.")
+    return (ports, commonWirePair)
+
+
+def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
+    """Parses a CSV tile configuration file and returns all tile objects.
+
+    Parameters
+    ----------
+    fileName : str
+        The path to the CSV file.
+
+    Returns
+    -------
+    Tuple[List[Tile], List[Tuple[str, str]]]
+        A tuple containing a list of Tile objects and a list of common wire pairs.
+    """
+    logger.info(f"Reading tile configuration: {fileName}")
+
+    if fileName.suffix != ".csv":
+        logger.error("File must be a CSV file.")
+        raise ValueError
+
+    if not fileName.exists():
+        logger.error(f"File {fileName} does not exist.")
+        raise ValueError
+
+    filePathParent = fileName.parent
 
     with open(fileName, "r") as f:
         file = f.read()
@@ -251,7 +475,7 @@ def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
     tilesData = re.findall(r"TILE(.*?)EndTILE", file, re.MULTILINE | re.DOTALL)
 
     new_tiles = []
-    commonWirePair = []
+    commonWirePairs = []
 
     # Parse each tile config
     for t in tilesData:
@@ -259,155 +483,120 @@ def parseTiles(fileName: str) -> tuple[list[Tile], list[tuple[str, str]]]:
         tileName = t[0].split(",")[1]
         ports: list[Port] = []
         bels: list[Bel] = []
-        matrixDir = ""
+        matrixDir: Path | None = None
         withUserCLK = False
         configBit = 0
         for item in t:
             temp: list[str] = item.split(",")
             if not temp or temp[0] == "":
                 continue
-            if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST"]:
-                ports.append(
-                    Port(
-                        Direction[temp[0]],
-                        temp[1],
-                        int(temp[2]),
-                        int(temp[3]),
-                        temp[4],
-                        int(temp[5]),
-                        temp[1],
-                        IO.OUTPUT,
-                        Side[temp[0]],
-                    )
-                )
-
-                ports.append(
-                    Port(
-                        Direction[temp[0]],
-                        temp[1],
-                        int(temp[2]),
-                        int(temp[3]),
-                        temp[4],
-                        int(temp[5]),
-                        temp[4],
-                        IO.INPUT,
-                        Side[oppositeDic[temp[0]].upper()],
-                    )
-                )
-                # wireCount = (abs(int(temp[2])) +
-                #              abs(int(temp[3])))*int(temp[5])
-                # for i in range(wireCount):
-                commonWirePair.append((f"{temp[1]}", f"{temp[4]}"))
-
-            elif temp[0] == "JUMP":
-                ports.append(
-                    Port(
-                        Direction.JUMP,
-                        temp[1],
-                        int(temp[2]),
-                        int(temp[3]),
-                        temp[4],
-                        int(temp[5]),
-                        temp[1],
-                        IO.OUTPUT,
-                        Side.ANY,
-                    )
-                )
-                ports.append(
-                    Port(
-                        Direction.JUMP,
-                        temp[1],
-                        int(temp[2]),
-                        int(temp[3]),
-                        temp[4],
-                        int(temp[5]),
-                        temp[4],
-                        IO.INPUT,
-                        Side.ANY,
-                    )
-                )
+            if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST", "JUMP"]:
+                port, commonWirePair = parsePortLine(item)
+                ports.extend(port)
+                if commonWirePair:
+                    commonWirePairs.append(commonWirePair)
             elif temp[0] == "BEL":
-                belFilePath = os.path.join(filePath, temp[1])
+                belFilePath = filePathParent.joinpath(temp[1])
                 if temp[1].endswith(".vhdl"):
-                    result = parseFileVHDL(belFilePath, temp[2])
+                    bels.append(parseBelFile(belFilePath, temp[2], "vhdl"))
                 elif temp[1].endswith(".v"):
-                    result = parseFileVerilog(belFilePath, temp[2])
+                    bels.append(parseBelFile(belFilePath, temp[2], "verilog"))
                 else:
                     raise ValueError(
-                        "Invalid file type, only .vhdl and .v are supported"
+                        f"Invalid file type in {belFilePath} only .vhdl and .v are supported."
                     )
-                internal, external, config, shared, configBit, userClk, belMap = result
-                bels.append(
-                    Bel(
-                        belFilePath,
-                        temp[2],
-                        internal,
-                        external,
-                        config,
-                        shared,
-                        configBit,
-                        belMap,
-                        userClk,
-                    )
-                )
-                withUserCLK |= userClk
             elif temp[0] == "MATRIX":
-                matrixDir = os.path.join(filePath, temp[1])
+                matrixDir = fileName.parent.joinpath(temp[1])
                 configBit = 0
-                if temp[1].endswith(".list"):
-                    for _, v in parseList(matrixDir, "source").items():
-                        muxSize = len(v)
-                        if muxSize >= 2:
-                            configBit += muxSize.bit_length() - 1
-                elif temp[1].endswith("_matrix.csv"):
-                    for _, v in parseMatrix(matrixDir, tileName).items():
-                        muxSize = len(v)
-                        if muxSize >= 2:
-                            configBit += muxSize.bit_length() - 1
-                elif temp[1].endswith(".vhdl") or temp[1].endswith(".v"):
-                    with open(matrixDir, "r") as f:
-                        f = f.read()
-                        if configBit := re.search(r"NumberOfConfigBits: (\d+)", f):
-                            configBit = int(configBit.group(1))
-                        else:
-                            configBit = 0
-                            print(
-                                f"Cannot find NumberOfConfigBits in {matrixDir} assume 0 config bits"
-                            )
 
-                else:
-                    raise ValueError("Unknown file extension for matrix")
+                match matrixDir.suffix:
+                    case ".list":
+                        for _, v in parseList(matrixDir, "source").items():
+                            muxSize = len(v)
+                            if muxSize >= 2:
+                                configBit += muxSize.bit_length() - 1
+                    case "_matrix.csv":
+                        for _, v in parseMatrix(matrixDir, tileName).items():
+                            muxSize = len(v)
+                            if muxSize >= 2:
+                                configBit += muxSize.bit_length() - 1
+                    case ".vhdl" | ".v":
+                        with open(matrixDir, "r") as f:
+                            f = f.read()
+                            if configBit := re.search(r"NumberOfConfigBits: (\d+)", f):
+                                configBit = int(configBit.group(1))
+                            else:
+                                configBit = 0
+                                logger.warning(
+                                    f"Cannot find NumberOfConfigBits in {matrixDir} assume 0 config bits."
+                                )
+                    case _:
+                        logger.error("Unknown file extension for matrix.")
+                        raise ValueError("Unknown file extension for matrix.")
+
+            elif temp[0] == "INCLUDE":
+                p = fileName.parent.joinpath(temp[1])
+                if not p.exists():
+                    logger.error(f"Cannot find {str(p)} in tile {tileName}")
+                    raise ValueError
+                with open(p) as f:
+                    iFile = f.read()
+                    iFile = re.sub(r"#.*", "", iFile)
+                for line in iFile.split("\n"):
+                    lineItem = line.split(",")
+                    if not lineItem[0]:
+                        continue
+
+                    port, commonWirePair = parsePortLine(line)
+                    ports.extend(port)
+                    if commonWirePair:
+                        commonWirePairs.append(commonWirePair)
+
             else:
-                raise ValueError(f"Unknown tile description {temp[0]} in tile {t}")
-
+                logger.error(f"Unknown tile description {temp[0]} in tile {t}.")
+                raise ValueError
+            withUserCLK = any(bel.withUserCLK for bel in bels)
             new_tiles.append(
-                Tile(tileName, ports, bels, matrixDir, withUserCLK, configBit)
+                Tile(
+                    name=tileName,
+                    ports=ports,
+                    bels=bels,
+                    tileDir=fileName,
+                    matrixDir=matrixDir,
+                    userCLK=withUserCLK,
+                    configBit=configBit,
+                )
             )
 
-    return (new_tiles, commonWirePair)
+    return (new_tiles, commonWirePairs)
 
 
-def parseSupertiles(fileName: str, tileDic: dict[str, Tile]) -> list[SuperTile]:
+def parseSupertiles(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]:
+    """Parses a CSV supertile configuration file and returns all SuperTile objects.
+
+    Parameters
+    ----------
+    fileName : str
+        The path to the CSV file.
+    tileDic : Dict[str, Tile]
+        Dict of tiles.
+
+    Returns
+    -------
+    List[SuperTile]
+        List of SuperTile objects.
     """
-    Parses a csv supertile configuration file and returns all SuperTile objects.
+    logger.info(f"Reading supertile configuration: {fileName}")
 
-    Args:
-        fileName (str): the path to the csv file.
-        tileDic ({str: Tile}): dict of tiles.
+    if not fileName.suffix == ".csv":
+        logger.error("File must be a csv file.")
+        raise ValueError
 
-    Returns:
-        [SuperTile]: list of supertile objects.
-    """
+    if not fileName.exists():
+        logger.error(f"File {fileName} does not exist.")
+        raise ValueError
 
-    print(f"Reading supertile configuration: {fileName}")
-
-    if not fileName.endswith(".csv"):
-        raise ValueError("File must be a csv file")
-
-    if not os.path.exists(fileName):
-        raise ValueError(f"File {fileName} does not exist")
-
-    filePath, _ = os.path.split(os.path.abspath(fileName))
+    filePath = fileName.parent
 
     with open(fileName, "r") as f:
         file = f.read()
@@ -433,26 +622,15 @@ def parseSupertiles(fileName: str, tileDic: dict[str, Tile]) -> list[SuperTile]:
             row = []
 
             if line[0] == "BEL":
-                belFilePath = os.path.join(filePath, line[1])
-                if line[0].endswith("VHDL"):
-                    result = parseFileVHDL(belFilePath, line[2])
+                belFilePath = filePath.joinpath(line[1])
+                if line[1].endswith(".vhdl"):
+                    bels.append(parseBelFile(belFilePath, line[2], "vhdl"))
+                elif line[1].endswith(".v"):
+                    bels.append(parseBelFile(belFilePath, line[2], "verilog"))
                 else:
-                    result = parseFileVerilog(belFilePath, line[2])
-                internal, external, config, shared, configBit, userClk, belMap = result
-                bels.append(
-                    Bel(
-                        belFilePath,
-                        line[2],
-                        internal,
-                        external,
-                        config,
-                        shared,
-                        configBit,
-                        belMap,
-                        userClk,
+                    raise ValueError(
+                        f"Invalid file type in {belFilePath} only .vhdl and .v are supported."
                     )
-                )
-                withUserCLK |= userClk
                 continue
 
             for j in line:
@@ -466,178 +644,26 @@ def parseSupertiles(fileName: str, tileDic: dict[str, Tile]) -> list[SuperTile]:
                 elif j == "Null" or j == "NULL" or j == "None":
                     row.append(None)
                 else:
-                    raise ValueError(
+                    logger.error(
                         f"The super tile {name} contains definitions that are not tiles or Null."
                     )
+                    raise ValueError
             tileMap.append(row)
 
+        withUserCLK = any(bel.withUserCLK for bel in bels)
         new_supertiles.append(SuperTile(name, tiles, tileMap, bels, withUserCLK))
 
     return new_supertiles
 
 
-def parseFileVHDL(filename: str, belPrefix: str = "") -> tuple[
-    list[tuple[str, IO]],
-    list[tuple[str, IO]],
-    list[tuple[str, IO]],
-    list[tuple[str, IO]],
-    int,
-    bool,
-    dict[str, int],
-]:
+def parseBelFile(
+    filename: Path,
+    belPrefix: str = "",
+    filetype: Literal["verilog", "vhdl"] = "",
+) -> Bel:
     """
-    Parse a VHDL bel file and return all the related information of the bel. The tuple returned for relating to ports will
-    be a list of (belName, IO) pair.
-
-    For further example of bel mapping please look at parseFileVerilog
-
-    Args:
-        filename (str): The input file name.
-        belPrefix (str, optional): The bel prefix provided by the CSV file. Defaults to "".
-
-    Raises:
-        ValueError: File not found
-        ValueError: No permission to access the file
-        ValueError: Cannot find the port section in the file which defines the bel ports.
-
-    Returns:
-        tuple[list[tuple[str, IO]], list[tuple[str, IO]], list[tuple[str, IO]], list[tuple[str, IO]], int, bool, dict[str, int]]:
-        Bel internal ports, bel external ports, bel config ports, bel shared ports, number of configuration bit in the bel,
-        whether the bel have UserCLK, and the bel config bit mapping.
-    """
-    internal: list[tuple[str, IO]] = []
-    external: list[tuple[str, IO]] = []
-    config: list[tuple[str, IO]] = []
-    shared: list[tuple[str, IO]] = []
-    isExternal = False
-    isConfig = False
-    isShared = False
-    userClk = False
-
-    try:
-        with open(filename, "r") as f:
-            file = f.read()
-    except FileNotFoundError:
-        print(f"File {filename} not found.")
-        exit(-1)
-    except PermissionError:
-        print(f"Permission denied to file {filename}.")
-        exit(-1)
-
-    belMapDic = _belMapProcessing(file, filename, "vhdl")
-
-    if result := re.search(r"NoConfigBits.*?=.*?(\d+)", file, re.IGNORECASE):
-        noConfigBits = int(result.group(1))
-    else:
-        print(f"Cannot find NoConfigBits in {filename}")
-        print("Assume the number of configBits is 0")
-        noConfigBits = 0
-
-    if len(belMapDic) != noConfigBits:
-        raise ValueError(
-            f"NoConfigBits does not match with the BEL map in file {filename}, length of BelMap is {len(belMapDic)}, but with {noConfigBits} config bits"
-        )
-
-    portSection = ""
-    if result := re.search(
-        r"port.*?\((.*?)\);", file, re.MULTILINE | re.DOTALL | re.IGNORECASE
-    ):
-        portSection = result.group(1)
-    else:
-        raise ValueError(f"Could not find port section in file {filename}")
-
-    preGlobal, postGlobal = portSection.split("-- GLOBAL")
-
-    for line in preGlobal.split("\n"):
-        if "IMPORTANT" in line:
-            continue
-        if "EXTERNAL" in line:
-            isExternal = True
-        if "CONFIG" in line:
-            isConfig = True
-        if "SHARED_PORT" in line:
-            isShared = True
-
-        line = re.sub(r"STD_LOGIC.*", "", line, flags=re.IGNORECASE)
-        line = re.sub(r";.*", "", line, flags=re.IGNORECASE)
-        line = re.sub(r"--*", "", line, flags=re.IGNORECASE)
-        line = line.replace(" ", "").replace("\t", "").replace(";", "")
-        result = re.search(r"(.*):(.*)", line)
-        if not result:
-            continue
-        portName = f"{belPrefix}{result.group(1)}"
-
-        if isExternal and not isShared:
-            if result.group(2).lower() == "in":
-                external.append((portName, IO.INPUT))
-            elif result.group(2).lower() == "out":
-                external.append((portName, IO.OUTPUT))
-        elif isConfig:
-            if result.group(2).lower() == "in":
-                config.append((portName, IO.INPUT))
-            elif result.group(2).lower() == "out":
-                config.append((portName, IO.OUTPUT))
-        elif isShared:
-            # shared port do not have a prefix
-            if result.group(2).lower() == "in":
-                shared.append((result.group(1), IO.INOUT))
-            elif result.group(2).lower() == "out":
-                shared.append((result.group(1), IO.OUTPUT))
-            elif result.group(2).lower() == "inout":
-                shared.append((result.group(1), IO.INOUT))
-            else:
-                raise ValueError(
-                    f"Invalid port type {result.group(2)} in file {filename}"
-                )
-        else:
-            if result.group(2).lower() == "in":
-                internal.append((portName, IO.INPUT))
-            elif result.group(2).lower() == "out":
-                internal.append((portName, IO.OUTPUT))
-            elif result.group(2).lower() == "inout":
-                internal.append((portName, IO.INOUT))
-            else:
-                raise ValueError(
-                    f"Invalid port type {result.group(2)} in file {filename}"
-                )
-
-        if "UserCLK" in portName:
-            userClk = True
-
-        isExternal = False
-        isConfig = False
-        isShared = False
-
-    result = re.search(
-        r"NoConfigBits\s*:\s*integer\s*:=\s*(\w+)", file, re.IGNORECASE | re.DOTALL
-    )
-    if result:
-        try:
-            noConfigBits = int(result.group(1))
-        except ValueError:
-            print(f"NoConfigBits is not an integer: {result.group(1)}")
-            print("Assume the number of configBits is 0")
-            noConfigBits = 0
-    else:
-        print(f"Cannot find NoConfigBits in {filename}")
-        print("Assume the number of configBits is 0")
-        noConfigBits = 0
-
-    return internal, external, config, shared, noConfigBits, userClk, belMapDic
-
-
-def parseFileVerilog(filename: str, belPrefix: str = "") -> tuple[
-    list[tuple[str, IO]],
-    list[tuple[str, IO]],
-    list[tuple[str, IO]],
-    list[tuple[str, IO]],
-    int,
-    bool,
-    dict[str, dict],
-]:
-    """
-    Parse a Verilog bel file and return all the related information of the bel. The tuple returned for relating to ports
-    will be a list of (belName, IO) pair.
+    Parse a Verilog or VHDL bel file and return all the related information of the bel.
+    The tuple returned for relating to ports will be a list of (belName, IO) pair.
 
     The function will also parse and record all the FABulous attribute which all starts with ::
 
@@ -674,34 +700,48 @@ def parseFileVerilog(filename: str, belPrefix: str = "") -> tuple[
 
     **CONFIG_PORT** attribute will notify FABulous the port is for configuration.
 
-    Example:
-        .. code-block :: verilog
+    Example
+    -------
+    Verilog
+    ::
 
-            (* FABulous, BelMap,
-            single_bit_feature=0, //single bit feature, single_bit_feature=0
-            multiple_bits_0=1, //multiple bit feature bit0, multiple_bits[0]=1
-            multiple_bits_1=2 //multiple bit feature bit1, multiple_bits[1]=2
-            *)
-            module exampleModule (externalPin, normalPin1, normalPin2, sharedPin, globalPin);
-                (* FABulous, EXTERNAL *) input externalPin;
-                input normalPin;
-                (* FABulous, EXTERNAL, SHARED_PORT *) input sharedPin;
-                (* FABulous, GLOBAL) input globalPin;
-                output normalPin2; //do not get parsed
-                ...
+        (* FABulous, BelMap,
+        single_bit_feature=0, //single bit feature, single_bit_feature=0
+        multiple_bits_0=1, //multiple bit feature bit0, multiple_bits[0]=1
+        multiple_bits_1=2 //multiple bit feature bit1, multiple_bits[1]=2
+        *)
+        module exampleModule (externalPin, normalPin1, normalPin2, sharedPin, globalPin);
+            (* FABulous, EXTERNAL *) input externalPin;
+            input normalPin;
+            (* FABulous, EXTERNAL, SHARED_PORT *) input sharedPin;
+            (* FABulous, GLOBAL) input globalPin;
+            output normalPin2; //do not get parsed
+            ...
 
-    Args:
-        filename (str): The filename of the bel file.
-        belPrefix (str, optional): The bel prefix provided by the CSV file. Defaults to "".
+    Parameters
+    ----------
+        filename : str
+            The filename of the bel file.
+        belPrefix : str, optional)
+            The bel prefix provided by the CSV file. Defaults to "".
 
-    Raises:
-        ValueError: File not found
-        ValueError: No permission to access the file
+    Returns
+    -------
+    Tuple containing
+        - List of Bel Internal ports (belName, IO).
+        - List of Bel External ports (belName, IO).
+        - List of Bel Config ports (belName, IO).
+        - List of Bel Shared ports (belName, IO).
+        - Number of configuration bits in the bel.
+        - Whether the bel has UserCLK.
+        - Bel config bit mapping as a dict {port_name: bit_number}.
 
-    Returns:
-        tuple[list[tuple[str, IO]], list[tuple[str, IO]], list[tuple[str, IO]], list[tuple[str, IO]], int, bool, dict[str, dict]]:
-        Bel internal ports, bel external ports, bel config ports, bel shared ports, number of configuration bit in the bel,
-        whether the bel have UserCLK, and the bel config bit mapping.
+    Raises
+    ------
+    ValueError
+        File not found
+    ValueError
+        No permission to access the file
     """
     internal: list[tuple[str, IO]] = []
     external: list[tuple[str, IO]] = []
@@ -711,61 +751,84 @@ def parseFileVerilog(filename: str, belPrefix: str = "") -> tuple[
     isConfig = False
     isShared = False
     userClk = False
+    individually_declared = False
     noConfigBits = 0
 
     try:
         with open(filename, "r") as f:
             file = f.read()
     except FileNotFoundError:
-        print(f"File {filename} not found.")
+        logger.critical(f"File {filename} not found.")
         exit(-1)
     except PermissionError:
-        print(f"Permission denied to file {filename}.")
+        logger.critical(f"Permission denied to file {filename}.")
         exit(-1)
 
-    belMapDic = _belMapProcessing(file, filename, "verilog")
+    if filetype == "vhdl":
+        belMapDic = vhdl_belMapProcessing(file, filename)
+        if result := re.search(r"NoConfigBits.*?=.*?(\d+)", file, re.IGNORECASE):
+            noConfigBits = int(result.group(1))
+        else:
+            logger.warning(f"Cannot find NoConfigBits in {filename}")
+            logger.warning("Assume the number of configBits is 0")
+            noConfigBits = 0
+        if len(belMapDic) != noConfigBits:
+            logger.error(
+                f"NoConfigBits does not match with the BEL map in file {filename}, length of BelMap is {len(belMapDic)}, but with {noConfigBits} config bits"
+            )
+            raise ValueError
+        if result := re.search(
+            r"port.*?\((.*?)\);", file, re.MULTILINE | re.DOTALL | re.IGNORECASE
+        ):
+            file, _ = result.group(1).split("-- GLOBAL")
+        else:
+            raise ValueError(f"Could not find port section in file {filename}")
 
-    if result := re.search(r"NoConfigBits.*?=.*?(\d+)", file, re.IGNORECASE):
-        noConfigBits = int(result.group(1))
-    else:
-        print(f"Cannot find NoConfigBits in {filename}")
-        print("Assume the number of configBits is 0")
-        noConfigBits = 0
-
-    if len(belMapDic) != noConfigBits:
-        raise ValueError(
-            f"NoConfigBits does not match with the BEL map in file {filename}, length of BelMap is {len(belMapDic)}, but with {noConfigBits} config bits"
-        )
-
-    file = file.split("\n")
-
-    for line in file:
-        if result := re.search(r".*(input|output|inout).*?(\w+);", line, re.IGNORECASE):
-            cleanedLine = line.replace(" ", "")
-            if attribute := re.search(r"\(\*FABulous,(.*)\*\)", cleanedLine):
-                if "EXTERNAL" in attribute.group(1):
+        for line in file.split("\n"):
+            result = line
+            result = re.sub(r"STD_LOGIC.*|;.*|--*", "", result, flags=re.IGNORECASE)
+            result = result.replace(" ", "").replace("\t", "").replace(";", "")
+            portName = ""
+            direction = None
+            if "IMPORTANT" in line:
+                continue
+            if result := re.search(r"(.*):(.*)", result):
+                portName = f"{belPrefix}{result.group(1)}"
+                if result.group(2).upper() == "IN":
+                    direction = IO["INPUT"]
+                elif result.group(2).upper() == "OUT":
+                    direction = IO["OUTPUT"]
+                elif result.group(2).upper() == "INOUT":
+                    direction = IO["INOUT"]
+                else:
+                    logger.error(
+                        f"Invalid or Unknown port direction {result.group(2).upper()} in line {line}."
+                    )
+                    raise ValueError
+            else:
+                continue
+            if line:
+                if "EXTERNAL" in line:
                     isExternal = True
-
-                if "CONFIG" in attribute.group(1):
+                if "CONFIG" in line:
                     isConfig = True
-
-                if "SHARED_PORT" in attribute.group(1):
+                if "SHARED_PORT" in line:
                     isShared = True
-
-                if "GLOBAL" in attribute.group(1):
+                if "GLOBAL" in line:
                     break
 
-            portName = f"{belPrefix}{result.group(2)}"
-
-            if isExternal and not isShared:
-                external.append((portName, IO[result.group(1).upper()]))
+            if portName == "" or direction is None:
+                logger.warning(f"Invalid port definition in line {line}.")
+                continue
+            elif isExternal and not isShared:
+                external.append((portName, direction))
             elif isConfig:
-                config.append((portName, IO[result.group(1).upper()]))
+                config.append((portName, direction))
             elif isShared:
                 # shared port do not have a prefix
-                shared.append((result.group(2), IO[result.group(1).upper()]))
+                shared.append((portName.removeprefix(belPrefix), direction))
             else:
-                internal.append((portName, IO[result.group(1).upper()]))
+                internal.append((portName, direction))
 
             if "UserCLK" in portName:
                 userClk = True
@@ -774,15 +837,160 @@ def parseFileVerilog(filename: str, belPrefix: str = "") -> tuple[
             isConfig = False
             isShared = False
 
-    return internal, external, config, shared, noConfigBits, userClk, belMapDic
+    if filetype == "verilog":
+        # Runs yosys on verilog file, creates netlist, saves to json in same directory.
+        json_file = filename.with_suffix(".json")
+        runCmd = [
+            "yosys",
+            "-qp"
+            f"read_verilog {filename}; proc -noopt; write_json -compat-int {json_file}",
+        ]
+        try:
+            subprocess.run(runCmd, check=True)
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to run yosys command: {e}")
+            raise ValueError
+
+        with open(f"{json_file}", "r") as f:
+            data_dict = json.load(f)
+
+        modules = data_dict.get("modules", {})
+        filtered_ports: dict[str, IO] = {}
+        # Gathers port name and direction, filters out configbits as they show in ports.
+        for module_name, module_info in modules.items():
+            ports = module_info["ports"]
+            for port_name, details in ports.items():
+                if "ConfigBits" in port_name:
+                    continue
+                if "UserCLK" in port_name:
+                    userClk = True
+                if port_name[-1].isdigit():
+                    individually_declared = True
+                direction = IO[details["direction"].upper()]
+                bits = details.get("bits", [])
+                filtered_ports[port_name] = (direction, bits)
+
+        if individually_declared:
+            logger.warning(
+                f"Ports in {filename} have been individually declared rather than as a vector."
+            )
+            logger.warning("Ports will not be concatenated during fabric generation.")
+
+        param_defaults = module_info.get("parameter_default_values")
+        if param_defaults and "NoConfigBits" in param_defaults:
+            noConfigBits = param_defaults["NoConfigBits"]
+        # Passed attributes dont show in port list, checks for attributes in netnames.
+        # (If passed attributes missing, may need to expand to check other lists e.g "memories".)
+        netnames = module_info.get("netnames", {})
+        for item, details in netnames.items():
+            if item in filtered_ports:
+                direction, bits = filtered_ports[item]
+                attributes = details.get("attributes", {})
+                for index in range(len(bits)):
+                    new_port_name = (
+                        f"{item}{index}" if len(bits) > 1 else item
+                    )  # Multi-bit ports get index
+                    if "EXTERNAL" in attributes and "SHARED_PORT" not in attributes:
+                        external.append((f"{belPrefix}{new_port_name}", direction))
+                    elif "CONFIG" in attributes:
+                        config.append((f"{belPrefix}{new_port_name}", direction))
+                    elif "SHARED_PORT" in attributes:
+                        shared.append((new_port_name, direction))
+                    else:
+                        internal.append((f"{belPrefix}{new_port_name}", direction))
+        belMapDic = verilog_belMapProcessing(module_info)
+        if len(belMapDic) != noConfigBits:
+            raise ValueError(
+                f"NoConfigBits does not match with the BEL map in file {filename}, length of BelMap is {len(belMapDic)}, but with {noConfigBits} config bits"
+            )
+
+    return Bel(
+        src=filename,
+        prefix=belPrefix,
+        internal=internal,
+        external=external,
+        configPort=config,
+        sharedPort=shared,
+        configBit=noConfigBits,
+        belMap=belMapDic,
+        userCLK=userClk,
+        individually_declared=individually_declared,
+    )
 
 
-def _belMapProcessing(
-    file: str, filename: str, syntax: Literal["vhdl", "verilog"]
-) -> dict:
-    pre = ""
-    if syntax == "vhdl":
-        pre = "--.*?"
+def verilog_belMapProcessing(module_info):
+    """Extracts and transforms BEL mapping attributes in the JSON created from a Verilog module.
+
+    Parameters
+    ----------
+    module_info : dict
+        A dictionary containing the module's attributes, including
+        potential BEL mapping information.
+
+    Returns
+    -------
+    dic
+        Dictionary containing the parsed bel mapping information.
+    """
+    belMapDic = {}
+    attributes = module_info.get("attributes", {})
+    # if BelMap not present defaults belMapDic to {}
+    if "BelMap" not in attributes:
+        return belMapDic
+    # Passed attributes that dont need appending. (May need refining.)
+    exclude_attributes = {
+        "BelMap",
+        "FABulous",
+        "dynports",
+        "cells_not_processed",
+        "src",
+    }
+    # match case for INIT. (may need modifying for other naming conventions.)
+    for key, value in attributes.items():
+        if key in exclude_attributes:
+            continue
+        match key:
+            case key if key.startswith("INIT_") and key[5:].isdigit():
+                index = key[5:]
+                new_key = f"INIT[{index}]"
+            case "INIT":
+                new_key = "INIT"
+            case key if key.isupper() and "_" not in key:
+                new_key = key
+            case _:
+                new_key = key
+
+        belMapDic[new_key] = {0: {0: "1"}}
+
+    # yosys reverses belmap, reverse back to keep original belmap.
+    belMapDic = dict(reversed(list(belMapDic.items())))
+
+    return belMapDic
+
+
+def vhdl_belMapProcessing(file: str, filename: str) -> dict:
+    """Processes bel mapping information from file contents.
+
+    Parameters
+    ----------
+    file : str
+        Conent of the file as a string
+    filename : str
+        Name of the file being processed
+    syntax : Literal['vhdl']
+        Syntax type of the file.
+
+    Returns
+    -------
+    dict
+        Dictionary containing the parsed bel mapping information.
+
+    Raises
+    ------
+    ValueError
+        If invalid enum is encounted in the file.
+    """
+    pre = "--.*?"
 
     belEnumsDic = {}
     if belEnums := re.findall(
@@ -797,7 +1005,8 @@ def _belMapProcessing(
                 start = int(enumParse.group(2))
                 end = int(enumParse.group(3))
             else:
-                raise ValueError(f"Invalid enum {enums[0]} in file {filename}")
+                logger.error(f"Invalid enum {enums[0]} in file {filename}")
+                raise ValueError
             belEnumsDic[name] = {}
             for i in enums[1:]:
                 key, value = i.split("=")
@@ -854,28 +1063,39 @@ def _belMapProcessing(
 
 
 def parseConfigMem(
-    fileName: str, maxFramePerCol: int, frameBitPerRow: int, globalConfigBits: int
+    fileName: Path,
+    maxFramePerCol: int,
+    frameBitPerRow: int,
+    globalConfigBits: int,
 ) -> list[ConfigMem]:
-    """
-    Parse the config memory csv file into a list of ConfigMem objects
+    """Parse the config memory CSV file into a list of ConfigMem objects.
 
-    Args:
-        fileName (str): directory of the config memory csv file
-        maxFramePerCol (int): maximum number of frames per column
-        frameBitPerRow (int): number of bits per row
-        globalConfigBits (int): number of global config bits for the config memory
+    Parameters
+    ----------
+    fileName : str
+        Directory of the config memory CSV file
+    maxFramePerCol : int
+        Maximum number of frames per colum
+    frameBitPerRow : int
+        Number of bits per row
+    globalConfigBits : int
+        Number of global config bits for the config memory
 
-    Raises:
-        ValueError: Invalid amount of frame entries in the config memory csv file
-        ValueError: Too many value in bit mask
-        ValueError: Length of bit mask does not match with the number of frame bits per row
-        ValueError: Bit mast does not have enough value matching the number of the given config bits
-        ValueError: repeated config bit entry in ':' separated format in config bit range
-        ValueError: repeated config bit entry in list format in config bit range
-        ValueError: Invalid range entry in config bit range
+    Raises
+    ------
+    ValueError
+        - Invalid amount of frame entries in the config memory CSV file
+        - Too many values in bit mask
+        - Length of bit mask does not match the number of frame bits per row
+        - Bit mask does not have enough values matching the number of the given config bits
+        - Repeated config bit entry in ':' separated format in config bit range
+        - Repeated config bit entry in list format in config bit range
+        - Invalid range entry in config bit range
 
-    Returns:
-        list[ConfigMem]: _description_
+    Returns
+    -------
+    list[ConfigMem]
+        List of ConfigMem objects parsed from the config memory CSV file.
     """
     with open(fileName) as f:
         mappingFile = list(csv.DictReader(f))
@@ -888,27 +1108,31 @@ def parseConfigMem(
 
         # we should have as many lines as we have frames (=framePerCol)
         if len(mappingFile) != maxFramePerCol:
-            raise ValueError(
-                f"WARNING: the bitstream mapping file has only {len(mappingFile)} entries but MaxFramesPerCol is {maxFramePerCol}"
+            logger.error(
+                f"The bitstream mapping file has only {len(mappingFile)} entries but MaxFramesPerCol is {maxFramePerCol}."
             )
+            raise ValueError
 
         # we also check used_bits_mask (is a vector that is as long as a frame and contains a '1' for a bit used and a '0' if not used (padded)
         usedBitsCounter = 0
         for entry in mappingFile:
             if entry["used_bits_mask"].count("1") > frameBitPerRow:
-                raise ValueError(
+                logger.error(
                     f"bitstream mapping file {fileName} has to many 1-elements in bitmask for frame : {entry['frame_name']}"
                 )
+                raise ValueError
             if len(entry["used_bits_mask"]) != frameBitPerRow:
-                raise ValueError(
+                logger.error(
                     f"bitstream mapping file {fileName} has has a too long or short bitmask for frame : {entry['frame_name']}"
                 )
+                raise ValueError
             usedBitsCounter += entry["used_bits_mask"].count("1")
 
         if usedBitsCounter != globalConfigBits:
-            raise ValueError(
-                f"bitstream mapping file {fileName} has a bitmask miss match; bitmask has in total {usedBitsCounter} 1-values for {globalConfigBits} bits"
+            logger.error(
+                f"bitstream mapping file {fileName} has a bitmask mismatch; bitmask has in total {usedBitsCounter} 1-values for {globalConfigBits} bits."
             )
+            raise ValueError
 
         allConfigBitsOrder = []
         configMemEntry = []
@@ -930,26 +1154,29 @@ def parseConfigMem(
 
                 for i in numList:
                     if i in allConfigBitsOrder:
-                        raise ValueError(
-                            f"Configuration bit index {i} already allocated in {fileName}, {entry['frame_name']}"
+                        logger.error(
+                            f"Configuration bit index {i} already allocated in {fileName}, {entry['frame_name']}."
                         )
+                        raise ValueError
                     configBitsOrder.append(i)
 
             elif ";" in entry["ConfigBits_ranges"]:
                 for item in entry["ConfigBits_ranges"].split(";"):
                     if int(item) in allConfigBitsOrder:
-                        raise ValueError(
-                            f"Configuration bit index {item} already allocated in {fileName}, {entry['frame_name']}"
+                        logger.error(
+                            f"Configuration bit index {item} already allocated in {fileName}, {entry['frame_name']}."
                         )
+                        raise ValueError
                     configBitsOrder.append(int(item))
 
             elif "NULL" in entry["ConfigBits_ranges"]:
                 continue
 
             else:
-                raise ValueError(
-                    f"Range {entry['ConfigBits_ranges']} is not a valid format. It should be in the form [int]:[int] or [int]. If there are multiple ranges it should be separated by ';'"
+                logger.error(
+                    f"Range {entry['ConfigBits_ranges']} is not a valid format. It should be in the form [int]:[int] or [int]. If there are multiple ranges it should be separated by ';'."
                 )
+                raise ValueError
 
             allConfigBitsOrder += configBitsOrder
 
@@ -965,17 +1192,3 @@ def parseConfigMem(
                 )
 
     return configMemEntry
-
-
-if __name__ == "__main__":
-    # result = parseFabricCSV('fabric.csv')
-    # result1 = parseList('RegFile_switch_matrix.list', collect="source")
-    # result = parseFileVerilog('./LUT4c_frame_config_dffesr.v')
-
-    result2 = parseFileVerilog("./test.txt")
-    # print(result[0])
-    # print(result[1])
-    # print(result[2])
-    # print(result[3])
-
-    # print(result.tileDic["W_IO"].portsInfo)
