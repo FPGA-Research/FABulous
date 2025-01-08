@@ -2,9 +2,9 @@ name: "Docs Build Check"
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, FABulous2.0-development ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, FABulous2.0-development ]
 
 jobs:
   docs:
