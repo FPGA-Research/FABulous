@@ -575,7 +575,7 @@ class codeGenerator(abc.ABC):
 
     @abc.abstractmethod
     def addPreprocIfDef(self, macro, indentLevel=0):
-        """Add a preprocessor "ifdef".
+        r"""Add a preprocessor "ifdef".
 
         Parameters
         ----------
@@ -598,7 +598,7 @@ class codeGenerator(abc.ABC):
 
     @abc.abstractmethod
     def addPreprocIfNotDef(self, macro, indentLevel=0):
-        """Add a preprocessor "ifndef".
+        r"""Add a preprocessor "ifndef".
 
         Parameters
         ----------
@@ -621,7 +621,7 @@ class codeGenerator(abc.ABC):
 
     @abc.abstractmethod
     def addPreprocElse(self, indentLevel=0):
-        """Add a preprocessor "else".
+        r"""Add a preprocessor "else".
 
         Parameters
         ----------
@@ -642,7 +642,7 @@ class codeGenerator(abc.ABC):
 
     @abc.abstractmethod
     def addPreprocEndif(self, indentLevel=0):
-        """
+        r"""
         Add a preprocessor "endif".
 
         Parameters
