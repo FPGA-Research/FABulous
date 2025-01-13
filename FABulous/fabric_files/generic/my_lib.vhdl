@@ -6,7 +6,7 @@ use IEEE.STD_LOGIC_1164.ALL;
 
 -- LHD1 Latch area 11.76
 entity  LHD1  is
-	Port (
+    Port (
     D    : in      STD_LOGIC;     -- global signal 1: configuration, 0: operation
     E    : in      STD_LOGIC;
     Q    : out     STD_LOGIC;
@@ -38,7 +38,7 @@ use IEEE.NUMERIC_STD.ALL;
 
 -- LHQD1 Latch area 10.67
 entity  LHQD1  is
-	Port (
+    Port (
     D    : in      STD_LOGIC;     -- global signal 1: configuration, 0: operation
     E    : in      STD_LOGIC;
     Q    : out     STD_LOGIC );
@@ -72,7 +72,7 @@ use IEEE.STD_LOGIC_1164.ALL;
 
 -- LHQD1 Latch area 10.67
 entity  MUX4PTv4  is
-	Port (
+    Port (
     IN1  : in      STD_LOGIC;
     IN2  : in      STD_LOGIC;
     IN3  : in      STD_LOGIC;
@@ -94,7 +94,7 @@ with SEL select
            IN2 when "01",
            IN3 when "10",
            IN4 when "11",
-		   '0' when others;
+           '0' when others;
 
 end Behavioral;
 
@@ -103,7 +103,7 @@ use IEEE.STD_LOGIC_1164.ALL;
 
 -- LHQD1 Latch area 10.67
 entity  MUX16PTv2  is
-	Port (
+    Port (
     IN1  : in      STD_LOGIC;
     IN2  : in      STD_LOGIC;
     IN3  : in      STD_LOGIC;
@@ -139,19 +139,19 @@ with SEL select
            IN2  when "0001",
            IN3  when "0010",
            IN4  when "0011",
-		   IN5  when "0100",
-		   IN6  when "0101",
-		   IN7  when "0110",
-		   IN8  when "0111",
-		   IN9  when "1000",
-		   IN10 when "1001",
-		   IN11 when "1010",
-		   IN12 when "1011",
-		   IN13 when "1100",
-		   IN14 when "1101",
-		   IN15 when "1110",
-		   IN16 when "1111",
-		   '0' when others;
+           IN5  when "0100",
+           IN6  when "0101",
+           IN7  when "0110",
+           IN8  when "0111",
+           IN9  when "1000",
+           IN10 when "1001",
+           IN11 when "1010",
+           IN12 when "1011",
+           IN13 when "1100",
+           IN14 when "1101",
+           IN15 when "1110",
+           IN16 when "1111",
+           '0' when others;
 
 end Behavioral;
 
@@ -161,7 +161,7 @@ use ieee.std_logic_1164.all;
 package my_package is
 
 component  LHD1  is
-	Port (
+    Port (
     D    : in      STD_LOGIC;
     E    : in      STD_LOGIC;
     Q    : out     STD_LOGIC;
@@ -169,14 +169,14 @@ component  LHD1  is
 end component LHD1 ;
 
 component  LHQD1  is
-	Port (
+    Port (
     D    : in      STD_LOGIC;
     E    : in      STD_LOGIC;
     Q    : out     STD_LOGIC );
 end component LHQD1 ;
 
 component  MUX4PTv4  is
-	Port (
+    Port (
     IN1  : in      STD_LOGIC;
     IN2  : in      STD_LOGIC;
     IN3  : in      STD_LOGIC;
@@ -187,7 +187,7 @@ component  MUX4PTv4  is
 end component MUX4PTv4 ;
 
 component  MUX16PTv2  is
-	Port (
+    Port (
     IN1  : in      STD_LOGIC;
     IN2  : in      STD_LOGIC;
     IN3  : in      STD_LOGIC;

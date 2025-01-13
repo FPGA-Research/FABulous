@@ -38,9 +38,9 @@ These are 8 LUT BELs (each of which use 18 configuration bits) and a MUX8LUT (wh
 
 The configuration bits for each LUT4c BEL are:
 
-	- [15…0]	LUT init value (the truth table)
-	- [16]		c_out_mux; ‘1’: use flip flop output, ‘0’: use combinatorial LUT output
-	- [17]		c_I0mux; ‘1’: use I0 as Carry in; ‘0’ normal mode (I0 driven by  input routing multiplexer)
+    - [15…0]  LUT init value (the truth table)
+    - [16]      c_out_mux; ‘1’: use flip flop output, ‘0’: use combinatorial LUT output
+    - [17]      c_I0mux; ‘1’: use I0 as Carry in; ‘0’ normal mode (I0 driven by  input routing multiplexer)
 
 The 2 configuration bits of the MUX8LUT BEL describe if we cascade to implement 4 x LUT5, 2 x LUT6 or 1 x LUT7.
 
@@ -50,19 +50,19 @@ In that file, each row describes one configurable switch matrix multiplexer. The
 The configuration bits of the individual switch matrix multiplexers are concatenated in the order they appear in the adjacency table, as can be seen in the generated RTL code:
 
 ```
--- switch matrix multiplexer  N1BEG0 		MUX-4
-N1BEG0_input 	 <= J_l_CD_END1 & JW2END3 & J2MID_CDb_END3 & LC_O after 80 ps;
-N1BEG0	<= N1BEG0_input(TO_INTEGER(UNSIGNED(ConfigBits(1 downto 0))));
+-- switch matrix multiplexer  N1BEG0        MUX-4
+N1BEG0_input     <= J_l_CD_END1 & JW2END3 & J2MID_CDb_END3 & LC_O after 80 ps;
+N1BEG0  <= N1BEG0_input(TO_INTEGER(UNSIGNED(ConfigBits(1 downto 0))));
 
--- switch matrix multiplexer  N1BEG1 		MUX-4
-N1BEG1_input 	 <= J_l_EF_END2 & JW2END0 & J2MID_EFb_END0 & LD_O after 80 ps;
-N1BEG1	<= N1BEG1_input(TO_INTEGER(UNSIGNED(ConfigBits(3 downto 2))));
+-- switch matrix multiplexer  N1BEG1        MUX-4
+N1BEG1_input     <= J_l_EF_END2 & JW2END0 & J2MID_EFb_END0 & LD_O after 80 ps;
+N1BEG1  <= N1BEG1_input(TO_INTEGER(UNSIGNED(ConfigBits(3 downto 2))));
 
 …
 
--- switch matrix multiplexer  J_l_GH_BEG3 		MUX-4
-J_l_GH_BEG3_input 	 <= JW2END4 & W2END0 & E6END0 & N4END0 after 80 ps;
-J_l_GH_BEG3	<= J_l_GH_BEG3_input(TO_INTEGER(UNSIGNED(ConfigBits(391 downto 390))));
+-- switch matrix multiplexer  J_l_GH_BEG3       MUX-4
+J_l_GH_BEG3_input    <= JW2END4 & W2END0 & E6END0 & N4END0 after 80 ps;
+J_l_GH_BEG3 <= J_l_GH_BEG3_input(TO_INTEGER(UNSIGNED(ConfigBits(391 downto 390))));
 ```
 
 When generating the Multiplexers, FABulous is writing metadata that contains a dictionary that denotes for each possible switch matrix multiplexer setting the corresponding bits.
@@ -88,9 +88,9 @@ The bold numbers are the base configuration bit offsets for the different BELs a
 
 | | |
 |---|---|
-|[53]|‘0’	# no carry chain|
-|[52]|‘1’	# use flip-flop output|
-|[51…36]|‘1000_0000_0000_0000’	# AND truth table|
+|[53]|‘0’   # no carry chain|
+|[52]|‘1’   # use flip-flop output|
+|[51…36]|‘1000_0000_0000_0000’    # AND truth table|
 
 In order to translate a FASM switch matrix routing entry into the tile configuration, we look up the FASM entry in the corresponding tile type switch matrix routing dictionary (file TODO) and add the base bit offset (here 146) to the reported bits.
 For instance, to configure the switch matrix setting JW2END0  N1BEG1, we set tile configuration bits [149]=’1’ and [148]=’0’.

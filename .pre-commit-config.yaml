@@ -1,3 +1,4 @@
+files: ^FABulous/
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -30,3 +31,15 @@ repos:
       - id: interrogate
         args: [-vv, --ignore-magic, --ignore-init-module, --fail-under=40] # we should aim at 90%
         pass_filenames: false  # needed if excluding files with pyproject.toml or setup.cfg
+
+-   repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.5
+    hooks:
+      - id: forbid-crlf
+      - id: remove-crlf
+      - id: forbid-tabs
+      - id: remove-tabs
+    #   - id: insert-license
+    #     args:
+    #         - --use-current-year
+    #         - --no-extra-eol                # see below

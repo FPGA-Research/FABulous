@@ -1,8 +1,8 @@
 module BlockRAM_1KB (clk, rd_addr, rd_data, wr_addr, wr_data, C0, C1, C2, C3, C4, C5);
 
-	parameter READ_ADDRESS_MSB_FROM_DATALSB = 24; //default 24 means bits wr_data[25:24] will become bits [9:8] of read address
-	parameter WRITE_ADDRESS_MSB_FROM_DATALSB = 16; //default 16 means bits wr_data[17:16] will become bits [9:8] of write address
-	parameter WRITE_ENABLE_FROM_DATA = 20; //default 20 means bit wr_data[20] will become the dynamic writeEnable input
+    parameter READ_ADDRESS_MSB_FROM_DATALSB = 24; //default 24 means bits wr_data[25:24] will become bits [9:8] of read address
+    parameter WRITE_ADDRESS_MSB_FROM_DATALSB = 16; //default 16 means bits wr_data[17:16] will become bits [9:8] of write address
+    parameter WRITE_ENABLE_FROM_DATA = 20; //default 20 means bit wr_data[20] will become the dynamic writeEnable input
     input clk;
     input [7:0] rd_addr;
     output [31:0] rd_data;
@@ -22,51 +22,51 @@ module BlockRAM_1KB (clk, rd_addr, rd_data, wr_addr, wr_data, C0, C1, C2, C3, C4
     wire [1:0] rd_port_configuration;
     wire [1:0] wr_port_configuration;
     wire optional_register_enabled_configuration;
-	wire alwaysWriteEnable;
+    wire alwaysWriteEnable;
     assign wr_port_configuration = {C0, C1};
     assign rd_port_configuration = {C2, C3};
-	assign alwaysWriteEnable = C4;
+    assign alwaysWriteEnable = C4;
     assign optional_register_enabled_configuration = C5;
 
     reg memWriteEnable;
     always @ (*) begin // write enable
-		if(alwaysWriteEnable) begin
-			memWriteEnable = 0; // This RAM primitive is active low.
-		end else begin
-			memWriteEnable = (!(wr_data[WRITE_ENABLE_FROM_DATA])); // inverting the bit to make it active-high
-		end
+        if(alwaysWriteEnable) begin
+            memWriteEnable = 0; // This RAM primitive is active low.
+        end else begin
+            memWriteEnable = (!(wr_data[WRITE_ENABLE_FROM_DATA])); // inverting the bit to make it active-high
+        end
     end
     reg [3:0] mem_wr_mask;
     reg [31:0] muxedDataIn;
 
-	wire [1:0] wr_addr_topbits;
-	assign wr_addr_topbits = wr_data[WRITE_ADDRESS_MSB_FROM_DATALSB+1:WRITE_ADDRESS_MSB_FROM_DATALSB];
+    wire [1:0] wr_addr_topbits;
+    assign wr_addr_topbits = wr_data[WRITE_ADDRESS_MSB_FROM_DATALSB+1:WRITE_ADDRESS_MSB_FROM_DATALSB];
     always @ (*) begin //write port config -> mask + write data multiplex
-		muxedDataIn = 32'dx;
+        muxedDataIn = 32'dx;
         if(wr_port_configuration == 0) begin
             mem_wr_mask = 4'b1111;
-			muxedDataIn = wr_data;
+            muxedDataIn = wr_data;
         end else if(wr_port_configuration == 1) begin
             if(wr_addr_topbits == 0) begin
                 mem_wr_mask = 4'b0011;
-				muxedDataIn[15:0] = wr_data[15:0];
+                muxedDataIn[15:0] = wr_data[15:0];
             end else begin
                 mem_wr_mask = 4'b1100;
-				muxedDataIn[31:16] = wr_data[15:0];
+                muxedDataIn[31:16] = wr_data[15:0];
             end
         end else if(wr_port_configuration == 2) begin
             if(wr_addr_topbits == 0) begin
                 mem_wr_mask = 4'b0001;
-				muxedDataIn[7:0] = wr_data[7:0];
+                muxedDataIn[7:0] = wr_data[7:0];
             end else if(wr_addr_topbits == 1) begin
                 mem_wr_mask = 4'b0010;
-				muxedDataIn[15:8] = wr_data[7:0];
+                muxedDataIn[15:8] = wr_data[7:0];
             end else if(wr_addr_topbits == 2) begin
                 mem_wr_mask = 4'b0100;
-				muxedDataIn[23:16] = wr_data[7:0];
+                muxedDataIn[23:16] = wr_data[7:0];
             end else begin
                 mem_wr_mask = 4'b1000;
-				muxedDataIn[31:24] = wr_data[7:0];
+                muxedDataIn[31:24] = wr_data[7:0];
             end
         end
     end
@@ -131,8 +131,8 @@ endmodule
 (* blackbox *)
 module sram_1rw1r_32_256_8_sky130(
 //`ifdef USE_POWER_PINS
-//	vdd,
-//	gnd,
+//  vdd,
+//  gnd,
 //`endif
 // Port 0: RW
     clk0,csb0,web0,wmask0,addr0,din0,dout0,

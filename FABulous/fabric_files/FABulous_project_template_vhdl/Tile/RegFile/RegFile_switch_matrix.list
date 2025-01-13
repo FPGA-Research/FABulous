@@ -4,9 +4,9 @@
 
 # for test only
 # N1BEG[0 |1 | 3 ], N1END[ 0| 1| 3 ]
-# N1 BE G [	1	| 1 ] , 	N1END[ 2 |	3	]	# test00
-# N1BEG3 	, 	N1END0
-# DOES NOT work: # N1BEG[2|2|2|2] 	, 	[N1END[3|2]|N1END[1|0]]
+# N1 BE G [ 1   | 1 ] ,     N1END[ 2 |  3   ]   # test00
+# N1BEG3    ,   N1END0
+# DOES NOT work: # N1BEG[2|2|2|2]   ,   [N1END[3|2]|N1END[1|0]]
 
 ############## LUT Inputs ##############
 ############## LUT Inputs ##############
@@ -214,7 +214,7 @@ W2BEG[0|3|4|7],JW2END[0|3|4|7]
 # This is a little like solving a Sudoku puzzle
 # This routing scheme is useful for simple Boolean functions
 # Foreseen mapping:
-	#         J2END_AB_BEG  J_l_AB_BEG
+    #         J2END_AB_BEG  J_l_AB_BEG
 # LUT_Input | J2END_x_BEG | J_1_x_BEG | used_index
 # ----------|-------------|-----------|--------------------------------------------------
 #   AB 0    |  W2END6     |   W2END3* |   3

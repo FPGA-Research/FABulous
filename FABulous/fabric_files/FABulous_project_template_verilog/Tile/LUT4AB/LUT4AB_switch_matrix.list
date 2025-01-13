@@ -174,7 +174,7 @@ W2BEG[0|3|4|7],JW2END[0|3|4|7]
 # This is a little like solving a Sudoku puzzle
 # This routing scheme is useful for simple Boolean functions
 # Foreseen mapping:
-	#         J2END_AB_BEG  J_l_AB_BEG
+    #         J2END_AB_BEG  J_l_AB_BEG
 # LUT_Input | J2END_x_BEG | J_1_x_BEG | used_index
 # ----------|-------------|-----------|--------------------------------------------------
 #   AB 0    |  W2END6     |   W2END3* |   3
