@@ -140,7 +140,7 @@ Fabric CSV description
     The latter is implemented by replacing a defined n-input multiplexer with a predefined template. For instance, for the Skywater 130 process, we provide a transmission gate-based custom MUX4. In the case of requiring a MUX16, FABulous will synthesize this multiplexer to use 4 + 1 of our custom cells.
 
     .. note::  So far, FABulous fabrics use fully (binary) encoded multiplexers (e.g., a MUX16 requires 4 configuration bits). However, the major vendors Xilinx and Intel use highly optimized SRAM cells where a configuration cell may directly control a pass transistor (e.g., as used in Xilinx UltraScale fabrics). For a MUX16, this requires 2 x 4 = 8 configuration bits, but is slightly better in area as omits a decoder.
-	We plan to extend the FABulous switch matrix compiler accordingly.
+    We plan to extend the FABulous switch matrix compiler accordingly.
 
   * ``Tile``, ``path``
 
@@ -324,7 +324,7 @@ specifying:
   .. code-block:: python
 
      # this is for the CLBs in the example
-	 #direction  source_name  X-offset  Y-offset  destination_name  wires
+     #direction  source_name  X-offset  Y-offset  destination_name  wires
      EAST,       E4b,         4,        0,        E4e,              N    # N is used for illustration only
      WEST,       W4b,         -4,       0,        W4e,              N    # N is used for illustration only
 
@@ -578,20 +578,20 @@ The BEL statements in the previous example instantiate a LUT4 in VHDL:
 .. code-block:: VHDL
 
    entity LUT4 is
-    Generic ( NoConfigBits : integer := 18 );	-- has to be adjusted manually
+    Generic ( NoConfigBits : integer := 18 );   -- has to be adjusted manually
     Port (      -- IMPORTANT: this has to be in a dedicated line
-	I0	: in	STD_LOGIC; -- LUT inputs
-	I1	: in	STD_LOGIC;
-	I2	: in	STD_LOGIC;
-	I3	: in	STD_LOGIC;
-	O	: out	STD_LOGIC; -- LUT output (combinatorial or FF)
-	Ci	: in	STD_LOGIC; -- carry chain input
-	Co	: out	STD_LOGIC; -- carry chain output
-	UserCLK : in	STD_LOGIC; -- EXTERNAL -- SHARED_PORT
-	-- the # EXTERNAL keyword will send this signal all the way to top and
-	-- #SHARED allows multiple BELs using same port (exports 1 clock to top)
-	ConfigBits : in 	 STD_LOGIC_VECTOR( NoConfigBits -1 downto 0 )
-	);
+    I0  : in    STD_LOGIC; -- LUT inputs
+    I1  : in    STD_LOGIC;
+    I2  : in    STD_LOGIC;
+    I3  : in    STD_LOGIC;
+    O   : out   STD_LOGIC; -- LUT output (combinatorial or FF)
+    Ci  : in    STD_LOGIC; -- carry chain input
+    Co  : out   STD_LOGIC; -- carry chain output
+    UserCLK : in    STD_LOGIC; -- EXTERNAL -- SHARED_PORT
+    -- the # EXTERNAL keyword will send this signal all the way to top and
+    -- #SHARED allows multiple BELs using same port (exports 1 clock to top)
+    ConfigBits : in      STD_LOGIC_VECTOR( NoConfigBits -1 downto 0 )
+    );
    end entity LUT4;
 
 And the equivalent in Verilog:
@@ -717,10 +717,10 @@ In the code example for a LUT, it was shown that the configuration bits are expo
    :emphasize-lines: 5
 
    entity LUT4 is
-    Generic ( NoConfigBits : integer := 18 );	-- has to be adjusted manually
+    Generic ( NoConfigBits : integer := 18 );   -- has to be adjusted manually
     Port (      -- IMPORTANT: this has to be in a dedicated line
     ...
-    ConfigBits : in 	 STD_LOGIC_VECTOR( NoConfigBits -1 downto 0 )  -- These are the configuration bits
+    ConfigBits : in      STD_LOGIC_VECTOR( NoConfigBits -1 downto 0 )  -- These are the configuration bits
 
 Exporting configuration bits is a requirement for any primitive or switch matrix that uses configuration bits. The tile configuration bitstream is formed by concatenating first the primitive configuration bits (if primitives are available and use configuration bits) and then the switch matrix configuration bits (again, only if the switch matrix uses configuration bits) into one long tile configuration word.
 This is done in the order that the primitives are declared by ``BEL`` entries in the tile definition. Configuration bitstream vectors are defined in the *downto* direction and the first BEL primitive configuration bits will be placed at the LSB side of the tile bitstream and the configuration switch matrix at the MSB side.
