@@ -12,7 +12,7 @@ entity MUX8LUT_frame_config is
 	B	: in	STD_LOGIC;
 	C	: in	STD_LOGIC;
 	D	: in	STD_LOGIC;
-	E	: in	STD_LOGIC; 
+	E	: in	STD_LOGIC;
 	F	: in	STD_LOGIC;
 	G	: in	STD_LOGIC;
 	H	: in	STD_LOGIC;

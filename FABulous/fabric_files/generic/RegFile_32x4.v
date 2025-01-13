@@ -30,7 +30,7 @@ module RegFile_32x4 (D0, D1, D2, D3, W_ADR0, W_ADR1, W_ADR2, W_ADR3, W_ADR4, W_e
 	input W_ADR3;
 	input W_ADR4;
 	input W_en;
-	
+
 	output AD0;// Register File read port A
 	output AD1;
 	output AD2;
@@ -69,7 +69,7 @@ module RegFile_32x4 (D0, D1, D2, D3, W_ADR0, W_ADR1, W_ADR2, W_ADR3, W_ADR4, W_e
 
 	reg [3:0] AD_reg;		// port A read data register
 	reg [3:0] BD_reg;		// port B read data register
-	
+
 	integer i;
 
 	assign W_ADR = {W_ADR4,W_ADR3,W_ADR2,W_ADR1,W_ADR0};
@@ -77,7 +77,7 @@ module RegFile_32x4 (D0, D1, D2, D3, W_ADR0, W_ADR1, W_ADR2, W_ADR3, W_ADR4, W_e
 	assign B_ADR = {B_ADR4,B_ADR3,B_ADR2,B_ADR1,B_ADR0};
 
 	assign D = {D3,D2,D1,D0};
-	
+
 	initial begin
 		for (i=0; i<32; i=i+1) begin
 			mem[i] = 4'b0000;

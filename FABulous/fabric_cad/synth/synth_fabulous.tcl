@@ -25,9 +25,9 @@ yosys hierarchy -check
 yosys stat
 
 if {$argc > 1} {
-        if {$for_vpr} { 
-                yosys write_blif [lindex $argv 2] 
-        } else { 
-                yosys write_json [lindex $argv 2] 
+        if {$for_vpr} {
+                yosys write_blif [lindex $argv 2]
+        } else {
+                yosys write_json [lindex $argv 2]
         }
 }

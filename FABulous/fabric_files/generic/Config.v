@@ -14,10 +14,10 @@ module Config (CLK, Rx, ComActive, ReceiveLED, s_clk, s_data, SelfWriteData, Sel
 	// CPU configuration port
 	input [32-1:0] SelfWriteData; // configuration data write port
 	input SelfWriteStrobe; // must decode address and write enable
-	
+
 	output [32-1:0] ConfigWriteData;
 	output ConfigWriteStrobe;
-	
+
 	output [FrameBitsPerRow-1:0] FrameAddressRegister;
 	output LongFrameStrobe;
 	output [RowSelectWidth-1:0] RowSelect;
@@ -35,7 +35,7 @@ module Config (CLK, Rx, ComActive, ReceiveLED, s_clk, s_data, SelfWriteData, Sel
 	wire [31:0] BitBangWriteData_Mux;
 	wire BitBangWriteStrobe_Mux;
 	wire BitBangActive;
-	
+
 	wire Reset;
 
 	config_UART INST_config_UART (
@@ -47,7 +47,7 @@ module Config (CLK, Rx, ComActive, ReceiveLED, s_clk, s_data, SelfWriteData, Sel
 	.Command(Command),
 	.ReceiveLED(UART_LED)
 	);
-	
+
 	//bitbang
 	bitbang Inst_bitbang (
 	.s_clk(s_clk),
@@ -57,27 +57,27 @@ module Config (CLK, Rx, ComActive, ReceiveLED, s_clk, s_data, SelfWriteData, Sel
 	.active(BitBangActive),
 	.clk(CLK)
 	);
-	
+
 	// BitBangActive is used to switch between bitbang or internal configuration port (BitBang has therefore higher priority)
 	assign BitBangWriteData_Mux = BitBangActive ? BitBangWriteData : SelfWriteData;
-	assign BitBangWriteStrobe_Mux = BitBangActive ? BitBangWriteStrobe : SelfWriteStrobe;	
+	assign BitBangWriteStrobe_Mux = BitBangActive ? BitBangWriteStrobe : SelfWriteStrobe;
 
 	// ComActive is used to switch between (bitbang+internal) port or UART (UART has therefore higher priority
 	assign UART_WriteData_Mux = UART_ComActive ? UART_WriteData : BitBangWriteData_Mux;
-	assign UART_WriteStrobe_Mux = UART_ComActive ? UART_WriteStrobe : BitBangWriteStrobe_Mux;	
-	
+	assign UART_WriteStrobe_Mux = UART_ComActive ? UART_WriteStrobe : BitBangWriteStrobe_Mux;
+
 	assign ConfigWriteData = UART_WriteData_Mux;
 	assign ConfigWriteStrobe = UART_WriteStrobe_Mux;
-	
+
 	assign Reset = UART_ComActive || BitBangActive;
 
 	assign ComActive = UART_ComActive;
-	assign ReceiveLED = UART_LED^BitBangWriteStrobe;   
-	
+	assign ReceiveLED = UART_LED^BitBangWriteStrobe;
+
 //	wire [FrameBitsPerRow-1:0] FrameAddressRegister;
 //	wire LongFrameStrobe;
 //	wire [RowSelectWidth-1:0] RowSelect;
-	
+
 	ConfigFSM ConfigFSM_inst #(.NumberOfRows(NumberOfRows), .RowSelectWidth(RowSelectWidth), .FrameBitsPerRow(FrameBitsPerRow), .desync_flag(desync_flag)) (
 	.CLK(CLK),
 	.WriteData(UART_WriteData_Mux),
@@ -88,5 +88,5 @@ module Config (CLK, Rx, ComActive, ReceiveLED, s_clk, s_data, SelfWriteData, Sel
 	.LongFrameStrobe(LongFrameStrobe),
 	.RowSelect(RowSelect)
 	);
-	
+
 endmodule

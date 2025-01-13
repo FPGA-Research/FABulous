@@ -25,8 +25,8 @@ end entity LUT4c_frame_config;
 
 architecture Behavioral of LUT4c_frame_config is
 
-constant LUT_SIZE : integer := 4; 
-constant N_LUT_flops : integer := 2 ** LUT_SIZE; 
+constant LUT_SIZE : integer := 4;
+constant N_LUT_flops : integer := 2 ** LUT_SIZE;
 
 
 signal LUT_values : std_logic_vector(N_LUT_flops-1 downto 0);
@@ -51,7 +51,7 @@ c_reset_value <= ConfigBits(18);
 I0mux <= I0 when (c_I0mux = '0') else Ci;
 LUT_index <= I3 & I2 & I1 & I0mux;
 
--- The LUT is just a multiplexer 
+-- The LUT is just a multiplexer
 -- for a first shot, I am using a 16:1
 -- LUT_out <= LUT_values(TO_INTEGER(LUT_index));
 inst_MUX16PTv2_E6BEG1 : MUX16PTv2

@@ -32,9 +32,9 @@ module eFPGA_top (I_top, T_top, O_top, A_config_C, B_config_C, CLK, resetn, Self
 	localparam FrameSelectWidth = 5;
 	localparam RowSelectWidth = 5;
 
-	// External USER ports 
+	// External USER ports
 	//inout [16-1:0] PAD; // these are for Dirk and go to the pad ring
-	output wire [32-1:0] I_top; 
+	output wire [32-1:0] I_top;
 	output wire [32-1:0] T_top;
 	input wire [32-1:0] O_top;
 	output wire [64-1:0] A_config_C;
@@ -110,8 +110,8 @@ module eFPGA_top (I_top, T_top, O_top, A_config_C, B_config_C, CLK, resetn, Self
 		config_strobe_reg3 <= config_strobe_reg2;
 	end
 	assign config_strobe = (config_strobe_reg3 && (!config_strobe_reg2)); //posedge pulse for config strobe
-	
-	
+
+
 	//latch for fabric_strobe
 	reg latch_fabric_strobe = 0;
 	reg fabric_strobe_reg1 = 0;
@@ -119,7 +119,7 @@ module eFPGA_top (I_top, T_top, O_top, A_config_C, B_config_C, CLK, resetn, Self
 	reg fabric_strobe_reg3 = 0;
 	wire latch_fabric_strobe_inverted1;
 	wire latch_fabric_strobe_inverted2;
-	
+
 	always @ (*) begin
 		if(fabric_strobe_reg2) begin
 			latch_fabric_strobe = 0;
@@ -139,7 +139,7 @@ module eFPGA_top (I_top, T_top, O_top, A_config_C, B_config_C, CLK, resetn, Self
 		fabric_strobe_reg3 <= fabric_strobe_reg2;
 	end
 	assign fabric_strobe = (fabric_strobe_reg3 && (!fabric_strobe_reg2)); //posedge pulse for config strobe
-	
+
 	//config data register
 	always @ (posedge wb_clk_i) begin
 		if(wbs_stb_i && wbs_cyc_i && wbs_we_i && !wbs_stb_i && (wbs_adr_i == 32'h30000000)) begin
@@ -152,11 +152,11 @@ module eFPGA_top (I_top, T_top, O_top, A_config_C, B_config_C, CLK, resetn, Self
 			to_fabric_ios = wbs_dat_i[16:0];
 		end
 	end
-	
+
 	//to_wishbone
 	assign wbs_dat_o = {16'b0,from_fabric_ios};
 	assign read_ena = (wbs_adr_i == 32'h30000004)? (wbs_stb_i & wbs_cyc_i & ~wbs_we_i & ~wbs_stb_i) : 1'b0;
-	
+
 	my_mux2 from_fabric_io_0  (.A0(1'b0), .A1(I_top[0]),  .S(read_ena), .X(from_fabric_ios[0]));
 	my_mux2 from_fabric_io_1  (.A0(1'b0), .A1(I_top[1]),  .S(read_ena), .X(from_fabric_ios[1]));
 	my_mux2 from_fabric_io_2  (.A0(1'b0), .A1(I_top[2]),  .S(read_ena), .X(from_fabric_ios[2]));
@@ -190,9 +190,9 @@ module eFPGA_top (I_top, T_top, O_top, A_config_C, B_config_C, CLK, resetn, Self
 	my_mux2 to_fabric_io_13 (.A0(io_in[20]), .A1(to_fabric_ios[13]), .S(A_config_C[24]), .X(O_top[13]));
 	my_mux2 to_fabric_io_14 (.A0(io_in[21]), .A1(to_fabric_ios[14]), .S(B_config_C[28]), .X(O_top[14]));
 	my_mux2 to_fabric_io_15 (.A0(io_in[22]), .A1(to_fabric_ios[15]), .S(A_config_C[28]), .X(O_top[15]));
-	
+
 	my_mux2 to_fabric_addr  (.A0(io_in[23]), .A1(to_fabric_ios[16]), .S(B_config_C[32]), .X(O_top[16]));
-	
+
 	my_mux2 to_fabric_strobe(.A0(io_in[24]), .A1(fabric_strobe),     .S(A_config_C[32]), .X(O_top[17]));
 
 	assign external_clock = io_in[0];
@@ -203,7 +203,7 @@ module eFPGA_top (I_top, T_top, O_top, A_config_C, B_config_C, CLK, resetn, Self
 	assign io_out[6]     = ReceiveLED;
 
 	assign io_oeb[6:0] = 7'b0111111;
-	
+
 	assign SelfWriteStrobe = config_strobe;
 	assign SelfWriteData   = config_data;
 
@@ -225,10 +225,10 @@ Config Config_inst (
 	.s_data(s_data),
 	.SelfWriteData(SelfWriteData),
 	.SelfWriteStrobe(SelfWriteStrobe),
-	
+
 	.ConfigWriteData(LocalWriteData),
 	.ConfigWriteStrobe(LocalWriteStrobe),
-	
+
 	.FrameAddressRegister(FrameAddressRegister),
 	.LongFrameStrobe(LongFrameStrobe),
 	.RowSelect(RowSelect)
@@ -236,4 +236,3 @@ Config Config_inst (
 
 
 	// L: if include_eFPGA = 1 generate
-

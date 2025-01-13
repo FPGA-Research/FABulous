@@ -30,21 +30,21 @@ After the FABulous flow has run successfully, the ``bel.txt`` and ``pips.txt`` w
 |X1Y1|X1    |Y1    |A     |FABULOUS_LC   |LA_I0,LA_I1,LA_I2,LA_I3,LA_Ci,LA_SR,LA_EN,LA_O,LA_Co|
 +----+------+------+------+--------------+----------------------------------------------------+
 
-**arch.cc** 
+**arch.cc**
 
 * void Arch::assignArchInfo()
 * bool Arch::cellsCompatible(const CellInfo \**cells, int count)
 
-**cells.cc** 
+**cells.cc**
 
 * std::unique_ptr<CellInfo> create_fabulous_cell(Context \*ctx, IdString type, std::string name)
 * void lut_to_lc(const Context \*ctx, CellInfo \*lut, CellInfo \*lc, bool no_dff)
-   
+
 ``pips.txt`` is the routing resource description.
 
 .. code-block:: none
     :emphasize-lines: 1
-        
+
         X1Y1,N1BEG0,X1Y0,N1END0,8,N1BEG0.N1END0
         X1Y1,N1BEG1,X1Y0,N1END1,8,N1BEG1.N1END1
         X1Y1,N1BEG2,X1Y0,N1END2,8,N1BEG2.N1END2
@@ -63,4 +63,3 @@ After the FABulous flow has run successfully, the ``bel.txt`` and ``pips.txt`` w
 +===========+===========+================+================+=====+=============+
 |X1Y1       |N1BEG0     |X1Y0            |N1END0          |8    |N1BEG0.N1END0|
 +-----------+-----------+----------------+----------------+-----+-------------+
-

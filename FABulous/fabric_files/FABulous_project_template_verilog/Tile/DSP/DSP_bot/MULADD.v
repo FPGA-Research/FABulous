@@ -34,9 +34,9 @@ module MULADD #(parameter NoConfigBits = 6)(
 	reg [7:0] A_reg;		// port A read data register
 	reg [7:0] B_reg;		// port B read data register
 	reg [19:0] C_reg;		// port B read data register
-	wire [7:0] OPA;		// port A 
-	wire [7:0] OPB;		// port B 
-	wire [19:0] OPC;		// port B  
+	wire [7:0] OPA;		// port A
+	wire [7:0] OPB;		// port B
+	wire [19:0] OPC;		// port B
 	reg [19:0] ACC ;		// accumulator register
 	wire [19:0] sum;// port B read data register
 	wire [19:0] sum_in;// port B read data register

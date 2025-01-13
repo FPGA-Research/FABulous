@@ -1,5 +1,5 @@
 module config_UART #(
-	parameter Mode = 0, // [0:auto|1:hex|2:bin] auto selects between ASCII-Hex and binary mode and takes a bit more logic, 
+	parameter Mode = 0, // [0:auto|1:hex|2:bin] auto selects between ASCII-Hex and binary mode and takes a bit more logic,
 						// bin is for faster binary mode, but might not work on all machines/boards
 						// auto uses the MSB in the command byte (the 8th byte in the comload header) to set the mode
 						// "1//- ////" is for hex mode, "0//- ////" for bin mode
@@ -15,8 +15,8 @@ module config_UART #(
 	output reg ReceiveLED
 );
 
-	//constant TimeToSendValue : integer := 16777216-1; //200000000;  
-	localparam TimeToSendValue = 16777-1; //200000000;  
+	//constant TimeToSendValue : integer := 16777216-1; //200000000;
+	localparam TimeToSendValue = 16777-1; //200000000;
 	//localparam CRC_InitValue = 16'b1111111111111111;
 	localparam TestFileChecksum = 20'h4FB00;
 
@@ -233,12 +233,12 @@ module config_UART #(
 		end else begin
 			case(PresentState)
 			Idle: begin
-				if (ComState==WaitForStartBit && RxLocal==1'b0) begin 
+				if (ComState==WaitForStartBit && RxLocal==1'b0) begin
 					PresentState <= GetID_00;
 				end
 			end
 			GetID_00: begin
-				if (TimeToSend==1'b1) begin 
+				if (TimeToSend==1'b1) begin
 					PresentState<=Idle;
 				end else if (ComState==GetStopBit && ComTick==1'b1) begin
 					PresentState <= GetID_AA;
@@ -254,7 +254,7 @@ module config_UART #(
 			GetID_FF: begin
 				if (TimeToSend==1'b1) begin
 					PresentState<=Idle;
-				end else if (ComState==GetStopBit && ComTick==1'b1) begin 
+				end else if (ComState==GetStopBit && ComTick==1'b1) begin
 					PresentState <= GetCommand;
 				end
 			end
@@ -267,7 +267,7 @@ module config_UART #(
 			GetCommand: begin
 				if (TimeToSend==1'b1) begin
 					PresentState<=Idle;
-				end else if (ComState==GetStopBit && ComTick==1'b1) begin 
+				end else if (ComState==GetStopBit && ComTick==1'b1) begin
 					PresentState <= EvalCommand;
 				end
 			end
@@ -279,8 +279,8 @@ module config_UART #(
 				end
 			end
 			GetData: begin
-				if (TimeToSend==1'b1) begin 
-					PresentState<=Idle; 
+				if (TimeToSend==1'b1) begin
+					PresentState<=Idle;
 				end
 			end
 			endcase
@@ -330,7 +330,7 @@ module config_UART #(
 			b_counter <= TestFileChecksum;
 			blink <= 23'b0;
 		end else begin
-			if (PresentState==GetCommand) begin // init before data arrives 
+			if (PresentState==GetCommand) begin // init before data arrives
 				CRCReg <= 0;
 				b_counter <= 0;
 			end else if (Mode==1 || (Mode==0 && Command_Reg[7]==1'b1)) begin // mode [0:auto|1:hex|2:bin]

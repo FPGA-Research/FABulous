@@ -22,7 +22,7 @@ module RegFile_32x4 #(parameter NoConfigBits = 2)(
 	input [3:0] D, // Register File write port
 	input [4:0] W_ADR,
 	input W_en,
-	
+
 	output [3:0] AD, // Register File read port A
 	input [4:0] A_ADR,
 
@@ -43,9 +43,9 @@ module RegFile_32x4 #(parameter NoConfigBits = 2)(
 
 	reg [3:0] AD_reg;		// port A read data, registered
 	reg [3:0] BD_reg;		// port B read data, registered
-	
+
 	integer i;
-	
+
 	initial begin
 		for (i=0; i<32; i=i+1) begin
 			mem[i] = 4'b0000;
@@ -59,7 +59,7 @@ module RegFile_32x4 #(parameter NoConfigBits = 2)(
 		end
 	end
 
-	assign AD_comb = mem[A_ADR];	
+	assign AD_comb = mem[A_ADR];
 	assign BD_comb = mem[B_ADR];
 
     always @ (posedge UserCLK) begin

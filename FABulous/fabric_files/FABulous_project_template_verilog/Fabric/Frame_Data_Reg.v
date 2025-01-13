@@ -6,7 +6,7 @@ module Frame_Data_Reg (FrameData_I, FrameData_O, RowSelect, CLK);
 	output reg [FrameBitsPerRow-1:0] FrameData_O;
 	input [RowSelectWidth-1:0] RowSelect;
 	input CLK;
-	
+
 	always @ (posedge CLK) begin
 		if (RowSelect==Row)
 			FrameData_O <= FrameData_I;

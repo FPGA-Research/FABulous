@@ -39,7 +39,7 @@ module OutPass4_frame_config (I0, I1, I2, I3, O0, O1, O2, O3, UserCLK, ConfigBit
 //              ______   ______
 //    I////+//->|FLOP|-Q-|1 M |
 //         |             |  U |//////-> O
-//         +////////////-|0 X |               
+//         +////////////-|0 X |
 
 // I am instantiating an IOBUF primitive.
 // However, it is possible to connect corresponding pins all the way to top, just by adding an "// EXTERNAL" comment (see PAD in the entity)

@@ -8,12 +8,12 @@ use work.my_package.all;
 -- pragma FABulous belMap I0_reg=0, I1_reg=1, I2_reg=2, I3_reg=3
 entity OutPass4_frame_config is
     Generic ( NoConfigBits : integer := 4 );	-- has to be adjusted manually (we don't use an arithmetic parser for the value)
-    Port ( 
+    Port (
 	-- Pin0
-	I0	: in	STD_LOGIC; 
-	I1	: in	STD_LOGIC; 
-	I2	: in	STD_LOGIC; 
-	I3	: in	STD_LOGIC; 
+	I0	: in	STD_LOGIC;
+	I1	: in	STD_LOGIC;
+	I2	: in	STD_LOGIC;
+	I3	: in	STD_LOGIC;
 	O0	: out	STD_LOGIC; -- EXTERNAL
 	O1	: out	STD_LOGIC; -- EXTERNAL
 	O2	: out	STD_LOGIC; -- EXTERNAL
@@ -30,7 +30,7 @@ architecture Behavioral of OutPass4_frame_config is
 --              ______   ______
 --    I----+--->|FLOP|-Q-|1 M |
 --         |             |  U |-------> O
---         +-------------|0 X |               
+--         +-------------|0 X |
 
 
 -- I am instantiating an IOBUF primitive.

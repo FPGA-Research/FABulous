@@ -44,8 +44,8 @@ module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
     (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK, // External and shared clock
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits // Config bits as vector
 );
-	localparam LUT_SIZE = 4; 
-	localparam N_LUT_flops = 2 ** LUT_SIZE; 
+	localparam LUT_SIZE = 4;
+	localparam N_LUT_flops = 2 ** LUT_SIZE;
 
 	wire [N_LUT_flops-1 : 0] LUT_values;
 	wire [LUT_SIZE-1 : 0] LUT_index;
@@ -71,7 +71,7 @@ module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
 
 	assign LUT_index = {I[3],I[2],I[1],I0mux};
 
-// The LUT is just a multiplexer 
+// The LUT is just a multiplexer
 // for a first shot, I am using a 16:1
 // LUT_out <= LUT_values(TO_INTEGER(LUT_index));
 	/*MUX16PTv2 inst_MUX16PTv2_E6BEG1(
@@ -132,7 +132,7 @@ module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
 	.S(c_out_mux),
 	.X(O)
 	);
-	
+
 	assign Co = (Ci & I[1]) | (Ci & I[2]) | (I[1] & I[2]);// iCE40 like carry chain (as this is supported in Yosys; would normally go for fractured LUT)
 
 	always @ (posedge UserCLK) begin

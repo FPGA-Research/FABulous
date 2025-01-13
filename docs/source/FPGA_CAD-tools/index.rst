@@ -5,6 +5,6 @@ FPGA CAD-tool parameterization
 
 .. toctree::
    :maxdepth: 2
-   
+
    yosys
    nextpnr

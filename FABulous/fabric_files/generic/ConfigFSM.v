@@ -4,16 +4,16 @@ module ConfigFSM (CLK, WriteData, WriteStrobe, Reset, FrameAddressRegister, Long
 	parameter FrameBitsPerRow = 32;
 	parameter desync_flag = 20;
 
-	input CLK; 
-	
+	input CLK;
+
 	input [31:0] WriteData;
 	input WriteStrobe;
 	input Reset;
-	
+
 	output reg [FrameBitsPerRow-1:0] FrameAddressRegister;
 	output reg LongFrameStrobe = 0;
 	output reg [RowSelectWidth-1:0] RowSelect;
-	
+
 	reg FrameStrobe = 0;
 	//signal FrameShiftState : integer range 0 to (NumberOfRows + 2);
 	reg [4:0] FrameShiftState = 0;
@@ -62,7 +62,7 @@ module ConfigFSM (CLK, WriteData, WriteStrobe, Reset, FrameAddressRegister, Long
 			endcase
 		end
 	end
-	
+
 	always @ (*) begin
 		if(WriteStrobe) begin // if writing active
 			RowSelect = FrameShiftState; // we write the frame
@@ -70,11 +70,11 @@ module ConfigFSM (CLK, WriteData, WriteStrobe, Reset, FrameAddressRegister, Long
 			RowSelect = {RowSelectWidth{1'b1}}; //otherwise, we write an invalid frame
 		end
 	end
-	
+
 	reg oldFrameStrobe = 0;
 	always @ (posedge CLK) begin : P_StrobeREG
 		oldFrameStrobe <= FrameStrobe;
 		LongFrameStrobe <= (FrameStrobe || oldFrameStrobe);
 	end//CLK
-	
+
 endmodule

@@ -5,26 +5,26 @@ use ieee.std_logic_arith.all;
 
 entity tb_bitbang is
 --	port ();
-end entity tb_bitbang; 
+end entity tb_bitbang;
 
 
-architecture Behavioral of tb_bitbang is 
+architecture Behavioral of tb_bitbang is
 
 component bitbang is
 generic (  trigger_pattern : std_logic_vector(15 downto 0) := x"FAB0");     -- ComRate = f_CLK / Boud_rate (e.g., 25 MHz/115200 Boud = 217)
-    Port (  s_clk      : in std_logic;     
+    Port (  s_clk      : in std_logic;
             s_data     : in std_logic;
             strobe     : out std_Logic;
             data       : out std_logic_vector(31 downto 0);
             clk        : in std_logic);
-end component bitbang; 
+end component bitbang;
 
-component  eFPGA_top  is 
+component  eFPGA_top  is
 	Port (
-	-- External USER ports 
-		I_top	:	 out STD_LOGIC_VECTOR (32 -1 downto 0); 
-		T_top	:	 out STD_LOGIC_VECTOR (32 -1 downto 0); 
-		O_top	:	 in  STD_LOGIC_VECTOR (32 -1 downto 0); 
+	-- External USER ports
+		I_top	:	 out STD_LOGIC_VECTOR (32 -1 downto 0);
+		T_top	:	 out STD_LOGIC_VECTOR (32 -1 downto 0);
+		O_top	:	 in  STD_LOGIC_VECTOR (32 -1 downto 0);
 		--PAD		:	inout	STD_LOGIC_VECTOR (32 -1 downto 0);	-- these are for Dirk and go to the pad ring
 		OPA		:	in		STD_LOGIC_VECTOR (64 -1 downto 0);	-- these are for Andrew	and go to the CPU
 		OPB		:	in		STD_LOGIC_VECTOR (64 -1 downto 0);	-- these are for Andrew	and go to the CPU
@@ -32,7 +32,7 @@ component  eFPGA_top  is
 		RES1	:	out		STD_LOGIC_VECTOR (64 -1 downto 0);	-- these are for Andrew	and go to the CPU
 		RES2	:	out		STD_LOGIC_VECTOR (64 -1 downto 0);	-- these are for Andrew	and go to the CPU
 		CLK	    : 	in		STD_LOGIC;							-- This clock can go to the CPU (connects to the fabric LUT output flops
-		
+
 	-- CPU configuration port
 		SelfWriteStrobe:	in		STD_LOGIC; -- must decode address and write enable
 		SelfWriteData:		in		STD_LOGIC_VECTOR (32 -1 downto 0);	-- configuration data write port
@@ -40,7 +40,7 @@ component  eFPGA_top  is
 	-- BitBang configuration port
 	   s_clk   :	in		STD_LOGIC;
        s_data  :	in		STD_LOGIC;
-		
+
 		Rx:				in		STD_LOGIC; -- alternative UART -> TODO
       ComActive:      out STD_LOGIC;
       ReceiveLED:     out STD_LOGIC
@@ -55,13 +55,13 @@ constant length : integer :=31;
 --constant test_data : std_logic_vector(length downto 0) := x"01234567_89ABCDEFAABBCCDD" & "00";
 constant test_ctrl : std_logic_vector(length+1 downto 0) := '0' & x"C000FAB1";
 
-signal tb_data    : std_logic_vector (31 downto 0); 
-signal tb_s_clk : std_logic := '0'; 
-signal tb_s_data : std_logic := '0'; 
-signal tb_strobe : std_logic := '0'; 
-signal tb_clk : std_logic := '0'; 
+signal tb_data    : std_logic_vector (31 downto 0);
+signal tb_s_clk : std_logic := '0';
+signal tb_s_data : std_logic := '0';
+signal tb_strobe : std_logic := '0';
+signal tb_clk : std_logic := '0';
 
-signal tb_s_data_debug : std_logic := '0'; 
+signal tb_s_data_debug : std_logic := '0';
 
 signal test_index : integer range 0 to 1000 := length;
 signal test_index2 : integer range 0 to 1000 := length+1;
@@ -72,9 +72,9 @@ type simType is (control, clk_up, data, clk_down);
 signal simState : simType;
 
 
-signal	tb_I_top	:	 STD_LOGIC_VECTOR (32 -1 downto 0); 
-signal	tb_T_top	:	 STD_LOGIC_VECTOR (32 -1 downto 0); 
-signal	tb_O_top	:	 STD_LOGIC_VECTOR (32 -1 downto 0) := (others => '0'); 
+signal	tb_I_top	:	 STD_LOGIC_VECTOR (32 -1 downto 0);
+signal	tb_T_top	:	 STD_LOGIC_VECTOR (32 -1 downto 0);
+signal	tb_O_top	:	 STD_LOGIC_VECTOR (32 -1 downto 0) := (others => '0');
 signal 	tb_OPA	:	STD_LOGIC_VECTOR (64 -1 downto 0) := (others => '0');
 signal 	tb_OPB	:	STD_LOGIC_VECTOR (64 -1 downto 0) := (others => '0');
 signal 	tb_RES0 :	STD_LOGIC_VECTOR (64 -1 downto 0);
@@ -104,7 +104,7 @@ tb_serial_data: process (sim_tick)
         if ((test_index MOD 8)=7 and simState=clk_down) then --start bit position
            IF (NOT endfile(f)) then
               Read( f    => f,
-                    value=> c);  
+                    value=> c);
               next_byte <= CONV_STD_LOGIC_VECTOR(character'pos(c),8);
               tb_rx <= '0';     -- we have something to send
            else
@@ -164,8 +164,8 @@ end process;
 DUT_fabric : eFPGA_top
 Port Map(
 		--PAD		=> 	tb_PAD	,
-		I_top	=> 	tb_I_top	, 
-		T_top	=> 	tb_T_top	, 
+		I_top	=> 	tb_I_top	,
+		T_top	=> 	tb_T_top	,
 		O_top	=> 	tb_O_top	,
 		OPA		=> 	tb_OPA	,
 		OPB		=> 	tb_OPB	,
@@ -173,15 +173,15 @@ Port Map(
 		RES1	=> 	tb_RES1 ,
 		RES2	=> 	tb_RES2 ,
 		CLK	    => 	tb_CLK	,
-		
+
 	-- CPU configuration port
 		SelfWriteStrobe	=> 	tb_strobe	,
         SelfWriteData	=> 	tb_data	,
-		
+
 	-- BitBang configuration port
 	   s_clk    => tb_s_clk,
 	   s_data   => tb_s_data,
-		
+
 		Rx	=> 	tb_Rx	,
 		ComActive => 	tb_ComActive	,
 		ReceiveLED => 	tb_ReceiveLED

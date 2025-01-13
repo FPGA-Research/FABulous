@@ -6,10 +6,10 @@ module BlockRAM_1KB (clk, rd_addr, rd_data, wr_addr, wr_data, C0, C1, C2, C3, C4
     input clk;
     input [7:0] rd_addr;
     output [31:0] rd_data;
-    
+
     input [7:0] wr_addr;
     input [31:0] wr_data;
-    
+
     input C0;//naming of these doesnt really matter
     input C1;// C0,C1 select write port width
     input C2;// C2,C3 select read port width
@@ -27,7 +27,7 @@ module BlockRAM_1KB (clk, rd_addr, rd_data, wr_addr, wr_data, C0, C1, C2, C3, C4
     assign rd_port_configuration = {C2, C3};
 	assign alwaysWriteEnable = C4;
     assign optional_register_enabled_configuration = C5;
-    
+
     reg memWriteEnable;
     always @ (*) begin // write enable
 		if(alwaysWriteEnable) begin
@@ -38,8 +38,8 @@ module BlockRAM_1KB (clk, rd_addr, rd_data, wr_addr, wr_data, C0, C1, C2, C3, C4
     end
     reg [3:0] mem_wr_mask;
     reg [31:0] muxedDataIn;
-	
-	wire [1:0] wr_addr_topbits; 
+
+	wire [1:0] wr_addr_topbits;
 	assign wr_addr_topbits = wr_data[WRITE_ADDRESS_MSB_FROM_DATALSB+1:WRITE_ADDRESS_MSB_FROM_DATALSB];
     always @ (*) begin //write port config -> mask + write data multiplex
 		muxedDataIn = 32'dx;

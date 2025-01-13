@@ -11,16 +11,16 @@ use work.my_package.all;
 
 entity InPass4_frame_config is
     Generic ( NoConfigBits : integer := 4 );	-- has to be adjusted manually (we don't use an arithmetic parser for the value)
-    Port ( 
+    Port (
 	-- Pin0
 	I0	: in	STD_LOGIC; -- EXTERNAL
 	I1	: in	STD_LOGIC; -- EXTERNAL
 	I2	: in	STD_LOGIC; -- EXTERNAL
 	I3	: in	STD_LOGIC; -- EXTERNAL
-	O0	: out	STD_LOGIC; 
-	O1	: out	STD_LOGIC; 
-	O2	: out	STD_LOGIC; 
-	O3	: out	STD_LOGIC; 
+	O0	: out	STD_LOGIC;
+	O1	: out	STD_LOGIC;
+	O2	: out	STD_LOGIC;
+	O3	: out	STD_LOGIC;
 	-- Tile IO ports from BELs
  	UserCLK : in	STD_LOGIC; -- EXTERNAL -- SHARED_PORT -- ## the EXTERNAL keyword will send this signal all the way to top and the --SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
 	-- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
@@ -33,7 +33,7 @@ architecture Behavioral of InPass4_frame_config is
 --              ______   ______
 --    I----+--->|FLOP|-Q-|1 M |
 --         |             |  U |-------> O
---         +-------------|0 X |               
+--         +-------------|0 X |
 
 -- I am instantiating an IOBUF primitive.
 -- However, it is possible to connect corresponding pins all the way to top, just by adding an "-- EXTERNAL" comment (see PAD in the entity)

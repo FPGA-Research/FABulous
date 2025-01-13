@@ -12,32 +12,32 @@ entity RegFile_32x4 is
 	D1	: in	STD_LOGIC;
 	D2	: in	STD_LOGIC;
 	D3	: in	STD_LOGIC;
-	W_ADR0 : in	STD_LOGIC; 
-	W_ADR1 : in	STD_LOGIC; 
-	W_ADR2 : in	STD_LOGIC; 
-	W_ADR3 : in	STD_LOGIC; 
-	W_ADR4 : in	STD_LOGIC; 
+	W_ADR0 : in	STD_LOGIC;
+	W_ADR1 : in	STD_LOGIC;
+	W_ADR2 : in	STD_LOGIC;
+	W_ADR3 : in	STD_LOGIC;
+	W_ADR4 : in	STD_LOGIC;
 	W_en : in	STD_LOGIC;
-	
+
 	AD0	: out	STD_LOGIC; -- Register File read port A
-	AD1	: out	STD_LOGIC; 
-	AD2	: out	STD_LOGIC; 
-	AD3	: out	STD_LOGIC; 
-	A_ADR0 : in	STD_LOGIC; 
-	A_ADR1 : in	STD_LOGIC; 
-	A_ADR2 : in	STD_LOGIC; 
-	A_ADR3 : in	STD_LOGIC; 
-	A_ADR4 : in	STD_LOGIC; 
+	AD1	: out	STD_LOGIC;
+	AD2	: out	STD_LOGIC;
+	AD3	: out	STD_LOGIC;
+	A_ADR0 : in	STD_LOGIC;
+	A_ADR1 : in	STD_LOGIC;
+	A_ADR2 : in	STD_LOGIC;
+	A_ADR3 : in	STD_LOGIC;
+	A_ADR4 : in	STD_LOGIC;
 
 	BD0	: out	STD_LOGIC; -- Register File read port B
-	BD1	: out	STD_LOGIC; 
-	BD2	: out	STD_LOGIC; 
-	BD3	: out	STD_LOGIC; 
-	B_ADR0 : in	STD_LOGIC; 
-	B_ADR1 : in	STD_LOGIC; 
-	B_ADR2 : in	STD_LOGIC; 
-	B_ADR3 : in	STD_LOGIC; 
-	B_ADR4 : in	STD_LOGIC; 
+	BD1	: out	STD_LOGIC;
+	BD2	: out	STD_LOGIC;
+	BD3	: out	STD_LOGIC;
+	B_ADR0 : in	STD_LOGIC;
+	B_ADR1 : in	STD_LOGIC;
+	B_ADR2 : in	STD_LOGIC;
+	B_ADR3 : in	STD_LOGIC;
+	B_ADR4 : in	STD_LOGIC;
 
 	UserCLK : in	STD_LOGIC; -- EXTERNAL -- SHARED_PORT -- ## the EXTERNAL keyword will send this sisgnal all the way to top and the --SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
 	-- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
@@ -48,7 +48,7 @@ end entity RegFile_32x4;
 architecture Behavioral of RegFile_32x4 is
 
 type memtype is array (31 downto 0) of std_logic_vector(3 downto 0); -- 32 entries of 4 bit
-signal mem : memtype := (others => (others => '0'));      
+signal mem : memtype := (others => (others => '0'));
 
 signal W_ADR : std_logic_vector(4 downto 0);	-- write address
 signal A_ADR : std_logic_vector(4 downto 0);	-- port A read address

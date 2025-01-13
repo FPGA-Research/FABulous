@@ -13,7 +13,7 @@ entity top is
     io_oeb : out unsigned(27 downto 0);
     io_out : out unsigned(27 downto 0)
   );
-end entity; 
+end entity;
 
 -- Generated from Verilog module top (counter.v:1)
 architecture from_verilog of top is
@@ -27,7 +27,7 @@ begin
   tmp_ivl_2 <= "0000000000";
   tmp_ivl_4 <= '0';
   io_oeb <= X"0000001";
-  
+
   -- Generated from always process in top (counter.v:5)
   process (clk) is
   begin
@@ -40,4 +40,3 @@ begin
     end if;
   end process;
 end architecture;
-

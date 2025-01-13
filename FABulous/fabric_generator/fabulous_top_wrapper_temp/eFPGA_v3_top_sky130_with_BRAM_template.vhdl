@@ -36,13 +36,13 @@ generic (
 	s_clk : in std_logic;
 	s_data : in std_logic
 );
-end entity; 
+end entity;
 
 
 architecture Behavioral of eFPGA_top is
 
-    component eFPGA  is 
-	Generic ( 
+    component eFPGA  is
+	Generic (
 			 MaxFramesPerCol : integer := 20;
 			 FrameBitsPerRow : integer := 32;
 			 NoConfigBits : integer := 0 );
@@ -918,7 +918,7 @@ architecture Behavioral of eFPGA_top is
 		Tile_X9Y14_Config_accessC_bit2	:	 out	STD_LOGIC; -- EXTERNAL
 		Tile_X9Y14_Config_accessC_bit3	:	 out	STD_LOGIC; -- EXTERNAL
 		 FrameData:     in  std_logic_vector( (FrameBitsPerRow * 16) -1 downto 0 );   -- CONFIG_PORT this is a keyword needed to connect the tile to the bitstream frame register
-		 FrameStrobe:   in  std_logic_vector( (MaxFramesPerCol * 10) -1 downto 0 )    -- CONFIG_PORT this is a keyword needed to connect the tile to the bitstream frame register 
+		 FrameStrobe:   in  std_logic_vector( (MaxFramesPerCol * 10) -1 downto 0 )    -- CONFIG_PORT this is a keyword needed to connect the tile to the bitstream frame register
 
 	-- global
 	);
@@ -943,7 +943,7 @@ end component eFPGA ;
 		  s_clk : in std_logic;
 		  s_data : in std_logic
 		);
-	  end component; 
+	  end component;
 
 	  component Frame_Select is
 		generic (
@@ -957,7 +957,7 @@ end component eFPGA ;
 		  FrameStrobe_I : in std_logic_vector(MaxFramesPerCol-1 downto 0);
 		  FrameStrobe_O : out std_logic_vector(MaxFramesPerCol-1 downto 0)
 		);
-	  end component; 
+	  end component;
 
 	  component Frame_Data_Reg is
 		generic (
@@ -971,8 +971,8 @@ end component eFPGA ;
 		  FrameData_O : out std_logic_vector(FrameBitsPerRow-1 downto 0);
 		  RowSelect : in std_logic_vector(RowSelectWidth-1 downto 0)
 		);
-	  end component; 
-	  
+	  end component;
+
 	signal FrameRegister : std_logic_vector((NumberOfRows*FrameBitsPerRow)-1 downto 0);
 	signal FrameSelect: std_logic_vector((MaxFramesPerCol*NumberOfCols)-1 downto 0);
 	signal  FrameData : std_logic_vector((FrameBitsPerRow*(NumberOfRows+2))-1 downto 0);
@@ -985,7 +985,7 @@ end component eFPGA ;
 
 begin
     RAM2FAB_D_Readable <= RAM2FAB_D;
-	inst_Config: Config 
+	inst_Config: Config
 		port map (
 			CLK => CLK,
 			Rx => Rx,
@@ -995,14 +995,11 @@ begin
 			s_data => s_data,
 			SelfWriteData => SelfWriteData,
 			SelfWriteStrobe => SelfWriteStrobe,
-			
+
 			ConfigWriteData => LocalWriteData,
 			ConfigWriteStrobe => LocalWriteStrobe,
-			
+
 			FrameAddressRegister => FrameAddressRegister,
 			LongFrameStrobe => LongFrameStrobe,
 			RowSelect => RowSelect
 		);
-
-
-

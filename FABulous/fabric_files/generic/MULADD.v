@@ -85,15 +85,15 @@ module MULADD (A7, A6, A5, A4, A3, A2, A1, A0, B7, B6, B5, B4, B3, B2, B1, B0, C
 	// GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
 	(* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits;
 
-	wire [7:0] A;		// port A read data 
-	wire [7:0] B;		// port B read data 
-	wire [19:0] C;		// port B read data 
+	wire [7:0] A;		// port A read data
+	wire [7:0] B;		// port B read data
+	wire [19:0] C;		// port B read data
 	reg [7:0] A_reg;		// port A read data register
 	reg [7:0] B_reg;		// port B read data register
 	reg [19:0] C_reg;		// port B read data register
-	wire [7:0] OPA;		// port A 
-	wire [7:0] OPB;		// port B 
-	wire [19:0] OPC;		// port B  
+	wire [7:0] OPA;		// port A
+	wire [7:0] OPB;		// port B
+	wire [19:0] OPC;		// port B
 	reg [19:0] ACC ;		// accumulator register
 	wire [19:0] sum;// port B read data register
 	wire [19:0] sum_in;// port B read data register

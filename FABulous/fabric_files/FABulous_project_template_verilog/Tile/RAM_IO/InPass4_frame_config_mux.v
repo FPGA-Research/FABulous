@@ -30,12 +30,12 @@ module InPass4_frame_config_mux #(parameter NoConfigBits = 4)(
 	//_____   ______
 	//    I----+--->|FLOP|-Q-|1 M |
 	//         |             |  U |-------> O
-	//         +-------------|0 X |               
+	//         +-------------|0 X |
 	// I am instantiating an IOBUF primitive.
 	// However, it is possible to connect corresponding pins all the way to top, just by adding an "-- EXTERNAL" comment (see PAD in the entity)
 );
 	reg [3:0] Q; // FLOPs
-	
+
 	always @ (posedge UserCLK)
 	begin
 		Q <= I;
@@ -72,5 +72,5 @@ module InPass4_frame_config_mux #(parameter NoConfigBits = 4)(
     .A1(Q[3]),
     .S(ConfigBits[3]),
     .X(O[3])
-    );	
+    );
 endmodule

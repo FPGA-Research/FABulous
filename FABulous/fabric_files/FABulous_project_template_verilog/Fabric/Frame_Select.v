@@ -9,7 +9,7 @@ module Frame_Select (FrameStrobe_I, FrameStrobe_O, FrameSelect, FrameStrobe);
 
 //FrameStrobe_O = 0;
 	always @ (*) begin
-		if (FrameStrobe && (FrameSelect==Col)) 
+		if (FrameStrobe && (FrameSelect==Col))
 			FrameStrobe_O =  FrameStrobe_I;
 		else
 			FrameStrobe_O = 'd0;

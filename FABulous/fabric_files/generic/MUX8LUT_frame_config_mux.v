@@ -24,7 +24,7 @@ module MUX8LUT_frame_config (A, B, C, D, E, F, G, H, S0, S1, S2, S3, M_AB, M_AD,
 	input B;
 	input C;
 	input D;
-	input E; 
+	input E;
 	input F;
 	input G;
 	input H;

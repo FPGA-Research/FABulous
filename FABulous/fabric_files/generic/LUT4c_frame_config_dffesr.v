@@ -49,8 +49,8 @@ module LUT4c_frame_config (I0, I1, I2, I3, O, Ci, Co, SR, EN, UserCLK, ConfigBit
 	// GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
 	(* FABulous, GLOBAL *) input [NoConfigBits-1 : 0] ConfigBits;
 
-	localparam LUT_SIZE = 4; 
-	localparam N_LUT_flops = 2 ** LUT_SIZE; 
+	localparam LUT_SIZE = 4;
+	localparam N_LUT_flops = 2 ** LUT_SIZE;
 
 	wire [N_LUT_flops-1 : 0] LUT_values;
 	wire [LUT_SIZE-1 : 0] LUT_index;
@@ -76,7 +76,7 @@ module LUT4c_frame_config (I0, I1, I2, I3, O, Ci, Co, SR, EN, UserCLK, ConfigBit
 
 	assign LUT_index = {I3,I2,I1,I0mux};
 
-// The LUT is just a multiplexer 
+// The LUT is just a multiplexer
 // for a first shot, I am using a 16:1
 // LUT_out <= LUT_values(TO_INTEGER(LUT_index));
 	/*MUX16PTv2 inst_MUX16PTv2_E6BEG1(
@@ -137,7 +137,7 @@ module LUT4c_frame_config (I0, I1, I2, I3, O, Ci, Co, SR, EN, UserCLK, ConfigBit
 	.S(c_out_mux),
 	.X(O)
 	);
-	
+
 	assign Co = (Ci & I1) | (Ci & I2) | (I1 & I2);// iCE40 like carry chain (as this is supported in Yosys; would normally go for fractured LUT
 
 	always @ (posedge UserCLK) begin

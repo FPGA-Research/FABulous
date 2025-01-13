@@ -32,7 +32,7 @@ FABulous comes with 3 different simulation methods _`configuration module`,
 
    Both values get shifted in a separate register. If the control register sees the bit-pattern x”FAB0” it samples the data shift register into a hold register and issues a one-cycle strobe output (active 1).
 
-   The next figure shows the enable generation (and input sampling) for generating the enable signals for 
+   The next figure shows the enable generation (and input sampling) for generating the enable signals for
 
    * the control shift register and
    * the data shift register.
@@ -40,6 +40,3 @@ FABulous comes with 3 different simulation methods _`configuration module`,
    .. figure:: ../figs/bitbang2.*
        :alt: Bitbang schematic
        :align: center
-
-
-

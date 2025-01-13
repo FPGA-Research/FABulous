@@ -47,10 +47,10 @@ ${uio_wires}
 		.s_data(s_data),
 		.SelfWriteData(SelfWriteData),
 		.SelfWriteStrobe(SelfWriteStrobe),
-		
+
 		.ConfigWriteData(LocalWriteData),
 		.ConfigWriteStrobe(LocalWriteStrobe),
-		
+
 		.FrameAddressRegister(FrameAddressRegister),
 		.LongFrameStrobe(LongFrameStrobe),
 		.RowSelect(RowSelect)

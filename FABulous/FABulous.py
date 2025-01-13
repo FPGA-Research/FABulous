@@ -1208,7 +1208,7 @@ To run the complete FABulous flow with the default project, run the following co
         json_file = top_module_name + ".json"
 
         yosys = check_if_application_exists(os.getenv("FAB_YOSYS_PATH", "yosys"))
-  
+
         if path.suffix == ".v":
             runCmd = [
                 "yosys",
@@ -1246,7 +1246,6 @@ To run the complete FABulous flow with the default project, run the following co
             except sp.CalledProcessError:
                 logger.error("Synthesis failed")
                 raise SynthesisError
-
 
     def complete_synthesis(self, text, *ignored):
         return self._complete_path(text)
@@ -1589,7 +1588,6 @@ To run the complete FABulous flow with the default project, run the following co
             return
 
         file_path_no_suffix = file_path.parent / file_path.stem
-
 
         if file_path.suffix not in [".v", ".vhdl"]:
             logger.error(

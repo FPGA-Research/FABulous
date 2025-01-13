@@ -72,9 +72,9 @@ module FABULOUS_LC #(
 );
 	wire f_wire;
 	wire I0_mux;
-	
+
 	assign I0_mux = IOmux ? Ci : I0;
-	
+
 	//LUT #(.K(K), .INIT(INIT)) lut_i(.I(I), .Q(f_wire));
         generate
         if (K == 1) begin
@@ -90,8 +90,8 @@ module FABULOUS_LC #(
           LUT4 #(.INIT(INIT)) lut4 (.O(f_wire), .I0(I0_mux), .I1(I1), .I2(I2), .I3(I3));
         end
         endgenerate
-		
-	
+
+
 	assign Co = (Ci & A[1]) | (Ci & A[2]) | (A[1] & A[2]);
 
 	if (SET_NORESET) begin
@@ -99,7 +99,7 @@ module FABULOUS_LC #(
 	end else begin
 		LUTFF_ESR dffr_i(.CLK(CLK), .E(EN), .R(SR), .D(f_wire), .O(Q));
 	end
-	
+
 	assign O = f_wire;
 endmodule
 
@@ -191,15 +191,15 @@ module MULADD (A7, A6, A5, A4, A3, A2, A1, A0, B7, B6, B5, B4, B3, B2, B1, B0, C
 	// GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
 
 
-	wire [7:0] A;		// port A read data 
-	wire [7:0] B;		// port B read data 
-	wire [19:0] C;		// port B read data 
+	wire [7:0] A;		// port A read data
+	wire [7:0] B;		// port B read data
+	wire [19:0] C;		// port B read data
 	reg [7:0] A_reg;		// port A read data register
 	reg [7:0] B_reg;		// port B read data register
 	reg [19:0] C_reg;		// port B read data register
-	wire [7:0] OPA;		// port A 
-	wire [7:0] OPB;		// port B 
-	wire [19:0] OPC;		// port B  
+	wire [7:0] OPA;		// port A
+	wire [7:0] OPB;		// port B
+	wire [19:0] OPC;		// port B
 	reg [19:0] ACC ;		// accumulator register
 	wire [19:0] sum;// port B read data register
 	wire [19:0] sum_in;// port B read data register
@@ -272,7 +272,7 @@ module RegFile_32x4 (D0, D1, D2, D3, W_ADR0, W_ADR1, W_ADR2, W_ADR3, W_ADR4, W_e
 	input W_ADR3;
 	input W_ADR4;
 	input W_en;
-	
+
 	output AD0;// Register File read port A
 	output AD1;
 	output AD2;
@@ -294,9 +294,9 @@ module RegFile_32x4 (D0, D1, D2, D3, W_ADR0, W_ADR1, W_ADR2, W_ADR3, W_ADR4, W_e
 	input B_ADR4;
 
 	input CLK;// EXTERNAL // SHARED_PORT // ## the EXTERNAL keyword will send this sisgnal all the way to top and the //SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
-	
+
 	// GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-	
+
 
 	//type memtype is array (31 downto 0) of std_logic_vector(3 downto 0); // 32 entries of 4 bit
 	//signal mem : memtype := (others => (others => '0'));
@@ -312,7 +312,7 @@ module RegFile_32x4 (D0, D1, D2, D3, W_ADR0, W_ADR1, W_ADR2, W_ADR3, W_ADR4, W_e
 
 	reg [3:0] AD_reg;		// port A read data register
 	reg [3:0] BD_reg;		// port B read data register
-	
+
 	integer i;
 
 	assign W_ADR = {W_ADR4,W_ADR3,W_ADR2,W_ADR1,W_ADR0};
@@ -320,7 +320,7 @@ module RegFile_32x4 (D0, D1, D2, D3, W_ADR0, W_ADR1, W_ADR2, W_ADR3, W_ADR4, W_e
 	assign B_ADR = {B_ADR4,B_ADR3,B_ADR2,B_ADR1,B_ADR0};
 
 	assign D = {D3,D2,D1,D0};
-	
+
 	initial begin
 		for (i=0; i<32; i=i+1) begin
 			mem[i] = 4'b0000;

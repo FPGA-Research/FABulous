@@ -15,7 +15,7 @@ All Yosys model files can be found in the `Yosys repository <https://github.com/
 | cells_map_ff.v| LUT-4 technology mapping (can be modified to LUT-6)                   |
 +---------------+-----------------------------------------------------------------------+
 
-The current synthesis pass is built for FABulous version3. Unlike the previous two versions, the new version supports **ENABLE** and **SET/RESET** functions in D-type Flip-flops (DFF). In the pass, Yosys represents cells ``$_DFF_P_``, ``$_DFFE_PP_``, ``$_SDFF_PP?_`` and ``$_SDFFCE_PP?P_`` for DFFs (More DFF cells definitions can be found in the 
+The current synthesis pass is built for FABulous version3. Unlike the previous two versions, the new version supports **ENABLE** and **SET/RESET** functions in D-type Flip-flops (DFF). In the pass, Yosys represents cells ``$_DFF_P_``, ``$_DFFE_PP_``, ``$_SDFF_PP?_`` and ``$_SDFFCE_PP?P_`` for DFFs (More DFF cells definitions can be found in the
 `Yosys manual <https://github.com/YosysHQ/yosys-manual-build/releases/download/manual/manual.pdf>`_
 Chapter 5.2). User should also define different types of DFF in the ``ff_map.v`` for DFF technology mapping.
 
@@ -41,7 +41,7 @@ We have made a comparison between synthesis with and without **ENABLE** and **SE
 
 .. code-block:: none
 
-        Ps. 
+        Ps.
         LUTFF    : DFF with no enable and no set/reset
         LUTFF_E  : synchronous enable
         LUTFF_SR : synchronous reset to 0
@@ -50,4 +50,3 @@ We have made a comparison between synthesis with and without **ENABLE** and **SE
         LUTFF_ESS: synchronous enable, synchronous set to 1
 
 Around 30% LUT resources can be saved by *ENABLE* and *SET/RESET* functions added, so it is supported in version 3.
-

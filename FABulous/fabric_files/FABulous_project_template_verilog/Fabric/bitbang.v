@@ -1,12 +1,12 @@
 module bitbang (s_clk, s_data, strobe, data, active, clk, resetn);
-	localparam on_pattern = 16'hFAB1; 
-	localparam off_pattern = 16'hFAB0; 
+	localparam on_pattern = 16'hFAB1;
+	localparam off_pattern = 16'hFAB0;
 	input s_clk;
 	input s_data;
 	output reg strobe;
 	output reg [31:0] data;
 	output reg active;
-	input clk; 
+	input clk;
 	input resetn;
 
 	reg [3:0] s_data_sample;
@@ -46,7 +46,7 @@ module bitbang (s_clk, s_data, strobe, data, active, clk, resetn);
 		end
 	end
 
-// we could replicate the following 
+// we could replicate the following
 	always @ (posedge clk, negedge resetn)
 	begin : p_parallel_load
 		if (!resetn) begin
@@ -56,7 +56,7 @@ module bitbang (s_clk, s_data, strobe, data, active, clk, resetn);
 			strobe <= 1'b0;
 		end else begin
 			local_strobe <= 1'b0; // will be overwritten if next conditional is true
-			if (serial_control == on_pattern) begin// x"FAB1" then      
+			if (serial_control == on_pattern) begin// x"FAB1" then
 				data <= serial_data;
 				local_strobe <= 1'b1;
 			end //else begin
@@ -68,16 +68,16 @@ module bitbang (s_clk, s_data, strobe, data, active, clk, resetn);
 		end
 	end
 
-// we could replicate the following 
+// we could replicate the following
 	always @ (posedge clk, negedge resetn)
 	begin : active_FSM
 		if (!resetn) begin
 			active <= 1'b0;
 		end else begin
-			if (serial_control == on_pattern) begin// x"FAB1" then      
+			if (serial_control == on_pattern) begin// x"FAB1" then
 				active <= 1'b1;
 			end
-			if (serial_control == off_pattern) begin// x"FAB0" then      
+			if (serial_control == off_pattern) begin// x"FAB0" then
 				active <= 1'b0;
 			end
 		end
@@ -89,8 +89,8 @@ module bitbang (s_clk, s_data, strobe, data, active, clk, resetn);
 //begin
 //    if clk'event and clk=1'b1 then
 //        local_strobe <= 1'b0;       // will be overwritten if next conditional is true
-//        if serial_control = x"FAB1" then      
-//            data2 <= serial_data;  
+//        if serial_control = x"FAB1" then
+//            data2 <= serial_data;
 //            local_strobe2 <= 1'b1;
 //            old_local_strobe2 <= local_strobe;
 //        end if;

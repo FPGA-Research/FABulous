@@ -5,7 +5,7 @@
 	input D;     // global signal 1: configuration, 0: operation
 	input E;
 	output Q;
-	output QN; 
+	output QN;
 
 	wire M_set_gate, M_reset_gate;
 	wire S_set_gate, S_reset_gate;
@@ -61,8 +61,8 @@ module LHQD1 (input D, E, output reg Q, QN);
     end
 endmodule
 
-// (MUX4PTv4) and 1.2ns (MUX16PTv2) in worse case when all select bits=0, so I think they work fine with f=50MHz. 
-// The area are HxW = 7um x 9.86um (MUX4PTv4) and 7um x 44.72um (MUX16PTv2). 
+// (MUX4PTv4) and 1.2ns (MUX16PTv2) in worse case when all select bits=0, so I think they work fine with f=50MHz.
+// The area are HxW = 7um x 9.86um (MUX4PTv4) and 7um x 44.72um (MUX16PTv2).
 // Please note, the pins are named as IN1, IN2, ..., IN16 for inputs, S1, .., S4 for selects and OUT for output.
 
 module MUX4PTv4 (IN1, IN2, IN3, IN4, S1, S2, O);
@@ -72,12 +72,12 @@ module MUX4PTv4 (IN1, IN2, IN3, IN4, S1, S2, O);
 	input IN4;
 	input S1;
 	input S2;
-	output O; 
+	output O;
 	reg O;
 	wire [1:0] SEL;
 
 	assign SEL = {S2,S1};
-	always @(*) 
+	always @(*)
 	begin
 		case(SEL)
 			2'b00:O = IN1;
@@ -88,7 +88,7 @@ module MUX4PTv4 (IN1, IN2, IN3, IN4, S1, S2, O);
 		endcase
 	end
 
-endmodule 
+endmodule
 
 module MUX16PTv2 (IN1, IN2, IN3, IN4, IN5, IN6, IN7, IN8, IN9, IN10, IN11, IN12, IN13, IN14, IN15, IN16, S1, S2, S3, S4, O);
 	input IN1;
@@ -156,7 +156,7 @@ module cus_mux41 (A0, A1, A2, A3, S0, S0N, S1, S1N, X);
 	input S0N;
 	input S1;
 	input S1N;
-	output X; 
+	output X;
 	wire [1:0] SEL;
 
 	wire B0 = S0 ? A1 : A0;
@@ -173,7 +173,7 @@ module cus_mux41_buf (A0, A1, A2, A3, S0, S0N, S1, S1N, X);
 	input S0N;
 	input S1;
 	input S1N;
-	output X; 
+	output X;
 
 	wire B0 = S0 ? A1 : A0;
 	wire B1 = S0 ? A3 : A2;
@@ -186,7 +186,7 @@ module my_mux2 (A0, A1, S, X);
 	input S;
 	output X;
 	assign X = S ? A1 : A0;
-endmodule 
+endmodule
 
 module cus_mux81 (A0, A1, A2, A3, A4, A5, A6, A7, S0, S0N, S1, S1N, S2, S2N, X);
 	input A0;
@@ -219,7 +219,7 @@ module cus_mux81 (A0, A1, A2, A3, A4, A5, A6, A7, S0, S0N, S1, S1N, S2, S2N, X);
 	.S1N(S1N),
 	.X  (cus_mux41_out0)
 	);
-	
+
 	cus_mux41 cus_mux41_inst1(
 	.A0 (A4),
 	.A1 (A5),
@@ -271,7 +271,7 @@ module cus_mux81_buf (A0, A1, A2, A3, A4, A5, A6, A7, S0, S0N, S1, S1N, S2, S2N,
 	.S1N(S1N),
 	.X  (cus_mux41_buf_out0)
 	);
-	
+
 	cus_mux41_buf cus_mux41_buf_inst1(
 	.A0 (A4),
 	.A1 (A5),
@@ -335,7 +335,7 @@ module cus_mux161 (A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A
 	.S1N(S1N),
 	.X  (cus_mux41_out0)
 	);
-	
+
 	cus_mux41 cus_mux41_inst1(
 	.A0 (A4),
 	.A1 (A5),
@@ -371,7 +371,7 @@ module cus_mux161 (A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A
 	.S1N(S1N),
 	.X  (cus_mux41_out3)
 	);
-	
+
 	cus_mux41 cus_mux41_inst4(
 	.A0 (cus_mux41_out0),
 	.A1 (cus_mux41_out1),
@@ -428,7 +428,7 @@ module cus_mux161_buf (A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A1
 	.S1N(S1N),
 	.X  (cus_mux41_buf_out0)
 	);
-	
+
 	cus_mux41_buf cus_mux41_buf_inst1(
 	.A0 (A4),
 	.A1 (A5),
@@ -464,7 +464,7 @@ module cus_mux161_buf (A0, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A1
 	.S1N(S1N),
 	.X  (cus_mux41_buf_out3)
 	);
-	
+
 	cus_mux41_buf cus_mux41_buf_inst4(
 	.A0 (cus_mux41_buf_out0),
 	.A1 (cus_mux41_buf_out1),
