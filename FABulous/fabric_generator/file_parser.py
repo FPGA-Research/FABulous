@@ -661,9 +661,8 @@ def parseBelFile(
     belPrefix: str = "",
     filetype: Literal["verilog", "vhdl"] = "",
 ) -> Bel:
-    """
-    Parse a Verilog or VHDL bel file and return all the related information of the bel.
-    The tuple returned for relating to ports will be a list of (belName, IO) pair.
+    """Parse a Verilog or VHDL bel file and return all the related information of the
+    bel. The tuple returned for relating to ports will be a list of (belName, IO) pair.
 
     The function will also parse and record all the FABulous attribute which all starts with ::
 
@@ -905,7 +904,8 @@ def parseBelFile(
 
 
 def verilog_belMapProcessing(module_info):
-    """Extracts and transforms BEL mapping attributes in the JSON created from a Verilog module.
+    """Extracts and transforms BEL mapping attributes in the JSON created from a Verilog
+    module.
 
     Parameters
     ----------

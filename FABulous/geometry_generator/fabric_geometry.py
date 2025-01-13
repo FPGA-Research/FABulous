@@ -8,8 +8,8 @@ from FABulous.geometry_generator.tile_geometry import TileGeometry
 
 
 class FabricGeometry:
-    """This class fetches and holds geometric information about a fabric.
-    Objects of this class can be constructed by passing a Fabric object and optionally, padding.
+    """This class fetches and holds geometric information about a fabric. Objects of
+    this class can be constructed by passing a Fabric object and optionally, padding.
 
     Attributes
     ----------
@@ -49,7 +49,7 @@ class FabricGeometry:
         self.generateGeometry()
 
     def generateGeometry(self) -> None:
-        """Generates the geometric information from the given fabric object"""
+        """Generates the geometric information from the given fabric object."""
 
         # here, the border attribute is set for tiles that are
         # located at a border of the tile. This is done to
@@ -207,9 +207,8 @@ class FabricGeometry:
             tileGeom.generateWires(self.padding)
 
     def saveToCSV(self, fileName: str) -> None:
-        """Saves the generated geometric information of the
-        given fabric to a .csv file that can be imported
-        into the graphical frontend.
+        """Saves the generated geometric information of the given fabric to a .csv file
+        that can be imported into the graphical frontend.
 
         Parameters
         ----------

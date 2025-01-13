@@ -18,14 +18,14 @@ entity Frame_Data_Reg is
     FrameData_O : out std_logic_vector(FrameBitsPerRow-1 downto 0);
     RowSelect : in std_logic_vector(RowSelectWidth-1 downto 0)
   );
-end entity; 
+end entity;
 
 
 architecture from_verilog of Frame_Data_Reg is
   signal FrameData_O_Reg : std_logic_vector(31 downto 0);
 begin
   FrameData_O <= FrameData_O_Reg;
-  
+
   -- Generated from always process in Frame_Data_Reg (Frame_Data_Reg_template.v:10)
   process (CLK) is
   begin
@@ -36,4 +36,3 @@ begin
     end if;
   end process;
 end architecture;
-

@@ -12,8 +12,8 @@ MAX_BITBYTES=16384
 python3 makehex.py $BITSTREAM $MAX_BITBYTES bitstream.hex
 
 $GHDL -a $FLAG ../Fabric/my_lib.vhdl
-$GHDL -e $FLAG LHQD1 
-$GHDL -e $FLAG MUX4PTv4 
+$GHDL -e $FLAG LHQD1
+$GHDL -e $FLAG MUX4PTv4
 $GHDL -e $FLAG MUX16PTv2
 $GHDL -e $FLAG cus_mux161
 $GHDL -e $FLAG cus_mux41

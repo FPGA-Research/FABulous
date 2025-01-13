@@ -85,7 +85,6 @@ class StairWires:
     the image for the corresponding left-right stair-ike wire structure.
     The right stair-like structure represents a north stair, the left one
     represents a south stair (These being the directions of the wires).
-
     """
 
     name: str

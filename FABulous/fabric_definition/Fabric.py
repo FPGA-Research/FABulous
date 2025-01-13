@@ -14,8 +14,8 @@ from FABulous.fabric_definition.ConfigMem import ConfigMem
 
 @dataclass
 class Fabric:
-    """This class is for storing the information and hyperparameters of the fabric. All the information is parsed from the
-    CSV file.
+    """This class is for storing the information and hyperparameters of the fabric. All
+    the information is parsed from the CSV file.
 
     Attributes
     ----------
@@ -78,11 +78,14 @@ class Fabric:
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        """Generate all the wire pairs in the fabric and get all the wires in the fabric.
+        """Generate all the wire pairs in the fabric and get all the wires in the
+        fabric.
 
-        The wire pair are used during model generation when some of the signals have source or destination of "NULL".
+        The wire pair are used during model generation when some of the signals have
+        source or destination of "NULL".
 
-        The wires are used during model generation to work with wire that going cross tile.
+        The wires are used during model generation to work with wire that going cross
+        tile.
         """
         for row in self.tile:
             for tile in row:

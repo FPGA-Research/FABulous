@@ -17,7 +17,7 @@ entity bitbang is
     s_data : in std_logic;
     strobe : out std_logic
   );
-end entity; 
+end entity;
 
 -- Generated from Verilog module bitbang (bitbang.v:1)
 --   off_pattern = 64176
@@ -36,14 +36,14 @@ begin
   active <= active_Reg;
   data <= data_Reg;
   strobe <= strobe_Reg;
-  
+
   -- Generated from initial process in bitbang (bitbang.v:1)
   process is
   begin
     active_Reg <= '0';
     wait;
   end process;
-  
+
   -- Generated from always process in bitbang (bitbang.v:20)
   process (clk) is
   begin
@@ -52,7 +52,7 @@ begin
       s_clk_sample <= s_clk_sample(0 + 2 downto 0) & s_clk;
     end if;
   end process;
-  
+
   -- Generated from always process in bitbang (bitbang.v:26)
   process (clk) is
   begin
@@ -65,7 +65,7 @@ begin
       end if;
     end if;
   end process;
-  
+
   -- Generated from always process in bitbang (bitbang.v:39)
   process (clk) is
   begin
@@ -79,7 +79,7 @@ begin
       strobe_Reg <= local_strobe and (not old_local_strobe);
     end if;
   end process;
-  
+
   -- Generated from always process in bitbang (bitbang.v:54)
   process (clk) is
   begin
@@ -93,4 +93,3 @@ begin
     end if;
   end process;
 end architecture;
-

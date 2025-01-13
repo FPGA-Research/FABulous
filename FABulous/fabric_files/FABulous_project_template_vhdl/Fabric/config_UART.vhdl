@@ -44,7 +44,7 @@ entity config_UART is
     WriteData : out unsigned(31 downto 0);
     WriteStrobe : out std_logic
   );
-end entity; 
+end entity;
 
 -- Generated from Verilog module config_UART (config_UART.v:1)
 --   ComRate = 217
@@ -78,9 +78,9 @@ end entity;
 architecture from_verilog of config_UART is
   function ASCII2HEX (
     ASCII : unsigned(7 downto 0)
-  ) 
+  )
   return unsigned;
-  
+
   signal ReceiveLED_Reg : std_logic;
   signal WriteData_Reg : unsigned(31 downto 0);
   signal WriteStrobe_Reg : std_logic;
@@ -120,11 +120,11 @@ architecture from_verilog of config_UART is
   signal tmp_ivl_8 : std_logic;  -- Temporary created at config_UART.v:396
   signal b_counter : unsigned(19 downto 0) := X"4fb00";  -- Declared at config_UART.v:103
   signal blink : unsigned(22 downto 0) := "00000000000000000000000";  -- Declared at config_UART.v:105
-  
+
   -- Generated from function ASCII2HEX at config_UART.v:22
   function ASCII2HEX (
     ASCII : unsigned(7 downto 0)
-  ) 
+  )
   return unsigned is
     variable ASCII2HEX_Result : unsigned(4 downto 0);
   begin
@@ -198,7 +198,7 @@ begin
   tmp_ivl_28 <= '0';
   tmp_ivl_4 <= '1';
   tmp_ivl_8 <= '0';
-  
+
   -- Generated from always process in L_hexmode (config_UART.v:278)
   process (CLK) is
   begin
@@ -228,10 +228,10 @@ begin
     end if;
   end process;
   -- Removed one empty process
-  
+
   -- Removed one empty process
-  
-  
+
+
   -- Generated from always process in config_UART (config_UART.v:113)
   process (CLK) is
   begin
@@ -239,7 +239,7 @@ begin
       RxLocal <= Rx;
     end if;
   end process;
-  
+
   -- Generated from always process in config_UART (config_UART.v:118)
   process (CLK) is
   begin
@@ -258,7 +258,7 @@ begin
       end if;
     end if;
   end process;
-  
+
   -- Generated from always process in config_UART (config_UART.v:132)
   process (CLK) is
   begin
@@ -338,7 +338,7 @@ begin
       end if;
     end if;
   end process;
-  
+
   -- Generated from always process in config_UART (config_UART.v:218)
   process (CLK) is
   begin
@@ -395,7 +395,7 @@ begin
       end case;
     end if;
   end process;
-  
+
   -- Generated from always process in config_UART (config_UART.v:304)
   process (CLK) is
   begin
@@ -428,7 +428,7 @@ begin
       blink <= blink - "00000000000000000000001";
     end if;
   end process;
-  
+
   -- Generated from always process in config_UART (config_UART.v:335)
   process (CLK) is
   begin
@@ -449,7 +449,7 @@ begin
       end if;
     end if;
   end process;
-  
+
   -- Generated from always process in config_UART (config_UART.v:354)
   process (CLK) is
   begin
@@ -490,7 +490,7 @@ begin
       end if;
     end if;
   end process;
-  
+
   -- Generated from always process in config_UART (config_UART.v:401)
   process (CLK) is
   begin
@@ -510,4 +510,3 @@ begin
     end if;
   end process;
 end architecture;
-

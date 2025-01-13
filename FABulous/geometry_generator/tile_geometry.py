@@ -99,14 +99,11 @@ class TileGeometry:
         # dim.smWidth = dim.smWidth*2 if dim.smWidth*2 < maxSmWidths[j] else dim.smWidth
 
     def adjustSmPos(self, lowestSmYInRow: int, padding: int) -> None:
-        """
-        adjusts the position of the switch matrix, using
-        the lowest Y coordinate of any switch matrix in
-        the same row for reference. After this step is
-        completed for all switch matrices, their southern
-        edge will be on the same Y coordinate, allowing
-        for easier inter-tile routing.
+        """Ajusts the position of the switch matrix, using the lowest Y coordinate of
+        any switch matrix in the same row for reference.
 
+        After this step is completed for all switch matrices, their southern edge will
+        be on the same Y coordinate, allowing for easier inter-tile routing.
         """
         currentSmY = self.smGeometry.relY + self.smGeometry.height
         additionalOffset = lowestSmYInRow - currentSmY
@@ -119,11 +116,8 @@ class TileGeometry:
         self.smGeometry.generateBelPorts(self.belGeomList)
 
     def setBelPositions(self, padding: int) -> None:
-        """
-        The position of the switch matrix is final when
-        this is called, thus bel positions can be set.
-
-        """
+        """The position of the switch matrix is final when this is called, thus bel
+        positions can be set."""
         belPadding = padding // 2
         belX = self.smGeometry.relX + self.smGeometry.width + padding
         belY = self.smGeometry.relY + belPadding
@@ -148,11 +142,7 @@ class TileGeometry:
         self.generateIndirectWires(padding)
 
     def generateBelWires(self) -> None:
-        """
-        Generates the wires between the switch matrix
-        and its bels.
-
-        """
+        """Generates the wires between the switch matrix and its bels."""
         for belGeom in self.belGeomList:
             belToSmDistanceX = belGeom.relX - (
                 self.smGeometry.relX + self.smGeometry.width
@@ -178,11 +168,8 @@ class TileGeometry:
     westMiddleY = None
 
     def generateDirectWires(self, padding: int) -> None:
-        """
-        Generates wires to neighbouring tiles, which are
-        straightforward to generate.
-
-        """
+        """Generates wires to neigbouring tiles, which are straightforward to
+        generate."""
         self.northMiddleX = self.smGeometry.relX - padding
         self.southMiddleX = self.smGeometry.relX - padding
         self.eastMiddleY = self.smGeometry.relY + self.smGeometry.height + padding
@@ -295,11 +282,10 @@ class TileGeometry:
     queuedAdjustmentBottom = 0
 
     def generateIndirectWires(self, padding: int):
-        """
-        Generates wires to non-neighbouring tiles.
-        These are not straightforward to generate,
-        as they require a staircase-like shape.
+        """Generates wires to non-neighbouring tiles.
 
+        These are not straightforward to generate, as they require a staircase-like
+        shape.
         """
         for portGeom in self.smGeometry.portGeoms:
             if abs(portGeom.offset) < 2:
@@ -318,11 +304,8 @@ class TileGeometry:
                 raise Exception
 
     def indirectNorthSideWire(self, portGeom: PortGeometry, padding: int) -> None:
-        """
-        generates indirect wires on the north side of the tile,
-        along with the stair-like wires needed.
-
-        """
+        """Generates indirect wires on the north side of the tile, along with the stair-
+        like wires needed."""
         generateNorthSouthStairWire = (
             self.border != Border.NORTHSOUTH and self.border != Border.CORNER
         )
@@ -373,12 +356,8 @@ class TileGeometry:
         self.northMiddleX -= 1
 
     def indirectSouthSideWire(self, portGeom: PortGeometry) -> None:
-        """
-        In contrast to indirectNorthSideWire(), this method
-        generates only indirect wires on the south side of
-        the tile, but no stair-like wires.
-
-        """
+        """In contrast to indirectNorthSideWire(), this method generates only indirect
+        wires on the south side of the tile, but no stair-like wires."""
         generateNorthSouthStairWire = (
             self.border != Border.NORTHSOUTH and self.border != Border.CORNER
         )
@@ -414,11 +393,8 @@ class TileGeometry:
         self.southMiddleX -= 1
 
     def indirectEastSideWire(self, portGeom: PortGeometry, padding: int) -> None:
-        """
-        generates indirect wires on the east side of the tile,
-        along with the stair-like wires needed.
-
-        """
+        """Generates indirect wires on the east side of the tile, along with the stair-
+        like wires needed."""
         generateEastWestStairWire = (
             self.border != Border.EASTWEST and self.border != Border.CORNER
         )
@@ -471,12 +447,8 @@ class TileGeometry:
         self.eastMiddleY += 1
 
     def indirectWestSideWire(self, portGeom: PortGeometry) -> None:
-        """
-        In contrast to indirectEastSideWire(), this method
-        generates only indirect wires on the south side of
-        the tile, but no stair-like wires.
-
-        """
+        """In contrast to indirectEastSideWire(), this method generates only indirect
+        wires on the south side of the tile, but no stair-like wires."""
         generateEastWestStairWire = (
             self.border != Border.EASTWEST and self.border != Border.CORNER
         )

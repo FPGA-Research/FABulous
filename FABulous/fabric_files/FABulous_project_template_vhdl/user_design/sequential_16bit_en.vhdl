@@ -14,7 +14,7 @@ end top;
 architecture Behavioral of top is
     signal rst      : std_logic;
     signal ctr      : unsigned(26 downto 0) := (others => '0');
-    
+
 begin
     rst <= io_in(0);
 

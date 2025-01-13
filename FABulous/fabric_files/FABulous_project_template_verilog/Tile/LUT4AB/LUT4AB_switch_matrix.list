@@ -6,19 +6,19 @@ L[A|B]_I0,[J2MID_ABa_END0|J2MID_ABa_END0]
 L[A|B]_I1,[J2MID_ABa_END1|J2MID_ABa_END1]
 L[A|B]_I2,[J2MID_ABa_END2|J2MID_ABa_END2]
 L[A|B]_I3,[J2MID_ABa_END3|J2MID_ABa_END3]
-L[C|D]_I0,[J2MID_CDa_END0|J2MID_CDa_END0] 
-L[C|D]_I1,[J2MID_CDa_END1|J2MID_CDa_END1] 
-L[C|D]_I2,[J2MID_CDa_END2|J2MID_CDa_END2] 
-L[C|D]_I3,[J2MID_CDa_END3|J2MID_CDa_END3] 
-L[E|F]_I0,[J2MID_EFa_END0|J2MID_EFa_END0]      
-L[E|F]_I1,[J2MID_EFa_END1|J2MID_EFa_END1]      
-L[E|F]_I2,[J2MID_EFa_END2|J2MID_EFa_END2]      
-L[E|F]_I3,[J2MID_EFa_END3|J2MID_EFa_END3]      
-L[G|H]_I0,[J2MID_GHa_END0|J2MID_GHa_END0]	  
-L[G|H]_I1,[J2MID_GHa_END1|J2MID_GHa_END1]	  
-L[G|H]_I2,[J2MID_GHa_END2|J2MID_GHa_END2]	  
-L[G|H]_I3,[J2MID_GHa_END3|J2MID_GHa_END3]	  
-                             
+L[C|D]_I0,[J2MID_CDa_END0|J2MID_CDa_END0]
+L[C|D]_I1,[J2MID_CDa_END1|J2MID_CDa_END1]
+L[C|D]_I2,[J2MID_CDa_END2|J2MID_CDa_END2]
+L[C|D]_I3,[J2MID_CDa_END3|J2MID_CDa_END3]
+L[E|F]_I0,[J2MID_EFa_END0|J2MID_EFa_END0]
+L[E|F]_I1,[J2MID_EFa_END1|J2MID_EFa_END1]
+L[E|F]_I2,[J2MID_EFa_END2|J2MID_EFa_END2]
+L[E|F]_I3,[J2MID_EFa_END3|J2MID_EFa_END3]
+L[G|H]_I0,[J2MID_GHa_END0|J2MID_GHa_END0]
+L[G|H]_I1,[J2MID_GHa_END1|J2MID_GHa_END1]
+L[G|H]_I2,[J2MID_GHa_END2|J2MID_GHa_END2]
+L[G|H]_I3,[J2MID_GHa_END3|J2MID_GHa_END3]
+
 L[A|B]_I0,[J2MID_ABb_END0|J2MID_ABb_END0]
 L[A|B]_I1,[J2MID_ABb_END1|J2MID_ABb_END1]
 L[A|B]_I2,[J2MID_ABb_END2|J2MID_ABb_END2]
@@ -35,7 +35,7 @@ L[G|H]_I0,[J2MID_GHb_END0|J2MID_GHb_END0]
 L[G|H]_I1,[J2MID_GHb_END1|J2MID_GHb_END1]
 L[G|H]_I2,[J2MID_GHb_END2|J2MID_GHb_END2]
 L[G|H]_I3,[J2MID_GHb_END3|J2MID_GHb_END3]
- 
+
 L[A|B]_I0,[J2END_AB_END0|J2END_AB_END0]
 L[A|B]_I1,[J2END_AB_END1|J2END_AB_END1]
 L[A|B]_I2,[J2END_AB_END2|J2END_AB_END2]
@@ -52,7 +52,7 @@ L[G|H]_I0,[J2END_GH_END0|J2END_GH_END0]
 L[G|H]_I1,[J2END_GH_END1|J2END_GH_END1]
 L[G|H]_I2,[J2END_GH_END2|J2END_GH_END2]
 L[G|H]_I3,[J2END_GH_END3|J2END_GH_END3]
-                           
+
 L[A|B]_I0,[J_l_AB_END0|J_l_AB_END0]
 L[A|B]_I1,[J_l_AB_END1|J_l_AB_END1]
 L[A|B]_I2,[J_l_AB_END2|J_l_AB_END2]
@@ -74,7 +74,7 @@ L[G|H]_I3,[J_l_GH_END3|J_l_GH_END3]
 # LUT output routing
 # LUT output routing
 
-# The double wires (which have a mid connection) will get highest connectivity 
+# The double wires (which have a mid connection) will get highest connectivity
 # this is why we connect all LUT outputs to them as well as some more wires for local routing
 # 16:1 muxes each (we specify them in two rounds of 8-driver port sets)
 JN2BEG[0|0|0|0|0|0|0|0],[E1END3|LB_O|LC_O|LD_O|LE_O|LF_O|LG_O|LH_O]
@@ -113,7 +113,7 @@ JW2BEG[5|5|5|5|5|5|5|5],[LA_O|LB_O|LC_O|LD_O|LE_O|S1END0|LG_O|LH_O]
 JW2BEG[6|6|6|6|6|6|6|6],[LA_O|LB_O|LC_O|LD_O|LE_O|LF_O|S1END1|LH_O]
 JW2BEG[7|7|7|7|7|7|7|7],[LA_O|LB_O|LC_O|LD_O|LE_O|LF_O|LG_O|S1END2]
 
-# 
+#
 JN2BEG[0|0|0|0|0|0|0|0],[M_AB|N2END1|E2END1|SS4END1|W2END1|W6END1|E6END1|N4END1]
 JN2BEG[1|1|1|1|1|1|1|1],[M_AD|N2END2|E2END2|S2END2|W2END2|W6END0|E6END0|N4END2]
 JN2BEG[2|2|2|2|2|2|2|2],[M_AH|N2END3|E2END3|S2END3|W2END3|WW4END1|E6END1|N4END3]
@@ -131,7 +131,7 @@ JE2BEG[4|4|4|4|4|4|4|4],[M_EF|N2END5|E2END5|S2END5|N1END1|E1END1|S1END1|W1END1]
 JE2BEG[5|5|5|5|5|5|5|5],[M_AB|N2END6|E2END6|S2END6|N1END2|E1END2|S1END2|W1END2]
 JE2BEG[6|6|6|6|6|6|6|6],[M_AD|N2END7|E2END7|S2END7|N1END3|E1END3|S1END3|W1END3]
 JE2BEG[7|7|7|7|7|7|7|7],[M_AH|N2END0|E2END0|SS4END0|N1END0|E1END0|S1END0|WW4END0]
-                           
+
 JS2BEG[0|0|0|0|0|0|0|0],[M_AH|NN4END1|E2END1|S2END1|W2END1|W6END1|E6END1|S4END1]
 JS2BEG[1|1|1|1|1|1|1|1],[M_EF|NN4END2|EE4END2|SS4END2|W2END2|W6END0|E6END0|S4END2]
 JS2BEG[2|2|2|2|2|2|2|2],[M_AB|NN4END3|E2END3|S2END3|W2END3|W6END1|E6END1|S4END3]
@@ -140,11 +140,11 @@ JS2BEG[4|4|4|4|4|4|4|4],[M_AH|N2END5|E2END5|S2END5|N1END1|E1END1|S1END1|W1END1]
 JS2BEG[5|5|5|5|5|5|5|5],[M_EF|N2END6|E2END6|S2END6|N1END2|E1END2|S1END2|W1END2]
 JS2BEG[6|6|6|6|6|6|6|6],[M_AB|N2END7|E2END7|S2END7|N1END3|E1END3|S1END3|W1END3]
 JS2BEG[7|7|7|7|7|7|7|7],[M_AD|N2END0|E2END0|S2END0|N1END0|E1END0|S1END0|W1END0]
-   
+
 # I uncommented the following wires as they implement the input operand routing
 # I use a stop-over (JE2BEG) which is used to recycle this multiplexer not only to drive the wire (E2BEG) but to drive other things
 # So we have to check which other things this is and pick one of the inputs
-   
+
 JW2BEG[0|0|0|0|0|0|0|0],[M_AD|N2END1|E2END1|S2END1|W2END1|W6END1|E6END1|S4END1]
 JW2BEG[1|1|1|1|1|1|1|1],[M_AH|N2END2|E2END2|S2END2|W2END2|W6END0|E6END0|S4END2]
 JW2BEG[2|2|2|2|2|2|2|2],[M_EF|N2END3|EE4END3|SS4END3|W2END3|W6END1|E6END1|S4END3]
@@ -154,15 +154,15 @@ JW2BEG[5|5|5|5|5|5|5|5],[M_AH|N2END6|E2END6|S2END6|N1END2|E1END2|S1END2|W1END2]
 JW2BEG[6|6|6|6|6|6|6|6],[M_EF|N2END7|E2END7|S2END7|N1END3|E1END3|S1END3|W1END3]
 JW2BEG[7|7|7|7|7|7|7|7],[M_AB|NN4END0|E2END0|S2END0|N1END0|E1END0|S1END0|W1END0]
 
-# connection from the double jump wires (stopovers) to the actual double wires      
-# original connection:                     
+# connection from the double jump wires (stopovers) to the actual double wires
+# original connection:
 # [N|E|S|W]2BEG[0|1|2|3|4|5|6|7],J[N|E|S|W]2END[0|1|2|3|4|5|6|7]
 # the same but without the west routing/connection
 [N|E|S]2BEG[0|1|2|3|4|5|6|7],J[N|E|S]2END[0|1|2|3|4|5|6|7]
 # We split the double west channel into "normal routing" (indices[1|2|5|6]) and "operand routing" (indices[0|3|4|7])
 # the "normal routing" is using a JUMP stop-over in order to allow this multiplexer to drive the E2BEG wire and to serve as a source for other inputs
-W2BEG[1|2|5|6],JW2END[1|2|5|6]	
-W2BEG[0|3|4|7],JW2END[0|3|4|7]	
+W2BEG[1|2|5|6],JW2END[1|2|5|6]
+W2BEG[0|3|4|7],JW2END[0|3|4|7]
 # the other wires, "operand routing", get just extended; this is like the routing used for a ReCoBus
 ##W2BEG[0|3|4|7],W2END[0|3|4|7]
 # The operand (uses 4 double west wires) hard-wired routing:
@@ -174,30 +174,30 @@ W2BEG[0|3|4|7],JW2END[0|3|4|7]
 # This is a little like solving a Sudoku puzzle
 # This routing scheme is useful for simple Boolean functions
 # Foreseen mapping:
-	#         J2END_AB_BEG  J_l_AB_BEG
+    #         J2END_AB_BEG  J_l_AB_BEG
 # LUT_Input | J2END_x_BEG | J_1_x_BEG | used_index
 # ----------|-------------|-----------|--------------------------------------------------
-#   AB 0    |  W2END6     |   W2END3* |   3                                                      
-#   AB 1    |  W2END2     |   W2END7* |   7                                                      
-#   AB 2    |  W2END4*    |   W6END1  |   4                                                      
-#   AB 3    |  W2END0*    |  JW2END1  |   0                                               
+#   AB 0    |  W2END6     |   W2END3* |   3
+#   AB 1    |  W2END2     |   W2END7* |   7
+#   AB 2    |  W2END4*    |   W6END1  |   4
+#   AB 3    |  W2END0*    |  JW2END1  |   0
 # ----------|-------------|-----------|--------------------------------------------------
-#   CD 0    |  W2END6     |   W2END3* |   3                                                      
-#   CD 1    |  W2END2     |   W2END7* |   7                                                      
-#   CD 2    |  W2END4*    |  JS2END2  |   4                                                      
-#   CD 3    |  W2END0*    |   W6END0  |   0                                                      
+#   CD 0    |  W2END6     |   W2END3* |   3
+#   CD 1    |  W2END2     |   W2END7* |   7
+#   CD 2    |  W2END4*    |  JS2END2  |   4
+#   CD 3    |  W2END0*    |   W6END0  |   0
 # ----------|-------------|-----------|--------------------------------------------------
-#   EF 0    |  W2END7*    |   W2END3  |   7                                                      
-#   EF 1    |  W2END3*    |  JE2END3  |   3                                                      
-#   EF 2    |  W2END5     |   W2END4* |   4                                                      
-#   EF 3    |  W2END1     |   W2END0* |   0                                                      
+#   EF 0    |  W2END7*    |   W2END3  |   7
+#   EF 1    |  W2END3*    |  JE2END3  |   3
+#   EF 2    |  W2END5     |   W2END4* |   4
+#   EF 3    |  W2END1     |   W2END0* |   0
 # ----------|-------------|-----------|--------------------------------------------------
 #   GH 0    |  W2END7*    |  JN2END4  |   7
 #   GH 1    |  W2END3*    |   W2END2  |   3
 #   GH 2    |  W2END5     |   W2END4* |   4
 #   GH 3    |  W2END1     |   W2END0* |   0
 # ----------|-------------|-----------|--------------------------------------------------
-	  
+
 # single wires
 N1BEG[0|0|0|0],[J_l_CD_END1|LC_O|JW2END3|J2MID_CDb_END3]
 N1BEG[1|1|1|1],[J_l_EF_END2|LD_O|JW2END0|J2MID_EFb_END0]
