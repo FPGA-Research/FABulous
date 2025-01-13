@@ -96,8 +96,8 @@ class FABulous:
             raise ValueError
 
     def bootstrapSwitchMatrix(self, tileName: str, outputDir: str):
-        """Bootstraps the switch matrix for the specified tile via 'bootstrapSwitchMatrix'
-        defined in 'fabric_gen.py'.
+        """Bootstraps the switch matrix for the specified tile via
+        'bootstrapSwitchMatrix' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -110,8 +110,8 @@ class FABulous:
         self.fabricGenerator.bootstrapSwitchMatrix(tile, outputDir)
 
     def addList2Matrix(self, list: str, matrix: str):
-        """Converts list into CSV matrix via 'list2CSV' defined in
-        'fabric_gen.py' and saves it.
+        """Converts list into CSV matrix via 'list2CSV' defined in 'fabric_gen.py' and
+        saves it.
 
         Parameters
         ----------
@@ -136,8 +136,8 @@ class FABulous:
         self.fabricGenerator.generateConfigMem(tile, configMem)
 
     def genSwitchMatrix(self, tileName: str):
-        """Generates switch matrix for specified tile via 'genTileSwitchMatrix'
-        defined in 'fabric_gen.py'.
+        """Generates switch matrix for specified tile via 'genTileSwitchMatrix' defined
+        in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -148,8 +148,8 @@ class FABulous:
         self.fabricGenerator.genTileSwitchMatrix(tile)
 
     def genTile(self, tileName: str):
-        """Generates a tile based on its name via 'generateTile'
-        defined in 'fabric_gen.py'.
+        """Generates a tile based on its name via 'generateTile' defined in
+        'fabric_gen.py'.
 
         Parameters
         ----------
@@ -160,8 +160,8 @@ class FABulous:
         self.fabricGenerator.generateTile(tile)
 
     def genSuperTile(self, tileName: str):
-        """Generates a super tile based on its name via 'generateSuperTile'
-        defined in 'fabric_gen.py'.
+        """Generates a super tile based on its name via 'generateSuperTile' defined in
+        'fabric_gen.py'.
 
         Parameters
         ----------
@@ -172,9 +172,8 @@ class FABulous:
         self.fabricGenerator.generateSuperTile(tile)
 
     def genFabric(self):
-        """Generates the entire fabric layout via 'generatreFabric' defined
-        in 'fabric_gen.py'.
-        """
+        """Generates the entire fabric layout via 'generatreFabric' defined in
+        'fabric_gen.py'."""
         self.fabricGenerator.generateFabric()
 
     def genGeometry(self, geomPadding: int = 8):
@@ -189,9 +188,8 @@ class FABulous:
         self.geometryGenerator.saveToCSV(self.writer.outFileName)
 
     def genTopWrapper(self):
-        """Generates the top wrapper for the fabric via 'generateTopWrapper'
-        defined in 'fabric_gen.py'.
-        """
+        """Generates the top wrapper for the fabric via 'generateTopWrapper' defined in
+        'fabric_gen.py'."""
         self.fabricGenerator.generateTopWrapper()
 
     def genBitStreamSpec(self):
@@ -227,6 +225,7 @@ class FABulous:
 
     def getTile(self, tileName: str) -> Tile | None:
         """Returns Tile object based on tile name.
+
         Parameters
         ----------
             tileName : str
@@ -252,6 +251,7 @@ class FABulous:
 
     def getSuperTile(self, tileName: str) -> SuperTile | None:
         """Returns SuperTile object based on tile name.
+
         Parameters
         ----------
             tileName : str
@@ -267,6 +267,7 @@ class FABulous:
 
     def getSuperTiles(self):
         """Returns all SuperTiles within a fabric.
+
         Returns
         -------
         SuperTile

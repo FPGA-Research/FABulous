@@ -5,9 +5,9 @@ from FABulous.fabric_definition.define import Direction, IO, Side
 
 
 class VHDLWriter(codeGenerator):
-    """
-    The VHDL writer class. This is the template for generating VHDL code.
+    """The VHDL writer class.
 
+    This is the template for generating VHDL code.
     """
 
     def addComment(self, comment, onNewLine=False, end="", indentLevel=0) -> None:

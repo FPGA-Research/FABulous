@@ -5,8 +5,9 @@ from FABulous.fabric_definition.define import IO
 
 @dataclass
 class Bel:
-    """Contains all the information about a single BEL. The information is parsed from the directory of the BEL in the CSV
-    definition file. There are some things to be noted.
+    """Contains all the information about a single BEL. The information is parsed from
+    the directory of the BEL in the CSV definition file. There are some things to be
+    noted.
 
     - The parsed name will contain the prefix of the bel.
     - The `sharedPort` attribute is a list of Tuples with the name of the port and IO information, which is not expanded out yet.

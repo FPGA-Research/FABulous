@@ -13,3 +13,20 @@ repos:
     rev: 24.10.0
     hooks:
     -   id: black
+
+-   repo: https://github.com/PyCQA/docformatter.git
+    rev: v1.7.5
+    hooks:
+    -   id: docformatter
+        name: docformatter
+        description: 'Formats docstrings to follow PEP 257.'
+        args: [--in-place, --black]
+        language: python
+        types: [python]
+
+-   repo: https://github.com/econchick/interrogate
+    rev: 1.7.0
+    hooks:
+      - id: interrogate
+        args: [-vv, --ignore-magic, --ignore-init-module, --fail-under=40] # we should aim at 90%
+        pass_filenames: false  # needed if excluding files with pyproject.toml or setup.cfg

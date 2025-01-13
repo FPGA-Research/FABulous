@@ -4,13 +4,14 @@ from FABulous.fabric_definition.define import IO, Direction, Side
 
 @dataclass(frozen=True, eq=True)
 class Port:
-    """The port data class contains all the port information from the CSV file.
-    The `name`, `inOut` and `sideOfTile` are added attributes to aid the generation of the fabric.
-    The name and inOut are related. If the inOut is "INPUT" then the name is the source name of the port on the tile.
-    Otherwise the name is the destination name of the port on the tile.
-    The `sideOfTile` defines where the port is physically located on the tile, since for a north direction wire, the input will
-    be physically located on the south side of the tile. The `sideOfTile` will make determining where the port is located
-    much easier.
+    """The port data class contains all the port information from the CSV file. The
+    `name`, `inOut` and `sideOfTile` are added attributes to aid the generation of the
+    fabric. The name and inOut are related. If the inOut is "INPUT" then the name is the
+    source name of the port on the tile. Otherwise the name is the destination name of
+    the port on the tile. The `sideOfTile` defines where the port is physically located
+    on the tile, since for a north direction wire, the input will be physically located
+    on the south side of the tile. The `sideOfTile` will make determining where the port
+    is located much easier.
 
     Attributes
     ----------
@@ -81,7 +82,8 @@ class Port:
             ]
 
     def expandPortInfo(self, mode="SwitchMatrix") -> tuple[list[str], list[str]]:
-        """Expanding the port information to the individual bit signal. If 'Indexed' is in the mode, then brackets are added to the signal name.
+        """Expanding the port information to the individual bit signal. If 'Indexed' is
+        in the mode, then brackets are added to the signal name.
 
         Args
         ----

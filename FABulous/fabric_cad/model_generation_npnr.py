@@ -7,7 +7,7 @@ from FABulous.fabric_generator.file_parser import parseList, parseMatrix
 
 
 def genNextpnrModel(fabric: Fabric):
-    """Generates Nextpnr model for given fabric
+    """Generates Nextpnr model for given fabric.
 
     Parameters
     ----------
