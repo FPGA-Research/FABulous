@@ -24,7 +24,7 @@ Dirk Koch, Nguyen Dao, Bea Healy, Jing Yu, and Andrew Attwood. 2021. FABulous: A
 
 [Link to Paper](https://dl.acm.org/doi/pdf/10.1145/3431920.3439302)
 
-```
+```latex
 @inproceedings{koch2021fabulous,
   title={FABulous: An embedded FPGA framework},
   author={Koch, Dirk and Dao, Nguyen and Healy, Bea and Yu, Jing and Attwood, Andrew},
@@ -42,7 +42,7 @@ The following packages need to be installed for generating fabric HDL models and
 
 Install python dependencies
 
-```
+```shell
 sudo apt-get install python3-virtualenv
 ```
 
@@ -52,7 +52,7 @@ sudo apt-get install python3-virtualenv
 >errors when installing the requirements, you have to install the dependencies
 >for your specific python version. For Python 3.12 use
 >
->```
+>```shell
 >sudo apt-get install python3.12-virtualenv
 >```
 
@@ -61,7 +61,7 @@ sudo apt-get install python3-virtualenv
 >If you are using an older version than Ubuntu 24.04, you may need to install tkinter.
 >Otherwise, you might get the warning `ModuleNotFoundError: No module named 'tkinter'`.
 >
->```
+>```shell
 >sudo apt-get install python3-tk
 >```
 
@@ -76,7 +76,7 @@ The following packages need to be installed for the CAD toolchain
 We recommend using Python virtual environments for the usage of FABulous.
 If you are not sure what this is and why you should use it, please read the [virtualenv documentation](https://virtualenv.pypa.io/en/latest/index.html).
 
-```
+```shell
 $ git clone https://github.com/FPGA-Research-Manchester/FABulous
 $ cd FABulous
 $ virtualenv venv
@@ -88,7 +88,7 @@ $ source venv/bin/activate
 You can deactivate the virtual environment with the `deactivate` command.
 Please note, that you always have to enable the virtual environment to use FABulous:
 
-```
+```shell
 cd <path to FABulous>
 source venv/bin/activate
 ```
@@ -106,7 +106,7 @@ To exit the shell simply type `exit` and this will terminate the shell.
 
 A demo of the whole flow:
 
-```
+```shell
 (venv)$ FABulous -c demo # Create a demo project
 (venv)$ FABulous demo # Run Fabulous interactive shell for demo project
 
@@ -119,7 +119,7 @@ FABulous> exit
 
 To run a simulation of a test bitstream on the design with Icarus Verilog:
 
-```
+```shell
 (venv)$ cd demo/Test
 (venv)$ ./build_test_design.sh
 (venv)$ ./run_simulation.sh
@@ -139,6 +139,17 @@ Thank you for considering contributing to FABulous! By contributing, you're help
 ### Code Formatting
 
 We use [Black](https://github.com/psf/black) for code formatting. Please make sure your code adheres to Black's standards before submitting a pull request.
+
+### pre-commit
+
+To aid development we suggest to use pre-commit hooks.
+
+To install the pre-commit hooks:
+
+```shell
+pip install pre-commit
+pre-commit install
+```
 
 ### Code Review
 
