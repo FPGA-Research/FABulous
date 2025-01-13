@@ -33,7 +33,7 @@ jobs:
       - name: Run fabric generator flow
         run: |
           FABulous -c demo
-          FABulous demo --TCLscript ./demo/FABulous.tcl
+          FABulous demo --TCLScript ./demo/FABulous.tcl
       - name: Run simulation smoketest
         run: |
           cd ./demo/Test
