@@ -6,16 +6,16 @@
           <input name="in" num_pins="4" port_class="lut_in"/>
           <output name="out" num_pins="1" port_class="lut_out"/>
           <delay_matrix type="max" in_port="lut4.in" out_port="lut4.out">
-      					2.690e-10
-      					2.690e-10
-      					2.690e-10
-      					2.690e-10
-     				</delay_matrix>
+                        2.690e-10
+                        2.690e-10
+                        2.690e-10
+                        2.690e-10
+                    </delay_matrix>
           <metadata>
             <meta name="fasm_type">LUT</meta>
             <meta name="fasm_lut">
-         					INIT[15:0]
-       					</meta>
+                            INIT[15:0]
+                        </meta>
           </metadata>
         </pb_type>
         <pb_type name="ff" blif_model=".latch" class="flipflop" num_pb="1">
@@ -49,9 +49,9 @@
             <delay_constant max="45e-12" in_port="ff.Q" out_port="LUT4c_frame_config_dffesr.O"/>
             <metadata>
               <meta name="fasm_mux">
-        						ff.Q: FF
-        						lut4.out: NULL
-       						</meta>
+                                ff.Q: FF
+                                lut4.out: NULL
+                            </meta>
             </metadata>
           </mux>
         </interconnect>

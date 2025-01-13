@@ -15,9 +15,8 @@ from FABulous.FABulous_CLI.helper import (
 
 
 def main():
-    """Main function to start the command line interface of FABulous,
-    sets up argument parsing, initialises required components and handles
-    start the FABulous CLI.
+    """Main function to start the command line interface of FABulous, sets up argument
+    parsing, initialises required components and handles start the FABulous CLI.
 
     Also logs terminal output and if .FABulous folder is missing.
 

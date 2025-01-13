@@ -1,4 +1,4 @@
-`define SIZE 649 
+`define SIZE 649
 
 module top(input wire clk, input wire [27:0] io_in, output wire [27:0] io_out, io_oeb);
 wire rst = io_in[0];
@@ -12,7 +12,7 @@ begin
             counter <= 0;
             data_in <= 0;
         end
-    else 
+    else
         begin
             data_in <= {counter,data_in[`SIZE:13]};
             counter <= counter + 1;

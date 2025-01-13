@@ -46,8 +46,9 @@ SWITCH_MATRIX_DEBUG_SIGNAL = True
 
 
 class FabricGenerator:
-    """This class contains all the functionality required to generate the fabric as an RTL file from CSV files. To use the class, the information will need to be parsed first using the
-    function from file_parser.py.
+    """This class contains all the functionality required to generate the fabric as an
+    RTL file from CSV files. To use the class, the information will need to be parsed
+    first using the function from file_parser.py.
 
     Attributes
     ----------
@@ -66,8 +67,9 @@ class FabricGenerator:
 
     @staticmethod
     def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
-        """Generates a blank switch matrix CSV file for the given tile. The top left corner will
-        contain the name of the tile. Columns are the source signals and rows are the destination signals.
+        """Generates a blank switch matrix CSV file for the given tile. The top left
+        corner will contain the name of the tile. Columns are the source signals and
+        rows are the destination signals.
 
         The order of the signal will be:
         - standard wire
@@ -114,9 +116,10 @@ class FabricGenerator:
 
     @staticmethod
     def list2CSV(InFileName: Path, OutFileName: Path) -> None:
-        """This function is used to export a given list description into its equivalent CSV switch matrix description.
-        A comment will be appended to the end of the column and row of the matrix, which will indicate the number
-        of signals in a given row.
+        """This function is used to export a given list description into its equivalent
+        CSV switch matrix description. A comment will be appended to the end of the
+        column and row of the matrix, which will indicate the number of signals in a
+        given row.
 
         Parameters
         ----------
@@ -205,7 +208,8 @@ class FabricGenerator:
 
     @staticmethod
     def CSV2list(InFileName: str, OutFileName: str) -> None:
-        """This function is used to export a given CSV switch matrix description into its equivalent list description.
+        """This function is used to export a given CSV switch matrix description into
+        its equivalent list description.
 
         Parameters
         ----------
@@ -235,10 +239,13 @@ class FabricGenerator:
         return
 
     def generateConfigMemInit(self, file: str, globalConfigBitsCounter: int) -> None:
-        """This function is used to generate the config memory initialization file for a given amount of configuration
-        bits. The amount of configuration bits is determined by the `frameBitsPerRow` attribute of the fabric.
-        The function will pack the configuration bit from the highest to the lowest bit in the config memory.
-        I. e. if there are 100 configuration bits, with 32 frame bits per row, the function will pack from bit 99 starting from bit 31 of frame 0 to bit 28 of frame 3.
+        """This function is used to generate the config memory initialization file for a
+        given amount of configuration bits. The amount of configuration bits is
+        determined by the `frameBitsPerRow` attribute of the fabric. The function will
+        pack the configuration bit from the highest to the lowest bit in the config
+        memory. I. e. if there are 100 configuration bits, with 32 frame bits per row,
+        the function will pack from bit 99 starting from bit 31 of frame 0 to bit 28 of
+        frame 3.
 
         Parameters
         ----------
@@ -300,7 +307,9 @@ class FabricGenerator:
                 writer.writerow(entry)
 
     def generateConfigMem(self, tile: Tile, configMemCsv: str) -> None:
-        """This function will generate the RTL code for configuration memory of the given tile. If the given configMemCsv file does not exist, it will be created using `generateConfigMemInit`.
+        """This function will generate the RTL code for configuration memory of the
+        given tile. If the given configMemCsv file does not exist, it will be created
+        using `generateConfigMemInit`.
 
         Parameters
         ----------
@@ -426,11 +435,13 @@ class FabricGenerator:
         self.writer.writeToFile()
 
     def genTileSwitchMatrix(self, tile: Tile) -> None:
-        """This function will generate the RTL code for the tile switch matrix of the given tile. The switch matrix
-        generated will be based on the `matrixDir` attribute of the tile. If the given file format is CSV, it will be
-        parsed as a switch matrix CSV file. If the given file format is `.list`, the tool will convert the `.list`
-        file into a switch matrix with specific ordering first before progressing. If the given file format is Verilog or
-        VHDL, then the function will not generate anything.
+        """This function will generate the RTL code for the tile switch matrix of the
+        given tile. The switch matrix generated will be based on the `matrixDir`
+        attribute of the tile. If the given file format is CSV, it will be parsed as a
+        switch matrix CSV file. If the given file format is `.list`, the tool will
+        convert the `.list` file into a switch matrix with specific ordering first
+        before progressing. If the given file format is Verilog or VHDL, then the
+        function will not generate anything.
 
         Parameters
         ----------
@@ -1558,7 +1569,10 @@ class FabricGenerator:
         self.writer.writeToFile()
 
     def generateFabric(self) -> None:
-        """Generate the fabric. The fabric description will be a flat description."""
+        """Generate the fabric.
+
+        The fabric description will be a flat description.
+        """
 
         # There are of course many possibilities for generating the fabric.
         # I decided to generate a flat description as it may allow for a little easier debugging.
@@ -2067,7 +2081,8 @@ class FabricGenerator:
         self.writer.writeToFile()
 
     def generateTopWrapper(self) -> None:
-        """Generate the top wrapper of the fabric including features that are not located inside the fabric such as BRAM."""
+        """Generate the top wrapper of the fabric including features that are not
+        located inside the fabric such as BRAM."""
 
         def split_port(p):
             # split a port according to how we want to sort external ports:
@@ -2386,7 +2401,8 @@ class FabricGenerator:
         self.writer.writeToFile()
 
     def generateBitsStreamSpec(self) -> Dict[str, Dict]:
-        """Generate the bitstream specification of the fabric. This is needed and will be further parsed by the bit_gen.py
+        """Generate the bitstream specification of the fabric. This is needed and will
+        be further parsed by the bit_gen.py.
 
         Returns
         -------

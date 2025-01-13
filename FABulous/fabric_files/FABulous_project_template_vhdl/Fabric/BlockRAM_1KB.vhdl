@@ -28,7 +28,7 @@ entity BlockRAM_1KB is
     wr_addr : in std_logic_vector(7 downto 0);
     wr_data : in std_logic_vector(31 downto 0)
   );
-end entity; 
+end entity;
 
 -- Generated from Verilog module BlockRAM_1KB (BlockRAM_1KB.v:1)
 --   READ_ADDRESS_MSB_FROM_DATALSB = 24
@@ -48,7 +48,7 @@ architecture from_verilog of BlockRAM_1KB is
   signal rd_port_configuration : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:22
   signal wr_addr_topbits : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:42
   signal wr_port_configuration : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:23
-  
+
   component sram_1rw1r_32_256_8_sky130 is
     port (
       addr0 : in std_logic_vector(7 downto 0);
@@ -71,7 +71,7 @@ begin
   wr_port_configuration <= C0 & C1;
   rd_port_configuration <= C2 & C3;
   wr_addr_topbits <= wr_data(READ_ADDRESS_MSB_FROM_DATALSB + 1 downto READ_ADDRESS_MSB_FROM_DATALSB);
-  
+
   -- Generated from instantiation at BlockRAM_1KB.v:75
   memory_cell: sram_1rw1r_32_256_8_sky130
     port map (
@@ -86,7 +86,7 @@ begin
       web0 => memWriteEnable,
       wmask0 => mem_wr_mask
     );
-  
+
   -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:32)
   process (alwaysWriteEnable, wr_data) is
   begin
@@ -96,7 +96,7 @@ begin
       memWriteEnable <= not wr_data(WRITE_ENABLE_FROM_DATA);
     end if;
   end process;
-  
+
   -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:44)
   process (wr_port_configuration, wr_data, wr_addr_topbits) is
   begin
@@ -136,7 +136,7 @@ begin
       end if;
     end if;
   end process;
-  
+
   -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:89)
   process (clk) is
   begin
@@ -144,7 +144,7 @@ begin
       rd_dout_sel <= wr_data(READ_ADDRESS_MSB_FROM_DATALSB + 1 downto READ_ADDRESS_MSB_FROM_DATALSB);
     end if;
   end process;
-  
+
   -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:93)
   process (mem_dout, rd_port_configuration, rd_dout_sel) is
   begin
@@ -177,7 +177,7 @@ begin
       end if;
     end if;
   end process;
-  
+
   -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:116)
   process (clk) is
   begin
@@ -185,7 +185,7 @@ begin
       rd_dout_additional_register <= rd_dout_muxed;
     end if;
   end process;
-  
+
   -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:121)
   process (optional_register_enabled_configuration, rd_dout_additional_register, rd_dout_muxed) is
   begin
@@ -221,7 +221,7 @@ entity sram_1rw1r_32_256_8_sky130 is
     web0 : in std_logic;
     wmask0 : in std_logic_vector(3 downto 0)
   );
-end entity; 
+end entity;
 
 -- Generated from Verilog module sram_1rw1r_32_256_8_sky130 (BlockRAM_1KB.v:132)
 --   ADDR_WIDTH = 8
@@ -234,4 +234,3 @@ begin
   dout0 <= (others => 'Z');
   dout1 <= (others => 'Z');
 end architecture;
-

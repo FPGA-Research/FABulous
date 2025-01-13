@@ -2,7 +2,7 @@ Chip Gallery
 ============
 .. image:: ../figs/FORTE_tapeouts.svg
   :width: 800
-  :alt: Chips 
+  :alt: Chips
     eFPGA_RISCV_TSMC180:
       eFPGA (ver.1) with RISC-V core and 1K DPRAM
       FORTE-ENG1

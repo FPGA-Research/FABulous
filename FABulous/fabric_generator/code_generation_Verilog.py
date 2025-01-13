@@ -7,9 +7,7 @@ from FABulous.fabric_definition.Fabric import IO, Bel, ConfigBitMode, Tile
 
 
 class VerilogWriter(codeGenerator):
-    """
-    The writer class for generating Verilog code.
-    """
+    """The writer class for generating Verilog code."""
 
     def addComment(self, comment, onNewLine=False, end="", indentLevel=0) -> None:
         if onNewLine:

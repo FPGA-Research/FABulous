@@ -20,7 +20,7 @@ from FABulous.geometry_generator.fabric_geometry import FabricGeometry
 
 
 class GeometryGenerator:
-    """This class handles the generation of the geometry for a fabric
+    """This class handles the generation of the geometry for a fabric.
 
     Attributes
     ----------
@@ -40,6 +40,7 @@ class GeometryGenerator:
 
     def saveToCSV(self, fileName: str) -> None:
         """Saves the generated geometry into a file specified by the given file name.
+
         This file can then be imported into FABulator.
         """
         self.fabricGeometry.saveToCSV(fileName)

@@ -98,12 +98,8 @@ class SmGeometry:
         self.westPortsRightX = 0
 
     def preprocessPorts(self, tileBorder: Border) -> None:
-        """
-        Ensures that ports are ordered correctly,
-        merges connected jump ports and augments
-        ports for term tiles.
-
-        """
+        """Ensures that ports are ordered correctly, merges connected jump ports and
+        augments ports for term tiles."""
         # This step augments ports in border tiles.
         # This is needed, as these are not contained
         # in the (north...west)SidePorts in FABulous.

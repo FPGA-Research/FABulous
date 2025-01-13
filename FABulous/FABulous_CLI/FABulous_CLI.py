@@ -57,7 +57,7 @@ CMD_SCRIPT = "Script"
 CMD_OTHER = "Other"
 
 
-INTO_STRING = rf"""   
+INTO_STRING = rf"""
      ______      ____        __
     |  ____/\   |  _ \      | |
     | |__ /  \  | |_) |_   _| | ___  _   _ ___
@@ -244,10 +244,10 @@ class FABulous_CLI(Cmd):
     @allow_blank
     @with_argparser(filePathOptionalParser)
     def do_load_fabric(self, args):
-        """Loads 'fabric.csv' file and generates an internal representation
-        of the fabric. Does this by parsing input arguments, sets an internal
-        state to indicate that fabric is loaded and determines the available tiles
-        by comparing directories in the project with tiles defined by fabric.
+        """Loads 'fabric.csv' file and generates an internal representation of the
+        fabric. Does this by parsing input arguments, sets an internal state to indicate
+        that fabric is loaded and determines the available tiles by comparing
+        directories in the project with tiles defined by fabric.
 
         Logs error if no CSV file is found.
         """
@@ -317,8 +317,8 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)
     def do_gen_config_mem(self, args):
-        """Generates configuration memory of the given tile by
-        by parsing input arguments and calling 'genConfigMem'.
+        """Generates configuration memory of the given tile by by parsing input
+        arguments and calling 'genConfigMem'.
 
         Logs generation processes for each specified tile.
         """
@@ -336,11 +336,10 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)
     def do_gen_switch_matrix(self, args):
-        """Generates switch matrix of given tile by parsing input arguments
-        and calling 'genSwitchMatrix'.
+        """Generates switch matrix of given tile by parsing input arguments and calling
+        'genSwitchMatrix'.
 
         Also logs generation process for each specified tile.
-
         """
         logger.info(f"Generating switch matrix for {' '.join(args.tiles)}")
         for i in args.tiles:
@@ -354,9 +353,9 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)
     def do_gen_tile(self, args):
-        """Generates given tile with switch matrix and configuration memory
-        by parsing input arguments, calls functions such as 'genSwitchMatrix' and
-        'genConfigmem'. Handles both regular tiles and super tiles with sub-tiles.
+        """Generates given tile with switch matrix and configuration memory by parsing
+        input arguments, calls functions such as 'genSwitchMatrix' and 'genConfigmem'.
+        Handles both regular tiles and super tiles with sub-tiles.
 
         Also logs generation process for each specified tile and sub-tile.
         """
@@ -433,9 +432,10 @@ class FABulous_CLI(Cmd):
 
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_fabric(self, *ignored):
-        """Generates fabric based on the loaded fabric by calling
-        'do_gen_all_tile' and 'genFabric'. Logs start and completion of
-        fabric generation process.
+        """Generates fabric based on the loaded fabric by calling 'do_gen_all_tile' and
+        'genFabric'.
+
+        Logs start and completion of fabric generation process.
         """
         logger.info(f"Generating fabric {self.fabulousAPI.fabric.name}")
         self.do_gen_all_tile()
@@ -460,12 +460,12 @@ class FABulous_CLI(Cmd):
     @allow_blank
     @with_argparser(geometryParser)
     def do_gen_geometry(self, args):
-        """Generates geometry of fabric for FABulator by checking if fabric
-        is loaded, and calling 'genGeometry' and passing on padding value. Default
-        padding is '8'.
+        """Generates geometry of fabric for FABulator by checking if fabric is loaded,
+        and calling 'genGeometry' and passing on padding value. Default padding is '8'.
 
-        Also logs geometry generation, the used padding value and any warning about faulty padding arguments,
-        as well as errors if the fabric is not loaded or the padding is not within the valid range of 4 to 32.
+        Also logs geometry generation, the used padding value and any warning about
+        faulty padding arguments, as well as errors if the fabric is not loaded or the
+        padding is not within the valid range of 4 to 32.
         """
         logger.info(f"Generating geometry for {self.fabulousAPI.fabric.name}")
         geomFile = f"{self.projectDir}/{self.fabulousAPI.fabric.name}_geometry.csv"
@@ -478,6 +478,7 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_GUI)
     def do_start_FABulator(self, *ignored):
         """Starts FABulator if an installation can be found.
+
         If no installation can be found, a warning is produced.
         """
         logger.info("Checking for FABulator installation")
@@ -514,8 +515,8 @@ class FABulous_CLI(Cmd):
 
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_bitStream_spec(self, *ignored):
-        """Generates bitstream specification of the fabric by calling
-        'genBitStreamspec' and saving the specification to a binary and CSV file.
+        """Generates bitstream specification of the fabric by calling 'genBitStreamspec'
+        and saving the specification to a binary and CSV file.
 
         Also logs the paths of the output files.
         """
@@ -552,8 +553,9 @@ class FABulous_CLI(Cmd):
     def do_run_FABulous_fabric(self, *ignored):
         """Generates the fabric based on the CSV file, creates bitstream specification
         of the fabric, top wrapper of the fabric, Nextpnr model of the fabric and
-        geometry information of the fabric. Does this by calling the respective functions
-        'do_gen_[function]'.
+        geometry information of the fabric.
+
+        Does this by calling the respective functions 'do_gen_[function]'.
         """
         logger.info("Running FABulous")
         self.do_gen_fabric()
@@ -566,10 +568,10 @@ class FABulous_CLI(Cmd):
 
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_model_npnr(self, *ignored):
-        """Generates Nextpnr model of fabric by parsing various required files
-        for place and route such as 'pips.txt', 'bel.txt', 'bel.v2.txt' and
-        'templace.pcf'. Output files are written to the directory specified by
-        'metaDataDir' within 'projectDir'.
+        """Generates Nextpnr model of fabric by parsing various required files for place
+        and route such as 'pips.txt', 'bel.txt', 'bel.v2.txt' and 'templace.pcf'. Output
+        files are written to the directory specified by 'metaDataDir' within
+        'projectDir'.
 
         Logs output file directories.
         """
@@ -596,9 +598,9 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(filePathRequireParser)
     def do_synthesis(self, args):
-        """Runs Yosys using Nextpnr JSON backend to synthesise the Verilog design specified
-        by <top_module_file> and generates a Nextpnr-compatible JSON file for further place
-        and route process.
+        """Runs Yosys using Nextpnr JSON backend to synthesise the Verilog design
+        specified by <top_module_file> and generates a Nextpnr-compatible JSON file for
+        further place and route process.
 
         Also logs usage errors or synthesis failures.
         """
@@ -715,11 +717,12 @@ class FABulous_CLI(Cmd):
     @with_argparser(filePathRequireParser)
     def do_gen_bitStream_binary(self, args):
         """Generates bitstream of a given design using FASM file and pre-generated
-        bitstream specification file 'bitStreamSpec.bin'. Requires bitstream specification
-        before use by running 'gen_bitStream_spec' and place and route file generated
-        by running 'place_and_route'.
+        bitstream specification file 'bitStreamSpec.bin'. Requires bitstream
+        specification before use by running 'gen_bitStream_spec' and place and route
+        file generated by running 'place_and_route'.
 
-        Also logs output file directory, Bitstream generation error and file not found error.
+        Also logs output file directory, Bitstream generation error and file not found
+        error.
         """
         parent = args.file.parent
         fasm_file = args.file.name
@@ -783,11 +786,11 @@ class FABulous_CLI(Cmd):
     def do_run_simulation(self, args):
         """Simulate given FPGA design using Icarus Verilog (iverilog).
 
-        If <fst> is specified, waveform files in FST format will generate, <vcd>
-        with generate VCD format. The bitstream_file argument should be a binary file
+        If <fst> is specified, waveform files in FST format will generate, <vcd> with
+        generate VCD format. The bitstream_file argument should be a binary file
         generated by 'gen_bitStream_binary'. Verilog files from 'Tile' and 'Fabric'
-        directories are copied to the temporary directory 'tmp', 'tmp' is deleted
-        on simulation end.
+        directories are copied to the temporary directory 'tmp', 'tmp' is deleted on
+        simulation end.
 
         Also logs simulation error and file not found error and value error.
         """
@@ -862,8 +865,8 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(filePathRequireParser)
     def do_run_FABulous_bitstream(self, args):
-        """
-        Runs FABulous to generate bitstream on a given design starting from synthesis.
+        """Runs FABulous to generate bitstream on a given design starting from
+        synthesis.
 
         Does this by calling synthesis, place and route, bitstream generation functions.
         Requires Verilog file specified by <top_module_file>.
@@ -896,7 +899,6 @@ class FABulous_CLI(Cmd):
         <tcl_scripts>. Uses the 'tk' module to create TCL commands.
 
         Also logs usage errors and file not found errors.
-
         """
         if not args.file.exists():
             logger.error(f"Cannot find {args.file}")

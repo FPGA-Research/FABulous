@@ -3,7 +3,7 @@ Nextpnr compilation
 
 Compile JSON to FASM by nextpnr <-- bels.txt + pips.txt
 
-Our nextpnr implementation uses nextpnr-generic for place and route. 
+Our nextpnr implementation uses nextpnr-generic for place and route.
 
 Building
 --------
@@ -31,7 +31,7 @@ To generate the FASM file using nextpnr, run the following command:
 Example,
 
 .. code-block:: console
-        
+
         $ FAB_ROOT=demo nextpnr-generic --uarch fabulous --json demo/user_design/sequential_16bit_en.v -o fasm=demo/user_design/sequential_16bit_en.fasm
 
 Primitive instantiation
@@ -52,7 +52,7 @@ Constraints for your architecture can be put in place using Absolute Placement C
 
         (* BEL="X7Y3.C" *) FABULOUS_LC #(.INIT(16'b1010101010101010), .DFF_ENABLE(1'b0)) constraint_test (.CLK(clk), .I0(enable), .O (enable_i));
 
-We can constrain which BEL should be used - LUT "C" is constrained to be used in Tile X7Y3 in the example. With the same constraint method, we can also instantiate ``InPass4_frame_config, OutPass4_frame_config and IO_1_bidirectional_frame_config_pass`` blocks for IO constraints.       
+We can constrain which BEL should be used - LUT "C" is constrained to be used in Tile X7Y3 in the example. With the same constraint method, we can also instantiate ``InPass4_frame_config, OutPass4_frame_config and IO_1_bidirectional_frame_config_pass`` blocks for IO constraints.
 
 The following example is a 16-bit counter output to Block_RAM, and then Block_RAM to W_IO in a 10x10 fabric.
 
@@ -117,13 +117,13 @@ The following example is a 16-bit counter output to Block_RAM, and then Block_RA
             if(enable) begin
                     if(reset) begin
                         counter_i <= 0;
-                    end 
+                    end
                     else begin
                         counter_i <= counter_i + 1'b1;
                     end
             end
         end
-        
+
         assign counter = {Tile_X11Y10_RAM2FAB_D0_O0, Tile_X11Y10_RAM2FAB_D0_O1, Tile_X11Y10_RAM2FAB_D0_O2, Tile_X11Y10_RAM2FAB_D0_O3,
                         Tile_X11Y10_RAM2FAB_D1_O0, Tile_X11Y10_RAM2FAB_D1_O1, Tile_X11Y10_RAM2FAB_D1_O2, Tile_X11Y10_RAM2FAB_D1_O3,
                         Tile_X11Y10_RAM2FAB_D2_O0, Tile_X11Y10_RAM2FAB_D2_O1, Tile_X11Y10_RAM2FAB_D2_O2, Tile_X11Y10_RAM2FAB_D2_O3,
@@ -143,8 +143,3 @@ The following example is a 16-bit counter output to Block_RAM, and then Block_RA
         assign {Tile_X11Y9_FAB2RAM_C_I2, Tile_X11Y9_FAB2RAM_C_I3, Tile_X11Y10_FAB2RAM_C_I0, Tile_X11Y10_FAB2RAM_C_I1, Tile_X11Y10_FAB2RAM_C_I2, Tile_X11Y10_FAB2RAM_C_I3} = 6'b110000;
 
         endmodule
-
-
-
-
-

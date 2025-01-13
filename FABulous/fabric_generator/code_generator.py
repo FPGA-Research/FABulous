@@ -6,9 +6,7 @@ from FABulous.fabric_definition.Fabric import IO, Bel, ConfigBitMode
 
 
 class codeGenerator(abc.ABC):
-    """
-    The base class for all code generators.
-    """
+    """The base class for all code generators."""
 
     @property
     def outFileName(self):
@@ -268,8 +266,7 @@ class codeGenerator(abc.ABC):
 
     @abc.abstractmethod
     def addDesignDescriptionStart(self, name: str, indentLevel=0):
-        """
-        Add start of design description. Only useful with VHDL.
+        """Add start of design description. Only useful with VHDL.
 
         Parameters
         ----------
@@ -375,7 +372,6 @@ class codeGenerator(abc.ABC):
     def addLogicStart(self, indentLevel=0):
         """Add start of logic. Only useful with VHDL.
 
-
         Parameters
         ----------
         indentLevel : int, optional
@@ -416,8 +412,9 @@ class codeGenerator(abc.ABC):
         emulateParamPairs: List[Tuple[str, str]] = [],
         indentLevel=0,
     ):
-        """Add an instantiation. This will line up the ports and signals.
-        So ports[0] will have signals[0] and so on. This is also the same case for paramPorts and paramSignals.
+        """Add an instantiation. This will line up the ports and signals. So ports[0]
+        will have signals[0] and so on. This is also the same case for paramPorts and
+        paramSignals.
 
         Parameters
         ----------
@@ -642,8 +639,7 @@ class codeGenerator(abc.ABC):
 
     @abc.abstractmethod
     def addPreprocEndif(self, indentLevel=0):
-        r"""
-        Add a preprocessor "endif".
+        r"""Add a preprocessor "endif".
 
         Parameters
         ----------

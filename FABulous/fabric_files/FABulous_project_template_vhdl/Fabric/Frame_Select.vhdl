@@ -18,14 +18,14 @@ entity Frame_Select is
     FrameStrobe_I : in std_logic_vector(MaxFramesPerCol-1 downto 0);
     FrameStrobe_O : out std_logic_vector(MaxFramesPerCol-1 downto 0)
   );
-end entity; 
+end entity;
 
 
 architecture from_verilog of Frame_Select is
   signal FrameStrobe_O_Reg : std_logic_vector(19 downto 0);
 begin
   FrameStrobe_O <= FrameStrobe_O_Reg;
-  
+
   -- Generated from always process in Frame_Select (Frame_Select_template.v:11)
   process (FrameStrobe, FrameSelect, FrameStrobe_I) is
   begin
@@ -36,4 +36,3 @@ begin
     end if;
   end process;
 end architecture;
-

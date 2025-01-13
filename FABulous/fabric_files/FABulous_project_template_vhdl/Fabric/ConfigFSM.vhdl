@@ -26,7 +26,7 @@ entity ConfigFSM is
     WriteData : in std_logic_vector(31 downto 0);
     WriteStrobe : in std_logic
   );
-end entity; 
+end entity;
 
 -- Generated from Verilog module ConfigFSM (ConfigFSM_template.v:1)
 --   FrameBitsPerRow = 32
@@ -42,7 +42,7 @@ architecture from_verilog of ConfigFSM is
   signal oldFrameStrobe : std_logic := '0';  -- Declared at ConfigFSM_template.v:74
   signal old_reset : std_logic := '0';  -- Declared at ConfigFSM_template.v:23
   signal state : std_logic_vector(1 downto 0) := "00";  -- Declared at ConfigFSM_template.v:22
-  
+
   function Boolean_To_Logic(B : Boolean) return std_logic is
   begin
     if B then
@@ -55,7 +55,7 @@ begin
   FrameAddressRegister <= FrameAddressRegister_Reg;
   LongFrameStrobe <= LongFrameStrobe_Reg;
   RowSelect <= RowSelect_Reg;
-  
+
   -- Generated from always process in ConfigFSM (ConfigFSM_template.v:24)
   process (CLK) is
   begin
@@ -97,7 +97,7 @@ begin
       end if;
     end if;
   end process;
-  
+
   -- Generated from always process in ConfigFSM (ConfigFSM_template.v:66)
   process (WriteStrobe, FrameShiftState) is
   begin
@@ -107,7 +107,7 @@ begin
       RowSelect_Reg <= "11111";
     end if;
   end process;
-  
+
   -- Generated from always process in ConfigFSM (ConfigFSM_template.v:75)
   process (CLK) is
   begin
@@ -117,4 +117,3 @@ begin
     end if;
   end process;
 end architecture;
-

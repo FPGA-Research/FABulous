@@ -27,26 +27,26 @@ entity Config is
     s_clk : in std_logic;
     s_data : in std_logic
   );
-end entity; 
+end entity;
 
 -- Generated from Verilog module Config (Config_template.v:1)
 --   FrameBitsPerRow = 32
 --   RowSelectWidth = 5
 architecture from_verilog of Config is
-  signal BitBangActive : std_logic := '0'; 
-  signal BitBangWriteData : unsigned(31 downto 0); 
-  signal BitBangWriteData_Mux : std_logic_vector(31 downto 0);  
-  signal BitBangWriteStrobe : std_logic := '0';  
-  signal BitBangWriteStrobe_Mux : std_logic := '0';  
-  signal Command : unsigned(7 downto 0);  
-  signal Reset : std_logic := '0';  
-  signal UART_ComActive : std_logic := '0';  
-  signal UART_LED : std_logic := '0';  
-  signal UART_WriteData : unsigned(31 downto 0);  
-  signal UART_WriteData_Mux : std_logic_vector(31 downto 0); 
-  signal UART_WriteStrobe : std_logic := '0';  
-  signal UART_WriteStrobe_Mux : std_logic := '0'; 
-  
+  signal BitBangActive : std_logic := '0';
+  signal BitBangWriteData : unsigned(31 downto 0);
+  signal BitBangWriteData_Mux : std_logic_vector(31 downto 0);
+  signal BitBangWriteStrobe : std_logic := '0';
+  signal BitBangWriteStrobe_Mux : std_logic := '0';
+  signal Command : unsigned(7 downto 0);
+  signal Reset : std_logic := '0';
+  signal UART_ComActive : std_logic := '0';
+  signal UART_LED : std_logic := '0';
+  signal UART_WriteData : unsigned(31 downto 0);
+  signal UART_WriteData_Mux : std_logic_vector(31 downto 0);
+  signal UART_WriteStrobe : std_logic := '0';
+  signal UART_WriteStrobe_Mux : std_logic := '0';
+
   component ConfigFSM is
     generic (
       FrameBitsPerRow : integer := 32;
@@ -67,7 +67,7 @@ architecture from_verilog of Config is
   signal FrameAddressRegister_Readable : std_logic_vector(31 downto 0);  -- Needed to connect outputs
   signal LongFrameStrobe_Readable : std_logic;  -- Needed to connect outputs
   signal RowSelect_Readable : std_logic_vector(4 downto 0);  -- Needed to connect outputs
-  
+
   component config_UART is
     port (
       CLK : in std_logic;
@@ -79,7 +79,7 @@ architecture from_verilog of Config is
       WriteStrobe : out std_logic
     );
   end component;
-  
+
   component bitbang is
     port (
       active : out std_logic;
@@ -103,7 +103,7 @@ begin
   FrameAddressRegister <= FrameAddressRegister_Readable;
   LongFrameStrobe <= LongFrameStrobe_Readable;
   RowSelect <= RowSelect_Readable;
-  
+
   -- Generated from instantiation at Config_template.v:81
   ConfigFSM_inst: ConfigFSM
     port map (
@@ -115,7 +115,7 @@ begin
       WriteData => UART_WriteData_Mux,
       WriteStrobe => UART_WriteStrobe_Mux
     );
-  
+
   -- Generated from instantiation at Config_template.v:41
   INST_config_UART: config_UART
     port map (
@@ -127,7 +127,7 @@ begin
       WriteData => UART_WriteData,
       WriteStrobe => UART_WriteStrobe
     );
-  
+
   -- Generated from instantiation at Config_template.v:52
   Inst_bitbang: bitbang
     port map (

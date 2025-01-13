@@ -81,7 +81,7 @@ If you are using yosys oss-cad-suite, no need to install the following packages.
  version > 0.4-28-gac17c36b
 
 :`Yosys ghdl plugin <https://github.com/ghdl/ghdl-yosys-plugin>`_:
- Only needed for VHDL synthesis 
+ Only needed for VHDL synthesis
 
 .. note::
 
@@ -108,7 +108,7 @@ Building Fabric and Bitstream
 
    (venv)$ FABulous -c <name_of_project>
    (venv)$ FABulous <name_of_project>
-   
+
    # inside the FABulous shell
    FABulous> load_fabric
    FABulous> run_FABulous_fabric
@@ -118,7 +118,7 @@ Building Fabric and Bitstream
 
   You will probably receive a warning for the FASM package like the following:
       .. code-block:: text
-  
+
           RuntimeWarning: Unable to import fast Antlr4 parser implementation.
           ImportError: cannot import name 'antlr_to_tuple' from partially initialized module 'fasm.parser' (most likely due to a circular import)
 
@@ -133,7 +133,7 @@ Building Fabric and Bitstream
   This usually happens when FASM can't find the Antlr4 package, but this is not mandatory for us.
   If you still want to fix this issue, you have to install FASM in your virtual environment from source.
   Please have a look at the `FASM documentation <https://github.com/chipsalliance/fasm>`_ for more information.
-   
+
 After a successful call with the command ``run_FABulous_fabric`` the RTL file of each of the tiles can be found in the ``Tile`` folder and the fabric RTL file can be found in the ``Fabric`` folder.
 
 After a successful call with the command ``run_FABulous_bitstream user_design/sequential_16bit_en.v``.
@@ -207,5 +207,3 @@ Variable Name       Description                                     Default Valu
 =================== =============================================== ===========================================================================
 FAB_PROJ_LANG       The language of the project. (verilog/vhdl)     verilog (default) or language specified by ``-w`` command line argument
 =================== =============================================== ===========================================================================
-
-

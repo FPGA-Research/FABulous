@@ -29,10 +29,10 @@ class SuperTile:
     withUserCLK: bool = False
 
     def getPortsAroundTile(self) -> dict[str, list[list[Port]]]:
-        """Return all the ports that are around the super tile.
-        The dictionary key is the location of where the tile is located in the super tile map with the format of "X{x}Y{y}",
-        where x is the x coordinate of the tile and y is the y coordinate of the tile.
-        The top left tile will have key "00".
+        """Return all the ports that are around the super tile. The dictionary key is
+        the location of where the tile is located in the super tile map with the format
+        of "X{x}Y{y}", where x is the x coordinate of the tile and y is the y coordinate
+        of the tile. The top left tile will have key "00".
 
         Returns
         -------

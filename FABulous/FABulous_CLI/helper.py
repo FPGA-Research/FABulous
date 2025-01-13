@@ -32,8 +32,7 @@ def setup_logger(verbosity: int):
 
 
 def setup_global_env_vars(args: argparse.Namespace) -> None:
-    """
-    Set up global  environment variables
+    """Set up global  environment variables.
 
     Parameters
     ----------
@@ -92,8 +91,7 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
 
 
 def setup_project_env_vars(args: argparse.Namespace) -> None:
-    """
-    Set up environment variables for the project
+    """Set up environment variables for the project.
 
     Parameters
     ----------
@@ -128,9 +126,8 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
 
 
 def adjust_directory_in_verilog_tb(project_dir):
-    """Adjusts directory paths in a Verilog testbench file by replacing
-    the string "PROJECT_DIR" in the project_template with the actual
-    project directory.
+    """Adjusts directory paths in a Verilog testbench file by replacing the string
+    "PROJECT_DIR" in the project_template with the actual project directory.
 
     Parameters
     ----------
@@ -147,8 +144,8 @@ def adjust_directory_in_verilog_tb(project_dir):
 
 
 def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
-    """Creates a FABulous project containing all required files by copying
-    the appropriate project template and the synthesis directory.
+    """Creates a FABulous project containing all required files by copying the
+    appropriate project template and the synthesis directory.
 
     File structure as follows:
         FABulous_project_template --> project_dir/
@@ -286,6 +283,7 @@ def check_if_application_exists(application: str, throw_exception: bool = True) 
 
 def wrap_with_except_handling(fun_to_wrap):
     """Decorator function that wraps 'fun_to_wrap' with exception handling.
+
     Parameters
     ----------
     fun_to_wrap : callable
@@ -293,8 +291,9 @@ def wrap_with_except_handling(fun_to_wrap):
     """
 
     def inter(*args, **varargs):
-        """Wrapped function that executes 'fun_to_wrap' with arguments
-        and exception handling.
+        """Wrapped function that executes 'fun_to_wrap' with arguments and exception
+        handling.
+
         Parameters
         ----------
         *args : tuple

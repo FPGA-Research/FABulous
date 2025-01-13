@@ -3,7 +3,7 @@ References
 
 .. toctree::
    :maxdepth: 1
-   
+
    code_generator
    fabric
    fabric_gen

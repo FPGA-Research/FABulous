@@ -84,5 +84,3 @@ If you find any issues or have any suggestions, improvements, new features or qu
 please open an [issue](https://github.com/FPGA-Research-Manchester/FABulous/issues),
 start a [discussion](https://github.com/FPGA-Research-Manchester/FABulous/discussions)
 or create a [pull request](https://github.com/FPGA-Research-Manchester/FABulous/pulls).
-
-
