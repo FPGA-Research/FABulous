@@ -1434,7 +1434,7 @@ class FabricGenerator:
             self.writer.addComment("CONFout is from tile entity")
 
         if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
-            for y in range(1, len(self.fabric.tile)-1):
+            for y in range(len(self.fabric.tile)):
                 self.writer.addAssignVector(
                     f"Tile_Y{y}_FrameData", "FrameData", f"FrameBitsPerRow*({y}+1)-1", f"FrameBitsPerRow*{y}")
             for x in range(len(self.fabric.tile[0])):
@@ -1613,6 +1613,12 @@ class FabricGenerator:
                                 portsPairs.append(
                                     (f"{pre}FrameData", f"Tile_Y{y}_FrameData"))
 
+                            # For the second column, directly connect the tiles
+                            # to FrameData if the previous tile was NULL
+                            elif x == 1 and self.fabric.tile[y][0] == None:
+                                portsPairs.append(
+                                    (f"{pre}FrameData", f"Tile_Y{y}_FrameData"))
+
                             elif (x+i-1, y+j) not in superTileLoc:
                                 portsPairs.append(
                                     (f"{pre}FrameData", f"Tile_X{x+i-1}Y{y+j}_FrameData_O"))
@@ -1637,7 +1643,9 @@ class FabricGenerator:
                             portsPairs.append(
                                 (f"{pre}FrameStrobe", f"Tile_X{x}_FrameStrobe"))
 
-                        elif y + 1 < self.fabric.numberOfRows and self.fabric.tile[y+1][x] == None:
+                        # For the second last row, directly connect the tiles
+                        # to FrameStrobe if the previous tile was NULL
+                        elif y == self.fabric.numberOfRows - 2 and self.fabric.tile[self.fabric.numberOfRows-1][x] == None:
                             portsPairs.append(
                                 (f"{pre}FrameStrobe", f"Tile_X{x}_FrameStrobe"))
 
