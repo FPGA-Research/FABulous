@@ -16,7 +16,7 @@ repos:
     -   id: black
 
 -   repo: https://github.com/PyCQA/docformatter.git
-    rev: v1.7.5
+    rev: "eb1df347edd128b30cd3368dddc3aa65edcfac38"
     hooks:
     -   id: docformatter
         name: docformatter
