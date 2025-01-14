@@ -143,7 +143,7 @@ We use [Black](https://github.com/psf/black) for code formatting. Please make su
 
 ### pre-commit
 
-To aid development we suggest to use pre-commit hooks.
+To aid development we suggest to use [pre-commit hooks](https://pre-commit.com/).
 
 To install the pre-commit hooks:
 
