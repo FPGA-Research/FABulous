@@ -103,6 +103,7 @@ class FabricGenerator:
 
             # GEN_IO wire if its not an config access port
             # Config access ports are not connected to the switch matrix
+            # CLOCKED_COMB output is a special case, we need to add the Q signal as well
             for gio in tile.gen_ios:
                 if not gio.configAccess:
                     for j in range(gio.pins):
@@ -110,6 +111,8 @@ class FabricGenerator:
                             sourceName.append(f"{gio.prefix}{j}")
                         elif gio.IO == IO.OUTPUT:
                             destName.append(f"{gio.prefix}{j}")
+                            if gio.clockedComb: # clocked combinatorial also has a Q signal
+                                destName.append(f"{gio.prefix}{j}_Q")
 
             # jump wire
             for i in tile.portsInfo:
@@ -506,6 +509,7 @@ class FabricGenerator:
         # gen_io wire input
         # GIO output is a switch matrix input
         # Config access ports are not connected to the switch matrix
+        # CLOCKED_COMB input is a special case, we need to add the Q signal as well
         for gio in tile.gen_ios:
             if not gio.configAccess:
                 for j in range(gio.pins):
@@ -513,6 +517,10 @@ class FabricGenerator:
                         self.writer.addPortScalar(
                             f"{gio.prefix}{j}", IO.INPUT, indentLevel=2
                         )
+                        if gio.clockedComb: # clocked combinatorial also has a Q signal
+                            self.writer.addPortScalar(
+                                f"{gio.prefix}{j}_Q", IO.INPUT, indentLevel=2
+                            )
 
         # jump wire input
         for i in tile.portsInfo:
@@ -851,10 +859,18 @@ class FabricGenerator:
                         f"{gio.prefix}{j}_top", IO.OUTPUT, indentLevel=2
                     )
                     externalPorts.append((f"{gio.prefix}{j}_top", IO.OUTPUT))
+                    if gio.clockedComb: # clocked combinatorial also has a Q signal
+                        self.writer.addPortScalar(
+                            f"{gio.prefix}{j}_Q_top", IO.OUTPUT, indentLevel=2
+                        )
+                        externalPorts.append((f"{gio.prefix}{j}_Q_top", IO.OUTPUT))
                 elif gio.IO == IO.OUTPUT:
                     if not gio.configAccess:
                         self.writer.addPortScalar(
                             f"{gio.prefix}{j}", IO.OUTPUT, indentLevel=2
+                        )
+                        self.writer.addPortScalar( # clocked combinatorial also has a Q signal
+                            f"{gio.prefix}{j}_Q", IO.OUTPUT, indentLevel=2
                         )
                         self.writer.addPortScalar(
                             f"{gio.prefix}{j}_top", IO.INPUT, indentLevel=2
@@ -1240,7 +1256,7 @@ class FabricGenerator:
                 "gen_io wire and register assignments", onNewLine=True
             )
         for gio in tile.gen_ios:
-            if not gio.configAccess and not gio.clocked:
+            if not gio.configAccess and not gio.clocked and not gio.clockedComb:
                 for j in range(gio.pins):
                     if gio.IO == IO.INPUT:
                         self.writer.addAssignScalar(
@@ -1264,6 +1280,33 @@ class FabricGenerator:
                         )
                     elif gio.IO == IO.OUTPUT:
                         self.writer.addRegister(
+                            f"{gio.prefix}{j}",
+                            f"{gio.prefix}{j}_top",
+                            inverted=gio.inverted,
+                        )
+            elif gio.clockedComb:
+                # clocked combinatorial also has a Q signal and the original signal
+                for j in range(gio.pins):
+                    if gio.IO == IO.INPUT:
+                        self.writer.addRegister(
+                            f"{gio.prefix}{j}_Q_top",
+                            f"{gio.prefix}{j}",
+                            inverted=gio.inverted,
+                        )
+                    elif gio.IO == IO.OUTPUT:
+                        self.writer.addRegister(
+                            f"{gio.prefix}{j}",
+                            f"{gio.prefix}{j}_Q_top",
+                            inverted=gio.inverted,
+                        )
+                    if gio.IO == IO.INPUT:
+                        self.writer.addAssignScalar(
+                            f"{gio.prefix}{j}_top",
+                            f"{gio.prefix}{j}",
+                            inverted=gio.inverted,
+                        )
+                    elif gio.IO == IO.OUTPUT:
+                        self.writer.addAssignScalar(
                             f"{gio.prefix}{j}",
                             f"{gio.prefix}{j}_top",
                             inverted=gio.inverted,
@@ -1304,7 +1347,9 @@ class FabricGenerator:
                 for j in range(gio.pins):
                     if gio.IO == IO.OUTPUT:
                         portsPairs.append((f"{gio.prefix}{j}", f"{gio.prefix}{j}"))
-
+                        if gio.clockedComb:
+                            # clocked combinatorial also has a Q signal
+                            portsPairs.append((f"{gio.prefix}{j}_Q", f"{gio.prefix}{j}_Q"))
         # jump input wire
         port, signal = [], []
         for i in tile.portsInfo:
@@ -1454,11 +1499,16 @@ class FabricGenerator:
                             self.writer.addPortScalar(
                                 f"{gio.prefix}{j}_top", IO.INPUT, indentLevel=2
                             )
+                            if gio.clockedComb:
+                                # clocked combinatorial also has a Q signal
+                                self.writer.addPortScalar(
+                                    f"{gio.prefix}{j}_Q_top", IO.INPUT, indentLevel=2
+                                )
                         elif gio.IO == IO.OUTPUT:
                             self.writer.addPortScalar(
                                 f"{gio.prefix}{j}_top", IO.OUTPUT, indentLevel=2
                             )
-                else:
+                else:  # config access ports
                     for j in range(gio.pins):
                         if gio.IO == IO.OUTPUT:
                             self.writer.addPortScalar(
@@ -1751,6 +1801,15 @@ class FabricGenerator:
                                     IO.OUTPUT,
                                     indentLevel=2,
                                 )
+                                self.writer.addComment("EXTERNAL", onNewLine=False)
+                                if gio.clockedComb:
+                                    # clocked combinatorial also has a Q signal
+                                    self.writer.addPortScalar(
+                                        f"Tile_X{x}Y{y}_{gio.prefix}{j}_Q_top",
+                                        IO.OUTPUT,
+                                        indentLevel=2,
+                                    )
+                                    self.writer.addComment("EXTERNAL", onNewLine=False)
                             elif gio.IO == IO.OUTPUT:
                                 if not gio.configAccess:
                                     self.writer.addPortScalar(
@@ -1758,13 +1817,14 @@ class FabricGenerator:
                                         IO.INPUT,
                                         indentLevel=2,
                                     )
-                                else:
+                                    self.writer.addComment("EXTERNAL", onNewLine=False)
+                                else: # config access ports
                                     self.writer.addPortScalar(
                                         f"Tile_X{x}Y{y}_{gio.prefix}{j}",
                                         IO.OUTPUT,
                                         indentLevel=2,
                                     )
-                            self.writer.addComment("EXTERNAL", onNewLine=False)
+                                    self.writer.addComment("EXTERNAL", onNewLine=False)
 
         if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
             self.writer.addPortVector(
@@ -2104,7 +2164,15 @@ class FabricGenerator:
                                         f"Tile_X{x+i}Y{y+j}_{gio.prefix}{k}",
                                     )
                                 )
-                        else:
+                                if gio.IO == IO.INPUT and gio.clockedComb:
+                                    # clocked combinatorial inputs also have a Q signal
+                                    portsPairs.append(
+                                        (
+                                            f"{gio.prefix}{k}_Q_top",
+                                            f"Tile_X{x+i}Y{y+j}_{gio.prefix}{k}_Q",
+                                        )
+                                    )
+                        else:  # config access ports
                             for k in range(gio.pins):
                                 portsPairs.append(
                                     (
@@ -2318,6 +2386,11 @@ class FabricGenerator:
                                 externalPorts.append(
                                     (IO.OUTPUT, f"Tile_X{x}Y{y}_{gio.prefix}{j}_top")
                                 )
+                                if gio.clockedComb:
+                                    externalPorts.append(
+                                        (IO.OUTPUT, f"Tile_X{x}Y{y}_{gio.prefix}{j}_Q_top")
+                                    )
+
                             elif gio.IO == IO.OUTPUT:
                                 if not gio.configAccess:
                                     externalPorts.append(
@@ -2700,7 +2773,7 @@ class FabricGenerator:
                                     }
                                 curBitOffset += len(keyDict[entry])
 
-                # TODO: Ckeck how Datastrucutre is actually working, and if 1 is always needed as Vlaue!
+                # TODO: Check how Datastrucutre is actually working, and if 1 is always needed as Vlaue!
                 for gio in tile.gen_ios:
                     for j in range(gio.configBit):
                         curTileMap[f"{gio.prefix}{j}"] = {
