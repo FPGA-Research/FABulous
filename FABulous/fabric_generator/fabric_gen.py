@@ -326,9 +326,14 @@ class FabricGenerator:
         # if not, we will take the default, which was passed on from  GenerateConfigMemInit
         configMemList: List[ConfigMem] = []
         if os.path.exists(configMemCsv):
-            logger.info(
-                f"Found bitstream mapping file {tile.name}_configMem.csv for tile {tile.name}"
-            )
+            if tile.globalConfigBits <= 0:
+                logger.warning(
+                    f"Found bitstram mapping file {tile.name}_configMem.csv for tile {tile.name}, but no global config bits are defined"
+                )
+            else:
+                logger.info(
+                    f"Found bitstream mapping file {tile.name}_configMem.csv for tile {tile.name}"
+                )
             logger.info(f"Parsing {tile.name}_configMem.csv")
             configMemList = parseConfigMem(
                 configMemCsv,
@@ -336,7 +341,7 @@ class FabricGenerator:
                 self.fabric.frameBitsPerRow,
                 tile.globalConfigBits,
             )
-        else:
+        elif tile.globalConfigBits > 0:
             logger.info(f"{tile.name}_configMem.csv does not exist")
             logger.info(f"Generating a default configMem for {tile.name}")
             self.generateConfigMemInit(configMemCsv, tile.globalConfigBits)
@@ -347,6 +352,11 @@ class FabricGenerator:
                 self.fabric.frameBitsPerRow,
                 tile.globalConfigBits,
             )
+        else:
+            logger.info(
+                f"No config bits defined and no bitstream mapping file provided for tile {tile.name}"
+            )
+            return
 
         # start writing the file
         self.writer.addHeader(f"{tile.name}_ConfigMem")
@@ -776,9 +786,11 @@ class FabricGenerator:
         self.writer.addParameter(
             "FrameBitsPerRow", "integer", self.fabric.frameBitsPerRow, indentLevel=2
         )
-        self.writer.addParameter(
-            "NoConfigBits", "integer", tile.globalConfigBits, indentLevel=2
-        )
+        if tile.globalConfigBits > 0:
+            self.writer.addParameter(
+                "NoConfigBits", "integer", tile.globalConfigBits, indentLevel=2
+            )
+
         self.writer.addParameterEnd(indentLevel=1)
         self.writer.addPortStart(indentLevel=1)
 
@@ -929,8 +941,9 @@ class FabricGenerator:
         # maybe even useful if we want to add a buffer here
 
         # all the signal wire need to declare first for compatibility with VHDL
-        self.writer.addConnectionVector("ConfigBits", "NoConfigBits-1", 0)
-        self.writer.addConnectionVector("ConfigBits_N", "NoConfigBits-1", 0)
+        if tile.globalConfigBits > 0:
+            self.writer.addConnectionVector("ConfigBits", "NoConfigBits-1", 0)
+            self.writer.addConnectionVector("ConfigBits_N", "NoConfigBits-1", 0)
 
         self.writer.addNewLine()
         self.writer.addComment("Connection for outgoing wires", onNewLine=True)
@@ -1282,7 +1295,6 @@ class FabricGenerator:
         self.writer.addParameter(
             "FrameBitsPerRow", "integer", self.fabric.frameBitsPerRow, indentLevel=2
         )
-        self.writer.addParameter("NoConfigBits", "integer", 0, indentLevel=2)
 
         self.writer.addParameterEnd(indentLevel=1)
         self.writer.addPortStart(indentLevel=1)
@@ -1581,7 +1593,6 @@ class FabricGenerator:
         self.writer.addParameter(
             "FrameBitsPerRow", "integer", self.fabric.frameBitsPerRow, indentLevel=2
         )
-        self.writer.addParameter("NoConfigBits", "integer", 0, indentLevel=2)
         self.writer.addParameterEnd(indentLevel=1)
         self.writer.addPortStart(indentLevel=1)
         for y, row in enumerate(self.fabric.tile):
