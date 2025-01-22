@@ -202,8 +202,9 @@ The following project specific environment variables are available:
 
   The project specific environment variables overwrite the global environment variables.
 
-=================== =============================================== ===========================================================================
-Variable Name       Description                                     Default Value
-=================== =============================================== ===========================================================================
-FAB_PROJ_LANG       The language of the project. (verilog/vhdl)     verilog (default) or language specified by ``-w`` command line argument
-=================== =============================================== ===========================================================================
+=============================== ======================================================================= ===========================================================================
+Variable Name                   Description                                                             Default Value
+=============================== ======================================================================= ===========================================================================
+FAB_PROJ_LANG                   RTL language used in FABulous project [verilog/vhdl]                    verilog (default) or language specified by ``-w`` command line argument
+FAB_SWITCH_MATRIX_DEBUG_SIGNAL  Generate debug signals in switch matrix RTL implementation [True/False] True
+=============================== ======================================================================= ===========================================================================

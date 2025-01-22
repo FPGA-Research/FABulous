@@ -140,7 +140,7 @@ Fabric CSV description
     The latter is implemented by replacing a defined n-input multiplexer with a predefined template. For instance, for the Skywater 130 process, we provide a transmission gate-based custom MUX4. In the case of requiring a MUX16, FABulous will synthesize this multiplexer to use 4 + 1 of our custom cells.
 
     .. note::  So far, FABulous fabrics use fully (binary) encoded multiplexers (e.g., a MUX16 requires 4 configuration bits). However, the major vendors Xilinx and Intel use highly optimized SRAM cells where a configuration cell may directly control a pass transistor (e.g., as used in Xilinx UltraScale fabrics). For a MUX16, this requires 2 x 4 = 8 configuration bits, but is slightly better in area as omits a decoder.
-    We plan to extend the FABulous switch matrix compiler accordingly.
+               We plan to extend the FABulous switch matrix compiler accordingly.
 
   * ``Tile``, ``path``
 
