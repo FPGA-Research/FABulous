@@ -42,8 +42,6 @@ from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.fabric_generator.code_generator import codeGenerator
 from FABulous.fabric_generator.file_parser import parseConfigMem, parseList, parseMatrix
 
-SWITCH_MATRIX_DEBUG_SIGNAL = True
-
 
 class FabricGenerator:
     """This class contains all the functionality required to generate the fabric as an
@@ -64,6 +62,14 @@ class FabricGenerator:
     def __init__(self, fabric: Fabric, writer: codeGenerator) -> None:
         self.fabric = fabric
         self.writer = writer
+        # check if switch matrix debug signals should be generated, defaults to True
+        sm_dbg = os.getenv("FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "True")
+        self.switch_matrix_debug_signal = (
+            False if sm_dbg.lower().strip() == "false" else True
+        )
+        logger.info(
+            f"Generate switch matrix debug signals: {self.switch_matrix_debug_signal}"
+        )
 
     @staticmethod
     def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
@@ -577,7 +583,7 @@ class FabricGenerator:
 
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
-        if SWITCH_MATRIX_DEBUG_SIGNAL:
+        if self.switch_matrix_debug_signal:
             self.writer.addNewLine()
             for portName in connections:
                 muxSize = len(connections[portName])
@@ -725,7 +731,8 @@ class FabricGenerator:
 
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
-        if SWITCH_MATRIX_DEBUG_SIGNAL:
+        if self.switch_matrix_debug_signal:
+            logger.info("Generate debug signals for switch matrix in tile {tile.name}")
             self.writer.addNewLine()
             configBitstreamPosition = 0
             for portName in connections:
