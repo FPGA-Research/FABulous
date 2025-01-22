@@ -403,12 +403,6 @@ class FabricGenerator:
         # declare architecture
         self.writer.addDesignDescriptionStart(f"{tile.name}_ConfigMem")
 
-        # instantiate latches for only the used frame bits
-        for i in configMemList:
-            if i.usedBitMask.count("1") > 0:
-                self.writer.addConnectionVector(i.frameName, f"{i.bitsUsedInFrame}-1")
-        self.writer.addLogicStart()
-
         if isinstance(self.writer, VerilogWriter):  # emulation only in Verilog
             self.writer.addPreprocIfDef("EMULATION")
             for i in configMemList:
