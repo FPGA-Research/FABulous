@@ -569,9 +569,11 @@ class FabricGenerator:
 
         # signal declaration
         for portName in connections:
-            self.writer.addConnectionVector(
-                f"{portName}_input", f"{len(connections[portName])}-1"
-            )
+            # ports with single connections are directly assigned
+            if len(connections[portName]) > 1:
+                self.writer.addConnectionVector(
+                    f"{portName}_input", f"{len(connections[portName])}-1"
+                )
 
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
