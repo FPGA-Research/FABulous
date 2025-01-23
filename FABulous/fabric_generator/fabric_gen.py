@@ -877,20 +877,20 @@ class FabricGenerator:
         self.writer.addHeaderEnd(f"{tile.name}")
         self.writer.addDesignDescriptionStart(f"{tile.name}")
 
-        # insert CLB, I/O (or whatever BEL) component declaration
-        # specified in the fabric csv file after the 'BEL' key word
-        # we use this list to check if we have seen a BEL description before so we only insert one component declaration
-        BEL_VHDL_riles_processed = []
-        for i in tile.bels:
-            if i.src not in BEL_VHDL_riles_processed:
-                BEL_VHDL_riles_processed.append(i.src)
-                self.writer.addComponentDeclarationForFile(i.src)
-
         # insert switch matrix and config_mem component declaration
         if isinstance(self.writer, VHDLWriter):
+            # insert CLB, I/O (or whatever BEL) component declaration
+            # specified in the fabric csv file after the 'BEL' key word
+            # we use this list to check if we have seen a BEL description before so we only insert one component declaration
+            BEL_VHDL_riles_processed = []
+            for i in tile.bels:
+                if i.src not in BEL_VHDL_riles_processed:
+                    BEL_VHDL_riles_processed.append(i.src)
+                    self.writer.addComponentDeclarationForFile(i.src)
+
             basePath = Path(self.writer.outFileName).parent
 
-            if os.path.exists(f"{basePath}/{tile.name}_switch_matrix.vhdl"):
+            if (basePath / f"{tile.name}_switch_matrix.vhdl").exists():
                 self.writer.addComponentDeclarationForFile(
                     f"{basePath}/{tile.name}_switch_matrix.vhdl"
                 )
@@ -900,17 +900,18 @@ class FabricGenerator:
                 )
                 raise ValueError
 
-            if os.path.exists(f"{basePath}/{tile.name}_ConfigMem.vhdl"):
-                self.writer.addComponentDeclarationForFile(
-                    f"{basePath}/{tile.name}_ConfigMem.vhdl"
-                )
-            else:
-                logger.error(
-                    f"Could not find {tile.name}_ConfigMem.vhdl in {basePath} config_mem generation first"
-                )
-                raise ValueError
+            if tile.globalConfigBits > 0:
+                if (basePath / f"{tile.name}_ConfigMem.vhdl").exists():
+                    self.writer.addComponentDeclarationForFile(
+                        f"{basePath}/{tile.name}_ConfigMem.vhdl"
+                    )
+                else:
+                    logger.error(
+                        f"Could not find {tile.name}_ConfigMem.vhdl in {basePath} config_mem generation first"
+                    )
+                    raise ValueError
 
-        # VHDL signal declarations
+        # signal declarations
         self.writer.addComment("signal declarations", onNewLine=True)
         # BEL port wires
         self.writer.addComment("BEL ports (e.g., slices)", onNewLine=True)
