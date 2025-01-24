@@ -147,16 +147,15 @@ class VHDLWriter(codeGenerator):
         self._add(f"Port map(", indentLevel=indentLevel + 1)
         connectPair = []
         for i in portsPairs:
-            if "[" in i[0]:
-                port = i[0].replace("[", "(").replace("]", ")").replace(":", " downto ")
-            else:
-                port = i[0]
-            if "[" in i[1]:
+            # NOTE: This is a temporary fix for the issue of curly braces in the port names and needs to be fixed properly a later refactoring of the code generation
+            port = i[0].replace("{", "(").replace("}", ")")
+            signal = i[1].replace("{", "(").replace("}", ")")
+            if "[" in port:
+                port = port.replace("[", "(").replace("]", ")").replace(":", " downto ")
+            if "[" in signal:
                 signal = (
-                    i[1].replace("[", "(").replace("]", ")").replace(":", " downto ")
+                    signal.replace("[", "(").replace("]", ")").replace(":", " downto ")
                 )
-            else:
-                signal = i[1]
             connectPair.append(f"{port} => {signal}")
 
         self._add(
