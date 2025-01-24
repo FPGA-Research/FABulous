@@ -196,10 +196,16 @@ class FABulous_CLI(Cmd):
         if not TCLScript.is_dir() and TCLScript.exists():
             self._startup_commands.append(f"run_tcl {TCLScript}")
             self._startup_commands.append("exit")
+        elif not TCLScript.is_dir() and not TCLScript.exists():
+            logger.error(f"Cannot find {TCLScript}")
+            exit(1)
 
         if not FABulousScript.is_dir() and FABulousScript.exists():
             self._startup_commands.append(f"run_script {FABulousScript}")
             self._startup_commands.append("exit")
+        elif not FABulousScript.is_dir() and not FABulousScript.exists():
+            logger.error(f"Cannot find {FABulousScript}")
+            exit(1)
 
     def do_exit(self, *ignored):
         """Exits the FABulous shell and logs info message."""
