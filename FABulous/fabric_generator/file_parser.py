@@ -499,7 +499,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                 belFilePath = filePathParent.joinpath(temp[1])
                 if temp[1].endswith(".vhdl"):
                     bels.append(parseBelFile(belFilePath, temp[2], "vhdl"))
-                elif temp[1].endswith(".v"):
+                elif temp[1].endswith(".v") or temp[1].endswith(".sv"):
                     bels.append(parseBelFile(belFilePath, temp[2], "verilog"))
                 else:
                     raise ValueError(
@@ -625,7 +625,7 @@ def parseSupertiles(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]
                 belFilePath = filePath.joinpath(line[1])
                 if line[1].endswith(".vhdl"):
                     bels.append(parseBelFile(belFilePath, line[2], "vhdl"))
-                elif line[1].endswith(".v"):
+                elif line[1].endswith(".v") or line[1].endswith(".sv"):
                     bels.append(parseBelFile(belFilePath, line[2], "verilog"))
                 else:
                     raise ValueError(
@@ -842,7 +842,7 @@ def parseBelFile(
         runCmd = [
             "yosys",
             "-qp"
-            f"read_verilog {filename}; proc -noopt; write_json -compat-int {json_file}",
+            f"read_verilog -sv {filename}; proc -noopt; write_json -compat-int {json_file}",
         ]
         try:
             subprocess.run(runCmd, check=True)
