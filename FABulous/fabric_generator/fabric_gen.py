@@ -489,6 +489,9 @@ class FabricGenerator:
 
         noConfigBits = 0
         for i in connections:
+            if not connections[i]:
+                logger.error(f"{i} not connected to anything!")
+                raise ValueError
             noConfigBits += len(connections[i]).bit_length() - 1
 
         # we pass the NumberOfConfigBits as a comment in the beginning of the file.
@@ -836,28 +839,20 @@ class FabricGenerator:
         self.writer.addPortScalar("UserCLKo", IO.OUTPUT, indentLevel=2)
 
         if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
-            if tile.globalConfigBits > 0:
-                self.writer.addPortVector(
-                    "FrameData", IO.INPUT, "FrameBitsPerRow -1", indentLevel=2
-                )
-                self.writer.addComment("CONFIG_PORT", onNewLine=False, end="")
-                self.writer.addPortVector(
-                    "FrameData_O", IO.OUTPUT, "FrameBitsPerRow -1", indentLevel=2
-                )
-                self.writer.addPortVector(
-                    "FrameStrobe", IO.INPUT, "MaxFramesPerCol -1", indentLevel=2
-                )
-                self.writer.addComment("CONFIG_PORT", onNewLine=False, end="")
-                self.writer.addPortVector(
-                    "FrameStrobe_O", IO.OUTPUT, "MaxFramesPerCol -1", indentLevel=2
-                )
-            else:
-                self.writer.addPortVector(
-                    "FrameStrobe", IO.INPUT, "MaxFramesPerCol -1", indentLevel=2
-                )
-                self.writer.addPortVector(
-                    "FrameStrobe_O", IO.OUTPUT, "MaxFramesPerCol -1", indentLevel=2
-                )
+            self.writer.addPortVector(
+                "FrameData", IO.INPUT, "FrameBitsPerRow -1", indentLevel=2
+            )
+            self.writer.addComment("CONFIG_PORT", onNewLine=False, end="")
+            self.writer.addPortVector(
+                "FrameData_O", IO.OUTPUT, "FrameBitsPerRow -1", indentLevel=2
+            )
+            self.writer.addPortVector(
+                "FrameStrobe", IO.INPUT, "MaxFramesPerCol -1", indentLevel=2
+            )
+            self.writer.addComment("CONFIG_PORT", onNewLine=False, end="")
+            self.writer.addPortVector(
+                "FrameStrobe_O", IO.OUTPUT, "MaxFramesPerCol -1", indentLevel=2
+            )
 
         elif self.fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
             self.writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
@@ -978,24 +973,24 @@ class FabricGenerator:
         self.writer.addNewLine()
         self.writer.addLogicStart()
 
-        if tile.globalConfigBits > 0:
-            self.writer.addAssignScalar("FrameData_O_i", "FrameData_i")
-            self.writer.addNewLine()
-            for i in range(self.fabric.frameBitsPerRow):
-                self.writer.addInstantiation(
-                    "my_buf",
-                    f"data_inbuf_{i}",
-                    portsPairs=[("A", f"FrameData[{i}]"), ("X", f"FrameData_i[{i}]")],
-                )
-            for i in range(self.fabric.frameBitsPerRow):
-                self.writer.addInstantiation(
-                    "my_buf",
-                    f"data_outbuf_{i}",
-                    portsPairs=[
-                        ("A", f"FrameData_O_i[{i}]"),
-                        ("X", f"FrameData_O[{i}]"),
-                    ],
-                )
+        # buffer FrameData signals
+        self.writer.addAssignScalar("FrameData_O_i", "FrameData_i")
+        self.writer.addNewLine()
+        for i in range(self.fabric.frameBitsPerRow):
+            self.writer.addInstantiation(
+                "my_buf",
+                f"data_inbuf_{i}",
+                portsPairs=[("A", f"FrameData[{i}]"), ("X", f"FrameData_i[{i}]")],
+            )
+        for i in range(self.fabric.frameBitsPerRow):
+            self.writer.addInstantiation(
+                "my_buf",
+                f"data_outbuf_{i}",
+                portsPairs=[
+                    ("A", f"FrameData_O_i[{i}]"),
+                    ("X", f"FrameData_O[{i}]"),
+                ],
+            )
 
         # strobe is always added even when config bits are 0
         self.writer.addAssignScalar("FrameStrobe_O_i", "FrameStrobe_i")
@@ -1310,6 +1305,10 @@ class FabricGenerator:
                 continue
             x, y = k.split(",")
             for pList in v:
+                # Skip empty port lists
+                if not pList:
+                    continue
+
                 self.writer.addComment(
                     f"Tile_X{x}Y{y}_{pList[0].wireDirection}",
                     onNewLine=True,
@@ -1327,9 +1326,9 @@ class FabricGenerator:
         for i in superTile.tiles:
             for b in i.bels:
                 for p in b.externalInput:
-                    self.writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
-                for p in b.externalOutput:
                     self.writer.addPortScalar(p, IO.INPUT, indentLevel=2)
+                for p in b.externalOutput:
+                    self.writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
                 for p in b.sharedPort:
                     if p[0] == "UserCLK":
                         continue
@@ -1526,6 +1525,17 @@ class FabricGenerator:
                     + tile.getWestPorts(IO.OUTPUT)
                 ):
                     portsPairs.append((p.name, f"Tile_X{x}Y{y}_{p.name}"))
+
+                for b in tile.bels:
+                    for p in b.externalInput:
+                        portsPairs.append((p, p))
+
+                    for p in b.externalOutput:
+                        portsPairs.append((p, p))
+
+                    for p in b.sharedPort:
+                        if "UserCLK" not in p[0]:
+                            portsPairs.append(("UserCLK", p[0]))
 
                 # add clock to tile
                 if (
@@ -1729,7 +1739,7 @@ class FabricGenerator:
             self.writer.addComment("CONFout is from tile entity")
 
         if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
-            for y in range(1, len(self.fabric.tile) - 1):
+            for y in range(len(self.fabric.tile)):
                 self.writer.addAssignVector(
                     f"Tile_Y{y}_FrameData",
                     "FrameData",
@@ -1990,69 +2000,116 @@ class FabricGenerator:
                             pre = f"Tile_X{i}Y{j}_"
                         else:
                             pre = ""
-                        if tile.globalConfigBits > 0 or superTile:
-                            # frameData signal
-                            if x == 0:
-                                portsPairs.append(
-                                    (f"{pre}FrameData", f"Tile_Y{y}_FrameData")
-                                )
 
-                            elif (x + i - 1, y + j) not in superTileLoc:
-                                portsPairs.append(
-                                    (
-                                        f"{pre}FrameData",
-                                        f"Tile_X{x+i-1}Y{y+j}_FrameData_O",
-                                    )
-                                )
+                        supertile_x = x + i
+                        supertile_y = y + j
 
-                            # frameData_O signal
-                            if x == len(self.fabric.tile[0]) - 1:
-                                portsPairs.append(
-                                    (f"{pre}FrameData_O", f"Tile_X{x}Y{y}_FrameData_O")
-                                )
+                        # Connect the FrameData port to the previous tiles'
+                        # FrameData_O signals.
+                        # If the previous tile is NULL, continue the search.
+                        # If all previous tiles are NULL, connect to the fabrics
+                        # Tile_Y{y}_FrameData signals.
 
-                            elif (x + i - 1, y + j) not in superTileLoc:
-                                portsPairs.append(
-                                    (
-                                        f"{pre}FrameData_O",
-                                        f"Tile_X{x+i}Y{y+j}_FrameData_O",
-                                    )
-                                )
+                        done = False
 
-                    for i, j in tileLocationOffset:
-                        # prefix for super tile port
-                        if superTile:
-                            pre = f"Tile_X{i}Y{j}_"
-                        else:
-                            pre = ""
-                        # frameStrobe signal
-                        if y + 1 >= self.fabric.numberOfRows:
+                        # Get all x-positions before this tile
+                        for search_x in range(supertile_x - 1, 0 - 1, -1):
+
+                            # Previous tile is part of the same supertile.
+                            # FrameData signals are connected internally.
+                            # Stop the search and be done.
+                            if (search_x, supertile_y) in superTileLoc:
+                                done = True
+                                break
+
+                            # Previous tile is NULL, continue search
+                            if self.fabric.tile[supertile_y][search_x] == None:
+                                continue
+
+                            # Found a non-NULL tile, connect FrameData
                             portsPairs.append(
-                                (f"{pre}FrameStrobe", f"Tile_X{x}_FrameStrobe")
+                                (
+                                    f"{pre}FrameData",
+                                    f"Tile_X{search_x}Y{supertile_y}_FrameData_O",
+                                )
                             )
 
-                        elif (
-                            y + 1 < self.fabric.numberOfRows
-                            and self.fabric.tile[y + 1][x] == None
+                            done = True
+                            break
+
+                        # No non-NULL tile was found, and tile is not part of a supertile.
+                        # Connect to the fabrics Tile_Y{y}_FrameData signals.
+                        if not done:
+                            portsPairs.append(
+                                (f"{pre}FrameData", f"Tile_Y{supertile_y}_FrameData")
+                            )
+
+                        # Connecting FrameData_O is easier:
+                        # Always connect FrameData_O, except the next tile in the row is
+                        # part of the supertile (already connected internally).
+                        if (supertile_x + 1, supertile_y) not in superTileLoc:
+                            portsPairs.append(
+                                (
+                                    f"{pre}FrameData_O",
+                                    f"Tile_X{supertile_x}Y{supertile_y}_FrameData_O",
+                                )
+                            )
+
+                        # Connect the FrameStrobe port to the previous tiles'
+                        # FrameStrobe_O signals.
+                        # If the previous tile is NULL, continue the search.
+                        # If all previous tiles are NULL, connect to the fabrics
+                        # Tile_X{x}_FrameStrobe signals.
+
+                        done = False
+
+                        # Get all y-positions before this tile
+                        # Note: the FrameStrobe signals come from the bottom of the
+                        #       fabric, therefore count upwards
+                        for search_y in range(
+                            supertile_y + 1, self.fabric.numberOfRows
                         ):
-                            portsPairs.append(
-                                (f"{pre}FrameStrobe", f"Tile_X{x}_FrameStrobe")
-                            )
 
-                        elif (x + i, y + j + 1) not in superTileLoc:
+                            # Previous tile is part of the same supertile.
+                            # FrameStrobe signals are connected internally.
+                            # Stop the search and be done.
+                            if (supertile_x, search_y) in superTileLoc:
+                                done = True
+                                break
+
+                            # Previous tile is NULL, continue search
+                            if self.fabric.tile[search_y][supertile_x] == None:
+                                continue
+
+                            # Found a non-NULL tile, connect FrameStrobe
                             portsPairs.append(
                                 (
                                     f"{pre}FrameStrobe",
-                                    f"Tile_X{x+i}Y{y+j+1}_FrameStrobe_O",
+                                    f"Tile_X{supertile_x}Y{search_y}_FrameStrobe_O",
                                 )
                             )
 
-                        # frameStrobe_O signal
-                        if (x + i, y + j - 1) not in superTileLoc:
+                            done = True
+                            break
+
+                        # No non-NULL tile was found, and tile is not part of a supertile.
+                        # Connect to the fabrics Tile_X{x}_FrameStrobe signals.
+                        if not done:
+                            portsPairs.append(
+                                (
+                                    f"{pre}FrameStrobe",
+                                    f"Tile_X{supertile_x}_FrameStrobe",
+                                )
+                            )
+
+                        # Connecting FrameStrobe_O is easier:
+                        # Always connect FrameStrobe_O, except the next tile in the column is
+                        # part of the supertile (already connected internally).
+                        if (supertile_x, supertile_y - 1) not in superTileLoc:
                             portsPairs.append(
                                 (
                                     f"{pre}FrameStrobe_O",
-                                    f"Tile_X{x+i}Y{y+j}_FrameStrobe_O",
+                                    f"Tile_X{supertile_x}Y{supertile_y}_FrameStrobe_O",
                                 )
                             )
 
