@@ -176,11 +176,6 @@ def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
         f"{project_dir}/",
         dirs_exist_ok=True,
     )
-    shutil.copytree(
-        f"{fabulousRoot}/fabric_cad/synth",
-        f"{project_dir}/Test/synth",
-        dirs_exist_ok=True,
-    )
 
     with open(os.path.join(project_dir, ".FABulous/.env"), "w") as env_file:
         env_file.write(f"FAB_PROJ_LANG={type}\n")
