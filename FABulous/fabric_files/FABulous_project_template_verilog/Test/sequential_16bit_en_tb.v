@@ -88,9 +88,11 @@ module sequential_16bit_en_tb;
         end
 `endif
         repeat (100) @(posedge CLK);
-        O_top = 28'b1; // reset
+        // Enable and reset the counter
+        O_top = 28'b0000_0000_0000_0000_0000_0000_0011;
         repeat (5) @(posedge CLK);
-        O_top = 28'b0;
+        // Deassert reset while keeping the counter enabled
+        O_top = 28'b0000_0000_0000_0000_0000_0000_0010;
         for (i = 0; i < 100; i = i + 1) begin
             @(negedge CLK);
             $display("fabric(I_top) = 0x%X gold = 0x%X, fabric(T_top) = 0x%X gold = 0x%X", I_top, I_top_gold, T_top, T_top_gold);
