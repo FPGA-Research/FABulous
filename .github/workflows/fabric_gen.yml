@@ -30,12 +30,7 @@ jobs:
       - name: Install FABulous
         run: |
           pip3 install -e .
-      - name: Run fabric generator flow
+      - name: Run fabric generator flow and simulation
         run: |
           FABulous -c demo
-          FABulous demo --TCLScript ./demo/FABulous.tcl
-      - name: Run simulation smoketest
-        run: |
-          cd ./demo/Test
-          ./build_test_design.sh
-          ./run_simulation.sh
+          FABulous demo -fs ./demo/FABulous.tcl

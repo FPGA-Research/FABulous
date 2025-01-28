@@ -125,24 +125,6 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
         os.environ["FAB_PROJ_LANG"] = args.writer
 
 
-def adjust_directory_in_verilog_tb(project_dir):
-    """Adjusts directory paths in a Verilog testbench file by replacing the string
-    "PROJECT_DIR" in the project_template with the actual project directory.
-
-    Parameters
-    ----------
-    project_dir : str
-        Projet directory where the testbench file is located.
-    """
-    with open(
-        f"{os.getenv('FAB_ROOT')}/fabric_files/FABulous_project_template_verilog/Test/sequential_16bit_en_tb.v",
-        "rt",
-    ) as fin:
-        with open(f"{project_dir}/Test/sequential_16bit_en_tb.v", "wt") as fout:
-            for line in fin:
-                fout.write(line.replace("PROJECT_DIR", f"{project_dir}"))
-
-
 def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
     """Creates a FABulous project containing all required files by copying the
     appropriate project template and the synthesis directory.
@@ -179,8 +161,6 @@ def create_project(project_dir, type: Literal["verilog", "vhdl"] = "verilog"):
 
     with open(os.path.join(project_dir, ".FABulous/.env"), "w") as env_file:
         env_file.write(f"FAB_PROJ_LANG={type}\n")
-
-    adjust_directory_in_verilog_tb(project_dir)
 
     logger.info(f"New FABulous project created in {project_dir} with {type} language.")
 
