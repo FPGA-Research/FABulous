@@ -2005,14 +2005,14 @@ class FabricGenerator:
                         supertile_y = y + j
 
                         # Connect the FrameData port to the previous tiles'
-                        # FrameData_O signals.
+                        # (to the west of it) FrameData_O signals.
                         # If the previous tile is NULL, continue the search.
                         # If all previous tiles are NULL, connect to the fabrics
                         # Row_Y{y}_FrameData signals.
 
                         done = False
 
-                        # Get all x-positions before this tile
+                        # Get all x-positions to the west of this tile
                         for search_x in range(supertile_x - 1, -1, -1):
 
                             # Previous tile is part of the same supertile.
@@ -2045,8 +2045,8 @@ class FabricGenerator:
                             )
 
                         # Connecting FrameData_O is easier:
-                        # Always connect FrameData_O, except the next tile in the row is
-                        # part of the supertile (already connected internally).
+                        # Always connect FrameData_O, except the next tile (to the east of it)
+                        # in the row is part of the supertile (already connected internally).
                         if (supertile_x + 1, supertile_y) not in superTileLoc:
                             portsPairs.append(
                                 (
@@ -2056,14 +2056,14 @@ class FabricGenerator:
                             )
 
                         # Connect the FrameStrobe port to the previous tiles'
-                        # FrameStrobe_O signals.
+                        # (to the south of it) FrameStrobe_O signals.
                         # If the previous tile is NULL, continue the search.
                         # If all previous tiles are NULL, connect to the fabrics
                         # Column_X{x}_FrameStrobe signals.
 
                         done = False
 
-                        # Get all y-positions before this tile
+                        # Get all y-positions to the south of this tile
                         # Note: the FrameStrobe signals come from the bottom of the
                         #       fabric, therefore count upwards
                         for search_y in range(
@@ -2103,8 +2103,8 @@ class FabricGenerator:
                             )
 
                         # Connecting FrameStrobe_O is easier:
-                        # Always connect FrameStrobe_O, except the next tile in the column is
-                        # part of the supertile (already connected internally).
+                        # Always connect FrameStrobe_O, except the next tile (to the north of it)
+                        # in the column is part of the supertile (already connected internally).
                         if (supertile_x, supertile_y - 1) not in superTileLoc:
                             portsPairs.append(
                                 (
