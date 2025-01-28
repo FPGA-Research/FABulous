@@ -1,13 +1,26 @@
 Simulation setup
 ================
 
+FABulous provides a simulation environment to test the fabric and the bitstream generated for it.
+For simple use cases, there is the `run_simulation` command in the FABulous shell.
+For more complex use cases it can be useful to create an own flow, like the following example `make` based flow.
+
+
+Please make sure to use recent versions of (Yosys)[https://github.com/YosysHQ/yosys], (nextpnr-generic)[https://github.com/YosysHQ/nextpnr] (_not_ the old FABulous nextpnr fork)
+and (iverilog)[https://github.com/steveicarus/iverilog] or use the (OSS-CAD-Suite)[https://github.com/YosysHQ/oss-cad-suite-build] which provides nightly builds of the necessary dependencies.
+
+Also, make sure you have the `make` package installed:
+
+.. code-block:: console
+
+    $ sudo apt-get install make
+
 The following series of commands can be used to easily run a simulation with a test bitstream loaded, using Icarus Verilog:
 
 .. code-block:: console
 
         (venv)$ cd demo/Test
-        (venv)$ ./build_test_design.sh
-        (venv)$ ./run_simulation.sh
+        (venv)$ make
 
 FABulous comes with 3 different simulation methods _`configuration module`,
 
