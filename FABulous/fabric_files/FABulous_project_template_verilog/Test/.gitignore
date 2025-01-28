@@ -1,10 +1,14 @@
-fabric/*
+tmp/*
+build
 *.json
 *.fasm
 *.bit
 *.vvp
 *.vcd
 *.log
-test_design/*.vh
-test_design/*.vhd
+*.vh
+*.vhd
 *.hex
+*.csv
+*.txt
+*.bin
