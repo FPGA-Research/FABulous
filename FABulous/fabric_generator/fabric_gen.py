@@ -840,18 +840,18 @@ class FabricGenerator:
 
         if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
             self.writer.addPortVector(
-                "FrameData", IO.INPUT, "FrameBitsPerRow -1", indentLevel=2
+                "FrameData", IO.INPUT, "FrameBitsPerRow-1", indentLevel=2
             )
             self.writer.addComment("CONFIG_PORT", onNewLine=False, end="")
             self.writer.addPortVector(
-                "FrameData_O", IO.OUTPUT, "FrameBitsPerRow -1", indentLevel=2
+                "FrameData_O", IO.OUTPUT, "FrameBitsPerRow-1", indentLevel=2
             )
             self.writer.addPortVector(
-                "FrameStrobe", IO.INPUT, "MaxFramesPerCol -1", indentLevel=2
+                "FrameStrobe", IO.INPUT, "MaxFramesPerCol-1", indentLevel=2
             )
             self.writer.addComment("CONFIG_PORT", onNewLine=False, end="")
             self.writer.addPortVector(
-                "FrameStrobe_O", IO.OUTPUT, "MaxFramesPerCol -1", indentLevel=2
+                "FrameStrobe_O", IO.OUTPUT, "MaxFramesPerCol-1", indentLevel=2
             )
 
         elif self.fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
@@ -1690,12 +1690,12 @@ class FabricGenerator:
             # FrameBitsPerRow : integer := 32;
             for y in range(self.fabric.numberOfRows):
                 self.writer.addConnectionVector(
-                    f"Tile_Y{y}_FrameData", "FrameBitsPerRow -1"
+                    f"Row_Y{y}_FrameData", "FrameBitsPerRow -1"
                 )
 
             for x in range(self.fabric.numberOfColumns):
                 self.writer.addConnectionVector(
-                    f"Tile_X{x}_FrameStrobe", "MaxFramesPerCol - 1"
+                    f"Column_X{x}_FrameStrobe", "MaxFramesPerCol - 1"
                 )
 
             for y in range(self.fabric.numberOfRows):
@@ -1741,14 +1741,14 @@ class FabricGenerator:
         if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
             for y in range(len(self.fabric.tile)):
                 self.writer.addAssignVector(
-                    f"Tile_Y{y}_FrameData",
+                    f"Row_Y{y}_FrameData",
                     "FrameData",
                     f"FrameBitsPerRow*({y}+1)-1",
                     f"FrameBitsPerRow*{y}",
                 )
             for x in range(len(self.fabric.tile[0])):
                 self.writer.addAssignVector(
-                    f"Tile_X{x}_FrameStrobe",
+                    f"Column_X{x}_FrameStrobe",
                     "FrameStrobe",
                     f"MaxFramesPerCol*({x}+1)-1",
                     f"MaxFramesPerCol*{x}",
@@ -2008,7 +2008,7 @@ class FabricGenerator:
                         # FrameData_O signals.
                         # If the previous tile is NULL, continue the search.
                         # If all previous tiles are NULL, connect to the fabrics
-                        # Tile_Y{y}_FrameData signals.
+                        # Row_Y{y}_FrameData signals.
 
                         done = False
 
@@ -2038,10 +2038,10 @@ class FabricGenerator:
                             break
 
                         # No non-NULL tile was found, and tile is not part of a supertile.
-                        # Connect to the fabrics Tile_Y{y}_FrameData signals.
+                        # Connect to the fabrics Row_Y{y}_FrameData signals.
                         if not done:
                             portsPairs.append(
-                                (f"{pre}FrameData", f"Tile_Y{supertile_y}_FrameData")
+                                (f"{pre}FrameData", f"Row_Y{supertile_y}_FrameData")
                             )
 
                         # Connecting FrameData_O is easier:
@@ -2059,7 +2059,7 @@ class FabricGenerator:
                         # FrameStrobe_O signals.
                         # If the previous tile is NULL, continue the search.
                         # If all previous tiles are NULL, connect to the fabrics
-                        # Tile_X{x}_FrameStrobe signals.
+                        # Column_X{x}_FrameStrobe signals.
 
                         done = False
 
@@ -2093,12 +2093,12 @@ class FabricGenerator:
                             break
 
                         # No non-NULL tile was found, and tile is not part of a supertile.
-                        # Connect to the fabrics Tile_X{x}_FrameStrobe signals.
+                        # Connect to the fabrics Column_X{x}_FrameStrobe signals.
                         if not done:
                             portsPairs.append(
                                 (
                                     f"{pre}FrameStrobe",
-                                    f"Tile_X{supertile_x}_FrameStrobe",
+                                    f"Column_X{supertile_x}_FrameStrobe",
                                 )
                             )
 
