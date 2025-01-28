@@ -47,29 +47,28 @@ module sequential_16bit_en_tb;
     always #5000 CLK = (CLK === 1'b0);
 
     integer i;
-    integer k;
-    integer unsigned fd;
     reg have_errors = 1'b0;
-    initial begin
-`ifdef CREATE_FST
-        $dumpfile("PROJECT_DIR/Test/sequential_16bit_en_tb.fst");
-        $dumpvars(0, sequential_16bit_en_tb);
-`endif
-`ifdef CREATE_VCD
-        $dumpfile("PROJECT_DIR/Test/sequential_16bit_en_tb.vcd");
-        $dumpvars(0, sequential_16bit_en_tb);
-`endif
-`ifndef EMULATION
 
-        fd = $fopen("PROJECT_DIR/user_design/sequential_16bit_en.hex", "r");
-        if (fd == 0) begin
-            $display("Hexfile not found!");
-            $fatal;
-        end else begin
-            $fclose(fd);
+    reg [2047:0] bitstream_hex_arg; // 256 bytes for characters
+    reg [2047:0] output_waveform_arg; // 256 bytes for characters
+    initial begin
+
+        if ($value$plusargs("output_waveform=%s", output_waveform_arg)) begin
+            $dumpfile(output_waveform_arg);
+            $dumpvars(0, sequential_16bit_en_tb);
+            $display("Output waveform set to %s", output_waveform_arg);
         end
 
-        $readmemh("PROJECT_DIR/user_design/sequential_16bit_en.hex", bitstream);
+`ifndef EMULATION
+
+        if ($value$plusargs("bitstream_hex=%s", bitstream_hex_arg)) begin
+            $readmemh(bitstream_hex_arg, bitstream);
+            $display("Read bitstream hex from %s", bitstream_hex_arg);
+        end else begin
+            $display("Error: No bitstream provided as $plusargs bitstream_hex.");
+            $fatal;
+        end
+
 
         #100;
         resetn = 1'b0;

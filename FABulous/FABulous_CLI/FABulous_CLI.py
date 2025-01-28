@@ -779,19 +779,26 @@ class FABulous_CLI(Cmd):
             )
             return
 
-        defined_option = f"CREATE_{args.format.upper()}"
+        waveform_format = args.format
+        defined_option = f"CREATE_{waveform_format.upper()}"
 
         designFile = topModule + ".v"
         topModuleTB = topModule + "_tb"
         testBench = topModuleTB + ".v"
         vvpFile = topModuleTB + ".vvp"
 
-        tmpDir = Path(bitstreamPath.parent / "tmp")
+        logger.info(f"Running simulation for {designFile}")
 
-        tmpDir.mkdir(exist_ok=True)
-        copy_verilog_files(self.projectDir / "Tile", tmpDir)
-        copy_verilog_files(self.projectDir / "Fabric", tmpDir)
-        file_list = [str(i) for i in tmpDir.glob("*.v")]
+        testPath = Path(self.projectDir / "Test")
+        buildDir = testPath / "build"
+        fabricFilesDir = buildDir / "fabric_files"
+
+        buildDir.mkdir(exist_ok=True)
+        fabricFilesDir.mkdir(exist_ok=True)
+
+        copy_verilog_files(self.projectDir / "Tile", fabricFilesDir)
+        copy_verilog_files(self.projectDir / "Fabric", fabricFilesDir)
+        file_list = [str(i) for i in fabricFilesDir.glob("*.v")]
 
         iverilog = check_if_application_exists(
             os.getenv("FAB_IVERILOG_PATH", "iverilog")
@@ -804,10 +811,10 @@ class FABulous_CLI(Cmd):
                 "-s",
                 f"{topModuleTB}",
                 "-o",
-                f"{bitstreamPath.parent}/{vvpFile}",
+                f"{buildDir}/{vvpFile}",
                 *file_list,
                 f"{bitstreamPath.parent}/{designFile}",
-                f"{self.projectDir}/Test/{testBench}",
+                f"{testPath}/{testBench}",
             ]
             if self.verbose or self.debug:
                 logger.info(f"Running simulation with {args.format} format")
@@ -816,21 +823,35 @@ class FABulous_CLI(Cmd):
 
         except sp.CalledProcessError:
             logger.error("Simulation failed")
-            remove_dir(tmpDir)
+            remove_dir(buildDir)
             return
 
-        make_hex(bitstreamPath, bitstreamPath.with_suffix(".hex"))
-
+        # bitstream hex file is used for simulation so it'll be created in the test directory
+        bitstreamHexPath = (buildDir.parent / bitstreamPath.stem).with_suffix(".hex")
+        if self.verbose or self.debug:
+            logger.info(f"Make hex file {bitstreamHexPath}")
+        make_hex(bitstreamPath, bitstreamHexPath)
         vvp = check_if_application_exists(os.getenv("FAB_VVP_PATH", "vvp"))
+
+        # $plusargs is used to pass the bitstream hex and waveform path to the testbench
+        vvpArgs = [
+            f"+output_waveform={testPath / topModule}.{waveform_format}",
+            f"+bitstream_hex={bitstreamHexPath}",
+        ]
+        if waveform_format == "fst":
+            vvpArgs.append("-fst")
+
         try:
-            runCmd = [f"{vvp}", f"{bitstreamPath.parent}/{vvpFile}"]
+            runCmd = [f"{vvp}", f"{buildDir}/{vvpFile}"]
+            runCmd.extend(vvpArgs)
+            if self.verbose or self.debug:
+                logger.info(f"Running command: {' '.join(runCmd)}")
             sp.run(runCmd, check=True)
         except sp.CalledProcessError:
             logger.error("Simulation failed")
-            remove_dir(tmpDir)
             return
 
-        remove_dir(tmpDir)
+        remove_dir(buildDir)
         logger.info("Simulation finished")
 
     @with_category(CMD_FABRIC_FLOW)
