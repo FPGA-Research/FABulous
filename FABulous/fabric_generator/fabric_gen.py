@@ -2013,7 +2013,7 @@ class FabricGenerator:
                         done = False
 
                         # Get all x-positions before this tile
-                        for search_x in range(supertile_x - 1, 0 - 1, -1):
+                        for search_x in range(supertile_x - 1, -1, -1):
 
                             # Previous tile is part of the same supertile.
                             # FrameData signals are connected internally.
