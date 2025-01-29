@@ -157,8 +157,6 @@ begin
     bitstream <= readmemh("bitstream.hex");
     wait for 100 ps;
     report "Bitstream loaded into memory array";
-    -- resetn <= '1';
-    -- wait for 100 ps;
     resetn <= '0';
     wait for 10000 ps;
     resetn <= '1';

@@ -1,9 +1,10 @@
-name: Test FABulous
+name: Test fabric generation
 
 on: [push, pull_request]
 
 jobs:
   run_verilog_simulation_CLI:
+    name: Run Verilog fabric generator flow and simulation with FABulous CLI
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,6 +15,7 @@ jobs:
           FABulous demo -fs ./demo/FABulous.tcl
 
   run_verilog_simulation_makefile:
+    name: Run Verilog fabric generator flow and simulation with FABulous makefile
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,3 +25,27 @@ jobs:
           FABulous -c demo
           cd demo/Test
           make FAB_sim
+
+  run_vhdl_simulation_makefile:
+    name: Run VHDL fabric generator flow and simulation with FABulous makefile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/prepare_FABulous_container
+        # with:
+          # install_GHDL_mcode: true
+          # GH composite workflwos do not support conditional steps yet. :(
+          # https://github.com/actions/runner/blob/main/docs/adrs/0549-composite-run-steps.md
+      - name: Install GHDL mcode nightly
+        # GHDL mcode is required to test our fabric.
+        # The oss-cad-suite action installs GHDL, but with the LLVM backend, which is much slower for our simulation
+        uses: ghdl/setup-ghdl@v1
+        with:
+          version: nightly
+          backend: mcode
+          investigate: true
+      - name: Run fabric generator flow and simulation with FABulous makefile
+        run: |
+          FABulous -c demo_vhdl -w vhdl
+          cd demo_vhdl/Test
+          make full_sim
