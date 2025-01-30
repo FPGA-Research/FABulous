@@ -115,7 +115,6 @@ synthesis_parser.add_argument(
     "-auto-top",
     help="Automatically determine the top of the design hierarchy.",
     action="store_true",
-
 )
 synthesis_parser.add_argument(
     "-blif",
