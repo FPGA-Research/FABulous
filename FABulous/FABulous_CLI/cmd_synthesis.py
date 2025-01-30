@@ -187,7 +187,11 @@ synthesis_parser.add_argument(
     default="none",
     help="Carry mapping style (none, half-adders, ...) default=none.",
 )
-synthesis_parser.add_argument("-noregfile", help="Do not map register files.")
+synthesis_parser.add_argument(
+    "-noregfile",
+    help="Do not map register files.",
+    action="store_true",
+)
 synthesis_parser.add_argument(
     "-iopad",
     help="Enable automatic insertion of IO buffers (otherwise a wrapper with "
