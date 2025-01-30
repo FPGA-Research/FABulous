@@ -34,6 +34,8 @@ from cmd2 import (
 )
 from loguru import logger
 
+from FABulous.FABulous_CLI import cmd_synthesis
+from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.FABulous_API import FABulous_API
 from FABulous.FABulous_CLI.helper import (
@@ -44,7 +46,6 @@ from FABulous.FABulous_CLI.helper import (
     remove_dir,
     wrap_with_except_handling,
 )
-from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 
 META_DATA_DIR = ".FABulous"
 
@@ -601,43 +602,7 @@ class FABulous_CLI(Cmd):
 
         logger.info("Generated npnr model")
 
-    @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(filePathRequireParser)
-    def do_synthesis(self, args):
-        """Runs Yosys using Nextpnr JSON backend to synthesise the Verilog design
-        specified by <top_module_file> and generates a Nextpnr-compatible JSON file for
-        further place and route process.
-
-        Also logs usage errors or synthesis failures.
-        """
-        logger.info(f"Running synthesis that targeting Nextpnr with design {args.file}")
-        path = Path(args.file)
-        parent = path.parent
-        verilog_file = path.name
-        top_module_name = path.stem
-        if path.suffix != ".v":
-            logger.error(
-                """
-                No verilog file provided.
-                Usage: synthesis <top_module_file>
-                """
-            )
-            return
-
-        json_file = top_module_name + ".json"
-        yosys = check_if_application_exists(os.getenv("FAB_YOSYS_PATH", "yosys"))
-        runCmd = [
-            f"{yosys}",
-            "-p",
-            f"synth_fabulous -top top_wrapper -json {self.projectDir}/{parent}/{json_file}",
-            f"{self.projectDir}/{parent}/{verilog_file}",
-            f"{self.projectDir}/{parent}/top_wrapper.v",
-        ]
-        try:
-            sp.run(runCmd, check=True)
-            logger.info("Synthesis completed")
-        except sp.CalledProcessError:
-            logger.error("Synthesis failed")
+    do_synthesis = cmd_synthesis.do_synthesis
 
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(filePathRequireParser)
