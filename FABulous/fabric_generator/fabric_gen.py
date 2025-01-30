@@ -423,6 +423,7 @@ class FabricGenerator:
             self.writer.addPreprocElse()
         self.writer.addNewLine()
         self.writer.addNewLine()
+        self.writer.addLogicStart()
         self.writer.addComment("instantiate frame latches", end="")
         for i in configMemList:
             counter = 0
@@ -500,12 +501,15 @@ class FabricGenerator:
         # we pass the NumberOfConfigBits as a comment in the beginning of the file.
         # This simplifies it to generate the configuration port only if needed later when building the fabric where we are only working with the VHDL files
 
-        # VHDL header
+        # Generate header
         self.writer.addComment(f"NumberOfConfigBits: {noConfigBits}")
         self.writer.addHeader(f"{tile.name}_switch_matrix")
-        self.writer.addParameterStart(indentLevel=1)
-        self.writer.addParameter("NoConfigBits", "integer", noConfigBits, indentLevel=2)
-        self.writer.addParameterEnd(indentLevel=1)
+        if noConfigBits > 0:
+            self.writer.addParameterStart(indentLevel=1)
+            self.writer.addParameter(
+                "NoConfigBits", "integer", noConfigBits, indentLevel=2
+            )
+            self.writer.addParameterEnd(indentLevel=1)
         self.writer.addPortStart(indentLevel=1)
 
         # normal wire input
@@ -2292,7 +2296,6 @@ class FabricGenerator:
         self.writer.addConnectionVector("LocalWriteData", 31)
         self.writer.addConnectionScalar("LocalWriteStrobe")
         self.writer.addConnectionVector("RowSelect", "RowSelectWidth-1")
-        self.writer.addConnectionScalar("resten")
 
         if isinstance(self.writer, VHDLWriter):
             basePath = Path(self.writer.outFileName).parent
