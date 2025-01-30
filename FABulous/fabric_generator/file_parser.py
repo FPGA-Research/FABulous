@@ -776,6 +776,19 @@ def parseBelFile(
                 f"NoConfigBits does not match with the BEL map in file {filename}, length of BelMap is {len(belMapDic)}, but with {noConfigBits} config bits"
             )
             raise ValueError
+
+        # FIXME: This is a temporary fix for the issue, that our vhdl parser can't handle vectors
+        portmatch = file.split("-- GLOBAL")[0].lower()
+        portmatch = portmatch[portmatch.find("port") :]  # trim everything before port
+        if any(
+            s in portmatch
+            for s in ["std_logic_vector", "bit_vector", "integer", "signed", "unsigned"]
+        ):
+            raise ValueError(
+                f"Unsupported port type in {filename}. \
+                 Currtently only std_logic ports are supported for VHDL bels."
+            )
+
         if result := re.search(
             r"port.*?\((.*?)\);", file, re.MULTILINE | re.DOTALL | re.IGNORECASE
         ):
@@ -829,6 +842,10 @@ def parseBelFile(
             else:
                 internal.append((portName, direction))
 
+            # FIXME: This is a temporary fix for the issue, that our vhdl parser can't handle vectors
+            if portName[-1].isdigit():
+                individually_declared = True
+
             if "UserCLK" in portName:
                 userClk = True
 
@@ -864,16 +881,12 @@ def parseBelFile(
                 if "UserCLK" in port_name:
                     userClk = True
                 if port_name[-1].isdigit():
+                    # FIXME:  This is a temporary fix for the issue where the ports are individually declared
+                    #         Check for the last charcter in portname is not really reliable and sould be handeled more rubust in the future.
                     individually_declared = True
                 direction = IO[details["direction"].upper()]
                 bits = details.get("bits", [])
                 filtered_ports[port_name] = (direction, bits)
-
-        if individually_declared:
-            logger.warning(
-                f"Ports in {filename} have been individually declared rather than as a vector."
-            )
-            logger.warning("Ports will not be concatenated during fabric generation.")
 
         param_defaults = module_info.get("parameter_default_values")
         if param_defaults and "NoConfigBits" in param_defaults:
@@ -902,6 +915,12 @@ def parseBelFile(
             raise ValueError(
                 f"NoConfigBits does not match with the BEL map in file {filename}, length of BelMap is {len(belMapDic)}, but with {noConfigBits} config bits"
             )
+
+    if individually_declared and filetype == "verilog":
+        logger.warning(
+            f"Ports in {filename} have been individually declared rather than as a vector."
+        )
+        logger.warning("Ports will not be concatenated during fabric generation.")
 
     return Bel(
         src=filename,
