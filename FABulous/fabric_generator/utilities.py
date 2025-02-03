@@ -692,8 +692,8 @@ def PrintCSV_FileInfo(CSV_FileName):
 
 def ExpandListPorts(port, PortList):
     # a leading '[' tells us that we have to expand the list
-    if re.search("\[", port):
-        if not re.search("\]", port):
+    if re.search(r"\[", port):
+        if not re.search(r"\]", port):
             logger.error("Error in function ExpandListPorts: cannot find closing ]")
             raise ValueError
         # port.find gives us the first occurrence index in a string
@@ -703,7 +703,7 @@ def ExpandListPorts(port, PortList):
         # right_index is the position of the ']' so we need everything after that
         after_right_index = port[(right_index + 1) :]
         ExpandList = []
-        ExpandList = re.split("\|", port[left_index + 1 : right_index])
+        ExpandList = re.split(r"\|", port[left_index + 1 : right_index])
         for entry in ExpandList:
             ExpandListItem = before_left_index + entry + after_right_index
             ExpandListPorts(ExpandListItem, PortList)

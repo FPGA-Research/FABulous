@@ -127,21 +127,21 @@ def main():
 
     projectDir = Path(args.project_dir).absolute()
 
-    if not projectDir.exists():
-        logger.error(f"The directory provided does not exist: {projectDir}")
-        exit(-1)
-
     args.top = projectDir.stem
 
     if args.createProject:
         create_project(projectDir, args.writer)
         exit(0)
 
+    if not projectDir.exists():
+        logger.error(f"The directory provided does not exist: {projectDir}")
+        exit(1)
+
     if not (projectDir / ".FABulous").exists():
         logger.error(
             "The directory provided is not a FABulous project as it does not have a .FABulous folder"
         )
-        exit(-1)
+        exit(1)
     else:
         setup_project_env_vars(args)
 
