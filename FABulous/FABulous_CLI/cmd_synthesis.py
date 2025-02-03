@@ -96,7 +96,6 @@ The following commands are executed by when executing the synthesis command:
         write_json <file-name>
 """
 
-
 synthesis_parser = Cmd2ArgumentParser(description=HELP)
 synthesis_parser.add_argument(
     "files",
@@ -246,7 +245,7 @@ def do_synthesis(self, args):
         if resolvePath.exists():
             paths.append(resolvePath)
         else:
-            logger.error(f"{resolvePath} does not exits")
+            logger.error(f"{resolvePath} does not exists")
             return
 
     json_file = paths[0].with_suffix(".json")

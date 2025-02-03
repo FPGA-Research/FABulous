@@ -34,10 +34,10 @@ from cmd2 import (
 )
 from loguru import logger
 
-from FABulous.FABulous_CLI import cmd_synthesis
 from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.FABulous_API import FABulous_API
+from FABulous.FABulous_CLI import cmd_synthesis
 from FABulous.FABulous_CLI.helper import (
     allow_blank,
     check_if_application_exists,
@@ -97,6 +97,7 @@ class FABulous_CLI(Cmd):
     prompt: str = "FABulous> "
     fabulousAPI: FABulous_API
     projectDir: Path
+    enteringDir: Path
     top: str
     allTile: list[str]
     csvFile: Path
@@ -107,6 +108,7 @@ class FABulous_CLI(Cmd):
         self,
         writerType: str | None,
         projectDir: Path,
+        enteringDir: Path,
         FABulousScript: Path = Path(),
         TCLScript: Path = Path(),
     ):
@@ -129,6 +131,7 @@ class FABulous_CLI(Cmd):
             allow_cli_args=False,
             startup_script=str(FABulousScript) if not FABulousScript.is_dir() else "",
         )
+        self.enteringDir = enteringDir
 
         if writerType == "verilog":
             self.fabulousAPI = FABulous_API(VerilogWriter())
@@ -211,6 +214,7 @@ class FABulous_CLI(Cmd):
     def do_exit(self, *ignored):
         """Exits the FABulous shell and logs info message."""
         logger.info("Exiting FABulous shell")
+        os.chdir(self.enteringDir)
         return True
 
     do_quit = do_exit
@@ -271,6 +275,7 @@ class FABulous_CLI(Cmd):
                 logger.error(
                     "No argument is given and the csv file is set or the file does not exist"
                 )
+                return
         else:
             self.fabulousAPI.loadFabric(args.file)
             self.csvFile = args.file
