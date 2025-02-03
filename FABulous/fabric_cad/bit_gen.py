@@ -122,9 +122,8 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
         vhdl_str += '";\n'
     vhdl_str += "end package emulate_bitstream;"
 
-    # Top/bottom rows have no bitstream content (hardcoded throughout fabulous)
     # reversed row order
-    for y in range(num_rows - 2, 0, -1):
+    for y in range(num_rows - 1, -1, -1):
         for x in range(num_columns):
             tileKey = f"X{x}Y{y}"
             curStr = ",".join((tileKey, specDict["TileMap"][tileKey], str(x), str(y)))
@@ -180,6 +179,10 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
 
             bitStr += bitstring_to_bytes(frame_select_temp)
             bitStr += bit_array[i][j]
+
+    # Add desync frame
+    # 20th bit is desync flag
+    bitStr += bytes.fromhex("00100000")
 
     # Note - format in output file is line by line:
     # Tile Loc, Tile Type, X, Y, bits...... \n
