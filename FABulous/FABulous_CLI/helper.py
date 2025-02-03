@@ -61,7 +61,10 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
         logger.info(f"FAB_ROOT set to {fabulousRoot}")
 
     # Load the .env file and make env variables available globally
-    fabDir = Path(os.getenv("FAB_ROOT"))
+    if p := os.getenv("FAB_ROOT"):
+        fabDir = Path(p)
+    else:
+        raise Exception("FAB_ROOT environment variable not set")
     if args.globalDotEnv:
         gde = Path(args.globalDotEnv)
         if gde.is_file():
@@ -99,7 +102,11 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
         Command line arguments
     """
     # Load the .env file and make env variables available globally
-    fabDir = Path(os.getenv("FAB_PROJ_DIR")).joinpath(".FABulous")
+    if p := os.getenv("FAB_PROJ_DIR"):
+        fabDir = Path(p) / ".FABulous"
+    else:
+        raise Exception("FAB_PROJ_DIR environment variable not set")
+
     if args.projectDotEnv:
         pde = Path(args.projectDotEnv)
         if pde.exists() and pde.is_file():
