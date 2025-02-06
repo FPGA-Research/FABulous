@@ -125,7 +125,7 @@ def main():
 
     setup_global_env_vars(args)
 
-    projectDir = Path(os.getenv("FAB_PROJ_DIR", args.project_dir))
+    projectDir = Path(os.getenv("FAB_PROJ_DIR", args.project_dir)).absolute()
 
     args.top = projectDir.stem
 
