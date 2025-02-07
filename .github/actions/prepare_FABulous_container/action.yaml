@@ -1,0 +1,62 @@
+name: Prepare FABulous workflow
+description: Composite action to prepare a container with everything needed to run FABulous
+
+inputs:
+  python_version:
+    description: 'Python version to use'
+    required: false
+    default: '3.12'
+  additional_system_packages:
+    description: 'Additional ubunut packages to install'
+    required: false
+    default: ''
+  additional_python_packages:
+    description: 'Additional python packages to install'
+    required: false
+    default: ''
+  install_GHDL:
+    description: 'Install GHDL'
+    required: false
+    default: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ inputs.python_version }}
+    - name: Set up OSS CAD suite
+      uses: YosysHQ/setup-oss-cad-suite@v2
+    - name: Install GHDL mcode nightly
+      # GHDL mcode is required to test our fabric.
+      # The oss-cad-suite action installs GHDL, but with the LLVM backend, which is much slower for our simulation
+      if: ${{ inputs.install_GHDL == true }}
+      uses: ghdl/setup-ghdl@v1
+      with:
+        version: nightly
+        backend: mcode
+        investigate: true
+    - name: Install additional ubunutu packages
+      if: ${{ inputs.additional_system_packages != '' }}
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ${{ inputs.additional_system_packages }}
+    - name: Upgrade pip
+      shell: bash
+      run: |
+        python3 -m pip install --upgrade pip
+    - name: Install additional python packages
+      if: ${{ inputs.additional_python_packages != '' }}
+      shell: bash
+      run: |
+        pip3 install ${{ inputs.additional_python_packages }}
+    - name: Install FABulous requirements.txt
+      shell: bash
+      run: |
+        if [ -f requirements.txt ]; then pip3 install -r requirements.txt; fi
+    - name: Install FABulous requirements
+      shell: bash
+      run: |
+        pip3 install -e .
