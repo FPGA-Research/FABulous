@@ -21,7 +21,7 @@ endif
 
 sim: build_test_design run_simulation clean
 
-FAB_sim: run_FABulous_demo copy_files run_simulation clean
+FAB_sim: build_demo_fabric build_test_design run_simulation clean
 
 full_sim: run_FABulous_demo build_test_design run_simulation_emulation clean
 
@@ -38,6 +38,10 @@ run_FABulous_demo:
 	mv -f ${DESIGN}.hex ${BUILD_DIR}/
 	mv -f ${DESIGN}.fst ${BUILD_DIR}/
 	cp -fu ${USER_DESIGN_DIR}/* ${BUILD_DIR}
+
+build_demo_fabric: mkdir_build
+	# Builds the default fabric
+	FABulous ${FAB_PROJ_ROOT} -ts ./build_fabulous_fabric.tcl
 
 run_yosys: mkdir_build
 	yosys -p "synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json" ${USER_DESIGN_VERILOG} ${TOP_WRAPPER_VERILOG}
