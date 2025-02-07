@@ -7,7 +7,7 @@ from cmd2.utils import StdSim
 import pytest
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
-from FABulous.FABulous_CLI.helper import create_project
+from FABulous.FABulous_CLI.helper import create_project, setup_logger
 
 
 def normalize(block):
@@ -39,7 +39,6 @@ def run_cmd(app, cmd):
     finally:
         app.stdout = copy_cmd_stdout.inner_stream
         sys.stdout = saved_sysout
-
     out = copy_cmd_stdout.getvalue()
     err = copy_stderr.getvalue()
     return normalize(out), normalize(err)
@@ -57,7 +56,6 @@ def cli(tmp_path):
     fabulousRoot = str(Path(__file__).resolve().parent.parent.parent / "FABulous")
     os.environ["FAB_ROOT"] = fabulousRoot
     create_project(projectDir)
-
+    setup_logger(0)
     cli = FABulous_CLI(writerType="verilog", projectDir=projectDir, enteringDir=tmp_path)
-    cli.verbose = True
     return cli
