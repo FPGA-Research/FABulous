@@ -5,3 +5,5 @@ We use pytest for all our python CLI testing infastructure
 We use python3.12 for all our development
 
 We use double quote for all our strings
+
+We use loguru for all our logging, which all logging start with logger follow by the level of the log, i.e logger.info("<message>")
