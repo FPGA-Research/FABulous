@@ -1,3 +1,5 @@
+default_language_version:
+    python: python3.12
 files: ^(FABulous)|(docs)/
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
@@ -30,7 +32,8 @@ repos:
     hooks:
       - id: interrogate
         args: [-vv, --ignore-magic, --ignore-init-module, --fail-under=40] # we should aim at 90%
-        pass_filenames: false  # needed if excluding files with pyproject.toml or setup.cfg
+        pass_filenames: false  # needed if excluding files with pyproject.toml or setup.cfg 
+
 
 -   repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.5
