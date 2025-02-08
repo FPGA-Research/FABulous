@@ -1,16 +1,18 @@
 import os
-from pathlib import Path
 import sys
 from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
 
-from cmd2.utils import StdSim
 import pytest
+from _pytest.logging import LogCaptureFixture
+from cmd2.utils import StdSim
+from loguru import logger
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import create_project, setup_logger
 
 
-def normalize(block):
+def normalize(block: str):
     """Normalize a block of text to perform comparison.
 
     Strip newlines from the very beginning and very end  Then split into separate lines and strip trailing whitespace
@@ -19,6 +21,7 @@ def normalize(block):
     assert isinstance(block, str)
     block = block.strip("\n")
     return [line.rstrip() for line in block.splitlines()]
+
 
 def run_cmd(app, cmd):
     """Clear out and err StdSim buffers, run the command, and return out and err"""
@@ -44,10 +47,10 @@ def run_cmd(app, cmd):
     return normalize(out), normalize(err)
 
 
-SAMPLE_FABRIC_CSV = \
-"""
+TILE = "LUT4AB"
+SUPER_TILE = "DSP"
 
-"""
+os.environ["FAB_ROOT"] = str(Path(__file__).resolve().parent.parent.parent / "FABulous")
 
 
 @pytest.fixture
@@ -58,4 +61,18 @@ def cli(tmp_path):
     create_project(projectDir)
     setup_logger(0)
     cli = FABulous_CLI(writerType="verilog", projectDir=projectDir, enteringDir=tmp_path)
+    run_cmd(cli, "load_fabric")
     return cli
+
+
+@pytest.fixture
+def caplog(caplog: LogCaptureFixture):
+    handler_id = logger.add(
+        caplog.handler,
+        format="{message}",
+        level=0,
+        filter=lambda record: record["level"].no >= caplog.handler.level,
+        enqueue=False,  # Set to 'True' if your test is spawning child processes.
+    )
+    yield caplog
+    logger.remove(handler_id)
