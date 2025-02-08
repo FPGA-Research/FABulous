@@ -755,7 +755,7 @@ class FabricGenerator:
                     self.writer.addAssignVector(
                         f"DEBUG_select_{portName:<15}",
                         "ConfigBits",
-                       f"{configBitstreamPosition - 1}",
+                        f"{configBitstreamPosition - 1}",
                         old_ConfigBitstreamPosition,
                     )
                     old_ConfigBitstreamPosition = configBitstreamPosition
