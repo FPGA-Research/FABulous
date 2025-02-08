@@ -18,7 +18,9 @@ def test_create_project(tmp_path):
     assert env_file.read_text() == "FAB_PROJ_LANG=verilog\n"
 
     # Check if template files were copied
-    assert any(project_dir.glob("**/*.v")), "No Verilog files found in project directory"
+    assert any(
+        project_dir.glob("**/*.v")
+    ), "No Verilog files found in project directory"
 
 
 def test_create_project_vhdl(tmp_path):
@@ -36,7 +38,9 @@ def test_create_project_vhdl(tmp_path):
     assert env_file.read_text() == "FAB_PROJ_LANG=vhdl\n"
 
     # Check if template files were copied
-    assert any(project_dir.glob("**/*.vhdl")), "No VHDL files found in project directory"
+    assert any(
+        project_dir.glob("**/*.vhdl")
+    ), "No VHDL files found in project directory"
 
 
 def test_create_project_existing_dir(tmp_path):
