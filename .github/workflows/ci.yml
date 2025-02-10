@@ -1,23 +1,13 @@
-name: CI
+name: Test CLI
 
-on:
-  push:
-    branches: [ main, FABulous2.0-development ]
-  pull_request:
-    branches: [ main, FABulous2.0-development ]
+on: [push, pull_request]
+
     
 jobs:
-  build:
+  run_pytest_CLI:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Run tests
+      - uses: ./.github/actions/prepare_FABulous_container
+      - name: Run pytest for FABulous CLI
         run: pytest
