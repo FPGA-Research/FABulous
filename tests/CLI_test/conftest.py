@@ -1,6 +1,5 @@
 import os
 import sys
-from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import pytest
@@ -25,26 +24,7 @@ def normalize(block: str):
 
 def run_cmd(app, cmd):
     """Clear out and err StdSim buffers, run the command, and return out and err"""
-    saved_sysout = sys.stdout
-    sys.stdout = app.stdout
-
-    # This will be used to capture app.stdout and sys.stdout
-    copy_cmd_stdout = StdSim(app.stdout)
-
-    # This will be used to capture sys.stderr
-    copy_stderr = StdSim(sys.stderr)
-
-    try:
-        app.stdout = copy_cmd_stdout
-        with redirect_stdout(copy_cmd_stdout):
-            with redirect_stderr(copy_stderr):
-                app.onecmd_plus_hooks(cmd)
-    finally:
-        app.stdout = copy_cmd_stdout.inner_stream
-        sys.stdout = saved_sysout
-    out = copy_cmd_stdout.getvalue()
-    err = copy_stderr.getvalue()
-    return normalize(out), normalize(err)
+    app.onecmd_plus_hooks(cmd)
 
 
 TILE = "LUT4AB"
@@ -60,9 +40,7 @@ def cli(tmp_path):
     os.environ["FAB_ROOT"] = fabulousRoot
     create_project(projectDir)
     setup_logger(0)
-    cli = FABulous_CLI(
-        writerType="verilog", projectDir=projectDir, enteringDir=tmp_path
-    )
+    cli = FABulous_CLI(writerType="verilog", projectDir=projectDir, enteringDir=tmp_path)
     run_cmd(cli, "load_fabric")
     return cli
 
