@@ -127,8 +127,14 @@ class FABulous_CLI(Cmd):
         script : str, optional
             Path to optional Tcl script to be executed, by default ""
         """
+        if os.getenv("FAB_PROJ_DIR") is None:
+            historyPath = ""
+        else:
+            historyPath = (
+                f"{os.getenv('FAB_PROJ_DIR')}/{META_DATA_DIR}/.fabulous_history"
+            )
         super().__init__(
-            persistent_history_file=f"{os.getenv('FAB_PROJ_DIR')}/{META_DATA_DIR}/.fabulous_history",
+            persistent_history_file=historyPath,
             allow_cli_args=False,
             startup_script=str(FABulousScript) if not FABulousScript.is_dir() else "",
         )
