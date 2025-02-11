@@ -190,14 +190,29 @@ class VerilogWriter(codeGenerator):
 """
         self._add(template, indentLevel)
 
-    def addAssignScalar(self, left, right, delay=0, indentLevel=0):
-        if type(right) == list:
-            self._add(f"assign {left} = {{{','.join(right)}}};", indentLevel)
-        else:
-            self._add(f"assign {left} = {right};")
+    def addRegister(self, reg, regIn, clk="CLK", inverted=False, indentLevel=0):
+        inv = "~" if inverted else ""
+        template = f"""
+reg {reg};
+always @ (posedge {clk})
+begin
+    {reg} <= {inv}{regIn};
+end
+"""
+        self._add(template, indentLevel)
 
-    def addAssignVector(self, left, right, widthL, widthR, indentLevel=0):
-        self._add(f"assign {left} = {right}[{widthL}:{widthR}];", indentLevel)
+    def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
+        inv = "~" if inverted else ""
+        if type(right) == list:
+            self._add(f"assign {left} = {inv}{{{','.join(right)}}};", indentLevel)
+        else:
+            self._add(f"assign {left} = {inv}{right};")
+
+    def addAssignVector(
+        self, left, right, widthL, widthR, indentLevel=0, inverted=False
+    ):
+        inv = "~" if inverted else ""
+        self._add(f"assign {left} = {inv}{right}[{widthL}:{widthR}];", indentLevel)
 
     def addPreprocIfDef(self, macro, indentLevel=0):
         self._add(f"`ifdef {macro}", indentLevel)

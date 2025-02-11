@@ -9,6 +9,7 @@ from typing import Literal, overload
 from pathlib import Path
 from FABulous.fabric_generator.utilities import expandListPorts
 from FABulous.fabric_definition.Bel import Bel
+from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_definition.SuperTile import SuperTile
@@ -21,7 +22,6 @@ from FABulous.fabric_definition.define import (
     ConfigBitMode,
     MultiplexerStyle,
 )
-
 
 oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST"}
 
@@ -95,7 +95,6 @@ def parseFabricCSV(fileName: str) -> Fabric:
     tileTypes = []
     tileDefs = []
     commonWirePair: list[tuple[str, str]] = []
-
     fabricTiles = []
     tileDic = {}
 
@@ -455,6 +454,16 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
     -------
     Tuple[List[Tile], List[Tuple[str, str]]]
         A tuple containing a list of Tile objects and a list of common wire pairs.
+
+    Raises
+    ------
+    ValueError : If the input csv file is not a CSV file.
+    ValueError : If the input csv file does not exist.
+    ValueError : If the BEL file is not a VHDL or Verilog file.
+    ValueError : If a GEN_IO is a CONFIGACCESS and not an OUTPUT.
+    ValueError : If a GEN_IO with the same prefix already exists in the tile.
+    ValueError : If a GEN_IO is CLOCKED and CLOCKED_COMB at the same time.
+    ValueError : If the MATRIX file is not a .list, .csv, .v, or .vhdl file.
     """
     logger.info(f"Reading tile configuration: {fileName}")
 
@@ -484,6 +493,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
         ports: list[Port] = []
         bels: list[Bel] = []
         matrixDir: Path | None = None
+        gen_ios: list[Gen_IO] = []
         withUserCLK = False
         configBit = 0
         for item in t:
@@ -502,9 +512,65 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                 elif temp[1].endswith(".v") or temp[1].endswith(".sv"):
                     bels.append(parseBelFile(belFilePath, temp[2], "verilog"))
                 else:
-                    raise ValueError(
-                        f"Invalid file type in {belFilePath} only .vhdl and .v are supported."
+                    logger.error(f"Invalid file type in {belFilePath} only .vhdl and .v are supported.")
+                    raise ValueError
+            elif temp[0] == "GEN_IO":
+                configBit = 0
+                configAccess = False
+                inverted = False
+                clocked = False
+                clockedComb = False
+                # Additional params can be added
+                for param in temp[4:]:
+                    param = param.strip()
+                    param = param.upper()
+
+                    if param == "CONFIGACCESS":
+                        if temp[2] != "OUTPUT":
+                            logger.error(
+                                "CONFIGACCESS GEN_IO can only be used with OUTPUT"
+                            )
+                            raise ValueError
+                        configAccess = True
+                        configBit = int(temp[1])
+                    elif param == "INVERTED":
+                        inverted = True
+                    elif param == "CLOCKED":
+                        clocked = True
+                    elif param == "CLOCKED_COMB":
+                        clockedComb = True
+                    elif param is None or param == "":
+                        continue
+                    else:
+                        logger.error(f"Unknown parameter {param} in GEN_IO")
+                        raise ValueError
+
+                    if configAccess and (clocked or clockedComb):
+                        logger.error("CONFIGACCESS GEN_IO can not be clocked")
+                        raise ValueError
+                    if clockedComb and clocked:
+                        logger.error(
+                        "GEN_IO can not be CLOCKED and CLOCKED_COMB at the same time")
+                        raise ValueError
+
+                if temp[3] not in (gio.prefix for gio in gen_ios):
+                    gen_ios.append(
+                        Gen_IO(
+                            temp[3],
+                            int(temp[1]),
+                            IO[temp[2]],
+                            configBit,
+                            configAccess,
+                            inverted,
+                            clocked,
+                            clockedComb,
+                        )
                     )
+                else:
+                    logger.error(
+                        f"GEN_IO with prefix {temp[3]} already exists in tile {tileName}."
+                    )
+                    raise ValueError
             elif temp[0] == "MATRIX":
                 matrixDir = fileName.parent.joinpath(temp[1])
                 configBit = 0
@@ -563,6 +629,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     bels=bels,
                     tileDir=fileName,
                     matrixDir=matrixDir,
+                    gen_ios=gen_ios,
                     userCLK=withUserCLK,
                     configBit=configBit,
                 )
