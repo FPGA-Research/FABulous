@@ -89,6 +89,7 @@ def test_gen_model_npnr(cli, caplog):
     assert "Generated npnr model" in log[-1]
 
 
+# TODO: complete the rest of the test
 def test_gen_bitstream_spec(cli, caplog):
     pass
 
