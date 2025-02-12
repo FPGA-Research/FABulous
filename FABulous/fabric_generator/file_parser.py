@@ -101,7 +101,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
 
     # list for supertiles
     superTileDic = {}
-    
+
     # For backwards compatibility parse tiles in fabric config
     new_tiles, new_commonWirePair = parseTiles(fName)
     tileTypes += [new_tile.name for new_tile in new_tiles]
@@ -468,12 +468,11 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
 
     filePathParent = fileName.parent
 
-    with open(fileName, 'r') as f:
+    with open(fileName, "r") as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
-    tilesData = re.findall(r"TILE(.*?)EndTILE", file,
-                           re.MULTILINE | re.DOTALL)
+    tilesData = re.findall(r"TILE(.*?)EndTILE", file, re.MULTILINE | re.DOTALL)
 
     new_tiles = []
     commonWirePairs = []
@@ -599,12 +598,13 @@ def parseSupertiles(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]
 
     filePath = fileName.parent
 
-    with open(fileName, 'r') as f:
+    with open(fileName, "r") as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
-    superTilesData = re.findall(r"SuperTILE(.*?)EndSuperTILE",
-                           file, re.MULTILINE | re.DOTALL)
+    superTilesData = re.findall(
+        r"SuperTILE(.*?)EndSuperTILE", file, re.MULTILINE | re.DOTALL
+    )
 
     new_supertiles = []
 
@@ -652,7 +652,7 @@ def parseSupertiles(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]
 
         withUserCLK = any(bel.withUserCLK for bel in bels)
         new_supertiles.append(SuperTile(name, tiles, tileMap, bels, withUserCLK))
-    
+
     return new_supertiles
 
 

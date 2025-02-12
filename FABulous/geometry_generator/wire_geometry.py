@@ -228,18 +228,16 @@ class StairWires:
 
 
 class WireConstraints:
-    """
-        A simple datastruct for storing
-        information on where wires arrive
-        at the border of a tile.
+    """A simple datastruct for storing information on where wires arrive at the border
+    of a tile.
 
-        Attributes:
-            northPositions: List[int]
-            southPositions: List[int]
-            eastPositions: List[int]
-            westPositions: List[int]
-
+    Attributes:
+        northPositions: List[int]
+        southPositions: List[int]
+        eastPositions: List[int]
+        westPositions: List[int]
     """
+
     northPositions: List[int]
     southPositions: List[int]
     eastPositions: List[int]
