@@ -126,8 +126,14 @@ class FABulous_CLI(Cmd):
         script : str, optional
             Path to optional Tcl script to be executed, by default ""
         """
+        if os.getenv("FAB_PROJ_DIR") is None:
+            historyPath = ""
+        else:
+            historyPath = (
+                f"{os.getenv('FAB_PROJ_DIR')}/{META_DATA_DIR}/.fabulous_history"
+            )
         super().__init__(
-            persistent_history_file=f"{os.getenv('FAB_PROJ_DIR')}/{META_DATA_DIR}/.fabulous_history",
+            persistent_history_file=historyPath,
             allow_cli_args=False,
             startup_script=str(FABulousScript) if not FABulousScript.is_dir() else "",
         )
@@ -345,7 +351,7 @@ class FABulous_CLI(Cmd):
             self.fabulousAPI.genConfigMem(
                 i, self.projectDir / f"Tile/{i}/{i}_ConfigMem.csv"
             )
-        logger.info("Generating configMem complete")
+        logger.info("ConfigMem generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)
@@ -442,7 +448,7 @@ class FABulous_CLI(Cmd):
         """Generates all tiles by calling 'do_gen_tile'."""
         logger.info("Generating all tiles")
         self.do_gen_tile(" ".join(self.allTile))
-        logger.info("Generated all tiles")
+        logger.info("All tiles generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_fabric(self, *ignored):
@@ -550,7 +556,7 @@ class FABulous_CLI(Cmd):
                 w.writerow([key1])
                 for key2, val in specObject["TileSpecs"][key1].items():
                     w.writerow([key2, val])
-        logger.info("Generated bitstream specification")
+        logger.info("Bitstream specification generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_top_wrapper(self, *ignored):
@@ -560,7 +566,7 @@ class FABulous_CLI(Cmd):
             f"{self.projectDir}/Fabric/{self.fabulousAPI.fabric.name}_top.{self.extension}"
         )
         self.fabulousAPI.genTopWrapper()
-        logger.info("Generated top wrapper")
+        logger.info("Top wrapper generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
     @allow_blank
