@@ -1,0 +1,15 @@
+# N_term_single
+
+# single just go back, we swap bits in vector to get more twists into the graph
+S1BEG[0|1|2|3],N1END[3|2|1|0]
+
+# The MID are half way in so they get connected to the longest patch (S2BEG)
+# The END are longest so get on the cascading begin (S2BEGb)
+# on top we twist wire indexes for more entropy
+S2BEG[0|1|2|3|4|5|6|7],N2MID[7|6|5|4|3|2|1|0]
+S2BEGb[0|1|2|3|4|5|6|7],N2END[7|6|5|4|3|2|1|0]
+
+# We swap bits in vector to get more twists into the graph and this will automatically connect the longest input to the shortest output etc.
+S4BEG[0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15],N4END[15|14|13|12|11|10|9|8|7|6|5|4|3|2|1|0]
+
+SS4BEG[0|1|2|3|4|5|6|7|8|9|10|11|12|13|14|15],NN4END[15|14|13|12|11|10|9|8|7|6|5|4|3|2|1|0]

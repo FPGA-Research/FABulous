@@ -1,0 +1,11 @@
+.navbar-brand img {
+    width: auto;
+    /* Maintain aspect ratio */
+    height: 70px;
+    /* Adjusting logo */
+}
+
+/* Adjusting navbar height */
+.navbar {
+    min-height: 80px;
+}

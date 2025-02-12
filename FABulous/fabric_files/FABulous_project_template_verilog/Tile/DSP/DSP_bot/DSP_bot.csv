@@ -1,0 +1,8 @@
+TILE,DSP_bot,,,,,,,,,,,,,,,,,
+#direction,source_name,X-offset,Y-offset,destination_name,wires,,,,,,,,,,,,,
+INCLUDE,../../include/Base.csv
+NORTH,bot2top,0,-1,NULL,10,,,,,,,,,,,,,
+SOUTH,NULL,0,1,top2bot,18,,,,,,,,,,,,,
+BEL,./MULADD.v,,,,,,,,,,,,,,,,,
+MATRIX,./DSP_bot_switch_matrix.list,,,,,,,,,,,,,,,,,
+EndTILE,,,,,,,,,,,,,,,,,,

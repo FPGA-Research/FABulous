@@ -1,0 +1,14 @@
+tmp/*
+build
+*.json
+*.fasm
+*.bit
+*.vvp
+*.vcd
+*.log
+*.vh
+*.vhd
+*.hex
+*.csv
+*.txt
+*.bin

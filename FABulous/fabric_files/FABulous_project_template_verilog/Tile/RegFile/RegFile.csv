@@ -1,0 +1,6 @@
+TILE,RegFile,,,,,,,,,,,,,,,,,
+#direction,source_name,X-offset,Y-offset,destination_name,wires,,,,,,,,,,,,,
+INCLUDE,../include/Base.csv
+BEL,./RegFile_32x4.v,,,,,,,,,,,,,,,,,
+MATRIX,./RegFile_switch_matrix.list,,,,,,,,,,,,,,,,,
+EndTILE,,,,,,,,,,,,,,,,,,

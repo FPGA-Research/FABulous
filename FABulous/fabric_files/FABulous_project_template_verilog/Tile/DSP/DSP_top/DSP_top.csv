@@ -1,0 +1,7 @@
+TILE,DSP_top,,,,,,,,,,,,,,,,,
+#direction,source_name,X-offset,Y-offset,destination_name,wires,,,,,,,,,,,,,
+INCLUDE,../../include/Base.csv
+NORTH,NULL,0,-1,bot2top,10,,,,,,,,,,,,,
+SOUTH,top2bot,0,1,NULL,18,,,,,,,,,,,,,
+MATRIX,./DSP_top_switch_matrix.list,,,,,,,,,,,,,,,,,
+EndTILE,,,,,,,,,,,,,,,,,,

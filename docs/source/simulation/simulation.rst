@@ -1,22 +1,37 @@
 Simulation setup
 ================
 
+FABulous provides a simulation environment to test the fabric and the bitstream generated for it.
+For simple use cases, there is the `run_simulation` command in the FABulous shell.
+For more complex use cases it can be useful to create an own flow, like the following example `make` based flow.
+
+
+Please make sure to use recent versions of (Yosys)[https://github.com/YosysHQ/yosys], (nextpnr-generic)[https://github.com/YosysHQ/nextpnr] (_not_ the old FABulous nextpnr fork)
+and (GHDL with mcode backend)[https://github.com/ghdl/ghdl/releases] or use the (OSS-CAD-Suite)[https://github.com/YosysHQ/oss-cad-suite-build] which provides nightly builds of the necessary dependencies.
+
+.. note:: The OSS-CAD-Suite is providing GHDL only with LLVM backend, which increases the simulation speed for FABulous projects significantly. We recommend using the latest GHDL with mcode backend for the best simulation performance.
+
+Also, make sure you have the `make` package installed:
+
+.. code-block:: console
+
+    $ sudo apt-get install make
+
 The following series of commands can be used to easily run a simulation with a test bitstream loaded, using Icarus Verilog:
 
 .. code-block:: console
 
-        cd demo/Test
-        ./build_test_design.sh
-        ./run_simulation.sh
+        (venv)$ cd demo/Test
+        (venv)$ make
 
 FABulous comes with 3 different simulation methods _`configuration module`,
 
 #. Serial (Mode 0)
 
-   Send configuration in through UART 
+   Send configuration in through UART
 
 #. Parallel (Mode 1) - default in the testbench
-   
+
    Use parallel configuration port
 
 #. Bitbang configuration port (To be supported in the testbench)
@@ -32,9 +47,9 @@ FABulous comes with 3 different simulation methods _`configuration module`,
 
    Both values get shifted into a separate register. If the control register sees the bit-pattern x”FAB1” it samples the data shift register into a hold register and issues a one-cycle strobe output (active 1).
 
-   The next figure shows the generation (and input sampling) of the enable signals for
+   The next figure shows the enable generation (and input sampling) for generating the enable signals for
 
-   * the control shift register and 
+   * the control shift register and
    * the data shift register.
 
    .. figure:: ../figs/bitbang2.*

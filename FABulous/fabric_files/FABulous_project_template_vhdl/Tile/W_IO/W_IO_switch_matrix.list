@@ -1,0 +1,69 @@
+# W_IO
+
+# Fabric to PAD output multiplexers
+A_[I|I|I|I|I|I|I|I],W2MID[0|1|2|3|4|5|6|7]
+A_[I|I|I|I|I|I|I|I],W2END[0|1|2|3|4|5|6|7]
+
+B_[I|I|I|I|I|I|I|I],W2MID[0|1|2|3|4|5|6|7]
+B_[I|I|I|I|I|I|I|I],W2END[0|1|2|3|4|5|6|7]
+
+# Tristate control for those PADs
+A_[T|T|T|T|T|T|T|T],[W2END0|W2END1|W2END2|W2END3|W2END4|W2MID7|VCC0|GND0]
+
+B_[T|T|T|T|T|T|T|T],[W2END0|W2END4|W2END5|W2END6|W2MID6|W2MID7|VCC0|GND0]
+
+### # single just go back, we swap bits in vector to get more twists into the graph
+E1BEG[0|1|2|3],W1END[3|2|1|0]
+# Single get connected to PAD output
+E1BEG[0|1|2|3],[A_O|A_Q|B_O|B_Q]
+
+# we also connect the hex wires
+# Note that we only have 2 wires starting in each CLB (so 2x6=12 wires in the channel)
+# we connect the combinatorial outputs in every other column and the register outputs in the remaining columns
+E6BEG[0|1|6|7],[A_O|B_O|A_Q|B_Q]
+E6BEG[2|3|8|9],[A_O|B_O|A_Q|B_Q]
+E6BEG[4|5|10|11],[A_O|B_O|A_Q|B_Q]
+
+E6BEG[0|1|6|7],W6END[11|10|9|8]
+E6BEG[2|3|8|9],W6END[7|6|5|4]
+E6BEG[4|5|10|11],W6END[3|2|1|0]
+
+E6BEG[0|1|6|7],WW4END[11|10|9|8]
+E6BEG[2|3|8|9],WW4END[7|6|5|4]
+E6BEG[4|5|10|11],WW4END[3|2|1|0]
+
+E6BEG[0|1|6|7],W1END[2|3|1|0]
+E6BEG[2|3|8|9],WW4END[15|14|13|12]
+E6BEG[4|5|10|11],W1END[2|3|1|0]
+
+
+
+# The MID are half way in so they get connected to the longest patch (S2BEG)
+# The END are longest so get on the cascading begin (S2BEGb)
+# on top we twist wire indexes for more entropy
+E2BEGb[0|1|2|3|4|5|6|7],W2END[7|6|5|4|3|2|1|0]
+E2BEGb[0|1|2|3|4|5|6|7],WW4END[7|6|5|4|3|2|1|0]
+E2BEGb[0|1|2|3|4|5|6|7],WW4END[15|14|13|12|11|10|9|8]
+E2BEGb[0|1|2|3|4|5|6|7],W6END[7|6|5|4|3|2|1|0]
+
+E2BEG[0|1|2|3|4|5|6|7],W2MID[7|6|5|4|3|2|1|0]
+E2BEG[0|1|2|3|4|5|6|7],WW4END[7|6|5|4|3|2|1|0]
+E2BEG[0|1|2|3|4|5|6|7],WW4END[15|14|13|12|11|10|9|8]
+E2BEG[0|1|2|3|4|5|6|7],W6END[7|6|5|4|3|2|1|0]
+
+EE4BEG[0|0|0|0],[A_O|W6END0|W6END2|W6END4]
+EE4BEG[1|1|1|1],[B_O|W6END6|W6END8|W6END10]
+EE4BEG[2|2|2|2],[A_Q|W6END1|W6END3|W6END5]
+EE4BEG[3|3|3|3],[B_Q|W6END7|W6END9|W6END11]
+EE4BEG[4|4|4|4],[W2END0|W2END2|W2END4|W2END6]
+EE4BEG[5|5|5|5],[W2END1|W2END3|W2END5|W2END7]
+EE4BEG[6|6|6|6],[W2MID0|W2MID2|W2MID4|W2MID6]
+EE4BEG[7|7|7|7],[W2MID1|W2MID3|W2MID5|W2MID7]
+EE4BEG[8|8|8|8],[W6END4|W6END6|W6END8|W6END10]
+EE4BEG[9|9|9|9],[W6END1|W6END3|W6END5|W6END7]
+EE4BEG1[0|0|0|0],[A_O|W6END0|W6END2|W6END4]
+EE4BEG1[1|1|1|1],[B_O|W6END6|W6END8|W6END10]
+EE4BEG1[2|2|2|2],[A_Q|W6END1|W6END3|W6END5]
+EE4BEG1[3|3|3|3],[B_Q|W6END7|W6END9|W6END11]
+EE4BEG1[4|4|4|4],[W2MID0|W2MID2|W2MID4|W2MID6]
+EE4BEG1[5|5|5|5],[W2MID1|W2MID3|W2MID5|W2MID7]

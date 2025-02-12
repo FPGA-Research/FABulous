@@ -3,7 +3,7 @@ Emulation setup
 
 .. note:: The emulation functionality is implemented but needs more testing.
 
-The script ``bit_gen.py`` in 
+The script ``bit_gen.py`` in
 :ref:`bitstream generation<bitstream generation>`
 not only generates the binary bitstream for simulation, but also the bitstream files for Verilog and VHDL emulation.
 
@@ -23,8 +23,8 @@ not only generates the binary bitstream for simulation, but also the bitstream f
   .. code-block:: vhdl
      :emphasize-lines: 5
 
-        entity  eFPGA  is 
-                Generic ( 
+        entity  eFPGA  is
+                Generic (
                         MaxFramesPerCol : integer := 20;
                         FrameBitsPerRow : integer := 32;
                         Mode : string := "EMULATE"; -- "ASIC" will use the normal configuration port and "EMULATE" will hardwire a bitstream from emulate_bitstream.vhd

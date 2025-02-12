@@ -1,0 +1,12 @@
+tmp
+build
+*.csv
+*.fasm
+*.json
+*.bit
+*.bin
+*.txt
+*.vh
+*.hex
+*.cf
+*.vcd
