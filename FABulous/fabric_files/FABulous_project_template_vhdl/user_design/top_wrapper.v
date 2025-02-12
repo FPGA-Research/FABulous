@@ -35,6 +35,6 @@ wire [27:0] io_in, io_out, io_oeb;
 wire clk;
 (* keep *) Global_Clock clk_i (.CLK(clk));
 
-top top_i(.clk(clk), .io_in(io_in), .io_out(io_out), .io_oeb(io_oeb));
+sequential_16bit_en top_i(.clk(clk), .io_in(io_in), .io_out(io_out), .io_oeb(io_oeb));
 
 endmodule

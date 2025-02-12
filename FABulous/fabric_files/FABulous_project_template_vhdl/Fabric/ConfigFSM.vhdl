@@ -1,11 +1,11 @@
 -- This VHDL was converted from Verilog using the
--- Icarus Verilog VHDL Code Generator 11.0 (stable) ()
+-- Icarus Verilog VHDL Code Generator 13.0 (devel) (s20221226-518-g94d9d1951)
 
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
--- Generated from Verilog module ConfigFSM (ConfigFSM_template.v:1)
+-- Generated from Verilog module ConfigFSM (ConfigFSM.v:1)
 --   FrameBitsPerRow = 32
 --   NumberOfRows = 16
 --   RowSelectWidth = 5
@@ -19,29 +19,30 @@ entity ConfigFSM is
   );
   port (
     CLK : in std_logic;
+    FSM_Reset : in std_logic;
     FrameAddressRegister : out std_logic_vector(31 downto 0);
     LongFrameStrobe : out std_logic;
-    Reset : in std_logic;
     RowSelect : out std_logic_vector(4 downto 0);
     WriteData : in std_logic_vector(31 downto 0);
-    WriteStrobe : in std_logic
+    WriteStrobe : in std_logic;
+    resetn : in std_logic
   );
 end entity;
 
--- Generated from Verilog module ConfigFSM (ConfigFSM_template.v:1)
+-- Generated from Verilog module ConfigFSM (ConfigFSM.v:1)
 --   FrameBitsPerRow = 32
 --   NumberOfRows = 16
 --   RowSelectWidth = 5
 --   desync_flag = 20
 architecture from_verilog of ConfigFSM is
   signal FrameAddressRegister_Reg : std_logic_vector(31 downto 0);
-  signal LongFrameStrobe_Reg : std_logic := '0';
+  signal LongFrameStrobe_Reg : std_logic;
   signal RowSelect_Reg : std_logic_vector(4 downto 0);
-  signal FrameShiftState : unsigned(4 downto 0) := "00000";  -- Declared at ConfigFSM_template.v:19
-  signal FrameStrobe : std_logic := '0';  -- Declared at ConfigFSM_template.v:17
-  signal oldFrameStrobe : std_logic := '0';  -- Declared at ConfigFSM_template.v:74
-  signal old_reset : std_logic := '0';  -- Declared at ConfigFSM_template.v:23
-  signal state : std_logic_vector(1 downto 0) := "00";  -- Declared at ConfigFSM_template.v:22
+  signal FrameShiftState : unsigned(4 downto 0);  -- Declared at ConfigFSM.v:20
+  signal FrameStrobe : std_logic;  -- Declared at ConfigFSM.v:18
+  signal oldFrameStrobe : std_logic;  -- Declared at ConfigFSM.v:83
+  signal old_reset : std_logic;  -- Declared at ConfigFSM.v:24
+  signal state : std_logic_vector(1 downto 0);  -- Declared at ConfigFSM.v:23
 
   function Boolean_To_Logic(B : Boolean) return std_logic is
   begin
@@ -56,49 +57,57 @@ begin
   LongFrameStrobe <= LongFrameStrobe_Reg;
   RowSelect <= RowSelect_Reg;
 
-  -- Generated from always process in ConfigFSM (ConfigFSM_template.v:24)
-  process (CLK) is
+  -- Generated from always process in ConfigFSM (ConfigFSM.v:25)
+  P_FSM: process (resetn, CLK) is
   begin
-    if rising_edge(CLK) then
-      old_reset <= Reset;
-      FrameStrobe <= '0';
-      if (old_reset = '0') and (Reset = '1') then
+    if falling_edge(resetn) or rising_edge(CLK) then
+      if (not resetn) = '1' then
+        old_reset <= '0';
         state <= "00";
         FrameShiftState <= "00000";
+        FrameAddressRegister_Reg <= X"00000000";
+        FrameStrobe <= '0';
       else
-        case state is
-          when "00" =>
-            if WriteStrobe = '1' then
-              if WriteData = X"fab0fab1" then
-                state <= "01";
+        old_reset <= FSM_Reset;
+        FrameStrobe <= '0';
+        if (old_reset = '0') and (FSM_Reset = '1') then
+          state <= "00";
+          FrameShiftState <= "00000";
+        else
+          case state is
+            when "00" =>
+              if WriteStrobe = '1' then
+                if WriteData = X"FAB0FAB1" then
+                  state <= "01";
+                end if;
               end if;
-            end if;
-          when "01" =>
-            if WriteStrobe = '1' then
-              if WriteData(20) = '1' then
-                state <= "00";
-              else
-                FrameAddressRegister_Reg <= WriteData;
-                FrameShiftState <= to_unsigned(NumberOfRows, FrameShiftState'length);
-                state <= "10";
+            when "01" =>
+              if WriteStrobe = '1' then
+                if WriteData(desync_flag) = '1' then
+                  state <= "00";
+                else
+                  FrameAddressRegister_Reg <= WriteData;
+                  FrameShiftState <= to_unsigned(NumberOfRows,FrameShiftState'length);
+                  state <= "10";
+                end if;
               end if;
-            end if;
-          when "10" =>
-            if WriteStrobe = '1' then
-              FrameShiftState <= FrameShiftState - "00001";
-              if FrameShiftState = X"00000001" then
-                FrameStrobe <= '1';
-                state <= "01";
+            when "10" =>
+              if WriteStrobe = '1' then
+                FrameShiftState <= FrameShiftState - "00001";
+                if Resize(FrameShiftState, 32) = X"00000001" then
+                  FrameStrobe <= '1';
+                  state <= "01";
+                end if;
               end if;
-            end if;
-          when others =>
-            null;
-        end case;
+            when others =>
+              null;
+          end case;
+        end if;
       end if;
     end if;
   end process;
 
-  -- Generated from always process in ConfigFSM (ConfigFSM_template.v:66)
+  -- Generated from always process in ConfigFSM (ConfigFSM.v:75)
   process (WriteStrobe, FrameShiftState) is
   begin
     if WriteStrobe = '1' then
@@ -108,12 +117,17 @@ begin
     end if;
   end process;
 
-  -- Generated from always process in ConfigFSM (ConfigFSM_template.v:75)
-  process (CLK) is
+  -- Generated from always process in ConfigFSM (ConfigFSM.v:84)
+  P_StrobeREG: process (resetn, CLK) is
   begin
-    if rising_edge(CLK) then
-      oldFrameStrobe <= FrameStrobe;
-      LongFrameStrobe_Reg <= Boolean_To_Logic((FrameStrobe = '1') or (oldFrameStrobe = '1'));
+    if falling_edge(resetn) or rising_edge(CLK) then
+      if (not resetn) = '1' then
+        oldFrameStrobe <= '0';
+        LongFrameStrobe_Reg <= '0';
+      else
+        oldFrameStrobe <= FrameStrobe;
+        LongFrameStrobe_Reg <= Boolean_To_Logic((FrameStrobe = '1') or (oldFrameStrobe = '1'));
+      end if;
     end if;
   end process;
 end architecture;

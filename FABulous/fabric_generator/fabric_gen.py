@@ -284,10 +284,10 @@ class FabricGenerator:
                 if bitsLeftToPackInFrames >= frameBitPerRow:
                     entry.append(str(frameBitPerRow))
                     # generate a string encoding a '1' for each flop used
-                    frameBitsMask = f"{2**frameBitPerRow-1:_b}"
+                    frameBitsMask = f"{2**frameBitPerRow - 1:_b}"
                     entry.append(frameBitsMask)
                     entry.append(
-                        f"{bitsLeftToPackInFrames-1}:{bitsLeftToPackInFrames-frameBitPerRow}"
+                        f"{bitsLeftToPackInFrames - 1}:{bitsLeftToPackInFrames - frameBitPerRow}"
                     )
                     bitsLeftToPackInFrames -= frameBitPerRow
                 else:
@@ -297,10 +297,10 @@ class FabricGenerator:
                     frameBitsMask = (2**frameBitPerRow - 1) - (
                         2 ** (frameBitPerRow - bitsLeftToPackInFrames) - 1
                     )
-                    frameBitsMask = f"{frameBitsMask:0{frameBitPerRow+7}_b}"
+                    frameBitsMask = f"{frameBitsMask:0{frameBitPerRow + 7}_b}"
                     entry.append(frameBitsMask)
                     if bitsLeftToPackInFrames > 0:
-                        entry.append(f"{bitsLeftToPackInFrames-1}:0")
+                        entry.append(f"{bitsLeftToPackInFrames - 1}:0")
                     else:
                         entry.append("# NULL")
                     # will have to be 0 if already 0 or if we just allocate the last bits
@@ -371,7 +371,10 @@ class FabricGenerator:
             maxBits = self.fabric.frameBitsPerRow * self.fabric.maxFramesPerCol
             self.writer.addPreprocIfDef("EMULATION")
             self.writer.addParameter(
-                "Emulate_Bitstream", f"[{maxBits-1}:0]", f"{maxBits}'b0", indentLevel=2
+                "Emulate_Bitstream",
+                f"[{maxBits - 1}:0]",
+                f"{maxBits}'b0",
+                indentLevel=2,
             )
             self.writer.addPreprocEndif()
         if self.fabric.maxFramesPerCol != 0:
@@ -414,7 +417,7 @@ class FabricGenerator:
                     if i.usedBitMask[k] == "1":
                         self.writer.addAssignScalar(
                             f"ConfigBits[{i.configBitRanges[counter]}]",
-                            f"Emulate_Bitstream[{i.frameIndex*self.fabric.frameBitsPerRow + (self.fabric.frameBitsPerRow-1-k)}]",
+                            f"Emulate_Bitstream[{i.frameIndex * self.fabric.frameBitsPerRow + (self.fabric.frameBitsPerRow - 1 - k)}]",
                         )
                         counter += 1
             self.writer.addPreprocElse()
@@ -428,9 +431,9 @@ class FabricGenerator:
                 if i.usedBitMask[k] == "1":
                     self.writer.addInstantiation(
                         compName="LHQD1",
-                        compInsName=f"Inst_{i.frameName}_bit{self.fabric.frameBitsPerRow-1-k}",
+                        compInsName=f"Inst_{i.frameName}_bit{self.fabric.frameBitsPerRow - 1 - k}",
                         portsPairs=[
-                            ("D", f"FrameData[{self.fabric.frameBitsPerRow-1-k}]"),
+                            ("D", f"FrameData[{self.fabric.frameBitsPerRow - 1 - k}]"),
                             ("E", f"FrameStrobe[{i.frameIndex}]"),
                             ("Q", f"ConfigBits[{i.configBitRanges[counter]}]"),
                             ("QN", f"ConfigBits_N[{i.configBitRanges[counter]}]"),
@@ -595,9 +598,10 @@ class FabricGenerator:
             for portName in connections:
                 muxSize = len(connections[portName])
                 if muxSize >= 2:
+                    paddedMuxSize = 2 ** (muxSize - 1).bit_length() - 1
                     self.writer.addConnectionVector(
                         f"DEBUG_select_{portName}",
-                        f"{int(math.ceil(math.log2(muxSize)))}-1",
+                        f"{paddedMuxSize.bit_length() - 1}",
                     )
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
@@ -730,29 +734,31 @@ class FabricGenerator:
                     # generic multiplexer
                     self.writer.addAssignScalar(
                         portName,
-                        f"{portName}_input[ConfigBits[{configBitstreamPosition-1}:{configBitstreamPosition}]]",
+                        f"{portName}_input[ConfigBits[{configBitstreamPosition - 1}:{configBitstreamPosition}]]",
                     )
 
                 # update the configuration bitstream position
-                configBitstreamPosition += len(connections[portName]).bit_length() - 1
+                configBitstreamPosition += paddedMuxSize.bit_length() - 1
 
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
         if self.switch_matrix_debug_signal:
-            logger.info("Generate debug signals for switch matrix in tile {tile.name}")
+            logger.info(f"Generate debug signals for switch matrix in tile {tile.name}")
             self.writer.addNewLine()
             configBitstreamPosition = 0
+            old_ConfigBitstreamPosition = 0
             for portName in connections:
                 muxSize = len(connections[portName])
                 if muxSize >= 2:
-                    old_ConfigBitstreamPosition = configBitstreamPosition
-                    configBitstreamPosition += int(math.ceil(math.log2(muxSize)))
+                    paddedMuxSize = 2 ** (muxSize - 1).bit_length()
+                    configBitstreamPosition += paddedMuxSize.bit_length() - 1
                     self.writer.addAssignVector(
                         f"DEBUG_select_{portName:<15}",
                         "ConfigBits",
-                        configBitstreamPosition - 1,
+                        f"{configBitstreamPosition - 1}",
                         old_ConfigBitstreamPosition,
                     )
+                    old_ConfigBitstreamPosition = configBitstreamPosition
 
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
         ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
@@ -787,7 +793,10 @@ class FabricGenerator:
             maxBits = self.fabric.frameBitsPerRow * self.fabric.maxFramesPerCol
             self.writer.addPreprocIfDef("EMULATION")
             self.writer.addParameter(
-                "Emulate_Bitstream", f"[{maxBits-1}:0]", f"{maxBits}'b0", indentLevel=2
+                "Emulate_Bitstream",
+                f"[{maxBits - 1}:0]",
+                f"{maxBits}'b0",
+                indentLevel=2,
             )
             self.writer.addPreprocEndif()
         self.writer.addParameter(
@@ -1039,8 +1048,8 @@ class FabricGenerator:
                         "my_buf",
                         f"{port.destinationName}_inbuf_{i}",
                         portsPairs=[
-                            ("A", f"{port.destinationName}[{i+port.wireCount}]"),
-                            ("X", f"{port.destinationName}_i[{i+port.wireCount}]"),
+                            ("A", f"{port.destinationName}[{i + port.wireCount}]"),
+                            ("X", f"{port.destinationName}_i[{i + port.wireCount}]"),
                         ],
                     )
                 for i in range(highBoundIndex - port.wireCount + 1):
@@ -1152,13 +1161,13 @@ class FabricGenerator:
                     portsPairs.append(
                         (
                             "ConfigBits",
-                            f"ConfigBits[{belConfigBitsCounter+bel.configBit}-1:{belConfigBitsCounter}]",
+                            f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:{belConfigBitsCounter}]",
                         )
                     )
             elif self.fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
                 portsPairs.append(("MODE", "Mode"))
                 portsPairs.append(("CONFin", f"conf_data({belCounter})"))
-                portsPairs.append(("CONFout", f"conf_data({belCounter+1})"))
+                portsPairs.append(("CONFout", f"conf_data({belCounter + 1})"))
                 portsPairs.append(("CLK", "CLK"))
 
             self.writer.addInstantiation(
@@ -1240,7 +1249,7 @@ class FabricGenerator:
         if self.fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
             portsPairs.append(("MODE", "Mode"))
             portsPairs.append(("CONFin", f"conf_data({belCounter})"))
-            portsPairs.append(("CONFout", f"conf_data({belCounter+1})"))
+            portsPairs.append(("CONFout", f"conf_data({belCounter + 1})"))
             portsPairs.append(("CLK", "CLK"))
 
         if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
@@ -1287,7 +1296,7 @@ class FabricGenerator:
                         continue
                     self.writer.addParameter(
                         f"Tile_X{x}Y{y}_Emulate_Bitstream",
-                        f"[{maxBits-1}:0]",
+                        f"[{maxBits - 1}:0]",
                         f"{maxBits}'b0",
                         indentLevel=2,
                     )
@@ -1470,7 +1479,7 @@ class FabricGenerator:
                     and superTile.tileMap[y + 1][x] != None
                 ):
                     for p in superTile.tileMap[y + 1][x].getNorthPorts(IO.OUTPUT):
-                        northInput.append(f"Tile_X{x}Y{y+1}_{p.name}")
+                        northInput.append(f"Tile_X{x}Y{y + 1}_{p.name}")
                 else:
                     for p in tile.getNorthPorts(IO.INPUT):
                         northInput.append(f"Tile_X{x}Y{y}_{p.name}")
@@ -1483,7 +1492,7 @@ class FabricGenerator:
                     and superTile.tileMap[y][x - 1] != None
                 ):
                     for p in superTile.tileMap[y][x - 1].getEastPorts(IO.OUTPUT):
-                        eastInput.append(f"Tile_X{x-1}Y{y}_{p.name}")
+                        eastInput.append(f"Tile_X{x - 1}Y{y}_{p.name}")
                 else:
                     for p in tile.getEastPorts(IO.INPUT):
                         eastInput.append(f"Tile_X{x}Y{y}_{p.name}")
@@ -1499,7 +1508,7 @@ class FabricGenerator:
                     and superTile.tileMap[y - 1][x] != None
                 ):
                     for p in superTile.tileMap[y - 1][x].getSouthPorts(IO.OUTPUT):
-                        southInput.append(f"Tile_X{x}Y{y-1}_{p.name}")
+                        southInput.append(f"Tile_X{x}Y{y - 1}_{p.name}")
                 else:
                     for p in tile.getSouthPorts(IO.INPUT):
                         southInput.append(f"Tile_X{x}Y{y}_{p.name}")
@@ -1515,7 +1524,7 @@ class FabricGenerator:
                     and superTile.tileMap[y][x + 1] != None
                 ):
                     for p in superTile.tileMap[y][x + 1].getWestPorts(IO.OUTPUT):
-                        westInput.append(f"Tile_X{x+1}Y{y}_{p.name}")
+                        westInput.append(f"Tile_X{x + 1}Y{y}_{p.name}")
                 else:
                     for p in tile.getWestPorts(IO.INPUT):
                         westInput.append(f"Tile_X{x}Y{y}_{p.name}")
@@ -1546,7 +1555,7 @@ class FabricGenerator:
                     0 <= y + 1 < len(superTile.tileMap)
                     and superTile.tileMap[y + 1][x] != None
                 ):
-                    portsPairs.append(("UserCLK", f"Tile_X{x}Y{y+1}_UserCLKo"))
+                    portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
                 else:
                     portsPairs.append(("UserCLK", f"Tile_X{x}Y{y}_UserCLK"))
                 portsPairs.append(("UserCLKo", f"Tile_X{x}Y{y}_UserCLKo"))
@@ -1556,7 +1565,9 @@ class FabricGenerator:
                         0 <= x - 1 < len(superTile.tileMap[0])
                         and superTile.tileMap[y][x - 1] != None
                     ):
-                        portsPairs.append(("FrameData", f"Tile_X{x-1}Y{y}_FrameData_O"))
+                        portsPairs.append(
+                            ("FrameData", f"Tile_X{x - 1}Y{y}_FrameData_O")
+                        )
                     else:
                         portsPairs.append(("FrameData", f"Tile_X{x}Y{y}_FrameData"))
 
@@ -1567,7 +1578,7 @@ class FabricGenerator:
                         and superTile.tileMap[y + 1][x] != None
                     ):
                         portsPairs.append(
-                            ("FrameStrobe", f"Tile_X{x}Y{y+1}_FrameStrobe_O")
+                            ("FrameStrobe", f"Tile_X{x}Y{y + 1}_FrameStrobe_O")
                         )
                     else:
                         portsPairs.append(("FrameStrobe", f"Tile_X{x}Y{y}_FrameStrobe"))
@@ -1823,7 +1834,7 @@ class FabricGenerator:
                             ]
 
                         northInput = [
-                            f"Tile_X{x+i}Y{y+j+1}_{p.name}"
+                            f"Tile_X{x + i}Y{y + j + 1}_{p.name}"
                             for p in self.fabric.tile[y + j + 1][x + i].getNorthPorts(
                                 IO.OUTPUT
                             )
@@ -1852,7 +1863,7 @@ class FabricGenerator:
                             ]
 
                         eastInput = [
-                            f"Tile_X{x+i-1}Y{y+j}_{p.name}"
+                            f"Tile_X{x + i - 1}Y{y + j}_{p.name}"
                             for p in self.fabric.tile[y + j][x + i - 1].getEastPorts(
                                 IO.OUTPUT
                             )
@@ -1881,7 +1892,7 @@ class FabricGenerator:
                             ]
 
                         southInput = [
-                            f"Tile_X{x+i}Y{y+j-1}_{p.name}"
+                            f"Tile_X{x + i}Y{y + j - 1}_{p.name}"
                             for p in self.fabric.tile[y + j - 1][x + i].getSouthPorts(
                                 IO.OUTPUT
                             )
@@ -1910,7 +1921,7 @@ class FabricGenerator:
                             ]
 
                         westInput = [
-                            f"Tile_X{x+i+1}Y{y+j}_{p.name}"
+                            f"Tile_X{x + i + 1}Y{y + j}_{p.name}"
                             for p in self.fabric.tile[y + j][x + i + 1].getWestPorts(
                                 IO.OUTPUT
                             )
@@ -1932,7 +1943,7 @@ class FabricGenerator:
                                     portsPairs.append(
                                         (
                                             f"Tile_X{int(i)}Y{int(j)}_{port.name}",
-                                            f"Tile_X{x+int(i)}Y{y+int(j)}_{port.name}",
+                                            f"Tile_X{x + int(i)}Y{y + int(j)}_{port.name}",
                                         )
                                     )
                 else:
@@ -1948,10 +1959,10 @@ class FabricGenerator:
                 for i, j in tileLocationOffset:
                     for b in self.fabric.tile[y + j][x + i].bels:
                         for p in b.externalInput:
-                            portsPairs.append((p, f"Tile_X{x+i}Y{y+j}_{p}"))
+                            portsPairs.append((p, f"Tile_X{x + i}Y{y + j}_{p}"))
 
                         for p in b.externalOutput:
-                            portsPairs.append((p, f"Tile_X{x+i}Y{y+j}_{p}"))
+                            portsPairs.append((p, f"Tile_X{x + i}Y{y + j}_{p}"))
 
                         for p in b.sharedPort:
                             if "UserCLK" not in p[0]:
@@ -1963,7 +1974,7 @@ class FabricGenerator:
                         y + 1 < self.fabric.numberOfRows
                         and self.fabric.tile[y + 1][x] != None
                     ):
-                        portsPairs.append(("UserCLK", f"Tile_X{x}Y{y+1}_UserCLKo"))
+                        portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
                     else:
                         portsPairs.append(("UserCLK", "UserCLK"))
 
@@ -1988,13 +1999,13 @@ class FabricGenerator:
 
                         elif (x + i, y + j + 1) not in superTileLoc:
                             portsPairs.append(
-                                (f"{pre}UserCLK", f"Tile_X{x+i}Y{y+j+1}_UserCLKo")
+                                (f"{pre}UserCLK", f"Tile_X{x + i}Y{y + j + 1}_UserCLKo")
                             )
 
                         # UserCLKo signal
                         if (x + i, y + j - 1) not in superTileLoc:
                             portsPairs.append(
-                                (f"{pre}UserCLKo", f"Tile_X{x+i}Y{y+j}_UserCLKo")
+                                (f"{pre}UserCLKo", f"Tile_X{x + i}Y{y + j}_UserCLKo")
                             )
 
                 if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
@@ -2018,7 +2029,6 @@ class FabricGenerator:
 
                         # Get all x-positions to the west of this tile
                         for search_x in range(supertile_x - 1, -1, -1):
-
                             # Previous tile is part of the same supertile.
                             # FrameData signals are connected internally.
                             # Stop the search and be done.
@@ -2073,7 +2083,6 @@ class FabricGenerator:
                         for search_y in range(
                             supertile_y + 1, self.fabric.numberOfRows
                         ):
-
                             # Previous tile is part of the same supertile.
                             # FrameStrobe signals are connected internally.
                             # Stop the search and be done.
@@ -2126,7 +2135,7 @@ class FabricGenerator:
                             emulateParamPairs.append(
                                 (
                                     f"Tile_X{i}Y{j}_Emulate_Bitstream",
-                                    f"`Tile_X{x+i}Y{y+j}_Emulate_Bitstream",
+                                    f"`Tile_X{x + i}Y{y + j}_Emulate_Bitstream",
                                 )
                             )
                 else:
@@ -2264,10 +2273,10 @@ class FabricGenerator:
         if "RAM2FAB_D_I" in portGroups and self.fabric.numberOfBRAMs > 0:
             self.writer.addComment("BlockRAM ports", onNewLine=True)
             self.writer.addNewLine()
-            self.writer.addConnectionVector("RAM2FAB_D_I", f"{numberOfRows*4*4}-1")
-            self.writer.addConnectionVector("FAB2RAM_D_O", f"{numberOfRows*4*4}-1")
-            self.writer.addConnectionVector("FAB2RAM_A_O", f"{numberOfRows*4*2}-1")
-            self.writer.addConnectionVector("FAB2RAM_C_O", f"{numberOfRows*4}-1")
+            self.writer.addConnectionVector("RAM2FAB_D_I", f"{numberOfRows * 4 * 4}-1")
+            self.writer.addConnectionVector("FAB2RAM_D_O", f"{numberOfRows * 4 * 4}-1")
+            self.writer.addConnectionVector("FAB2RAM_A_O", f"{numberOfRows * 4 * 2}-1")
+            self.writer.addConnectionVector("FAB2RAM_C_O", f"{numberOfRows * 4}-1")
 
         self.writer.addNewLine()
         self.writer.addComment("Signal declarations", onNewLine=True)
@@ -2434,16 +2443,19 @@ class FabricGenerator:
             for i in range(self.fabric.numberOfBRAMs - 1):
                 portsPairs = [
                     ("clk", "CLK"),
-                    ("rd_addr", f"FAB2RAM_A_O[{addr_cap*i+8-1}:{addr_cap*i}]"),
-                    ("rd_data", f"RAM2FAB_D_I[{data_cap*i+32-1}:{data_cap*i}]"),
-                    ("wr_addr", f"FAB2RAM_A_O[{addr_cap *i+16-1}:{addr_cap*i+8}]"),
-                    ("wr_data", f"FAB2RAM_D_O[{data_cap*i+32-1}:{data_cap*i}]"),
-                    ("C0", f"FAB2RAM_C_O[{config_cap*i}]"),
-                    ("C1", f"FAB2RAM_C_O[{config_cap*i+1}]"),
-                    ("C2", f"FAB2RAM_C_O[{config_cap*i+2}]"),
-                    ("C3", f"FAB2RAM_C_O[{config_cap*i+3}]"),
-                    ("C4", f"FAB2RAM_C_O[{config_cap*i+4}]"),
-                    ("C5", f"FAB2RAM_C_O[{config_cap*i+5}]"),
+                    ("rd_addr", f"FAB2RAM_A_O[{addr_cap * i + 8 - 1}:{addr_cap * i}]"),
+                    ("rd_data", f"RAM2FAB_D_I[{data_cap * i + 32 - 1}:{data_cap * i}]"),
+                    (
+                        "wr_addr",
+                        f"FAB2RAM_A_O[{addr_cap * i + 16 - 1}:{addr_cap * i + 8}]",
+                    ),
+                    ("wr_data", f"FAB2RAM_D_O[{data_cap * i + 32 - 1}:{data_cap * i}]"),
+                    ("C0", f"FAB2RAM_C_O[{config_cap * i}]"),
+                    ("C1", f"FAB2RAM_C_O[{config_cap * i + 1}]"),
+                    ("C2", f"FAB2RAM_C_O[{config_cap * i + 2}]"),
+                    ("C3", f"FAB2RAM_C_O[{config_cap * i + 3}]"),
+                    ("C4", f"FAB2RAM_C_O[{config_cap * i + 4}]"),
+                    ("C5", f"FAB2RAM_C_O[{config_cap * i + 5}]"),
                 ]
                 self.writer.addInstantiation(
                     compName="BlockRAM_1KB",

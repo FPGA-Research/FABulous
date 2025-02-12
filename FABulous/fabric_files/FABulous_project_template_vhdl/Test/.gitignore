@@ -1,3 +1,5 @@
+tmp
+build
 *.csv
 *.fasm
 *.json
@@ -5,7 +7,6 @@
 *.bin
 *.txt
 *.vh
-*.vhd
 *.hex
 *.cf
 *.vcd

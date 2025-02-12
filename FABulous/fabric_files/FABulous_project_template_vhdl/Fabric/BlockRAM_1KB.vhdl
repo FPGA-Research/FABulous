@@ -1,5 +1,5 @@
 -- This VHDL was converted from Verilog using the
--- Icarus Verilog VHDL Code Generator 11.0 (stable) ()
+-- Icarus Verilog VHDL Code Generator 13.0 (devel) (s20221226-518-g94d9d1951)
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -23,10 +23,10 @@ entity BlockRAM_1KB is
     C4 : in std_logic;
     C5 : in std_logic;
     clk : in std_logic;
-    rd_addr : in std_logic_vector(7 downto 0);
-    rd_data : out std_logic_vector(31 downto 0);
-    wr_addr : in std_logic_vector(7 downto 0);
-    wr_data : in std_logic_vector(31 downto 0)
+    rd_addr : in STD_LOGIC_VECTOR(7 downto 0);
+    rd_data : out STD_LOGIC_VECTOR(31 downto 0);
+    wr_addr : in STD_LOGIC_VECTOR(7 downto 0);
+    wr_data : in STD_LOGIC_VECTOR(31 downto 0)
   );
 end entity;
 
@@ -72,6 +72,8 @@ begin
   rd_port_configuration <= C2 & C3;
   wr_addr_topbits <= wr_data(READ_ADDRESS_MSB_FROM_DATALSB + 1 downto READ_ADDRESS_MSB_FROM_DATALSB);
 
+
+
   -- Generated from instantiation at BlockRAM_1KB.v:75
   memory_cell: sram_1rw1r_32_256_8_sky130
     port map (
@@ -101,12 +103,12 @@ begin
   process (wr_port_configuration, wr_data, wr_addr_topbits) is
   begin
     muxedDataIn <= "UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU";
-    if wr_port_configuration = X"00000000" then
+    if wr_port_configuration = "00" then
       mem_wr_mask <= X"f";
       muxedDataIn <= wr_data;
     else
-      if wr_port_configuration = X"00000001" then
-        if wr_addr_topbits = X"00000000" then
+      if wr_port_configuration = "01" then
+        if wr_addr_topbits = "00" then
           mem_wr_mask <= X"3";
           muxedDataIn(0 + 15 downto 0) <= wr_data(0 + 15 downto 0);
         else
@@ -114,16 +116,16 @@ begin
           muxedDataIn(16 + 15 downto 16) <= wr_data(0 + 15 downto 0);
         end if;
       else
-        if wr_port_configuration = X"00000002" then
-          if wr_addr_topbits = X"00000000" then
+        if wr_port_configuration = "10" then
+          if wr_addr_topbits = "00" then
             mem_wr_mask <= X"1";
             muxedDataIn(0 + 7 downto 0) <= wr_data(0 + 7 downto 0);
           else
-            if wr_addr_topbits = X"00000001" then
+            if wr_addr_topbits = "01" then
               mem_wr_mask <= X"2";
               muxedDataIn(8 + 7 downto 8) <= wr_data(0 + 7 downto 0);
             else
-              if wr_addr_topbits = X"00000002" then
+              if wr_addr_topbits = "10" then
                 mem_wr_mask <= X"4";
                 muxedDataIn(16 + 7 downto 16) <= wr_data(0 + 7 downto 0);
               else
@@ -141,7 +143,7 @@ begin
   process (clk) is
   begin
     if rising_edge(clk) then
-      rd_dout_sel <= wr_data(READ_ADDRESS_MSB_FROM_DATALSB + 1 downto READ_ADDRESS_MSB_FROM_DATALSB);
+      rd_dout_sel <= wr_data(24 + 1 downto 24);
     end if;
   end process;
 
@@ -149,24 +151,24 @@ begin
   process (mem_dout, rd_port_configuration, rd_dout_sel) is
   begin
     rd_dout_muxed <= mem_dout;
-    if rd_port_configuration = X"00000000" then
+    if rd_port_configuration = "00" then
       rd_dout_muxed <= mem_dout;
     else
-      if rd_port_configuration = X"00000001" then
-        if (std_logic_vector'("0000000000000000000000000000000") & rd_dout_sel(0)) = X"00000000" then
-          rd_dout_muxed(0 + 15 downto 0) <= mem_dout(0 + 15 downto 0);
+      if rd_port_configuration = "01" then
+        if (rd_dout_sel(0)) = '0' then
+          rd_dout_muxed(15 downto 0) <= mem_dout(15 downto 0);
         else
           rd_dout_muxed(0 + 15 downto 0) <= mem_dout(16 + 15 downto 16);
         end if;
       else
-        if rd_port_configuration = X"00000002" then
-          if rd_dout_sel = X"00000000" then
+        if rd_port_configuration = "10" then
+          if rd_dout_sel = "00" then
             rd_dout_muxed(0 + 7 downto 0) <= mem_dout(0 + 7 downto 0);
           else
-            if rd_dout_sel = X"00000001" then
+            if rd_dout_sel = "01" then
               rd_dout_muxed(0 + 7 downto 0) <= mem_dout(8 + 7 downto 8);
             else
-              if rd_dout_sel = X"00000002" then
+              if rd_dout_sel = "10" then
                 rd_dout_muxed(0 + 7 downto 0) <= mem_dout(16 + 7 downto 16);
               else
                 rd_dout_muxed(0 + 7 downto 0) <= mem_dout(24 + 7 downto 24);
@@ -177,6 +179,7 @@ begin
       end if;
     end if;
   end process;
+
 
   -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:116)
   process (clk) is
@@ -231,6 +234,6 @@ end entity;
 --   RAM_DEPTH = 256
 architecture from_verilog of sram_1rw1r_32_256_8_sky130 is
 begin
-  dout0 <= (others => 'Z');
-  dout1 <= (others => 'Z');
+  dout0 <= (others => '0');
+  dout1 <= (others => '0');
 end architecture;
