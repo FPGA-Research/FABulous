@@ -89,6 +89,9 @@ To run the complete FABulous flow with the default project, run the following co
     run_FABulous_fabric
     run_FABulous_bitstream ./user_design/sequential_16bit_en.v
     run_simulation fst ./user_design/sequential_16bit_en.bin
+
+To generate a bitstream for a legacy FABulous 1.0 fabric,
+pass --legacy to run_FABulous_bitstream.
 """
 
 
@@ -234,6 +237,16 @@ class FABulous_CLI(Cmd):
     filePathRequireParser = Cmd2ArgumentParser()
     filePathRequireParser.add_argument(
         "file", type=Path, help="Path to the target file", completer=Cmd.path_complete
+    )
+
+    bitstreamGenParser = Cmd2ArgumentParser()
+    bitstreamGenParser.add_argument(
+        "file", type=Path, help="Path to the target file", completer=Cmd.path_complete
+    )
+    bitstreamGenParser.add_argument(
+        "--legacy",
+        action="store_true",
+        help="Enable legacy FABulous 1.0 bitstream generation.",
     )
 
     tile_list_parser = Cmd2ArgumentParser()
@@ -692,7 +705,7 @@ class FABulous_CLI(Cmd):
             raise FileNotFoundError
 
     @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(filePathRequireParser)
+    @with_argparser(bitstreamGenParser)
     def do_gen_bitStream_binary(self, args):
         """Generates bitstream of a given design using FASM file and pre-generated
         bitstream specification file 'bitStreamSpec.bin'. Requires bitstream
@@ -738,6 +751,8 @@ class FABulous_CLI(Cmd):
             f"{self.projectDir}/.FABulous/bitStreamSpec.bin",
             f"{self.projectDir}/{parent}/{bitstream_file}",
         ]
+        if args.legacy:
+            runCmd.append("-legacy")
         try:
             sp.run(runCmd, check=True)
         except sp.CalledProcessError:
@@ -862,7 +877,7 @@ class FABulous_CLI(Cmd):
         logger.info("Simulation finished")
 
     @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(filePathRequireParser)
+    @with_argparser(bitstreamGenParser)
     def do_run_FABulous_bitstream(self, args):
         """Runs FABulous to generate bitstream on a given design starting from
         synthesis.
@@ -887,9 +902,11 @@ class FABulous_CLI(Cmd):
         json_file_path = file_path_no_suffix.with_suffix(".json")
         fasm_file_path = file_path_no_suffix.with_suffix(".fasm")
 
+        legacy_str = " --legacy" if args.legacy else ""
+
         self.do_synthesis(str(args.file))
         self.do_place_and_route(str(json_file_path))
-        self.do_gen_bitStream_binary(str(fasm_file_path))
+        self.do_gen_bitStream_binary(str(fasm_file_path) + legacy_str)
 
     @with_category(CMD_SCRIPT)
     @with_argparser(filePathRequireParser)
