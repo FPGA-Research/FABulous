@@ -14,7 +14,7 @@ from FABulous.FABulous_CLI.helper import create_project, setup_logger
 def normalize(block: str):
     """Normalize a block of text to perform comparison.
 
-    Strip newlines from the very beginning and very end  Then split into separate lines and strip trailing whitespace
+    Strip newlines from the very beginning and very end, then split into separate lines and strip trailing whitespace
     from each line.
     """
     assert isinstance(block, str)
@@ -23,12 +23,11 @@ def normalize(block: str):
 
 
 def run_cmd(app, cmd):
-    """Clear out and err StdSim buffers, run the command, and return out and err"""
+    """Clear stdout, stdin and stderr buffers, run the command, and return stdout and stderr"""
     app.onecmd_plus_hooks(cmd)
 
 
 TILE = "LUT4AB"
-SUPER_TILE = "DSP"
 
 os.environ["FAB_ROOT"] = str(Path(__file__).resolve().parent.parent.parent / "FABulous")
 

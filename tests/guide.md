@@ -1,6 +1,38 @@
 # Testing Guide for FABulous
 
-This guide explains how to write tests for the FABulous project using pytest.
+This guide explains how to write tests for the FABulous project using [pytest](https://docs.pytest.org/en/stable/).
+
+## Prerequisites
+
+Here we assume all the dependency required by FABulous is already installed.
+
+You can install pytest using pip:
+
+```sh
+pip install pytest
+```
+
+## Running Tests
+
+To run all the test, use the following command at the top level directory:
+
+```sh
+pytest
+```
+
+To run a test file, use the following command at the top level directory:
+
+```sh
+pytest <path_to_test_file>
+```
+
+To run a specific test case use the following command at the top level directory:
+
+```sh
+pytest -k <name_of_test_case>
+```
+
+For more details on what option can be used please check the pytest documentation.
 
 ## Testing Infrastructure
 
@@ -10,7 +42,7 @@ We use `pytest` as our testing framework. Our testing infrastructure is set up i
 
 #### tmp_path Fixture
 
-`tmp_path` is a built-in pytest fixture that provides a temporary directory unique to each test function. It's particularly useful for our CLI tests as we works with files creation.
+`tmp_path` is a built-in pytest fixture that provides a temporary directory unique to each test function. It's particularly useful for us as we work with file creation.
 
 Example usage:
 
