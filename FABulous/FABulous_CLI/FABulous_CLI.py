@@ -95,6 +95,7 @@ To run the complete FABulous flow with the default project, run the following co
     run_FABulous_fabric
     run_FABulous_bitstream ./user_design/sequential_16bit_en.v
     run_simulation fst ./user_design/sequential_16bit_en.bin
+
 """
 
 
@@ -837,6 +838,8 @@ class FABulous_CLI(Cmd):
             f"{self.projectDir}/.FABulous/bitStreamSpec.bin",
             f"{self.projectDir}/{parent}/{bitstream_file}",
         ]
+        if args.legacy:
+            runCmd.append("-legacy")
         try:
             sp.run(runCmd, check=True)
         except sp.CalledProcessError as e:
@@ -983,6 +986,8 @@ class FABulous_CLI(Cmd):
 
         json_file_path = file_path_no_suffix.with_suffix(".json")
         fasm_file_path = file_path_no_suffix.with_suffix(".fasm")
+
+        legacy_str = " --legacy" if args.legacy else ""
 
         do_synth_args = str(args.file)
 

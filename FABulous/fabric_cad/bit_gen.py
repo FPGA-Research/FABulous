@@ -23,7 +23,9 @@ def bitstring_to_bytes(s):
 
 # CAD methods from summer vacation project 2020
 # Method to generate bitstream in the output format - more detail at the end
-def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
+def genBitstream(
+    fasmFile: str, specFile: str, bitstreamFile: str, legacy: bool = False
+):
     lGen = parse_fasm_filename(fasmFile)
     canonStr = fasm_tuple_to_string(lGen, True)
     canonList = list(parse_fasm_string(canonStr))
@@ -115,8 +117,18 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
         vhdl_str += '";\n'
     vhdl_str += "end package emulate_bitstream;"
 
+    # Legacy mode does not output configuration bits
+    # for the first and last row
+    if legacy:
+        logger.info("Legacy FABulous 1.0 bitstream generation enabled.")
+        start_row = num_rows - 2
+        stop_row = 0
+    else:
+        start_row = num_rows - 1
+        stop_row = -1
+
     # reversed row order
-    for y in range(num_rows - 1, -1, -1):
+    for y in range(start_row, stop_row, -1):
         for x in range(num_columns):
             tileKey = f"X{x}Y{y}"
             curStr = ",".join((tileKey, specDict["TileMap"][tileKey], str(x), str(y)))
@@ -194,6 +206,9 @@ def bit_gen():
     caseProcessedArguments = list(map(lambda x: x.strip(), sys.argv))
     processedArguments = list(map(lambda x: x.lower(), caseProcessedArguments))
     flagRE = re.compile(r"-\S*")
+    legacy = False
+    if "-legacy".lower() in str(sys.argv).lower():
+        legacy = True
     if "-genBitstream".lower() in str(sys.argv).lower():
         argIndex = processedArguments.index("-genBitstream".lower())
         if len(processedArguments) <= argIndex + 3:
@@ -216,7 +231,7 @@ def bit_gen():
         SpecFileName = caseProcessedArguments[argIndex + 2]
         OutFileName = caseProcessedArguments[argIndex + 3]
 
-        genBitstream(FasmFileName, SpecFileName, OutFileName)
+        genBitstream(FasmFileName, SpecFileName, OutFileName, legacy)
 
     if ("-help".lower() in str(sys.argv).lower()) or ("-h" in str(sys.argv).lower()):
         logger.info("Help:")
