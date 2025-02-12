@@ -105,7 +105,7 @@ class FabricGeometry:
             maxWidth = 0
             maxSmRelX = 0
             maxSmWidth = 0
-            for i in range(self.fabric.numberOfRows):
+            for i in range(self.fabric.numberOfColumns):
                 maxWidth = max(maxWidth, tileGeometries[i][j].width)
                 maxSmRelX = max(maxSmRelX, tileGeometries[i][j].smGeometry.relX)
                 maxSmWidth = max(maxSmWidth, tileGeometries[i][j].smGeometry.width)
@@ -202,7 +202,7 @@ class FabricGeometry:
 
         # By now, the geometry of the whole fabric is fixed,
         # hence we can start generating the inter-tile wires.
-        for tileName in innerTileNames:
+        for tileName in self.tileNames:
             tileGeom = self.tileGeomMap[tileName]
             tileGeom.generateWires(self.padding)
 

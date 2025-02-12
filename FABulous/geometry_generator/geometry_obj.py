@@ -1,5 +1,6 @@
 from enum import Enum
-from fabric_generator.fabric import IO
+
+from FABulous.fabric_definition.define import IO
 
 
 class Location:
@@ -29,7 +30,6 @@ class Border(Enum):
     EASTWEST = "EASTWEST"
     CORNER = "CORNER"
     NONE = "NONE"
-
 
 
 def oppositeIO(io: IO):

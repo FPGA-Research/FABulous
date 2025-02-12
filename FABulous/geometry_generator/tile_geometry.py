@@ -38,8 +38,6 @@ class TileGeometry:
     width: int
     height: int
     border: Border
-    wireConstraints: WireConstraints
-    neighbourConstraints: WireConstraints
     smGeometry: SmGeometry
     belGeomList: List[BelGeometry]
     wireGeomList: List[WireGeometry]
@@ -50,8 +48,6 @@ class TileGeometry:
         self.width = 0
         self.height = 0
         self.border = Border.NONE
-        self.wireConstraints = WireConstraints()
-        self.neighbourConstraints = None
         self.smGeometry = SmGeometry()
         self.belGeomList = []
         self.wireGeomList = []
@@ -89,7 +85,6 @@ class TileGeometry:
         maxSmWidthInColumn: int,
         maxSmRelXInColumn: int,
     ) -> None:
-
         self.width = maxWidthInColumn
         self.height = maxHeightInRow
         self.smGeometry.width = maxSmWidthInColumn  # TODO: needed?
@@ -175,22 +170,6 @@ class TileGeometry:
         self.eastMiddleY = self.smGeometry.relY + self.smGeometry.height + padding
         self.westMiddleY = self.smGeometry.relY + self.smGeometry.height + padding
 
-        if self.border == Border.NORTHSOUTH:
-            wireNorthPositions = sorted(self.neighbourConstraints.southPositions, reverse=True)
-            wireSouthPositions = sorted(self.neighbourConstraints.northPositions, reverse=True)
-            northIter = iter(wireNorthPositions)
-            southIter = iter(wireSouthPositions)
-            self.northMiddleX = next(northIter, None)
-            self.southMiddleX = next(southIter, None)
-
-        if self.border == Border.EASTWEST:
-            wireEastPositions = sorted(self.neighbourConstraints.westPositions)
-            wireWestPositions = sorted(self.neighbourConstraints.eastPositions)
-            eastIter = iter(wireEastPositions)
-            westIter = iter(wireWestPositions)
-            self.eastMiddleY = next(eastIter, None)
-            self.westMiddleY = next(westIter, None)
-
         for portGeom in self.smGeometry.portGeoms:
             if abs(portGeom.offset) != 1:
                 continue
@@ -208,12 +187,7 @@ class TileGeometry:
                 endX = self.northMiddleX
                 endY = 0
                 wireGeom.addPathLoc(Location(endX, endY))
-                self.wireConstraints.northPositions.append(self.northMiddleX)
-
-                if self.border == Border.NORTHSOUTH:
-                    self.northMiddleX = next(northIter, 0)
-                else:
-                    self.northMiddleX -= 1
+                self.northMiddleX -= 1
 
             elif portGeom.sideOfTile == Side.SOUTH:
                 startX = self.smGeometry.relX
@@ -226,12 +200,7 @@ class TileGeometry:
                 endX = self.southMiddleX
                 endY = self.height
                 wireGeom.addPathLoc(Location(endX, endY))
-                self.wireConstraints.southPositions.append(self.southMiddleX)
-
-                if self.border == Border.NORTHSOUTH:
-                    self.southMiddleX = next(southIter, 0)
-                else:
-                    self.southMiddleX -= 1
+                self.southMiddleX -= 1
 
             elif portGeom.sideOfTile == Side.EAST:
                 startX = self.smGeometry.relX + portGeom.relX
@@ -244,12 +213,7 @@ class TileGeometry:
                 endX = self.width
                 endY = self.eastMiddleY
                 wireGeom.addPathLoc(Location(endX, endY))
-                self.wireConstraints.eastPositions.append(self.eastMiddleY)
-
-                if self.border == Border.EASTWEST:
-                    self.eastMiddleY = next(eastIter, 0)
-                else:
-                    self.eastMiddleY += 1
+                self.eastMiddleY += 1
 
             elif portGeom.sideOfTile == Side.WEST:
                 startX = self.smGeometry.relX + portGeom.relX
@@ -262,12 +226,7 @@ class TileGeometry:
                 endX = 0
                 endY = self.westMiddleY
                 wireGeom.addPathLoc(Location(endX, endY))
-                self.wireConstraints.westPositions.append(self.westMiddleY)
-
-                if self.border == Border.EASTWEST:
-                    self.westMiddleY = next(westIter, 0)
-                else:
-                    self.westMiddleY += 1
+                self.westMiddleY += 1
 
             else:
                 logger.critical("Port with offset 1 and no tile side!")
@@ -338,7 +297,6 @@ class TileGeometry:
                 self.height,
             )
             self.stairWiresList.append(stairWires)
-            self.wireConstraints.addConstraintsOf(stairWires)
 
             if portGeom.wireDirection == Direction.NORTH:
                 stairReservedWidth = portGeom.groupWires * (abs(portGeom.offset) - 1)
@@ -389,7 +347,6 @@ class TileGeometry:
         wireGeom.addPathLoc(middle)
         wireGeom.addPathLoc(end)
         self.wireGeomList.append(wireGeom)
-        self.wireConstraints.southPositions.append(self.southMiddleX)
         self.southMiddleX -= 1
 
     def indirectEastSideWire(self, portGeom: PortGeometry, padding: int) -> None:
@@ -427,7 +384,6 @@ class TileGeometry:
                 self.height,
             )
             self.stairWiresList.append(stairWires)
-            self.wireConstraints.addConstraintsOf(stairWires)
 
             if portGeom.wireDirection == Direction.EAST:
                 stairReservedWidth = portGeom.groupWires * (abs(portGeom.offset) - 1)
@@ -482,7 +438,6 @@ class TileGeometry:
         wireGeom.addPathLoc(middle)
         wireGeom.addPathLoc(end)
         self.wireGeomList.append(wireGeom)
-        self.wireConstraints.westPositions.append(self.westMiddleY)
         self.westMiddleY += 1
 
     def saveToCSV(self, writer: csvWriter) -> None:
