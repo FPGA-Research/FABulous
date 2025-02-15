@@ -87,7 +87,7 @@ begin
                   state <= "00";
                 else
                   FrameAddressRegister_Reg <= WriteData;
-                  FrameShiftState <= to_unsigned(NumberOfRows + 1,FrameShiftState'length);
+                  FrameShiftState <= to_unsigned(NumberOfRows - 1,FrameShiftState'length);
                   state <= "10";
                 end if;
               end if;

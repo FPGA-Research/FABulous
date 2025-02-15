@@ -53,7 +53,7 @@ module ConfigFSM (CLK, resetn, WriteData, WriteStrobe, FSM_Reset, FrameAddressRe
                                 state <= 0; //desynced
                             end else begin
                                 FrameAddressRegister <= WriteData;
-                                FrameShiftState <= NumberOfRows + 1;
+                                FrameShiftState <= NumberOfRows - 1;
                                 state <= 2; //writing frame data
                             end
                         end
