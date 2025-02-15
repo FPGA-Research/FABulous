@@ -14,17 +14,17 @@ architecture Behavior of sequential_16bit_en_tb is
       FrameSelectWidth : integer := 5;
       MaxFramesPerCol : integer := 20;
       NumberOfCols : integer := 10;
-      NumberOfRows : integer := 14;
+      NumberOfRows : integer := 16;
       RowSelectWidth : integer := 5;
       desync_flag : integer := 20;
       include_eFPGA : integer := 1
     );
       port (
-        I_top : out std_logic_vector( NumberOfRows * 2 - 1 downto 0);
-        T_top : out std_logic_vector(NumberOfRows * 2 - 1 downto 0);
-        O_top : in std_logic_vector( NumberOfRows * 2 - 1 downto 0);
-        A_config_C : out std_logic_vector( NumberOfRows * 4 - 1 downto 0);
-        B_config_C : out std_logic_vector( NumberOfRows * 4 - 1 downto 0);
+        I_top : out std_logic_vector( (NumberOfRows-2) * 2 - 1 downto 0);
+        T_top : out std_logic_vector( (NumberOfRows-2) * 2 - 1 downto 0);
+        O_top : in std_logic_vector( (NumberOfRows-2) * 2 - 1 downto 0);
+        A_config_C : out std_logic_vector( (NumberOfRows-2) * 4 - 1 downto 0);
+        B_config_C : out std_logic_vector( (NumberOfRows-2) * 4 - 1 downto 0);
         Config_accessC : out std_logic_vector( 55 downto 0 );
 
         CLK : in std_logic;
@@ -102,7 +102,7 @@ begin
       FrameSelectWidth => 5,
       MaxFramesPerCol => 20,
       NumberOfCols => 10,
-      NumberOfRows => 14,
+      NumberOfRows => 16,
       RowSelectWidth => 5,
       desync_flag => 20,
       include_eFPGA => 1
