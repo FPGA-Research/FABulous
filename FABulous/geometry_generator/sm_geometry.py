@@ -1,7 +1,8 @@
 import pathlib
-from loguru import logger
 from csv import writer as csvWriter
 from typing import List
+
+from loguru import logger
 
 from FABulous.fabric_definition.define import IO, Direction, Side
 from FABulous.fabric_definition.Port import Port

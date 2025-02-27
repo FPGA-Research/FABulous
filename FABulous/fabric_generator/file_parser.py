@@ -1,27 +1,27 @@
 import csv
+import json
 import re
 import subprocess
-import json
-from loguru import logger
 from copy import deepcopy
-
-from typing import Literal, overload
 from pathlib import Path
-from FABulous.fabric_generator.utilities import expandListPorts
+from typing import Literal, overload
+
+from loguru import logger
+
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.Port import Port
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.ConfigMem import ConfigMem
 from FABulous.fabric_definition.define import (
     IO,
-    Direction,
-    Side,
     ConfigBitMode,
+    Direction,
     MultiplexerStyle,
+    Side,
 )
-
+from FABulous.fabric_definition.Fabric import Fabric
+from FABulous.fabric_definition.Port import Port
+from FABulous.fabric_definition.SuperTile import SuperTile
+from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_generator.utilities import expandListPorts
 
 oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST"}
 

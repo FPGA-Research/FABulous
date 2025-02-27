@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+
 from FABulous.fabric_definition.define import IO, Direction, Side
 
 

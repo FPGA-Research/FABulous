@@ -1,7 +1,7 @@
 import os
+import pathlib
 import re
 from typing import Literal, overload
-import pathlib
 
 from loguru import logger
 

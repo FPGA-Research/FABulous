@@ -1,6 +1,7 @@
 import abc
-from loguru import logger
 from typing import List, Tuple
+
+from loguru import logger
 
 from FABulous.fabric_definition.Fabric import IO, Bel, ConfigBitMode
 

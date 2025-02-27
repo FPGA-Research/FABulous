@@ -1,7 +1,8 @@
 import math
 import re
+
+from FABulous.fabric_definition.define import IO, Direction, Side
 from FABulous.fabric_generator.code_generator import codeGenerator
-from FABulous.fabric_definition.define import Direction, IO, Side
 
 
 class VHDLWriter(codeGenerator):

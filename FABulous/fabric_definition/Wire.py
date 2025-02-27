@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from FABulous.fabric_definition.define import Direction
 from typing import Any
+
+from FABulous.fabric_definition.define import Direction
 
 
 @dataclass(frozen=True, eq=True)

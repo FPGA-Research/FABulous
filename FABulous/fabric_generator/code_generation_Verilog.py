@@ -2,8 +2,8 @@ import math
 import re
 from typing import Literal
 
-from FABulous.fabric_generator.code_generator import codeGenerator
 from FABulous.fabric_definition.Fabric import IO, Bel, ConfigBitMode, Tile
+from FABulous.fabric_generator.code_generator import codeGenerator
 
 
 class VerilogWriter(codeGenerator):

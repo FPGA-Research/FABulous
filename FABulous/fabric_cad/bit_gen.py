@@ -8,8 +8,8 @@ from loguru import logger
 
 try:
     from fasm import (
-        parse_fasm_filename,
         fasm_tuple_to_string,
+        parse_fasm_filename,
         parse_fasm_string,
         set_feature_to_str,
     )

@@ -1,6 +1,7 @@
-from loguru import logger
 from csv import writer as csvWriter
 from typing import Dict, List, Set
+
+from loguru import logger
 
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.geometry_generator.geometry_obj import Border, Location
