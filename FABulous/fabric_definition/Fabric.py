@@ -1,13 +1,7 @@
 from dataclasses import dataclass, field
 
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.ConfigMem import ConfigMem
-from FABulous.fabric_definition.define import (
-    IO,
-    ConfigBitMode,
-    Direction,
-    MultiplexerStyle,
-)
+from FABulous.fabric_definition.define import ConfigBitMode, Direction, MultiplexerStyle
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_definition.Wire import Wire

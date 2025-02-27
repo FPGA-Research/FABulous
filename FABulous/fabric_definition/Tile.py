@@ -1,7 +1,5 @@
-import os
 import pathlib
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any
 
 from FABulous.fabric_definition.Bel import Bel

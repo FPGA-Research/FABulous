@@ -1,8 +1,7 @@
 import math
 import re
-from typing import Literal
 
-from FABulous.fabric_definition.Fabric import IO, Bel, ConfigBitMode, Tile
+from FABulous.fabric_definition.define import IO
 from FABulous.fabric_generator.code_generator import codeGenerator
 
 

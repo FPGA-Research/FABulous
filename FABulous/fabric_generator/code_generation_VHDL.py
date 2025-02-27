@@ -1,7 +1,7 @@
 import math
 import re
 
-from FABulous.fabric_definition.define import IO, Direction, Side
+from FABulous.fabric_definition.define import IO
 from FABulous.fabric_generator.code_generator import codeGenerator
 
 

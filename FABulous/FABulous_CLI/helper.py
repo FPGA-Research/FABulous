@@ -200,7 +200,6 @@ def remove_dir(path: Path):
     """
     try:
         shutil.rmtree(path)
-        pass
     except OSError as e:
         logger.error(f"{e}")
 
