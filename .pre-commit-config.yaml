@@ -50,3 +50,9 @@ repos:
     #     args:
     #         - --use-current-year
     #         - --no-extra-eol                # see below
+
+-   repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+    -   id: autoflake
+        args: [--remove-all-unused-imports, --ignore-pass-after-docstring, --in-place]
