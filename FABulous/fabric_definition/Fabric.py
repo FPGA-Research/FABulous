@@ -191,7 +191,7 @@ class Fabric:
                             )
                             sourceName = self.commonWirePair[index][0]
                             destName = self.commonWirePair[index][1]
-                        except:
+                        except ValueError:
                             # if is not in a common pair wire we assume the source name is same as destination name
                             destName = sourceName
 

@@ -13,7 +13,7 @@ try:
         parse_fasm_string,
         set_feature_to_str,
     )
-except:
+except ImportError:
     logger.critical("Could not import fasm. Bitstream generation not supported.")
 
 

@@ -816,13 +816,13 @@ class FabricGenerator:
             tile.getWestSidePorts(),
             tile.getSouthSidePorts(),
         ]
-        for l in portList:
-            if not l:
+        for pl in portList:
+            if not pl:
                 continue
-            self.writer.addComment(str(l[0].sideOfTile), onNewLine=True)
+            self.writer.addComment(str(pl[0].sideOfTile), onNewLine=True)
             # destination port are input to the tile
             # source port are output of the tile
-            for p in l:
+            for p in pl:
                 wireSize = (abs(p.xOffset) + abs(p.yOffset)) * p.wireCount - 1
                 self.writer.addPortVector(p.name, p.inOut, wireSize, indentLevel=2)
                 self.writer.addComment(str(p), indentLevel=2, onNewLine=False)

@@ -109,7 +109,7 @@ class VHDLWriter(codeGenerator):
         self._add("\nend\n", indentLevel)
 
     def addAssignScalar(self, left, right, delay=0, indentLevel=0):
-        if type(right) == list:
+        if isinstance(right, list):
             self._add(f"{left} <= {' & '.join(right)} after {delay} ps;", indentLevel)
         else:
             left = (

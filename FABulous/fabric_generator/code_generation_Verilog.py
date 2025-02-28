@@ -190,7 +190,7 @@ class VerilogWriter(codeGenerator):
         self._add(template, indentLevel)
 
     def addAssignScalar(self, left, right, delay=0, indentLevel=0):
-        if type(right) == list:
+        if isinstance(right, list):
             self._add(f"assign {left} = {{{','.join(right)}}};", indentLevel)
         else:
             self._add(f"assign {left} = {right};")
