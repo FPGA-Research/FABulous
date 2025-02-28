@@ -158,7 +158,7 @@ def main():
             fab_CLI.verbose = True
         if args.metaDataDir:
             if Path(args.metaDataDir).exists():
-                metaDataDir = args.metaDataDir
+                pass
 
         if args.log:
             with open(args.log, "w") as log:

@@ -87,7 +87,7 @@ class Fabric:
         """
         for row in self.tile:
             for tile in row:
-                if tile == None:
+                if tile is None:
                     continue
                 for port in tile.portsInfo:
                     self.commonWirePair.append((port.sourceName, port.destinationName))
@@ -99,7 +99,7 @@ class Fabric:
 
         for y, row in enumerate(self.tile):
             for x, tile in enumerate(row):
-                if tile == None:
+                if tile is None:
                     continue
                 for port in tile.portsInfo:
                     if (

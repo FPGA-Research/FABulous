@@ -129,7 +129,6 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
             tileKey = f"X{x}Y{y}"
             curStr = ",".join((tileKey, specDict["TileMap"][tileKey], str(x), str(y)))
             curStr += "\n"
-            bitPos = 0
 
             for frameIndex in range(MaxFramesPerCol):
                 # print (tileDict[tileKey]) #:FrameBitsPerRow*frameIndex

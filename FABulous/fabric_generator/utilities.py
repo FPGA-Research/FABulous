@@ -163,7 +163,7 @@ def RemoveComments(list):
         for item in line:
             if item.startswith("#"):
                 marker = True
-            if not (item.startswith("#") or marker == True):
+            if not (item.startswith("#") or marker is True):
                 # marker = True
                 templine.append(item)
                 if item == "":
@@ -181,7 +181,7 @@ def GetFabric(list, filter="Fabric"):
     for sublist in list:
         if filter + "End" in sublist:  # was FabricEnd
             marker = False
-        if marker == True:
+        if marker is True:
             templist.append(sublist)
         # we place this conditional after the append such that the 'FabricBegin' will be kicked out
         if filter + "Begin" in sublist:  # was FabricBegin
@@ -199,7 +199,7 @@ def GetTileFromFile(list, TileType):
             marker = False
         if ("TILE" in sublist) and (TileType in sublist):
             marker = True
-        if marker == True:
+        if marker is True:
             templist.append(sublist)
         # we place this conditional after the append such that the 'FabricBegin' will be kicked out
         # if ('TILE' in sublist) and (type in sublist):
@@ -223,7 +223,7 @@ def GetSuperTileFromFile(list):
             tempdict[superTile_type] = RemoveComments(templist)
             templist = []
             continue
-        if marker == True:
+        if marker is True:
             templist.append(sublist)
     return tempdict
 
@@ -288,13 +288,12 @@ def GetComponentPortsFromFile(
     Outputs = []
     ExternalPorts = []
     marker = False
-    FoundEntityMarker = False
     DoneMarker = False
     direction = ""
     for line in VHDLfile:
         # the order of the if-statements are important ;
         if re.search("^entity", line, flags=re.IGNORECASE):
-            FoundEntityMarker = True
+            pass
 
         # detect the direction from comments, like "--NORTH"
         # we need this to filter for a specific direction
@@ -310,13 +309,12 @@ def GetComponentPortsFromFile(
 
         # all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
         if re.search("-- global", line, flags=re.IGNORECASE):
-            FoundEntityMarker = False
             marker = False
             DoneMarker = True
 
         if (
-            (marker == True)
-            and (DoneMarker == False)
+            (marker is True)
+            and (DoneMarker is False)
             and (direction == filter or filter == "ALL")
         ):
             # detect if the port has to be exported as EXTERNAL which is flagged by the comment
@@ -359,7 +357,7 @@ def GetComponentPortsFromFile(
             # A1:in
             # A2:in
             # The following is for internal fabric signal ports (e.g., a CLB/LUT)
-            if (port == "internal") and (External == False) and (Config == False):
+            if (port == "internal") and (External is False) and (Config is False):
                 if re.search(":in", tmp_line, flags=re.IGNORECASE):
                     Inputs.append(
                         BEL_Prefix
@@ -373,12 +371,12 @@ def GetComponentPortsFromFile(
                         + std_vector
                     )
             # The following is for ports that have to go all the way up to the top-level entity (e.g., from an I/O cell)
-            if (port == "external") and (External == True):
+            if (port == "external") and (External is True):
                 # .lstrip() removes leading white spaces including ' ', '\t'
                 ExternalPorts.append(BEL_Prefix + line.lstrip())
 
             # frame reconfiguration needs a port for writing in frame data
-            if (port == "frame_config") and (Config == True):
+            if (port == "frame_config") and (Config is True):
                 # .lstrip() removes leading white spaces including ' ', '\t'
                 ExternalPorts.append(BEL_Prefix + line.lstrip())
 
@@ -398,13 +396,12 @@ def GetComponentPortsFromVerilog(
     Outputs = []
     ExternalPorts = []
     marker = False
-    FoundEntityMarker = False
     DoneMarker = False
     direction = ""
     for line in Verilogfile:
         # the order of the if-statements are important ;
         if re.search("^module", line, flags=re.IGNORECASE):
-            FoundEntityMarker = True
+            pass
 
         # detect the direction from comments, like "--NORTH"
         # we need this to filter for a specific direction
@@ -420,13 +417,12 @@ def GetComponentPortsFromVerilog(
 
         # all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
         if re.search("// global", line, flags=re.IGNORECASE):
-            FoundEntityMarker = False
             marker = False
             DoneMarker = True
 
         if (
-            (marker == True)
-            and (DoneMarker == False)
+            (marker is True)
+            and (DoneMarker is False)
             and (direction == filter or filter == "ALL")
         ):
             # detect if the port has to be exported as EXTERNAL which is flagged by the comment
@@ -471,7 +467,7 @@ def GetComponentPortsFromVerilog(
             # A1:in
             # A2:in
             # The following is for internal fabric signal ports (e.g., a CLB/LUT)
-            if (port == "internal") and (External == False) and (Config == False):
+            if (port == "internal") and (External is False) and (Config is False):
                 if (
                     re.search(":in", tmp_line, flags=re.IGNORECASE)
                     and "integer" not in tmp_line
@@ -488,12 +484,12 @@ def GetComponentPortsFromVerilog(
                         + std_vector
                     )
             # The following is for ports that have to go all the way up to the top-level entity (e.g., from an I/O cell)
-            if (port == "external") and (External == True):
+            if (port == "external") and (External is True):
                 # .lstrip() removes leading white spaces including ' ', '\t'
                 ExternalPorts.append(BEL_Prefix + line.lstrip())
 
             # frame reconfiguration needs a port for writing in frame data
-            if (port == "frame_config") and (Config == True):
+            if (port == "frame_config") and (Config is True):
                 # .lstrip() removes leading white spaces including ' ', '\t'
                 ExternalPorts.append(BEL_Prefix + line.lstrip())
 
@@ -660,7 +656,7 @@ def PrintCSV_FileInfo(CSV_FileName):
     # print('DEBUG:',CSVFile)
 
     print("\nInputs: \n")
-    CSVFileRows = len(CSVFile)
+    len(CSVFile)
     # for port in CSVFile[0][1:]:
     line = CSVFile[0]
     for k in range(1, len(line)):
@@ -720,7 +716,6 @@ def takes_list(a_string, a_list):
 def GetVerilogDeclarationForFile(VHDL_file_name):
     ConfigPortUsed = 0  # 1 means is used
     VHDLfile = [line.rstrip("\n") for line in open(f"{src_dir}/{VHDL_file_name}")]
-    templist = []
     # for item in VHDLfile:
     # print(item)
     for line in VHDLfile:
