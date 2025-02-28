@@ -10,11 +10,6 @@ repos:
     -   id: check-toml
     -   id: no-commit-to-branch
 
--   repo: https://github.com/psf/black
-    rev: 24.10.0
-    hooks:
-    -   id: black
-
 -   repo: https://github.com/PyCQA/docformatter.git
     rev: "eb1df347edd128b30cd3368dddc3aa65edcfac38"
     hooks:
@@ -39,7 +34,13 @@ repos:
       - id: remove-crlf
       - id: forbid-tabs
       - id: remove-tabs
-    #   - id: insert-license
-    #     args:
-    #         - --use-current-year
-    #         - --no-extra-eol                # see below
+
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Ruff version.
+  rev: v0.9.9
+  hooks:
+    # Run the linter.
+    # - id: ruff
+      # args: [ --fix ]
+    # Run the formatter.
+    - id: ruff-format
