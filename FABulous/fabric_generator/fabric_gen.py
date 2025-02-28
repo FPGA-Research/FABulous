@@ -225,8 +225,6 @@ class FabricGenerator:
         """
         InFile = [i.strip("\n").split(",") for i in open(InFileName)]
         with open(OutFileName, "w") as f:
-            # get the number of tiles in vertical direction
-            len(InFile)
             # get the number of tiles in horizontal direction
             cols = len(InFile[0])
             # top-left should be the name

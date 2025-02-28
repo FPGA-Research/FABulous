@@ -291,10 +291,6 @@ def GetComponentPortsFromFile(
     DoneMarker = False
     direction = ""
     for line in VHDLfile:
-        # the order of the if-statements are important ;
-        if re.search("^entity", line, flags=re.IGNORECASE):
-            pass
-
         # detect the direction from comments, like "--NORTH"
         # we need this to filter for a specific direction
         # this implies of course that this information is provided in the VHDL entity
@@ -399,10 +395,6 @@ def GetComponentPortsFromVerilog(
     DoneMarker = False
     direction = ""
     for line in Verilogfile:
-        # the order of the if-statements are important ;
-        if re.search("^module", line, flags=re.IGNORECASE):
-            pass
-
         # detect the direction from comments, like "--NORTH"
         # we need this to filter for a specific direction
         # this implies of course that this information is provided in the VHDL entity
@@ -656,7 +648,6 @@ def PrintCSV_FileInfo(CSV_FileName):
     # print('DEBUG:',CSVFile)
 
     print("\nInputs: \n")
-    len(CSVFile)
     # for port in CSVFile[0][1:]:
     line = CSVFile[0]
     for k in range(1, len(line)):
