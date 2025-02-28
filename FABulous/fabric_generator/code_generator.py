@@ -2,7 +2,7 @@ import abc
 from loguru import logger
 from typing import List, Tuple
 
-from FABulous.fabric_definition.Fabric import IO, Bel, ConfigBitMode
+from FABulous.fabric_definition.define import IO
 
 
 class codeGenerator(abc.ABC):
@@ -36,7 +36,7 @@ class codeGenerator(abc.ABC):
         if indentLevel == 0:
             self._content.append(line)
         else:
-            self._content.append(f"{' ':<{4*indentLevel}}" + line)
+            self._content.append(f"{' ':<{4 * indentLevel}}" + line)
 
     def popLastLine(self) -> str:
         return self._content.pop()

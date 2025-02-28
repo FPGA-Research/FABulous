@@ -3,13 +3,11 @@ from FABulous.fabric_definition.define import (
     Direction,
     ConfigBitMode,
     MultiplexerStyle,
-    IO,
 )
 from FABulous.fabric_definition.Wire import Wire
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.ConfigMem import ConfigMem
 
 
 @dataclass
@@ -150,7 +148,7 @@ class Fabric:
                                     yOffset=port.yOffset,
                                     destination=f"{port.destinationName}{cascadedI}",
                                     sourceTile=f"X{x}Y{y}",
-                                    destinationTile=f"X{x+value}Y{y+port.yOffset}",
+                                    destinationTile=f"X{x + value}Y{y + port.yOffset}",
                                 )
                             )
 
@@ -181,7 +179,7 @@ class Fabric:
                                     yOffset=value,
                                     destination=f"{port.destinationName}{cascadedI}",
                                     sourceTile=f"X{x}Y{y}",
-                                    destinationTile=f"X{x+port.xOffset}Y{y+value}",
+                                    destinationTile=f"X{x + port.xOffset}Y{y + value}",
                                 )
                             )
                     elif port.sourceName != "NULL" and port.destinationName == "NULL":
@@ -207,7 +205,7 @@ class Fabric:
                                     yOffset=port.yOffset,
                                     destination=f"{destName}{i}",
                                     sourceTile=f"X{x}Y{y}",
-                                    destinationTile=f"X{x+value}Y{y+port.yOffset}",
+                                    destinationTile=f"X{x + value}Y{y + port.yOffset}",
                                 )
                             )
 
@@ -221,7 +219,7 @@ class Fabric:
                                     yOffset=value,
                                     destination=f"{destName}{i}",
                                     sourceTile=f"X{x}Y{y}",
-                                    destinationTile=f"X{x+port.xOffset}Y{y+value}",
+                                    destinationTile=f"X{x + port.xOffset}Y{y + value}",
                                 )
                             )
                 tile.wireList = list(dict.fromkeys(tile.wireList))
@@ -236,7 +234,7 @@ class Fabric:
                     fabric += f"{str(self.tile[i][j].name).ljust(15)}\t"
             fabric += "\n"
 
-        fabric += f"\n"
+        fabric += "\n"
         fabric += f"numberOfColumns: {self.numberOfColumns}\n"
         fabric += f"numberOfRows: {self.numberOfRows}\n"
         fabric += f"configBitMode: {self.configBitMode}\n"

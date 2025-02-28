@@ -110,10 +110,10 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
         ):
             continue
         verilog_str += f"// {tileKey}, {specDict['TileMap'][tileKey]}\n"
-        verilog_str += f"`define Tile_{tileKey}_Emulate_Bitstream {MaxFramesPerCol*FrameBitsPerRow}'b"
+        verilog_str += f"`define Tile_{tileKey}_Emulate_Bitstream {MaxFramesPerCol * FrameBitsPerRow}'b"
 
         vhdl_str += f"--{tileKey}, {specDict['TileMap'][tileKey]}\n"
-        vhdl_str += f'constant Tile_{tileKey}_Emulate_Bitstream : std_logic_vector({MaxFramesPerCol*FrameBitsPerRow}-1 downto 0) := "'
+        vhdl_str += f'constant Tile_{tileKey}_Emulate_Bitstream : std_logic_vector({MaxFramesPerCol * FrameBitsPerRow}-1 downto 0) := "'
 
         for i in range((MaxFramesPerCol * FrameBitsPerRow) - 1, -1, -1):
             verilog_str += str(tileDict_No_Mask[tileKey][i])
@@ -142,8 +142,9 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
                                 str,
                                 (
                                     tileDict[tileKey][
-                                        FrameBitsPerRow
-                                        * frameIndex : (FrameBitsPerRow * frameIndex)
+                                        FrameBitsPerRow * frameIndex : (
+                                            FrameBitsPerRow * frameIndex
+                                        )
                                         + FrameBitsPerRow
                                     ]
                                 ),

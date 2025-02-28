@@ -65,7 +65,7 @@ def genNextpnrModel(fabric: Fabric):
             pipStr.append(f"#Tile-external pips on tile X{x}Y{y}:")
             for wire in tile.wireList:
                 pipStr.append(
-                    f"X{x}Y{y},{wire.source},X{x+wire.xOffset}Y{y+wire.yOffset},{wire.destination},{8},{wire.source}.{wire.destination}"
+                    f"X{x}Y{y},{wire.source},X{x + wire.xOffset}Y{y + wire.yOffset},{wire.destination},{8},{wire.source}.{wire.destination}"
                 )
 
             # Old style bel definition

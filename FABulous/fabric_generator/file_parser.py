@@ -1073,7 +1073,7 @@ def vhdl_belMapProcessing(file: str, filename: str) -> dict:
                     length = end - start + 1
                     for i in range(0, 2**length):
                         belMapDic[bel[0]][i] = {}
-                        bitMap = list(f"{2**length-i-1:0{length.bit_length()}b}")
+                        bitMap = list(f"{2**length - i - 1:0{length.bit_length()}b}")
                         for v in range(len(bitMap) - 1, -1, -1):
                             belMapDic[bel[0]][i][v] = bitMap.pop(0)
             else:

@@ -2607,9 +2607,9 @@ class FabricGenerator:
                                 curTileMapNoMask[pip] = {}
 
                             curTileMap[pip][encodeDict[curBitOffset + c]] = curChar
-                            curTileMapNoMask[pip][
-                                encodeDict[curBitOffset + c]
-                            ] = curChar
+                            curTileMapNoMask[pip][encodeDict[curBitOffset + c]] = (
+                                curChar
+                            )
 
                     curBitOffset += controlWidth
 

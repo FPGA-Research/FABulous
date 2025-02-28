@@ -1,5 +1,3 @@
-import os
-from enum import Enum
 from dataclasses import dataclass, field
 from FABulous.fabric_definition.define import IO, Direction, Side
 from FABulous.fabric_definition.Bel import Bel
