@@ -61,10 +61,11 @@ target-version = "py312"
 # - FURB: REFURB
 # - UP: flake8 unused
 # - BLE: flake8 blind except
+# - ERA: commented code
 
 
 select = ["E", "W", "F", "Q", "I", "RET", "B", "T10", "FA", "INT", "ICN", "LOG",
-    "G", "PIE", "T20", "PYI", "PT", "RSE", "RET", "SLF", "TID", "TC", "FURB", "UP", "BLE"]
+    "G", "PIE", "T20", "PYI", "PT", "RSE", "RET", "SLF", "TID", "TC", "FURB", "UP", "BLE", "ERA"]
 
 # Future rules: Currently disabled, since it needs some more work.
 # - E501: Line too long -- Not automatically fixable
@@ -79,9 +80,8 @@ select = ["E", "W", "F", "Q", "I", "RET", "B", "T10", "FA", "INT", "ICN", "LOG",
 # - PL: pylint
 # - ARG: flake8 arguments
 # - TRY: Tryceratops
-# - ERA: commented code
 # - ANN: flake8 Annotations
-# - A: flake8 annotations
+# - A: flake8 builtins
 
 # Ignoed rules:
 # - E501: Line too long -- Not automatically fixable

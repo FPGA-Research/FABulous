@@ -161,14 +161,12 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
                 bit_hex = bitstring_to_bytes(frame_bit_row)
                 bit_array[x][frameIndex] += bit_hex
 
-            # concatenatedTileDict[tileKey] = curStr
             outStr += curStr + "\n"
 
     for i in range(num_columns):
         for j in range(20):
             bin_temp = f"{i:05b}"[::-1]
             frame_select = ["0" for k in range(32)]
-            # bitStr += "X"+str(i)+", frame"+str(j)+"\n"
 
             for k in range(-5, 0, 1):
                 frame_select[k] = bin_temp[k]

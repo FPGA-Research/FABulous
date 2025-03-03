@@ -283,7 +283,6 @@ class FABulous_CLI(Cmd):
             self.csvFile = args.file
 
         self.fabricLoaded = True
-        # self.projectDir = os.path.split(self.csvFile)[0]
         tileByPath = [
             f.stem for f in (self.projectDir / "Tile/").iterdir() if f.is_dir()
         ]

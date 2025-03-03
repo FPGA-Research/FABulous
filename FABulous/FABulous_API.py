@@ -63,7 +63,6 @@ class FABulous_API:
 
         if isinstance(self.writer, VHDLWriter):
             self.fileExtension = ".vhdl"
-        # self.fabricGenerator = FabricGenerator(fabric, writer)
 
     def setWriterOutputFile(self, outputDir):
         """Sets the output file directory for the write object.

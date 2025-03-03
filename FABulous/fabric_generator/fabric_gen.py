@@ -619,7 +619,6 @@ class FabricGenerator:
             if self.fabric.configBitMode == "ff_chain":
                 self.writer.addConnectionVector("ConfigBits", noConfigBits)
             if self.fabric.configBitMode == "FlipFlopChain":
-                # print('DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG DEBUG ConfigBitMode == FlipFlopChain')
                 # we pad to an even number of bits: (int(math.ceil(ConfigBitCounter/2.0))*2)
                 self.writer.addConnectionVector(
                     "ConfigBits", int(math.ceil(noConfigBits / 2.0)) * 2
@@ -784,7 +783,6 @@ class FabricGenerator:
         # NumberOfConfigBits:0 tells us that the switch matrix does not have a config port
         # TODO: we don't do this and always create a configuration port for each tile. This may dangle the CLK and MODE ports hanging in the air, which will throw a warning
 
-        # GenerateVHDL_Header(file, entity, NoConfigBits=str(GlobalConfigBitsCounter))
         self.writer.addHeader(f"{tile.name}")
         self.writer.addParameterStart(indentLevel=1)
         if isinstance(self.writer, VerilogWriter):  # emulation only in Verilog
@@ -1177,9 +1175,6 @@ class FabricGenerator:
             belCounter += 2
             belConfigBitsCounter += bel.configBit
 
-            # self.writer.addBELInstantiations(
-            #     b, belConfigBitsCounter, self.fabric.configBitMode, belCounter)
-            # belConfigBitsCounter += bel.configBit
             # for the next BEL (if any) for cascading configuration chain (this information is also needed for chaining the switch matrix)
             belCounter += 1
 
@@ -1349,10 +1344,6 @@ class FabricGenerator:
                     if p[0] == "UserCLK":
                         continue
                     self.writer.addPortScalar(p[0], p[1], indentLevel=2)
-
-        # add userCLK port
-        # self.writer.addPortScalar("userCLK", IO.INPUT, indentLevel=2)
-        # self.writer.addPortScalar("userCLKo", IO.OUTPUT, indentLevel=2)
 
         # add config port
         if self.fabric.configBitMode == ConfigBitMode.FRAME_BASED:
