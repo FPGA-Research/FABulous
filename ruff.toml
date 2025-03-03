@@ -36,11 +36,57 @@ indent-width = 4
 target-version = "py312"
 
 [lint]
-# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
-# Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
-# McCabe complexity (`C901`) by default.
-select = ["E4", "E7", "E9", "F"]
-ignore = []
+# Rules: https://docs.astral.sh/ruff/rules
+# - E/W: Pycodestyle
+# - F: Pyflakes
+# - Q: flake8 quotes
+# - I: Isort
+# - RET: flake8 Return
+# - B: flake8 Bugbear
+# - T10: flake8 Debuuger
+# - FA: flake8 future annotations
+# - INT: flake8 gettext
+# - ICN: flake8 import conventions
+# - LOG: flake8 logging
+# - G: flake8 logging-format
+# - PIE: flake8 PIE
+# - T20: flake8 print
+# - PYI: flake8 pyi
+# - PT: flake8 pytest
+# - RSE: flake8 raise
+# - RET: flake8 return
+# - SLF: flake8 self
+# - TID: flake8 tidy imports
+# - TC: flake8 type-checking
+# - FURB: REFURB
+# - UP: flake8 unused
+# - BLE: flake8 blind except
+
+
+select = ["E", "W", "F", "Q", "I", "RET", "B", "T10", "FA", "INT", "ICN", "LOG",
+    "G", "PIE", "T20", "PYI", "PT", "RSE", "RET", "SLF", "TID", "TC", "FURB", "UP", "BLE"]
+
+# Future rules: Currently disabled, since it needs some more work.
+# - E501: Line too long -- Not automatically fixable
+# - PTH: flake8 use pathlib
+# - N: flake8 Naming
+# - DOC: Doclint
+# - D: docstyle
+# - S: flake8 Bandit
+# - TD: flake8 TODOS
+# - FIX: flake8 fixme
+# - SIM: flake8 simplify
+# - PL: pylint
+# - ARG: flake8 arguments
+# - TRY: Tryceratops
+# - ERA: commented code
+# - ANN: flake8 Annotations
+# - A: flake8 annotations
+
+# Ignoed rules:
+# - E501: Line too long -- Not automatically fixable
+# - PYI063: https://docs.astral.sh/ruff/rules/pep484-style-positional-only-parameter/
+ignore = ["E501", "PYI063"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
