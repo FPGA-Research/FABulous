@@ -1,7 +1,8 @@
 import math
 import re
-from FABulous.fabric_generator.code_generator import codeGenerator
+
 from FABulous.fabric_definition.define import IO
+from FABulous.fabric_generator.code_generator import codeGenerator
 
 
 class VHDLWriter(codeGenerator):
@@ -128,10 +129,14 @@ class VHDLWriter(codeGenerator):
         compName,
         compInsName,
         portsPairs,
-        paramPairs=[],
-        emulateParamPairs=[],
+        paramPairs=None,
+        emulateParamPairs=None,
         indentLevel=0,
     ):
+        if emulateParamPairs is None:
+            emulateParamPairs = []
+        if paramPairs is None:
+            paramPairs = []
         self._add(f"{compInsName} : {compName}", indentLevel=indentLevel)
         if paramPairs:
             connectPair = []
@@ -167,7 +172,7 @@ class VHDLWriter(codeGenerator):
 
     def addComponentDeclarationForFile(self, fileName):
         configPortUsed = 0  # 1 means is used
-        with open(fileName, "r") as f:
+        with open(fileName) as f:
             data = f.read()
 
         if result := re.search(
@@ -224,13 +229,13 @@ CONFout <= ConfigBits(ConfigBits'high);
         self._add(template, indentLevel)
 
     def addPreprocIfDef(self, macro, indentLevel=0):
-        assert False, "preprocessor not supported in VHDL"
+        raise AssertionError("preprocessor not supported in VHDL")
 
     def addPreprocIfNotDef(self, macro, indentLevel=0):
-        assert False, "preprocessor not supported in VHDL"
+        raise AssertionError("preprocessor not supported in VHDL")
 
     def addPreprocElse(self, indentLevel=0):
-        assert False, "preprocessor not supported in VHDL"
+        raise AssertionError("preprocessor not supported in VHDL")
 
     def addPreprocEndif(self, indentLevel=0):
-        assert False, "preprocessor not supported in VHDL"
+        raise AssertionError("preprocessor not supported in VHDL")

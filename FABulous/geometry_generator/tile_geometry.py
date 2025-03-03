@@ -1,9 +1,9 @@
 from csv import writer as csvWriter
-from loguru import logger
-from typing import List
 
-from FABulous.fabric_definition.Tile import Tile
+from loguru import logger
+
 from FABulous.fabric_definition.define import Direction, Side
+from FABulous.fabric_definition.Tile import Tile
 from FABulous.geometry_generator.bel_geometry import BelGeometry
 from FABulous.geometry_generator.geometry_obj import Border, Location
 from FABulous.geometry_generator.port_geometry import PortGeometry
@@ -39,9 +39,9 @@ class TileGeometry:
     height: int
     border: Border
     smGeometry: SmGeometry
-    belGeomList: List[BelGeometry]
-    wireGeomList: List[WireGeometry]
-    stairWiresList: List[StairWires]
+    belGeomList: list[BelGeometry]
+    wireGeomList: list[WireGeometry]
+    stairWiresList: list[StairWires]
 
     def __init__(self):
         self.name = None

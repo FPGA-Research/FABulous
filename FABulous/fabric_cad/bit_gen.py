@@ -8,8 +8,8 @@ from loguru import logger
 
 try:
     from fasm import (
-        parse_fasm_filename,
         fasm_tuple_to_string,
+        parse_fasm_filename,
         parse_fasm_string,
         set_feature_to_str,
     )
@@ -77,10 +77,9 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
                         )
 
             else:
-                # print(specDict["TileSpecs"][tileLoc].keys())
-                print(tileType)
-                print(tileLoc)
-                print(featureName)
+                logger.debug(f"tileType: {tileType}")
+                logger.debug(f"tileLoc {tileLoc}")
+                logger.debug(f"featureName: {featureName}")
                 logger.critical(
                     "Feature found in fasm file was not found in the bitstream spec"
                 )
@@ -131,7 +130,6 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
             curStr += "\n"
 
             for frameIndex in range(MaxFramesPerCol):
-                # print (tileDict[tileKey]) #:FrameBitsPerRow*frameIndex
                 if specDict["TileMap"][tileKey] == "NULL":
                     frame_bit_row = "0" * FrameBitsPerRow
                 else:
@@ -166,7 +164,6 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
             # concatenatedTileDict[tileKey] = curStr
             outStr += curStr + "\n"
 
-    # print(num_columns)
     for i in range(num_columns):
         for j in range(20):
             bin_temp = f"{i:05b}"[::-1]
@@ -279,7 +276,7 @@ def bit_gen():
                 "genBitstream expects three file names - the fasm file, the spec file and the output file"
             )
             raise ValueError
-        elif (
+        if (
             flagRE.match(caseProcessedArguments[argIndex + 1])
             or flagRE.match(caseProcessedArguments[argIndex + 2])
             or flagRE.match(caseProcessedArguments[argIndex + 3])
@@ -297,9 +294,9 @@ def bit_gen():
         genBitstream(FasmFileName, SpecFileName, OutFileName)
 
     if ("-help".lower() in str(sys.argv).lower()) or ("-h" in str(sys.argv).lower()):
-        print("")
-        print("Options/Switches")
-        print(
+        logger.info("Help:")
+        logger.info("Options/Switches")
+        logger.info(
             "  -genBitstream foo.fasm spec.txt bitstream.txt - generates a bitstream - the first file is the fasm file, the second is the bitstream spec and the third is the fasm file to write to"
         )
 

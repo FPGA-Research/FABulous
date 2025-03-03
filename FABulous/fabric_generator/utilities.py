@@ -48,7 +48,7 @@ def expandListPorts(port, PortList):
         if portMultiplier != 0:
             port = re.sub(r"\{(\d+)\}", "", port)
             logger.debug(f"Port {port} has {portMultiplier} multipliers")
-            for i in range(portMultiplier):
+            for _i in range(portMultiplier):
                 PortList.append(port)
         else:
             PortList.append(port)
@@ -218,7 +218,7 @@ def GetSuperTileFromFile(list):
             marker = True
             superTile_type = sublist[1]
             continue
-        elif "EndSuperTILE" in sublist:
+        if "EndSuperTILE" in sublist:
             marker = False
             tempdict[superTile_type] = RemoveComments(templist)
             templist = []
@@ -380,8 +380,7 @@ def GetComponentPortsFromFile(
             marker = True
     if port == "internal":  # default
         return Inputs, Outputs
-    else:
-        return ExternalPorts
+    return ExternalPorts
 
 
 def GetComponentPortsFromVerilog(
@@ -489,12 +488,11 @@ def GetComponentPortsFromVerilog(
             marker = True
     if port == "internal":  # default
         return Inputs, Outputs
-    else:
-        return ExternalPorts
+    return ExternalPorts
 
 
 def GetNoConfigBitsFromFile(VHDL_file_name):
-    with open(VHDL_file_name, "r") as f:
+    with open(VHDL_file_name) as f:
         file = f.read()
     result = re.search(
         r"NoConfigBits\s*:\s*integer\s*:=\s*(\w+)", file, flags=re.IGNORECASE
@@ -504,6 +502,7 @@ def GetNoConfigBitsFromFile(VHDL_file_name):
             return int(result.group(1))
         except ValueError:
             return 0
+    return None
 
 
 def GetComponentEntityNameFromFile(VHDL_file_name):
@@ -643,11 +642,9 @@ def GetTileComponentPortsVectors(tile_description, mode):
 
 def PrintCSV_FileInfo(CSV_FileName):
     CSVFile = [i.strip("\n").split(",") for i in open(CSV_FileName)]
-    print("Tile: ", str(CSVFile[0][0]), "\n")
 
     # print('DEBUG:',CSVFile)
 
-    print("\nInputs: \n")
     # for port in CSVFile[0][1:]:
     line = CSVFile[0]
     for k in range(1, len(line)):
@@ -657,9 +654,7 @@ def PrintCSV_FileInfo(CSV_FileName):
             if CSVFile[j][k] != "0":
                 PortList.append(CSVFile[j][0])
                 PortCount += 1
-        print(line[k], " connects to ", PortCount, " ports: ", PortList)
 
-    print("\nOutputs: \n")
     for line in CSVFile[1:]:
         # we first count the number of multiplexer inputs
         mux_size = 0
@@ -670,7 +665,6 @@ def PrintCSV_FileInfo(CSV_FileName):
             if line[k] != "0":
                 mux_size += 1
                 PortList.append(CSVFile[0][k])
-        print(line[0], ",", str(mux_size), ", Source port list: ", PortList)
     return
 
 
@@ -699,9 +693,8 @@ def ExpandListPorts(port, PortList):
 
 
 def takes_list(a_string, a_list):
-    print("first debug (a_list):", a_list, "string:", a_string)
-    for item in a_list:
-        print("hello debug:", item, "string:", a_string)
+    for _item in a_list:
+        pass
 
 
 def GetVerilogDeclarationForFile(VHDL_file_name):

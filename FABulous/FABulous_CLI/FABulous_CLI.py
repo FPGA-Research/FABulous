@@ -901,11 +901,11 @@ class FABulous_CLI(Cmd):
         """
         if not args.file.exists():
             logger.error(f"Cannot find {args.file}")
-            return
+            return None
 
         logger.info(f"Execute TCL script {args.file}")
 
-        with open(args.file, "r") as f:
+        with open(args.file) as f:
             script = f.read()
         self.tcl.eval(script)
 
@@ -913,3 +913,4 @@ class FABulous_CLI(Cmd):
 
         if "exit" in script:
             return True
+        return None

@@ -1,8 +1,8 @@
 import math
 import re
 
-from FABulous.fabric_generator.code_generator import codeGenerator
 from FABulous.fabric_definition.define import IO
+from FABulous.fabric_generator.code_generator import codeGenerator
 
 
 class VerilogWriter(codeGenerator):
@@ -93,10 +93,14 @@ class VerilogWriter(codeGenerator):
         compName,
         compInsName,
         portsPairs,
-        paramPairs=[],
-        emulateParamPairs=[],
+        paramPairs=None,
+        emulateParamPairs=None,
         indentLevel=0,
     ):
+        if emulateParamPairs is None:
+            emulateParamPairs = []
+        if paramPairs is None:
+            paramPairs = []
         if paramPairs:
             port = [f".{i[0]}({i[1]})" for i in paramPairs]
             self._add(f"{compName}", indentLevel=indentLevel)
@@ -141,7 +145,7 @@ class VerilogWriter(codeGenerator):
 
     def addComponentDeclarationForFile(self, fileName):
         configPortUsed = 0  # 1 means is used
-        with open(fileName, "r") as f:
+        with open(fileName) as f:
             data = f.read()
 
         if result := re.search(

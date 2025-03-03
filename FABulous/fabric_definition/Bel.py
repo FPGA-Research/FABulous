@@ -1,5 +1,6 @@
-from dataclasses import dataclass, field
 import pathlib
+from dataclasses import dataclass, field
+
 from FABulous.fabric_definition.define import IO
 
 

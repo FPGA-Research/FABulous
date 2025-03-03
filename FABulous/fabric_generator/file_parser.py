@@ -1,27 +1,27 @@
 import csv
+import json
 import re
 import subprocess
-import json
-from loguru import logger
 from copy import deepcopy
-
-from typing import Literal, overload
 from pathlib import Path
-from FABulous.fabric_generator.utilities import expandListPorts
+from typing import Literal, overload
+
+from loguru import logger
+
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.Port import Port
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.ConfigMem import ConfigMem
 from FABulous.fabric_definition.define import (
     IO,
-    Direction,
-    Side,
     ConfigBitMode,
+    Direction,
     MultiplexerStyle,
+    Side,
 )
-
+from FABulous.fabric_definition.Fabric import Fabric
+from FABulous.fabric_definition.Port import Port
+from FABulous.fabric_definition.SuperTile import SuperTile
+from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_generator.utilities import expandListPorts
 
 oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST"}
 
@@ -67,7 +67,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
 
     filePath = fName.parent
 
-    with open(fName, "r") as f:
+    with open(fName) as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
@@ -107,7 +107,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     tileTypes += [new_tile.name for new_tile in new_tiles]
     tileDefs += new_tiles
     commonWirePair += new_commonWirePair
-    tileDic = dict(zip(tileTypes, tileDefs))
+    tileDic = dict(zip(tileTypes, tileDefs, strict=False))
 
     new_supertiles = parseSupertiles(fName, tileDic)
     for new_supertile in new_supertiles:
@@ -139,7 +139,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
             tileTypes += [new_tile.name for new_tile in new_tiles]
             tileDefs += new_tiles
             commonWirePair += new_commonWirePair
-            tileDic = dict(zip(tileTypes, tileDefs))
+            tileDic = dict(zip(tileTypes, tileDefs, strict=False))
         elif i[0].startswith("Supertile"):
             new_supertiles = parseSupertiles(filePath.joinpath(i[1]), tileDic)
             for new_supertile in new_supertiles:
@@ -258,7 +258,7 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     """
 
     connectionsDic = {}
-    with open(fileName, "r") as f:
+    with open(fileName) as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
         file = file.split("\n")
@@ -326,7 +326,7 @@ def parseList(
         raise ValueError
 
     resultList = []
-    with open(filePath, "r") as f:
+    with open(filePath) as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
     file = file.split("\n")
@@ -353,7 +353,7 @@ def parseList(
             raise ValueError(
                 f"List file {filePath} does not have the same number of source and sink ports."
             )
-        resultList += list(zip(leftList, rightList))
+        resultList += list(zip(leftList, rightList, strict=False))
 
     result = list(dict.fromkeys(resultList))
     resultDic = {}
@@ -468,7 +468,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
 
     filePathParent = fileName.parent
 
-    with open(fileName, "r") as f:
+    with open(fileName) as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
@@ -521,7 +521,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                             if muxSize >= 2:
                                 configBit += muxSize.bit_length() - 1
                     case ".vhdl" | ".v":
-                        with open(matrixDir, "r") as f:
+                        with open(matrixDir) as f:
                             f = f.read()
                             if configBit := re.search(r"NumberOfConfigBits: (\d+)", f):
                                 configBit = int(configBit.group(1))
@@ -598,7 +598,7 @@ def parseSupertiles(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]
 
     filePath = fileName.parent
 
-    with open(fileName, "r") as f:
+    with open(fileName) as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
@@ -754,7 +754,7 @@ def parseBelFile(
     noConfigBits = 0
 
     try:
-        with open(filename, "r") as f:
+        with open(filename) as f:
             file = f.read()
     except FileNotFoundError:
         logger.critical(f"File {filename} not found.")
@@ -832,7 +832,7 @@ def parseBelFile(
             if portName == "" or direction is None:
                 logger.warning(f"Invalid port definition in line {line}.")
                 continue
-            elif isExternal and not isShared:
+            if isExternal and not isShared:
                 external.append((portName, direction))
             elif isConfig:
                 config.append((portName, direction))
@@ -865,15 +865,15 @@ def parseBelFile(
             subprocess.run(runCmd, check=True)
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to run yosys command: {e}")
-            raise ValueError
+            raise ValueError from e
 
-        with open(f"{json_file}", "r") as f:
+        with open(f"{json_file}") as f:
             data_dict = json.load(f)
 
         modules = data_dict.get("modules", {})
         filtered_ports: dict[str, IO] = {}
         # Gathers port name and direction, filters out configbits as they show in ports.
-        for module_name, module_info in modules.items():
+        for _module_name, module_info in modules.items():
             ports = module_info["ports"]
             for port_name, details in ports.items():
                 if "ConfigBits" in port_name:
@@ -965,7 +965,7 @@ def verilog_belMapProcessing(module_info):
         "src",
     }
     # match case for INIT. (may need modifying for other naming conventions.)
-    for key, value in attributes.items():
+    for key, _value in attributes.items():
         if key in exclude_attributes:
             continue
         match key:
@@ -982,9 +982,7 @@ def verilog_belMapProcessing(module_info):
         belMapDic[new_key] = {0: {0: "1"}}
 
     # yosys reverses belmap, reverse back to keep original belmap.
-    belMapDic = dict(reversed(list(belMapDic.items())))
-
-    return belMapDic
+    return dict(reversed(list(belMapDic.items())))
 
 
 def vhdl_belMapProcessing(file: str, filename: str) -> dict:
@@ -1071,7 +1069,7 @@ def vhdl_belMapProcessing(file: str, filename: str) -> dict:
                             belMapDic[bel[0]][i][v] = bitMap.pop(0)
                 else:
                     length = end - start + 1
-                    for i in range(0, 2**length):
+                    for i in range(2**length):
                         belMapDic[bel[0]][i] = {}
                         bitMap = list(f"{2**length - i - 1:0{length.bit_length()}b}")
                         for v in range(len(bitMap) - 1, -1, -1):

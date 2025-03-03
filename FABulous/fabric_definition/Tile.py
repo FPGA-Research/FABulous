@@ -1,10 +1,10 @@
+import pathlib
 from dataclasses import dataclass, field
-from FABulous.fabric_definition.define import IO, Direction, Side
+
 from FABulous.fabric_definition.Bel import Bel
+from FABulous.fabric_definition.define import IO, Direction, Side
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Wire import Wire
-from typing import Any
-import pathlib
 
 
 @dataclass
@@ -61,7 +61,7 @@ class Tile:
         for b in self.bels:
             self.globalConfigBits += b.configBit
 
-    def __eq__(self, __o: Any) -> bool:
+    def __eq__(self, __o: object) -> bool:
         if __o is None or not isinstance(__o, Tile):
             return False
         return self.name == __o.name

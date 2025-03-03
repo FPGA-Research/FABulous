@@ -1,5 +1,5 @@
 from csv import writer as csvWriter
-from typing import List
+
 from loguru import logger
 
 from FABulous.fabric_definition.Fabric import Direction
@@ -18,7 +18,7 @@ class WireGeometry:
     """
 
     name: str
-    path: List[Location]
+    path: list[Location]
 
     def __init__(self, name: str):
         self.name = name
@@ -95,7 +95,7 @@ class StairWires:
     groupWires: int
     tileWidth: int
     tileHeight: int
-    wireGeoms: List[WireGeometry]
+    wireGeoms: list[WireGeometry]
 
     def __init__(self, name: str):
         self.name = name

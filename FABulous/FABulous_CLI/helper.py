@@ -200,7 +200,6 @@ def remove_dir(path: Path):
     """
     try:
         shutil.rmtree(path)
-        pass
     except OSError as e:
         logger.error(f"{e}")
 
@@ -255,12 +254,12 @@ def check_if_application_exists(application: str, throw_exception: bool = True) 
     path = shutil.which(application)
     if path is not None:
         return Path(path)
-    else:
-        logger.error(
-            f"{application} is not installed. Please install it or set FAB_<APPLICATION>_PATH in the .env file."
-        )
-        if throw_exception:
-            raise Exception(f"{application} is not installed.")
+    logger.error(
+        f"{application} is not installed. Please install it or set FAB_<APPLICATION>_PATH in the .env file."
+    )
+    if throw_exception:
+        raise Exception(f"{application} is not installed.")
+    return None
 
 
 def wrap_with_except_handling(fun_to_wrap):
@@ -285,7 +284,7 @@ def wrap_with_except_handling(fun_to_wrap):
         """
         try:
             fun_to_wrap(*args, **varargs)
-        except Exception:
+        except Exception:  # noqa: BLE001 # ignore bare except for now
             import traceback
 
             traceback.print_exc()
