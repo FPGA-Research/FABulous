@@ -90,7 +90,7 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
     # Set project directory env var, this can not be saved in the .env file,
     # since it can change if the project folder is moved
     if not os.getenv("FAB_PROJ_DIR"):
-        os.environ["FAB_PROJ_DIR"] = args.project_dir
+        os.environ["FAB_PROJ_DIR"] = str(Path(args.project_dir).absolute())
 
 
 def setup_project_env_vars(args: argparse.Namespace) -> None:
