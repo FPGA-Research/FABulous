@@ -492,11 +492,13 @@ class FabricGenerator:
             raise ValueError
 
         noConfigBits = 0
-        for i in connections:
-            if not connections[i]:
-                logger.error(f"{i} not connected to anything!")
+        for port_name in connections:
+            if not connections[port_name]:
+                logger.error(f"{port_name} not connected to anything!")
                 raise ValueError
-            noConfigBits += len(connections[i]).bit_length() - 1
+            mux_size = len(connections[port_name])
+            if mux_size >= 2:
+                noConfigBits += (mux_size - 1).bit_length()
 
         # we pass the NumberOfConfigBits as a comment in the beginning of the file.
         # This simplifies it to generate the configuration port only if needed later when building the fabric where we are only working with the VHDL files
