@@ -829,6 +829,9 @@ def parseBelFile(
     ports_vectors["shared"] = {}
     module_name = ""
 
+    if filetype not in ["verilog", "vhdl"]:
+        raise ValueError(f"Invalid filetype {filetype} for bel file {filename}")
+
     try:
         with open(filename, "r") as f:
             file = f.read()
