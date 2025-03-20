@@ -26,6 +26,7 @@ from typing import Dict, List, Tuple
 
 from loguru import logger
 
+from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.ConfigMem import ConfigMem
 from FABulous.fabric_definition.define import (
     IO,
@@ -41,10 +42,10 @@ from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.fabric_generator.code_generator import codeGenerator
 from FABulous.fabric_generator.file_parser import (
+    parseBelFile,
     parseConfigMem,
     parseList,
     parseMatrix,
-    parseBelFile,
 )
 
 
@@ -2838,3 +2839,97 @@ def generateUserDesignTopWrapper(
     logger.info(
         f"Generated user design top wrapper {output} with {len(top_wrapper)} lines"
     )
+
+
+def generate_custom_tile_from_config(tile_path: Path) -> Path:
+    tile_name: str = ""
+    project_tile_dir: Path = Path(os.getenv("FAB_PROJ_DIR")).absolute() / "Tile"
+
+    tile_files = {}
+    tile_csv: Path
+    tile_bels: list[Path] = []
+    tile_carrys = []
+    tile_switchmatrix: Path
+    csv_out: list[str] = []
+
+    logger.info(f"Generating custom tile from config {tile_path}")
+
+    if tile_path.is_file():
+        tile_path = tile_path.parent
+
+    tile_name = tile_path.stem
+    tile_csv = tile_path / f"{tile_name}.csv"
+    tile_switchmatrix = tile_path / f"{tile_name}_switch_matrix.list"
+
+    if not tile_path.is_relative_to(project_tile_dir.absolute()):
+        raise ValueError(f"Path {tile_path} is not a valid tile path")
+
+    if not tile_path.exists():
+        tile_path.mkdir()
+    else:
+        tile_files = tile_path.rglob("*")
+
+    for file in tile_files:
+        if not file.is_file():
+            logger.debug(f"Skipping file {file} since it is not a file.")
+            continue
+        if (
+            "ConfigMem" in file.name
+            or "Config_Mem" in file.name
+            or "switchmatrix" in file.name
+            or "switch_matrix" in file.name
+        ):
+            logger.debug(
+                f"File {file}is most likely a generated file and will be ignored."
+            )
+            continue
+
+        if file.suffix.lower() in [".vhdl", ".vhd", ".v", ".sv"]:
+            logger.info(f"Found BEL file {file} for custom bel {tile_name}")
+            tile_bels.append(file)
+
+        elif file.suffix.lower() == ".csv":
+            logger.warning(
+                f"Found tile config CSV file {file} for custom bel {tile_name}, nothing to do here."
+            )
+            return file
+        elif file.suffix.lower() == ".list":
+            tile_switchmatrix = file
+            logger.warning(
+                f"Found tile tile_switchmatrix list file {file} for custom bel {tile_name}, no switchmatrix list file will be generated."
+            )
+        else:
+            logger.warning(
+                f"File {file} in custom tile {tile_name} is not a valid config or bel file."
+            )
+
+    for file in tile_bels:
+        if file.suffix.lower() in [".v", ".sv"]:
+            bel = parseBelFile(file, "", "verilog")
+        else:
+            bel = parseBelFile(file, "", "vhdl")
+        for carry in bel.carry:
+            if carry not in tile_carrys:
+                tile_carrys.append(carry)
+
+    # Create tile config CSV file
+    logger.info(f"Creating tile config CSV file {tile_csv}")
+    tile_csv.touch()
+
+    csv_out.append(f"TILE,{tile_name}")
+    csv_out.append(f"INCLUDE,./../include/Base.csv")
+    for i, carry in enumerate(tile_carrys):
+        csv_out.append(f'NORTH,Co{i},0,-1,Ci{i},1,CARRY="{carry}"')
+    for bel in tile_bels:
+        csv_out.append(f"BEL,./{bel.relative_to(tile_path)}")
+    if tile_switchmatrix.exists():
+        csv_out.append(f"MATRIX,{tile_switchmatrix.relative_to(tile_path)}")
+    else:
+        csv_out.append("MATRIX,GENERATE")
+    csv_out.append("EndTILE")
+
+    with tile_csv.open("w", encoding="utf-8") as file:
+        file.write("\n".join(csv_out))
+
+    return tile_csv
+

@@ -135,6 +135,15 @@ def parseFabricCSV(fileName: str) -> Fabric:
         if not i:
             continue
         if i[0].startswith("Tile"):
+            if "GENERATE" in i:
+                # import generate_custom_tile_from_config here to avoid circular import
+                from FABulous.fabric_generator.fabric_gen import (
+                    generate_custom_tile_from_config,
+                )
+
+                # we generate the tile right before we parse everything
+                i[1] = str(generate_custom_tile_from_config(filePath.joinpath(i[1])))
+
             new_tiles, new_commonWirePair = parseTiles(filePath.joinpath(i[1]))
             tileTypes += [new_tile.name for new_tile in new_tiles]
             tileDefs += new_tiles
@@ -537,10 +546,14 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
             elif temp[0] == "MATRIX":
                 configBit = 0
 
-                if temp[1] == "GENERATE":
+                if "GENERATE" in temp:
                     logger.info(f"Generating switch matrix list for tile {tileName}")
                     genMatrixList = True
-                    matrixDir = fileName.parent.joinpath(temp[2])
+                    if len(temp) <= 2:
+                        # only MATRIX, GENERATE in csv
+                        matrixDir = fileName.parent
+                    else:
+                        matrixDir = fileName.parent.joinpath(temp[2])
                     if matrixDir.is_file() and matrixDir.suffix == ".list":
                         logger.warning(
                             f"Matrix file {matrixDir} already exists and will be overwritten."
@@ -1221,7 +1234,7 @@ def vhdl_belMapProcessing(file: str, filename: str) -> dict:
                     length = end - start + 1
                     for i in range(0, 2**length):
                         belMapDic[bel[0]][i] = {}
-                        bitMap = list(f"{2**length-i-1:0{length.bit_length()}b}")
+                        bitMap = list(f"{2**length - i - 1:0{length.bit_length()}b}")
                         for v in range(len(bitMap) - 1, -1, -1):
                             belMapDic[bel[0]][i][v] = bitMap.pop(0)
             else:
@@ -1437,7 +1450,7 @@ def generateSwitchmatrixList(
     # build a dict, with the old names from the list file and the replacement from the bels
     replaceDic = {}
     for i, port in enumerate(belIns):
-        replaceDic[f"CLB{math.floor(i/4)}_I{i % 4}"] = f"{port}"
+        replaceDic[f"CLB{math.floor(i / 4)}_I{i % 4}"] = f"{port}"
     for i, port in enumerate(belOuts):
         replaceDic[f"CLB{i % 8}_O"] = f"{port}"
 
@@ -1572,7 +1585,7 @@ def addBelsToPrim(
     # remove all duplicate bels in list.
     bels = list({bel.src: bel for bel in bels}.values())
     logger.info(
-        f"Adding bels {", ".join(bel.name for bel in bels)} to yosys primitves file {primsFile}."
+        f"Adding bels {', '.join(bel.name for bel in bels)} to yosys primitves file {primsFile}."
     )
 
     for bel in bels:
@@ -1606,7 +1619,7 @@ def addBelsToPrim(
                     ports_dict[details["direction"]] = []
                 if len(details["bits"]) > 1:
                     ports_dict[details["direction"]].append(
-                        f"[{len(details['bits'])-1}:0] {port_name}"
+                        f"[{len(details['bits']) - 1}:0] {port_name}"
                     )
                 else:
                     ports_dict[details["direction"]].append(port_name)
