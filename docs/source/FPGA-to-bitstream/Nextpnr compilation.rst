@@ -9,7 +9,7 @@ Our nextpnr implementation uses nextpnr-generic for place and route.
 Building
 --------
 
-Please refer to the `Nextpnr-generic <https://github.com/YosysHQ/nextpnr#nextpnr-generic>`_:
+Please refer to the `Nextpnr-generic documentation <https://github.com/YosysHQ/nextpnr#nextpnr-generic>`_:
 
 .. note:: Any new version architecture should be declared in ``$FAB_ROOT/nextpnr/CMakeLists.txt``
 
