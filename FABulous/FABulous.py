@@ -11,6 +11,7 @@ from FABulous.FABulous_CLI.helper import (
     setup_global_env_vars,
     setup_logger,
     setup_project_env_vars,
+    install_oss_cad_suite,
 )
 
 
@@ -22,7 +23,7 @@ def main():
 
     Command line arguments
     ----------------------
-    Project_dir : str
+    project_dir : str
         Directory path to project folder.
     -c, --createProject :  bool
         Flag to create new project.
@@ -42,12 +43,17 @@ def main():
         Set global .env file path. Default is $FAB_ROOT/.env
     -pde, --projectDotEnv : str, optional
         Set project .env file path. Default is $FAB_PROJ_DIR/.env
+    -iocd, --install_oss_cad_suite : str, optional
+        Install the oss-cad-suite in the project directory.
     """
     parser = argparse.ArgumentParser(
         description="The command line interface for FABulous"
     )
 
-    parser.add_argument("project_dir", help="The directory to the project folder")
+    parser.add_argument(
+        "project_dir",
+        help="The directory to the project folder",
+    )
 
     parser.add_argument(
         "-c",
@@ -96,6 +102,7 @@ def main():
         nargs=1,
         help="Set the output directory for the meta data files eg. pip.txt, bel.txt",
     )
+
     parser.add_argument(
         "-v",
         "--verbose",
@@ -104,17 +111,31 @@ def main():
         help="Show detailed log information including function and line number. For -vv additionally output from "
         "FABulator is logged to the shell for the start_FABulator command",
     )
+
     parser.add_argument(
         "-gde",
         "--globalDotEnv",
         nargs=1,
         help="Set the global .env file path. Default is $FAB_ROOT/.env",
     )
+
     parser.add_argument(
         "-pde",
         "--projectDotEnv",
         nargs=1,
         help="Set the project .env file path. Default is $FAB_PROJ_DIR/.env",
+    )
+
+    parser.add_argument(
+        "-iocs",
+        "--install_oss_cad_suite",
+        help="Install the oss-cad-suite in the directory."
+        "This will create a new directory called oss-cad-suite in the provided"
+        "directory and install the oss-cad-suite there."
+        "If there is already a directory called oss-cad-suite, it will be removed and replaced with a new one."
+        "This will also automatically add the FAB_OSS_CAD_SUITE env var in the global FABulous .env file. ",
+        action="store_true",
+        default=False,
     )
 
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
@@ -129,6 +150,12 @@ def main():
 
     args.top = projectDir.stem
 
+    if args.createProject and args.install_oss_cad_suite:
+        logger.error(
+            f"You cannot create a new project and install the oss-cad-suite at the same time."
+        )
+        exit(1)
+
     if args.createProject:
         create_project(projectDir, args.writer)
         exit(0)
@@ -136,6 +163,10 @@ def main():
     if not projectDir.exists():
         logger.error(f"The directory provided does not exist: {projectDir}")
         exit(1)
+
+    if args.install_oss_cad_suite:
+        install_oss_cad_suite(projectDir, True)
+        exit(0)
 
     if not (projectDir / ".FABulous").exists():
         logger.error(

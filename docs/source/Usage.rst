@@ -190,6 +190,7 @@ FAB_NEXTPNR_PATH    Path to Nextpnr binary                          nextpnr-gene
 FAB_IVERILOG_PATH   Path to Icarus Verilog binary                   iverilog  (Uses global Icarus Verilog installation)
 FAB_VVP_PATH        Path to Verilog VVP binary                      vvp  (Uses global Verilog VVP installation)
 FAB_PROJ_DIR        The root directory of the FABulous project      The directory where the FABulous project is located, given by command line
+FAB_OSS_CAD_SUITE   Path to the oss-cad-suite installation          <None>
 =================== =============================================== ===========================================================================
 
 Project Specific Environment Variables

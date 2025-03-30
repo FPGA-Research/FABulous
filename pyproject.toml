@@ -4,23 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "FABulous-FPGA"
-authors = [{name = "Jing, Nguyen, Bea, Bardia, Dirk", email = "dirk.koch@manchester.ac.uk"}]
+authors = [
+  { name = "Jing, Nguyen, Bea, Bardia, Dirk", email = "dirk.koch@manchester.ac.uk" },
+]
 description = "FABulous FPGA Fabric generator"
 readme = "README.md"
 requires-python = ">=3.12"
 dynamic = ["version"]
 
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: Apache Software License",
-    "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
 ]
 
 
 dependencies = [
-    'python-dotenv>=1.0.0',
-    'loguru>=0.7.0',
-    'fasm>=0.0.2',
+  'python-dotenv>=1.0.0',
+  'loguru>=0.7.0',
+  'fasm>=0.0.2',
+  'requests>=2.0.0',
 ]
 
 [project.urls]
@@ -38,7 +41,9 @@ local_scheme = "dirty-tag"
 
 
 [tool.setuptools.packages.find]
-exclude = ["docs, demo"]  # exclude packages matching these glob patterns (empty by default)
+exclude = [
+  "docs, demo",
+] # exclude packages matching these glob patterns (empty by default)
 
 [tool.setuptools.package-data]
 mypkg = ["FABulous/**/*"]

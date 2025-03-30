@@ -1,8 +1,11 @@
 import argparse
 import functools
 import os
+import platform
+import requests
 import shutil
 import sys
+import tarfile
 from pathlib import Path
 from typing import Literal
 
@@ -85,12 +88,16 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
         load_dotenv(fabDir.parent.joinpath(".env"))
         logger.info(f"Loaded global .env file from {fabDir.parent.joinpath('.env')}")
     else:
-        logger.warning("No global .env file found")
+        logger.info("No global .env file found")
 
     # Set project directory env var, this can not be saved in the .env file,
     # since it can change if the project folder is moved
     if not os.getenv("FAB_PROJ_DIR"):
         os.environ["FAB_PROJ_DIR"] = args.project_dir
+
+    # Export oss-cad-suite bin path to PATH
+    if ocs_path := os.getenv("FAB_OSS_CAD_SUITE"):
+        os.environ["PATH"] += os.pathsep + ocs_path + "/bin"
 
 
 def setup_project_env_vars(args: argparse.Namespace) -> None:
@@ -303,3 +310,136 @@ def allow_blank(func):
             func(*args)
 
     return _check_blank
+
+
+def install_oss_cad_suite(destination_folder: Path, update: bool = False):
+    """Downloads and extracts the latest OSS CAD Suite. Sets the the FAB_OSS_CAD_SUITE
+    environment variable in the .env file.
+
+    Parameters
+    ----------
+        destination_folder: Path
+            The folder where the OSS CAD Suite will be installed.
+        update : bool
+            If True, it will update the existing installation if it exists.
+
+    Raises:
+    -------
+        Exception
+            If the folder already exists and update is not set to True.
+            If the download fails.
+            If the request to GitHub fails.
+        ValueError
+            If the operating system or architecture is not supported.
+            If no valid archive is found for the current OS and architecture.
+            No valid archive of OSS-CAD-Suite found in the latest release.
+            If the file format of the downloaded archive is unsupported.
+    """
+    github_releases_url = (
+        "https://api.github.com/repos/YosysHQ/oss-cad-suite-build/releases/latest"
+    )
+    response = requests.get(github_releases_url)
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    url = None
+
+    # check if oss-cad-suite folder already exists
+    ocs_folder = destination_folder / "oss-cad-suite"
+    if ocs_folder.is_dir():
+        if update:
+            logger.warning(f"Updating existing installation in {ocs_folder.absolute()}")
+            # remove existing files:
+            for root, dirs, files in ocs_folder.walk(top_down=False):
+                for name in files:
+                    (root / name).unlink()
+                for name in dirs:
+                    (root / name).rmdir()
+            ocs_folder.rmdir()
+        else:
+            raise Exception(
+                f"The folder {ocs_folder} already exists. Please set the update flag, remove it or choose a different folder."
+            )
+    else:
+        if not destination_folder.is_dir():
+            logger.info(f"Creating folder {destination_folder.absolute()}")
+            os.makedirs(destination_folder, exist_ok=True)
+        else:
+            logger.info(
+                f"Installing OSS-CAD-Suite to folder {destination_folder.absolute()}"
+            )
+
+    # format system and machine to match the OSS-CAD-Suite release naming
+    if system not in ["linux", "windows", "darwin"]:
+        raise ValueError(
+            f"Unsupported operating system {system}. Please install OSS-CAD-Suite manually."
+        )
+    if machine in ["x86_64", "amd64"]:
+        machine = "x64"
+    elif machine in ["aarch64", "arm64"]:
+        machine = "arm64"
+    else:
+        raise ValueError(
+            f"Unsupported architecture {machine}. Please install OSS-CAD-Suite manually."
+        )
+
+    if response.status_code == 200:
+        latest_release = response.json()
+    else:
+        raise Exception(
+            f"Failed to fetch latest OSS-CAD-Suite release: {response.status_code}"
+        )
+
+    # find the right release for the current system
+    for asset in latest_release.get("assets", []):
+        if "tar.gz" in asset["name"] or "tgz" in asset["name"]:
+            if machine in asset["name"].lower() and system in asset["name"].lower():
+                url = asset["browser_download_url"]
+                break  # we assume that the first match is the right one
+    if url == None or url == "":
+        raise ValueError("No valid archive found in the latest release.")
+
+    # Download the file
+    ocs_archive = destination_folder / url.split("/")[-1]
+    logger.info(f"Downloading OSS-CAD-Suite {url}")
+    response = requests.get(url, stream=True)
+
+    if response.status_code == 200:
+        with open(ocs_archive, "wb") as file:
+            for chunk in response.iter_content(chunk_size=8192):
+                file.write(chunk)
+    else:
+        raise Exception(f"Failed to download file: {response.status_code}")
+
+    # Extract the archive
+    logger.info(f"Extracting OSS-CAD-Suite to {destination_folder.absolute()}")
+    if ocs_archive.suffix in [".tar.gz", ".tgz"]:
+        with tarfile.open(ocs_archive, "r:gz") as tar:
+            tar.extractall(path=destination_folder)
+    else:
+        raise ValueError(
+            f"Unsupported file format. Please extract {ocs_archive} manually."
+        )
+
+    logger.info(f"Remove archive {ocs_archive}")
+    ocs_archive.unlink()
+
+    env_file = Path(os.getenv("FAB_ROOT")) / ".env"
+    env_cont = ""
+    if env_file.is_file():
+        logger.info(f"Updating FAB_OSS_CAD_SUITE in .env file {env_file}")
+        env_cont = env_file.read_text()
+        env_cont = env_cont.split("\n")
+        for line in env_cont:
+            if "FAB_OSS_CAD_SUITE" in line:
+                env_cont.remove(line)
+        env_cont.append(f"FAB_OSS_CAD_SUITE={ocs_folder.absolute()}")
+    else:
+        logger.info(f"Creating .env file {env_file}")
+        env_cont = [f"FAB_OSS_CAD_SUITE={ocs_folder.absolute()}"]
+
+    env_file.write_text("\n".join(env_cont))
+
+    # export oss-cad-suite to PATH
+    os.environ["PATH"] += os.pathsep + str((ocs_folder / "bin"))
+
+    logger.info("OSS CAD Suite setup completed successfully.")

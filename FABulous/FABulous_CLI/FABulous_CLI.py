@@ -45,6 +45,7 @@ from FABulous.FABulous_CLI.helper import (
     make_hex,
     remove_dir,
     wrap_with_except_handling,
+    install_oss_cad_suite,
 )
 
 META_DATA_DIR = ".FABulous"
@@ -55,7 +56,6 @@ CMD_HELPER = "Helper"
 CMD_OTHER = "Other"
 CMD_GUI = "GUI"
 CMD_SCRIPT = "Script"
-CMD_OTHER = "Other"
 
 
 INTO_STRING = rf"""
@@ -252,6 +252,38 @@ class FABulous_CLI(Cmd):
         help="A tile",
         completer=lambda self: self.fab.getTiles(),
     )
+
+    install_oss_cad_suite_parser = Cmd2ArgumentParser()
+    install_oss_cad_suite_parser.add_argument(
+        "destination_folder",
+        type=Path,
+        help="Destination folder for the installation",
+        default="",
+        completer=Cmd.path_complete,
+        nargs=argparse.OPTIONAL,
+    )
+    install_oss_cad_suite_parser.add_argument(
+        "update",
+        type=bool,
+        help="Update/override existing installation, if exists",
+        default=False,
+        nargs=argparse.OPTIONAL,
+    )
+
+    @with_category(CMD_SETUP)
+    @allow_blank
+    @with_argparser(install_oss_cad_suite_parser)
+    def do_install_oss_cad_suite(self, args):
+        """Downloads and extracts the latest OSS CAD suite.
+
+        Sets the the FAB_OSS_CAD_SUITE environment variable in the .env file.
+        """
+        if args.destination_folder == "":
+            dest_dir = (Path(os.getenv("FAB_ROOT")),)
+        else:
+            dest_dir = args.destination_folder
+
+        install_oss_cad_suite(dest_dir, args.update_existing)
 
     @with_category(CMD_SETUP)
     @allow_blank
