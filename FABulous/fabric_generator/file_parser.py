@@ -136,13 +136,13 @@ def parseFabricCSV(fileName: str) -> Fabric:
             continue
         if i[0].startswith("Tile"):
             if "GENERATE" in i:
-                # import generate_custom_tile_from_config here to avoid circular import
+                # import generate_custom_tile_config here to avoid circular import
                 from FABulous.fabric_generator.fabric_gen import (
-                    generate_custom_tile_from_config,
+                    generate_custom_tile_config,
                 )
 
                 # we generate the tile right before we parse everything
-                i[1] = str(generate_custom_tile_from_config(filePath.joinpath(i[1])))
+                i[1] = str(generate_custom_tile_config(filePath.joinpath(i[1])))
 
             new_tiles, new_commonWirePair = parseTiles(filePath.joinpath(i[1]))
             tileTypes += [new_tile.name for new_tile in new_tiles]
@@ -560,12 +560,12 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         )
                     elif matrixDir.parent == proj_dir.joinpath("Tile"):
                         matrixDir = matrixDir.joinpath(
-                            f"{tileName}_generated_switchmatrix.list"
+                            f"{tileName}_generated_switch_matrix.list"
                         )
                         logger.info(f"Generating matrix file {matrixDir}")
                     else:
                         matrixDir = proj_dir.joinpath(
-                            f"./Tile/{tileName}/{tileName}_generated_switchmatrix.list"
+                            f"./Tile/{tileName}/{tileName}_generated_switch_matrix.list"
                         )
                         logger.warning(
                             f"No destination directory for matrix file sepicified, using default path {matrixDir}."

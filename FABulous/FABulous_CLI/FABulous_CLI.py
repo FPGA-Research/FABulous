@@ -38,6 +38,7 @@ from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.FABulous_API import FABulous_API
 from FABulous.FABulous_CLI import cmd_synthesis
+from FABulous.fabric_generator.fabric_gen import generate_custom_tile_config
 from FABulous.FABulous_CLI.helper import (
     allow_blank,
     check_if_application_exists,
@@ -47,6 +48,7 @@ from FABulous.FABulous_CLI.helper import (
     wrap_with_except_handling,
     install_oss_cad_suite,
 )
+from FABulous.fabric_generator.file_parser import parseTiles
 
 META_DATA_DIR = ".FABulous"
 
@@ -57,6 +59,7 @@ CMD_HELPER = "Helper"
 CMD_OTHER = "Other"
 CMD_GUI = "GUI"
 CMD_SCRIPT = "Script"
+CMD_TOOLS = "Tools"
 
 
 INTO_STRING = rf"""
@@ -990,3 +993,41 @@ class FABulous_CLI(Cmd):
         self.fabulousAPI.generateUserDesignTopWrapper(
             args.user_design, args.user_design_top_wrapper
         )
+
+    gen_tile_parser = Cmd2ArgumentParser()
+    gen_tile_parser.add_argument(
+        "tile_path",
+        type=Path,
+        help="Path to the target tile directory",
+        completer=Cmd.path_complete,
+    )
+
+    gen_tile_parser.add_argument(
+        "--no-switch-matrix",
+        "-nosm",
+        help="Do not generate a Tile Switch Matrix",
+        action="store_true",
+    )
+
+    @with_category(CMD_TOOLS)
+    @with_argparser(gen_tile_parser)
+    def do_generate_custom_tile_config(self, args):
+        """
+        Generates a custom tile configuration for a given tile folder
+        or path to bel folder.
+        A tile .csv file and a switch matrix .list file will be generated.
+
+        The provided path may contain bel files, which will be included
+        in the generated tile .csv file as well as the generated
+        switch matrix .list file.
+        """
+
+        if not args.tile_path.is_dir():
+            logger.error(f"{args.tile_path} is not a directory or does not exist")
+            return
+
+        tile_csv = generate_custom_tile_config(args.tile_path)
+
+        if not args.no_switch_matrix:
+            parseTiles(tile_csv)
+

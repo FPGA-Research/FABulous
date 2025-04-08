@@ -2841,7 +2841,29 @@ def generateUserDesignTopWrapper(
     )
 
 
-def generate_custom_tile_from_config(tile_path: Path) -> Path:
+def generate_custom_tile_config(tile_path: Path) -> Path:
+    """
+    Generates a custom tile configuration for a given tile folder
+    or path to bel folder.
+    A tile .csv file and a switch matrix .list file will be generated.
+
+    The provided path may contain bel files, which will be included
+    in the generated tile .csv file as well as the generated
+    switch matrix .list file.
+
+    Parameters
+    ----------
+
+    tile_path : Path
+        The path to the tile folder. If the path is a file, the parent
+        directory will be used as the tile folder.
+
+    Returns
+    -------
+    Path
+        Path to the generated tile .csv file.
+
+    """
     tile_name: str = ""
     project_tile_dir: Path = Path(os.getenv("FAB_PROJ_DIR")).absolute() / "Tile"
 
@@ -2852,7 +2874,9 @@ def generate_custom_tile_from_config(tile_path: Path) -> Path:
     tile_switchmatrix: Path
     csv_out: list[str] = []
 
-    logger.info(f"Generating custom tile from config {tile_path}")
+    tile_path = Path(tile_path).absolute()
+
+    logger.info(f"Generating custom tile config {tile_path}")
 
     if tile_path.is_file():
         tile_path = tile_path.parent
@@ -2874,10 +2898,10 @@ def generate_custom_tile_from_config(tile_path: Path) -> Path:
             logger.debug(f"Skipping file {file} since it is not a file.")
             continue
         if (
-            "ConfigMem" in file.name
-            or "Config_Mem" in file.name
-            or "switchmatrix" in file.name
-            or "switch_matrix" in file.name
+            "configmem" in file.name.lower()
+            or "config_mem" in file.name.lower()
+            or "switchmatrix" in file.name.lower()
+            or "switch_matrix" in file.name.lower()
         ):
             logger.debug(
                 f"File {file}is most likely a generated file and will be ignored."
