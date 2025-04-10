@@ -871,7 +871,7 @@ def parseBelFile(
             data_dict = json.load(f)
 
         modules = data_dict.get("modules", {})
-        filtered_ports: dict[str, IO] = {}
+        filtered_ports: dict[str, tuple[IO, list]] = {}
         # Gathers port name and direction, filters out configbits as they show in ports.
         for module_name, module_info in modules.items():
             ports = module_info["ports"]
@@ -894,22 +894,23 @@ def parseBelFile(
         # Passed attributes dont show in port list, checks for attributes in netnames.
         # (If passed attributes missing, may need to expand to check other lists e.g "memories".)
         netnames = module_info.get("netnames", {})
-        for item, details in netnames.items():
-            if item in filtered_ports:
-                direction, bits = filtered_ports[item]
-                attributes = details.get("attributes", {})
-                for index in range(len(bits)):
-                    new_port_name = (
-                        f"{item}{index}" if len(bits) > 1 else item
-                    )  # Multi-bit ports get index
-                    if "EXTERNAL" in attributes and "SHARED_PORT" not in attributes:
-                        external.append((f"{belPrefix}{new_port_name}", direction))
-                    elif "CONFIG" in attributes:
-                        config.append((f"{belPrefix}{new_port_name}", direction))
-                    elif "SHARED_PORT" in attributes:
-                        shared.append((new_port_name, direction))
-                    else:
-                        internal.append((f"{belPrefix}{new_port_name}", direction))
+
+        for portName, (direction, bits) in filtered_ports.items():
+            netDetails = netnames.get(portName, {})
+            attributes = netDetails.get("attributes", {})
+            for index in range(len(bits)):
+                new_port_name = (
+                    f"{portName}{index}" if len(bits) > 1 else portName
+                )  # Multi-bit ports get index
+                if "EXTERNAL" in attributes and "SHARED_PORT" not in attributes:
+                    external.append((f"{belPrefix}{new_port_name}", direction))
+                elif "CONFIG" in attributes:
+                    config.append((f"{belPrefix}{new_port_name}", direction))
+                elif "SHARED_PORT" in attributes:
+                    shared.append((new_port_name, direction))
+                else:
+                    internal.append((f"{belPrefix}{new_port_name}", direction))
+
         belMapDic = verilog_belMapProcessing(module_info)
         if len(belMapDic) != noConfigBits:
             raise ValueError(
@@ -921,7 +922,6 @@ def parseBelFile(
             f"Ports in {filename} have been individually declared rather than as a vector."
         )
         logger.warning("Ports will not be concatenated during fabric generation.")
-
     return Bel(
         src=filename,
         prefix=belPrefix,
