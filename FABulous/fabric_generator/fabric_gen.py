@@ -2605,7 +2605,7 @@ class FabricGenerator:
                 for source, sinkList in result.items():
                     controlWidth = 0
                     for i, sink in enumerate(reversed(sinkList)):
-                        controlWidth = len(sinkList).bit_length() - 1
+                        controlWidth = (len(sinkList) - 1).bit_length()
                         controlValue = f"{len(sinkList) - 1 - i:0{controlWidth}b}"
                         pip = f"{sink}.{source}"
                         if len(sinkList) < 2:
