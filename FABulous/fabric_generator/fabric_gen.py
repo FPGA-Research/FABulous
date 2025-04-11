@@ -2511,12 +2511,24 @@ class FabricGenerator:
                     continue
                 if "fabric.csv" in str(tile.tileDir):
                     # backward compatibility for old project structure
-                    configMemPath = (
-                        Path(os.getenv("FAB_PROJ_DIR"))
-                        / "Tile"
-                        / tile.name
-                        / f"{tile.name}_ConfigMem.csv"
-                    )
+                    # We need to take the matrixDir from the tile, since there
+                    # is the actual path to the tile defined in the fabric.csv
+                    if tile.matrixDir.is_file():
+                        configMemPath = (
+                            tile.matrixDir.parent / f"{tile.name}_ConfigMem.csv"
+                        )
+                    elif tile.matrixDir.is_dir():
+                        configMemPath = tile.matrixDir / f"{tile.name}_ConfigMem.csv"
+                    else:
+                        configMemPath = (
+                            Path(os.getenv("FAB_PROJ_DIR"))
+                            / "Tile"
+                            / tile.name
+                            / f"{tile.name}_ConfigMem.csv"
+                        )
+                        logger.warning(
+                            f"MatrixDir for {tile.name} is not a valid file or directory. Assuming default path: {configMemPath}"
+                        )
                 else:
                     configMemPath = tile.tileDir.parent.joinpath(
                         f"{tile.name}_ConfigMem.csv"
