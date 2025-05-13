@@ -78,6 +78,28 @@ And the following block provides a tile.csv example (in this case LUT4AB.csv).
    MATRIX,   LUT4AB_switch_matrix.vhdl
    EndTILE
 
+
+Current Fabric Size Limitations
+-------------------------------
+
+The current configuration logic and the bitstream header limit FABulous fabrics to the following
+dimensions and parameters:
+
+* 32 columns
+* 32 rows
+* 20 frames per tile
+* 26 bels per tile
+
+The bitstream header is 32 bit wide and is structured as follows:
+
+.. code-block:: text
+
+    | 5-bit column select | ... unused ... | 20th bit sync | 20-bit frame strobe |
+
+For the column selection also the unused bits could be used, but currently the
+``FrameSelectWidth`` is set to a fixed width of 5 bit.
+It is planned to remove these limitations in future versions of FABulous.
+
 .. _fabric_csv:
 
 Fabric CSV description
