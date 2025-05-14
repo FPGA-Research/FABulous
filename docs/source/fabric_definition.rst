@@ -79,8 +79,8 @@ And the following block provides a tile.csv example (in this case LUT4AB.csv).
    EndTILE
 
 
-Current Fabric Size Limitations
--------------------------------
+Current Fabric Limitations
+--------------------------
 
 The current configuration logic and the bitstream header limit FABulous fabrics to the following
 dimensions and parameters:
@@ -90,6 +90,8 @@ dimensions and parameters:
 * 20 frames per tile
 * 26 bels per tile
 
+Additionally, FABulous only supports a single clock domain.
+
 The bitstream header is 32 bit wide and is structured as follows:
 
 .. code-block:: text
@@ -98,6 +100,8 @@ The bitstream header is 32 bit wide and is structured as follows:
 
 For the column selection also the unused bits could be used, but currently the
 ``FrameSelectWidth`` is set to a fixed width of 5 bit.
+
+
 It is planned to remove these limitations in future versions of FABulous.
 
 .. _fabric_csv:
