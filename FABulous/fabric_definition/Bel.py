@@ -23,6 +23,10 @@ class Bel:
         The prefix of the BEL given in the CSV file.
     name : str
         The name of the BEL, extracted from the source directory.
+    module_name : str
+        The name of the module in the bel.
+        For verlog we can extract this from the RTL.
+        For VHDL this is currently the same as name.
     inputs : list[str]
         All the normal input ports of the BEL.
     outputs : list[str]
@@ -37,17 +41,23 @@ class Bel:
         All the shared ports of the BEL.
     configBit : int
         The number of config bits of the BEL.
+    language : str
+        Language of the BEL. Currently only VHDL and Verilog are supported.
     belFeatureMap : dict[str, dict]
         The feature map of the BEL.
     withUserCLK : bool
         Whether the BEL has userCLK port. Default is False.
     individually_declared : bool
         Indicates if ports are individually declared. Default is False.
+    ports_vectors: dict[str, dict[str, tuple[IO, int]]]
+        Dict structure to save vectorized port information
+        {<porttype>:{<portname>:(IO, <portwidth>)}}
     """
 
     src: pathlib.Path
     prefix: str
     name: str
+    module_name: str
     inputs: list[str]
     outputs: list[str]
     externalInput: list[str]
@@ -55,14 +65,17 @@ class Bel:
     configPort: list[str]
     sharedPort: list[tuple[str, IO]]
     configBit: int
+    language: str
     belFeatureMap: dict[str, dict] = field(default_factory=dict)
     withUserCLK: bool = False
     individually_declared: bool = False
+    ports_vectors: dict[str, dict[str, tuple[IO, int]]] = field(default_factory=dict)
 
     def __init__(
         self,
         src: pathlib.Path,
         prefix: str,
+        module_name: str,
         internal,
         external,
         configPort,
@@ -71,10 +84,12 @@ class Bel:
         belMap: dict[str, dict],
         userCLK: bool,
         individually_declared: bool,
+        ports_vectors: dict[str, dict[str, tuple[IO, int]]],
     ) -> None:
         self.src = src
         self.prefix = prefix
         self.name = src.stem
+        self.module_name = module_name
         self.inputs = [p for p, io in internal if io == IO.INPUT]
         self.outputs = [p for p, io in internal if io == IO.OUTPUT]
         self.externalInput = [p for p, io in external if io == IO.INPUT]
@@ -85,3 +100,11 @@ class Bel:
         self.belFeatureMap = belMap
         self.withUserCLK = userCLK
         self.individually_declared = individually_declared
+        self.ports_vectors = ports_vectors
+        if self.src.suffix in [".sv", ".v"]:
+            self.language = "verilog"
+        elif self.src.suffix in [".vhd", ".vhdl"]:
+            self.language = "vhdl"
+        else:
+            logger.error(f"Unknown file type {self.src.suffix} for BEL {self.src}")
+            raise ValueError

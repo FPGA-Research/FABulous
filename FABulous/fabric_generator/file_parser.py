@@ -752,6 +752,16 @@ def parseBelFile(
     userClk = False
     individually_declared = False
     noConfigBits = 0
+    belMapDic = {}
+    ports_vectors: dict[str, dict[str, tuple[IO, int]]] = (
+        {}
+    )  # {<porttype>:{porname:(IO, size)}}
+    # define port types
+    ports_vectors["internal"] = {}
+    ports_vectors["external"] = {}
+    ports_vectors["config"] = {}
+    ports_vectors["shared"] = {}
+    module_name = ""
 
     try:
         with open(filename, "r") as f:
@@ -764,6 +774,9 @@ def parseBelFile(
         exit(-1)
 
     if filetype == "vhdl":
+        module_name = (
+            filename.stem
+        )  # FIXME: Temporary, till we have GHDL-Yosys integration
         belMapDic = vhdl_belMapProcessing(file, filename)
         if result := re.search(r"NoConfigBits.*?=.*?(\d+)", file, re.IGNORECASE):
             noConfigBits = int(result.group(1))
@@ -872,6 +885,7 @@ def parseBelFile(
 
         modules = data_dict.get("modules", {})
         filtered_ports: dict[str, tuple[IO, list]] = {}
+
         # Gathers port name and direction, filters out configbits as they show in ports.
         for module_name, module_info in modules.items():
             ports = module_info["ports"]
@@ -898,6 +912,7 @@ def parseBelFile(
         for portName, (direction, bits) in filtered_ports.items():
             netDetails = netnames.get(portName, {})
             attributes = netDetails.get("attributes", {})
+            # Unrolled Ports
             for index in range(len(bits)):
                 new_port_name = (
                     f"{portName}{index}" if len(bits) > 1 else portName
@@ -910,6 +925,16 @@ def parseBelFile(
                     shared.append((new_port_name, direction))
                 else:
                     internal.append((f"{belPrefix}{new_port_name}", direction))
+
+            # Port vectors:
+            if "EXTERNAL" in attributes and "SHARED_PORT" not in attributes:
+                ports_vectors["external"][portName] = (direction, len(bits))
+            elif "CONFIG" in attributes:
+                ports_vectors["config"][portName] = (direction, len(bits))
+            elif "SHARED_PORT" in attributes:
+                ports_vectors["shared"][portName] = (direction, len(bits))
+            else:
+                ports_vectors["internal"][portName] = (direction, len(bits))
 
         belMapDic = verilog_belMapProcessing(module_info)
         if len(belMapDic) != noConfigBits:
@@ -925,6 +950,7 @@ def parseBelFile(
     return Bel(
         src=filename,
         prefix=belPrefix,
+        module_name=module_name,
         internal=internal,
         external=external,
         configPort=config,
@@ -933,6 +959,7 @@ def parseBelFile(
         belMap=belMapDic,
         userCLK=userClk,
         individually_declared=individually_declared,
+        ports_vectors=ports_vectors,
     )
 
 
