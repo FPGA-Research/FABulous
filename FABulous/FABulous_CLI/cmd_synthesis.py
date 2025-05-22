@@ -7,7 +7,7 @@ from loguru import logger
 
 from FABulous.FABulous_CLI.helper import check_if_application_exists
 
-CMD_FABRIC_FLOW = "Fabric Flow"
+CMD_USER_DESIGN_FLOW = "User Design Flow"
 HELP = """
 Runs Yosys using the Nextpnr JSON backend to synthesise the Verilog design
 specified by <files> and generates a Nextpnr-compatible JSON file for the
@@ -231,7 +231,7 @@ synthesis_parser.add_argument(
 )
 
 
-@with_category(CMD_FABRIC_FLOW)
+@with_category(CMD_USER_DESIGN_FLOW)
 @with_argparser(synthesis_parser)
 def do_synthesis(self, args):
     logger.info(
