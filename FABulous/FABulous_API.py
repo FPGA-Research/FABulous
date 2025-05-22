@@ -14,6 +14,7 @@ from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.fabric_generator.fabric_gen import FabricGenerator
 from FABulous.geometry_generator.geometry_gen import GeometryGenerator
+from FABulous.fabric_generator.fabric_gen import generateUserDesignTopWrapper
 
 
 class FABulous_API:
@@ -280,3 +281,15 @@ class FABulous_API:
             SuperTile object based on tile name.
         """
         return self.fabric.superTileDic.values()
+
+    def generateUserDesignTopWrapper(self, userDesign: Path, topWrapper: Path):
+        """Generates the top wrapper for the user design.
+
+        Parameters
+        ----------
+        userDesign : Path
+            Path to the user design file.
+        topWrapper : Path
+            Path to the output top wrapper file.
+        """
+        generateUserDesignTopWrapper(self.fabric, userDesign, topWrapper)

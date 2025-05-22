@@ -243,6 +243,20 @@ class FABulous_CLI(Cmd):
         "file", type=Path, help="Path to the target file", completer=Cmd.path_complete
     )
 
+    userDesignRequireParser = Cmd2ArgumentParser()
+    userDesignRequireParser.add_argument(
+        "user_design",
+        type=Path,
+        help="Path to user design file",
+        completer=Cmd.path_complete,
+    )
+    userDesignRequireParser.add_argument(
+        "user_design_top_wrapper",
+        type=Path,
+        help="Output path for user design top wrapper",
+        completer=Cmd.path_complete,
+    )
+
     tile_list_parser = Cmd2ArgumentParser()
     tile_list_parser.add_argument(
         "tiles",
@@ -922,3 +936,15 @@ class FABulous_CLI(Cmd):
 
         if "exit" in script:
             return True
+
+    @with_category(CMD_USER_DESIGN_FLOW)
+    @with_argparser(userDesignRequireParser)
+    def do_gen_user_design_wrapper(self, args):
+
+        if not self.fabricLoaded:
+            logger.error("Need to load fabric first")
+            return
+
+        self.fabulousAPI.generateUserDesignTopWrapper(
+            args.user_design, args.user_design_top_wrapper
+        )
