@@ -11,6 +11,8 @@ from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.ConfigMem import ConfigMem
 
+from loguru import logger
+
 
 @dataclass
 class Fabric:
@@ -23,9 +25,9 @@ class Fabric:
         The tile map of the fabric
     name : str
         The name of the fabric
-    numberOfRow : int
+    numberOfRows : int
         The number of rows of the fabric
-    numberOfColumn : int
+    numberOfColumns : int
         The number of columns of the fabric
     configMitMode : ConfigBitMode
         The configuration bit mode of the fabric. Currently supports frame based or ff chain
@@ -260,3 +262,32 @@ class Fabric:
         for tile in self.tileDic.values():
             bels.extend(tile.bels)
         return bels
+
+    def getBelsByTileXY(self, x: int, y: int) -> list[Bel]:
+        """Get all the Bels of a tile.
+
+        Parameters
+        ----------
+        x : int
+            The x coordinate of / column the tile.
+        y : int
+            The y coordinate / row of the tile.
+
+        Returns
+        -------
+        list[Bel]
+            A list of Bels in the tile.
+
+        Raises
+        ------
+        ValueError
+            Tile coordinates are out of range.
+        """
+        if x < 0 or x >= self.numberOfColumns or y < 0 or y >= self.numberOfRows:
+            logger.error(
+                f"Invalid tile coordinates: ({x}, {y}) for a Fabric of size ({self.numberOfRows}, {self.numberOfColumns})"
+            )
+            raise ValueError
+        if self.tile[y][x] is None:
+            return []
+        return self.tile[y][x].bels
