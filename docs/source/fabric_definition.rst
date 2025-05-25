@@ -1,3 +1,5 @@
+.. _fabric_definition:
+
 Fabric definition
 =================
 

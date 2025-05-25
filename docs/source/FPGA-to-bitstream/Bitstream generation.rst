@@ -53,6 +53,8 @@ The following command lowers the FASM representation of the placed and routed ``
         (venv)$ bit_gen -genBitstream 16bit_sequential_en.fasm meta_data.txt 16bit_sequential_en_output.bin
 
 
+.. _belmap:
+
 Changes in the primitives or adding new primitives
 --------------------------------------------------
 For a change in the primitives or adding new primitives, you can simply add them within the primitive file. As an

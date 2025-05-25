@@ -35,6 +35,7 @@ Contents
    Usage
    Building fabric
    fabric_definition
+   fabric_automation
    FPGA_CAD-tools/index
    FPGA-to-bitstream/index
    simulation/index

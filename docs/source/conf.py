@@ -70,6 +70,7 @@ html_sidebars = {
     "Usage": [],
     "Building fabric": [],
     "fabric_definition": [],
+    "fabric_automation": [],
     "FPGA_CAD-tools/index": [],
     "gallary/index": [],
     "FPGA-to-bitstream/index": [],
