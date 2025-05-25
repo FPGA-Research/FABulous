@@ -605,12 +605,12 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                             for _, v in parseList(matrixDir, "source").items():
                                 muxSize = len(v)
                                 if muxSize >= 2:
-                                    configBit += muxSize.bit_length() - 1
+                                    configBit += (muxSize - 1).bit_length()
                         case "_matrix.csv":
                             for _, v in parseMatrix(matrixDir, tileName).items():
                                 muxSize = len(v)
                                 if muxSize >= 2:
-                                    configBit += muxSize.bit_length() - 1
+                                    configBit += (muxSize - 1).bit_length()
                         case ".vhdl" | ".v":
                             with open(matrixDir, "r") as f:
                                 f = f.read()
