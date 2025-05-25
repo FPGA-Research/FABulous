@@ -17,6 +17,11 @@ ifeq ($(WAVEFORM_TYPE),fst)
     VVP_ARGS+=-fst
 endif
 
+#only add if custom_prims.v exists
+ifneq ($(wildcard ${USER_DESIGN_DIR}/custom_prims.v),)
+		CUSTOM_PRIMS=-extra-plib ${USER_DESIGN_DIR}/custom_prims.v
+endif
+
 .PHONY: all run_FABulous_demo full build_test_design run_simulation_emulation mkdir_build clean
 
 sim: build_test_design run_simulation clean
@@ -44,7 +49,7 @@ build_demo_fabric: mkdir_build
 	FABulous ${FAB_PROJ_ROOT} -ts ./build_fabulous_fabric.tcl
 
 run_yosys: mkdir_build
-	yosys -p "synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json" ${USER_DESIGN_VERILOG} ${TOP_WRAPPER_VERILOG}
+	yosys -p "synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json ${CUSTOM_PRIMS}" ${USER_DESIGN_VERILOG} ${TOP_WRAPPER_VERILOG}
 
 run_nextpnr: mkdir_build
 	FAB_ROOT=${FAB_PROJ_ROOT} nextpnr-generic --uarch fabulous --json ${BUILD_DIR}/${DESIGN}.json -o fasm=${BUILD_DIR}/${DESIGN}.fasm

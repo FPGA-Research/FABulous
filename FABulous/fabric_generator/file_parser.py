@@ -1547,7 +1547,7 @@ def generateSwitchmatrixList(
 
     primsFile = projdir.joinpath("user_design/custom_prims.v")
     if not primsFile.is_file():
-        logger.warning(f"Creating prims file {primsFile}")
+        logger.info(f"Creating prims file {primsFile}")
         primsFile.touch()
 
     addBelsToPrim(primsFile, bels)
@@ -1558,8 +1558,9 @@ def generateSwitchmatrixList(
 def addBelsToPrim(
     primsFile: Path,
     bels: list[Bel],
+    support_vectors: bool = False,
 ) -> None:
-    """Adds a list of Bels as blackbox primitves to yosys prims file.
+    """Adds a list of Bels as blackbox primitives to yosys prims file.
 
     Parameters
     ----------
@@ -1567,6 +1568,9 @@ def addBelsToPrim(
             Path to yosys prims file
         bels : list[Bel]
             List of bels to add
+        support_vectors : bool
+            Boolean to support vectors for ports in the prims file
+            Default False, since the FABulous nextpn integration does not support vectors
     Raises
     ------
         FileNotFoundError :
@@ -1585,85 +1589,137 @@ def addBelsToPrim(
     # remove all duplicate bels in list.
     bels = list({bel.src: bel for bel in bels}.values())
     logger.info(
-        f"Adding bels {', '.join(bel.name for bel in bels)} to yosys primitves file {primsFile}."
+        f"Adding bels {', '.join(bel.name for bel in bels)} to yosys primitives file {primsFile}."
     )
 
     for bel in bels:
         if bel.filetype != "verilog":
             logger.warning(
-                f"Bel {bel.src} is not a Verilog file, so it can't be added to {primsFile}"
+                f"Bel {bel.src} is not a Verilog file, a generalized verilog description will be added to {primsFile}.",
+                "This is experimental and may not work as expected!",
             )
-            continue
-
-        # need to parse the json file again, since port width is not known in BEL object
-        with open(bel.src.with_suffix(".json"), "r") as f:
-            bel_dict = json.load(f)
-
-        module_ports = bel_dict["modules"][bel.module_name]["ports"]
 
         # check if belis already in prims file or already added to primsAdd
         if bel.module_name not in prims and bel.module_name not in " ".join(primsAdd):
-            # Find all ports with their directions
-
-            # UserCLK needs to be renamed, otherwise yosys can't map the CLK
-            if module_ports["UserCLK"]:
-                module_ports["CLK"] = module_ports["UserCLK"]
-                del module_ports["UserCLK"]
-            # ConfigBits are not needed in the prims file
-            if "ConfigBits" in module_ports.keys():
-                del module_ports["ConfigBits"]
-
-            ports_dict = {}
-            for port_name, details in module_ports.items():
-                if not details["direction"] in ports_dict:
-                    ports_dict[details["direction"]] = []
-                if len(details["bits"]) > 1:
-                    ports_dict[details["direction"]].append(
-                        f"[{len(details['bits']) - 1}:0] {port_name}"
-                    )
-                else:
-                    ports_dict[details["direction"]].append(port_name)
-
             primsAdd.append(
                 f"\n//Warning: The primitive {bel.module_name} was added by FABulous automatically."
             )
-
             primsAdd.append("(* blackbox, keep *)")
 
             # build module sting for prim file
             modline = f"module {bel.module_name} (\n"
-            external_ports = []
-            for external_port in bel.externalInput + bel.externalOutput:
-                external_ports.append(external_port.removeprefix(bel.prefix))
 
-            # build portlist
-            i = 0
-            # calculate number of iertations to determine where we need to add a comma
-            runs = sum(len(ports) for ports in ports_dict.values()) - 1
-            for direction, ports in ports_dict.items():
-                for port in ports:
-                    if port in external_ports:
-                        # add pad attribute to external ports
-                        modline += f"    (* iopad_external_pin *)\n"
+            #check if its first port, to not set a comma before
+            first = True
 
-                    modline += f"    {direction} {port}"
+            shared_ports = [p for p, _ in bel.sharedPort]
 
-                    if i < runs:
-                        # only add comma if not last port
+            # external ports contain the bel prefix, but this is not needed in the prims file
+            external_inputs: list[str] = []
+            external_outputs: list[str] = []
+            for external_port in bel.externalInput:
+                external_inputs.append(external_port.removeprefix(bel.prefix))
+            for external_port in bel.externalOutput:
+                external_outputs.append(external_port.removeprefix(bel.prefix))
+            external_ports = external_inputs + external_outputs
+
+            if support_vectors:
+                # Find all ports with their directions
+                #need to parse the json file again, since port width is not known in BEL object
+                with open(bel.src.with_suffix(".json"), "r") as f:
+                    bel_dict = json.load(f)
+                module_ports = bel_dict["modules"][bel.module_name]["ports"]
+
+                # UserCLK needs to be renamed, otherwise yosys can't map the CLK
+                if module_ports["UserCLK"]:
+                    module_ports["CLK"] = module_ports["UserCLK"]
+                    del module_ports["UserCLK"]
+                # ConfigBits are not needed in the prims file
+                if "ConfigBits" in module_ports.keys():
+                    del module_ports["ConfigBits"]
+
+                ports_dict = {}
+                for port_name, details in module_ports.items():
+                    if not details["direction"] in ports_dict:
+                        ports_dict[details["direction"]] = []
+                    if len(details["bits"]) > 1:
+                        ports_dict[details["direction"]].append(
+                            f"[{len(details['bits']) - 1}:0] {port_name}"
+                        )
+                    else:
+                        ports_dict[details["direction"]].append(port_name)
+
+                #build portlist
+                for direction, ports in ports_dict.items():
+                    if not first:
                         modline += ",\n"
-                    i += 1
+                    else:
+                        first = False
+                    for port in ports:
+                        if port in external_ports:
+                            # add pad attribute to external ports
+                            modline += "    (* iopad_external_pin *)\n"
+                        if port in shared_ports:
+                            # Rename UserCLK to CLK
+                            # Otherwise Yosys can't map the CLK
+                            if port == "UserCLK":
+                                port = "CLK"
+                        modline += f"    {direction} {port}"
+            else:  # No vector support
+                ports =  bel.inputs + bel.outputs + external_ports + shared_ports
+
+                for port in ports:
+                    if not first:
+                        modline += ",\n"
+                    else:
+                        first = False
+                    if port in bel.inputs:
+                        modline += f"    input {port}"
+                    if port in bel.outputs:
+                        modline += f"    output {port}"
+                    if port in external_ports:
+                        modline += "    (* iopad_external_pin *)\n"
+                        if port in external_inputs:
+                            modline += f"    input {port}"
+                        else:
+                            modline += f"    output {port}"
+
+                    if port in shared_ports:
+                        direction = dict(bel.sharedPort)[port]
+                        if port == "UserCLK":
+                            # Rename UserCLK to CLK
+                            # Otherwise Yosys can't map the CLK
+                            port = "CLK"
+                        modline += f"    {str(direction.value).lower()} {port}"
 
             modline += "\n);"
+
+            belparams: dict[str, int] = {}
+            for parameter in bel.belFeatureMap:
+                parameter = parameter.split("[")[0]
+                if parameter not in belparams:
+                    belparams[parameter] = 0
+                else:
+                    belparams[parameter] += 1
+            for param in belparams:
+                if belparams[param] > 1:
+                    modline += f"\n    parameter [{belparams[param]}:0] {param} = 0;"
+                else:
+                    modline += f"\n    parameter {param} = 0;"
+
             modline += "\nendmodule\n"
             primsAdd.append(modline)
 
-            logger.debug(
-                f"{bel.module_name} added to yosys primitves file {primsFile}."
+            logger.info(
+                f"{bel.module_name} added to yosys primitives file {primsFile}."
             )
         elif bel.module_name in prims:
-            logger.debug(
+            logger.info(
                 f"{bel.module_name} already in yosys primitives file {primsFile}."
             )
+        else:
+            # Module already in list
+            continue
 
     # write to prims file, line by line
     with open(primsFile, "a") as f:

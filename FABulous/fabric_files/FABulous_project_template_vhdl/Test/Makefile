@@ -14,6 +14,11 @@ FAB_FABRIC_FOLDER=${FAB_PROJ_ROOT}/Fabric
 GHDL=ghdl
 GHDL_FLAGS=--std=08 -O2 --workdir=${BUILD_DIR}
 
+#only add if custom_prims.v exists
+ifneq ($(wildcard ${USER_DESIGN_DIR}/custom_prims.v),)
+		CUSTOM_PRIMS=-extra-plib ${USER_DESIGN_DIR}/custom_prims.v;
+endif
+
 .PHONY: all run_FABulous_demo full build_test_design run_simulation mkdir_build clean
 
 sim: build_test_design run_simulation clean
@@ -27,7 +32,7 @@ run_FABulous_demo:
 	FABulous ${FAB_PROJ_ROOT} -fs ${FAB_PROJ_ROOT}/FABulous.tcl
 
 run_yosys: mkdir_build
-	yosys -m ghdl -p "ghdl ${USER_DESIGN_VHDL} -e ${DESIGN}; read_verilog ${TOP_WRAPPER_VERILOG}; synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json;"
+	yosys -m ghdl -p "ghdl ${USER_DESIGN_VHDL} -e ${DESIGN}; read_verilog ${TOP_WRAPPER_VERILOG}; synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json; ${CUSTOM_PRIMS}"
 
 run_nextpnr: mkdir_build
 	FAB_ROOT=${FAB_PROJ_ROOT} nextpnr-generic --uarch fabulous --json ${BUILD_DIR}/${DESIGN}.json -o fasm=${BUILD_DIR}/${DESIGN}.fasm
