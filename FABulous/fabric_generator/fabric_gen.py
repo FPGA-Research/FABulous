@@ -472,7 +472,7 @@ class FabricGenerator:
         """
 
         # convert the matrix to a dictionary map and performs entry check
-        connections: Dict[str, List[str]] = {}
+        connections: dict[str, list[str]] = {}
         if tile.matrixDir.suffix == ".csv":
             connections = parseMatrix(tile.matrixDir, tile.name)
         elif tile.matrixDir.suffix == ".list":
@@ -2909,33 +2909,38 @@ def generate_custom_tile_config(tile_path: Path) -> Path:
             continue
 
         if file.suffix.lower() in [".vhdl", ".vhd", ".v", ".sv"]:
-            logger.info(f"Found BEL file {file} for custom bel {tile_name}")
+            logger.info(f"Found BEL file {file} for custom tile {tile_name}")
             tile_bels.append(file)
 
         elif file.suffix.lower() == ".csv":
             logger.warning(
-                f"Found tile config CSV file {file} for custom bel {tile_name}, nothing to do here."
+                f"Found tile config CSV file {file} for custom tile {tile_name}, nothing to do here."
             )
             return file
         elif file.suffix.lower() == ".list":
             tile_switchmatrix = file
             logger.warning(
-                f"Found tile tile_switchmatrix list file {file} for custom bel {tile_name}, no switchmatrix list file will be generated."
+                f"Found tile tile_switchmatrix list file {file} for custom tile {tile_name}, no switchmatrix list file will be generated."
             )
         else:
             logger.warning(
                 f"File {file} in custom tile {tile_name} is not a valid config or bel file."
             )
 
+    has_reset = False
+    has_enable = False
     for file in tile_bels:
         if file.suffix.lower() in [".v", ".sv"]:
             bel = parseBelFile(file, "", "verilog")
         else:
             bel = parseBelFile(file, "", "vhdl")
+        if "RESET" in bel.localShared.keys():
+            has_reset = True
+        if "ENABLE" in bel.localShared.keys():
+            has_enable = True
         for carry in bel.carry:
             if carry not in tile_carrys:
                 tile_carrys.append(carry)
-
     # Create tile config CSV file
     logger.info(f"Creating tile config CSV file {tile_csv}")
     tile_csv.touch()
@@ -2944,6 +2949,10 @@ def generate_custom_tile_config(tile_path: Path) -> Path:
     csv_out.append(f"INCLUDE,./../include/Base.csv")
     for i, carry in enumerate(tile_carrys):
         csv_out.append(f'NORTH,Co{i},0,-1,Ci{i},1,CARRY="{carry}"')
+    if has_reset:
+        csv_out.append("JUMP,J_SRST_BEG,0,0,J_SRST_END,1,SHARED_RESET")
+    if has_enable:
+        csv_out.append("JUMP,J_SEN_BEG,0,0,J_SEN_END,1,SHARED_ENABLE")
     for bel in tile_bels:
         csv_out.append(f"BEL,./{bel.relative_to(tile_path)}")
     if tile_switchmatrix.exists():

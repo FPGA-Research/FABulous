@@ -498,6 +498,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
         configBit = 0
         genMatrixList = False
         tileCarry: dict[str, dict[IO, str]] = {}
+        localSharedPorts: dict[str, list[Port]] = {}
 
         for item in t:
             temp: list[str] = item.split(",")
@@ -521,6 +522,29 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         raise ValueError(
                             f"There is already a carrychain with the prefix {carryPrefix}"
                         )
+                if "SHARED_" in temp[6]:
+                    if "JUMP" not in temp[0]:
+                        logger.error(
+                            "LOCAL SHARED_ Ports can only be used with JUMP ports."
+                        )
+                        raise ValueError
+                    localShared = temp[6].split("_")[1]
+                    if localShared is None or localShared == "":
+                        logger.error("SHARED_ cannot be empty.")
+                        raise ValueError
+                    if localShared not in ["RESET", "ENABLE"]:
+                        logger.error(
+                            f"LOCAL SHARED_ port {localShared} is not supported. Only SHARED_RESET and SHARED_ENABLE are supported."
+                        )
+                        raise ValueError
+                    if localShared not in localSharedPorts:
+                        localSharedPorts[localShared] = port
+                    else:
+                        logger.error(
+                            f"LOCAL SHARED_ port {localShared} already exists."
+                        )
+                        raise ValueError
+
                 ports.extend(port)
                 if commonWirePair:
                     commonWirePairs.append(commonWirePair)
@@ -624,11 +648,17 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
             else:
                 logger.error(f"Unknown tile description {temp[0]} in tile {t}.")
                 raise ValueError
+
             withUserCLK = any(bel.withUserCLK for bel in bels)
+
             if genMatrixList:
-                configBit += generateSwitchmatrixList(
-                    tileName, bels, matrixDir, tileCarry
+                generateSwitchmatrixList(
+                    tileName, bels, matrixDir, tileCarry, localSharedPorts
                 )
+                for _, v in parseList(matrixDir, "source").items():
+                    muxSize = len(v)
+                    if muxSize >= 2:
+                        configBit += (muxSize - 1).bit_length()
 
             new_tiles.append(
                 Tile(
@@ -749,6 +779,8 @@ def parseBelFile(
     * **SHARED_PORT**
     * **GLOBAL**
     * **CONFIG_PORT**
+    * **SHARED_ENABLE**
+    * **SHARED_RESET**
 
     The **BelMap** attribute will specify the bel mapping for the bel. This attribute should be placed before the start of
     the module The bel mapping is then used for generating the bitstream specification. Each of the entry in the attribute will have the following format::
@@ -822,6 +854,7 @@ def parseBelFile(
     external: list[tuple[str, IO]] = []
     config: list[tuple[str, IO]] = []
     shared: list[tuple[str, IO]] = []
+    localSharedPorts: dict[str, tuple[str, IO]] = {}
     belMapDic = {}
     carry: dict[str, dict[IO, str]] = {}
     carryPrefix: str = ""
@@ -928,6 +961,17 @@ def parseBelFile(
                         carryPrefix = "FABulous_default"
                     else:
                         carryPrefix = carryPrefix.group(1)
+                if "SHARED_ENABLE" in line or "SHARED_RESET" in line:
+                    if direction is not IO["INPUT"]:
+                        logger.error(
+                            "SHARED_ENABLE or SHARED_RESET can only be used with INPUT ports."
+                        )
+                        raise ValueError
+                    if "SHARED_ENABLE" in line:
+                        localSharedPorts["ENABLE"] = (portName, direction)
+                    elif "SHARED_RESET" in line:
+                        localSharedPorts["RESET"] = (portName, direction)
+
                 if "GLOBAL" in line:
                     break
 
@@ -1036,6 +1080,24 @@ def parseBelFile(
                     shared.append((new_port_name, direction))
                 else:
                     internal.append((f"{belPrefix}{new_port_name}", direction))
+
+                if "SHARED_ENABLE" in attributes or "SHARED_RESET" in attributes:
+                    if direction is not IO["INPUT"]:
+                        logger.error(
+                            "SHARED_ENABLE or SHARED_RESET can only be used with INPUT ports."
+                        )
+                        raise ValueError
+                    if "SHARED_ENABLE" in attributes:
+                        localSharedPorts["ENABLE"] = (
+                            f"{belPrefix}{new_port_name}",
+                            direction,
+                        )
+                    elif "SHARED_RESET" in attributes:
+                        localSharedPorts["RESET"] = (
+                            f"{belPrefix}{new_port_name}",
+                            direction,
+                        )
+
                 if "CARRY" in attributes:
                     # For prefix after carry
                     carryPrefix = attributes.get("CARRY")
@@ -1049,9 +1111,7 @@ def parseBelFile(
                     if carryPrefix not in carry:
                         carry[carryPrefix] = {}
                     if direction not in carry[carryPrefix]:
-                        carry[carryPrefix][
-                            direction
-                        ] = f"{belPrefix}{new_port_name}"
+                        carry[carryPrefix][direction] = f"{belPrefix}{new_port_name}"
                     else:
                         raise ValueError(
                             f"Port {portName} with prefix {carryPrefix} can't be a carry {direction}, \
@@ -1094,6 +1154,7 @@ def parseBelFile(
         individually_declared=individually_declared,
         ports_vectors=ports_vectors,
         carry=carry,
+        localShared=localSharedPorts,
     )
 
 
@@ -1379,14 +1440,15 @@ def generateSwitchmatrixList(
     bels: list[Bel],
     outFile: Path,
     carryportsTile: dict[str, dict[IO, str]],
-) -> int:
+    localSharedPortsTile: dict[str, list[Port]],
+):
     """Generate a switchmatrix list file for a given tile ans its bels. This list File
     is based on a dummy list file from CLB_DUMMY and is based on the LUT4AB switchtmatix
     list file. It is also possible to automatically generate connections for carry
     chains between the bels.
 
-     Parameters
-     ----------
+    Parameters
+    ----------
          tileName :str
              Name of the tile
          bels : list[Bel]
@@ -1395,14 +1457,11 @@ def generateSwitchmatrixList(
              Path to the switchmatrix list file output
          carryportsTile : dict[str, dict[IO, str]]
              Dictionary of carry ports for the tile
+         localSharedPortsTile : dicst[str, list[Port]]
+            list of local shared ports for the tile, based on JUMP wire definitions
 
-    Returns
-     -------
-         int
-             Number of configuration bits used for the switchmatrix
-
-     Raises
-     ------
+    Raises
+    ------
          ValueError
              Bels have more than 32 Bel inputs.
          ValueError
@@ -1422,6 +1481,7 @@ def generateSwitchmatrixList(
     belOuts = sum((bel.outputs for bel in bels), [])
     belCarrys = [bel.carry for bel in bels]
     portPairs = parseList(CLBDummyFile)
+    belLocalSharedPorts = [bel.localShared for bel in bels]
 
     # build carryports datastructure and
     # remove carrys from bel ports for further processing
@@ -1436,6 +1496,14 @@ def generateSwitchmatrixList(
             belIns.remove(carrys[prefix][IO.INPUT])
             carryports[prefix][IO.OUTPUT].append(carrys[prefix][IO.OUTPUT])
             belOuts.remove(carrys[prefix][IO.OUTPUT])
+
+    # Remove local shared ports from bel ports for further processing
+    for bel in belLocalSharedPorts:
+        for type in bel:
+            if bel[type][0] in belIns:
+                belIns.remove(bel[type][0])
+            if bel[type][0] in belOuts:
+                belOuts.remove(bel[type][0])
 
     if len(belIns) > 32:
         raise ValueError(
@@ -1471,29 +1539,31 @@ def generateSwitchmatrixList(
 
         if source not in connections:
             connections[source] = []
-
-        # copy the dict, since we need only want to update the connection count, if we found a sink
-        sinks_num_run = sinks_num.copy()
-        if "CLB" in sink:
-            # replace sink with the sink with the lowest connection count and check if it's already connected
-            while True:
-                sink = min(sinks_num_run, key=sinks_num_run.get)
-                sinks_num_run[sink] = sinks_num_run[sink] + 1
-                if sink not in connections[source]:
-                    # update the real connection count, if we found a sink
-                    sinks_num[sink] = sinks_num[sink] + 1
-                    break
-
         connections[source].append(sink)
 
+    for source in connections:
+        # copy the dict, since we need only want to update the connection count, if we found a sink
+        for i, sink in enumerate(connections[source]):
+            if "CLB" in sink:
+                sinks_num_run = sinks_num.copy()
+                # replace sink with the sink with the lowest connection count and check if it's already connected
+                while True:
+                    sink = min(sinks_num_run, key=sinks_num_run.get)
+                    sinks_num_run[sink] = sinks_num_run[sink] + 1
+                    if sink not in connections[source]:
+                        # update the real connection count, if we found a sink
+                        sinks_num[sink] = sinks_num[sink] + 1
+                        break
+                # update dict
+                connections[source][i] = sink
+
     # generate listfile strings
-    configBit = 0
     listfile = []
     listfile.append("# --------------WARNING-----------------")
-    listfile.append("# This is a generated listfile!")
+    listfile.append("# This is a generated list file!")
     listfile.append("# Your changes will be overwritten!")
     listfile.append("# If you want to keep your changes,")
-    listfile.append("# please make a copy of this file and edit your fabric.csv.")
+    listfile.append("# please make a copy of this file and edit your tile csv.")
     listfile.append("# --------------WARNING-----------------")
 
     for source, sinks in connections.items():
@@ -1507,14 +1577,11 @@ def generateSwitchmatrixList(
         if muxsize == 1:
             listfile.append(f"{source},{sinks[0]}")
         else:  # generate a line for listfile
-            configBit += muxsize.bit_length() - 1
-            ltmp = f"[{source}"
             rtmp = f"[{sinks[0]}"
             for sink in sinks[1:]:
-                ltmp += f"|{source}"
                 rtmp += f"|{sink}"
             rtmp += "]"
-            ltmp += "]"
+            ltmp = f"{{{len(sinks)}}}{source}"
             listfile.append(f"{ltmp},{rtmp}")
 
     if carryports and carryportsTile:
@@ -1529,17 +1596,42 @@ def generateSwitchmatrixList(
             if len(carryports[prefix][IO.INPUT]) is not len(
                 carryports[prefix][IO.OUTPUT]
             ):
-                raise ValueError(
-                    f"Carryports missmatch! \
-                                 There are {len(carryports[prefix][IO.INPUT])} INPUTS \
-                                 and {len(carryports[prefix][IO.OUTPUT])} outputs!"
+                logger.error(
+                    f"Carryports mismatch! There are {len(carryports[prefix][IO.INPUT])} INPUTS and {len(carryports[prefix][IO.OUTPUT])} outputs!"
                 )
+                raise ValueError()
 
-            listfile.append("# Connect carrychain")
+            listfile.append(f"# Connect carry chain {prefix}")
             for cin, cout in zip(
                 carryports[prefix][IO.INPUT], carryports[prefix][IO.OUTPUT]
             ):
                 listfile.append(f"{cin},{cout}")
+
+    # connecting SHARED_ENABLE and SHARED_RESET
+    if "RESET" in localSharedPortsTile:
+        sharedResetTile = localSharedPortsTile["RESET"]
+        listfile.append("# Connect shared reset")
+        # values taken from LUT4AB switchmatrix list, added VDD and GND0
+        listfile.append(
+            f"{{8}}{sharedResetTile[0].name}0,[J2MID_ABb_END0|J2MID_CDb_END0|J2MID_EFb_END0|J2MID_GHa_END0|JN2END1|JE2END1|JS2END1|JW2END1]"
+        )
+        for belport in belLocalSharedPorts:
+            if bel_reset := belport["RESET"]:
+                listfile.append(
+                    f"{{2}}{bel_reset[0]},[{sharedResetTile[1].name}0|GND0]"
+                )
+    if "ENABLE" in localSharedPortsTile:
+        sharedResetTile = localSharedPortsTile["ENABLE"]
+        listfile.append("# Connect shared enable")
+        # values taken from LUT4AB switchmatrix list, added VDD and GND0
+        listfile.append(
+            f"{{8}}{sharedResetTile[0].name}0,[J2MID_ABb_END3|J2MID_CDb_END3|J2MID_EFb_END3|J2MID_GHa_END3|JN2END2|JE2END2|JS2END2|JW2END2]"
+        )
+        for belport in belLocalSharedPorts:
+            if bel_enable := belport["ENABLE"]:
+                listfile.append(
+                    f"{{2}}{bel_enable[0]},[{sharedResetTile[1].name}0|VCC0]"
+                )
 
     f = open(outFile, "w")
     f.write("\n".join(str(line) for line in listfile))
@@ -1551,8 +1643,6 @@ def generateSwitchmatrixList(
         primsFile.touch()
 
     addBelsToPrim(primsFile, bels)
-
-    return configBit
 
 
 def addBelsToPrim(
@@ -1609,7 +1699,7 @@ def addBelsToPrim(
             # build module sting for prim file
             modline = f"module {bel.module_name} (\n"
 
-            #check if its first port, to not set a comma before
+            # check if its first port, to not set a comma before
             first = True
 
             shared_ports = [p for p, _ in bel.sharedPort]
@@ -1625,7 +1715,7 @@ def addBelsToPrim(
 
             if support_vectors:
                 # Find all ports with their directions
-                #need to parse the json file again, since port width is not known in BEL object
+                # need to parse the json file again, since port width is not known in BEL object
                 with open(bel.src.with_suffix(".json"), "r") as f:
                     bel_dict = json.load(f)
                 module_ports = bel_dict["modules"][bel.module_name]["ports"]
@@ -1649,7 +1739,7 @@ def addBelsToPrim(
                     else:
                         ports_dict[details["direction"]].append(port_name)
 
-                #build portlist
+                # build portlist
                 for direction, ports in ports_dict.items():
                     if not first:
                         modline += ",\n"
@@ -1666,7 +1756,7 @@ def addBelsToPrim(
                                 port = "CLK"
                         modline += f"    {direction} {port}"
             else:  # No vector support
-                ports =  bel.inputs + bel.outputs + external_ports + shared_ports
+                ports = bel.inputs + bel.outputs + external_ports + shared_ports
 
                 for port in ports:
                     if not first:
