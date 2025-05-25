@@ -38,7 +38,7 @@ from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.FABulous_API import FABulous_API
 from FABulous.FABulous_CLI import cmd_synthesis
-from FABulous.fabric_generator.fabric_gen import generate_custom_tile_config
+from FABulous.fabric_generator.fabric_automation import generateCustomTileConfig
 from FABulous.FABulous_CLI.helper import (
     allow_blank,
     check_if_application_exists,
@@ -1026,8 +1026,7 @@ class FABulous_CLI(Cmd):
             logger.error(f"{args.tile_path} is not a directory or does not exist")
             return
 
-        tile_csv = generate_custom_tile_config(args.tile_path)
+        tile_csv = generateCustomTileConfig(args.tile_path)
 
         if not args.no_switch_matrix:
             parseTiles(tile_csv)
-
