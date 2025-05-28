@@ -241,13 +241,14 @@ def do_synthesis(self, args):
     p: Path
     paths: list[Path] = []
     for p in args.files:
+        if not p.is_absolute():
+            p = self.projectDir / p
         resolvePath: Path = p.absolute()
         if resolvePath.exists():
             paths.append(resolvePath)
         else:
             logger.error(f"{resolvePath} does not exists")
             return
-
     json_file = paths[0].with_suffix(".json")
     yosys = check_if_application_exists(os.getenv("FAB_YOSYS_PATH", "yosys"))
 

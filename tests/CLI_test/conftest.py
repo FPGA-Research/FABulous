@@ -1,10 +1,8 @@
 import os
-import sys
 from pathlib import Path
 
 import pytest
 from _pytest.logging import LogCaptureFixture
-from cmd2.utils import StdSim
 from loguru import logger
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
@@ -27,6 +25,13 @@ def run_cmd(app, cmd):
     app.onecmd_plus_hooks(cmd)
 
 
+def normalize_and_check_for_errors(caplog_text: str):
+    """Normalize a block of text and check for errors."""
+    log = normalize(caplog_text)
+    assert not any("ERROR" in line for line in log), "Error found in log messages"
+    return log
+
+
 TILE = "LUT4AB"
 
 os.environ["FAB_ROOT"] = str(Path(__file__).resolve().parent.parent.parent / "FABulous")
@@ -39,9 +44,7 @@ def cli(tmp_path):
     os.environ["FAB_ROOT"] = fabulousRoot
     create_project(projectDir)
     setup_logger(0)
-    cli = FABulous_CLI(
-        writerType="verilog", projectDir=projectDir, enteringDir=tmp_path
-    )
+    cli = FABulous_CLI(writerType="verilog", projectDir=projectDir, enteringDir=tmp_path)
     run_cmd(cli, "load_fabric")
     return cli
 

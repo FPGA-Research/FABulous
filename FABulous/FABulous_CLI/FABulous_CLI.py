@@ -730,6 +730,7 @@ class FABulous_CLI(Cmd):
                     "--log",
                     f"{self.projectDir}/{parent}/{log_file}",
                 ]
+                logger.debug(f"Running command: {' '.join(runCmd)}")
                 try:
                     sp.run(
                         " ".join(runCmd),
