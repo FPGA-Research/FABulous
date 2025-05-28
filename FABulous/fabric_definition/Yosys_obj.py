@@ -23,7 +23,9 @@ class YosysCellDetails:
     parameters: dict[str, str]
     attributes: dict[str, str | int]
     connections: dict[str, BitVector]
-    port_directions: dict[str, Literal["input", "output", "inout"]] = field(default_factory=dict)
+    port_directions: dict[str, Literal["input", "output", "inout"]] = field(
+        default_factory=dict
+    )
     model: str = ""
 
 
