@@ -115,8 +115,6 @@ class FABulous_CLI(Cmd):
         writerType: str | None,
         projectDir: Path,
         enteringDir: Path,
-        FABulousScript: Path = Path(),
-        TCLScript: Path = Path(),
         force: bool = False,
     ):
         """Initialises the FABulous shell instance.
@@ -136,7 +134,6 @@ class FABulous_CLI(Cmd):
         super().__init__(
             persistent_history_file=f"{os.getenv('FAB_PROJ_DIR')}/{META_DATA_DIR}/.fabulous_history",
             allow_cli_args=False,
-            startup_script=str(FABulousScript) if not FABulousScript.is_dir() else "",
         )
         self.enteringDir = enteringDir
 
@@ -211,22 +208,6 @@ class FABulous_CLI(Cmd):
         self.disable_category(
             CMD_HELPER, "Helper commands are disabled until fabric is loaded"
         )
-
-        if not TCLScript.is_dir() and TCLScript.exists():
-            self._startup_commands.append(f"run_tcl {Path(TCLScript).absolute()}")
-            self._startup_commands.append("exit")
-        elif not TCLScript.is_dir() and not TCLScript.exists():
-            logger.error(f"Cannot find {TCLScript}")
-            exit(1)
-
-        if not FABulousScript.is_dir() and FABulousScript.exists():
-            self._startup_commands.append(
-                f"run_script {Path(FABulousScript).absolute()}"
-            )
-            self._startup_commands.append("exit")
-        elif not FABulousScript.is_dir() and not FABulousScript.exists():
-            logger.error(f"Cannot find {FABulousScript}")
-            exit(1)
 
     def onecmd(self, *arg, **kwargs):
         """Override the onecmd method to handle exceptions."""
@@ -637,7 +618,6 @@ class FABulous_CLI(Cmd):
         logger.info("Top wrapper generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    @allow_blank
     def do_run_FABulous_fabric(self, *ignored):
         """Generates the fabric based on the CSV file, creates bitstream specification
         of the fabric, top wrapper of the fabric, Nextpnr model of the fabric and
@@ -646,11 +626,11 @@ class FABulous_CLI(Cmd):
         Does this by calling the respective functions 'do_gen_[function]'.
         """
         logger.info("Running FABulous")
-        self.do_gen_fabric()
-        self.do_gen_bitStream_spec()
-        self.do_gen_top_wrapper()
-        self.do_gen_model_npnr()
-        self.do_gen_geometry()
+        self.onecmd_plus_hooks("gen_fabric")
+        self.onecmd_plus_hooks("gen_bitStream_spec")
+        self.onecmd_plus_hooks("gen_top_wrapper")
+        self.onecmd_plus_hooks("gen_model_npnr")
+        self.onecmd_plus_hooks("gen_geometry")
         logger.info("FABulous fabric flow complete")
         return
 
@@ -970,9 +950,9 @@ class FABulous_CLI(Cmd):
         else:
             logger.info("No external primsLib found.")
 
-        self.do_synthesis(do_synth_args)
-        self.do_place_and_route(str(json_file_path))
-        self.do_gen_bitStream_binary(str(fasm_file_path))
+        self.onecmd_plus_hooks(f"synthesis {do_synth_args}")
+        self.onecmd_plus_hooks(f"place_and_route {json_file_path}")
+        self.onecmd_plus_hooks(f"gen_bitStream_binary {fasm_file_path}")
 
     @with_category(CMD_SCRIPT)
     @with_argparser(filePathRequireParser)

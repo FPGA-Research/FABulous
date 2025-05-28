@@ -50,6 +50,8 @@ def main():
         description="The command line interface for FABulous"
     )
 
+    script_group = parser.add_mutually_exclusive_group()
+
     parser.add_argument(
         "project_dir",
         help="The directory to the project folder",
@@ -63,7 +65,7 @@ def main():
         help="Create a new project",
     )
 
-    parser.add_argument(
+    script_group.add_argument(
         "-fs",
         "--FABulousScript",
         default="",
@@ -71,13 +73,20 @@ def main():
         "This will automatically exit the CLI once the command finish execution, and the exit will always happen gracefully.",
         type=Path,
     )
-    parser.add_argument(
+
+    script_group.add_argument(
         "-ts",
         "--TCLScript",
         default="",
         help="Run FABulous with a TCL script. A TCL script is a text file containing a mix of TCL commands and FABulous commands."
         "This will automatically exit the CLI once the command finish execution, and the exit will always happen gracefully.",
         type=Path,
+    )
+
+    script_group.add_argument(
+        "-p",
+        "--commands",
+        help="execute <commands> (to chain commands, separate them with semicolon + whitespace: 'cmd1; cmd2')",
     )
 
     parser.add_argument(
@@ -186,29 +195,45 @@ def main():
             os.getenv("FAB_PROJ_LANG"),
             projectDir,
             Path().cwd(),
-            FABulousScript=args.FABulousScript,
-            TCLScript=args.TCLScript,
             force=args.force,
         )
         fab_CLI.debug = args.debug
 
-        if args.verbose == 2:
-            fab_CLI.verbose = True
-        if args.metaDataDir:
-            if Path(args.metaDataDir).exists():
-                metaDataDir = args.metaDataDir
-
-        if args.log:
-            with open(args.log, "w") as log:
-                with redirect_stdout(log):
-                    logger.info("Logging to file: " + args.log)
-                    logger.info(f"Setting current working directory to: {projectDir}")
-                    os.chdir(projectDir)
-                    fab_CLI.cmdloop()
+        if commands := args.commands:
+            commands = commands.split("; ")
+            for c in commands:
+                if fab_CLI.onecmd_plus_hooks(c):
+                    exit(1)
+            else:
+                logger.info(
+                    f'Commands "{'; '.join(i.strip() for i in commands)}" executed successfully'
+                )
+                exit(0)
+        elif args.FABulousScript != Path(""):
+            if fab_CLI.onecmd_plus_hooks(f"run_script {args.FABulousScript}"):
+                exit(1)
+            else:
+                logger.info(
+                    f"FABulous script {args.FABulousScript} executed successfully"
+                )
+                exit(0)
+        elif args.TCLScript != Path(""):
+            if fab_CLI.onecmd_plus_hooks(f"run_script {args.TCLScript}"):
+                exit(1)
+            else:
+                logger.info(f"TCL script {args.TCLScript} executed successfully")
+                exit(0)
         else:
-            logger.info(f"Setting current working directory to: {projectDir}")
-            os.chdir(projectDir)
-            fab_CLI.cmdloop()
+            if args.verbose == 2:
+                fab_CLI.verbose = True
+
+            if args.log:
+                with open(args.log, "w") as log:
+                    with redirect_stdout(log):
+                        fab_CLI.cmdloop()
+            else:
+                exit_code = fab_CLI.cmdloop()
+                exit(exit_code)
 
 
 if __name__ == "__main__":
