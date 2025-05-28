@@ -241,6 +241,8 @@ def do_synthesis(self, args):
     p: Path
     paths: list[Path] = []
     for p in args.files:
+        if not p.is_absolute():
+            p = self.projectDir / p
         resolvePath: Path = p.absolute()
         if resolvePath.exists():
             paths.append(resolvePath)

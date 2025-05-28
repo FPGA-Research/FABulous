@@ -1,0 +1,13 @@
+name: Test CLI with pytest
+
+on: [push, pull_request]
+
+
+jobs:
+  run_pytest_CLI:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/prepare_FABulous_container
+      - name: Run pytest for FABulous CLI
+        run: pytest -v
