@@ -23,6 +23,7 @@ import subprocess as sp
 import sys
 import tkinter as tk
 from pathlib import Path
+import traceback
 
 from cmd2 import (
     Cmd,
@@ -107,6 +108,7 @@ class FABulous_CLI(Cmd):
     csvFile: Path
     extension: str = "v"
     script: str = ""
+    force: bool = False
 
     def __init__(
         self,
@@ -115,6 +117,7 @@ class FABulous_CLI(Cmd):
         enteringDir: Path,
         FABulousScript: Path = Path(),
         TCLScript: Path = Path(),
+        force: bool = False,
     ):
         """Initialises the FABulous shell instance.
 
@@ -163,6 +166,9 @@ class FABulous_CLI(Cmd):
 
         self.verbose = False
         self.add_settable(Settable("verbose", bool, "verbose output", self))
+
+        self.force = force
+        self.add_settable(Settable("force", bool, "force execution", self))
 
         if isinstance(self.fabulousAPI.writer, VHDLWriter):
             self.extension = "vhdl"
@@ -221,6 +227,15 @@ class FABulous_CLI(Cmd):
         elif not FABulousScript.is_dir() and not FABulousScript.exists():
             logger.error(f"Cannot find {FABulousScript}")
             exit(1)
+
+    def onecmd(self, *arg, **kwargs):
+        """Override the onecmd method to handle exceptions."""
+        try:
+            return super().onecmd(*arg, **kwargs)
+        except Exception:
+            logger.debug(traceback.format_exc())
+            self.exit_code = 1
+            return not self.force
 
     def do_exit(self, *ignored):
         """Exits the FABulous shell and logs info message."""

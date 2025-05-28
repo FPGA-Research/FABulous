@@ -138,11 +138,17 @@ def main():
         default=False,
     )
 
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force the command to run and ignore any errors",
+    )
+
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 
     args = parser.parse_args()
 
-    setup_logger(args.verbose)
+    setup_logger(args.verbose, args.debug)
 
     setup_global_env_vars(args)
 
@@ -182,6 +188,7 @@ def main():
             Path().cwd(),
             FABulousScript=args.FABulousScript,
             TCLScript=args.TCLScript,
+            force=args.force,
         )
         fab_CLI.debug = args.debug
 

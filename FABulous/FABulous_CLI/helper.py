@@ -16,7 +16,7 @@ from loguru import logger
 MAX_BITBYTES = 16384
 
 
-def setup_logger(verbosity: int):
+def setup_logger(verbosity: int, debug: bool):
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 
@@ -32,7 +32,10 @@ def setup_logger(verbosity: int):
         log_format = "<level>{level:}</level> | <level>{message}</level>"
 
     # Add logger to write logs to stdout
-    logger.add(sys.stdout, format=log_format, level="DEBUG", colorize=True)
+    if debug:
+        logger.add(sys.stdout, format=log_format, level="DEBUG", colorize=True)
+    else:
+        logger.add(sys.stdout, format=log_format, level="INFO", colorize=True)
 
 
 def setup_global_env_vars(args: argparse.Namespace) -> None:
