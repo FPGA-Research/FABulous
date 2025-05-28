@@ -949,7 +949,6 @@ class FABulous_CLI(Cmd):
             do_synth_args += f" -extra-plib {primsLib}"
         else:
             logger.info("No external primsLib found.")
-
         self.onecmd_plus_hooks(f"synthesis {do_synth_args}")
         self.onecmd_plus_hooks(f"place_and_route {json_file_path}")
         self.onecmd_plus_hooks(f"gen_bitStream_binary {fasm_file_path}")

@@ -190,7 +190,6 @@ def main():
         exit(1)
     else:
         setup_project_env_vars(args)
-
         fab_CLI = FABulous_CLI(
             os.getenv("FAB_PROJ_LANG"),
             projectDir,
@@ -198,6 +197,8 @@ def main():
             force=args.force,
         )
         fab_CLI.debug = args.debug
+        logger.info(f"Setting current working directory to: {projectDir}")
+        os.chdir(projectDir)
 
         if commands := args.commands:
             commands = commands.split("; ")
@@ -210,7 +211,7 @@ def main():
                 )
                 exit(0)
         elif args.FABulousScript != Path(""):
-            if fab_CLI.onecmd_plus_hooks(f"run_script {args.FABulousScript}"):
+            if fab_CLI.onecmd_plus_hooks(f"run_script { projectDir / args.FABulousScript.absolute()}"):
                 exit(1)
             else:
                 logger.info(
@@ -218,7 +219,7 @@ def main():
                 )
                 exit(0)
         elif args.TCLScript != Path(""):
-            if fab_CLI.onecmd_plus_hooks(f"run_script {args.TCLScript}"):
+            if fab_CLI.onecmd_plus_hooks(f"run_script {projectDir / args.TCLScript.absolute()}"):
                 exit(1)
             else:
                 logger.info(f"TCL script {args.TCLScript} executed successfully")
