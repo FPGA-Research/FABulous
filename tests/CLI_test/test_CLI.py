@@ -112,7 +112,7 @@ def test_run_simulation(cli, caplog, tmp_path):
 
 def test_run_tcl(cli, caplog, tmp_path):
     """Test running a Tcl script"""
-    script_content = '# Dummy Tcl script\nputs \"Text from tcl\"'
+    script_content = '# Dummy Tcl script\nputs "Text from tcl"'
     tcl_script_path = tmp_path / "test_script.tcl"
     with open(tcl_script_path, "w") as f:
         f.write(script_content)
