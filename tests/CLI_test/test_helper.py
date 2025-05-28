@@ -6,7 +6,7 @@ from FABulous.FABulous_CLI.helper import create_project
 def test_create_project(tmp_path):
     # Test Verilog project creation
     project_dir = tmp_path / "test_project_verilog"
-    create_project(str(project_dir))
+    create_project(project_dir)
 
     # Check if directories exist
     assert project_dir.exists()
@@ -26,7 +26,7 @@ def test_create_project(tmp_path):
 def test_create_project_vhdl(tmp_path):
     # Test VHDL project creation
     project_dir = tmp_path / "test_project_vhdl"
-    create_project(str(project_dir), type="vhdl")
+    create_project(project_dir, lang="vhdl")
 
     # Check if directories exist
     assert project_dir.exists()
@@ -49,5 +49,4 @@ def test_create_project_existing_dir(tmp_path):
     project_dir.mkdir()
 
     with pytest.raises(SystemExit):
-        create_project(str(project_dir))
-        create_project(str(project_dir))
+        create_project(project_dir)
