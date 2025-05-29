@@ -1,3 +1,5 @@
+from pathlib import Path
+import pytest
 from tests.CLI_test.conftest import (
     TILE,
     normalize_and_check_for_errors,
@@ -93,21 +95,30 @@ def test_gen_model_npnr(cli, caplog):
     assert "Generated npnr model" in log[-1]
 
 
-def test_run_FABulous_bitstream(cli, caplog):
+def test_run_FABulous_bitstream(cli, caplog, mocker):
     """Test the run_FABulous_bitstream command"""
+    m = mocker.patch("subprocess.run", return_value=None)
     run_cmd(cli, "run_FABulous_fabric")
+    Path(cli.projectDir / "user_design" / "sequential_16bit_en.json").touch()
+    Path(cli.projectDir / "user_design" / "sequential_16bit_en.fasm").touch()
     run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Bitstream generated" in log[-1]
+    assert m.call_count == 3
 
 
-def test_run_simulation(cli, caplog, tmp_path):
+def test_run_simulation(cli, caplog, mocker):
     """Test running simulation"""
+    m = mocker.patch("subprocess.run", return_value=None)
     run_cmd(cli, "run_FABulous_fabric")
+    Path(cli.projectDir / "user_design" / "sequential_16bit_en.json").touch()
+    Path(cli.projectDir / "user_design" / "sequential_16bit_en.fasm").touch()
+    Path(cli.projectDir / "user_design" / "sequential_16bit_en.bin").touch()
     run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
     run_cmd(cli, "run_simulation fst ./user_design/sequential_16bit_en.bin")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Simulation finished" in log[-1]
+    assert m.call_count == 5
 
 
 def test_run_tcl(cli, caplog, tmp_path):
