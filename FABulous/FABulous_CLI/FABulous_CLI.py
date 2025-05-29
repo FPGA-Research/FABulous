@@ -924,8 +924,6 @@ class FABulous_CLI(Cmd):
 
         logger.info("TCL script executed")
 
-        if "exit" in script:
-            return True
 
     @with_category(CMD_USER_DESIGN_FLOW)
     @with_argparser(userDesignRequireParser)

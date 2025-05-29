@@ -161,7 +161,7 @@ def main():
 
     setup_global_env_vars(args)
 
-    projectDir = Path(os.getenv("FAB_PROJ_DIR", args.project_dir)).absolute()
+    projectDir = Path(os.getenv("FAB_PROJ_DIR", args.project_dir)).absolute().resolve()
 
     args.top = projectDir.stem
 
@@ -197,6 +197,8 @@ def main():
             force=args.force,
         )
         fab_CLI.debug = args.debug
+        fabScript: Path = args.FABulousScript.absolute()
+        tclScript: Path = args.TCLScript.absolute()
         logger.info(f"Setting current working directory to: {projectDir}")
         os.chdir(projectDir)
 
@@ -210,20 +212,25 @@ def main():
                     f'Commands "{'; '.join(i.strip() for i in commands)}" executed successfully'
                 )
                 exit(0)
-        elif args.FABulousScript != Path(""):
-            if fab_CLI.onecmd_plus_hooks(f"run_script { projectDir / args.FABulousScript.absolute()}"):
+        elif fabScript.is_file():
+            if fab_CLI.onecmd_plus_hooks(f"run_script {fabScript}"):
                 exit(1)
             else:
                 logger.info(
                     f"FABulous script {args.FABulousScript} executed successfully"
                 )
                 exit(0)
-        elif args.TCLScript != Path(""):
-            if fab_CLI.onecmd_plus_hooks(f"run_tcl {projectDir / args.TCLScript.absolute()}"):
+        elif tclScript.is_file():
+            if fab_CLI.onecmd_plus_hooks(f"run_tcl {tclScript}"):
                 exit(1)
             else:
                 logger.info(f"TCL script {args.TCLScript} executed successfully")
                 exit(0)
+        elif fabScript or tclScript:
+            logger.error(
+                "You have provided a FABulous script or a TCL script, but you have provided a path but not a file."
+            )
+            exit(1)
         else:
             fab_CLI.interactive = True
             if args.verbose == 2:
