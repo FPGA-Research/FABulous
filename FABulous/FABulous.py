@@ -46,7 +46,9 @@ def main():
     -iocd, --install_oss_cad_suite : str, optional
         Install the oss-cad-suite in the project directory.
     """
-    parser = argparse.ArgumentParser(description="The command line interface for FABulous")
+    parser = argparse.ArgumentParser(
+        description="The command line interface for FABulous"
+    )
 
     script_group = parser.add_mutually_exclusive_group()
 
@@ -164,7 +166,9 @@ def main():
     args.top = projectDir.stem
 
     if args.createProject and args.install_oss_cad_suite:
-        logger.error("You cannot create a new project and install the oss-cad-suite at the same time.")
+        logger.error(
+            "You cannot create a new project and install the oss-cad-suite at the same time."
+        )
         exit(1)
 
     if args.createProject:
@@ -180,7 +184,9 @@ def main():
         exit(0)
 
     if not (projectDir / ".FABulous").exists():
-        logger.error("The directory provided is not a FABulous project as it does not have a .FABulous folder")
+        logger.error(
+            "The directory provided is not a FABulous project as it does not have a .FABulous folder"
+        )
         exit(1)
     else:
         setup_project_env_vars(args)
@@ -202,7 +208,9 @@ def main():
                 if fab_CLI.onecmd_plus_hooks(c):
                     exit(1)
             else:
-                logger.info(f'Commands "{"; ".join(i.strip() for i in commands)}" executed successfully')
+                logger.info(
+                    f'Commands "{"; ".join(i.strip() for i in commands)}" executed successfully'
+                )
                 exit(0)
         elif fabScript.is_file():
             fab_CLI.onecmd_plus_hooks(f"run_script {fabScript}")
@@ -211,7 +219,9 @@ def main():
                     f"FABulous script {args.FABulousScript} execution failed with exit code {fab_CLI.exit_code}"
                 )
             else:
-                logger.info(f"FABulous script {args.FABulousScript} executed successfully")
+                logger.info(
+                    f"FABulous script {args.FABulousScript} executed successfully"
+                )
 
             exit(fab_CLI.exit_code)
         elif tclScript.is_file():

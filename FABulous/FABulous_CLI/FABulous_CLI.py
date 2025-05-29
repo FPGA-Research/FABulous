@@ -215,7 +215,9 @@ class FABulous_CLI(Cmd):
             CMD_HELPER, "Helper commands are disabled until fabric is loaded"
         )
 
-    def onecmd(self, statement: Statement | str, *, add_to_history: bool = True) -> bool:
+    def onecmd(
+        self, statement: Statement | str, *, add_to_history: bool = True
+    ) -> bool:
         """Override the onecmd method to handle exceptions."""
         try:
             return super().onecmd(statement, add_to_history=add_to_history)
