@@ -2,7 +2,6 @@ import argparse
 import functools
 import os
 import platform
-import requests
 import re
 import shutil
 import sys
@@ -10,6 +9,7 @@ import tarfile
 from pathlib import Path
 from typing import Literal
 
+import requests
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -20,22 +20,29 @@ def setup_logger(verbosity: int, debug: bool):
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 
-    # Define logger format
-    if verbosity >= 1:
-        log_format = (
-            "<level>{level:}</level> | "
-            "<cyan>[{time:DD-MM-YYYY HH:mm:ss]}</cyan> | "
-            "<green>[{name}</green>:<green>{function}</green>:<green>{line}]</green> - "
-            "<level>{message}</level>"
-        )
-    else:
-        log_format = "<level>{level:}</level> | <level>{message}</level>"
+    # Define a custom formatting function that has access to 'verbosity'
+    def custom_format_function(record):
+        # Construct the standard part of the log message based on verbosity
+        level = f"<level>{record["level"].name}</level> | " 
+        time = f"<cyan>[{record["time"]:DD-MM-YYYY HH:mm:ss}]</cyan> | "
+        name = f"<green>[{record["name"]}</green>"
+        func = f"<green>{record["function"]}</green>"
+        line = f"<green>{record["line"]}</green>"
+        msg = f"<level>{record["message"]}</level>"
+        exc = f"<bg red><white>{record["exception"].type.__name__}</white></bg red> | " if record["exception"] else ""
 
-    # Add logger to write logs to stdout
-    if debug:
-        logger.add(sys.stdout, format=log_format, level="DEBUG", colorize=True)
-    else:
-        logger.add(sys.stdout, format=log_format, level="INFO", colorize=True)
+        if verbosity >= 1:
+            final_log = f"{level}{time}{name}:{func}:{line} - {exc}{msg}\n"
+        else:
+            final_log = f"{level}{exc}{msg}\n"
+
+        return final_log
+
+    # Determine the log level for the sink
+    log_level_to_set = "DEBUG" if debug else "INFO"
+
+    # Add logger to write logs to stdout using the custom formatter
+    logger.add(sys.stdout, format=custom_format_function, level=log_level_to_set, colorize=True)
 
 
 def setup_global_env_vars(args: argparse.Namespace) -> None:
@@ -60,9 +67,7 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
                 fabulousRoot = str(Path(fabulousRoot).joinpath("FABulous"))
             os.environ["FAB_ROOT"] = fabulousRoot
         else:
-            logger.error(
-                f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist"
-            )
+            logger.error(f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist")
             sys.exit()
 
         logger.info(f"FAB_ROOT set to {fabulousRoot}")
@@ -85,10 +90,7 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
     elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
         load_dotenv(fabDir.joinpath(".env"))
         logger.info(f"Loaded global .env file from {fabulousRoot}/.env")
-    elif (
-        fabDir.parent.joinpath(".env").exists()
-        and fabDir.parent.joinpath(".env").is_file()
-    ):
+    elif fabDir.parent.joinpath(".env").exists() and fabDir.parent.joinpath(".env").is_file():
         load_dotenv(fabDir.parent.joinpath(".env"))
         logger.info(f"Loaded global .env file from {fabDir.parent.joinpath('.env')}")
     else:
@@ -126,10 +128,7 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
     elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
         load_dotenv(fabDir.joinpath(".env"))
         logger.info(f"Loaded project .env file from {fabDir}/.env')")
-    elif (
-        fabDir.parent.joinpath(".env").exists()
-        and fabDir.parent.joinpath(".env").is_file()
-    ):
+    elif fabDir.parent.joinpath(".env").exists() and fabDir.parent.joinpath(".env").is_file():
         load_dotenv(fabDir.parent.joinpath(".env"))
         logger.info(f"Loaded project .env file from {fabDir.parent.joinpath('.env')}")
     else:
@@ -171,7 +170,11 @@ def create_project(project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilo
     if lang not in ["verilog", "vhdl"]:
         lang = "verilog"
 
-    fabulousRoot = Path(os.getenv("FAB_ROOT"))
+    fab_root_env = os.getenv("FAB_ROOT")
+    if fab_root_env is None:
+        logger.error("FAB_ROOT environment variable is not set. Cannot create project.")
+        sys.exit(1)
+    fabulousRoot = Path(fab_root_env)
 
     # Copy the project template
     common_template = fabulousRoot / "fabric_files/FABulous_project_template_common"
@@ -284,11 +287,11 @@ def check_if_application_exists(application: str, throw_exception: bool = True) 
     if path is not None:
         return Path(path)
     else:
-        logger.error(
-            f"{application} is not installed. Please install it or set FAB_<APPLICATION>_PATH in the .env file."
-        )
-        if throw_exception:
-            raise Exception(f"{application} is not installed.")
+        error_msg = f"{application} is not installed. Please install it or set FAB_<APPLICATION>_PATH in the .env file."
+        logger.error(error_msg)
+        # To satisfy the `-> Path` return type, an exception must be raised if no path is found.
+        # The throw_exception parameter's original intent might need review if non-exception paths were desired.
+        raise FileNotFoundError(error_msg)
 
 
 def wrap_with_except_handling(fun_to_wrap):
@@ -317,7 +320,7 @@ def wrap_with_except_handling(fun_to_wrap):
             import traceback
 
             traceback.print_exc()
-            sys.exit(1)
+            raise Exception("TCL command failed. Please check the logs for details.")
 
     return inter
 
@@ -356,9 +359,7 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False):
             No valid archive of OSS-CAD-Suite found in the latest release.
             If the file format of the downloaded archive is unsupported.
     """
-    github_releases_url = (
-        "https://api.github.com/repos/YosysHQ/oss-cad-suite-build/releases/latest"
-    )
+    github_releases_url = "https://api.github.com/repos/YosysHQ/oss-cad-suite-build/releases/latest"
     response = requests.get(github_releases_url)
     system = platform.system().lower()
     machine = platform.machine().lower()
@@ -385,30 +386,22 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False):
             logger.info(f"Creating folder {destination_folder.absolute()}")
             os.makedirs(destination_folder, exist_ok=True)
         else:
-            logger.info(
-                f"Installing OSS-CAD-Suite to folder {destination_folder.absolute()}"
-            )
+            logger.info(f"Installing OSS-CAD-Suite to folder {destination_folder.absolute()}")
 
     # format system and machine to match the OSS-CAD-Suite release naming
     if system not in ["linux", "windows", "darwin"]:
-        raise ValueError(
-            f"Unsupported operating system {system}. Please install OSS-CAD-Suite manually."
-        )
+        raise ValueError(f"Unsupported operating system {system}. Please install OSS-CAD-Suite manually.")
     if machine in ["x86_64", "amd64"]:
         machine = "x64"
     elif machine in ["aarch64", "arm64"]:
         machine = "arm64"
     else:
-        raise ValueError(
-            f"Unsupported architecture {machine}. Please install OSS-CAD-Suite manually."
-        )
+        raise ValueError(f"Unsupported architecture {machine}. Please install OSS-CAD-Suite manually.")
 
     if response.status_code == 200:
         latest_release = response.json()
     else:
-        raise Exception(
-            f"Failed to fetch latest OSS-CAD-Suite release: {response.status_code}"
-        )
+        raise Exception(f"Failed to fetch latest OSS-CAD-Suite release: {response.status_code}")
 
     # find the right release for the current system
     for asset in latest_release.get("assets", []):
@@ -416,7 +409,7 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False):
             if machine in asset["name"].lower() and system in asset["name"].lower():
                 url = asset["browser_download_url"]
                 break  # we assume that the first match is the right one
-    if url == None or url == "":
+    if url is None or url == "":  # Changed == None to is None
         raise ValueError("No valid archive found in the latest release.")
 
     # Download the file
@@ -437,14 +430,16 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False):
         with tarfile.open(ocs_archive, "r:gz") as tar:
             tar.extractall(path=destination_folder)
     else:
-        raise ValueError(
-            f"Unsupported file format. Please extract {ocs_archive} manually."
-        )
+        raise ValueError(f"Unsupported file format. Please extract {ocs_archive} manually.")
 
     logger.info(f"Remove archive {ocs_archive}")
     ocs_archive.unlink()
 
-    env_file = Path(os.getenv("FAB_ROOT")) / ".env"
+    fab_root_env = os.getenv("FAB_ROOT")
+    if fab_root_env is None:
+        logger.error("FAB_ROOT environment variable is not set. Cannot update .env file for OSS CAD Suite.")
+        raise EnvironmentError("FAB_ROOT is not set, cannot determine .env file path for OSS CAD Suite.")
+    env_file = Path(fab_root_env) / ".env"
     env_cont = ""
     if env_file.is_file():
         logger.info(f"Updating FAB_OSS_CAD_SUITE in .env file {env_file}")

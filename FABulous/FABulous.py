@@ -219,12 +219,13 @@ def main():
                 )
                 exit(0)
         elif args.TCLScript != Path(""):
-            if fab_CLI.onecmd_plus_hooks(f"run_script {projectDir / args.TCLScript.absolute()}"):
+            if fab_CLI.onecmd_plus_hooks(f"run_tcl {projectDir / args.TCLScript.absolute()}"):
                 exit(1)
             else:
                 logger.info(f"TCL script {args.TCLScript} executed successfully")
                 exit(0)
         else:
+            fab_CLI.interactive = True
             if args.verbose == 2:
                 fab_CLI.verbose = True
 

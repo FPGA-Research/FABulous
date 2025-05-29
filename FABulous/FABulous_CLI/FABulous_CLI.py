@@ -22,8 +22,8 @@ import pprint
 import subprocess as sp
 import sys
 import tkinter as tk
-from pathlib import Path
 import traceback
+from pathlib import Path
 
 from cmd2 import (
     Cmd,
@@ -35,21 +35,22 @@ from cmd2 import (
 )
 from loguru import logger
 
+from FABulous.custom_exception import CommandError, EnvironmentNotSet, FileTypeError
 from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
+from FABulous.fabric_generator.fabric_automation import generateCustomTileConfig
+from FABulous.fabric_generator.file_parser import parseTiles
 from FABulous.FABulous_API import FABulous_API
 from FABulous.FABulous_CLI import cmd_synthesis
-from FABulous.fabric_generator.fabric_automation import generateCustomTileConfig
 from FABulous.FABulous_CLI.helper import (
     allow_blank,
     check_if_application_exists,
     copy_verilog_files,
+    install_oss_cad_suite,
     make_hex,
     remove_dir,
     wrap_with_except_handling,
-    install_oss_cad_suite,
 )
-from FABulous.fabric_generator.file_parser import parseTiles
 
 META_DATA_DIR = ".FABulous"
 
@@ -109,6 +110,7 @@ class FABulous_CLI(Cmd):
     extension: str = "v"
     script: str = ""
     force: bool = False
+    interactive: bool = True
 
     def __init__(
         self,
@@ -116,6 +118,7 @@ class FABulous_CLI(Cmd):
         projectDir: Path,
         enteringDir: Path,
         force: bool = False,
+        interactive: bool = False,
     ):
         """Initialises the FABulous shell instance.
 
@@ -142,30 +145,24 @@ class FABulous_CLI(Cmd):
         elif writerType == "vhdl":
             self.fabulousAPI = FABulous_API(VHDLWriter())
         else:
-            logger.critical(
-                f"Invalid writer type: {writerType}\n Valid options are 'verilog' or 'vhdl'"
-            )
+            logger.critical(f"Invalid writer type: {writerType}\n Valid options are 'verilog' or 'vhdl'")
             sys.exit(1)
 
         self.projectDir = projectDir.absolute()
-        self.add_settable(
-            Settable("projectDir", Path, "The directory of the project", self)
-        )
+        self.add_settable(Settable("projectDir", Path, "The directory of the project", self))
 
         self.tiles = []
         self.superTiles = []
         self.csvFile = Path(projectDir / "fabric.csv")
-        self.add_settable(
-            Settable(
-                "csvFile", Path, "The fabric file ", self, completer=Cmd.path_complete
-            )
-        )
+        self.add_settable(Settable("csvFile", Path, "The fabric file ", self, completer=Cmd.path_complete))
 
         self.verbose = False
         self.add_settable(Settable("verbose", bool, "verbose output", self))
 
         self.force = force
         self.add_settable(Settable("force", bool, "force execution", self))
+
+        self.interactive = interactive
 
         if isinstance(self.fabulousAPI.writer, VHDLWriter):
             self.extension = "vhdl"
@@ -195,28 +192,25 @@ class FABulous_CLI(Cmd):
                 name = fun.strip("do_")
                 self.tcl.createcommand(name, wrap_with_except_handling(f))
 
-        self.disable_category(
-            CMD_FABRIC_FLOW, "Fabric Flow commands are disabled until fabric is loaded"
-        )
+        self.disable_category(CMD_FABRIC_FLOW, "Fabric Flow commands are disabled until fabric is loaded")
         self.disable_category(
             CMD_USER_DESIGN_FLOW,
             "User Design Flow commands are disabled until fabric is loaded",
         )
-        self.disable_category(
-            CMD_GUI, "GUI commands are disabled until gen_gen_geometry is run"
-        )
-        self.disable_category(
-            CMD_HELPER, "Helper commands are disabled until fabric is loaded"
-        )
+        self.disable_category(CMD_GUI, "GUI commands are disabled until gen_gen_geometry is run")
+        self.disable_category(CMD_HELPER, "Helper commands are disabled until fabric is loaded")
 
-    def onecmd(self, *arg, **kwargs):
+    def onecmd(self, *args, **kwargs) -> bool:
         """Override the onecmd method to handle exceptions."""
         try:
-            return super().onecmd(*arg, **kwargs)
+            return super().onecmd(*args, **kwargs)
         except Exception:
             logger.debug(traceback.format_exc())
             self.exit_code = 1
-            return not self.force
+            if not self.interactive:
+                return not self.force
+            else:
+                return False
 
     def do_exit(self, *ignored):
         """Exits the FABulous shell and logs info message."""
@@ -240,9 +234,7 @@ class FABulous_CLI(Cmd):
     )
 
     filePathRequireParser = Cmd2ArgumentParser()
-    filePathRequireParser.add_argument(
-        "file", type=Path, help="Path to the target file", completer=Cmd.path_complete
-    )
+    filePathRequireParser.add_argument("file", type=Path, help="Path to the target file", completer=Cmd.path_complete)
 
     userDesignRequireParser = Cmd2ArgumentParser()
     userDesignRequireParser.add_argument(
@@ -328,19 +320,16 @@ class FABulous_CLI(Cmd):
                 )
                 self.fabulousAPI.loadFabric(self.csvFile)
             else:
-                logger.error(
+                logger.opt(exception=FileExistsError()).error(
                     "No argument is given and the csv file is set or the file does not exist"
                 )
-                return
         else:
             self.fabulousAPI.loadFabric(args.file)
             self.csvFile = args.file
 
         self.fabricLoaded = True
         # self.projectDir = os.path.split(self.csvFile)[0]
-        tileByPath = [
-            f.stem for f in (self.projectDir / "Tile/").iterdir() if f.is_dir()
-        ]
+        tileByPath = [f.stem for f in (self.projectDir / "Tile/").iterdir() if f.is_dir()]
         tileByFabric = list(self.fabulousAPI.fabric.tileDic.keys())
         superTileByFabric = list(self.fabulousAPI.fabric.superTileDic.keys())
         self.allTile = list(set(tileByPath) & set(tileByFabric + superTileByFabric))
@@ -353,19 +342,17 @@ class FABulous_CLI(Cmd):
     def do_print_bel(self, args):
         """Prints a Bel object to the console."""
         if len(args) != 1:
-            logger.error("Please provide a Bel name")
-            return
+            logger.opt(exception=CommandError()).error("Please provide a Bel name")
 
         if not self.fabricLoaded:
-            logger.error("Need to load fabric first")
-            return
+            logger.opt(exception=CommandError()).error("Need to load fabric first")
 
         bels = self.fabulousAPI.getBels()
         for i in bels:
             if i.name == args[0]:
                 logger.info(f"\n{pprint.pformat(i, width=200)}")
                 return
-        logger.error("Bel not found")
+        logger.opt(exception=CommandError()).error("Bel not found")
 
     @with_category(CMD_HELPER)
     @with_argparser(tile_single_parser)
@@ -373,7 +360,7 @@ class FABulous_CLI(Cmd):
         """Prints a tile object to the console."""
 
         if not self.fabricLoaded:
-            logger.error("Need to load fabric first")
+            logger.opt(exception=CommandError()).error("Need to load fabric first")
             return
 
         if tile := self.fabulousAPI.getTile(args.tile):
@@ -381,7 +368,7 @@ class FABulous_CLI(Cmd):
         elif tile := self.fabulousAPI.getSuperTile(args[0]):
             logger.info(f"\n{pprint.pformat(tile, width=200)}")
         else:
-            logger.error("Tile not found")
+            logger.opt(exception=CommandError()).error("Tile not found")
 
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)
@@ -394,13 +381,9 @@ class FABulous_CLI(Cmd):
         logger.info(f"Generating Config Memory for {' '.join(args.tiles)}")
         for i in args.tiles:
             logger.info(f"Generating configMem for {i}")
-            self.fabulousAPI.setWriterOutputFile(
-                self.projectDir / f"Tile/{i}/{i}_ConfigMem.{self.extension}"
-            )
-            self.fabulousAPI.genConfigMem(
-                i, self.projectDir / f"Tile/{i}/{i}_ConfigMem.csv"
-            )
-        logger.info("ConfigMem generation complete")
+            self.fabulousAPI.setWriterOutputFile(self.projectDir / f"Tile/{i}/{i}_ConfigMem.{self.extension}")
+            self.fabulousAPI.genConfigMem(i, self.projectDir / f"Tile/{i}/{i}_ConfigMem.csv")
+        logger.info("Generating configMem complete")
 
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)
@@ -413,9 +396,7 @@ class FABulous_CLI(Cmd):
         logger.info(f"Generating switch matrix for {' '.join(args.tiles)}")
         for i in args.tiles:
             logger.info(f"Generating switch matrix for {i}")
-            self.fabulousAPI.setWriterOutputFile(
-                self.projectDir / f"Tile/{i}/{i}_switch_matrix.{self.extension}"
-            )
+            self.fabulousAPI.setWriterOutputFile(self.projectDir / f"Tile/{i}/{i}_switch_matrix.{self.extension}")
             self.fabulousAPI.genSwitchMatrix(i)
         logger.info("Switch matrix generation complete")
 
@@ -431,12 +412,8 @@ class FABulous_CLI(Cmd):
 
         logger.info(f"Generating tile {' '.join(args.tiles)}")
         for t in args.tiles:
-            if subTiles := [
-                f.stem for f in (self.projectDir / f"Tile/{t}").iterdir() if f.is_dir()
-            ]:
-                logger.info(
-                    f"{t} is a super tile, generating {t} with sub tiles {' '.join(subTiles)}"
-                )
+            if subTiles := [f.stem for f in (self.projectDir / f"Tile/{t}").iterdir() if f.is_dir()]:
+                logger.info(f"{t} is a super tile, generating {t} with sub tiles {' '.join(subTiles)}")
                 for st in subTiles:
                     # Gen switch matrix
                     logger.info(f"Generating switch matrix for tile {t}")
@@ -453,25 +430,19 @@ class FABulous_CLI(Cmd):
                     self.fabulousAPI.setWriterOutputFile(
                         f"{self.projectDir}/Tile/{t}/{st}/{st}_ConfigMem.{self.extension}"
                     )
-                    self.fabulousAPI.genConfigMem(
-                        st, self.projectDir / f"Tile/{t}/{st}/{st}_ConfigMem.csv"
-                    )
+                    self.fabulousAPI.genConfigMem(st, self.projectDir / f"Tile/{t}/{st}/{st}_ConfigMem.csv")
                     logger.info(f"Generated configMem for {st}")
 
                     # Gen tile
                     logger.info(f"Generating subtile for tile {t}")
                     logger.info(f"Generating subtile {st}")
-                    self.fabulousAPI.setWriterOutputFile(
-                        f"{self.projectDir}/Tile/{t}/{st}/{st}.{self.extension}"
-                    )
+                    self.fabulousAPI.setWriterOutputFile(f"{self.projectDir}/Tile/{t}/{st}/{st}.{self.extension}")
                     self.fabulousAPI.genTile(st)
                     logger.info(f"Generated subtile {st}")
 
                 # Gen super tile
                 logger.info(f"Generating super tile {t}")
-                self.fabulousAPI.setWriterOutputFile(
-                    f"{self.projectDir}/Tile/{t}/{t}.{self.extension}"
-                )
+                self.fabulousAPI.setWriterOutputFile(f"{self.projectDir}/Tile/{t}/{t}.{self.extension}")
                 self.fabulousAPI.genSuperTile(t)
                 logger.info(f"Generated super tile {t}")
                 continue
@@ -484,9 +455,7 @@ class FABulous_CLI(Cmd):
 
             logger.info(f"Generating tile {t}")
             # Gen tile
-            self.fabulousAPI.setWriterOutputFile(
-                f"{self.projectDir}/Tile/{t}/{t}.{self.extension}"
-            )
+            self.fabulousAPI.setWriterOutputFile(f"{self.projectDir}/Tile/{t}/{t}.{self.extension}")
             self.fabulousAPI.genTile(t)
             logger.info(f"Generated tile {t}")
 
@@ -562,7 +531,7 @@ class FABulous_CLI(Cmd):
             return
 
         if not os.path.exists(fabulatorRoot):
-            logger.error(
+            logger.opt(exception=EnvironmentNotSet()).error(
                 f"FABULATOR_ROOT environment variable set to {fabulatorRoot} but the directory does not exist."
             )
             return
@@ -579,8 +548,8 @@ class FABulous_CLI(Cmd):
                 # discard FABulator output
                 sp.Popen(startupCmd, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
 
-        except sp.SubprocessError:
-            logger.error("Startup of FABulator failed.")
+        except sp.SubprocessError as e:
+            logger.opt(exception=e).error("Startup of FABulator failed.")
 
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_bitStream_spec(self, *ignored):
@@ -593,9 +562,7 @@ class FABulous_CLI(Cmd):
         specObject = self.fabulousAPI.genBitStreamSpec()
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin")
-        with open(
-            f"{self.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin", "wb"
-        ) as outFile:
+        with open(f"{self.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin", "wb") as outFile:
             pickle.dump(specObject, outFile)
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv")
@@ -674,22 +641,19 @@ class FABulous_CLI(Cmd):
 
         Also logs place and route error, file not found error and type error.
         """
-        logger.info(
-            f"Running Placement and Routing with Nextpnr for design {args.file}"
-        )
+        logger.info(f"Running Placement and Routing with Nextpnr for design {args.file}")
         path = Path(args.file)
         parent = path.parent
         json_file = path.name
         top_module_name = path.stem
 
         if path.suffix != ".json":
-            logger.error(
+            logger.opt(exception=FileTypeError()).error(
                 """
                 No json file provided.
                 Usage: place_and_route <json_file> (<json_file> is generated by Yosys. Generate it by running `synthesis`.)
                 """
             )
-            return
 
         fasm_file = top_module_name + ".fasm"
         log_file = top_module_name + "_npnr_log.txt"
@@ -697,19 +661,16 @@ class FABulous_CLI(Cmd):
         if parent == "":
             parent = "."
 
-        if not os.path.exists(
-            f"{self.projectDir}/.FABulous/pips.txt"
-        ) or not os.path.exists(f"{self.projectDir}/.FABulous/bel.txt"):
-            logger.error(
+        if not os.path.exists(f"{self.projectDir}/.FABulous/pips.txt") or not os.path.exists(
+            f"{self.projectDir}/.FABulous/bel.txt"
+        ):
+            logger.opt(exception=FileNotFoundError()).error(
                 "Pips and Bel files are not found, please run model_gen_npnr first"
             )
-            raise FileNotFoundError
 
         if os.path.exists(f"{self.projectDir}/{parent}"):
             # TODO rewriting the fab_arch script so no need to copy file for work around
-            npnr = check_if_application_exists(
-                os.getenv("FAB_NEXTPNR_PATH", "nextpnr-generic")
-            )
+            npnr = check_if_application_exists(os.getenv("FAB_NEXTPNR_PATH", "nextpnr-generic"))
             if f"{json_file}" in os.listdir(f"{self.projectDir}/{parent}"):
                 runCmd = [
                     f"FAB_ROOT={self.projectDir}",
@@ -732,19 +693,17 @@ class FABulous_CLI(Cmd):
                         check=True,
                         shell=True,
                     )
-                except sp.CalledProcessError:
-                    logger.error("Placement and Routing failed.")
+                except sp.CalledProcessError as e:
+                    logger.opt(exception=e).error("Placement and Routing failed.")
 
             else:
-                logger.error(
+                logger.opt(exception=FileNotFoundError()).error(
                     f'Cannot find file "{json_file}" in path "./{parent}/", which is generated by running Yosys with Nextpnr backend (e.g. synthesis).'
                 )
-                raise FileNotFoundError
 
             logger.info("Placement and Routing completed")
         else:
-            logger.error(f"Directory {self.projectDir}/{parent} does not exist.")
-            raise FileNotFoundError
+            logger.opt(exception=FileNotFoundError()).error(f"Directory {self.projectDir}/{parent} does not exist.")
 
     @with_category(CMD_USER_DESIGN_FLOW)
     @with_argparser(filePathRequireParser)
@@ -762,7 +721,7 @@ class FABulous_CLI(Cmd):
         top_module_name = args.file.stem
 
         if args.file.suffix != ".fasm":
-            logger.error(
+            logger.opt(exception=FileTypeError()).error(
                 """
                 No fasm file provided.
                 Usage: gen_bitStream_binary <fasm_file>
@@ -773,16 +732,14 @@ class FABulous_CLI(Cmd):
         bitstream_file = top_module_name + ".bin"
 
         if not (self.projectDir / ".FABulous/bitStreamSpec.bin").exists():
-            logger.error(
+            logger.opt(exception=FileNotFoundError()).error(
                 "Cannot find bitStreamSpec.bin file, which is generated by running gen_bitStream_spec"
             )
-            return
 
         if not (self.projectDir / f"{parent}/{fasm_file}").exists():
-            logger.error(
+            logger.opt(exception=FileNotFoundError()).error(
                 f"Cannot find {self.projectDir}/{parent}/{fasm_file} file which is generated by running place_and_route. Potentially Place and Route Failed."
             )
-            return
 
         logger.info(f"Generating Bitstream for design {self.projectDir}/{args.file}")
         logger.info(f"Outputting to {self.projectDir}/{parent}/{bitstream_file}")
@@ -795,8 +752,8 @@ class FABulous_CLI(Cmd):
         ]
         try:
             sp.run(runCmd, check=True)
-        except sp.CalledProcessError:
-            logger.error("Bitstream generation failed")
+        except sp.CalledProcessError as e:
+            logger.opt(exception=e).error("Bitstream generation failed")
 
         logger.info("Bitstream generated")
 
@@ -836,10 +793,9 @@ class FABulous_CLI(Cmd):
             logger.error("No bitstream file specified.")
             return
         if not bitstreamPath.exists():
-            logger.error(
+            logger.opt(exception=FileNotFoundError()).error(
                 f"Cannot find {bitstreamPath} file which is generated by running gen_bitStream_binary. Potentially the bitstream generation failed."
             )
-            return
 
         waveform_format = args.format
         defined_option = f"CREATE_{waveform_format.upper()}"
@@ -862,9 +818,7 @@ class FABulous_CLI(Cmd):
         copy_verilog_files(self.projectDir / "Fabric", fabricFilesDir)
         file_list = [str(i) for i in fabricFilesDir.glob("*.v")]
 
-        iverilog = check_if_application_exists(
-            os.getenv("FAB_IVERILOG_PATH", "iverilog")
-        )
+        iverilog = check_if_application_exists(os.getenv("FAB_IVERILOG_PATH", "iverilog"))
         try:
             runCmd = [
                 f"{iverilog}",
@@ -883,10 +837,9 @@ class FABulous_CLI(Cmd):
                 logger.info(f"Running command: {' '.join(runCmd)}")
             sp.run(runCmd, check=True)
 
-        except sp.CalledProcessError:
-            logger.error("Simulation failed")
+        except sp.CalledProcessError as e:
             remove_dir(buildDir)
-            return
+            logger.opt(exception=e).error("Simulation failed")
 
         # bitstream hex file is used for simulation so it'll be created in the test directory
         bitstreamHexPath = (buildDir.parent / bitstreamPath.stem).with_suffix(".hex")
@@ -909,11 +862,11 @@ class FABulous_CLI(Cmd):
             if self.verbose or self.debug:
                 logger.info(f"Running command: {' '.join(runCmd)}")
             sp.run(runCmd, check=True)
-        except sp.CalledProcessError:
-            logger.error("Simulation failed")
-            return
+            remove_dir(buildDir)
+        except sp.CalledProcessError as e:
+            remove_dir(buildDir)
+            logger.opt(exception=e).error("Simulation failed")
 
-        remove_dir(buildDir)
         logger.info("Simulation finished")
 
     @with_category(CMD_USER_DESIGN_FLOW)
@@ -931,13 +884,12 @@ class FABulous_CLI(Cmd):
         file_path_no_suffix = args.file.parent / args.file.stem
 
         if args.file.suffix != ".v":
-            logger.error(
+            logger.opt(exception=FileTypeError()).error(
                 """
                 No verilog file provided.
                 Usage: run_FABulous_bitstream <top_module_file>
                 """
             )
-            return
 
         json_file_path = file_path_no_suffix.with_suffix(".json")
         fasm_file_path = file_path_no_suffix.with_suffix(".fasm")
@@ -962,8 +914,7 @@ class FABulous_CLI(Cmd):
         Also logs usage errors and file not found errors.
         """
         if not args.file.exists():
-            logger.error(f"Cannot find {args.file}")
-            return
+            logger.opt(exception=FileNotFoundError()).error(f"Cannot find {args.file}")
 
         logger.info(f"Execute TCL script {args.file}")
 
@@ -979,14 +930,11 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_USER_DESIGN_FLOW)
     @with_argparser(userDesignRequireParser)
     def do_gen_user_design_wrapper(self, args):
-
         if not self.fabricLoaded:
-            logger.error("Need to load fabric first")
+            logger.opt(exception=CommandError()).error("Need to load fabric first")
             return
 
-        self.fabulousAPI.generateUserDesignTopWrapper(
-            args.user_design, args.user_design_top_wrapper
-        )
+        self.fabulousAPI.generateUserDesignTopWrapper(args.user_design, args.user_design_top_wrapper)
 
     gen_tile_parser = Cmd2ArgumentParser()
     gen_tile_parser.add_argument(
