@@ -29,6 +29,7 @@ from cmd2 import (
     Cmd,
     Cmd2ArgumentParser,
     Settable,
+    Statement,
     categorize,
     with_argparser,
     with_category,
@@ -214,10 +215,10 @@ class FABulous_CLI(Cmd):
             CMD_HELPER, "Helper commands are disabled until fabric is loaded"
         )
 
-    def onecmd(self, *args, **kwargs) -> bool:
+    def onecmd(self, statement: Statement | str, *, add_to_history: bool = True) -> bool:
         """Override the onecmd method to handle exceptions."""
         try:
-            return super().onecmd(*args, **kwargs)
+            return super().onecmd(statement, add_to_history=add_to_history)
         except Exception:
             logger.debug(traceback.format_exc())
             self.exit_code = 1

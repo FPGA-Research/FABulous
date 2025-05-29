@@ -8,10 +8,10 @@ from loguru import logger
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import (
     create_project,
+    install_oss_cad_suite,
     setup_global_env_vars,
     setup_logger,
     setup_project_env_vars,
-    install_oss_cad_suite,
 )
 
 
@@ -46,9 +46,7 @@ def main():
     -iocd, --install_oss_cad_suite : str, optional
         Install the oss-cad-suite in the project directory.
     """
-    parser = argparse.ArgumentParser(
-        description="The command line interface for FABulous"
-    )
+    parser = argparse.ArgumentParser(description="The command line interface for FABulous")
 
     script_group = parser.add_mutually_exclusive_group()
 
@@ -166,9 +164,7 @@ def main():
     args.top = projectDir.stem
 
     if args.createProject and args.install_oss_cad_suite:
-        logger.error(
-            f"You cannot create a new project and install the oss-cad-suite at the same time."
-        )
+        logger.error("You cannot create a new project and install the oss-cad-suite at the same time.")
         exit(1)
 
     if args.createProject:
@@ -184,9 +180,7 @@ def main():
         exit(0)
 
     if not (projectDir / ".FABulous").exists():
-        logger.error(
-            "The directory provided is not a FABulous project as it does not have a .FABulous folder"
-        )
+        logger.error("The directory provided is not a FABulous project as it does not have a .FABulous folder")
         exit(1)
     else:
         setup_project_env_vars(args)
@@ -208,24 +202,27 @@ def main():
                 if fab_CLI.onecmd_plus_hooks(c):
                     exit(1)
             else:
-                logger.info(
-                    f'Commands "{'; '.join(i.strip() for i in commands)}" executed successfully'
-                )
+                logger.info(f'Commands "{"; ".join(i.strip() for i in commands)}" executed successfully')
                 exit(0)
         elif fabScript.is_file():
-            if fab_CLI.onecmd_plus_hooks(f"run_script {fabScript}"):
-                exit(1)
-            else:
-                logger.info(
-                    f"FABulous script {args.FABulousScript} executed successfully"
+            fab_CLI.onecmd_plus_hooks(f"run_script {fabScript}")
+            if fab_CLI.exit_code:
+                logger.error(
+                    f"FABulous script {args.FABulousScript} execution failed with exit code {fab_CLI.exit_code}"
                 )
-                exit(0)
+            else:
+                logger.info(f"FABulous script {args.FABulousScript} executed successfully")
+
+            exit(fab_CLI.exit_code)
         elif tclScript.is_file():
-            if fab_CLI.onecmd_plus_hooks(f"run_tcl {tclScript}"):
-                exit(1)
+            fab_CLI.onecmd_plus_hooks(f"run_tcl {tclScript}")
+            if fab_CLI.exit_code:
+                logger.error(
+                    f"TCL script {args.TCLScript} execution failed with exit code {fab_CLI.exit_code}"
+                )
             else:
                 logger.info(f"TCL script {args.TCLScript} executed successfully")
-                exit(0)
+            exit(fab_CLI.exit_code)
         elif fabScript or tclScript:
             logger.error(
                 "You have provided a FABulous script or a TCL script, but you have provided a path but not a file."
@@ -241,8 +238,8 @@ def main():
                     with redirect_stdout(log):
                         fab_CLI.cmdloop()
             else:
-                exit_code = fab_CLI.cmdloop()
-                exit(exit_code)
+                fab_CLI.cmdloop()
+            exit(0)
 
 
 if __name__ == "__main__":
