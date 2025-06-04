@@ -44,7 +44,7 @@ def cli(tmp_path):
     os.environ["FAB_ROOT"] = fabulousRoot
     os.environ["FAB_PROJ_DIR"] = str(projectDir)
     create_project(projectDir)
-    setup_logger(0)
+    setup_logger(0, False)
     cli = FABulous_CLI(
         writerType="verilog", projectDir=projectDir, enteringDir=tmp_path
     )

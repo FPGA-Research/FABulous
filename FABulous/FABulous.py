@@ -91,7 +91,8 @@ def main():
 
     parser.add_argument(
         "-log",
-        default=False,
+        default="",
+        type=Path,
         nargs="?",
         const="FABulous.log",
         help="Log all the output from the terminal",
@@ -157,7 +158,7 @@ def main():
 
     args = parser.parse_args()
 
-    setup_logger(args.verbose, args.debug)
+    setup_logger(args.verbose, args.debug, log_file=args.log)
 
     setup_global_env_vars(args)
 
@@ -200,20 +201,25 @@ def main():
         fabScript: Path = args.FABulousScript.absolute()
         tclScript: Path = args.TCLScript.absolute()
         logger.info(f"Setting current working directory to: {projectDir}")
+        cwd = Path().cwd()
         os.chdir(projectDir)
         fab_CLI.onecmd_plus_hooks("load_fabric")
 
         if commands := args.commands:
             commands = commands.split("; ")
             for c in commands:
-                if fab_CLI.onecmd_plus_hooks(c):
+                fab_CLI.onecmd_plus_hooks(c)
+                if fab_CLI.exit_code:
+                    logger.error(
+                        f"Command '{c}' execution failed with exit code {fab_CLI.exit_code}"
+                    )
                     exit(1)
             else:
                 logger.info(
                     f'Commands "{"; ".join(i.strip() for i in commands)}" executed successfully'
                 )
                 exit(0)
-        elif fabScript != Path().cwd():
+        elif fabScript != cwd:
             fab_CLI.onecmd_plus_hooks(f"run_script {fabScript}")
             if fab_CLI.exit_code:
                 logger.error(
@@ -225,7 +231,7 @@ def main():
                 )
 
             exit(fab_CLI.exit_code)
-        elif tclScript != Path().cwd():
+        elif tclScript != cwd:
             fab_CLI.onecmd_plus_hooks(f"run_tcl {tclScript}")
             if fab_CLI.exit_code:
                 logger.error(
@@ -239,12 +245,7 @@ def main():
             if args.verbose == 2:
                 fab_CLI.verbose = True
 
-            if args.log:
-                with open(args.log, "w") as log:
-                    with redirect_stdout(log):
-                        fab_CLI.cmdloop()
-            else:
-                fab_CLI.cmdloop()
+            fab_CLI.cmdloop()
             exit(0)
 
 

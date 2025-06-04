@@ -407,7 +407,7 @@ class FABulous_CLI(Cmd):
             self.fabulousAPI.genConfigMem(
                 i, self.projectDir / f"Tile/{i}/{i}_ConfigMem.csv"
             )
-        logger.info("Generating configMem complete")
+        logger.info("ConfigMem generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)

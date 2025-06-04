@@ -16,21 +16,21 @@ from loguru import logger
 MAX_BITBYTES = 16384
 
 
-def setup_logger(verbosity: int, debug: bool):
+def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()):
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 
     # Define a custom formatting function that has access to 'verbosity'
     def custom_format_function(record):
         # Construct the standard part of the log message based on verbosity
-        level = f"<level>{record["level"].name}</level> | "
-        time = f"<cyan>[{record["time"]:DD-MM-YYYY HH:mm:ss}]</cyan> | "
-        name = f"<green>[{record["name"]}</green>"
-        func = f"<green>{record["function"]}</green>"
-        line = f"<green>{record["line"]}</green>"
-        msg = f"<level>{record["message"]}</level>"
+        level = f"<level>{record['level'].name}</level> | "
+        time = f"<cyan>[{record['time']:DD-MM-YYYY HH:mm:ss}]</cyan> | "
+        name = f"<green>[{record['name']}</green>"
+        func = f"<green>{record['function']}</green>"
+        line = f"<green>{record['line']}</green>"
+        msg = f"<level>{record['message']}</level>"
         exc = (
-            f"<bg red><white>{record["exception"].type.__name__}</white></bg red> | "
+            f"<bg red><white>{record['exception'].type.__name__}</white></bg red> | "
             if record["exception"]
             else ""
         )
@@ -46,9 +46,15 @@ def setup_logger(verbosity: int, debug: bool):
     log_level_to_set = "DEBUG" if debug else "INFO"
 
     # Add logger to write logs to stdout using the custom formatter
-    logger.add(
-        sys.stdout, format=custom_format_function, level=log_level_to_set, colorize=True
-    )
+    if log_file != Path():
+        logger.add(log_file, format=custom_format_function, level=log_level_to_set)
+    else:
+        logger.add(
+            sys.stdout,
+            format=custom_format_function,
+            level=log_level_to_set,
+            colorize=True,
+        )
 
 
 def setup_global_env_vars(args: argparse.Namespace) -> None:
@@ -176,7 +182,7 @@ def create_project(project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilo
     """
     if project_dir.exists():
         logger.error("Project directory already exists!")
-        sys.exit()
+        sys.exit(1)
     else:
         project_dir.mkdir(parents=True, exist_ok=True)
         (project_dir / ".FABulous").mkdir(parents=True, exist_ok=True)
