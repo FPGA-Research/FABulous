@@ -213,7 +213,7 @@ def main():
                     f'Commands "{"; ".join(i.strip() for i in commands)}" executed successfully'
                 )
                 exit(0)
-        elif fabScript.is_file():
+        elif fabScript != Path().cwd():
             fab_CLI.onecmd_plus_hooks(f"run_script {fabScript}")
             if fab_CLI.exit_code:
                 logger.error(
@@ -225,7 +225,7 @@ def main():
                 )
 
             exit(fab_CLI.exit_code)
-        elif tclScript.is_file():
+        elif tclScript != Path().cwd():
             fab_CLI.onecmd_plus_hooks(f"run_tcl {tclScript}")
             if fab_CLI.exit_code:
                 logger.error(
