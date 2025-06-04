@@ -42,6 +42,7 @@ from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.fabric_generator.code_generator import codeGenerator
 from FABulous.fabric_generator.file_parser import (
+    parseBelFile,
     parseConfigMem,
     parseList,
     parseMatrix,
