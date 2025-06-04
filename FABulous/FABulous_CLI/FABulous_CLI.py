@@ -92,7 +92,6 @@ or
 The shell support tab completion for commands and files
 
 To run the complete FABulous flow with the default project, run the following command:
-    load_fabric
     run_FABulous_fabric
     run_FABulous_bitstream ./user_design/sequential_16bit_en.v
     run_simulation fst ./user_design/sequential_16bit_en.bin
@@ -340,7 +339,7 @@ class FABulous_CLI(Cmd):
                 self.fabulousAPI.loadFabric(self.csvFile)
             else:
                 logger.opt(exception=FileExistsError()).error(
-                    "No argument is given and the csv file is set or the file does not exist"
+                    "No argument is given and the csv file is set but the file does not exist"
                 )
         else:
             self.fabulousAPI.loadFabric(args.file)

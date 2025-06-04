@@ -201,6 +201,7 @@ def main():
         tclScript: Path = args.TCLScript.absolute()
         logger.info(f"Setting current working directory to: {projectDir}")
         os.chdir(projectDir)
+        fab_CLI.onecmd_plus_hooks("load_fabric")
 
         if commands := args.commands:
             commands = commands.split("; ")
@@ -233,11 +234,6 @@ def main():
             else:
                 logger.info(f"TCL script {args.TCLScript} executed successfully")
             exit(fab_CLI.exit_code)
-        elif fabScript or tclScript:
-            logger.error(
-                "You have provided a FABulous script or a TCL script, but you have provided a path but not a file."
-            )
-            exit(1)
         else:
             fab_CLI.interactive = True
             if args.verbose == 2:
