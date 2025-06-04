@@ -24,6 +24,7 @@ dependencies = [
   'loguru>=0.7.0',
   'fasm>=0.0.2',
   'requests>=2.0.0',
+  'cmd2>=2',
 ]
 
 [project.urls]
