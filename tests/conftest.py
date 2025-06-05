@@ -34,14 +34,18 @@ def normalize_and_check_for_errors(caplog_text: str):
 
 TILE = "LUT4AB"
 
-os.environ["FAB_ROOT"] = str(Path(__file__).resolve().parent.parent.parent / "FABulous")
+
+@pytest.fixture(autouse=True)
+def env():
+    fabulousRoot = str(Path(__file__).resolve().parent.parent / "FABulous")
+    os.environ["FAB_ROOT"] = fabulousRoot
+    yield
+    os.environ.pop("FAB_ROOT", None)
 
 
 @pytest.fixture
 def cli(tmp_path):
     projectDir = tmp_path / "test_project"
-    fabulousRoot = str(Path(__file__).resolve().parent.parent.parent / "FABulous")
-    os.environ["FAB_ROOT"] = fabulousRoot
     os.environ["FAB_PROJ_DIR"] = str(projectDir)
     create_project(projectDir)
     setup_logger(0, False)
@@ -51,13 +55,17 @@ def cli(tmp_path):
     cli.debug = True
     run_cmd(cli, "load_fabric")
     yield cli
+    os.environ.pop("FAB_ROOT", None)
+    os.environ.pop("FAB_PROJ_DIR", None)
 
 
 @pytest.fixture
 def project(tmp_path):
     project_dir = tmp_path / "test_project"
+    os.environ["FAB_PROJ_DIR"] = str(project_dir)
     create_project(project_dir)
-    return project_dir
+    yield project_dir
+    os.environ.pop("FAB_PROJ_DIR", None)
 
 
 @pytest.fixture

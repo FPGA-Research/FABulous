@@ -162,6 +162,8 @@ def main():
 
     setup_logger(args.verbose, args.debug, log_file=args.log)
 
+    setup_global_env_vars(args)
+
     if args.createProject:
         create_project(Path(args.project_dir).absolute(), args.writer)
         exit(0)
@@ -175,8 +177,6 @@ def main():
     if not Path(args.project_dir).absolute().exists():
         logger.error(f"The directory provided does not exist: {args.project_dir}")
         exit(1)
-
-    setup_global_env_vars(args)
 
     projectDir = Path(os.getenv("FAB_PROJ_DIR", args.project_dir)).absolute().resolve()
 
