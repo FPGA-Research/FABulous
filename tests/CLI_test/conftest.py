@@ -50,7 +50,13 @@ def cli(tmp_path):
     )
     cli.debug = True
     run_cmd(cli, "load_fabric")
-    return cli
+    yield cli
+
+@pytest.fixture
+def project(tmp_path):
+    project_dir = tmp_path / "test_project"
+    create_project(project_dir)
+    return project_dir
 
 
 @pytest.fixture

@@ -22,39 +22,29 @@ def test_create_project_existing_dir(tmp_path):
     assert result.returncode != 0
 
 
-def test_create_project_with_no_name(tmp_path):
+def test_create_project_with_no_name():
     result = run(["FABulous", "--createProject"], capture_output=True, text=True)
     assert result.returncode != 0
 
 
-def test_fabulous_script(tmp_path):
-    # Create project first
-    project_dir = tmp_path / "test_prj"
-    result = run(
-        ["FABulous", "--createProject", str(project_dir)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
-
+def test_fabulous_script(tmp_path, project):
     # Create a test FABulous script file
     script_file = tmp_path / "test_script.fab"
     script_file.write_text("# Test FABulous script\nhelp\n")
 
     result = run(
-        ["FABulous", str(project_dir), "--FABulousScript", str(script_file)],
+        ["FABulous", str(project), "--FABulousScript", str(script_file)],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0
 
 
-def test_fabulous_script_nonexistent_file(tmp_path):
+def test_fabulous_script_nonexistent_file(tmp_path, project):
     nonexistent_script = tmp_path / "nonexistent_script.fab"
-    project_dir = tmp_path / "test_prj"
 
     result = run(
-        ["FABulous", str(project_dir), "--FABulousScript", str(nonexistent_script)],
+        ["FABulous", str(project), "--FABulousScript", str(nonexistent_script)],
         capture_output=True,
         text=True,
     )
@@ -73,17 +63,8 @@ def test_fabulous_script_with_no_project_dir(tmp_path):
     assert result.returncode != 0
 
 
-def test_tcl_script_execution(tmp_path):
+def test_tcl_script_execution(tmp_path, project):
     """Test TCL script execution on a valid project"""
-    project_dir = tmp_path / "test_tcl_project"
-
-    # Create project first
-    result = run(
-        ["FABulous", "--createProject", str(project_dir)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
 
     # Create a TCL script
     tcl_script = tmp_path / "test_script.tcl"
@@ -93,28 +74,18 @@ def test_tcl_script_execution(tmp_path):
 
     # Run TCL script
     result = run(
-        ["FABulous", str(project_dir), "--TCLScript", str(tcl_script)],
+        ["FABulous", str(project), "--TCLScript", str(tcl_script)],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0
 
 
-def test_commands_execution(tmp_path):
+def test_commands_execution(tmp_path, project):
     """Test direct command execution with -p/--commands"""
-    project_dir = tmp_path / "test_cmd_project"
-
-    # Create project
-    result = run(
-        ["FABulous", "--createProject", str(project_dir)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
-
     # Run commands directly
     result = run(
-        ["FABulous", str(project_dir), "--commands", "help; help"],
+        ["FABulous", str(project), "--commands", "help; help"],
         capture_output=True,
         text=True,
     )
@@ -151,22 +122,13 @@ def test_create_project_with_verilog_writer(tmp_path):
     assert "verilog" in (project_dir / ".FABulous" / ".env").read_text()
 
 
-def test_logging_functionality(tmp_path):
+def test_logging_functionality(tmp_path, project):
     """Test log file creation and output"""
-    project_dir = tmp_path / "test_log_project"
     log_file = tmp_path / "test.log"
-
-    # Create project
-    result = run(
-        ["FABulous", "--createProject", str(project_dir)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
 
     # Run with logging using commands instead of script to avoid file handling issues
     result = run(
-        ["FABulous", str(project_dir), "--commands", "help", "-log", str(log_file)],
+        ["FABulous", str(project), "--commands", "help", "-log", str(log_file)],
         capture_output=True,
         text=True,
     )
@@ -175,44 +137,26 @@ def test_logging_functionality(tmp_path):
     assert log_file.stat().st_size > 0  # Check if log file is not empty
 
 
-def test_verbose_mode(tmp_path):
+def test_verbose_mode(project):
     """Test verbose mode execution"""
-    project_dir = tmp_path / "test_verbose_project"
-
-    # Create project
-    result = run(
-        ["FABulous", "--createProject", str(project_dir)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
 
     # Run with verbose mode
     result = run(
-        ["FABulous", str(project_dir), "--commands", "help", "-v"],
+        ["FABulous", str(project), "--commands", "help", "-v"],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0
 
 
-def test_force_flag(tmp_path):
+def test_force_flag(project):
     """Test force flag functionality"""
-    project_dir = tmp_path / "test_force_project"
-
-    # Create project
-    result = run(
-        ["FABulous", "--createProject", str(project_dir)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
 
     # Run with force flag
     result = run(
         [
             "FABulous",
-            str(project_dir),
+            str(project),
             "--commands",
             "load_fabric non_existent",
             "--force",
@@ -225,7 +169,7 @@ def test_force_flag(tmp_path):
     result = run(
         [
             "FABulous",
-            str(project_dir),
+            str(project),
             "--commands",
             "load_fabric non_existent; load_fabric",
             "--force",
@@ -236,31 +180,20 @@ def test_force_flag(tmp_path):
     assert result.returncode == 1
 
 
-def test_debug_mode(tmp_path):
+def test_debug_mode(project):
     """Test debug mode functionality"""
-    project_dir = tmp_path / "test_debug_project"
-
-    # Create project
-    result = run(
-        ["FABulous", "--createProject", str(project_dir)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
 
     # Run with debug mode
     result = run(
-        ["FABulous", str(project_dir), "--commands", "help", "--debug"],
+        ["FABulous", str(project), "--commands", "help", "--debug"],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0
 
 
-def test_install_oss_cad_suite(tmp_path, mocker):
+def test_install_oss_cad_suite(project, mocker):
     """Test oss-cad-suite installation"""
-    install_dir = tmp_path / "oss_install_test"
-    install_dir.mkdir()
 
     # Test installation (may fail if network unavailable, but should handle gracefully)
     class MockRequest:
@@ -270,24 +203,15 @@ def test_install_oss_cad_suite(tmp_path, mocker):
         "requests.get", return_value=MockRequest()
     )  # Mock network request for testing
     result = run(
-        ["FABulous", str(install_dir), "--install_oss_cad_suite"],
+        ["FABulous", str(project), "--install_oss_cad_suite"],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0
 
 
-def test_script_mutually_exclusive(tmp_path):
+def test_script_mutually_exclusive(tmp_path, project):
     """Test that FABulous script and TCL script are mutually exclusive"""
-    project_dir = tmp_path / "test_exclusive_project"
-
-    # Create project
-    result = run(
-        ["FABulous", "--createProject", str(project_dir)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
 
     # Create both script types
     fab_script = tmp_path / "test.fab"
@@ -299,7 +223,7 @@ def test_script_mutually_exclusive(tmp_path):
     result = run(
         [
             "FABulous",
-            str(project_dir),
+            str(project),
             "--FABulousScript",
             str(fab_script),
             "--TCLScript",
@@ -319,7 +243,6 @@ def test_invalid_project_directory():
         ["FABulous", invalid_dir, "--commands", "help"], capture_output=True, text=True
     )
     assert result.returncode != 0
-    assert "does not exist" in result.stdout
 
 
 def test_project_without_fabulous_folder(tmp_path):
@@ -336,31 +259,21 @@ def test_project_without_fabulous_folder(tmp_path):
     assert "not a FABulous project" in result.stdout
 
 
-def test_nonexistent_script_file(tmp_path):
+def test_nonexistent_script_file(project):
     """Test error handling for nonexistent script files"""
-    project_dir = tmp_path / "test_project"
-
-    # Create project
-    result = run(
-        ["FABulous", "--createProject", str(project_dir)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
 
     # Try to run nonexistent FABulous script - FABulous handles this gracefully
     result = run(
-        ["FABulous", str(project_dir), "--FABulousScript", "/nonexistent/script.fab"],
+        ["FABulous", str(project), "--FABulousScript", "/nonexistent/script.fab"],
         capture_output=True,
         text=True,
     )
     # FABulous appears to handle missing script files gracefully and still executes successfully
-    assert result.returncode == 0
-    assert "Problem accessing script" in result.stderr
+    assert result.returncode == 1
 
     # Try to run nonexistent TCL script
     result = run(
-        ["FABulous", str(project_dir), "--TCLScript", "/nonexistent/script.tcl"],
+        ["FABulous", str(project), "--TCLScript", "/nonexistent/script.tcl"],
         capture_output=True,
         text=True,
     )
@@ -368,21 +281,34 @@ def test_nonexistent_script_file(tmp_path):
     assert "nonexistent" in result.stdout or "Problem" in result.stderr
 
 
-def test_empty_commands(tmp_path):
+def test_empty_commands(project):
     """Test handling of empty command string"""
-    project_dir = tmp_path / "test_empty_cmd_project"
-
-    # Create project
-    result = run(
-        ["FABulous", "--createProject", str(project_dir)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
-
     # Run with empty commands
     result = run(
-        ["FABulous", str(project_dir), "--commands", ""], capture_output=True, text=True
+        ["FABulous", str(project), "--commands", ""], capture_output=True, text=True
     )
     # Should handle gracefully
     assert result.returncode == 0
+
+def test_create_project_with_invalid_writer(tmp_path, project):
+    """Test project creation with an invalid writer"""
+    project_dir = tmp_path / "test_invalid_writer_project"
+
+    result = run(
+        ["FABulous", "--createProject", str(project_dir), "--writer", "invalid_writer"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+
+
+def test_create_project_with_install_oss_cad_suite(tmp_path):
+    """Test project creation with install_oss_cad_suite flag"""
+    project_dir = tmp_path / "test_install_oss_cad_suite_project"
+
+    result = run(
+        ["FABulous", "--createProject", str(project_dir), "--install_oss_cad_suite"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0

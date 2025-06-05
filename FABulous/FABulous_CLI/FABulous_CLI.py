@@ -188,8 +188,6 @@ class FABulous_CLI(Cmd):
         categorize(self.do_shortcuts, CMD_OTHER)
         categorize(self.do_help, CMD_OTHER)
         categorize(self.do_macro, CMD_OTHER)
-
-        categorize(self.do_run_script, CMD_SCRIPT)
         categorize(self.do_run_tcl, CMD_SCRIPT)
         categorize(self.do_run_pyscript, CMD_SCRIPT)
 
@@ -971,6 +969,23 @@ class FABulous_CLI(Cmd):
         self.tcl.eval(script)
 
         logger.info("TCL script executed")
+
+
+    @with_category(CMD_SCRIPT)
+    @with_argparser(filePathRequireParser)
+    def do_run_script(self, args):
+        """Executes script 
+        """
+        if not args.file.exists():
+            logger.opt(exception=FileNotFoundError()).error(f"Cannot find {args.file}")
+
+        logger.info(f"Execute script {args.file}")
+
+        with open(args.file, "r") as f:
+            for i in f.readlines():
+                self.onecmd_plus_hooks(i.strip())
+
+        logger.info("Script executed")
 
     @with_category(CMD_USER_DESIGN_FLOW)
     @with_argparser(userDesignRequireParser)

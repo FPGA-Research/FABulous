@@ -16,7 +16,7 @@ from loguru import logger
 MAX_BITBYTES = 16384
 
 
-def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()):
+def setup_logger(verbosity: int, debug: bool, log_file: Path = Path(), testing: bool = False):
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 
@@ -180,6 +180,7 @@ def create_project(project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilo
     lang : Literal["verilog", "vhdl"], optional
         The language of project to create ("verilog" or "vhdl"), by default "verilog".
     """
+    logger.info(project_dir)
     if project_dir.exists():
         logger.error("Project directory already exists!")
         sys.exit(1)
