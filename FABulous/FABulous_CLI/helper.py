@@ -16,7 +16,9 @@ from loguru import logger
 MAX_BITBYTES = 16384
 
 
-def setup_logger(verbosity: int, debug: bool, log_file: Path = Path(), testing: bool = False):
+def setup_logger(
+    verbosity: int, debug: bool, log_file: Path = Path(), testing: bool = False
+):
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 

@@ -52,6 +52,7 @@ def cli(tmp_path):
     run_cmd(cli, "load_fabric")
     yield cli
 
+
 @pytest.fixture
 def project(tmp_path):
     project_dir = tmp_path / "test_project"

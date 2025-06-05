@@ -79,7 +79,6 @@ def main():
         help="The directory to the project folder",
     )
 
-
     script_group.add_argument(
         "-fs",
         "--FABulousScript",
@@ -151,7 +150,6 @@ def main():
         help="Set the project .env file path. Default is $FAB_PROJ_DIR/.env",
     )
 
-
     parser.add_argument(
         "--force",
         action="store_true",
@@ -187,7 +185,6 @@ def main():
             f"The project directory provided ({args.project_dir}) does not match the FAB_PROJ_DIR environment variable ({projectDir})."
             "Overriding user provided project directory with FAB_PROJ_DIR environment variable value."
         )
-
 
     args.top = projectDir.stem
 
@@ -231,9 +228,7 @@ def main():
                 f"FABulous script {args.FABulousScript} execution failed with exit code {fab_CLI.exit_code}"
             )
         else:
-            logger.info(
-                f"FABulous script {args.FABulousScript} executed successfully"
-            )
+            logger.info(f"FABulous script {args.FABulousScript} executed successfully")
 
         exit(fab_CLI.exit_code)
     elif tclScript != cwd:

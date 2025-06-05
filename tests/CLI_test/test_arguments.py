@@ -290,6 +290,7 @@ def test_empty_commands(project):
     # Should handle gracefully
     assert result.returncode == 0
 
+
 def test_create_project_with_invalid_writer(tmp_path, project):
     """Test project creation with an invalid writer"""
     project_dir = tmp_path / "test_invalid_writer_project"

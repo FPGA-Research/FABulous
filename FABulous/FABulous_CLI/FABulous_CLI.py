@@ -970,12 +970,10 @@ class FABulous_CLI(Cmd):
 
         logger.info("TCL script executed")
 
-
     @with_category(CMD_SCRIPT)
     @with_argparser(filePathRequireParser)
     def do_run_script(self, args):
-        """Executes script 
-        """
+        """Executes script"""
         if not args.file.exists():
             logger.opt(exception=FileNotFoundError()).error(f"Cannot find {args.file}")
 
