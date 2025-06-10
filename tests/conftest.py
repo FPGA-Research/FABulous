@@ -39,8 +39,10 @@ TILE = "LUT4AB"
 def env():
     fabulousRoot = str(Path(__file__).resolve().parent.parent / "FABulous")
     os.environ["FAB_ROOT"] = fabulousRoot
+    os.environ["FABULOUS_TESTING"] = "TRUE"
     yield
     os.environ.pop("FAB_ROOT", None)
+    os.environ.pop("FABULOUS_TESTING", None)
 
 
 @pytest.fixture

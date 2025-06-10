@@ -1,6 +1,5 @@
 import argparse
 import os
-from contextlib import redirect_stdout
 from pathlib import Path
 
 from loguru import logger
@@ -76,6 +75,8 @@ def main():
 
     parser.add_argument(
         "project_dir",
+        default="",
+        nargs="?",
         help="The directory to the project folder",
     )
 
@@ -162,37 +163,39 @@ def main():
 
     setup_logger(args.verbose, args.debug, log_file=args.log)
 
+    # Start with default value
+    projectDir = Path().cwd()
+
+    # Setup global and project env vars to load .env files
     setup_global_env_vars(args)
+    setup_project_env_vars(args)
+
+    # Check if FAB_PROJ_DIR is set in environment (including from .env files)
+    if fab_proj_dir := os.getenv("FAB_PROJ_DIR", None):
+        projectDir = Path(fab_proj_dir).absolute().resolve()
+
+    # Finally, user provided argument takes highest priority
+    if args.project_dir:
+        projectDir = Path(args.project_dir).absolute().resolve()
 
     if args.createProject:
-        create_project(Path(args.project_dir).absolute(), args.writer)
+        create_project(projectDir, args.writer)
         exit(0)
 
-    if not (Path(args.project_dir).absolute() / ".FABulous").exists():
+    if not (projectDir / ".FABulous").exists():
         logger.error(
             "The directory provided is not a FABulous project as it does not have a .FABulous folder"
         )
         exit(1)
 
-    if not Path(args.project_dir).absolute().exists():
-        logger.error(f"The directory provided does not exist: {args.project_dir}")
+    if not projectDir.exists():
+        logger.error(f"The directory provided does not exist: {projectDir}")
         exit(1)
-
-    projectDir = Path(os.getenv("FAB_PROJ_DIR", args.project_dir)).absolute().resolve()
-
-    if projectDir != Path(args.project_dir).absolute().resolve():
-        logger.warning(
-            f"The project directory provided ({args.project_dir}) does not match the FAB_PROJ_DIR environment variable ({projectDir})."
-            "Overriding user provided project directory with FAB_PROJ_DIR environment variable value."
-        )
-
-    args.top = projectDir.stem
 
     if args.install_oss_cad_suite:
         install_oss_cad_suite(projectDir, True)
         exit(0)
 
-    setup_project_env_vars(args)
     fab_CLI = FABulous_CLI(
         os.getenv("FAB_PROJ_LANG"),
         projectDir,

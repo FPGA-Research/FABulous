@@ -222,9 +222,9 @@ class FABulous_CLI(Cmd):
             logger.debug(traceback.format_exc())
             self.exit_code = 1
             if not self.interactive:
-                return not self.force
-            else:
                 return False
+            else:
+                return not self.force
 
     def do_exit(self, *ignored):
         """Exits the FABulous shell and logs info message."""
@@ -512,7 +512,12 @@ class FABulous_CLI(Cmd):
         Logs start and completion of fabric generation process.
         """
         logger.info(f"Generating fabric {self.fabulousAPI.fabric.name}")
-        self.do_gen_all_tile()
+        self.onecmd_plus_hooks("gen_all_tile")
+        if self.exit_code != 0:
+            logger.opt(exception=CommandError()).error(
+                "Tile generation failed. Please check the logs for more details."
+            )
+            return
         self.fabulousAPI.setWriterOutputFile(
             f"{self.projectDir}/Fabric/{self.fabulousAPI.fabric.name}.{self.extension}"
         )
@@ -632,12 +637,37 @@ class FABulous_CLI(Cmd):
         """
         logger.info("Running FABulous")
         self.onecmd_plus_hooks("gen_fabric")
+        if self.exit_code != 0:
+            logger.opt(exception=CommandError()).error(
+                "Fabric generation failed. Please check the logs for more details."
+            )
+            return
+
         self.onecmd_plus_hooks("gen_bitStream_spec")
+        if self.exit_code != 0:
+            logger.opt(exception=CommandError()).error(
+                "Bitstream specification generation failed. Please check the logs for more details."
+            )
+            return
         self.onecmd_plus_hooks("gen_top_wrapper")
+        if self.exit_code != 0:
+            logger.opt(exception=CommandError()).error(
+                "Top wrapper generation failed. Please check the logs for more details."
+            )
+            return
         self.onecmd_plus_hooks("gen_model_npnr")
+        if self.exit_code != 0:
+            logger.opt(exception=CommandError()).error(
+                "Nextpnr model generation failed. Please check the logs for more details."
+            )
+            return
         self.onecmd_plus_hooks("gen_geometry")
+        if self.exit_code != 0:
+            logger.opt(exception=CommandError()).error(
+                "Geometry generation failed. Please check the logs for more details."
+            )
+            return
         logger.info("FABulous fabric flow complete")
-        return
 
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_model_npnr(self, *ignored):
@@ -771,7 +801,6 @@ class FABulous_CLI(Cmd):
                 Usage: gen_bitStream_binary <fasm_file>
                 """
             )
-            return
 
         bitstream_file = top_module_name + ".bin"
 
@@ -948,8 +977,23 @@ class FABulous_CLI(Cmd):
         else:
             logger.info("No external primsLib found.")
         self.onecmd_plus_hooks(f"synthesis {do_synth_args}")
+        if self.exit_code != 0:
+            logger.opt(exception=CommandError()).error(
+                "Synthesis failed. Please check the logs for more details."
+            )
+            return
         self.onecmd_plus_hooks(f"place_and_route {json_file_path}")
+        if self.exit_code != 0:
+            logger.opt(exception=CommandError()).error(
+                "Place and Route failed. Please check the logs for more details."
+            )
+            return
         self.onecmd_plus_hooks(f"gen_bitStream_binary {fasm_file_path}")
+        if self.exit_code != 0:
+            logger.opt(exception=CommandError()).error(
+                "Bitstream generation failed. Please check the logs for more details."
+            )
+            return
 
     @with_category(CMD_SCRIPT)
     @with_argparser(filePathRequireParser)

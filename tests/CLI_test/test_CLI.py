@@ -1,7 +1,10 @@
 from pathlib import Path
+import subprocess
 import pytest
+from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from tests.conftest import (
     TILE,
+    normalize,
     normalize_and_check_for_errors,
     run_cmd,
 )
@@ -132,3 +135,12 @@ def test_run_tcl(cli, caplog, tmp_path):
     log = normalize_and_check_for_errors(caplog.text)
     assert f"Execute TCL script {str(tcl_script_path)}" in log[0]
     assert "TCL script executed" in log[-1]
+
+
+def test_multi_command_stop(cli, caplog, monkeypatch):
+    monkeypatch.setattr(
+        subprocess, "run", lambda: False, raising=ValueError("Command failed")
+    )
+    run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
+    log = normalize(caplog.text)
+    assert "ERROR" in log[-2]

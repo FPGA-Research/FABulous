@@ -16,9 +16,7 @@ from loguru import logger
 MAX_BITBYTES = 16384
 
 
-def setup_logger(
-    verbosity: int, debug: bool, log_file: Path = Path(), testing: bool = False
-):
+def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()):
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 
@@ -41,6 +39,9 @@ def setup_logger(
             final_log = f"{level}{time}{name}:{func}:{line} - {exc}{msg}\n"
         else:
             final_log = f"{level}{exc}{msg}\n"
+
+        if os.getenv("FABULOUS_TESTING", None):
+            final_log = f"{record['level'].name}: {record['message']}\n"
 
         return final_log
 

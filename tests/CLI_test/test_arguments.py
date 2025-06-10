@@ -1,4 +1,5 @@
 from subprocess import run
+import os
 
 
 def test_create_project(tmp_path):
@@ -199,6 +200,9 @@ def test_install_oss_cad_suite(project, mocker):
     class MockRequest:
         status_code = 200
 
+        def iter_content(self, chunk_size=1024):
+            return []
+
     mocker.patch(
         "requests.get", return_value=MockRequest()
     )  # Mock network request for testing
@@ -313,3 +317,72 @@ def test_create_project_with_install_oss_cad_suite(tmp_path):
         text=True,
     )
     assert result.returncode != 0
+
+
+def test_project_directory_priority_order(tmp_path, monkeypatch, mocker):
+    """Test that project directory priority order is followed:
+    1. User provided argument (highest priority)
+    2. Environment variables (FAB_PROJ_DIR)
+    3. Project .env file (handled by setup functions)
+    4. Global .env file (handled by setup functions)
+    5. Default value - current working directory (lowest priority)
+    """
+    # Create multiple project directories for testing
+    user_provided_dir = tmp_path / "user_provided_project"
+    env_var_dir = tmp_path / "env_var_project"
+    default_dir = tmp_path / "default_project"
+
+    # Create all directories with .FABulous folders
+    for project_dir in [user_provided_dir, env_var_dir, default_dir]:
+        project_dir.mkdir()
+        (project_dir / ".FABulous").mkdir()
+        (project_dir / ".FABulous" / ".env").write_text("FAB_PROJ_LANG=verilog\n")
+
+    # Test 1: User provided argument should take highest priority over environment variable
+    monkeypatch.setenv("FAB_PROJ_DIR", str(env_var_dir))
+    monkeypatch.chdir(default_dir)
+
+    result = run(
+        ["FABulous", str(user_provided_dir), "--commands", "help"],
+        capture_output=True,
+        text=True,
+    )
+
+    # The log should show the user provided directory being used
+    assert (
+        f"INFO: Setting current working directory to: {str(user_provided_dir)}"
+        in result.stdout
+    )
+
+    # Test 2: Environment variable should be used when no user argument provided
+    env_with_fab_proj = os.environ.copy()
+    env_with_fab_proj["FAB_PROJ_DIR"] = str(env_var_dir)
+
+    result = run(
+        ["FABulous", "--commands", "help"],
+        capture_output=True,
+        text=True,
+        env=env_with_fab_proj,
+    )
+    # Should use the environment variable directory
+    assert (
+        f"INFO: Setting current working directory to: {str(env_var_dir)}"
+        in result.stdout
+    )
+
+    # Test 3: Default directory (cwd) should be used when no argument or env var
+    env_without_fab_proj = os.environ.copy()
+    env_without_fab_proj.pop("FAB_PROJ_DIR", None)
+
+    result = run(
+        ["FABulous", "--commands", "help"],
+        capture_output=True,
+        text=True,
+        cwd=str(default_dir),
+        env=env_without_fab_proj,
+    )
+
+    assert (
+        f"INFO: Setting current working directory to: {str(default_dir)}"
+        in result.stdout
+    )
