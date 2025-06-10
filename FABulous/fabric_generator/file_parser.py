@@ -138,7 +138,9 @@ def parseFabricCSV(fileName: str) -> Fabric:
         if i[0].startswith("Tile"):
             if "GENERATE" in i:
                 # import here to avoid circular import
-
+                from FABulous.fabric_generator.fabric_automation import (
+                    generateCustomTileConfig,
+                )
                 # we generate the tile right before we parse everything
                 i[1] = str(generate_custom_tile_config(filePath.joinpath(i[1])))
 
@@ -1020,17 +1022,7 @@ def parseBelFile(
 
     if filetype == "verilog":
         # Runs yosys on verilog file, creates netlist, saves to json in same directory.
-        json_file = filename.with_suffix(".json")
-        runCmd = [
-            "yosys",
-            f"-qpread_verilog -sv {filename}; proc -noopt; write_json -compat-int {json_file}",
-        ]
-        try:
-            subprocess.run(runCmd, check=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to run yosys command: {e}")
-            raise ValueError
-        hdlData = YosysJson(json_file)
+        hdlData = YosysJson(filename)
 
         modules: dict[str, YosysModule] = hdlData.modules
         filtered_ports = {}
