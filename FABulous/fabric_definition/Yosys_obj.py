@@ -10,7 +10,12 @@ from loguru import logger
 
 from FABulous.FABulous_CLI.helper import check_if_application_exists
 
-"""Type alias for Yosys bit vectors containing integers or logic values."""
+"""
+Type alias for Yosys bit vectors containing integers or logic values.
+
+BitVector represents signal values in Yosys netlists as lists containing
+integers (for signal IDs) or logic state strings ("0", "1", "x", "z").
+"""
 BitVector = list[int | Literal["0", "1", "x", "z"]]
 
 
@@ -19,12 +24,18 @@ class YosysPortDetails:
     """
     Represents port details in a Yosys module.
 
-    Attributes:
-        direction: Port direction - "input", "output", or "inout"
-        bits: Bit vector representing the port's signals
-        offset: Bit offset for multi-bit ports (default: 0)
-        upto: Upper bound for bit ranges (default: 0)
-        signed: Whether the port is signed (0=unsigned, 1=signed, default: 0)
+    Attributes
+    ----------
+    direction : {"input", "output", "inout"}
+        Port direction.
+    bits : BitVector
+        Bit vector representing the port's signals.
+    offset : int, default 0
+        Bit offset for multi-bit ports.
+    upto : int, default 0
+        Upper bound for bit ranges.
+    signed : int, default 0
+        Whether the port is signed (0=unsigned, 1=signed).
     """
 
     direction: Literal["input", "output", "inout"]
@@ -39,16 +50,25 @@ class YosysCellDetails:
     """
     Represents a cell instance in a Yosys module.
 
-    Cells are instantiated components like logic gates, flip-flops, or user-defined modules.
+    Cells are instantiated components like logic gates, flip-flops, or
+    user-defined modules.
 
-    Attributes:
-        hide_name: Whether to hide the cell name in output (1=hide, 0=show)
-        type: Cell type/primitive name (e.g., "AND", "DFF", custom module name)
-        parameters: Cell parameters as string key-value pairs
-        attributes: Cell attributes including metadata and synthesis directives
-        connections: Port connections mapping port names to bit vectors
-        port_directions: Direction of each port ("input", "output", "inout")
-        model: Associated model name (optional, default: "")
+    Attributes
+    ----------
+    hide_name : {0, 1}
+        Whether to hide the cell name in output (1=hide, 0=show).
+    type : str
+        Cell type/primitive name (e.g., "AND", "DFF", custom module name).
+    parameters : dict[str, str]
+        Cell parameters as string key-value pairs.
+    attributes : dict[str, str | int]
+        Cell attributes including metadata and synthesis directives.
+    connections : dict[str, BitVector]
+        Port connections mapping port names to bit vectors.
+    port_directions : dict[str, {"input", "output", "inout"}], optional
+        Direction of each port. Default is empty dict.
+    model : str, optional
+        Associated model name. Default is "".
     """
 
     hide_name: Literal[1, 0]
@@ -67,12 +87,18 @@ class YosysMemoryDetails:
 
     Memory blocks are inferred or explicitly instantiated memory elements.
 
-    Attributes:
-        hide_name: Whether to hide the memory name in output (1=hide, 0=show)
-        attributes: Memory attributes and metadata
-        width: Data width in bits
-        start_offset: Starting address offset
-        size: Memory size (number of addressable locations)
+    Attributes
+    ----------
+    hide_name : {0, 1}
+        Whether to hide the memory name in output (1=hide, 0=show).
+    attributes : dict[str, str]
+        Memory attributes and metadata.
+    width : int
+        Data width in bits.
+    start_offset : int
+        Starting address offset.
+    size : int
+        Memory size (number of addressable locations).
     """
 
     hide_name: Literal[1, 0]
@@ -89,13 +115,20 @@ class YosysNetDetails:
 
     Nets are the connections between cells and ports in the design.
 
-    Attributes:
-        hide_name: Whether to hide the net name in output (1=hide, 0=show)
-        bits: Bit vector representing the net's signals
-        attributes: Net attributes including unused bit information
-        offset: Bit offset for multi-bit nets (default: 0)
-        upto: Upper bound for bit ranges (default: 0)
-        signed: Whether the net is signed (0=unsigned, 1=signed, default: 0)
+    Attributes
+    ----------
+    hide_name : {0, 1}
+        Whether to hide the net name in output (1=hide, 0=show).
+    bits : BitVector
+        Bit vector representing the net's signals.
+    attributes : dict[str, str]
+        Net attributes including unused bit information.
+    offset : int, default 0
+        Bit offset for multi-bit nets.
+    upto : int, default 0
+        Upper bound for bit ranges.
+    signed : int, default 0
+        Whether the net is signed (0=unsigned, 1=signed).
     """
 
     hide_name: Literal[1, 0]
@@ -115,13 +148,20 @@ class YosysModule:
     its interface (ports), internal components (cells), memory blocks, and
     interconnections (nets).
 
-    Attributes:
-        attributes: Module attributes and metadata (e.g., "top" for top module)
-        parameter_default_values: Default values for module parameters
-        ports: Dictionary mapping port names to YosysPortDetails
-        cells: Dictionary mapping cell names to YosysCellDetails
-        memories: Dictionary mapping memory names to YosysMemoryDetails
-        netnames: Dictionary mapping net names to YosysNetDetails
+    Attributes
+    ----------
+    attributes : dict[str, str | int]
+        Module attributes and metadata (e.g., "top" for top module).
+    parameter_default_values : dict[str, str | int]
+        Default values for module parameters.
+    ports : dict[str, YosysPortDetails]
+        Dictionary mapping port names to YosysPortDetails.
+    cells : dict[str, YosysCellDetails]
+        Dictionary mapping cell names to YosysCellDetails.
+    memories : dict[str, YosysMemoryDetails]
+        Dictionary mapping memory names to YosysMemoryDetails.
+    netnames : dict[str, YosysNetDetails]
+        Dictionary mapping net names to YosysNetDetails.
     """
 
     attributes: dict[str, str | int]
@@ -135,13 +175,20 @@ class YosysModule:
         """
         Initialize a YosysModule from parsed JSON data.
 
-        Args:
-            attributes: Module attributes dictionary
-            parameter_default_values: Parameter defaults dictionary
-            ports: Ports dictionary (will be converted to YosysPortDetails objects)
-            cells: Cells dictionary (will be converted to YosysCellDetails objects)
-            memories: Memories dictionary (will be converted to YosysMemoryDetails objects)
-            netnames: Netnames dictionary (will be converted to YosysNetDetails objects)
+        Parameters
+        ----------
+        attributes : dict
+            Module attributes dictionary.
+        parameter_default_values : dict
+            Parameter defaults dictionary.
+        ports : dict
+            Ports dictionary (will be converted to YosysPortDetails objects).
+        cells : dict
+            Cells dictionary (will be converted to YosysCellDetails objects).
+        memories : dict
+            Memories dictionary (will be converted to YosysMemoryDetails objects).
+        netnames : dict
+            Netnames dictionary (will be converted to YosysNetDetails objects).
         """
         self.attributes = attributes
         self.parameter_default_values = parameter_default_values
@@ -160,11 +207,16 @@ class YosysJson:
     netlists. It contains all modules in the design and provides utility methods
     for common netlist analysis tasks.
 
-    Attributes:
-        srcPath: Path to the source JSON file
-        creator: Tool that created the JSON (usually "Yosys")
-        modules: Dictionary mapping module names to YosysModule objects
-        models: Dictionary of behavioral models (implementation-specific)
+    Attributes
+    ----------
+    srcPath : Path
+        Path to the source JSON file.
+    creator : str
+        Tool that created the JSON (usually "Yosys").
+    modules : dict[str, YosysModule]
+        Dictionary mapping module names to YosysModule objects.
+    models : dict
+        Dictionary of behavioral models (implementation-specific).
     """
 
     srcPath: Path
@@ -176,12 +228,19 @@ class YosysJson:
         """
         Load and parse a HDL file to a Yosys JSON object.
 
-        Args:
-            path: Path to a HDL file
+        Parameters
+        ----------
+        path : Path
+            Path to a HDL file.
 
-        Raises:
-            FileNotFoundError: If the JSON file doesn't exist
-            json.JSONDecodeError: If the file contains invalid JSON
+        Raises
+        ------
+        FileNotFoundError
+            If the JSON file doesn't exist.
+        json.JSONDecodeError
+            If the file contains invalid JSON.
+        ValueError
+            If the HDL file type is unsupported.
         """
 
         self.srcPath = path
@@ -232,11 +291,15 @@ class YosysJson:
 
         The top module is identified by having a "top" attribute.
 
-        Returns:
-            YosysModule: The top-level module
+        Returns
+        -------
+        YosysModule
+            The top-level module.
 
-        Raises:
-            ValueError: If no top module is found in the design
+        Raises
+        ------
+        ValueError
+            If no top module is found in the design.
         """
         for module in self.modules.values():
             if "top" in module.attributes:
@@ -247,11 +310,15 @@ class YosysJson:
         """
         Check if a net ID corresponds to a top-level module port.
 
-        Args:
-            net: Net ID to check
+        Parameters
+        ----------
+        net : int
+            Net ID to check.
 
-        Returns:
-            bool: True if the net is connected to a top module port, False otherwise
+        Returns
+        -------
+        bool
+            True if the net is connected to a top module port, False otherwise.
         """
         for module in self.modules.values():
             for pDetail in module.ports.values():
@@ -259,30 +326,6 @@ class YosysJson:
                     return True
         return False
 
-    def isNetUsed(self, net: int) -> bool:
-        """
-        Determine if a net is actually used in the design.
-
-        This method checks the "unused_bits" attribute to determine if a specific
-        net bit is marked as unused by Yosys optimization.
-
-        Args:
-            net: Net ID to check
-
-        Returns:
-            bool: True if the net is used, False if it's marked as unused
-        """
-        for module in self.modules.values():
-            for net_name, net_details in module.netnames.items():
-                if net in net_details.bits and "unused_bits" in net_details.attributes:
-                    if r := re.search(r"\w+\[(\d+)\]", net_name):
-                        if int(r.group(1)) in [int(i) for i in net_details.attributes["unused_bits"].split(" ")]:
-                            return False
-
-                    else:
-                        if "0 " in net_details.attributes["unused_bits"]:
-                            return False
-        return True
 
     def getNetPortSrcSinks(self, net: int) -> tuple[tuple[str, str], list[tuple[str, str]]]:
         """
@@ -291,20 +334,27 @@ class YosysJson:
         This method analyzes the netlist to determine what drives a net (source)
         and what it connects to (sinks).
 
-        Args:
-            net: Net ID to analyze
+        Parameters
+        ----------
+        net : int
+            Net ID to analyze.
 
-        Returns:
-            tuple: A tuple containing:
-                - Source: (cell_name, port_name) tuple for the driving cell/port
-                - Sinks: List of (cell_name, port_name) tuples for driven cells/ports
+        Returns
+        -------
+        tuple[tuple[str, str], list[tuple[str, str]]]
+            A tuple containing:
+            - Source: (cell_name, port_name) tuple for the driving cell/port
+            - Sinks: List of (cell_name, port_name) tuples for driven cells/ports
 
-        Raises:
-            ValueError: If net is not found or has multiple drivers
+        Raises
+        ------
+        ValueError
+            If net is not found or has multiple drivers.
 
-        Note:
-            If no driver is found, the source will be ("", "z") indicating
-            a high-impedance or undriven net.
+        Notes
+        -----
+        If no driver is found, the source will be ("", "z") indicating
+        a high-impedance or undriven net.
         """
         src: list[tuple[str, str]] = []
         sinks: list[tuple[str, str]] = []
