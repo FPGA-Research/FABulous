@@ -103,6 +103,9 @@ Install FABulous with "editable" option:
 Building Fabric and Bitstream
 -----------------------------
 
+We offer two ways to run the FABulous flow, either via the FABulous Shell or directly supplying the commands via the command line (similar to Vivado Batch mode).
+
+To use the FABulous Shell, you can run the following command:
 
 .. code-block:: console
 
@@ -110,9 +113,17 @@ Building Fabric and Bitstream
    (venv)$ FABulous <name_of_project>
 
    # inside the FABulous shell
-   FABulous> load_fabric
    FABulous> run_FABulous_fabric
    FABulous> run_FABulous_bitstream user_design/sequential_16bit_en.v
+
+
+To run the FABulous flow directly from the command line, you can use the following commands:
+.. code-block:: console
+
+   (venv)$ FABulous -c <name_of_project>
+   (venv)$ FABulous <name_of_project> -p "run_FABulous_fabric; run_FABulous_bitstream user_design/sequential_16bit_en.v"
+
+
 
 .. note::
 

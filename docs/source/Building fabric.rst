@@ -14,7 +14,7 @@ completed.
 
 #. Create a new project
 
-   .. prompt:: bash FABulous>
+   .. prompt:: bash
 
         FABulous -c demo
 
