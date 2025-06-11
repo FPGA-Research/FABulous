@@ -2,6 +2,7 @@ import os
 import subprocess as sp
 from pathlib import Path
 
+from FABulous.custom_exception import CommandError
 from cmd2 import Cmd, Cmd2ArgumentParser, with_argparser, with_category
 from loguru import logger
 
@@ -290,8 +291,10 @@ def do_synthesis(self, args):
         *[str(i) for i in paths],
     ]
     logger.debug(f"{runCmd}")
-    try:
-        sp.run(runCmd, check=True)
-        logger.info("Synthesis completed")
-    except sp.CalledProcessError:
-        logger.error("Synthesis failed")
+    result = sp.run(runCmd, check=True)
+
+    if result.returncode != 0:
+        logger.opt(exception=CommandError()).error(
+            "Synthesis failed with non-zero return code."
+        )
+    logger.info("Synthesis command executed successfully.")

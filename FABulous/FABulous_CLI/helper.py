@@ -50,13 +50,16 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()):
 
     # Add logger to write logs to stdout using the custom formatter
     if log_file != Path():
-        logger.add(log_file, format=custom_format_function, level=log_level_to_set)
+        logger.add(
+            log_file, format=custom_format_function, level=log_level_to_set, catch=False
+        )
     else:
         logger.add(
             sys.stdout,
             format=custom_format_function,
             level=log_level_to_set,
             colorize=True,
+            catch=False,
         )
 
 
