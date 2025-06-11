@@ -97,7 +97,9 @@ def test_gen_model_npnr(cli, caplog):
 
 def test_run_FABulous_bitstream(cli, caplog, mocker):
     """Test the run_FABulous_bitstream command"""
-    m = mocker.patch("subprocess.run", side_effect=RuntimeError("Mocked error"))
+    class MockCompletedProcess:
+        returncode = 0
+    m = mocker.patch("subprocess.run", return_value=MockCompletedProcess())
     run_cmd(cli, "run_FABulous_fabric")
     Path(cli.projectDir / "user_design" / "sequential_16bit_en.json").touch()
     Path(cli.projectDir / "user_design" / "sequential_16bit_en.fasm").touch()
@@ -109,7 +111,9 @@ def test_run_FABulous_bitstream(cli, caplog, mocker):
 
 def test_run_simulation(cli, caplog, mocker):
     """Test running simulation"""
-    m = mocker.patch("subprocess.run", side_effect=RuntimeError("Mocked error"))
+    class MockCompletedProcess:
+        returncode = 0
+    m = mocker.patch("subprocess.run", return_value=MockCompletedProcess())
     run_cmd(cli, "run_FABulous_fabric")
     Path(cli.projectDir / "user_design" / "sequential_16bit_en.json").touch()
     Path(cli.projectDir / "user_design" / "sequential_16bit_en.fasm").touch()
