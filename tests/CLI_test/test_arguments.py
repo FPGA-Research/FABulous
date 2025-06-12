@@ -150,7 +150,7 @@ def test_verbose_mode(project):
     assert result.returncode == 0
 
 
-def test_force_flag(project, mocker):
+def test_force_flag(project, tmp_path):
     """Test force flag functionality"""
 
     # Run with force flag
@@ -180,6 +180,25 @@ def test_force_flag(project, mocker):
     )
 
     assert result.stdout.count("non_exist") == 2
+    assert result.returncode == 1
+
+    with open(tmp_path / "test.fs", "w") as f:
+        f.write("load_fabric non_exist.csv\n")
+        f.write("load_fabric non_exist.csv\n")
+
+    result = run(
+        [
+            "FABulous",
+            str(project),
+            "--FABulousScript",
+            str(tmp_path / "test.fs"),
+            "--force",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.stdout.count("INFO: Loading fabric") == 3
     assert result.returncode == 1
 
 

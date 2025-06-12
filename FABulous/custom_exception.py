@@ -14,3 +14,9 @@ class FileTypeError(Exception):
     """Exception raised for unsupported file types."""
 
     pass
+
+
+class FabricParsingError(Exception):
+    """Exception raised for errors in fabric parsing."""
+
+    pass

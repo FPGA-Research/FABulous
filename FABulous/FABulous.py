@@ -154,7 +154,7 @@ def main():
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force the command to run and ignore any errors",
+        help="Force the command to run and ignore any errors. This feature does not work for the TCLScript argument",
     )
 
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
@@ -214,16 +214,17 @@ def main():
         commands = commands.split("; ")
         for c in commands:
             fab_CLI.onecmd_plus_hooks(c)
-            if fab_CLI.exit_code:
+            if fab_CLI.exit_code and not args.force:
                 logger.error(
                     f"Command '{c}' execution failed with exit code {fab_CLI.exit_code}"
                 )
-                exit(1)
+                exit(fab_CLI.exit_code)
         else:
             logger.info(
                 f'Commands "{"; ".join(i.strip() for i in commands)}" executed successfully'
             )
-            exit(0)
+            exit(fab_CLI.exit_code)
+
     elif fabScript != cwd:
         fab_CLI.onecmd_plus_hooks(f"run_script {fabScript}")
         if fab_CLI.exit_code:
@@ -232,8 +233,8 @@ def main():
             )
         else:
             logger.info(f"FABulous script {args.FABulousScript} executed successfully")
-
         exit(fab_CLI.exit_code)
+
     elif tclScript != cwd:
         fab_CLI.onecmd_plus_hooks(f"run_tcl {tclScript}")
         if fab_CLI.exit_code:
@@ -243,6 +244,7 @@ def main():
         else:
             logger.info(f"TCL script {args.TCLScript} executed successfully")
         exit(fab_CLI.exit_code)
+
     else:
         fab_CLI.interactive = True
         if args.verbose == 2:

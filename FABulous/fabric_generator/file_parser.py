@@ -1,27 +1,29 @@
 import csv
+import json
 import os
 import re
 import subprocess
-import json
-from loguru import logger
 from copy import deepcopy
-
-from typing import Literal, overload
 from pathlib import Path
-from FABulous.fabric_generator.utilities import expandListPorts
+from typing import Literal, overload
+
+from loguru import logger
+
+from FABulous.custom_exception import FabricParsingError
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.Port import Port
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.ConfigMem import ConfigMem
 from FABulous.fabric_definition.define import (
     IO,
-    Direction,
-    Side,
     ConfigBitMode,
+    Direction,
     MultiplexerStyle,
+    Side,
 )
+from FABulous.fabric_definition.Fabric import Fabric
+from FABulous.fabric_definition.Port import Port
+from FABulous.fabric_definition.SuperTile import SuperTile
+from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_generator.utilities import expandListPorts
 
 oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST"}
 
@@ -136,9 +138,6 @@ def parseFabricCSV(fileName: str) -> Fabric:
         if i[0].startswith("Tile"):
             if "GENERATE" in i:
                 # import here to avoid circular import
-                from FABulous.fabric_generator.fabric_automation import (
-                    generateCustomTileConfig,
-                )
 
                 # we generate the tile right before we parse everything
                 i[1] = str(generate_custom_tile_config(filePath.joinpath(i[1])))
@@ -1024,14 +1023,14 @@ def parseBelFile(
         json_file = filename.with_suffix(".json")
         runCmd = [
             "yosys",
-            "-qp"
-            f"read_verilog -sv {filename}; proc -noopt; write_json -compat-int {json_file}",
+            f"-qpread_verilog -sv {filename}; proc -noopt; write_json -compat-int {json_file}",
         ]
-        try:
-            subprocess.run(runCmd, check=True)
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Failed to run yosys command: {e}")
-            raise ValueError
+
+        result = subprocess.run(runCmd, check=True)
+        if result.returncode != 0:
+            logger.opt(exception=FabricParsingError()).error(
+                "Failed to run yosys command: {e}"
+            )
 
         with open(f"{json_file}", "r") as f:
             data_dict = json.load(f)
@@ -1040,11 +1039,13 @@ def parseBelFile(
         filtered_ports: dict[str, tuple[IO, list]] = {}
 
         if len(modules) == 0:
-            logger.error(f"File {filename} does not contain any modules.")
-            raise ValueError
+            logger.opt(exception=FabricParsingError()).error(
+                f"File {filename} does not contain any modules."
+            )
         elif len(modules) > 1:
-            logger.error(f"File {filename} contains more than one module.")
-            raise ValueError
+            logger.opt(exception=FabricParsingError()).error(
+                f"File {filename} contains more than one module."
+            )
 
         # Gathers port name and direction, filters out configbits as they show in ports.
         for module_name, module_info in modules.items():
