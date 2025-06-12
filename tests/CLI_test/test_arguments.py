@@ -407,3 +407,21 @@ def test_project_directory_priority_order(tmp_path, monkeypatch, mocker):
         f"INFO: Setting current working directory to: {str(default_dir)}"
         in result.stdout
     )
+
+
+def test_command_flag_with_stop_on_first_error(project):
+    """Test that using --commands with multiple commands raises an error on the first failure"""
+    # Run with multiple commands, where the first one fails
+    result = run(
+        [
+            "FABulous",
+            str(project),
+            "--commands",
+            "load_fabric non_exist; load_fabric non_exist",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.stdout.count("non_exist") == 1
+    assert result.returncode == 1
