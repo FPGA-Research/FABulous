@@ -150,7 +150,7 @@ def test_verbose_mode(project):
     assert result.returncode == 0
 
 
-def test_force_flag(project):
+def test_force_flag(project, mocker):
     """Test force flag functionality"""
 
     # Run with force flag
@@ -172,12 +172,14 @@ def test_force_flag(project):
             "FABulous",
             str(project),
             "--commands",
-            "load_fabric non_existent; load_fabric",
+            "load_fabric non_exist; load_fabric non_exist",
             "--force",
         ],
         capture_output=True,
         text=True,
     )
+
+    assert result.stdout.count("non_exist") == 2
     assert result.returncode == 1
 
 
