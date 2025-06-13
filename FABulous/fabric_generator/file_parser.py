@@ -138,6 +138,9 @@ def parseFabricCSV(fileName: str) -> Fabric:
         if i[0].startswith("Tile"):
             if "GENERATE" in i:
                 # import here to avoid circular import
+                from FABulous.fabric_generator.fabric_automation import (
+                    generate_custom_tile_config,
+                )
 
                 # we generate the tile right before we parse everything
                 i[1] = str(generate_custom_tile_config(filePath.joinpath(i[1])))
