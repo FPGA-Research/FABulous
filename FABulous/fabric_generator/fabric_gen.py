@@ -1113,7 +1113,10 @@ class FabricGenerator:
             )
 
         # BEL component instantiations
-        self.writer.addComment("BEL component instantiations", onNewLine=True)
+        if tile.bels:
+            self.writer.addNewLine()
+            self.writer.addComment("BEL component instantiations", onNewLine=True)
+
         belCounter = 0
         belConfigBitsCounter = 0
         for bel in tile.bels:
