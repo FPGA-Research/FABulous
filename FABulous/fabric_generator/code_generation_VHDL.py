@@ -29,7 +29,7 @@ class VHDLWriter(codeGenerator):
         self._add(f"entity {name} is", indentLevel)
 
     def addHeaderEnd(self, name, indentLevel=0):
-        self._add(f"end entity {name}; ", indentLevel)
+        self._add(f"end entity {name};", indentLevel)
 
     def addParameterStart(self, indentLevel=0):
         self._add("Generic(", indentLevel)
@@ -65,22 +65,32 @@ class VHDLWriter(codeGenerator):
             self._add(deSemiColon(temp))
         self._add(");", indentLevel)
 
-    def addPortScalar(self, name, io: IO, end=False, indentLevel=0):
+    def addPortScalar(
+        self, name, io: IO, reg=False, attribute: str = "", indentLevel=0
+    ):
         ioVHDL = ""
         if io.value.lower() == "input":
             ioVHDL = "in"
         elif io.value.lower() == "output":
             ioVHDL = "out"
-        self._add(f"{name:<10} : {ioVHDL} STD_LOGIC;", indentLevel=indentLevel)
-
-    def addPortVector(self, name, io: IO, msbIndex, indentLevel=0):
-        ioVHDL = ""
-        if io.value.lower() == "input":
-            ioVHDL = "in"
-        elif io.value.lower() == "output":
-            ioVHDL = "out"
+        if attribute:
+            attribute = f" -- {attribute}"
         self._add(
-            f"{name:<10} : {ioVHDL} STD_LOGIC_VECTOR( {msbIndex} downto 0 );",
+            f"{name:<10} : {ioVHDL} STD_LOGIC;{attribute}", indentLevel=indentLevel
+        )
+
+    def addPortVector(
+        self, name, io: IO, msbIndex, reg=False, attribute: str = "", indentLevel=0
+    ):
+        ioVHDL = ""
+        if io.value.lower() == "input":
+            ioVHDL = "in"
+        elif io.value.lower() == "output":
+            ioVHDL = "out"
+        if attribute:
+            attribute = f" -- {attribute}"
+        self._add(
+            f"{name:<10} : {ioVHDL} STD_LOGIC_VECTOR( {msbIndex} downto 0 );{attribute}",
             indentLevel=indentLevel,
         )
 
@@ -93,10 +103,12 @@ class VHDLWriter(codeGenerator):
     def addConstant(self, name, value, indentLevel=0):
         self._add(f"constant {name} : STD_LOGIC := '{value}';", indentLevel)
 
-    def addConnectionScalar(self, name, indentLevel=0):
+    def addConnectionScalar(self, name, reg=False, indentLevel=0):
         self._add(f"signal {name} : STD_LOGIC;", indentLevel)
 
-    def addConnectionVector(self, name, startIndex, endIndex=0, indentLevel=0):
+    def addConnectionVector(
+        self, name, startIndex, reg=False, endIndex=0, indentLevel=0
+    ):
         self._add(
             f"signal {name} : STD_LOGIC_VECTOR( { startIndex } downto {endIndex} );",
             indentLevel,
@@ -108,9 +120,24 @@ class VHDLWriter(codeGenerator):
     def addLogicEnd(self, indentLevel=0):
         self._add("\n" f"end" "\n", indentLevel)
 
-    def addAssignScalar(self, left, right, delay=0, indentLevel=0):
+    def addRegister(self, reg, regIn, clk="UserCLK", inverted=False, indentLevel=0):
+        inv = "not " if inverted else ""
+        template = f"""
+process({clk})
+begin
+	if {clk}'event and {clk}='1' then
+		{reg} <= {inv}{regIn};
+	end if;
+end process;
+"""
+        self._add(template, indentLevel)
+
+    def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
+        inv = "not " if inverted else ""
         if type(right) == list:
-            self._add(f"{left} <= {' & '.join(right)} after {delay} ps;", indentLevel)
+            self._add(
+                f"{left} <= {inv}{' & '.join(right)} after {delay} ps;", indentLevel
+            )
         else:
             left = (
                 str(left).replace(":", " downto ").replace("[", "(").replace("]", ")")
@@ -118,10 +145,13 @@ class VHDLWriter(codeGenerator):
             right = (
                 str(right).replace(":", " downto ").replace("[", "(").replace("]", ")")
             )
-            self._add(f"{left} <= {right} after {delay} ps;", indentLevel)
+            self._add(f"{left} <= {inv}{right} after {delay} ps;", indentLevel)
 
-    def addAssignVector(self, left, right, widthL, widthR, indentLevel=0):
-        self._add(f"{left} <= {right}( {widthL} downto {widthR} );", indentLevel)
+    def addAssignVector(
+        self, left, right, widthL, widthR, indentLevel=0, inverted=False
+    ):
+        inv = "not " if inverted else ""
+        self._add(f"{left} <= {inv}{right}( {widthL} downto {widthR} );", indentLevel)
 
     def addInstantiation(
         self,
@@ -234,3 +264,18 @@ CONFout <= ConfigBits(ConfigBits'high);
 
     def addPreprocEndif(self, indentLevel=0):
         assert False, "preprocessor not supported in VHDL"
+
+    def addBelMapAttribute(self, configBitValues: list[tuple[str, int]], indentLevel=0):
+        template = "-- (* FABulous, BelMap"
+        bit_count = 0
+        for key, count in configBitValues:
+            for i in range(count):
+                if i == 0:
+                    template += f", {key}={bit_count}"
+                else:
+                    template += f", {key}[{i}]={bit_count}"
+                bit_count = bit_count + 1
+
+        template += " *)\n"
+
+        self._add(template, indentLevel)

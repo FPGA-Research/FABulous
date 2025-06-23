@@ -217,7 +217,9 @@ class codeGenerator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def addPortScalar(self, name: str, io: IO, indentLevel=0):
+    def addPortScalar(
+        self, name: str, io: IO, reg: bool = False, attribute: str = "", indentLevel=0
+    ):
         """Add a scalar port.
 
         Parameters
@@ -226,21 +228,33 @@ class codeGenerator(abc.ABC):
             Name of the port.
         io : IO
             Direction of the port (input, output, inout).
+        reg: bool, optional
+            port is a register. Only useful with Verilog.
+        attribute: str, optional
+            Add a FABulous ATTRIBUTE to the port.
         indentLevel : int, optional
             The level of indentation. Defaults to 0.
 
         Examples
         --------
         Verilog
-            **io** **name**
+            **(* FABulous, ATTRIBUTE *)** **io** **reg** **name**
 
         VHDL
-            **name** : **io** STD_LOGIC;
+            **name** : **io** STD_LOGIC; **-- ATTRIBUTE**
         """
         pass
 
     @abc.abstractmethod
-    def addPortVector(self, name: str, io: IO, msbIndex, indentLevel=0):
+    def addPortVector(
+        self,
+        name: str,
+        io: IO,
+        msbIndex,
+        reg: bool = False,
+        attribute: str = "",
+        indentLevel=0,
+    ):
         """Add a vector port.
 
         Parameters
@@ -251,16 +265,20 @@ class codeGenerator(abc.ABC):
             Direction of the port (input, output, inout).
         msbIndex : int or str
             Index of the MSB of the vector. Can be a string.
+        reg: bool, optional
+            port is a register. Only useful with Verilog.
+        attribute: str, optional
+            Add a FABulous ATTRIBUTE to the port.
         indentLevel : int, optional
             The level of indentation. Defaults to 0.
 
         Examples
         --------
         Verilog
-            **io** [**msbIndex**:0] **name**
+            **(* FABulous, ATTRIBUTE *)** **io** **reg** [**msbIndex**:0] **name**
 
         VHDL
-            **name** : **io** STD_LOGIC_VECTOR(**msbIndex** downto 0);
+            **name** : **io** STD_LOGIC_VECTOR(**msbIndex** downto 0); **-- ATTRIBUTE**
         """
         pass
 
@@ -325,27 +343,31 @@ class codeGenerator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def addConnectionScalar(self, name: str, indentLevel=0):
+    def addConnectionScalar(self, name: str, reg: bool = False, indentLevel=0):
         """Add a scalar connection.
 
         Parameters
         ----------
         name : str
             Name of the connection
+        reg : bool, optional
+            Connection is a register. Only useful with Verilog.
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
 
         Examples
         --------
         Verilog:
-            wire **name**;
+            wire/reg **name**;
         VHDL:
             signal **name** : STD_LOGIC;
         """
         pass
 
     @abc.abstractmethod
-    def addConnectionVector(self, name: str, startIndex, endIndex=0, indentLevel=0):
+    def addConnectionVector(
+        self, name: str, startIndex, endIndex=0, reg: bool = False, indentLevel=0
+    ):
         """Add a vector connection.
 
         Parameters
@@ -356,13 +378,15 @@ class codeGenerator(abc.ABC):
             Start index of the vector. Can be a string.
         endIndex : int, optional
             End index of the vector. Can be a string. Defaults to 0.
+        reg : bool, optional
+            Connection is a register. Only useful with Verilog.
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
 
         Examples
         --------
         Verilog:
-            wire [**startIndex**:**end**] **name**;
+            wire/reg [**startIndex**:**end**] **name**;
         VHDL:
             signal **name** : STD_LOGIC_VECTOR( **startIndex** downto **endIndex** );
         """
@@ -510,10 +534,50 @@ class codeGenerator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def addAssignScalar(self, left, right, delay=0, indentLevel=0):
-        """Add a scalar assign statement.
+    def addRegister(self, reg, regIn, clk="CLK", inverted=False, indentLevel=0):
+        r"""Add a register.
 
-        Delay is provided but currently not used by any of the code generators.
+        Parameters
+        ----------
+        reg : str
+            The name of the register.
+        regIn : str
+            The input signal of the register.
+        clk : str, optional
+            The clock signal of the register. Defaults to "UserCLK".
+        inverted : bool, optional
+            Invert the input signal. Defaults to False.
+        indentLevel : int, optional
+            The level of indentation. Defaults to 0.
+
+        Examples
+        --------
+        Verilog:
+        ::
+
+            always @ (posedge **clk**)
+            begin
+                **reg** <= **inv** **regIn**;
+            end
+
+        VHDL:
+        ::
+
+            process(**clk**)
+            begin
+                if **clk**'event and **clk**='1' then
+                        **reg** <= **inv** **regIn**;
+                end if;
+            end process;
+
+        """
+        pass
+
+    @abc.abstractmethod
+    def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
+        """
+        Add a scalar assign statement.
+        Delay is provided by currently not being used by any of the code generator.
         If **right** is a list, it will be concatenated.
         Verilog will concatenate with comma ','.
         VHDL will concatenate with ampersand '&' instead.
@@ -528,6 +592,8 @@ class codeGenerator(abc.ABC):
             Delay in the assignment. Defaults to 0.
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
+        inverted : bool, optional
+            Invert **right**. Default False.
 
         Examples
         --------
@@ -542,8 +608,11 @@ class codeGenerator(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def addAssignVector(self, left, right, widthL, widthR, indentLevel=0):
-        """Add a vector assign statement.
+    def addAssignVector(
+        self, left, right, widthL, widthR, indentLevel=0, inverted=False
+    ):
+        """
+        Add a vector assign statement.
 
         Parameters
         ----------
@@ -557,6 +626,8 @@ class codeGenerator(abc.ABC):
             The end index of the vector. Can be a string.
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
+        inverted : bool, optional
+            Invert **right**. Default False.
 
         Examples
         --------
@@ -655,5 +726,37 @@ class codeGenerator(abc.ABC):
         VHDL
         ----
         unsupported
+        """
+        pass
+
+    @abc.abstractmethod
+    def addBelMapAttribute(self, configBitValues: list[tuple[str, int]], indentLevel=0):
+        r"""Add a BelMap.
+
+        Parameters
+        ----------
+        configBits: list[tuple[str,int]]
+            The list of config bit value information.
+            Each config bit should have a name and number of bits
+            Should be sorted by number list is equal to NoConfigBits map.
+        indentLevel : int, optional
+            The indentation Level. Defaults to 0.
+
+        Examples
+        --------
+        configBitValues input:
+        ::
+
+            List[("INIT",3),("FF",1)]
+
+        Verilog:
+        ::
+
+            (*FABulous, BelMap, INIT=0, INIT_1=1, INIT_2=2,FF=3 *)
+
+        VHDL:
+        ::
+
+            -- (* FABulous, BelMap, INIT=0, INIT[1]=1, INIT[2]=2, FF=3 *)
         """
         pass

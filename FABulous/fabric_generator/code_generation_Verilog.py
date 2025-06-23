@@ -60,13 +60,25 @@ class VerilogWriter(codeGenerator):
             self._add(deComma(temp))
         self._add(");", indentLevel)
 
-    def addPortScalar(self, name, io: IO, indentLevel=0):
+    def addPortScalar(
+        self, name, io: IO, reg=False, attribute: str = "", indentLevel=0
+    ):
         ioString = io.value.lower()
-        self._add(f"{ioString} {name},", indentLevel)
+        if attribute:
+            attribute = f"(* FABulous, {attribute} *) "
+        regString = "reg" if reg else ""
+        self._add(f"{attribute}{ioString} {regString} {name},", indentLevel)
 
-    def addPortVector(self, name, io: IO, msbIndex, indentLevel=0):
+    def addPortVector(
+        self, name, io: IO, msbIndex, reg=False, attribute="", indentLevel=0
+    ):
         ioString = io.value.lower()
-        self._add(f"{ioString} [{msbIndex}:0] {name},", indentLevel)
+        regString = "reg" if reg else ""
+        if attribute:
+            attribute = f"(* FABulous, {attribute} *) "
+        self._add(
+            f"{attribute}{ioString} {regString} [{msbIndex}:0] {name},", indentLevel
+        )
 
     def addDesignDescriptionStart(self, name, indentLevel=0):
         pass
@@ -77,11 +89,15 @@ class VerilogWriter(codeGenerator):
     def addConstant(self, name, value, indentLevel=0):
         self._add(f"parameter {name} = {value};", indentLevel)
 
-    def addConnectionScalar(self, name, indentLevel=0):
-        self._add(f"wire {name};", indentLevel)
+    def addConnectionScalar(self, name, reg=False, indentLevel=0):
+        con_type = "reg" if reg else "wire"
+        self._add(f"{con_type} {name};", indentLevel)
 
-    def addConnectionVector(self, name, startIndex, endIndex=0, indentLevel=0):
-        self._add(f"wire[{startIndex}:{endIndex}] {name};", indentLevel)
+    def addConnectionVector(
+        self, name, startIndex, endIndex=0, reg=False, indentLevel=0
+    ):
+        con_type = "reg" if reg else "wire"
+        self._add(f"{con_type}[{startIndex}:{endIndex}] {name};", indentLevel)
 
     def addLogicStart(self, indentLevel=0):
         pass
@@ -190,14 +206,28 @@ class VerilogWriter(codeGenerator):
 """
         self._add(template, indentLevel)
 
-    def addAssignScalar(self, left, right, delay=0, indentLevel=0):
-        if type(right) == list:
-            self._add(f"assign {left} = {{{','.join(right)}}};", indentLevel)
-        else:
-            self._add(f"assign {left} = {right};")
+    def addRegister(self, reg, regIn, clk="UserCLK", inverted=False, indentLevel=0):
+        inv = "~" if inverted else ""
+        template = f"""
+always @ (posedge {clk})
+begin
+    {reg} <= {inv}{regIn};
+end
+"""
+        self._add(template, indentLevel)
 
-    def addAssignVector(self, left, right, widthL, widthR, indentLevel=0):
-        self._add(f"assign {left} = {right}[{widthL}:{widthR}];", indentLevel)
+    def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
+        inv = "~" if inverted else ""
+        if type(right) == list:
+            self._add(f"assign {left} = {inv}{{{','.join(right)}}};", indentLevel)
+        else:
+            self._add(f"assign {left} = {inv}{right};")
+
+    def addAssignVector(
+        self, left, right, widthL, widthR, indentLevel=0, inverted=False
+    ):
+        inv = "~" if inverted else ""
+        self._add(f"assign {left} = {inv}{right}[{widthL}:{widthR}];", indentLevel)
 
     def addPreprocIfDef(self, macro, indentLevel=0):
         self._add(f"`ifdef {macro}", indentLevel)
@@ -210,3 +240,18 @@ class VerilogWriter(codeGenerator):
 
     def addPreprocEndif(self, indentLevel=0):
         self._add("`endif", indentLevel)
+
+    def addBelMapAttribute(self, configBitValues: list[tuple[str, int]], indentLevel=0):
+        template = "(* FABulous, BelMap"
+        bit_count = 0
+        for value, count in configBitValues:
+            for i in range(count):
+                if i == 0:
+                    template += f", {value}={bit_count}"
+                else:
+                    template += f", {value}_{i}={bit_count}"
+                bit_count = bit_count + 1
+
+        template += " *)\n"
+
+        self._add(template, indentLevel)
