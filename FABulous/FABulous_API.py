@@ -293,3 +293,84 @@ class FABulous_API:
             Path to the output top wrapper file.
         """
         generateUserDesignTopWrapper(self.fabric, userDesign, topWrapper)
+
+    def genIOBelForTile(self, tile_name: str) -> list[Bel]:
+        """
+        Generates the IO BELs for the generative IOs of a tile.
+        Config Access Generative IOs will be a separate Bel.
+        Updates the tileDic with the generated IO BELs.
+
+        Parameters
+        ----------
+        tile_name : str
+            Name of the tile to generate IO Bels.
+
+        Returns
+        -------
+        bels : List[Bel]
+            The bel object representing the generative IOs.
+
+        Raises
+        ------
+        ValueError
+            If tile not found in fabric.
+            In case of an invalid IO type for generative IOs.
+            If the number of config access ports does not match the number of config bits.
+        """
+        tile = self.fabric.getTileByName(tile_name)
+        bels: list[Bel] = []
+        if not tile:
+            logger.error(f"Tile {tile_name} not found in fabric.")
+            raise ValueError
+
+        suffix = "vhdl" if isinstance(self.writer, VHDLWriter) else "v"
+
+        gios = [gio for gio in tile.gen_ios if not gio.configAccess]
+        gio_config_access = [gio for gio in tile.gen_ios if gio.configAccess]
+
+        if gios:
+            self.setWriterOutputFile(
+                tile.tileDir.parent / f"{tile.name}_GenIO.{suffix}"
+            )
+            bel = self.fabricGenerator.genIOBel(gios, f"{tile.name}_GenIO")
+            if bel:
+                bels.append(bel)
+        if gio_config_access:
+            self.setWriterOutputFile(
+                tile.tileDir.parent / f"{tile.name}_ConfigAccess_GenIO.{suffix}"
+            )
+            bel = self.fabricGenerator.genIOBel(
+                gio_config_access, f"{tile.name}_ConfigAccess_GenIO"
+            )
+            if bel:
+                bels.append(bel)
+
+        # update fabric tileDic with generated IO BELs
+        if self.fabric.tileDic.get(tile_name):
+            self.fabric.tileDic[tile_name].bels += bels
+        elif not self.fabric.unusedTileDic[tile_name].bels:
+            logger.warning(
+                f"Tile {tile_name} is not used in fabric, but defined in fabric.csv."
+            )
+            self.fabric.unusedTileDic[tile_name].bels += bels
+        else:
+            logger.error(
+                f"Tile {tile_name} is not defined in fabric, please add to fabric.csv."
+            )
+            raise ValueError
+
+        # update bels on all tiles in fabric.tile
+        for row in self.fabric.tile:
+            for tile in row:
+                if tile and tile.name == tile_name:
+                    tile.bels += bels
+
+        return bels
+
+    def genFabricIOBels(self):
+        """Generates the IO BELs for the generative IOs of the fabric."""
+
+        for tile in self.fabric.tileDic.values():
+            if tile.gen_ios:
+                logger.info(f"Generating IO BELs for tile {tile.name}")
+                self.genIOBelForTile(tile.name)

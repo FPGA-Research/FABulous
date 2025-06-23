@@ -636,6 +636,13 @@ class FABulous_CLI(Cmd):
         Does this by calling the respective functions 'do_gen_[function]'.
         """
         logger.info("Running FABulous")
+        self.onecmd_plus_hooks("gen_io_fabric")
+        if self.exit_code != 0:
+            logger.opt(exception=CommandError()).error(
+                "GEN_IO IO generation failed. Please check the logs for more details."
+            )
+            if not self.force:
+                return
 
         self.onecmd_plus_hooks("gen_fabric")
         if self.exit_code != 0:
@@ -1102,3 +1109,15 @@ class FABulous_CLI(Cmd):
 
         if not args.no_switch_matrix:
             parseTiles(tile_csv)
+
+    @with_category(CMD_FABRIC_FLOW)
+    @with_argparser(tile_list_parser)
+    def do_gen_io_tiles(self, args):
+        if args.tiles:
+            for tile in args.tiles:
+                self.fabulousAPI.genIOBelForTile(tile)
+
+    @with_category(CMD_FABRIC_FLOW)
+    @allow_blank
+    def do_gen_io_fabric(self, args):
+        self.fabulousAPI.genFabricIOBels()
