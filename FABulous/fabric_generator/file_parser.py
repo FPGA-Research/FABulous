@@ -100,9 +100,11 @@ def parseFabricCSV(fileName: str) -> Fabric:
     commonWirePair: list[tuple[str, str]] = []
     fabricTiles = []
     tileDic = {}
+    unusedTileDic = {}
 
     # list for supertiles
     superTileDic = {}
+    unusedSuperTileDic = {}
 
     # For backwards compatibility parse tiles in fabric config
     new_tiles, new_commonWirePair = parseTiles(fName)
@@ -213,12 +215,14 @@ def parseFabricCSV(fileName: str) -> Fabric:
             logger.info(
                 f"Tile {i} is not used in the fabric. Removing from tile dictionary."
             )
+            unusedTileDic[i] = tileDic[i]
             del tileDic[i]
     for i in list(superTileDic.keys()):
         if any(j.name not in usedTile for j in superTileDic[i].tiles):
             logger.info(
                 f"Supertile {i} is not used in the fabric. Removing from tile dictionary."
             )
+            unusedSuperTileDic[i] = superTileDic[i]
             del superTileDic[i]
 
     height = len(fabricTiles)
@@ -243,6 +247,8 @@ def parseFabricCSV(fileName: str) -> Fabric:
         superTileEnable=superTileEnable,
         tileDic=tileDic,
         superTileDic=superTileDic,
+        unusedTileDic=unusedTileDic,
+        unusedSuperTileDic=unusedSuperTileDic,
         commonWirePair=commonWirePair,
     )
 

@@ -55,6 +55,12 @@ class Fabric:
         A dictionary of tiles used in the fabric. The key is the name of the tile and the value is the tile.
     superTileDic : dict[str, SuperTile]
         A dictionary of super tiles used in the fabric. The key is the name of the super tile and the value is the super tile.
+    unusedTileDic: dict[str, Tile]
+        A dictionary of tiles that are not used in the fabric, but defined in the fabric.csv.
+        The key is the name of the tile and the value is the tile.
+    unusedSuperTileDic: dict[str, Tile]
+        A dictionary of super tiles that are not used in the fabric, but defined in the fabric.csv.
+        The key is the name of the tile and the value is the tile.
     """
 
     tile: list[list[Tile]] = field(default_factory=list)
@@ -76,6 +82,8 @@ class Fabric:
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
     superTileDic: dict[str, SuperTile] = field(default_factory=dict)
+    unusedTileDic: dict[str, Tile] = field(default_factory=dict)
+    unusedSuperTileDic: dict[str, SuperTile] = field(default_factory=dict)
     # wires: list[Wire] = field(default_factory=list)
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
 
@@ -252,10 +260,23 @@ class Fabric:
         return fabric
 
     def getTileByName(self, name: str) -> Tile | None:
-        return self.tileDic.get(name)
+        ret = self.tileDic.get(name)
+        if ret is None:
+            ret = self.unusedTileDic.get(name)
+        if ret is None:
+            logger.error(f"Tile {name} not found in fabric.")
+            raise KeyError
+
+        return ret
 
     def getSuperTileByName(self, name: str) -> SuperTile | None:
-        return self.superTileDic.get(name)
+        ret = self.superTileDic.get(name)
+        if ret is None:
+            ret = self.unusedSuperTileDic.get(name)
+        if ret is None:
+            logger.error(f"Tile {name} not found in fabric.")
+            raise KeyError
+        return ret
 
     def getAllUniqueBels(self) -> list[Bel]:
         bels = list()
