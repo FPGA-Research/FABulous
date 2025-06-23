@@ -20,6 +20,7 @@ from FABulous.fabric_definition.define import (
     Side,
 )
 from FABulous.fabric_definition.Fabric import Fabric
+from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
@@ -465,6 +466,17 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
     -------
     Tuple[List[Tile], List[Tuple[str, str]]]
         A tuple containing a list of Tile objects and a list of common wire pairs.
+
+    Raises
+    ------
+    ValueError : If the input csv file is not a CSV file.
+    ValueError : If the input csv file does not exist.
+    ValueError : If the BEL file is not a VHDL or Verilog file.
+    ValueError : If GEN_IO pins are lower than 1
+    ValueError : If a GEN_IO is a CONFIGACCESS and not an OUTPUT.
+    ValueError : If a GEN_IO with the same prefix already exists in the tile.
+    ValueError : If a GEN_IO is CLOCKED and CLOCKED_COMB at the same time.
+    ValueError : If the MATRIX file is not a .list, .csv, .v, or .vhdl file.
     """
     logger.info(f"Reading tile configuration: {fileName}")
 
@@ -495,6 +507,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
         ports: list[Port] = []
         bels: list[Bel] = []
         matrixDir: Path | None = None
+        gen_ios: list[Gen_IO] = []
         withUserCLK = False
         configBit = 0
         genMatrixList = False
@@ -565,9 +578,77 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         logger.info(f"Adding bels to custom prims file: {primsFile}")
                         addBelsToPrim(primsFile, [bels[-1]])
                 else:
-                    raise ValueError(
+                    logger.error(
                         f"Invalid file type in {belFilePath} only .vhdl and .v are supported."
                     )
+                    raise ValueError
+            elif temp[0] == "GEN_IO":
+                configBit = 0
+                configAccess = False
+                inverted = False
+                clocked = False
+                clockedComb = False
+                clockedMux = False
+                pins = int(temp[1])
+                if pins <= 0:
+                    logger.error(f"GEN_IO pins must be greater than 0, but is {pins}")
+                    raise ValueError
+                # Additional params can be added
+                for param in temp[4:]:
+                    param = param.strip()
+                    param = param.upper()
+
+                    if param == "CONFIGACCESS":
+                        if temp[2] != "OUTPUT":
+                            logger.error(
+                                "CONFIGACCESS GEN_IO can only be used with OUTPUT"
+                            )
+                            raise ValueError
+                        configAccess = True
+                        configBit = int(temp[1])
+                    elif param == "INVERTED":
+                        inverted = True
+                    elif param == "CLOCKED":
+                        clocked = True
+                    elif param == "CLOCKED_COMB":
+                        clockedComb = True
+                    elif param == "CLOCKED_MUX":
+                        clockedMux = True
+                        configBit = int(temp[1])
+                    elif param is None or param == "":
+                        continue
+                    else:
+                        logger.error(f"Unknown parameter {param} in GEN_IO")
+                        raise ValueError
+
+                    if configAccess and (clocked or clockedComb or clockedMux):
+                        logger.error("CONFIGACCESS GEN_IO can not be clocked")
+                        raise ValueError
+                    if sum([clocked, clockedComb, clockedMux]) > 1:
+                        logger.error(
+                            "CLOCKED, CLOCKED_COMB or CLOCKED_MUX can not be combined for one GEN_IO"
+                        )
+                        raise ValueError
+
+                if temp[3] not in (gio.prefix for gio in gen_ios):
+                    gen_ios.append(
+                        Gen_IO(
+                            temp[3],
+                            int(temp[1]),
+                            IO[temp[2]],
+                            configBit,
+                            configAccess,
+                            inverted,
+                            clocked,
+                            clockedComb,
+                            clockedMux,
+                        )
+                    )
+                else:
+                    logger.error(
+                        f"GEN_IO with prefix {temp[3]} already exists in tile {tileName}."
+                    )
+                    raise ValueError
             elif temp[0] == "MATRIX":
                 configBit = 0
 
@@ -673,6 +754,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     bels=bels,
                     tileDir=fileName,
                     matrixDir=matrixDir,
+                    gen_ios=gen_ios,
                     userCLK=withUserCLK,
                     configBit=configBit,
                 )

@@ -3,6 +3,7 @@ from enum import Enum
 from dataclasses import dataclass, field
 from FABulous.fabric_definition.define import IO, Direction, Side
 from FABulous.fabric_definition.Bel import Bel
+from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Wire import Wire
 from typing import Any
@@ -21,6 +22,8 @@ class Tile:
         The list of ports of the tile
     matrixDir : str
         The directory of the tile matrix
+    gen_ios : List[Gen_IO]
+        The list of GEN_IOs of the tile
     globalConfigBits : int
         The number of config bits the tile has
     withUserCLK : bool
@@ -35,6 +38,7 @@ class Tile:
     portsInfo: list[Port]
     bels: list[Bel]
     matrixDir: pathlib.Path
+    gen_ios: list[Gen_IO]
     globalConfigBits: int = 0
     withUserCLK: bool = False
     wireList: list[Wire] = field(default_factory=list)
@@ -48,12 +52,14 @@ class Tile:
         bels: list[Bel],
         tileDir: pathlib.Path,
         matrixDir: pathlib.Path,
+        gen_ios: list[Gen_IO],
         userCLK: bool,
         configBit: int = 0,
     ) -> None:
         self.name = name
         self.portsInfo = ports
         self.bels = bels
+        self.gen_ios = gen_ios
         self.matrixDir = matrixDir
         self.withUserCLK = userCLK
         self.globalConfigBits = configBit
@@ -62,6 +68,10 @@ class Tile:
 
         for b in self.bels:
             self.globalConfigBits += b.configBit
+
+        for gio in self.gen_ios:
+            if gio.configAccess:
+                self.globalConfigBits += gio.configBit
 
     def __eq__(self, __o: Any) -> bool:
         if __o is None or not isinstance(__o, Tile):
