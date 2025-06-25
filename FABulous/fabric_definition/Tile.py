@@ -24,8 +24,8 @@ class Tile:
         The directory of the tile matrix
     gen_ios : List[Gen_IO]
         The list of GEN_IOs of the tile
-    globalConfigBits : int
-        The number of config bits the tile has
+    matrixConfigBits : int
+        The number of config bits the tile switch matrix has
     withUserCLK : bool
         Whether the tile has a userCLK port. Default is False.
     wireList : list[Wire]
@@ -38,8 +38,8 @@ class Tile:
     portsInfo: list[Port]
     bels: list[Bel]
     matrixDir: pathlib.Path
+    matrixConfigBits: int
     gen_ios: list[Gen_IO]
-    globalConfigBits: int = 0
     withUserCLK: bool = False
     wireList: list[Wire] = field(default_factory=list)
     tileDir: pathlib.Path = pathlib.Path(".")
@@ -62,16 +62,9 @@ class Tile:
         self.gen_ios = gen_ios
         self.matrixDir = matrixDir
         self.withUserCLK = userCLK
-        self.globalConfigBits = configBit
+        self.matrixConfigBits = configBit
         self.wireList = []
         self.tileDir = tileDir
-
-        for b in self.bels:
-            self.globalConfigBits += b.configBit
-
-        for gio in self.gen_ios:
-            if gio.configAccess:
-                self.globalConfigBits += gio.configBit
 
     def __eq__(self, __o: Any) -> bool:
         if __o is None or not isinstance(__o, Tile):
@@ -143,3 +136,14 @@ class Tile:
             and p.wireDirection != Direction.JUMP
             and p.inOut == IO.OUTPUT
         ]
+
+    @property
+    def globalConfigBits(self) -> int:
+        """Returns the number of global configuration bits."""
+
+        ret = self.matrixConfigBits
+
+        for b in self.bels:
+            ret += b.configBit
+
+        return ret
