@@ -15,6 +15,7 @@ from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.fabric_generator.fabric_gen import FabricGenerator
 from FABulous.geometry_generator.geometry_gen import GeometryGenerator
 from FABulous.fabric_generator.fabric_gen import generateUserDesignTopWrapper
+from FABulous.fabric_generator.fabric_automation import genIOBel
 
 
 class FABulous_API:
@@ -329,19 +330,13 @@ class FABulous_API:
         gio_config_access = [gio for gio in tile.gen_ios if gio.configAccess]
 
         if gios:
-            self.setWriterOutputFile(
-                tile.tileDir.parent / f"{tile.name}_GenIO.{suffix}"
-            )
-            bel = self.fabricGenerator.genIOBel(gios, f"{tile.name}_GenIO")
+            bel_path = tile.tileDir.parent / f"{tile.name}_GenIO.{suffix}"
+            bel = genIOBel(gios, bel_path, True)
             if bel:
                 bels.append(bel)
         if gio_config_access:
-            self.setWriterOutputFile(
-                tile.tileDir.parent / f"{tile.name}_ConfigAccess_GenIO.{suffix}"
-            )
-            bel = self.fabricGenerator.genIOBel(
-                gio_config_access, f"{tile.name}_ConfigAccess_GenIO"
-            )
+            bel_path = tile.tileDir.parent / f"{tile.name}_ConfigAccess_GenIO.{suffix}"
+            bel = genIOBel(gio_config_access, bel_path, True)
             if bel:
                 bels.append(bel)
 

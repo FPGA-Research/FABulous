@@ -7,8 +7,12 @@ from loguru import logger
 
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.Port import Port
-from FABulous.fabric_definition.define import IO
+from FABulous.fabric_definition.define import IO, MultiplexerStyle
+from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_generator.file_parser import parseBelFile, parseList
+from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
+from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
+from FABulous.fabric_generator.code_generator import codeGenerator
 
 
 def generateCustomTileConfig(tile_path: Path) -> Path:
@@ -516,3 +520,327 @@ def addBelsToPrim(
     # write to prims file, line by line
     with open(primsFile, "a") as f:
         f.write("\n".join(str(i) for i in primsAdd))
+
+
+def genIOBel(
+    gen_ios: list[Gen_IO],
+    bel_path: Path,
+    overwrite: bool = True,
+    multiplexerStyle=MultiplexerStyle.CUSTOM,
+) -> Bel | None:
+    """
+    Generate the IO BELs for a list of generative IOs.
+
+    Parameters
+    ----------
+    gen_ios : List[Gen_IO]
+        List of Generative IOs to generate the IO BEL.
+    bel_path : Path
+        Name of the BEL to be generated.
+    overwrite : bool, optional
+        Default is True
+        Overwrite the existing BEL file if it exists, by default True.
+        If False, it will read the existing BEL file and return the Bel object,
+        without generating a new one.
+    multiplexerStyle : MultiplexerStyle, optional
+        Default is MultiplexerStyle.CUSTOM
+        Use generic or custom multiplexers.
+
+
+    Raises
+    ------
+    ValueError
+        - If a wrong bel file suffix is specified.
+        - In case of an invalid IO type for generative IOs.
+        - If the number of config access ports does not match the number of config bits.
+
+    Returns
+    -------
+    Bel | None
+        The generated Bel object or None if no generative IOs are present.
+
+    """
+
+    if len(gen_ios) == 0:
+        logger.info(f"No generative IOs for {bel_path}, skipping genIOBel generation")
+        return None
+
+    bel_name = bel_path.stem
+    language = bel_path.suffix.lower().replace(".", "")
+
+    if language in ["v", "sv"]:
+        language = "verilog"
+    elif language in ["vhdl", "vhd"]:
+        language = "vhdl"
+    else:
+        logger.error(
+            f"File suffix {language} of file {bel_path} is not supported for genIOBel generation"
+        )
+        raise ValueError
+
+    writer: codeGenerator = VHDLWriter() if language == "vhdl" else VerilogWriter()
+    writer.outFileName = bel_path
+
+    logger.info(f"Generating Gen_IO BEL {bel_name} in {bel_path}")
+    if bel_path.exists():
+        if overwrite:
+            logger.info(f"Overwriting existing Gen_IO BEL file: {bel_path}")
+            bel_path.unlink()
+        else:
+            logger.info(f"Return existing Gen_IO BEL file: {bel_path}")
+            return parseBelFile(bel_path, "", language)
+
+    configBits = 0
+    for gio in gen_ios:
+        configBits += gio.configBit
+
+    belMap: list[tuple[str, int]] = [("INIT", configBits)]
+
+    writer.addComment(f"Generative IO BEL for {bel_name}", onNewLine=True)
+    writer.addComment("This is a generated file, please don't edit!", onNewLine=True)
+    writer.addNewLine()
+
+    if configBits > 0:
+        writer.addBelMapAttribute(belMap)
+
+    writer.addHeader(f"{bel_name}")
+    writer.addParameterStart(indentLevel=1)
+    writer.addParameter("NoConfigBits", "integer", configBits, indentLevel=2)
+    writer.addParameterEnd(indentLevel=1)
+    writer.addPortStart(indentLevel=1)
+
+    # Append generative IO ports as gel ports and also as external ports
+    # Since one port goes to the fabric and one to the top level, we need to generate both
+    # Only the top-level ports are added to the externalPorts list
+
+    externalPorts: list[tuple[str, IO, bool]] = []  # [(name, IO, reg)]
+    internalPorts: list[tuple[str, IO, bool]] = []  # [(name, IO, reg)]
+    configAccessPorts: list[tuple[str, bool]] = []  # [(name, inverted)]
+    clocked = False
+
+    for gio in gen_ios:
+        if gio.clocked or gio.clockedComb or gio.clockedMux:
+            clocked = True
+        if gio.pins <= 0:
+            logger.warning(f"Generative IO {gio.prefix} has no pins, skipping")
+            continue
+        for i in range(gio.pins):
+            # for single pins we kick out the index
+            j = "" if gio.pins == 1 else f"{i}"
+            if gio.IO == IO.INPUT:
+                if gio.configAccess:
+                    logger.error("Generative IO cannot be an INPUT with config access!")
+                    raise ValueError
+                internalPorts.append((f"{gio.prefix}{j}", IO.INPUT, False))
+                if gio.clockedComb:  # clocked combinatorial also has a Q signal
+                    # But only inputs produce a Q signal to the fabric top
+                    externalPorts.append((f"{gio.prefix}_Q_top{j}", IO.OUTPUT, True))
+                    externalPorts.append((f"{gio.prefix}_top{j}", IO.OUTPUT, False))
+                elif gio.clocked:
+                    externalPorts.append((f"{gio.prefix}_top{j}", IO.OUTPUT, True))
+                else:  # combinatorial
+                    externalPorts.append((f"{gio.prefix}_top{j}", IO.OUTPUT, False))
+            elif gio.IO == IO.OUTPUT:
+                if not gio.configAccess:
+                    externalPorts.append((f"{gio.prefix}_top{j}", IO.INPUT, False))
+                    if gio.clockedComb:
+                        # clocked combinatorial also has a Q signal
+                        internalPorts.append((f"{gio.prefix}_Q{j}", IO.OUTPUT, True))
+                        internalPorts.append((f"{gio.prefix}{j}", IO.OUTPUT, False))
+                    elif gio.clocked:
+                        internalPorts.append((f"{gio.prefix}{j}", IO.OUTPUT, True))
+                    else:  # combinatorial
+                        internalPorts.append((f"{gio.prefix}{j}", IO.OUTPUT, False))
+
+                else:
+                    # if the GIO is a config access port, we need to add it to the external ports
+                    externalPorts.append((f"{gio.prefix}{j}", IO.OUTPUT, False))
+                    configAccessPorts.append((f"{gio.prefix}{j}", gio.inverted))
+            else:
+                logger.error("Invalid IO type for generative IO")
+                raise ValueError
+
+    for port, direction, reg in internalPorts:
+        writer.addPortScalar(port, direction, reg, indentLevel=2)
+
+    for port, direction, reg in externalPorts:
+        writer.addPortScalar(port, direction, reg, "EXTERNAL", indentLevel=2)
+
+    if clocked:
+        writer.addPortScalar(
+            "UserCLK", IO.INPUT, False, "EXTERNAL, SHARED_PORT", indentLevel=2
+        )
+
+    if configBits > 0:
+        if language == "vhdl":
+            writer.addComment("GLOBAL", True, indentLevel=2)
+            writer.addPortVector(
+                "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
+            )
+        else:  #  Verilog
+            writer.addPortVector(
+                "ConfigBits",
+                IO.INPUT,
+                "NoConfigBits -1",
+                attribute="GLOBAL",
+                indentLevel=2,
+            )
+
+    writer.addPortEnd(indentLevel=1)
+    writer.addHeaderEnd(f"{bel_name}")
+    writer.addNewLine()
+    # declare architecture
+    writer.addDesignDescriptionStart(f"{bel_name}")
+    writer.addLogicStart()
+
+    # gen_io config bit access
+    if any(gio.configAccess for gio in gen_ios):
+        writer.addNewLine()
+        writer.addComment("gen_io config access", onNewLine=True)
+        if len(configAccessPorts) != configBits:
+            logger.error(
+                f"Config access ports ({len(configAccessPorts)}) do not match the number of config bits ({configBits})"
+            )
+            raise ValueError
+        for i in range(configBits):
+            port, inverted = configAccessPorts[i]
+            writer.addAssignScalar(
+                f"{port}",
+                f"ConfigBits[{i}]",
+                inverted=inverted,
+            )
+
+    # gen_io assignments
+    writer.addNewLine()
+    for gio in gen_ios:
+        if gio.pins <= 0:
+            logger.warning(f"Generative IO {gio.prefix} has no pins, skipping")
+            continue
+        if gio.configAccess:
+            continue
+
+        if gio.clocked:
+            for i in range(gio.pins):
+                # for single pins we kick out the index
+                j = "" if gio.pins == 1 else f"{i}"
+                if gio.IO == IO.INPUT:
+                    writer.addRegister(
+                        f"{gio.prefix}_top{j}",
+                        f"{gio.prefix}{j}",
+                        inverted=gio.inverted,
+                    )
+                elif gio.IO == IO.OUTPUT:
+                    writer.addRegister(
+                        f"{gio.prefix}{j}",
+                        f"{gio.prefix}_top{j}",
+                        inverted=gio.inverted,
+                    )
+        elif gio.clockedComb:
+            # clocked combinatorial also has a Q signal and the original signal
+            for i in range(gio.pins):
+                # for single pins we kick out the index
+                j = "" if gio.pins == 1 else f"{i}"
+                if gio.IO == IO.INPUT:
+                    writer.addRegister(
+                        f"{gio.prefix}_Q_top{j}",
+                        f"{gio.prefix}{j}",
+                        inverted=gio.inverted,
+                    )
+                    writer.addAssignScalar(
+                        f"{gio.prefix}_top{j}",
+                        f"{gio.prefix}{j}",
+                        inverted=gio.inverted,
+                    )
+
+                elif gio.IO == IO.OUTPUT:
+                    writer.addRegister(
+                        f"{gio.prefix}_Q{j}",
+                        f"{gio.prefix}_top{j}",
+                        inverted=gio.inverted,
+                    )
+                    writer.addAssignScalar(
+                        f"{gio.prefix}{j}",
+                        f"{gio.prefix}_top{j}",
+                        inverted=gio.inverted,
+                    )
+        else:
+            if gio.clockedMux:
+                for i in range(gio.pins):
+                    # for single pins we kick out the index
+                    j = "" if gio.pins == 1 else f"{i}"
+
+                    if gio.IO == IO.INPUT:
+                        sink = f"{gio.prefix}_top{j}"
+                        source = f"{gio.prefix}{j}"
+                    else:
+                        sink = f"{gio.prefix}{j}"
+                        source = f"{gio.prefix}_top{j}"
+
+                    reg = f"{gio.prefix}_Q{j}"
+
+                    writer.addConnectionScalar(reg, True)
+                    writer.addRegister(
+                        reg,
+                        source,
+                        inverted=gio.inverted,
+                    )
+
+                    if multiplexerStyle == MultiplexerStyle.CUSTOM:
+                        portsPairs = [
+                            ("A0", source),
+                            ("A1", reg),
+                            ("S", f"ConfigBits[{i}]"),
+                            ("X", sink),
+                        ]
+                        writer.addInstantiation(
+                            compName="cus_mux21",
+                            compInsName=f"inst_cus_mux21_{gio.prefix}{j}",
+                            portsPairs=portsPairs,
+                        )
+                    else:
+                        # generic multiplexer
+                        if language == "vhdl":
+                            writer.addAssignScalar(
+                                sink,
+                                f"{source} when (ConfigBits[{i}] = '0') else {reg}",
+                            )
+                        else:  # Verilog
+                            writer.addAssignScalar(
+                                sink, f"ConfigBits[{i}] ? {reg} : {source}"
+                            )
+
+            for i in range(gio.pins):
+                # for single pins we kick out the index
+                j = "" if gio.pins == 1 else f"{i}"
+                if gio.IO == IO.INPUT:
+                    writer.addAssignScalar(
+                        f"{gio.prefix}_top{j}",
+                        f"{gio.prefix}{j}",
+                        inverted=gio.inverted,
+                    )
+                elif gio.IO == IO.OUTPUT:
+                    writer.addAssignScalar(
+                        f"{gio.prefix}{j}",
+                        f"{gio.prefix}_top{j}",
+                        inverted=gio.inverted,
+                    )
+
+    writer.addNewLine()
+    writer.addDesignDescriptionEnd()
+    writer.addNewLine()
+    writer.writeToFile()
+
+    bel: Bel
+    if language == "vhdl":
+        bel = parseBelFile(writer.outFileName, "", "vhdl")
+    else:  # Verilog
+        bel = parseBelFile(writer.outFileName, "", "verilog")
+
+    prims_file = Path(os.getenv("FAB_PROJ_DIR", ".")) / "user_design" / "custom_prims.v"
+    if not prims_file.exists():
+        logger.info(f"Creating {prims_file}")
+        prims_file.touch()
+
+    addBelsToPrim(prims_file, [bel], False)
+
+    return bel
