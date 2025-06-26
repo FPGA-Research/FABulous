@@ -699,7 +699,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                                 muxSize = len(v)
                                 if muxSize >= 2:
                                     configBit += (muxSize - 1).bit_length()
-                        case "_matrix.csv":
+                        case ".csv":
                             for _, v in parseMatrix(matrixDir, tileName).items():
                                 muxSize = len(v)
                                 if muxSize >= 2:

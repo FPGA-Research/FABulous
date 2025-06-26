@@ -1,0 +1,39 @@
+{
+  "creator": "Yosys 0.53+15 (git sha1 690081810, clang++ 18.1.8 -fPIC -O3)",
+  "modules": {
+    "BEL": {
+      "attributes": {
+        "cells_not_processed": 1,
+        "src": "/home/jart/work/uni/FABulous/tests/API_test/bel.v:2.1-4.10"
+      },
+      "ports": {
+        "A": {
+          "direction": "input",
+          "bits": [ 2 ]
+        },
+        "B": {
+          "direction": "output",
+          "bits": [ 2 ]
+        }
+      },
+      "cells": {
+      },
+      "netnames": {
+        "A": {
+          "hide_name": 0,
+          "bits": [ 2 ],
+          "attributes": {
+            "src": "/home/jart/work/uni/FABulous/tests/API_test/bel.v:2.18-2.19"
+          }
+        },
+        "B": {
+          "hide_name": 0,
+          "bits": [ 2 ],
+          "attributes": {
+            "src": "/home/jart/work/uni/FABulous/tests/API_test/bel.v:2.28-2.29"
+          }
+        }
+      }
+    }
+  }
+}
