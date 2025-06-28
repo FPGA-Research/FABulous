@@ -1,0 +1,30 @@
+// LUT4AB Tile
+digraph {
+	fontsize=24 label="LUT4AB Tile Visualization" labelloc=t
+	node [fontname=Helvetica shape=box style=filled]
+	edge [arrowhead=vee arrowsize=0.7]
+	subgraph cluster_bels {
+		color=gray label="Logic Elements (BELs)" style=rounded
+		"" [fillcolor=lightblue shape=record]
+		LB_ [fillcolor=lightblue shape=record]
+		LC_ [fillcolor=lightblue shape=record]
+		LD_ [fillcolor=lightblue shape=record]
+		LE_ [fillcolor=lightblue shape=record]
+		LF_ [fillcolor=lightblue shape=record]
+		LG_ [fillcolor=lightblue shape=record]
+		LH_ [fillcolor=lightblue shape=record]
+		LA_ [fillcolor=lightblue shape=record]
+	}
+	subgraph cluster_routing {
+		color=gray label="Routing Switch Matrix" style=rounded
+	}
+	"" -> LA_
+	LA_ -> ""
+	LB_ -> ""
+	LC_ -> ""
+	LD_ -> ""
+	LE_ -> ""
+	LF_ -> ""
+	LG_ -> ""
+	LH_ -> ""
+}

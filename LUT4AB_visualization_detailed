@@ -1,0 +1,1770 @@
+// LUT4AB Tile
+digraph {
+	fontsize=24 label="LUT4AB Tile - Detailed View" labelloc=t
+	node [fontname=Helvetica fontsize=10 shape=ellipse style=filled]
+	edge [arrowhead=vee arrowsize=0.6]
+	nodesep=0.5 overlap=prism ranksep=1 splines=true
+	subgraph cluster_bels {
+		color=gray fontname=Helvetica label="Logic Elements (BELs)" style=rounded
+		A [label=A fillcolor=lightblue shape=record]
+		B [label=B fillcolor=lightblue shape=record]
+		C [label=C fillcolor=lightblue shape=record]
+		Ci0 [label=Ci0 fillcolor=lightblue shape=record]
+		Co0 [label=Co0 fillcolor=lightblue shape=record]
+		D [label=D fillcolor=lightblue shape=record]
+		E [label=E fillcolor=lightblue shape=record]
+		E1BEG0 [label=E1BEG0 fillcolor=lightblue shape=record]
+		E1BEG1 [label=E1BEG1 fillcolor=lightblue shape=record]
+		E1BEG2 [label=E1BEG2 fillcolor=lightblue shape=record]
+		E1BEG3 [label=E1BEG3 fillcolor=lightblue shape=record]
+		E1END0 [label=E1END0 fillcolor=lightblue shape=record]
+		E1END1 [label=E1END1 fillcolor=lightblue shape=record]
+		E1END2 [label=E1END2 fillcolor=lightblue shape=record]
+		E1END3 [label=E1END3 fillcolor=lightblue shape=record]
+		"E2BEG[0|1|2|3|4|5|6|7]" [label="E2BEG[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		"E2BEGb[0|1|2|3|4|5|6|7]" [label="E2BEGb[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		E2END0 [label=E2END0 fillcolor=lightblue shape=record]
+		E2END1 [label=E2END1 fillcolor=lightblue shape=record]
+		E2END2 [label=E2END2 fillcolor=lightblue shape=record]
+		E2END3 [label=E2END3 fillcolor=lightblue shape=record]
+		E2END4 [label=E2END4 fillcolor=lightblue shape=record]
+		E2END5 [label=E2END5 fillcolor=lightblue shape=record]
+		E2END6 [label=E2END6 fillcolor=lightblue shape=record]
+		E2END7 [label=E2END7 fillcolor=lightblue shape=record]
+		E2MID0 [label=E2MID0 fillcolor=lightblue shape=record]
+		E2MID1 [label=E2MID1 fillcolor=lightblue shape=record]
+		E2MID2 [label=E2MID2 fillcolor=lightblue shape=record]
+		E2MID3 [label=E2MID3 fillcolor=lightblue shape=record]
+		E2MID4 [label=E2MID4 fillcolor=lightblue shape=record]
+		E2MID5 [label=E2MID5 fillcolor=lightblue shape=record]
+		E2MID6 [label=E2MID6 fillcolor=lightblue shape=record]
+		E2MID7 [label=E2MID7 fillcolor=lightblue shape=record]
+		"E2MID[0|1|2|3|4|5|6|7]" [label="E2MID[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		E6BEG0 [label=E6BEG0 fillcolor=lightblue shape=record]
+		E6BEG1 [label=E6BEG1 fillcolor=lightblue shape=record]
+		E6END0 [label=E6END0 fillcolor=lightblue shape=record]
+		E6END1 [label=E6END1 fillcolor=lightblue shape=record]
+		EE4BEG0 [label=EE4BEG0 fillcolor=lightblue shape=record]
+		EE4BEG1 [label=EE4BEG1 fillcolor=lightblue shape=record]
+		EE4BEG2 [label=EE4BEG2 fillcolor=lightblue shape=record]
+		EE4BEG3 [label=EE4BEG3 fillcolor=lightblue shape=record]
+		EE4END0 [label=EE4END0 fillcolor=lightblue shape=record]
+		EE4END1 [label=EE4END1 fillcolor=lightblue shape=record]
+		EE4END2 [label=EE4END2 fillcolor=lightblue shape=record]
+		EE4END3 [label=EE4END3 fillcolor=lightblue shape=record]
+		F [label=F fillcolor=lightblue shape=record]
+		G [label=G fillcolor=lightblue shape=record]
+		GND0 [label=GND0 fillcolor=lightblue shape=record]
+		H [label=H fillcolor=lightblue shape=record]
+		J2END_AB_BEG0 [label=J2END_AB_BEG0 fillcolor=lightblue shape=record]
+		J2END_AB_BEG1 [label=J2END_AB_BEG1 fillcolor=lightblue shape=record]
+		J2END_AB_BEG2 [label=J2END_AB_BEG2 fillcolor=lightblue shape=record]
+		J2END_AB_BEG3 [label=J2END_AB_BEG3 fillcolor=lightblue shape=record]
+		J2END_AB_END0 [label=J2END_AB_END0 fillcolor=lightblue shape=record]
+		J2END_AB_END1 [label=J2END_AB_END1 fillcolor=lightblue shape=record]
+		J2END_AB_END2 [label=J2END_AB_END2 fillcolor=lightblue shape=record]
+		J2END_AB_END3 [label=J2END_AB_END3 fillcolor=lightblue shape=record]
+		J2END_CD_BEG0 [label=J2END_CD_BEG0 fillcolor=lightblue shape=record]
+		J2END_CD_BEG1 [label=J2END_CD_BEG1 fillcolor=lightblue shape=record]
+		J2END_CD_BEG2 [label=J2END_CD_BEG2 fillcolor=lightblue shape=record]
+		J2END_CD_BEG3 [label=J2END_CD_BEG3 fillcolor=lightblue shape=record]
+		J2END_CD_END0 [label=J2END_CD_END0 fillcolor=lightblue shape=record]
+		J2END_CD_END1 [label=J2END_CD_END1 fillcolor=lightblue shape=record]
+		J2END_CD_END2 [label=J2END_CD_END2 fillcolor=lightblue shape=record]
+		J2END_CD_END3 [label=J2END_CD_END3 fillcolor=lightblue shape=record]
+		J2END_EF_BEG0 [label=J2END_EF_BEG0 fillcolor=lightblue shape=record]
+		J2END_EF_BEG1 [label=J2END_EF_BEG1 fillcolor=lightblue shape=record]
+		J2END_EF_BEG2 [label=J2END_EF_BEG2 fillcolor=lightblue shape=record]
+		J2END_EF_BEG3 [label=J2END_EF_BEG3 fillcolor=lightblue shape=record]
+		J2END_EF_END0 [label=J2END_EF_END0 fillcolor=lightblue shape=record]
+		J2END_EF_END1 [label=J2END_EF_END1 fillcolor=lightblue shape=record]
+		J2END_EF_END2 [label=J2END_EF_END2 fillcolor=lightblue shape=record]
+		J2END_EF_END3 [label=J2END_EF_END3 fillcolor=lightblue shape=record]
+		J2END_GH_BEG0 [label=J2END_GH_BEG0 fillcolor=lightblue shape=record]
+		J2END_GH_BEG1 [label=J2END_GH_BEG1 fillcolor=lightblue shape=record]
+		J2END_GH_BEG2 [label=J2END_GH_BEG2 fillcolor=lightblue shape=record]
+		J2END_GH_BEG3 [label=J2END_GH_BEG3 fillcolor=lightblue shape=record]
+		J2END_GH_END0 [label=J2END_GH_END0 fillcolor=lightblue shape=record]
+		J2END_GH_END1 [label=J2END_GH_END1 fillcolor=lightblue shape=record]
+		J2END_GH_END2 [label=J2END_GH_END2 fillcolor=lightblue shape=record]
+		J2END_GH_END3 [label=J2END_GH_END3 fillcolor=lightblue shape=record]
+		J2MID_ABa_BEG0 [label=J2MID_ABa_BEG0 fillcolor=lightblue shape=record]
+		J2MID_ABa_BEG1 [label=J2MID_ABa_BEG1 fillcolor=lightblue shape=record]
+		J2MID_ABa_BEG2 [label=J2MID_ABa_BEG2 fillcolor=lightblue shape=record]
+		J2MID_ABa_BEG3 [label=J2MID_ABa_BEG3 fillcolor=lightblue shape=record]
+		J2MID_ABa_END0 [label=J2MID_ABa_END0 fillcolor=lightblue shape=record]
+		J2MID_ABa_END1 [label=J2MID_ABa_END1 fillcolor=lightblue shape=record]
+		J2MID_ABa_END2 [label=J2MID_ABa_END2 fillcolor=lightblue shape=record]
+		J2MID_ABa_END3 [label=J2MID_ABa_END3 fillcolor=lightblue shape=record]
+		J2MID_ABb_BEG0 [label=J2MID_ABb_BEG0 fillcolor=lightblue shape=record]
+		J2MID_ABb_BEG1 [label=J2MID_ABb_BEG1 fillcolor=lightblue shape=record]
+		J2MID_ABb_BEG2 [label=J2MID_ABb_BEG2 fillcolor=lightblue shape=record]
+		J2MID_ABb_BEG3 [label=J2MID_ABb_BEG3 fillcolor=lightblue shape=record]
+		J2MID_ABb_END0 [label=J2MID_ABb_END0 fillcolor=lightblue shape=record]
+		J2MID_ABb_END1 [label=J2MID_ABb_END1 fillcolor=lightblue shape=record]
+		J2MID_ABb_END2 [label=J2MID_ABb_END2 fillcolor=lightblue shape=record]
+		J2MID_ABb_END3 [label=J2MID_ABb_END3 fillcolor=lightblue shape=record]
+		J2MID_CDa_BEG0 [label=J2MID_CDa_BEG0 fillcolor=lightblue shape=record]
+		J2MID_CDa_BEG1 [label=J2MID_CDa_BEG1 fillcolor=lightblue shape=record]
+		J2MID_CDa_BEG2 [label=J2MID_CDa_BEG2 fillcolor=lightblue shape=record]
+		J2MID_CDa_BEG3 [label=J2MID_CDa_BEG3 fillcolor=lightblue shape=record]
+		J2MID_CDa_END0 [label=J2MID_CDa_END0 fillcolor=lightblue shape=record]
+		J2MID_CDa_END1 [label=J2MID_CDa_END1 fillcolor=lightblue shape=record]
+		J2MID_CDa_END2 [label=J2MID_CDa_END2 fillcolor=lightblue shape=record]
+		J2MID_CDa_END3 [label=J2MID_CDa_END3 fillcolor=lightblue shape=record]
+		J2MID_CDb_BEG0 [label=J2MID_CDb_BEG0 fillcolor=lightblue shape=record]
+		J2MID_CDb_BEG1 [label=J2MID_CDb_BEG1 fillcolor=lightblue shape=record]
+		J2MID_CDb_BEG2 [label=J2MID_CDb_BEG2 fillcolor=lightblue shape=record]
+		J2MID_CDb_BEG3 [label=J2MID_CDb_BEG3 fillcolor=lightblue shape=record]
+		J2MID_CDb_END0 [label=J2MID_CDb_END0 fillcolor=lightblue shape=record]
+		J2MID_CDb_END1 [label=J2MID_CDb_END1 fillcolor=lightblue shape=record]
+		J2MID_CDb_END2 [label=J2MID_CDb_END2 fillcolor=lightblue shape=record]
+		J2MID_CDb_END3 [label=J2MID_CDb_END3 fillcolor=lightblue shape=record]
+		J2MID_EFa_BEG0 [label=J2MID_EFa_BEG0 fillcolor=lightblue shape=record]
+		J2MID_EFa_BEG1 [label=J2MID_EFa_BEG1 fillcolor=lightblue shape=record]
+		J2MID_EFa_BEG2 [label=J2MID_EFa_BEG2 fillcolor=lightblue shape=record]
+		J2MID_EFa_BEG3 [label=J2MID_EFa_BEG3 fillcolor=lightblue shape=record]
+		J2MID_EFa_END0 [label=J2MID_EFa_END0 fillcolor=lightblue shape=record]
+		J2MID_EFa_END1 [label=J2MID_EFa_END1 fillcolor=lightblue shape=record]
+		J2MID_EFa_END2 [label=J2MID_EFa_END2 fillcolor=lightblue shape=record]
+		J2MID_EFa_END3 [label=J2MID_EFa_END3 fillcolor=lightblue shape=record]
+		J2MID_EFb_BEG0 [label=J2MID_EFb_BEG0 fillcolor=lightblue shape=record]
+		J2MID_EFb_BEG1 [label=J2MID_EFb_BEG1 fillcolor=lightblue shape=record]
+		J2MID_EFb_BEG2 [label=J2MID_EFb_BEG2 fillcolor=lightblue shape=record]
+		J2MID_EFb_BEG3 [label=J2MID_EFb_BEG3 fillcolor=lightblue shape=record]
+		J2MID_EFb_END0 [label=J2MID_EFb_END0 fillcolor=lightblue shape=record]
+		J2MID_EFb_END1 [label=J2MID_EFb_END1 fillcolor=lightblue shape=record]
+		J2MID_EFb_END2 [label=J2MID_EFb_END2 fillcolor=lightblue shape=record]
+		J2MID_EFb_END3 [label=J2MID_EFb_END3 fillcolor=lightblue shape=record]
+		J2MID_GHa_BEG0 [label=J2MID_GHa_BEG0 fillcolor=lightblue shape=record]
+		J2MID_GHa_BEG1 [label=J2MID_GHa_BEG1 fillcolor=lightblue shape=record]
+		J2MID_GHa_BEG2 [label=J2MID_GHa_BEG2 fillcolor=lightblue shape=record]
+		J2MID_GHa_BEG3 [label=J2MID_GHa_BEG3 fillcolor=lightblue shape=record]
+		J2MID_GHa_END0 [label=J2MID_GHa_END0 fillcolor=lightblue shape=record]
+		J2MID_GHa_END1 [label=J2MID_GHa_END1 fillcolor=lightblue shape=record]
+		J2MID_GHa_END2 [label=J2MID_GHa_END2 fillcolor=lightblue shape=record]
+		J2MID_GHa_END3 [label=J2MID_GHa_END3 fillcolor=lightblue shape=record]
+		J2MID_GHb_BEG0 [label=J2MID_GHb_BEG0 fillcolor=lightblue shape=record]
+		J2MID_GHb_BEG1 [label=J2MID_GHb_BEG1 fillcolor=lightblue shape=record]
+		J2MID_GHb_BEG2 [label=J2MID_GHb_BEG2 fillcolor=lightblue shape=record]
+		J2MID_GHb_BEG3 [label=J2MID_GHb_BEG3 fillcolor=lightblue shape=record]
+		J2MID_GHb_END0 [label=J2MID_GHb_END0 fillcolor=lightblue shape=record]
+		J2MID_GHb_END1 [label=J2MID_GHb_END1 fillcolor=lightblue shape=record]
+		J2MID_GHb_END2 [label=J2MID_GHb_END2 fillcolor=lightblue shape=record]
+		J2MID_GHb_END3 [label=J2MID_GHb_END3 fillcolor=lightblue shape=record]
+		JE2BEG0 [label=JE2BEG0 fillcolor=lightblue shape=record]
+		JE2BEG1 [label=JE2BEG1 fillcolor=lightblue shape=record]
+		JE2BEG2 [label=JE2BEG2 fillcolor=lightblue shape=record]
+		JE2BEG3 [label=JE2BEG3 fillcolor=lightblue shape=record]
+		JE2BEG4 [label=JE2BEG4 fillcolor=lightblue shape=record]
+		JE2BEG5 [label=JE2BEG5 fillcolor=lightblue shape=record]
+		JE2BEG6 [label=JE2BEG6 fillcolor=lightblue shape=record]
+		JE2BEG7 [label=JE2BEG7 fillcolor=lightblue shape=record]
+		JE2END0 [label=JE2END0 fillcolor=lightblue shape=record]
+		JE2END1 [label=JE2END1 fillcolor=lightblue shape=record]
+		JE2END2 [label=JE2END2 fillcolor=lightblue shape=record]
+		JE2END3 [label=JE2END3 fillcolor=lightblue shape=record]
+		JE2END4 [label=JE2END4 fillcolor=lightblue shape=record]
+		JE2END5 [label=JE2END5 fillcolor=lightblue shape=record]
+		JE2END6 [label=JE2END6 fillcolor=lightblue shape=record]
+		JE2END7 [label=JE2END7 fillcolor=lightblue shape=record]
+		"JE2END[0|1|2|3|4|5|6|7]" [label="JE2END[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		JN2BEG0 [label=JN2BEG0 fillcolor=lightblue shape=record]
+		JN2BEG1 [label=JN2BEG1 fillcolor=lightblue shape=record]
+		JN2BEG2 [label=JN2BEG2 fillcolor=lightblue shape=record]
+		JN2BEG3 [label=JN2BEG3 fillcolor=lightblue shape=record]
+		JN2BEG4 [label=JN2BEG4 fillcolor=lightblue shape=record]
+		JN2BEG5 [label=JN2BEG5 fillcolor=lightblue shape=record]
+		JN2BEG6 [label=JN2BEG6 fillcolor=lightblue shape=record]
+		JN2BEG7 [label=JN2BEG7 fillcolor=lightblue shape=record]
+		JN2END0 [label=JN2END0 fillcolor=lightblue shape=record]
+		JN2END1 [label=JN2END1 fillcolor=lightblue shape=record]
+		JN2END2 [label=JN2END2 fillcolor=lightblue shape=record]
+		JN2END3 [label=JN2END3 fillcolor=lightblue shape=record]
+		JN2END4 [label=JN2END4 fillcolor=lightblue shape=record]
+		JN2END5 [label=JN2END5 fillcolor=lightblue shape=record]
+		JN2END6 [label=JN2END6 fillcolor=lightblue shape=record]
+		JN2END7 [label=JN2END7 fillcolor=lightblue shape=record]
+		"JN2END[0|1|2|3|4|5|6|7]" [label="JN2END[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		JS2BEG0 [label=JS2BEG0 fillcolor=lightblue shape=record]
+		JS2BEG1 [label=JS2BEG1 fillcolor=lightblue shape=record]
+		JS2BEG2 [label=JS2BEG2 fillcolor=lightblue shape=record]
+		JS2BEG3 [label=JS2BEG3 fillcolor=lightblue shape=record]
+		JS2BEG4 [label=JS2BEG4 fillcolor=lightblue shape=record]
+		JS2BEG5 [label=JS2BEG5 fillcolor=lightblue shape=record]
+		JS2BEG6 [label=JS2BEG6 fillcolor=lightblue shape=record]
+		JS2BEG7 [label=JS2BEG7 fillcolor=lightblue shape=record]
+		JS2END0 [label=JS2END0 fillcolor=lightblue shape=record]
+		JS2END1 [label=JS2END1 fillcolor=lightblue shape=record]
+		JS2END2 [label=JS2END2 fillcolor=lightblue shape=record]
+		JS2END3 [label=JS2END3 fillcolor=lightblue shape=record]
+		JS2END4 [label=JS2END4 fillcolor=lightblue shape=record]
+		JS2END5 [label=JS2END5 fillcolor=lightblue shape=record]
+		JS2END6 [label=JS2END6 fillcolor=lightblue shape=record]
+		JS2END7 [label=JS2END7 fillcolor=lightblue shape=record]
+		"JS2END[0|1|2|3|4|5|6|7]" [label="JS2END[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		JW2BEG0 [label=JW2BEG0 fillcolor=lightblue shape=record]
+		JW2BEG1 [label=JW2BEG1 fillcolor=lightblue shape=record]
+		JW2BEG2 [label=JW2BEG2 fillcolor=lightblue shape=record]
+		JW2BEG3 [label=JW2BEG3 fillcolor=lightblue shape=record]
+		JW2BEG4 [label=JW2BEG4 fillcolor=lightblue shape=record]
+		JW2BEG5 [label=JW2BEG5 fillcolor=lightblue shape=record]
+		JW2BEG6 [label=JW2BEG6 fillcolor=lightblue shape=record]
+		JW2BEG7 [label=JW2BEG7 fillcolor=lightblue shape=record]
+		JW2END0 [label=JW2END0 fillcolor=lightblue shape=record]
+		JW2END1 [label=JW2END1 fillcolor=lightblue shape=record]
+		JW2END2 [label=JW2END2 fillcolor=lightblue shape=record]
+		JW2END3 [label=JW2END3 fillcolor=lightblue shape=record]
+		JW2END4 [label=JW2END4 fillcolor=lightblue shape=record]
+		JW2END5 [label=JW2END5 fillcolor=lightblue shape=record]
+		JW2END6 [label=JW2END6 fillcolor=lightblue shape=record]
+		JW2END7 [label=JW2END7 fillcolor=lightblue shape=record]
+		J_EN_BEG0 [label=J_EN_BEG0 fillcolor=lightblue shape=record]
+		J_EN_END0 [label=J_EN_END0 fillcolor=lightblue shape=record]
+		J_SR_BEG0 [label=J_SR_BEG0 fillcolor=lightblue shape=record]
+		J_SR_END0 [label=J_SR_END0 fillcolor=lightblue shape=record]
+		J_l_AB_BEG0 [label=J_l_AB_BEG0 fillcolor=lightblue shape=record]
+		J_l_AB_BEG1 [label=J_l_AB_BEG1 fillcolor=lightblue shape=record]
+		J_l_AB_BEG2 [label=J_l_AB_BEG2 fillcolor=lightblue shape=record]
+		J_l_AB_BEG3 [label=J_l_AB_BEG3 fillcolor=lightblue shape=record]
+		J_l_AB_END0 [label=J_l_AB_END0 fillcolor=lightblue shape=record]
+		J_l_AB_END1 [label=J_l_AB_END1 fillcolor=lightblue shape=record]
+		J_l_AB_END2 [label=J_l_AB_END2 fillcolor=lightblue shape=record]
+		J_l_AB_END3 [label=J_l_AB_END3 fillcolor=lightblue shape=record]
+		J_l_CD_BEG0 [label=J_l_CD_BEG0 fillcolor=lightblue shape=record]
+		J_l_CD_BEG1 [label=J_l_CD_BEG1 fillcolor=lightblue shape=record]
+		J_l_CD_BEG2 [label=J_l_CD_BEG2 fillcolor=lightblue shape=record]
+		J_l_CD_BEG3 [label=J_l_CD_BEG3 fillcolor=lightblue shape=record]
+		J_l_CD_END0 [label=J_l_CD_END0 fillcolor=lightblue shape=record]
+		J_l_CD_END1 [label=J_l_CD_END1 fillcolor=lightblue shape=record]
+		J_l_CD_END2 [label=J_l_CD_END2 fillcolor=lightblue shape=record]
+		J_l_CD_END3 [label=J_l_CD_END3 fillcolor=lightblue shape=record]
+		J_l_EF_BEG0 [label=J_l_EF_BEG0 fillcolor=lightblue shape=record]
+		J_l_EF_BEG1 [label=J_l_EF_BEG1 fillcolor=lightblue shape=record]
+		J_l_EF_BEG2 [label=J_l_EF_BEG2 fillcolor=lightblue shape=record]
+		J_l_EF_BEG3 [label=J_l_EF_BEG3 fillcolor=lightblue shape=record]
+		J_l_EF_END0 [label=J_l_EF_END0 fillcolor=lightblue shape=record]
+		J_l_EF_END1 [label=J_l_EF_END1 fillcolor=lightblue shape=record]
+		J_l_EF_END2 [label=J_l_EF_END2 fillcolor=lightblue shape=record]
+		J_l_EF_END3 [label=J_l_EF_END3 fillcolor=lightblue shape=record]
+		J_l_GH_BEG0 [label=J_l_GH_BEG0 fillcolor=lightblue shape=record]
+		J_l_GH_BEG1 [label=J_l_GH_BEG1 fillcolor=lightblue shape=record]
+		J_l_GH_BEG2 [label=J_l_GH_BEG2 fillcolor=lightblue shape=record]
+		J_l_GH_BEG3 [label=J_l_GH_BEG3 fillcolor=lightblue shape=record]
+		J_l_GH_END0 [label=J_l_GH_END0 fillcolor=lightblue shape=record]
+		J_l_GH_END1 [label=J_l_GH_END1 fillcolor=lightblue shape=record]
+		J_l_GH_END2 [label=J_l_GH_END2 fillcolor=lightblue shape=record]
+		J_l_GH_END3 [label=J_l_GH_END3 fillcolor=lightblue shape=record]
+		LA_Ci [label=LA_Ci fillcolor=lightblue shape=record]
+		LA_Co [label=LA_Co fillcolor=lightblue shape=record]
+		LA_EN [label=LA_EN fillcolor=lightblue shape=record]
+		LA_I0 [label=LA_I0 fillcolor=lightblue shape=record]
+		LA_I1 [label=LA_I1 fillcolor=lightblue shape=record]
+		LA_I2 [label=LA_I2 fillcolor=lightblue shape=record]
+		LA_I3 [label=LA_I3 fillcolor=lightblue shape=record]
+		LA_O [label=LA_O fillcolor=lightblue shape=record]
+		LA_SR [label=LA_SR fillcolor=lightblue shape=record]
+		LB_Ci [label=LB_Ci fillcolor=lightblue shape=record]
+		LB_Co [label=LB_Co fillcolor=lightblue shape=record]
+		LB_EN [label=LB_EN fillcolor=lightblue shape=record]
+		LB_I0 [label=LB_I0 fillcolor=lightblue shape=record]
+		LB_I1 [label=LB_I1 fillcolor=lightblue shape=record]
+		LB_I2 [label=LB_I2 fillcolor=lightblue shape=record]
+		LB_I3 [label=LB_I3 fillcolor=lightblue shape=record]
+		LB_O [label=LB_O fillcolor=lightblue shape=record]
+		LB_SR [label=LB_SR fillcolor=lightblue shape=record]
+		LC_Ci [label=LC_Ci fillcolor=lightblue shape=record]
+		LC_Co [label=LC_Co fillcolor=lightblue shape=record]
+		LC_EN [label=LC_EN fillcolor=lightblue shape=record]
+		LC_I0 [label=LC_I0 fillcolor=lightblue shape=record]
+		LC_I1 [label=LC_I1 fillcolor=lightblue shape=record]
+		LC_I2 [label=LC_I2 fillcolor=lightblue shape=record]
+		LC_I3 [label=LC_I3 fillcolor=lightblue shape=record]
+		LC_O [label=LC_O fillcolor=lightblue shape=record]
+		LC_SR [label=LC_SR fillcolor=lightblue shape=record]
+		LD_Ci [label=LD_Ci fillcolor=lightblue shape=record]
+		LD_Co [label=LD_Co fillcolor=lightblue shape=record]
+		LD_EN [label=LD_EN fillcolor=lightblue shape=record]
+		LD_I0 [label=LD_I0 fillcolor=lightblue shape=record]
+		LD_I1 [label=LD_I1 fillcolor=lightblue shape=record]
+		LD_I2 [label=LD_I2 fillcolor=lightblue shape=record]
+		LD_I3 [label=LD_I3 fillcolor=lightblue shape=record]
+		LD_O [label=LD_O fillcolor=lightblue shape=record]
+		LD_SR [label=LD_SR fillcolor=lightblue shape=record]
+		LE_Ci [label=LE_Ci fillcolor=lightblue shape=record]
+		LE_Co [label=LE_Co fillcolor=lightblue shape=record]
+		LE_EN [label=LE_EN fillcolor=lightblue shape=record]
+		LE_I0 [label=LE_I0 fillcolor=lightblue shape=record]
+		LE_I1 [label=LE_I1 fillcolor=lightblue shape=record]
+		LE_I2 [label=LE_I2 fillcolor=lightblue shape=record]
+		LE_I3 [label=LE_I3 fillcolor=lightblue shape=record]
+		LE_O [label=LE_O fillcolor=lightblue shape=record]
+		LE_SR [label=LE_SR fillcolor=lightblue shape=record]
+		LF_Ci [label=LF_Ci fillcolor=lightblue shape=record]
+		LF_Co [label=LF_Co fillcolor=lightblue shape=record]
+		LF_EN [label=LF_EN fillcolor=lightblue shape=record]
+		LF_I0 [label=LF_I0 fillcolor=lightblue shape=record]
+		LF_I1 [label=LF_I1 fillcolor=lightblue shape=record]
+		LF_I2 [label=LF_I2 fillcolor=lightblue shape=record]
+		LF_I3 [label=LF_I3 fillcolor=lightblue shape=record]
+		LF_O [label=LF_O fillcolor=lightblue shape=record]
+		LF_SR [label=LF_SR fillcolor=lightblue shape=record]
+		LG_Ci [label=LG_Ci fillcolor=lightblue shape=record]
+		LG_Co [label=LG_Co fillcolor=lightblue shape=record]
+		LG_EN [label=LG_EN fillcolor=lightblue shape=record]
+		LG_I0 [label=LG_I0 fillcolor=lightblue shape=record]
+		LG_I1 [label=LG_I1 fillcolor=lightblue shape=record]
+		LG_I2 [label=LG_I2 fillcolor=lightblue shape=record]
+		LG_I3 [label=LG_I3 fillcolor=lightblue shape=record]
+		LG_O [label=LG_O fillcolor=lightblue shape=record]
+		LG_SR [label=LG_SR fillcolor=lightblue shape=record]
+		LH_Ci [label=LH_Ci fillcolor=lightblue shape=record]
+		LH_Co [label=LH_Co fillcolor=lightblue shape=record]
+		LH_EN [label=LH_EN fillcolor=lightblue shape=record]
+		LH_I0 [label=LH_I0 fillcolor=lightblue shape=record]
+		LH_I1 [label=LH_I1 fillcolor=lightblue shape=record]
+		LH_I2 [label=LH_I2 fillcolor=lightblue shape=record]
+		LH_I3 [label=LH_I3 fillcolor=lightblue shape=record]
+		LH_O [label=LH_O fillcolor=lightblue shape=record]
+		LH_SR [label=LH_SR fillcolor=lightblue shape=record]
+		M_AB [label=M_AB fillcolor=lightblue shape=record]
+		M_AD [label=M_AD fillcolor=lightblue shape=record]
+		M_AH [label=M_AH fillcolor=lightblue shape=record]
+		M_EF [label=M_EF fillcolor=lightblue shape=record]
+		N1BEG0 [label=N1BEG0 fillcolor=lightblue shape=record]
+		N1BEG1 [label=N1BEG1 fillcolor=lightblue shape=record]
+		N1BEG2 [label=N1BEG2 fillcolor=lightblue shape=record]
+		N1BEG3 [label=N1BEG3 fillcolor=lightblue shape=record]
+		N1END0 [label=N1END0 fillcolor=lightblue shape=record]
+		N1END1 [label=N1END1 fillcolor=lightblue shape=record]
+		N1END2 [label=N1END2 fillcolor=lightblue shape=record]
+		N1END3 [label=N1END3 fillcolor=lightblue shape=record]
+		"N2BEG[0|1|2|3|4|5|6|7]" [label="N2BEG[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		"N2BEGb[0|1|2|3|4|5|6|7]" [label="N2BEGb[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		N2END0 [label=N2END0 fillcolor=lightblue shape=record]
+		N2END1 [label=N2END1 fillcolor=lightblue shape=record]
+		N2END2 [label=N2END2 fillcolor=lightblue shape=record]
+		N2END3 [label=N2END3 fillcolor=lightblue shape=record]
+		N2END4 [label=N2END4 fillcolor=lightblue shape=record]
+		N2END5 [label=N2END5 fillcolor=lightblue shape=record]
+		N2END6 [label=N2END6 fillcolor=lightblue shape=record]
+		N2END7 [label=N2END7 fillcolor=lightblue shape=record]
+		N2MID0 [label=N2MID0 fillcolor=lightblue shape=record]
+		N2MID1 [label=N2MID1 fillcolor=lightblue shape=record]
+		N2MID2 [label=N2MID2 fillcolor=lightblue shape=record]
+		N2MID3 [label=N2MID3 fillcolor=lightblue shape=record]
+		N2MID4 [label=N2MID4 fillcolor=lightblue shape=record]
+		N2MID5 [label=N2MID5 fillcolor=lightblue shape=record]
+		N2MID6 [label=N2MID6 fillcolor=lightblue shape=record]
+		N2MID7 [label=N2MID7 fillcolor=lightblue shape=record]
+		"N2MID[0|1|2|3|4|5|6|7]" [label="N2MID[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		N4BEG0 [label=N4BEG0 fillcolor=lightblue shape=record]
+		N4BEG1 [label=N4BEG1 fillcolor=lightblue shape=record]
+		N4BEG2 [label=N4BEG2 fillcolor=lightblue shape=record]
+		N4BEG3 [label=N4BEG3 fillcolor=lightblue shape=record]
+		N4END0 [label=N4END0 fillcolor=lightblue shape=record]
+		N4END1 [label=N4END1 fillcolor=lightblue shape=record]
+		N4END2 [label=N4END2 fillcolor=lightblue shape=record]
+		N4END3 [label=N4END3 fillcolor=lightblue shape=record]
+		NN4BEG0 [label=NN4BEG0 fillcolor=lightblue shape=record]
+		NN4BEG1 [label=NN4BEG1 fillcolor=lightblue shape=record]
+		NN4BEG2 [label=NN4BEG2 fillcolor=lightblue shape=record]
+		NN4BEG3 [label=NN4BEG3 fillcolor=lightblue shape=record]
+		NN4END0 [label=NN4END0 fillcolor=lightblue shape=record]
+		NN4END1 [label=NN4END1 fillcolor=lightblue shape=record]
+		NN4END2 [label=NN4END2 fillcolor=lightblue shape=record]
+		NN4END3 [label=NN4END3 fillcolor=lightblue shape=record]
+		S0 [label=S0 fillcolor=lightblue shape=record]
+		S1 [label=S1 fillcolor=lightblue shape=record]
+		S1BEG0 [label=S1BEG0 fillcolor=lightblue shape=record]
+		S1BEG1 [label=S1BEG1 fillcolor=lightblue shape=record]
+		S1BEG2 [label=S1BEG2 fillcolor=lightblue shape=record]
+		S1BEG3 [label=S1BEG3 fillcolor=lightblue shape=record]
+		S1END0 [label=S1END0 fillcolor=lightblue shape=record]
+		S1END1 [label=S1END1 fillcolor=lightblue shape=record]
+		S1END2 [label=S1END2 fillcolor=lightblue shape=record]
+		S1END3 [label=S1END3 fillcolor=lightblue shape=record]
+		S2 [label=S2 fillcolor=lightblue shape=record]
+		"S2BEG[0|1|2|3|4|5|6|7]" [label="S2BEG[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		"S2BEGb[0|1|2|3|4|5|6|7]" [label="S2BEGb[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		S2END0 [label=S2END0 fillcolor=lightblue shape=record]
+		S2END1 [label=S2END1 fillcolor=lightblue shape=record]
+		S2END2 [label=S2END2 fillcolor=lightblue shape=record]
+		S2END3 [label=S2END3 fillcolor=lightblue shape=record]
+		S2END4 [label=S2END4 fillcolor=lightblue shape=record]
+		S2END5 [label=S2END5 fillcolor=lightblue shape=record]
+		S2END6 [label=S2END6 fillcolor=lightblue shape=record]
+		S2END7 [label=S2END7 fillcolor=lightblue shape=record]
+		S2MID0 [label=S2MID0 fillcolor=lightblue shape=record]
+		S2MID1 [label=S2MID1 fillcolor=lightblue shape=record]
+		S2MID2 [label=S2MID2 fillcolor=lightblue shape=record]
+		S2MID3 [label=S2MID3 fillcolor=lightblue shape=record]
+		S2MID4 [label=S2MID4 fillcolor=lightblue shape=record]
+		S2MID5 [label=S2MID5 fillcolor=lightblue shape=record]
+		S2MID6 [label=S2MID6 fillcolor=lightblue shape=record]
+		S2MID7 [label=S2MID7 fillcolor=lightblue shape=record]
+		"S2MID[0|1|2|3|4|5|6|7]" [label="S2MID[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		S3 [label=S3 fillcolor=lightblue shape=record]
+		S4BEG0 [label=S4BEG0 fillcolor=lightblue shape=record]
+		S4BEG1 [label=S4BEG1 fillcolor=lightblue shape=record]
+		S4BEG2 [label=S4BEG2 fillcolor=lightblue shape=record]
+		S4BEG3 [label=S4BEG3 fillcolor=lightblue shape=record]
+		S4END0 [label=S4END0 fillcolor=lightblue shape=record]
+		S4END1 [label=S4END1 fillcolor=lightblue shape=record]
+		S4END2 [label=S4END2 fillcolor=lightblue shape=record]
+		S4END3 [label=S4END3 fillcolor=lightblue shape=record]
+		SS4BEG0 [label=SS4BEG0 fillcolor=lightblue shape=record]
+		SS4BEG1 [label=SS4BEG1 fillcolor=lightblue shape=record]
+		SS4BEG2 [label=SS4BEG2 fillcolor=lightblue shape=record]
+		SS4BEG3 [label=SS4BEG3 fillcolor=lightblue shape=record]
+		SS4END0 [label=SS4END0 fillcolor=lightblue shape=record]
+		SS4END1 [label=SS4END1 fillcolor=lightblue shape=record]
+		SS4END2 [label=SS4END2 fillcolor=lightblue shape=record]
+		SS4END3 [label=SS4END3 fillcolor=lightblue shape=record]
+		VCC0 [label=VCC0 fillcolor=lightblue shape=record]
+		W1BEG0 [label=W1BEG0 fillcolor=lightblue shape=record]
+		W1BEG1 [label=W1BEG1 fillcolor=lightblue shape=record]
+		W1BEG2 [label=W1BEG2 fillcolor=lightblue shape=record]
+		W1BEG3 [label=W1BEG3 fillcolor=lightblue shape=record]
+		W1END0 [label=W1END0 fillcolor=lightblue shape=record]
+		W1END1 [label=W1END1 fillcolor=lightblue shape=record]
+		W1END2 [label=W1END2 fillcolor=lightblue shape=record]
+		W1END3 [label=W1END3 fillcolor=lightblue shape=record]
+		W2BEG0 [label=W2BEG0 fillcolor=lightblue shape=record]
+		W2BEG1 [label=W2BEG1 fillcolor=lightblue shape=record]
+		W2BEG2 [label=W2BEG2 fillcolor=lightblue shape=record]
+		W2BEG3 [label=W2BEG3 fillcolor=lightblue shape=record]
+		W2BEG4 [label=W2BEG4 fillcolor=lightblue shape=record]
+		W2BEG5 [label=W2BEG5 fillcolor=lightblue shape=record]
+		W2BEG6 [label=W2BEG6 fillcolor=lightblue shape=record]
+		W2BEG7 [label=W2BEG7 fillcolor=lightblue shape=record]
+		"W2BEGb[0|1|2|3|4|5|6|7]" [label="W2BEGb[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		W2END0 [label=W2END0 fillcolor=lightblue shape=record]
+		W2END1 [label=W2END1 fillcolor=lightblue shape=record]
+		W2END2 [label=W2END2 fillcolor=lightblue shape=record]
+		W2END3 [label=W2END3 fillcolor=lightblue shape=record]
+		W2END4 [label=W2END4 fillcolor=lightblue shape=record]
+		W2END5 [label=W2END5 fillcolor=lightblue shape=record]
+		W2END6 [label=W2END6 fillcolor=lightblue shape=record]
+		W2END7 [label=W2END7 fillcolor=lightblue shape=record]
+		W2MID0 [label=W2MID0 fillcolor=lightblue shape=record]
+		W2MID1 [label=W2MID1 fillcolor=lightblue shape=record]
+		W2MID2 [label=W2MID2 fillcolor=lightblue shape=record]
+		W2MID3 [label=W2MID3 fillcolor=lightblue shape=record]
+		W2MID4 [label=W2MID4 fillcolor=lightblue shape=record]
+		W2MID5 [label=W2MID5 fillcolor=lightblue shape=record]
+		W2MID6 [label=W2MID6 fillcolor=lightblue shape=record]
+		W2MID7 [label=W2MID7 fillcolor=lightblue shape=record]
+		"W2MID[0|1|2|3|4|5|6|7]" [label="W2MID[0|1|2|3|4|5|6|7]" fillcolor=lightblue shape=record]
+		W6BEG0 [label=W6BEG0 fillcolor=lightblue shape=record]
+		W6BEG1 [label=W6BEG1 fillcolor=lightblue shape=record]
+		W6END0 [label=W6END0 fillcolor=lightblue shape=record]
+		W6END1 [label=W6END1 fillcolor=lightblue shape=record]
+		WW4BEG0 [label=WW4BEG0 fillcolor=lightblue shape=record]
+		WW4BEG1 [label=WW4BEG1 fillcolor=lightblue shape=record]
+		WW4BEG2 [label=WW4BEG2 fillcolor=lightblue shape=record]
+		WW4BEG3 [label=WW4BEG3 fillcolor=lightblue shape=record]
+		WW4END0 [label=WW4END0 fillcolor=lightblue shape=record]
+		WW4END1 [label=WW4END1 fillcolor=lightblue shape=record]
+		WW4END2 [label=WW4END2 fillcolor=lightblue shape=record]
+		WW4END3 [label=WW4END3 fillcolor=lightblue shape=record]
+	}
+	subgraph cluster_north {
+		color=tomato fontname=Helvetica label="North Ports" style=rounded
+	}
+	subgraph cluster_south {
+		color=gold fontname=Helvetica label="South Ports" style=rounded
+	}
+	subgraph cluster_east {
+		color=olivedrab2 fontname=Helvetica label="East Ports" style=rounded
+	}
+	subgraph cluster_west {
+		color=royalblue1 fontname=Helvetica label="West Ports" style=rounded
+	}
+	subgraph cluster_jump {
+		color=plum fontname=Helvetica label="Jump Wires" style=rounded
+	}
+	subgraph cluster_other {
+		color=lightgray fontname=Helvetica label=Other style=rounded
+	}
+	"N2MID[0|1|2|3|4|5|6|7]" -> "N2BEGb[0|1|2|3|4|5|6|7]"
+	"E2MID[0|1|2|3|4|5|6|7]" -> "E2BEGb[0|1|2|3|4|5|6|7]"
+	"S2MID[0|1|2|3|4|5|6|7]" -> "S2BEGb[0|1|2|3|4|5|6|7]"
+	"W2MID[0|1|2|3|4|5|6|7]" -> "W2BEGb[0|1|2|3|4|5|6|7]"
+	JN2END3 -> J2MID_ABa_BEG0
+	N2MID6 -> J2MID_ABa_BEG0
+	S2MID6 -> J2MID_ABa_BEG0
+	W2MID6 -> J2MID_ABa_BEG0
+	E2MID2 -> J2MID_ABa_BEG1
+	JE2END3 -> J2MID_ABa_BEG1
+	S2MID2 -> J2MID_ABa_BEG1
+	W2MID2 -> J2MID_ABa_BEG1
+	E2MID4 -> J2MID_ABa_BEG2
+	N2MID4 -> J2MID_ABa_BEG2
+	JS2END3 -> J2MID_ABa_BEG2
+	W2MID4 -> J2MID_ABa_BEG2
+	E2MID0 -> J2MID_ABa_BEG3
+	N2MID0 -> J2MID_ABa_BEG3
+	S2MID0 -> J2MID_ABa_BEG3
+	JW2END3 -> J2MID_ABa_BEG3
+	E2MID6 -> J2MID_CDa_BEG0
+	JN2END4 -> J2MID_CDa_BEG0
+	S2MID6 -> J2MID_CDa_BEG0
+	W2MID6 -> J2MID_CDa_BEG0
+	E2MID2 -> J2MID_CDa_BEG1
+	N2MID2 -> J2MID_CDa_BEG1
+	JE2END4 -> J2MID_CDa_BEG1
+	W2MID2 -> J2MID_CDa_BEG1
+	E2MID4 -> J2MID_CDa_BEG2
+	N2MID4 -> J2MID_CDa_BEG2
+	S2MID4 -> J2MID_CDa_BEG2
+	JS2END4 -> J2MID_CDa_BEG2
+	JW2END4 -> J2MID_CDa_BEG3
+	N2MID0 -> J2MID_CDa_BEG3
+	S2MID0 -> J2MID_CDa_BEG3
+	W2MID0 -> J2MID_CDa_BEG3
+	E2MID6 -> J2MID_EFa_BEG0
+	N2MID6 -> J2MID_EFa_BEG0
+	JN2END5 -> J2MID_EFa_BEG0
+	W2MID6 -> J2MID_EFa_BEG0
+	E2MID2 -> J2MID_EFa_BEG1
+	N2MID2 -> J2MID_EFa_BEG1
+	S2MID2 -> J2MID_EFa_BEG1
+	JE2END5 -> J2MID_EFa_BEG1
+	JS2END5 -> J2MID_EFa_BEG2
+	N2MID4 -> J2MID_EFa_BEG2
+	S2MID4 -> J2MID_EFa_BEG2
+	W2MID4 -> J2MID_EFa_BEG2
+	E2MID0 -> J2MID_EFa_BEG3
+	JW2END5 -> J2MID_EFa_BEG3
+	S2MID0 -> J2MID_EFa_BEG3
+	W2MID0 -> J2MID_EFa_BEG3
+	E2MID6 -> J2MID_GHa_BEG0
+	N2MID6 -> J2MID_GHa_BEG0
+	S2MID6 -> J2MID_GHa_BEG0
+	JN2END6 -> J2MID_GHa_BEG0
+	JE2END6 -> J2MID_GHa_BEG1
+	N2MID2 -> J2MID_GHa_BEG1
+	S2MID2 -> J2MID_GHa_BEG1
+	W2MID2 -> J2MID_GHa_BEG1
+	E2MID4 -> J2MID_GHa_BEG2
+	JS2END6 -> J2MID_GHa_BEG2
+	S2MID4 -> J2MID_GHa_BEG2
+	W2MID4 -> J2MID_GHa_BEG2
+	E2MID0 -> J2MID_GHa_BEG3
+	N2MID0 -> J2MID_GHa_BEG3
+	JW2END6 -> J2MID_GHa_BEG3
+	W2MID0 -> J2MID_GHa_BEG3
+	E2MID7 -> J2MID_ABb_BEG0
+	N2MID7 -> J2MID_ABb_BEG0
+	S2MID7 -> J2MID_ABb_BEG0
+	W2MID7 -> J2MID_ABb_BEG0
+	E2MID3 -> J2MID_ABb_BEG1
+	N2MID3 -> J2MID_ABb_BEG1
+	S2MID3 -> J2MID_ABb_BEG1
+	W2MID3 -> J2MID_ABb_BEG1
+	E2MID5 -> J2MID_ABb_BEG2
+	N2MID5 -> J2MID_ABb_BEG2
+	S2MID5 -> J2MID_ABb_BEG2
+	W2MID5 -> J2MID_ABb_BEG2
+	E2MID1 -> J2MID_ABb_BEG3
+	N2MID1 -> J2MID_ABb_BEG3
+	S2MID1 -> J2MID_ABb_BEG3
+	W2MID1 -> J2MID_ABb_BEG3
+	E2MID7 -> J2MID_CDb_BEG0
+	N2MID7 -> J2MID_CDb_BEG0
+	S2MID7 -> J2MID_CDb_BEG0
+	W2MID7 -> J2MID_CDb_BEG0
+	E2MID3 -> J2MID_CDb_BEG1
+	N2MID3 -> J2MID_CDb_BEG1
+	S2MID3 -> J2MID_CDb_BEG1
+	W2MID3 -> J2MID_CDb_BEG1
+	E2MID5 -> J2MID_CDb_BEG2
+	N2MID5 -> J2MID_CDb_BEG2
+	S2MID5 -> J2MID_CDb_BEG2
+	W2MID5 -> J2MID_CDb_BEG2
+	E2MID1 -> J2MID_CDb_BEG3
+	N2MID1 -> J2MID_CDb_BEG3
+	S2MID1 -> J2MID_CDb_BEG3
+	W2MID1 -> J2MID_CDb_BEG3
+	E2MID7 -> J2MID_EFb_BEG0
+	N2MID7 -> J2MID_EFb_BEG0
+	S2MID7 -> J2MID_EFb_BEG0
+	W2MID7 -> J2MID_EFb_BEG0
+	E2MID3 -> J2MID_EFb_BEG1
+	N2MID3 -> J2MID_EFb_BEG1
+	S2MID3 -> J2MID_EFb_BEG1
+	W2MID3 -> J2MID_EFb_BEG1
+	E2MID5 -> J2MID_EFb_BEG2
+	N2MID5 -> J2MID_EFb_BEG2
+	S2MID5 -> J2MID_EFb_BEG2
+	W2MID5 -> J2MID_EFb_BEG2
+	E2MID1 -> J2MID_EFb_BEG3
+	N2MID1 -> J2MID_EFb_BEG3
+	S2MID1 -> J2MID_EFb_BEG3
+	W2MID1 -> J2MID_EFb_BEG3
+	E2MID7 -> J2MID_GHb_BEG0
+	N2MID7 -> J2MID_GHb_BEG0
+	S2MID7 -> J2MID_GHb_BEG0
+	W2MID7 -> J2MID_GHb_BEG0
+	E2MID3 -> J2MID_GHb_BEG1
+	N2MID3 -> J2MID_GHb_BEG1
+	S2MID3 -> J2MID_GHb_BEG1
+	W2MID3 -> J2MID_GHb_BEG1
+	E2MID5 -> J2MID_GHb_BEG2
+	N2MID5 -> J2MID_GHb_BEG2
+	S2MID5 -> J2MID_GHb_BEG2
+	W2MID5 -> J2MID_GHb_BEG2
+	E2MID1 -> J2MID_GHb_BEG3
+	N2MID1 -> J2MID_GHb_BEG3
+	S2MID1 -> J2MID_GHb_BEG3
+	W2MID1 -> J2MID_GHb_BEG3
+	E2END6 -> J2END_AB_BEG0
+	N2END6 -> J2END_AB_BEG0
+	SS4END3 -> J2END_AB_BEG0
+	W2END6 -> J2END_AB_BEG0
+	E2END2 -> J2END_AB_BEG1
+	NN4END0 -> J2END_AB_BEG1
+	S2END2 -> J2END_AB_BEG1
+	W2END2 -> J2END_AB_BEG1
+	EE4END0 -> J2END_AB_BEG2
+	N2END4 -> J2END_AB_BEG2
+	S2END4 -> J2END_AB_BEG2
+	W2END4 -> J2END_AB_BEG2
+	E2END0 -> J2END_AB_BEG3
+	N2END0 -> J2END_AB_BEG3
+	S2END0 -> J2END_AB_BEG3
+	WW4END3 -> J2END_AB_BEG3
+	E2END6 -> J2END_CD_BEG0
+	NN4END3 -> J2END_CD_BEG0
+	S2END6 -> J2END_CD_BEG0
+	W2END6 -> J2END_CD_BEG0
+	E2END2 -> J2END_CD_BEG1
+	N2END2 -> J2END_CD_BEG1
+	S2END2 -> J2END_CD_BEG1
+	WW4END2 -> J2END_CD_BEG1
+	E2END4 -> J2END_CD_BEG2
+	N2END4 -> J2END_CD_BEG2
+	SS4END2 -> J2END_CD_BEG2
+	W2END4 -> J2END_CD_BEG2
+	EE4END1 -> J2END_CD_BEG3
+	N2END0 -> J2END_CD_BEG3
+	S2END0 -> J2END_CD_BEG3
+	W2END0 -> J2END_CD_BEG3
+	EE4END2 -> J2END_EF_BEG0
+	N2END7 -> J2END_EF_BEG0
+	S2END7 -> J2END_EF_BEG0
+	W2END7 -> J2END_EF_BEG0
+	E2END3 -> J2END_EF_BEG1
+	N2END3 -> J2END_EF_BEG1
+	S2END3 -> J2END_EF_BEG1
+	WW4END1 -> J2END_EF_BEG1
+	E2END5 -> J2END_EF_BEG2
+	N2END5 -> J2END_EF_BEG2
+	SS4END1 -> J2END_EF_BEG2
+	W2END5 -> J2END_EF_BEG2
+	E2END1 -> J2END_EF_BEG3
+	NN4END2 -> J2END_EF_BEG3
+	S2END1 -> J2END_EF_BEG3
+	W2END1 -> J2END_EF_BEG3
+	E2END7 -> J2END_GH_BEG0
+	N2END7 -> J2END_GH_BEG0
+	S2END7 -> J2END_GH_BEG0
+	WW4END0 -> J2END_GH_BEG0
+	E2END3 -> J2END_GH_BEG1
+	N2END3 -> J2END_GH_BEG1
+	SS4END0 -> J2END_GH_BEG1
+	W2END3 -> J2END_GH_BEG1
+	E2END5 -> J2END_GH_BEG2
+	NN4END1 -> J2END_GH_BEG2
+	S2END5 -> J2END_GH_BEG2
+	W2END5 -> J2END_GH_BEG2
+	EE4END3 -> J2END_GH_BEG3
+	N2END1 -> J2END_GH_BEG3
+	S2END1 -> J2END_GH_BEG3
+	W2END1 -> J2END_GH_BEG3
+	JN2END1 -> J_l_AB_BEG0
+	NN4END3 -> J_l_AB_BEG0
+	S4END3 -> J_l_AB_BEG0
+	WW4END0 -> J_l_AB_BEG0
+	EE4END2 -> J_l_AB_BEG1
+	JE2END1 -> J_l_AB_BEG1
+	S4END2 -> J_l_AB_BEG1
+	W2END7 -> J_l_AB_BEG1
+	E6END1 -> J_l_AB_BEG2
+	N4END1 -> J_l_AB_BEG2
+	JS2END1 -> J_l_AB_BEG2
+	W6END1 -> J_l_AB_BEG2
+	E6END0 -> J_l_AB_BEG3
+	N4END0 -> J_l_AB_BEG3
+	S4END0 -> J_l_AB_BEG3
+	JW2END1 -> J_l_AB_BEG3
+	E2END3 -> J_l_CD_BEG0
+	JN2END2 -> J_l_CD_BEG0
+	SS4END3 -> J_l_CD_BEG0
+	WW4END2 -> J_l_CD_BEG0
+	E2END2 -> J_l_CD_BEG1
+	N4END2 -> J_l_CD_BEG1
+	JE2END2 -> J_l_CD_BEG1
+	W2END7 -> J_l_CD_BEG1
+	EE4END1 -> J_l_CD_BEG2
+	NN4END1 -> J_l_CD_BEG2
+	S4END1 -> J_l_CD_BEG2
+	JS2END2 -> J_l_CD_BEG2
+	JW2END2 -> J_l_CD_BEG3
+	N4END0 -> J_l_CD_BEG3
+	SS4END0 -> J_l_CD_BEG3
+	W6END0 -> J_l_CD_BEG3
+	E2END3 -> J_l_EF_BEG0
+	N4END3 -> J_l_EF_BEG0
+	JN2END3 -> J_l_EF_BEG0
+	W2END3 -> J_l_EF_BEG0
+	E2END2 -> J_l_EF_BEG1
+	NN4END2 -> J_l_EF_BEG1
+	S4END2 -> J_l_EF_BEG1
+	JE2END3 -> J_l_EF_BEG1
+	JS2END3 -> J_l_EF_BEG2
+	N4END1 -> J_l_EF_BEG2
+	SS4END1 -> J_l_EF_BEG2
+	W2END4 -> J_l_EF_BEG2
+	EE4END3 -> J_l_EF_BEG3
+	JW2END3 -> J_l_EF_BEG3
+	S4END0 -> J_l_EF_BEG3
+	WW4END1 -> J_l_EF_BEG3
+	EE4END0 -> J_l_GH_BEG0
+	N4END3 -> J_l_GH_BEG0
+	S4END3 -> J_l_GH_BEG0
+	JN2END4 -> J_l_GH_BEG0
+	JE2END4 -> J_l_GH_BEG1
+	N4END2 -> J_l_GH_BEG1
+	SS4END2 -> J_l_GH_BEG1
+	W2END2 -> J_l_GH_BEG1
+	E6END1 -> J_l_GH_BEG2
+	JS2END4 -> J_l_GH_BEG2
+	S4END1 -> J_l_GH_BEG2
+	WW4END3 -> J_l_GH_BEG2
+	E6END0 -> J_l_GH_BEG3
+	NN4END0 -> J_l_GH_BEG3
+	JW2END4 -> J_l_GH_BEG3
+	W2END0 -> J_l_GH_BEG3
+	J2MID_ABa_END0 -> LA_I0
+	J2MID_ABa_END0 -> LB_I0
+	J2MID_ABa_END1 -> LA_I1
+	J2MID_ABa_END1 -> LB_I1
+	J2MID_ABa_END2 -> LA_I2
+	J2MID_ABa_END2 -> LB_I2
+	J2MID_ABa_END3 -> LA_I3
+	J2MID_ABa_END3 -> LB_I3
+	J2MID_CDa_END0 -> LC_I0
+	J2MID_CDa_END0 -> LD_I0
+	J2MID_CDa_END1 -> LC_I1
+	J2MID_CDa_END1 -> LD_I1
+	J2MID_CDa_END2 -> LC_I2
+	J2MID_CDa_END2 -> LD_I2
+	J2MID_CDa_END3 -> LC_I3
+	J2MID_CDa_END3 -> LD_I3
+	J2MID_EFa_END0 -> LE_I0
+	J2MID_EFa_END0 -> LF_I0
+	J2MID_EFa_END1 -> LE_I1
+	J2MID_EFa_END1 -> LF_I1
+	J2MID_EFa_END2 -> LE_I2
+	J2MID_EFa_END2 -> LF_I2
+	J2MID_EFa_END3 -> LE_I3
+	J2MID_EFa_END3 -> LF_I3
+	J2MID_GHa_END0 -> LG_I0
+	J2MID_GHa_END0 -> LH_I0
+	J2MID_GHa_END1 -> LG_I1
+	J2MID_GHa_END1 -> LH_I1
+	J2MID_GHa_END2 -> LG_I2
+	J2MID_GHa_END2 -> LH_I2
+	J2MID_GHa_END3 -> LG_I3
+	J2MID_GHa_END3 -> LH_I3
+	J2MID_ABb_END0 -> LA_I0
+	J2MID_ABb_END0 -> LB_I0
+	J2MID_ABb_END1 -> LA_I1
+	J2MID_ABb_END1 -> LB_I1
+	J2MID_ABb_END2 -> LA_I2
+	J2MID_ABb_END2 -> LB_I2
+	J2MID_ABb_END3 -> LA_I3
+	J2MID_ABb_END3 -> LB_I3
+	J2MID_CDb_END0 -> LC_I0
+	J2MID_CDb_END0 -> LD_I0
+	J2MID_CDb_END1 -> LC_I1
+	J2MID_CDb_END1 -> LD_I1
+	J2MID_CDb_END2 -> LC_I2
+	J2MID_CDb_END2 -> LD_I2
+	J2MID_CDb_END3 -> LC_I3
+	J2MID_CDb_END3 -> LD_I3
+	J2MID_EFb_END0 -> LE_I0
+	J2MID_EFb_END0 -> LF_I0
+	J2MID_EFb_END1 -> LE_I1
+	J2MID_EFb_END1 -> LF_I1
+	J2MID_EFb_END2 -> LE_I2
+	J2MID_EFb_END2 -> LF_I2
+	J2MID_EFb_END3 -> LE_I3
+	J2MID_EFb_END3 -> LF_I3
+	J2MID_GHb_END0 -> LG_I0
+	J2MID_GHb_END0 -> LH_I0
+	J2MID_GHb_END1 -> LG_I1
+	J2MID_GHb_END1 -> LH_I1
+	J2MID_GHb_END2 -> LG_I2
+	J2MID_GHb_END2 -> LH_I2
+	J2MID_GHb_END3 -> LG_I3
+	J2MID_GHb_END3 -> LH_I3
+	J2END_AB_END0 -> LA_I0
+	J2END_AB_END0 -> LB_I0
+	J2END_AB_END1 -> LA_I1
+	J2END_AB_END1 -> LB_I1
+	J2END_AB_END2 -> LA_I2
+	J2END_AB_END2 -> LB_I2
+	J2END_AB_END3 -> LA_I3
+	J2END_AB_END3 -> LB_I3
+	J2END_CD_END0 -> LC_I0
+	J2END_CD_END0 -> LD_I0
+	J2END_CD_END1 -> LC_I1
+	J2END_CD_END1 -> LD_I1
+	J2END_CD_END2 -> LC_I2
+	J2END_CD_END2 -> LD_I2
+	J2END_CD_END3 -> LC_I3
+	J2END_CD_END3 -> LD_I3
+	J2END_EF_END0 -> LE_I0
+	J2END_EF_END0 -> LF_I0
+	J2END_EF_END1 -> LE_I1
+	J2END_EF_END1 -> LF_I1
+	J2END_EF_END2 -> LE_I2
+	J2END_EF_END2 -> LF_I2
+	J2END_EF_END3 -> LE_I3
+	J2END_EF_END3 -> LF_I3
+	J2END_GH_END0 -> LG_I0
+	J2END_GH_END0 -> LH_I0
+	J2END_GH_END1 -> LG_I1
+	J2END_GH_END1 -> LH_I1
+	J2END_GH_END2 -> LG_I2
+	J2END_GH_END2 -> LH_I2
+	J2END_GH_END3 -> LG_I3
+	J2END_GH_END3 -> LH_I3
+	J_l_AB_END0 -> LA_I0
+	J_l_AB_END0 -> LB_I0
+	J_l_AB_END1 -> LA_I1
+	J_l_AB_END1 -> LB_I1
+	J_l_AB_END2 -> LA_I2
+	J_l_AB_END2 -> LB_I2
+	J_l_AB_END3 -> LA_I3
+	J_l_AB_END3 -> LB_I3
+	J_l_CD_END0 -> LC_I0
+	J_l_CD_END0 -> LD_I0
+	J_l_CD_END1 -> LC_I1
+	J_l_CD_END1 -> LD_I1
+	J_l_CD_END2 -> LC_I2
+	J_l_CD_END2 -> LD_I2
+	J_l_CD_END3 -> LC_I3
+	J_l_CD_END3 -> LD_I3
+	J_l_EF_END0 -> LE_I0
+	J_l_EF_END0 -> LF_I0
+	J_l_EF_END1 -> LE_I1
+	J_l_EF_END1 -> LF_I1
+	J_l_EF_END2 -> LE_I2
+	J_l_EF_END2 -> LF_I2
+	J_l_EF_END3 -> LE_I3
+	J_l_EF_END3 -> LF_I3
+	J_l_GH_END0 -> LG_I0
+	J_l_GH_END0 -> LH_I0
+	J_l_GH_END1 -> LG_I1
+	J_l_GH_END1 -> LH_I1
+	J_l_GH_END2 -> LG_I2
+	J_l_GH_END2 -> LH_I2
+	J_l_GH_END3 -> LG_I3
+	J_l_GH_END3 -> LH_I3
+	E1END3 -> JN2BEG0
+	LB_O -> JN2BEG0
+	LC_O -> JN2BEG0
+	LD_O -> JN2BEG0
+	LE_O -> JN2BEG0
+	LF_O -> JN2BEG0
+	LG_O -> JN2BEG0
+	LH_O -> JN2BEG0
+	LA_O -> JN2BEG1
+	E1END0 -> JN2BEG1
+	LC_O -> JN2BEG1
+	LD_O -> JN2BEG1
+	LE_O -> JN2BEG1
+	LF_O -> JN2BEG1
+	LG_O -> JN2BEG1
+	LH_O -> JN2BEG1
+	LA_O -> JN2BEG2
+	LB_O -> JN2BEG2
+	E1END1 -> JN2BEG2
+	LD_O -> JN2BEG2
+	LE_O -> JN2BEG2
+	LF_O -> JN2BEG2
+	LG_O -> JN2BEG2
+	LH_O -> JN2BEG2
+	LA_O -> JN2BEG3
+	LB_O -> JN2BEG3
+	LC_O -> JN2BEG3
+	E1END2 -> JN2BEG3
+	LE_O -> JN2BEG3
+	LF_O -> JN2BEG3
+	LG_O -> JN2BEG3
+	LH_O -> JN2BEG3
+	LA_O -> JN2BEG4
+	LB_O -> JN2BEG4
+	LC_O -> JN2BEG4
+	LD_O -> JN2BEG4
+	W1END3 -> JN2BEG4
+	LF_O -> JN2BEG4
+	LG_O -> JN2BEG4
+	LH_O -> JN2BEG4
+	LA_O -> JN2BEG5
+	LB_O -> JN2BEG5
+	LC_O -> JN2BEG5
+	LD_O -> JN2BEG5
+	LE_O -> JN2BEG5
+	W1END0 -> JN2BEG5
+	LG_O -> JN2BEG5
+	LH_O -> JN2BEG5
+	LA_O -> JN2BEG6
+	LB_O -> JN2BEG6
+	LC_O -> JN2BEG6
+	LD_O -> JN2BEG6
+	LE_O -> JN2BEG6
+	LF_O -> JN2BEG6
+	W1END1 -> JN2BEG6
+	LH_O -> JN2BEG6
+	LA_O -> JN2BEG7
+	LB_O -> JN2BEG7
+	LC_O -> JN2BEG7
+	LD_O -> JN2BEG7
+	LE_O -> JN2BEG7
+	LF_O -> JN2BEG7
+	LG_O -> JN2BEG7
+	W1END2 -> JN2BEG7
+	N1END3 -> JE2BEG0
+	LB_O -> JE2BEG0
+	LC_O -> JE2BEG0
+	LD_O -> JE2BEG0
+	LE_O -> JE2BEG0
+	LF_O -> JE2BEG0
+	LG_O -> JE2BEG0
+	LH_O -> JE2BEG0
+	LA_O -> JE2BEG1
+	N1END0 -> JE2BEG1
+	LC_O -> JE2BEG1
+	LD_O -> JE2BEG1
+	LE_O -> JE2BEG1
+	LF_O -> JE2BEG1
+	LG_O -> JE2BEG1
+	LH_O -> JE2BEG1
+	LA_O -> JE2BEG2
+	LB_O -> JE2BEG2
+	N1END1 -> JE2BEG2
+	LD_O -> JE2BEG2
+	LE_O -> JE2BEG2
+	LF_O -> JE2BEG2
+	LG_O -> JE2BEG2
+	LH_O -> JE2BEG2
+	LA_O -> JE2BEG3
+	LB_O -> JE2BEG3
+	LC_O -> JE2BEG3
+	N1END2 -> JE2BEG3
+	LE_O -> JE2BEG3
+	LF_O -> JE2BEG3
+	LG_O -> JE2BEG3
+	LH_O -> JE2BEG3
+	LA_O -> JE2BEG4
+	LB_O -> JE2BEG4
+	LC_O -> JE2BEG4
+	LD_O -> JE2BEG4
+	S1END3 -> JE2BEG4
+	LF_O -> JE2BEG4
+	LG_O -> JE2BEG4
+	LH_O -> JE2BEG4
+	LA_O -> JE2BEG5
+	LB_O -> JE2BEG5
+	LC_O -> JE2BEG5
+	LD_O -> JE2BEG5
+	LE_O -> JE2BEG5
+	S1END0 -> JE2BEG5
+	LG_O -> JE2BEG5
+	LH_O -> JE2BEG5
+	LA_O -> JE2BEG6
+	LB_O -> JE2BEG6
+	LC_O -> JE2BEG6
+	LD_O -> JE2BEG6
+	LE_O -> JE2BEG6
+	LF_O -> JE2BEG6
+	S1END1 -> JE2BEG6
+	LH_O -> JE2BEG6
+	LA_O -> JE2BEG7
+	LB_O -> JE2BEG7
+	LC_O -> JE2BEG7
+	LD_O -> JE2BEG7
+	LE_O -> JE2BEG7
+	LF_O -> JE2BEG7
+	LG_O -> JE2BEG7
+	S1END2 -> JE2BEG7
+	E1END3 -> JS2BEG0
+	LB_O -> JS2BEG0
+	LC_O -> JS2BEG0
+	LD_O -> JS2BEG0
+	LE_O -> JS2BEG0
+	LF_O -> JS2BEG0
+	LG_O -> JS2BEG0
+	LH_O -> JS2BEG0
+	LA_O -> JS2BEG1
+	E1END0 -> JS2BEG1
+	LC_O -> JS2BEG1
+	LD_O -> JS2BEG1
+	LE_O -> JS2BEG1
+	LF_O -> JS2BEG1
+	LG_O -> JS2BEG1
+	LH_O -> JS2BEG1
+	LA_O -> JS2BEG2
+	LB_O -> JS2BEG2
+	E1END1 -> JS2BEG2
+	LD_O -> JS2BEG2
+	LE_O -> JS2BEG2
+	LF_O -> JS2BEG2
+	LG_O -> JS2BEG2
+	LH_O -> JS2BEG2
+	LA_O -> JS2BEG3
+	LB_O -> JS2BEG3
+	LC_O -> JS2BEG3
+	E1END2 -> JS2BEG3
+	LE_O -> JS2BEG3
+	LF_O -> JS2BEG3
+	LG_O -> JS2BEG3
+	LH_O -> JS2BEG3
+	LA_O -> JS2BEG4
+	LB_O -> JS2BEG4
+	LC_O -> JS2BEG4
+	LD_O -> JS2BEG4
+	W1END3 -> JS2BEG4
+	LF_O -> JS2BEG4
+	LG_O -> JS2BEG4
+	LH_O -> JS2BEG4
+	LA_O -> JS2BEG5
+	LB_O -> JS2BEG5
+	LC_O -> JS2BEG5
+	LD_O -> JS2BEG5
+	LE_O -> JS2BEG5
+	W1END0 -> JS2BEG5
+	LG_O -> JS2BEG5
+	LH_O -> JS2BEG5
+	LA_O -> JS2BEG6
+	LB_O -> JS2BEG6
+	LC_O -> JS2BEG6
+	LD_O -> JS2BEG6
+	LE_O -> JS2BEG6
+	LF_O -> JS2BEG6
+	W1END1 -> JS2BEG6
+	LH_O -> JS2BEG6
+	LA_O -> JS2BEG7
+	LB_O -> JS2BEG7
+	LC_O -> JS2BEG7
+	LD_O -> JS2BEG7
+	LE_O -> JS2BEG7
+	LF_O -> JS2BEG7
+	LG_O -> JS2BEG7
+	W1END2 -> JS2BEG7
+	N1END3 -> JW2BEG0
+	LB_O -> JW2BEG0
+	LC_O -> JW2BEG0
+	LD_O -> JW2BEG0
+	LE_O -> JW2BEG0
+	LF_O -> JW2BEG0
+	LG_O -> JW2BEG0
+	LH_O -> JW2BEG0
+	LA_O -> JW2BEG1
+	N1END0 -> JW2BEG1
+	LC_O -> JW2BEG1
+	LD_O -> JW2BEG1
+	LE_O -> JW2BEG1
+	LF_O -> JW2BEG1
+	LG_O -> JW2BEG1
+	LH_O -> JW2BEG1
+	LA_O -> JW2BEG2
+	LB_O -> JW2BEG2
+	N1END1 -> JW2BEG2
+	LD_O -> JW2BEG2
+	LE_O -> JW2BEG2
+	LF_O -> JW2BEG2
+	LG_O -> JW2BEG2
+	LH_O -> JW2BEG2
+	LA_O -> JW2BEG3
+	LB_O -> JW2BEG3
+	LC_O -> JW2BEG3
+	N1END2 -> JW2BEG3
+	LE_O -> JW2BEG3
+	LF_O -> JW2BEG3
+	LG_O -> JW2BEG3
+	LH_O -> JW2BEG3
+	LA_O -> JW2BEG4
+	LB_O -> JW2BEG4
+	LC_O -> JW2BEG4
+	LD_O -> JW2BEG4
+	S1END3 -> JW2BEG4
+	LF_O -> JW2BEG4
+	LG_O -> JW2BEG4
+	LH_O -> JW2BEG4
+	LA_O -> JW2BEG5
+	LB_O -> JW2BEG5
+	LC_O -> JW2BEG5
+	LD_O -> JW2BEG5
+	LE_O -> JW2BEG5
+	S1END0 -> JW2BEG5
+	LG_O -> JW2BEG5
+	LH_O -> JW2BEG5
+	LA_O -> JW2BEG6
+	LB_O -> JW2BEG6
+	LC_O -> JW2BEG6
+	LD_O -> JW2BEG6
+	LE_O -> JW2BEG6
+	LF_O -> JW2BEG6
+	S1END1 -> JW2BEG6
+	LH_O -> JW2BEG6
+	LA_O -> JW2BEG7
+	LB_O -> JW2BEG7
+	LC_O -> JW2BEG7
+	LD_O -> JW2BEG7
+	LE_O -> JW2BEG7
+	LF_O -> JW2BEG7
+	LG_O -> JW2BEG7
+	S1END2 -> JW2BEG7
+	M_AB -> JN2BEG0
+	N2END1 -> JN2BEG0
+	E2END1 -> JN2BEG0
+	SS4END1 -> JN2BEG0
+	W2END1 -> JN2BEG0
+	W6END1 -> JN2BEG0
+	E6END1 -> JN2BEG0
+	N4END1 -> JN2BEG0
+	M_AD -> JN2BEG1
+	N2END2 -> JN2BEG1
+	E2END2 -> JN2BEG1
+	S2END2 -> JN2BEG1
+	W2END2 -> JN2BEG1
+	W6END0 -> JN2BEG1
+	E6END0 -> JN2BEG1
+	N4END2 -> JN2BEG1
+	M_AH -> JN2BEG2
+	N2END3 -> JN2BEG2
+	E2END3 -> JN2BEG2
+	S2END3 -> JN2BEG2
+	W2END3 -> JN2BEG2
+	WW4END1 -> JN2BEG2
+	E6END1 -> JN2BEG2
+	N4END3 -> JN2BEG2
+	M_EF -> JN2BEG3
+	N2END4 -> JN2BEG3
+	E2END4 -> JN2BEG3
+	S2END4 -> JN2BEG3
+	W2END4 -> JN2BEG3
+	W6END0 -> JN2BEG3
+	E6END0 -> JN2BEG3
+	N4END0 -> JN2BEG3
+	M_AB -> JN2BEG4
+	N2END5 -> JN2BEG4
+	E2END5 -> JN2BEG4
+	S2END5 -> JN2BEG4
+	N1END1 -> JN2BEG4
+	E1END1 -> JN2BEG4
+	S1END1 -> JN2BEG4
+	W1END1 -> JN2BEG4
+	M_AD -> JN2BEG5
+	N2END6 -> JN2BEG5
+	E2END6 -> JN2BEG5
+	S2END6 -> JN2BEG5
+	N1END2 -> JN2BEG5
+	E1END2 -> JN2BEG5
+	S1END2 -> JN2BEG5
+	W1END2 -> JN2BEG5
+	M_AH -> JN2BEG6
+	N2END7 -> JN2BEG6
+	E2END7 -> JN2BEG6
+	S2END7 -> JN2BEG6
+	N1END3 -> JN2BEG6
+	E1END3 -> JN2BEG6
+	S1END3 -> JN2BEG6
+	W1END3 -> JN2BEG6
+	M_EF -> JN2BEG7
+	N2END0 -> JN2BEG7
+	EE4END0 -> JN2BEG7
+	S2END0 -> JN2BEG7
+	N1END0 -> JN2BEG7
+	E1END0 -> JN2BEG7
+	S1END0 -> JN2BEG7
+	W1END0 -> JN2BEG7
+	M_EF -> JE2BEG0
+	N2END1 -> JE2BEG0
+	EE4END1 -> JE2BEG0
+	S2END1 -> JE2BEG0
+	W2END1 -> JE2BEG0
+	W6END1 -> JE2BEG0
+	E6END1 -> JE2BEG0
+	N4END1 -> JE2BEG0
+	M_AB -> JE2BEG1
+	N2END2 -> JE2BEG1
+	E2END2 -> JE2BEG1
+	S2END2 -> JE2BEG1
+	W2END2 -> JE2BEG1
+	WW4END3 -> JE2BEG1
+	E6END0 -> JE2BEG1
+	N4END2 -> JE2BEG1
+	M_AD -> JE2BEG2
+	N2END3 -> JE2BEG2
+	E2END3 -> JE2BEG2
+	S2END3 -> JE2BEG2
+	W2END3 -> JE2BEG2
+	W6END1 -> JE2BEG2
+	E6END1 -> JE2BEG2
+	N4END3 -> JE2BEG2
+	M_AH -> JE2BEG3
+	N2END4 -> JE2BEG3
+	E2END4 -> JE2BEG3
+	S2END4 -> JE2BEG3
+	W2END4 -> JE2BEG3
+	W6END0 -> JE2BEG3
+	E6END0 -> JE2BEG3
+	N4END0 -> JE2BEG3
+	M_EF -> JE2BEG4
+	N2END5 -> JE2BEG4
+	E2END5 -> JE2BEG4
+	S2END5 -> JE2BEG4
+	N1END1 -> JE2BEG4
+	E1END1 -> JE2BEG4
+	S1END1 -> JE2BEG4
+	W1END1 -> JE2BEG4
+	M_AB -> JE2BEG5
+	N2END6 -> JE2BEG5
+	E2END6 -> JE2BEG5
+	S2END6 -> JE2BEG5
+	N1END2 -> JE2BEG5
+	E1END2 -> JE2BEG5
+	S1END2 -> JE2BEG5
+	W1END2 -> JE2BEG5
+	M_AD -> JE2BEG6
+	N2END7 -> JE2BEG6
+	E2END7 -> JE2BEG6
+	S2END7 -> JE2BEG6
+	N1END3 -> JE2BEG6
+	E1END3 -> JE2BEG6
+	S1END3 -> JE2BEG6
+	W1END3 -> JE2BEG6
+	M_AH -> JE2BEG7
+	N2END0 -> JE2BEG7
+	E2END0 -> JE2BEG7
+	SS4END0 -> JE2BEG7
+	N1END0 -> JE2BEG7
+	E1END0 -> JE2BEG7
+	S1END0 -> JE2BEG7
+	WW4END0 -> JE2BEG7
+	M_AH -> JS2BEG0
+	NN4END1 -> JS2BEG0
+	E2END1 -> JS2BEG0
+	S2END1 -> JS2BEG0
+	W2END1 -> JS2BEG0
+	W6END1 -> JS2BEG0
+	E6END1 -> JS2BEG0
+	S4END1 -> JS2BEG0
+	M_EF -> JS2BEG1
+	NN4END2 -> JS2BEG1
+	EE4END2 -> JS2BEG1
+	SS4END2 -> JS2BEG1
+	W2END2 -> JS2BEG1
+	W6END0 -> JS2BEG1
+	E6END0 -> JS2BEG1
+	S4END2 -> JS2BEG1
+	M_AB -> JS2BEG2
+	NN4END3 -> JS2BEG2
+	E2END3 -> JS2BEG2
+	S2END3 -> JS2BEG2
+	W2END3 -> JS2BEG2
+	W6END1 -> JS2BEG2
+	E6END1 -> JS2BEG2
+	S4END3 -> JS2BEG2
+	M_AD -> JS2BEG3
+	N2END4 -> JS2BEG3
+	E2END4 -> JS2BEG3
+	S2END4 -> JS2BEG3
+	W2END4 -> JS2BEG3
+	WW4END2 -> JS2BEG3
+	E6END0 -> JS2BEG3
+	S4END0 -> JS2BEG3
+	M_AH -> JS2BEG4
+	N2END5 -> JS2BEG4
+	E2END5 -> JS2BEG4
+	S2END5 -> JS2BEG4
+	N1END1 -> JS2BEG4
+	E1END1 -> JS2BEG4
+	S1END1 -> JS2BEG4
+	W1END1 -> JS2BEG4
+	M_EF -> JS2BEG5
+	N2END6 -> JS2BEG5
+	E2END6 -> JS2BEG5
+	S2END6 -> JS2BEG5
+	N1END2 -> JS2BEG5
+	E1END2 -> JS2BEG5
+	S1END2 -> JS2BEG5
+	W1END2 -> JS2BEG5
+	M_AB -> JS2BEG6
+	N2END7 -> JS2BEG6
+	E2END7 -> JS2BEG6
+	S2END7 -> JS2BEG6
+	N1END3 -> JS2BEG6
+	E1END3 -> JS2BEG6
+	S1END3 -> JS2BEG6
+	W1END3 -> JS2BEG6
+	M_AD -> JS2BEG7
+	N2END0 -> JS2BEG7
+	E2END0 -> JS2BEG7
+	S2END0 -> JS2BEG7
+	N1END0 -> JS2BEG7
+	E1END0 -> JS2BEG7
+	S1END0 -> JS2BEG7
+	W1END0 -> JS2BEG7
+	M_AD -> JW2BEG0
+	N2END1 -> JW2BEG0
+	E2END1 -> JW2BEG0
+	S2END1 -> JW2BEG0
+	W2END1 -> JW2BEG0
+	W6END1 -> JW2BEG0
+	E6END1 -> JW2BEG0
+	S4END1 -> JW2BEG0
+	M_AH -> JW2BEG1
+	N2END2 -> JW2BEG1
+	E2END2 -> JW2BEG1
+	S2END2 -> JW2BEG1
+	W2END2 -> JW2BEG1
+	W6END0 -> JW2BEG1
+	E6END0 -> JW2BEG1
+	S4END2 -> JW2BEG1
+	M_EF -> JW2BEG2
+	N2END3 -> JW2BEG2
+	EE4END3 -> JW2BEG2
+	SS4END3 -> JW2BEG2
+	W2END3 -> JW2BEG2
+	W6END1 -> JW2BEG2
+	E6END1 -> JW2BEG2
+	S4END3 -> JW2BEG2
+	M_AB -> JW2BEG3
+	N2END4 -> JW2BEG3
+	E2END4 -> JW2BEG3
+	S2END4 -> JW2BEG3
+	W2END4 -> JW2BEG3
+	WW4END2 -> JW2BEG3
+	E6END0 -> JW2BEG3
+	S4END0 -> JW2BEG3
+	M_AD -> JW2BEG4
+	N2END5 -> JW2BEG4
+	E2END5 -> JW2BEG4
+	S2END5 -> JW2BEG4
+	N1END1 -> JW2BEG4
+	E1END1 -> JW2BEG4
+	S1END1 -> JW2BEG4
+	W1END1 -> JW2BEG4
+	M_AH -> JW2BEG5
+	N2END6 -> JW2BEG5
+	E2END6 -> JW2BEG5
+	S2END6 -> JW2BEG5
+	N1END2 -> JW2BEG5
+	E1END2 -> JW2BEG5
+	S1END2 -> JW2BEG5
+	W1END2 -> JW2BEG5
+	M_EF -> JW2BEG6
+	N2END7 -> JW2BEG6
+	E2END7 -> JW2BEG6
+	S2END7 -> JW2BEG6
+	N1END3 -> JW2BEG6
+	E1END3 -> JW2BEG6
+	S1END3 -> JW2BEG6
+	W1END3 -> JW2BEG6
+	M_AB -> JW2BEG7
+	NN4END0 -> JW2BEG7
+	E2END0 -> JW2BEG7
+	S2END0 -> JW2BEG7
+	N1END0 -> JW2BEG7
+	E1END0 -> JW2BEG7
+	S1END0 -> JW2BEG7
+	W1END0 -> JW2BEG7
+	"JN2END[0|1|2|3|4|5|6|7]" -> "N2BEG[0|1|2|3|4|5|6|7]"
+	"JE2END[0|1|2|3|4|5|6|7]" -> "E2BEG[0|1|2|3|4|5|6|7]"
+	"JS2END[0|1|2|3|4|5|6|7]" -> "S2BEG[0|1|2|3|4|5|6|7]"
+	JW2END1 -> W2BEG1
+	JW2END2 -> W2BEG2
+	JW2END5 -> W2BEG5
+	JW2END6 -> W2BEG6
+	JW2END0 -> W2BEG0
+	JW2END3 -> W2BEG3
+	JW2END4 -> W2BEG4
+	JW2END7 -> W2BEG7
+	J_l_CD_END1 -> N1BEG0
+	LC_O -> N1BEG0
+	JW2END3 -> N1BEG0
+	J2MID_CDb_END3 -> N1BEG0
+	J_l_EF_END2 -> N1BEG1
+	LD_O -> N1BEG1
+	JW2END0 -> N1BEG1
+	J2MID_EFb_END0 -> N1BEG1
+	J_l_GH_END3 -> N1BEG2
+	LE_O -> N1BEG2
+	JW2END1 -> N1BEG2
+	J2MID_GHb_END1 -> N1BEG2
+	J_l_AB_END0 -> N1BEG3
+	LF_O -> N1BEG3
+	JW2END2 -> N1BEG3
+	J2MID_ABb_END2 -> N1BEG3
+	J_l_CD_END1 -> E1BEG0
+	LD_O -> E1BEG0
+	JN2END3 -> E1BEG0
+	J2MID_CDb_END3 -> E1BEG0
+	J_l_EF_END2 -> E1BEG1
+	LE_O -> E1BEG1
+	JN2END0 -> E1BEG1
+	J2MID_EFb_END0 -> E1BEG1
+	J_l_GH_END3 -> E1BEG2
+	LF_O -> E1BEG2
+	JN2END1 -> E1BEG2
+	J2MID_GHb_END1 -> E1BEG2
+	J_l_AB_END0 -> E1BEG3
+	LG_O -> E1BEG3
+	JN2END2 -> E1BEG3
+	J2MID_ABb_END2 -> E1BEG3
+	J_l_CD_END1 -> S1BEG0
+	LE_O -> S1BEG0
+	JE2END3 -> S1BEG0
+	J2MID_CDb_END3 -> S1BEG0
+	J_l_EF_END2 -> S1BEG1
+	LF_O -> S1BEG1
+	JE2END0 -> S1BEG1
+	J2MID_EFb_END0 -> S1BEG1
+	J_l_GH_END3 -> S1BEG2
+	LG_O -> S1BEG2
+	JE2END1 -> S1BEG2
+	J2MID_GHb_END1 -> S1BEG2
+	J_l_AB_END0 -> S1BEG3
+	LH_O -> S1BEG3
+	JE2END2 -> S1BEG3
+	J2MID_ABb_END2 -> S1BEG3
+	J_l_CD_END1 -> W1BEG0
+	LF_O -> W1BEG0
+	JS2END3 -> W1BEG0
+	J2MID_CDb_END3 -> W1BEG0
+	J_l_EF_END2 -> W1BEG1
+	LG_O -> W1BEG1
+	JS2END0 -> W1BEG1
+	J2MID_EFb_END0 -> W1BEG1
+	J_l_GH_END3 -> W1BEG2
+	LH_O -> W1BEG2
+	JS2END1 -> W1BEG2
+	J2MID_GHb_END1 -> W1BEG2
+	J_l_AB_END0 -> W1BEG3
+	LA_O -> W1BEG3
+	JS2END2 -> W1BEG3
+	J2MID_ABb_END2 -> W1BEG3
+	N4END1 -> N4BEG0
+	N2END2 -> N4BEG0
+	E6END1 -> N4BEG0
+	LE_O -> N4BEG0
+	N4END2 -> N4BEG1
+	N2END3 -> N4BEG1
+	E6END0 -> N4BEG1
+	LF_O -> N4BEG1
+	N4END3 -> N4BEG2
+	N2END0 -> N4BEG2
+	W6END1 -> N4BEG2
+	LG_O -> N4BEG2
+	N4END0 -> N4BEG3
+	N2END1 -> N4BEG3
+	W6END0 -> N4BEG3
+	LH_O -> N4BEG3
+	S4END1 -> S4BEG0
+	S2END2 -> S4BEG0
+	E6END1 -> S4BEG0
+	LA_O -> S4BEG0
+	S4END2 -> S4BEG1
+	S2END3 -> S4BEG1
+	E6END0 -> S4BEG1
+	LB_O -> S4BEG1
+	S4END3 -> S4BEG2
+	S2END0 -> S4BEG2
+	W6END1 -> S4BEG2
+	LC_O -> S4BEG2
+	S4END0 -> S4BEG3
+	S2END1 -> S4BEG3
+	W6END0 -> S4BEG3
+	LD_O -> S4BEG3
+	LA_O -> E6BEG0
+	LB_O -> E6BEG0
+	LC_O -> E6BEG0
+	LD_O -> E6BEG0
+	LE_O -> E6BEG0
+	LF_O -> E6BEG0
+	LG_O -> E6BEG0
+	LH_O -> E6BEG0
+	LA_O -> E6BEG1
+	LB_O -> E6BEG1
+	LC_O -> E6BEG1
+	LD_O -> E6BEG1
+	LE_O -> E6BEG1
+	LF_O -> E6BEG1
+	LG_O -> E6BEG1
+	LH_O -> E6BEG1
+	J2MID_ABb_END1 -> E6BEG0
+	J2MID_CDb_END1 -> E6BEG0
+	J2MID_EFb_END1 -> E6BEG0
+	J2MID_GHb_END1 -> E6BEG0
+	E1END3 -> E6BEG0
+	W1END3 -> E6BEG0
+	M_AB -> E6BEG0
+	M_AH -> E6BEG0
+	J2MID_ABa_END2 -> E6BEG1
+	J2MID_CDa_END2 -> E6BEG1
+	J2MID_EFa_END2 -> E6BEG1
+	J2MID_GHa_END2 -> E6BEG1
+	E1END2 -> E6BEG1
+	W1END2 -> E6BEG1
+	M_AD -> E6BEG1
+	M_EF -> E6BEG1
+	LA_O -> W6BEG0
+	LB_O -> W6BEG0
+	LC_O -> W6BEG0
+	LD_O -> W6BEG0
+	LE_O -> W6BEG0
+	LF_O -> W6BEG0
+	LG_O -> W6BEG0
+	LH_O -> W6BEG0
+	LA_O -> W6BEG1
+	LB_O -> W6BEG1
+	LC_O -> W6BEG1
+	LD_O -> W6BEG1
+	LE_O -> W6BEG1
+	LF_O -> W6BEG1
+	LG_O -> W6BEG1
+	LH_O -> W6BEG1
+	J2MID_ABb_END1 -> W6BEG0
+	J2MID_CDb_END1 -> W6BEG0
+	J2MID_EFb_END1 -> W6BEG0
+	J2MID_GHb_END1 -> W6BEG0
+	E1END3 -> W6BEG0
+	W1END3 -> W6BEG0
+	M_AB -> W6BEG0
+	M_AH -> W6BEG0
+	J2MID_ABa_END2 -> W6BEG1
+	J2MID_CDa_END2 -> W6BEG1
+	J2MID_EFa_END2 -> W6BEG1
+	J2MID_GHa_END2 -> W6BEG1
+	E1END2 -> W6BEG1
+	W1END2 -> W6BEG1
+	M_AD -> W6BEG1
+	M_EF -> W6BEG1
+	J2MID_ABb_END1 -> EE4BEG0
+	J2MID_CDb_END1 -> EE4BEG0
+	LF_O -> EE4BEG0
+	LG_O -> EE4BEG0
+	J2END_GH_END0 -> EE4BEG0
+	N1END2 -> EE4BEG0
+	S1END2 -> EE4BEG0
+	E1END2 -> EE4BEG0
+	J2MID_ABa_END2 -> EE4BEG1
+	J2MID_CDa_END2 -> EE4BEG1
+	LA_O -> EE4BEG1
+	LH_O -> EE4BEG1
+	J2END_EF_END0 -> EE4BEG1
+	N1END3 -> EE4BEG1
+	S1END3 -> EE4BEG1
+	E1END3 -> EE4BEG1
+	J2MID_EFb_END1 -> EE4BEG2
+	J2MID_GHb_END1 -> EE4BEG2
+	LB_O -> EE4BEG2
+	LC_O -> EE4BEG2
+	J2END_CD_END0 -> EE4BEG2
+	N1END0 -> EE4BEG2
+	S1END0 -> EE4BEG2
+	E1END0 -> EE4BEG2
+	J2MID_EFa_END2 -> EE4BEG3
+	J2MID_GHa_END2 -> EE4BEG3
+	LD_O -> EE4BEG3
+	LE_O -> EE4BEG3
+	J2END_AB_END0 -> EE4BEG3
+	N1END1 -> EE4BEG3
+	S1END1 -> EE4BEG3
+	E1END1 -> EE4BEG3
+	J2MID_ABb_END1 -> WW4BEG0
+	J2MID_CDb_END1 -> WW4BEG0
+	LF_O -> WW4BEG0
+	LG_O -> WW4BEG0
+	J2END_GH_END2 -> WW4BEG0
+	N1END2 -> WW4BEG0
+	S1END2 -> WW4BEG0
+	W1END2 -> WW4BEG0
+	J2MID_ABa_END2 -> WW4BEG1
+	J2MID_CDa_END2 -> WW4BEG1
+	LA_O -> WW4BEG1
+	LH_O -> WW4BEG1
+	J2END_EF_END2 -> WW4BEG1
+	N1END3 -> WW4BEG1
+	S1END3 -> WW4BEG1
+	W1END3 -> WW4BEG1
+	J2MID_EFb_END1 -> WW4BEG2
+	J2MID_GHb_END1 -> WW4BEG2
+	LB_O -> WW4BEG2
+	LC_O -> WW4BEG2
+	J2END_CD_END2 -> WW4BEG2
+	N1END0 -> WW4BEG2
+	S1END0 -> WW4BEG2
+	W1END0 -> WW4BEG2
+	J2MID_EFa_END2 -> WW4BEG3
+	J2MID_GHa_END2 -> WW4BEG3
+	LD_O -> WW4BEG3
+	LE_O -> WW4BEG3
+	J2END_AB_END2 -> WW4BEG3
+	N1END1 -> WW4BEG3
+	S1END1 -> WW4BEG3
+	W1END1 -> WW4BEG3
+	J2MID_ABb_END1 -> NN4BEG0
+	J2MID_CDb_END1 -> NN4BEG0
+	LF_O -> NN4BEG0
+	LG_O -> NN4BEG0
+	J2END_GH_END1 -> NN4BEG0
+	E1END2 -> NN4BEG0
+	W1END2 -> NN4BEG0
+	N1END2 -> NN4BEG0
+	J2MID_ABa_END2 -> NN4BEG1
+	J2MID_CDa_END2 -> NN4BEG1
+	LA_O -> NN4BEG1
+	LH_O -> NN4BEG1
+	J2END_EF_END1 -> NN4BEG1
+	E1END3 -> NN4BEG1
+	W1END3 -> NN4BEG1
+	N1END3 -> NN4BEG1
+	J2MID_EFb_END1 -> NN4BEG2
+	J2MID_GHb_END1 -> NN4BEG2
+	LB_O -> NN4BEG2
+	LC_O -> NN4BEG2
+	J2END_CD_END1 -> NN4BEG2
+	E1END0 -> NN4BEG2
+	W1END0 -> NN4BEG2
+	N1END0 -> NN4BEG2
+	J2MID_EFa_END2 -> NN4BEG3
+	J2MID_GHa_END2 -> NN4BEG3
+	LD_O -> NN4BEG3
+	LE_O -> NN4BEG3
+	J2END_AB_END1 -> NN4BEG3
+	E1END1 -> NN4BEG3
+	W1END1 -> NN4BEG3
+	N1END1 -> NN4BEG3
+	J2MID_ABb_END1 -> SS4BEG0
+	J2MID_CDb_END1 -> SS4BEG0
+	LF_O -> SS4BEG0
+	LG_O -> SS4BEG0
+	J2END_GH_END3 -> SS4BEG0
+	E1END2 -> SS4BEG0
+	W1END2 -> SS4BEG0
+	N1END2 -> SS4BEG0
+	J2MID_ABa_END2 -> SS4BEG1
+	J2MID_CDa_END2 -> SS4BEG1
+	LA_O -> SS4BEG1
+	LH_O -> SS4BEG1
+	J2END_EF_END3 -> SS4BEG1
+	E1END3 -> SS4BEG1
+	W1END3 -> SS4BEG1
+	N1END3 -> SS4BEG1
+	J2MID_EFb_END1 -> SS4BEG2
+	J2MID_GHb_END1 -> SS4BEG2
+	LB_O -> SS4BEG2
+	LC_O -> SS4BEG2
+	J2END_CD_END3 -> SS4BEG2
+	E1END0 -> SS4BEG2
+	W1END0 -> SS4BEG2
+	N1END0 -> SS4BEG2
+	J2MID_EFa_END2 -> SS4BEG3
+	J2MID_GHa_END2 -> SS4BEG3
+	LD_O -> SS4BEG3
+	LE_O -> SS4BEG3
+	J2END_AB_END3 -> SS4BEG3
+	E1END1 -> SS4BEG3
+	W1END1 -> SS4BEG3
+	N1END1 -> SS4BEG3
+	LA_O -> A
+	LB_O -> B
+	LC_O -> C
+	LD_O -> D
+	LE_O -> E
+	LF_O -> F
+	LG_O -> G
+	LH_O -> H
+	JN2END4 -> S0
+	JE2END4 -> S0
+	JS2END4 -> S0
+	JW2END4 -> S0
+	JN2END5 -> S1
+	JE2END5 -> S1
+	JS2END5 -> S1
+	JW2END5 -> S1
+	JN2END6 -> S2
+	JE2END6 -> S2
+	JS2END6 -> S2
+	JW2END6 -> S2
+	JN2END7 -> S3
+	JE2END7 -> S3
+	JS2END7 -> S3
+	JW2END7 -> S3
+	Ci0 -> LA_Ci
+	LA_Co -> LB_Ci
+	LB_Co -> LC_Ci
+	LC_Co -> LD_Ci
+	LD_Co -> LE_Ci
+	LE_Co -> LF_Ci
+	LF_Co -> LG_Ci
+	LG_Co -> LH_Ci
+	LH_Co -> Co0
+	J2MID_ABb_END0 -> J_SR_BEG0
+	J2MID_CDb_END0 -> J_SR_BEG0
+	J2MID_EFb_END0 -> J_SR_BEG0
+	J2MID_GHa_END0 -> J_SR_BEG0
+	JN2END1 -> J_SR_BEG0
+	JE2END1 -> J_SR_BEG0
+	JS2END1 -> J_SR_BEG0
+	JW2END1 -> J_SR_BEG0
+	J2MID_ABb_END3 -> J_EN_BEG0
+	J2MID_CDb_END3 -> J_EN_BEG0
+	J2MID_EFb_END3 -> J_EN_BEG0
+	J2MID_GHa_END3 -> J_EN_BEG0
+	JN2END2 -> J_EN_BEG0
+	JE2END2 -> J_EN_BEG0
+	JS2END2 -> J_EN_BEG0
+	JW2END2 -> J_EN_BEG0
+	J_SR_END0 -> LA_SR
+	GND0 -> LA_SR
+	J_SR_END0 -> LB_SR
+	GND0 -> LB_SR
+	J_SR_END0 -> LC_SR
+	GND0 -> LC_SR
+	J_SR_END0 -> LD_SR
+	GND0 -> LD_SR
+	J_SR_END0 -> LE_SR
+	GND0 -> LE_SR
+	J_SR_END0 -> LF_SR
+	GND0 -> LF_SR
+	J_SR_END0 -> LG_SR
+	GND0 -> LG_SR
+	J_SR_END0 -> LH_SR
+	GND0 -> LH_SR
+	J_EN_END0 -> LA_EN
+	VCC0 -> LA_EN
+	J_EN_END0 -> LB_EN
+	VCC0 -> LB_EN
+	J_EN_END0 -> LC_EN
+	VCC0 -> LC_EN
+	J_EN_END0 -> LD_EN
+	VCC0 -> LD_EN
+	J_EN_END0 -> LE_EN
+	VCC0 -> LE_EN
+	J_EN_END0 -> LF_EN
+	VCC0 -> LF_EN
+	J_EN_END0 -> LG_EN
+	VCC0 -> LG_EN
+	J_EN_END0 -> LH_EN
+	VCC0 -> LH_EN
+}
