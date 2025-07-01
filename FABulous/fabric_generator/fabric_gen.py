@@ -22,11 +22,9 @@ import re
 import string
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 from loguru import logger
 
-from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.ConfigMem import ConfigMem
 from FABulous.fabric_definition.define import (
     IO,
@@ -35,12 +33,9 @@ from FABulous.fabric_definition.define import (
     MultiplexerStyle,
 )
 from FABulous.fabric_definition.Fabric import Fabric
-
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_definition.Gen_IO import Gen_IO
-from FABulous.fabric_generator.fabric_automation import addBelsToPrim
 from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.fabric_generator.code_generator import codeGenerator
@@ -49,7 +44,6 @@ from FABulous.fabric_generator.file_parser import (
     parseConfigMem,
     parseList,
     parseMatrix,
-    parseBelFile,
 )
 
 
@@ -155,7 +149,7 @@ class FabricGenerator:
 
         connectionPair = parseList(InFileName)
 
-        with open(OutFileName, "r") as f:
+        with open(OutFileName) as f:
             file = f.read()
             file = re.sub(r"#.*", "", file)
             file = file.split("\n")
@@ -341,7 +335,7 @@ class FabricGenerator:
 
         # test if we have a bitstream mapping file
         # if not, we will take the default, which was passed on from  GenerateConfigMemInit
-        configMemList: List[ConfigMem] = []
+        configMemList: list[ConfigMem] = []
         if os.path.exists(configMemCsv):
             if tile.globalConfigBits <= 0:
                 logger.warning(
@@ -1219,7 +1213,7 @@ class FabricGenerator:
         for i in tile.portsInfo:
             if i.wireDirection != Direction.JUMP and i.inOut == IO.INPUT:
                 portsPairs += list(
-                    zip(i.expandPortInfoByName(), i.expandPortInfoByName(indexed=True))
+                    zip(i.expandPortInfoByName(), i.expandPortInfoByName(indexed=True), strict=False)
                 )
         # bel input wire (bel output is input to switch matrix)
         for bel in tile.bels:
@@ -1234,7 +1228,7 @@ class FabricGenerator:
             if i.wireDirection == Direction.JUMP and i.inOut == IO.OUTPUT:
                 signal += i.expandPortInfoByName(indexed=True)
 
-        portsPairs += list(zip(port, signal))
+        portsPairs += list(zip(port, signal, strict=False))
 
         # normal output wire
         for i in tile.portsInfo:
@@ -1242,7 +1236,7 @@ class FabricGenerator:
                 portsPairs += list(
                     zip(
                         i.expandPortInfoByName(),
-                        i.expandPortInfoByNameTop(indexed=True),
+                        i.expandPortInfoByNameTop(indexed=True), strict=False,
                     )
                 )
 
@@ -1259,7 +1253,7 @@ class FabricGenerator:
             if i.wireDirection == Direction.JUMP and i.inOut == IO.OUTPUT:
                 signal += i.expandPortInfoByName(indexed=True)
 
-        portsPairs += list(zip(port, signal))
+        portsPairs += list(zip(port, signal, strict=False))
 
         if self.fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
             portsPairs.append(("MODE", "Mode"))
@@ -1499,7 +1493,7 @@ class FabricGenerator:
                     for p in tile.getNorthPorts(IO.INPUT):
                         northInput.append(f"Tile_X{x}Y{y}_{p.name}")
 
-                portsPairs += list(zip(northPort, northInput))
+                portsPairs += list(zip(northPort, northInput, strict=False))
                 # east direction input connection
                 eastPort = [i.name for i in tile.getEastPorts(IO.INPUT)]
                 if (
@@ -1512,7 +1506,7 @@ class FabricGenerator:
                     for p in tile.getEastPorts(IO.INPUT):
                         eastInput.append(f"Tile_X{x}Y{y}_{p.name}")
 
-                portsPairs += list(zip(eastPort, eastInput))
+                portsPairs += list(zip(eastPort, eastInput, strict=False))
 
                 # south direction input connection
                 southPort = [
@@ -1528,7 +1522,7 @@ class FabricGenerator:
                     for p in tile.getSouthPorts(IO.INPUT):
                         southInput.append(f"Tile_X{x}Y{y}_{p.name}")
 
-                portsPairs += list(zip(southPort, southInput))
+                portsPairs += list(zip(southPort, southInput, strict=False))
 
                 # west direction input connection
                 westPort = [
@@ -1544,7 +1538,7 @@ class FabricGenerator:
                     for p in tile.getWestPorts(IO.INPUT):
                         westInput.append(f"Tile_X{x}Y{y}_{p.name}")
 
-                portsPairs += list(zip(westPort, westInput))
+                portsPairs += list(zip(westPort, westInput, strict=False))
 
                 for p in (
                     tile.getNorthPorts(IO.OUTPUT)
@@ -1788,10 +1782,10 @@ class FabricGenerator:
         # Tile instantiations
         for y, row in enumerate(self.fabric.tile):
             for x, tile in enumerate(row):
-                tilePortList: List[str] = []
-                tilePortsInfo: List[Tuple[List[Port], int, int]] = []
+                tilePortList: list[str] = []
+                tilePortsInfo: list[tuple[list[Port], int, int]] = []
                 outputSignalList = []
-                tileLocationOffset: List[Tuple[int, int]] = []
+                tileLocationOffset: list[tuple[int, int]] = []
                 superTileLoc = []
                 superTile = None
                 if tile == None:
@@ -1854,7 +1848,7 @@ class FabricGenerator:
                                 IO.OUTPUT
                             )
                         ]
-                        portsPairs += list(zip(northPorts, northInput))
+                        portsPairs += list(zip(northPorts, northInput, strict=False))
 
                     # input connection from east side of the west tile
                     if (
@@ -1883,7 +1877,7 @@ class FabricGenerator:
                                 IO.OUTPUT
                             )
                         ]
-                        portsPairs += list(zip(eastPorts, eastInput))
+                        portsPairs += list(zip(eastPorts, eastInput, strict=False))
 
                     # input connection from south side of the north tile
                     if (
@@ -1912,7 +1906,7 @@ class FabricGenerator:
                                 IO.OUTPUT
                             )
                         ]
-                        portsPairs += list(zip(southPorts, southInput))
+                        portsPairs += list(zip(southPorts, southInput, strict=False))
 
                     # input connection from west side of the east tile
                     if (
@@ -1941,7 +1935,7 @@ class FabricGenerator:
                                 IO.OUTPUT
                             )
                         ]
-                        portsPairs += list(zip(westPorts, westInput))
+                        portsPairs += list(zip(westPorts, westInput, strict=False))
 
                 # output signal name is same as the output port name
                 if superTile:
@@ -1950,7 +1944,7 @@ class FabricGenerator:
                         (i.split(",")[0], i.split(",")[1])
                         for i in list(portsAround.keys())
                     ]
-                    cord = list(zip(cord, portsAround.values()))
+                    cord = list(zip(cord, portsAround.values(), strict=False))
                     for (i, j), around in cord:
                         for ports in around:
                             for port in ports:
@@ -2201,9 +2195,7 @@ class FabricGenerator:
                 indices.append(int(numbuf))
 
             # some backwards compat
-            if basename.endswith("_bit"):
-                # _bit is part of the indexing rather than the name
-                basename = basename[:-4]
+            basename = basename.removesuffix("_bit")
             # top level IO has A and B parts combined and reverse order
             if len(basename) == 7 and basename[1:] in ("_I_top", "_O_top", "_T_top"):
                 assert basename[0] in "ABCDEFGH"
@@ -2445,7 +2437,7 @@ class FabricGenerator:
         self.writer.addInstantiation(
             compName=self.fabric.name,
             compInsName=f"{self.fabric.name}_inst",
-            portsPairs=list(zip(portList, signal)),
+            portsPairs=list(zip(portList, signal, strict=False)),
         )
 
         self.writer.addNewLine()
@@ -2488,7 +2480,7 @@ class FabricGenerator:
         self.writer.addDesignDescriptionEnd()
         self.writer.writeToFile()
 
-    def generateBitsStreamSpec(self) -> Dict[str, Dict]:
+    def generateBitsStreamSpec(self) -> dict[str, dict]:
         """Generate the bitstream specification of the fabric. This is needed and will
         be further parsed by the bit_gen.py.
 
@@ -2519,7 +2511,7 @@ class FabricGenerator:
                     tileMap[f"X{x}Y{y}"] = "NULL"
 
         specData["TileMap"] = tileMap
-        configMemList: List[ConfigMem] = []
+        configMemList: list[ConfigMem] = []
         for y, row in enumerate(self.fabric.tile):
             for x, tile in enumerate(row):
                 if tile == None:

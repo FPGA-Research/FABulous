@@ -1,7 +1,7 @@
 import pathlib
-from loguru import logger
 from csv import writer as csvWriter
-from typing import List
+
+from loguru import logger
 
 from FABulous.fabric_definition.define import IO, Direction, Side
 from FABulous.fabric_definition.Port import Port
@@ -63,12 +63,12 @@ class SmGeometry:
     height: int
     relX: int
     relY: int
-    northPorts: List[Port]
-    southPorts: List[Port]
-    eastPorts: List[Port]
-    westPorts: List[Port]
-    jumpPorts: List[Port]
-    portGeoms: List[PortGeometry]
+    northPorts: list[Port]
+    southPorts: list[Port]
+    eastPorts: list[Port]
+    westPorts: list[Port]
+    jumpPorts: list[Port]
+    portGeoms: list[PortGeometry]
     northWiresReservedWidth: int
     southWiresReservedWidth: int
     eastWiresReservedHeight: int
@@ -232,7 +232,7 @@ class SmGeometry:
         self.jumpPorts = mergedJumpPorts
 
     def generateGeometry(
-        self, tile: Tile, tileBorder: Border, belGeoms: List[BelGeometry], padding: int
+        self, tile: Tile, tileBorder: Border, belGeoms: list[BelGeometry], padding: int
     ) -> None:
         self.name = f"{tile.name}_switch_matrix"
         self.src = tile.tileDir.parent.joinpath(f"{self.name}.v")
@@ -433,7 +433,7 @@ class SmGeometry:
                 westPortX += 1
             PortGeometry.nextId += 1
 
-    def generateBelPorts(self, belGeomList: List[BelGeometry]) -> None:
+    def generateBelPorts(self, belGeomList: list[BelGeometry]) -> None:
         for belGeom in belGeomList:
             for belPortGeom in belGeom.internalPortGeoms:
                 portX = self.width

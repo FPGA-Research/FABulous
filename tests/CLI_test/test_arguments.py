@@ -1,5 +1,5 @@
-from subprocess import run
 import os
+from subprocess import run
 
 
 def test_create_project(tmp_path):

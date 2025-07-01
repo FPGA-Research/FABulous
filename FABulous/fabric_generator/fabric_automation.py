@@ -6,13 +6,13 @@ from pathlib import Path
 from loguru import logger
 
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.define import IO, MultiplexerStyle
 from FABulous.fabric_definition.Gen_IO import Gen_IO
-from FABulous.fabric_generator.file_parser import parseBelFile, parseList
+from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
 from FABulous.fabric_generator.code_generator import codeGenerator
+from FABulous.fabric_generator.file_parser import parseBelFile, parseList
 
 
 def generateCustomTileConfig(tile_path: Path) -> Path:
@@ -120,7 +120,7 @@ def generateCustomTileConfig(tile_path: Path) -> Path:
     tile_csv.touch()
 
     csv_out.append(f"TILE,{tile_name}")
-    csv_out.append(f"INCLUDE,./../include/Base.csv")
+    csv_out.append("INCLUDE,./../include/Base.csv")
     for i, carry in enumerate(tile_carrys):
         csv_out.append(f'NORTH,Co{i},0,-1,Ci{i},1,CARRY="{carry}"')
     if has_reset:
@@ -305,11 +305,11 @@ def generateSwitchmatrixList(
                 logger.error(
                     f"Carryports mismatch! There are {len(carryports[prefix][IO.INPUT])} INPUTS and {len(carryports[prefix][IO.OUTPUT])} outputs!"
                 )
-                raise ValueError()
+                raise ValueError
 
             listfile.append(f"# Connect carry chain {prefix}")
             for cin, cout in zip(
-                carryports[prefix][IO.INPUT], carryports[prefix][IO.OUTPUT]
+                carryports[prefix][IO.INPUT], carryports[prefix][IO.OUTPUT], strict=False
             ):
                 listfile.append(f"{cin},{cout}")
 
@@ -376,7 +376,7 @@ def addBelsToPrim(
     primsAdd: list[str] = []  # append to prims.v
 
     if primsFile.is_file():
-        with open(primsFile, "r") as f:
+        with open(primsFile) as f:
             prims = f.read()
     else:
         logger.error(f"Prims file {primsFile} not found.")
@@ -422,7 +422,7 @@ def addBelsToPrim(
             if support_vectors:
                 # Find all ports with their directions
                 # need to parse the json file again, since port width is not known in BEL object
-                with open(bel.src.with_suffix(".json"), "r") as f:
+                with open(bel.src.with_suffix(".json")) as f:
                     bel_dict = json.load(f)
                 module_ports = bel_dict["modules"][bel.module_name]["ports"]
 
@@ -436,7 +436,7 @@ def addBelsToPrim(
 
                 ports_dict = {}
                 for port_name, details in module_ports.items():
-                    if not details["direction"] in ports_dict:
+                    if details["direction"] not in ports_dict:
                         ports_dict[details["direction"]] = []
                     if len(details["bits"]) > 1:
                         ports_dict[details["direction"]].append(

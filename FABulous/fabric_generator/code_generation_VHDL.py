@@ -1,7 +1,8 @@
 import math
 import re
+
+from FABulous.fabric_definition.define import IO
 from FABulous.fabric_generator.code_generator import codeGenerator
-from FABulous.fabric_definition.define import Direction, IO, Side
 
 
 class VHDLWriter(codeGenerator):
@@ -98,7 +99,7 @@ class VHDLWriter(codeGenerator):
         self._add(f"architecture Behavioral of {name} is", indentLevel)
 
     def addDesignDescriptionEnd(self, indentLevel=0):
-        self._add(f"end architecture Behavioral;", indentLevel)
+        self._add("end architecture Behavioral;", indentLevel)
 
     def addConstant(self, name, value, indentLevel=0):
         self._add(f"constant {name} : STD_LOGIC := '{value}';", indentLevel)
@@ -115,10 +116,10 @@ class VHDLWriter(codeGenerator):
         )
 
     def addLogicStart(self, indentLevel=0):
-        self._add("\n" f"begin" "\n", indentLevel)
+        self._add("\n" "begin" "\n", indentLevel)
 
     def addLogicEnd(self, indentLevel=0):
-        self._add("\n" f"end" "\n", indentLevel)
+        self._add("\n" "end" "\n", indentLevel)
 
     def addRegister(self, reg, regIn, clk="UserCLK", inverted=False, indentLevel=0):
         inv = "not " if inverted else ""
@@ -165,16 +166,16 @@ end process;
         self._add(f"{compInsName} : {compName}", indentLevel=indentLevel)
         if paramPairs:
             connectPair = []
-            self._add(f"generic map (", indentLevel=indentLevel + 1)
+            self._add("generic map (", indentLevel=indentLevel + 1)
             for i in paramPairs:
                 connectPair.append(f"{i[0]} => {i[1]}")
             self._add(
                 (",\n" f"{' ':<{4*(indentLevel + 2)}}").join(connectPair),
                 indentLevel=indentLevel + 2,
             )
-            self._add(f")", indentLevel=indentLevel + 1)
+            self._add(")", indentLevel=indentLevel + 1)
 
-        self._add(f"Port map(", indentLevel=indentLevel + 1)
+        self._add("Port map(", indentLevel=indentLevel + 1)
         connectPair = []
         for i in portsPairs:
             # NOTE: This is a temporary fix for the issue of curly braces in the port names and needs to be fixed properly a later refactoring of the code generation
@@ -197,7 +198,7 @@ end process;
 
     def addComponentDeclarationForFile(self, fileName):
         configPortUsed = 0  # 1 means is used
-        with open(fileName, "r") as f:
+        with open(fileName) as f:
             data = f.read()
 
         if result := re.search(

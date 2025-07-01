@@ -1,5 +1,4 @@
 from subprocess import run
-import os
 
 
 def test_run_verilog_simulation_CIL(tmp_path):

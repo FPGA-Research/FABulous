@@ -1,7 +1,4 @@
-import os
 import re
-from typing import Literal, overload
-import pathlib
 
 from loguru import logger
 
@@ -221,7 +218,7 @@ def GetSuperTileFromFile(list):
             marker = True
             superTile_type = sublist[1]
             continue
-        elif "EndSuperTILE" in sublist:
+        if "EndSuperTILE" in sublist:
             marker = False
             tempdict[superTile_type] = RemoveComments(templist)
             templist = []
@@ -389,8 +386,7 @@ def GetComponentPortsFromFile(
             marker = True
     if port == "internal":  # default
         return Inputs, Outputs
-    else:
-        return ExternalPorts
+    return ExternalPorts
 
 
 def GetComponentPortsFromVerilog(
@@ -504,12 +500,11 @@ def GetComponentPortsFromVerilog(
             marker = True
     if port == "internal":  # default
         return Inputs, Outputs
-    else:
-        return ExternalPorts
+    return ExternalPorts
 
 
 def GetNoConfigBitsFromFile(VHDL_file_name):
-    with open(VHDL_file_name, "r") as f:
+    with open(VHDL_file_name) as f:
         file = f.read()
     result = re.search(
         r"NoConfigBits\s*:\s*integer\s*:=\s*(\w+)", file, flags=re.IGNORECASE

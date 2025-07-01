@@ -8,8 +8,8 @@ from loguru import logger
 
 try:
     from fasm import (
-        parse_fasm_filename,
         fasm_tuple_to_string,
+        parse_fasm_filename,
         parse_fasm_string,
         set_feature_to_str,
     )
@@ -279,7 +279,7 @@ def bit_gen():
                 "genBitstream expects three file names - the fasm file, the spec file and the output file"
             )
             raise ValueError
-        elif (
+        if (
             flagRE.match(caseProcessedArguments[argIndex + 1])
             or flagRE.match(caseProcessedArguments[argIndex + 2])
             or flagRE.match(caseProcessedArguments[argIndex + 3])
@@ -297,7 +297,7 @@ def bit_gen():
         genBitstream(FasmFileName, SpecFileName, OutFileName)
 
     if ("-help".lower() in str(sys.argv).lower()) or ("-h" in str(sys.argv).lower()):
-        print("")
+        print()
         print("Options/Switches")
         print(
             "  -genBitstream foo.fasm spec.txt bitstream.txt - generates a bitstream - the first file is the fasm file, the second is the bitstream spec and the third is the fasm file to write to"

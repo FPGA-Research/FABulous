@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
 from FABulous.fabric_definition.define import IO, Direction, Side
 
 
@@ -55,10 +56,9 @@ class Port:
             wireCount = self.wireCount
         if not indexed:
             return [f"{self.name}{i}" for i in range(wireCount) if self.name != "NULL"]
-        else:
-            return [
-                f"{self.name}[{i}]" for i in range(wireCount) if self.name != "NULL"
-            ]
+        return [
+            f"{self.name}[{i}]" for i in range(wireCount) if self.name != "NULL"
+        ]
 
     def expandPortInfoByNameTop(self, indexed=False) -> list[str]:
         if self.sourceName == "NULL" or self.destinationName == "NULL":
@@ -74,12 +74,11 @@ class Port:
                 for i in range(startIndex, wireCount)
                 if self.name != "NULL"
             ]
-        else:
-            return [
-                f"{self.name}[{i}]"
-                for i in range(startIndex, wireCount)
-                if self.name != "NULL"
-            ]
+        return [
+            f"{self.name}[{i}]"
+            for i in range(startIndex, wireCount)
+            if self.name != "NULL"
+        ]
 
     def expandPortInfo(self, mode="SwitchMatrix") -> tuple[list[str], list[str]]:
         """Expanding the port information to the individual bit signal. If 'Indexed' is

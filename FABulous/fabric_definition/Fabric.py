@@ -1,17 +1,16 @@
 from dataclasses import dataclass, field
-from FABulous.fabric_definition.define import (
-    Direction,
-    ConfigBitMode,
-    MultiplexerStyle,
-    IO,
-)
-from FABulous.fabric_definition.Wire import Wire
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.ConfigMem import ConfigMem
 
 from loguru import logger
+
+from FABulous.fabric_definition.Bel import Bel
+from FABulous.fabric_definition.define import (
+    ConfigBitMode,
+    Direction,
+    MultiplexerStyle,
+)
+from FABulous.fabric_definition.SuperTile import SuperTile
+from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_definition.Wire import Wire
 
 
 @dataclass
@@ -246,7 +245,7 @@ class Fabric:
                     fabric += f"{str(self.tile[i][j].name).ljust(15)}\t"
             fabric += "\n"
 
-        fabric += f"\n"
+        fabric += "\n"
         fabric += f"numberOfColumns: {self.numberOfColumns}\n"
         fabric += f"numberOfRows: {self.numberOfRows}\n"
         fabric += f"configBitMode: {self.configBitMode}\n"

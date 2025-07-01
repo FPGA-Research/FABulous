@@ -223,8 +223,7 @@ class FABulous_CLI(Cmd):
             self.exit_code = 1
             if self.interactive:
                 return False
-            else:
-                return not self.force
+            return not self.force
 
     def do_exit(self, *ignored):
         """Exits the FABulous shell and logs info message."""
@@ -1038,7 +1037,7 @@ class FABulous_CLI(Cmd):
 
         logger.info(f"Execute TCL script {args.file}")
 
-        with open(args.file, "r") as f:
+        with open(args.file) as f:
             script = f.read()
         self.tcl.eval(script)
 
@@ -1053,8 +1052,8 @@ class FABulous_CLI(Cmd):
 
         logger.info(f"Execute script {args.file}")
 
-        with open(args.file, "r") as f:
-            for i in f.readlines():
+        with open(args.file) as f:
+            for i in f:
                 self.onecmd_plus_hooks(i.strip())
                 if self.exit_code != 0:
                     logger.opt(exception=CommandError()).error(

@@ -1,9 +1,8 @@
 import math
 import re
-from typing import Literal
 
+from FABulous.fabric_definition.Fabric import IO
 from FABulous.fabric_generator.code_generator import codeGenerator
-from FABulous.fabric_definition.Fabric import IO, Bel, ConfigBitMode, Tile
 
 
 class VerilogWriter(codeGenerator):
@@ -24,7 +23,7 @@ class VerilogWriter(codeGenerator):
         pass
 
     def addParameterStart(self, indentLevel=0):
-        self._add(f"#(", indentLevel)
+        self._add("#(", indentLevel)
 
     def addParameterEnd(self, indentLevel=0):
         temp = self._content.pop()
@@ -43,7 +42,7 @@ class VerilogWriter(codeGenerator):
             self._add(f"parameter {name}={value},", indentLevel)
 
     def addPortStart(self, indentLevel=0):
-        self._add(f"(", indentLevel)
+        self._add("(", indentLevel)
 
     def addPortEnd(self, indentLevel=0):
         def deComma(x):
@@ -158,7 +157,7 @@ class VerilogWriter(codeGenerator):
 
     def addComponentDeclarationForFile(self, fileName):
         configPortUsed = 0  # 1 means is used
-        with open(fileName, "r") as f:
+        with open(fileName) as f:
             data = f.read()
 
         if result := re.search(

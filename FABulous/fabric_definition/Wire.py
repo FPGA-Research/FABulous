@@ -1,6 +1,6 @@
 from dataclasses import dataclass
+
 from FABulous.fabric_definition.define import Direction
-from typing import Any
 
 
 @dataclass(frozen=True, eq=True)
@@ -39,7 +39,7 @@ class Wire:
     def __repr__(self) -> str:
         return f"{self.source}-X{self.xOffset}Y{self.yOffset}>{self.destination}"
 
-    def __eq__(self, __o: Any) -> bool:
+    def __eq__(self, __o: object) -> bool:
         if __o is None or not isinstance(__o, Wire):
             return False
         return self.source == __o.source and self.destination == __o.destination

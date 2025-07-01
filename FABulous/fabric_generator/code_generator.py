@@ -1,8 +1,8 @@
 import abc
-from loguru import logger
-from typing import List, Tuple
 
-from FABulous.fabric_definition.Fabric import IO, Bel, ConfigBitMode
+from loguru import logger
+
+from FABulous.fabric_definition.Fabric import IO
 
 
 class codeGenerator(abc.ABC):
@@ -67,7 +67,6 @@ class codeGenerator(abc.ABC):
         VHDL
             -- **comment**
         """
-        pass
 
     @abc.abstractmethod
     def addHeader(self, name: str, package="", indentLevel=0):
@@ -95,7 +94,6 @@ class codeGenerator(abc.ABC):
                 **package**
                 entity **name** is
         """
-        pass
 
     @abc.abstractmethod
     def addHeaderEnd(self, name: str, indentLevel=0):
@@ -113,7 +111,6 @@ class codeGenerator(abc.ABC):
         VHDL
             end entity **name**;
         """
-        pass
 
     @abc.abstractmethod
     def addParameterStart(self, indentLevel=0):
@@ -132,7 +129,6 @@ class codeGenerator(abc.ABC):
         VHDL
             Generic(
         """
-        pass
 
     @abc.abstractmethod
     def addParameterEnd(self, indentLevel=0):
@@ -151,7 +147,6 @@ class codeGenerator(abc.ABC):
         VHDL
             );
         """
-        pass
 
     @abc.abstractmethod
     def addParameter(self, name: str, type, value, indentLevel=0):
@@ -176,7 +171,6 @@ class codeGenerator(abc.ABC):
         VHDL
             **name** : **type** := **value**;
         """
-        pass
 
     @abc.abstractmethod
     def addPortStart(self, indentLevel=0):
@@ -195,7 +189,6 @@ class codeGenerator(abc.ABC):
         VHDL
             port (
         """
-        pass
 
     @abc.abstractmethod
     def addPortEnd(self, indentLevel=0):
@@ -214,7 +207,6 @@ class codeGenerator(abc.ABC):
         VHDL
             );
         """
-        pass
 
     @abc.abstractmethod
     def addPortScalar(
@@ -243,7 +235,6 @@ class codeGenerator(abc.ABC):
         VHDL
             **name** : **io** STD_LOGIC; **-- ATTRIBUTE**
         """
-        pass
 
     @abc.abstractmethod
     def addPortVector(
@@ -280,7 +271,6 @@ class codeGenerator(abc.ABC):
         VHDL
             **name** : **io** STD_LOGIC_VECTOR(**msbIndex** downto 0); **-- ATTRIBUTE**
         """
-        pass
 
     @abc.abstractmethod
     def addDesignDescriptionStart(self, name: str, indentLevel=0):
@@ -298,7 +288,6 @@ class codeGenerator(abc.ABC):
         VHDL
             architecture Behavioral of **name** is
         """
-        pass
 
     @abc.abstractmethod
     def addDesignDescriptionEnd(self, indentLevel=0):
@@ -317,7 +306,6 @@ class codeGenerator(abc.ABC):
         VHDL
             end architecture Behavioral
         """
-        pass
 
     @abc.abstractmethod
     def addConstant(self, name: str, value, indentLevel=0):
@@ -340,7 +328,6 @@ class codeGenerator(abc.ABC):
         VHDL
             constant **name** : STD_LOGIC := **value**;
         """
-        pass
 
     @abc.abstractmethod
     def addConnectionScalar(self, name: str, reg: bool = False, indentLevel=0):
@@ -362,7 +349,6 @@ class codeGenerator(abc.ABC):
         VHDL:
             signal **name** : STD_LOGIC;
         """
-        pass
 
     @abc.abstractmethod
     def addConnectionVector(
@@ -390,7 +376,6 @@ class codeGenerator(abc.ABC):
         VHDL:
             signal **name** : STD_LOGIC_VECTOR( **startIndex** downto **endIndex** );
         """
-        pass
 
     @abc.abstractmethod
     def addLogicStart(self, indentLevel=0):
@@ -408,7 +393,6 @@ class codeGenerator(abc.ABC):
         VHDL:
             begin
         """
-        pass
 
     @abc.abstractmethod
     def addLogicEnd(self, indentLevel=0):
@@ -424,16 +408,15 @@ class codeGenerator(abc.ABC):
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
         """
-        pass
 
     @abc.abstractmethod
     def addInstantiation(
         self,
         compName: str,
         compInsName: str,
-        portsPairs: List[Tuple[str, str]],
-        paramPairs: List[Tuple[str, str]] = [],
-        emulateParamPairs: List[Tuple[str, str]] = [],
+        portsPairs: list[tuple[str, str]],
+        paramPairs: list[tuple[str, str]] = [],
+        emulateParamPairs: list[tuple[str, str]] = [],
         indentLevel=0,
     ):
         """Add an instantiation. This will line up the ports and signals. So ports[0]
@@ -490,7 +473,6 @@ class codeGenerator(abc.ABC):
                     **compPorts[i]** => **signals[i]**
                 );
         """
-        pass
 
     @abc.abstractmethod
     def addComponentDeclarationForFile(self, fileName: str):
@@ -505,7 +487,6 @@ class codeGenerator(abc.ABC):
         fileName : str
             Name of the VHDL file.
         """
-        pass
 
     @abc.abstractmethod
     def addShiftRegister(self, configBits: int, indentLevel=0):
@@ -518,7 +499,6 @@ class codeGenerator(abc.ABC):
         indentLevel : int, optional
             The level of indentation. Defaults to 0.
         """
-        pass
 
     @abc.abstractmethod
     def addFlipFlopChain(self, configBits: int, indentLevel=0):
@@ -531,7 +511,6 @@ class codeGenerator(abc.ABC):
         indentLevel : int, optional
             The level of indentation. Defaults to 0.
         """
-        pass
 
     @abc.abstractmethod
     def addRegister(self, reg, regIn, clk="CLK", inverted=False, indentLevel=0):
@@ -571,7 +550,6 @@ class codeGenerator(abc.ABC):
             end process;
 
         """
-        pass
 
     @abc.abstractmethod
     def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
@@ -605,7 +583,6 @@ class codeGenerator(abc.ABC):
         ----
         **left** <= **right** after **delay** ps;
         """
-        pass
 
     @abc.abstractmethod
     def addAssignVector(
@@ -639,7 +616,6 @@ class codeGenerator(abc.ABC):
         ----
         **left** <= **right** ( **widthL** downto *widthR* );
         """
-        pass
 
     @abc.abstractmethod
     def addPreprocIfDef(self, macro, indentLevel=0):
@@ -662,7 +638,6 @@ class codeGenerator(abc.ABC):
         ----
         unsupported
         """
-        pass
 
     @abc.abstractmethod
     def addPreprocIfNotDef(self, macro, indentLevel=0):
@@ -685,7 +660,6 @@ class codeGenerator(abc.ABC):
         ----
         unsupported
         """
-        pass
 
     @abc.abstractmethod
     def addPreprocElse(self, indentLevel=0):
@@ -706,7 +680,6 @@ class codeGenerator(abc.ABC):
         ----
         unsupported
         """
-        pass
 
     @abc.abstractmethod
     def addPreprocEndif(self, indentLevel=0):
@@ -727,7 +700,6 @@ class codeGenerator(abc.ABC):
         ----
         unsupported
         """
-        pass
 
     @abc.abstractmethod
     def addBelMapAttribute(self, configBitValues: list[tuple[str, int]], indentLevel=0):
@@ -759,4 +731,3 @@ class codeGenerator(abc.ABC):
 
             -- (* FABulous, BelMap, INIT=0, INIT[1]=1, INIT[2]=2, FF=3 *)
         """
-        pass

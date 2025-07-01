@@ -108,8 +108,7 @@ def genNextpnrModel(fabric: Fabric):
                 def strip_prefix(x):
                     if x.startswith(bel.prefix):
                         return x[len(bel.prefix) :]
-                    else:
-                        return x
+                    return x
 
                 for inp in bel.inputs:
                     belv2Str.append(

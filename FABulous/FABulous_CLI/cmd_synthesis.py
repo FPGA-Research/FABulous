@@ -2,10 +2,10 @@ import os
 import subprocess as sp
 from pathlib import Path
 
-from FABulous.custom_exception import CommandError
 from cmd2 import Cmd, Cmd2ArgumentParser, with_argparser, with_category
 from loguru import logger
 
+from FABulous.custom_exception import CommandError
 from FABulous.FABulous_CLI.helper import check_if_application_exists
 
 CMD_USER_DESIGN_FLOW = "User Design Flow"

@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
 from FABulous.fabric_definition.define import IO
 
 

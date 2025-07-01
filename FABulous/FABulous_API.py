@@ -12,10 +12,12 @@ from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
-from FABulous.fabric_generator.fabric_gen import FabricGenerator
-from FABulous.geometry_generator.geometry_gen import GeometryGenerator
-from FABulous.fabric_generator.fabric_gen import generateUserDesignTopWrapper
 from FABulous.fabric_generator.fabric_automation import genIOBel
+from FABulous.fabric_generator.fabric_gen import (
+    FabricGenerator,
+    generateUserDesignTopWrapper,
+)
+from FABulous.geometry_generator.geometry_gen import GeometryGenerator
 
 
 class FABulous_API:
