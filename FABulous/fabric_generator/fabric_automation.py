@@ -2,6 +2,7 @@ import json
 import math
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -11,8 +12,10 @@ from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_generator.code_generation_Verilog import VerilogWriter
 from FABulous.fabric_generator.code_generation_VHDL import VHDLWriter
-from FABulous.fabric_generator.code_generator import codeGenerator
 from FABulous.fabric_generator.file_parser import parseBelFile, parseList
+
+if TYPE_CHECKING:
+    from FABulous.fabric_generator.code_generator import codeGenerator
 
 
 def generateCustomTileConfig(tile_path: Path) -> Path:

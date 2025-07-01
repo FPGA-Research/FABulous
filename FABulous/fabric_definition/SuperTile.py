@@ -43,16 +43,16 @@ class SuperTile:
         ports = {}
         for y, row in enumerate(self.tileMap):
             for x, tile in enumerate(row):
-                if self.tileMap[y][x] == None:
+                if self.tileMap[y][x] is None:
                     continue
                 ports[f"{x},{y}"] = []
-                if y - 1 < 0 or self.tileMap[y - 1][x] == None:
+                if y - 1 < 0 or self.tileMap[y - 1][x] is None:
                     ports[f"{x},{y}"].append(tile.getNorthSidePorts())
-                if x + 1 >= len(self.tileMap[y]) or self.tileMap[y][x + 1] == None:
+                if x + 1 >= len(self.tileMap[y]) or self.tileMap[y][x + 1] is None:
                     ports[f"{x},{y}"].append(tile.getEastSidePorts())
-                if y + 1 >= len(self.tileMap) or self.tileMap[y + 1][x] == None:
+                if y + 1 >= len(self.tileMap) or self.tileMap[y + 1][x] is None:
                     ports[f"{x},{y}"].append(tile.getSouthSidePorts())
-                if x - 1 < 0 or self.tileMap[y][x - 1] == None:
+                if x - 1 < 0 or self.tileMap[y][x - 1] is None:
                     ports[f"{x},{y}"].append(tile.getWestSidePorts())
         return ports
 
@@ -68,12 +68,12 @@ class SuperTile:
         internalConnections = []
         for y, row in enumerate(self.tileMap):
             for x, tile in enumerate(row):
-                if 0 <= y - 1 < len(self.tileMap) and self.tileMap[y - 1][x] != None:
+                if 0 <= y - 1 < len(self.tileMap) and self.tileMap[y - 1][x] is not None:
                     internalConnections.append((tile.getNorthSidePorts(), x, y))
-                if 0 <= x + 1 < len(self.tileMap[0]) and self.tileMap[y][x + 1] != None:
+                if 0 <= x + 1 < len(self.tileMap[0]) and self.tileMap[y][x + 1] is not None:
                     internalConnections.append((tile.getEastSidePorts(), x, y))
-                if 0 <= y + 1 < len(self.tileMap) and self.tileMap[y + 1][x] != None:
+                if 0 <= y + 1 < len(self.tileMap) and self.tileMap[y + 1][x] is not None:
                     internalConnections.append((tile.getSouthSidePorts(), x, y))
-                if 0 <= x - 1 < len(self.tileMap[0]) and self.tileMap[y][x - 1] != None:
+                if 0 <= x - 1 < len(self.tileMap[0]) and self.tileMap[y][x - 1] is not None:
                     internalConnections.append((tile.getWestSidePorts(), x, y))
         return internalConnections

@@ -2,7 +2,7 @@ import abc
 
 from loguru import logger
 
-from FABulous.fabric_definition.Fabric import IO
+from FABulous.fabric_definition.define import IO
 
 
 class codeGenerator(abc.ABC):
@@ -415,8 +415,8 @@ class codeGenerator(abc.ABC):
         compName: str,
         compInsName: str,
         portsPairs: list[tuple[str, str]],
-        paramPairs: list[tuple[str, str]] = [],
-        emulateParamPairs: list[tuple[str, str]] = [],
+        paramPairs: list[tuple[str, str]] = None,
+        emulateParamPairs: list[tuple[str, str]] = None,
         indentLevel=0,
     ):
         """Add an instantiation. This will line up the ports and signals. So ports[0]

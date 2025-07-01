@@ -1,7 +1,7 @@
 import math
 import re
 
-from FABulous.fabric_definition.Fabric import IO
+from FABulous.fabric_definition.define import IO
 from FABulous.fabric_generator.code_generator import codeGenerator
 
 
@@ -109,10 +109,14 @@ class VerilogWriter(codeGenerator):
         compName,
         compInsName,
         portsPairs,
-        paramPairs=[],
-        emulateParamPairs=[],
+        paramPairs=None,
+        emulateParamPairs=None,
         indentLevel=0,
     ):
+        if emulateParamPairs is None:
+            emulateParamPairs = []
+        if paramPairs is None:
+            paramPairs = []
         if paramPairs:
             port = [f".{i[0]}({i[1]})" for i in paramPairs]
             self._add(f"{compName}", indentLevel=indentLevel)
@@ -217,7 +221,7 @@ end
 
     def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
         inv = "~" if inverted else ""
-        if type(right) == list:
+        if isinstance(right, list):
             self._add(f"assign {left} = {inv}{{{','.join(right)}}};", indentLevel)
         else:
             self._add(f"assign {left} = {inv}{right};")

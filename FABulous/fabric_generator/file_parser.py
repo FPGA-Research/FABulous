@@ -580,6 +580,10 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                 elif temp[1].endswith(".v") or temp[1].endswith(".sv"):
                     bels.append(parseBelFile(belFilePath, bel_prefix, "verilog"))
                     if "ADD_AS_CUSTOM_PRIM" in temp[4:]:
+                        # local import to avoid circular import
+                        from FABulous.fabric_generator.fabric_automation import (
+                            addBelsToPrim,
+                        )
                         primsFile = proj_dir.joinpath("user_design/custom_prims.v")
                         logger.info(f"Adding bels to custom prims file: {primsFile}")
                         addBelsToPrim(primsFile, [bels[-1]])
@@ -1139,20 +1143,22 @@ def parseBelFile(
             )
 
         # Gathers port name and direction, filters out configbits as they show in ports.
-        for module_name, module_info in modules.items():
-            ports = module_info["ports"]
-            for port_name, details in ports.items():
-                if "ConfigBits" in port_name:
-                    continue
-                if "UserCLK" in port_name:
-                    userClk = True
-                if port_name[-1].isdigit():
-                    # FIXME:  This is a temporary fix for the issue where the ports are individually declared
-                    #         Check for the last charcter in portname is not really reliable and sould be handeled more rubust in the future.
-                    individually_declared = True
-                direction = IO[details["direction"].upper()]
-                bits = details.get("bits", [])
-                filtered_ports[port_name] = (direction, bits)
+        # modules should only contain one module
+        module_name = next(iter(modules))
+        module_info = modules[module_name]
+        ports = module_info["ports"]
+        for port_name, details in ports.items():
+            if "ConfigBits" in port_name:
+                continue
+            if "UserCLK" in port_name:
+                userClk = True
+            if port_name[-1].isdigit():
+                # FIXME:  This is a temporary fix for the issue where the ports are individually declared
+                #         Check for the last charcter in portname is not really reliable and sould be handeled more rubust in the future.
+                individually_declared = True
+            direction = IO[details["direction"].upper()]
+            bits = details.get("bits", [])
+            filtered_ports[port_name] = (direction, bits)
 
         param_defaults = module_info.get("parameter_default_values")
         if param_defaults and "NoConfigBits" in param_defaults:
@@ -1283,7 +1289,7 @@ def verilog_belMapProcessing(module_info):
         "src",
     }
     # match case for INIT. (may need modifying for other naming conventions.)
-    for key, value in attributes.items():
+    for key, _value in attributes.items():
         if key in exclude_attributes:
             continue
         match key:
@@ -1300,9 +1306,8 @@ def verilog_belMapProcessing(module_info):
         belMapDic[new_key] = {0: {0: "1"}}
 
     # yosys reverses belmap, reverse back to keep original belmap.
-    belMapDic = dict(reversed(list(belMapDic.items())))
+    return dict(reversed(list(belMapDic.items())))
 
-    return belMapDic
 
 
 def vhdl_belMapProcessing(file: str, filename: str) -> dict:

@@ -13,7 +13,7 @@ try:
         parse_fasm_string,
         set_feature_to_str,
     )
-except:
+except ImportError:
     logger.critical("Could not import fasm. Bitstream generation not supported.")
 
 
@@ -77,10 +77,9 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
                         )
 
             else:
-                # print(specDict["TileSpecs"][tileLoc].keys())
-                print(tileType)
-                print(tileLoc)
-                print(featureName)
+                logger.debug(f"tileType: {tileType}")
+                logger.debug(f"tileLoc {tileLoc}")
+                logger.debug(f"featureName: {featureName}")
                 logger.critical(
                     "Feature found in fasm file was not found in the bitstream spec"
                 )
@@ -110,10 +109,10 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
         ):
             continue
         verilog_str += f"// {tileKey}, {specDict['TileMap'][tileKey]}\n"
-        verilog_str += f"`define Tile_{tileKey}_Emulate_Bitstream {MaxFramesPerCol*FrameBitsPerRow}'b"
+        verilog_str += f"`define Tile_{tileKey}_Emulate_Bitstream {MaxFramesPerCol * FrameBitsPerRow}'b"
 
         vhdl_str += f"--{tileKey}, {specDict['TileMap'][tileKey]}\n"
-        vhdl_str += f'constant Tile_{tileKey}_Emulate_Bitstream : std_logic_vector({MaxFramesPerCol*FrameBitsPerRow}-1 downto 0) := "'
+        vhdl_str += f'constant Tile_{tileKey}_Emulate_Bitstream : std_logic_vector({MaxFramesPerCol * FrameBitsPerRow}-1 downto 0) := "'
 
         for i in range((MaxFramesPerCol * FrameBitsPerRow) - 1, -1, -1):
             verilog_str += str(tileDict_No_Mask[tileKey][i])
@@ -129,10 +128,8 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
             tileKey = f"X{x}Y{y}"
             curStr = ",".join((tileKey, specDict["TileMap"][tileKey], str(x), str(y)))
             curStr += "\n"
-            bitPos = 0
 
             for frameIndex in range(MaxFramesPerCol):
-                # print (tileDict[tileKey]) #:FrameBitsPerRow*frameIndex
                 if specDict["TileMap"][tileKey] == "NULL":
                     frame_bit_row = "0" * FrameBitsPerRow
                 else:
@@ -142,8 +139,9 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
                                 str,
                                 (
                                     tileDict[tileKey][
-                                        FrameBitsPerRow
-                                        * frameIndex : (FrameBitsPerRow * frameIndex)
+                                        FrameBitsPerRow * frameIndex : (
+                                            FrameBitsPerRow * frameIndex
+                                        )
                                         + FrameBitsPerRow
                                     ]
                                 ),
@@ -163,15 +161,12 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
                 bit_hex = bitstring_to_bytes(frame_bit_row)
                 bit_array[x][frameIndex] += bit_hex
 
-            # concatenatedTileDict[tileKey] = curStr
             outStr += curStr + "\n"
 
-    # print(num_columns)
     for i in range(num_columns):
         for j in range(20):
             bin_temp = f"{i:05b}"[::-1]
             frame_select = ["0" for k in range(32)]
-            # bitStr += "X"+str(i)+", frame"+str(j)+"\n"
 
             for k in range(-5, 0, 1):
                 frame_select[k] = bin_temp[k]
@@ -297,9 +292,9 @@ def bit_gen():
         genBitstream(FasmFileName, SpecFileName, OutFileName)
 
     if ("-help".lower() in str(sys.argv).lower()) or ("-h" in str(sys.argv).lower()):
-        print()
-        print("Options/Switches")
-        print(
+        logger.info("Help:")
+        logger.info("Options/Switches")
+        logger.info(
             "  -genBitstream foo.fasm spec.txt bitstream.txt - generates a bitstream - the first file is the fasm file, the second is the bitstream spec and the third is the fasm file to write to"
         )
 

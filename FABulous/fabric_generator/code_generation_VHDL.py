@@ -135,7 +135,7 @@ end process;
 
     def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
         inv = "not " if inverted else ""
-        if type(right) == list:
+        if isinstance(right, list):
             self._add(
                 f"{left} <= {inv}{' & '.join(right)} after {delay} ps;", indentLevel
             )
@@ -159,10 +159,14 @@ end process;
         compName,
         compInsName,
         portsPairs,
-        paramPairs=[],
-        emulateParamPairs=[],
+        paramPairs=None,
+        emulateParamPairs=None,
         indentLevel=0,
     ):
+        if emulateParamPairs is None:
+            emulateParamPairs = []
+        if paramPairs is None:
+            paramPairs = []
         self._add(f"{compInsName} : {compName}", indentLevel=indentLevel)
         if paramPairs:
             connectPair = []
@@ -255,16 +259,16 @@ CONFout <= ConfigBits(ConfigBits'high);
         self._add(template, indentLevel)
 
     def addPreprocIfDef(self, macro, indentLevel=0):
-        assert False, "preprocessor not supported in VHDL"
+        raise AssertionError("preprocessor not supported in VHDL")
 
     def addPreprocIfNotDef(self, macro, indentLevel=0):
-        assert False, "preprocessor not supported in VHDL"
+        raise AssertionError("preprocessor not supported in VHDL")
 
     def addPreprocElse(self, indentLevel=0):
-        assert False, "preprocessor not supported in VHDL"
+        raise AssertionError("preprocessor not supported in VHDL")
 
     def addPreprocEndif(self, indentLevel=0):
-        assert False, "preprocessor not supported in VHDL"
+        raise AssertionError("preprocessor not supported in VHDL")
 
     def addBelMapAttribute(self, configBitValues: list[tuple[str, int]], indentLevel=0):
         template = "-- (* FABulous, BelMap"

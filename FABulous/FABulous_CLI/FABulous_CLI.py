@@ -218,7 +218,7 @@ class FABulous_CLI(Cmd):
         """Override the onecmd method to handle exceptions."""
         try:
             return super().onecmd(statement, add_to_history=add_to_history)
-        except Exception:
+        except Exception: # noqa: BLE001 - Catching all exceptions is ok here
             logger.debug(traceback.format_exc())
             self.exit_code = 1
             if self.interactive:
@@ -234,6 +234,7 @@ class FABulous_CLI(Cmd):
     do_quit = do_exit
     do_q = do_exit
 
+    # Import do_synthesis from cmd_synthesis
     do_synthesis = cmd_synthesis.do_synthesis
 
     filePathOptionalParser = Cmd2ArgumentParser()
@@ -343,7 +344,6 @@ class FABulous_CLI(Cmd):
             self.csvFile = args.file
 
         self.fabricLoaded = True
-        # self.projectDir = os.path.split(self.csvFile)[0]
         tileByPath = [
             f.stem for f in (self.projectDir / "Tile/").iterdir() if f.is_dir()
         ]
@@ -714,8 +714,6 @@ class FABulous_CLI(Cmd):
 
         logger.info("Generated npnr model")
 
-    # Import do_synthesis from cmd_synthesis
-    do_synthesis = cmd_synthesis.do_synthesis
 
     @with_category(CMD_USER_DESIGN_FLOW)
     @with_argparser(filePathRequireParser)

@@ -83,7 +83,6 @@ class Fabric:
     superTileDic: dict[str, SuperTile] = field(default_factory=dict)
     unusedTileDic: dict[str, Tile] = field(default_factory=dict)
     unusedSuperTileDic: dict[str, SuperTile] = field(default_factory=dict)
-    # wires: list[Wire] = field(default_factory=list)
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -98,7 +97,7 @@ class Fabric:
         """
         for row in self.tile:
             for tile in row:
-                if tile == None:
+                if tile is None:
                     continue
                 for port in tile.portsInfo:
                     self.commonWirePair.append((port.sourceName, port.destinationName))
@@ -110,7 +109,7 @@ class Fabric:
 
         for y, row in enumerate(self.tile):
             for x, tile in enumerate(row):
-                if tile == None:
+                if tile is None:
                     continue
                 for port in tile.portsInfo:
                     if (
@@ -195,16 +194,12 @@ class Fabric:
                             )
                     elif port.sourceName != "NULL" and port.destinationName == "NULL":
                         sourceName = port.sourceName
-                        destName = ""
-                        try:
-                            index = [i for i, _ in self.commonWirePair].index(
-                                port.sourceName
-                            )
-                            sourceName = self.commonWirePair[index][0]
-                            destName = self.commonWirePair[index][1]
-                        except:
-                            # if is not in a common pair wire we assume the source name is same as destination name
-                            destName = sourceName
+                        destName = port.sourceName
+                        # if sourcename is not in a common pair wire we assume
+                        # the source name is the same as destination name
+                        wire_pair = dict(self.commonWirePair)
+                        if sourceName in wire_pair:
+                            destName = wire_pair[sourceName]
 
                         value = min(max(port.xOffset, -1), 1)
                         for i in range(port.wireCount * abs(port.xOffset)):
