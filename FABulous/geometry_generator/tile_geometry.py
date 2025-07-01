@@ -85,7 +85,6 @@ class TileGeometry:
         maxSmWidthInColumn: int,
         maxSmRelXInColumn: int,
     ) -> None:
-
         self.width = maxWidthInColumn
         self.height = maxHeightInRow
         self.smGeometry.width = maxSmWidthInColumn  # TODO: needed?

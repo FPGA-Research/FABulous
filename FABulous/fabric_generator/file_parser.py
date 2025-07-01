@@ -584,6 +584,7 @@ def parseTiles(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         from FABulous.fabric_generator.fabric_automation import (
                             addBelsToPrim,
                         )
+
                         primsFile = proj_dir.joinpath("user_design/custom_prims.v")
                         logger.info(f"Adding bels to custom prims file: {primsFile}")
                         addBelsToPrim(primsFile, [bels[-1]])
@@ -963,9 +964,9 @@ def parseBelFile(
     individually_declared = False
     noConfigBits = 0
     belMapDic = {}
-    ports_vectors: dict[str, dict[str, tuple[IO, int]]] = (
-        {}
-    )  # {<porttype>:{porname:(IO, size)}}
+    ports_vectors: dict[
+        str, dict[str, tuple[IO, int]]
+    ] = {}  # {<porttype>:{porname:(IO, size)}}
     # define port types
     ports_vectors["internal"] = {}
     ports_vectors["external"] = {}
@@ -1307,7 +1308,6 @@ def verilog_belMapProcessing(module_info):
 
     # yosys reverses belmap, reverse back to keep original belmap.
     return dict(reversed(list(belMapDic.items())))
-
 
 
 def vhdl_belMapProcessing(file: str, filename: str) -> dict:

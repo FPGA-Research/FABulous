@@ -12,9 +12,9 @@ class VerilogWriter(codeGenerator):
         if onNewLine:
             self._add("")
         if self._content:
-            self._content[-1] += f"{' ':<{indentLevel*4}}" + f"//{comment}" f"{end}"
+            self._content[-1] += f"{' ':<{indentLevel * 4}}" + f"//{comment}{end}"
         else:
-            self._add(f"{' ':<{indentLevel*4}}" + f"// {comment}" f"{end}")
+            self._add(f"{' ':<{indentLevel * 4}}" + f"// {comment}{end}")
 
     def addHeader(self, name, package="", indentLevel=0):
         self._add(f"module {name}", indentLevel)
@@ -122,7 +122,7 @@ class VerilogWriter(codeGenerator):
             self._add(f"{compName}", indentLevel=indentLevel)
             self._add("#(", indentLevel=indentLevel + 1)
             self._add(
-                (",\n" f"{' ':<{4*(indentLevel + 1)}}").join(port),
+                (f",\n{' ':<{4 * (indentLevel + 1)}}").join(port),
                 indentLevel=indentLevel + 1,
             )
             self._add(")", indentLevel=indentLevel + 1)
@@ -134,7 +134,7 @@ class VerilogWriter(codeGenerator):
             self._add("`ifdef EMULATION", indentLevel=0)
             self._add("#(", indentLevel=indentLevel + 1)
             self._add(
-                (",\n" f"{' ':<{4*(indentLevel + 1)}}").join(port),
+                (f",\n{' ':<{4 * (indentLevel + 1)}}").join(port),
                 indentLevel=indentLevel + 1,
             )
             self._add(")", indentLevel=indentLevel + 1)
@@ -153,7 +153,7 @@ class VerilogWriter(codeGenerator):
             connectPair.append(f".{i[0]}({tmp})")
 
         self._add(
-            (",\n" f"{' ':<{4*(indentLevel + 1)}}").join(connectPair),
+            (f",\n{' ':<{4 * (indentLevel + 1)}}").join(connectPair),
             indentLevel=indentLevel + 1,
         )
         self._add(");", indentLevel=indentLevel)
@@ -193,7 +193,7 @@ class VerilogWriter(codeGenerator):
     genvar k;
     assign ConfigBitsInput = {{ConfigBits[{cfgBit}-1-1:0], CONFin;}}
     // for k in 0 to Conf/2 generate
-    for (k=0; k < {cfgBit-1}; k = k + 1) begin: L
+    for (k=0; k < {cfgBit - 1}; k = k + 1) begin: L
         LHQD1 inst_LHQD1a(
             .D(ConfigBitsInput[k*2]),
             .E(CLK),

@@ -300,11 +300,7 @@ def GetComponentPortsFromFile(
             marker = False
             DoneMarker = True
 
-        if (
-            (marker)
-            and (not DoneMarker)
-            and (direction == filter or filter == "ALL")
-        ):
+        if (marker) and (not DoneMarker) and (direction == filter or filter == "ALL"):
             # detect if the port has to be exported as EXTERNAL which is flagged by the comment
             if re.search("EXTERNAL", line):
                 External = True
@@ -404,11 +400,7 @@ def GetComponentPortsFromVerilog(
             marker = False
             DoneMarker = True
 
-        if (
-            (marker)
-            and (not DoneMarker)
-            and (direction == filter or filter == "ALL")
-        ):
+        if (marker) and (not DoneMarker) and (direction == filter or filter == "ALL"):
             # detect if the port has to be exported as EXTERNAL which is flagged by the comment
             if re.search("EXTERNAL", line):
                 External = True

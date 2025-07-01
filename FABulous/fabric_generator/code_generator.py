@@ -36,7 +36,7 @@ class codeGenerator(abc.ABC):
         if indentLevel == 0:
             self._content.append(line)
         else:
-            self._content.append(f"{' ':<{4*indentLevel}}" + line)
+            self._content.append(f"{' ':<{4 * indentLevel}}" + line)
 
     def popLastLine(self) -> str:
         return self._content.pop()
@@ -548,17 +548,14 @@ class codeGenerator(abc.ABC):
                         **reg** <= **inv** **regIn**;
                 end if;
             end process;
-
         """
 
     @abc.abstractmethod
     def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
-        """
-        Add a scalar assign statement.
-        Delay is provided by currently not being used by any of the code generator.
-        If **right** is a list, it will be concatenated.
-        Verilog will concatenate with comma ','.
-        VHDL will concatenate with ampersand '&' instead.
+        """Add a scalar assign statement. Delay is provided by currently not being used
+        by any of the code generator. If **right** is a list, it will be concatenated.
+        Verilog will concatenate with comma ','. VHDL will concatenate with ampersand
+        '&' instead.
 
         Parameters
         ----------
@@ -588,8 +585,7 @@ class codeGenerator(abc.ABC):
     def addAssignVector(
         self, left, right, widthL, widthR, indentLevel=0, inverted=False
     ):
-        """
-        Add a vector assign statement.
+        """Add a vector assign statement.
 
         Parameters
         ----------

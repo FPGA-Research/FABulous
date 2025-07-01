@@ -5,10 +5,8 @@ from FABulous.fabric_definition.define import IO
 
 @dataclass
 class Gen_IO:
-    """
-    Contains all the information about a generated IO port (GEN_IO).
-    The information are parsed from the GEN_IO definitions in
-    the tile CSV file.
+    """Contains all the information about a generated IO port (GEN_IO). The information
+    are parsed from the GEN_IO definitions in the tile CSV file.
 
     Attributes
     ----------

@@ -296,10 +296,9 @@ class FABulous_API:
         generateUserDesignTopWrapper(self.fabric, userDesign, topWrapper)
 
     def genIOBelForTile(self, tile_name: str) -> list[Bel]:
-        """
-        Generates the IO BELs for the generative IOs of a tile.
-        Config Access Generative IOs will be a separate Bel.
-        Updates the tileDic with the generated IO BELs.
+        """Generates the IO BELs for the generative IOs of a tile. Config Access
+        Generative IOs will be a separate Bel. Updates the tileDic with the generated IO
+        BELs.
 
         Parameters
         ----------

@@ -218,7 +218,7 @@ class FABulous_CLI(Cmd):
         """Override the onecmd method to handle exceptions."""
         try:
             return super().onecmd(statement, add_to_history=add_to_history)
-        except Exception: # noqa: BLE001 - Catching all exceptions is ok here
+        except Exception:  # noqa: BLE001 - Catching all exceptions is ok here
             logger.debug(traceback.format_exc())
             self.exit_code = 1
             if self.interactive:
@@ -714,7 +714,6 @@ class FABulous_CLI(Cmd):
 
         logger.info("Generated npnr model")
 
-
     @with_category(CMD_USER_DESIGN_FLOW)
     @with_argparser(filePathRequireParser)
     def do_place_and_route(self, args):
@@ -1044,7 +1043,7 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_SCRIPT)
     @with_argparser(filePathRequireParser)
     def do_run_script(self, args):
-        """Executes script"""
+        """Executes script."""
         if not args.file.exists():
             logger.opt(exception=FileNotFoundError()).error(f"Cannot find {args.file}")
 
@@ -1088,14 +1087,11 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_TOOLS)
     @with_argparser(gen_tile_parser)
     def do_generate_custom_tile_config(self, args):
-        """
-        Generates a custom tile configuration for a given tile folder
-        or path to bel folder.
-        A tile .csv file and a switch matrix .list file will be generated.
+        """Generates a custom tile configuration for a given tile folder or path to bel
+        folder. A tile .csv file and a switch matrix .list file will be generated.
 
-        The provided path may contain bel files, which will be included
-        in the generated tile .csv file as well as the generated
-        switch matrix .list file.
+        The provided path may contain bel files, which will be included in the generated
+        tile .csv file as well as the generated switch matrix .list file.
         """
 
         if not args.tile_path.is_dir():

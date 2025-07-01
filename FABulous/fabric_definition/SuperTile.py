@@ -68,12 +68,24 @@ class SuperTile:
         internalConnections = []
         for y, row in enumerate(self.tileMap):
             for x, tile in enumerate(row):
-                if 0 <= y - 1 < len(self.tileMap) and self.tileMap[y - 1][x] is not None:
+                if (
+                    0 <= y - 1 < len(self.tileMap)
+                    and self.tileMap[y - 1][x] is not None
+                ):
                     internalConnections.append((tile.getNorthSidePorts(), x, y))
-                if 0 <= x + 1 < len(self.tileMap[0]) and self.tileMap[y][x + 1] is not None:
+                if (
+                    0 <= x + 1 < len(self.tileMap[0])
+                    and self.tileMap[y][x + 1] is not None
+                ):
                     internalConnections.append((tile.getEastSidePorts(), x, y))
-                if 0 <= y + 1 < len(self.tileMap) and self.tileMap[y + 1][x] is not None:
+                if (
+                    0 <= y + 1 < len(self.tileMap)
+                    and self.tileMap[y + 1][x] is not None
+                ):
                     internalConnections.append((tile.getSouthSidePorts(), x, y))
-                if 0 <= x - 1 < len(self.tileMap[0]) and self.tileMap[y][x - 1] is not None:
+                if (
+                    0 <= x - 1 < len(self.tileMap[0])
+                    and self.tileMap[y][x - 1] is not None
+                ):
                     internalConnections.append((tile.getWestSidePorts(), x, y))
         return internalConnections

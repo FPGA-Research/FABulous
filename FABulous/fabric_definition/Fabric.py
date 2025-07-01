@@ -158,7 +158,7 @@ class Fabric:
                                     yOffset=port.yOffset,
                                     destination=f"{port.destinationName}{cascadedI}",
                                     sourceTile=f"X{x}Y{y}",
-                                    destinationTile=f"X{x+value}Y{y+port.yOffset}",
+                                    destinationTile=f"X{x + value}Y{y + port.yOffset}",
                                 )
                             )
 
@@ -189,7 +189,7 @@ class Fabric:
                                     yOffset=value,
                                     destination=f"{port.destinationName}{cascadedI}",
                                     sourceTile=f"X{x}Y{y}",
-                                    destinationTile=f"X{x+port.xOffset}Y{y+value}",
+                                    destinationTile=f"X{x + port.xOffset}Y{y + value}",
                                 )
                             )
                     elif port.sourceName != "NULL" and port.destinationName == "NULL":
@@ -211,7 +211,7 @@ class Fabric:
                                     yOffset=port.yOffset,
                                     destination=f"{destName}{i}",
                                     sourceTile=f"X{x}Y{y}",
-                                    destinationTile=f"X{x+value}Y{y+port.yOffset}",
+                                    destinationTile=f"X{x + value}Y{y + port.yOffset}",
                                 )
                             )
 
@@ -225,7 +225,7 @@ class Fabric:
                                     yOffset=value,
                                     destination=f"{destName}{i}",
                                     sourceTile=f"X{x}Y{y}",
-                                    destinationTile=f"X{x+port.xOffset}Y{y+value}",
+                                    destinationTile=f"X{x + port.xOffset}Y{y + value}",
                                 )
                             )
                 tile.wireList = list(dict.fromkeys(tile.wireList))

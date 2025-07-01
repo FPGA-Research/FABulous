@@ -1064,16 +1064,16 @@ The Config_access.v file looks like following:
 
   (* FABulous, BelMap, C_bit0=0, C_bit1=1, C_bit2=2, C_bit3=3 *)
   module Config_access (C_bit0, C_bit1, C_bit2, C_bit3, ConfigBits);
-  	parameter NoConfigBits = 4;// has to be adjusted manually (we don't use an arithmetic parser for the value)
-  	(* FABulous, EXTERNAL *)output C_bit0; // EXTERNAL
-  	(* FABulous, EXTERNAL *)output C_bit1; // EXTERNAL
-  	(* FABulous, EXTERNAL *)output C_bit2; // EXTERNAL
-  	(* FABulous, EXTERNAL *)output C_bit3; // EXTERNAL
-  	(* FABulous, GLOBAL *)input [NoConfigBits-1:0] ConfigBits;
-  	assign C_bit0 = ConfigBits[0];
-  	assign C_bit1 = ConfigBits[1];
-  	assign C_bit2 = ConfigBits[2];
-  	assign C_bit3 = ConfigBits[3];
+    parameter NoConfigBits = 4;// has to be adjusted manually (we don't use an arithmetic parser for the value)
+    (* FABulous, EXTERNAL *)output C_bit0; // EXTERNAL
+    (* FABulous, EXTERNAL *)output C_bit1; // EXTERNAL
+    (* FABulous, EXTERNAL *)output C_bit2; // EXTERNAL
+    (* FABulous, EXTERNAL *)output C_bit3; // EXTERNAL
+    (* FABulous, GLOBAL *)input [NoConfigBits-1:0] ConfigBits;
+    assign C_bit0 = ConfigBits[0];
+    assign C_bit1 = ConfigBits[1];
+    assign C_bit2 = ConfigBits[2];
+    assign C_bit3 = ConfigBits[3];
   endmodule
 
 It just wires four config bits as EXTERNAL ports to the top-level entity.
@@ -1375,4 +1375,3 @@ After changing all connection names in the switch matrix list file, it should lo
 
 After changing the switch matrix list file, we can generate the new tile with the GEN_IOs.
 The generated tile will have the same functionality as the previous tile, but now with the GEN_IOs.
-

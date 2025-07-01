@@ -818,11 +818,16 @@ class FabricGenerator:
         self.writer.addPortStart(indentLevel=1)
 
         # holder for each direction of port string
-        portList = tile.getNorthSidePorts() + tile.getEastSidePorts() + tile.getWestSidePorts() + tile.getSouthSidePorts()
+        portList = (
+            tile.getNorthSidePorts()
+            + tile.getEastSidePorts()
+            + tile.getWestSidePorts()
+            + tile.getSouthSidePorts()
+        )
 
         side_of_port = None
         for port in portList:
-            if (side_of_port is not port.sideOfTile):
+            if side_of_port is not port.sideOfTile:
                 side_of_port = port.sideOfTile
                 self.writer.addComment(str(side_of_port), onNewLine=True)
             # destination port are input to the tile
@@ -1178,7 +1183,7 @@ class FabricGenerator:
                 portsPairs=portsPairs,
             )
 
-            #FIXME: Why is the belCounter increased here by 2 and afterwards by 1?
+            # FIXME: Why is the belCounter increased here by 2 and afterwards by 1?
             belCounter += 2
             belConfigBitsCounter += bel.configBit
 
@@ -1205,7 +1210,11 @@ class FabricGenerator:
         for i in tile.portsInfo:
             if i.wireDirection != Direction.JUMP and i.inOut == IO.INPUT:
                 portsPairs += list(
-                    zip(i.expandPortInfoByName(), i.expandPortInfoByName(indexed=True), strict=False)
+                    zip(
+                        i.expandPortInfoByName(),
+                        i.expandPortInfoByName(indexed=True),
+                        strict=False,
+                    )
                 )
         # bel input wire (bel output is input to switch matrix)
         for bel in tile.bels:
@@ -1228,7 +1237,8 @@ class FabricGenerator:
                 portsPairs += list(
                     zip(
                         i.expandPortInfoByName(),
-                        i.expandPortInfoByNameTop(indexed=True), strict=False,
+                        i.expandPortInfoByNameTop(indexed=True),
+                        strict=False,
                     )
                 )
 
@@ -2610,9 +2620,9 @@ class FabricGenerator:
                                 curTileMapNoMask[pip] = {}
 
                             curTileMap[pip][encodeDict[curBitOffset + c]] = curChar
-                            curTileMapNoMask[pip][
-                                encodeDict[curBitOffset + c]
-                            ] = curChar
+                            curTileMapNoMask[pip][encodeDict[curBitOffset + c]] = (
+                                curChar
+                            )
 
                     curBitOffset += controlWidth
 
@@ -2630,8 +2640,7 @@ class FabricGenerator:
 def generateUserDesignTopWrapper(
     fabric: Fabric, user_design_path: Path, output: Path
 ) -> None:
-    """
-    Generate a top wrapper for the user design.
+    """Generate a top wrapper for the user design.
 
     Params
     ------
@@ -2646,7 +2655,6 @@ def generateUserDesignTopWrapper(
     ------
     ValueError
         Output file is not a Verilog file or user design path is not a file
-
     """
     top_wrapper: list[str] = [""]
 

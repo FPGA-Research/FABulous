@@ -19,10 +19,8 @@ if TYPE_CHECKING:
 
 
 def generateCustomTileConfig(tile_path: Path) -> Path:
-    """
-    Generates a custom tile configuration for a given tile folder
-    or path to bel folder.
-    A tile .csv file and a switch matrix .list file will be generated.
+    """Generates a custom tile configuration for a given tile folder or path to bel
+    folder. A tile .csv file and a switch matrix .list file will be generated.
 
     The provided path may contain bel files, which will be included
     in the generated tile .csv file as well as the generated
@@ -39,7 +37,6 @@ def generateCustomTileConfig(tile_path: Path) -> Path:
     -------
     Path
         Path to the generated tile .csv file.
-
     """
     tile_name: str = ""
     project_tile_dir: Path = Path(os.getenv("FAB_PROJ_DIR")).absolute() / "Tile"
@@ -312,7 +309,9 @@ def generateSwitchmatrixList(
 
             listfile.append(f"# Connect carry chain {prefix}")
             for cin, cout in zip(
-                carryports[prefix][IO.INPUT], carryports[prefix][IO.OUTPUT], strict=False
+                carryports[prefix][IO.INPUT],
+                carryports[prefix][IO.OUTPUT],
+                strict=False,
             ):
                 listfile.append(f"{cin},{cout}")
 
@@ -531,8 +530,7 @@ def genIOBel(
     overwrite: bool = True,
     multiplexerStyle=MultiplexerStyle.CUSTOM,
 ) -> Bel | None:
-    """
-    Generate the IO BELs for a list of generative IOs.
+    """Generate the IO BELs for a list of generative IOs.
 
     Parameters
     ----------
@@ -561,7 +559,6 @@ def genIOBel(
     -------
     Bel | None
         The generated Bel object or None if no generative IOs are present.
-
     """
 
     if len(gen_ios) == 0:

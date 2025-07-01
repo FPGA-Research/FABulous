@@ -341,13 +341,12 @@ def wrap_with_except_handling(fun_to_wrap):
         """
         try:
             fun_to_wrap(*args, **varargs)
-        except Exception: # noqa: BLE001 - Catching all exceptions is ok here
+        except Exception:  # noqa: BLE001 - Catching all exceptions is ok here
             import traceback
 
             traceback.print_exc()
             logger.error("TCL command failed. Please check the logs for details.")
             raise Exception from Exception
-
 
     return inter
 

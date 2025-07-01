@@ -15,9 +15,9 @@ class VHDLWriter(codeGenerator):
         if onNewLine:
             self._add("")
         if self._content:
-            self._content[-1] += f"{' ':<{indentLevel*4}}" + f"-- {comment}" f"{end}"
+            self._content[-1] += f"{' ':<{indentLevel * 4}}" + f"-- {comment}{end}"
         else:
-            self._add(f"{' ':<{indentLevel*4}}" + f"-- {comment}" f"{end}")
+            self._add(f"{' ':<{indentLevel * 4}}" + f"-- {comment}{end}")
 
     def addHeader(self, name, package="", indentLevel=0):
         #   library template
@@ -111,24 +111,24 @@ class VHDLWriter(codeGenerator):
         self, name, startIndex, reg=False, endIndex=0, indentLevel=0
     ):
         self._add(
-            f"signal {name} : STD_LOGIC_VECTOR( { startIndex } downto {endIndex} );",
+            f"signal {name} : STD_LOGIC_VECTOR( {startIndex} downto {endIndex} );",
             indentLevel,
         )
 
     def addLogicStart(self, indentLevel=0):
-        self._add("\n" "begin" "\n", indentLevel)
+        self._add("\nbegin\n", indentLevel)
 
     def addLogicEnd(self, indentLevel=0):
-        self._add("\n" "end" "\n", indentLevel)
+        self._add("\nend\n", indentLevel)
 
     def addRegister(self, reg, regIn, clk="UserCLK", inverted=False, indentLevel=0):
         inv = "not " if inverted else ""
         template = f"""
 process({clk})
 begin
-	if {clk}'event and {clk}='1' then
-		{reg} <= {inv}{regIn};
-	end if;
+    if {clk}'event and {clk}='1' then
+        {reg} <= {inv}{regIn};
+    end if;
 end process;
 """
         self._add(template, indentLevel)
@@ -174,7 +174,7 @@ end process;
             for i in paramPairs:
                 connectPair.append(f"{i[0]} => {i[1]}")
             self._add(
-                (",\n" f"{' ':<{4*(indentLevel + 2)}}").join(connectPair),
+                (f",\n{' ':<{4 * (indentLevel + 2)}}").join(connectPair),
                 indentLevel=indentLevel + 2,
             )
             self._add(")", indentLevel=indentLevel + 1)
@@ -194,7 +194,7 @@ end process;
             connectPair.append(f"{port} => {signal}")
 
         self._add(
-            (",\n" f"{' ':<{4*(indentLevel + 2)}}").join(connectPair),
+            (f",\n{' ':<{4 * (indentLevel + 2)}}").join(connectPair),
             indentLevel=indentLevel + 2,
         )
         self._add(");", indentLevel=indentLevel + 1)
@@ -226,7 +226,7 @@ end process;
         template = f"""
 ConfigBitsInput <= ConfigBits(ConfigBitsInput'high-1 downto 0) & CONFin;
 -- for k in 0 to Conf/2 generate
-L: for k in 0 to {int(math.ceil(configBitCounter/2.0))-1} generate
+L: for k in 0 to {int(math.ceil(configBitCounter / 2.0)) - 1} generate
         inst_LHQD1a : LHQD1
         Port Map(
             D    => ConfigBitsInput(k*2),
