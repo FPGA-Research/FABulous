@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
-[![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Code Style](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Doc Style](https://img.shields.io/badge/%20style-numpy-459db9.svg)](https://numpydoc.readthedocs.io/en/latest/format.html)
 
 ## Introduction
@@ -139,7 +139,8 @@ Thank you for considering contributing to FABulous! By contributing, you're help
 
 ### Code Formatting
 
-We use [Black](https://github.com/psf/black) for code formatting. Please make sure your code adheres to Black's standards before submitting a pull request.
+We use [Ruff](https://docs.astral.sh/ruff/) for code formatting and linting and provide a configuration file in the repository.
+Please make sure your code adheres to our coding standards before submitting a pull request.
 
 ### pre-commit
 
