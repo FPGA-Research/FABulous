@@ -124,7 +124,3 @@ def genNextpnrModel(fabric: Fabric):
         "\n".join(belv2Str),
         "\n".join(constrainStr),
     )
-
-
-def genNextpnrPairModel(fabric: Fabric):
-    pass

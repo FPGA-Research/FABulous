@@ -2211,7 +2211,7 @@ class FabricGenerator:
                         for i in bel.externalOutput:
                             externalPorts.append((IO.OUTPUT, f"Tile_X{x}Y{y}_{i}"))
         for iodir, name in externalPorts:
-            yx, indices, port = split_port(name)
+            _yx, _indices, port = split_port(name)
             if port not in portGroups:
                 portGroups[port] = (iodir, [])
             portGroups[port][1].append(name)

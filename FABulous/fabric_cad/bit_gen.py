@@ -17,12 +17,6 @@ except ImportError:
     logger.critical("Could not import fasm. Bitstream generation not supported.")
 
 
-def replace(string, substitutions):
-    substrings = sorted(substitutions, key=len, reverse=True)
-    regex = re.compile("|".join(map(re.escape, substrings)))
-    return regex.sub(lambda match: substitutions[match.group(0)], string)
-
-
 def bitstring_to_bytes(s):
     return int(s, 2).to_bytes((len(s) + 7) // 8, byteorder="big")
 
@@ -187,76 +181,6 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
     # Write out binary representation
     with open(bitstreamFile, "bw+") as f:
         f.write(bitStr)
-
-
-# This class represents individual tiles in the architecture
-class Tile:
-    tileType = ""
-    bels = []
-    wires = []
-    # For storing single wires (to handle cascading and termination)
-    atomicWires = []
-    pips = []
-    belPorts = set()
-    matrixFileName = ""
-    pipMuxes_MapSourceToSinks = []
-    pipMuxes_MapSinkToSources = []
-
-    x = -1  # Init with negative values to ease debugging
-    y = -1
-
-    def __init__(self, inType):
-        self.tileType = inType
-
-    def genTileLoc(self, separate=False):
-        if separate:
-            return ("X" + str(self.x), "Y" + str(self.y))
-        return "X" + str(self.x) + "Y" + str(self.y)
-
-
-# This class represents the fabric as a whole
-class Fabric:
-    tiles = []
-    height = 0
-    width = 0
-    cellTypes = []
-
-    def __init__(self, inHeight, inWidth):
-        self.width = inWidth
-        self.height = inHeight
-
-    def getTileByCoords(self, x: int, y: int):
-        for row in self.tiles:
-            for tile in row:
-                if tile.x == x and tile.y == y:
-                    return tile
-        return None
-
-    def getTileByLoc(self, loc: str):
-        for row in self.tiles:
-            for tile in row:
-                if tile.genTileLoc == loc:
-                    return tile
-        return None
-
-    def getTileAndWireByWireDest(self, loc: str, dest: str, jumps: bool = True):
-        for row in self.tiles:
-            for tile in row:
-                for wire in tile.wires:
-                    if not jumps:
-                        if wire["direction"] == "JUMP":
-                            continue
-                    for i in range(int(wire["wire-count"])):
-                        desty = tile.y + int(wire["yoffset"])
-                        destx = tile.x + int(wire["xoffset"])
-                        desttileLoc = f"X{destx}Y{desty}"
-
-                        if (desttileLoc == loc) and (
-                            wire["destination"] + str(i) == dest
-                        ):
-                            return (tile, wire, i)
-
-        return None
 
 
 #####################################################################################
