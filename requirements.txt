@@ -5,3 +5,8 @@ cmd2>=2,<3
 requests>=2.0.0
 pytest>=8.3.5
 pytest-mock
+bitarray
+pytest>=8.4.1,
+pytest-mock>=3.14.1,
+cocotb>=1.9.2
+cocotb-test>=0.2.6

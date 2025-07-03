@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from tests.conftest import (
+from tests.CLI_test.conftest import (
     TILE,
     normalize_and_check_for_errors,
     run_cmd,

@@ -1,4 +1,3 @@
-import csv
 import json
 import os
 import re
@@ -11,7 +10,6 @@ from loguru import logger
 
 from FABulous.custom_exception import FabricParsingError
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.ConfigMem import ConfigMem
 from FABulous.fabric_definition.define import (
     IO,
     ConfigBitMode,
@@ -1402,135 +1400,3 @@ def vhdl_belMapProcessing(file: str, filename: str) -> dict:
             else:
                 belMapDic[bel[0]][0] = {0: "1"}
     return belMapDic
-
-
-def parseConfigMem(
-    fileName: Path,
-    maxFramePerCol: int,
-    frameBitPerRow: int,
-    globalConfigBits: int,
-) -> list[ConfigMem]:
-    """Parse the config memory CSV file into a list of ConfigMem objects.
-
-    Parameters
-    ----------
-    fileName : str
-        Directory of the config memory CSV file
-    maxFramePerCol : int
-        Maximum number of frames per colum
-    frameBitPerRow : int
-        Number of bits per row
-    globalConfigBits : int
-        Number of global config bits for the config memory
-
-    Raises
-    ------
-    ValueError
-        - Invalid amount of frame entries in the config memory CSV file
-        - Too many values in bit mask
-        - Length of bit mask does not match the number of frame bits per row
-        - Bit mask does not have enough values matching the number of the given config bits
-        - Repeated config bit entry in ':' separated format in config bit range
-        - Repeated config bit entry in list format in config bit range
-        - Invalid range entry in config bit range
-
-    Returns
-    -------
-    list[ConfigMem]
-        List of ConfigMem objects parsed from the config memory CSV file.
-    """
-    with open(fileName) as f:
-        mappingFile = list(csv.DictReader(f))
-
-        # remove the pretty print from used_bits_mask
-        for i, _ in enumerate(mappingFile):
-            mappingFile[i]["used_bits_mask"] = mappingFile[i]["used_bits_mask"].replace(
-                "_", ""
-            )
-
-        # we should have as many lines as we have frames (=framePerCol)
-        if len(mappingFile) != maxFramePerCol:
-            logger.error(
-                f"The bitstream mapping file has only {len(mappingFile)} entries but MaxFramesPerCol is {maxFramePerCol}."
-            )
-            raise ValueError
-
-        # we also check used_bits_mask (is a vector that is as long as a frame and contains a '1' for a bit used and a '0' if not used (padded)
-        usedBitsCounter = 0
-        for entry in mappingFile:
-            if entry["used_bits_mask"].count("1") > frameBitPerRow:
-                logger.error(
-                    f"bitstream mapping file {fileName} has to many 1-elements in bitmask for frame : {entry['frame_name']}"
-                )
-                raise ValueError
-            if len(entry["used_bits_mask"]) != frameBitPerRow:
-                logger.error(
-                    f"bitstream mapping file {fileName} has has a too long or short bitmask for frame : {entry['frame_name']}"
-                )
-                raise ValueError
-            usedBitsCounter += entry["used_bits_mask"].count("1")
-
-        if usedBitsCounter != globalConfigBits:
-            logger.error(
-                f"bitstream mapping file {fileName} has a bitmask mismatch; bitmask has in total {usedBitsCounter} 1-values for {globalConfigBits} bits."
-            )
-            raise ValueError
-
-        allConfigBitsOrder = []
-        configMemEntry = []
-        for entry in mappingFile:
-            configBitsOrder = []
-            entry["ConfigBits_ranges"] = (
-                entry["ConfigBits_ranges"].replace(" ", "").replace("\t", "")
-            )
-
-            if ":" in entry["ConfigBits_ranges"]:
-                left, right = re.split(":", entry["ConfigBits_ranges"])
-                # check the order of the number, if right is smaller than left, then we swap them
-                left, right = int(left), int(right)
-                if right < left:
-                    left, right = right, left
-                    numList = list(reversed(range(left, right + 1)))
-                else:
-                    numList = list(range(left, right + 1))
-
-                for i in numList:
-                    if i in allConfigBitsOrder:
-                        logger.error(
-                            f"Configuration bit index {i} already allocated in {fileName}, {entry['frame_name']}."
-                        )
-                        raise ValueError
-                    configBitsOrder.append(i)
-
-            elif ";" in entry["ConfigBits_ranges"]:
-                for item in entry["ConfigBits_ranges"].split(";"):
-                    if int(item) in allConfigBitsOrder:
-                        logger.error(
-                            f"Configuration bit index {item} already allocated in {fileName}, {entry['frame_name']}."
-                        )
-                        raise ValueError
-                    configBitsOrder.append(int(item))
-
-            elif "NULL" in entry["ConfigBits_ranges"]:
-                continue
-
-            else:
-                logger.error(
-                    f"Range {entry['ConfigBits_ranges']} is not a valid format. It should be in the form [int]:[int] or [int]. If there are multiple ranges it should be separated by ';'."
-                )
-                raise ValueError
-
-            allConfigBitsOrder += configBitsOrder
-
-            if entry["used_bits_mask"].count("1") > 0:
-                configMemEntry.append(
-                    ConfigMem(
-                        frameName=entry["frame_name"],
-                        frameIndex=int(entry["frame_index"]),
-                        bitsUsedInFrame=entry["used_bits_mask"].count("1"),
-                        usedBitMask=entry["used_bits_mask"],
-                        configBitRanges=configBitsOrder,
-                    )
-                )
-
-    return configMemEntry

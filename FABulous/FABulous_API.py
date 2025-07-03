@@ -17,6 +17,7 @@ from FABulous.fabric_generator.fabric_gen import (
     FabricGenerator,
     generateUserDesignTopWrapper,
 )
+from FABulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from FABulous.geometry_generator.geometry_gen import GeometryGenerator
 
 
@@ -138,7 +139,7 @@ class FABulous_API:
             File path where the configuration memory will be saved.
         """
         if tile := self.fabric.getTileByName(tileName):
-            self.fabricGenerator.generateConfigMem(tile, configMem)
+            generateConfigMem(self.writer, self.fabric, tile, configMem)
         else:
             raise ValueError(f"Tile {tileName} not found")
 

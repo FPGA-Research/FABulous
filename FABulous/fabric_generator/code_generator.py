@@ -1,4 +1,5 @@
 import abc
+from pathlib import Path
 
 from loguru import logger
 
@@ -9,7 +10,7 @@ class codeGenerator(abc.ABC):
     """The base class for all code generators."""
 
     @property
-    def outFileName(self):
+    def outFileName(self) -> Path:
         return self._outFileName
 
     @property
@@ -18,9 +19,10 @@ class codeGenerator(abc.ABC):
 
     def __init__(self):
         self._content = []
+        self._outFileName = Path()
 
     def writeToFile(self):
-        if self._outFileName == "":
+        if self._outFileName == Path():
             logger.critical("OutFileName is not set")
             exit(-1)
         with open(self._outFileName, "w") as f:
@@ -29,7 +31,7 @@ class codeGenerator(abc.ABC):
         self._content = []
 
     @outFileName.setter
-    def outFileName(self, outFileName):
+    def outFileName(self, outFileName: Path):
         self._outFileName = outFileName
 
     def _add(self, line, indentLevel=0) -> None:
