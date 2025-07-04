@@ -63,7 +63,7 @@ def default_tile(mocker) -> Tile:
         # Large-scale configurations
         FabricConfig(frame_bits_per_row=256, max_frames_per_col=100, name="VeryLargeFabric"),
     ],
-    ids=lambda config: config.name
+    ids=lambda config: config.name,
 )
 def fabric_config(request, mocker):
     """Comprehensive parametric fabric configurations for testing different scenarios."""
@@ -86,7 +86,7 @@ def fabric_config(request, mocker):
         TileConfig("Irregular7Tile", 7),
         TileConfig("Irregular33Tile", 33),
     ],
-    ids=lambda config: config.name
+    ids=lambda config: config.name,
 )
 def tile_config(request, mocker):
     """Comprehensive parametric tile configurations covering various component types."""
@@ -275,7 +275,6 @@ def cocotb_runner(tmp_path: Path):
             sim = "icarus"
         elif hdl_toplevel_lang == ".vhd":
             sim = "ghdl"
-        # Set up simulator
         runner = get_runner(sim)
 
         sources.insert(0, Path(__file__).parent / "testdata" / f"models{hdl_toplevel_lang}")
@@ -293,15 +292,14 @@ def cocotb_runner(tmp_path: Path):
         if hdl_toplevel_lang == ".v":
             runner.build(verilog_sources=sources, hdl_toplevel=hdl_top_level, always=True, build_dir=build_dir)
         elif hdl_toplevel_lang == ".vhd":
-            # GHDL converts identifiers to lowercase, so we need to use the lowercase version for both build and test
+            # GHDL converts identifiers to lowercase for elaboration and execution
             hdl_top_level = hdl_top_level.lower()
             runner.build(vhdl_sources=sources, hdl_toplevel=hdl_top_level, always=True, build_dir=build_dir)
 
-            # Copy the compiled GHDL library files to the test directory so ghdl -r can find them
-            ghdl_lib_files = list(build_dir.glob("*.cf"))
-            test_dir = tmp_path / "tests"
-            for lib_file in ghdl_lib_files:
-                shutil.copy(lib_file, test_dir / lib_file.name)
+            # Copy the elaborated binary to the test directory
+            binary_file = build_dir / hdl_top_level
+            if binary_file.exists():
+                shutil.copy(binary_file, test_dir / binary_file.name)
 
         runner.test(
             hdl_toplevel=hdl_top_level,
