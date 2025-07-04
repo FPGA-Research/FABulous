@@ -9,5 +9,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/prepare_FABulous_container
+        with:
+          additional_system_packages: 'iverilog'
       - name: Run pytest
         run: pytest -v
