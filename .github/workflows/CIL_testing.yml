@@ -1,13 +1,13 @@
-name: Test CLI with pytest
+name: Testing with pytest and cocotb
 
 on: [push, pull_request]
 
 
 jobs:
-  run_pytest_CLI:
+  run_pytest:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/prepare_FABulous_container
-      - name: Run pytest for FABulous CLI
+      - name: Run pytest
         run: pytest -v
