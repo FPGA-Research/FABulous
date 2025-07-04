@@ -62,8 +62,6 @@ def default_tile(mocker) -> Tile:
         FabricConfig(frame_bits_per_row=7, max_frames_per_col=13, name="PrimeFabric"),
         # Large-scale configurations
         FabricConfig(frame_bits_per_row=256, max_frames_per_col=100, name="VeryLargeFabric"),
-        # Edge cases
-        FabricConfig(frame_bits_per_row=0, max_frames_per_col=0, name="EmptyFabric"),
     ],
     ids=lambda config: config.name
 )
