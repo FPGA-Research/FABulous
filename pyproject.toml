@@ -25,7 +25,7 @@ dependencies = [
   'fasm>=0.0.2',
   'requests>=2.0.0',
   'cmd2>=2',
-  "bitarray>=3.4.3",
+  'bitarray>=3.4.3',
 ]
 
 [project.urls]
