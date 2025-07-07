@@ -170,6 +170,10 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
             bitStr += bitstring_to_bytes(frame_select_temp)
             bitStr += bit_array[i][j]
 
+    # Add desync frame
+    # 20th bit is desync flag
+    bitStr += bytes.fromhex("00100000")
+
     # Note - format in output file is line by line:
     # Tile Loc, Tile Type, X, Y, bits...... \n
     # Each line is one tile
