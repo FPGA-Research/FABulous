@@ -26,11 +26,8 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python_version }}
-    - name: Install iverilog, yosys, and nextpnr-generic from apt
-      shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y iverilog yosys nextpnr-generic
+    - name: Set up OSS CAD suite
+      uses: YosysHQ/setup-oss-cad-suite@v3
     - name: Install GHDL mcode nightly
       # GHDL mcode is required to test our fabric.
       # The oss-cad-suite action installs GHDL, but with the LLVM backend, which is much slower for our simulation
