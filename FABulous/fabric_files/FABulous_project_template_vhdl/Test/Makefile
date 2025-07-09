@@ -35,7 +35,7 @@ run_FABulous_demo:
 
 build_demo_fabric: mkdir_build
 	# Builds the default fabric only (no simulation)
-	FABulous ${FAB_PROJ_ROOT} -ts ../../../FABulous_project_template_common/Test/build_fabulous_fabric.tcl
+	FABulous ${FAB_PROJ_ROOT} -ts ./build_fabulous_fabric.tcl
 
 run_yosys: mkdir_build
 	yosys -m ghdl -p "ghdl ${USER_DESIGN_VHDL} -e ${DESIGN}; read_verilog ${TOP_WRAPPER_VERILOG}; synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json ${CUSTOM_PRIMS};"
