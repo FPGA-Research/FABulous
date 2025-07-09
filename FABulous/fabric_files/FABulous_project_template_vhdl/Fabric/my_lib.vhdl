@@ -242,6 +242,10 @@ begin
   X <= A;
 end architecture;
 
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
 entity cus_mux41 is
   port (
     A0 : in std_logic;
