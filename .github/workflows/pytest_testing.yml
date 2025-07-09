@@ -4,18 +4,147 @@ on: [push, pull_request]
 
 
 jobs:
-  run_pytest:
-    runs-on: ubuntu-latest
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  restore-test-durations:
+    name: Restore test durations
+    runs-on: ubuntu-latest  # You need to tweak that to use your own runner
     steps:
-      - uses: actions/checkout@v4
-        with: 
-          token: ${{ secrets.GITHUB_TOKEN }}
+      # It's mandatory to use the exact same path when saving/restoring cache, otherwise it won't work
+      # (the same key is not enough - see documentation:
+      # https://github.com/actions/cache/blob/main/README.md#cache-version).
+      # I went with `/tmp/.test_durations`.
+      - name: Restore test durations
+        id: restore-test-durations
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/.test_durations
+          key: tests-durations-${{ github.sha }}
+          restore-keys: |
+            tests-durations-${{ github.sha }}
+            tests-durations-
+          fail-on-cache-miss: false
+          
+      # Then we upload the restored test durations as an artifact. This way, each matrix job will download
+      # it when it starts. When a matrix job will be manually retried, it will also reuse the artifact (to
+      # retry the exact same tests, even if the cache has been updated in the meantime).
+      - name: Upload test durations
+        if: steps.restore-test-durations.outputs.cache-hit != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-durations-before
+          path: /tmp/.test_durations
+          include-hidden-files: true
+    outputs:
+      # This output will be used to know if we had a cache hit (exact match or not), or no cache hit at all.
+      # See documentation about the `cache-hit` output:
+      # https://github.com/actions/cache/blob/main/README.md#outputs
+      # > cache-hit - A string value to indicate an exact match was found for the key.
+      # > If there's a cache hit, this will be 'true' or 'false' to indicate if there's an exact match
+      # > for key.
+      # > If there's a cache miss, this will be an empty string.
+      restored: ${{ steps.restore-test-durations.outputs.cache-hit == '' && 'false' || 'true' }}
+
+  test:
+    runs-on: ubuntu-latest  # You need to tweak that to use your own Docker image
+    strategy:
+      fail-fast: false
+      matrix:
+        job-index: [ 1, 2, 3, 4, 5, 6, 7, 8 ]
+    steps:
+      # These two steps will be executed only when there IS a cache hit (exact match or not). When a matrix 
+      # job is retried, it will reuse the same artifact, to execute the exact same split.
+      - name: Download test durations
+        if: needs.restore-test-durations.outputs.restored == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: test-durations-before
+      - name: Use cached test durations
+        if: needs.restore-test-durations.outputs.restored == 'true'
+        run: mv .test_durations /path/to/your/app/.test_durations
+        
+      # This step will be executed only when there is NO cache hit.
+      # You need to commit file `.test_durations_fallback`.
+      # You can also refresh it manually from time to time to keep an up-to-date fallback
+      # (see step "Upload final test durations" below).
+      - name: Use fallback test durations
+        if: needs.restore-test-durations.outputs.restored == 'false'
+        run: mv .test_durations_fallback .test_durations
+
+      # When running pytest, we write the new test durations using options
+      # `--store-durations --clean-durations`.
+      # Option `--clean-durations` is undocumented but you can check its implementation here:
+      # https://github.com/jerry-git/pytest-split/blob/fb9af7e0122c18a96a7c01ca734c4ab01027f8d9/src/pytest_split/plugin.py#L68-L76
+      # > Removes the test duration info for tests which are not present while running the suite with
+      # > '--store-durations'.
       - uses: ./.github/actions/prepare_FABulous_container
         with:
           additional_system_packages: "iverilog"
       - name: Run pytest
         run: |
-          echo "Running pytest with PATH=$PATH"
-          pytest -v -x
+          pytest \
+            --retries 1 --cumulative-timing 1 \
+            --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
+            --store-durations --clean-durations 
+
+      # Each matrix job uploads its freshly updated partial test durations. We regroup them all
+      # within one final file in the "Merge all partial test durations" step below.
+      - name: Upload test durations
+        if: github.run_attempt == 1
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-durations-after-partial-${{ matrix.job-index }}
+          path: .test_durations
+          if-no-files-found: error
+          include-hidden-files: true
+
+  cache-test-durations:
+    name: Cache test durations
+    needs: test
+    if: github.run_attempt == 1 && (success() || failure())
+    runs-on: ubuntu-latest  # You need to tweak that to use your own runner
+    steps:
+      - name: Download all partial test durations
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-durations-after-partial-*
+          
+      # This step regroups the 8 partial files and sorts keys alphabetically:
+      - name: Merge all partial test durations
+        run: |
+          jq -s 'add' test-durations-after-partial-*/.test_durations \
+          | jq 'to_entries | sort_by(.key) | from_entries' \
+          > /tmp/.test_durations
+
+      # This step uploads the final file as an artifact. You can then download it from the Github GUI,
+      # and use it to manually commit file `.test_durations_fallback` from time to time,
+      # to keep an up-to-date fallback:
+      - name: Upload final test durations
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-durations-after
+          path: /tmp/.test_durations
+          if-no-files-found: error
+          include-hidden-files: true
+
+      # Finally, we cache the new test durations. This file will be restored in next CI execution
+      # (see step "Restore test durations" above).
+      - name: Cache final test durations
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/.test_durations
+          key: tests-durations-${{ github.sha }}
+
+  # run_pytest:
+  #   runs-on: ubuntu-latest
+  #   env:
+  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with: 
+  #         token: ${{ secrets.GITHUB_TOKEN }}
+  #     - uses: ./.github/actions/prepare_FABulous_container
+  #       with:
+  #         additional_system_packages: "iverilog"
+  #     - name: Run pytest
+  #       run: |
+  #         echo "Running pytest with PATH=$PATH"
+  #         pytest -v -x

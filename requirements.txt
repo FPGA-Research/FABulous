@@ -10,3 +10,4 @@ pytest>=8.4.1,
 pytest-mock>=3.14.1,
 cocotb>=1.9.2
 cocotb-test>=0.2.6
+pytest-split
