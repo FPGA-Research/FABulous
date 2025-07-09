@@ -84,7 +84,6 @@ jobs:
       - name: Run pytest
         run: |
           pytest \
-            --retries 1 --cumulative-timing 1 \
             --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
             --store-durations --clean-durations 
 
