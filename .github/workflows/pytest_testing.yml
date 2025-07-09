@@ -109,7 +109,7 @@ jobs:
       # This step regroups the 8 partial files and sorts keys alphabetically:
       - name: Merge all partial test durations
         run: |
-          jq -s 'add' test-durations-after-partial-*/.test_durations \
+          jq -s 'add' test-durations-after-partial-*/.test_durations_cached \
           | jq 'to_entries | sort_by(.key) | from_entries' \
           > /tmp/.test_durations_cached
 
