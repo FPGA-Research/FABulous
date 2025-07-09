@@ -2,6 +2,7 @@ name: Testing with pytest and cocotb
 
 on: [push, pull_request]
 
+# copy and modified based on https://github.com/jerry-git/pytest-split/issues/20#issuecomment-2576031836
 
 jobs:
   restore-test-durations:
@@ -9,8 +10,6 @@ jobs:
     runs-on: ubuntu-latest  # You need to tweak that to use your own runner
     steps:
       # It's mandatory to use the exact same path when saving/restoring cache, otherwise it won't work
-      # (the same key is not enough - see documentation:
-      # https://github.com/actions/cache/blob/main/README.md#cache-version).
       # I went with `/tmp/.test_durations`.
       - name: Restore test durations
         id: restore-test-durations
@@ -35,23 +34,23 @@ jobs:
           include-hidden-files: true
     outputs:
       # This output will be used to know if we had a cache hit (exact match or not), or no cache hit at all.
-      # See documentation about the `cache-hit` output:
-      # https://github.com/actions/cache/blob/main/README.md#outputs
       # > cache-hit - A string value to indicate an exact match was found for the key.
-      # > If there's a cache hit, this will be 'true' or 'false' to indicate if there's an exact match
-      # > for key.
+      # > If there's a cache hit, this will be 'true' or 'false' to indicate if there's an exact match for key.
       # > If there's a cache miss, this will be an empty string.
       restored: ${{ steps.restore-test-durations.outputs.cache-hit == '' && 'false' || 'true' }}
 
   test:
-    runs-on: ubuntu-latest  # You need to tweak that to use your own Docker image
+    needs: restore-test-durations
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       fail-fast: false
       matrix:
         job-index: [ 1, 2, 3, 4, 5, 6, 7, 8 ]
     steps:
-      # These two steps will be executed only when there IS a cache hit (exact match or not). When a matrix 
-      # job is retried, it will reuse the same artifact, to execute the exact same split.
+      # These two steps will be executed only when there IS a cache hit (exact match or not). 
+      # When a matrix job is retried, it will reuse the same artifact, to execute the exact same split.
       - uses: actions/checkout@v4
         with: 
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -74,10 +73,9 @@ jobs:
 
       # When running pytest, we write the new test durations using options
       # `--store-durations --clean-durations`.
-      # Option `--clean-durations` is undocumented but you can check its implementation here:
-      # https://github.com/jerry-git/pytest-split/blob/fb9af7e0122c18a96a7c01ca734c4ab01027f8d9/src/pytest_split/plugin.py#L68-L76
-      # > Removes the test duration info for tests which are not present while running the suite with
-      # > '--store-durations'.
+      # Option `--clean-durations` is undocumented
+      # Removes the test duration info for tests which are not present 
+      # while running the suite with '--store-durations'.
       - uses: ./.github/actions/prepare_FABulous_container
         with:
           additional_system_packages: "iverilog"
@@ -102,7 +100,7 @@ jobs:
     name: Cache test durations
     needs: test
     if: github.run_attempt == 1 && (success() || failure())
-    runs-on: ubuntu-latest  # You need to tweak that to use your own runner
+    runs-on: ubuntu-latest
     steps:
       - name: Download all partial test durations
         uses: actions/download-artifact@v4
@@ -128,25 +126,8 @@ jobs:
           include-hidden-files: true
 
       # Finally, we cache the new test durations. This file will be restored in next CI execution
-      # (see step "Restore test durations" above).
       - name: Cache final test durations
         uses: actions/cache/save@v4
         with:
           path: /tmp/.test_durations
           key: tests-durations-${{ github.sha }}
-
-  # run_pytest:
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with: 
-  #         token: ${{ secrets.GITHUB_TOKEN }}
-  #     - uses: ./.github/actions/prepare_FABulous_container
-  #       with:
-  #         additional_system_packages: "iverilog"
-  #     - name: Run pytest
-  #       run: |
-  #         echo "Running pytest with PATH=$PATH"
-  #         pytest -v -x
