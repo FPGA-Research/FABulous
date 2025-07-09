@@ -101,15 +101,13 @@ jobs:
             exit_code=$?
             if [ $exit_code -eq 5 ]; then
               echo "No tests were collected (exit code 5). This is expected for some groups."
-              echo "Creating empty .test_durations file for skipped group"
-              echo "{}" > .test_durations 
               exit 0
             else
               echo "pytest failed with exit code $exit_code"
               exit $exit_code
             fi
           }
-            
+
       # Each matrix job uploads its freshly updated partial test durations. We regroup them all
       # within one final file in the "Merge all partial test durations" step below.
       - name: Upload test durations
