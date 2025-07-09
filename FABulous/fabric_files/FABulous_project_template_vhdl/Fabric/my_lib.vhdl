@@ -230,6 +230,18 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
+entity break_comb_loop is
+  port (
+    A : in std_logic;
+    X : out std_logic
+  );
+end entity;
+
+architecture from_verilog of break_comb_loop is
+begin
+  X <= A;
+end architecture;
+
 entity cus_mux41 is
   port (
     A0 : in std_logic;
@@ -245,50 +257,43 @@ entity cus_mux41 is
 end entity;
 
 architecture from_verilog of cus_mux41 is
-  signal SEL : unsigned(1 downto 0);
-  signal X_reg : std_logic;
-  signal LPM_d0_ivl_1 : std_logic;
-  signal LPM_d1_ivl_1 : std_logic;
+  signal AIN : std_logic_vector(3 downto 0);
+  signal B0 : std_logic;
+  signal B1 : std_logic;
 
-  component my_buf is
+  component break_comb_loop is
   port
   (
     A : in std_logic;
     X : out std_logic
   );
   end component;
-  signal AIN : std_logic_vector(3 downto 0);
 
 begin
-  SEL <= S1 & S0;
-
-  my_buf_inst0: my_buf
+  break_comb_loop_inst0: break_comb_loop
     port map (
       A => A0,
       X => AIN(0)
     );
-  my_buf_inst1: my_buf
+  break_comb_loop_inst1: break_comb_loop
     port map (
       A => A1,
       X => AIN(1)
     );
-  my_buf_inst2: my_buf
+  break_comb_loop_inst2: break_comb_loop
     port map (
       A => A2,
       X => AIN(2)
     );
-  my_buf_inst3: my_buf
+  break_comb_loop_inst3: break_comb_loop
     port map (
       A => A3,
       X => AIN(3)
     );
 
-  with SEL select
-    X <= AIN(0)  when "00",
-         AIN(1)  when "01",
-         AIN(2)  when "10",
-         AIN(3)  when "11",
-         'U'  when others;
+  B0 <= AIN(1) when S0 = '1' else AIN(0);
+  B1 <= AIN(3) when S0 = '1' else AIN(2);
+  X <= B1 when S1 = '1' else B0;
 
 end architecture;
 
@@ -434,49 +439,43 @@ entity cus_mux41_buf is
 end entity;
 
 architecture from_verilog of cus_mux41_buf is
-  signal SEL : unsigned(1 downto 0);
-  signal LPM_d0_ivl_1 : std_logic;
-  signal LPM_d1_ivl_1 : std_logic;
+  signal AIN : std_logic_vector(3 downto 0);
+  signal B0 : std_logic;
+  signal B1 : std_logic;
 
-  component my_buf is
+  component break_comb_loop is
   port
   (
     A : in std_logic;
     X : out std_logic
   );
   end component;
-  signal AIN : std_logic_vector(3 downto 0);
 
 begin
-  SEL <= S1 & S0;
-
-  my_buf_inst0: my_buf
+  break_comb_loop_inst0: break_comb_loop
     port map (
       A => A0,
       X => AIN(0)
     );
-  my_buf_inst1: my_buf
+  break_comb_loop_inst1: break_comb_loop
     port map (
       A => A1,
       X => AIN(1)
     );
-  my_buf_inst2: my_buf
+  break_comb_loop_inst2: break_comb_loop
     port map (
       A => A2,
       X => AIN(2)
     );
-  my_buf_inst3: my_buf
-   port map (
+  break_comb_loop_inst3: break_comb_loop
+    port map (
       A => A3,
       X => AIN(3)
     );
 
-  with SEL select
-    X <= AIN(0)  when "00",
-         AIN(1)  when "01",
-         AIN(2)  when "10",
-         AIN(3)  when "11",
-        'U'  when others;
+  B0 <= AIN(1) when S0 = '1' else AIN(0);
+  B1 <= AIN(3) when S0 = '1' else AIN(2);
+  X <= B1 when S1 = '1' else B0;
 end architecture;
 
 library ieee;
@@ -934,6 +933,13 @@ component cus_mux81_buf is
 end component;
 
 component my_buf is
+  port (
+    A : in std_logic;
+    X : out std_logic
+  );
+end component;
+
+component break_comb_loop is
   port (
     A : in std_logic;
     X : out std_logic
