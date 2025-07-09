@@ -3,28 +3,28 @@ description: Composite action to prepare a container with everything needed to r
 
 inputs:
   python_version:
-    description: 'Python version to use'
+    description: "Python version to use"
     required: false
-    default: '3.12'
+    default: "3.12"
   additional_system_packages:
-    description: 'Additional ubunut packages to install'
+    description: "Additional ubunut packages to install"
     required: false
-    default: ''
+    default: ""
   additional_python_packages:
-    description: 'Additional python packages to install'
+    description: "Additional python packages to install"
     required: false
-    default: ''
+    default: ""
   install_GHDL_mcode:
-    description: 'Install GHDL with mcode backend'
+    description: "Install GHDL with mcode backend"
     required: false
     default: false
   github_token:
-    description: 'GitHub token for API access'
+    description: "GitHub token for API access"
     required: false
     default: ${{ github.token }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -69,5 +69,6 @@ runs:
     - name: Set PATH
       shell: bash
       run: |
-        echo "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> "$GITHUB_PATH"
+        GHDL_PATH=$(dirname "$(which ghdl 2>/dev/null || echo '')")
+        echo "$GHDL_PATH:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> "$GITHUB_PATH"
 
