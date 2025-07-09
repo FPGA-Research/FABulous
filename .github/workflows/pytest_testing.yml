@@ -97,7 +97,11 @@ jobs:
         id: test-collection
         run: |
           echo "Collecting tests for group ${{ matrix.job-index }}..."
-          selected_count=$(pytest --collect-only --quiet --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} | grep -c "selected" || echo "0")
+          collection_output=$(pytest --collect-only --quiet --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} 2>&1)
+          echo "$collection_output"
+          
+          # Extract the selected count from the output line like "collected 415 items / 415 deselected / 0 selected"
+          selected_count=$(echo "$collection_output" | grep -o "[0-9]\+ selected" | grep -o "[0-9]\+" || echo "0")
           echo "Tests selected: $selected_count"
           echo "selected_count=$selected_count" >> $GITHUB_OUTPUT
           
