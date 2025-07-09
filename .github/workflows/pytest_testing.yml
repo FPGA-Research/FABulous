@@ -10,12 +10,11 @@ jobs:
     runs-on: ubuntu-latest  # You need to tweak that to use your own runner
     steps:
       # It's mandatory to use the exact same path when saving/restoring cache, otherwise it won't work
-      # I went with `/tmp/.test_durations`.
       - name: Restore test durations
         id: restore-test-durations
         uses: actions/cache/restore@v4
         with:
-          path: /tmp/.test_durations
+          path: /tmp/.test_durations_cached
           key: tests-durations-${{ github.sha }}
           restore-keys: |
             tests-durations-${{ github.sha }}
@@ -30,7 +29,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-durations-before
-          path: /tmp/.test_durations
+          path: /tmp/.test_durations_cached
           include-hidden-files: true
     outputs:
       # This output will be used to know if we had a cache hit (exact match or not), or no cache hit at all.
@@ -61,7 +60,7 @@ jobs:
           name: test-durations-before
       - name: Use cached test durations
         if: needs.restore-test-durations.outputs.restored == 'true'
-        run: mv .test_durations .test_durations
+        run: mv .test_durations_cached .test_durations
         
       # This step will be executed only when there is NO cache hit.
       # You need to commit file `.test_durations_fallback`.
@@ -112,7 +111,7 @@ jobs:
         run: |
           jq -s 'add' test-durations-after-partial-*/.test_durations \
           | jq 'to_entries | sort_by(.key) | from_entries' \
-          > /tmp/.test_durations
+          > /tmp/.test_durations_cached
 
       # This step uploads the final file as an artifact. You can then download it from the Github GUI,
       # and use it to manually commit file `.test_durations_fallback` from time to time,
@@ -121,7 +120,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-durations-after
-          path: /tmp/.test_durations
+          path: /tmp/.test_durations_cached
           if-no-files-found: error
           include-hidden-files: true
 
@@ -129,5 +128,5 @@ jobs:
       - name: Cache final test durations
         uses: actions/cache/save@v4
         with:
-          path: /tmp/.test_durations
+          path: /tmp/.test_durations_cached
           key: tests-durations-${{ github.sha }}
