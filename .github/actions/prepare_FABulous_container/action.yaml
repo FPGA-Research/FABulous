@@ -60,3 +60,8 @@ runs:
       shell: bash
       run: |
         pip3 install -e .
+    - name: Set PATH
+      shell: bash
+      run: |
+        echo "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> "$GITHUB_PATH"
+

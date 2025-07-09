@@ -17,5 +17,5 @@ jobs:
           additional_system_packages: "iverilog"
       - name: Run pytest
         run: |
-          export PATH="/usr/bin:$PATH"
+          echo "Running pytest with PATH=$PATH"
           pytest -v -x
