@@ -93,35 +93,23 @@ jobs:
             cat .test_durations
           fi
       
-      - name: Check test collection
-        id: test-collection
-        run: |
-          echo "Collecting tests for group ${{ matrix.job-index }}..."
-          collection_output=$(pytest --collect-only --quiet --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} 2>&1)
-          echo "$collection_output"
-          
-          # Extract the selected count from the output line like "collected 415 items / 415 deselected / 0 selected"
-          selected_count=$(echo "$collection_output" | grep -o "[0-9]\+ selected" | grep -o "[0-9]\+" || echo "0")
-          echo "Tests selected: $selected_count"
-          echo "selected_count=$selected_count" >> $GITHUB_OUTPUT
-          
-          if [ "$selected_count" -eq "0" ]; then
-            echo "No tests assigned to this group. Will skip pytest execution."
-          fi
-      
       - name: Run pytest
-        if: steps.test-collection.outputs.selected_count != '0'
         run: |
           pytest \
             --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
-            --store-durations --clean-durations
-      
-      - name: Create empty test durations for skipped groups
-        if: steps.test-collection.outputs.selected_count == '0'
-        run: |
-          echo "Creating empty .test_durations file for skipped group"
-          echo "{}" > .test_durations 
-
+            --store-durations --clean-durations || {
+            exit_code=$?
+            if [ $exit_code -eq 5 ]; then
+              echo "No tests were collected (exit code 5). This is expected for some groups."
+              echo "Creating empty .test_durations file for skipped group"
+              echo "{}" > .test_durations 
+              exit 0
+            else
+              echo "pytest failed with exit code $exit_code"
+              exit $exit_code
+            fi
+          }
+            
       # Each matrix job uploads its freshly updated partial test durations. We regroup them all
       # within one final file in the "Merge all partial test durations" step below.
       - name: Upload test durations
