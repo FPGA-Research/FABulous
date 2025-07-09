@@ -92,11 +92,31 @@ jobs:
           else
             cat .test_durations
           fi
+      
+      - name: Check test collection
+        id: test-collection
+        run: |
+          echo "Collecting tests for group ${{ matrix.job-index }}..."
+          selected_count=$(pytest --collect-only --quiet --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} | grep -c "selected" || echo "0")
+          echo "Tests selected: $selected_count"
+          echo "selected_count=$selected_count" >> $GITHUB_OUTPUT
+          
+          if [ "$selected_count" -eq "0" ]; then
+            echo "No tests assigned to this group. Will skip pytest execution."
+          fi
+      
       - name: Run pytest
+        if: steps.test-collection.outputs.selected_count != '0'
         run: |
           pytest \
             --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
-            --store-durations --clean-durations 
+            --store-durations --clean-durations
+      
+      - name: Create empty test durations for skipped groups
+        if: steps.test-collection.outputs.selected_count == '0'
+        run: |
+          echo "Creating empty .test_durations file for skipped group"
+          echo "{}" > .test_durations 
 
       # Each matrix job uploads its freshly updated partial test durations. We regroup them all
       # within one final file in the "Merge all partial test durations" step below.
