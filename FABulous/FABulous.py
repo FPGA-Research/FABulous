@@ -182,6 +182,10 @@ def main():
         create_project(projectDir, args.writer)
         exit(0)
 
+    if args.install_oss_cad_suite:
+        install_oss_cad_suite(projectDir, True)
+        exit(0)
+
     if not (projectDir / ".FABulous").exists():
         logger.error(
             "The directory provided is not a FABulous project as it does not have a .FABulous folder"
@@ -191,10 +195,6 @@ def main():
     if not projectDir.exists():
         logger.error(f"The directory provided does not exist: {projectDir}")
         exit(1)
-
-    if args.install_oss_cad_suite:
-        install_oss_cad_suite(projectDir, True)
-        exit(0)
 
     fab_CLI = FABulous_CLI(
         os.getenv("FAB_PROJ_LANG"),
