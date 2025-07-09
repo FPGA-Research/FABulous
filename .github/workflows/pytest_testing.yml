@@ -52,6 +52,9 @@ jobs:
     steps:
       # These two steps will be executed only when there IS a cache hit (exact match or not). When a matrix 
       # job is retried, it will reuse the same artifact, to execute the exact same split.
+      - uses: actions/checkout@v4
+        with: 
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Download test durations
         if: needs.restore-test-durations.outputs.restored == 'true'
         uses: actions/download-artifact@v4
@@ -59,7 +62,7 @@ jobs:
           name: test-durations-before
       - name: Use cached test durations
         if: needs.restore-test-durations.outputs.restored == 'true'
-        run: mv .test_durations /path/to/your/app/.test_durations
+        run: mv .test_durations .test_durations
         
       # This step will be executed only when there is NO cache hit.
       # You need to commit file `.test_durations_fallback`.
