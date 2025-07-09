@@ -75,23 +75,23 @@ jobs:
             echo ".test_durations_fallback does not exist! Run with default even splits."
           fi
 
+      - uses: ./.github/actions/prepare_FABulous_container
+        with:
+          additional_system_packages: "iverilog"
       # When running pytest, we write the new test durations using options
       # `--store-durations --clean-durations`.
       # Option `--clean-durations` is undocumented
       # Removes the test duration info for tests which are not present 
       # while running the suite with '--store-durations'.
-      - uses: ./.github/actions/prepare_FABulous_container
-        with:
-          additional_system_packages: "iverilog"
 
-      - name: check .test_durations
-        run: |
-          if [ ! -f .test_durations ]; then
-            echo ".test_durations file does not exist!"
-            exit 1
-          else
-            cat .test_durations
-          fi
+      - name: Install GHDL mcode nightly
+        # GHDL mcode is required to test our fabric.
+        # The oss-cad-suite action installs GHDL, but with the LLVM backend, which is much slower for our simulation
+        uses: ghdl/setup-ghdl@v1
+        with:
+          version: nightly
+          backend: mcode
+          investigate: true
       
       - name: Run pytest
         run: |
