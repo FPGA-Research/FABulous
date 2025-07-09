@@ -26,5 +26,5 @@ def test_run_vhdl_simulation_makefile(tmp_path):
     result = run(["FABulous", "-c", str(project_dir), "-w", "vhdl"])
     assert result.returncode == 0
 
-    result = run(["make", "full_sim"], cwd=project_dir / "Test")
+    result = run(["make", "FAB_sim"], cwd=project_dir / "Test")
     assert result.returncode == 0
