@@ -31,6 +31,10 @@ jobs:
           name: test-durations-before
           path: /tmp/.test_durations_cached
           include-hidden-files: true
+
+      - uses: ./.github/actions/prepare_FABulous_container
+        with:
+          additional_system_packages: "iverilog"
     outputs:
       # This output will be used to know if we had a cache hit (exact match or not), or no cache hit at all.
       # > cache-hit - A string value to indicate an exact match was found for the key.
@@ -80,10 +84,6 @@ jobs:
       # Option `--clean-durations` is undocumented
       # Removes the test duration info for tests which are not present 
       # while running the suite with '--store-durations'.
-      - uses: ./.github/actions/prepare_FABulous_container
-        with:
-          additional_system_packages: "iverilog"
-
       - name: check .test_durations
         run: |
           if [ ! -f .test_durations ]; then
@@ -95,6 +95,8 @@ jobs:
       
       - name: Run pytest
         run: |
+          echo "Running at PATH=$PATH"
+          which ghdl
           pytest \
             --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
             --store-durations --clean-durations || {
