@@ -83,6 +83,15 @@ jobs:
       - uses: ./.github/actions/prepare_FABulous_container
         with:
           additional_system_packages: "iverilog"
+
+      - name: check .test_durations
+        run: |
+          if [ ! -f .test_durations ]; then
+            echo ".test_durations file does not exist!"
+            exit 1
+          else
+            cat .test_durations
+          fi
       - name: Run pytest
         run: |
           pytest \
