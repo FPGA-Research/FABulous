@@ -67,8 +67,13 @@ jobs:
       # You can also refresh it manually from time to time to keep an up-to-date fallback
       # (see step "Upload final test durations" below).
       - name: Use fallback test durations
-        if: needs.restore-test-durations.outputs.restored == 'false'
-        run: mv .test_durations_fallback .test_durations
+        if: needs.restore-test-durations.outputs.restored == 'false' 
+        run: |
+          if [ -f .test_durations_fallback ]; then
+            mv .test_durations_fallback .test_durations
+          else
+            echo ".test_durations_fallback does not exist! Run with default even splits."
+          fi
 
       # When running pytest, we write the new test durations using options
       # `--store-durations --clean-durations`.
