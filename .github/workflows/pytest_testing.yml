@@ -31,10 +31,6 @@ jobs:
           name: test-durations-before
           path: /tmp/.test_durations_cached
           include-hidden-files: true
-
-      - uses: ./.github/actions/prepare_FABulous_container
-        with:
-          additional_system_packages: "iverilog"
     outputs:
       # This output will be used to know if we had a cache hit (exact match or not), or no cache hit at all.
       # > cache-hit - A string value to indicate an exact match was found for the key.
@@ -57,9 +53,6 @@ jobs:
       - uses: actions/checkout@v4
         with: 
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: ./.github/actions/prepare_FABulous_container
-        with:
-          additional_system_packages: "iverilog"
       - name: Download test durations
         if: needs.restore-test-durations.outputs.restored == 'true'
         uses: actions/download-artifact@v4
@@ -87,6 +80,10 @@ jobs:
       # Option `--clean-durations` is undocumented
       # Removes the test duration info for tests which are not present 
       # while running the suite with '--store-durations'.
+      - uses: ./.github/actions/prepare_FABulous_container
+        with:
+          additional_system_packages: "iverilog"
+
       - name: check .test_durations
         run: |
           if [ ! -f .test_durations ]; then
