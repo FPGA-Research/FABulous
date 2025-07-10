@@ -587,7 +587,7 @@ end entity;
 architecture from_verilog of cus_mux21 is
   signal SEL : std_logic;
 
-  component my_buf is
+  component break_comb_loop is
   port
   (
     A : in std_logic;
