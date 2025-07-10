@@ -107,5 +107,5 @@ runs:
     - name: Set PATH
       shell: bash
       run: |
-        echo "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> "$GITHUB_PATH"
+        echo "/home/runner/work/FABulous/FABulous/install/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> "$GITHUB_PATH"
 
