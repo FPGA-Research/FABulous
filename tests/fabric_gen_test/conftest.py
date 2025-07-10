@@ -293,7 +293,6 @@ def cocotb_runner(tmp_path: Path):
             runner.build(verilog_sources=sources, hdl_toplevel=hdl_top_level, always=True, build_dir=build_dir)
         elif hdl_toplevel_lang == ".vhd":
             # GHDL converts identifiers to lowercase for elaboration and execution
-            hdl_top_level = hdl_top_level.lower()
             runner.build(vhdl_sources=sources, hdl_toplevel=hdl_top_level, always=True, build_dir=build_dir)
 
             # Copy the elaborated binary to the test directory

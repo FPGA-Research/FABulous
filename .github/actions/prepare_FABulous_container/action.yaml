@@ -21,7 +21,7 @@ inputs:
   github_token:
     description: "GitHub token for API access"
     required: false
-    default: ${{ github.token }}
+    default: ${{ secrets.GITHUB_TOKEN }}
 
 runs:
   using: "composite"
