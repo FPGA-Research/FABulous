@@ -64,27 +64,9 @@ runs:
       uses: YosysHQ/setup-oss-cad-suite@v3
       with:
         github-token: ${{ inputs.github_token }}
-    - name: Get GHDL version
-      if: ${{ inputs.install_GHDL_mcode == 'true' }}
-      id: ghdl-version
-      shell: bash
-      run: |
-        # Get current date for nightly builds since they change daily
-        GHDL_DATE=$(date +%Y%m%d)
-        echo "version=nightly-$GHDL_DATE" >> $GITHUB_OUTPUT
-    - name: Cache GHDL
-      if: ${{ inputs.install_GHDL_mcode == 'true' }}
-      id: cache-ghdl
-      uses: actions/cache@v4
-      with:
-        path: /usr/local/bin/ghdl*
-        key: ghdl-mcode-${{ runner.os }}-${{ steps.ghdl-version.outputs.version }}-${{ hashFiles('.github/actions/prepare_FABulous_container/action.yaml') }}
-        restore-keys: |
-          ghdl-mcode-${{ runner.os }}-nightly-
     - name: Install GHDL mcode nightly
       # GHDL mcode is required to test our fabric.
       # The oss-cad-suite action installs GHDL, but with the LLVM backend, which is much slower for our simulation
-      if: ${{ inputs.install_GHDL_mcode == 'true' && steps.cache-ghdl.outputs.cache-hit != 'true' }}
       uses: ghdl/setup-ghdl@v1
       with:
         version: nightly
@@ -125,7 +107,5 @@ runs:
     - name: Set PATH
       shell: bash
       run: |
-        which ghdl
-        GHDL_PATH=$(dirname "$(which ghdl)")
-        echo "$GHDL_PATH:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> $GITHUB_PATH
+        echo "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> $GITHUB_PATH
 
