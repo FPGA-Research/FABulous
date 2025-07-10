@@ -78,16 +78,8 @@ jobs:
       - uses: ./.github/actions/prepare_FABulous_container
         with:
           additional_system_packages: "iverilog"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install GHDL mcode nightly
-        # GHDL mcode is required to test our fabric.
-        # The oss-cad-suite action installs GHDL, but with the LLVM backend, which is much slower for our simulation
-        uses: ghdl/setup-ghdl@v1
-        with:
-          version: nightly
-          backend: mcode
-          investigate: true
-          
+          github_token: ${{ secrets.GITHUB_TOKEN }}[]
+
       # When running pytest, we write the new test durations using options
       # `--store-durations --clean-durations`.
       # Option `--clean-durations` is undocumented
