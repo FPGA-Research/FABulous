@@ -70,7 +70,7 @@ runs:
     - name: Set PATH
       shell: bash
       run: |
-        echo which ghdl
+        which ghdl
         echo "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> "$GITHUB_PATH"
         echo "$GITHUB_PATH"
 
