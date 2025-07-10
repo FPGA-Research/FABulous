@@ -5,9 +5,9 @@ on: [push, pull_request]
 # copy and modified based on https://github.com/jerry-git/pytest-split/issues/20#issuecomment-2576031836
 
 jobs:
-  restore-test-durations:
+  restore_test_durations:
     name: Restore test durations
-    runs-on: ubuntu-latest  # You need to tweak that to use your own runner
+    runs-on: ubuntu-latest
     steps:
       # It's mandatory to use the exact same path when saving/restoring cache, otherwise it won't work
       - name: Restore test durations
@@ -38,8 +38,8 @@ jobs:
       # > If there's a cache miss, this will be an empty string.
       restored: ${{ steps.restore-test-durations.outputs.cache-hit == '' && 'false' || 'true' }}
 
-  test:
-    needs: restore-test-durations
+  pytest_testing:
+    needs: restore_test_durations
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -54,12 +54,12 @@ jobs:
         with: 
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Download test durations
-        if: needs.restore-test-durations.outputs.restored == 'true'
+        if: needs.restore_test_durations.outputs.restored == 'true'
         uses: actions/download-artifact@v4
         with:
           name: test-durations-before
       - name: Use cached test durations
-        if: needs.restore-test-durations.outputs.restored == 'true'
+        if: needs.restore_test_durations.outputs.restored == 'true'
         run: mv .test_durations_cached .test_durations
         
       # This step will be executed only when there is NO cache hit.
@@ -67,7 +67,7 @@ jobs:
       # You can also refresh it manually from time to time to keep an up-to-date fallback
       # (see step "Upload final test durations" below).
       - name: Use fallback test durations
-        if: needs.restore-test-durations.outputs.restored == 'false' 
+        if: needs.restore_test_durations.outputs.restored == 'false' 
         run: |
           if [ -f .test_durations_fallback ]; then
             mv .test_durations_fallback .test_durations
@@ -112,9 +112,9 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
 
-  cache-test-durations:
+  cache_test_durations:
     name: Cache test durations
-    needs: test
+    needs: pytest_testing
     if: github.run_attempt == 1 && (success() || failure())
     runs-on: ubuntu-latest
     steps:
