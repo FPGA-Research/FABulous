@@ -43,6 +43,7 @@ runs:
         version: nightly
         backend: mcode
         investigate: true
+        install-directory: /usr/local/bin
     - name: Install additional ubunutu packages
       if: ${{ inputs.additional_system_packages != '' }}
       shell: bash
@@ -69,6 +70,6 @@ runs:
     - name: Set PATH
       shell: bash
       run: |
-        GHDL_PATH=$(dirname "$(which ghdl 2>/dev/null || echo '')")
-        echo "$GHDL_PATH:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> "$GITHUB_PATH"
+        echo "/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> "$GITHUB_PATH"
+        echo "$GITHUB_PATH"
 
