@@ -55,7 +55,7 @@ runs:
         path: |
           ~/.local/share/oss-cad-suite
           ~/bin
-        key: oss-cad-suite-${{ runner.os }}-${{ steps.oss-cad-version.outputs.version }}-${{ hashFiles('.github/actions/prepare_FABulous_container/action.yaml') }}
+        key: oss-cad-suite-${{ runner.os }}-${{ steps.oss-cad-version.outputs.version }}
         restore-keys: |
           oss-cad-suite-${{ runner.os }}-${{ steps.oss-cad-version.outputs.version }}-
           oss-cad-suite-${{ runner.os }}-
@@ -72,17 +72,8 @@ runs:
         version: nightly
         backend: mcode
         investigate: true
-    - name: Cache APT packages
-      if: ${{ inputs.additional_system_packages != '' }}
-      id: cache-apt
-      uses: actions/cache@v4
-      with:
-        path: /var/cache/apt
-        key: apt-${{ runner.os }}-${{ hashFiles('**/action.yaml') }}-${{ inputs.additional_system_packages }}
-        restore-keys: |
-          apt-${{ runner.os }}-
     - name: Install additional ubuntu packages
-      if: ${{ inputs.additional_system_packages != '' && steps.cache-apt.outputs.cache-hit != 'true' }}
+      if: ${{ inputs.additional_system_packages != '' }}
       shell: bash
       run: |
         sudo apt-get update
