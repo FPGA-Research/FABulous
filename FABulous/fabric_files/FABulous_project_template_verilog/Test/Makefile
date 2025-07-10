@@ -22,7 +22,7 @@ ifneq ($(wildcard ${USER_DESIGN_DIR}/custom_prims.v),)
 		CUSTOM_PRIMS=-extra-plib ${USER_DESIGN_DIR}/custom_prims.v
 endif
 
-.PHONY: all run_FABulous_demo full build_test_design run_simulation_emulation mkdir_build clean
+.PHONY: all run_FABulous_demo full build_test_design run_simulation_emulation mkdir_build clean FAB_sim build_demo_fabric
 
 sim: build_test_design run_simulation clean
 

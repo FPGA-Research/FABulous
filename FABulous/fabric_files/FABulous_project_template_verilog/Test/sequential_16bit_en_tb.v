@@ -108,11 +108,3 @@ module sequential_16bit_en_tb;
     end
 
 endmodule
-
-module clk_buf(input A, output X);
-assign X = A;
-endmodule
-
-module break_comb_loop(input A, output X);
-assign X = A;
-endmodule

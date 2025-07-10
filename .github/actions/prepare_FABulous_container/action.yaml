@@ -14,10 +14,6 @@ inputs:
     description: "Additional python packages to install"
     required: false
     default: ""
-  install_GHDL_mcode:
-    description: "Install GHDL with mcode backend"
-    required: false
-    default: "false"
   github_token:
     description: "GitHub token for API access"
     required: false

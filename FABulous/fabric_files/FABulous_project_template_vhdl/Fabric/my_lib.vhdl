@@ -599,12 +599,12 @@ architecture from_verilog of cus_mux21 is
 begin
   SEL <= S;
 
-  my_buf_inst0: my_buf
+  break_comb_loop_inst0: break_comb_loop
     port map (
       A => A0,
       X => AIN(0)
     );
-  my_buf_inst1: my_buf
+  break_comb_loop_inst1: break_comb_loop
     port map (
       A => A1,
       X => AIN(1)

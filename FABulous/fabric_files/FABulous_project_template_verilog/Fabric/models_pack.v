@@ -147,6 +147,15 @@ module my_buf (A, X);
     assign X = A;
 endmodule
 
+module clk_buf(input A, output X);
+assign X = A;
+endmodule
+
+module break_comb_loop(input A, output X);
+assign X = A;
+endmodule
+
+
 module cus_mux41 (A0, A1, A2, A3, S0, S0N, S1, S1N, X);
     input A0;
     input A1;
