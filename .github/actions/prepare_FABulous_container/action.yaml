@@ -127,5 +127,5 @@ runs:
       run: |
         which ghdl
         GHDL_PATH=$(dirname "$(which ghdl)")
-        echo "$GHDL_PATH:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> "$GITHUB_PATH"
+        echo "$GHDL_PATH:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> $GITHUB_PATH
 
