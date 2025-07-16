@@ -2288,6 +2288,7 @@ class FabricGenerator:
         """
 
         specData = {
+            "legacy": True,
             "TileMap": {},
             "TileSpecs": {},
             "TileSpecs_No_Mask": {},
@@ -2309,6 +2310,14 @@ class FabricGenerator:
 
         specData["TileMap"] = tileMap
         configMemList: list[ConfigMem] = []
+
+        # Temporary fix for legacy support
+        for t in self.fabric.tile[0] + self.fabric.tile[-1]:
+            if t is None:
+                continue
+            if t.globalConfigBits > 0:
+                specData["legacy"] = False
+
         for y, row in enumerate(self.fabric.tile):
             for x, tile in enumerate(row):
                 if tile is None:
@@ -2358,6 +2367,7 @@ class FabricGenerator:
                 encodeDict = [-1] * (
                     self.fabric.maxFramesPerCol * self.fabric.frameBitsPerRow
                 )
+
                 maskDic = {}
                 for cfm in configMemList:
                     maskDic[cfm.frameIndex] = cfm.usedBitMask

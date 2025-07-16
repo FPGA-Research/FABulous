@@ -23,9 +23,7 @@ def bitstring_to_bytes(s):
 
 # CAD methods from summer vacation project 2020
 # Method to generate bitstream in the output format - more detail at the end
-def genBitstream(
-    fasmFile: str, specFile: str, bitstreamFile: str, legacy: bool = False
-):
+def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
     lGen = parse_fasm_filename(fasmFile)
     canonStr = fasm_tuple_to_string(lGen, True)
     canonList = list(parse_fasm_string(canonStr))
@@ -36,6 +34,7 @@ def genBitstream(
 
     FrameBitsPerRow = specDict["ArchSpecs"]["FrameBitsPerRow"]
     MaxFramesPerCol = specDict["ArchSpecs"]["MaxFramesPerCol"]
+    legacy = specDict.get("legacy", True)
 
     # Change this so it has the actual right dimensions, initialised as an empty bitstream
     for tile in specDict["TileMap"].keys():
@@ -206,9 +205,7 @@ def bit_gen():
     caseProcessedArguments = list(map(lambda x: x.strip(), sys.argv))
     processedArguments = list(map(lambda x: x.lower(), caseProcessedArguments))
     flagRE = re.compile(r"-\S*")
-    legacy = False
-    if "-legacy".lower() in str(sys.argv).lower():
-        legacy = True
+
     if "-genBitstream".lower() in str(sys.argv).lower():
         argIndex = processedArguments.index("-genBitstream".lower())
         if len(processedArguments) <= argIndex + 3:
@@ -231,7 +228,7 @@ def bit_gen():
         SpecFileName = caseProcessedArguments[argIndex + 2]
         OutFileName = caseProcessedArguments[argIndex + 3]
 
-        genBitstream(FasmFileName, SpecFileName, OutFileName, legacy)
+        genBitstream(FasmFileName, SpecFileName, OutFileName)
 
     if ("-help".lower() in str(sys.argv).lower()) or ("-h" in str(sys.argv).lower()):
         logger.info("Help:")
