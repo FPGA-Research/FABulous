@@ -2311,7 +2311,7 @@ class FabricGenerator:
         specData["TileMap"] = tileMap
         configMemList: list[ConfigMem] = []
 
-        # Temporary fix for legacy support
+        # TODO: Temporary fix for legacy support
         for t in self.fabric.tile[0] + self.fabric.tile[-1]:
             if t is None:
                 continue
