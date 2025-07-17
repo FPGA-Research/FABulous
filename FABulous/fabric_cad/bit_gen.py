@@ -116,7 +116,7 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
         vhdl_str += '";\n'
     vhdl_str += "end package emulate_bitstream;"
 
-    # Legacy mode does not output configuration bit for the first and last row
+    # Legacy mode does not output configuration bits for the first and last row
     if legacy:
         logger.info("Legacy FABulous 1.0 bitstream generation enabled.")
         start_row = num_rows - 2
