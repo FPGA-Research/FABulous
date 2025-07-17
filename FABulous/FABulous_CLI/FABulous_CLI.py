@@ -987,8 +987,6 @@ class FABulous_CLI(Cmd):
         json_file_path = file_path_no_suffix.with_suffix(".json")
         fasm_file_path = file_path_no_suffix.with_suffix(".fasm")
 
-        legacy_str = " --legacy" if args.legacy else ""
-
         do_synth_args = str(args.file)
 
         primsLib = f"{self.projectDir}/user_design/custom_prims.v"

@@ -2074,15 +2074,17 @@ class FabricGenerator:
             self.writer.addComment("BlockRAM ports", onNewLine=True)
             self.writer.addNewLine()
             self.writer.addConnectionVector(
-                "RAM2FAB_D_I", f"{(numberOfRows-2) * 4 * 4}-1"
+                "RAM2FAB_D_I", f"{(numberOfRows - 2) * 4 * 4}-1"
             )
             self.writer.addConnectionVector(
-                "FAB2RAM_D_O", f"{(numberOfRows-2) * 4 * 4}-1"
+                "FAB2RAM_D_O", f"{(numberOfRows - 2) * 4 * 4}-1"
             )
             self.writer.addConnectionVector(
-                "FAB2RAM_A_O", f"{(numberOfRows-2) * 4 * 2}-1"
+                "FAB2RAM_A_O", f"{(numberOfRows - 2) * 4 * 2}-1"
             )
-            self.writer.addConnectionVector("FAB2RAM_C_O", f"{(numberOfRows-2) * 4}-1")
+            self.writer.addConnectionVector(
+                "FAB2RAM_C_O", f"{(numberOfRows - 2) * 4}-1"
+            )
 
         self.writer.addNewLine()
         self.writer.addComment("Signal declarations", onNewLine=True)
