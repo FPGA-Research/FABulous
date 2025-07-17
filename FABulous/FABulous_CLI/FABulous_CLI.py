@@ -838,8 +838,6 @@ class FABulous_CLI(Cmd):
             f"{self.projectDir}/.FABulous/bitStreamSpec.bin",
             f"{self.projectDir}/{parent}/{bitstream_file}",
         ]
-        if args.legacy:
-            runCmd.append("-legacy")
         try:
             sp.run(runCmd, check=True)
         except sp.CalledProcessError as e:
