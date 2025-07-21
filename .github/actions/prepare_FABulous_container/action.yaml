@@ -59,6 +59,11 @@ runs:
         restore-keys: |
           oss-cad-suite-${{ runner.os }}-${{ steps.oss-cad-version.outputs.version }}-
           oss-cad-suite-${{ runner.os }}-
+    - name: set up OSS CAD path
+      if: steps.cache-oss-cad.outputs.cache-hit == 'true'
+      shell: bash
+      run: |
+        "${{ runner.temp }}/oss-cad-suite/bin:$PATH" >> "$GITHUB_PATH"
     - name: Set up OSS CAD suite
       if: steps.cache-oss-cad.outputs.cache-hit != 'true'
       uses: YosysHQ/setup-oss-cad-suite@v3
