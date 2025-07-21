@@ -78,7 +78,6 @@ jobs:
       - uses: ./.github/actions/prepare_FABulous_container
         with:
           additional_system_packages: "iverilog"
-          github_token: ${{ secrets.GITHUB_TOKEN }}[]
 
       # When running pytest, we write the new test durations using options
       # `--store-durations --clean-durations`.
