@@ -328,6 +328,7 @@ class FABulous_CLI(Cmd):
         """
         # if no argument is given will use the one set by set_fabric_csv
         # else use the argument
+
         logger.info("Loading fabric")
         if args.file == Path():
             if self.csvFile.exists():

@@ -6,6 +6,7 @@ import re
 import shutil
 import sys
 import tarfile
+from importlib.metadata import version
 from pathlib import Path
 from typing import Literal
 
@@ -167,6 +168,12 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
         )
         os.environ["FAB_PROJ_LANG"] = args.writer
 
+    # string comparison
+    if os.environ["VERSION"] < version("FABulous-FPGA"):
+        logger.warning(
+            f"Version mismatch! FABulous-FPGA version: {version('FABulous-FPGA')}, Project version: {os.environ.get('VERSION')}"
+        )
+
 
 def create_project(project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilog"):
     """Creates a FABulous project containing all required files by copying the common
@@ -226,6 +233,7 @@ def create_project(project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilo
 
     with open(os.path.join(project_dir, ".FABulous/.env"), "w") as env_file:
         env_file.write(f"FAB_PROJ_LANG={lang}\n")
+        env_file.write(f"VERSION={version('FABulous-FPGA')}")
 
     logger.info(f"New FABulous project created in {project_dir} with {lang} language.")
 
