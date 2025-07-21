@@ -83,24 +83,27 @@ def main():
     script_group.add_argument(
         "-fs",
         "--FABulousScript",
-        default="",
+        default=None,
         help="Run FABulous with a FABulous script. A FABulous script is a text file containing only FABulous commands"
         "This will automatically exit the CLI once the command finish execution, and the exit will always happen gracefully.",
+        nargs=1,
         type=Path,
     )
 
     script_group.add_argument(
         "-ts",
         "--TCLScript",
-        default="",
+        default=None,
         help="Run FABulous with a TCL script. A TCL script is a text file containing a mix of TCL commands and FABulous commands."
         "This will automatically exit the CLI once the command finish execution, and the exit will always happen gracefully.",
+        nargs=1,
         type=Path,
     )
 
     script_group.add_argument(
         "-p",
         "--commands",
+        nargs=1,
         help="execute <commands> (to chain commands, separate them with semicolon + whitespace: 'cmd1; cmd2')",
     )
 
@@ -203,15 +206,19 @@ def main():
         force=args.force,
     )
     fab_CLI.debug = args.debug
-    fabScript: Path = args.FABulousScript.absolute()
-    tclScript: Path = args.TCLScript.absolute()
+    fabScript: None | Path = None
+    tclScript: None | Path = None
+    if args.FABulousScript:
+        fabScript = args.FABulousScript[0].absolute()
+    if args.TCLScript:
+        tclScript = args.TCLScript[0].absolute()
+
     logger.info(f"Setting current working directory to: {projectDir}")
-    cwd = Path().cwd()
     os.chdir(projectDir)
     fab_CLI.onecmd_plus_hooks("load_fabric")
 
     if commands := args.commands:
-        commands = commands.split("; ")
+        commands = [i for i in commands[0].split("; ") if i.strip()]
         for c in commands:
             fab_CLI.onecmd_plus_hooks(c)
             if fab_CLI.exit_code and not args.force:
@@ -225,7 +232,7 @@ def main():
             )
             exit(fab_CLI.exit_code)
 
-    elif fabScript != cwd:
+    elif fabScript is not None:
         fab_CLI.onecmd_plus_hooks(f"run_script {fabScript}")
         if fab_CLI.exit_code:
             logger.error(
@@ -235,7 +242,7 @@ def main():
             logger.info(f"FABulous script {args.FABulousScript} executed successfully")
         exit(fab_CLI.exit_code)
 
-    elif tclScript != cwd:
+    elif tclScript is not None:
         fab_CLI.onecmd_plus_hooks(f"run_tcl {tclScript}")
         if fab_CLI.exit_code:
             logger.error(

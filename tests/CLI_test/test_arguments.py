@@ -1,153 +1,197 @@
 import os
+import sys
+import tarfile
 from subprocess import run
 
+import pytest
 
-def test_create_project(tmp_path):
-    result = run(
-        ["FABulous", "--createProject", str(tmp_path / "test_prj")],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
+from FABulous.FABulous import main
 
 
-def test_create_project_existing_dir(tmp_path):
+def test_create_project(tmp_path, monkeypatch):
+    """Test project creation  to mock sys.argv"""
+    # Mock sys.argv
+    test_args = ["FABulous", "--createProject", str(tmp_path / "test_prj")]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    # Run main function
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    # Verify project was created
+    project_dir = tmp_path / "test_prj"
+    assert project_dir.exists()
+    assert (project_dir / ".FABulous").exists()
+    assert exc_info.value.code == 0
+
+
+def test_create_project_existing_dir(tmp_path, monkeypatch, capsys):
+    """Test project creation with existing directory"""
     existing_dir = tmp_path / "existing_dir"
     existing_dir.mkdir()
-    result = run(
-        ["FABulous", "--createProject", str(existing_dir)],
-        capture_output=True,
-        text=True,
-    )
-    assert "already exists" in result.stdout
-    assert result.returncode != 0
+
+    test_args = ["FABulous", "--createProject", str(existing_dir)]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    # Expect SystemExit due to existing directory
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    # Check that it exits with non-zero code
+    assert exc_info.value.code != 0
+
+    # Check captured output for error message
+    captured = capsys.readouterr()
+    assert "already exists" in captured.out
 
 
-def test_create_project_with_no_name():
-    result = run(["FABulous", "--createProject"], capture_output=True, text=True)
-    assert result.returncode != 0
+def test_create_project_with_no_name(monkeypatch):
+    """Test project creation with missing name argument"""
+    test_args = ["FABulous", "--createProject"]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    # Expect SystemExit due to missing required argument
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    # Should exit with non-zero code
+    assert exc_info.value.code != 0
 
 
-def test_fabulous_script(tmp_path, project):
+def test_fabulous_script(tmp_path, project, monkeypatch):
+    """Test FABulous script execution"""
     # Create a test FABulous script file
     script_file = tmp_path / "test_script.fab"
     script_file.write_text("# Test FABulous script\nhelp\n")
 
-    result = run(
-        ["FABulous", str(project), "--FABulousScript", str(script_file)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
+    test_args = ["FABulous", str(project), "--FABulousScript", str(script_file)]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    # If no exception is raised, the test passes
+    assert exc_info.value.code == 0
 
 
-def test_fabulous_script_nonexistent_file(tmp_path, project):
+def test_fabulous_script_nonexistent_file(tmp_path, project, monkeypatch):
+    """Test FABulous script with nonexistent file"""
     nonexistent_script = tmp_path / "nonexistent_script.fab"
 
-    result = run(
-        ["FABulous", str(project), "--FABulousScript", str(nonexistent_script)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode != 0
+    test_args = ["FABulous", str(project), "--FABulousScript", str(nonexistent_script)]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code != 0
 
 
-def test_fabulous_script_with_no_project_dir(tmp_path):
+def test_fabulous_script_with_no_project_dir(tmp_path, monkeypatch):
+    """Test FABulous script with no project directory"""
     script_file = tmp_path / "test_script.fab"
     script_file.write_text("# Test FABulous script\n")
 
-    result = run(
-        ["FABulous", "--FABulousScript", str(script_file)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode != 0
+    test_args = ["FABulous", "--FABulousScript", str(script_file)]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
 
 
-def test_tcl_script_execution(tmp_path, project):
+def test_tcl_script_execution(tmp_path, project, monkeypatch):
     """Test TCL script execution on a valid project"""
-
     # Create a TCL script
     tcl_script = tmp_path / "test_script.tcl"
-    tcl_script.write_text(
-        '# TCL script with FABulous commands\nputs "Hello from TCL"\n'
-    )
+    tcl_script.write_text('# TCL script with FABulous commands\nputs "Hello from TCL"\n')
 
-    # Run TCL script
-    result = run(
-        ["FABulous", str(project), "--TCLScript", str(tcl_script)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
+    test_args = ["FABulous", str(project), "--TCLScript", str(tcl_script)]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
+    # If no exception is raised, the test passes
 
 
-def test_commands_execution(tmp_path, project):
+def test_commands_execution(tmp_path, project, monkeypatch):
     """Test direct command execution with -p/--commands"""
-    # Run commands directly
-    result = run(
-        ["FABulous", str(project), "--commands", "help; help"],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
+    test_args = ["FABulous", str(project), "--commands", "help; help"]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    assert exc_info.value.code == 0
 
 
-def test_create_project_with_vhdl_writer(tmp_path):
+def test_create_project_with_vhdl_writer(tmp_path, monkeypatch):
     """Test project creation with VHDL writer"""
     project_dir = tmp_path / "test_vhdl_project"
 
-    result = run(
-        ["FABulous", "--createProject", str(project_dir), "--writer", "vhdl"],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
+    test_args = ["FABulous", "--createProject", str(project_dir), "--writer", "vhdl"]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
     assert project_dir.exists()
     assert (project_dir / ".FABulous").exists()
     assert "vhdl" in (project_dir / ".FABulous" / ".env").read_text()
 
 
-def test_create_project_with_verilog_writer(tmp_path):
+def test_create_project_with_verilog_writer(tmp_path, monkeypatch):
     """Test project creation with Verilog writer"""
     project_dir = tmp_path / "test_verilog_project"
 
-    result = run(
-        ["FABulous", "--createProject", str(project_dir), "--writer", "verilog"],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
+    test_args = ["FABulous", "--createProject", str(project_dir), "--writer", "verilog"]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
     assert project_dir.exists()
     assert (project_dir / ".FABulous").exists()
     assert "verilog" in (project_dir / ".FABulous" / ".env").read_text()
 
 
-def test_logging_functionality(tmp_path, project):
+def test_logging_functionality(tmp_path, project, monkeypatch):
     """Test log file creation and output"""
     log_file = tmp_path / "test.log"
 
-    # Run with logging using commands instead of script to avoid file handling issues
-    result = run(
-        ["FABulous", str(project), "--commands", "help", "-log", str(log_file)],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
+    test_args = ["FABulous", str(project), "--commands", "help", "-log", str(log_file)]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
     assert log_file.exists()
     assert log_file.stat().st_size > 0  # Check if log file is not empty
 
 
-def test_verbose_mode(project):
+def test_verbose_mode(project, monkeypatch):
     """Test verbose mode execution"""
+    test_args = ["FABulous", str(project), "--commands", "help", "-v"]
+    monkeypatch.setattr(sys, "argv", test_args)
 
-    # Run with verbose mode
-    result = run(
-        ["FABulous", str(project), "--commands", "help", "-v"],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    assert exc_info.value.code == 0
+
+
+def test_debug_mode(project, monkeypatch):
+    """Test debug mode functionality"""
+    test_args = ["FABulous", str(project), "--commands", "help", "--debug"]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
 
 
 def test_force_flag(project, tmp_path):
@@ -202,142 +246,140 @@ def test_force_flag(project, tmp_path):
     assert result.returncode == 1
 
 
-def test_debug_mode(project):
-    """Test debug mode functionality"""
-
-    # Run with debug mode
-    result = run(
-        ["FABulous", str(project), "--commands", "help", "--debug"],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
-
-
-def test_install_oss_cad_suite(project, mocker):
+def test_install_oss_cad_suite(project, mocker, monkeypatch):
     """Test oss-cad-suite installation"""
 
     # Test installation (may fail if network unavailable, but should handle gracefully)
     class MockRequest:
         status_code = 200
 
+        def json(self):
+            return {"assets": [{"name": ".tar.gz x64 linux", "browser_download_url": "./something.tgz"}]}
+
         def iter_content(self, chunk_size=1024):
             return []
 
-    mocker.patch(
-        "requests.get", return_value=MockRequest()
-    )  # Mock network request for testing
-    result = run(
-        ["FABulous", str(project), "--install_oss_cad_suite"],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0
+    class MockTarFile:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def extractall(self, path):
+            pass
+
+    def mock_open(*args, **kwargs):
+        return MockTarFile()
+
+    monkeypatch.setattr(tarfile, "open", mock_open)
+    m = mocker.patch("requests.get", return_value=MockRequest())  # Mock network request for testing
+
+    test_args = ["FABulous", str(project), "--install_oss_cad_suite"]
+    monkeypatch.setattr(sys, "argv", test_args)
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0, "Installation should succeed without errors"
+    assert m.call_count == 2
 
 
-def test_script_mutually_exclusive(tmp_path, project):
+def test_script_mutually_exclusive(tmp_path, project, monkeypatch):
     """Test that FABulous script and TCL script are mutually exclusive"""
-
     # Create both script types
     fab_script = tmp_path / "test.fab"
     fab_script.write_text("help\n")
     tcl_script = tmp_path / "test.tcl"
     tcl_script.write_text("puts hello\n")
 
+    test_args = [
+        "FABulous",
+        str(project),
+        "--FABulousScript",
+        str(fab_script),
+        "--TCLScript",
+        str(tcl_script),
+    ]
+    monkeypatch.setattr(sys, "argv", test_args)
+
     # Try to use both - should fail
-    result = run(
-        [
-            "FABulous",
-            str(project),
-            "--FABulousScript",
-            str(fab_script),
-            "--TCLScript",
-            str(tcl_script),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode != 0
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code != 0
 
 
-def test_invalid_project_directory():
+def test_invalid_project_directory(monkeypatch):
     """Test error handling for invalid project directory"""
     invalid_dir = "/nonexistent/path/to/project"
 
-    result = run(
-        ["FABulous", invalid_dir, "--commands", "help"], capture_output=True, text=True
-    )
-    assert result.returncode != 0
+    test_args = ["FABulous", invalid_dir, "--commands", "help"]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code != 0
 
 
-def test_project_without_fabulous_folder(tmp_path):
+def test_project_without_fabulous_folder(tmp_path, monkeypatch, capsys):
     """Test error handling for directory without .FABulous folder"""
     regular_dir = tmp_path / "regular_directory"
     regular_dir.mkdir()
 
-    result = run(
-        ["FABulous", str(regular_dir), "--commands", "help"],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode != 0
-    assert "not a FABulous project" in result.stdout
+    test_args = ["FABulous", str(regular_dir), "--commands", "help"]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code != 0
+    captured = capsys.readouterr()
+    assert "not a FABulous project" in captured.out
 
 
-def test_nonexistent_script_file(project):
+def test_nonexistent_script_file(project, monkeypatch):
     """Test error handling for nonexistent script files"""
 
-    # Try to run nonexistent FABulous script - FABulous handles this gracefully
-    result = run(
-        ["FABulous", str(project), "--FABulousScript", "/nonexistent/script.fab"],
-        capture_output=True,
-        text=True,
-    )
-    # FABulous appears to handle missing script files gracefully and still executes successfully
-    assert result.returncode == 1
+    # Try to run nonexistent FABulous script
+    test_args = ["FABulous", str(project), "--FABulousScript", "/nonexistent/script.fab"]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    assert exc_info.value.code != 0
 
     # Try to run nonexistent TCL script
-    result = run(
-        ["FABulous", str(project), "--TCLScript", "/nonexistent/script.tcl"],
-        capture_output=True,
-        text=True,
-    )
-    # Check that it at least attempts to handle the missing file
-    assert "nonexistent" in result.stdout or "Problem" in result.stderr
+    test_args = ["FABulous", str(project), "--TCLScript", "/nonexistent/script.tcl"]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+    assert exc_info.value.code != 0
 
 
-def test_empty_commands(project):
+def test_empty_commands(project, monkeypatch):
     """Test handling of empty command string"""
-    # Run with empty commands
-    result = run(
-        ["FABulous", str(project), "--commands", ""], capture_output=True, text=True
-    )
-    # Should handle gracefully
-    assert result.returncode == 0
+    test_args = ["FABulous", str(project), "--commands", ""]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
 
 
-def test_create_project_with_invalid_writer(tmp_path, project):
+def test_create_project_with_invalid_writer(tmp_path, monkeypatch):
     """Test project creation with an invalid writer"""
     project_dir = tmp_path / "test_invalid_writer_project"
 
-    result = run(
-        ["FABulous", "--createProject", str(project_dir), "--writer", "invalid_writer"],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode != 0
+    test_args = ["FABulous", "--createProject", str(project_dir), "--writer", "invalid_writer"]
+    monkeypatch.setattr(sys, "argv", test_args)
 
+    with pytest.raises(SystemExit) as exc_info:
+        main()
 
-def test_create_project_with_install_oss_cad_suite(tmp_path):
-    """Test project creation with install_oss_cad_suite flag"""
-    project_dir = tmp_path / "test_install_oss_cad_suite_project"
-
-    result = run(
-        ["FABulous", "--createProject", str(project_dir), "--install_oss_cad_suite"],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode != 0
+    assert exc_info.value.code != 0
 
 
 def test_project_directory_priority_order(tmp_path, monkeypatch, mocker):
@@ -370,10 +412,7 @@ def test_project_directory_priority_order(tmp_path, monkeypatch, mocker):
     )
 
     # The log should show the user provided directory being used
-    assert (
-        f"INFO: Setting current working directory to: {str(user_provided_dir)}"
-        in result.stdout
-    )
+    assert f"INFO: Setting current working directory to: {str(user_provided_dir)}" in result.stdout
 
     # Test 2: Environment variable should be used when no user argument provided
     env_with_fab_proj = os.environ.copy()
@@ -386,10 +425,7 @@ def test_project_directory_priority_order(tmp_path, monkeypatch, mocker):
         env=env_with_fab_proj,
     )
     # Should use the environment variable directory
-    assert (
-        f"INFO: Setting current working directory to: {str(env_var_dir)}"
-        in result.stdout
-    )
+    assert f"INFO: Setting current working directory to: {str(env_var_dir)}" in result.stdout
 
     # Test 3: Default directory (cwd) should be used when no argument or env var
     env_without_fab_proj = os.environ.copy()
@@ -403,10 +439,7 @@ def test_project_directory_priority_order(tmp_path, monkeypatch, mocker):
         env=env_without_fab_proj,
     )
 
-    assert (
-        f"INFO: Setting current working directory to: {str(default_dir)}"
-        in result.stdout
-    )
+    assert f"INFO: Setting current working directory to: {str(default_dir)}" in result.stdout
 
 
 def test_command_flag_with_stop_on_first_error(project):

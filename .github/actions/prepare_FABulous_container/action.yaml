@@ -35,8 +35,8 @@ runs:
       shell: bash
       run: |
         # Get the latest release info from YosysHQ/oss-cad-suite-build
-        if [ -n "${{ inputs.github_token }}" ]; then
-          VERSION=$(curl -s -H "Authorization: token ${{ inputs.github_token }}" \
+        if [ -n "${{ github.token }}" ]; then
+          VERSION=$(curl -s -H "Authorization: token ${{ github.token }}" \
             "https://api.github.com/repos/YosysHQ/oss-cad-suite-build/releases/latest" | \
             jq -r '.tag_name // "unknown"')
         else
@@ -59,7 +59,7 @@ runs:
       if: steps.cache-oss-cad.outputs.cache-hit != 'true'
       uses: YosysHQ/setup-oss-cad-suite@v3
       with:
-        github-token: ${{ inputs.github_token }}
+        github-token: ${{ github.token }}
     - name: Install GHDL mcode nightly
       # GHDL mcode is required to test our fabric.
       # The oss-cad-suite action installs GHDL, but with the LLVM backend, which is much slower for our simulation
@@ -95,4 +95,3 @@ runs:
       shell: bash
       run: |
         echo "/home/runner/work/FABulous/FABulous/install/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> "$GITHUB_PATH"
-

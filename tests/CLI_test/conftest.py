@@ -51,9 +51,7 @@ def cli(tmp_path):
     os.environ["FAB_PROJ_DIR"] = str(projectDir)
     create_project(projectDir)
     setup_logger(0, False)
-    cli = FABulous_CLI(
-        writerType="verilog", projectDir=projectDir, enteringDir=tmp_path
-    )
+    cli = FABulous_CLI(writerType="verilog", projectDir=projectDir, enteringDir=tmp_path)
     cli.debug = True
     run_cmd(cli, "load_fabric")
     yield cli
@@ -68,6 +66,15 @@ def project(tmp_path):
     create_project(project_dir)
     yield project_dir
     os.environ.pop("FAB_PROJ_DIR", None)
+
+
+@pytest.fixture(autouse=True)
+def cleanup_logger():
+    """Ensure logger is properly cleaned up after each test to prevent
+    'logging to closed file' errors when tests exit quickly"""
+    yield
+    # Remove all logger handlers to prevent logging to closed files
+    logger.remove()
 
 
 @pytest.fixture
