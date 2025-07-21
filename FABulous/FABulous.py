@@ -1,8 +1,10 @@
 import argparse
 import os
+from importlib.metadata import version
 from pathlib import Path
 
 from loguru import logger
+from packaging.version import Version
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import (
@@ -11,6 +13,7 @@ from FABulous.FABulous_CLI.helper import (
     setup_global_env_vars,
     setup_logger,
     setup_project_env_vars,
+    update_project_version,
 )
 
 
@@ -162,6 +165,18 @@ def main():
 
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"FABulous CLI {Version(version('FABulous-FPGA')).base_version}",
+    )
+
+    parser.add_argument(
+        "--update-project-version",
+        action="store_true",
+        help="Update the project version to match the FABulous package version",
+    )
+
     args = parser.parse_args()
 
     setup_logger(args.verbose, args.debug, log_file=args.log)
@@ -197,6 +212,22 @@ def main():
 
     if not projectDir.exists():
         logger.error(f"The directory provided does not exist: {projectDir}")
+        exit(1)
+
+    if args.update_project_version:
+        if not update_project_version(projectDir):
+            logger.error(
+                "Failed to update project version. Please check the logs for more details."
+            )
+            exit(1)
+
+    project_version = Version(os.getenv("VERSION", "0.0.0"))
+    package_version = Version(version("FABulous-FPGA"))
+    if project_version < package_version:
+        logger.error(
+            f"Version mismatch! FABulous-FPGA version: {package_version}, Project version: {project_version}\n"
+            'Please run "FABulous <project_dir> --update-project-version" to update the project version.'
+        )
         exit(1)
 
     fab_CLI = FABulous_CLI(

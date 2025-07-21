@@ -1,6 +1,6 @@
 import pytest
 
-from FABulous.FABulous_CLI.helper import create_project
+from FABulous.FABulous_CLI.helper import create_project, update_project_version
 
 
 def test_create_project(tmp_path):
@@ -18,9 +18,7 @@ def test_create_project(tmp_path):
     assert env_file.read_text() == "FAB_PROJ_LANG=verilog\n"
 
     # Check if template files were copied
-    assert any(project_dir.glob("**/*.v")), (
-        "No Verilog files found in project directory"
-    )
+    assert any(project_dir.glob("**/*.v")), "No Verilog files found in project directory"
 
 
 def test_create_project_vhdl(tmp_path):
@@ -38,9 +36,7 @@ def test_create_project_vhdl(tmp_path):
     assert env_file.read_text() == "FAB_PROJ_LANG=vhdl\n"
 
     # Check if template files were copied
-    assert any(project_dir.glob("**/*.vhdl")), (
-        "No VHDL files found in project directory"
-    )
+    assert any(project_dir.glob("**/*.vhdl")), "No VHDL files found in project directory"
 
 
 def test_create_project_existing_dir(tmp_path):
@@ -50,3 +46,37 @@ def test_create_project_existing_dir(tmp_path):
 
     with pytest.raises(SystemExit):
         create_project(project_dir)
+
+
+def test_update_project_version_success(tmp_path, monkeypatch):
+    env_dir = tmp_path / "proj" / ".FABulous"
+    env_dir.mkdir(parents=True)
+    env_file = env_dir / ".env"
+    env_file.write_text("VERSION=1.2.3\n")
+
+    # Patch version() to return compatible version
+    monkeypatch.setattr("FABulous.FABulous_CLI.helper.version", lambda _: "1.2.4")
+
+    assert update_project_version(tmp_path / "proj") is True
+    assert "VERSION='1.2.4'" in env_file.read_text()
+
+
+def test_update_project_version_missing_version(tmp_path):
+    env_dir = tmp_path / "proj" / ".FABulous"
+    env_dir.mkdir(parents=True)
+    env_file = env_dir / ".env"
+    env_file.write_text("FAB_PROJ_LANG=verilog\n")
+
+    assert update_project_version(tmp_path / "proj") is False
+
+
+def test_update_project_version_major_mismatch(tmp_path, monkeypatch):
+    env_dir = tmp_path / "proj" / ".FABulous"
+    env_dir.mkdir(parents=True)
+    env_file = env_dir / ".env"
+    env_file.write_text("VERSION=1.2.3\n")
+
+    monkeypatch.setattr("FABulous.FABulous_CLI.helper.version", lambda _: "2.0.0")
+
+    assert update_project_version(tmp_path / "proj") is False
+
