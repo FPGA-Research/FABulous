@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -29,8 +29,11 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/FPGA-Research-Manchester/FABulous"
-"Bug Tracker" = "https://github.com/FPGA-Research-Manchester/FABulous/issues"
+Repository = "https://github.com/FPGA-Research/FABulous"
+Documentation = "https://fabulous.readthedocs.io"
+Releases = "https://github.com/FPGA-Research/FABulous/releases"
+Issues = "https://github.com/FPGA-Research/FABulous/issues"
+Discussions = "https://github.com/FPGA-Research/FABulous/discussions"
 
 
 [project.scripts]
@@ -38,8 +41,8 @@ FABulous = "FABulous.FABulous:main"
 bit_gen = "FABulous.fabric_cad.bit_gen:bit_gen"
 
 [tool.setuptools_scm]
-version_scheme = "post-release"
-local_scheme = "dirty-tag"
+version_scheme = "guess-next-dev"
+local_scheme = "node-and-date"
 
 
 [tool.setuptools.packages.find]
