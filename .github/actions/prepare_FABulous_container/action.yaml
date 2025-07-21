@@ -54,7 +54,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: |
-          /tmp/oss-cad-suite
+          ${{ runner.temp }}/oss-cad-suite
         key: oss-cad-suite-${{ runner.os }}-${{ steps.oss-cad-version.outputs.version }}
         restore-keys: |
           oss-cad-suite-${{ runner.os }}-${{ steps.oss-cad-version.outputs.version }}-
