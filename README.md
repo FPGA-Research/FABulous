@@ -1,5 +1,15 @@
 # FABulous: an Embedded FPGA Framework
 
+<!--toc:start-->
+
+- [FABulous: an Embedded FPGA Framework](#fabulous-an-embedded-fpga-framework)
+  - [Introduction](#introduction)
+  - [How to cite](#how-to-cite)
+  - [Prerequisites](#prerequisites)
+  - [Getting started](#getting-started)
+  - [Contribution Guidelines](#contribution-guidelines) - [Development Workflow](#development-workflow) - [Code Formatting](#code-formatting) - [Commit style](#commit-style) - [pre-commit](#pre-commit) - [Code Review](#code-review) - [License](#license)
+  <!--toc:end-->
+
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
 [![Code Style](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
@@ -43,29 +53,28 @@ The following packages need to be installed for generating fabric HDL models and
 
 Install python dependencies
 
-```shell
+```bash
 sudo apt-get install python3-virtualenv
 ```
 
 > [!NOTE]
 >
->If you get the warning `ModuleNotFoundError: No module named virtualenv` or
->errors when installing the requirements, you have to install the dependencies
->for your specific python version. For Python 3.12 use
+> If you get the warning `ModuleNotFoundError: No module named virtualenv` or
+> errors when installing the requirements, you have to install the dependencies
+> for your specific python version. For Python 3.12 use
 >
->```shell
->sudo apt-get install python3.12-virtualenv
->```
+> ```bash
+> sudo apt-get install python3.12-virtualenv
+> ```
 
 > [!NOTE]
 >
->If you are using an older version than Ubuntu 24.04, you may need to install tkinter.
->Otherwise, you might get the warning `ModuleNotFoundError: No module named 'tkinter'`.
+> If you are using an older version than Ubuntu 24.04, you may need to install tkinter.
+> Otherwise, you might get the warning `ModuleNotFoundError: No module named 'tkinter'`.
 >
->```shell
->sudo apt-get install python3-tk
->```
-
+> ```bash
+> sudo apt-get install make python3-tk
+> ```
 
 The following packages need to be installed for the CAD toolchain
 
@@ -77,7 +86,7 @@ The following packages need to be installed for the CAD toolchain
 We recommend using Python virtual environments for the usage of FABulous.
 If you are not sure what this is and why you should use it, please read the [virtualenv documentation](https://virtualenv.pypa.io/en/latest/index.html).
 
-```shell
+```bash
 $ git clone https://github.com/FPGA-Research-Manchester/FABulous
 $ cd FABulous
 $ virtualenv venv
@@ -89,7 +98,7 @@ $ source venv/bin/activate
 You can deactivate the virtual environment with the `deactivate` command.
 Please note, that you always have to enable the virtual environment to use FABulous:
 
-```shell
+```bash
 cd <path to FABulous>
 source venv/bin/activate
 ```
@@ -107,7 +116,7 @@ To exit the shell simply type `exit` and this will terminate the shell.
 
 A demo of the whole flow:
 
-```shell
+```bash
 (venv)$ FABulous -c demo # Create a demo project
 (venv)$ FABulous demo # Run Fabulous interactive shell for demo project
 
@@ -120,14 +129,13 @@ FABulous> exit
 
 To run a simulation of a test bitstream on the design with Icarus Verilog:
 
-```shell
+```bash
 (venv)$ cd demo/Test
-(venv)$ ./build_test_design.sh
-(venv)$ ./run_simulation.sh
+(venv)$ make sim
 ```
 
 The tool also supports using TCL script to drive the build process. Assuming you have created a demo project using
-`FABulous -c demo`, you can call `FABulous demo -s ./demo/FABulous.tcl` to run the demo flow with the TCL interface.
+`(venv)$ FABulous -c demo`, you can call `(venv)$ FABulous demo -s ./demo/FABulous.tcl` to run the demo flow with the TCL interface.
 
 More details on bitstream generation can be found [here](https://fabulous.readthedocs.io/en/latest/FPGA-to-bitstream/Bitstream%20generation.html).
 
@@ -137,10 +145,34 @@ Detailed documentation for the project can be found [here](https://fabulous.read
 
 Thank you for considering contributing to FABulous! By contributing, you're helping us improve and grow the project for everyone. Before you start, please take a moment to review our guidelines to ensure a smooth contribution process.
 
+### Development Workflow
+
+Please first check the [issues](Ghttps://github.com/FPGA-Research-Manchester/FABulous/issues) to and the [FABulous development branch](https://github.com/FPGA-Research/FABulous/tree/FABulous2.0-development) to see if your feature or bug fix has already been reported or implemented/fixed.
+
+We follow a standard Git workflow for contributions:
+
+- Fork the repository on GitHub.
+- Clone your forked repository to your local machine.
+- If you are not already on the `FABulous2.0-development` branch, switch to it, to use it as base for your work.
+- Create a new branch for your feature or bug fix.
+- Make your changes, following the coding standards and guidelines outlined below.
+- Commit your changes with clear, descriptive commit messages using the [conventional commits style](https://github.com/FPGA-Research/FABulous/tree/FABulous2.0-development).
+- Push your changes to your forked repository.
+- Submit a pull request to the main repository.
+- Ensure your pull request targets the `FABulous2.0-development` branch of the original repository if you add feature.
+- Check that your pull request passes the CI checks. If it does not, please fix the issues first.
+- We will review your pull request and may request changes or provide feedback. Please be responsive to these requests.
+
 ### Code Formatting
 
 We use [Ruff](https://docs.astral.sh/ruff/) for code formatting and linting and provide a configuration file in the repository.
 Please make sure your code adheres to our coding standards before submitting a pull request.
+
+### Commit style
+
+We use the 'conventional commits' style for commit messages and pull requests.
+This helps us to automatically generate changelogs and understand the history of changes better.
+See the [conventional commits page](https://www.conventionalcommits.org/en/v1.0.0/) for more information.
 
 ### pre-commit
 
@@ -148,9 +180,9 @@ To aid development we suggest to use [pre-commit hooks](https://pre-commit.com/)
 
 To install the pre-commit hooks:
 
-```shell
-pip install pre-commit
-pre-commit install
+```bash
+(venv)$ pip install pre-commit
+(venv)$ pre-commit install
 ```
 
 ### Code Review
