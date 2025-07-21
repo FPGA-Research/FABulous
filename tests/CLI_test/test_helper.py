@@ -15,7 +15,8 @@ def test_create_project(tmp_path):
     # Check if .env file exists and contains correct content
     env_file = project_dir / ".FABulous" / ".env"
     assert env_file.exists()
-    assert env_file.read_text() == "FAB_PROJ_LANG=verilog\n"
+    assert "FAB_PROJ_LANG=verilog" in env_file.read_text()
+    assert "VERSION=" in env_file.read_text()
 
     # Check if template files were copied
     assert any(project_dir.glob("**/*.v")), "No Verilog files found in project directory"
@@ -33,7 +34,8 @@ def test_create_project_vhdl(tmp_path):
     # Check if .env file exists and contains correct content
     env_file = project_dir / ".FABulous" / ".env"
     assert env_file.exists()
-    assert env_file.read_text() == "FAB_PROJ_LANG=vhdl\n"
+    assert "FAB_PROJ_LANG=vhdl" in env_file.read_text()
+    assert "VERSION=" in env_file.read_text()
 
     # Check if template files were copied
     assert any(project_dir.glob("**/*.vhdl")), "No VHDL files found in project directory"
