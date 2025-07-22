@@ -382,7 +382,7 @@ def test_create_project_with_invalid_writer(tmp_path, monkeypatch):
     assert exc_info.value.code != 0
 
 
-def test_project_directory_priority_order(tmp_path, monkeypatch, mocker):
+def test_project_directory_priority_order(tmp_path, monkeypatch):
     """Test that project directory priority order is followed:
     1. User provided argument (highest priority)
     2. Environment variables (FAB_PROJ_DIR)
@@ -400,6 +400,7 @@ def test_project_directory_priority_order(tmp_path, monkeypatch, mocker):
         project_dir.mkdir()
         (project_dir / ".FABulous").mkdir()
         (project_dir / ".FABulous" / ".env").write_text("FAB_PROJ_LANG=verilog\n")
+        (project_dir / ".FABulous" / ".env").write_text("VERSION=1.0.0\n")
 
     # Test 1: User provided argument should take highest priority over environment variable
     monkeypatch.setenv("FAB_PROJ_DIR", str(env_var_dir))

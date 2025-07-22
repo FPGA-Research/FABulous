@@ -225,10 +225,15 @@ def main():
     package_version = Version(version("FABulous-FPGA"))
     if project_version < package_version:
         logger.error(
-            f"Version mismatch! FABulous-FPGA version: {package_version}, Project version: {project_version}\n"
-            'Please run "FABulous project_dir --update-project-version" to update the project version.'
+            f"Version incompatible! FABulous-FPGA version: {package_version}, Project version: {project_version}\n"
+            r'Please run "FABulous \<project_dir\> --update-project-version" to update the project version.'
         )
         exit(1)
+    if project_version.major != package_version.major:
+        logger.error(
+            f"Major version mismatch! FABulous-FPGA major version: {package_version.major}, Project major version: {project_version.major}\n"
+            "This may lead to compatibility issues. Please ensure the project is compatible with the current FABulous-FPGA version."
+        )
 
     fab_CLI = FABulous_CLI(
         os.getenv("FAB_PROJ_LANG"),
