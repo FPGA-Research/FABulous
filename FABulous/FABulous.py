@@ -226,7 +226,7 @@ def main():
     if project_version < package_version:
         logger.error(
             f"Version mismatch! FABulous-FPGA version: {package_version}, Project version: {project_version}\n"
-            'Please run "FABulous <project_dir> --update-project-version" to update the project version.'
+            'Please run "FABulous project_dir --update-project-version" to update the project version.'
         )
         exit(1)
 
