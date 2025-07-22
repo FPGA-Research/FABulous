@@ -1,0 +1,9 @@
+
+switch_matrix:
+  includes:
+    - ../include/Base.list
+  connections:
+    - destination: "L[A|B]_I0"
+      sources: "[J2MID_ABa_END0|J2MID_ABa_END0]"
+    - destination: "L[A|B]_I1"
+      sources: "[J2MID_ABa_END1|J2MID_ABa_END1]"

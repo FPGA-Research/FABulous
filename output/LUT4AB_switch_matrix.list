@@ -1,0 +1,4 @@
+INCLUDE, ../include/Base.list
+
+L[A|B]_I0,[J2MID_ABa_END0|J2MID_ABa_END0]
+L[A|B]_I1,[J2MID_ABa_END1|J2MID_ABa_END1]

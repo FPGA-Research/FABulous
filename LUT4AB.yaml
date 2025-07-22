@@ -1,0 +1,38 @@
+
+tile:
+  name: LUT4AB
+  include: ../include/Base.csv
+  connections:
+    - type: NORTH
+      source: Co
+      offset: [0, -1]
+      destination: Ci
+      wires: 1
+  jumps:
+    - source: J_SR_BEG
+      offset: [0, 0]
+      destination: J_SR_END
+      wires: 1
+    - source: J_EN_BEG
+      offset: [0, 0]
+      destination: J_EN_END
+      wires: 1
+  bels:
+    - path: ./LUT4c_frame_config_dffesr.v
+      name: LA_
+    - path: ./LUT4c_frame_config_dffesr.v
+      name: LB_
+    - path: ./LUT4c_frame_config_dffesr.v
+      name: LC_
+    - path: ./LUT4c_frame_config_dffesr.v
+      name: LD_
+    - path: ./LUT4c_frame_config_dffesr.v
+      name: LE_
+    - path: ./LUT4c_frame_config_dffesr.v
+      name: LF_
+    - path: ./LUT4c_frame_config_dffesr.v
+      name: LG_
+    - path: ./LUT4c_frame_config_dffesr.v
+      name: LH_
+    - path: ./MUX8LUT_frame_config_mux.v
+  matrix: ./LUT4AB_switch_matrix.list
