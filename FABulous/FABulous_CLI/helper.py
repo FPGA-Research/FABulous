@@ -228,7 +228,8 @@ def create_project(project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilo
 
     with open(os.path.join(project_dir, ".FABulous/.env"), "w") as env_file:
         env_file.write(f"FAB_PROJ_LANG={lang}\n")
-        env_file.write(f"VERSION={version('FABulous-FPGA')}")
+        env_file.write(f"FAB_PROJ_VERSION={version('FABulous-FPGA')}")
+        env_file.write(f"FAB_PROJ_VERSION_CREATED={version('FABulous-FPGA')}")
 
     logger.info(f"New FABulous project created in {project_dir} with {lang} language.")
 
@@ -508,7 +509,7 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False):
 def update_project_version(project_dir: Path) -> bool:
     env_file = project_dir / ".FABulous" / ".env"
 
-    project_version = get_key(env_file, "VERSION")
+    project_version = get_key(env_file, "FAB_PROJ_VERSION")
 
     if project_version is None:
         logger.error("VERSION not found in .env file.")
@@ -522,5 +523,5 @@ def update_project_version(project_dir: Path) -> bool:
         )
         return False
 
-    set_key(env_file, "VERSION", str(package_version))
+    set_key(env_file, "FAB_PROJ_VERSION", str(package_version))
     return True

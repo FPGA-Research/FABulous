@@ -221,9 +221,9 @@ def main():
             )
             exit(1)
 
-    project_version = Version(os.getenv("VERSION", "0.0.0"))
+    project_version = Version(os.getenv("VERSION", "1.0.0"))
     package_version = Version(version("FABulous-FPGA"))
-    if project_version < package_version:
+    if package_version < project_version:
         logger.error(
             f"Version incompatible! FABulous-FPGA version: {package_version}, Project version: {project_version}\n"
             r'Please run "FABulous \<project_dir\> --update-project-version" to update the project version.'
