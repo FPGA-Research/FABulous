@@ -226,10 +226,10 @@ def create_project(project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilo
         new_content = re.sub(r"\{HDL_SUFFIX\}", new_suffix, content)
         file_path.write_text(new_content)
 
-    with open(os.path.join(project_dir, ".FABulous/.env"), "w") as env_file:
-        env_file.write(f"FAB_PROJ_LANG={lang}\n")
-        env_file.write(f"FAB_PROJ_VERSION={version('FABulous-FPGA')}")
-        env_file.write(f"FAB_PROJ_VERSION_CREATED={version('FABulous-FPGA')}")
+    env_file = project_dir / ".FABulous" / ".env"
+    set_key(env_file, "FAB_PROJ_LANG", lang)
+    set_key(env_file, "FAB_PROJ_VERSION", version("FABulous-FPGA"))
+    set_key(env_file, "FAB_PROJ_VERSION_CREATED", version("FABulous-FPGA"))
 
     logger.info(f"New FABulous project created in {project_dir} with {lang} language.")
 
