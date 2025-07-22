@@ -191,18 +191,20 @@ Global environment variables always start with ``FAB_``` and are used to configu
 To add a global .env file, create a file named ``.env`` in the root directory of the FABulous repository or use the ``--globalDotEnv`` command line argument when running FABulous.
 The following global environment variables are available:
 
-=================== =============================================== ===========================================================================
-Variable Name        Description                                     Default Value
-=================== =============================================== ===========================================================================
-FAB_ROOT            The root directory of the FABulous repository   The directory where the FABulous repository is located
-FAB_FABULATOR_ROOT  The root directory of the FABulator repository  <None>
-FAB_YOSYS_PATH      Path to Yosys binary                            yosys  (Uses global Yosys installation)
-FAB_NEXTPNR_PATH    Path to Nextpnr binary                          nextpnr-generic  (Uses global Nextpnr installation)
-FAB_IVERILOG_PATH   Path to Icarus Verilog binary                   iverilog  (Uses global Icarus Verilog installation)
-FAB_VVP_PATH        Path to Verilog VVP binary                      vvp  (Uses global Verilog VVP installation)
-FAB_PROJ_DIR        The root directory of the FABulous project      The directory where the FABulous project is located, given by command line
-FAB_OSS_CAD_SUITE   Path to the oss-cad-suite installation          <None>
-=================== =============================================== ===========================================================================
+========================= =================================================== ===========================================================================
+Variable Name              Description                                        Default Value
+========================= =================================================== ===========================================================================
+FAB_ROOT                  The root directory of the FABulous repository       The directory where the FABulous repository is located
+FAB_FABULATOR_ROOT        The root directory of the FABulator repository      <None>
+FAB_YOSYS_PATH            Path to Yosys binary                                yosys  (Uses global Yosys installation)
+FAB_NEXTPNR_PATH          Path to Nextpnr binary                              nextpnr-generic  (Uses global Nextpnr installation)
+FAB_IVERILOG_PATH         Path to Icarus Verilog binary                       iverilog  (Uses global Icarus Verilog installation)
+FAB_VVP_PATH              Path to Verilog VVP binary                          vvp  (Uses global Verilog VVP installation)
+FAB_PROJ_DIR              The root directory of the FABulous project          The directory where the FABulous project is located, given by command line
+FAB_OSS_CAD_SUITE         Path to the oss-cad-suite installation              <None>
+FAB_PROJ_VERSION_CREATED  The version of FABulous used to create the project  Same as the version of FABulous-FPGA package installed
+FAB_PROJ_VERSION          The current project version                         Same as the version of FABulous-FPGA package installed
+========================= =================================================== ===========================================================================
 
 Project Specific Environment Variables
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

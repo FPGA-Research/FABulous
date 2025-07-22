@@ -221,7 +221,7 @@ def main():
             )
             exit(1)
 
-    project_version = Version(os.getenv("VERSION", "1.0.0"))
+    project_version = Version(os.getenv("FAB_PROJ_VERSION", "1.0.0"))
     package_version = Version(version("FABulous-FPGA"))
     if package_version < project_version:
         logger.error(
