@@ -95,7 +95,8 @@ select = [
     "A",
     "PTH",
     "TRY",
-    "SIM"
+    "SIM",
+    "PT"
 ]
 
 
