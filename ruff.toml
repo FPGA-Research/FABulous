@@ -109,7 +109,6 @@ select = [
 # - S: flake8 Bandit
 # - TD: flake8 TODOS
 # - FIX: flake8 fixme
-# - SIM: flake8 simplify
 # - PL: pylint
 # - ANN: flake8 Annotations
 
