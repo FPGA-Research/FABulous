@@ -135,10 +135,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
 
             elif temp[0] == "BEL":
                 belFilePath = filePathParent.joinpath(temp[1])
-                if len(temp) > 2:  # bel prefix is provided
-                    bel_prefix = temp[2]
-                else:
-                    bel_prefix = ""
+                bel_prefix = temp[2] if len(temp) > 2 else ""
                 if temp[1].endswith(".vhdl"):
                     bels.append(parseBelFile(belFilePath, bel_prefix, "vhdl"))
                 elif temp[1].endswith(".v") or temp[1].endswith(".sv"):

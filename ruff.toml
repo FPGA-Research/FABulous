@@ -95,7 +95,9 @@ select = [
     "A",
     "PTH",
     "TRY",
+    "SIM"
 ]
+
 
 # Future rules: Currently disabled, since it needs some more work.
 # - E501: Line too long -- Not automatically fixable

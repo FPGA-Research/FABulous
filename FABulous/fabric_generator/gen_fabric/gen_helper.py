@@ -157,7 +157,9 @@ def CSV2list(InFileName: str, OutFileName: str):
     OutFileName : str
         The directory of the list file to be written
     """
-    InFile = [i.strip("\n").split(",") for i in open(InFileName)]
+    with open(InFileName) as f:
+        inFile = f.readlines()
+    InFile = [i.strip("\n").split(",") for i in inFile]
     with open(OutFileName, "w") as f:
         # get the number of tiles in horizontal direction
         cols = len(InFile[0])

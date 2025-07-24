@@ -214,12 +214,11 @@ def main():
         logger.error(f"The directory provided does not exist: {projectDir}")
         exit(1)
 
-    if args.update_project_version:
-        if not update_project_version(projectDir):
-            logger.error(
-                "Failed to update project version. Please check the logs for more details."
-            )
-            exit(1)
+    if args.update_project_version and not update_project_version(projectDir):
+        logger.error(
+            "Failed to update project version. Please check the logs for more details."
+        )
+        exit(1)
 
     project_version = Version(os.getenv("FAB_PROJ_VERSION", "1.0.0"))
     package_version = Version(version("FABulous-FPGA"))

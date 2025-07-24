@@ -30,7 +30,8 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
     canonStr = fasm_tuple_to_string(lGen, True)
     canonList = list(parse_fasm_string(canonStr))
 
-    specDict = pickle.load(open(specFile, "rb"))
+    with open(specFile, "rb") as f:
+        specDict = pickle.load(f)
     tileDict = {}
     tileDict_No_Mask = {}
 
@@ -38,7 +39,7 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
     MaxFramesPerCol = specDict["ArchSpecs"]["MaxFramesPerCol"]
 
     # Change this so it has the actual right dimensions, initialised as an empty bitstream
-    for tile in specDict["TileMap"].keys():
+    for tile in specDict["TileMap"]:
         tileDict[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
         tileDict_No_Mask[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
 
@@ -52,13 +53,13 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
             tileVals = set_feature_to_str(line.set_feature).split(".")
             tileLoc = tileVals[0]
             featureName = ".".join((tileVals[1], tileVals[2]))
-            if tileLoc not in specDict["TileMap"].keys():
+            if tileLoc not in specDict["TileMap"]:
                 raise SpecMissMatch(
                     f"Tile location {tileLoc} not found in the bitstream spec"
                 )
             # Set the necessary bits high
             tileType = specDict["TileMap"][tileLoc]
-            if featureName in specDict["TileSpecs"][tileLoc].keys():
+            if featureName in specDict["TileSpecs"][tileLoc]:
                 if specDict["TileSpecs"][tileLoc][featureName]:
                     for bitIndex in specDict["TileSpecs"][tileLoc][featureName]:
                         tileDict[tileLoc][bitIndex] = int(
@@ -180,10 +181,13 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
     # Tile Loc, Tile Type, X, Y, bits...... \n
     # Each line is one tile
     # Write out bitstream CSV representation
-    print(outStr, file=open(bitstreamFile.replace("bin", "csv"), "w+"))
+    with open(bitstreamFile.replace("bin", "csv"), "w+") as f:
+        f.write(outStr)
     # Write out HDL representations
-    print(verilog_str, file=open(bitstreamFile.replace("bin", "vh"), "w+"))
-    print(vhdl_str, file=open(bitstreamFile.replace("bin", "vhd"), "w+"))
+    with open(bitstreamFile.replace("bin", "vh"), "w+") as f:
+        f.write(verilog_str)
+    with open(bitstreamFile.replace("bin", "vhd"), "w+") as f:
+        f.write(vhdl_str)
     # Write out binary representation
     with open(bitstreamFile, "bw+") as f:
         f.write(bitStr)

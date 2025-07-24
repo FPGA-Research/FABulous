@@ -447,10 +447,11 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False):
 
     # find the right release for the current system
     for asset in latest_release.get("assets", []):
-        if "tar.gz" in asset["name"] or "tgz" in asset["name"]:
-            if machine in asset["name"].lower() and system in asset["name"].lower():
-                url = asset["browser_download_url"]
-                break  # we assume that the first match is the right one
+        if ("tar.gz" in asset["name"] or "tgz" in asset["name"]) and (
+            machine in asset["name"].lower() and system in asset["name"].lower()
+        ):
+            url = asset["browser_download_url"]
+            break  # we assume that the first match is the right one
     if url is None or url == "":  # Changed == None to is None
         raise ValueError("No valid archive found in the latest release.")
 

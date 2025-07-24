@@ -484,20 +484,19 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         portsPairs.append(("CONFout", f"conf_data({belCounter + 1})"))
         portsPairs.append(("CLK", "CLK"))
 
-    if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
-        if tile.globalConfigBits > 0:
-            portsPairs.append(
-                (
-                    "ConfigBits",
-                    f"ConfigBits[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
-                )
+    if fabric.configBitMode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
+        portsPairs.append(
+            (
+                "ConfigBits",
+                f"ConfigBits[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
             )
-            portsPairs.append(
-                (
-                    "ConfigBits_N",
-                    f"ConfigBits_N[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
-                )
+        )
+        portsPairs.append(
+            (
+                "ConfigBits_N",
+                f"ConfigBits_N[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
             )
+        )
 
     writer.addInstantiation(
         compName=f"{tile.name}_switch_matrix",

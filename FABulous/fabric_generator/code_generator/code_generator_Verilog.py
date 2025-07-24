@@ -146,10 +146,7 @@ class VerilogCodeGenerator(CodeGenerator):
 
         connectPair = []
         for i in portsPairs:
-            if "(" in i[1]:
-                tmp = i[1].replace("(", "[").replace(")", "]")
-            else:
-                tmp = i[1]
+            tmp = i[1].replace("(", "[").replace(")", "]")
             connectPair.append(f".{i[0]}({tmp})")
 
         self._add(

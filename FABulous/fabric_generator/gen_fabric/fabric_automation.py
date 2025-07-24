@@ -114,9 +114,9 @@ def generateCustomTileConfig(tile_path: Path) -> Path:
             bel = parseBelFile(file, "", "verilog")
         else:
             bel = parseBelFile(file, "", "vhdl")
-        if "RESET" in bel.localShared.keys():
+        if "RESET" in bel.localShared:
             has_reset = True
-        if "ENABLE" in bel.localShared.keys():
+        if "ENABLE" in bel.localShared:
             has_enable = True
         for carry in bel.carry:
             if carry not in tile_carrys:
@@ -346,9 +346,8 @@ def generateSwitchmatrixList(
                     f"{{2}}{bel_enable[0]},[{sharedResetTile[1].name}0|VCC0]"
                 )
 
-    f = open(outFile, "w")
-    f.write("\n".join(str(line) for line in listfile))
-    f.close()
+    with open(outFile, "w") as f:
+        f.write("\n".join(str(line) for line in listfile))
 
     primsFile = projdir.joinpath("user_design/custom_prims.v")
     if not primsFile.is_file():
@@ -437,7 +436,7 @@ def addBelsToPrim(
                     module_ports["CLK"] = module_ports["UserCLK"]
                     del module_ports["UserCLK"]
                 # ConfigBits are not needed in the prims file
-                if "ConfigBits" in module_ports.keys():
+                if "ConfigBits" in module_ports:
                     del module_ports["ConfigBits"]
 
                 ports_dict = {}
@@ -461,11 +460,9 @@ def addBelsToPrim(
                         if port in external_ports:
                             # add pad attribute to external ports
                             modline += "    (* iopad_external_pin *)\n"
-                        if port in shared_ports:
-                            # Rename UserCLK to CLK
-                            # Otherwise Yosys can't map the CLK
-                            if port == "UserCLK":
-                                port = "CLK"
+                        if port in shared_ports and port == "UserCLK":
+                            port = "CLK"
+
                         modline += f"    {direction} {port}"
             else:  # No vector support
                 ports = bel.inputs + bel.outputs + external_ports + shared_ports

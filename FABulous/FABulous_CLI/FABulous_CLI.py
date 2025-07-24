@@ -389,9 +389,9 @@ class FABulous_CLI(Cmd):
         if not self.fabricLoaded:
             raise CommandError("Need to load fabric first")
 
-        if tile := self.fabulousAPI.getTile(args.tile):
-            logger.info(f"\n{pprint.pformat(tile, width=200)}")
-        elif tile := self.fabulousAPI.getSuperTile(args[0]):
+        if (tile := self.fabulousAPI.getTile(args.tile)) or (
+            tile := self.fabulousAPI.getSuperTile(args[0])
+        ):
             logger.info(f"\n{pprint.pformat(tile, width=200)}")
         else:
             raise CommandError(f"Tile {args.tile} not found in fabric")

@@ -78,7 +78,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             name = t.split("_")[0]
             if name in added:
                 continue
-            if name not in fabric.superTileDic.keys():
+            if name not in fabric.superTileDic:
                 writer.addComponentDeclarationForFile(
                     f"{Path(writer.outFileName).parent.parent}/Tile/{t}/{t}.vhdl"
                 )
@@ -357,15 +357,16 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             else:
                 for i, j in tileLocationOffset:
                     # prefix for super tile port
+                    pre = ""
                     if superTile:
                         pre = f"Tile_X{i}Y{j}_"
-                    else:
-                        pre = ""
-                    # UserCLK signal
-                    if y + 1 >= fabric.numberOfRows:
-                        portsPairs.append((f"{pre}UserCLK", "UserCLK"))
 
-                    elif y + 1 < fabric.numberOfRows and fabric.tile[y + 1][x] is None:
+                    # UserCLK signal
+                    if (
+                        y + 1 >= fabric.numberOfRows
+                        or y + 1 < fabric.numberOfRows
+                        and fabric.tile[y + 1][x] is None
+                    ):
                         portsPairs.append((f"{pre}UserCLK", "UserCLK"))
 
                     elif (x + i, y + j + 1) not in superTileLoc:
@@ -382,10 +383,9 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
                 for i, j in tileLocationOffset:
                     # prefix for super tile port
+                    pre = ""
                     if superTile:
                         pre = f"Tile_X{i}Y{j}_"
-                    else:
-                        pre = ""
 
                     supertile_x = x + i
                     supertile_y = y + j

@@ -146,7 +146,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                         continue
 
                     for c, curChar in enumerate(controlValue[::-1]):
-                        if pip not in curTileMap.keys():
+                        if pip not in curTileMap:
                             curTileMap[pip] = {}
                             curTileMapNoMask[pip] = {}
 

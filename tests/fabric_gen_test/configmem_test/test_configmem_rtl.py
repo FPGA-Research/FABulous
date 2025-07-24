@@ -77,7 +77,7 @@ async def test_configmem_settings(dut):
 
     # Get valid FrameData bits from the bit mapping
     valid_framedata_bits = set()
-    for key in bit_mapping.keys():
+    for key in bit_mapping:
         frame_str, bit_str = key.split(", ")
         valid_framedata_bits.add(int(bit_str))
 

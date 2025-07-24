@@ -165,9 +165,7 @@ class FABulous_API:
         """
         if tile := self.fabric.getTileByName(tileName):
             sm_dbg = os.getenv("FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "True")
-            switch_matrix_debug_signal = (
-                False if sm_dbg.lower().strip() == "false" else True
-            )
+            switch_matrix_debug_signal = sm_dbg.lower().strip() != "false"
             logger.info(
                 f"Generate switch matrix debug signals: {switch_matrix_debug_signal}"
             )
