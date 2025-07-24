@@ -36,6 +36,7 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
 
     FrameBitsPerRow = specDict["ArchSpecs"]["FrameBitsPerRow"]
     MaxFramesPerCol = specDict["ArchSpecs"]["MaxFramesPerCol"]
+    legacy = specDict.get("legacy", True)
 
     # Change this so it has the actual right dimensions, initialised as an empty bitstream
     for tile in specDict["TileMap"].keys():
@@ -117,9 +118,17 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
         vhdl_str += '";\n'
     vhdl_str += "end package emulate_bitstream;"
 
-    # Top/bottom rows have no bitstream content (hardcoded throughout fabulous)
+    # Legacy mode does not output configuration bits for the first and last row
+    if legacy:
+        logger.info("Legacy FABulous 1.0 bitstream generation enabled.")
+        start_row = num_rows - 2
+        stop_row = 0
+    else:
+        start_row = num_rows - 1
+        stop_row = -1
+
     # reversed row order
-    for y in range(num_rows - 2, 0, -1):
+    for y in range(start_row, stop_row, -1):
         for x in range(num_columns):
             tileKey = f"X{x}Y{y}"
             curStr = ",".join((tileKey, specDict["TileMap"][tileKey], str(x), str(y)))
@@ -197,6 +206,7 @@ def bit_gen():
     caseProcessedArguments = list(map(lambda x: x.strip(), sys.argv))
     processedArguments = list(map(lambda x: x.lower(), caseProcessedArguments))
     flagRE = re.compile(r"-\S*")
+
     if "-genBitstream".lower() in str(sys.argv).lower():
         argIndex = processedArguments.index("-genBitstream".lower())
         if len(processedArguments) <= argIndex + 3:

@@ -123,9 +123,12 @@ A demo of the whole flow:
 # In the FABulous shell
 FABulous> load_fabric
 FABulous> run_FABulous_fabric
-FABulous> run_FABulous_bitstream npnr ./user_design/sequential_16bit_en.v
+FABulous> run_FABulous_bitstream ./user_design/sequential_16bit_en.v
 FABulous> exit
 ```
+
+> [!NOTE]  
+> To generate a bitstream for a legacy FABulous 1.0 fabric, pass `--legacy` to `run_FABulous_bitstream`.
 
 To run a simulation of a test bitstream on the design with Icarus Verilog:
 

@@ -2016,7 +2016,7 @@ class FabricGenerator:
             g[1].sort(key=lambda x: split_port(x))
 
         # header
-        numberOfRows = self.fabric.numberOfRows - 2
+        numberOfRows = self.fabric.numberOfRows
         numberOfColumns = self.fabric.numberOfColumns
         self.writer.addHeader(f"{self.fabric.name}_top")
         self.writer.addParameterStart(indentLevel=1)
@@ -2070,10 +2070,18 @@ class FabricGenerator:
         if "RAM2FAB_D_I" in portGroups and self.fabric.numberOfBRAMs > 0:
             self.writer.addComment("BlockRAM ports", onNewLine=True)
             self.writer.addNewLine()
-            self.writer.addConnectionVector("RAM2FAB_D_I", f"{numberOfRows * 4 * 4}-1")
-            self.writer.addConnectionVector("FAB2RAM_D_O", f"{numberOfRows * 4 * 4}-1")
-            self.writer.addConnectionVector("FAB2RAM_A_O", f"{numberOfRows * 4 * 2}-1")
-            self.writer.addConnectionVector("FAB2RAM_C_O", f"{numberOfRows * 4}-1")
+            self.writer.addConnectionVector(
+                "RAM2FAB_D_I", f"{(numberOfRows - 2) * 4 * 4}-1"
+            )
+            self.writer.addConnectionVector(
+                "FAB2RAM_D_O", f"{(numberOfRows - 2) * 4 * 4}-1"
+            )
+            self.writer.addConnectionVector(
+                "FAB2RAM_A_O", f"{(numberOfRows - 2) * 4 * 2}-1"
+            )
+            self.writer.addConnectionVector(
+                "FAB2RAM_C_O", f"{(numberOfRows - 2) * 4}-1"
+            )
 
         self.writer.addNewLine()
         self.writer.addComment("Signal declarations", onNewLine=True)
@@ -2083,9 +2091,7 @@ class FabricGenerator:
         self.writer.addConnectionVector(
             "FrameSelect", "(MaxFramesPerCol*NumberOfCols)-1"
         )
-        self.writer.addConnectionVector(
-            "FrameData", "(FrameBitsPerRow*(NumberOfRows+2))-1"
-        )
+        self.writer.addConnectionVector("FrameData", "(NumberOfRows*FrameBitsPerRow)-1")
         self.writer.addConnectionVector("FrameAddressRegister", "FrameBitsPerRow-1")
         self.writer.addConnectionScalar("LongFrameStrobe")
         self.writer.addConnectionVector("LocalWriteData", 31)
@@ -2174,7 +2180,7 @@ class FabricGenerator:
                 paramPairs=[
                     ("FrameBitsPerRow", "FrameBitsPerRow"),
                     ("RowSelectWidth", "RowSelectWidth"),
-                    ("Row", str(row + 1)),
+                    ("Row", str(row)),
                 ],
             )
         self.writer.addNewLine()
@@ -2237,9 +2243,13 @@ class FabricGenerator:
 
         # the BRAM module
         if "RAM2FAB_D_I" in portGroups and self.fabric.numberOfBRAMs > 0:
-            data_cap = int((numberOfRows * 4 * 4) / (self.fabric.numberOfBRAMs - 1))
-            addr_cap = int((numberOfRows * 4 * 2) / (self.fabric.numberOfBRAMs - 1))
-            config_cap = int((numberOfRows * 4) / (self.fabric.numberOfBRAMs - 1))
+            data_cap = int(
+                ((numberOfRows - 2) * 4 * 4) / (self.fabric.numberOfBRAMs - 1)
+            )
+            addr_cap = int(
+                ((numberOfRows - 2) * 4 * 2) / (self.fabric.numberOfBRAMs - 1)
+            )
+            config_cap = int(((numberOfRows - 2) * 4) / (self.fabric.numberOfBRAMs - 1))
             for i in range(self.fabric.numberOfBRAMs - 1):
                 portsPairs = [
                     ("clk", "CLK"),
@@ -2263,13 +2273,9 @@ class FabricGenerator:
                     portsPairs=portsPairs,
                 )
         if isinstance(self.writer, VHDLWriter):
-            self.writer.addAssignScalar(
-                "FrameData", ['X"12345678"', "FrameRegister", 'X"12345678"']
-            )
+            self.writer.addAssignScalar("FrameData", "FrameRegister")
         else:
-            self.writer.addAssignScalar(
-                "FrameData", ["32'h12345678", "FrameRegister", "32'h12345678"]
-            )
+            self.writer.addAssignScalar("FrameData", "FrameRegister")
         self.writer.addDesignDescriptionEnd()
         self.writer.writeToFile()
 
@@ -2284,6 +2290,7 @@ class FabricGenerator:
         """
 
         specData = {
+            "legacy": True,
             "TileMap": {},
             "TileSpecs": {},
             "TileSpecs_No_Mask": {},
@@ -2305,6 +2312,14 @@ class FabricGenerator:
 
         specData["TileMap"] = tileMap
         configMemList: list[ConfigMem] = []
+
+        # TODO: Temporary fix for legacy support
+        for t in self.fabric.tile[0] + self.fabric.tile[-1]:
+            if t is None:
+                continue
+            if t.globalConfigBits > 0:
+                specData["legacy"] = False
+
         for y, row in enumerate(self.fabric.tile):
             for x, tile in enumerate(row):
                 if tile is None:
@@ -2354,6 +2369,7 @@ class FabricGenerator:
                 encodeDict = [-1] * (
                     self.fabric.maxFramesPerCol * self.fabric.frameBitsPerRow
                 )
+
                 maskDic = {}
                 for cfm in configMemList:
                     maskDic[cfm.frameIndex] = cfm.usedBitMask

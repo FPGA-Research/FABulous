@@ -97,6 +97,7 @@ To run the complete FABulous flow with the default project, run the following co
     run_FABulous_fabric
     run_FABulous_bitstream ./user_design/sequential_16bit_en.v
     run_simulation fst ./user_design/sequential_16bit_en.bin
+
 """
 
 
