@@ -1,7 +1,6 @@
 from csv import writer as csvWriter
 
-from loguru import logger
-
+from FABulous.custom_exception import InvalidPortType
 from FABulous.fabric_definition.define import Direction, Side
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.geometry_generator.bel_geometry import BelGeometry
@@ -228,8 +227,9 @@ class TileGeometry:
                 self.westMiddleY += 1
 
             else:
-                logger.critical("Port with offset 1 and no tile side!")
-                raise Exception
+                raise InvalidPortType(
+                    f"Port with offset 1 and no tile side! {portGeom}"
+                )
 
             self.wireGeomList.append(wireGeom)
 
@@ -258,8 +258,9 @@ class TileGeometry:
             elif portGeom.sideOfTile == Side.WEST:
                 self.indirectWestSideWire(portGeom)
             else:
-                logger.critical("Port with abs(offset) > 1 and no tile side!")
-                raise Exception
+                raise InvalidPortType(
+                    f"Port with abs(offset) > 1 and no tile side! {portGeom}"
+                )
 
     def indirectNorthSideWire(self, portGeom: PortGeometry, padding: int) -> None:
         """Generates indirect wires on the north side of the tile, along with the stair-

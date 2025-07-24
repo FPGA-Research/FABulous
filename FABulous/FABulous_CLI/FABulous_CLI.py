@@ -576,7 +576,7 @@ class FABulous_CLI(Cmd):
             )
             return
 
-        if not os.path.exists(fabulatorRoot):
+        if not Path(fabulatorRoot).exists():
             raise EnvironmentNotSet(
                 f"FABULATOR_ROOT environment variable set to {fabulatorRoot} but the directory does not exist."
             )
@@ -714,19 +714,22 @@ class FABulous_CLI(Cmd):
         if parent == "":
             parent = "."
 
-        if not os.path.exists(
-            f"{self.projectDir}/.FABulous/pips.txt"
-        ) or not os.path.exists(f"{self.projectDir}/.FABulous/bel.txt"):
+        if (
+            not Path(f"{self.projectDir}/.FABulous/pips.txt").exists()
+            or not Path(f"{self.projectDir}/.FABulous/bel.txt").exists()
+        ):
             raise FileNotFoundError(
                 "Pips and Bel files are not found, please run model_gen_npnr first"
             )
 
-        if os.path.exists(f"{self.projectDir}/{parent}"):
+        if Path(f"{self.projectDir}/{parent}").exists():
             # TODO rewriting the fab_arch script so no need to copy file for work around
             npnr = check_if_application_exists(
                 os.getenv("FAB_NEXTPNR_PATH", "nextpnr-generic")
             )
-            if f"{json_file}" in os.listdir(f"{self.projectDir}/{parent}"):
+            if f"{json_file}" in [
+                str(i.name) for i in Path(f"{self.projectDir}/{parent}").iterdir()
+            ]:
                 runCmd = [
                     f"FAB_ROOT={self.projectDir}",
                     f"{npnr}",
@@ -956,7 +959,7 @@ class FABulous_CLI(Cmd):
         do_synth_args = str(args.file)
 
         primsLib = f"{self.projectDir}/user_design/custom_prims.v"
-        if os.path.exists(primsLib):
+        if Path(primsLib).exists():
             do_synth_args += f" -extra-plib {primsLib}"
         else:
             logger.info("No external primsLib found.")

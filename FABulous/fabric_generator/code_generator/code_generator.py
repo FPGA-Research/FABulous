@@ -151,14 +151,14 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addParameter(self, name: str, type, value, indentLevel=0):
+    def addParameter(self, name: str, storageType, value, indentLevel=0):
         """Add a parameter.
 
         Parameters
         ----------
         name : str
             Name of the parameter.
-        type : str
+        storageType : str
             Type of the parameter. Only useful with VHDL.
         value : str
             Value of the parameter.

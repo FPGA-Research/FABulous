@@ -40,7 +40,7 @@ class Tile:
     gen_ios: list[Gen_IO]
     withUserCLK: bool = False
     wireList: list[Wire] = field(default_factory=list)
-    tileDir: pathlib.Path = pathlib.Path(".")
+    tileDir: pathlib.Path = pathlib.Path()
     partOfSuperTile = False
 
     def __init__(

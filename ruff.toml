@@ -26,6 +26,7 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
+    "conf.py"
 ]
 
 # Same as Black.
@@ -64,8 +65,37 @@ target-version = "py312"
 # - ERA: commented code
 
 
-select = ["E", "W", "F", "Q", "I", "RET", "B", "T10", "FA", "INT", "ICN", "LOG",
-    "G", "PIE", "T20", "PYI", "PT", "RSE", "RET", "SLF", "TID", "TC", "FURB", "UP", "BLE", "ERA"]
+select = [
+    "E",
+    "W",
+    "F",
+    "Q",
+    "I",
+    "RET",
+    "B",
+    "T10",
+    "FA",
+    "INT",
+    "ICN",
+    "LOG",
+    "G",
+    "PIE",
+    "T20",
+    "PYI",
+    "PT",
+    "RSE",
+    "RET",
+    "SLF",
+    "TID",
+    "TC",
+    "FURB",
+    "UP",
+    "BLE",
+    "ERA",
+    "A",
+    "PTH",
+    "TRY",
+]
 
 # Future rules: Currently disabled, since it needs some more work.
 # - E501: Line too long -- Not automatically fixable
@@ -86,7 +116,8 @@ select = ["E", "W", "F", "Q", "I", "RET", "B", "T10", "FA", "INT", "ICN", "LOG",
 # Ignoed rules:
 # - E501: Line too long -- Not automatically fixable
 # - PYI063: https://docs.astral.sh/ruff/rules/pep484-style-positional-only-parameter/
-ignore = ["E501", "PYI063"]
+# - TRY003: https://docs.astral.sh/ruff/rules/raise-vanilla-args/
+ignore = ["E501", "PYI063", "TRY003", "PTH123"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]

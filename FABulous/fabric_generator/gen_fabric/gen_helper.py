@@ -36,9 +36,9 @@ def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
         # normal wire
         for i in tile.portsInfo:
             if i.wireDirection != Direction.JUMP:
-                input, output = i.expandPortInfo("AutoSwitchMatrix")
-                sourceName += input
-                destName += output
+                portInput, portOutput = i.expandPortInfo("AutoSwitchMatrix")
+                sourceName += portInput
+                destName += portOutput
         # bel wire
         for b in tile.bels:
             for p in b.inputs:
@@ -49,9 +49,9 @@ def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
         # jump wire
         for i in tile.portsInfo:
             if i.wireDirection == Direction.JUMP:
-                input, output = i.expandPortInfo("AutoSwitchMatrix")
-                sourceName += input
-                destName += output
+                portInput, portOutput = i.expandPortInfo("AutoSwitchMatrix")
+                sourceName += portInput
+                destName += portOutput
         sourceName = list(dict.fromkeys(sourceName))
         destName = list(dict.fromkeys(destName))
         writer.writerow([tile.name] + destName)

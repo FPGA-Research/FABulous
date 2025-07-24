@@ -1,7 +1,6 @@
 from csv import writer as csvWriter
 
-from loguru import logger
-
+from FABulous.custom_exception import InvalidPortType
 from FABulous.fabric_definition.Fabric import Direction
 from FABulous.geometry_generator.geometry_obj import Location
 
@@ -135,8 +134,9 @@ class StairWires:
         elif self.direction == Direction.WEST:
             self.generateWestStairWires()
         else:
-            logger.critical("Invalid direction!")
-            raise Exception
+            raise InvalidPortType(
+                f"Invalid direction {self.direction} for stair wires!"
+            )
 
     def generateNorthStairWires(self) -> None:
         totalWires = self.groupWires * (abs(self.offset) - 1)

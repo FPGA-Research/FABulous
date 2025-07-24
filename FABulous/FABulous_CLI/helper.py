@@ -15,7 +15,7 @@ from dotenv import get_key, load_dotenv, set_key
 from loguru import logger
 from packaging.version import Version
 
-from FABulous.custom_exception import PipelineCommandError
+from FABulous.custom_exception import EnvironmentNotSet, PipelineCommandError
 
 MAX_BITBYTES = 16384
 
@@ -100,7 +100,7 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
     if p := os.getenv("FAB_ROOT"):
         fabDir = Path(p)
     else:
-        raise Exception("FAB_ROOT environment variable not set")
+        raise EnvironmentNotSet("FAB_ROOT environment variable not set")
     if args.globalDotEnv:
         gde = Path(args.globalDotEnv)
         if gde.is_file():
@@ -145,7 +145,7 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
     if p := os.getenv("FAB_PROJ_DIR"):
         fabDir = Path(p) / ".FABulous"
     else:
-        raise Exception("FAB_PROJ_DIR environment variable not set")
+        raise EnvironmentNotSet("FAB_PROJ_DIR environment variable not set")
 
     if args.projectDotEnv:
         pde = Path(args.projectDotEnv)
@@ -352,7 +352,7 @@ def wrap_with_except_handling(fun_to_wrap):
 
             traceback.print_exc()
             logger.error("TCL command failed. Please check the logs for details.")
-            raise Exception from Exception
+            raise Exception from Exception  # noqa: TRY002 - Raising a new exception with the original traceback
 
     return inter
 
@@ -412,13 +412,13 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False):
                     (root / name).rmdir()
             ocs_folder.rmdir()
         else:
-            raise Exception(
+            raise FileExistsError(
                 f"The folder {ocs_folder} already exists. Please set the update flag, remove it or choose a different folder."
             )
     else:
         if not destination_folder.is_dir():
             logger.info(f"Creating folder {destination_folder.absolute()}")
-            os.makedirs(destination_folder, exist_ok=True)
+            Path.mkdir(destination_folder, exist_ok=True)
         else:
             logger.info(
                 f"Installing OSS-CAD-Suite to folder {destination_folder.absolute()}"
@@ -441,7 +441,7 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False):
     if response.status_code == 200:
         latest_release = response.json()
     else:
-        raise Exception(
+        raise ConnectionError(
             f"Failed to fetch latest OSS-CAD-Suite release: {response.status_code}"
         )
 
@@ -463,7 +463,7 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False):
         with open(ocs_archive, "wb") as file:
             file.writelines(response.iter_content(chunk_size=8192))
     else:
-        raise Exception(f"Failed to download file: {response.status_code}")
+        raise ConnectionError(f"Failed to download file: {response.status_code}")
 
     # Extract the archive
     logger.info(f"Extracting OSS-CAD-Suite to {destination_folder.absolute()}")

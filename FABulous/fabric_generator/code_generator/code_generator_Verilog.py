@@ -35,9 +35,9 @@ class VerilogCodeGenerator(CodeGenerator):
             self._add(temp[:-1])
         self._add(")", indentLevel)
 
-    def addParameter(self, name, type, value, indentLevel=0):
-        if type.startswith("["):
-            self._add(f"parameter {type} {name}={value},", indentLevel)
+    def addParameter(self, name, storageType, value, indentLevel=0):
+        if storageType.startswith("["):
+            self._add(f"parameter {storageType} {name}={value},", indentLevel)
         else:
             self._add(f"parameter {name}={value},", indentLevel)
 

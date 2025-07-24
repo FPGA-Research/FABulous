@@ -64,10 +64,10 @@ def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) 
             entry["frame_name"] = f"frame{k}"
             # and the index (0, 1, 2, ...), in case we need
             entry["frame_index"] = str(k)
-            slice = bits[count : count + fabric.frameBitsPerRow]
-            entry["bits_used_in_frame"] = slice.count(1)
-            entry["used_bits_mask"] = slice.to01(group=4, sep="_")
-            if slice.count(1) == 0:
+            bitSlice = bits[count : count + fabric.frameBitsPerRow]
+            entry["bits_used_in_frame"] = bitSlice.count(1)
+            entry["used_bits_mask"] = bitSlice.to01(group=4, sep="_")
+            if bitSlice.count(1) == 0:
                 entry["ConfigBits_ranges"] = "# NULL"
             else:
                 entry["ConfigBits_ranges"] = (

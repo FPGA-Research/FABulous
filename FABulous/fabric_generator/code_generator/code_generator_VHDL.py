@@ -45,8 +45,8 @@ class VHDLCodeGenerator(CodeGenerator):
             self._add(temp[:-1])
         self._add(");", indentLevel)
 
-    def addParameter(self, name, type, value, indentLevel=0):
-        self._add(f"{name} : {type} := {value};", indentLevel)
+    def addParameter(self, name, storageType, value, indentLevel=0):
+        self._add(f"{name} : {storageType} := {value};", indentLevel)
 
     def addPortStart(self, indentLevel=0):
         self._add("Port (", indentLevel)

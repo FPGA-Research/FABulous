@@ -74,7 +74,7 @@ class PortGeometry:
         name: str,
         sourceName: str,
         destName: str,
-        type: PortType,
+        portType: PortType,
         ioDirection: IO,
         relX: int,
         relY: int,
@@ -82,7 +82,7 @@ class PortGeometry:
         self.name = name
         self.sourceName = sourceName
         self.destName = destName
-        self.type = type
+        self.type = portType
         self.ioDirection = ioDirection
         self.relX = relX
         self.relY = relY

@@ -1,5 +1,5 @@
-import os
 import sys
+from pathlib import Path
 
 # Configuration file for the Sphinx documentation builder.
 
@@ -35,7 +35,7 @@ intersphinx_disabled_domains = ["std"]
 
 templates_path = ["_templates"]
 
-sys.path.append(os.getcwd() + "/../../")
+sys.path.append(str(Path().cwd() / "../../"))
 
 napoleon_google_docstring = False
 napoleon_numpy_docstring = True

@@ -211,11 +211,11 @@ def generateSwitchmatrixList(
 
     # Remove local shared ports from bel ports for further processing
     for bel in belLocalSharedPorts:
-        for type in bel:
-            if bel[type][0] in belIns:
-                belIns.remove(bel[type][0])
-            if bel[type][0] in belOuts:
-                belOuts.remove(bel[type][0])
+        for belType in bel:
+            if bel[belType][0] in belIns:
+                belIns.remove(bel[belType][0])
+            if bel[belType][0] in belOuts:
+                belOuts.remove(bel[belType][0])
 
     if len(belIns) > 32:
         raise ValueError(
