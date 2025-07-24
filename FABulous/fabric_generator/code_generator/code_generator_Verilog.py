@@ -16,7 +16,7 @@ class VerilogCodeGenerator(CodeGenerator):
         else:
             self._add(f"{' ':<{indentLevel * 4}}" + f"// {comment}{end}")
 
-    def addHeader(self, name, package="", indentLevel=0):
+    def addHeader(self, name, _package="", indentLevel=0):
         self._add(f"module {name}", indentLevel)
 
     def addHeaderEnd(self, name, indentLevel=0):
@@ -216,7 +216,7 @@ end
 """
         self._add(template, indentLevel)
 
-    def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
+    def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):  # noqa: ARG002
         inv = "~" if inverted else ""
         if isinstance(right, list):
             self._add(f"assign {left} = {inv}{{{','.join(right)}}};", indentLevel)

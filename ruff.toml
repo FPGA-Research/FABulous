@@ -96,7 +96,8 @@ select = [
     "PTH",
     "TRY",
     "SIM",
-    "PT"
+    "PT",
+    "ARG"
 ]
 
 
@@ -110,7 +111,6 @@ select = [
 # - FIX: flake8 fixme
 # - SIM: flake8 simplify
 # - PL: pylint
-# - ARG: flake8 arguments
 # - ANN: flake8 Annotations
 
 # Ignoed rules:

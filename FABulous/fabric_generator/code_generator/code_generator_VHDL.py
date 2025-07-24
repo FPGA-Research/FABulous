@@ -67,7 +67,7 @@ class VHDLCodeGenerator(CodeGenerator):
         self._add(");", indentLevel)
 
     def addPortScalar(
-        self, name, io: IO, reg=False, attribute: str = "", indentLevel=0
+        self, name, io: IO, _reg=False, attribute: str = "", indentLevel=0
     ):
         ioVHDL = ""
         if io.value.lower() == "input":
@@ -81,7 +81,7 @@ class VHDLCodeGenerator(CodeGenerator):
         )
 
     def addPortVector(
-        self, name, io: IO, msbIndex, reg=False, attribute: str = "", indentLevel=0
+        self, name, io: IO, msbIndex, _reg=False, attribute: str = "", indentLevel=0
     ):
         ioVHDL = ""
         if io.value.lower() == "input":
@@ -104,11 +104,11 @@ class VHDLCodeGenerator(CodeGenerator):
     def addConstant(self, name, value, indentLevel=0):
         self._add(f"constant {name} : STD_LOGIC := '{value}';", indentLevel)
 
-    def addConnectionScalar(self, name, reg=False, indentLevel=0):
+    def addConnectionScalar(self, name, _reg=False, indentLevel=0):
         self._add(f"signal {name} : STD_LOGIC;", indentLevel)
 
     def addConnectionVector(
-        self, name, startIndex, reg=False, endIndex=0, indentLevel=0
+        self, name, startIndex, _reg=False, endIndex=0, indentLevel=0
     ):
         self._add(
             f"signal {name} : STD_LOGIC_VECTOR( {startIndex} downto {endIndex} );",
@@ -258,16 +258,16 @@ CONFout <= ConfigBits(ConfigBits'high);
     """
         self._add(template, indentLevel)
 
-    def addPreprocIfDef(self, macro, indentLevel=0):
+    def addPreprocIfDef(self, _macro, _indentLevel=0):
         raise AssertionError("preprocessor not supported in VHDL")
 
-    def addPreprocIfNotDef(self, macro, indentLevel=0):
+    def addPreprocIfNotDef(self, _macro, _indentLevel=0):
         raise AssertionError("preprocessor not supported in VHDL")
 
-    def addPreprocElse(self, indentLevel=0):
+    def addPreprocElse(self, _indentLevel=0):
         raise AssertionError("preprocessor not supported in VHDL")
 
-    def addPreprocEndif(self, indentLevel=0):
+    def addPreprocEndif(self, _indentLevel=0):
         raise AssertionError("preprocessor not supported in VHDL")
 
     def addBelMapAttribute(self, configBitValues: list[tuple[str, int]], indentLevel=0):

@@ -234,7 +234,7 @@ class FABulous_CLI(Cmd):
                 return False
             return not self.force
 
-    def do_exit(self, *ignored):
+    def do_exit(self, *_ignored):
         """Exits the FABulous shell and logs info message."""
         logger.info("Exiting FABulous shell")
         os.chdir(self.enteringDir)
@@ -506,14 +506,14 @@ class FABulous_CLI(Cmd):
         logger.info("Tile generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_all_tile(self, *ignored):
+    def do_gen_all_tile(self, *_ignored):
         """Generates all tiles by calling 'do_gen_tile'."""
         logger.info("Generating all tiles")
         self.do_gen_tile(" ".join(self.allTile))
         logger.info("All tiles generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_fabric(self, *ignored):
+    def do_gen_fabric(self, *_ignored):
         """Generates fabric based on the loaded fabric by calling 'do_gen_all_tile' and
         'genFabric'.
 
@@ -560,7 +560,7 @@ class FABulous_CLI(Cmd):
         logger.info(f"{geomFile} can now be imported into FABulator")
 
     @with_category(CMD_GUI)
-    def do_start_FABulator(self, *ignored):
+    def do_start_FABulator(self, *_ignored):
         """Starts FABulator if an installation can be found.
 
         If no installation can be found, a warning is produced.
@@ -600,7 +600,7 @@ class FABulous_CLI(Cmd):
             ) from e
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_bitStream_spec(self, *ignored):
+    def do_gen_bitStream_spec(self, *_ignored):
         """Generates bitstream specification of the fabric by calling 'genBitStreamspec'
         and saving the specification to a binary and CSV file.
 
@@ -625,7 +625,7 @@ class FABulous_CLI(Cmd):
         logger.info("Bitstream specification generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_top_wrapper(self, *ignored):
+    def do_gen_top_wrapper(self, *_ignored):
         """Generates top wrapper of the fabric by calling 'genTopWrapper'."""
         logger.info("Generating top wrapper")
         self.fabulousAPI.setWriterOutputFile(
@@ -635,7 +635,7 @@ class FABulous_CLI(Cmd):
         logger.info("Top wrapper generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_run_FABulous_fabric(self, *ignored):
+    def do_run_FABulous_fabric(self, *_ignored):
         """Generates the fabric based on the CSV file, creates bitstream specification
         of the fabric, top wrapper of the fabric, Nextpnr model of the fabric and
         geometry information of the fabric.
@@ -659,7 +659,7 @@ class FABulous_CLI(Cmd):
             logger.info("FABulous fabric flow complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_model_npnr(self, *ignored):
+    def do_gen_model_npnr(self, *_ignored):
         """Generates Nextpnr model of fabric by parsing various required files for place
         and route such as 'pips.txt', 'bel.txt', 'bel.v2.txt' and 'templace.pcf'. Output
         files are written to the directory specified by 'metaDataDir' within
@@ -1078,5 +1078,5 @@ class FABulous_CLI(Cmd):
 
     @with_category(CMD_FABRIC_FLOW)
     @allow_blank
-    def do_gen_io_fabric(self, args):
+    def do_gen_io_fabric(self, _args):
         self.fabulousAPI.genFabricIOBels()

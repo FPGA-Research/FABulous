@@ -61,14 +61,14 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
 
 @overload
 def parseList(
-    filePath: Path, collect: Literal["pair"] = "pair", prefix: str = ""
+    filePath: Path, collect: Literal["pair"] = "pair"
 ) -> list[tuple[str, str]]:
     pass
 
 
 @overload
 def parseList(
-    filePath: Path, collect: Literal["source", "sink"], prefix: str = ""
+    filePath: Path, collect: Literal["source", "sink"]
 ) -> dict[str, list[str]]:
     pass
 
@@ -127,7 +127,6 @@ def expandListPorts(port, PortList):
 def parseList(
     filePath: Path,
     collect: Literal["pair", "source", "sink"] = "pair",
-    prefix: str = "",
 ) -> list[tuple[str, str]] | dict[str, list[str]]:
     """Parse a list file and expand the list file information into a list of tuples.
 

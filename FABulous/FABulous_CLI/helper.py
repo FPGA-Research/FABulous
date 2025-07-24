@@ -295,7 +295,7 @@ def make_hex(binfile: Path, outfile: Path):
                 print("0", file=f)
 
 
-def check_if_application_exists(application: str, throw_exception: bool = True) -> Path:
+def check_if_application_exists(application: str) -> Path:
     """Checks if an application is installed on the system.
 
     Parameters
