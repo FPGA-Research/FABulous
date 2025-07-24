@@ -101,7 +101,6 @@ select = [
 
 # Future rules: Currently disabled, since it needs some more work.
 # - E501: Line too long -- Not automatically fixable
-# - PTH: flake8 use pathlib
 # - N: flake8 Naming
 # - DOC: Doclint
 # - D: docstyle
@@ -111,9 +110,7 @@ select = [
 # - SIM: flake8 simplify
 # - PL: pylint
 # - ARG: flake8 arguments
-# - TRY: Tryceratops
 # - ANN: flake8 Annotations
-# - A: flake8 builtins
 
 # Ignoed rules:
 # - E501: Line too long -- Not automatically fixable
