@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import NamedTuple
 
 import pytest
@@ -573,7 +574,7 @@ class ParseConfigTestCase(NamedTuple):
         ),
     ],
 )
-def test_parsing_scenarios(tmp_path, test_case: ParseConfigTestCase) -> None:
+def test_parsing_scenarios(tmp_path: Path, test_case: ParseConfigTestCase) -> None:
     """Test various valid parsing scenarios and error conditions."""
     csv_file = tmp_path / f"test_{test_case.__class__.__name__}.csv"
     create_config_csv(csv_file, test_case.csv_data)
@@ -589,9 +590,7 @@ def test_parsing_scenarios(tmp_path, test_case: ParseConfigTestCase) -> None:
             )
     else:
         # This is a success case
-        result = parseConfigMem(
-            csv_file, test_case.max_frames, test_case.frame_bits, test_case.global_bits
-        )
+        result = parseConfigMem(csv_file, test_case.max_frames, test_case.frame_bits, test_case.global_bits)
 
         assert len(result) == test_case.expected_result_len
 
@@ -601,11 +600,7 @@ def test_parsing_scenarios(tmp_path, test_case: ParseConfigTestCase) -> None:
             assert len(result) == test_case.expected_result_len
 
             # Create a mapping of expected non-NULL frames for validation
-            expected_frames = [
-                frame
-                for frame in test_case.csv_data
-                if frame["ConfigBits_ranges"].upper() != "NULL"
-            ]
+            expected_frames = [frame for frame in test_case.csv_data if frame["ConfigBits_ranges"].upper() != "NULL"]
 
             # Verify each returned frame matches the expected data
             for i, frame_result in enumerate(result):

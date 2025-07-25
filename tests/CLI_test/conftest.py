@@ -1,4 +1,5 @@
 import os
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -9,7 +10,7 @@ from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import create_project, setup_logger
 
 
-def normalize(block: str):
+def normalize(block: str) -> list[str]:
     """Normalize a block of text to perform comparison.
 
     Strip newlines from the very beginning and very end, then split into separate lines and strip trailing whitespace
@@ -20,12 +21,12 @@ def normalize(block: str):
     return [line.rstrip() for line in block.splitlines()]
 
 
-def run_cmd(app, cmd) -> None:
+def run_cmd(app: FABulous_CLI, cmd: str) -> None:
     """Clear stdout, stdin and stderr buffers, run the command, and return stdout and stderr"""
     app.onecmd_plus_hooks(cmd)
 
 
-def normalize_and_check_for_errors(caplog_text: str):
+def normalize_and_check_for_errors(caplog_text: str) -> list[str]:
     """Normalize a block of text and check for errors."""
     log = normalize(caplog_text)
     assert not any("ERROR" in line for line in log), "Error found in log messages"
@@ -36,7 +37,7 @@ TILE = "LUT4AB"
 
 
 @pytest.fixture(autouse=True)
-def env():
+def env() -> Generator[None]:
     fabulousRoot = str(Path(__file__).resolve().parent.parent.parent / "FABulous")
     os.environ["FAB_ROOT"] = fabulousRoot
     os.environ["FABULOUS_TESTING"] = "TRUE"
@@ -46,14 +47,12 @@ def env():
 
 
 @pytest.fixture
-def cli(tmp_path):
+def cli(tmp_path: Path) -> Generator[FABulous_CLI]:
     projectDir = tmp_path / "test_project"
     os.environ["FAB_PROJ_DIR"] = str(projectDir)
     create_project(projectDir)
     setup_logger(0, False)
-    cli = FABulous_CLI(
-        writerType="verilog", projectDir=projectDir, enteringDir=tmp_path
-    )
+    cli = FABulous_CLI(writerType="verilog", projectDir=projectDir, enteringDir=tmp_path)
     cli.debug = True
     run_cmd(cli, "load_fabric")
     yield cli
@@ -62,7 +61,7 @@ def cli(tmp_path):
 
 
 @pytest.fixture
-def project(tmp_path):
+def project(tmp_path: Path) -> Generator[Path]:
     project_dir = tmp_path / "test_project"
     os.environ["FAB_PROJ_DIR"] = str(project_dir)
     create_project(project_dir)
@@ -71,7 +70,7 @@ def project(tmp_path):
 
 
 @pytest.fixture(autouse=True)
-def cleanup_logger():
+def cleanup_logger() -> Generator[None]:
     """Ensure logger is properly cleaned up after each test to prevent
     'logging to closed file' errors when tests exit quickly"""
     yield
@@ -80,7 +79,7 @@ def cleanup_logger():
 
 
 @pytest.fixture
-def caplog(caplog: LogCaptureFixture):
+def caplog(caplog: LogCaptureFixture) -> Generator[LogCaptureFixture]:
     handler_id = logger.add(
         caplog.handler,
         format="{message}",

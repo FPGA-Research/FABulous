@@ -1,20 +1,34 @@
 """RTL behavior validation for generated ConfigMem modules using cocotb."""
 
 import json
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any, Protocol
 
 # Cocotb test module - these functions are called by cocotb during simulation
 import cocotb
 import pytest
 from cocotb.triggers import Timer
+from pytest_mock import MockerFixture
 
+from FABulous.fabric_definition.ConfigMem import ConfigMem
+from FABulous.fabric_definition.Fabric import Fabric
+from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from FABulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 
 # Use parseConfigMem function to get accurate bit mapping
 from FABulous.fabric_generator.parser.parse_configmem import parseConfigMem
 
 
-def load_bit_mapping():
+class ConfigMemDUT(Protocol):
+    FrameData: Any
+    FrameStrobe: Any
+    ConfigBits: Any
+    ConfigBits_N: Any
+
+
+def load_bit_mapping() -> dict:
     """Load direct bit mapping from JSON file: (frame,framedata_bit) -> config_bit."""
     config_file = Path().cwd() / "config_info.json"
     if config_file.exists():
@@ -23,30 +37,7 @@ def load_bit_mapping():
     return {}
 
 
-def create_test_pattern(config_info, frame_index, pattern_type="ones"):
-    """Create a test pattern that sets the appropriate bits for the given frame."""
-    if str(frame_index) not in config_info:
-        return 0
-
-    used_bits = config_info[str(frame_index)]["used_bits"]
-    if not used_bits:
-        return 0
-
-    pattern = 0
-    if pattern_type == "ones":
-        # Set all used bits to 1
-        for bit in used_bits:
-            pattern |= 1 << bit
-    elif pattern_type == "alternating":
-        # Set every other used bit
-        for i, bit in enumerate(used_bits):
-            if i % 2 == 0:
-                pattern |= 1 << bit
-
-    return pattern
-
-
-async def initialize_configmem(dut) -> None:
+async def initialize_configmem(dut: ConfigMemDUT) -> None:
     """Initialize ConfigMem by setting all bits to 0 using frame strobing."""
     # Set FrameData to 0
     dut.FrameData.value = 0
@@ -65,7 +56,7 @@ async def initialize_configmem(dut) -> None:
 
 @pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_configmem_settings(dut) -> None:
+async def test_configmem_settings(dut: ConfigMemDUT) -> None:
     """Test exact bit mapping from FrameData to ConfigBits using direct mapping."""
     await initialize_configmem(dut)
 
@@ -138,11 +129,11 @@ async def test_configmem_settings(dut) -> None:
 @pytest.mark.parametrize("hdl_lang", [".v", ".vhd"])
 def test_configmem_rtl_with_generated_configmem_simulation(
     hdl_lang: str,
-    fabric_config,
-    tile_config,
+    fabric_config: Fabric,
+    tile_config: Tile,
     tmp_path: Path,
-    code_generator_factory,
-    cocotb_runner,
+    code_generator_factory: Callable[..., CodeGenerator],
+    cocotb_runner: Callable[..., Callable],
 ) -> None:
     """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
 
@@ -167,9 +158,7 @@ def test_configmem_rtl_with_generated_configmem_simulation(
 
     # Check if RTL file was created - skip if no config bits were generated
     if tile_config.globalConfigBits != 0:
-        assert writer.outFileName.exists(), (
-            f"ConfigMem RTL file {writer.outFileName} was not generated."
-        )
+        assert writer.outFileName.exists(), f"ConfigMem RTL file {writer.outFileName} was not generated."
     else:
         return
 
@@ -190,15 +179,11 @@ def test_configmem_rtl_with_generated_configmem_simulation(
         # Find which FrameData bits are used (positions of '1' in mask)
         # The usedBitMask is interpreted right-to-left (little endian)
         used_framedata_bits = [
-            len(used_bit_mask) - 1 - i
-            for i, bit in enumerate(reversed(used_bit_mask))
-            if bit == "1"
+            len(used_bit_mask) - 1 - i for i, bit in enumerate(reversed(used_bit_mask)) if bit == "1"
         ]
 
         # Map each used FrameData bit to its corresponding ConfigBit
-        for framedata_bit_idx, config_bit_idx in zip(
-            used_framedata_bits, config_bit_ranges, strict=True
-        ):
+        for framedata_bit_idx, config_bit_idx in zip(used_framedata_bits, config_bit_ranges, strict=True):
             key = f"{frame_index}, {framedata_bit_idx}"
             bit_mapping[key] = config_bit_idx
 
@@ -218,12 +203,12 @@ def test_configmem_rtl_with_generated_configmem_simulation(
 def test_configmem_rtl_with_custom_configmem_simulation(
     hdl_lang: str,
     tmp_path: Path,
-    default_fabric,
-    default_tile,
-    configmem_list,
-    code_generator_factory,
-    cocotb_runner,
-    mocker,
+    default_fabric: Fabric,
+    default_tile: Tile,
+    configmem_list: Callable[[Fabric, Tile], list[ConfigMem]],
+    code_generator_factory: Callable[..., CodeGenerator],
+    cocotb_runner: Callable[..., Callable],
+    mocker: MockerFixture,
 ) -> None:
     """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
 
@@ -269,15 +254,11 @@ def test_configmem_rtl_with_custom_configmem_simulation(
         # Find which FrameData bits are used (positions of '1' in mask)
         # The usedBitMask is interpreted right-to-left (little endian)
         used_framedata_bits = [
-            len(used_bit_mask) - 1 - i
-            for i, bit in enumerate(reversed(used_bit_mask))
-            if bit == "1"
+            len(used_bit_mask) - 1 - i for i, bit in enumerate(reversed(used_bit_mask)) if bit == "1"
         ]
 
         # Map each used FrameData bit to its corresponding ConfigBit
-        for framedata_bit_idx, config_bit_idx in zip(
-            used_framedata_bits, config_bit_ranges, strict=True
-        ):
+        for framedata_bit_idx, config_bit_idx in zip(used_framedata_bits, config_bit_ranges, strict=True):
             key = f"{frame_index}, {framedata_bit_idx}"
             bit_mapping[key] = config_bit_idx
 

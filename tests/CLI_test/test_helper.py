@@ -1,9 +1,11 @@
+from pathlib import Path
+
 import pytest
 
 from FABulous.FABulous_CLI.helper import create_project, update_project_version
 
 
-def test_create_project(tmp_path) -> None:
+def test_create_project(tmp_path: Path) -> None:
     # Test Verilog project creation
     project_dir = tmp_path / "test_project_verilog"
     create_project(project_dir)
@@ -21,12 +23,10 @@ def test_create_project(tmp_path) -> None:
     assert "FAB_PROJ_VERSION_CREATED=" in env_file.read_text()
 
     # Check if template files were copied
-    assert any(project_dir.glob("**/*.v")), (
-        "No Verilog files found in project directory"
-    )
+    assert any(project_dir.glob("**/*.v")), "No Verilog files found in project directory"
 
 
-def test_create_project_vhdl(tmp_path) -> None:
+def test_create_project_vhdl(tmp_path: Path) -> None:
     # Test VHDL project creation
     project_dir = tmp_path / "test_project_vhdl"
     create_project(project_dir, lang="vhdl")
@@ -43,12 +43,10 @@ def test_create_project_vhdl(tmp_path) -> None:
     assert "FAB_PROJ_VERSION_CREATED=" in env_file.read_text()
 
     # Check if template files were copied
-    assert any(project_dir.glob("**/*.vhdl")), (
-        "No VHDL files found in project directory"
-    )
+    assert any(project_dir.glob("**/*.vhdl")), "No VHDL files found in project directory"
 
 
-def test_create_project_existing_dir(tmp_path) -> None:
+def test_create_project_existing_dir(tmp_path: Path) -> None:
     # Test creating project in existing directory
     project_dir = tmp_path / "existing_dir"
     project_dir.mkdir()
@@ -57,7 +55,7 @@ def test_create_project_existing_dir(tmp_path) -> None:
         create_project(project_dir)
 
 
-def test_update_project_version_success(tmp_path, monkeypatch) -> None:
+def test_update_project_version_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)
     env_file = env_dir / ".env"
@@ -70,7 +68,7 @@ def test_update_project_version_success(tmp_path, monkeypatch) -> None:
     assert "FAB_PROJ_VERSION='1.2.4'" in env_file.read_text()
 
 
-def test_update_project_version_missing_version(tmp_path) -> None:
+def test_update_project_version_missing_version(tmp_path: Path) -> None:
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)
     env_file = env_dir / ".env"
@@ -79,7 +77,7 @@ def test_update_project_version_missing_version(tmp_path) -> None:
     assert update_project_version(tmp_path / "proj") is False
 
 
-def test_update_project_version_major_mismatch(tmp_path, monkeypatch) -> None:
+def test_update_project_version_major_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)
     env_file = env_dir / ".env"
