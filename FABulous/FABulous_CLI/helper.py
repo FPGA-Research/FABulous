@@ -9,16 +9,19 @@ import tarfile
 from collections.abc import Callable, Sequence
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-import loguru
 import requests
 from dotenv import get_key, load_dotenv, set_key
 from loguru import logger
 from packaging.version import Version
 
 from FABulous.custom_exception import EnvironmentNotSet, PipelineCommandError
-from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
+
+if TYPE_CHECKING:
+    from loguru import Record
+
+    from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 
 MAX_BITBYTES = 16384
 
@@ -28,7 +31,7 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
     logger.remove()
 
     # Define a custom formatting function that has access to 'verbosity'
-    def custom_format_function(record: loguru.Record) -> str:
+    def custom_format_function(record: "Record") -> str:
         # Construct the standard part of the log message based on verbosity
         level = f"<level>{record['level'].name}</level> | "
         time = f"<cyan>[{record['time']:DD-MM-YYYY HH:mm:ss}]</cyan> | "
@@ -321,7 +324,6 @@ def check_if_application_exists(application: str) -> Path:
     if path is not None:
         return Path(path)
     error_msg = f"{application} is not installed. Please install it or set FAB_<APPLICATION>_PATH in the .env file."
-    logger.error(error_msg)
     # To satisfy the `-> Path` return type, an exception must be raised if no path is found.
     # The throw_exception parameter's original intent might need review if non-exception paths were desired.
     raise FileNotFoundError(error_msg)
@@ -535,7 +537,7 @@ def update_project_version(project_dir: Path) -> bool:
 class CommandPipeline:
     """Helper class to manage command execution with error handling."""
 
-    def __init__(self, cli_instance: FABulous_CLI) -> None:
+    def __init__(self, cli_instance: "FABulous_CLI") -> None:
         self.cli = cli_instance
         self.steps = []
 

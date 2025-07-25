@@ -47,7 +47,7 @@ We use `pytest` as our testing framework. Our testing infrastructure is set up i
 Example usage:
 
 ```python
-def test_example(tmp_path):
+def test_example(tmp_path: Path):
     project_dir = tmp_path / "my_test_project"
     # Your test code here
 ```

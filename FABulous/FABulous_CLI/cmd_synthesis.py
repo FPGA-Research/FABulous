@@ -2,13 +2,16 @@ import argparse
 import os
 import subprocess as sp
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from cmd2 import Cmd, Cmd2ArgumentParser, with_argparser, with_category
 from loguru import logger
 
 from FABulous.custom_exception import CommandError
-from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import check_if_application_exists
+
+if TYPE_CHECKING:
+    from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 
 CMD_USER_DESIGN_FLOW = "User Design Flow"
 HELP = """
@@ -236,7 +239,7 @@ synthesis_parser.add_argument(
 
 @with_category(CMD_USER_DESIGN_FLOW)
 @with_argparser(synthesis_parser)
-def do_synthesis(self: FABulous_CLI, args: argparse.Namespace) -> None:
+def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
     logger.info(
         f"Running synthesis targeting Nextpnr with design {[str(i) for i in args.files]}"
     )
