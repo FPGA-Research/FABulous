@@ -30,7 +30,7 @@ class GeometryGenerator:
         The generated geometry object
     """
 
-    def __init__(self, fabric: Fabric):
+    def __init__(self, fabric: Fabric) -> None:
         self.fabric = fabric
         self.fabricGeometry = None
 

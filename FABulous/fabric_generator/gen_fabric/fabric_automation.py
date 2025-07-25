@@ -153,7 +153,7 @@ def generateSwitchmatrixList(
     outFile: Path,
     carryportsTile: dict[str, dict[IO, str]],
     localSharedPortsTile: dict[str, list[Port]],
-):
+) -> None:
     """Generate a switchmatrix list file for a given tile ans its bels. This list File
     is based on a dummy list file from CLB_DUMMY and is based on the LUT4AB switchtmatix
     list file. It is also possible to automatically generate connections for carry

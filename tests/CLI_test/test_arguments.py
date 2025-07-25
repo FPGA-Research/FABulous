@@ -8,7 +8,7 @@ import pytest
 from FABulous.FABulous import main
 
 
-def test_create_project(tmp_path, monkeypatch):
+def test_create_project(tmp_path, monkeypatch) -> None:
     """Test project creation  to mock sys.argv"""
     # Mock sys.argv
     test_args = ["FABulous", "--createProject", str(tmp_path / "test_prj")]
@@ -25,7 +25,7 @@ def test_create_project(tmp_path, monkeypatch):
     assert exc_info.value.code == 0
 
 
-def test_create_project_existing_dir(tmp_path, monkeypatch, capsys):
+def test_create_project_existing_dir(tmp_path, monkeypatch, capsys) -> None:
     """Test project creation with existing directory"""
     existing_dir = tmp_path / "existing_dir"
     existing_dir.mkdir()
@@ -45,7 +45,7 @@ def test_create_project_existing_dir(tmp_path, monkeypatch, capsys):
     assert "already exists" in captured.out
 
 
-def test_create_project_with_no_name(monkeypatch):
+def test_create_project_with_no_name(monkeypatch) -> None:
     """Test project creation with missing name argument"""
     test_args = ["FABulous", "--createProject"]
     monkeypatch.setattr(sys, "argv", test_args)
@@ -58,7 +58,7 @@ def test_create_project_with_no_name(monkeypatch):
     assert exc_info.value.code != 0
 
 
-def test_fabulous_script(tmp_path, project, monkeypatch):
+def test_fabulous_script(tmp_path, project, monkeypatch) -> None:
     """Test FABulous script execution"""
     # Create a test FABulous script file
     script_file = tmp_path / "test_script.fab"
@@ -73,7 +73,7 @@ def test_fabulous_script(tmp_path, project, monkeypatch):
     assert exc_info.value.code == 0
 
 
-def test_fabulous_script_nonexistent_file(tmp_path, project, monkeypatch):
+def test_fabulous_script_nonexistent_file(tmp_path, project, monkeypatch) -> None:
     """Test FABulous script with nonexistent file"""
     nonexistent_script = tmp_path / "nonexistent_script.fab"
 
@@ -86,7 +86,7 @@ def test_fabulous_script_nonexistent_file(tmp_path, project, monkeypatch):
     assert exc_info.value.code != 0
 
 
-def test_fabulous_script_with_no_project_dir(tmp_path, monkeypatch):
+def test_fabulous_script_with_no_project_dir(tmp_path, monkeypatch) -> None:
     """Test FABulous script with no project directory"""
     script_file = tmp_path / "test_script.fab"
     script_file.write_text("# Test FABulous script\n")
@@ -100,7 +100,7 @@ def test_fabulous_script_with_no_project_dir(tmp_path, monkeypatch):
     assert exc_info.value.code == 0
 
 
-def test_tcl_script_execution(tmp_path, project, monkeypatch):
+def test_tcl_script_execution(tmp_path, project, monkeypatch) -> None:
     """Test TCL script execution on a valid project"""
     # Create a TCL script
     tcl_script = tmp_path / "test_script.tcl"
@@ -118,7 +118,7 @@ def test_tcl_script_execution(tmp_path, project, monkeypatch):
     # If no exception is raised, the test passes
 
 
-def test_commands_execution(project, monkeypatch):
+def test_commands_execution(project, monkeypatch) -> None:
     """Test direct command execution with -p/--commands"""
     test_args = ["FABulous", str(project), "--commands", "help; help"]
     monkeypatch.setattr(sys, "argv", test_args)
@@ -128,7 +128,7 @@ def test_commands_execution(project, monkeypatch):
     assert exc_info.value.code == 0
 
 
-def test_create_project_with_vhdl_writer(tmp_path, monkeypatch):
+def test_create_project_with_vhdl_writer(tmp_path, monkeypatch) -> None:
     """Test project creation with VHDL writer"""
     project_dir = tmp_path / "test_vhdl_project"
 
@@ -144,7 +144,7 @@ def test_create_project_with_vhdl_writer(tmp_path, monkeypatch):
     assert "vhdl" in (project_dir / ".FABulous" / ".env").read_text()
 
 
-def test_create_project_with_verilog_writer(tmp_path, monkeypatch):
+def test_create_project_with_verilog_writer(tmp_path, monkeypatch) -> None:
     """Test project creation with Verilog writer"""
     project_dir = tmp_path / "test_verilog_project"
 
@@ -160,7 +160,7 @@ def test_create_project_with_verilog_writer(tmp_path, monkeypatch):
     assert "verilog" in (project_dir / ".FABulous" / ".env").read_text()
 
 
-def test_logging_functionality(tmp_path, project, monkeypatch):
+def test_logging_functionality(tmp_path, project, monkeypatch) -> None:
     """Test log file creation and output"""
     log_file = tmp_path / "test.log"
 
@@ -175,7 +175,7 @@ def test_logging_functionality(tmp_path, project, monkeypatch):
     assert log_file.stat().st_size > 0  # Check if log file is not empty
 
 
-def test_verbose_mode(project, monkeypatch):
+def test_verbose_mode(project, monkeypatch) -> None:
     """Test verbose mode execution"""
     test_args = ["FABulous", str(project), "--commands", "help", "-v"]
     monkeypatch.setattr(sys, "argv", test_args)
@@ -185,7 +185,7 @@ def test_verbose_mode(project, monkeypatch):
     assert exc_info.value.code == 0
 
 
-def test_debug_mode(project, monkeypatch):
+def test_debug_mode(project, monkeypatch) -> None:
     """Test debug mode functionality"""
     test_args = ["FABulous", str(project), "--commands", "help", "--debug"]
     monkeypatch.setattr(sys, "argv", test_args)
@@ -196,7 +196,7 @@ def test_debug_mode(project, monkeypatch):
     assert exc_info.value.code == 0
 
 
-def test_force_flag(project, tmp_path):
+def test_force_flag(project, tmp_path) -> None:
     """Test force flag functionality"""
 
     # Run with force flag
@@ -250,7 +250,7 @@ def test_force_flag(project, tmp_path):
     assert result.returncode == 1
 
 
-def test_install_oss_cad_suite(project, mocker, monkeypatch):
+def test_install_oss_cad_suite(project, mocker, monkeypatch) -> None:
     """Test oss-cad-suite installation"""
 
     # Test installation (may fail if network unavailable, but should handle gracefully)
@@ -277,7 +277,7 @@ def test_install_oss_cad_suite(project, mocker, monkeypatch):
         def __exit__(self, *args):
             pass
 
-        def extractall(self, path):
+        def extractall(self, path) -> None:
             pass
 
     def mock_open(*_args, **_kwargs):
@@ -297,7 +297,7 @@ def test_install_oss_cad_suite(project, mocker, monkeypatch):
     assert m.call_count == 2
 
 
-def test_script_mutually_exclusive(tmp_path, project, monkeypatch):
+def test_script_mutually_exclusive(tmp_path, project, monkeypatch) -> None:
     """Test that FABulous script and TCL script are mutually exclusive"""
     # Create both script types
     fab_script = tmp_path / "test.fab"
@@ -322,7 +322,7 @@ def test_script_mutually_exclusive(tmp_path, project, monkeypatch):
     assert exc_info.value.code != 0
 
 
-def test_invalid_project_directory(monkeypatch):
+def test_invalid_project_directory(monkeypatch) -> None:
     """Test error handling for invalid project directory"""
     invalid_dir = "/nonexistent/path/to/project"
 
@@ -335,7 +335,7 @@ def test_invalid_project_directory(monkeypatch):
     assert exc_info.value.code != 0
 
 
-def test_project_without_fabulous_folder(tmp_path, monkeypatch, capsys):
+def test_project_without_fabulous_folder(tmp_path, monkeypatch, capsys) -> None:
     """Test error handling for directory without .FABulous folder"""
     regular_dir = tmp_path / "regular_directory"
     regular_dir.mkdir()
@@ -351,7 +351,7 @@ def test_project_without_fabulous_folder(tmp_path, monkeypatch, capsys):
     assert "not a FABulous project" in captured.out
 
 
-def test_nonexistent_script_file(project, monkeypatch):
+def test_nonexistent_script_file(project, monkeypatch) -> None:
     """Test error handling for nonexistent script files"""
 
     # Try to run nonexistent FABulous script
@@ -376,7 +376,7 @@ def test_nonexistent_script_file(project, monkeypatch):
     assert exc_info.value.code != 0
 
 
-def test_empty_commands(project, monkeypatch):
+def test_empty_commands(project, monkeypatch) -> None:
     """Test handling of empty command string"""
     test_args = ["FABulous", str(project), "--commands", ""]
     monkeypatch.setattr(sys, "argv", test_args)
@@ -387,7 +387,7 @@ def test_empty_commands(project, monkeypatch):
     assert exc_info.value.code == 0
 
 
-def test_create_project_with_invalid_writer(tmp_path, monkeypatch):
+def test_create_project_with_invalid_writer(tmp_path, monkeypatch) -> None:
     """Test project creation with an invalid writer"""
     project_dir = tmp_path / "test_invalid_writer_project"
 
@@ -406,7 +406,7 @@ def test_create_project_with_invalid_writer(tmp_path, monkeypatch):
     assert exc_info.value.code != 0
 
 
-def test_project_directory_priority_order(tmp_path, monkeypatch):
+def test_project_directory_priority_order(tmp_path, monkeypatch) -> None:
     """Test that project directory priority order is followed:
     1. User provided argument (highest priority)
     2. Environment variables (FAB_PROJ_DIR)
@@ -476,7 +476,7 @@ def test_project_directory_priority_order(tmp_path, monkeypatch):
     )
 
 
-def test_command_flag_with_stop_on_first_error(project):
+def test_command_flag_with_stop_on_first_error(project) -> None:
     """Test that using --commands with multiple commands raises an error on the first failure"""
     # Run with multiple commands, where the first one fails
     result = run(

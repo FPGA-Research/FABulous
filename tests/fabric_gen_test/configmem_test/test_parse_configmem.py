@@ -573,7 +573,7 @@ class ParseConfigTestCase(NamedTuple):
         ),
     ],
 )
-def test_parsing_scenarios(tmp_path, test_case: ParseConfigTestCase):
+def test_parsing_scenarios(tmp_path, test_case: ParseConfigTestCase) -> None:
     """Test various valid parsing scenarios and error conditions."""
     csv_file = tmp_path / f"test_{test_case.__class__.__name__}.csv"
     create_config_csv(csv_file, test_case.csv_data)

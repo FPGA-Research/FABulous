@@ -20,7 +20,7 @@ def normalize(block: str):
     return [line.rstrip() for line in block.splitlines()]
 
 
-def run_cmd(app, cmd):
+def run_cmd(app, cmd) -> None:
     """Clear stdout, stdin and stderr buffers, run the command, and return stdout and stderr"""
     app.onecmd_plus_hooks(cmd)
 

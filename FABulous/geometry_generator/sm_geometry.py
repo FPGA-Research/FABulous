@@ -76,7 +76,7 @@ class SmGeometry:
     southPortsTopY: int
     westPortsRightX: int
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.name = None
         self.src = None
         self.csv = None

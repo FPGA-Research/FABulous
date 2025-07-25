@@ -49,7 +49,7 @@ class BelGeometry:
     internalPortGeoms: list[PortGeometry]
     externalPortGeoms: list[PortGeometry]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.name = None
         self.src = None
         self.width = 0

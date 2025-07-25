@@ -234,7 +234,7 @@ synthesis_parser.add_argument(
 
 @with_category(CMD_USER_DESIGN_FLOW)
 @with_argparser(synthesis_parser)
-def do_synthesis(self, args):
+def do_synthesis(self, args) -> None:
     logger.info(
         f"Running synthesis targeting Nextpnr with design {[str(i) for i in args.files]}"
     )

@@ -73,7 +73,7 @@ def parseList(
     pass
 
 
-def expandListPorts(port, PortList):
+def expandListPorts(port, PortList) -> None:
     """Expand the .list file entry into a list of tuples.
 
     Parameters

@@ -19,7 +19,7 @@ class WireGeometry:
     name: str
     path: list[Location]
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self.name = name
         self.path = []
 
@@ -96,7 +96,7 @@ class StairWires:
     tileHeight: int
     wireGeoms: list[WireGeometry]
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self.name = name
         self.refX = 0
         self.refY = 0

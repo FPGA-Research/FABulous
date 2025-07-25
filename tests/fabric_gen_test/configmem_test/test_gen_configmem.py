@@ -24,7 +24,7 @@ def _should_skip_test(tile_config_bits: int, max_fabric_bits: int) -> bool:
 
 def _expect_capacity_error(
     fabric_config: Fabric, output_file: Path, tile_config_bits: int
-):
+) -> None:
     """Test that capacity error is raised with meaningful message."""
     with pytest.raises((ValueError, RuntimeError, AssertionError)) as exc_info:
         generateConfigMemInit(fabric_config, output_file, tile_config_bits)
@@ -38,7 +38,7 @@ class TestGenerateConfigMemInit:
 
     def test_configmem_init_generates_correct_csv_structure(
         self, tmp_path, fabric_config, tile_config
-    ):
+    ) -> None:
         """Test that generateConfigMemInit creates CSV with correct structure and bit allocation."""
         output_file = tmp_path / f"test_{fabric_config.name}_{tile_config.name}.csv"
         tile_config_bits = tile_config.globalConfigBits
@@ -70,7 +70,7 @@ class TestGenerateConfigMemInit:
 
     def test_bitmask_format_is_valid_binary_with_correct_bit_counts(
         self, tmp_path, fabric_config, tile_config
-    ):
+    ) -> None:
         """Test that generated bitmasks have valid binary format and correct bit counts."""
         tile_config_bits = tile_config.globalConfigBits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
@@ -108,7 +108,7 @@ class TestGenerateConfigMemInit:
 
     def test_bit_allocation_strategy_follows_frame_priority_order(
         self, tmp_path, fabric_config, tile_config
-    ):
+    ) -> None:
         """Test that bits are allocated across frames following priority order from frame 0."""
         tile_config_bits = tile_config.globalConfigBits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
@@ -151,7 +151,7 @@ class TestGenerateConfigMemInit:
 
     def test_config_bit_ranges_have_valid_descending_format(
         self, tmp_path, default_fabric, default_tile
-    ):
+    ) -> None:
         """Test that ConfigBits_ranges are formatted correctly with descending bit order."""
         tile_config_bits = default_tile.globalConfigBits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
@@ -197,7 +197,7 @@ class TestGeneratedConfigMemRTL:
         fabric_config: Fabric,
         tile_config: Tile,
         code_generator_factory,
-    ):
+    ) -> None:
         """Test that generateConfigMem creates RTL with correct number of LHQD1 instantiations."""
         # Create config CSV file path
         config_csv = tmp_path / f"{tile_config.name}_configMem.csv"
@@ -240,7 +240,7 @@ class TestGeneratedConfigMemRTL:
         tmp_path,
         code_generator_factory,
         mocker,
-    ):
+    ) -> None:
         """Test that generated RTL correctly maps FrameData and FrameStrobe to ConfigBits."""
 
         # Create code generator

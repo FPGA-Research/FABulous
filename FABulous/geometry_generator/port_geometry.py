@@ -55,7 +55,7 @@ class PortGeometry:
 
     nextId = 1
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.name = None
         self.sourceName = None
         self.destName = None

@@ -146,7 +146,7 @@ def list2CSV(InFileName: Path, OutFileName: Path) -> None:
         f.write(f"#,{','.join(colCount)}")
 
 
-def CSV2list(InFileName: str, OutFileName: str):
+def CSV2list(InFileName: str, OutFileName: str) -> None:
     """This function is used to export a given CSV switch matrix description into its
     equivalent list description.
 

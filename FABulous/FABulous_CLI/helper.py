@@ -20,7 +20,7 @@ from FABulous.custom_exception import EnvironmentNotSet, PipelineCommandError
 MAX_BITBYTES = 16384
 
 
-def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()):
+def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 
@@ -172,7 +172,9 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
         os.environ["FAB_PROJ_LANG"] = args.writer
 
 
-def create_project(project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilog"):
+def create_project(
+    project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilog"
+) -> None:
     """Creates a FABulous project containing all required files by copying the common
     files and the appropriate project template. Replces the {HDL_SUFFIX} placeholder in
     all tile csv files with the appropriate file extension. Creates a .FABulous
@@ -236,7 +238,7 @@ def create_project(project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilo
     logger.info(f"New FABulous project created in {project_dir} with {lang} language.")
 
 
-def copy_verilog_files(src: Path, dst: Path):
+def copy_verilog_files(src: Path, dst: Path) -> None:
     """Copies all Verilog files from source directory to the destination directory.
 
     Parameters
@@ -252,7 +254,7 @@ def copy_verilog_files(src: Path, dst: Path):
         shutil.copy(file_path, destination_path)
 
 
-def remove_dir(path: Path):
+def remove_dir(path: Path) -> None:
     """Removes a directory and all its contents.
 
     If the directory cannot be removed, logs OS error.
@@ -268,7 +270,7 @@ def remove_dir(path: Path):
         logger.error(f"{e}")
 
 
-def make_hex(binfile: Path, outfile: Path):
+def make_hex(binfile: Path, outfile: Path) -> None:
     """Converts a binary file into hex file.
 
     If the binary file exceeds MAX_BITBYTES, logs error.
@@ -334,7 +336,7 @@ def wrap_with_except_handling(fun_to_wrap):
         The function to be wrapped with exception handling.
     """
 
-    def inter(*args, **varargs):
+    def inter(*args, **varargs) -> None:
         """Wrapped function that executes 'fun_to_wrap' with arguments and exception
         handling.
 
@@ -359,7 +361,7 @@ def wrap_with_except_handling(fun_to_wrap):
 
 def allow_blank(func):
     @functools.wraps(func)
-    def _check_blank(*args):
+    def _check_blank(*args) -> None:
         if len(args) == 1:
             func(*args, "")
         else:
@@ -368,7 +370,7 @@ def allow_blank(func):
     return _check_blank
 
 
-def install_oss_cad_suite(destination_folder: Path, update: bool = False):
+def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> None:
     """Downloads and extracts the latest OSS CAD Suite. Sets the the FAB_OSS_CAD_SUITE
     environment variable in the .env file.
 
@@ -533,7 +535,7 @@ def update_project_version(project_dir: Path) -> bool:
 class CommandPipeline:
     """Helper class to manage command execution with error handling."""
 
-    def __init__(self, cli_instance):
+    def __init__(self, cli_instance) -> None:
         self.cli = cli_instance
         self.steps = []
 
@@ -542,7 +544,7 @@ class CommandPipeline:
         self.steps.append((command, error_message))
         return self
 
-    def execute(self, stop_on_error=None):
+    def execute(self, stop_on_error=None) -> bool:
         """Execute all steps in the pipeline."""
         if stop_on_error is None:
             stop_on_error = not self.cli.force

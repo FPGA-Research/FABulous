@@ -46,7 +46,7 @@ def create_test_pattern(config_info, frame_index, pattern_type="ones"):
     return pattern
 
 
-async def initialize_configmem(dut):
+async def initialize_configmem(dut) -> None:
     """Initialize ConfigMem by setting all bits to 0 using frame strobing."""
     # Set FrameData to 0
     dut.FrameData.value = 0
@@ -65,7 +65,7 @@ async def initialize_configmem(dut):
 
 @pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_configmem_settings(dut):
+async def test_configmem_settings(dut) -> None:
     """Test exact bit mapping from FrameData to ConfigBits using direct mapping."""
     await initialize_configmem(dut)
 
@@ -143,7 +143,7 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     tmp_path: Path,
     code_generator_factory,
     cocotb_runner,
-):
+) -> None:
     """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
 
     # Skip impossible configurations where fabric capacity < tile requirements
@@ -224,7 +224,7 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     code_generator_factory,
     cocotb_runner,
     mocker,
-):
+) -> None:
     """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
 
     # Skip impossible configurations where fabric capacity < tile requirements

@@ -42,7 +42,7 @@ class TileGeometry:
     wireGeomList: list[WireGeometry]
     stairWiresList: list[StairWires]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.name = None
         self.width = 0
         self.height = 0
@@ -239,7 +239,7 @@ class TileGeometry:
     queuedAdjustmentLeft = 0
     queuedAdjustmentBottom = 0
 
-    def generateIndirectWires(self, padding: int):
+    def generateIndirectWires(self, padding: int) -> None:
         """Generates wires to non-neighbouring tiles.
 
         These are not straightforward to generate, as they require a staircase-like

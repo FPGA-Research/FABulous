@@ -279,7 +279,7 @@ def code_generator_factory(tmp_path: Path):
 def cocotb_runner(tmp_path: Path):
     """Factory fixture to create cocotb runners for RTL simulation."""
 
-    def _create_runner(sources: list[Path], hdl_top_level, test_module_path):
+    def _create_runner(sources: list[Path], hdl_top_level, test_module_path) -> None:
         lang = set([i.suffix for i in sources])
 
         if len(lang) > 1:

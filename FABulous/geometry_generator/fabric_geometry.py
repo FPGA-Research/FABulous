@@ -38,7 +38,7 @@ class FabricGeometry:
     width: int
     height: int
 
-    def __init__(self, fabric: Fabric, padding: int = 8):
+    def __init__(self, fabric: Fabric, padding: int = 8) -> None:
         self.fabric = fabric
         self.tileNames = set()
         self.tileGeomMap = {}

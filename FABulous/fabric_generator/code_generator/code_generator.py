@@ -17,11 +17,11 @@ class CodeGenerator(abc.ABC):
     def content(self):
         return self._content
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._content = []
         self._outFileName = Path()
 
-    def writeToFile(self):
+    def writeToFile(self) -> None:
         if self._outFileName == Path():
             logger.critical("OutFileName is not set")
             exit(-1)
@@ -31,7 +31,7 @@ class CodeGenerator(abc.ABC):
         self._content = []
 
     @outFileName.setter
-    def outFileName(self, outFileName: Path):
+    def outFileName(self, outFileName: Path) -> None:
         self._outFileName = outFileName
 
     def _add(self, line, indentLevel=0) -> None:
@@ -43,7 +43,7 @@ class CodeGenerator(abc.ABC):
     def popLastLine(self) -> str:
         return self._content.pop()
 
-    def addNewLine(self):
+    def addNewLine(self) -> None:
         self._add("")
 
     @abc.abstractmethod
