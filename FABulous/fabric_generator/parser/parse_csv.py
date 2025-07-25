@@ -64,7 +64,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
 
     filePathParent = fileName.parent
 
-    with open(fileName) as f:
+    with fileName.open() as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
@@ -273,7 +273,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                                 if muxSize >= 2:
                                     configBit += (muxSize - 1).bit_length()
                         case ".vhdl" | ".v":
-                            with open(matrixDir) as f:
+                            with matrixDir.open() as f:
                                 f = f.read()
                                 if configBit := re.search(
                                     r"NumberOfConfigBits: (\d+)", f
@@ -293,7 +293,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     raise InvalidTileDefinition(
                         f"Cannot find {str(p)} in tile {tileName}"
                     )
-                with open(p) as f:
+                with p.open() as f:
                     iFile = f.read()
                     iFile = re.sub(r"#.*", "", iFile)
                 for line in iFile.split("\n"):
@@ -364,7 +364,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
     filePath = fileName.parent
 
-    with open(fileName) as f:
+    with fileName.open() as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 
@@ -460,7 +460,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
 
     filePath = fName.parent
 
-    with open(fName) as f:
+    with fName.open() as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
 

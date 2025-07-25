@@ -18,7 +18,7 @@ def load_bit_mapping():
     """Load direct bit mapping from JSON file: (frame,framedata_bit) -> config_bit."""
     config_file = Path().cwd() / "config_info.json"
     if config_file.exists():
-        with open(config_file) as f:
+        with config_file.open() as f:
             return json.load(f)
     return {}
 
@@ -204,7 +204,7 @@ def test_configmem_rtl_with_generated_configmem_simulation(
 
     # Save bit mapping for cocotb tests to use
     config_info_file = tmp_path / "config_info.json"
-    with open(config_info_file, "w") as f:
+    with config_info_file.open("w") as f:
         json.dump(bit_mapping, f, indent=2)
 
     cocotb_runner(
@@ -283,7 +283,7 @@ def test_configmem_rtl_with_custom_configmem_simulation(
 
     # Save bit mapping for cocotb tests to use
     config_info_file = tmp_path / "config_info.json"
-    with open(config_info_file, "w") as f:
+    with config_info_file.open("w") as f:
         json.dump(bit_mapping, f, indent=2)
 
     # Set up cocotb simulation and run using the factory fixture

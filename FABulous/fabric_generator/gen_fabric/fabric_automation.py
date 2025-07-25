@@ -346,7 +346,7 @@ def generateSwitchmatrixList(
                     f"{{2}}{bel_enable[0]},[{sharedResetTile[1].name}0|VCC0]"
                 )
 
-    with open(outFile, "w") as f:
+    with outFile.open("w") as f:
         f.write("\n".join(str(line) for line in listfile))
 
     primsFile = projdir.joinpath("user_design/custom_prims.v")
@@ -382,7 +382,7 @@ def addBelsToPrim(
     primsAdd: list[str] = []  # append to prims.v
 
     if primsFile.is_file():
-        with open(primsFile) as f:
+        with primsFile.open() as f:
             prims = f.read()
     else:
         raise FileNotFoundError(f"Prims file {primsFile} not found.")
@@ -427,7 +427,7 @@ def addBelsToPrim(
             if support_vectors:
                 # Find all ports with their directions
                 # need to parse the json file again, since port width is not known in BEL object
-                with open(bel.src.with_suffix(".json")) as f:
+                with bel.src.with_suffix(".json").open() as f:
                     bel_dict = json.load(f)
                 module_ports = bel_dict["modules"][bel.module_name]["ports"]
 
@@ -521,7 +521,7 @@ def addBelsToPrim(
             continue
 
     # write to prims file, line by line
-    with open(primsFile, "a") as f:
+    with primsFile.open("a") as f:
         f.write("\n".join(str(i) for i in primsAdd))
 
 

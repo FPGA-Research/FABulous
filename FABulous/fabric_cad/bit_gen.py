@@ -3,6 +3,7 @@
 import pickle
 import re
 import sys
+from pathlib import Path
 
 from loguru import logger
 
@@ -30,7 +31,7 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
     canonStr = fasm_tuple_to_string(lGen, True)
     canonList = list(parse_fasm_string(canonStr))
 
-    with open(specFile, "rb") as f:
+    with Path(specFile).open("rb") as f:
         specDict = pickle.load(f)
     tileDict = {}
     tileDict_No_Mask = {}
@@ -181,15 +182,15 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str):
     # Tile Loc, Tile Type, X, Y, bits...... \n
     # Each line is one tile
     # Write out bitstream CSV representation
-    with open(bitstreamFile.replace("bin", "csv"), "w+") as f:
+    with Path(bitstreamFile.replace("bin", "csv")).open("w+") as f:
         f.write(outStr)
     # Write out HDL representations
-    with open(bitstreamFile.replace("bin", "vh"), "w+") as f:
+    with Path(bitstreamFile.replace("bin", "vh")).open("w+") as f:
         f.write(verilog_str)
-    with open(bitstreamFile.replace("bin", "vhd"), "w+") as f:
+    with Path(bitstreamFile.replace("bin", "vhd")).open("w+") as f:
         f.write(vhdl_str)
     # Write out binary representation
-    with open(bitstreamFile, "bw+") as f:
+    with Path(bitstreamFile).open("bw+") as f:
         f.write(bitStr)
 
 

@@ -1,5 +1,6 @@
 import math
 import re
+from pathlib import Path
 
 from FABulous.fabric_definition.define import IO
 from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -202,7 +203,7 @@ end process;
 
     def addComponentDeclarationForFile(self, fileName):
         configPortUsed = 0  # 1 means is used
-        with open(fileName) as f:
+        with Path(fileName).open() as f:
             data = f.read()
 
         if result := re.search(

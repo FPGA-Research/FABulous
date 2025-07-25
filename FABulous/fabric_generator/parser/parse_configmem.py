@@ -40,7 +40,7 @@ def parseConfigMem(
     list[ConfigMem]
         List of ConfigMem objects parsed from the config memory CSV file.
     """
-    with open(fileName) as f:
+    with fileName.open() as f:
         mappingFile = list(csv.DictReader(f))
 
         # remove the pretty print from used_bits_mask

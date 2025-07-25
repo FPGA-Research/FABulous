@@ -610,13 +610,15 @@ class FABulous_CLI(Cmd):
         specObject = self.fabulousAPI.genBitStreamSpec()
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin")
-        with open(
-            f"{self.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin", "wb"
+        with Path(f"{self.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin").open(
+            "wb"
         ) as outFile:
             pickle.dump(specObject, outFile)
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv")
-        with open(f"{self.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv", "w") as f:
+        with Path(f"{self.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv").open(
+            "w"
+        ) as f:
             w = csv.writer(f)
             for key1 in specObject["TileSpecs"]:
                 w.writerow([key1])
@@ -670,19 +672,19 @@ class FABulous_CLI(Cmd):
         logger.info("Generating npnr model")
         npnrModel = self.fabulousAPI.genRoutingModel()
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/pips.txt")
-        with open(f"{self.projectDir}/{META_DATA_DIR}/pips.txt", "w") as f:
+        with Path(f"{self.projectDir}/{META_DATA_DIR}/pips.txt").open("w") as f:
             f.write(npnrModel[0])
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bel.txt")
-        with open(f"{self.projectDir}/{META_DATA_DIR}/bel.txt", "w") as f:
+        with Path(f"{self.projectDir}/{META_DATA_DIR}/bel.txt").open("w") as f:
             f.write(npnrModel[1])
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bel.v2.txt")
-        with open(f"{self.projectDir}/{META_DATA_DIR}/bel.v2.txt", "w") as f:
+        with Path(f"{self.projectDir}/{META_DATA_DIR}/bel.v2.txt").open("w") as f:
             f.write(npnrModel[2])
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/template.pcf")
-        with open(f"{self.projectDir}/{META_DATA_DIR}/template.pcf", "w") as f:
+        with Path(f"{self.projectDir}/{META_DATA_DIR}/template.pcf").open("w") as f:
             f.write(npnrModel[3])
 
         logger.info("Generated npnr model")
@@ -994,7 +996,7 @@ class FABulous_CLI(Cmd):
 
         logger.info(f"Execute TCL script {args.file}")
 
-        with open(args.file) as f:
+        with Path(args.file).open() as f:
             script = f.read()
         self.tcl.eval(script)
 
@@ -1011,7 +1013,7 @@ class FABulous_CLI(Cmd):
 
         logger.info(f"Execute script {args.file}")
 
-        with open(args.file) as f:
+        with Path(args.file).open() as f:
             for i in f:
                 self.onecmd_plus_hooks(i.strip())
                 if self.exit_code != 0:

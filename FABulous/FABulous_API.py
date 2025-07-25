@@ -79,12 +79,12 @@ class FABulous_API:
         if isinstance(self.writer, VHDLCodeGenerator):
             self.fileExtension = ".vhdl"
 
-    def setWriterOutputFile(self, outputDir):
+    def setWriterOutputFile(self, outputDir: Path):
         """Sets the output file directory for the write object.
 
         Parameters
         ----------
-        outputDir : str
+        outputDir : Path
             Directory path where output files will be saved.
         """
         logger.info(f"Output file: {outputDir}")

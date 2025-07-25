@@ -48,7 +48,7 @@ def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) 
         "ConfigBits_ranges",
     ]
 
-    with open(file, "w", newline="") as f:
+    with file.open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(fieldName)
         bits = bitarray(fabric.frameBitsPerRow * fabric.maxFramesPerCol)

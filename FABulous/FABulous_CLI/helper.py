@@ -280,14 +280,14 @@ def make_hex(binfile: Path, outfile: Path):
     outfile : str
         Path to ouput hex file.
     """
-    with open(binfile, "rb") as f:
+    with Path(binfile).open("rb") as f:
         bindata = f.read()
 
     if len(bindata) > MAX_BITBYTES:
         logger.error("Binary file too big.")
         return
 
-    with open(outfile, "w") as f:
+    with Path(outfile).open("w") as f:
         for i in range(MAX_BITBYTES):
             if i < len(bindata):
                 print(f"{bindata[i]:02x}", file=f)
@@ -461,7 +461,7 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False):
     response = requests.get(url, stream=True)
 
     if response.status_code == 200:
-        with open(ocs_archive, "wb") as file:
+        with Path(ocs_archive).open("wb") as file:
             file.writelines(response.iter_content(chunk_size=8192))
     else:
         raise ConnectionError(f"Failed to download file: {response.status_code}")

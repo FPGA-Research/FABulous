@@ -7,18 +7,19 @@
 # binary, for any purpose, commercial or non-commercial, and by any
 # means.
 
+from pathlib import Path
 from sys import argv
 
 binfile = argv[1]
 nbytes = int(argv[2])
 outfile = argv[3]
 
-with open(binfile, "rb") as f:
+with Path(binfile).open("rb") as f:
     bindata = f.read()
 
 assert len(bindata) <= nbytes
 
-with open(outfile, "w") as f:
+with Path(outfile).open("w") as f:
     for i in range(nbytes):
         if i < len(bindata):
             print(f"{bindata[i]:02x}", file=f)

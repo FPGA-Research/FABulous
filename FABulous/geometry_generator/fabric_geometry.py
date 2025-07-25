@@ -1,4 +1,5 @@
 from csv import writer as csvWriter
+from pathlib import Path
 
 from loguru import logger
 
@@ -219,7 +220,7 @@ class FabricGeometry:
             f"Generating geometry csv file for {self.fabric.name} # file name: {fileName}"
         )
 
-        with open(f"{fileName}", "w", newline="", encoding="utf-8") as file:
+        with Path(f"{fileName}").open("w", newline="", encoding="utf-8") as file:
             writer = csvWriter(file)
 
             writer.writerows(

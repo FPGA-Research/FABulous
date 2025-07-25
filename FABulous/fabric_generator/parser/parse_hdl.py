@@ -278,7 +278,7 @@ def parseBelFile(
         raise ValueError(f"Invalid filetype {filetype} for bel file {filename}")
 
     try:
-        with open(filename) as f:
+        with filename.open() as f:
             file = f.read()
     except FileNotFoundError:
         logger.critical(f"File {filename} not found.")
@@ -424,7 +424,7 @@ def parseBelFile(
                 "Failed to run yosys command: {e}"
             )
 
-        with open(f"{json_file}") as f:
+        with json_file.open() as f:
             data_dict = json.load(f)
 
         modules = data_dict.get("modules", {})

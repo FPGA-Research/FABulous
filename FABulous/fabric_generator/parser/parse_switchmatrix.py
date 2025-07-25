@@ -37,7 +37,7 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     """
 
     connectionsDic = {}
-    with open(fileName) as f:
+    with fileName.open() as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
         file = file.split("\n")
@@ -153,7 +153,7 @@ def parseList(
         raise FileNotFoundError(f"The file {filePath} does not exist.")
 
     resultList = []
-    with open(filePath) as f:
+    with filePath.open() as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
     file = file.split("\n")
