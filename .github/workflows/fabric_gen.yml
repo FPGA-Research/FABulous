@@ -36,14 +36,6 @@ jobs:
           # install_GHDL_mcode: true
           # GH composite workflwos do not support conditional steps yet. :(
           # https://github.com/actions/runner/blob/main/docs/adrs/0549-composite-run-steps.md
-      - name: Install GHDL mcode nightly
-        # GHDL mcode is required to test our fabric.
-        # The oss-cad-suite action installs GHDL, but with the LLVM backend, which is much slower for our simulation
-        uses: ghdl/setup-ghdl@v1
-        with:
-          version: nightly
-          backend: mcode
-          investigate: true
       - name: Run fabric generator flow and simulation with FABulous makefile
         run: |
           FABulous -c demo_vhdl -w vhdl
