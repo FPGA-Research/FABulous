@@ -111,7 +111,6 @@ select = [
 # - TD: flake8 TODOS
 # - FIX: flake8 fixme
 # - PL: pylint
-# - ANN: flake8 Annotations
 
 # Ignoed rules:
 # - E501: Line too long -- Not automatically fixable
