@@ -73,7 +73,7 @@ class Bel:
     outputs: list[str]
     externalInput: list[str]
     externalOutput: list[str]
-    configPort: list[str]
+    configPort: list[tuple[str, IO]]
     sharedPort: list[tuple[str, IO]]
     configBit: int
     language: str
@@ -90,10 +90,10 @@ class Bel:
         prefix: str,
         module_name: str,
         filetype: str,
-        internal,
-        external,
-        configPort,
-        sharedPort,
+        internal: list[tuple[str, IO]],
+        external: list[tuple[str, IO]],
+        configPort: list[tuple[str, IO]],
+        sharedPort: list[tuple[str, IO]],
         configBit: int,
         belMap: dict[str, dict],
         userCLK: bool,

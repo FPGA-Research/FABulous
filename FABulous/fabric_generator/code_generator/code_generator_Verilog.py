@@ -9,7 +9,9 @@ from FABulous.fabric_generator.code_generator.code_generator import CodeGenerato
 class VerilogCodeGenerator(CodeGenerator):
     """The writer class for generating Verilog code."""
 
-    def addComment(self, comment, onNewLine=False, end="", indentLevel=0) -> None:
+    def addComment(
+        self, comment: str, onNewLine: bool = False, end: str = "", indentLevel: int = 0
+    ) -> None:
         if onNewLine:
             self._add("")
         if self._content:
@@ -17,16 +19,16 @@ class VerilogCodeGenerator(CodeGenerator):
         else:
             self._add(f"{' ':<{indentLevel * 4}}" + f"// {comment}{end}")
 
-    def addHeader(self, name, _package="", indentLevel=0) -> None:
+    def addHeader(self, name: str, _package: str = "", indentLevel: int = 0) -> None:
         self._add(f"module {name}", indentLevel)
 
-    def addHeaderEnd(self, name, indentLevel=0) -> None:
+    def addHeaderEnd(self, name: str, indentLevel: int = 0) -> None:
         pass
 
-    def addParameterStart(self, indentLevel=0) -> None:
+    def addParameterStart(self, indentLevel: int = 0) -> None:
         self._add("#(", indentLevel)
 
-    def addParameterEnd(self, indentLevel=0) -> None:
+    def addParameterEnd(self, indentLevel: int = 0) -> None:
         temp = self._content.pop()
         if "//" in temp:
             temp2 = self._content.pop()[:-1]
@@ -36,17 +38,19 @@ class VerilogCodeGenerator(CodeGenerator):
             self._add(temp[:-1])
         self._add(")", indentLevel)
 
-    def addParameter(self, name, storageType, value, indentLevel=0) -> None:
+    def addParameter(
+        self, name: str, storageType: str, value: str, indentLevel: int = 0
+    ) -> None:
         if storageType.startswith("["):
             self._add(f"parameter {storageType} {name}={value},", indentLevel)
         else:
             self._add(f"parameter {name}={value},", indentLevel)
 
-    def addPortStart(self, indentLevel=0) -> None:
+    def addPortStart(self, indentLevel: int = 0) -> None:
         self._add("(", indentLevel)
 
-    def addPortEnd(self, indentLevel=0) -> None:
-        def deComma(x):
+    def addPortEnd(self, indentLevel: int = 0) -> None:
+        def deComma(x: str) -> str:
             cpos = x.rfind(",")
             assert cpos != -1, x
             return x[:cpos] + x[cpos + 1 :]
@@ -61,7 +65,12 @@ class VerilogCodeGenerator(CodeGenerator):
         self._add(");", indentLevel)
 
     def addPortScalar(
-        self, name, io: IO, reg=False, attribute: str = "", indentLevel=0
+        self,
+        name: str,
+        io: IO,
+        reg: bool = False,
+        attribute: str = "",
+        indentLevel: int = 0,
     ) -> None:
         ioString = io.value.lower()
         if attribute:
@@ -70,7 +79,13 @@ class VerilogCodeGenerator(CodeGenerator):
         self._add(f"{attribute}{ioString} {regString} {name},", indentLevel)
 
     def addPortVector(
-        self, name, io: IO, msbIndex, reg=False, attribute="", indentLevel=0
+        self,
+        name: str,
+        io: IO,
+        msbIndex: int | str,
+        reg: bool = False,
+        attribute: str = "",
+        indentLevel: int = 0,
     ) -> None:
         ioString = io.value.lower()
         regString = "reg" if reg else ""
@@ -80,39 +95,46 @@ class VerilogCodeGenerator(CodeGenerator):
             f"{attribute}{ioString} {regString} [{msbIndex}:0] {name},", indentLevel
         )
 
-    def addDesignDescriptionStart(self, name, indentLevel=0) -> None:
+    def addDesignDescriptionStart(self, name: str, indentLevel: int = 0) -> None:
         pass
 
-    def addDesignDescriptionEnd(self, indentLevel=0) -> None:
+    def addDesignDescriptionEnd(self, indentLevel: int = 0) -> None:
         self._add("endmodule", indentLevel)
 
-    def addConstant(self, name, value, indentLevel=0) -> None:
+    def addConstant(self, name: str, value: str, indentLevel: int = 0) -> None:
         self._add(f"parameter {name} = {value};", indentLevel)
 
-    def addConnectionScalar(self, name, reg=False, indentLevel=0) -> None:
+    def addConnectionScalar(
+        self, name: str, reg: bool = False, indentLevel: int = 0
+    ) -> None:
         con_type = "reg" if reg else "wire"
         self._add(f"{con_type} {name};", indentLevel)
 
     def addConnectionVector(
-        self, name, startIndex, endIndex=0, reg=False, indentLevel=0
+        self,
+        name: str,
+        startIndex: int,
+        endIndex: int = 0,
+        reg: bool = False,
+        indentLevel: int = 0,
     ) -> None:
         con_type = "reg" if reg else "wire"
         self._add(f"{con_type}[{startIndex}:{endIndex}] {name};", indentLevel)
 
-    def addLogicStart(self, indentLevel=0) -> None:
+    def addLogicStart(self, indentLevel: int = 0) -> None:
         pass
 
-    def addLogicEnd(self, indentLevel=0) -> None:
+    def addLogicEnd(self, indentLevel: int = 0) -> None:
         pass
 
     def addInstantiation(
         self,
-        compName,
-        compInsName,
-        portsPairs,
-        paramPairs=None,
-        emulateParamPairs=None,
-        indentLevel=0,
+        compName: str,
+        compInsName: str,
+        portsPairs: list[tuple[str, str]],
+        paramPairs: list[tuple[str, str]] | None = None,
+        emulateParamPairs: list[tuple[str, str]] | None = None,
+        indentLevel: int = 0,
     ) -> None:
         if emulateParamPairs is None:
             emulateParamPairs = []
@@ -157,7 +179,7 @@ class VerilogCodeGenerator(CodeGenerator):
         self._add(");", indentLevel=indentLevel)
         self.addNewLine()
 
-    def addComponentDeclarationForFile(self, fileName):
+    def addComponentDeclarationForFile(self, fileName: Path | str) -> int:
         configPortUsed = 0  # 1 means is used
         with Path(fileName).open() as f:
             data = f.read()
@@ -171,7 +193,7 @@ class VerilogCodeGenerator(CodeGenerator):
 
         return configPortUsed
 
-    def addShiftRegister(self, configBits, indentLevel=0) -> None:
+    def addShiftRegister(self, configBits: int, indentLevel: int = 0) -> None:
         template = f"""
 // the configuration bits shift register
     always @ (posedge CLK)
@@ -185,7 +207,7 @@ class VerilogCodeGenerator(CodeGenerator):
         """
         self._add(template, indentLevel)
 
-    def addFlipFlopChain(self, configBits, indentLevel=0) -> None:
+    def addFlipFlopChain(self, configBits: int, indentLevel: int = 0) -> None:
         cfgBit = int(math.ceil(configBits / 2.0)) * 2
         template = f"""
     genvar k;
@@ -208,7 +230,12 @@ class VerilogCodeGenerator(CodeGenerator):
         self._add(template, indentLevel)
 
     def addRegister(
-        self, reg, regIn, clk="UserCLK", inverted=False, indentLevel=0
+        self,
+        reg: str,
+        regIn: str,
+        clk: str = "UserCLK",
+        inverted: bool = False,
+        indentLevel: int = 0,
     ) -> None:
         inv = "~" if inverted else ""
         template = f"""
@@ -221,11 +248,11 @@ end
 
     def addAssignScalar(
         self,
-        left,
-        right,
-        delay=0,  # noqa: ARG002
-        indentLevel=0,
-        inverted=False,
+        left: str,
+        right: str,
+        delay: int = 0,  # noqa: ARG002
+        indentLevel: int = 0,
+        inverted: bool = False,
     ) -> None:
         inv = "~" if inverted else ""
         if isinstance(right, list):
@@ -234,25 +261,31 @@ end
             self._add(f"assign {left} = {inv}{right};")
 
     def addAssignVector(
-        self, left, right, widthL, widthR, indentLevel=0, inverted=False
+        self,
+        left: str,
+        right: str,
+        widthL: int | str,
+        widthR: int | str,
+        indentLevel: int = 0,
+        inverted: bool = False,
     ) -> None:
         inv = "~" if inverted else ""
         self._add(f"assign {left} = {inv}{right}[{widthL}:{widthR}];", indentLevel)
 
-    def addPreprocIfDef(self, macro, indentLevel=0) -> None:
+    def addPreprocIfDef(self, macro: str, indentLevel: int = 0) -> None:
         self._add(f"`ifdef {macro}", indentLevel)
 
-    def addPreprocIfNotDef(self, macro, indentLevel=0) -> None:
+    def addPreprocIfNotDef(self, macro: str, indentLevel: int = 0) -> None:
         self._add(f"`ifndef {macro}", indentLevel)
 
-    def addPreprocElse(self, indentLevel=0) -> None:
+    def addPreprocElse(self, indentLevel: int = 0) -> None:
         self._add("`else", indentLevel)
 
-    def addPreprocEndif(self, indentLevel=0) -> None:
+    def addPreprocEndif(self, indentLevel: int = 0) -> None:
         self._add("`endif", indentLevel)
 
     def addBelMapAttribute(
-        self, configBitValues: list[tuple[str, int]], indentLevel=0
+        self, configBitValues: list[tuple[str, int]], indentLevel: int = 0
     ) -> None:
         template = "(* FABulous, BelMap"
         bit_count = 0

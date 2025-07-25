@@ -16,7 +16,7 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
     """Generate the top wrapper of the fabric including features that are not located
     inside the fabric such as BRAM."""
 
-    def split_port(p):
+    def split_port(p: str) -> tuple[tuple[int, int], tuple[int, ...], str]:
         # split a port according to how we want to sort external ports:
         # ((y, x), (indices...), basename)
         # Tile_X9Y6_RAM2FAB_D1_I0 --> ((6, 9), (1, 0), "RAM2FAB_D_I")

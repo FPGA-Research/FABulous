@@ -20,7 +20,7 @@ except ImportError:
     logger.critical("Could not import fasm. Bitstream generation not supported.")
 
 
-def bitstring_to_bytes(s):
+def bitstring_to_bytes(s: str) -> bytes:
     return int(s, 2).to_bytes((len(s) + 7) // 8, byteorder="big")
 
 

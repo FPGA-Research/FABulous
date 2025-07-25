@@ -529,7 +529,7 @@ def genIOBel(
     gen_ios: list[Gen_IO],
     bel_path: Path,
     overwrite: bool = True,
-    multiplexerStyle=MultiplexerStyle.CUSTOM,
+    multiplexerStyle: MultiplexerStyle = MultiplexerStyle.CUSTOM,
 ) -> Bel | None:
     """Generate the IO BELs for a list of generative IOs.
 

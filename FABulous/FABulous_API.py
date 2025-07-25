@@ -1,4 +1,5 @@
 import os
+from collections.abc import Iterable
 from pathlib import Path
 
 from loguru import logger
@@ -224,7 +225,7 @@ class FABulous_API:
         'fabric_gen.py'."""
         generateTopWrapper(self.writer, self.fabric)
 
-    def genBitStreamSpec(self):
+    def genBitStreamSpec(self) -> dict:
         """Generates the bitsream specification object.
 
         Returns
@@ -234,7 +235,7 @@ class FABulous_API:
         """
         return generateBitstreamSpec(self.fabric)
 
-    def genRoutingModel(self):
+    def genRoutingModel(self) -> tuple[str, str, str, str]:
         """Generates model for Nextpnr based on fabric data.
 
         Returns
@@ -270,7 +271,7 @@ class FABulous_API:
 
         return self.fabric.getTileByName(tileName)
 
-    def getTiles(self):
+    def getTiles(self) -> Iterable[Tile]:
         """Returns all Tiles within a fabric.
 
         Returns
@@ -296,7 +297,7 @@ class FABulous_API:
 
         return self.fabric.getSuperTileByName(tileName)
 
-    def getSuperTiles(self):
+    def getSuperTiles(self) -> Iterable[SuperTile]:
         """Returns all SuperTiles within a fabric.
 
         Returns

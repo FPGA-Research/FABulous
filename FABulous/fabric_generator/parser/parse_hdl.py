@@ -15,7 +15,7 @@ from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.define import IO
 
 
-def verilog_belMapProcessing(module_info):
+def verilog_belMapProcessing(module_info: dict) -> dict:
     """Extracts and transforms BEL mapping attributes in the JSON created from a Verilog
     module.
 

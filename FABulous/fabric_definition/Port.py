@@ -49,7 +49,7 @@ class Port:
     def __repr__(self) -> str:
         return f"Port(Name={self.name}, IO={self.inOut.value}, XOffset={self.xOffset}, YOffset={self.yOffset}, WireCount={self.wireCount}, Side={self.sideOfTile.value})"
 
-    def expandPortInfoByName(self, indexed=False) -> list[str]:
+    def expandPortInfoByName(self, indexed: bool = False) -> list[str]:
         if self.sourceName == "NULL" or self.destinationName == "NULL":
             wireCount = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
         else:
@@ -58,7 +58,7 @@ class Port:
             return [f"{self.name}{i}" for i in range(wireCount) if self.name != "NULL"]
         return [f"{self.name}[{i}]" for i in range(wireCount) if self.name != "NULL"]
 
-    def expandPortInfoByNameTop(self, indexed=False) -> list[str]:
+    def expandPortInfoByNameTop(self, indexed: bool = False) -> list[str]:
         if self.sourceName == "NULL" or self.destinationName == "NULL":
             startIndex = 0
         else:
@@ -78,7 +78,7 @@ class Port:
             if self.name != "NULL"
         ]
 
-    def expandPortInfo(self, mode="SwitchMatrix") -> tuple[list[str], list[str]]:
+    def expandPortInfo(self, mode: str = "SwitchMatrix") -> tuple[list[str], list[str]]:
         """Expanding the port information to the individual bit signal. If 'Indexed' is
         in the mode, then brackets are added to the signal name.
 

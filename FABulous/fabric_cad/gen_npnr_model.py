@@ -5,7 +5,7 @@ from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
 
-def genNextpnrModel(fabric: Fabric):
+def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
     """Generates Nextpnr model for given fabric.
 
     Parameters

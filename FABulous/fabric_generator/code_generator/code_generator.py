@@ -14,7 +14,7 @@ class CodeGenerator(abc.ABC):
         return self._outFileName
 
     @property
-    def content(self):
+    def content(self) -> list[str]:
         return self._content
 
     def __init__(self) -> None:
@@ -34,7 +34,7 @@ class CodeGenerator(abc.ABC):
     def outFileName(self, outFileName: Path) -> None:
         self._outFileName = outFileName
 
-    def _add(self, line, indentLevel=0) -> None:
+    def _add(self, line: str, indentLevel: int = 0) -> None:
         if indentLevel == 0:
             self._content.append(line)
         else:
@@ -47,7 +47,9 @@ class CodeGenerator(abc.ABC):
         self._add("")
 
     @abc.abstractmethod
-    def addComment(self, comment: str, onNewLine=False, end="", indentLevel=0) -> None:
+    def addComment(
+        self, comment: str, onNewLine: bool = False, end: str = "", indentLevel: int = 0
+    ) -> None:
         """Add a comment to the code.
 
         Parameters
@@ -71,7 +73,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addHeader(self, name: str, package="", indentLevel=0):
+    def addHeader(self, name: str, package: str = "", indentLevel: int = 0) -> None:
         """Add a header to the code.
 
         Parameters
@@ -98,7 +100,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addHeaderEnd(self, name: str, indentLevel=0):
+    def addHeaderEnd(self, name: str, indentLevel: int = 0) -> None:
         """Add end to header. Only useful with VHDL.
 
         Parameters
@@ -115,7 +117,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addParameterStart(self, indentLevel=0):
+    def addParameterStart(self, indentLevel: int = 0) -> None:
         """Add start of parameters.
 
         Parameters
@@ -133,7 +135,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addParameterEnd(self, indentLevel=0):
+    def addParameterEnd(self, indentLevel: int = 0) -> None:
         """Add end of parameters.
 
         Parameters
@@ -151,7 +153,9 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addParameter(self, name: str, storageType, value, indentLevel=0):
+    def addParameter(
+        self, name: str, storageType: str, value: str, indentLevel: int = 0
+    ) -> None:
         """Add a parameter.
 
         Parameters
@@ -175,7 +179,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addPortStart(self, indentLevel=0):
+    def addPortStart(self, indentLevel: int = 0) -> None:
         """Add start of ports.
 
         Parameters
@@ -193,7 +197,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addPortEnd(self, indentLevel=0):
+    def addPortEnd(self, indentLevel: int = 0) -> None:
         """Add end of ports.
 
         Parameters
@@ -212,8 +216,13 @@ class CodeGenerator(abc.ABC):
 
     @abc.abstractmethod
     def addPortScalar(
-        self, name: str, io: IO, reg: bool = False, attribute: str = "", indentLevel=0
-    ):
+        self,
+        name: str,
+        io: IO,
+        reg: bool = False,
+        attribute: str = "",
+        indentLevel: int = 0,
+    ) -> None:
         """Add a scalar port.
 
         Parameters
@@ -243,11 +252,11 @@ class CodeGenerator(abc.ABC):
         self,
         name: str,
         io: IO,
-        msbIndex,
+        msbIndex: str | int,
         reg: bool = False,
         attribute: str = "",
-        indentLevel=0,
-    ):
+        indentLevel: int = 0,
+    ) -> None:
         """Add a vector port.
 
         Parameters
@@ -275,7 +284,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addDesignDescriptionStart(self, name: str, indentLevel=0):
+    def addDesignDescriptionStart(self, name: str, indentLevel: int = 0) -> None:
         """Add start of design description. Only useful with VHDL.
 
         Parameters
@@ -292,7 +301,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addDesignDescriptionEnd(self, indentLevel=0):
+    def addDesignDescriptionEnd(self, indentLevel: int = 0) -> None:
         """Add end of design description.
 
         Parameters
@@ -310,7 +319,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addConstant(self, name: str, value, indentLevel=0):
+    def addConstant(self, name: str, value: str, indentLevel: int = 0) -> None:
         """Add a constant.
 
         Parameters
@@ -332,7 +341,9 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addConnectionScalar(self, name: str, reg: bool = False, indentLevel=0):
+    def addConnectionScalar(
+        self, name: str, reg: bool = False, indentLevel: int = 0
+    ) -> None:
         """Add a scalar connection.
 
         Parameters
@@ -354,8 +365,13 @@ class CodeGenerator(abc.ABC):
 
     @abc.abstractmethod
     def addConnectionVector(
-        self, name: str, startIndex, endIndex=0, reg: bool = False, indentLevel=0
-    ):
+        self,
+        name: str,
+        startIndex: str | int,
+        endIndex: str | int = 0,
+        reg: bool = False,
+        indentLevel: int = 0,
+    ) -> None:
         """Add a vector connection.
 
         Parameters
@@ -380,7 +396,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addLogicStart(self, indentLevel=0):
+    def addLogicStart(self, indentLevel: int = 0) -> None:
         """Add start of logic. Only useful with VHDL.
 
         Parameters
@@ -397,7 +413,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addLogicEnd(self, indentLevel=0):
+    def addLogicEnd(self, indentLevel: int = 0) -> None:
         """Add end of logic. Only useful with VHDL.
 
         Examples
@@ -417,10 +433,10 @@ class CodeGenerator(abc.ABC):
         compName: str,
         compInsName: str,
         portsPairs: list[tuple[str, str]],
-        paramPairs: list[tuple[str, str]] = None,
-        emulateParamPairs: list[tuple[str, str]] = None,
-        indentLevel=0,
-    ):
+        paramPairs: list[tuple[str, str]] | None = None,
+        emulateParamPairs: list[tuple[str, str]] | None = None,
+        indentLevel: int = 0,
+    ) -> None:
         """Add an instantiation. This will line up the ports and signals. So ports[0]
         will have signals[0] and so on. This is also the same case for paramPorts and
         paramSignals.
@@ -477,7 +493,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addComponentDeclarationForFile(self, fileName: str):
+    def addComponentDeclarationForFile(self, fileName: str) -> int:
         """Add a component declaration for a file.
 
         Only usefull for VHDL. It copies the entity declaration
@@ -491,7 +507,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addShiftRegister(self, configBits: int, indentLevel=0):
+    def addShiftRegister(self, configBits: int, indentLevel: int = 0) -> None:
         """Add a shift register.
 
         Parameters
@@ -503,7 +519,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addFlipFlopChain(self, configBits: int, indentLevel=0):
+    def addFlipFlopChain(self, configBits: int, indentLevel: int = 0) -> None:
         """Add a flip flop chain.
 
         Parameters
@@ -515,7 +531,14 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addRegister(self, reg, regIn, clk="CLK", inverted=False, indentLevel=0):
+    def addRegister(
+        self,
+        reg: str,
+        regIn: str,
+        clk: str = "CLK",
+        inverted: bool = False,
+        indentLevel: int = 0,
+    ) -> None:
         r"""Add a register.
 
         Parameters
@@ -553,7 +576,14 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addAssignScalar(self, left, right, delay=0, indentLevel=0, inverted=False):
+    def addAssignScalar(
+        self,
+        left: str,
+        right: str,
+        delay: int = 0,
+        indentLevel: int = 0,
+        inverted: bool = False,
+    ) -> None:
         """Add a scalar assign statement. Delay is provided by currently not being used
         by any of the code generator. If **right** is a list, it will be concatenated.
         Verilog will concatenate with comma ','. VHDL will concatenate with ampersand
@@ -585,8 +615,14 @@ class CodeGenerator(abc.ABC):
 
     @abc.abstractmethod
     def addAssignVector(
-        self, left, right, widthL, widthR, indentLevel=0, inverted=False
-    ):
+        self,
+        left: str,
+        right: str,
+        widthL: str | int,
+        widthR: str | int,
+        indentLevel: int = 0,
+        inverted: bool = False,
+    ) -> None:
         """Add a vector assign statement.
 
         Parameters
@@ -616,7 +652,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addPreprocIfDef(self, macro, indentLevel=0):
+    def addPreprocIfDef(self, macro: str, indentLevel: int = 0) -> None:
         r"""Add a preprocessor "ifdef".
 
         Parameters
@@ -638,7 +674,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addPreprocIfNotDef(self, macro, indentLevel=0):
+    def addPreprocIfNotDef(self, macro: str, indentLevel: int = 0) -> None:
         r"""Add a preprocessor "ifndef".
 
         Parameters
@@ -660,7 +696,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addPreprocElse(self, indentLevel=0):
+    def addPreprocElse(self, indentLevel: int = 0) -> None:
         r"""Add a preprocessor "else".
 
         Parameters
@@ -680,7 +716,7 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addPreprocEndif(self, indentLevel=0):
+    def addPreprocEndif(self, indentLevel: int = 0) -> None:
         r"""Add a preprocessor "endif".
 
         Parameters
@@ -700,7 +736,9 @@ class CodeGenerator(abc.ABC):
         """
 
     @abc.abstractmethod
-    def addBelMapAttribute(self, configBitValues: list[tuple[str, int]], indentLevel=0):
+    def addBelMapAttribute(
+        self, configBitValues: list[tuple[str, int]], indentLevel: int = 0
+    ) -> None:
         r"""Add a BelMap.
 
         Parameters
