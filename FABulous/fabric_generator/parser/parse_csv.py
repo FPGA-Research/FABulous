@@ -143,9 +143,18 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                 belFilePath = filePathParent.joinpath(temp[1])
                 bel_prefix = temp[2] if len(temp) > 2 else ""
                 if temp[1].endswith(".vhdl"):
-                    bels.append(parseBelFile(belFilePath, bel_prefix, "vhdl"))
+                    bels.append(parseBelFile(belFilePath, bel_prefix))
                 elif temp[1].endswith(".v") or temp[1].endswith(".sv"):
-                    bels.append(parseBelFile(belFilePath, bel_prefix, "verilog"))
+                    bels.append(parseBelFile(belFilePath, bel_prefix))
+                    if "ADD_AS_CUSTOM_PRIM" in temp[4:]:
+                        # local import to avoid circular import
+                        from FABulous.fabric_generator.gen_fabric.fabric_automation import (
+                            addBelsToPrim,
+                        )
+
+                        primsFile = proj_dir.joinpath("user_design/custom_prims.v")
+                        logger.info(f"Adding bels to custom prims file: {primsFile}")
+                        addBelsToPrim(primsFile, [bels[-1]])
                 else:
                     raise InvalidFileType(
                         f"File {belFilePath} is not a .vhdl or .v file. Please check the BEL file."
@@ -387,10 +396,12 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
             if line[0] == "BEL":
                 belFilePath = filePath.joinpath(line[1])
-                if line[1].endswith(".vhdl"):
-                    bels.append(parseBelFile(belFilePath, line[2], "vhdl"))
-                elif line[1].endswith(".v") or line[1].endswith(".sv"):
-                    bels.append(parseBelFile(belFilePath, line[2], "verilog"))
+                if (
+                    line[1].endswith(".vhdl")
+                    or line[1].endswith(".v")
+                    or line[1].endswith(".sv")
+                ):
+                    bels.append(parseBelFile(belFilePath, line[2]))
                 else:
                     raise InvalidFileType(
                         f"File {belFilePath} is not a .vhdl or .v file. Please check the BEL file."

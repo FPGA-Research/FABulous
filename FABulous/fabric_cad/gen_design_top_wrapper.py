@@ -40,10 +40,8 @@ def generateUserDesignTopWrapper(
         logger.info(f"Creating {output}")
     output.touch()
 
-    if user_design_path.suffix in {".vhdl", ".vhd"}:
-        user_design = parseBelFile(user_design_path, "", "vhdl")
-    elif user_design_path.suffix in {".v", ".sv"}:
-        user_design = parseBelFile(user_design_path, "", "verilog")
+    if user_design_path.suffix in {".vhdl", ".vhd", ".v", ".sv"}:
+        user_design = parseBelFile(user_design_path, "")
     else:
         raise InvalidFileType(
             f"Invalid file type in {user_design_path} only .vhdl and .v are supported."

@@ -7,7 +7,7 @@ from loguru import logger
 
 from FABulous.custom_exception import InvalidFileType, InvalidPortType, SpecMissMatch
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.define import IO, MultiplexerStyle
+from FABulous.fabric_definition.define import IO, HDLType, MultiplexerStyle
 from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_generator.code_generator.code_generator_Verilog import (
@@ -110,10 +110,7 @@ def generateCustomTileConfig(tile_path: Path) -> Path:
     has_reset = False
     has_enable = False
     for file in tile_bels:
-        if file.suffix.lower() in [".v", ".sv"]:
-            bel = parseBelFile(file, "", "verilog")
-        else:
-            bel = parseBelFile(file, "", "vhdl")
+        bel = parseBelFile(file, "")
         if "RESET" in bel.localShared:
             has_reset = True
         if "ENABLE" in bel.localShared:
@@ -395,7 +392,7 @@ def addBelsToPrim(
     )
 
     for bel in bels:
-        if bel.filetype != "verilog":
+        if bel.filetype != HDLType.VERILOG:
             logger.warning(
                 f"Bel {bel.src} is not a Verilog file, a generalized verilog description will be added to {primsFile}.",
                 "This is experimental and may not work as expected!",
@@ -835,10 +832,7 @@ def genIOBel(
     writer.writeToFile()
 
     bel: Bel
-    if language == "vhdl":
-        bel = parseBelFile(writer.outFileName, "", "vhdl")
-    else:  # Verilog
-        bel = parseBelFile(writer.outFileName, "", "verilog")
+    bel = parseBelFile(writer.outFileName, "")
 
     prims_file = FABulousSettings().proj_dir / "user_design" / "custom_prims.v"
     if not prims_file.exists():

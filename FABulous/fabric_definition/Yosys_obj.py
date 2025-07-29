@@ -6,8 +6,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from loguru import logger
-
 from FABulous.FABulous_CLI.helper import check_if_application_exists
 
 """
@@ -17,12 +15,12 @@ BitVector represents signal values in Yosys netlists as lists containing
 integers (for signal IDs) or logic state strings ("0", "1", "x", "z").
 """
 BitVector = list[int | Literal["0", "1", "x", "z"]]
+KeyValue = dict[str, str | int]
 
 
 @dataclass
 class YosysPortDetails:
-    """
-    Represents port details in a Yosys module.
+    """Represents port details in a Yosys module.
 
     Attributes
     ----------
@@ -47,8 +45,7 @@ class YosysPortDetails:
 
 @dataclass
 class YosysCellDetails:
-    """
-    Represents a cell instance in a Yosys module.
+    """Represents a cell instance in a Yosys module.
 
     Cells are instantiated components like logic gates, flip-flops, or
     user-defined modules.
@@ -73,17 +70,18 @@ class YosysCellDetails:
 
     hide_name: Literal[1, 0]
     type: str
-    parameters: dict[str, str]
-    attributes: dict[str, str | int]
+    parameters: KeyValue
+    attributes: KeyValue
     connections: dict[str, BitVector]
-    port_directions: dict[str, Literal["input", "output", "inout"]] = field(default_factory=dict)
+    port_directions: dict[str, Literal["input", "output", "inout"]] = field(
+        default_factory=dict
+    )
     model: str = ""
 
 
 @dataclass
 class YosysMemoryDetails:
-    """
-    Represents memory block details in a Yosys module.
+    """Represents memory block details in a Yosys module.
 
     Memory blocks are inferred or explicitly instantiated memory elements.
 
@@ -102,7 +100,7 @@ class YosysMemoryDetails:
     """
 
     hide_name: Literal[1, 0]
-    attributes: dict[str, str]
+    attributes: KeyValue
     width: int
     start_offset: int
     size: int
@@ -110,8 +108,7 @@ class YosysMemoryDetails:
 
 @dataclass
 class YosysNetDetails:
-    """
-    Represents net/wire details in a Yosys module.
+    """Represents net/wire details in a Yosys module.
 
     Nets are the connections between cells and ports in the design.
 
@@ -133,7 +130,7 @@ class YosysNetDetails:
 
     hide_name: Literal[1, 0]
     bits: BitVector
-    attributes: dict[str, str]
+    attributes: KeyValue
     offset: int = 0
     upto: int = 0
     signed: int = 0
@@ -141,8 +138,7 @@ class YosysNetDetails:
 
 @dataclass
 class YosysModule:
-    """
-    Represents a module in a Yosys design.
+    """Represents a module in a Yosys design.
 
     A module contains the structural description of a digital circuit including
     its interface (ports), internal components (cells), memory blocks, and
@@ -164,16 +160,24 @@ class YosysModule:
         Dictionary mapping net names to YosysNetDetails.
     """
 
-    attributes: dict[str, str | int]
-    parameter_default_values: dict[str, str | int]
+    attributes: KeyValue
+    parameter_default_values: KeyValue
     ports: dict[str, YosysPortDetails]
     cells: dict[str, YosysCellDetails]
     memories: dict[str, YosysMemoryDetails]
     netnames: dict[str, YosysNetDetails]
 
-    def __init__(self, *, attributes, parameter_default_values, ports, cells, memories, netnames):
-        """
-        Initialize a YosysModule from parsed JSON data.
+    def __init__(
+        self,
+        *,
+        attributes: KeyValue,
+        parameter_default_values: KeyValue,
+        ports: dict[str, YosysPortDetails],
+        cells: dict[str, YosysCellDetails],
+        memories: dict[str, YosysMemoryDetails],
+        netnames: dict[str, YosysNetDetails],
+    ) -> None:
+        """Initialize a YosysModule from parsed JSON data.
 
         Parameters
         ----------
@@ -198,10 +202,37 @@ class YosysModule:
         self.netnames = {k: YosysNetDetails(**v) for k, v in netnames.items()}
 
 
+def post_process_vhdl(modules: dict[str, YosysModule], vhdl_file: Path) -> None:
+    with vhdl_file.open() as f:
+        vhdl_content = f.readlines()
+
+    for module in modules.values():
+        for i in module.ports:
+            net = module.netnames.get(i, None)
+            if net is None:
+                continue
+            if r := re.search(
+                r":(\d+)\.\d+-(\d+)\.\d+", str(net.attributes.get("src", ""))
+            ):
+                line = vhdl_content[int(r.group(1)) - 1]
+                attributesRaw = re.search(r"--\s*\(\*\s*(\w+)\s*\*\)", line)
+                if attributesRaw is None:
+                    continue
+
+                attributes = attributesRaw.group(1).split(",")
+                net.attributes.update(
+                    {
+                        k: v
+                        for k, v in (
+                            attr.split("=") for attr in attributes if "=" in attr
+                        )
+                    }
+                )
+
+
 @dataclass
 class YosysJson:
-    """
-    Root object representing a complete Yosys JSON file.
+    """Root object representing a complete Yosys JSON file.
 
     This class provides the main interface for loading and analyzing Yosys JSON
     netlists. It contains all modules in the design and provides utility methods
@@ -224,9 +255,8 @@ class YosysJson:
     modules: dict[str, YosysModule]
     models: dict
 
-    def __init__(self, path: Path):
-        """
-        Load and parse a HDL file to a Yosys JSON object.
+    def __init__(self, path: Path) -> None:
+        """Load and parse a HDL file to a Yosys JSON object.
 
         Parameters
         ----------
@@ -245,30 +275,37 @@ class YosysJson:
 
         self.srcPath = path
         yosys = check_if_application_exists(os.getenv("FAB_YOSYS_PATH", "yosys"))
-
+        ghdl = check_if_application_exists(os.getenv("FAB_GHDL_PATH", "ghdl"))
         json_file = self.srcPath.with_suffix(".json")
 
-        if self.srcPath.suffix in [".v", ".sv"]:
+        if self.srcPath.suffix in [".vhd", ".vhdl"]:
             runCmd = [
-                yosys,
-                "-q",
-                f"-p read_verilog -sv {self.srcPath}; proc -noopt; write_json -compat-int {json_file}",
+                str(ghdl),
+                "--synth",
+                "--out=verilog",
+                f"{self.srcPath}",
+                "-e",
+                ">",
+                f"{self.srcPath.with_suffix('.v')}",
             ]
-        elif self.srcPath.suffix in [".vhd", ".vhdl"]:
-            runCmd = [
-                yosys,
-                "-m",
-                "ghdl-q",
-                f"-p ghdl {self.srcPath}; proc -noopt; write_json -compat-int {json_file}",
-            ]
-        else:
-            raise ValueError(f"Unsupported HDL file type: {self.srcPath.suffix}")
+            try:
+                subprocess.run(runCmd, check=True, capture_output=True, shell=True)
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(
+                    f"Failed to run GHDL on {self.srcPath}: {e.stderr.decode()}"
+                ) from e
+        runCmd = [
+            str(yosys),
+            "-q",
+            f"-p read_verilog -sv {self.srcPath.with_suffix('.v')}; proc -noopt; write_json -compat-int {json_file}",
+        ]
         try:
-            subprocess.run(runCmd, check=True)
+            subprocess.run(runCmd, check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
-            logger.opt(exception=subprocess.CalledProcessError(1, runCmd)).error(f"Failed to run yosys command: {e}")
-
-        with open(json_file, "r") as f:
+            raise RuntimeError(
+                f"Failed to run Yosys on {self.srcPath}: {e.stderr.decode()}"
+            ) from e
+        with json_file.open() as f:
             o = json.load(f)
         self.creator = o.get("creator", "")  # Use .get() for safety
         # Provide default empty dicts for potentially missing keys in module data
@@ -285,9 +322,11 @@ class YosysJson:
         }
         self.models = o.get("models", {})  # Use .get() for safety
 
+        if self.srcPath.suffix in [".vhd", ".vhdl"]:
+            post_process_vhdl(self.modules, self.srcPath)
+
     def getTopModule(self) -> YosysModule:
-        """
-        Find and return the top-level module in the design.
+        """Find and return the top-level module in the design.
 
         The top module is identified by having a "top" attribute.
 
@@ -307,8 +346,7 @@ class YosysJson:
         raise ValueError("No top module found in Yosys JSON")
 
     def isTopModuleNet(self, net: int) -> bool:
-        """
-        Check if a net ID corresponds to a top-level module port.
+        """Check if a net ID corresponds to a top-level module port.
 
         Parameters
         ----------
@@ -326,10 +364,10 @@ class YosysJson:
                     return True
         return False
 
-
-    def getNetPortSrcSinks(self, net: int) -> tuple[tuple[str, str], list[tuple[str, str]]]:
-        """
-        Find the source and sink connections for a given net.
+    def getNetPortSrcSinks(
+        self, net: int
+    ) -> tuple[tuple[str, str], list[tuple[str, str]]]:
+        """Find the source and sink connections for a given net.
 
         This method analyzes the netlist to determine what drives a net (source)
         and what it connects to (sinks).
@@ -368,7 +406,9 @@ class YosysJson:
                             sinks.append((cell_name, conn_name))
 
         if len(sinks) == 0:
-            raise ValueError(f"Net {net} not found in Yosys JSON or is a top module port output")
+            raise ValueError(
+                f"Net {net} not found in Yosys JSON or is a top module port output"
+            )
 
         if len(src) == 0:
             src.append(("", "z"))
