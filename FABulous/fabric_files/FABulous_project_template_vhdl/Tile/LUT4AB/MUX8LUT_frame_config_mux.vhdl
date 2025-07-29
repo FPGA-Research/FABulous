@@ -11,7 +11,6 @@ end package;
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
-use work.my_package.all;
 use work.attr_pack.all;
 
 -- (* FABulous, BelMap, c0=0, c1=1 *)
@@ -177,7 +176,7 @@ begin
     X  => AH
   );
 
-  M <= AB;
+  M_AB <= AB;
 
   -- M_AD <= CD when (c0 = '0') else AD;
   cus_mux21_M_AD : cus_mux21

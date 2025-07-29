@@ -13,7 +13,6 @@ end package;
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
-use work.my_package.all;
 use work.attr_pack.all;
 -- InPassFlop2 and OutPassFlop2 are the same except for changing which side I0,I1 or O0,O1 gets connected to the top entity
 
@@ -22,8 +21,8 @@ entity OutPass4_frame_config_mux is
   generic (NoConfigBits : integer := 4); -- has to be adjusted manually (we don't use an arithmetic parser for the value)
   port (
     -- Pin0
-    I : in std_logic;
-    O : out std_logic; -- EXTERNAL
+    I : in std_logic_vector(3 downto 0);
+    O : out std_logic_vector(3 downto 0); -- EXTERNAL
     -- Tile IO ports from BELs
     UserCLK : in std_logic; -- EXTERNAL -- SHARED_PORT -- ## the EXTERNAL keyword will send this signal all the way to top and the --SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
@@ -77,7 +76,7 @@ begin
   -- O(2) <= I(2) when ConfigBits(2) = '0' else Q2;
   -- O(3) <= I(3) when ConfigBits(3) = '0' else Q3;
 
-  cus_mux21 : cus_mux21_inst
+  cus_mux21_inst : cus_mux21
   port map
   (
     A0 => I(0),
@@ -86,7 +85,7 @@ begin
     X  => O(0)
   );
 
-  cus_mux21 : cus_mux21_inst1
+  cus_mux21_inst1 : cus_mux21
   port map
   (
     A0 => I(1),
@@ -94,7 +93,7 @@ begin
     S  => ConfigBits(1),
     X  => O(1)
   );
-  cus_mux21_2 : cus_mux21_inst2
+  cus_mux21_2_inst2 : cus_mux21
   port map
   (
     A0 => I(2),
@@ -102,7 +101,7 @@ begin
     S  => ConfigBits(2),
     X  => O(2)
   );
-  cus_mux21_3 : cus_mux21_inst3
+  cus_mux21_inst3 : cus_mux21
   port map
   (
     A0 => I(3),

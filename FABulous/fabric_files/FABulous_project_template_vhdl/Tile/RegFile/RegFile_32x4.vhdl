@@ -11,7 +11,6 @@ end package;
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
-use work.my_package.all;
 use work.attr_pack.all;
 
 -- (* FABulous, BelMap, AD_reg=0, BD_reg=1 *)
@@ -47,24 +46,11 @@ architecture Behavioral of RegFile_32x4 is
   type memtype is array (31 downto 0) of std_logic_vector(3 downto 0); -- 32 entries of 4 bit
   signal mem : memtype := (others => (others => '0'));
 
-  signal W_ADR : std_logic_vector(4 downto 0); -- write address
-  signal A_ADR : std_logic_vector(4 downto 0); -- port A read address
-  signal B_ADR : std_logic_vector(4 downto 0); -- port B read address
-
-  signal D  : std_logic_vector(3 downto 0); -- write data
-  signal AD : std_logic_vector(3 downto 0); -- port A read data
-  signal BD : std_logic_vector(3 downto 0); -- port B read data
-
-  signal AD_reg : std_logic_vector(3 downto 0); -- port A read data register
-  signal BD_reg : std_logic_vector(3 downto 0); -- port B read data register
+  signal AD_reg    : std_logic_vector(3 downto 0); -- port A read data register
+  signal BD_reg    : std_logic_vector(3 downto 0); -- port B read data register
+  signal AD_signal : std_logic_vector(3 downto 0); -- port A read data signal
+  signal BD_signal : std_logic_vector(3 downto 0); -- port B read data signal
 begin
-
-  W_ADR <= W_ADR4 & W_ADR3 & W_ADR2 & W_ADR1 & W_ADR0;
-  A_ADR <= A_ADR4 & A_ADR3 & A_ADR2 & A_ADR1 & A_ADR0;
-  B_ADR <= B_ADR4 & B_ADR3 & B_ADR2 & B_ADR1 & B_ADR0;
-
-  D <= D3 & D2 & D1 & D0;
-
   P_write : process (UserCLK)
   begin
     if UserCLK'event and UserCLK = '1' then
@@ -74,20 +60,20 @@ begin
     end if;
   end process;
 
-  AD <= mem(TO_INTEGER(UNSIGNED(A_ADR)));
-  BD <= mem(TO_INTEGER(UNSIGNED(B_ADR)));
+  AD_signal <= mem(TO_INTEGER(UNSIGNED(A_ADR)));
+  BD_signal <= mem(TO_INTEGER(UNSIGNED(B_ADR)));
 
   process (UserCLK)
   begin
     if UserCLK'event and UserCLK = '1' then
-      AD_reg <= AD;
-      BD_reg <= BD;
+      AD_reg <= AD_signal;
+      BD_reg <= BD_signal;
     end if;
   end process;
 
-  AD <= AD when (ConfigBits(0) = '0') else
+  AD <= AD_signal when (ConfigBits(0) = '0') else
     AD_reg;
-  BD <= BD when (ConfigBits(1) = '0') else
+  BD <= BD_signal when (ConfigBits(1) = '0') else
     BD_reg;
 
 end architecture Behavioral;

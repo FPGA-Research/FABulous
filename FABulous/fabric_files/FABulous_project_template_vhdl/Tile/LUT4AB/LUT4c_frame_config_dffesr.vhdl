@@ -27,7 +27,6 @@ end package;
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
-use work.my_package.all;
 use work.attr_pack.all;
 
 -- (* FABulous, BelMap, INIT=0, INIT[1]=1, INIT[2]=2, INIT[3]=3, INIT[4]=4, INIT[5]=5, INIT[6]=6, INIT[7]=7, INIT[8]=8, INIT[9]=9, INIT[10]=10, INIT[11]=11,INIT[12]=12, INIT[13]=13, INIT[14]=14, INIT[15]=15, FF=16, IOmux=17, SET_NORESET=18 *)
@@ -84,6 +83,32 @@ architecture Behavioral of LUT4c_frame_config_dffesr is
   signal LUT_flop                          : std_logic;
   signal I0mux                             : std_logic; -- normal input '0', or carry input '1'
   signal c_out_mux, c_I0mux, c_reset_value : std_logic; -- extra configuration bits
+
+  component MUX16PTv2 is
+    port (
+      IN1  : in std_logic;
+      IN10 : in std_logic;
+      IN11 : in std_logic;
+      IN12 : in std_logic;
+      IN13 : in std_logic;
+      IN14 : in std_logic;
+      IN15 : in std_logic;
+      IN16 : in std_logic;
+      IN2  : in std_logic;
+      IN3  : in std_logic;
+      IN4  : in std_logic;
+      IN5  : in std_logic;
+      IN6  : in std_logic;
+      IN7  : in std_logic;
+      IN8  : in std_logic;
+      IN9  : in std_logic;
+      O    : out std_logic;
+      S1   : in std_logic;
+      S2   : in std_logic;
+      S3   : in std_logic;
+      S4   : in std_logic
+    );
+  end component MUX16PTv2;
 begin
 
   LUT_values    <= ConfigBits(15 downto 0);

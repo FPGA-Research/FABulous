@@ -11,7 +11,6 @@ package attr_pack is
 end package;
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
-use work.my_package.all;
 use work.attr_pack.all;
 
 -- (* FABulous, BelMap, C_bit0=0, C_bit1=1, C_bit2=2, C_bit3=3 *)

@@ -12,7 +12,6 @@ end package;
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
-use work.my_package.all;
 use work.attr_pack.all;
 
 -- InPassFlop2 and OutPassFlop2 are the same except for changing which side I0,I1 or O0,O1 gets connected to the top entity
@@ -78,7 +77,7 @@ begin
   -- O(2) <= I(2) when ConfigBits(2) = '0' else Q2;
   -- O(3) <= I(3) when ConfigBits(3) = '0' else Q3;
 
-  cus_mux21 : cus_mux21_inst0
+  cus_mux21_inst0 : cus_mux21
   port map
   (
     A0 => I(0),
@@ -87,7 +86,7 @@ begin
     X  => O(0)
   );
 
-  cus_mux21_1 : cus_mux21_inst1
+  cus_mux21_inst1 : cus_mux21
   port map
   (
     A0 => I(1),
@@ -96,8 +95,7 @@ begin
     X  => O(1)
   );
 
-  cus_mux21_2 : cus_mux21_inst2
-
+  cus_mux21_inst2 : cus_mux21
   port map
   (
     A0 => I(2),
@@ -106,7 +104,7 @@ begin
     X  => O(2)
   );
 
-  cus_mux21_3 : cus_mux21_inst3
+  cus_mux21_inst3 : cus_mux21
   port map
   (
     A0 => I(3),

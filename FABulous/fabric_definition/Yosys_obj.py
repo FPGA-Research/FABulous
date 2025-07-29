@@ -282,17 +282,17 @@ class YosysJson:
             runCmd = [
                 str(ghdl),
                 "--synth",
+                "--std=08",
                 "--out=verilog",
                 f"{self.srcPath}",
                 "-e",
-                ">",
-                f"{self.srcPath.with_suffix('.v')}",
             ]
             try:
-                subprocess.run(runCmd, check=True, capture_output=True, shell=True)
+                r = subprocess.run(runCmd, check=True, capture_output=True)
+                self.srcPath.with_suffix(".v").write_text(r.stdout.decode())
             except subprocess.CalledProcessError as e:
                 raise RuntimeError(
-                    f"Failed to run GHDL on {self.srcPath}: {e.stderr.decode()}"
+                    f"Failed to run GHDL on {self.srcPath}: {e.stderr.decode()} run cmd: {' '.join(runCmd)}"
                 ) from e
         runCmd = [
             str(yosys),
