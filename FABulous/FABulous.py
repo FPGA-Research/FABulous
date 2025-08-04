@@ -16,6 +16,7 @@ from FABulous.FABulous_CLI.helper import (
     update_project_version,
 )
 
+from FABulous.FABulous_settings import FABulousSettings
 
 def main() -> None:
     """Main function to start the command line interface of FABulous, sets up argument
@@ -187,6 +188,9 @@ def main() -> None:
     # Setup global and project env vars to load .env files
     setup_global_env_vars(args)
     setup_project_env_vars(args)
+
+    print(FABulousSettings().FAB_YOSYS_PATH)
+    raise
 
     # Check if FAB_PROJ_DIR is set in environment (including from .env files)
     if fab_proj_dir := os.getenv("FAB_PROJ_DIR", None):
