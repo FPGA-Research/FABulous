@@ -53,3 +53,14 @@ exclude = [
 
 [tool.setuptools.package-data]
 mypkg = ["FABulous/**/*"]
+
+[dependency-groups]
+dev = [
+    "cocotb>=1.9.2",
+    "cocotb-test>=0.2.6",
+    "pre-commit>=4.2.0",
+    "pytest>=8.4.1",
+    "pytest-mock>=3.14.1",
+    "pytest-split>=0.10.0",
+    "ruff>=0.12.7",
+]
