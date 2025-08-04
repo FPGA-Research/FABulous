@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from FABulous.FABulous_settings import FABulousSettings
 from FABulous.custom_exception import (
     InvalidFabricDefinition,
     InvalidFabricParameter,
@@ -72,7 +73,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
 
     new_tiles = []
     commonWirePairs = []
-    proj_dir = Path(os.getenv("FAB_PROJ_DIR"))
+    proj_dir = FABulousSettings().proj_dir
 
     # Parse each tile config
     for t in tilesData:

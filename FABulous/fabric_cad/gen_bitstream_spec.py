@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from FABulous.FABulous_settings import FABulousSettings
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_generator.parser.parse_configmem import parseConfigMem
 from FABulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
@@ -59,7 +60,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                     configMemPath = tile.matrixDir / f"{tile.name}_ConfigMem.csv"
                 else:
                     configMemPath = (
-                        Path(os.getenv("FAB_PROJ_DIR"))
+                        FABulousSettings().proj_dir
                         / "Tile"
                         / tile.name
                         / f"{tile.name}_ConfigMem.csv"

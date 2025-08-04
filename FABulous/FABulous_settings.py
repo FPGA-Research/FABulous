@@ -1,4 +1,3 @@
-from dataclasses import Field
 from importlib.metadata import version
 from pathlib import Path
 from shutil import which
@@ -23,9 +22,10 @@ class FABulousSettings(BaseSettings):
 
     root: Path = Path(__file__).parent.parent.resolve()
     yosys_path: Path = get_tools_path("yosys")
-    nextpnr_path: Path =  get_tools_path("nextpnr-generic")
+    nextpnr_path: Path = get_tools_path("nextpnr-generic")
     iverilog_path: Path = get_tools_path("iverilog")
     vvp_path: Path = get_tools_path("vvp")
+    fabulator_root: Path | None = None
     proj_dir: Path = Path.cwd()
     # FAB_OSS_CAD_SUITE
     fab_proj_version_created: Version = Version("0.0.1")

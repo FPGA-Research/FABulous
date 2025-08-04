@@ -4,6 +4,7 @@ from pathlib import Path
 
 from loguru import logger
 
+from FABulous.FABulous_settings import FABulousSettings
 import FABulous.fabric_cad.gen_npnr_model as model_gen_npnr
 import FABulous.fabric_generator.parser.parse_csv as fileParser
 from FABulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
@@ -163,8 +164,7 @@ class FABulous_API:
             Name of the tile for which the switch matrix will be generated.
         """
         if tile := self.fabric.getTileByName(tileName):
-            sm_dbg = os.getenv("FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "True")
-            switch_matrix_debug_signal = sm_dbg.lower().strip() != "false"
+            switch_matrix_debug_signal = FABulousSettings().fab_switch_matrix_debug_signal
             logger.info(
                 f"Generate switch matrix debug signals: {switch_matrix_debug_signal}"
             )

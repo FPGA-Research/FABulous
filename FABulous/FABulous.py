@@ -15,8 +15,8 @@ from FABulous.FABulous_CLI.helper import (
     setup_project_env_vars,
     update_project_version,
 )
-
 from FABulous.FABulous_settings import FABulousSettings
+
 
 def main() -> None:
     """Main function to start the command line interface of FABulous, sets up argument
@@ -49,9 +49,7 @@ def main() -> None:
     -iocd, --install_oss_cad_suite : str, optional
         Install the oss-cad-suite in the project directory.
     """
-    parser = argparse.ArgumentParser(
-        description="The command line interface for FABulous"
-    )
+    parser = argparse.ArgumentParser(description="The command line interface for FABulous")
 
     create_group = parser.add_mutually_exclusive_group()
 
@@ -189,12 +187,7 @@ def main() -> None:
     setup_global_env_vars(args)
     setup_project_env_vars(args)
 
-    print(FABulousSettings().FAB_YOSYS_PATH)
-    raise
-
-    # Check if FAB_PROJ_DIR is set in environment (including from .env files)
-    if fab_proj_dir := os.getenv("FAB_PROJ_DIR", None):
-        projectDir = Path(fab_proj_dir).absolute().resolve()
+    projectDir = FABulousSettings().proj_dir
 
     # Finally, user provided argument takes highest priority
     if args.project_dir:
@@ -209,9 +202,7 @@ def main() -> None:
         exit(0)
 
     if not (projectDir / ".FABulous").exists():
-        logger.error(
-            "The directory provided is not a FABulous project as it does not have a .FABulous folder"
-        )
+        logger.error("The directory provided is not a FABulous project as it does not have a .FABulous folder")
         exit(1)
 
     if not projectDir.exists():
@@ -219,12 +210,10 @@ def main() -> None:
         exit(1)
 
     if args.update_project_version and not update_project_version(projectDir):
-        logger.error(
-            "Failed to update project version. Please check the logs for more details."
-        )
+        logger.error("Failed to update project version. Please check the logs for more details.")
         exit(1)
 
-    project_version = Version(os.getenv("FAB_PROJ_VERSION", "1.0.0"))
+    project_version = FABulousSettings().fab_proj_version
     package_version = Version(version("FABulous-FPGA"))
     if package_version < project_version:
         logger.error(
@@ -239,7 +228,7 @@ def main() -> None:
         )
 
     fab_CLI = FABulous_CLI(
-        os.getenv("FAB_PROJ_LANG"),
+        FABulousSettings().fab_proj_lang,
         projectDir,
         Path().cwd(),
         force=args.force,
@@ -261,22 +250,16 @@ def main() -> None:
         for c in commands:
             fab_CLI.onecmd_plus_hooks(c)
             if fab_CLI.exit_code and not args.force:
-                logger.error(
-                    f"Command '{c}' execution failed with exit code {fab_CLI.exit_code}"
-                )
+                logger.error(f"Command '{c}' execution failed with exit code {fab_CLI.exit_code}")
                 exit(fab_CLI.exit_code)
         else:
-            logger.info(
-                f'Commands "{"; ".join(i.strip() for i in commands)}" executed successfully'
-            )
+            logger.info(f'Commands "{"; ".join(i.strip() for i in commands)}" executed successfully')
             exit(fab_CLI.exit_code)
 
     elif fabScript is not None:
         fab_CLI.onecmd_plus_hooks(f"run_script {fabScript}")
         if fab_CLI.exit_code:
-            logger.error(
-                f"FABulous script {args.FABulousScript} execution failed with exit code {fab_CLI.exit_code}"
-            )
+            logger.error(f"FABulous script {args.FABulousScript} execution failed with exit code {fab_CLI.exit_code}")
         else:
             logger.info(f"FABulous script {args.FABulousScript} executed successfully")
         exit(fab_CLI.exit_code)
@@ -284,9 +267,7 @@ def main() -> None:
     elif tclScript is not None:
         fab_CLI.onecmd_plus_hooks(f"run_tcl {tclScript}")
         if fab_CLI.exit_code:
-            logger.error(
-                f"TCL script {args.TCLScript} execution failed with exit code {fab_CLI.exit_code}"
-            )
+            logger.error(f"TCL script {args.TCLScript} execution failed with exit code {fab_CLI.exit_code}")
         else:
             logger.info(f"TCL script {args.TCLScript} executed successfully")
         exit(fab_CLI.exit_code)

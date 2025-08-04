@@ -1,5 +1,4 @@
 import argparse
-import os
 import subprocess as sp
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -8,7 +7,7 @@ from cmd2 import Cmd, Cmd2ArgumentParser, with_argparser, with_category
 from loguru import logger
 
 from FABulous.custom_exception import CommandError
-from FABulous.FABulous_CLI.helper import check_if_application_exists
+from FABulous.FABulous_settings import FABulousSettings
 
 if TYPE_CHECKING:
     from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
@@ -240,9 +239,7 @@ synthesis_parser.add_argument(
 @with_category(CMD_USER_DESIGN_FLOW)
 @with_argparser(synthesis_parser)
 def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
-    logger.info(
-        f"Running synthesis targeting Nextpnr with design {[str(i) for i in args.files]}"
-    )
+    logger.info(f"Running synthesis targeting Nextpnr with design {[str(i) for i in args.files]}")
 
     p: Path
     paths: list[Path] = []
@@ -257,7 +254,7 @@ def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
             return
 
     json_file = paths[0].with_suffix(".json")
-    yosys = check_if_application_exists(os.getenv("FAB_YOSYS_PATH", "yosys"))
+    yosys = FABulousSettings().yosys_path
 
     cmd = [
         "synth_fabulous",
@@ -267,11 +264,7 @@ def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
         f"-json {args.json}" if args.json else f"-json {json_file}",
         f"-lut {args.lut}" if args.lut else "",
         f"-plib {args.plib}" if args.plib else "",
-        (
-            " ".join([f"-extra-plib {i}" for i in args.extra_plib])
-            if args.extra_plib
-            else ""
-        ),
+        (" ".join([f"-extra-plib {i}" for i in args.extra_plib]) if args.extra_plib else ""),
         " ".join([f"-extra-map {i}" for i in args.extra_map]) if args.extra_map else "",
         f"-encfile {args.encfile}" if args.encfile else "",
         "-nofsm" if args.nofsm else "",
@@ -289,7 +282,7 @@ def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
     cmd = " ".join([i for i in cmd if i != ""])
 
     runCmd = [
-        f"{yosys}",
+        f"{yosys!s}",
         "-p",
         f"{cmd}",
         f"{self.projectDir}/user_design/top_wrapper.v",
@@ -299,7 +292,5 @@ def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
     result = sp.run(runCmd, check=True)
 
     if result.returncode != 0:
-        logger.opt(exception=CommandError()).error(
-            "Synthesis failed with non-zero return code."
-        )
+        logger.opt(exception=CommandError()).error("Synthesis failed with non-zero return code.")
     logger.info("Synthesis command executed successfully.")
