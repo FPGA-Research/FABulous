@@ -34,7 +34,7 @@ class FABulousSettings(BaseSettings):
     fab_proj_lang: str = "verilog"
     fab_switch_matrix_debug_signal: bool = False
 
-    @field_validator("FAB_ROOT", mode="after")
+    @field_validator("root", mode="after")
     @classmethod
     def is_dir(cls, value: Path) -> bool:
         """Check if inputs is a directory."""

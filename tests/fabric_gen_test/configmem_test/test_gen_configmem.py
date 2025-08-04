@@ -15,7 +15,9 @@ from FABulous.fabric_generator.gen_fabric.gen_configmem import (
 from tests.fabric_gen_test.conftest import verify_csv_content
 
 
-def _check_fabric_capacity(fabric_config: Fabric, tile_config_bits: int) -> tuple[bool, int]:
+def _check_fabric_capacity(
+    fabric_config: Fabric, tile_config_bits: int
+) -> tuple[bool, int]:
     """Check if fabric has sufficient capacity for config bits."""
     max_fabric_bits = fabric_config.frameBitsPerRow * fabric_config.maxFramesPerCol
     return max_fabric_bits >= tile_config_bits, max_fabric_bits
@@ -26,7 +28,9 @@ def _should_skip_test(tile_config_bits: int, max_fabric_bits: int) -> bool:
     return tile_config_bits == 0 or max_fabric_bits == 0
 
 
-def _expect_capacity_error(fabric_config: Fabric, output_file: Path, tile_config_bits: int) -> None:
+def _expect_capacity_error(
+    fabric_config: Fabric, output_file: Path, tile_config_bits: int
+) -> None:
     """Test that capacity error is raised with meaningful message."""
     with pytest.raises((ValueError, RuntimeError, AssertionError)) as exc_info:
         generateConfigMemInit(fabric_config, output_file, tile_config_bits)
@@ -44,7 +48,9 @@ class TestGenerateConfigMemInit:
         """Test that generateConfigMemInit creates CSV with correct structure and bit allocation."""
         output_file = tmp_path / f"test_{fabric_config.name}_{tile_config.name}.csv"
         tile_config_bits = tile_config.globalConfigBits
-        has_capacity, max_fabric_bits = _check_fabric_capacity(fabric_config, tile_config_bits)
+        has_capacity, max_fabric_bits = _check_fabric_capacity(
+            fabric_config, tile_config_bits
+        )
 
         # Expect error when fabric can't accommodate the config bits
         if not has_capacity:
@@ -55,7 +61,9 @@ class TestGenerateConfigMemInit:
             return
 
         generateConfigMemInit(fabric_config, output_file, tile_config_bits)
-        rows = verify_csv_content(output_file, expected_rows=fabric_config.maxFramesPerCol)
+        rows = verify_csv_content(
+            output_file, expected_rows=fabric_config.maxFramesPerCol
+        )
 
         # Verify frame naming and indexing
         for i, row in enumerate(rows):
@@ -71,17 +79,23 @@ class TestGenerateConfigMemInit:
     ) -> None:
         """Test that generated bitmasks have valid binary format and correct bit counts."""
         tile_config_bits = tile_config.globalConfigBits
-        has_capacity, max_fabric_bits = _check_fabric_capacity(fabric_config, tile_config_bits)
+        has_capacity, max_fabric_bits = _check_fabric_capacity(
+            fabric_config, tile_config_bits
+        )
 
         if not has_capacity:
             with pytest.raises((ValueError, RuntimeError, AssertionError)):
-                generateConfigMemInit(fabric_config, tmp_path / "should_fail.csv", tile_config_bits)
+                generateConfigMemInit(
+                    fabric_config, tmp_path / "should_fail.csv", tile_config_bits
+                )
             return
 
         output_file = tmp_path / f"bitmask_{fabric_config.name}_{tile_config.name}.csv"
         generateConfigMemInit(fabric_config, output_file, tile_config_bits)
 
-        rows = verify_csv_content(output_file, expected_rows=fabric_config.maxFramesPerCol)
+        rows = verify_csv_content(
+            output_file, expected_rows=fabric_config.maxFramesPerCol
+        )
 
         # Validate bitmask format for each frame
         for i, row in enumerate(rows):
@@ -90,16 +104,22 @@ class TestGenerateConfigMemInit:
 
             # Remove underscores and validate format
             clean_mask = mask.replace("_", "")
-            assert len(clean_mask) == fabric_config.frameBitsPerRow, f"Frame {i} mask length mismatch"
+            assert len(clean_mask) == fabric_config.frameBitsPerRow, (
+                f"Frame {i} mask length mismatch"
+            )
             assert clean_mask.count("1") == bits_used, f"Frame {i} bit count mismatch"
-            assert all(c in "01" for c in clean_mask), f"Frame {i} contains invalid characters"
+            assert all(c in "01" for c in clean_mask), (
+                f"Frame {i} contains invalid characters"
+            )
 
     def test_bit_allocation_strategy_follows_frame_priority_order(
         self, tmp_path: Path, fabric_config: Fabric, tile_config: Tile
     ) -> None:
         """Test that bits are allocated across frames following priority order from frame 0."""
         tile_config_bits = tile_config.globalConfigBits
-        has_capacity, max_fabric_bits = _check_fabric_capacity(fabric_config, tile_config_bits)
+        has_capacity, max_fabric_bits = _check_fabric_capacity(
+            fabric_config, tile_config_bits
+        )
 
         # Skip invalid combinations
         if _should_skip_test(tile_config_bits, max_fabric_bits):
@@ -107,13 +127,19 @@ class TestGenerateConfigMemInit:
 
         if not has_capacity:
             with pytest.raises((ValueError, RuntimeError, AssertionError)):
-                generateConfigMemInit(fabric_config, tmp_path / "should_fail.csv", tile_config_bits)
+                generateConfigMemInit(
+                    fabric_config, tmp_path / "should_fail.csv", tile_config_bits
+                )
             return
 
-        output_file = tmp_path / f"allocation_{fabric_config.name}_{tile_config.name}.csv"
+        output_file = (
+            tmp_path / f"allocation_{fabric_config.name}_{tile_config.name}.csv"
+        )
         generateConfigMemInit(fabric_config, output_file, tile_config_bits)
 
-        rows = verify_csv_content(output_file, expected_rows=fabric_config.maxFramesPerCol)
+        rows = verify_csv_content(
+            output_file, expected_rows=fabric_config.maxFramesPerCol
+        )
 
         # Verify total bit allocation matches requested
         total_allocated = sum(int(row["bits_used_in_frame"]) for row in rows)
@@ -122,7 +148,9 @@ class TestGenerateConfigMemInit:
         )
 
         # Verify bits are allocated from highest to lowest (starting from last frames)
-        non_zero_frames = [i for i, row in enumerate(rows) if int(row["bits_used_in_frame"]) > 0]
+        non_zero_frames = [
+            i for i, row in enumerate(rows) if int(row["bits_used_in_frame"]) > 0
+        ]
         if non_zero_frames:
             # Bits should be allocated starting from frame 0 (highest priority)
             assert non_zero_frames[0] == 0, "Bit allocation should start from frame 0"
@@ -132,13 +160,17 @@ class TestGenerateConfigMemInit:
     ) -> None:
         """Test that ConfigBits_ranges are formatted correctly with descending bit order."""
         tile_config_bits = default_tile.globalConfigBits
-        has_capacity, max_fabric_bits = _check_fabric_capacity(default_fabric, tile_config_bits)
+        has_capacity, max_fabric_bits = _check_fabric_capacity(
+            default_fabric, tile_config_bits
+        )
 
         # Skip scenarios with no config bits or zero fabric parameters
         if _should_skip_test(tile_config_bits, max_fabric_bits):
             pytest.skip("No config bits or zero fabric parameters scenario")
 
-        output_file = tmp_path / f"test_ranges_{default_fabric.name}_{default_tile.name}.csv"
+        output_file = (
+            tmp_path / f"test_ranges_{default_fabric.name}_{default_tile.name}.csv"
+        )
 
         # Expect error when fabric can't accommodate the config bits
         if not has_capacity:
@@ -180,7 +212,9 @@ class TestGeneratedConfigMemRTL:
         writer = code_generator_factory(".v")
 
         # Call generateConfigMem
-        has_capacity, _ = _check_fabric_capacity(fabric_config, tile_config.globalConfigBits)
+        has_capacity, _ = _check_fabric_capacity(
+            fabric_config, tile_config.globalConfigBits
+        )
         if not has_capacity and tile_config.globalConfigBits > 0:
             with pytest.raises(ValueError, match="adjust the tile configuration."):
                 generateConfigMem(writer, fabric_config, tile_config, config_csv)
@@ -226,7 +260,9 @@ class TestGeneratedConfigMemRTL:
         config_memlist_data = configmem_list(default_fabric, default_tile)
 
         # Mock parseConfigMem to return our configmem_list fixture
-        mock_parse = mocker.patch("FABulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem")
+        mock_parse = mocker.patch(
+            "FABulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem"
+        )
         mock_parse.return_value = config_memlist_data
 
         # Generate the ConfigMem RTL
@@ -254,8 +290,12 @@ class TestGeneratedConfigMemRTL:
                     expected_config_bit = expected_config_bits[config_bit_counter]
 
                     # Verify the LHQD1 instantiation exists with correct connections
-                    expected_inst_name = f"Inst_{config_mem.frameName}_bit{frame_data_bit}"
-                    assert expected_inst_name in rtl_content, f"Missing LHQD1 instantiation: {expected_inst_name}"
+                    expected_inst_name = (
+                        f"Inst_{config_mem.frameName}_bit{frame_data_bit}"
+                    )
+                    assert expected_inst_name in rtl_content, (
+                        f"Missing LHQD1 instantiation: {expected_inst_name}"
+                    )
 
                     # Verify the port connections
                     connection = (
@@ -264,6 +304,8 @@ class TestGeneratedConfigMemRTL:
                         f"    .Q(ConfigBits[{expected_config_bit}]),\n"
                         f"    .QN(ConfigBits_N[{expected_config_bit}])"
                     )
-                    assert connection in rtl_content, f"Missing connection {connection} for {expected_inst_name}"
+                    assert connection in rtl_content, (
+                        f"Missing connection {connection} for {expected_inst_name}"
+                    )
 
                     config_bit_counter += 1

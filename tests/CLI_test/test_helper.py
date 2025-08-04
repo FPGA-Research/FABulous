@@ -23,7 +23,9 @@ def test_create_project(tmp_path: Path) -> None:
     assert "FAB_PROJ_VERSION_CREATED=" in env_file.read_text()
 
     # Check if template files were copied
-    assert any(project_dir.glob("**/*.v")), "No Verilog files found in project directory"
+    assert any(project_dir.glob("**/*.v")), (
+        "No Verilog files found in project directory"
+    )
 
 
 def test_create_project_vhdl(tmp_path: Path) -> None:
@@ -43,7 +45,9 @@ def test_create_project_vhdl(tmp_path: Path) -> None:
     assert "FAB_PROJ_VERSION_CREATED=" in env_file.read_text()
 
     # Check if template files were copied
-    assert any(project_dir.glob("**/*.vhdl")), "No VHDL files found in project directory"
+    assert any(project_dir.glob("**/*.vhdl")), (
+        "No VHDL files found in project directory"
+    )
 
 
 def test_create_project_existing_dir(tmp_path: Path) -> None:
@@ -55,7 +59,9 @@ def test_create_project_existing_dir(tmp_path: Path) -> None:
         create_project(project_dir)
 
 
-def test_update_project_version_success(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_update_project_version_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)
     env_file = env_dir / ".env"
@@ -77,7 +83,9 @@ def test_update_project_version_missing_version(tmp_path: Path) -> None:
     assert update_project_version(tmp_path / "proj") is False
 
 
-def test_update_project_version_major_mismatch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_update_project_version_major_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)
     env_file = env_dir / ".env"

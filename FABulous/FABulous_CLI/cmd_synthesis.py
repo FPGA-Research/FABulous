@@ -239,7 +239,9 @@ synthesis_parser.add_argument(
 @with_category(CMD_USER_DESIGN_FLOW)
 @with_argparser(synthesis_parser)
 def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
-    logger.info(f"Running synthesis targeting Nextpnr with design {[str(i) for i in args.files]}")
+    logger.info(
+        f"Running synthesis targeting Nextpnr with design {[str(i) for i in args.files]}"
+    )
 
     p: Path
     paths: list[Path] = []
@@ -264,7 +266,11 @@ def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
         f"-json {args.json}" if args.json else f"-json {json_file}",
         f"-lut {args.lut}" if args.lut else "",
         f"-plib {args.plib}" if args.plib else "",
-        (" ".join([f"-extra-plib {i}" for i in args.extra_plib]) if args.extra_plib else ""),
+        (
+            " ".join([f"-extra-plib {i}" for i in args.extra_plib])
+            if args.extra_plib
+            else ""
+        ),
         " ".join([f"-extra-map {i}" for i in args.extra_map]) if args.extra_map else "",
         f"-encfile {args.encfile}" if args.encfile else "",
         "-nofsm" if args.nofsm else "",
@@ -292,5 +298,7 @@ def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
     result = sp.run(runCmd, check=True)
 
     if result.returncode != 0:
-        logger.opt(exception=CommandError()).error("Synthesis failed with non-zero return code.")
+        logger.opt(exception=CommandError()).error(
+            "Synthesis failed with non-zero return code."
+        )
     logger.info("Synthesis command executed successfully.")

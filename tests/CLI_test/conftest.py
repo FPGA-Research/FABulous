@@ -52,7 +52,9 @@ def cli(tmp_path: Path) -> Generator[FABulous_CLI]:
     os.environ["FAB_PROJ_DIR"] = str(projectDir)
     create_project(projectDir)
     setup_logger(0, False)
-    cli = FABulous_CLI(writerType="verilog", projectDir=projectDir, enteringDir=tmp_path)
+    cli = FABulous_CLI(
+        writerType="verilog", projectDir=projectDir, enteringDir=tmp_path
+    )
     cli.debug = True
     run_cmd(cli, "load_fabric")
     yield cli

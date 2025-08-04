@@ -158,7 +158,9 @@ def test_configmem_rtl_with_generated_configmem_simulation(
 
     # Check if RTL file was created - skip if no config bits were generated
     if tile_config.globalConfigBits != 0:
-        assert writer.outFileName.exists(), f"ConfigMem RTL file {writer.outFileName} was not generated."
+        assert writer.outFileName.exists(), (
+            f"ConfigMem RTL file {writer.outFileName} was not generated."
+        )
     else:
         return
 
@@ -179,11 +181,15 @@ def test_configmem_rtl_with_generated_configmem_simulation(
         # Find which FrameData bits are used (positions of '1' in mask)
         # The usedBitMask is interpreted right-to-left (little endian)
         used_framedata_bits = [
-            len(used_bit_mask) - 1 - i for i, bit in enumerate(reversed(used_bit_mask)) if bit == "1"
+            len(used_bit_mask) - 1 - i
+            for i, bit in enumerate(reversed(used_bit_mask))
+            if bit == "1"
         ]
 
         # Map each used FrameData bit to its corresponding ConfigBit
-        for framedata_bit_idx, config_bit_idx in zip(used_framedata_bits, config_bit_ranges, strict=True):
+        for framedata_bit_idx, config_bit_idx in zip(
+            used_framedata_bits, config_bit_ranges, strict=True
+        ):
             key = f"{frame_index}, {framedata_bit_idx}"
             bit_mapping[key] = config_bit_idx
 
@@ -254,11 +260,15 @@ def test_configmem_rtl_with_custom_configmem_simulation(
         # Find which FrameData bits are used (positions of '1' in mask)
         # The usedBitMask is interpreted right-to-left (little endian)
         used_framedata_bits = [
-            len(used_bit_mask) - 1 - i for i, bit in enumerate(reversed(used_bit_mask)) if bit == "1"
+            len(used_bit_mask) - 1 - i
+            for i, bit in enumerate(reversed(used_bit_mask))
+            if bit == "1"
         ]
 
         # Map each used FrameData bit to its corresponding ConfigBit
-        for framedata_bit_idx, config_bit_idx in zip(used_framedata_bits, config_bit_ranges, strict=True):
+        for framedata_bit_idx, config_bit_idx in zip(
+            used_framedata_bits, config_bit_ranges, strict=True
+        ):
             key = f"{frame_index}, {framedata_bit_idx}"
             bit_mapping[key] = config_bit_idx
 

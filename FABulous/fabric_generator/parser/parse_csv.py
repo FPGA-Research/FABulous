@@ -1,4 +1,3 @@
-import os
 import re
 from copy import deepcopy
 from pathlib import Path
@@ -6,7 +5,6 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from FABulous.FABulous_settings import FABulousSettings
 from FABulous.custom_exception import (
     InvalidFabricDefinition,
     InvalidFabricParameter,
@@ -25,6 +23,7 @@ from FABulous.fabric_generator.parser.parse_switchmatrix import (
     parseMatrix,
     parsePortLine,
 )
+from FABulous.FABulous_settings import FABulousSettings
 
 if TYPE_CHECKING:
     from FABulous.fabric_definition.Bel import Bel
