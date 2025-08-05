@@ -219,7 +219,7 @@ def main() -> None:
         )
         exit(1)
 
-    project_version = FABulousSettings().fab_proj_version
+    project_version = FABulousSettings().proj_version
     package_version = Version(version("FABulous-FPGA"))
     if package_version < project_version:
         logger.error(
@@ -234,7 +234,7 @@ def main() -> None:
         )
 
     fab_CLI = FABulous_CLI(
-        FABulousSettings().fab_proj_lang,
+        FABulousSettings().proj_lang,
         projectDir,
         Path().cwd(),
         force=args.force,
