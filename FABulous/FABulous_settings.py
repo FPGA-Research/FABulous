@@ -25,17 +25,25 @@ class FABulousSettings(BaseSettings):
     nextpnr_path: Path = get_tools_path("nextpnr-generic")
     iverilog_path: Path = get_tools_path("iverilog")
     vvp_path: Path = get_tools_path("vvp")
-    fabulator_root: Path | None = None
     proj_dir: Path = Path.cwd()
-    # FAB_OSS_CAD_SUITE
-    fab_proj_version_created: Version = Version("0.0.1")
-    fab_proj_version: Version = Version(version("FABulous-FPGA"))
+    fabulator_root: Path | None = None
+    oss_cad_suite: Path | None = None
+    proj_version_created: Version = Version("0.0.1")
+    proj_version: Version = Version(version("FABulous-FPGA"))
 
-    fab_proj_lang: str = "verilog"
-    fab_switch_matrix_debug_signal: bool = False
+    proj_lang: str = "verilog"
+    switch_matrix_debug_signal: bool = False
 
     @field_validator("root", mode="after")
     @classmethod
     def is_dir(cls, value: Path) -> bool:
         """Check if inputs is a directory."""
         return value.is_dir()
+
+    @field_validator("proj_lang", mode="after")
+    @classmethod
+    def validate_proj_lang(cls, value: str) -> str:
+        """Validate the project language."""
+        if value not in ["verilog", "vhdl"]:
+            raise ValueError("Project language must be either 'verilog' or 'vhdl'.")
+        return value

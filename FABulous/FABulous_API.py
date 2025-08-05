@@ -163,9 +163,7 @@ class FABulous_API:
             Name of the tile for which the switch matrix will be generated.
         """
         if tile := self.fabric.getTileByName(tileName):
-            switch_matrix_debug_signal = (
-                FABulousSettings().fab_switch_matrix_debug_signal
-            )
+            switch_matrix_debug_signal = FABulousSettings().switch_matrix_debug_signal
             logger.info(
                 f"Generate switch matrix debug signals: {switch_matrix_debug_signal}"
             )
