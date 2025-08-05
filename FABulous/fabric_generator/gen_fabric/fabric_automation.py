@@ -1,12 +1,10 @@
 import json
 import math
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from FABulous.FABulous_settings import FABulousSettings
 from FABulous.custom_exception import InvalidFileType, InvalidPortType, SpecMissMatch
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.define import IO, MultiplexerStyle
@@ -20,6 +18,7 @@ from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
 )
 from FABulous.fabric_generator.parser.parse_hdl import parseBelFile
 from FABulous.fabric_generator.parser.parse_switchmatrix import parseList
+from FABulous.FABulous_settings import FABulousSettings
 
 if TYPE_CHECKING:
     from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
