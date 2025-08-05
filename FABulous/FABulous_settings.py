@@ -34,6 +34,22 @@ class FABulousSettings(BaseSettings):
     proj_lang: str = "verilog"
     switch_matrix_debug_signal: bool = False
 
+    @field_validator("proj_version_created", mode="before")
+    @classmethod
+    def parse_version_created(cls, value: str | Version) -> Version:
+        """Parse version created from string or Version object."""
+        if isinstance(value, str):
+            return Version(value)
+        return value
+
+    @field_validator("proj_version", mode="before")
+    @classmethod
+    def parse_version(cls, value: str | Version) -> Version:
+        """Parse version from string or Version object."""
+        if isinstance(value, str):
+            return Version(value)
+        return value
+
     @field_validator("root", mode="after")
     @classmethod
     def is_dir(cls, value: Path) -> bool:
