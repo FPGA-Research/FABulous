@@ -52,3 +52,7 @@ class InvalidBelDefinition(Exception):
 
 class PipelineCommandError(Exception):
     """Exception raised for errors in command line arguments."""
+
+
+class InvalidState(Exception):
+    """Exception raised for invalid state during fabric generation."""

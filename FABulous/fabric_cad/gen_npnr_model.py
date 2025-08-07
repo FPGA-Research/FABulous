@@ -1,6 +1,6 @@
 import string
 
-from FABulous.custom_exception import InvalidFileType
+from FABulous.custom_exception import InvalidFileType, InvalidState
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
@@ -62,6 +62,14 @@ def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
 
             pipStr.append(f"#Tile-external pips on tile X{x}Y{y}:")
             for wire in tile.wireList:
+                xDst = x + wire.xOffset
+                yDst = y + wire.yOffset
+                if (not (0 <= xDst <= fabric.numberOfColumns)) or (
+                    not (0 <= yDst <= fabric.numberOfRows)
+                ):
+                    raise InvalidState(
+                        f"Wire {wire} in tile X{x}Y{y} points to an invalid tile X{xDst}Y{yDst}"
+                    )
                 pipStr.append(
                     f"X{x}Y{y},{wire.source},X{x + wire.xOffset}Y{y + wire.yOffset},{wire.destination},{8},{wire.source}.{wire.destination}"
                 )

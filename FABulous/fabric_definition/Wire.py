@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 
 from FABulous.fabric_definition.define import Direction
@@ -43,3 +44,22 @@ class Wire:
         if __o is None or not isinstance(__o, Wire):
             return False
         return self.source == __o.source and self.destination == __o.destination
+
+    def __post_init__(self) -> None:
+        def validSourceDestination(name: str) -> bool:
+            if self.xOffset == 0 and self.yOffset == 0:
+                return True
+            if not name:
+                return True
+            return re.match(r"^X\d+Y\d+$", name) is not None
+
+        if not validSourceDestination(self.sourceTile):
+            raise ValueError(
+                f"Invalid source tile name: {self.sourceTile} for wire {self}, "
+                "your source is going out side of the tile, please check the source and destination port offset."
+            )
+        if not validSourceDestination(self.destinationTile):
+            raise ValueError(
+                f"Invalid destination tile name: {self.destinationTile} for wire {self}, "
+                "your destination is going out side of the tile, please check the source and destination port offset."
+            )

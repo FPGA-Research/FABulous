@@ -47,7 +47,19 @@ class Port:
     sideOfTile: Side
 
     def __repr__(self) -> str:
-        return f"Port(Name={self.name}, IO={self.inOut.value}, XOffset={self.xOffset}, YOffset={self.yOffset}, WireCount={self.wireCount}, Side={self.sideOfTile.value})"
+        return (
+            f"Port(\n"
+            f"  name='{self.name}',\n"
+            f"  inOut={self.inOut.value},\n"
+            f"  wireDirection={self.wireDirection.value},\n"
+            f"  sourceName='{self.sourceName}',\n"
+            f"  destinationName='{self.destinationName}',\n"
+            f"  xOffset={self.xOffset},\n"
+            f"  yOffset={self.yOffset},\n"
+            f"  wireCount={self.wireCount},\n"
+            f"  sideOfTile={self.sideOfTile.value}\n"
+            f")"
+        )
 
     def expandPortInfoByName(self, indexed: bool = False) -> list[str]:
         if self.sourceName == "NULL" or self.destinationName == "NULL":
