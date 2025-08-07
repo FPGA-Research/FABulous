@@ -9,3 +9,4 @@ pytest-mock>=3.14.0
 cocotb>=1.9.0
 cocotb-test>=0.2.6
 pytest-split>=0.10.0
+pydantic-settings>=2.10.1
