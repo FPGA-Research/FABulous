@@ -62,23 +62,25 @@ class StairWires:
     Structure
     ---------
     The (refX, refY) point refers to the following location(s) of the stair-like structure:
-    ::
 
-               @   @   @                  @@  @@  @@
-               @   @   @                  @@  @@  @@
-               @   @   @                  @@  @@  @@
-               @   @   @                  @@  @@  @@
-               @   @   @                  @@  @@  @@
-               @   @   @@@@@@@@     @@@@@@@@  @@  @@
-               @   @         @@     @         @@  @@
-               @   @@@@@@@%  @@     @   @@@@@@@@  @@
-               @         @%  @@     @   @@        @@
-          -->  @@@@@@%@  @%  @@     @   @# #@@@@@@@@  <-- (refX, refY)
-                     %@  @%  @@     @   @# #@
-                     %@  @%  @@     @   @# #@
-                     %@  @%  @@     @   @# #@
-                     %@  @%  @@     @   @# #@
-                     %@  @@  @@     @   @# #@
+    .. asciiart::
+
+        |        @   @   @                  @@  @@  @@
+        |        @   @   @                  @@  @@  @@
+        |        @   @   @                  @@  @@  @@
+        |        @   @   @                  @@  @@  @@
+        |        @   @   @                  @@  @@  @@
+        |        @   @   @@@@@@@@     @@@@@@@@  @@  @@
+        |        @   @         @@     @         @@  @@
+        |        @   @@@@@@@.  @@     @   @@@@@@@@  @@
+        |        @         @.  @@     @   @@        @@
+        |    --> @@@@@@.@  @.  @@     @   @. .@@@@@@@@  <-- (refX, refY)
+        |              .@  @.  @@     @   @. .@
+        |              .@  @.  @@     @   @. .@
+        |              .@  @.  @@     @   @. .@
+        |              .@  @.  @@     @   @. .@
+        |              .@  @@  @@     @   @. .@
+
 
     Depending on the orientation of the structure. Rotate right by 90° to get
     the image for the corresponding left-right stair-ike wire structure.

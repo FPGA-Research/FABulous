@@ -1,5 +1,5 @@
-FABulous.py
-===============
+FABulous
+========
 
-.. automodule:: FABulous.FABulous
+.. automodule:: FABulous
    :members:
