@@ -281,7 +281,7 @@ def test_install_oss_cad_suite(
             return {
                 "assets": [
                     {
-                        "name": ".tar.gz x64 linux",
+                        "name": ".tar.gz x64 linux darwin windows arm64",
                         "browser_download_url": "./something.tgz",
                     }
                 ]

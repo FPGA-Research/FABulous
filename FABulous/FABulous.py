@@ -15,7 +15,6 @@ from FABulous.FABulous_CLI.helper import (
     setup_project_env_vars,
     update_project_version,
 )
-from FABulous.FABulous_settings import FABulousSettings
 
 
 def main() -> None:
@@ -189,7 +188,7 @@ def main() -> None:
     setup_global_env_vars(args)
     setup_project_env_vars(args)
 
-    projectDir = FABulousSettings().proj_dir
+    projectDir = Path(os.getenv("FAB_PROJ_DIR"))
 
     # Finally, user provided argument takes highest priority
     if args.project_dir:
@@ -218,6 +217,9 @@ def main() -> None:
             "Failed to update project version. Please check the logs for more details."
         )
         exit(1)
+
+    # init the settings right before we start the CLI
+    from FABulous.FABulous_settings import FABulousSettings
 
     project_version = FABulousSettings().proj_version
     package_version = Version(version("FABulous-FPGA"))
