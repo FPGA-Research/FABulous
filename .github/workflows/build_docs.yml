@@ -17,5 +17,5 @@ jobs:
       - uses: ammaraskar/sphinx-action@8.2.3
         with:
           pre-build-command: "pip install -r requirements.txt"
-          build-command: 'make html SPHINXOPTS="-W --keep-going -n"'
+          build-command: 'make html SPHINXOPTS+="-W --keep-going -n"'
           docs-folder: "docs/"
