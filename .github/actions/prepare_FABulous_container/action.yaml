@@ -18,6 +18,11 @@ inputs:
     description: "Additional python packages to install"
     required: false
     default: ""
+  install_ghdl_mcode:
+    description: "If false, ghdl mcode won't be installed and the oss-cad-suite llvm version is used"
+    required: false
+    default: "true"
+
 
 runs:
   using: "composite"
@@ -85,6 +90,7 @@ runs:
       # GHDL mcode is required to test our fabric.
       # The oss-cad-suite action installs GHDL, but with the LLVM backend, which is much slower for our simulation
       uses: ghdl/setup-ghdl@v1
+      if: ${{ inputs.install_ghdl_mcode != 'false' }}
       with:
         version: nightly
         backend: mcode
