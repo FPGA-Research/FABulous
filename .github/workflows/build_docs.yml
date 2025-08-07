@@ -10,8 +10,12 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - uses: ammaraskar/sphinx-action@8.0.0
-      with:
-        pre-build-command: "apt-get update -y && apt-get install tk git -y && pip install -r requirements.txt && pip install -e ."
-        docs-folder: "docs/"
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/prepare_FABulous_container
+        with:
+          install_ghdl_mcode: "false"
+      - uses: ammaraskar/sphinx-action@8.2.3
+        with:
+          pre-build-command: "pip install -r requirements.txt"
+          build-command: 'make html SPHINXOPTS="-W --keep-going -n"'
+          docs-folder: "docs/"
