@@ -69,6 +69,8 @@ nitpick_ignore = [
     ('py:class', 'Path')
 ]
 
+autodoc_mock_imports = ['FABulous.FABulous_settings']
+
 # -- Options for HTML output
 
 html_theme = "pydata_sphinx_theme"
