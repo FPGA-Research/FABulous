@@ -226,42 +226,6 @@ class Fabric:
                                     destinationTile=f"X{x + port.xOffset}Y{y + value}",
                                 )
                             )
-                    if port.destinationName != "NULL" and port.sourceName == "NULL":
-                        destName = port.destinationName
-                        sourceName = port.destinationName
-                        # if destination name is not in a common pair wire we assume
-                        # the destination name is the same as source name
-                        wire_pair = dict(self.commonWirePair)
-                        if destName in wire_pair:
-                            sourceName = wire_pair[destName]
-
-                        value = min(max(port.xOffset, -1), 1)
-                        for i in range(port.wireCount * abs(port.xOffset)):
-                            tile.wireList.append(
-                                Wire(
-                                    direction=port.wireDirection,
-                                    source=f"{sourceName}{i}",
-                                    xOffset=value,
-                                    yOffset=port.yOffset,
-                                    destination=f"{destName}{i}",
-                                    sourceTile=f"X{x}Y{y}",
-                                    destinationTile=f"X{x + value}Y{y + port.yOffset}",
-                                )
-                            )
-
-                        value = min(max(port.yOffset, -1), 1)
-                        for i in range(port.wireCount * abs(port.yOffset)):
-                            tile.wireList.append(
-                                Wire(
-                                    direction=port.wireDirection,
-                                    source=f"{sourceName}{i}",
-                                    xOffset=port.xOffset,
-                                    yOffset=value,
-                                    destination=f"{destName}{i}",
-                                    sourceTile=f"X{x}Y{y}",
-                                    destinationTile=f"X{x + port.xOffset}Y{y + value}",
-                                )
-                            )
                 tile.wireList = list(dict.fromkeys(tile.wireList))
 
     def __repr__(self) -> str:
