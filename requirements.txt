@@ -10,3 +10,4 @@ cocotb>=1.9.0
 cocotb-test>=0.2.6
 pytest-split>=0.10.0
 pydantic-settings>=2.10.1
+packaging>=25.0

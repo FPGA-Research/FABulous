@@ -27,6 +27,7 @@ dependencies = [
   'cmd2>=2',
   'bitarray>=3.3.0',
   "pydantic-settings>=2.10.1",
+  "packaging>=25.0",
 ]
 
 [project.urls]
