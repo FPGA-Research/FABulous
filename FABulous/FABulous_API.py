@@ -5,7 +5,6 @@ from pathlib import Path
 from loguru import logger
 
 import FABulous.fabric_cad.gen_npnr_model as model_gen_npnr
-import FABulous.fabric_generator.code_generator.code_generator as codeGen
 import FABulous.fabric_generator.parser.parse_csv as fileParser
 from FABulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from FABulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
@@ -15,6 +14,7 @@ from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_generator.code_generator import CodeGenerator
 from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
@@ -43,8 +43,6 @@ class FABulous_API:
 
     Attributes
     ----------
-    fabricGenerator : FabricGenerator
-        Object responsible for generating fabric-related outputs.
     geometryGenerator : GeometryGenerator
         Object responsible for generating geometry-related outputs.
     fabric : Fabric
@@ -57,7 +55,7 @@ class FABulous_API:
     fabric: Fabric
     fileExtension: str = ".v"
 
-    def __init__(self, writer: codeGen.CodeGenerator, fabricCSV: str = "") -> None:
+    def __init__(self, writer: CodeGenerator, fabricCSV: str = "") -> None:
         """Initialises FABulous object.
 
         If 'fabricCSV' is provided, parses fabric data and initialises
@@ -67,7 +65,7 @@ class FABulous_API:
 
         Parameters
         ----------
-        writer : codeGen.codeGenerator
+        writer : CodeGenerator
             Object responsible for generating code from code_generator.py
         fabricCSV : str, optional
             Path to the CSV file containing fabric data, by default ""

@@ -52,6 +52,22 @@ napoleon_preprocess_types = False
 napoleon_type_aliases = None
 napoleon_attr_annotations = True
 
+# -- Autodoc options
+autodoc_typehints = "description"
+autodoc_typehints_format = "short"
+autodoc_type_aliases = {
+    'Object': 'object',
+    'optional': 'typing.Optional',
+    'Path': 'pathlib.Path',
+}
+
+# Suppress warnings for missing references in type annotations
+nitpicky = False
+nitpick_ignore = [
+    ('py:class', 'Object'),
+    ('py:class', 'optional'),
+    ('py:class', 'Path')
+]
 
 # -- Options for HTML output
 

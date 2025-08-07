@@ -20,7 +20,7 @@ class FabricGeometry:
         Set of unique tileNames in the fabric
     tileGeomMap : Dict[str, TileGeometry]
         Map of the geometry of each tile by name
-    tileLocs : List[List[Loc]]
+    tileLocs : List[List[Location]]
         Locations of all tiles in the fabric
     padding : int
         Padding used throughout the geometry, in multiples of the width between wires
