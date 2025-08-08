@@ -199,7 +199,10 @@ def parseBelFile(
         direction = IO[details.direction.upper()]
         filtered_ports[port_name] = (direction, details.bits)
 
-    noConfigBits = int(module_info.parameter_default_values.get("NoConfigBits", 0))
+    configBitsPort = module_info.ports.get("ConfigBits")
+    noConfigBits = 0
+    if configBitsPort:
+        noConfigBits = len(configBitsPort.bits)
     # Passed attributes dont show in port list, checks for attributes in netnames.
     # (If passed attributes missing, may need to expand to check other lists e.g "memories".)
     for portName, (direction, bits) in filtered_ports.items():

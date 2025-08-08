@@ -216,18 +216,24 @@ def post_process_vhdl(modules: dict[str, YosysModule], vhdl_file: Path) -> None:
             f"Module {module_name} not found in Yosys JSON for {vhdl_file}"
         )
 
-    if r := re.search(r"\(\*.*?BelMap (.*?) \*\)", vhdl_content):
+    if r := re.search(r"\(\*.*?BelMap(.*?) \*\)", vhdl_content):
         res = r.group(1).split(",")
         res = [x.strip() for x in res]
         res = [x for x in res if x]  # Remove empty strings
         res = dict(x.split("=", 1) for x in res)
         module.attributes.update(res)
+        module.attributes["BelMap"] = True
+        module.attributes["FABulous"] = True
 
-    if r := re.search(r"port \((.*?)\)", vhdl_content, re.DOTALL):
-        ports_entry = r.group(1)
-        ports_entry = ports_entry.split("\n")
-    else:
-        raise ValueError(f"Could not find port declaration in {vhdl_file}")
+    ports_entry = []
+    port_start = False
+    for i in vhdl_content.splitlines():
+        if re.search(r"^\s*port \(", i):
+            port_start = True
+        if port_start and re.search(r"^\s*\);\s*", i):
+            port_start = False
+        if port_start:
+            ports_entry.append(i)
 
     for p in ports_entry:
         if r := re.search(r"(\w+)\s*:.*? --\s*\(\* (.*?) \*\)", p):
