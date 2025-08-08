@@ -6,7 +6,6 @@ from pathlib import Path
 from loguru import logger
 from packaging.version import Version
 
-from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import (
     create_project,
     install_oss_cad_suite,
@@ -234,6 +233,8 @@ def main() -> None:
             f"Major version mismatch! FABulous-FPGA major version: {package_version.major}, Project major version: {project_version.major}\n"
             "This may lead to compatibility issues. Please ensure the project is compatible with the current FABulous-FPGA version."
         )
+
+    from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 
     fab_CLI = FABulous_CLI(
         FABulousSettings().proj_lang,
