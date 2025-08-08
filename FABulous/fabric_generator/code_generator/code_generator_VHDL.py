@@ -225,17 +225,23 @@ end process;
 
         self._add("Port map(", indentLevel=indentLevel + 1)
         connectPair = []
-        for i in portsPairs:
+        for p, s in portsPairs:
             # NOTE: This is a temporary fix for the issue of curly braces in the port names and needs to be fixed properly a later refactoring of the code generation
-            port = i[0].replace("{", "(").replace("}", ")")
-            signal = i[1].replace("{", "(").replace("}", ")")
+            port = p.replace("{", "(").replace("}", ")")
+            signal = s.replace("{", "(").replace("}", ")")
             if "[" in port:
                 port = port.replace("[", "(").replace("]", ")").replace(":", " downto ")
             if "[" in signal:
                 signal = (
                     signal.replace("[", "(").replace("]", ")").replace(":", " downto ")
                 )
-            connectPair.append(f"{port} => {signal}")
+            if len(signal.split(",")) == 1:
+                connectPair.append(f"{port} => {signal}")
+            else:
+                for idx, sn in enumerate(signal.split(",")):
+                    connectPair.append(
+                        f"{port}({idx}) => {sn.replace('(', '').replace(')', '')}"
+                    )
 
         self._add(
             (f",\n{' ':<{4 * (indentLevel + 2)}}").join(connectPair),

@@ -117,8 +117,10 @@ class Bel:
         self.ports_vectors = ports_vectors
         if self.src.suffix in [".sv", ".v"]:
             self.language = "verilog"
+            self.filetype = HDLType.VERILOG
         elif self.src.suffix in [".vhd", ".vhdl"]:
             self.language = "vhdl"
+            self.filetype = HDLType.VHDL
         else:
             raise ValueError(f"Unknown file type {self.src.suffix} for BEL {self.src}")
         self.carry = carry

@@ -25,7 +25,7 @@ entity InPass4_frame_config_mux is
     -- Tile IO ports from BELs
     UserCLK : in std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL1` *)
+    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
   );
 
   attribute FABulous of InPass4_frame_config_mux : entity is "TRUE";
