@@ -205,14 +205,16 @@ class YosysModule:
 def post_process_vhdl(modules: dict[str, YosysModule], vhdl_file: Path) -> None:
     vhdl_content = vhdl_file.read_text()
 
-    if r := re.search(r"entity\s+(\w+)", vhdl_content):
+    if r := re.search(r"entity\s+(\w+)\s+is", vhdl_content):
         module_name = r.group(1)
     else:
         raise ValueError(f"Could not find entity name in {vhdl_file}")
 
     module = modules.get(module_name)
     if not module:
-        raise ValueError(f"Module {module_name} not found in Yosys JSON")
+        raise ValueError(
+            f"Module {module_name} not found in Yosys JSON for {vhdl_file}"
+        )
 
     if r := re.search(r"\(\*.*?BelMap (.*?) \*\)", vhdl_content):
         res = r.group(1).split(",")
@@ -221,7 +223,7 @@ def post_process_vhdl(modules: dict[str, YosysModule], vhdl_file: Path) -> None:
         res = dict(x.split("=", 1) for x in res)
         module.attributes.update(res)
 
-    if r := re.search(r"port \(.*?\)", vhdl_content, re.DOTALL):
+    if r := re.search(r"port \((.*?)\)", vhdl_content, re.DOTALL):
         ports_entry = r.group(1)
         ports_entry = ports_entry.split("\n")
     else:
