@@ -38,9 +38,10 @@ entity LUT4c_frame_config_dffesr is
     O       : out std_logic; -- LUT output (combinatorial or FF)
     Ci      : in std_logic; -- carry chain input
     Co      : out std_logic; -- carry chain output
-    SR      : in std_logic; -- SHARED_RESET
-    EN      : in std_logic; -- SHARED_ENABLE
-    UserCLK : in std_logic; -- EXTERNAL -- SHARED_PORT -- ## the EXTERNAL keyword will send this sisgnal all the way to top and the --SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
+    SR      : in std_logic; -- (* FABulous, SHARED_RESET *)
+    EN      : in std_logic; -- (* FABulous, SHARED_ENABLE *)
+    -- ## the EXTERNAL keyword will send this sisgnal all the way to top and the --SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
+    UserCLK : in std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
     ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0)
   );

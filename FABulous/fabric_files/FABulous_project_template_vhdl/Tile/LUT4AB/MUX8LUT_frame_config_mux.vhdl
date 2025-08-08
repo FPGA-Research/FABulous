@@ -32,7 +32,7 @@ entity MUX8LUT_frame_config_mux is
     M_AH : out std_logic;
     M_EF : out std_logic;
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0)
+    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
 
   );
   attribute FABulous of MUX8LUT_frame_config_mux : entity is "TRUE";

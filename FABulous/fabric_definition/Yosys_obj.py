@@ -203,31 +203,37 @@ class YosysModule:
 
 
 def post_process_vhdl(modules: dict[str, YosysModule], vhdl_file: Path) -> None:
-    with vhdl_file.open() as f:
-        vhdl_content = f.readlines()
+    vhdl_content = vhdl_file.read_text()
 
-    for module in modules.values():
-        for i in module.ports:
-            net = module.netnames.get(i, None)
-            if net is None:
-                continue
-            if r := re.search(
-                r":(\d+)\.\d+-(\d+)\.\d+", str(net.attributes.get("src", ""))
-            ):
-                line = vhdl_content[int(r.group(1)) - 1]
-                attributesRaw = re.search(r"--\s*\(\*\s*(\w+)\s*\*\)", line)
-                if attributesRaw is None:
-                    continue
+    if r := re.search(r"entity\s+(\w+)", vhdl_content):
+        module_name = r.group(1)
+    else:
+        raise ValueError(f"Could not find entity name in {vhdl_file}")
 
-                attributes = attributesRaw.group(1).split(",")
-                net.attributes.update(
-                    {
-                        k: v
-                        for k, v in (
-                            attr.split("=") for attr in attributes if "=" in attr
-                        )
-                    }
-                )
+    module = modules.get(module_name)
+    if not module:
+        raise ValueError(f"Module {module_name} not found in Yosys JSON")
+
+    if r := re.search(r"\(\*.*?BelMap (.*?) \*\)", vhdl_content):
+        res = r.group(1).split(",")
+        res = [x.strip() for x in res]
+        res = [x for x in res if x]  # Remove empty strings
+        res = dict(x.split("=", 1) for x in res)
+        module.attributes.update(res)
+
+    if r := re.search(r"port \(.*?\)", vhdl_content, re.DOTALL):
+        ports_entry = r.group(1)
+        ports_entry = ports_entry.split("\n")
+    else:
+        raise ValueError(f"Could not find port declaration in {vhdl_file}")
+
+    for p in ports_entry:
+        if r := re.search(r"(\w+)\s*:.*? --\s*\(\* (.*?) \*\)", p):
+            port_name = r.group(1)
+            attribute_entries = r.group(2).split(",")
+            module.netnames[port_name].attributes.update(
+                {x.strip(): 1 for x in attribute_entries}
+            )
 
 
 @dataclass

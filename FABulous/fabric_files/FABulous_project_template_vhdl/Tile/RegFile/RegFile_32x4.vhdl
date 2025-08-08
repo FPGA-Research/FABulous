@@ -27,9 +27,9 @@ entity RegFile_32x4 is
     BD    : out std_logic_vector (3 downto 0); -- Register File read port B
     B_ADR : in std_logic_vector(4 downto 0); -- Register File read address B
 
-    UserCLK : in std_logic; -- EXTERNAL -- SHARED_PORT
+    UserCLK : in std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0)
+    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
   );
 
   attribute FABulous of RegFile_32x4 : entity is "TRUE";

@@ -20,15 +20,13 @@ use work.attr_pack.all;
 entity MULADD is
   generic (NoConfigBits : integer := 6);
   port (-- IMPORTANT: this has to be in a dedicated line
-    A   : in std_logic_vector(7 downto 0); -- operand A
-    B   : in std_logic_vector(7 downto 0); -- operand B
-    C   : in std_logic_vector(19 downto 0); -- operand C
-    Q   : out std_logic_vector(19 downto 0);
-    clr : in std_logic; -- clear
-    -- (* FABulous, EXTERNAL, SHARDED_PORT *)
-    UserCLK : in std_logic;
-    -- (* FABulous, GLOBAL *)
-    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0)
+    A          : in std_logic_vector(7 downto 0); -- operand A
+    B          : in std_logic_vector(7 downto 0); -- operand B
+    C          : in std_logic_vector(19 downto 0); -- operand C
+    Q          : out std_logic_vector(19 downto 0);
+    clr        : in std_logic; -- clear
+    UserCLK    : in std_logic; -- (* FABulous, EXTERNAL, SHARDED_PORT *)
+    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
   );
   attribute FABulous of MULADD      : entity is "TRUE";
   attribute BelMap of MULADD        : entity is "TRUE";

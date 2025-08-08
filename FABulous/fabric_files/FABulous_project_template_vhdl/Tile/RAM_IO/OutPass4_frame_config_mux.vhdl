@@ -22,11 +22,11 @@ entity OutPass4_frame_config_mux is
   port (
     -- Pin0
     I : in std_logic_vector(3 downto 0);
-    O : out std_logic_vector(3 downto 0); -- EXTERNAL
+    O : out std_logic_vector(3 downto 0); -- (* FABulous, EXTERNAL *)
     -- Tile IO ports from BELs
-    UserCLK : in std_logic; -- EXTERNAL -- SHARED_PORT -- ## the EXTERNAL keyword will send this signal all the way to top and the --SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
+    UserCLK : in std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0)
+    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
   );
 
   attribute FABulous of OutPass4_frame_config_mux : entity is "TRUE";

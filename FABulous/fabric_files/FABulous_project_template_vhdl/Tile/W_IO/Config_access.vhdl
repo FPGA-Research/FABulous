@@ -18,9 +18,9 @@ entity Config_access is
   generic (NoConfigBits : integer := 4); -- has to be adjusted manually (we don't use an arithmetic parser for the value)
   port (
     -- Pin0
-    C : out std_logic_vector(3 downto 0); -- EXTERNAL
+    C : out std_logic_vector(3 downto 0); -- (* FABulous, EXTERNAL *)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0)
+    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
   );
   attribute FABulous of Config_access : entity is "TRUE";
   attribute BelMap of Config_access   : entity is "TRUE";
