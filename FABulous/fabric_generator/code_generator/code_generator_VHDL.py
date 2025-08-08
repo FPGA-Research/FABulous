@@ -261,8 +261,12 @@ end process;
         ):
             result = result.group(0)
             result = result.replace("entity", "component")
+        resultList = []
+        for i in result.splitlines():
+            if "attribute" not in i:
+                resultList.append(i)
 
-        self._add(result)
+        self._add("\n".join(resultList))
         self.addNewLine()
         return configPortUsed
 
