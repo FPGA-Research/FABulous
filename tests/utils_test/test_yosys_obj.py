@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 import pytest_mock
 
+from FABulous.custom_exception import InvalidFileType
 from FABulous.fabric_definition.Yosys_obj import (
     YosysJson,
 )
@@ -18,7 +19,7 @@ from FABulous.fabric_definition.Yosys_obj import (
 def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
     """Helper function to setup common mocks."""
     monkeypatch.setattr("FABulous.fabric_definition.Yosys_obj.check_if_application_exists", lambda _: "yosys")
-    monkeypatch.setattr("subprocess.run", lambda _cmd, _check=False: type("MockResult", (), {})())
+    monkeypatch.setattr("subprocess.run", lambda cmd, check=False, capture_output=False: type("MockResult", (), {"stdout": b"mock output", "stderr": b""})())
     monkeypatch.setattr("json.load", lambda _: json_data)
 
     def mock_open_func(*_args: object, **_kwargs: object) -> object:
@@ -38,26 +39,25 @@ def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
 def test_yosys_vhdl_json_initialization(mocker: pytest_mock.MockerFixture, tmp_path: Path) -> None:
     """Test YosysJson initialization with VHDL file."""
     # Mock external dependencies
-    m = mocker.patch("subprocess.run", return_value=None)
+    m = mocker.patch("subprocess.run", return_value=type("MockResult", (), {"stdout": b"mock output", "stderr": b""})())
 
     # Test with VHDL file
-    with open(tmp_path / "file.json", "w") as f:
-        f.write("{}")
-
+    (tmp_path / "file.json").write_text('{"modules": {"test": {}}}')
+    (tmp_path / "file.vhdl").write_text("entity test is end entity;")
     YosysJson(tmp_path / "file.vhdl")
 
-    m.assert_called_once()
-    assert "ghdl" in str(m.call_args)
-
+    assert m.call_count == 2
+    assert "bin/ghdl" in str(m.call_args_list[0])
+    assert "bin/yosys" in str(m.call_args_list[1])
 
 def test_yosyst_sv_json_initialization(mocker: pytest_mock.MockerFixture, tmp_path: Path) -> None:
     """Test YosysJson initialization with VHDL file."""
     # Mock external dependencies
-    m = mocker.patch("subprocess.run", return_value=None)
+    m = mocker.patch("subprocess.run", return_value=type("MockResult", (), {"stdout": b"mock output", "stderr": b""})())
 
     # Test with VHDL file
     (tmp_path / "file.json").write_text("{}")
-
+    (tmp_path / "file.sv").touch()
     YosysJson(tmp_path / "file.sv")
 
     m.assert_called_once()
@@ -67,26 +67,38 @@ def test_yosyst_sv_json_initialization(mocker: pytest_mock.MockerFixture, tmp_pa
 def test_yosys_json_initialization(mocker: pytest_mock.MockerFixture, tmp_path: Path) -> None:
     """Test YosysJson initialization with VHDL file."""
     # Mock external dependencies
-    m = mocker.patch("subprocess.run", return_value=None)
+    m = mocker.patch("subprocess.run", return_value=type("MockResult", (), {"stdout": b"mock output", "stderr": b""})())
 
     # Test with VHDL file
     (tmp_path / "file.json").write_text("{}")
 
-    YosysJson(tmp_path / "file.v")
+    fakePath = tmp_path / "file.v"
+    fakePath.touch()
+    fakePath.with_suffix(".json").touch()
+    YosysJson(fakePath)
 
     m.assert_called_once()
     assert "read_verilog" in str(m.call_args)
 
 
-def test_yosys_json_unsupported_file_type(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_yosys_json_file_not_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Test YosysJson with unsupported file type."""
-    monkeypatch.setattr("FABulous.fabric_definition.Yosys_obj.check_if_application_exists", lambda _: "yosys")
+    setup_mocks(monkeypatch, {})
+    fakePath = tmp_path / "file.txt"
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        YosysJson(fakePath)
 
-    with pytest.raises(ValueError, match="Unsupported HDL file type"):
-        YosysJson(Path("/test/file.txt"))
+
+def test_yosys_json_unsupported_file_type(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Test YosysJson with unsupported file type."""
+    setup_mocks(monkeypatch, {})
+    fakePath = tmp_path / "file.txt"
+    fakePath.touch()
+    with pytest.raises(InvalidFileType, match="Unsupported HDL file type"):
+        YosysJson(fakePath)
 
 
-def test_get_top_module(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_top_module(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Test getTopModule method."""
 
     json_data = {
@@ -105,15 +117,17 @@ def test_get_top_module(monkeypatch: pytest.MonkeyPatch) -> None:
     }
 
     setup_mocks(monkeypatch, json_data)
-
-    yosys_json = YosysJson(Path("/test/file.v"))
+    fakePath = tmp_path / "test_file.v"
+    fakePath.touch()
+    fakePath.with_suffix(".json").touch()
+    yosys_json = YosysJson(fakePath)
     top_module = yosys_json.getTopModule()
 
     assert "top" in top_module.attributes
     assert top_module.attributes["top"] == 1
 
 
-def test_get_top_module_no_top(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_top_module_no_top(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Test getTopModule method."""
 
     json_data = {
@@ -132,13 +146,15 @@ def test_get_top_module_no_top(monkeypatch: pytest.MonkeyPatch) -> None:
     }
 
     setup_mocks(monkeypatch, json_data)
-
-    yosys_json = YosysJson(Path("/test/file.v"))
+    fakePath = tmp_path / "test_file.v"
+    fakePath.touch()
+    fakePath.with_suffix(".json").touch()
+    yosys_json = YosysJson(fakePath)
     with pytest.raises(ValueError, match="No top module found"):
         _ = yosys_json.getTopModule()
 
 
-def test_getNetPortSrcSinks(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_getNetPortSrcSinks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     json_data = {
         "creator": "Yosys 0.33",
         "modules": {
@@ -178,7 +194,9 @@ def test_getNetPortSrcSinks(monkeypatch: pytest.MonkeyPatch) -> None:
     }
 
     setup_mocks(monkeypatch, json_data)
-
-    yosys_json = YosysJson(Path("/test/file.v"))
+    fakePath = tmp_path / "test_file.v"
+    fakePath.touch()
+    fakePath.with_suffix(".json").touch()
+    yosys_json = YosysJson(fakePath)
 
     assert yosys_json.getNetPortSrcSinks(2) == (("A", "Y"), [("B", "A")])

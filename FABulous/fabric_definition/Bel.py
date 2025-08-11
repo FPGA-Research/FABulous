@@ -27,7 +27,7 @@ class Bel:
         The name of the module in the bel.
         For verlog we can extract this from the RTL.
         For VHDL this is currently the same as name.
-    filetype : FileType
+    filetype : HDLType
         The file type of the BEL.
     inputs : list[str]
         All the normal input ports of the BEL.

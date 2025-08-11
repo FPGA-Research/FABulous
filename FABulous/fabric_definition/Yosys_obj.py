@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from FABulous.custom_exception import InvalidFileType
 from FABulous.FABulous_CLI.helper import check_if_application_exists
 
 """
@@ -286,6 +287,13 @@ class YosysJson:
         ValueError
             If the HDL file type is unsupported.
         """
+
+        if not path.exists():
+            raise FileNotFoundError(f"File {path} does not exist")
+        if path.suffix not in [".vhd", ".vhdl", ".v", ".sv"]:
+            raise InvalidFileType(
+                f"Unsupported HDL file type: {path.suffix}. Supported types are .vhd, .vhdl, .v, .sv"
+            )
 
         self.srcPath = path
         yosys = check_if_application_exists(os.getenv("FAB_YOSYS_PATH", "yosys"))
