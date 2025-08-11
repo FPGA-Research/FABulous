@@ -8,33 +8,34 @@ including parsing of different HDL formats and netlist analysis methods.
 from pathlib import Path
 
 import pytest
+import pytest_mock
 
 from FABulous.fabric_definition.Yosys_obj import (
     YosysJson,
 )
 
 
-def setup_mocks(monkeypatch, json_data):
+def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
     """Helper function to setup common mocks."""
     monkeypatch.setattr("FABulous.fabric_definition.Yosys_obj.check_if_application_exists", lambda _: "yosys")
-    monkeypatch.setattr("subprocess.run", lambda cmd, check=False: type("MockResult", (), {})())
-    monkeypatch.setattr("json.load", lambda a: json_data)
+    monkeypatch.setattr("subprocess.run", lambda _cmd, _check=False: type("MockResult", (), {})())
+    monkeypatch.setattr("json.load", lambda _: json_data)
 
-    def mock_open_func(*args, **kwargs):
+    def mock_open_func(*_args: object, **_kwargs: object) -> object:
         return type(
             "MockFile",
             (),
             {
                 "__enter__": lambda self: self,
-                "__exit__": lambda self, *args: None,
-                "read": lambda self: "{}",
+                "__exit__": lambda _, *_args: None,
+                "read": lambda _: "{}",
             },
         )()
 
     monkeypatch.setattr("builtins.open", mock_open_func)
 
 
-def test_yosys_vhdl_json_initialization(mocker, tmp_path):
+def test_yosys_vhdl_json_initialization(mocker: pytest_mock.MockerFixture, tmp_path: Path) -> None:
     """Test YosysJson initialization with VHDL file."""
     # Mock external dependencies
     m = mocker.patch("subprocess.run", return_value=None)
@@ -49,14 +50,13 @@ def test_yosys_vhdl_json_initialization(mocker, tmp_path):
     assert "ghdl" in str(m.call_args)
 
 
-def test_yosyst_sv_json_initialization(mocker, tmp_path):
+def test_yosyst_sv_json_initialization(mocker: pytest_mock.MockerFixture, tmp_path: Path) -> None:
     """Test YosysJson initialization with VHDL file."""
     # Mock external dependencies
     m = mocker.patch("subprocess.run", return_value=None)
 
     # Test with VHDL file
-    with open(tmp_path / "file.json", "w") as f:
-        f.write("{}")
+    (tmp_path / "file.json").write_text("{}")
 
     YosysJson(tmp_path / "file.sv")
 
@@ -64,14 +64,13 @@ def test_yosyst_sv_json_initialization(mocker, tmp_path):
     assert "read_verilog -sv" in str(m.call_args)
 
 
-def test_yosys_json_initialization(mocker, tmp_path):
+def test_yosys_json_initialization(mocker: pytest_mock.MockerFixture, tmp_path: Path) -> None:
     """Test YosysJson initialization with VHDL file."""
     # Mock external dependencies
     m = mocker.patch("subprocess.run", return_value=None)
 
     # Test with VHDL file
-    with open(tmp_path / "file.json", "w") as f:
-        f.write("{}")
+    (tmp_path / "file.json").write_text("{}")
 
     YosysJson(tmp_path / "file.v")
 
@@ -79,7 +78,7 @@ def test_yosys_json_initialization(mocker, tmp_path):
     assert "read_verilog" in str(m.call_args)
 
 
-def test_yosys_json_unsupported_file_type(monkeypatch):
+def test_yosys_json_unsupported_file_type(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test YosysJson with unsupported file type."""
     monkeypatch.setattr("FABulous.fabric_definition.Yosys_obj.check_if_application_exists", lambda _: "yosys")
 
@@ -87,7 +86,7 @@ def test_yosys_json_unsupported_file_type(monkeypatch):
         YosysJson(Path("/test/file.txt"))
 
 
-def test_get_top_module(monkeypatch):
+def test_get_top_module(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test getTopModule method."""
 
     json_data = {
@@ -114,7 +113,7 @@ def test_get_top_module(monkeypatch):
     assert top_module.attributes["top"] == 1
 
 
-def test_get_top_module_no_top(monkeypatch):
+def test_get_top_module_no_top(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test getTopModule method."""
 
     json_data = {
@@ -139,7 +138,7 @@ def test_get_top_module_no_top(monkeypatch):
         _ = yosys_json.getTopModule()
 
 
-def test_getNetPortSrcSinks(monkeypatch):
+def test_getNetPortSrcSinks(monkeypatch: pytest.MonkeyPatch) -> None:
     json_data = {
         "creator": "Yosys 0.33",
         "modules": {
