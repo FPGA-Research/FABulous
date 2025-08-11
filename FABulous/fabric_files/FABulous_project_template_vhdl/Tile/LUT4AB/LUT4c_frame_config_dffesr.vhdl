@@ -1,4 +1,4 @@
-package attr_pack is
+package attr_pack_LUT4AB_LUT4c_frame_config_dffesr is
   attribute FABulous    : string;
   attribute BelMap      : string;
   attribute INIT        : integer;
@@ -27,19 +27,19 @@ end package;
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
-use work.attr_pack.all;
+use work.attr_pack_LUT4AB_LUT4c_frame_config_dffesr.all;
 
 -- (* FABulous, BelMap, INIT=0, INIT_1=1, INIT_2=2, INIT_3=3, INIT_4=4, INIT_5=5, INIT_6=6, INIT_7=7, INIT_8=8, INIT_9=9, INIT_10=10, INIT_11=11,INIT_12=12, INIT_13=13, INIT_14=14, INIT_15=15, FF=16, IOmux=17, SET_NORESET=18 *)
 
 entity LUT4c_frame_config_dffesr is
   generic (NoConfigBits : integer := 19); -- has to be adjusted manually (we don't use an arithmetic parser for the value)
   port (-- IMPORTANT: this has to be in a dedicated line
-    I       : in std_logic_vector(3 downto 0); -- LUT inputs
-    O       : out std_logic; -- LUT output (combinatorial or FF)
-    Ci      : in std_logic; -- carry chain input
-    Co      : out std_logic; -- carry chain output
-    SR      : in std_logic; -- (* FABulous, SHARED_RESET *)
-    EN      : in std_logic; -- (* FABulous, SHARED_ENABLE *)
+    I  : in std_logic_vector(3 downto 0); -- LUT inputs
+    O  : out std_logic; -- LUT output (combinatorial or FF)
+    Ci : in std_logic; -- carry chain input
+    Co : out std_logic; -- carry chain output
+    SR : in std_logic; -- (* FABulous, SHARED_RESET *)
+    EN : in std_logic; -- (* FABulous, SHARED_ENABLE *)
     -- ## the EXTERNAL keyword will send this sisgnal all the way to top and the --SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
     UserCLK : in std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label

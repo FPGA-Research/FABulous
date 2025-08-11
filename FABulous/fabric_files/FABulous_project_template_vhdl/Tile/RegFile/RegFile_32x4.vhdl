@@ -1,4 +1,4 @@
-package attr_pack is
+package attr_pack_RegFile_RegFile_32x4 is
   attribute FABulous    : string;
   attribute BelMap      : string;
   attribute AD_reg      : integer;
@@ -11,7 +11,7 @@ end package;
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
-use work.attr_pack.all;
+use work.attr_pack_RegFile_RegFile_32x4.all;
 
 -- (* FABulous, BelMap, AD_reg=0, BD_reg=1 *)
 

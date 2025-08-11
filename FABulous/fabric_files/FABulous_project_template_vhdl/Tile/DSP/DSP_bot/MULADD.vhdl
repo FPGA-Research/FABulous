@@ -1,4 +1,4 @@
-package attr_pack is
+package attr_pack_DSP_MULADD is
   attribute FABulous      : string;
   attribute BelMap        : string;
   attribute A_reg         : integer;
@@ -15,7 +15,7 @@ end package;
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
-use work.attr_pack.all;
+use work.attr_pack_DSP_MULADD.all;
 -- (* FABulous, BelMap, A_reg=0, B_reg=1, C_reg=2, ACC=3, signExtension=4, ACCout=5 *)
 entity MULADD is
   generic (NoConfigBits : integer := 6);
@@ -25,7 +25,7 @@ entity MULADD is
     C          : in std_logic_vector(19 downto 0); -- operand C
     Q          : out std_logic_vector(19 downto 0);
     clr        : in std_logic; -- clear
-    UserCLK    : in std_logic; -- (* FABulous, EXTERNAL, SHARDED_PORT *)
+    UserCLK    : in std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
     ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
   );
   attribute FABulous of MULADD      : entity is "TRUE";

@@ -1,4 +1,4 @@
-package attr_pack is
+package attr_pack_LUT4AB_MUX8LUT_frame_config_mux is
   attribute FABulous    : string;
   attribute BelMap      : string;
   attribute C0          : integer;
@@ -11,7 +11,7 @@ end package;
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
-use work.attr_pack.all;
+use work.attr_pack_LUT4AB_MUX8LUT_frame_config_mux.all;
 
 -- (* FABulous, BelMap, c0=0, c1=1 *)
 

@@ -235,10 +235,11 @@ end process;
                 signal = (
                     signal.replace("[", "(").replace("]", ")").replace(":", " downto ")
                 )
-            if len(signal.split(",")) == 1:
+            split = signal.split(",")
+            if len(split) == 1:
                 connectPair.append(f"{port} => {signal}")
             else:
-                for idx, sn in enumerate(signal.split(",")):
+                for idx, sn in zip(reversed(range(len(split))), split, strict=False):
                     connectPair.append(
                         f"{port}({idx}) => {sn.replace('(', '').replace(')', '')}"
                     )

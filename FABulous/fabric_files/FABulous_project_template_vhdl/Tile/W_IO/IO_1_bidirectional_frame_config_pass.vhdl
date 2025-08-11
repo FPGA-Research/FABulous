@@ -1,4 +1,4 @@
-package attr_pack is
+package attr_pack_W_IO_IO_1_bidirectional_frame_config_pass is
   attribute FABulous    : string;
   attribute BelMap      : string;
   attribute EXTERNAL    : string;
@@ -9,7 +9,7 @@ end package;
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
-use work.attr_pack.all;
+use work.attr_pack_W_IO_IO_1_bidirectional_frame_config_pass.all;
 -- Library UNISIM;
 -- use UNISIM.vcomponents.all;
 entity IO_1_bidirectional_frame_config_pass is
