@@ -9,29 +9,26 @@ from dotenv import load_dotenv
 from loguru import logger
 from packaging.version import Version
 from pydantic import field_validator
+from pydantic_core.core_schema import FieldValidationInfo  # type: ignore
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from FABulous.custom_exception import EnvironmentNotSet
 
 
-def get_tools_path(tool: str) -> Path:
-    """Get the path to a tool."""
-    tool_path = which(tool)
-    if tool_path is None:
-        raise FileNotFoundError(f"{tool} not found in PATH.")
-    return Path(tool_path).resolve()
-
-
 class FABulousSettings(BaseSettings):
-    """Application settings."""
+    """Application settings.
+
+    Tool paths are resolved lazily during validation so that environment variable setup
+    (including PATH updates for oss-cad-suite) can occur beforehand.
+    """
 
     model_config = SettingsConfigDict(env_prefix="FAB_", case_sensitive=False)
 
     root: Path = Path(__file__).parent.parent.resolve()
-    yosys_path: Path = get_tools_path("yosys")
-    nextpnr_path: Path = get_tools_path("nextpnr-generic")
-    iverilog_path: Path = get_tools_path("iverilog")
-    vvp_path: Path = get_tools_path("vvp")
+    yosys_path: Path | None = None
+    nextpnr_path: Path | None = None
+    iverilog_path: Path | None = None
+    vvp_path: Path | None = None
     proj_dir: Path = Path.cwd()
     fabulator_root: Path | None = None
     oss_cad_suite: Path | None = None
@@ -71,6 +68,34 @@ class FABulousSettings(BaseSettings):
             raise ValueError("Project language must be either 'verilog' or 'vhdl'.")
         return value
 
+    # Resolve external tool paths only after object creation (post env setup)
+    @field_validator(
+        "yosys_path", "nextpnr_path", "iverilog_path", "vvp_path", mode="before"
+    )
+    @classmethod
+    def resolve_tool_paths(
+        cls, value: Path | None, info: FieldValidationInfo
+    ) -> Path | None:  # type: ignore[override]
+        if value is not None:
+            return value
+        tool_map = {
+            "yosys_path": "yosys",
+            "nextpnr_path": "nextpnr-generic",
+            "iverilog_path": "iverilog",
+            "vvp_path": "vvp",
+        }
+        tool = tool_map.get(info.field_name, None)  # type: ignore[attr-defined]
+        if tool is None:
+            return value
+        tool_path = which(tool)
+        if tool_path is not None:
+            return Path(tool_path).resolve()
+
+        logger.warning(
+            f"{tool} not found in PATH during settings initialisation. Some features may be unavailable."
+        )
+        return None
+
 
 def setup_global_env_vars(args: argparse.Namespace) -> None:
     """Set up global  environment variables.
@@ -83,7 +108,12 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
     # Set FAB_ROOT environment variable
     fabulousRoot = os.getenv("FAB_ROOT")
     if fabulousRoot is None:
-        fabulousRoot = str(Path(__file__).parent.parent.resolve())
+        # Prefer the package directory (the one containing fabric_files) as FAB_ROOT
+        pkg_dir = Path(__file__).parent.resolve()
+        if pkg_dir.joinpath("fabric_files").exists():
+            fabulousRoot = str(pkg_dir)
+        else:  # Fallback to previous behaviour (repository root)
+            fabulousRoot = str(Path(__file__).parent.parent.resolve())
         os.environ["FAB_ROOT"] = fabulousRoot
         logger.info("FAB_ROOT environment variable not set!")
         logger.info(f"Using {fabulousRoot} as FAB_ROOT")
