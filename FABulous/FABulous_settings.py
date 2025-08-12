@@ -83,7 +83,7 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
     # Set FAB_ROOT environment variable
     fabulousRoot = os.getenv("FAB_ROOT")
     if fabulousRoot is None:
-        fabulousRoot = str(Path(__file__).resolve().parent.parent)
+        fabulousRoot = str(Path(__file__).parent.parent.resolve())
         os.environ["FAB_ROOT"] = fabulousRoot
         logger.info("FAB_ROOT environment variable not set!")
         logger.info(f"Using {fabulousRoot} as FAB_ROOT")
