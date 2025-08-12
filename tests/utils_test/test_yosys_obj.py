@@ -18,7 +18,6 @@ from FABulous.fabric_definition.Yosys_obj import (
 
 def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
     """Helper function to setup common mocks."""
-    monkeypatch.setattr("FABulous.fabric_definition.Yosys_obj.check_if_application_exists", lambda _: "yosys")
     monkeypatch.setattr("subprocess.run", lambda cmd, check=False, capture_output=False: type("MockResult", (), {"stdout": b"mock output", "stderr": b""})())
     monkeypatch.setattr("json.load", lambda _: json_data)
 
