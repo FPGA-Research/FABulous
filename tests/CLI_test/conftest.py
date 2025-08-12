@@ -6,8 +6,8 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
 
-from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
-from FABulous.FABulous_CLI.helper import create_project, setup_logger
+from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI  # noqa: E402
+from FABulous.FABulous_CLI.helper import create_project, setup_logger  # noqa: E402
 
 
 def normalize(block: str) -> list[str]:
@@ -52,9 +52,7 @@ def cli(tmp_path: Path) -> Generator[FABulous_CLI]:
     os.environ["FAB_PROJ_DIR"] = str(projectDir)
     create_project(projectDir)
     setup_logger(0, False)
-    cli = FABulous_CLI(
-        writerType="verilog", projectDir=projectDir, enteringDir=tmp_path
-    )
+    cli = FABulous_CLI(writerType="verilog", projectDir=projectDir, enteringDir=tmp_path)
     cli.debug = True
     run_cmd(cli, "load_fabric")
     yield cli

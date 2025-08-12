@@ -1,4 +1,3 @@
-import argparse
 import functools
 import os
 import platform
@@ -12,11 +11,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import requests
-from dotenv import get_key, load_dotenv, set_key
+from dotenv import get_key, set_key
 from loguru import logger
 from packaging.version import Version
 
-from FABulous.custom_exception import EnvironmentNotSet, PipelineCommandError
+from FABulous.custom_exception import PipelineCommandError
 
 if TYPE_CHECKING:
     from loguru import Record
@@ -68,111 +67,6 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
             colorize=True,
             catch=False,
         )
-
-
-def setup_global_env_vars(args: argparse.Namespace) -> None:
-    """Set up global  environment variables.
-
-    Parameters
-    ----------
-    args : argparse.Namespace
-        Command line arguments
-    """
-    # Set FAB_ROOT environment variable
-    fabulousRoot = os.getenv("FAB_ROOT")
-    if fabulousRoot is None:
-        fabulousRoot = str(Path(__file__).resolve().parent.parent)
-        os.environ["FAB_ROOT"] = fabulousRoot
-        logger.info("FAB_ROOT environment variable not set!")
-        logger.info(f"Using {fabulousRoot} as FAB_ROOT")
-    else:
-        # If there is the FABulous folder in the FAB_ROOT, then set the FAB_ROOT to the FABulous folder
-        if Path(fabulousRoot).exists():
-            if Path(fabulousRoot).joinpath("FABulous").exists():
-                fabulousRoot = str(Path(fabulousRoot).joinpath("FABulous"))
-            os.environ["FAB_ROOT"] = fabulousRoot
-        else:
-            logger.error(
-                f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist"
-            )
-            sys.exit()
-
-        logger.info(f"FAB_ROOT set to {fabulousRoot}")
-
-    # Load the .env file and make env variables available globally
-    if p := os.getenv("FAB_ROOT"):
-        fabDir = Path(p)
-    else:
-        raise EnvironmentNotSet("FAB_ROOT environment variable not set")
-    if args.globalDotEnv:
-        gde = Path(args.globalDotEnv)
-        if gde.is_file():
-            load_dotenv(gde)
-            logger.info(f"Load global .env file from {gde}")
-        elif gde.joinpath(".env").exists() and gde.joinpath(".env").is_file():
-            load_dotenv(gde.joinpath(".env"))
-            logger.info(f"Load global .env file from {gde.joinpath('.env')}")
-        else:
-            logger.warning(f"No global .env file found at {gde}")
-    elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
-        load_dotenv(fabDir.joinpath(".env"))
-        logger.info(f"Loaded global .env file from {fabulousRoot}/.env")
-    elif (
-        fabDir.parent.joinpath(".env").exists()
-        and fabDir.parent.joinpath(".env").is_file()
-    ):
-        load_dotenv(fabDir.parent.joinpath(".env"))
-        logger.info(f"Loaded global .env file from {fabDir.parent.joinpath('.env')}")
-    else:
-        logger.info("No global .env file found")
-
-    # Set project directory env var, this can not be saved in the .env file,
-    # since it can change if the project folder is moved
-    if not os.getenv("FAB_PROJ_DIR"):
-        os.environ["FAB_PROJ_DIR"] = str(Path(args.project_dir).absolute())
-
-    # Export oss-cad-suite bin path to PATH
-    if ocs_path := os.getenv("FAB_OSS_CAD_SUITE"):
-        os.environ["PATH"] += os.pathsep + ocs_path + "/bin"
-
-
-def setup_project_env_vars(args: argparse.Namespace) -> None:
-    """Set up environment variables for the project.
-
-    Parameters
-    ----------
-    args : argparse.Namespace
-        Command line arguments
-    """
-    # Load the .env file and make env variables available globally
-    if p := os.getenv("FAB_PROJ_DIR"):
-        fabDir = Path(p) / ".FABulous"
-    else:
-        raise EnvironmentNotSet("FAB_PROJ_DIR environment variable not set")
-
-    if args.projectDotEnv:
-        pde = Path(args.projectDotEnv)
-        if pde.exists() and pde.is_file():
-            load_dotenv(pde)
-            logger.info("Loaded global .env file from pde")
-    elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
-        load_dotenv(fabDir.joinpath(".env"))
-        logger.info(f"Loaded project .env file from {fabDir}/.env')")
-    elif (
-        fabDir.parent.joinpath(".env").exists()
-        and fabDir.parent.joinpath(".env").is_file()
-    ):
-        load_dotenv(fabDir.parent.joinpath(".env"))
-        logger.info(f"Loaded project .env file from {fabDir.parent.joinpath('.env')}")
-    else:
-        logger.warning("No project .env file found")
-
-    # Overwrite project language param, if writer is specified as command line argument
-    if args.writer and args.writer != os.getenv("FAB_PROJ_LANG"):
-        logger.warning(
-            f"Overwriting project language for current run, from {os.getenv('FAB_PROJ_LANG')} to {args.writer}, which was specified as command line argument"
-        )
-        os.environ["FAB_PROJ_LANG"] = args.writer
 
 
 def create_project(

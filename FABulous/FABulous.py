@@ -9,11 +9,10 @@ from packaging.version import Version
 from FABulous.FABulous_CLI.helper import (
     create_project,
     install_oss_cad_suite,
-    setup_global_env_vars,
     setup_logger,
-    setup_project_env_vars,
     update_project_version,
 )
+from FABulous.FABulous_settings import setup_global_env_vars, setup_project_env_vars
 
 
 def main() -> None:
