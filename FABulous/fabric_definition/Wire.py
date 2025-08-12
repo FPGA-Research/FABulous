@@ -56,10 +56,10 @@ class Wire:
         if not validSourceDestination(self.sourceTile):
             raise ValueError(
                 f"Invalid source tile name: {self.sourceTile} for wire {self}, "
-                "your source is going out side of the tile, please check the source and destination port offset."
+                "your source is located out side of the fabric, please check the source and destination port offset."
             )
         if not validSourceDestination(self.destinationTile):
             raise ValueError(
                 f"Invalid destination tile name: {self.destinationTile} for wire {self}, "
-                "your destination is going out side of the tile, please check the source and destination port offset."
+                "your destination is located out side of the fabric, please check the source and destination port offset."
             )
