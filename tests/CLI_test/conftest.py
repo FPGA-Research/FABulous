@@ -6,8 +6,8 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
 
-from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI  # noqa: E402
-from FABulous.FABulous_CLI.helper import create_project, setup_logger  # noqa: E402
+from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
+from FABulous.FABulous_CLI.helper import create_project, setup_logger
 
 
 def normalize(block: str) -> list[str]:
