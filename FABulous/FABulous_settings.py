@@ -75,7 +75,12 @@ class FABulousSettings(BaseSettings):
 
     # Resolve external tool paths only after object creation (post env setup)
     @field_validator(
-        "yosys_path", "nextpnr_path", "iverilog_path", "vvp_path", mode="before"
+        "yosys_path",
+        "nextpnr_path",
+        "iverilog_path",
+        "vvp_path",
+        "ghdl_path",
+        mode="before",
     )
     @classmethod
     def resolve_tool_paths(

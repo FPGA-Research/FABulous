@@ -50,7 +50,7 @@ architecture Behavioral of InPass4_frame_config_mux is
   -- I am instantiating an IOBUF primitive.
   -- However, it is possible to connect corresponding pins all the way to top, just by adding an "-- EXTERNAL" comment (see PAD in the entity)
 
-  signal Q0, Q1, Q2, Q3 : std_logic; -- FLOPs
+  signal Q : std_logic_vector(3 downto 0); -- FLOPs
 
   component cus_mux21 is
     port (
@@ -66,10 +66,7 @@ begin
   process (UserCLK)
   begin
     if UserCLK'event and UserCLK = '1' then
-      Q0 <= I(0);
-      Q1 <= I(1);
-      Q2 <= I(2);
-      Q3 <= I(3);
+      Q <= I;
     end if;
   end process;
 
@@ -82,7 +79,7 @@ begin
   port map
   (
     A0 => I(0),
-    A1 => Q0,
+    A1 => Q(0),
     S  => ConfigBits(0),
     X  => O(0)
   );
@@ -91,7 +88,7 @@ begin
   port map
   (
     A0 => I(1),
-    A1 => Q1,
+    A1 => Q(1),
     S  => ConfigBits(1),
     X  => O(1)
   );
@@ -100,7 +97,7 @@ begin
   port map
   (
     A0 => I(2),
-    A1 => Q2,
+    A1 => Q(2),
     S  => ConfigBits(2),
     X  => O(2)
   );
@@ -109,7 +106,7 @@ begin
   port map
   (
     A0 => I(3),
-    A1 => Q3,
+    A1 => Q(3),
     S  => ConfigBits(3),
     X  => O(3)
   );

@@ -67,7 +67,7 @@ begin
 
   -- see figure (column-wise left-to-right)
 
-  --AB <= A when (c0 = '0') else B;
+  --AB <= A when (S(0) = '0') else B;
   cus_mux21_AB : cus_mux21
   port map
   (

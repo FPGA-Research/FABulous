@@ -67,7 +67,7 @@ begin
     C_reg;
 
   sum_in <= OPC when (ConfigBits(3) = '0') else
-    ACC; -- we can
+    ACC;
 
   product <= unsigned(OPA) * unsigned(OPB);
 
@@ -77,7 +77,8 @@ begin
 
   sum <= product_extended + unsigned(sum_in);
 
-  Q <= std_logic_vector(ACC);
+  Q <=  std_logic_vector(sum) when (ConfigBits(5) = '1') else
+    ACC;
   process (UserCLK)
   begin
     if UserCLK'event and UserCLK = '1' then
