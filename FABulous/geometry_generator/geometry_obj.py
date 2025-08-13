@@ -24,6 +24,11 @@ class Location:
 
 
 class Border(Enum):
+    """Enumeration for tile border types in fabric geometry.
+
+    Used to specify which type of border a tile has within the fabric layout.
+    """
+
     NORTHSOUTH = "NORTHSOUTH"
     EASTWEST = "EASTWEST"
     CORNER = "CORNER"

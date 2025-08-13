@@ -1,3 +1,10 @@
+"""Wire geometry classes for FABulous FPGA routing structures.
+
+This module provides classes for representing wire geometries within FPGA tiles,
+including simple wires and complex stair-like wire structures for multi-tile routing. It
+supports CSV serialization for integration with geometry files.
+"""
+
 from csv import writer as csvWriter
 
 from FABulous.custom_exception import InvalidPortType
@@ -20,13 +27,37 @@ class WireGeometry:
     path: list[Location]
 
     def __init__(self, name: str) -> None:
+        """Initialize a WireGeometry instance.
+
+        Parameters
+        ----------
+        name : str
+            The name of the wire
+        """
         self.name = name
         self.path = []
 
     def addPathLoc(self, pathLoc: Location) -> None:
+        """Add a location point to the wire path.
+
+        Parameters
+        ----------
+        pathLoc : Location
+            The location point to add to the wire path
+        """
         self.path.append(pathLoc)
 
     def saveToCSV(self, writer: csvWriter) -> None:
+        """Save wire geometry data to CSV format.
+
+        Writes the wire name and all path points with their coordinates
+        to a CSV file using the provided writer.
+
+        Parameters
+        ----------
+        writer : csvWriter
+            The CSV writer object to use for output
+        """
         writer.writerows([["WIRE"], ["Name"] + [self.name]])
         for pathPoint in self.path:
             writer.writerows(
@@ -100,6 +131,13 @@ class StairWires:
     wireGeoms: list[WireGeometry]
 
     def __init__(self, name: str) -> None:
+        """Initialize a StairWires instance.
+
+        Parameters
+        ----------
+        name : str
+            The name of the stair wire structure
+        """
         self.name = name
         self.refX = 0
         self.refY = 0
@@ -120,6 +158,33 @@ class StairWires:
         tileWidth: int,
         tileHeight: int,
     ) -> None:
+        """Generate the stair wire geometry based on parameters and direction.
+
+        Creates the complete stair-like wire structure by calling the appropriate
+        directional generation method based on the specified direction.
+
+        Parameters
+        ----------
+        refX : int
+            Reference X coordinate for the stair structure
+        refY : int
+            Reference Y coordinate for the stair structure
+        offset : int
+            Wire offset distance
+        direction : Direction
+            Direction of the wire routing (NORTH, SOUTH, EAST, or WEST)
+        groupWires : int
+            Number of wires in each group or strand
+        tileWidth : int
+            Width of the containing tile
+        tileHeight : int
+            Height of the containing tile
+
+        Raises
+        ------
+        InvalidPortType
+            If an invalid direction is provided
+        """
         self.refX = refX
         self.refY = refY
         self.offset = offset
@@ -218,5 +283,15 @@ class StairWires:
             self.refY -= 1
 
     def saveToCSV(self, writer: csvWriter) -> None:
+        """Save all stair wire geometries to CSV format.
+
+        Writes all individual wire geometries in the stair structure
+        to a CSV file using the provided writer.
+
+        Parameters
+        ----------
+        writer : csvWriter
+            The CSV writer object to use for output
+        """
         for wireGeom in self.wireGeoms:
             wireGeom.saveToCSV(writer)

@@ -5,6 +5,14 @@ from FABulous.fabric_definition.define import IO, Side
 
 
 class PortType(Enum):
+    """Enumeration for different types of ports in fabric geometry.
+
+    Defines the various categories of ports that can exist within the fabric:
+    - SWITCH_MATRIX: Ports connected to switch matrices
+    - JUMP: Jump ports for long-distance connections
+    - BEL: Ports connected to Basic Elements
+    """
+
     SWITCH_MATRIX = "PORT"
     JUMP = "JUMP_PORT"
     BEL = "BEL_PORT"
