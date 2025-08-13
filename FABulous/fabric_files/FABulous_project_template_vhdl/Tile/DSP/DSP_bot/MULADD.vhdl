@@ -43,16 +43,16 @@ end entity MULADD;
 
 architecture Behavioral of MULADD is
 
-  signal A_reg : std_logic_vector(7 downto 0); -- port A read data register
-  signal B_reg : std_logic_vector(7 downto 0); -- port B read data register
+  signal A_reg : std_logic_vector(7 downto 0);  -- port A read data register
+  signal B_reg : std_logic_vector(7 downto 0);  -- port B read data register
   signal C_reg : std_logic_vector(19 downto 0); -- port B read data register
 
-  signal OPA : std_logic_vector(7 downto 0); -- port A
-  signal OPB : std_logic_vector(7 downto 0); -- port B
-  signal OPC : std_logic_vector(19 downto 0); -- port B
+  signal OPA : std_logic_vector(7 downto 0);    -- port A
+  signal OPB : std_logic_vector(7 downto 0);    -- port B
+  signal OPC : std_logic_vector(19 downto 0);   -- port B
 
   signal ACC    : std_logic_vector(19 downto 0); -- accumulator register
-  signal sum    : unsigned(19 downto 0); -- port B read data register
+  signal sum    : unsigned(19 downto 0);         -- port B read data register
   signal sum_in : std_logic_vector(19 downto 0); -- port B read data register
 
   signal product          : unsigned(15 downto 0);

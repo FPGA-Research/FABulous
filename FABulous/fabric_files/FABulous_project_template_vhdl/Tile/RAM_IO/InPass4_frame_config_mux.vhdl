@@ -52,15 +52,6 @@ architecture Behavioral of InPass4_frame_config_mux is
 
   signal Q : std_logic_vector(3 downto 0); -- FLOPs
 
-  component cus_mux21 is
-    port (
-      A0 : in std_logic;
-      A1 : in std_logic;
-      S  : in std_logic;
-      X  : out std_logic
-    );
-  end component;
-
 begin
 
   process (UserCLK)
@@ -75,7 +66,7 @@ begin
   -- O(2) <= I(2) when ConfigBits(2) = '0' else Q2;
   -- O(3) <= I(3) when ConfigBits(3) = '0' else Q3;
 
-  cus_mux21_inst0 : cus_mux21
+  cus_mux21_inst0 : entity work.cus_mux21
   port map
   (
     A0 => I(0),
@@ -84,7 +75,7 @@ begin
     X  => O(0)
   );
 
-  cus_mux21_inst1 : cus_mux21
+  cus_mux21_inst1 : entity work.cus_mux21
   port map
   (
     A0 => I(1),
@@ -93,7 +84,7 @@ begin
     X  => O(1)
   );
 
-  cus_mux21_inst2 : cus_mux21
+  cus_mux21_inst2 : entity work.cus_mux21
   port map
   (
     A0 => I(2),
@@ -102,7 +93,7 @@ begin
     X  => O(2)
   );
 
-  cus_mux21_inst3 : cus_mux21
+  cus_mux21_inst3 : entity work.cus_mux21
   port map
   (
     A0 => I(3),

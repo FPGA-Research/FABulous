@@ -51,15 +51,6 @@ architecture Behavioral of MUX8LUT_frame_config_mux is
 
   signal c0, c1 : std_logic; -- configuration bits
 
-  component cus_mux21 is
-    port (
-      A0 : in std_logic;
-      A1 : in std_logic;
-      S  : in std_logic;
-      X  : out std_logic
-    );
-  end component;
-
 begin
 
   c0 <= ConfigBits(0);
@@ -68,7 +59,7 @@ begin
   -- see figure (column-wise left-to-right)
 
   --AB <= A when (S(0) = '0') else B;
-  cus_mux21_AB : cus_mux21
+  cus_mux21_AB : entity work.cus_mux21
   port map
   (
     A0 => A,
@@ -78,7 +69,7 @@ begin
   );
 
   --CD <= C when (sCD = '0') else D;
-  cus_mux21_CD : cus_mux21
+  cus_mux21_CD : entity work.cus_mux21
   port map
   (
     A0 => C,
@@ -88,7 +79,7 @@ begin
   );
 
   --EF <= E when (sEF = '0') else F;
-  cus_mux21_EF : cus_mux21
+  cus_mux21_EF : entity work.cus_mux21
   port map
   (
     A0 => E,
@@ -98,7 +89,7 @@ begin
   );
 
   --GH <= G when (sGH = '0') else H;
-  cus_mux21_GH : cus_mux21
+  cus_mux21_GH : entity work.cus_mux21
   port map
   (
     A0 => G,
@@ -108,7 +99,7 @@ begin
   );
 
   -- sCD <= S(1) when (c0 = '0') else S(0);
-  cus_mux21_sCD : cus_mux21
+  cus_mux21_sCD : entity work.cus_mux21
   port map
   (
     A0 => S(1),
@@ -118,7 +109,7 @@ begin
   );
 
   -- sEF <= S(2) when (c1 = '0') else S(0);
-  cus_mux21_sEF : cus_mux21
+  cus_mux21_sEF : entity work.cus_mux21
   port map
   (
     A0 => S(2),
@@ -128,7 +119,7 @@ begin
   );
 
   -- sGH <= sEH when (c0 = '0') else sEF;
-  cus_mux21_sGH : cus_mux21
+  cus_mux21_sGH : entity work.cus_mux21
   port map
   (
     A0 => sEH,
@@ -138,7 +129,7 @@ begin
   );
 
   -- sEH <= S(3) when (c1 = '0') else S(1);
-  cus_mux21_sEH : cus_mux21
+  cus_mux21_sEH : entity work.cus_mux21
   port map
   (
     A0 => S(3),
@@ -148,7 +139,7 @@ begin
   );
 
   -- AD <= AB when (S(1) = '0') else CD;
-  cus_mux21_AD : cus_mux21
+  cus_mux21_AD : entity work.cus_mux21
   port map
   (
     A0 => AB,
@@ -157,7 +148,7 @@ begin
     X  => AD
   );
   -- EH <= EF when (sEH = '0') else GH;
-  cus_mux21_EH : cus_mux21
+  cus_mux21_EH : entity work.cus_mux21
   port map
   (
     A0 => EF,
@@ -167,7 +158,7 @@ begin
   );
 
   -- AH <= AD when (S(3) = '0') else EH;
-  cus_mux21_AH : cus_mux21
+  cus_mux21_AH : entity work.cus_mux21
   port map
   (
     A0 => AD,
@@ -179,7 +170,7 @@ begin
   M_AB <= AB;
 
   -- M_AD <= CD when (c0 = '0') else AD;
-  cus_mux21_M_AD : cus_mux21
+  cus_mux21_M_AD : entity work.cus_mux21
   port map
   (
     A0 => CD,
@@ -188,7 +179,7 @@ begin
     X  => M_AD
   );
   -- M_AH <= EH_GH when (c1 = '0') else AH;
-  cus_mux21_M_AH : cus_mux21
+  cus_mux21_M_AH : entity work.cus_mux21
   port map
   (
     A0 => EH_GH,

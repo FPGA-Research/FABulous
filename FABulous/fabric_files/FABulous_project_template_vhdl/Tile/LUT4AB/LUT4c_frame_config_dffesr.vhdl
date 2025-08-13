@@ -89,44 +89,6 @@ architecture Behavioral of LUT4c_frame_config_dffesr is
   signal I0mux                             : std_logic; -- normal input '0', or carry input '1'
   signal c_out_mux, c_I0mux, c_reset_value : std_logic; -- extra configuration bits
 
-  component cus_mux161_buf is
-    port (
-      A0  : in std_logic;
-      A1  : in std_logic;
-      A2  : in std_logic;
-      A3  : in std_logic;
-      A4  : in std_logic;
-      A5  : in std_logic;
-      A6  : in std_logic;
-      A7  : in std_logic;
-      A8  : in std_logic;
-      A9  : in std_logic;
-      A10 : in std_logic;
-      A11 : in std_logic;
-      A12 : in std_logic;
-      A13 : in std_logic;
-      A14 : in std_logic;
-      A15 : in std_logic;
-      S0  : in std_logic;
-      S0N : in std_logic;
-      S1  : in std_logic;
-      S1N : in std_logic;
-      S2  : in std_logic;
-      S2N : in std_logic;
-      S3  : in std_logic;
-      S3N : in std_logic;
-      X   : out std_logic
-    );
-  end component cus_mux161_buf;
-
-  component cus_mux21 is
-    port (
-      A0 : in std_logic;
-      A1 : in std_logic;
-      S  : in std_logic;
-      X  : out std_logic
-    );
-  end component;
 begin
 
   LUT_values    <= ConfigBits(15 downto 0);
@@ -139,7 +101,7 @@ begin
   -- I0mux <= I(0) when (c_I0mux = '0') else
   --   Ci;
 
-  inst_cus_mux21_I0mux : cus_mux21
+  inst_cus_mux21_I0mux : entity work.cus_mux21
   port map
   (
     A0 => I(0),
@@ -157,7 +119,7 @@ begin
   LUT_index_2N <= not LUT_index(2);
   LUT_index_3N <= not LUT_index(3);
 
-  inst_cus_mux161_buf : cus_mux161_buf
+  inst_cus_mux161_buf : entity work.cus_mux161_buf
   port map
   (
     A0  => LUT_values(0),
@@ -186,7 +148,7 @@ begin
     S3N => LUT_index_3N,
     X   => LUT_out);
 
-  cus_mux21_O : cus_mux21
+  cus_mux21_O : entity work.cus_mux21
   port map
   (
     A0 => LUT_out,
@@ -195,7 +157,8 @@ begin
     X  => O
   );
 
-  Co <= (Ci and I(1)) or (Ci and I(2)) or (I(1) and I(2)); -- iCE40 like carry chain (as this is supported in Josys; would normally go for fractured LUT
+  -- iCE40 like carry chain (as this is supported in Yosys; would normally go for fractured LUT
+  Co <= (Ci and I(1)) or (Ci and I(2)) or (I(1) and I(2));
 
   process (UserCLK)
   begin
