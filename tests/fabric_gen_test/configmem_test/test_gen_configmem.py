@@ -1,3 +1,8 @@
+"""Test module for configuration memory generation functions.
+
+This module contains comprehensive tests for the configuration memory generation
+functionality, including CSV initialization file creation and RTL generation.
+"""
 from collections.abc import Callable
 from pathlib import Path
 

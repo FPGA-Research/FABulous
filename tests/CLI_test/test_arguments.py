@@ -1,3 +1,9 @@
+"""Test module for FABulous CLI argument processing and functionality.
+
+This module contains comprehensive tests for the FABulous command-line interface,
+covering project creation, script execution, command-line flags, and error handling.
+"""
+
 import sys
 import tarfile
 from pathlib import Path

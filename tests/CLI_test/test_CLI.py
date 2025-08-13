@@ -1,3 +1,8 @@
+"""Test module for FABulous CLI command functionality.
+
+This module contains tests for various CLI commands including fabric generation,
+tile generation, bitstream creation, and simulation execution.
+"""
 from pathlib import Path
 
 import pytest
@@ -157,6 +162,7 @@ def test_run_tcl(
 
 
 def test_multi_command_stop(cli: FABulous_CLI, mocker: MockerFixture) -> None:
+    """Test that multi-command execution stops on first error without force flag."""
     m = mocker.patch("subprocess.run", side_effect=RuntimeError("Mocked error"))
     run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
 
@@ -164,6 +170,7 @@ def test_multi_command_stop(cli: FABulous_CLI, mocker: MockerFixture) -> None:
 
 
 def test_multi_command_force(cli: FABulous_CLI, mocker: MockerFixture) -> None:
+    """Test that multi-command execution continues on error when force flag is set."""
     m = mocker.patch("subprocess.run", side_effect=RuntimeError("Mocked error"))
     cli.force = True
     run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")

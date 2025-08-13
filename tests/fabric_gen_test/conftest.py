@@ -192,6 +192,20 @@ def configmem_list(
 
         # Helper function to generate random bit mask
         def generate_mask(bits_used: int, total_bits: int) -> str:
+            """Generate a random bit mask with specified number of 1s and 0s.
+            
+            Parameters
+            ----------
+            bits_used : int
+                Number of bits that should be set to '1'.
+            total_bits : int
+                Total length of the bit mask.
+                
+            Returns
+            -------
+            str
+                Random bit mask string with bits_used '1's and remaining '0's.
+            """
             if bits_used == 0:
                 return "0" * total_bits
             if bits_used >= total_bits:
