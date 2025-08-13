@@ -167,18 +167,16 @@ def parseBelFile(
     ports_vectors["external"] = {}
     ports_vectors["config"] = {}
     ports_vectors["shared"] = {}
-    module_name = ""
 
     yosys_json = YosysJson(filename)
-    modules = yosys_json.modules
     filtered_ports: dict[str, tuple[IO, list]] = {}
 
-    if len(modules) == 0:
+    if len(yosys_json.modules) == 0:
         raise FabricParsingError(f"File {filename} does not contain any modules.")
 
     # Gathers port name and direction, filters out configbits as they show in ports.
     # modules should only contain one module
-    module_info = yosys_json.getTopModule()
+    module_name, module_info = yosys_json.getTopModule()
     for port_name, details in module_info.ports.items():
         if "ConfigBits" in port_name:
             continue

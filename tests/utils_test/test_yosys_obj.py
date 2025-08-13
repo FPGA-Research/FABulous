@@ -120,10 +120,11 @@ def test_get_top_module(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
     fakePath.touch()
     fakePath.with_suffix(".json").touch()
     yosys_json = YosysJson(fakePath)
-    top_module = yosys_json.getTopModule()
+    module_name, top_module = yosys_json.getTopModule()
 
     assert "top" in top_module.attributes
     assert top_module.attributes["top"] == 1
+    assert module_name == "module1"
 
 
 def test_get_top_module_no_top(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

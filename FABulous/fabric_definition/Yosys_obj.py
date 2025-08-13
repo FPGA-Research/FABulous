@@ -351,24 +351,26 @@ class YosysJson:
                         {x.strip(): 1 for x in attribute_entries}
                     )
 
-    def getTopModule(self) -> YosysModule:
+    def getTopModule(self) -> tuple[str, YosysModule]:
         """Find and return the top-level module in the design.
 
         The top module is identified by having a "top" attribute.
 
         Returns
         -------
-        YosysModule
-            The top-level module.
+        tuple[str, YosysModule]
+            A tuple containing:
+            - The name of the top-level module (str)
+            - The YosysModule object for the top-level module
 
         Raises
         ------
         ValueError
             If no top module is found in the design.
         """
-        for module in self.modules.values():
+        for name, module in self.modules.items():
             if "top" in module.attributes:
-                return module
+                return name, module
         raise ValueError("No top module found in Yosys JSON")
 
     def isTopModuleNet(self, net: int) -> bool:

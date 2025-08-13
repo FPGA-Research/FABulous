@@ -73,7 +73,7 @@ class FABulousSettings(BaseSettings):
             return None
         path = Path(value)
         # Retrieve previously validated proj_lang (falls back to default enum value)
-        proj_lang = info.data.get("proj_lang", HDLType.VERILOG)
+        proj_lang = info.data.get("proj_lang")
         try:
             # If provided as string earlier but not validated yet
             if isinstance(proj_lang, str):
