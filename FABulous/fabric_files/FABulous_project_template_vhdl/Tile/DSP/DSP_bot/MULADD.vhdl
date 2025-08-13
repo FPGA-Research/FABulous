@@ -77,7 +77,7 @@ begin
 
   sum <= product_extended + unsigned(sum_in);
 
-  Q <=  std_logic_vector(sum) when (ConfigBits(5) = '1') else
+  Q <=  std_logic_vector(sum) when (ConfigBits(5) = '0') else
     ACC;
   process (UserCLK)
   begin

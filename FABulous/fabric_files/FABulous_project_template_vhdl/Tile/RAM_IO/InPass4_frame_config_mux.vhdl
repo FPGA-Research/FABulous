@@ -61,10 +61,7 @@ begin
     end if;
   end process;
 
-  -- O(0) <= I(0) when ConfigBits(0) = '0' else Q0;
-  -- O(1) <= I(1) when ConfigBits(1) = '0' else Q1;
-  -- O(2) <= I(2) when ConfigBits(2) = '0' else Q2;
-  -- O(3) <= I(3) when ConfigBits(3) = '0' else Q3;
+
 
   cus_mux21_inst0 : entity work.cus_mux21
   port map
