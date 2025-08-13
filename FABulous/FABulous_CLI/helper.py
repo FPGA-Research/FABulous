@@ -32,7 +32,27 @@ MAX_BITBYTES = 16384
 
 
 def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
-    """Setup logger for FABulous."""
+    """Set up the loguru logger with custom formatting based on verbosity level.
+
+    Parameters
+    ----------
+    verbosity : int
+        The verbosity level for logging. Higher values provide more detailed output.
+        0: Basic level and message only
+        1+: Includes timestamp, module name, function, line number
+    debug : bool
+        Whether to enable debug level logging. If True, sets log level to DEBUG,
+        otherwise sets to INFO.
+    log_file : pathlib.Path, optional
+        Path to log file. If provided, logs will be written to file instead of stdout.
+        Default is empty Path(), which results in logging to stdout.
+
+    Notes
+    -----
+    This function removes any existing loggers and sets up a new one with custom
+    formatting. The format includes color coding and adjusts based on verbosity level.
+    When FABULOUS_TESTING environment variable is set, uses simplified formatting.
+    """
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 

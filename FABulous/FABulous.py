@@ -1,3 +1,9 @@
+"""FABulous command-line interface entry point.
+
+This module provides the main entry point for the FABulous FPGA toolkit command-line
+interface. It handles argument parsing, project setup, and CLI initialization.
+"""
+
 import os
 import sys
 from dataclasses import dataclass

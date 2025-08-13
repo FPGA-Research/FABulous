@@ -11,17 +11,45 @@ class CodeGenerator(abc.ABC):
 
     @property
     def outFileName(self) -> Path:
+        """Get the output file name.
+
+        Returns
+        -------
+        Path
+            The output file path.
+        """
         return self._outFileName
 
     @property
     def content(self) -> list[str]:
+        """Get the content list.
+
+        Returns
+        -------
+        list[str]
+            List of content strings.
+        """
         return self._content
 
     def __init__(self) -> None:
+        """Initialize the code generator.
+
+        Initializes empty content list and output filename.
+        """
         self._content = []
         self._outFileName = Path()
 
     def writeToFile(self) -> None:
+        """Write the content to the output file.
+
+        Writes all content strings to the specified output file,
+        filtering out None values. Clears content after writing.
+
+        Raises
+        ------
+        SystemExit
+            If output filename is not set.
+        """
         if self._outFileName == Path():
             logger.critical("OutFileName is not set")
             exit(-1)
@@ -32,18 +60,42 @@ class CodeGenerator(abc.ABC):
 
     @outFileName.setter
     def outFileName(self, outFileName: Path) -> None:
+        """Set the output file name.
+
+        Parameters
+        ----------
+        outFileName : Path
+            The output file path to set.
+        """
         self._outFileName = outFileName
 
     def _add(self, line: str, indentLevel: int = 0) -> None:
+        """Add a line to the content with optional indentation.
+
+        Parameters
+        ----------
+        line : str
+            The line of code to add.
+        indentLevel : int, optional
+            The indentation level (each level = 4 spaces). Defaults to 0.
+        """
         if indentLevel == 0:
             self._content.append(line)
         else:
             self._content.append(f"{' ':<{4 * indentLevel}}" + line)
 
     def popLastLine(self) -> str:
+        """Remove and return the last line from content.
+
+        Returns
+        -------
+        str
+            The last line that was removed.
+        """
         return self._content.pop()
 
     def addNewLine(self) -> None:
+        """Add an empty line to the content."""
         self._add("")
 
     @abc.abstractmethod

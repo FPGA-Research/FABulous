@@ -1,4 +1,10 @@
-from importlib.metadata import version as meta_version
+"""FABulous settings management and environment configuration.
+
+This module handles configuration settings for the FABulous FPGA toolkit, including tool
+paths, project settings, and environment variable management.
+"""
+
+from importlib.metadata import version
 from pathlib import Path
 from shutil import which
 

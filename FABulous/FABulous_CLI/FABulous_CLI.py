@@ -106,6 +106,45 @@ To run the complete FABulous flow with the default project, run the following co
 
 
 class FABulous_CLI(Cmd):
+    """FABulous command-line interface for FPGA fabric generation and management.
+
+    This class provides an interactive and non-interactive command-line interface
+    for the FABulous FPGA toolkit. It supports fabric generation, bitstream creation,
+    project management, and various utilities for FPGA development workflow.
+
+    Attributes
+    ----------
+    intro : str
+        Introduction message displayed when CLI starts
+    prompt : str
+        Command prompt string displayed to users
+    fabulousAPI : FABulous_API
+        Instance of the FABulous API for fabric operations
+    projectDir : pathlib.Path
+        Current project directory path
+    enteringDir : pathlib.Path
+        Directory where CLI was started
+    top : str
+        Top-level module name for synthesis
+    allTile : list[str]
+        List of all tile names in the current fabric
+    csvFile : pathlib.Path
+        Path to the fabric CSV definition file
+    extension : str
+        File extension for HDL files ("v" for Verilog, "vhd" for VHDL)
+    script : str
+        Batch script commands to execute
+    force : bool
+        Whether to force operations without confirmation
+    interactive : bool
+        Whether CLI is running in interactive mode
+
+    Notes
+    -----
+    This CLI extends the cmd.Cmd class to provide command completion, help system,
+    and command history. It supports both interactive mode and batch script execution.
+    """
+
     intro: str = INTO_STRING
     prompt: str = "FABulous> "
     fabulousAPI: FABulous_API

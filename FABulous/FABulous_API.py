@@ -1,3 +1,10 @@
+"""FABulous API module for fabric and geometry generation.
+
+This module provides the main API class for managing FPGA fabric generation, including
+parsing fabric definitions, generating HDL code, creating geometries, and handling
+various fabric-related operations.
+"""
+
 from collections.abc import Iterable
 from pathlib import Path
 
