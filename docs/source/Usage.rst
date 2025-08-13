@@ -202,6 +202,7 @@ FAB_IVERILOG_PATH         Path to Icarus Verilog binary                       iv
 FAB_VVP_PATH              Path to Verilog VVP binary                          vvp  (Uses global Verilog VVP installation)
 FAB_GHDL_PATH             Path to GHDL binary                                 ghdl  (Uses global GHDL installation)
 FAB_PROJ_DIR              The root directory of the FABulous project          The directory where the FABulous project is located, given by command line
+FAB_MODEL_PACK            The model pack for the project                      Pointing to <project_dir>/Fabric/model_pack.<project_lang>
 FAB_OSS_CAD_SUITE         Path to the oss-cad-suite installation              <None>
 FAB_PROJ_VERSION_CREATED  The version of FABulous used to create the project  Same as the version of FABulous-FPGA package installed
 FAB_PROJ_VERSION          The current project version                         Same as the version of FABulous-FPGA package installed

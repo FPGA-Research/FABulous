@@ -257,14 +257,16 @@ class YosysJson:
         ghdl = FABulousSettings().ghdl_path
         json_file = self.srcPath.with_suffix(".json")
 
-        if self.srcPath.suffix in [".vhd", ".vhdl"]:
+        if self.srcPath.suffix in {".vhd", ".vhdl"}:
             runCmd = [
                 f"{ghdl!s}",
                 "--synth",
                 "--std=08",
                 "--out=verilog",
+                f"{FABulousSettings().model_pack!s}",
                 f"{self.srcPath}",
                 "-e",
+                f"{self.srcPath.stem}",
             ]
             try:
                 r = subprocess.run(runCmd, check=True, capture_output=True)
@@ -276,7 +278,13 @@ class YosysJson:
         runCmd = [
             f"{yosys!s}",
             "-q",
-            f"-p read_verilog -sv {self.srcPath.with_suffix('.v')}; proc -noopt; write_json -compat-int {json_file}",
+            (
+                "-p "
+                f"read_verilog -sv {self.srcPath.with_suffix('.v')}; "
+                "hierarchy -auto-top; "
+                "proc -noopt; "
+                f"write_json -compat-int {json_file}"
+            ),
         ]
         try:
             subprocess.run(runCmd, check=True, capture_output=True)

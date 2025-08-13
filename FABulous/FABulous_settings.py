@@ -13,6 +13,7 @@ from pydantic_core.core_schema import FieldValidationInfo  # type: ignore
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from FABulous.custom_exception import EnvironmentNotSet
+from FABulous.fabric_definition.define import HDLType
 
 
 class FABulousSettings(BaseSettings):
@@ -38,8 +39,9 @@ class FABulousSettings(BaseSettings):
     proj_version_created: Version = Version("0.0.1")
     proj_version: Version = Version(version("FABulous-FPGA"))
 
-    proj_lang: str = "verilog"
+    proj_lang: HDLType = HDLType.VERILOG
     switch_matrix_debug_signal: bool = False
+    model_pack: Path | None = None
 
     @field_validator("proj_version_created", mode="before")
     @classmethod
@@ -57,6 +59,39 @@ class FABulousSettings(BaseSettings):
             return Version(value)
         return value
 
+    @field_validator("model_pack", mode="before")
+    @classmethod
+    def parse_model_pack(
+        cls, value: str | Path | None, info: FieldValidationInfo
+    ) -> Path | None:  # type: ignore[override]
+        """Validate and normalise model_pack path based on project language.
+
+        Uses already-validated proj_lang from info.data when available. Accepts None /
+        empty string to mean unset.
+        """
+        if value in (None, ""):
+            return None
+        path = Path(value)
+        # Retrieve previously validated proj_lang (falls back to default enum value)
+        proj_lang = info.data.get("proj_lang", HDLType.VERILOG)
+        try:
+            # If provided as string earlier but not validated yet
+            if isinstance(proj_lang, str):
+                proj_lang = HDLType[proj_lang.upper()]
+        except KeyError:
+            raise ValueError(
+                "Invalid project language while validating model_pack"
+            ) from None
+
+        if proj_lang in {HDLType.VERILOG, HDLType.SYSTEM_VERILOG}:
+            if path.suffix not in {".v", ".sv"}:
+                raise ValueError(
+                    "Model pack for Verilog/System Verilog must be a .v or .sv file"
+                )
+        elif proj_lang == HDLType.VHDL and path.suffix not in {".vhdl", ".vhd"}:
+            raise ValueError("Model pack for VHDL must be a .vhdl or .vhd file")
+        return path
+
     @field_validator("root", mode="after")
     @classmethod
     def is_dir(cls, value: Path) -> Path:
@@ -72,6 +107,25 @@ class FABulousSettings(BaseSettings):
         if value not in ["verilog", "vhdl"]:
             raise ValueError("Project language must be either 'verilog' or 'vhdl'.")
         return value
+
+    @field_validator("proj_lang", mode="before")
+    @classmethod
+    def validate_proj_lang(cls, value: str | HDLType) -> HDLType:
+        """Validate and normalise the project language to HDLType enum."""
+        if isinstance(value, HDLType):
+            return value
+        key = value.strip().upper()
+        # Allow common aliases
+        alias_map = {
+            "VERILOG": "VERILOG",
+            "V": "VERILOG",
+            "SYSTEM_VERILOG": "SYSTEM_VERILOG",
+            "SV": "SYSTEM_VERILOG",
+            "VHDL": "VHDL",
+            "VHD": "VHDL",
+        }
+        key = alias_map.get(key, key)
+        return HDLType[key]
 
     # Resolve external tool paths only after object creation (post env setup)
     @field_validator(

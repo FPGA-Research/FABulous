@@ -1,7 +1,5 @@
 from pathlib import Path
 
-from loguru import logger
-
 from FABulous.custom_exception import (
     FabricParsingError,
     InvalidBelDefinition,
@@ -37,6 +35,7 @@ def belMapProcessing(module_info: YosysModule) -> dict:
         "dynports",
         "cells_not_processed",
         "src",
+        "top",
     }
     # match case for INIT. (may need modifying for other naming conventions.)
     for key, _value in module_info.attributes.items():
@@ -175,18 +174,11 @@ def parseBelFile(
     filtered_ports: dict[str, tuple[IO, list]] = {}
 
     if len(modules) == 0:
-        logger.opt(exception=FabricParsingError()).error(
-            f"File {filename} does not contain any modules."
-        )
-    elif len(modules) > 1:
-        logger.opt(exception=FabricParsingError()).error(
-            f"File {filename} contains more than one module."
-        )
+        raise FabricParsingError(f"File {filename} does not contain any modules.")
 
     # Gathers port name and direction, filters out configbits as they show in ports.
     # modules should only contain one module
-    module_name = next(iter(modules))
-    module_info = modules[module_name]
+    module_info = yosys_json.getTopModule()
     for port_name, details in module_info.ports.items():
         if "ConfigBits" in port_name:
             continue

@@ -131,6 +131,11 @@ def create_project(
     set_key(env_file, "FAB_PROJ_LANG", lang)
     set_key(env_file, "FAB_PROJ_VERSION", version("FABulous-FPGA"))
     set_key(env_file, "FAB_PROJ_VERSION_CREATED", version("FABulous-FPGA"))
+    set_key(
+        env_file,
+        "FAB_MODEL_PACK",
+        str(project_dir / "Fabric" / f"model_pack.{new_suffix}"),
+    )
 
     logger.info(f"New FABulous project created in {project_dir} with {lang} language.")
 
