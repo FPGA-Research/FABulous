@@ -19,10 +19,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: github.base_ref
+      - uses: ./.github/actions/prepare_FABulous_container
+      - name: generate old project
+        run: |
+          FABulous -c demo
+      
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare_FABulous_container
       - name: Run fabric generator flow and simulation with FABulous makefile
         run: |
-          FABulous -c demo
           cd demo/Test
           make FAB_sim
 
@@ -31,13 +38,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: github.base_ref
       - uses: ./.github/actions/prepare_FABulous_container
-        # with:
-          # install_GHDL_mcode: true
-          # GH composite workflwos do not support conditional steps yet. :(
-          # https://github.com/actions/runner/blob/main/docs/adrs/0549-composite-run-steps.md
-      - name: Run fabric generator flow and simulation with FABulous makefile
+      - name: generate old project
         run: |
           FABulous -c demo_vhdl -w vhdl
+
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/prepare_FABulous_container
+      - name: Run fabric generator flow and simulation with FABulous makefile
+        run: |
           cd demo_vhdl/Test
           make full_sim
