@@ -62,59 +62,60 @@ def generateUserDesignTopWrapper(
     bel_outputs: dict[str, list[str]] = {}
 
     # generate component instantioations
-    # we walk backwards through the list, since there is something mixed up with the coordinate system
-    for y in range(fabric.numberOfRows - 1, -1, -1):
-        bels = fabric.getBelsByTileXY(0, y)
-        if not bels:
-            continue
-        for i, bel in enumerate(
-            reversed(bels)
-        ):  # we walk backwards trough the bel list
-            belstr = ""
-            # we only add bels with external ports to the top wrapper.
-            if not bel.externalInput and not bel.externalOutput:
-                logger.info(
-                    f"Skipping bel {bel.name} in tile X0Y{y} since it has no external ports"
-                )
+    for x in range(fabric.numberOfColumns):
+        # we walk backwards through the Y list, since there is something mixed up with the coordinate system
+        for y in range(fabric.numberOfRows - 1, -1, -1):
+            bels = fabric.getBelsByTileXY(x, y)
+            if not bels:
                 continue
-            if len(bel.inputs and bel.outputs) == 0:
-                logger.info(
-                    f"{bel.name} in tile X0Y{y} has no internal ports, only external ports, we just add a dummy to the user design top wrapper!"
-                )
-                belstr += "//"
+            for i, bel in enumerate(
+                reversed(bels)
+            ):  # we walk backwards trough the bel list
+                belstr = ""
+                # we only add bels with external ports to the top wrapper.
+                if not bel.externalInput and not bel.externalOutput:
+                    logger.info(
+                        f"Skipping bel {bel.name} in tile X{x}Y{y} since it has no external ports"
+                    )
+                    continue
+                if len(bel.inputs and bel.outputs) == 0:
+                    logger.info(
+                        f"{bel.name} in tile X{x}Y{y} has no internal ports, only external ports, we just add a dummy to the user design top wrapper!"
+                    )
+                    belstr += "//"
 
-            if bel.name not in bel_count:
-                bel_count[bel.name] = 0
-                bel_inputs[bel.name] = [
-                    port.removeprefix(bel.prefix) for port in bel.inputs
-                ]
-                bel_outputs[bel.name] = [
-                    port.removeprefix(bel.prefix) for port in bel.outputs
-                ]
-            else:
-                # count number of times a BEL type is used
-                bel_count[bel.name] += 1
-
-            # This is done similar in the npnr model gen, to get the bel prefix
-            # So we assume to get the same Bel prefix here.
-            # convert number of bel i to character A,B,C ...
-            # But we need to do this backwards, starting with the highest letter for a tile
-            prefix = chr(ord("A") + len(bels) - 1 - i)
-            belstr += (
-                f'(* keep, BEL="X0Y{y}.{prefix}" *) {bel.name} bel_X0Y{y}_{prefix} ('
-            )
-
-            first = True
-            for port in bel.inputs + bel.outputs:
-                port_name = port.removeprefix(bel.prefix)
-                if first:
-                    first = False
+                if bel.name not in bel_count:
+                    bel_count[bel.name] = 0
+                    bel_inputs[bel.name] = [
+                        port.removeprefix(bel.prefix) for port in bel.inputs
+                    ]
+                    bel_outputs[bel.name] = [
+                        port.removeprefix(bel.prefix) for port in bel.outputs
+                    ]
                 else:
-                    belstr += ", "
-                belstr += f".{port_name}({bel.name}_{port_name}[{bel_count[bel.name]}])"
+                    # count number of times a BEL type is used
+                    bel_count[bel.name] += 1
 
-            belstr += ");"
-            top_wrapper.append(belstr)
+                # This is done similar in the npnr model gen, to get the bel prefix
+                # So we assume to get the same Bel prefix here.
+                # convert number of bel i to character A,B,C ...
+                # But we need to do this backwards, starting with the highest letter for a tile
+                prefix = chr(ord("A") + len(bels) - 1 - i)
+                belstr += f'(* keep, BEL="X{x}Y{y}.{prefix}" *) {bel.name} bel_X{x}Y{y}_{prefix} ('
+
+                first = True
+                for port in bel.inputs + bel.outputs:
+                    port_name = port.removeprefix(bel.prefix)
+                    if first:
+                        first = False
+                    else:
+                        belstr += ", "
+                    belstr += (
+                        f".{port_name}({bel.name}_{port_name}[{bel_count[bel.name]}])"
+                    )
+
+                belstr += ");"
+                top_wrapper.append(belstr)
 
     top_wrapper.append("\n")
 
