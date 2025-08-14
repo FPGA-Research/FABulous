@@ -24,13 +24,13 @@ jobs:
       - uses: ./.github/actions/prepare_FABulous_container
       - name: generate old project
         run: |
-          FABulous -c demo
+          FABulous -c /tmp/demo
       
       - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare_FABulous_container
       - name: Run fabric generator flow and simulation with FABulous makefile
         run: |
-          cd demo/Test
+          cd /tmp/demo/Test
           make FAB_sim
 
   run_vhdl_simulation_makefile:
@@ -43,11 +43,11 @@ jobs:
       - uses: ./.github/actions/prepare_FABulous_container
       - name: generate old project
         run: |
-          FABulous -c demo_vhdl -w vhdl
+          FABulous -c /tmp/demo_vhdl -w vhdl
 
       - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare_FABulous_container
       - name: Run fabric generator flow and simulation with FABulous makefile
         run: |
-          cd demo_vhdl/Test
+          cd /tmp/demo_vhdl/Test
           make full_sim
