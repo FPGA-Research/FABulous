@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: github.base_ref
+          ref: ${{ github.base_ref }} 
       - uses: ./.github/actions/prepare_FABulous_container
       - name: generate old project
         run: |
@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: github.base_ref
+          ref: ${{ github.base_ref }} 
       - uses: ./.github/actions/prepare_FABulous_container
       - name: generate old project
         run: |
