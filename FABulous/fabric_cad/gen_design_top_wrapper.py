@@ -78,7 +78,7 @@ def generateUserDesignTopWrapper(
                         f"Skipping bel {bel.name} in tile X{x}Y{y} since it has no external ports"
                     )
                     continue
-                if len(bel.inputs and bel.outputs) == 0:
+                if len(bel.inputs + bel.outputs) == 0:
                     logger.info(
                         f"{bel.name} in tile X{x}Y{y} has no internal ports, only external ports, we just add a dummy to the user design top wrapper!"
                     )
