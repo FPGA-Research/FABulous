@@ -50,7 +50,7 @@ jobs:
     steps:
       # These two steps will be executed only when there IS a cache hit (exact match or not). 
       # When a matrix job is retried, it will reuse the same artifact, to execute the exact same split.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with: 
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Download test durations

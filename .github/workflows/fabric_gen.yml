@@ -7,7 +7,7 @@ jobs:
     name: Run Verilog fabric generator flow and simulation with FABulous CLI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare_FABulous_container
       - name: Run fabric generator flow and simulation with FABulous CLI
         run: |
@@ -18,7 +18,7 @@ jobs:
     name: Run Verilog fabric generator flow and simulation with FABulous makefile
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare_FABulous_container
       - name: Run fabric generator flow and simulation with FABulous makefile
         run: |
@@ -30,7 +30,7 @@ jobs:
     name: Run VHDL fabric generator flow and simulation with FABulous makefile
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare_FABulous_container
         # with:
           # install_GHDL_mcode: true
