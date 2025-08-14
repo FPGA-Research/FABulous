@@ -536,11 +536,11 @@ def parseFabricCSV(fileName: str) -> Fabric:
             if "GENERATE" in i:
                 # import here to avoid circular import
                 from FABulous.fabric_generator.gen_fabric.fabric_automation import (
-                    generate_custom_tile_config,
+                    generateCustomTileConfig,
                 )
 
                 # we generate the tile right before we parse everything
-                i[1] = str(generate_custom_tile_config(filePath.joinpath(i[1])))
+                i[1] = str(generateCustomTileConfig(filePath.joinpath(i[1])))
 
             new_tiles, new_commonWirePair = parseTilesCSV(filePath.joinpath(i[1]))
             tileTypes += [new_tile.name for new_tile in new_tiles]
