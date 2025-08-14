@@ -1,22 +1,19 @@
-name: Test fabric generation
+name: Test fabric generation against base branch
 
 on: [push, pull_request]
 
 jobs:
-  run_verilog_simulation_CLI:
-    name: Run Verilog fabric generator flow and simulation with FABulous CLI
+  run_sim_makefile_on_base_project:
+    name: Run fabric generator flow and simulation with FABulous makefile against base branch
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: ./.github/actions/prepare_FABulous_container
-      - name: Run fabric generator flow and simulation with FABulous CLI
-        run: |
-          FABulous -c demo
-          FABulous demo -fs ./demo/FABulous.tcl
+    strategy:
+      matrix:
+        include:
+          - name: Verilog
+            type: verilog 
+          - name: VHDL
+            type: vhdl
 
-  run_verilog_simulation_makefile:
-    name: Run Verilog fabric generator flow and simulation with FABulous makefile
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
         with:
@@ -24,30 +21,11 @@ jobs:
       - uses: ./.github/actions/prepare_FABulous_container
       - name: generate old project
         run: |
-          FABulous -c /tmp/demo
-      
+          FABulous -c /tmp/demo_${{ matrix.type }} -w ${{ matrix.type }}
+
       - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare_FABulous_container
       - name: Run fabric generator flow and simulation with FABulous makefile
         run: |
-          cd /tmp/demo/Test
+          cd /tmp/demo_${{ matrix.type }}/Test
           make FAB_sim
-
-  run_vhdl_simulation_makefile:
-    name: Run VHDL fabric generator flow and simulation with FABulous makefile
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: ${{ github.base_ref }} 
-      - uses: ./.github/actions/prepare_FABulous_container
-      - name: generate old project
-        run: |
-          FABulous -c /tmp/demo_vhdl -w vhdl
-
-      - uses: actions/checkout@v5
-      - uses: ./.github/actions/prepare_FABulous_container
-      - name: Run fabric generator flow and simulation with FABulous makefile
-        run: |
-          cd /tmp/demo_vhdl/Test
-          make full_sim
