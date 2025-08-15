@@ -6,6 +6,7 @@ jobs:
   run_sim_makefile_on_base_project:
     name: Run fabric generator flow and simulation with FABulous makefile against base branch
     runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.title, '!:') }}
     strategy:
       matrix:
         include:
