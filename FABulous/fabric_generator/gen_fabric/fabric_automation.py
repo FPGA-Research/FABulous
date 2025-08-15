@@ -414,9 +414,10 @@ def addBelsToPrim(
             # check if its first port, to not set a comma before
             first = True
 
-            shared_ports = [p for p, _ in bel.sharedPort]
-
-            # external ports contain the bel prefix, but this is not needed in the prims file
+            # ports contain the bel prefix, but this is not needed in the prims file
+            inputs = [p.removeprefix(bel.prefix) for p in bel.inputs]
+            outputs = [p.removeprefix(bel.prefix) for p in bel.outputs]
+            shared_ports = [p.removeprefix(bel.prefix) for p, _ in bel.sharedPort]
             external_inputs: list[str] = []
             external_outputs: list[str] = []
             for external_port in bel.externalInput:
@@ -466,16 +467,17 @@ def addBelsToPrim(
 
                         modline += f"    {direction} {port}"
             else:  # No vector support
-                ports = bel.inputs + bel.outputs + external_ports + shared_ports
+                ports = inputs + outputs + external_ports + shared_ports
 
+                # we iterate through all ports to make the handling of the commas easier
                 for port in ports:
                     if not first:
                         modline += ",\n"
                     else:
                         first = False
-                    if port in bel.inputs:
+                    if port in inputs:
                         modline += f"    input {port}"
-                    if port in bel.outputs:
+                    if port in outputs:
                         modline += f"    output {port}"
                     if port in external_ports:
                         modline += "    (* iopad_external_pin *)\n"

@@ -17,6 +17,7 @@ from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_generator.gen_fabric.fabric_automation import addBelsToPrim
 from FABulous.fabric_generator.parser.parse_hdl import parseBelFile
 from FABulous.fabric_generator.parser.parse_switchmatrix import (
     parseList,
@@ -140,19 +141,16 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     bels.append(parseBelFile(belFilePath, bel_prefix, "vhdl"))
                 elif temp[1].endswith(".v") or temp[1].endswith(".sv"):
                     bels.append(parseBelFile(belFilePath, bel_prefix, "verilog"))
-                    if "ADD_AS_CUSTOM_PRIM" in temp[4:]:
-                        # local import to avoid circular import
-                        from FABulous.fabric_generator.gen_fabric.fabric_automation import (
-                            addBelsToPrim,
-                        )
-
-                        primsFile = proj_dir.joinpath("user_design/custom_prims.v")
-                        logger.info(f"Adding bels to custom prims file: {primsFile}")
-                        addBelsToPrim(primsFile, [bels[-1]])
                 else:
                     raise InvalidFileType(
                         f"File {belFilePath} is not a .vhdl or .v file. Please check the BEL file."
                     )
+
+                if "ADD_AS_CUSTOM_PRIM" in temp[3:]:
+                    primsFile = proj_dir.joinpath("user_design/custom_prims.v")
+                    logger.info(f"Adding bels to custom prims file: {primsFile}")
+                    addBelsToPrim(primsFile, [bels[-1]])
+
             elif temp[0] == "GEN_IO":
                 configBit = 0
                 configAccess = False
