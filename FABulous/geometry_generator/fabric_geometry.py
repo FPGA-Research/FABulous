@@ -55,6 +55,18 @@ class FabricGeometry:
         padding : int, optional
             Padding used throughout the geometry, by default 8
         """
+        """Initialize a FabricGeometry instance.
+
+        Creates the fabric geometry by processing the given fabric definition
+        and automatically generating the complete geometric layout.
+
+        Parameters
+        ----------
+        fabric : Fabric
+            The fabric object from CSV definition files
+        padding : int, optional
+            Padding used throughout the geometry, by default 8
+        """
         self.fabric = fabric
         self.tileNames = set()
         self.tileGeomMap = {}

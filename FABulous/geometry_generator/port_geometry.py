@@ -70,6 +70,11 @@ class PortGeometry:
         Sets all attributes to default values: None for names and directions,
         zero for numeric values, and appropriate defaults for enumerated types.
         """
+        """Initialize a PortGeometry instance.
+
+        Sets all attributes to default values: None for names and directions,
+        zero for numeric values, and appropriate defaults for enumerated types.
+        """
         self.name = None
         self.sourceName = None
         self.destName = None
@@ -93,6 +98,29 @@ class PortGeometry:
         relX: int,
         relY: int,
     ) -> None:
+        """Generate the geometry for a port.
+
+        Sets the basic geometric and connection properties of the port,
+        including its name, source/destination connections, type, I/O direction,
+        and relative position within its parent component.
+
+        Parameters
+        ----------
+        name : str
+            Name of the port
+        sourceName : str
+            Name of the port source
+        destName : str
+            Name of the port destination
+        portType : PortType
+            Type of the port (SWITCH_MATRIX, JUMP, or BEL)
+        ioDirection : IO
+            I/O direction of the port (INPUT, OUTPUT, or INOUT)
+        relX : int
+            X coordinate relative to the parent component
+        relY : int
+            Y coordinate relative to the parent component
+        """
         """Generate the geometry for a port.
 
         Sets the basic geometric and connection properties of the port,

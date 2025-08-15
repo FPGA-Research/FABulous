@@ -190,6 +190,7 @@ class TileGeometry:
 
     def generateBelWires(self) -> None:
         """Generate the wires between the switch matrix and its bels."""
+        """Generate the wires between the switch matrix and its bels."""
         for belGeom in self.belGeomList:
             belToSmDistanceX = belGeom.relX - (
                 self.smGeometry.relX + self.smGeometry.width
@@ -215,6 +216,7 @@ class TileGeometry:
     westMiddleY = None
 
     def generateDirectWires(self, padding: int) -> None:
+        """Generate wires to neigbouring tiles."""
         """Generate wires to neigbouring tiles."""
         self.northMiddleX = self.smGeometry.relX - padding
         self.southMiddleX = self.smGeometry.relX - padding
