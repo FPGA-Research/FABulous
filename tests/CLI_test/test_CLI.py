@@ -17,7 +17,7 @@ from tests.conftest import (
 
 
 def test_load_fabric(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
-    """Test loading fabric from CSV file"""
+    """Test loading fabric from CSV file."""
     run_cmd(cli, "load_fabric")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Loading fabric" in log[0]
@@ -25,7 +25,7 @@ def test_load_fabric(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> Non
 
 
 def test_gen_config_mem(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating configuration memory"""
+    """Test generating configuration memory."""
     run_cmd(cli, f"gen_config_mem {TILE}")
     log = normalize_and_check_for_errors(caplog.text)
     assert f"Generating Config Memory for {TILE}" in log[0]
@@ -33,7 +33,7 @@ def test_gen_config_mem(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> 
 
 
 def test_gen_switch_matrix(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating switch matrix"""
+    """Test generating switch matrix."""
     run_cmd(cli, f"gen_switch_matrix {TILE}")
     log = normalize_and_check_for_errors(caplog.text)
     assert f"Generating switch matrix for {TILE}" in log[0]
@@ -41,7 +41,7 @@ def test_gen_switch_matrix(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) 
 
 
 def test_gen_tile(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating tile"""
+    """Test generating tile."""
     run_cmd(cli, f"gen_tile {TILE}")
     log = normalize_and_check_for_errors(caplog.text)
     assert f"Generating tile {TILE}" in log[0]
@@ -49,7 +49,7 @@ def test_gen_tile(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
 
 
 def test_gen_all_tile(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating all tiles"""
+    """Test generating all tiles."""
     run_cmd(cli, "gen_all_tile")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Generating all tiles" in log[0]
@@ -57,7 +57,7 @@ def test_gen_all_tile(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> No
 
 
 def test_gen_fabric(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating fabric"""
+    """Test generating fabric."""
     run_cmd(cli, "gen_fabric")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Generating fabric " in log[0]
@@ -65,8 +65,7 @@ def test_gen_fabric(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None
 
 
 def test_gen_geometry(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating geometry"""
-
+    """Test generating geometry."""
     # Test with default padding
     run_cmd(cli, "gen_geometry")
     log = normalize_and_check_for_errors(caplog.text)
@@ -81,7 +80,7 @@ def test_gen_geometry(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> No
 
 
 def test_gen_top_wrapper(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating top wrapper"""
+    """Test generating top wrapper."""
     run_cmd(cli, "gen_top_wrapper")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Generating top wrapper" in log[0]
@@ -91,7 +90,7 @@ def test_gen_top_wrapper(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) ->
 def test_run_FABulous_fabric(
     cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Test running FABulous fabric flow"""
+    """Test running FABulous fabric flow."""
     run_cmd(cli, "run_FABulous_fabric")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Running FABulous" in log[0]
@@ -99,7 +98,7 @@ def test_run_FABulous_fabric(
 
 
 def test_gen_model_npnr(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating Nextpnr model"""
+    """Test generating Nextpnr model."""
     run_cmd(cli, "gen_model_npnr")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Generating npnr model" in log[0]
@@ -109,7 +108,7 @@ def test_gen_model_npnr(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> 
 def test_run_FABulous_bitstream(
     cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
 ) -> None:
-    """Test the run_FABulous_bitstream command"""
+    """Test the run_FABulous_bitstream command."""
 
     class MockCompletedProcess:
         returncode = 0
@@ -129,7 +128,7 @@ def test_run_simulation(
     caplog: pytest.LogCaptureFixture,
     mocker: MockerFixture,
 ) -> None:
-    """Test running simulation"""
+    """Test running simulation."""
 
     class MockCompletedProcess:
         returncode = 0
@@ -149,7 +148,7 @@ def test_run_simulation(
 def test_run_tcl(
     cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, tmp_path: Path
 ) -> None:
-    """Test running a Tcl script"""
+    """Test running a Tcl script."""
     script_content = '# Dummy Tcl script\nputs "Text from tcl"'
     tcl_script_path = tmp_path / "test_script.tcl"
     with tcl_script_path.open("w") as f:

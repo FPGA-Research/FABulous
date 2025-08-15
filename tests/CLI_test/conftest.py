@@ -1,18 +1,97 @@
-"""Pytest configuration for CLI tests."""
+"""Test configuration and shared fixtures for FABulous CLI tests.
+
+This module provides pytest fixtures and utility functions for testing the FABulous
+command-line interface. It includes test project setup, environment configuration,
+logger management, and common test utilities.
+"""
 
 from pathlib import Path
 
 import pytest
+from _pytest.logging import LogCaptureFixture
 from dotenv import set_key
+from loguru import logger
 
+from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import create_project
+
+
+def normalize(block: str) -> list[str]:
+    """Normalize a block of text to perform comparison.
+
+    Strip newlines from the very beginning and very end, then split into separate lines and strip trailing whitespace
+    from each line.
+    """
+    assert isinstance(block, str)
+    block = block.strip("\n")
+    return [line.rstrip() for line in block.splitlines()]
+
+
+def run_cmd(app: FABulous_CLI, cmd: str) -> None:
+    """Execute a command in the FABulous CLI application.
+
+    This utility function runs a command through the CLI's command processing system.
+
+    Parameters
+    ----------
+    app : FABulous_CLI
+        The FABulous CLI application instance to run the command on.
+    cmd : str
+        The command string to execute.
+
+    """
+    app.onecmd_plus_hooks(cmd)
+
+
+def normalize_and_check_for_errors(caplog_text: str) -> list[str]:
+    """Normalize log text and check for error messages.
+
+    This function normalizes log text using the normalize function and then
+    checks for any ERROR-level messages. If errors are found, an assertion
+    error is raised.
+
+    Parameters
+    ----------
+    caplog_text : str
+        The captured log text to check for errors.
+
+    Returns
+    -------
+    list[str]
+        The normalized log lines.
+
+    Raises
+    ------
+    AssertionError
+        If any ERROR-level messages are found in the log.
+
+    """
+    log = normalize(caplog_text)
+    assert not any("ERROR" in line for line in log), "Error found in log messages"
+    return log
+
 
 TILE = "LUT4AB"
 
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Create a temporary FABulous project directory."""
+    """Create a test project directory for testing.
+
+    This fixture creates a temporary FABulous project with all necessary
+    files and configuration for testing purposes.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Pytest temporary directory path.
+
+    Yields
+    ------
+    Path
+        Path to the created test project directory.
+
+    """
     project_dir = tmp_path / "test_project"
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
     create_project(project_dir)
@@ -72,3 +151,32 @@ def project_directories(tmp_path: Path) -> dict[str, Path]:
         "project_dotenv_fallback_file": project_dotenv_fallback_file,
         "global_dotenv_file": global_dotenv_file,
     }
+
+
+def caplog(caplog: LogCaptureFixture) -> Generator[LogCaptureFixture]:
+    """Configure log capturing for tests with loguru integration.
+
+    This fixture sets up proper log capturing that works with loguru logger,
+    ensuring that log messages are captured correctly during tests and cleaned
+    up afterwards.
+
+    Parameters
+    ----------
+    caplog : LogCaptureFixture
+        Pytest's log capture fixture.
+
+    Yields
+    ------
+    LogCaptureFixture
+        The configured log capture fixture ready for use in tests.
+
+    """
+    handler_id = logger.add(
+        caplog.handler,
+        format="{message}",
+        level=0,
+        filter=lambda record: record["level"].no >= caplog.handler.level,
+        enqueue=False,  # Set to 'True' if your test is spawning child processes.
+    )
+    yield caplog
+    logger.remove(handler_id)

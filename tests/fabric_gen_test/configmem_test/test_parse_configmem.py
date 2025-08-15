@@ -1,3 +1,11 @@
+"""Test module for configuration memory parsing functionality.
+
+This module contains comprehensive tests for the parseConfigMem function, including
+various valid scenarios, error conditions, input format handling, and edge cases.
+It uses parameterized tests to cover a wide range of configuration memory
+specifications and validation logic.
+"""
+
 from pathlib import Path
 from typing import NamedTuple
 

@@ -22,6 +22,11 @@ from FABulous.fabric_generator.parser.parse_configmem import parseConfigMem
 
 
 class ConfigMemDUT(Protocol):
+    """Protocol for configuration memory DUT.
+
+    Defines the interface for configuration memory testing for typing
+    """
+
     FrameData: Any
     FrameStrobe: Any
     ConfigBits: Any
@@ -137,7 +142,6 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     cocotb_runner: Callable[..., Callable],
 ) -> None:
     """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
-
     # Skip impossible configurations where fabric capacity < tile requirements
     fabric_capacity = fabric_config.frameBitsPerRow * fabric_config.maxFramesPerCol
     tile_requirements = tile_config.globalConfigBits
@@ -219,7 +223,6 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     mocker: MockerFixture,
 ) -> None:
     """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
-
     # Skip impossible configurations where fabric capacity < tile requirements
     fabric_capacity = default_fabric.frameBitsPerRow * default_fabric.maxFramesPerCol
     tile_requirements = default_tile.globalConfigBits
