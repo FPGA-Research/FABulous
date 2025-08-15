@@ -385,7 +385,8 @@ def addBelsToPrim(
         with primsFile.open() as f:
             prims = f.read()
     else:
-        raise FileNotFoundError(f"Prims file {primsFile} not found.")
+        logger.warning(f"Prims file {primsFile} does not exist, creating a new one.")
+        primsFile.touch()
 
     # remove all duplicate bels in list.
     bels = list({bel.src: bel for bel in bels}.values())

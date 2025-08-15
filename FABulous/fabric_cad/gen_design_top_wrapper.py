@@ -101,6 +101,20 @@ def generateUserDesignTopWrapper(
                 # convert number of bel i to character A,B,C ...
                 # But we need to do this backwards, starting with the highest letter for a tile
                 prefix = chr(ord("A") + len(bels) - 1 - i)
+
+                if bel.name in [
+                    "InPass4_frame_config",
+                    "OutPass4_frame_config",
+                    "InPass4_frame_config_mux",
+                    "OutPass4_frame_config_mux",
+                ]:
+                    # This is a special case for the RAM_IO bels, since
+                    # for some unknown reasons, the prefix used in the nexpnr backend
+                    # is not based on the number of bels, it is based on the actual bel prefix
+                    # which is defined in the tile csv.
+                    # https://github.com/YosysHQ/nextpnr/blob/master/generic/viaduct/fabulous/fabulous.cc#L355
+                    prefix = bel.prefix.removesuffix("_")
+
                 belstr += f'(* keep, BEL="X{x}Y{y}.{prefix}" *) {bel.name} bel_X{x}Y{y}_{prefix} ('
 
                 first = True
