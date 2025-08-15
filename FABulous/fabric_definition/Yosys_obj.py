@@ -336,7 +336,7 @@ class YosysJson:
             ports_entry = []
             port_start = False
             for i in vhdl_content.splitlines():
-                if re.search(r"^\s*port \(", i):
+                if re.search(r"^\s*port \(", i, flags=re.IGNORECASE):
                     port_start = True
                 if port_start and re.search(r"^\s*\);\s*", i):
                     port_start = False
@@ -350,6 +350,15 @@ class YosysJson:
                     module.netnames[port_name].attributes.update(
                         {x.strip(): 1 for x in attribute_entries}
                     )
+                if r := re.search(r"(\w+)\s*:.*? --.*", p):
+                    port_name = r.group(1)
+
+                    if "EXTERNAL" in p:
+                        module.netnames[port_name].attributes["EXTERNAL"] = 1
+                    if "SHARED_PORT" in p:
+                        module.netnames[port_name].attributes["SHARED_PORT"] = 1
+                    if "GLOBAL" in p:
+                        module.netnames[port_name].attributes["GLOBAL"] = 1
 
     def getTopModule(self) -> tuple[str, YosysModule]:
         """Find and return the top-level module in the design.

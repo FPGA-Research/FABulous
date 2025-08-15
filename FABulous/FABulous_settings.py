@@ -69,11 +69,35 @@ class FABulousSettings(BaseSettings):
         Uses already-validated proj_lang from info.data when available. Accepts None /
         empty string to mean unset.
         """
-        if value in (None, ""):
-            return None
-        path = Path(value)
-        # Retrieve previously validated proj_lang (falls back to default enum value)
         proj_lang = info.data.get("proj_lang")
+        if value in (None, ""):
+            p = Path(info.data["proj_dir"])
+            if proj_lang == HDLType.VHDL:
+                mp = p / "Fabric" / "my_lib.vhdl"
+                if mp.exists():
+                    logger.warning(
+                        f"Model pack path is not set. Guessing model pack as: {mp}"
+                    )
+                    return mp
+                mp = p / "Fabric" / "model_pack.vhdl"
+                if mp.exists():
+                    logger.warning(
+                        f"Model pack path is not set. Guessing model pack as: {mp}"
+                    )
+                    return mp
+                raise ValueError("Model pack path is not set and could not be guessed.")
+
+            if proj_lang in {HDLType.VERILOG, HDLType.SYSTEM_VERILOG}:
+                mp = p / "Fabric" / "model_pack.v"
+                if mp.exists():
+                    logger.warning(
+                        f"Model pack path is not set. Guessing model pack as: {mp}"
+                    )
+                    return mp
+                raise ValueError("Model pack path is not set and could not be guessed.")
+
+        path = Path(str(value))
+        # Retrieve previously validated proj_lang (falls back to default enum value)
         try:
             # If provided as string earlier but not validated yet
             if isinstance(proj_lang, str):
