@@ -50,7 +50,6 @@ bit_gen = "FABulous.fabric_cad.bit_gen:bit_gen"
 version_scheme = "guess-next-dev"
 local_scheme = "node-and-date"
 
-
 [tool.setuptools.packages.find]
 exclude = [
   "docs, demo",
@@ -58,6 +57,21 @@ exclude = [
 
 [tool.setuptools.package-data]
 mypkg = ["FABulous/**/*"]
+
+[tool.interrogate]
+ignore-init-method = false
+ignore-init-module = false
+ignore-magic = false
+ignore-semiprivate = false
+ignore-private = true
+ignore-property-decorators = false
+ignore-module = false
+ignore-nested-functions = false
+ignore-nested-classes = true
+ignore-setters = true
+ignore-overloaded-functions = true
+fail-under = 40
+exclude = ["setup.py", "docs", "build", ".venv", "demo/*"]
 
 [dependency-groups]
 dev = [

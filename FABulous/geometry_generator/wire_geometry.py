@@ -207,6 +207,12 @@ class StairWires:
             )
 
     def generateNorthStairWires(self) -> None:
+        """Generate stair-like wires for north direction routing.
+
+        Creates a series of L-shaped wire segments that form a stair-like pattern for
+        routing connections northward across multiple tiles. Each wire starts at the
+        bottom edge, goes to a stair step, then continues to the top edge.
+        """
         totalWires = self.groupWires * (abs(self.offset) - 1)
 
         for i in range(totalWires):
@@ -226,6 +232,12 @@ class StairWires:
             self.refY -= 1
 
     def generateSouthStairWires(self) -> None:
+        """Generate stair-like wires for south direction routing.
+
+        Creates a series of L-shaped wire segments that form a stair-like pattern for
+        routing connections southward across multiple tiles. Each wire starts at the
+        bottom edge, goes to a stair step, then continues to the top edge.
+        """
         totalWires = self.groupWires * (abs(self.offset) - 1)
 
         for i in range(totalWires):
@@ -245,6 +257,12 @@ class StairWires:
             self.refY -= 1
 
     def generateEastStairWires(self) -> None:
+        """Generate stair-like wires for east direction routing.
+
+        Creates a series of L-shaped wire segments that form a stair-like pattern for
+        routing connections eastward across multiple tiles. Each wire starts at the
+        right edge, goes to a stair step, then continues to the left edge.
+        """
         totalWires = self.groupWires * (abs(self.offset) - 1)
 
         for i in range(totalWires):
@@ -264,6 +282,12 @@ class StairWires:
             self.refY += 1
 
     def generateWestStairWires(self) -> None:
+        """Generate stair-like wires for west direction routing.
+
+        Creates a series of L-shaped wire segments that form a stair-like pattern for
+        routing connections westward across multiple tiles. Each wire starts at the
+        right edge, goes to a stair step, then continues to the left edge.
+        """
         totalWires = self.groupWires * (abs(self.offset) - 1)
 
         for i in range(totalWires):

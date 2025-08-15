@@ -1,3 +1,5 @@
+"""Simple base object class."""
+
 from enum import Enum
 
 
@@ -16,10 +18,26 @@ class Location:
     y: int
 
     def __init__(self, x: int, y: int) -> None:
+        """Initialize a Location instance.
+
+        Parameters
+        ----------
+        x : int
+            X coordinate
+        y : int
+            Y coordinate
+        """
         self.x = x
         self.y = y
 
     def __repr__(self) -> str:
+        """Return string representation of the location.
+
+        Returns
+        -------
+        str
+            String in format 'x/y'
+        """
         return f"{self.x}/{self.y}"
 
 

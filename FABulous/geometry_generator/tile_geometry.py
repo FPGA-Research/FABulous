@@ -137,8 +137,10 @@ class TileGeometry:
         # else dim.smWidth
 
     def adjustSmPos(self, lowestSmYInRow: int, padding: int) -> None:
-        """Ajusts the position of the switch matrix, using the lowest Y coordinate of
-        any switch matrix in the same row for reference.
+        """Ajusts the position of the switch matrix.
+
+        This done by using the lowest Y coordinate of any switch matrix in the same row
+        for reference.
 
         After this step is completed for all switch matrices, their southern edge will
         be on the same Y coordinate, allowing for easier inter-tile routing.
@@ -154,8 +156,8 @@ class TileGeometry:
         self.smGeometry.generateBelPorts(self.belGeomList)
 
     def setBelPositions(self, padding: int) -> None:
-        """The position of the switch matrix is final when this is called, thus bel
-        positions can be set."""
+        """Position of the switch matrix is final when this is called, and set bel
+        positions."""
         belPadding = padding // 2
         belX = self.smGeometry.relX + self.smGeometry.width + padding
         belY = self.smGeometry.relY + belPadding
@@ -191,7 +193,7 @@ class TileGeometry:
         self.generateIndirectWires(padding)
 
     def generateBelWires(self) -> None:
-        """Generates the wires between the switch matrix and its bels."""
+        """Generate the wires between the switch matrix and its bels."""
         for belGeom in self.belGeomList:
             belToSmDistanceX = belGeom.relX - (
                 self.smGeometry.relX + self.smGeometry.width
@@ -217,8 +219,7 @@ class TileGeometry:
     westMiddleY = None
 
     def generateDirectWires(self, padding: int) -> None:
-        """Generates wires to neigbouring tiles, which are straightforward to
-        generate."""
+        """Generate wires to neigbouring tiles."""
         self.northMiddleX = self.smGeometry.relX - padding
         self.southMiddleX = self.smGeometry.relX - padding
         self.eastMiddleY = self.smGeometry.relY + self.smGeometry.height + padding
