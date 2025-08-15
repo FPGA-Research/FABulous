@@ -17,7 +17,11 @@ from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_generator.gen_fabric.fabric_automation import addBelsToPrim
+from FABulous.fabric_generator.gen_fabric.fabric_automation import (
+    addBelsToPrim,
+    generateCustomTileConfig,
+    generateSwitchmatrixList,
+)
 from FABulous.fabric_generator.parser.parse_hdl import parseBelFile
 from FABulous.fabric_generator.parser.parse_switchmatrix import (
     parseList,
@@ -225,11 +229,6 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                 configBit = 0
 
                 if "GENERATE" in temp:
-                    # import here to avoid circular import
-                    from FABulous.fabric_generator.gen_fabric.fabric_automation import (
-                        generateSwitchmatrixList,
-                    )
-
                     logger.info(f"Generating switch matrix list for tile {tileName}")
                     genMatrixList = True
                     if len(temp) <= 2:
@@ -530,13 +529,8 @@ def parseFabricCSV(fileName: str) -> Fabric:
             continue
         if i[0].startswith("Tile"):
             if "GENERATE" in i:
-                # import here to avoid circular import
-                from FABulous.fabric_generator.gen_fabric.fabric_automation import (
-                    generate_custom_tile_config,
-                )
-
                 # we generate the tile right before we parse everything
-                i[1] = str(generate_custom_tile_config(filePath.joinpath(i[1])))
+                i[1] = str(generateCustomTileConfig(filePath.joinpath(i[1])))
 
             new_tiles, new_commonWirePair = parseTilesCSV(filePath.joinpath(i[1]))
             tileTypes += [new_tile.name for new_tile in new_tiles]
