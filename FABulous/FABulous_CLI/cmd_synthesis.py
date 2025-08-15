@@ -1,3 +1,14 @@
+"""Synthesis command implementation for the FABulous CLI.
+
+This module provides the synthesis command functionality for the FABulous command-line
+interface. It implements Yosys-based FPGA synthesis targeting the Nextpnr place-and-
+route tool, with support for various synthesis options and output formats.
+
+The synthesis flow includes multiple stages from Verilog reading through final netlist
+generation, with options for LUT mapping, FSM optimization, carry chain mapping, and
+memory inference.
+"""
+
 import argparse
 import subprocess as sp
 from pathlib import Path
@@ -247,6 +258,42 @@ synthesis_parser.add_argument(
 @with_category(CMD_USER_DESIGN_FLOW)
 @with_argparser(synthesis_parser)
 def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
+    """Run Yosys synthesis for the specified Verilog files.
+
+    This function performs FPGA synthesis using Yosys with the Nextpnr JSON backend
+    to synthesize Verilog designs and generate Nextpnr-compatible JSON files for
+    place and route. It supports various synthesis options including LUT architecture,
+    FSM optimization, carry mapping, and different output formats.
+
+    Parameters
+    ----------
+    self : FABulous_CLI
+        The CLI instance containing project and fabric information.
+    args : argparse.Namespace
+        Command arguments containing:
+        - files: List of Verilog files to synthesize
+        - top: Top module name (default: 'top_wrapper')
+        - auto_top: Whether to automatically determine top module
+        - json: Output JSON file path
+        - blif: Output BLIF file path (optional)
+        - edif: Output EDIF file path (optional)
+        - lut: LUT architecture size (default: 4)
+        - And various other synthesis options
+
+    Raises
+    ------
+    CommandError
+        If synthesis fails or if required files are not found.
+    FileNotFoundError
+        If any of the input files do not exist.
+
+    Notes
+    -----
+    The synthesis process includes multiple stages: hierarchy checking,
+    flattening, coarse synthesis, RAM mapping, gate mapping, FF mapping,
+    LUT mapping, and final netlist generation. See the module docstring
+    for detailed synthesis flow information.
+    """
     logger.info(
         f"Running synthesis targeting Nextpnr with design{[str(i) for i in args.files]}"
     )

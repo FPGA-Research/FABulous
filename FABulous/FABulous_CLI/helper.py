@@ -1,4 +1,10 @@
-"""Helper functions for FABulous."""
+"""Helper functions and utilities for the FABulous CLI.
+
+This module provides various utility functions for the FABulous command-line interface,
+including project creation, file operations, logging setup, external application
+management, and OSS CAD Suite installation. It serves as a collection of common
+functionalities used throughout the CLI components.
+"""
 
 import functools
 import os
@@ -58,6 +64,18 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
 
     # Define a custom formatting function that has access to 'verbosity'
     def custom_format_function(record: "Record") -> str:
+        """Format log record with custom formatting.
+
+        Parameters
+        ----------
+        record : Record
+            Loguru record object to format
+
+        Returns
+        -------
+        str
+            Formatted log message string
+        """
         # Construct the standard part of the log message based on verbosity
         level = f"<level>{record['level'].name}</level> | "
         time = f"<cyan>[{record['time']:DD-MM-YYYY HH:mm:ss}]</cyan> | "
@@ -101,9 +119,10 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
 def create_project(
     project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilog"
 ) -> None:
-    """Creates a FABulous project containing all required files by copying the common
-    files and the appropriate project template. Replces the {HDL_SUFFIX} placeholder in
-    all tile csv files with the appropriate file extension. Creates a .FABulous
+    """Create a FABulous project containing all required files.
+
+    Copies the common files and the appropriate project template. Replaces the {HDL_SUFFIX}
+    placeholder in all tile csv files with the appropriate file extension. Creates a .FABulous
     directory in the project. Also creates a .env file in the project directory with the
     project language.
 
@@ -198,7 +217,7 @@ def create_project(
 
 
 def copy_verilog_files(src: Path, dst: Path) -> None:
-    """Copies all Verilog files from source directory to the destination directory.
+    """Copy all Verilog files from source directory to the destination directory.
 
     Parameters
     ----------
@@ -207,14 +226,13 @@ def copy_verilog_files(src: Path, dst: Path) -> None:
     dst : str
         Destination directory
     """
-
     for file_path in src.rglob("*.v"):
         destination_path = dst / file_path.name
         shutil.copy(file_path, destination_path)
 
 
 def remove_dir(path: Path) -> None:
-    """Removes a directory and all its contents.
+    """Remove a directory and all its contents.
 
     If the directory cannot be removed, logs OS error.
 
@@ -230,7 +248,7 @@ def remove_dir(path: Path) -> None:
 
 
 def make_hex(binfile: Path, outfile: Path) -> None:
-    """Converts a binary file into hex file.
+    """Convert a binary file into hex file.
 
     If the binary file exceeds MAX_BITBYTES, logs error.
 
@@ -289,8 +307,33 @@ def wrap_with_except_handling(fun_to_wrap: Callable) -> Callable:
 
 
 def allow_blank(func: Callable) -> Callable:
+    """Decorator that allows a function to be called with missing arguments by providing
+    empty strings.
+
+    This decorator wraps a function to handle cases where fewer arguments are provided
+    than expected. If only one argument is provided, it calls the function with an
+    additional empty string argument.
+
+    Parameters
+    ----------
+    func : Callable
+        The function to be wrapped.
+
+    Returns
+    -------
+    Callable
+        The wrapped function that can handle missing arguments.
+    """
+
     @functools.wraps(func)
     def _check_blank(*args: Sequence[str]) -> None:
+        """Internal wrapper function that checks for blank arguments.
+
+        Parameters
+        ----------
+        *args : Sequence[str]
+            Variable number of string arguments.
+        """
         if len(args) == 1:
             func(*args, "")
         else:
@@ -300,8 +343,9 @@ def allow_blank(func: Callable) -> Callable:
 
 
 def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> None:
-    """Downloads and extracts the latest OSS CAD Suite. Sets the the FAB_OSS_CAD_SUITE
-    environment variable in the .env file.
+    """Download and extract the latest OSS CAD Suite.
+
+    Set the FAB_OSS_CAD_SUITE environment variable in the .env file.
 
     Parameters
     ----------
@@ -427,6 +471,28 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
 
 
 def update_project_version(project_dir: Path) -> bool:
+    """Updates the project version in the .env file to match the current package
+    version.
+
+    This function reads the current project version from the .env file and updates it
+    to match the currently installed FABulous package version, provided there are no
+    major version mismatches.
+
+    Parameters
+    ----------
+    project_dir : Path
+        The path to the project directory containing the .FABulous/.env file.
+
+    Returns
+    -------
+    bool
+        True if the version was successfully updated, False otherwise.
+
+    Notes
+    -----
+    The function will refuse to update if there is a major version mismatch between
+    the project version and the package version, as this could indicate incompatibility.
+    """
     env_file = project_dir / ".FABulous" / ".env"
 
     project_version = get_key(env_file, "FAB_PROJ_VERSION")
@@ -451,6 +517,13 @@ class CommandPipeline:
     """Helper class to manage command execution with error handling."""
 
     def __init__(self, cli_instance: "FABulous_CLI", force: bool = False) -> None:
+        """Initialize the command pipeline.
+
+        Parameters
+        ----------
+        cli_instance : FABulous_CLI
+            The CLI instance to use for command execution.
+        """
         self.cli = cli_instance
         self.steps = []
         self.force = force
@@ -459,20 +532,39 @@ class CommandPipeline:
     def add_step(
         self, command: str, error_message: str = "Command failed"
     ) -> "CommandPipeline":
-        """Add a command step to the pipeline."""
+        """Add a command step to the pipeline.
+
+        Parameters
+        ----------
+        command : str
+            The command string to execute.
+        error_message : str, optional
+            Custom error message to use if the command fails. Defaults to "Command failed".
+
+        Returns
+        -------
+        CommandPipeline
+            Returns self to allow method chaining.
+        """
         self.steps.append((command, error_message))
         return self
 
     def execute(self) -> bool:
         """Execute all steps in the pipeline.
 
-        Returns:
-            bool: True if all commands succeeded, False if any failed.
+        Executes each command step in sequence. If any command fails (exit code != 0),
+        raises a PipelineCommandError with the associated error message.
 
-        Raises:
-            PipelineCommandError: If any command fails and force=False.
+        Returns
+        -------
+        bool
+            True if all commands executed successfully.
+
+        Raises
+        ------
+        PipelineCommandError
+            If any command in the pipeline fails during execution.
         """
-
         for command, error_message in self.steps:
             self.cli.onecmd_plus_hooks(command)
             if self.cli.exit_code != 0:
