@@ -56,6 +56,7 @@ def test_create_project_vhdl(tmp_path: Path) -> None:
 
 def test_create_project_existing_dir(tmp_path: Path) -> None:
     """Test creating project in existing directory should fail."""
+    """Test creating project in existing directory should fail."""
     # Test creating project in existing directory
     project_dir = tmp_path / "existing_dir"
     project_dir.mkdir()
@@ -67,6 +68,7 @@ def test_create_project_existing_dir(tmp_path: Path) -> None:
 def test_update_project_version_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Test successful project version update."""
     """Test successful project version update."""
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)
@@ -93,6 +95,7 @@ def test_update_project_version_missing_version(tmp_path: Path) -> None:
 def test_update_project_version_major_mismatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Test version update when major versions don't match."""
     """Test version update when major versions don't match."""
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)

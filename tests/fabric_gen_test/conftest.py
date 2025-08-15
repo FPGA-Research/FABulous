@@ -34,6 +34,7 @@ class TileConfig(NamedTuple):
 @pytest.fixture
 def default_fabric(mocker: MockerFixture) -> Fabric:
     """Create a Fabric instance with given parameters."""
+    """Create a Fabric instance with given parameters."""
     fabric = mocker.create_autospec(Fabric, spec_set=False)
     fabric.frameBitsPerRow = 32
     fabric.maxFramesPerCol = 20
@@ -43,6 +44,7 @@ def default_fabric(mocker: MockerFixture) -> Fabric:
 
 @pytest.fixture
 def default_tile(mocker: MockerFixture) -> Tile:
+    """Create a Tile instance with given parameters."""
     """Create a Tile instance with given parameters."""
     tile = mocker.create_autospec(Tile, spec_set=False)
     tile.name = "DefaultTile"
@@ -193,7 +195,7 @@ def configmem_list(
 
         # Helper function to generate random bit mask
         def generate_mask(bits_used: int, total_bits: int) -> str:
-            """Generate a random bit mask with specified number of '1's and '0's.
+            """Generate a random bit mask with specified number of 1s and 0s.
 
             Parameters
             ----------
