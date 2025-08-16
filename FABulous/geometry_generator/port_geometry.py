@@ -1,6 +1,5 @@
 """Port geometry definitions."""
 
-from csv import writer as csvWriter
 from enum import Enum
 
 from FABulous.fabric_definition.define import IO, Side
@@ -125,7 +124,7 @@ class PortGeometry:
         self.relX = relX
         self.relY = relY
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: object) -> None:
         """Save port geometry data to CSV format.
 
         Writes the port geometry information including type, name,

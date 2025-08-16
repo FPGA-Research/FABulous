@@ -1,7 +1,5 @@
 """Class for generating and managing the geometry of BELs."""
 
-from csv import writer as csvWriter
-
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.define import IO
 from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
@@ -195,7 +193,7 @@ class BelGeometry:
         self.relX = relX
         self.relY = relY
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: object) -> None:
         """Save BEL geometry data to CSV format.
 
         Writes the BEL geometry information including name, source file,
