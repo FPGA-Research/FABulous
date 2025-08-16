@@ -1,7 +1,6 @@
 """Switch matrix geometry definitions."""
 
 import pathlib
-from csv import writer as csvWriter
 
 from loguru import logger
 
@@ -502,7 +501,7 @@ class SmGeometry:
                 )
                 self.portGeoms.append(portGeom)
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: object) -> None:
         """Save switch matrix geometry data to CSV format.
 
         Writes the switch matrix geometry information including name, source
@@ -511,7 +510,7 @@ class SmGeometry:
 
         Parameters
         ----------
-        writer : csvWriter
+        writer :
             The CSV writer object to use for output
         """
         writer.writerows(

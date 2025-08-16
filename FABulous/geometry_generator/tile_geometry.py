@@ -6,8 +6,6 @@ It handles both direct connections to neighboring tiles and complex stair-like r
 for longer-distance connections.
 """
 
-from csv import writer as csvWriter
-
 from FABulous.custom_exception import InvalidPortType
 from FABulous.fabric_definition.define import Direction, Side
 from FABulous.fabric_definition.Tile import Tile
@@ -547,7 +545,7 @@ class TileGeometry:
         self.wireGeomList.append(wireGeom)
         self.westMiddleY += 1
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: object) -> None:
         """Save tile geometry data to CSV format.
 
         Writes the tile geometry information including dimensions and all
@@ -556,7 +554,7 @@ class TileGeometry:
 
         Parameters
         ----------
-        writer : csvWriter
+        writer
             The CSV writer object to use for output
         """
         writer.writerows(

@@ -5,8 +5,6 @@ including simple wires and complex stair-like wire structures for multi-tile rou
 supports CSV serialization for integration with geometry files.
 """
 
-from csv import writer as csvWriter
-
 from FABulous.custom_exception import InvalidPortType
 from FABulous.fabric_definition.Fabric import Direction
 from FABulous.geometry_generator.geometry_obj import Location
@@ -47,7 +45,7 @@ class WireGeometry:
         """
         self.path.append(pathLoc)
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: object) -> None:
         """Save wire geometry data to CSV format.
 
         Writes the wire name and all path points with their coordinates
@@ -55,7 +53,7 @@ class WireGeometry:
 
         Parameters
         ----------
-        writer : csvWriter
+        writer
             The CSV writer object to use for output
         """
         writer.writerows([["WIRE"], ["Name"] + [self.name]])
@@ -306,7 +304,7 @@ class StairWires:
             self.refX += 1
             self.refY -= 1
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: object) -> None:
         """Save all stair wire geometries to CSV format.
 
         Writes all individual wire geometries in the stair structure
@@ -314,7 +312,7 @@ class StairWires:
 
         Parameters
         ----------
-        writer : csvWriter
+        writer
             The CSV writer object to use for output
         """
         for wireGeom in self.wireGeoms:

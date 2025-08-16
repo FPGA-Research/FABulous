@@ -204,7 +204,7 @@ class BelGeometry:
 
         Parameters
         ----------
-        writer : csvWriter
+        writer :
             The CSV writer object to use for output
         """
         writer.writerows(
