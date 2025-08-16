@@ -70,8 +70,8 @@ ignore-nested-functions = false
 ignore-nested-classes = true
 ignore-setters = true
 ignore-overloaded-functions = true
-fail-under = 40
-exclude = ["setup.py", "docs", "build", ".venv", "demo/*"]
+fail-under = 95
+exclude = ["setup.py", "docs", "build", ".venv", "demo/*", "tests"]
 
 [dependency-groups]
 dev = [
