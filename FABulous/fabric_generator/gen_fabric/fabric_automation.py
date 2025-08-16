@@ -25,8 +25,10 @@ if TYPE_CHECKING:
 
 
 def generateCustomTileConfig(tile_path: Path) -> Path:
-    """Generates a custom tile configuration for a given tile folder or path to bel
-    folder. A tile .csv file and a switch matrix .list file will be generated.
+    """Generate a custom tile configuration for a given tile folder or path to bel
+    folder.
+
+    A tile .csv file and a switch matrix .list file will be generated.
 
     The provided path may contain bel files, which will be included
     in the generated tile .csv file as well as the generated
@@ -34,7 +36,6 @@ def generateCustomTileConfig(tile_path: Path) -> Path:
 
     Parameters
     ----------
-
     tile_path : Path
         The path to the tile folder. If the path is a file, the parent
         directory will be used as the tile folder.
@@ -154,8 +155,9 @@ def generateSwitchmatrixList(
     carryportsTile: dict[str, dict[IO, str]],
     localSharedPortsTile: dict[str, list[Port]],
 ) -> None:
-    """Generate a switchmatrix list file for a given tile ans its bels. This list File
-    is based on a dummy list file from CLB_DUMMY and is based on the LUT4AB switchtmatix
+    """Generate a switchmatrix list file for a given tile and its bels.
+
+    This list File is based on a dummy list file from CLB_DUMMY and is based on the LUT4AB switchtmatix
     list file. It is also possible to automatically generate connections for carry
     chains between the bels.
 
@@ -370,7 +372,7 @@ def addBelsToPrim(
     bels: list[Bel],
     support_vectors: bool = False,
 ) -> None:
-    """Adds a list of Bels as blackbox primitives to yosys prims file.
+    """Add a list of Bels as blackbox primitives to yosys prims file.
 
     Parameters
     ----------
@@ -381,7 +383,7 @@ def addBelsToPrim(
         support_vectors : bool
             Boolean to support vectors for ports in the prims file
             Default False,
-                since the FABulous nextpn integration does not support vectors
+            since the FABulous nextpn integration does not support vectors
     Raises
     ------
         FileNotFoundError :
@@ -577,7 +579,6 @@ def genIOBel(
     Bel | None
         The generated Bel object or None if no generative IOs are present.
     """
-
     if len(gen_ios) == 0:
         logger.info(f"No generative IOs for {bel_path}, skipping genIOBel generation")
         return None
