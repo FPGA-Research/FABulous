@@ -1,3 +1,17 @@
+"""Switch matrix generation module for FABulous FPGA tiles.
+
+This module generates RTL code for configurable switch matrices within FPGA tiles.
+Switch matrices handle the routing of signals between tile ports, BEL inputs/outputs,
+and jump wires. The module supports various configuration modes and multiplexer styles.
+
+Key features:
+- CSV and list file parsing for switch matrix configurations
+- Support for custom and generic multiplexer implementations
+- Configuration bit calculation and management
+- Debug signal generation for switch matrix analysis
+- Multiple configuration modes (FlipFlop chain, Frame-based)
+"""
+
 import math
 
 from loguru import logger
@@ -25,8 +39,9 @@ from FABulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
 def genTileSwitchMatrix(
     writer: CodeGenerator, fabric: Fabric, tile: Tile, switch_matrix_debug_signal: bool
 ) -> None:
-    """This function will generate the RTL code for the tile switch matrix of the given
-    tile. The switch matrix generated will be based on the `matrixDir` attribute of the
+    """Generate the RTL code for the tile switch matrix.
+
+    The switch matrix generated will be based on the `matrixDir` attribute of the
     tile. If the given file format is CSV, it will be parsed as a switch matrix CSV
     file. If the given file format is `.list`, the tool will convert the `.list` file
     into a switch matrix with specific ordering first before progressing. If the given
@@ -42,7 +57,6 @@ def genTileSwitchMatrix(
     ValueError
         If `matrixDir` does not contain a valid file format.
     """
-
     # convert the matrix to a dictionary map and performs entry check
     connections: dict[str, list[str]] = {}
     if tile.matrixDir.suffix == ".csv":

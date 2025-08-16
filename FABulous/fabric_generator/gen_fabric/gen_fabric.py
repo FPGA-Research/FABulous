@@ -1,3 +1,18 @@
+"""Fabric generation module for FABulous FPGA architecture.
+
+This module generates the top-level RTL description of an FPGA fabric, handling
+tile instantiation, interconnect wiring, and configuration infrastructure. The
+generated fabric uses a flat description approach for easier debugging and
+verification.
+
+Key features:
+- Flat fabric instantiation with direct tile-to-tile connections
+- Support for both FlipFlop chain and Frame-based configuration
+- External I/O port handling for BEL connections
+- SuperTile support for hierarchical tile organization
+- Configuration data distribution and management
+"""
+
 from pathlib import Path
 
 from FABulous.fabric_definition.define import IO, ConfigBitMode, Direction
@@ -13,7 +28,6 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
     The fabric description will be a flat description.
     """
-
     # There are of course many possibilities for generating the fabric.
     # I decided to generate a flat description as it may allow easier debugging.
     # For larger fabrics, this may be an issue, but not for now.

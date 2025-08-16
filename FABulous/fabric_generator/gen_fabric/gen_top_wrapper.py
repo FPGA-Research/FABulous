@@ -1,3 +1,11 @@
+"""Top-level wrapper generation module.
+
+This module provides functionality to generate the top-level wrapper for FPGA fabrics.
+The wrapper includes external I/O connections, configuration interfaces, and optional
+BRAM instances. It handles proper port vectorization and grouping for clean top-level
+interfaces.
+"""
+
 import re
 from pathlib import Path
 
@@ -13,10 +21,36 @@ from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
 
 
 def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
-    """Generate the top wrapper of the fabric including features that are not located
-    inside the fabric such as BRAM."""
+    """Generate the top wrapper of the fabric.
+
+    Features that are not locate inside the fabric such as BRAM.
+    """
 
     def split_port(p: str) -> tuple[tuple[int, int], tuple[int, ...], str]:
+        """Parse and split a port name into components for sorting and grouping.
+
+        Extracts tile coordinates, port indices, and base name from a port string.
+        This enables proper vectorization and ordering of external ports in the
+        top-level wrapper.
+
+        Parameters
+        ----------
+        p : str
+            Port name in format "Tile_X{x}Y{y}_{port_name}{indices}"
+
+        Returns
+        -------
+        tuple[tuple[int, int], tuple[int, ...], str]
+            A tuple containing:
+            - (y, x): Tile coordinates (y is negated for reverse sorting)
+            - indices: Tuple of numeric indices extracted from port name
+            - basename: Base port name without coordinates and indices
+
+        Examples
+        --------
+        >>> split_port("Tile_X9Y6_RAM2FAB_D1_I0")
+        ((-6, 9), (1, 0), "RAM2FAB_D_I")
+        """
         # split a port according to how we want to sort external ports:
         # ((y, x), (indices...), basename)
         # Tile_X9Y6_RAM2FAB_D1_I0 --> ((6, 9), (1, 0), "RAM2FAB_D_I")

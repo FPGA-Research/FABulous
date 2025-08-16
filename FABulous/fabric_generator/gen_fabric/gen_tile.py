@@ -1,3 +1,18 @@
+"""Tile generation module for FABulous FPGA architecture.
+
+This module generates RTL code for individual tiles and super tiles within an FPGA
+fabric. It handles the integration of Basic Elements (BELs), switch matrices, and
+configuration infrastructure into complete tile implementations.
+
+Key features:
+- Individual tile RTL generation with BEL instantiation
+- Switch matrix integration and port mapping
+- Configuration data routing and management
+- Super tile wrapper generation for hierarchical designs
+- Support for both VHDL and Verilog code generation
+- External I/O port handling and clock distribution
+"""
+
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -18,10 +33,22 @@ from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
 def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
     """Generate the RTL code for a tile given the tile object.
 
+    This function creates the complete RTL implementation for a tile, including:
+    - Port declarations for all tile connections
+    - BEL instantiations with proper port mapping
+    - Switch matrix instantiation and connections
+    - Configuration infrastructure (frame-based or FlipFlop chain)
+    - Clock and reset signal distribution
+    - Jump wire handling for long-distance connections
+
     Parameters
     ----------
+    writer : CodeGenerator
+        The code generator instance for RTL output
+    fabric : Fabric
+        The fabric object containing global configuration
     tile : Tile
-        The tile object.
+        The tile object containing BELs and port information
     """
     allJumpWireList = []
 
@@ -531,12 +558,23 @@ def generateSuperTile(
 ) -> None:
     """Generate a super tile wrapper for given super tile.
 
+    Creates a hierarchical wrapper that instantiates multiple individual tiles
+    and manages their interconnections. The super tile handles:
+    - Internal tile-to-tile connections within the super tile
+    - External port mapping to fabric-level connections
+    - Configuration data distribution to sub-tiles
+    - Clock signal routing and buffering
+    - External I/O port aggregation
+
     Parameters
     ----------
+    writer : CodeGenerator
+        The code generator instance for RTL output
+    fabric : Fabric
+        The fabric object containing global configuration
     superTile : SuperTile
-        Super tile object.
+        Super tile object containing tile map and configuration
     """
-
     writer.addHeader(f"{superTile.name}")
     writer.addParameterStart(indentLevel=1)
     if isinstance(writer, VerilogCodeGenerator):
