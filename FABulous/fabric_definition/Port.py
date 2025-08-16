@@ -137,7 +137,7 @@ class Port:
 
         If 'Indexed' is in the mode, then brackets are added to the signal name.
 
-        Args:
+        Args
         ----
         mode : str, optional
             Mode for expansion. Defaults to "SwitchMatrix".
