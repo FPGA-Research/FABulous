@@ -1,3 +1,10 @@
+"""Generated I/O definition module.
+
+This module contains the Gen_IO class which represents generated I/O ports for FPGA
+fabric tiles. These are automatically generated I/O interfaces that connect fabric
+internals to external pins.
+"""
+
 from dataclasses import dataclass
 
 from FABulous.fabric_definition.define import IO
@@ -5,8 +12,9 @@ from FABulous.fabric_definition.define import IO
 
 @dataclass
 class Gen_IO:
-    """Contains all the information about a generated IO port (GEN_IO). The information
-    are parsed from the GEN_IO definitions in the tile CSV file.
+    """Store information about a generated IO port (GEN_IO).
+
+    The information are parsed from the GEN_IO definitions in the tile CSV file.
 
     Attributes
     ----------

@@ -5,8 +5,9 @@ from FABulous.fabric_definition.define import IO, Direction, Side
 
 @dataclass(frozen=True, eq=True)
 class Port:
-    """The port data class contains all the port information from the CSV file. The
-    `name`, `inOut` and `sideOfTile` are added attributes to aid the generation of the
+    """Store all the port information from the CSV file.
+
+    The `name`, `inOut` and `sideOfTile` are added attributes to aid the generation of the
     fabric. The name and inOut are related. If the inOut is "INPUT" then the name is the
     source name of the port on the tile. Otherwise the name is the destination name of
     the port on the tile. The `sideOfTile` defines where the port is physically located
@@ -47,6 +48,13 @@ class Port:
     sideOfTile: Side
 
     def __repr__(self) -> str:
+        """Return a string representation of the Port object.
+
+        Returns
+        -------
+        str
+            A formatted string showing the port's key attributes.
+        """
         return (
             f"Port("
             f"Name={self.name},"
@@ -58,6 +66,24 @@ class Port:
         )
 
     def expandPortInfoByName(self, indexed: bool = False) -> list[str]:
+        """Expand port information to individual wire names.
+
+        Generates a list of individual wire names for this port, accounting for
+        wire count and offset calculations. For termination ports (NULL), the
+        wire count is multiplied by the Manhattan distance.
+
+        Parameters
+        ----------
+        indexed : bool, optional
+            If True, wire names use bracket notation (e.g., "port[0]").
+            If False, wire names use simple concatenation (e.g., "port0").
+            Defaults to False.
+
+        Returns
+        -------
+        list[str]
+            List of individual wire names for this port.
+        """
         if self.sourceName == "NULL" or self.destinationName == "NULL":
             wireCount = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
         else:
@@ -67,6 +93,24 @@ class Port:
         return [f"{self.name}[{i}]" for i in range(wireCount) if self.name != "NULL"]
 
     def expandPortInfoByNameTop(self, indexed: bool = False) -> list[str]:
+        """Expand port information for top-level connections.
+
+        Similar to expandPortInfoByName but specifically for top-level tile
+        connections. The start index is calculated differently to handle
+        the top slice of wires for routing fabric connections.
+
+        Parameters
+        ----------
+        indexed : bool, optional
+            If True, wire names use bracket notation (e.g., "port[0]").
+            If False, wire names use simple concatenation (e.g., "port0").
+            Defaults to False.
+
+        Returns
+        -------
+        list[str]
+            List of individual wire names for top-level connections.
+        """
         if self.sourceName == "NULL" or self.destinationName == "NULL":
             startIndex = 0
         else:
@@ -87,16 +131,18 @@ class Port:
         ]
 
     def expandPortInfo(self, mode: str = "SwitchMatrix") -> tuple[list[str], list[str]]:
-        """Expanding the port information to the individual bit signal. If 'Indexed' is
-        in the mode, then brackets are added to the signal name.
+        """Expand the port information to the individual bit signal.
 
-        Args
+        If 'Indexed' is in the mode, then brackets are added to the signal name.
+
+        Args:
         ----
         mode : str, optional
             Mode for expansion. Defaults to "SwitchMatrix".
             Possible modes are 'all', 'allIndexed', 'Top', 'TopIndexed', 'AutoTop',
             'AutoTopIndexed', 'SwitchMatrix', 'SwitchMatrixIndexed', 'AutoSwitchMatrix',
             'AutoSwitchMatrixIndexed'
+
         Returns
         -------
         Tuple : [list[str], list[str]]

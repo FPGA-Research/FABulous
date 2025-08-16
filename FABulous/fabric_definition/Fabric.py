@@ -1,3 +1,10 @@
+"""FPGA fabric definition module.
+
+This module contains the Fabric class which represents the complete FPGA fabric
+including tile layout, configuration parameters, and connectivity information. The
+fabric is the top-level container for all tiles, BELs, and routing resources.
+"""
+
 from dataclasses import dataclass, field
 
 from FABulous.fabric_definition.Bel import Bel
@@ -13,8 +20,9 @@ from FABulous.fabric_definition.Wire import Wire
 
 @dataclass
 class Fabric:
-    """This class is for storing the information and hyperparameters of the fabric. All
-    the information is parsed from the CSV file.
+    """Store the configuration of a fabric.
+
+    All the information is parsed from the CSV file.
 
     Attributes
     ----------
@@ -91,8 +99,7 @@ class Fabric:
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        """Generate all the wire pairs in the fabric and get all the wires in the
-        fabric.
+        """Generate and get all the wire pairs in the fabric.
 
         The wire pair are used during model generation when some of the signals have
         source or destination of "NULL".
@@ -236,6 +243,13 @@ class Fabric:
                 tile.wireList = list(dict.fromkeys(tile.wireList))
 
     def __repr__(self) -> str:
+        """Return string representation of the fabric.
+
+        Returns
+        -------
+        str
+            A formatted string showing the fabric layout and key parameters.
+        """
         fabric = ""
         for i in range(self.numberOfRows):
             for j in range(self.numberOfColumns):
@@ -259,6 +273,26 @@ class Fabric:
         return fabric
 
     def getTileByName(self, name: str) -> Tile | None:
+        """Get a tile by its name from the fabric.
+
+        Searches for the tile first in the used tiles dictionary, then in the unused tiles
+        dictionary if not found.
+
+        Parameters
+        ----------
+        name : str
+            The name of the tile to retrieve.
+
+        Returns
+        -------
+        Tile | None
+            The tile object if found.
+
+        Raises
+        ------
+        KeyError
+            If the tile name is not found in either used or unused tiles.
+        """
         ret = self.tileDic.get(name)
         if ret is None:
             ret = self.unusedTileDic.get(name)
@@ -268,6 +302,26 @@ class Fabric:
         return ret
 
     def getSuperTileByName(self, name: str) -> SuperTile | None:
+        """Get a super tile by its name from the fabric.
+
+        Searches for the super tile first in the used super tiles dictionary, then in the
+        unused super tiles dictionary if not found.
+
+        Parameters
+        ----------
+        name : str
+            The name of the super tile to retrieve.
+
+        Returns
+        -------
+        SuperTile | None
+            The super tile object if found.
+
+        Raises
+        ------
+        KeyError
+            If the super tile name is not found in either used or unused super tiles.
+        """
         ret = self.superTileDic.get(name)
         if ret is None:
             ret = self.unusedSuperTileDic.get(name)
@@ -276,6 +330,13 @@ class Fabric:
         return ret
 
     def getAllUniqueBels(self) -> list[Bel]:
+        """Get all unique BELs from all tiles in the fabric.
+
+        Returns
+        -------
+        list[Bel]
+            A list of all unique BELs across all tiles.
+        """
         bels = list()
         for tile in self.tileDic.values():
             bels.extend(tile.bels)

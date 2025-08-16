@@ -1,3 +1,10 @@
+"""Basic Element (BEL) definition module.
+
+This module contains the Bel class which represents a Basic Element in the FPGA fabric.
+BELs are the fundamental building blocks that can be placed and configured within tiles,
+such as LUTs, flip-flops, and other logic elements.
+"""
+
 import pathlib
 from dataclasses import dataclass, field
 
@@ -6,9 +13,9 @@ from FABulous.fabric_definition.define import IO, HDLType
 
 @dataclass
 class Bel:
-    """Contains all the information about a single BEL. The information is parsed from
-    the directory of the BEL in the CSV definition file. There are some things to be
-    noted.
+    """Information about a single BEL.
+
+    The information is parsed from the directory of the BEL in the CSV definition file. There are some things to be noted.
 
     - The parsed name will contain the prefix of the bel.
     - The `sharedPort` attribute is a list of Tuples with the name of the port and IO
@@ -102,6 +109,46 @@ class Bel:
         carry: dict[str, dict[IO, str]],
         localShared: dict[str, tuple[str, IO]],
     ) -> None:
+        """Initialize a Bel object with the given parameters.
+
+        Parameters
+        ----------
+        src : pathlib.Path
+            The source directory path of the BEL.
+        prefix : str
+            The prefix of the BEL.
+        module_name : str
+            The name of the module in the BEL.
+        filetype : str
+            The file type of the BEL.
+        internal : list[tuple[str, IO]]
+            List of internal ports with their IO direction.
+        external : list[tuple[str, IO]]
+            List of external ports with their IO direction.
+        configPort : list[tuple[str, IO]]
+            List of configuration ports with their IO direction.
+        sharedPort : list[tuple[str, IO]]
+            List of shared ports with their IO direction.
+        configBit : int
+            The number of configuration bits of the BEL.
+        belMap : dict[str, dict]
+            The feature map of the BEL.
+        userCLK : bool
+            Whether the BEL has userCLK port.
+        individually_declared : bool
+            Whether ports are individually declared.
+        ports_vectors : dict[str, dict[str, tuple[IO, int]]]
+            Dictionary structure to save vectorized port information.
+        carry : dict[str, dict[IO, str]]
+            Carry chains by name.
+        localShared : dict[str, tuple[str, IO]]
+            Local shared ports of the BEL.
+
+        Raises
+        ------
+        ValueError
+            If the file type is not recognized (not .sv, .v, .vhd, or .vhdl).
+        """
         self.src = src
         self.prefix = prefix
         self.name = src.stem
