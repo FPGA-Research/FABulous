@@ -177,11 +177,6 @@ class StairWires:
             Width of the containing tile
         tileHeight : int
             Height of the containing tile
-
-        Raises
-        ------
-        FABulous.custom_exception.InvalidPortType
-            If an invalid direction is provided
         """
         self.refX = refX
         self.refY = refY

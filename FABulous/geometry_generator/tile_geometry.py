@@ -304,11 +304,6 @@ class TileGeometry:
         ----------
         padding : int
             The padding space to add around wire routing
-
-        Raises
-        ------
-        FABulous.custom_exception.InvalidPortType
-            If a port with abs(offset) > 1 has no defined tile side
         """
         for portGeom in self.smGeometry.portGeoms:
             if abs(portGeom.offset) < 2:
