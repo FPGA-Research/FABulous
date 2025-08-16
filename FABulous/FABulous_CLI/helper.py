@@ -275,7 +275,7 @@ def make_hex(binfile: Path, outfile: Path) -> None:
 
 
 def wrap_with_except_handling(fun_to_wrap: Callable) -> Callable:
-    """Decorator function that wraps 'fun_to_wrap' with exception handling.
+    """Wrap function with 'fun_to_wrap' with exception handling.
 
     Parameters
     ----------
@@ -284,8 +284,7 @@ def wrap_with_except_handling(fun_to_wrap: Callable) -> Callable:
     """
 
     def inter(*args: Any, **varargs: Any) -> None:  # noqa: ANN401
-        """Wrapped function that executes 'fun_to_wrap' with arguments and exception
-        handling.
+        """Execute 'fun_to_wrap' with arguments and exception handling.
 
         Parameters
         ----------
@@ -307,8 +306,7 @@ def wrap_with_except_handling(fun_to_wrap: Callable) -> Callable:
 
 
 def allow_blank(func: Callable) -> Callable:
-    """Decorator that allows a function to be called with missing arguments by providing
-    empty strings.
+    """Allow function to be called with blank arguments.
 
     This decorator wraps a function to handle cases where fewer arguments are provided
     than expected. If only one argument is provided, it calls the function with an
@@ -327,7 +325,7 @@ def allow_blank(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def _check_blank(*args: Sequence[str]) -> None:
-        """Internal wrapper function that checks for blank arguments.
+        """Check for blank arguments.
 
         Parameters
         ----------
@@ -471,8 +469,7 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
 
 
 def update_project_version(project_dir: Path) -> bool:
-    """Updates the project version in the .env file to match the current package
-    version.
+    """Update the project version in the .env file.
 
     This function reads the current project version from the .env file and updates it
     to match the currently installed FABulous package version, provided there are no

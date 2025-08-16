@@ -450,7 +450,7 @@ class FABulous_CLI(Cmd):
     def do_gen_config_mem(self, args: argparse.Namespace) -> None:
         """Generate configuration memory of the given tile.
 
-        By parsing input arguments and calling 'genConfigMem'.
+        Parsing input arguments and calling 'genConfigMem'.
 
         Logs generation processes for each specified tile.
         """
@@ -470,7 +470,7 @@ class FABulous_CLI(Cmd):
     def do_gen_switch_matrix(self, args: argparse.Namespace) -> None:
         """Generate switch matrix of given tile.
 
-        By parsing input arguments and calling 'genSwitchMatrix'.
+        Parsing input arguments and calling 'genSwitchMatrix'.
 
         Also logs generation process for each specified tile.
         """
@@ -488,7 +488,7 @@ class FABulous_CLI(Cmd):
     def do_gen_tile(self, args: argparse.Namespace) -> None:
         """Generate given tile with switch matrix and configuration memory.
 
-        By parsing input arguments, call functions such as 'genSwitchMatrix' and
+        Parsing input arguments, call functions such as 'genSwitchMatrix' and
         'genConfigmem'. Handle both regular tiles and super tiles with sub-tiles.
 
         Also logs generation process for each specified tile and sub-tile.
@@ -568,7 +568,7 @@ class FABulous_CLI(Cmd):
     def do_gen_fabric(self, *_ignored: str) -> None:
         """Generate fabric based on the loaded fabric.
 
-        By calling 'do_gen_all_tile' and 'genFabric'.
+        Calling 'gen_all_tile' and 'genFabric'.
 
         Logs start and completion of fabric generation process.
         """
@@ -599,8 +599,8 @@ class FABulous_CLI(Cmd):
     def do_gen_geometry(self, args: argparse.Namespace) -> None:
         """Generate geometry of fabric for FABulator.
 
-        By checking if fabric is loaded, and calling 'genGeometry' and passing on
-        padding value. Default padding is '8'.
+        Checking if fabric is loaded, and calling 'genGeometry' and passing on padding
+        value. Default padding is '8'.
 
         Also logs geometry generation, the used padding value and any warning about
         faulty padding arguments, as well as errors if the fabric is not loaded or the
@@ -1011,8 +1011,6 @@ class FABulous_CLI(Cmd):
     @with_argparser(filePathRequireParser)
     def do_run_FABulous_bitstream(self, args: argparse.Namespace) -> None:
         """Run FABulous to generate bitstream on a given design.
-
-        Starting from synthesis.
 
         Does this by calling synthesis, place and route, bitstream generation functions.
         Requires Verilog file specified by <top_module_file>.
