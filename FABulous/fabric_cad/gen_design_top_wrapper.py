@@ -1,3 +1,10 @@
+"""User design top wrapper generation module.
+
+This module provides functionality to generate top-level wrappers for user designs that
+interface with the FPGA fabric. The wrapper handles signal mapping between user logic
+and fabric I/O ports.
+"""
+
 from pathlib import Path
 
 from loguru import logger

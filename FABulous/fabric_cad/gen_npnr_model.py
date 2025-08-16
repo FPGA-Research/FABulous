@@ -1,3 +1,14 @@
+"""Nextpnr model generation for FABulous FPGA fabrics.
+
+This module provides functionality to generate Nextpnr models from FABulous fabric
+definitions. The Nextpnr model includes detailed descriptions of programmable
+interconnect points (PIPs), basic elements (BELs), and routing resources needed for
+place-and-route operations.
+
+The generated models enable Nextpnr to understand the fabric architecture and perform
+placement and routing for user designs.
+"""
+
 import string
 
 from FABulous.custom_exception import InvalidFileType, InvalidState
@@ -6,7 +17,7 @@ from FABulous.fabric_generator.parser.parse_switchmatrix import parseList, parse
 
 
 def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
-    """Generates Nextpnr model for given fabric.
+    """Generate Nextpnr model of the fabric.
 
     Parameters
     ----------
