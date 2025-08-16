@@ -99,6 +99,8 @@ select = [
   "PT",
   "ARG",
   "ANN",
+  "D",
+  "DOC",
 ]
 
 
@@ -123,6 +125,13 @@ unfixable = []
 
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[lint.pydoclint]
+ignore-one-line-docstrings = true
+
+[lint.pydocstyle]
+convention = "numpy"
+ignore-var-parameters = true
 
 [format]
 # Like Black, use double quotes for strings.
