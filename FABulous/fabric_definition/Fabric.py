@@ -5,6 +5,13 @@ including tile layout, configuration parameters, and connectivity information. T
 fabric is the top-level container for all tiles, BELs, and routing resources.
 """
 
+"""FPGA fabric definition module.
+
+This module contains the Fabric class which represents the complete FPGA fabric
+including tile layout, configuration parameters, and connectivity information. The
+fabric is the top-level container for all tiles, BELs, and routing resources.
+"""
+
 from dataclasses import dataclass, field
 
 from FABulous.fabric_definition.Bel import Bel
@@ -20,6 +27,9 @@ from FABulous.fabric_definition.Wire import Wire
 
 @dataclass
 class Fabric:
+    """Store the configuration of a fabric.
+
+    All the information is parsed from the CSV file.
     """Store the configuration of a fabric.
 
     All the information is parsed from the CSV file.
@@ -99,6 +109,7 @@ class Fabric:
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
+        """Generate and get all the wire pairs in the fabric.
         """Generate and get all the wire pairs in the fabric.
 
         The wire pair are used during model generation when some of the signals have
@@ -330,6 +341,13 @@ class Fabric:
         return ret
 
     def getAllUniqueBels(self) -> list[Bel]:
+        """Get all unique BELs from all tiles in the fabric.
+
+        Returns
+        -------
+        list[Bel]
+            A list of all unique BELs across all tiles.
+        """
         """Get all unique BELs from all tiles in the fabric.
 
         Returns

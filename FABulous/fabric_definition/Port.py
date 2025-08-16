@@ -138,14 +138,18 @@ class Port:
         """Expand the port information to the individual bit signal.
 
         If 'Indexed' is in the mode, then brackets are added to the signal name.
+        """Expand the port information to the individual bit signal.
 
-        Args
+        If 'Indexed' is in the mode, then brackets are added to the signal name.
+
+        Args:
         ----
         mode : str, optional
             Mode for expansion. Defaults to "SwitchMatrix".
             Possible modes are 'all', 'allIndexed', 'Top', 'TopIndexed', 'AutoTop',
             'AutoTopIndexed', 'SwitchMatrix', 'SwitchMatrixIndexed', 'AutoSwitchMatrix',
             'AutoSwitchMatrixIndexed'
+
 
         Returns
         -------

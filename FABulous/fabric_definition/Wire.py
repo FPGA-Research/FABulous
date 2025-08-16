@@ -1,5 +1,7 @@
 """Wire class for managing connections between tiles."""
 
+"""Wire class for managing connections between tiles."""
+
 import re
 from dataclasses import dataclass
 
@@ -42,6 +44,13 @@ class Wire:
     destinationTile: str
 
     def __repr__(self) -> str:
+        """Return string representation of the wire.
+
+        Returns
+        -------
+        str
+            A compact string showing source, offsets, and destination.
+        """
         """Return string representation of the wire.
 
         Returns
