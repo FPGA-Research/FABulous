@@ -63,7 +63,7 @@ target-version = "py312"
 # - UP: flake8 unused
 # - BLE: flake8 blind except
 # - ERA: commented code
-
+# - D: docstyle
 
 select = [
   "E",
@@ -108,7 +108,6 @@ select = [
 # - E501: Line too long -- Not automatically fixable
 # - N: flake8 Naming
 # - DOC: Doclint
-# - D: docstyle
 # - S: flake8 Bandit
 # - TD: flake8 TODOS
 # - FIX: flake8 fixme
