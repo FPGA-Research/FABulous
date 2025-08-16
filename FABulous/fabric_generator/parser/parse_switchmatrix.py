@@ -1,3 +1,10 @@
+"""Parser functions for switch matrix and list file configurations.
+
+This module provides utilities for parsing switch matrix CSV files and list files used
+in fabric definition. It handles expansion of port definitions, connection mappings, and
+validation of port configurations.
+"""
+
 import re
 from pathlib import Path
 from typing import Literal, overload
@@ -35,7 +42,6 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     dict : [str, list[str]]
         Dictionary from destination to a list of sources.
     """
-
     connectionsDic = {}
     with fileName.open() as f:
         file = f.read()
