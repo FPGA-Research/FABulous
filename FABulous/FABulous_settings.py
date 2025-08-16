@@ -4,7 +4,6 @@ This module handles configuration settings for the FABulous FPGA toolkit, includ
 paths, project settings, and environment variable management.
 """
 
-from importlib.metadata import version
 from pathlib import Path
 from shutil import which
 

@@ -63,7 +63,7 @@ class FABulous_API:
     fileExtension: str = ".v"
 
     def __init__(self, writer: CodeGenerator, fabricCSV: str = "") -> None:
-        """Initialises FABulous object.
+        """Initialise FABulous object.
 
         If 'fabricCSV' is provided, parses fabric data and initialises
         'fabricGenerator' and 'geometryGenerator' with parsed data.
@@ -85,7 +85,7 @@ class FABulous_API:
             self.fileExtension = ".vhdl"
 
     def setWriterOutputFile(self, outputDir: Path) -> None:
-        """Sets the output file directory for the write object.
+        """Set the output file directory for the write object.
 
         Parameters
         ----------
@@ -96,7 +96,7 @@ class FABulous_API:
         self.writer.outFileName = outputDir
 
     def loadFabric(self, fabric_dir: Path) -> None:
-        """Loads fabric data from 'fabric.csv'.
+        """Load fabric data from 'fabric.csv'.
 
         Parameters
         ----------
@@ -104,7 +104,7 @@ class FABulous_API:
             Path to CSV file containing fabric data.
 
         Raises
-        ----------
+        ------
         ValueError
             If 'dir' does not end with '.csv'
         """
@@ -116,8 +116,9 @@ class FABulous_API:
             raise ValueError
 
     def bootstrapSwitchMatrix(self, tileName: str, outputDir: Path) -> None:
-        """Bootstraps the switch matrix for the specified tile via
-        'bootstrapSwitchMatrix' defined in 'fabric_gen.py'.
+        """Bootstrap the switch matrix for the specified tile.
+
+        Using 'bootstrapSwitchMatrix' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -132,8 +133,9 @@ class FABulous_API:
         bootstrapSwitchMatrix(tile, outputDir)
 
     def addList2Matrix(self, listFile: Path, matrix: Path) -> None:
-        """Converts list into CSV matrix via 'list2CSV' defined in 'fabric_gen.py' and
-        saves it.
+        """Convert list into CSV matrix and save it.
+
+        Using 'list2CSV' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -160,8 +162,9 @@ class FABulous_API:
             raise ValueError(f"Tile {tileName} not found")
 
     def genSwitchMatrix(self, tileName: str) -> None:
-        """Generates switch matrix for specified tile via 'genTileSwitchMatrix' defined
-        in 'fabric_gen.py'.
+        """Generate switch matrix for specified tile.
+
+        Using 'genTileSwitchMatrix' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -180,8 +183,9 @@ class FABulous_API:
             raise ValueError(f"Tile {tileName} not found")
 
     def genTile(self, tileName: str) -> None:
-        """Generates a tile based on its name via 'generateTile' defined in
-        'fabric_gen.py'.
+        """Generate a tile based on its name.
+
+        Using 'generateTile' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -194,8 +198,9 @@ class FABulous_API:
             raise ValueError(f"Tile {tileName} not found")
 
     def genSuperTile(self, tileName: str) -> None:
-        """Generates a super tile based on its name via 'generateSuperTile' defined in
-        'fabric_gen.py'.
+        """Generate a super tile based on its name.
+
+        Using 'generateSuperTile' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -208,12 +213,14 @@ class FABulous_API:
             raise ValueError(f"SuperTile {tileName} not found")
 
     def genFabric(self) -> None:
-        """Generates the entire fabric layout via 'generatreFabric' defined in
-        'fabric_gen.py'."""
+        """Generate the entire fabric layout.
+
+        Via 'generatreFabric' defined in 'fabric_gen.py'.
+        """
         generateFabric(self.writer, self.fabric)
 
     def genGeometry(self, geomPadding: int = 8) -> None:
-        """Generates geometry based on the fabric data and saves it to CSV.
+        """Generate geometry based on the fabric data and save it to CSV.
 
         Parameters
         ----------
@@ -224,12 +231,14 @@ class FABulous_API:
         self.geometryGenerator.saveToCSV(self.writer.outFileName)
 
     def genTopWrapper(self) -> None:
-        """Generates the top wrapper for the fabric via 'generateTopWrapper' defined in
-        'fabric_gen.py'."""
+        """Generate the top wrapper for the fabric.
+
+        Using 'generateTopWrapper' defined in 'fabric_gen.py'.
+        """
         generateTopWrapper(self.writer, self.fabric)
 
     def genBitStreamSpec(self) -> dict:
-        """Generates the bitsream specification object.
+        """Generate the bitstream specification object.
 
         Returns
         -------
@@ -239,7 +248,7 @@ class FABulous_API:
         return generateBitstreamSpec(self.fabric)
 
     def genRoutingModel(self) -> tuple[str, str, str, str]:
-        """Generates model for Nextpnr based on fabric data.
+        """Generate model for Nextpnr based on fabric data.
 
         Returns
         -------
@@ -249,7 +258,7 @@ class FABulous_API:
         return model_gen_npnr.genNextpnrModel(self.fabric)
 
     def getBels(self) -> list[Bel]:
-        """Returns all unique Bels within a fabric.
+        """Return all unique Bels within a fabric.
 
         Returns
         -------
@@ -259,7 +268,7 @@ class FABulous_API:
         return self.fabric.getAllUniqueBels()
 
     def getTile(self, tileName: str) -> Tile | None:
-        """Returns Tile object based on tile name.
+        """Return Tile object based on tile name.
 
         Parameters
         ----------
@@ -271,11 +280,10 @@ class FABulous_API:
         Tile
             Tile object based on tile name.
         """
-
         return self.fabric.getTileByName(tileName)
 
     def getTiles(self) -> Iterable[Tile]:
-        """Returns all Tiles within a fabric.
+        """Return all Tiles within a fabric.
 
         Returns
         -------
@@ -285,7 +293,7 @@ class FABulous_API:
         return self.fabric.tileDic.values()
 
     def getSuperTile(self, tileName: str) -> SuperTile | None:
-        """Returns SuperTile object based on tile name.
+        """Return SuperTile object based on tile name.
 
         Parameters
         ----------
@@ -297,11 +305,10 @@ class FABulous_API:
         SuperTile
             SuperTile object based on tile name.
         """
-
         return self.fabric.getSuperTileByName(tileName)
 
     def getSuperTiles(self) -> Iterable[SuperTile]:
-        """Returns all SuperTiles within a fabric.
+        """Return all SuperTiles within a fabric.
 
         Returns
         -------
@@ -311,7 +318,7 @@ class FABulous_API:
         return self.fabric.superTileDic.values()
 
     def generateUserDesignTopWrapper(self, userDesign: Path, topWrapper: Path) -> None:
-        """Generates the top wrapper for the user design.
+        """Generate the top wrapper for the user design.
 
         Parameters
         ----------
@@ -323,9 +330,9 @@ class FABulous_API:
         generateUserDesignTopWrapper(self.fabric, userDesign, topWrapper)
 
     def genIOBelForTile(self, tile_name: str) -> list[Bel]:
-        """Generates the IO BELs for the generative IOs of a tile. Config Access
-        Generative IOs will be a separate Bel. Updates the tileDic with the generated IO
-        BELs.
+        """Generate the IO BELs for the generative IOs of a tile.
+
+        Config Access Generative IOs will be a separate Bel. Updates the tileDic with the generated IO BELs.
 
         Parameters
         ----------
@@ -390,8 +397,7 @@ class FABulous_API:
         return bels
 
     def genFabricIOBels(self) -> None:
-        """Generates the IO BELs for the generative IOs of the fabric."""
-
+        """Generate the IO BELs for the generative IOs of the fabric."""
         for tile in self.fabric.tileDic.values():
             if tile.gen_ios:
                 logger.info(f"Generating IO BELs for tile {tile.name}")
