@@ -1,3 +1,5 @@
+"""Store information about a tile."""
+
 import pathlib
 from dataclasses import dataclass, field
 
@@ -10,7 +12,7 @@ from FABulous.fabric_definition.Wire import Wire
 
 @dataclass
 class Tile:
-    """This class is for storing the information about a tile.
+    """Store information about a tile.
 
     Attributes
     ----------

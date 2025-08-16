@@ -1,3 +1,5 @@
+"""Classes for generating and managing the geometry of FPGA fabrics."""
+
 from csv import writer as csvWriter
 from pathlib import Path
 
@@ -63,7 +65,7 @@ class FabricGeometry:
         self.generateGeometry()
 
     def generateGeometry(self) -> None:
-        """Generates the geometric information from the given fabric object."""
+        """Generate the geometric information from the given fabric object."""
         # here, the border attribute is set for tiles that are
         # located at a border of the tile. This is done to
         # ensure no stair-like wires being generated for these tiles.

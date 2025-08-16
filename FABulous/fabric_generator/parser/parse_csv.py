@@ -1,3 +1,5 @@
+"""Contains functions for parsing CSV files related to the fabric definition."""
+
 import re
 from copy import deepcopy
 from pathlib import Path
@@ -353,7 +355,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
 
 
 def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]:
-    """Parses a CSV supertile configuration file and returns all SuperTile objects.
+    """Parse a CSV supertile configuration file and returns all SuperTile objects.
 
     Parameters
     ----------

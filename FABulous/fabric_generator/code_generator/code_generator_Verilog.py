@@ -1,3 +1,5 @@
+"""The Verilog code generator."""
+
 import math
 import re
 from pathlib import Path

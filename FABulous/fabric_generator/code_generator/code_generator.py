@@ -1,3 +1,5 @@
+"""The base class for all code generators."""
+
 import abc
 from pathlib import Path
 
@@ -490,9 +492,11 @@ class CodeGenerator(abc.ABC):
         emulateParamPairs: list[tuple[str, str]] | None = None,
         indentLevel: int = 0,
     ) -> None:
-        """Add an instantiation. This will line up the ports and signals. So ports[0]
-        will have signals[0] and so on. This is also the same case for paramPorts and
-        paramSignals.
+        """Add an instantiation.
+
+        This will line up the ports and signals. So ports[0] will have signals[0] and so on.
+
+        This is also the same case for paramPorts and paramSignals.
 
         Parameters
         ----------
@@ -639,8 +643,9 @@ class CodeGenerator(abc.ABC):
         indentLevel: int = 0,
         inverted: bool = False,
     ) -> None:
-        """Add a scalar assign statement. Delay is provided by currently not being used
-        by any of the code generator. If **right** is a list, it will be concatenated.
+        """Add a scalar assign statement.
+
+        Delay is provided by currently not being used by any of the code generator. If **right** is a list, it will be concatenated.
         Verilog will concatenate with comma ','. VHDL will concatenate with ampersand
         '&' instead.
 

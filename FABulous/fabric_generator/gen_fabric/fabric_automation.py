@@ -1,3 +1,5 @@
+"""Functions for fabric automation, such as generating tile configurations and IOs."""
+
 import json
 import math
 from pathlib import Path
@@ -25,10 +27,10 @@ if TYPE_CHECKING:
 
 
 def generateCustomTileConfig(tile_path: Path) -> Path:
-    """Generate a custom tile configuration for a given tile folder or path to bel
-    folder.
+    """Generate a custom tile configuration.
 
-    A tile .csv file and a switch matrix .list file will be generated.
+    A tile .csv file and a switch matrix .list file will be generated based on
+    the given tile folder or path to bel folder.
 
     The provided path may contain bel files, which will be included
     in the generated tile .csv file as well as the generated

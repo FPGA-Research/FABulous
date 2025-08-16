@@ -1,3 +1,5 @@
+"""Contains functions for processing BEL related information from HDL files."""
+
 from pathlib import Path
 
 from FABulous.custom_exception import (
@@ -62,8 +64,9 @@ def parseBelFile(
     filename: Path,
     belPrefix: str = "",
 ) -> Bel:
-    """Parse a Verilog or VHDL bel file and return all the related information of the
-    bel. The tuple returned for relating to ports will be a list of (belName, IO) pair.
+    """Parse a Verilog or VHDL bel file and return related information of the bel.
+
+    The tuple returned for relating to ports will be a list of (belName, IO) pair.
 
     The function will also parse and record all the FABulous attribute which all
     starts with ::

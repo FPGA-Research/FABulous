@@ -156,8 +156,7 @@ class TileGeometry:
         self.smGeometry.generateBelPorts(self.belGeomList)
 
     def setBelPositions(self, padding: int) -> None:
-        """Position of the switch matrix is final when this is called, and set bel
-        positions."""
+        """Set bel positions."""
         belPadding = padding // 2
         belX = self.smGeometry.relX + self.smGeometry.width + padding
         belY = self.smGeometry.relY + belPadding
@@ -331,8 +330,7 @@ class TileGeometry:
                 )
 
     def indirectNorthSideWire(self, portGeom: PortGeometry, padding: int) -> None:
-        """Generate indirect wires on the north side of the tile with stair-like
-        routing.
+        """Generate indirect wires with stair-like routing.
 
         Creates staircase-shaped wire routing for connections that span multiple tiles
         northward. Manages stair wire generation and space reservation based on

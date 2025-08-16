@@ -1,3 +1,5 @@
+"""Store all the port information from the CSV file."""
+
 from dataclasses import dataclass
 
 from FABulous.fabric_definition.define import IO, Direction, Side

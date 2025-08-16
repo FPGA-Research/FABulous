@@ -1,3 +1,5 @@
+"""Class for generating and managing the geometry of BELs."""
+
 from csv import writer as csvWriter
 
 from FABulous.fabric_definition.Bel import Bel
