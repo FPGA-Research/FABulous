@@ -69,7 +69,12 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         The code generator instance for RTL output
     fabric : Fabric
         The fabric object containing global configuration
+    writer : CodeGenerator
+        The code generator instance for RTL output
+    fabric : Fabric
+        The fabric object containing global configuration
     tile : Tile
+        The tile object containing BELs and port information
         The tile object containing BELs and port information
     """
     allJumpWireList = []
@@ -565,7 +570,12 @@ def generateSuperTile(
         The code generator instance for RTL output
     fabric : Fabric
         The fabric object containing global configuration
+    writer : CodeGenerator
+        The code generator instance for RTL output
+    fabric : Fabric
+        The fabric object containing global configuration
     superTile : SuperTile
+        Super tile object containing tile map and configuration
         Super tile object containing tile map and configuration
     """
     writer.addHeader(f"{superTile.name}")

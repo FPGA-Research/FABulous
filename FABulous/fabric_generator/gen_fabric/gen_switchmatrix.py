@@ -12,6 +12,20 @@ Key features:
 - Multiple configuration modes (FlipFlop chain, Frame-based)
 """
 
+"""Switch matrix generation module for FABulous FPGA tiles.
+
+This module generates RTL code for configurable switch matrices within FPGA tiles.
+Switch matrices handle the routing of signals between tile ports, BEL inputs/outputs,
+and jump wires. The module supports various configuration modes and multiplexer styles.
+
+Key features:
+- CSV and list file parsing for switch matrix configurations
+- Support for custom and generic multiplexer implementations
+- Configuration bit calculation and management
+- Debug signal generation for switch matrix analysis
+- Multiple configuration modes (FlipFlop chain, Frame-based)
+"""
+
 import math
 
 from loguru import logger

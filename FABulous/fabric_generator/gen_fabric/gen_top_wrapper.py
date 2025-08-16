@@ -6,6 +6,14 @@ BRAM instances. It handles proper port vectorization and grouping for clean top-
 interfaces.
 """
 
+"""Top-level wrapper generation module.
+
+This module provides functionality to generate the top-level wrapper for FPGA fabrics.
+The wrapper includes external I/O connections, configuration interfaces, and optional
+BRAM instances. It handles proper port vectorization and grouping for clean top-level
+interfaces.
+"""
+
 import re
 from pathlib import Path
 

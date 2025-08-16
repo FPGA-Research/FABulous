@@ -6,6 +6,14 @@ utilities. These functions support the main fabric generation workflow by provid
 common operations needed across multiple generation stages.
 """
 
+"""Helper functions for FPGA fabric generation.
+
+This module provides utility functions that assist in various aspects of FPGA fabric
+generation, including switch matrix bootstrapping, signal ordering, and file generation
+utilities. These functions support the main fabric generation workflow by providing
+common operations needed across multiple generation stages.
+"""
+
 import csv
 import re
 from pathlib import Path
