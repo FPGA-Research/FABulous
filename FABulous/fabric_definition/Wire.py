@@ -83,6 +83,7 @@ class Wire:
         """
 
         def validSourceDestination(name: str) -> bool:
+            """Check if the source or destination tile name is valid."""
             if self.xOffset == 0 and self.yOffset == 0:
                 return True
             if not name:
