@@ -375,6 +375,7 @@ def addBelsToPrim(
     support_vectors: bool = False,
 ) -> None:
     """Add a list of Bels as blackbox primitives to yosys prims file.
+    """Add a list of Bels as blackbox primitives to yosys prims file.
 
     Parameters
     ----------
