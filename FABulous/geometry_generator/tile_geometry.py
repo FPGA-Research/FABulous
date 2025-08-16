@@ -307,7 +307,7 @@ class TileGeometry:
 
         Raises
         ------
-        InvalidPortType
+        FABulous.custom_exception.InvalidPortType
             If a port with abs(offset) > 1 has no defined tile side
         """
         for portGeom in self.smGeometry.portGeoms:

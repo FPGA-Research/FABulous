@@ -180,7 +180,7 @@ class StairWires:
 
         Raises
         ------
-        InvalidPortType
+        FABulous.custom_exception.InvalidPortType
             If an invalid direction is provided
         """
         self.refX = refX
