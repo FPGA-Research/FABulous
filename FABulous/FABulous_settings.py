@@ -25,7 +25,7 @@ class FABulousSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="FAB_", case_sensitive=False)
 
-    root: Path | None = None
+    root: Path = Path()
     yosys_path: Path | None = None
     nextpnr_path: Path | None = None
     iverilog_path: Path | None = None
@@ -43,17 +43,9 @@ class FABulousSettings(BaseSettings):
     switch_matrix_debug_signal: bool = False
     model_pack: Path | None = None
 
-    @field_validator("proj_version_created", mode="before")
+    @field_validator("proj_version", "proj_version_created", mode="before")
     @classmethod
-    def parse_version_created(cls, value: str | Version) -> Version:
-        """Parse version created from string or Version object."""
-        if isinstance(value, str):
-            return Version(value)
-        return value
-
-    @field_validator("proj_version", mode="before")
-    @classmethod
-    def parse_version(cls, value: str | Version) -> Version:
+    def parse_version_str(cls, value: str | Version) -> Version:
         """Parse version from string or Version object."""
         if isinstance(value, str):
             return Version(value)
@@ -61,9 +53,7 @@ class FABulousSettings(BaseSettings):
 
     @field_validator("model_pack", mode="before")
     @classmethod
-    def parse_model_pack(
-        cls, value: str | Path | None, info: FieldValidationInfo
-    ) -> Path | None:  # type: ignore[override]
+    def parse_model_pack(cls, value: str | Path | None, info: FieldValidationInfo) -> Path | None:  # type: ignore[override]
         """Validate and normalise model_pack path based on project language.
 
         Uses already-validated proj_lang from info.data when available. Accepts None /
@@ -75,30 +65,20 @@ class FABulousSettings(BaseSettings):
             if proj_lang == HDLType.VHDL:
                 mp = p / "Fabric" / "my_lib.vhdl"
                 if mp.exists():
-                    logger.warning(
-                        f"Model pack path is not set. Guessing model pack as: {mp}"
-                    )
+                    logger.warning(f"Model pack path is not set. Guessing model pack as: {mp}")
                     return mp
                 mp = p / "Fabric" / "model_pack.vhdl"
                 if mp.exists():
-                    logger.warning(
-                        f"Model pack path is not set. Guessing model pack as: {mp}"
-                    )
+                    logger.warning(f"Model pack path is not set. Guessing model pack as: {mp}")
                     return mp
-                logger.warning(
-                    "Cannot find a suitable model pack. This might lead to error if not set."
-                )
+                logger.warning("Cannot find a suitable model pack. This might lead to error if not set.")
 
             if proj_lang in {HDLType.VERILOG, HDLType.SYSTEM_VERILOG}:
                 mp = p / "Fabric" / "models_pack.v"
                 if mp.exists():
-                    logger.warning(
-                        f"Model pack path is not set. Guessing model pack as: {mp}"
-                    )
+                    logger.warning(f"Model pack path is not set. Guessing model pack as: {mp}")
                     return mp
-                logger.warning(
-                    "Cannot find a suitable model pack. This might lead to error if not set."
-                )
+                logger.warning("Cannot find a suitable model pack. This might lead to error if not set.")
 
         path = Path(str(value))
         # Retrieve previously validated proj_lang (falls back to default enum value)
@@ -107,23 +87,21 @@ class FABulousSettings(BaseSettings):
             if isinstance(proj_lang, str):
                 proj_lang = HDLType[proj_lang.upper()]
         except KeyError:
-            raise ValueError(
-                "Invalid project language while validating model_pack"
-            ) from None
+            raise ValueError("Invalid project language while validating model_pack") from None
 
         if proj_lang in {HDLType.VERILOG, HDLType.SYSTEM_VERILOG}:
             if path.suffix not in {".v", ".sv"}:
-                raise ValueError(
-                    "Model pack for Verilog/System Verilog must be a .v or .sv file"
-                )
+                raise ValueError("Model pack for Verilog/System Verilog must be a .v or .sv file")
         elif proj_lang == HDLType.VHDL and path.suffix not in {".vhdl", ".vhd"}:
             raise ValueError("Model pack for VHDL must be a .vhdl or .vhd file")
         return path
 
     @field_validator("root", mode="after")
     @classmethod
-    def is_dir(cls, value: Path) -> Path:
+    def is_dir(cls, value: Path | None) -> Path | None:
         """Check if inputs is a directory."""
+        if value is None:
+            return None
         if not value.is_dir():
             raise ValueError(f"{value} is not a valid directory")
         return value
@@ -157,9 +135,7 @@ class FABulousSettings(BaseSettings):
         mode="before",
     )
     @classmethod
-    def resolve_tool_paths(
-        cls, value: Path | None, info: FieldValidationInfo
-    ) -> Path | None:  # type: ignore[override]
+    def resolve_tool_paths(cls, value: Path | None, info: FieldValidationInfo) -> Path | None:  # type: ignore[override]
         if value is not None:
             return value
         tool_map = {
@@ -176,9 +152,7 @@ class FABulousSettings(BaseSettings):
         if tool_path is not None:
             return Path(tool_path).resolve()
 
-        logger.warning(
-            f"{tool} not found in PATH during settings initialisation. Some features may be unavailable."
-        )
+        logger.warning(f"{tool} not found in PATH during settings initialisation. Some features may be unavailable.")
         return None
 
 
@@ -209,9 +183,7 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
                 fabulousRoot = str(Path(fabulousRoot).joinpath("FABulous"))
             os.environ["FAB_ROOT"] = fabulousRoot
         else:
-            logger.error(
-                f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist"
-            )
+            logger.error(f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist")
             sys.exit()
 
         logger.info(f"FAB_ROOT set to {fabulousRoot}")
@@ -234,10 +206,7 @@ def setup_global_env_vars(args: argparse.Namespace) -> None:
     elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
         load_dotenv(fabDir.joinpath(".env"))
         logger.info(f"Loaded global .env file from {fabulousRoot}/.env")
-    elif (
-        fabDir.parent.joinpath(".env").exists()
-        and fabDir.parent.joinpath(".env").is_file()
-    ):
+    elif fabDir.parent.joinpath(".env").exists() and fabDir.parent.joinpath(".env").is_file():
         load_dotenv(fabDir.parent.joinpath(".env"))
         logger.info(f"Loaded global .env file from {fabDir.parent.joinpath('.env')}")
     else:
@@ -270,16 +239,14 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
     if args.projectDotEnv:
         pde = Path(args.projectDotEnv)
         if pde.exists() and pde.is_file():
-            load_dotenv(pde)
-            logger.info("Loaded global .env file from pde")
+            load_dotenv(pde, override=True)
+            # Keep legacy log string for backward compatibility with existing tests
+            logger.info("Loaded global .env file from pde (project .env override)")
     elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
-        load_dotenv(fabDir.joinpath(".env"))
+        load_dotenv(fabDir.joinpath(".env"), override=True)
         logger.info(f"Loaded project .env file from {fabDir}/.env')")
-    elif (
-        fabDir.parent.joinpath(".env").exists()
-        and fabDir.parent.joinpath(".env").is_file()
-    ):
-        load_dotenv(fabDir.parent.joinpath(".env"))
+    elif fabDir.parent.joinpath(".env").exists() and fabDir.parent.joinpath(".env").is_file():
+        load_dotenv(fabDir.parent.joinpath(".env"), override=True)
         logger.info(f"Loaded project .env file from {fabDir.parent.joinpath('.env')}")
     else:
         logger.warning("No project .env file found")
