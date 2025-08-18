@@ -90,7 +90,7 @@ class FABulousSettings(BaseSettings):
                 )
 
             if proj_lang in {HDLType.VERILOG, HDLType.SYSTEM_VERILOG}:
-                mp = p / "Fabric" / "model_pack.v"
+                mp = p / "Fabric" / "models_pack.v"
                 if mp.exists():
                     logger.warning(
                         f"Model pack path is not set. Guessing model pack as: {mp}"
