@@ -159,7 +159,7 @@ def generateSwitchmatrixList(
 ) -> None:
     """Generate a switchmatrix list file for a given tile and its bels.
 
-    This list File is based on a dummy list file from CLB_DUMMY and is based on the LUT4AB switchtmatix
+    The list file is based on a dummy list file, derived from the LUT4AB switch matrix
     list file. It is also possible to automatically generate connections for carry
     chains between the bels.
 

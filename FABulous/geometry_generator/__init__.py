@@ -1,7 +1,7 @@
 """FABulous geometry generator module.
 
 This module provides functionality for generating geometric representations of
-FPGA fabrics for visualization and placement tools. It converts fabric definitions
+FPGA fabrics for the FABulator GUI. It converts fabric definitions
 into geometric objects with positioning and routing information.
 
 The geometry generator includes:

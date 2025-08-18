@@ -1,4 +1,4 @@
-"""Simple base object class."""
+"""Simple FPGA geometry location base object class."""
 
 from enum import Enum
 

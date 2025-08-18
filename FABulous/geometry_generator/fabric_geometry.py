@@ -11,7 +11,7 @@ from FABulous.geometry_generator.tile_geometry import TileGeometry
 
 
 class FabricGeometry:
-    """Class for fetches and holds geometric information about a fabric.
+    """Fetch and hold geometric information about a fabric.
 
     Objects of this class can be constructed by passing a Fabric object and optionally, padding.
 
