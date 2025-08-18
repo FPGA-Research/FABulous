@@ -85,7 +85,9 @@ class FABulousSettings(BaseSettings):
                         f"Model pack path is not set. Guessing model pack as: {mp}"
                     )
                     return mp
-                raise ValueError("Model pack path is not set and could not be guessed.")
+                logger.warning(
+                    "Cannot find a suitable model pack. This might lead to error if not set."
+                )
 
             if proj_lang in {HDLType.VERILOG, HDLType.SYSTEM_VERILOG}:
                 mp = p / "Fabric" / "model_pack.v"
@@ -94,7 +96,9 @@ class FABulousSettings(BaseSettings):
                         f"Model pack path is not set. Guessing model pack as: {mp}"
                     )
                     return mp
-                raise ValueError("Model pack path is not set and could not be guessed.")
+                logger.warning(
+                    "Cannot find a suitable model pack. This might lead to error if not set."
+                )
 
         path = Path(str(value))
         # Retrieve previously validated proj_lang (falls back to default enum value)
