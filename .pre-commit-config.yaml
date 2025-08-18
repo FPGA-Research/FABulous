@@ -44,3 +44,15 @@ repos:
       args: [ --fix ]
     # Run the formatter.
     - id: ruff-format
+
+- repo: https://github.com/KelvinChung2000/license-header-pre-commit
+  rev: 0.4.0
+  hooks:
+    - id: license-header
+      name: License Header
+      language: python
+      files: \.(py|v|sv|vhd|vhdl)$
+      args: [
+        "--template", "license-header",
+        "--copyright-holder", "Novel Computing Technologies Group @ University Heidelberg"
+      ]
