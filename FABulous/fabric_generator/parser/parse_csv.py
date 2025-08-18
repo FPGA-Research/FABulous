@@ -147,10 +147,6 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     bels.append(parseBelFile(belFilePath, bel_prefix))
                     if "ADD_AS_CUSTOM_PRIM" in temp[4:]:
                         # local import to avoid circular import
-                        from FABulous.fabric_generator.gen_fabric.fabric_automation import (
-                            addBelsToPrim,
-                        )
-
                         primsFile = proj_dir.joinpath("user_design/custom_prims.v")
                         logger.info(f"Adding bels to custom prims file: {primsFile}")
                         addBelsToPrim(primsFile, [bels[-1]])
