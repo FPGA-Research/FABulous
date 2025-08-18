@@ -24,7 +24,7 @@ class FABulousSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="FAB_", case_sensitive=False)
 
-    root: Path = Path(__file__).parent.parent.resolve()
+    root: Path | None = None
     yosys_path: Path | None = None
     nextpnr_path: Path | None = None
     iverilog_path: Path | None = None
@@ -56,9 +56,11 @@ class FABulousSettings(BaseSettings):
 
     @field_validator("root", mode="after")
     @classmethod
-    def is_dir(cls, value: Path) -> bool:
+    def is_dir(cls, value: Path) -> Path:
         """Check if inputs is a directory."""
-        return value.is_dir()
+        if not value.is_dir():
+            raise ValueError(f"{value} is not a valid directory")
+        return value
 
     @field_validator("proj_lang", mode="after")
     @classmethod
