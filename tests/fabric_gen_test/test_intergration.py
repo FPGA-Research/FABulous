@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from subprocess import run
 
@@ -7,9 +8,7 @@ def test_run_verilog_simulation_CLI(tmp_path: Path) -> None:
     result = run(["FABulous", "-c", str(project_dir)])
     assert result.returncode == 0
 
-    result = run(
-        ["FABulous", str(project_dir), "-fs", "./demo/FABulous.tcl"], cwd=tmp_path
-    )
+    result = run(["FABulous", str(project_dir), "-fs", "./demo/FABulous.tcl"], cwd=tmp_path)
     assert result.returncode == 0
 
 
@@ -24,6 +23,7 @@ def test_run_verilog_simulation_makefile(tmp_path: Path) -> None:
 
 def test_run_vhdl_simulation_makefile(tmp_path: Path) -> None:
     project_dir = tmp_path / "demo_vhdl"
+    os.environ.pop("FAB_MODEL_PACK")
     result = run(["FABulous", "-c", str(project_dir), "-w", "vhdl"])
     assert result.returncode == 0
 
