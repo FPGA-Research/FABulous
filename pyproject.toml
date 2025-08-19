@@ -28,6 +28,7 @@ dependencies = [
   'bitarray>=3.3.0',
   "pydantic-settings>=2.10.1",
   "packaging>=25.0",
+  "typer>=0.16.1",
   # OS-aware readline dependencies
   'pyreadline3>=3.4.0; sys_platform == "win32"',
   'gnureadline>=8.2.0; sys_platform != "win32"',
