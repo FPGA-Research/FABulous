@@ -62,9 +62,7 @@ def test_create_project_with_no_name(monkeypatch: pytest.MonkeyPatch) -> None:
     assert exc_info.value.code != 0
 
 
-def test_fabulous_script(
-    tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_fabulous_script(tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test FABulous script execution"""
     # Create a test FABulous script file
     script_file = tmp_path / "test_script.fab"
@@ -79,9 +77,7 @@ def test_fabulous_script(
     assert exc_info.value.code == 0
 
 
-def test_fabulous_script_nonexistent_file(
-    tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_fabulous_script_nonexistent_file(tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test FABulous script with nonexistent file"""
     nonexistent_script = tmp_path / "nonexistent_script.fab"
 
@@ -94,12 +90,8 @@ def test_fabulous_script_nonexistent_file(
     assert exc_info.value.code != 0
 
 
-@pytest.mark.skip(
-    "Skipping test for no project directory as it is passing due to state leaking"
-)
-def test_fabulous_script_with_no_project_dir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.mark.skip("Skipping test for no project directory as it is passing due to state leaking")
+def test_fabulous_script_with_no_project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test FABulous script with no project directory"""
     script_file = tmp_path / "test_script.fab"
     script_file.write_text("# Test FABulous script\n")
@@ -113,15 +105,11 @@ def test_fabulous_script_with_no_project_dir(
     assert exc_info.value.code == 0
 
 
-def test_tcl_script_execution(
-    tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_tcl_script_execution(tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test TCL script execution on a valid project"""
     # Create a TCL script
     tcl_script = tmp_path / "test_script.tcl"
-    tcl_script.write_text(
-        '# TCL script with FABulous commands\nputs "Hello from TCL"\n'
-    )
+    tcl_script.write_text('# TCL script with FABulous commands\nputs "Hello from TCL"\n')
 
     test_args = ["FABulous", str(project), "--TCLScript", str(tcl_script)]
     monkeypatch.setattr(sys, "argv", test_args)
@@ -143,9 +131,7 @@ def test_commands_execution(project: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert exc_info.value.code == 0
 
 
-def test_create_project_with_vhdl_writer(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_create_project_with_vhdl_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test project creation with VHDL writer"""
     project_dir = tmp_path / "test_vhdl_project"
 
@@ -161,9 +147,7 @@ def test_create_project_with_vhdl_writer(
     assert "vhdl" in (project_dir / ".FABulous" / ".env").read_text()
 
 
-def test_create_project_with_verilog_writer(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_create_project_with_verilog_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test project creation with Verilog writer"""
     project_dir = tmp_path / "test_verilog_project"
 
@@ -179,9 +163,7 @@ def test_create_project_with_verilog_writer(
     assert "verilog" in (project_dir / ".FABulous" / ".env").read_text()
 
 
-def test_logging_functionality(
-    tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_logging_functionality(tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test log file creation and output"""
     log_file = tmp_path / "test.log"
 
@@ -271,9 +253,7 @@ def test_force_flag(project: Path, tmp_path: Path) -> None:
     assert result.returncode == 1
 
 
-def test_install_oss_cad_suite(
-    project: Path, mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_install_oss_cad_suite(project: Path, mocker: MockerFixture, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test oss-cad-suite installation"""
 
     # Test installation (may fail if network unavailable, but should handle gracefully)
@@ -307,9 +287,7 @@ def test_install_oss_cad_suite(
         return MockTarFile()
 
     monkeypatch.setattr(tarfile, "open", mock_open)
-    m = mocker.patch(
-        "requests.get", return_value=MockRequest()
-    )  # Mock network request for testing
+    m = mocker.patch("requests.get", return_value=MockRequest())  # Mock network request for testing
 
     test_args = ["FABulous", str(project), "--install_oss_cad_suite"]
     monkeypatch.setattr(sys, "argv", test_args)
@@ -320,9 +298,7 @@ def test_install_oss_cad_suite(
     assert m.call_count == 2
 
 
-def test_script_mutually_exclusive(
-    tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_script_mutually_exclusive(tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that FABulous script and TCL script are mutually exclusive"""
     # Create both script types
     fab_script = tmp_path / "test.fab"
@@ -367,6 +343,9 @@ def test_project_without_fabulous_folder(
     regular_dir = tmp_path / "regular_directory"
     regular_dir.mkdir()
 
+    # Clean up environment variables to avoid contamination from other tests
+    monkeypatch.delenv("FAB_PROJ_DIR", raising=False)
+
     test_args = ["FABulous", str(regular_dir), "--commands", "help"]
     monkeypatch.setattr(sys, "argv", test_args)
 
@@ -378,9 +357,7 @@ def test_project_without_fabulous_folder(
     assert "not a FABulous project" in captured.out
 
 
-def test_nonexistent_script_file(
-    project: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_nonexistent_script_file(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test error handling for nonexistent script files"""
 
     # Try to run nonexistent FABulous script
@@ -416,9 +393,7 @@ def test_empty_commands(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert exc_info.value.code == 0
 
 
-def test_create_project_with_invalid_writer(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_create_project_with_invalid_writer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test project creation with an invalid writer"""
     project_dir = tmp_path / "test_invalid_writer_project"
 
@@ -437,61 +412,132 @@ def test_create_project_with_invalid_writer(
     assert exc_info.value.code != 0
 
 
-def test_project_directory_priority_order(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Test that project directory priority order is followed:
-    1. User provided argument (highest priority)
-    2. Environment variables (FAB_PROJ_DIR)
-    3. Project .env file (handled by setup functions)
-    4. Global .env file (handled by setup functions)
-    5. Default value - current working directory (lowest priority)
-    """
-    # Create multiple project directories for testing
-    user_provided_dir = tmp_path / "user_provided_project"
-    env_var_dir = tmp_path / "env_var_project"
-    default_dir = tmp_path / "default_project"
+def test_user_argument_overrides_all(project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that user provided argument takes highest priority over all other settings."""
+    dirs = project_directories
 
-    # Create all directories with .FABulous folders
-    for project_dir in [user_provided_dir, env_var_dir, default_dir]:
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
-        (project_dir / ".FABulous" / ".env").write_text("FAB_PROJ_LANG=verilog\n")
-        (project_dir / ".FABulous" / ".env").write_text("VERSION=1.0.0\n")
-
-    # Test 1: User provided argument should take highest priority over environment variable
-    monkeypatch.setenv("FAB_PROJ_DIR", str(env_var_dir))
-    monkeypatch.chdir(default_dir)
+    # Set environment variable and change to default directory
+    monkeypatch.setenv("FAB_PROJ_DIR", str(dirs["env_var_dir"]))
+    monkeypatch.chdir(dirs["default_dir"])
 
     result = run(
-        ["FABulous", str(user_provided_dir), "--commands", "help"],
+        [
+            "FABulous",
+            str(dirs["user_provided_dir"]),
+            "--commands",
+            "help",
+            "--projectDotEnv",
+            str(dirs["project_dotenv_file"]),
+            "--globalDotEnv",
+            str(dirs["global_dotenv_file"]),
+        ],
         capture_output=True,
         text=True,
     )
 
     # The log should show the user provided directory being used
-    assert (
-        f"INFO: Setting current working directory to: {str(user_provided_dir)}"
-        in result.stdout
-    )
+    assert f"INFO: Setting current working directory to: {str(dirs['user_provided_dir'])}" in result.stdout
 
-    # Test 2: Environment variable should be used when no user argument provided
+
+def test_environment_variable_overrides_dotenv_files(project_directories: dict[str, Path]) -> None:
+    """Test that environment variable overrides both global and project .env files."""
+    dirs = project_directories
+
     env_with_fab_proj = os.environ.copy()
-    env_with_fab_proj["FAB_PROJ_DIR"] = str(env_var_dir)
+    env_with_fab_proj["FAB_PROJ_DIR"] = str(dirs["env_var_dir"])
 
     result = run(
-        ["FABulous", "--commands", "help"],
+        [
+            "FABulous",
+            "--commands",
+            "help",
+            "--projectDotEnv",
+            str(dirs["project_dotenv_file"]),
+            "--globalDotEnv",
+            str(dirs["global_dotenv_file"]),
+        ],
         capture_output=True,
         text=True,
         env=env_with_fab_proj,
     )
+
     # Should use the environment variable directory
-    assert (
-        f"INFO: Setting current working directory to: {str(env_var_dir)}"
-        in result.stdout
+    assert f"INFO: Setting current working directory to: {str(dirs['env_var_dir'])}" in result.stdout
+
+
+def test_project_dotenv_overrides_global_dotenv(project_directories: dict[str, Path]) -> None:
+    """Test that project .env file overrides global .env file when both specify FAB_PROJ_DIR.
+
+    Precedence order (lowest -> highest):
+        global .env < project .env < environment variable < user argument
+    """
+    dirs = project_directories
+
+    env_without_fab_proj = os.environ.copy()
+    env_without_fab_proj.pop("FAB_PROJ_DIR", None)
+
+    result = run(
+        [
+            "FABulous",
+            "--commands",
+            "help",
+            "--projectDotEnv",
+            str(dirs["project_dotenv_file"]),
+            "--globalDotEnv",
+            str(dirs["global_dotenv_file"]),
+        ],
+        capture_output=True,
+        text=True,
+        env=env_without_fab_proj,
+        cwd=str(dirs["default_dir"]),
     )
 
-    # Test 3: Default directory (cwd) should be used when no argument or env var
+    # Project .env is loaded after global .env, so its FAB_PROJ_DIR should take effect
+    assert f"INFO: Setting current working directory to: {str(dirs['project_dotenv_dir'])}" in result.stdout
+
+
+def test_project_dotenv_fallback_to_current_directory(project_directories: dict[str, Path]) -> None:
+    """Test that project .env file falls back to current directory when no global .env is provided."""
+    dirs = project_directories
+
+    env_without_fab_proj = os.environ.copy()
+    env_without_fab_proj.pop("FAB_PROJ_DIR", None)
+
+    result = run(
+        ["FABulous", "--commands", "help", "--projectDotEnv", str(dirs["project_dotenv_fallback_file"])],
+        capture_output=True,
+        text=True,
+        env=env_without_fab_proj,
+        cwd=str(dirs["default_dir"]),
+    )
+
+    # Project .env now sets FAB_PROJ_DIR when provided explicitly, even without an explicit global .env argument
+    assert f"INFO: Setting current working directory to: {str(dirs['default_dir'])}" in result.stdout
+
+
+def test_global_dotenv_only(project_directories: dict[str, Path]) -> None:
+    """Test that global .env file works when specified alone."""
+    dirs = project_directories
+
+    env_without_fab_proj = os.environ.copy()
+    env_without_fab_proj.pop("FAB_PROJ_DIR", None)
+
+    result = run(
+        ["FABulous", "--commands", "help", "--globalDotEnv", str(dirs["global_dotenv_file"])],
+        capture_output=True,
+        text=True,
+        env=env_without_fab_proj,
+        cwd=str(dirs["default_dir"]),
+    )
+
+    # Should use the global .env file directory
+    assert f"INFO: Setting current working directory to: {str(dirs['global_dotenv_dir'])}" in result.stdout
+
+
+def test_default_directory_fallback(project_directories: dict[str, Path]) -> None:
+    """Test that default directory (cwd) is used when no argument, env var, or .env files are provided."""
+    dirs = project_directories
+
     env_without_fab_proj = os.environ.copy()
     env_without_fab_proj.pop("FAB_PROJ_DIR", None)
 
@@ -499,14 +545,82 @@ def test_project_directory_priority_order(
         ["FABulous", "--commands", "help"],
         capture_output=True,
         text=True,
-        cwd=str(default_dir),
+        cwd=str(dirs["default_dir"]),
         env=env_without_fab_proj,
     )
 
-    assert (
-        f"INFO: Setting current working directory to: {str(default_dir)}"
-        in result.stdout
+    assert f"INFO: Setting current working directory to: {str(dirs['default_dir'])}" in result.stdout
+
+
+def test_user_argument_explicitly_overrides_environment_variable(
+    project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that user argument explicitly overrides FAB_PROJ_DIR environment variable."""
+    dirs = project_directories
+
+    monkeypatch.setenv("FAB_PROJ_DIR", str(dirs["env_var_dir"]))
+
+    result = run(
+        ["FABulous", str(dirs["user_provided_dir"]), "--commands", "help"],
+        capture_output=True,
+        text=True,
     )
+
+    # Should use user provided directory, not the env var
+    assert f"INFO: Setting current working directory to: {str(dirs['user_provided_dir'])}" in result.stdout
+    assert f"INFO: Setting current working directory to: {str(dirs['env_var_dir'])}" not in result.stdout
+
+
+def test_environment_variable_overrides_global_dotenv(project_directories: dict[str, Path]) -> None:
+    """Test that environment variable overrides global .env file when user arg not provided."""
+    dirs = project_directories
+
+    env_with_fab_proj = os.environ.copy()
+    env_with_fab_proj["FAB_PROJ_DIR"] = str(dirs["env_var_dir"])
+
+    result = run(
+        ["FABulous", "--commands", "help", "--globalDotEnv", str(dirs["global_dotenv_file"])],
+        capture_output=True,
+        text=True,
+        env=env_with_fab_proj,
+    )
+
+    # Should use env var, not global .env file
+    assert f"INFO: Setting current working directory to: {str(dirs['env_var_dir'])}" in result.stdout
+    assert f"INFO: Setting current working directory to: {str(dirs['global_dotenv_dir'])}" not in result.stdout
+
+
+def test_dotenv_loading_verification(project_directories: dict[str, Path]) -> None:
+    """Test that .env files are loaded correctly and project .env overrides global .env.
+
+    Expected precedence (lowest -> highest): global .env < project .env < env var < user argument
+    """
+    dirs = project_directories
+
+    env_without_fab_proj = os.environ.copy()
+    env_without_fab_proj.pop("FAB_PROJ_DIR", None)
+
+    result = run(
+        [
+            "FABulous",
+            "--commands",
+            "help",
+            "--projectDotEnv",
+            str(dirs["project_dotenv_file"]),
+            "--globalDotEnv",
+            str(dirs["global_dotenv_file"]),
+        ],
+        capture_output=True,
+        text=True,
+        env=env_without_fab_proj,
+        cwd=str(dirs["default_dir"]),
+    )
+
+    # Should use project .env, not global .env or current directory
+    assert f"INFO: Setting current working directory to: {str(dirs['project_dotenv_dir'])}" in result.stdout
+    # Verify that .env files are actually loaded
+    assert "INFO: Load global .env file from" in result.stdout
+    assert "INFO: Loaded global .env file from pde" in result.stdout
 
 
 def test_command_flag_with_stop_on_first_error(project: Path) -> None:

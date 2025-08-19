@@ -16,3 +16,44 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
     create_project(project_dir)
     return project_dir
+
+
+@pytest.fixture
+def project_directories(tmp_path: Path) -> dict[str, Path]:
+    """Fixture that creates test directories and .env files for project directory precedence tests."""
+    # Create multiple project directories for testing
+    user_provided_dir = tmp_path / "user_provided_project"
+    env_var_dir = tmp_path / "env_var_project"
+    project_dotenv_dir = tmp_path / "project_dotenv_project"
+    global_dotenv_dir = tmp_path / "global_dotenv_project"
+    default_dir = tmp_path / "default_project"
+
+    # Create all directories with .FABulous folders
+    for project_dir in [user_provided_dir, env_var_dir, project_dotenv_dir, global_dotenv_dir, default_dir]:
+        project_dir.mkdir()
+        (project_dir / ".FABulous").mkdir()
+        env_file = project_dir / ".FABulous" / ".env"
+        env_file.write_text("FAB_PROJ_LANG=verilog\nVERSION=1.0.0\n")
+
+    # Create project-specific .env file for testing
+    project_dotenv_file = tmp_path / "project_specific.env"
+    project_dotenv_file.write_text(f"FAB_PROJ_DIR={str(project_dotenv_dir)}\n")
+
+    # Create project-specific .env file that doesn't set FAB_PROJ_DIR (for fallback tests)
+    project_dotenv_fallback_file = tmp_path / "project_fallback.env"
+    project_dotenv_fallback_file.write_text("FAB_PROJ_LANG=verilog\n")
+
+    # Create global .env file for testing
+    global_dotenv_file = tmp_path / "global.env"
+    global_dotenv_file.write_text(f"FAB_PROJ_DIR={str(global_dotenv_dir)}\n")
+
+    return {
+        "user_provided_dir": user_provided_dir,
+        "env_var_dir": env_var_dir,
+        "project_dotenv_dir": project_dotenv_dir,
+        "global_dotenv_dir": global_dotenv_dir,
+        "default_dir": default_dir,
+        "project_dotenv_file": project_dotenv_file,
+        "project_dotenv_fallback_file": project_dotenv_fallback_file,
+        "global_dotenv_file": global_dotenv_file,
+    }
