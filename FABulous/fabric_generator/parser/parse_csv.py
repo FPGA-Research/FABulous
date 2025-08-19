@@ -145,11 +145,6 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     bels.append(parseBelFile(belFilePath, bel_prefix))
                 elif temp[1].endswith(".v") or temp[1].endswith(".sv"):
                     bels.append(parseBelFile(belFilePath, bel_prefix))
-                    if "ADD_AS_CUSTOM_PRIM" in temp[4:]:
-                        # local import to avoid circular import
-                        primsFile = proj_dir.joinpath("user_design/custom_prims.v")
-                        logger.info(f"Adding bels to custom prims file: {primsFile}")
-                        addBelsToPrim(primsFile, [bels[-1]])
                 else:
                     raise InvalidFileType(
                         f"File {belFilePath} is not a .vhdl or .v file. Please check the BEL file."
