@@ -29,6 +29,9 @@ class FABulousSettings(BaseSettings):
     nextpnr_path: Path | None = None
     iverilog_path: Path | None = None
     vvp_path: Path | None = None
+    ghdl_path: Path | None = None
+
+    # Project related
     proj_dir: Path = Path.cwd()
     fabulator_root: Path | None = None
     oss_cad_suite: Path | None = None
@@ -85,6 +88,7 @@ class FABulousSettings(BaseSettings):
             "nextpnr_path": "nextpnr-generic",
             "iverilog_path": "iverilog",
             "vvp_path": "vvp",
+            "ghdl_path": "ghdl",
         }
         tool = tool_map.get(info.field_name, None)  # type: ignore[attr-defined]
         if tool is None:

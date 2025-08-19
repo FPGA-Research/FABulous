@@ -18,7 +18,6 @@ from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_generator.gen_fabric.fabric_automation import (
-    addBelsToPrim,
     generateCustomTileConfig,
     generateSwitchmatrixList,
 )
@@ -396,18 +395,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
             if line[0] == "BEL":
                 belFilePath = filePath.joinpath(line[1])
-                if (
-                    line[1].endswith(".vhdl")
-                    or line[1].endswith(".v")
-                    or line[1].endswith(".sv")
-                ):
-                    bels.append(parseBelFile(belFilePath, line[2]))
-                else:
-                    raise InvalidFileType(
-                        f"File {belFilePath} is not a .vhdl or .v file. Please check the BEL file."
-                    )
-                continue
-
+                bels.append(parseBelFile(belFilePath, line[2]))
             for j in line:
                 if j in tileDic:
                     # mark the tile as part of super tile

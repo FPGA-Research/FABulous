@@ -590,7 +590,7 @@ def genIOBel(
             bel_path.unlink()
         else:
             logger.info(f"Return existing Gen_IO BEL file: {bel_path}")
-            return parseBelFile(bel_path, "", language)
+            return parseBelFile(bel_path, "")
 
     configBits = 0
     for gio in gen_ios:
@@ -831,8 +831,7 @@ def genIOBel(
     writer.addNewLine()
     writer.writeToFile()
 
-    bel: Bel
-    bel = parseBelFile(writer.outFileName, "")
+    bel: Bel = parseBelFile(writer.outFileName, "")
 
     prims_file = FABulousSettings().proj_dir / "user_design" / "custom_prims.v"
     if not prims_file.exists():

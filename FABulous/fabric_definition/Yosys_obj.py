@@ -1,5 +1,4 @@
 import json
-import os
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -7,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 from FABulous.custom_exception import InvalidFileType
-from FABulous.FABulous_CLI.helper import check_if_application_exists
+from FABulous.FABulous_settings import FABulousSettings
 
 """
 Type alias for Yosys bit vectors containing integers or logic values.
@@ -203,48 +202,6 @@ class YosysModule:
         self.netnames = {k: YosysNetDetails(**v) for k, v in netnames.items()}
 
 
-def post_process_vhdl(modules: dict[str, YosysModule], vhdl_file: Path) -> None:
-    vhdl_content = vhdl_file.read_text()
-
-    if r := re.search(r"entity\s+(\w+)\s+is", vhdl_content):
-        module_name = r.group(1)
-    else:
-        raise ValueError(f"Could not find entity name in {vhdl_file}")
-
-    module = modules.get(module_name)
-    if not module:
-        raise ValueError(
-            f"Module {module_name} not found in Yosys JSON for {vhdl_file}"
-        )
-
-    if r := re.search(r"\(\*.*?BelMap(.*?) \*\)", vhdl_content):
-        res = r.group(1).split(",")
-        res = [x.strip() for x in res]
-        res = [x for x in res if x]  # Remove empty strings
-        res = dict(x.split("=", 1) for x in res)
-        module.attributes.update(res)
-        module.attributes["BelMap"] = True
-        module.attributes["FABulous"] = True
-
-    ports_entry = []
-    port_start = False
-    for i in vhdl_content.splitlines():
-        if re.search(r"^\s*port \(", i):
-            port_start = True
-        if port_start and re.search(r"^\s*\);\s*", i):
-            port_start = False
-        if port_start:
-            ports_entry.append(i)
-
-    for p in ports_entry:
-        if r := re.search(r"(\w+)\s*:.*? --\s*\(\* (.*?) \*\)", p):
-            port_name = r.group(1)
-            attribute_entries = r.group(2).split(",")
-            module.netnames[port_name].attributes.update(
-                {x.strip(): 1 for x in attribute_entries}
-            )
-
-
 @dataclass
 class YosysJson:
     """Root object representing a complete Yosys JSON file.
@@ -290,19 +247,19 @@ class YosysJson:
 
         if not path.exists():
             raise FileNotFoundError(f"File {path} does not exist")
-        if path.suffix not in [".vhd", ".vhdl", ".v", ".sv"]:
+        if path.suffix not in {".vhd", ".vhdl", ".v", ".sv"}:
             raise InvalidFileType(
                 f"Unsupported HDL file type: {path.suffix}. Supported types are .vhd, .vhdl, .v, .sv"
             )
 
         self.srcPath = path
-        yosys = check_if_application_exists(os.getenv("FAB_YOSYS_PATH", "yosys"))
-        ghdl = check_if_application_exists(os.getenv("FAB_GHDL_PATH", "ghdl"))
+        yosys = FABulousSettings().yosys_path
+        ghdl = FABulousSettings().ghdl_path
         json_file = self.srcPath.with_suffix(".json")
 
         if self.srcPath.suffix in [".vhd", ".vhdl"]:
             runCmd = [
-                str(ghdl),
+                f"{ghdl!s}",
                 "--synth",
                 "--std=08",
                 "--out=verilog",
@@ -317,7 +274,7 @@ class YosysJson:
                     f"Failed to run GHDL on {self.srcPath}: {e.stderr.decode()} run cmd: {' '.join(runCmd)}"
                 ) from e
         runCmd = [
-            str(yosys),
+            f"{yosys!s}",
             "-q",
             f"-p read_verilog -sv {self.srcPath.with_suffix('.v')}; proc -noopt; write_json -compat-int {json_file}",
         ]
@@ -344,8 +301,47 @@ class YosysJson:
         }
         self.models = o.get("models", {})  # Use .get() for safety
 
+        # Post-process VHDL file for now. Once VHDL is updated, we can remove this.
         if self.srcPath.suffix in [".vhd", ".vhdl"]:
-            post_process_vhdl(self.modules, self.srcPath)
+            vhdl_content = self.srcPath.read_text()
+
+            if r := re.search(r"entity\s+(\w+)\s+is", vhdl_content):
+                module_name = r.group(1)
+            else:
+                raise ValueError(f"Could not find entity name in {self.srcPath}")
+
+            module = self.modules.get(module_name)
+            if not module:
+                raise ValueError(
+                    f"Module {module_name} not found in Yosys JSON for {self.srcPath}"
+                )
+
+            if r := re.search(r"\(\*.*?BelMap(.*?) \*\)", vhdl_content):
+                res = r.group(1).split(",")
+                res = [x.strip() for x in res]
+                res = [x for x in res if x]  # Remove empty strings
+                res = dict(x.split("=", 1) for x in res)
+                module.attributes.update(res)
+                module.attributes["BelMap"] = True
+                module.attributes["FABulous"] = True
+
+            ports_entry = []
+            port_start = False
+            for i in vhdl_content.splitlines():
+                if re.search(r"^\s*port \(", i):
+                    port_start = True
+                if port_start and re.search(r"^\s*\);\s*", i):
+                    port_start = False
+                if port_start:
+                    ports_entry.append(i)
+
+            for p in ports_entry:
+                if r := re.search(r"(\w+)\s*:.*? --\s*\(\* (.*?) \*\)", p):
+                    port_name = r.group(1)
+                    attribute_entries = r.group(2).split(",")
+                    module.netnames[port_name].attributes.update(
+                        {x.strip(): 1 for x in attribute_entries}
+                    )
 
     def getTopModule(self) -> YosysModule:
         """Find and return the top-level module in the design.
