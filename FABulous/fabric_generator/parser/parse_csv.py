@@ -18,6 +18,7 @@ from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_generator.gen_fabric.fabric_automation import (
+    addBelsToPrim,
     generateCustomTileConfig,
     generateSwitchmatrixList,
 )
@@ -141,9 +142,11 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
             elif temp[0] == "BEL":
                 belFilePath = filePathParent.joinpath(temp[1])
                 bel_prefix = temp[2] if len(temp) > 2 else ""
-                if temp[1].endswith(".vhdl"):
-                    bels.append(parseBelFile(belFilePath, bel_prefix))
-                elif temp[1].endswith(".v") or temp[1].endswith(".sv"):
+                if (
+                    temp[1].endswith(".vhdl")
+                    or temp[1].endswith(".v")
+                    or temp[1].endswith(".sv")
+                ):
                     bels.append(parseBelFile(belFilePath, bel_prefix))
                 else:
                     raise InvalidFileType(

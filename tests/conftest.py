@@ -17,7 +17,8 @@ def env() -> Generator[None]:
     fabulousRoot = str(Path(__file__).resolve().parent.parent / "FABulous")
     os.environ["FAB_ROOT"] = fabulousRoot
     os.environ["FAB_MODEL_PACK"] = str(
-        Path(fabulousRoot) / "fabric_files/FABulous_project_template_verilog/Fabric/models_pack.v"
+        Path(fabulousRoot)
+        / "fabric_files/FABulous_project_template_verilog/Fabric/models_pack.v"
     )
     os.environ["FABULOUS_TESTING"] = "TRUE"
     yield

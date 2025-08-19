@@ -128,14 +128,6 @@ class FABulousSettings(BaseSettings):
             raise ValueError(f"{value} is not a valid directory")
         return value
 
-    @field_validator("proj_lang", mode="after")
-    @classmethod
-    def validate_proj_lang(cls, value: str) -> str:
-        """Validate the project language."""
-        if value not in ["verilog", "vhdl"]:
-            raise ValueError("Project language must be either 'verilog' or 'vhdl'.")
-        return value
-
     @field_validator("proj_lang", mode="before")
     @classmethod
     def validate_proj_lang(cls, value: str | HDLType) -> HDLType:

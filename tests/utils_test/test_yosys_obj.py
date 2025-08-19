@@ -20,7 +20,7 @@ def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
     """Helper function to setup common mocks."""
     monkeypatch.setattr(
         "subprocess.run",
-        lambda cmd, check=False, capture_output=False: type(
+        lambda cmd, check=False, capture_output=False: type(  # noqa: ARG005
             "MockResult", (), {"stdout": b"mock output", "stderr": b""}
         )(),
     )
@@ -40,10 +40,17 @@ def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
     monkeypatch.setattr("builtins.open", mock_open_func)
 
 
-def test_yosys_vhdl_json_initialization(mocker: pytest_mock.MockerFixture, tmp_path: Path) -> None:
+def test_yosys_vhdl_json_initialization(
+    mocker: pytest_mock.MockerFixture, tmp_path: Path
+) -> None:
     """Test YosysJson initialization with VHDL file."""
     # Mock external dependencies
-    m = mocker.patch("subprocess.run", return_value=type("MockResult", (), {"stdout": b"mock output", "stderr": b""})())
+    m = mocker.patch(
+        "subprocess.run",
+        return_value=type(
+            "MockResult", (), {"stdout": b"mock output", "stderr": b""}
+        )(),
+    )
 
     # Test with VHDL file
     (tmp_path / "file.json").write_text('{"modules": {"test": {}}}')
@@ -55,10 +62,17 @@ def test_yosys_vhdl_json_initialization(mocker: pytest_mock.MockerFixture, tmp_p
     assert "bin/yosys" in str(m.call_args_list[1])
 
 
-def test_yosyst_sv_json_initialization(mocker: pytest_mock.MockerFixture, tmp_path: Path) -> None:
+def test_yosyst_sv_json_initialization(
+    mocker: pytest_mock.MockerFixture, tmp_path: Path
+) -> None:
     """Test YosysJson initialization with VHDL file."""
     # Mock external dependencies
-    m = mocker.patch("subprocess.run", return_value=type("MockResult", (), {"stdout": b"mock output", "stderr": b""})())
+    m = mocker.patch(
+        "subprocess.run",
+        return_value=type(
+            "MockResult", (), {"stdout": b"mock output", "stderr": b""}
+        )(),
+    )
 
     # Test with VHDL file
     (tmp_path / "file.json").write_text("{}")
@@ -69,10 +83,17 @@ def test_yosyst_sv_json_initialization(mocker: pytest_mock.MockerFixture, tmp_pa
     assert "read_verilog -sv" in str(m.call_args)
 
 
-def test_yosys_json_initialization(mocker: pytest_mock.MockerFixture, tmp_path: Path) -> None:
+def test_yosys_json_initialization(
+    mocker: pytest_mock.MockerFixture, tmp_path: Path
+) -> None:
     """Test YosysJson initialization with VHDL file."""
     # Mock external dependencies
-    m = mocker.patch("subprocess.run", return_value=type("MockResult", (), {"stdout": b"mock output", "stderr": b""})())
+    m = mocker.patch(
+        "subprocess.run",
+        return_value=type(
+            "MockResult", (), {"stdout": b"mock output", "stderr": b""}
+        )(),
+    )
 
     # Test with VHDL file
     (tmp_path / "file.json").write_text("{}")
@@ -86,7 +107,9 @@ def test_yosys_json_initialization(mocker: pytest_mock.MockerFixture, tmp_path: 
     assert "read_verilog" in str(m.call_args)
 
 
-def test_yosys_json_file_not_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_yosys_json_file_not_exists(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Test YosysJson with unsupported file type."""
     setup_mocks(monkeypatch, {})
     fakePath = tmp_path / "file.txt"
@@ -94,7 +117,9 @@ def test_yosys_json_file_not_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: P
         YosysJson(fakePath)
 
 
-def test_yosys_json_unsupported_file_type(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_yosys_json_unsupported_file_type(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Test YosysJson with unsupported file type."""
     setup_mocks(monkeypatch, {})
     fakePath = tmp_path / "file.txt"
