@@ -89,20 +89,23 @@ dimensions and parameters:
 
 * 32 columns
 * 32 rows
-* 20 frames per tile
-* 26 bels per tile
+* 20 frames per tile (each 32 bits wide)
+* 640 configuration bits per tile (20 frames x 32 bits)
+* 26 BELs per tile
 
-Additionally, FABulous only supports a single clock domain.
+Another limitiation is the support of only a single clock domain.
 
-The bitstream header is 32 bit wide and is structured as follows:
+The 32-bit header is structured as follows (MSB to LSB):
 
-.. code-block:: text
++------------------------+------------+----------+--------------+
+| [31:27]                | [26:21]    | [20]     | [19:0]       |
+|                        |            |          |              |
++========================+============+==========+==============+
+| Column Select          |  Unused    | Sync Bit | Frame Strobe |
++------------------------+------------+----------+--------------+
 
-    | 5-bit column select | ... unused ... | 20th bit sync | 20-bit frame strobe |
-
-For the column selection also the unused bits could be used, but currently the
-``FrameSelectWidth`` is set to a fixed width of 5 bit.
-
+The column selection could also be extended to the currently unused bits, but
+``FrameSelectWidth`` is set to a fixed width of 5 bits in the generated RTL code.
 
 It is planned to remove these limitations in future versions of FABulous.
 
