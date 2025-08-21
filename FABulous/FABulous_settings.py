@@ -202,7 +202,6 @@ _context_instance: FABulousSettings | None = None
 
 
 def init_context(
-    fab_root: Path,
     project_dir: Path | None = None,
     global_dot_env: Path | None = None,
     project_dot_env: Path | None = None,
@@ -226,13 +225,16 @@ def init_context(
     # Resolve .env files in priority order
     env_files: list[Path] = []
 
-    fab_dir = Path(fab_root)
+    fab_root = (
+        Path(r) if (r := os.getenv("FAB_ROOT")) else Path(__file__).parent.resolve()
+    )
+
     # Check FABulous directory first
-    if fab_dir.joinpath(".env").exists():
-        env_files.append(fab_dir.joinpath(".env"))
+    if fab_root.joinpath(".env").exists():
+        env_files.append(fab_root.joinpath(".env"))
     # Check parent directory as fallback
-    elif fab_dir.parent.joinpath(".env").exists():
-        env_files.append(fab_dir.parent.joinpath(".env"))
+    elif fab_root.parent.joinpath(".env").exists():
+        env_files.append(fab_root.parent.joinpath(".env"))
 
     # 2. User-provided global .env file
     if global_dot_env:
@@ -259,7 +261,7 @@ def init_context(
     if project_dot_env and project_dot_env.exists():
         env_files.append(project_dot_env)
 
-    _context_instance = FABulousSettings(_env_file=tuple(env_files))
+    _context_instance = FABulousSettings(_env_file=tuple(env_files), root=fab_root)
     logger.debug("FABulous context initialized")
     return _context_instance
 

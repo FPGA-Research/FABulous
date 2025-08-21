@@ -16,6 +16,7 @@ from loguru import logger
 from packaging.version import Version
 
 from FABulous.custom_exception import PipelineCommandError
+from FABulous.FABulous_settings import get_context
 
 if TYPE_CHECKING:
     from loguru import Record
@@ -90,6 +91,25 @@ def create_project(
         The language of project to create ("verilog" or "vhdl"), by default "verilog".
     """
     logger.info(project_dir)
+
+    if lang not in ["verilog", "vhdl"]:
+        lang = "verilog"
+
+    fabulousRoot = get_context().root
+
+    # Copy the project template
+    common_template = fabulousRoot / "fabric_files/FABulous_project_template_common"
+    lang_template = fabulousRoot / f"fabric_files/FABulous_project_template_{lang}"
+    if not common_template.exists():
+        raise FileNotFoundError(
+            f"Common template not found: {common_template}, is FAB_ROOT not set right?"
+        )
+
+    if not lang_template.exists():
+        raise FileNotFoundError(
+            f"Language template not found: {lang_template}, is FAB_ROOT not set right?"
+        )
+
     if project_dir.exists():
         logger.error("Project directory already exists!")
         sys.exit(1)
@@ -97,18 +117,6 @@ def create_project(
         project_dir.mkdir(parents=True, exist_ok=True)
         (project_dir / ".FABulous").mkdir(parents=True, exist_ok=True)
 
-    if lang not in ["verilog", "vhdl"]:
-        lang = "verilog"
-
-    fab_root_env = os.getenv("FAB_ROOT")
-    if fab_root_env is None:
-        logger.error("FAB_ROOT environment variable is not set. Cannot create project.")
-        sys.exit(1)
-    fabulousRoot = Path(fab_root_env)
-
-    # Copy the project template
-    common_template = fabulousRoot / "fabric_files/FABulous_project_template_common"
-    lang_template = fabulousRoot / f"fabric_files/FABulous_project_template_{lang}"
     for source in [common_template, lang_template]:
         for item in source.rglob("*"):
             dest_item = project_dir / item.relative_to(source)

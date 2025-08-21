@@ -160,16 +160,15 @@ def check_version_compatibility(_: Path) -> None:
         )
 
 
-@app.command(
-    "create-project",
-    help="Create a new FABulous project.",
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-)
+@app.command("create-project")
 def create_project_cmd(
-    project_dir: Path = Path(),
+    project_dir: Annotated[
+        Path, typer.Argument(help="Directory to create a project")
+    ] = Path(),
 ) -> None:
     """Create a new FABulous project."""
     try:
+        init_context()
         create_project(
             project_dir, cast("Literal['verilog', 'vhdl']", shared_state.writer)
         )
@@ -240,14 +239,13 @@ def script_cmd(
     If no project directory is specified, uses the current directory.
     """
     # Initialize context
-    settings = init_context(
-        fab_root=Path(typer.get_app_dir(APP_NAME)),
+    init_context(
         project_dir=project_dir,
         global_dot_env=shared_state.global_dot_env,
         project_dot_env=shared_state.project_dot_env,
     )
     fab_CLI = FABulous_CLI(
-        settings.proj_lang,
+        shared_state.writer,
         project_dir,
         force=shared_state.force,
     )
@@ -338,7 +336,6 @@ def start_cmd(project_dir: ProjectDirType = Path()) -> None:
 
     # Initialize the global context with settings
     settings = init_context(
-        fab_root=Path(typer.get_app_dir(APP_NAME)),
         project_dir=project_dir,
         global_dot_env=shared_state.global_dot_env,
         project_dot_env=shared_state.project_dot_env,
@@ -366,17 +363,16 @@ def start_cmd(project_dir: ProjectDirType = Path()) -> None:
 def run_cmd(
     project_dir: ProjectDirType = Path(),
     commands: Annotated[
-        list[str],
+        list[str] | None,
         typer.Argument(
             help="Commands to execute (separated by semicolon + whitespace: 'cmd1; cmd2')",
             parser=lambda cmds: [
                 cmd.strip() for cmd in cmds.split("; ") if cmd.strip()
             ],
         ),
-    ] = "",
+    ] = None,
 ) -> None:
     settings = init_context(
-        fab_root=Path(typer.get_app_dir(APP_NAME)),
         project_dir=project_dir,
         global_dot_env=shared_state.global_dot_env,
         project_dot_env=shared_state.project_dot_env,
@@ -501,7 +497,6 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         default=None,
         help="Run FABulous with a FABulous script. A FABulous script is a text file containing only FABulous commands"
         "This will automatically exit the CLI once the command finish execution, and the exit will always happen gracefully.",
-        nargs=1,
         type=Path,
     )
 
@@ -511,14 +506,13 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         default=None,
         help="Run FABulous with a TCL script. A TCL script is a text file containing a mix of TCL commands and FABulous commands."
         "This will automatically exit the CLI once the command finish execution, and the exit will always happen gracefully.",
-        nargs=1,
         type=Path,
     )
 
     script_group.add_argument(
         "-p",
         "--commands",
-        nargs=1,
+        type=str,
         help="execute <commands> (to chain commands, separate them with semicolon + whitespace: 'cmd1; cmd2')",
     )
 
@@ -621,16 +615,14 @@ def convert_legacy_args_with_deprecation_warning() -> None:
             validated_project_dir = validate_project_directory(project_dir)
         except typer.Exit as e:
             sys.exit(e.exit_code)
-        script_cmd(
-            validated_project_dir, args.FABulousScript[0], script_type="fabulous"
-        )
+        script_cmd(validated_project_dir, args.FABulousScript, script_type="fabulous")
     elif args.TCLScript:
         # Validate project directory manually since we're bypassing Typer's validation
         try:
             validated_project_dir = validate_project_directory(project_dir)
         except typer.Exit as e:
             sys.exit(e.exit_code)
-        script_cmd(validated_project_dir, args.TCLScript[0], script_type="tcl")
+        script_cmd(validated_project_dir, args.TCLScript, script_type="tcl")
     elif args.commands:
         # Validate project directory manually since we're bypassing Typer's validation
         try:
@@ -639,7 +631,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
             sys.exit(e.exit_code)
         # Parse commands manually since we're bypassing Typer's argument parsing
         parsed_commands = [
-            cmd.strip() for cmd in args.commands[0].split("; ") if cmd.strip()
+            cmd.strip() for cmd in args.commands.split("; ") if cmd.strip()
         ]
         run_cmd(
             project_dir=validated_project_dir,
