@@ -618,7 +618,7 @@ class FABulous_CLI(Cmd):
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv")
         with Path(f"{self.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv").open(
-            "w"
+            "w", encoding="utf-8", newline="\n"
         ) as f:
             w = csv.writer(f)
             for key1 in specObject["TileSpecs"]:
