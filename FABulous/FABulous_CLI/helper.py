@@ -49,7 +49,6 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
 
         if os.getenv("FABULOUS_TESTING", None):
             final_log = f"{record['level'].name}: {record['message']}\n"
-
         return final_log
 
     # Determine the log level for the sink
@@ -389,7 +388,7 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
     logger.info(f"Remove archive {ocs_archive}")
     ocs_archive.unlink()
 
-    fab_root_env = os.getenv("FAB_ROOT")
+    fab_root_env = get_context().root
     if fab_root_env is None:
         logger.error(
             "FAB_ROOT environment variable is not set. Cannot update .env file for OSS CAD Suite."

@@ -159,9 +159,7 @@ def parseBelFile(
     individually_declared = False
     noConfigBits = 0
     belMapDic = {}
-    ports_vectors: dict[
-        str, dict[str, tuple[IO, int]]
-    ] = {}  # {<porttype>:{porname:(IO, size)}}
+    ports_vectors: dict[str, dict[str, tuple[IO, int]]] = {}
     # define port types
     ports_vectors["internal"] = {}
     ports_vectors["external"] = {}

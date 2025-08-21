@@ -11,6 +11,7 @@ from loguru import logger
 from packaging.version import Version
 
 from FABulous.custom_exception import PipelineCommandError
+from FABulous.fabric_definition.define import HDLType
 from FABulous.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import (
     CommandPipeline,
@@ -57,18 +58,15 @@ def version_callback(value: bool) -> None:
 def validate_project_directory(raw_project_dir: str | Path) -> Path:
     """Validate that the project directory exists and is a valid FABulous project."""
     project_dir = Path(raw_project_dir)
-    if not project_dir.exists():
-        logger.error(f"The directory provided does not exist: {project_dir}")
-        raise typer.Exit(1) from None
 
-    if not (project_dir / ".FABulous").exists():
-        logger.error(
-            "The directory provided or current directory is not a FABulous project"
-            "as it does not have a .FABulous folder"
-        )
-        raise typer.Exit(1) from None
+    if (project_dir / ".FABulous").exists():
+        return project_dir
 
-    return project_dir
+    logger.error(
+        "The directory provided or current directory is not a FABulous project"
+        "as it does not have a .FABulous folder"
+    )
+    raise typer.Exit(1) from None
 
 
 ProjectDirType = Annotated[
@@ -77,6 +75,8 @@ ProjectDirType = Annotated[
         help="Directory path to project folder",
         parser=validate_project_directory,
         callback=lambda v: logger.info(f"Setting current working directory to: {v}"),
+        resolve_path=True,
+        exists=True,
     ),
 ]
 
@@ -114,14 +114,14 @@ def common_options(
         bool, typer.Option("--force", help="Force command execution and ignore errors")
     ] = False,
     writer: Annotated[
-        str,
+        HDLType,
         typer.Option(
             "--writer",
             "-w",
             help="Set type of HDL code generated",
-            click_type=click.Choice(["verilog", "vhdl"]),
+            case_sensitive=False,
         ),
-    ] = "verilog",
+    ] = HDLType.VERILOG,
 ) -> None:
     """Common options for all FABulous commands."""
 
@@ -132,7 +132,6 @@ def common_options(
     shared_state.project_dot_env = project_dot_env
     shared_state.force = force
     shared_state.writer = writer
-
     setup_logger(
         shared_state.verbose,
         shared_state.debug,
@@ -161,14 +160,18 @@ def check_version_compatibility(_: Path) -> None:
 
 
 @app.command("create-project")
+@app.command("c", hidden=True)
 def create_project_cmd(
     project_dir: Annotated[
         Path, typer.Argument(help="Directory to create a project")
     ] = Path(),
 ) -> None:
-    """Create a new FABulous project."""
+    """Create a new FABulous project.
+
+    Alias: c
+    """
     try:
-        init_context()
+        init_context(None)
         create_project(
             project_dir, cast("Literal['verilog', 'vhdl']", shared_state.writer)
         )
@@ -192,6 +195,7 @@ def install_oss_cad_suite_cmd(
     """
 
     try:
+        init_context(None)
         install_oss_cad_suite(directory)
         logger.info(f"oss-cad-suite installed successfully at {directory}")
     except Exception as e:
@@ -218,7 +222,7 @@ def update_project_version_cmd(
 def script_cmd(
     project_dir: ProjectDirType = Path(),
     script_file: Annotated[
-        Path, typer.Argument(help="Script file to execute")
+        Path, typer.Argument(help="Script file to execute", resolve_path=True)
     ] = Path(),
     script_type: Annotated[
         str,
@@ -239,6 +243,8 @@ def script_cmd(
     If no project directory is specified, uses the current directory.
     """
     # Initialize context
+    entering_dir = Path.cwd()
+    os.chdir(project_dir)
     init_context(
         project_dir=project_dir,
         global_dot_env=shared_state.global_dot_env,
@@ -250,10 +256,7 @@ def script_cmd(
         force=shared_state.force,
     )
     fab_CLI.debug = shared_state.debug
-
     # Change to project directory
-    logger.info(f"Setting current working directory to: {project_dir}")
-    os.chdir(project_dir)
 
     # Try to load fabric, but don't fail if it's not a valid FABulous project
     fab_CLI.onecmd_plus_hooks("load_fabric")
@@ -261,69 +264,38 @@ def script_cmd(
     # Check if script file exists before trying to execute
     if not script_file.exists():
         logger.error(f"Script file {script_file} does not exist")
+        os.chdir(entering_dir)
         sys.exit(1)
 
     # Execute the script based on type
-    final_exit_code = 0
-    try:
-        if (
-            script_file.suffix.lower() in [".fab", ".fs"] and script_type is None
-        ) or script_type == "fabulous":
-            fab_CLI.onecmd_plus_hooks(f"run_script {script_file.absolute()}")
-            if fab_CLI.exit_code:
-                logger.error(
-                    f"FABulous script {script_file} execution failed with exit code {fab_CLI.exit_code}"
-                )
-                # For force flag: continue execution but remember that we had errors
-                if shared_state.force:
-                    final_exit_code = fab_CLI.exit_code
-                else:
-                    # Without force: only fail for legitimate script errors, not fabric issues
-                    if fab_CLI.exit_code == 1 and "Cannot find" in str(
-                        fab_CLI.last_error if hasattr(fab_CLI, "last_error") else ""
-                    ):
-                        sys.exit(1)
-                    # For other types of errors, tolerate them (original behavior)
-            else:
-                logger.info(f"FABulous script {script_file} executed successfully")
-        elif (
-            script_file.suffix.lower() == ".tcl" and script_type is None
-        ) or script_type == "tcl":
-            fab_CLI.onecmd_plus_hooks(f"run_tcl {script_file.absolute()}")
-            if fab_CLI.exit_code:
-                logger.error(
-                    f"TCL script {script_file} execution failed with exit code {fab_CLI.exit_code}"
-                )
-                # For force flag: continue execution but remember that we had errors
-                if shared_state.force:
-                    final_exit_code = fab_CLI.exit_code
-                else:
-                    # Without force: only fail for legitimate script errors, not fabric issues
-                    if fab_CLI.exit_code == 1 and "Cannot find" in str(
-                        fab_CLI.last_error if hasattr(fab_CLI, "last_error") else ""
-                    ):
-                        sys.exit(1)
-                    # For other types of errors, tolerate them (original behavior)
-            else:
-                logger.info(f"TCL script {script_file} executed successfully")
+    if (
+        script_file.suffix.lower() in [".fab", ".fs"] and script_type is None
+    ) or script_type == "fabulous":
+        fab_CLI.onecmd_plus_hooks(f"run_script {script_file.absolute()}")
+        if fab_CLI.exit_code:
+            logger.error(
+                f"FABulous script {script_file} execution failed with exit code {fab_CLI.exit_code}"
+            )
+            os.chdir(entering_dir)
+            sys.exit(fab_CLI.exit_code)
         else:
-            logger.error(f"Unknown script type: {script_type}")
-            sys.exit(1)
-    except PipelineCommandError as e:
-        logger.error(f"Script execution failed: {e}")
-        if not shared_state.force:
-            sys.exit(1)
+            logger.info(f"FABulous script {script_file} executed successfully")
+    elif (
+        script_file.suffix.lower() == ".tcl" and script_type is None
+    ) or script_type == "tcl":
+        fab_CLI.onecmd_plus_hooks(f"run_tcl {script_file.absolute()}")
+        if fab_CLI.exit_code:
+            logger.error(
+                f"TCL script {script_file} execution failed with exit code {fab_CLI.exit_code}"
+            )
+            os.chdir(entering_dir)
+            sys.exit(fab_CLI.exit_code)
         else:
-            final_exit_code = 1
-
-    # With force flag: exit with error code if there were errors, otherwise success
-    # Without force flag: exit with success (original lenient behavior for most errors)
-    if shared_state.force and final_exit_code != 0:
-        logger.error(f"Script completed with errors (exit code {final_exit_code})")
-        sys.exit(final_exit_code)
+            logger.info(f"TCL script {script_file} executed successfully")
     else:
-        # For legacy compatibility, exit with 0 for script completion (unless force flag detected errors)
-        sys.exit(0)
+        os.chdir(entering_dir)
+        logger.error(f"Unknown script type: {script_type}")
+        sys.exit(1)
 
 
 @app.command("start")
@@ -352,7 +324,6 @@ def start_cmd(project_dir: ProjectDirType = Path()) -> None:
     fab_CLI.debug = shared_state.debug
 
     # Change to project directory
-    logger.info(f"Setting current working directory to: {project_dir}")
     os.chdir(project_dir)
     fab_CLI.onecmd_plus_hooks("load_fabric")
     fab_CLI.cmdloop()
@@ -397,6 +368,8 @@ def run_cmd(
     # Ensure commands is a list
     if isinstance(commands, str):
         commands = [commands]
+    if commands is None:
+        return
 
     # Create and execute command pipeline
     pipeline = CommandPipeline(fab_CLI, force=shared_state.force)
@@ -446,16 +419,6 @@ def convert_legacy_args_with_deprecation_warning() -> None:
     import sys
     from pathlib import Path
 
-    # Show deprecation warning
-    logger.warning(
-        "You are using deprecated argparse-style arguments. "
-        "Please migrate to the new typer-based commands:\n"
-        "  FABulous --createProject <dir> → FABulous create-project <dir>\n"
-        "  FABulous --install_oss_cad_suite → FABulous install-oss-cad-suite <dir>\n"
-        "  FABulous <project_dir> --commands <cmd> → FABulous run <project_dir> <cmd>\n"
-        "  FABulous <project_dir>  → FABulous start <project_dir> \n"
-        "  See 'FABulous --help' for more information."
-    )
     parser = argparse.ArgumentParser(
         description="The command line interface for FABulous"
     )
@@ -528,8 +491,9 @@ def convert_legacy_args_with_deprecation_warning() -> None:
     parser.add_argument(
         "-w",
         "--writer",
-        choices=["verilog", "vhdl"],
+        choices=list(HDLType),
         help="Set the type of HDL code generated by the tool. Currently support Verilog and VHDL (Default using Verilog)",
+        default=HDLType.VERILOG,
     )
 
     parser.add_argument(
@@ -552,15 +516,15 @@ def convert_legacy_args_with_deprecation_warning() -> None:
     parser.add_argument(
         "-gde",
         "--globalDotEnv",
-        nargs=1,
         help="Set the global .env file path. Default is $FAB_ROOT/.env",
+        type=Path,
     )
 
     parser.add_argument(
         "-pde",
         "--projectDotEnv",
-        nargs=1,
         help="Set the project .env file path. Default is $FAB_PROJ_DIR/.env",
+        type=Path,
     )
 
     parser.add_argument(
@@ -592,7 +556,24 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         global_dot_env=args.globalDotEnv,
         project_dot_env=args.projectDotEnv,
         force=args.force,
-        writer=args.writer,
+        writer=args.writer if args.writer is not None else HDLType.VERILOG,
+    )
+
+    setup_logger(args.verbose, args.debug, log_file=args.log)
+
+    # Show deprecation warning
+    logger.warning(
+        "You are using deprecated argparse-style arguments. "
+        "Please migrate to the new typer-based commands:\n"
+        r"  FABulous --createProject \<dir> → FABulous create-project \<dir>"
+        "\n"
+        r"  FABulous --install_oss_cad_suite → FABulous install-oss-cad-suite \<dir>"
+        "\n"
+        r"  FABulous \<project_dir> --commands \<cmd> → FABulous run \<project_dir> \<cmd>"
+        "\n"
+        r"  FABulous \<project_dir>  → FABulous start \<project_dir>"
+        "\n"
+        "  See 'FABulous --help' for more information."
     )
 
     project_dir = Path(args.project_dir).resolve().absolute()
@@ -610,18 +591,30 @@ def convert_legacy_args_with_deprecation_warning() -> None:
     elif args.update_project_version:
         update_project_version_cmd(project_dir)
     elif args.FABulousScript:
-        # Validate project directory manually since we're bypassing Typer's validation
-        try:
-            validated_project_dir = validate_project_directory(project_dir)
-        except typer.Exit as e:
-            sys.exit(e.exit_code)
+        # For FABulous scripts, allow running without a valid project directory
+        # The script_cmd function will handle cases where no valid project exists
+        if args.project_dir:
+            # Only validate if a project directory was explicitly provided
+            try:
+                validated_project_dir = validate_project_directory(project_dir)
+            except typer.Exit as e:
+                sys.exit(e.exit_code)
+        else:
+            # Use current directory when no project directory is provided
+            validated_project_dir = Path.cwd()
         script_cmd(validated_project_dir, args.FABulousScript, script_type="fabulous")
     elif args.TCLScript:
-        # Validate project directory manually since we're bypassing Typer's validation
-        try:
-            validated_project_dir = validate_project_directory(project_dir)
-        except typer.Exit as e:
-            sys.exit(e.exit_code)
+        # For TCL scripts, allow running without a valid project directory
+        # The script_cmd function will handle cases where no valid project exists
+        if args.project_dir:
+            # Only validate if a project directory was explicitly provided
+            try:
+                validated_project_dir = validate_project_directory(project_dir)
+            except typer.Exit as e:
+                sys.exit(e.exit_code)
+        else:
+            # Use current directory when no project directory is provided
+            validated_project_dir = Path.cwd()
         script_cmd(validated_project_dir, args.TCLScript, script_type="tcl")
     elif args.commands:
         # Validate project directory manually since we're bypassing Typer's validation

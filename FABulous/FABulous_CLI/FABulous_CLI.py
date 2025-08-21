@@ -60,7 +60,7 @@ from FABulous.FABulous_CLI.helper import (
     remove_dir,
     wrap_with_except_handling,
 )
-from FABulous.FABulous_settings import FABulousSettings
+from FABulous.FABulous_settings import get_context
 
 META_DATA_DIR = ".FABulous"
 
@@ -144,7 +144,7 @@ class FABulous_CLI(Cmd):
             Path to optional Tcl script to be executed, by default ""
         """
         super().__init__(
-            persistent_history_file=f"{FABulousSettings().proj_dir}/{META_DATA_DIR}/.fabulous_history",
+            persistent_history_file=f"{get_context().proj_dir}/{META_DATA_DIR}/.fabulous_history",
             allow_cli_args=False,
         )
 
@@ -318,7 +318,7 @@ class FABulous_CLI(Cmd):
         Sets the the FAB_OSS_CAD_SUITE environment variable in the .env file.
         """
         if args.destination_folder == "":
-            dest_dir = FABulousSettings().root
+            dest_dir = get_context().root
         else:
             dest_dir = args.destination_folder
 
@@ -566,7 +566,7 @@ class FABulous_CLI(Cmd):
         If no installation can be found, a warning is produced.
         """
         logger.info("Checking for FABulator installation")
-        fabulatorRoot = FABulousSettings().fabulator_root
+        fabulatorRoot = get_context().fabulator_root
 
         if fabulatorRoot is None:
             logger.warning("FABULATOR_ROOT environment variable not set.")
@@ -726,7 +726,7 @@ class FABulous_CLI(Cmd):
 
         if Path(f"{self.projectDir}/{parent}").exists():
             # TODO rewriting the fab_arch script so no need to copy file for work around
-            npnr = FABulousSettings().nextpnr_path
+            npnr = get_context().nextpnr_path
             if f"{json_file}" in [
                 str(i.name) for i in Path(f"{self.projectDir}/{parent}").iterdir()
             ]:
@@ -910,7 +910,7 @@ class FABulous_CLI(Cmd):
         if self.verbose or self.debug:
             logger.info(f"Make hex file {bitstreamHexPath}")
         make_hex(bitstreamPath, bitstreamHexPath)
-        vvp = FABulousSettings().vvp_path
+        vvp = get_context().vvp_path
 
         # $plusargs is used to pass the bitstream hex and waveform path to the testbench
         vvpArgs = [
@@ -1013,6 +1013,8 @@ class FABulous_CLI(Cmd):
 
         with Path(args.file).open() as f:
             for i in f:
+                if i.startswith("#"):
+                    continue
                 self.onecmd_plus_hooks(i.strip())
                 if self.exit_code != 0:
                     if not self.force:

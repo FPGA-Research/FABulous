@@ -7,7 +7,7 @@ from cmd2 import Cmd, Cmd2ArgumentParser, with_argparser, with_category
 from loguru import logger
 
 from FABulous.custom_exception import CommandError
-from FABulous.FABulous_settings import FABulousSettings
+from FABulous.FABulous_settings import get_context
 
 if TYPE_CHECKING:
     from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
@@ -256,7 +256,7 @@ def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
             return
 
     json_file = paths[0].with_suffix(".json")
-    yosys = FABulousSettings().yosys_path
+    yosys = get_context().yosys_path
 
     cmd = [
         "synth_fabulous",

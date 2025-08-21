@@ -6,7 +6,7 @@ from loguru import logger
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_generator.parser.parse_configmem import parseConfigMem
 from FABulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
-from FABulous.FABulous_settings import FABulousSettings
+from FABulous.FABulous_settings import get_context
 
 if TYPE_CHECKING:
     from FABulous.fabric_definition.ConfigMem import ConfigMem
@@ -58,7 +58,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                     configMemPath = tile.matrixDir / f"{tile.name}_ConfigMem.csv"
                 else:
                     configMemPath = (
-                        FABulousSettings().proj_dir
+                        get_context().proj_dir
                         / "Tile"
                         / tile.name
                         / f"{tile.name}_ConfigMem.csv"
