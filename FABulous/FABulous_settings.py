@@ -197,9 +197,6 @@ class FABulousSettings(BaseSettings):
         return value.absolute()
 
 
-# FABulousCliSettings class removed - functionality merged into FABulousSettings
-
-
 # Module-level singleton pattern for settings management
 _context_instance: FABulousSettings | None = None
 
@@ -225,6 +222,7 @@ def init_context(
     Returns:
         The initialized FABulousSettings instance
     """
+    global _context_instance
     # Resolve .env files in priority order
     env_files: list[Path] = []
 
@@ -288,14 +286,3 @@ def reset_context() -> None:
     global _context_instance
     _context_instance = None
     logger.debug("FABulous context reset")
-
-
-# Legacy functions for backward compatibility (deprecated)
-def setup_global_env_vars(*_args: object) -> None:
-    """Legacy function - deprecated. Use init_context() instead."""
-    logger.warning("setup_global_env_vars is deprecated. Use init_context() instead.")
-
-
-def setup_project_env_vars(*_args: object) -> None:
-    """Legacy function - deprecated. Use init_context() instead."""
-    logger.warning("setup_project_env_vars is deprecated. Use init_context() instead.")

@@ -435,9 +435,11 @@ def update_project_version(project_dir: Path) -> bool:
 class CommandPipeline:
     """Helper class to manage command execution with error handling."""
 
-    def __init__(self, cli_instance: "FABulous_CLI") -> None:
+    def __init__(self, cli_instance: "FABulous_CLI", force: bool = False) -> None:
         self.cli = cli_instance
         self.steps = []
+        self.force = force
+        self.final_exit_code = 0
 
     def add_step(
         self, command: str, error_message: str = "Command failed"
@@ -447,10 +449,28 @@ class CommandPipeline:
         return self
 
     def execute(self) -> bool:
-        """Execute all steps in the pipeline."""
+        """Execute all steps in the pipeline.
+
+        Returns:
+            bool: True if all commands succeeded, False if any failed.
+
+        Raises:
+            PipelineCommandError: If any command fails and force=False.
+        """
 
         for command, error_message in self.steps:
             self.cli.onecmd_plus_hooks(command)
             if self.cli.exit_code != 0:
-                raise PipelineCommandError(error_message)
-        return True
+                self.final_exit_code = self.cli.exit_code
+                logger.error(
+                    f"Command '{command}' execution failed with exit code {self.cli.exit_code}"
+                )
+
+                if not self.force:
+                    raise PipelineCommandError(error_message)
+
+        return self.final_exit_code == 0
+
+    def get_exit_code(self) -> int:
+        """Get the final exit code from pipeline execution."""
+        return self.final_exit_code

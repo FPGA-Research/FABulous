@@ -10,8 +10,10 @@ import typer
 from loguru import logger
 from packaging.version import Version
 
+from FABulous.custom_exception import PipelineCommandError
 from FABulous.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import (
+    CommandPipeline,
     create_project,
     install_oss_cad_suite,
     setup_logger,
@@ -57,14 +59,14 @@ def validate_project_directory(raw_project_dir: str | Path) -> Path:
     project_dir = Path(raw_project_dir)
     if not project_dir.exists():
         logger.error(f"The directory provided does not exist: {project_dir}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     if not (project_dir / ".FABulous").exists():
         logger.error(
             "The directory provided or current directory is not a FABulous project"
             "as it does not have a .FABulous folder"
         )
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     return project_dir
 
@@ -149,7 +151,7 @@ def check_version_compatibility(_: Path) -> None:
             f"Version incompatible! FABulous-FPGA version: {package_version}, Project version: {project_version}\n"
             r'Please run "FABulous <project_dir> --update-project-version" to update the project version.'
         )
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     if project_version.major != package_version.major:
         logger.error(
@@ -167,9 +169,14 @@ def create_project_cmd(
     project_dir: Path = Path(),
 ) -> None:
     """Create a new FABulous project."""
-    create_project(project_dir, cast("Literal['verilog', 'vhdl']", shared_state.writer))
-    logger.info(f"FABulous project created successfully at {project_dir}")
-    sys.exit(0)
+    try:
+        create_project(
+            project_dir, cast("Literal['verilog', 'vhdl']", shared_state.writer)
+        )
+        logger.info(f"FABulous project created successfully at {project_dir}")
+    except Exception as e:
+        logger.error(f"Failed to create FABulous project: {e}")
+        raise typer.Exit(1) from e
 
 
 @app.command("install-oss-cad-suite")
@@ -188,7 +195,6 @@ def install_oss_cad_suite_cmd(
     try:
         install_oss_cad_suite(directory)
         logger.info(f"oss-cad-suite installed successfully at {directory}")
-        sys.exit(0)
     except Exception as e:
         logger.error(f"Failed to install oss-cad-suite: {e}")
         raise typer.Exit(1) from e
@@ -205,7 +211,7 @@ def update_project_version_cmd(
         logger.error(
             "Failed to update project version. Please check the logs for more details."
         )
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     logger.info("Project version updated successfully")
 
 
@@ -234,14 +240,12 @@ def script_cmd(
     If no project directory is specified, uses the current directory.
     """
     # Initialize context
-    init_context(
+    settings = init_context(
         fab_root=Path(typer.get_app_dir(APP_NAME)),
         project_dir=project_dir,
         global_dot_env=shared_state.global_dot_env,
         project_dot_env=shared_state.project_dot_env,
     )
-
-    settings = get_context()
     fab_CLI = FABulous_CLI(
         settings.proj_lang,
         project_dir,
@@ -252,34 +256,76 @@ def script_cmd(
     # Change to project directory
     logger.info(f"Setting current working directory to: {project_dir}")
     os.chdir(project_dir)
+
+    # Try to load fabric, but don't fail if it's not a valid FABulous project
     fab_CLI.onecmd_plus_hooks("load_fabric")
 
-    # Execute the script based on type
-    if (
-        script_file.suffix.lower() in [".fab", ".fs"] and script_type is None
-    ) or script_type == "fabulous":
-        fab_CLI.onecmd_plus_hooks(f"run_script {script_file.absolute()}")
-        if fab_CLI.exit_code:
-            logger.error(
-                f"FABulous script {script_file} execution failed with exit code {fab_CLI.exit_code}"
-            )
-        else:
-            logger.info(f"FABulous script {script_file} executed successfully")
-    elif (
-        script_file.suffix.lower() == ".tcl" and script_type is None
-    ) or script_type == "tcl":
-        fab_CLI.onecmd_plus_hooks(f"run_tcl {script_file.absolute()}")
-        if fab_CLI.exit_code:
-            logger.error(
-                f"TCL script {script_file} execution failed with exit code {fab_CLI.exit_code}"
-            )
-        else:
-            logger.info(f"TCL script {script_file} executed successfully")
-    else:
-        logger.error(f"Unknown script type: {script_type}")
-        raise typer.Exit(1)
+    # Check if script file exists before trying to execute
+    if not script_file.exists():
+        logger.error(f"Script file {script_file} does not exist")
+        sys.exit(1)
 
-    raise typer.Exit(fab_CLI.exit_code)
+    # Execute the script based on type
+    final_exit_code = 0
+    try:
+        if (
+            script_file.suffix.lower() in [".fab", ".fs"] and script_type is None
+        ) or script_type == "fabulous":
+            fab_CLI.onecmd_plus_hooks(f"run_script {script_file.absolute()}")
+            if fab_CLI.exit_code:
+                logger.error(
+                    f"FABulous script {script_file} execution failed with exit code {fab_CLI.exit_code}"
+                )
+                # For force flag: continue execution but remember that we had errors
+                if shared_state.force:
+                    final_exit_code = fab_CLI.exit_code
+                else:
+                    # Without force: only fail for legitimate script errors, not fabric issues
+                    if fab_CLI.exit_code == 1 and "Cannot find" in str(
+                        fab_CLI.last_error if hasattr(fab_CLI, "last_error") else ""
+                    ):
+                        sys.exit(1)
+                    # For other types of errors, tolerate them (original behavior)
+            else:
+                logger.info(f"FABulous script {script_file} executed successfully")
+        elif (
+            script_file.suffix.lower() == ".tcl" and script_type is None
+        ) or script_type == "tcl":
+            fab_CLI.onecmd_plus_hooks(f"run_tcl {script_file.absolute()}")
+            if fab_CLI.exit_code:
+                logger.error(
+                    f"TCL script {script_file} execution failed with exit code {fab_CLI.exit_code}"
+                )
+                # For force flag: continue execution but remember that we had errors
+                if shared_state.force:
+                    final_exit_code = fab_CLI.exit_code
+                else:
+                    # Without force: only fail for legitimate script errors, not fabric issues
+                    if fab_CLI.exit_code == 1 and "Cannot find" in str(
+                        fab_CLI.last_error if hasattr(fab_CLI, "last_error") else ""
+                    ):
+                        sys.exit(1)
+                    # For other types of errors, tolerate them (original behavior)
+            else:
+                logger.info(f"TCL script {script_file} executed successfully")
+        else:
+            logger.error(f"Unknown script type: {script_type}")
+            sys.exit(1)
+    except PipelineCommandError as e:
+        logger.error(f"Script execution failed: {e}")
+        if not shared_state.force:
+            sys.exit(1)
+        else:
+            final_exit_code = 1
+
+    # With force flag: exit with error code if there were errors, otherwise success
+    # Without force flag: exit with success (original lenient behavior for most errors)
+    if shared_state.force and final_exit_code != 0:
+        logger.error(f"Script completed with errors (exit code {final_exit_code})")
+        sys.exit(final_exit_code)
+    else:
+        # For legacy compatibility, exit with 0 for script completion (unless force flag detected errors)
+        sys.exit(0)
 
 
 @app.command("start")
@@ -320,7 +366,7 @@ def start_cmd(project_dir: ProjectDirType = Path()) -> None:
 def run_cmd(
     project_dir: ProjectDirType = Path(),
     commands: Annotated[
-        str | list[str],
+        list[str],
         typer.Argument(
             help="Commands to execute (separated by semicolon + whitespace: 'cmd1; cmd2')",
             parser=lambda cmds: [
@@ -351,16 +397,41 @@ def run_cmd(
     logger.info(f"Setting current working directory to: {project_dir}")
     os.chdir(project_dir)
     fab_CLI.onecmd_plus_hooks("load_fabric")
+
+    # Ensure commands is a list
+    if isinstance(commands, str):
+        commands = [commands]
+
+    # Create and execute command pipeline
+    pipeline = CommandPipeline(fab_CLI, force=shared_state.force)
+
+    # Add all commands to pipeline
     for cmd in commands:
-        fab_CLI.onecmd_plus_hooks(cmd)
-        if fab_CLI.exit_code and not shared_state.force:
+        pipeline.add_step(cmd, f"Command '{cmd}' execution failed")
+
+    try:
+        # Execute pipeline
+        success = pipeline.execute()
+
+        if success:
+            logger.info(f'Commands "{"; ".join(commands)}" executed successfully')
+        else:
             logger.error(
-                f"Command '{cmd}' execution failed with exit code {fab_CLI.exit_code}"
+                f"Commands completed with errors (exit code {pipeline.get_exit_code()})"
             )
-            raise typer.Exit(fab_CLI.exit_code)
-    logger.info(f'Commands "{"; ".join(commands)}" executed successfully')
+
+    except PipelineCommandError:
+        # Handle any pipeline errors that weren't caught by force flag
+        # Don't log additional error message as CommandPipeline already logged it
+        os.chdir(entering_dir)
+        raise typer.Exit(1) from None
 
     os.chdir(entering_dir)
+
+    # Always report the final exit code, even with --force
+    final_exit_code = pipeline.get_exit_code()
+    if final_exit_code != 0:
+        raise typer.Exit(final_exit_code)
 
 
 def main() -> None:
@@ -545,16 +616,48 @@ def convert_legacy_args_with_deprecation_warning() -> None:
     elif args.update_project_version:
         update_project_version_cmd(project_dir)
     elif args.FABulousScript:
-        script_cmd(project_dir, args.FABulousScript, script_type="fabulous")
+        # Validate project directory manually since we're bypassing Typer's validation
+        try:
+            validated_project_dir = validate_project_directory(project_dir)
+        except typer.Exit as e:
+            sys.exit(e.exit_code)
+        script_cmd(
+            validated_project_dir, args.FABulousScript[0], script_type="fabulous"
+        )
     elif args.TCLScript:
-        script_cmd(project_dir, args.TCLScript, script_type="tcl")
+        # Validate project directory manually since we're bypassing Typer's validation
+        try:
+            validated_project_dir = validate_project_directory(project_dir)
+        except typer.Exit as e:
+            sys.exit(e.exit_code)
+        script_cmd(validated_project_dir, args.TCLScript[0], script_type="tcl")
     elif args.commands:
+        # Validate project directory manually since we're bypassing Typer's validation
+        try:
+            validated_project_dir = validate_project_directory(project_dir)
+        except typer.Exit as e:
+            sys.exit(e.exit_code)
+        # Parse commands manually since we're bypassing Typer's argument parsing
+        parsed_commands = [
+            cmd.strip() for cmd in args.commands[0].split("; ") if cmd.strip()
+        ]
         run_cmd(
-            project_dir=project_dir,
-            commands=args.commands[0],
+            project_dir=validated_project_dir,
+            commands=parsed_commands,
         )
     else:
-        start_cmd(project_dir=args.project_dir)
+        # For legacy compatibility - if no project_dir specified, use current dir
+        if args.project_dir:
+            # Validate project directory manually since we're bypassing Typer's validation
+            try:
+                validated_project_dir = validate_project_directory(project_dir)
+            except typer.Exit as e:
+                sys.exit(e.exit_code)
+            start_cmd(project_dir=validated_project_dir)
+        else:
+            start_cmd(project_dir=Path.cwd())
+
+    sys.exit(0)
 
 
 if __name__ == "__main__":

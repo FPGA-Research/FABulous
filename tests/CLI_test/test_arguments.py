@@ -94,7 +94,7 @@ def test_fabulous_script_nonexistent_file(tmp_path: Path, project: Path, monkeyp
 def test_fabulous_script_with_no_project_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test FABulous script with no project directory"""
     script_file = tmp_path / "test_script.fab"
-    script_file.write_text("# Test FABulous script\n")
+    script_file.write_text("# Test FABulous script\nhelp\n")
 
     test_args = ["FABulous", "--FABulousScript", str(script_file)]
     monkeypatch.setattr(sys, "argv", test_args)
