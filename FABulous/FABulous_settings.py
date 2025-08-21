@@ -1,143 +1,13 @@
 import os
-import sys
 from importlib.metadata import version
 from pathlib import Path
 from shutil import which
 
-from dotenv import load_dotenv
 from loguru import logger
 from packaging.version import Version
 from pydantic import field_validator
 from pydantic_core.core_schema import FieldValidationInfo  # type: ignore
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-def setup_fab_root() -> None:
-    """Set up FAB_ROOT environment variable if not already set."""
-    fab_root = os.getenv("FAB_ROOT")
-    if fab_root is None:
-        # Prefer the package directory (the one containing fabric_files) as FAB_ROOT
-        pkg_dir = Path(__file__).parent.resolve()
-        if pkg_dir.joinpath("fabric_files").exists():
-            fab_root = str(pkg_dir)
-        else:  # Fallback to previous behaviour (repository root)
-            fab_root = str(Path(__file__).parent.parent.resolve())
-        os.environ["FAB_ROOT"] = fab_root
-        logger.info("FAB_ROOT environment variable not set!")
-        logger.info(f"Using {fab_root} as FAB_ROOT")
-    else:
-        # If there is the FABulous folder in the FAB_ROOT, then set the FAB_ROOT to the FABulous folder
-        if Path(fab_root).exists():
-            if Path(fab_root).joinpath("FABulous").exists():
-                fab_root = str(Path(fab_root).joinpath("FABulous"))
-            os.environ["FAB_ROOT"] = fab_root
-        else:
-            logger.error(
-                f"FAB_ROOT environment variable set to {fab_root} but the directory does not exist"
-            )
-            sys.exit(1)
-        logger.info(f"FAB_ROOT set to {fab_root}")
-
-
-def setup_additional_env_vars() -> None:
-    """Setup additional FABulous-specific environment variables."""
-    # Export oss-cad-suite bin path to PATH
-    if ocs_path := os.getenv("FAB_OSS_CAD_SUITE"):
-        current_path = os.environ.get("PATH", "")
-        new_path = ocs_path + "/bin"
-        if new_path not in current_path:
-            os.environ["PATH"] = current_path + os.pathsep + new_path
-
-
-def load_env_files_with_priority(
-    global_dot_env: Path | None = None,
-    project_dot_env: Path | None = None,
-    project_dir: Path | None = None,
-) -> None:
-    """Load .env files with proper priority order.
-
-    Priority (lowest to highest - later files override earlier ones):
-    1. Default global .env
-    2. User-given global .env
-    3. Default project .env
-    4. User-given project .env
-
-    Environment variables and CLI arguments still have highest priority.
-    """
-    # Setup FAB_ROOT first
-    setup_fab_root()
-
-    fab_root = os.getenv("FAB_ROOT")
-    if fab_root:
-        fab_dir = Path(fab_root)
-
-        # Load default global .env (lowest priority)
-        if fab_dir.joinpath(".env").exists() and fab_dir.joinpath(".env").is_file():
-            load_dotenv(fab_dir.joinpath(".env"))
-            logger.info(f"Loaded global .env file from {fab_root}/.env")
-        elif (
-            fab_dir.parent.joinpath(".env").exists()
-            and fab_dir.parent.joinpath(".env").is_file()
-        ):
-            load_dotenv(fab_dir.parent.joinpath(".env"))
-            logger.info(
-                f"Loaded global .env file from {fab_dir.parent.joinpath('.env')}"
-            )
-
-    # Load user-given global .env (higher priority)
-    if global_dot_env:
-        if global_dot_env.is_file():
-            load_dotenv(global_dot_env)
-            logger.info(f"Load global .env file from {global_dot_env}")
-        elif (
-            global_dot_env.joinpath(".env").exists()
-            and global_dot_env.joinpath(".env").is_file()
-        ):
-            load_dotenv(global_dot_env.joinpath(".env"))
-            logger.info(f"Load global .env file from {global_dot_env.joinpath('.env')}")
-        else:
-            logger.warning(f"No global .env file found at {global_dot_env}")
-
-    # Set project directory env var if needed - but only set it after all global .env files are loaded
-    # This way, if any .env file sets FAB_PROJ_DIR, it will take precedence
-    fab_proj_dir_before = os.getenv("FAB_PROJ_DIR")
-    if project_dir and not fab_proj_dir_before:
-        os.environ["FAB_PROJ_DIR"] = str(project_dir.absolute())
-
-    # Load default project .env files
-    fab_proj_dir = os.getenv("FAB_PROJ_DIR")
-    if fab_proj_dir:
-        fab_project_dir = Path(fab_proj_dir) / ".FABulous"
-
-        # Try project_dir/.env
-        if (
-            fab_project_dir.parent.joinpath(".env").exists()
-            and fab_project_dir.parent.joinpath(".env").is_file()
-        ):
-            load_dotenv(fab_project_dir.parent.joinpath(".env"), override=True)
-            logger.info(
-                f"Loaded project .env file from {fab_project_dir.parent.joinpath('.env')}"
-            )
-
-        # Try .FABulous/.env (higher priority than project_dir/.env)
-        if (
-            fab_project_dir.joinpath(".env").exists()
-            and fab_project_dir.joinpath(".env").is_file()
-        ):
-            load_dotenv(fab_project_dir.joinpath(".env"), override=True)
-            logger.info(f"Loaded project .env file from {fab_project_dir}/.env')")
-
-    # Load user-given project .env (highest .env priority)
-    if project_dot_env:
-        if project_dot_env.exists() and project_dot_env.is_file():
-            load_dotenv(project_dot_env, override=True)
-            # Keep legacy log string for backward compatibility with existing tests
-            logger.info("Loaded global .env file from pde (project .env override)")
-        else:
-            logger.warning(f"No project .env file found at {project_dot_env}")
-
-    # Setup additional environment variables
-    setup_additional_env_vars()
 
 
 class FABulousSettings(BaseSettings):
@@ -165,7 +35,27 @@ class FABulousSettings(BaseSettings):
 
     proj_lang: HDLType = HDLType.VERILOG
     switch_matrix_debug_signal: bool = False
-    model_pack: Path | None = None
+
+    # CLI-specific options (previously in FABulousCliSettings)
+    verbose: int = 0
+    debug: bool = False
+    log_file: Path | None = None
+    force: bool = False
+
+    # Script execution options
+    fabulous_script: Path | None = None
+    tcl_script: Path | None = None
+    commands: str | None = None
+
+    # Project creation options
+    create_project: bool = False
+    install_oss_cad_suite: bool = False
+
+    # Version and help options
+    update_project_version: bool = False
+
+    # Output directory for metadata
+    metadata_dir: str = ".FABulous"
 
     @field_validator("proj_version", "proj_version_created", mode="before")
     @classmethod
@@ -279,144 +169,7 @@ class FABulousSettings(BaseSettings):
         logger.warning(f"{tool} not found in PATH during settings initialisation. Some features may be unavailable.")
         return None
 
-
-class FABulousCliSettings(FABulousSettings):
-    """CLI-specific settings that extend the base FABulousSettings."""
-
-    # CLI-specific options
-    verbose: int = 0
-    debug: bool = False
-    log_file: Path | None = None
-    force: bool = False
-
-    # Script execution options
-    fabulous_script: Path | None = None
-    tcl_script: Path | None = None
-    commands: str | None = None
-
-    # Project creation options
-    create_project: bool = False
-    install_oss_cad_suite: bool = False
-
-    # Version and help options
-    update_project_version: bool = False
-
-    # Environment file overrides - paths to .env files to load
-    global_dot_env: Path | None = None
-    project_dot_env: Path | None = None
-
-    # Output directory for metadata
-    metadata_dir: str = ".FABulous"
-
-    @classmethod
-    def create_with_env_files(
-        cls,
-        project_dir: Path | None = None,
-        global_dot_env: Path | None = None,
-        project_dot_env: Path | None = None,
-        **kwargs: dict,
-    ) -> "FABulousCliSettings":
-        """Create FABulousCliSettings with .env file loading.
-
-        This loads .env files with proper priority before creating the Pydantic settings
-        instance. Environment variables and CLI arguments will still override .env file
-        values.
-        """
-        # Load .env files with proper priority
-        load_env_files_with_priority(global_dot_env, project_dot_env, project_dir)
-
-        # Handle writer field override if provided in CLI arguments
-        if "writer" in kwargs and kwargs["writer"]:
-            # Set up environment variable for writer override
-            old_writer = os.environ.get("FAB_PROJ_LANG")
-            os.environ["FAB_PROJ_LANG"] = kwargs["writer"]
-            try:
-                instance = cls(**kwargs)
-            finally:
-                # Restore original environment
-                if old_writer is not None:
-                    os.environ["FAB_PROJ_LANG"] = old_writer
-                elif "FAB_PROJ_LANG" in os.environ:
-                    del os.environ["FAB_PROJ_LANG"]
-        else:
-            logger.error(f"FAB_ROOT environment variable set to {fabulousRoot} but the directory does not exist")
-            sys.exit()
-
-        logger.info(f"FAB_ROOT set to {fabulousRoot}")
-
-    # Load the .env file and make env variables available globally
-    if p := os.getenv("FAB_ROOT"):
-        fabDir = Path(p)
-    else:
-        raise EnvironmentNotSet("FAB_ROOT environment variable not set")
-    if args.globalDotEnv:
-        gde = Path(args.globalDotEnv)
-        if gde.is_file():
-            load_dotenv(gde)
-            logger.info(f"Load global .env file from {gde}")
-        elif gde.joinpath(".env").exists() and gde.joinpath(".env").is_file():
-            load_dotenv(gde.joinpath(".env"))
-            logger.info(f"Load global .env file from {gde.joinpath('.env')}")
-        else:
-            logger.warning(f"No global .env file found at {gde}")
-    elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
-        load_dotenv(fabDir.joinpath(".env"))
-        logger.info(f"Loaded global .env file from {fabulousRoot}/.env")
-    elif fabDir.parent.joinpath(".env").exists() and fabDir.parent.joinpath(".env").is_file():
-        load_dotenv(fabDir.parent.joinpath(".env"))
-        logger.info(f"Loaded global .env file from {fabDir.parent.joinpath('.env')}")
-    else:
-        logger.info("No global .env file found")
-
-    # Set project directory env var, this can not be saved in the .env file,
-    # since it can change if the project folder is moved
-    if not os.getenv("FAB_PROJ_DIR"):
-        os.environ["FAB_PROJ_DIR"] = str(Path(args.project_dir).absolute())
-
-    # Export oss-cad-suite bin path to PATH
-    if ocs_path := os.getenv("FAB_OSS_CAD_SUITE"):
-        os.environ["PATH"] += os.pathsep + ocs_path + "/bin"
-
-
-def setup_project_env_vars(args: argparse.Namespace) -> None:
-    """Set up environment variables for the project.
-
-    Parameters
-    ----------
-    args : argparse.Namespace
-        Command line arguments
-    """
-    # Load the .env file and make env variables available globally
-    if p := os.getenv("FAB_PROJ_DIR"):
-        fabDir = Path(p) / ".FABulous"
-    else:
-        raise EnvironmentNotSet("FAB_PROJ_DIR environment variable not set")
-
-    if args.projectDotEnv:
-        pde = Path(args.projectDotEnv)
-        if pde.exists() and pde.is_file():
-            load_dotenv(pde, override=True)
-            # Keep legacy log string for backward compatibility with existing tests
-            logger.info("Loaded global .env file from pde (project .env override)")
-    elif fabDir.joinpath(".env").exists() and fabDir.joinpath(".env").is_file():
-        load_dotenv(fabDir.joinpath(".env"), override=True)
-        logger.info(f"Loaded project .env file from {fabDir}/.env')")
-    elif fabDir.parent.joinpath(".env").exists() and fabDir.parent.joinpath(".env").is_file():
-        load_dotenv(fabDir.parent.joinpath(".env"), override=True)
-        logger.info(f"Loaded project .env file from {fabDir.parent.joinpath('.env')}")
-    else:
-        logger.warning("No project .env file found")
-
-    # Overwrite project language param, if writer is specified as command line argument
-    if args.writer and args.writer != os.getenv("FAB_PROJ_LANG"):
-        logger.warning(
-            f"Overwriting project language for current run, from {os.getenv('FAB_PROJ_LANG')} to {args.writer}, which was specified as command line argument"
-        )
-        os.environ["FAB_PROJ_LANG"] = args.writer
-            instance = cls(**kwargs)
-
-        return instance
-
+    # CLI-specific validators
     @field_validator("fabulous_script", "tcl_script", mode="before")
     @classmethod
     def validate_script_paths(cls, value: str | Path | None) -> Path | None:
@@ -429,18 +182,6 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
             return None
         if isinstance(value, str):
             value = Path(value)
-        return value.absolute()
-
-    @field_validator("global_dot_env", "project_dot_env", mode="before")
-    @classmethod
-    def validate_env_file_paths(cls, value: str | Path | None) -> Path | None:
-        """Validate that .env file paths exist if provided."""
-        if value is None:
-            return None
-        if isinstance(value, str):
-            value = Path(value)
-        if not value.exists():
-            raise ValueError(f"File does not exist: {value}")
         return value.absolute()
 
     @field_validator("log_file", mode="before")
@@ -456,16 +197,105 @@ def setup_project_env_vars(args: argparse.Namespace) -> None:
         return value.absolute()
 
 
+# FABulousCliSettings class removed - functionality merged into FABulousSettings
+
+
+# Module-level singleton pattern for settings management
+_context_instance: FABulousSettings | None = None
+
+
+def init_context(
+    fab_root: Path,
+    project_dir: Path | None = None,
+    global_dot_env: Path | None = None,
+    project_dot_env: Path | None = None,
+) -> FABulousSettings:
+    """Initialize the global FABulous context with settings.
+
+    This should be called once at application startup to configure the global settings.
+    Subsequent calls will override the existing context.
+
+    Args:
+        model: Pydantic model with settings (preferred approach)
+        project_dir: Project directory path (legacy approach)
+        global_dot_env: Global .env file path (legacy approach)
+        project_dot_env: Project .env file path (legacy approach)
+        **kwargs: Additional settings parameters (legacy approach)
+
+    Returns:
+        The initialized FABulousSettings instance
+    """
+    # Resolve .env files in priority order
+    env_files: list[Path] = []
+
+    fab_dir = Path(fab_root)
+    # Check FABulous directory first
+    if fab_dir.joinpath(".env").exists():
+        env_files.append(fab_dir.joinpath(".env"))
+    # Check parent directory as fallback
+    elif fab_dir.parent.joinpath(".env").exists():
+        env_files.append(fab_dir.parent.joinpath(".env"))
+
+    # 2. User-provided global .env file
+    if global_dot_env:
+        if global_dot_env.exists():
+            env_files.append(global_dot_env)
+        else:
+            logger.warning(f"Global .env file not found: {global_dot_env} this is ignored")
+
+    # 3. Default project .env files
+    if project_dir:
+        fab_proj_dir = os.getenv("FAB_PROJ_DIR", str(project_dir))
+        if fab_proj_dir:
+            fab_project_dir = Path(fab_proj_dir) / ".FABulous"
+
+            # project_dir/.env (lower priority)
+            if fab_project_dir.parent.joinpath(".env").exists():
+                env_files.append(fab_project_dir.parent.joinpath(".env"))
+
+            # .FABulous/.env (higher priority)
+            if fab_project_dir.joinpath(".env").exists():
+                env_files.append(fab_project_dir.joinpath(".env"))
+
+    # 4. User-provided project .env file (highest .env priority)
+    if project_dot_env and project_dot_env.exists():
+        env_files.append(project_dot_env)
+
+    _context_instance = FABulousSettings(_env_file=tuple(env_files))
+    logger.debug("FABulous context initialized")
+    return _context_instance
+
+
+def get_context() -> FABulousSettings:
+    """Get the global FABulous context.
+
+    Returns:
+        The current FABulousSettings instance
+
+    Raises:
+        RuntimeError: If context has not been initialized with init_context()
+    """
+    global _context_instance
+
+    if _context_instance is None:
+        raise RuntimeError("FABulous context not initialized. Call init_context() first.")
+
+    return _context_instance
+
+
+def reset_context() -> None:
+    """Reset the global context (primarily for testing)."""
+    global _context_instance
+    _context_instance = None
+    logger.debug("FABulous context reset")
+
+
 # Legacy functions for backward compatibility (deprecated)
 def setup_global_env_vars(*_args: object) -> None:
-    """Legacy function - deprecated. Use FABulousCliSettings instead."""
-    logger.warning(
-        "setup_global_env_vars is deprecated. Use FABulousCliSettings.create_with_env_files instead."
-    )
+    """Legacy function - deprecated. Use init_context() instead."""
+    logger.warning("setup_global_env_vars is deprecated. Use init_context() instead.")
 
 
 def setup_project_env_vars(*_args: object) -> None:
-    """Legacy function - deprecated. Use FABulousCliSettings instead."""
-    logger.warning(
-        "setup_project_env_vars is deprecated. Use FABulousCliSettings.create_with_env_files instead."
-    )
+    """Legacy function - deprecated. Use init_context() instead."""
+    logger.warning("setup_project_env_vars is deprecated. Use init_context() instead.")

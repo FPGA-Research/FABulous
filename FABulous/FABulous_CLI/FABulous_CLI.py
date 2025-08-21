@@ -112,7 +112,6 @@ class FABulous_CLI(Cmd):
     prompt: str = "FABulous> "
     fabulousAPI: FABulous_API
     projectDir: Path
-    enteringDir: Path
     top: str
     allTile: list[str]
     csvFile: Path
@@ -125,9 +124,10 @@ class FABulous_CLI(Cmd):
         self,
         writerType: str | None,
         projectDir: Path,
-        enteringDir: Path,
         force: bool = False,
         interactive: bool = False,
+        verbose: bool = False,
+        debug: bool = False,
     ) -> None:
         """Initialises the FABulous shell instance.
 
@@ -147,7 +147,6 @@ class FABulous_CLI(Cmd):
             persistent_history_file=f"{FABulousSettings().proj_dir}/{META_DATA_DIR}/.fabulous_history",
             allow_cli_args=False,
         )
-        self.enteringDir = enteringDir
 
         if writerType == "verilog":
             self.fabulousAPI = FABulous_API(VerilogCodeGenerator())
@@ -173,13 +172,14 @@ class FABulous_CLI(Cmd):
             )
         )
 
-        self.verbose = False
+        self.verbose = verbose
         self.add_settable(Settable("verbose", bool, "verbose output", self))
 
         self.force = force
         self.add_settable(Settable("force", bool, "force execution", self))
 
         self.interactive = interactive
+        self.debug = debug
 
         if isinstance(self.fabulousAPI.writer, VHDLCodeGenerator):
             self.extension = "vhdl"
@@ -238,7 +238,6 @@ class FABulous_CLI(Cmd):
     def do_exit(self, *_ignored: str) -> bool:
         """Exits the FABulous shell and logs info message."""
         logger.info("Exiting FABulous shell")
-        os.chdir(self.enteringDir)
         return True
 
     do_quit = do_exit

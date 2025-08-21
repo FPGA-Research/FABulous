@@ -29,7 +29,13 @@ def project_directories(tmp_path: Path) -> dict[str, Path]:
     default_dir = tmp_path / "default_project"
 
     # Create all directories with .FABulous folders
-    for project_dir in [user_provided_dir, env_var_dir, project_dotenv_dir, global_dotenv_dir, default_dir]:
+    for project_dir in [
+        user_provided_dir,
+        env_var_dir,
+        project_dotenv_dir,
+        global_dotenv_dir,
+        default_dir,
+    ]:
         project_dir.mkdir()
         (project_dir / ".FABulous").mkdir()
         env_file = project_dir / ".FABulous" / ".env"
