@@ -7,6 +7,7 @@
   - [How to cite](#how-to-cite)
   - [Prerequisites](#prerequisites)
   - [Getting started](#getting-started)
+    - [Using uv (optional)](#using-uv-optional)
   - [Contribution Guidelines](#contribution-guidelines)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -80,6 +81,39 @@ The following packages need to be installed for the CAD toolchain
 - [Yosys](https://github.com/YosysHQ/yosys)
 - [nextpnr-generic](https://github.com/YosysHQ/nextpnr#nextpnr-generic)
 
+### Optional: uv for faster dependency management
+
+[uv](https://github.com/astral-sh/uv) is a high-performance Python package manager that provides faster dependency resolution and installation. While not required for end users, it offers significant speed improvements and reproducible environments.
+
+**Benefits of using uv:**
+
+- 10-100x faster than pip for dependency resolution
+- Automatic virtual environment management
+- Deterministic dependency locking
+- Cross-platform compatibility
+
+**Installation:**
+
+Linux/macOS:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+macOS with Homebrew:
+
+```bash
+brew install uv
+```
+
+Windows:
+
+```powershell
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+
+
 ## Getting started
 
 We recommend using Python virtual environments for the usage of FABulous.
@@ -135,6 +169,36 @@ To run a simulation of a test bitstream on the design with Icarus Verilog:
 
 The tool also supports using TCL script to drive the build process. Assuming you have created a demo project using
 `(venv)$ FABulous -c demo`, you can call `(venv)$ FABulous demo -s ./demo/FABulous.tcl` to run the demo flow with the TCL interface.
+
+### Using uv (optional)
+
+If you have [uv](https://github.com/astral-sh/uv) installed (see Prerequisites section), you can use it for faster dependency management and automatic virtual environment handling:
+
+```bash
+git clone https://github.com/FPGA-Research-Manchester/FABulous
+cd FABulous
+uv sync                    # Install dependencies and create virtual environment
+uv pip install -e .       # Install FABulous in editable mode
+```
+
+Running FABulous with uv:
+
+```bash
+uv run FABulous -c demo    # Create a demo project
+uv run FABulous demo       # Run FABulous interactive shell
+
+# Or activate the environment and run directly:
+source .venv/bin/activate
+(venv)$ FABulous -c demo
+(venv)$ FABulous demo
+```
+
+Benefits of using uv:
+
+- No need to manually create/manage virtual environments
+- Faster dependency installation
+- Automatic dependency resolution and locking
+- Consistent environments across different machines
 
 More details on bitstream generation can be found [here](https://fabulous.readthedocs.io/en/latest/FPGA-to-bitstream/Bitstream%20generation.html).
 
