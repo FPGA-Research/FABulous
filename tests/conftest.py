@@ -9,6 +9,7 @@ from loguru import logger
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import create_project, setup_logger
+from FABulous.FABulous_settings import reset_context
 
 
 def normalize(block: str) -> list[str]:
@@ -81,3 +82,14 @@ def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
     )
     return caplog
     # No need to remove specific handler - cleanup_logger removes all handlers
+
+
+@pytest.fixture
+def project(tmp_path: Path) -> Generator[Path]:
+    project_dir = tmp_path / "test_project"
+    create_project(project_dir)
+
+    yield project_dir
+
+    # Cleanup
+    reset_context()  # Reset context after each test to avoid state leakage

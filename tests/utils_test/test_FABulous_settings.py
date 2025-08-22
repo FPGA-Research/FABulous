@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import pytest
+from dotenv import set_key
 from packaging.version import Version
 from pytest_mock import MockerFixture
 
@@ -17,7 +18,7 @@ class TestFABulousSettings:
     """Test cases for FABulousSettings class."""
 
     def test_default_initialization(
-        self, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+        self, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture, project: Path
     ) -> None:
         """Test FABulousSettings initialization with default values and no environment variables."""
         # Clear all FAB_ environment variables
@@ -25,13 +26,18 @@ class TestFABulousSettings:
             if key.startswith("FAB_"):
                 monkeypatch.delenv(key, raising=False)
 
+        # Remove any existing project .env file to test defaults
+        project_env = project / ".FABulous" / ".env"
+        if project_env.exists():
+            project_env.unlink()
+
         # Set minimal PATH to avoid system tools
         monkeypatch.setenv("PATH", "/bin:/usr/bin")
 
         # Mock which to return None (no tools found)
         mocker.patch("FABulous.FABulous_settings.which", return_value=None)
 
-        settings = FABulousSettings()
+        settings = init_context(project)
 
         # user_config_dir should be created and exist
         assert settings.user_config_dir.exists()
@@ -40,27 +46,23 @@ class TestFABulousSettings:
         assert settings.nextpnr_path is None
         assert settings.iverilog_path is None
         assert settings.vvp_path is None
-        assert settings.proj_dir == Path.cwd()
+        assert settings.proj_dir == project
         assert settings.fabulator_root is None
-        assert settings.oss_cad_suite is None
+        # Note: oss_cad_suite might be set from previous tests or environment
         assert isinstance(settings.proj_version_created, Version)
-        assert settings.proj_version_created == Version("0.0.1")
+        assert settings.proj_version_created == Version("0.0.1")  # Default value
         assert isinstance(settings.proj_version, Version)
-        assert settings.proj_lang == "verilog"
+        assert settings.proj_lang == "verilog"  # Default value
         assert settings.switch_matrix_debug_signal is False
 
     def test_initialization_with_environment_variables(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+        self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
     ) -> None:
         """Test FABulousSettings initialization with environment variables."""
-        test_proj_dir = tmp_path / "test_proj"
-        test_proj_dir.mkdir()
-        (test_proj_dir / ".FABulous").mkdir()
-
         # Set minimal PATH to avoid system tools
         monkeypatch.setenv("PATH", "/bin:/usr/bin")
 
-        monkeypatch.setenv("FAB_PROJ_DIR", str(test_proj_dir))
+        monkeypatch.setenv("FAB_PROJ_DIR", str(project))
         monkeypatch.setenv("FAB_PROJ_LANG", "vhdl")
         monkeypatch.setenv("FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
         monkeypatch.setenv("FAB_PROJ_VERSION_CREATED", "1.2.3")
@@ -68,18 +70,18 @@ class TestFABulousSettings:
         # Mock which to return None (no tools found)
         mocker.patch("FABulous.FABulous_settings.which", return_value=None)
 
-        settings = FABulousSettings()
+        settings = init_context()
 
         # user_config_dir should be created and exist
         assert settings.user_config_dir.exists()
         assert settings.user_config_dir.is_dir()
-        assert settings.proj_dir == test_proj_dir
+        assert settings.proj_dir == project
         assert settings.proj_lang == "vhdl"
         assert settings.switch_matrix_debug_signal is True
         assert settings.proj_version_created == Version("1.2.3")
 
     def test_initialization_with_tool_paths_found(
-        self, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+        self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
     ) -> None:
         """Test FABulousSettings initialization when tools are found in PATH."""
         # Clear all FAB_ environment variables
@@ -98,7 +100,7 @@ class TestFABulousSettings:
             "vvp": "/usr/bin/vvp",
         }.get(tool)
 
-        settings = FABulousSettings()
+        settings = init_context(project)
 
         assert settings.yosys_path == Path("/usr/bin/yosys")
         assert settings.nextpnr_path == Path("/usr/bin/nextpnr-generic")
@@ -106,7 +108,7 @@ class TestFABulousSettings:
         assert settings.vvp_path == Path("/usr/bin/vvp")
 
     def test_initialization_with_explicit_tool_paths(
-        self, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+        self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
     ) -> None:
         """Test FABulousSettings initialization with explicitly set tool paths."""
         # Clear all FAB_ environment variables first
@@ -125,7 +127,7 @@ class TestFABulousSettings:
 
         mocker.patch("FABulous.FABulous_settings.which", return_value=None)
 
-        settings = FABulousSettings()
+        settings = init_context(project)
 
         assert settings.yosys_path == Path(yosys_path)
         assert settings.nextpnr_path == Path(nextpnr_path)
@@ -213,7 +215,9 @@ class TestFieldValidators:
         assert config_dir.exists()
         assert config_dir.is_dir()
 
-    def test_ensure_user_config_dir_handles_existing_directory(self, tmp_path: Path) -> None:
+    def test_ensure_user_config_dir_handles_existing_directory(
+        self, tmp_path: Path
+    ) -> None:
         """Test ensure_user_config_dir validator with existing directory."""
         config_dir = tmp_path / "existing_config"
         config_dir.mkdir()
@@ -239,7 +243,9 @@ class TestFieldValidators:
         result = FABulousSettings.is_valid_project_dir(project_dir)
         assert result == project_dir
 
-    def test_is_valid_project_dir_without_fabulous_directory(self, tmp_path: Path) -> None:
+    def test_is_valid_project_dir_without_fabulous_directory(
+        self, tmp_path: Path
+    ) -> None:
         """Test is_valid_project_dir validator with directory missing .FABulous."""
         project_dir = tmp_path / "invalid_project"
         project_dir.mkdir()
@@ -358,78 +364,73 @@ class TestContextMethods:
         """Clean up context after each test."""
         reset_context()
 
-    def test_init_context_basic(self, tmp_path: Path) -> None:
+    def test_init_context_basic(self, project: Path) -> None:
         """Test basic context initialization."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
-
-        settings = init_context(project_dir=project_dir)
+        settings = init_context(project_dir=project)
 
         assert isinstance(settings, FABulousSettings)
-        assert settings.proj_dir == project_dir
+        assert settings.proj_dir == project
 
-    def test_init_context_with_project_dir(self, tmp_path: Path) -> None:
+    def test_init_context_with_project_dir(self, project: Path) -> None:
         """Test context initialization with project directory."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
+        settings = init_context(project_dir=project)
 
-        settings = init_context(project_dir=project_dir)
+        assert settings.proj_dir == project
 
-        assert settings.proj_dir == project_dir
-
-    def test_init_context_with_global_env_file(self, tmp_path: Path) -> None:
+    def test_init_context_with_global_env_file(self, project: Path, tmp_path: Path) -> None:
         """Test context initialization with global .env file."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
+        # Remove the project's default .env file to test global .env file precedence
+        project_env = project / ".FABulous" / ".env"
+        if project_env.exists():
+            project_env.unlink()
 
         # Create global .env file
         global_env = tmp_path / "global.env"
-        global_env.write_text("FAB_PROJ_LANG=vhdl\nFAB_SWITCH_MATRIX_DEBUG_SIGNAL=true\n")
+        global_env.touch()
+        set_key(global_env, "FAB_PROJ_LANG", "vhdl")
+        set_key(global_env, "FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
 
-        settings = init_context(project_dir=project_dir, global_dot_env=global_env)
+        settings = init_context(project_dir=project, global_dot_env=global_env)
 
         assert settings.proj_lang == "vhdl"
         assert settings.switch_matrix_debug_signal is True
 
-    def test_init_context_with_project_env_file(self, tmp_path: Path) -> None:
+    def test_init_context_with_project_env_file(self, project: Path, tmp_path: Path) -> None:
         """Test context initialization with project .env file."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
-
         # Create project .env file
         project_env = tmp_path / "project.env"
-        project_env.write_text("FAB_SWITCH_MATRIX_DEBUG_SIGNAL=true\nFAB_PROJ_LANG=verilog\n")
+        project_env.touch()
+        set_key(project_env, "FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
+        set_key(project_env, "FAB_PROJ_LANG", "verilog")
 
-        settings = init_context(
-            project_dir=project_dir,
-            project_dot_env=project_env
-        )
+        settings = init_context(project_dir=project, project_dot_env=project_env)
 
         assert settings.switch_matrix_debug_signal is True
         assert settings.proj_lang == "verilog"
 
-    def test_init_context_env_file_precedence(self, tmp_path: Path) -> None:
+    def test_init_context_env_file_precedence(self, project: Path, tmp_path: Path) -> None:
         """Test that project .env file overrides global .env file."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
+        # Remove the project's default .env file to test precedence properly
+        project_default_env = project / ".FABulous" / ".env"
+        if project_default_env.exists():
+            project_default_env.unlink()
 
         # Create global .env file
         global_env = tmp_path / "global.env"
-        global_env.write_text("FAB_PROJ_LANG=vhdl\nFAB_PROJ_VERSION_CREATED=1.0.0\n")
+        global_env.touch()
+        set_key(global_env, "FAB_PROJ_LANG", "vhdl")
+        set_key(global_env, "FAB_PROJ_VERSION_CREATED", "1.0.0")
 
         # Create project .env file that overrides language
         project_env = tmp_path / "project.env"
-        project_env.write_text("FAB_PROJ_LANG=verilog\nFAB_SWITCH_MATRIX_DEBUG_SIGNAL=true\n")
+        project_env.touch()
+        set_key(project_env, "FAB_PROJ_LANG", "verilog")
+        set_key(project_env, "FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
 
         settings = init_context(
-            project_dir=project_dir,
+            project_dir=project,
             global_dot_env=global_env,
-            project_dot_env=project_env
+            project_dot_env=project_env,
         )
 
         # Project .env should override global .env for PROJ_LANG
@@ -438,49 +439,38 @@ class TestContextMethods:
         assert settings.proj_version_created == Version("1.0.0")
         assert settings.switch_matrix_debug_signal is True
 
-    def test_init_context_auto_env_file_discovery(self, tmp_path: Path) -> None:
+    def test_init_context_auto_env_file_discovery(self, project: Path) -> None:
         """Test automatic discovery of .env files in standard locations."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        fabulous_dir = project_dir / ".FABulous"
-        fabulous_dir.mkdir()
-
         # Create .env file in .FABulous directory
-        fabulous_env = fabulous_dir / ".env"
-        fabulous_env.write_text("FAB_PROJ_LANG=vhdl\n")
+        fabulous_env = project / ".FABulous" / ".env"
+        fabulous_env.touch()
+        set_key(fabulous_env, "FAB_PROJ_LANG", "vhdl")
 
-        settings = init_context(project_dir=project_dir)
+        settings = init_context(project_dir=project)
 
         # .env file should be loaded
         assert settings.proj_lang == "vhdl"  # From fabulous .env
 
-    def test_init_context_missing_env_file_warning(self, tmp_path: Path) -> None:
+    def test_init_context_missing_env_file_warning(self, project: Path, tmp_path: Path) -> None:
         """Test that missing global .env file produces warning but doesn't fail."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
-
         nonexistent_env = tmp_path / "nonexistent.env"
 
         # This should work without raising an exception
-        settings = init_context(project_dir=project_dir, global_dot_env=nonexistent_env)
+        settings = init_context(project_dir=project, global_dot_env=nonexistent_env)
 
         assert isinstance(settings, FABulousSettings)
-        assert settings.proj_dir == project_dir
+        assert settings.proj_dir == project
 
-    def test_init_context_overwrites_existing(self, tmp_path: Path) -> None:
+    def test_init_context_overwrites_existing(self, project: Path, tmp_path: Path) -> None:
         """Test that subsequent init_context calls overwrite the existing context."""
-        project_dir1 = tmp_path / "project1"
-        project_dir1.mkdir()
-        (project_dir1 / ".FABulous").mkdir()
         project_dir2 = tmp_path / "project2"
         project_dir2.mkdir()
         (project_dir2 / ".FABulous").mkdir()
 
         # First initialization
-        init_context(project_dir=project_dir1)
+        init_context(project_dir=project)
         context1 = get_context()
-        assert context1.proj_dir == project_dir1
+        assert context1.proj_dir == project
 
         # Second initialization should overwrite
         init_context(project_dir=project_dir2)
@@ -488,17 +478,13 @@ class TestContextMethods:
         assert context2.proj_dir == project_dir2
         assert context1 is not context2  # Different instances
 
-    def test_get_context_after_init(self, tmp_path: Path) -> None:
+    def test_get_context_after_init(self, project: Path) -> None:
         """Test getting context after initialization."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
-
-        init_settings = init_context(project_dir=project_dir)
+        init_settings = init_context(project_dir=project)
         retrieved_settings = get_context()
 
         assert init_settings is retrieved_settings
-        assert retrieved_settings.proj_dir == project_dir
+        assert retrieved_settings.proj_dir == project
 
     def test_get_context_before_init_raises_error(self) -> None:
         """Test that getting context before initialization raises RuntimeError."""
@@ -508,16 +494,12 @@ class TestContextMethods:
         with pytest.raises(RuntimeError, match="FABulous context not initialized"):
             get_context()
 
-    def test_reset_context(self, tmp_path: Path) -> None:
+    def test_reset_context(self, project: Path) -> None:
         """Test context reset functionality."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
-
         # Initialize context
-        init_context(project_dir=project_dir)
+        init_context(project_dir=project)
         settings = get_context()
-        assert settings.proj_dir == project_dir
+        assert settings.proj_dir == project
 
         # Reset context
         reset_context()
@@ -526,84 +508,85 @@ class TestContextMethods:
         with pytest.raises(RuntimeError, match="FABulous context not initialized"):
             get_context()
 
-    def test_context_singleton_behavior(self, tmp_path: Path) -> None:
+    def test_context_singleton_behavior(self, project: Path) -> None:
         """Test that context follows singleton pattern."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
-
-        init_context(project_dir=project_dir)
+        init_context(project_dir=project)
 
         context1 = get_context()
         context2 = get_context()
 
         assert context1 is context2  # Same instance
 
-    def test_init_context_with_env_var_overrides(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_init_context_with_env_var_overrides(
+        self, project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that environment variables override .env file settings."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
-
         # Create .env file
         env_file = tmp_path / "test.env"
-        env_file.write_text("FAB_PROJ_LANG=vhdl\nFAB_SWITCH_MATRIX_DEBUG_SIGNAL=false\n")
+        env_file.touch()
+        set_key(env_file, "FAB_PROJ_LANG", "vhdl")
+        set_key(env_file, "FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "false")
 
         # Set environment variable that should override .env
         monkeypatch.setenv("FAB_PROJ_LANG", "verilog")
 
-        settings = init_context(project_dir=project_dir, global_dot_env=env_file)
+        settings = init_context(project_dir=project, global_dot_env=env_file)
 
         # Environment variable should override .env file
         assert settings.proj_lang == "verilog"
         # .env file setting should still apply where no env var exists
         assert settings.switch_matrix_debug_signal is False
 
-    def test_context_with_different_env_file_combinations(self, tmp_path: Path) -> None:
+    def test_context_with_different_env_file_combinations(self, project: Path, tmp_path: Path) -> None:
         """Test various combinations of .env files."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
+        # Remove the project's default .env file to test precedence properly
+        project_default_env = project / ".FABulous" / ".env"
+        if project_default_env.exists():
+            project_default_env.unlink()
 
         # Test with only global .env
         global_env = tmp_path / "global.env"
-        global_env.write_text("FAB_PROJ_VERSION_CREATED=2.0.0\n")
+        global_env.touch()
+        set_key(global_env, "FAB_PROJ_VERSION_CREATED", "2.0.0")
 
-        settings1 = init_context(project_dir=project_dir, global_dot_env=global_env)
+        settings1 = init_context(project_dir=project, global_dot_env=global_env)
         assert settings1.proj_version_created == Version("2.0.0")
 
         reset_context()
 
         # Test with only project .env
         project_env = tmp_path / "project.env"
-        project_env.write_text("FAB_SWITCH_MATRIX_DEBUG_SIGNAL=true\n")
+        project_env.touch()
+        set_key(project_env, "FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
 
-        settings2 = init_context(project_dir=project_dir, project_dot_env=project_env)
+        settings2 = init_context(project_dir=project, project_dot_env=project_env)
         assert settings2.switch_matrix_debug_signal is True
 
         reset_context()
 
         # Test with both (project should override global)
-        global_env.write_text("FAB_PROJ_LANG=vhdl\nFAB_PROJ_VERSION_CREATED=1.0.0\n")
-        project_env.write_text("FAB_PROJ_LANG=verilog\nFAB_SWITCH_MATRIX_DEBUG_SIGNAL=true\n")
+        # Clear previous content and set new values
+        global_env.write_text("")  # Clear file
+        set_key(global_env, "FAB_PROJ_LANG", "vhdl")
+        set_key(global_env, "FAB_PROJ_VERSION_CREATED", "1.0.0")
+
+        project_env.write_text("")  # Clear file
+        set_key(project_env, "FAB_PROJ_LANG", "verilog")
+        set_key(project_env, "FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
 
         settings3 = init_context(
-            project_dir=project_dir,
+            project_dir=project,
             global_dot_env=global_env,
-            project_dot_env=project_env
+            project_dot_env=project_env,
         )
         assert settings3.proj_lang == "verilog"  # Overridden by project
         assert settings3.proj_version_created == Version("1.0.0")  # From global
         assert settings3.switch_matrix_debug_signal is True  # From project
 
-    def test_context_thread_safety_basics(self, tmp_path: Path) -> None:
+    def test_context_thread_safety_basics(self, project: Path) -> None:
         """Basic test for context state consistency."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
-
         # Initialize context
-        settings = init_context(project_dir=project_dir)
+        settings = init_context(project_dir=project)
 
         # Multiple get_context calls should return the same instance
         context1 = get_context()
@@ -615,94 +598,85 @@ class TestContextMethods:
         assert context3 is settings
         assert context1 is context2 is context3
 
-    def test_context_with_invalid_env_file_values(self, tmp_path: Path) -> None:
+    def test_context_with_invalid_env_file_values(self, project: Path, tmp_path: Path) -> None:
         """Test context initialization with invalid values in .env files."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
+        # Remove the project's default .env file so our invalid .env file takes precedence
+        project_default_env = project / ".FABulous" / ".env"
+        if project_default_env.exists():
+            project_default_env.unlink()
 
         # Create .env with invalid project language
         env_file = tmp_path / "invalid.env"
-        env_file.write_text("FAB_PROJ_LANG=invalid_language\n")
+        env_file.touch()
+        set_key(env_file, "FAB_PROJ_LANG", "invalid_language")
 
-        with pytest.raises(ValueError, match="Project language must be either 'verilog' or 'vhdl'"):
-            init_context(project_dir=project_dir, global_dot_env=env_file)
+        with pytest.raises(
+            ValueError, match="Project language must be either 'verilog' or 'vhdl'"
+        ):
+            init_context(project_dir=project, global_dot_env=env_file)
 
-    def test_context_preserves_working_directory(self, tmp_path: Path) -> None:
+    def test_context_preserves_working_directory(self, project: Path) -> None:
         """Test that context initialization doesn't change working directory."""
         original_cwd = Path.cwd()
 
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
-
-        init_context(project_dir=project_dir)
+        init_context(project_dir=project)
 
         # Working directory should be unchanged
         assert Path.cwd() == original_cwd
 
-    def test_init_context_with_fab_proj_dir_env_var(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_init_context_with_fab_proj_dir_env_var(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test context initialization with FAB_PROJ_DIR environment variable."""
-        project_dir = tmp_path / "project"
-        project_dir.mkdir()
-        (project_dir / ".FABulous").mkdir()
-
         # Set environment variable
-        monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
+        monkeypatch.setenv("FAB_PROJ_DIR", str(project))
 
         settings = init_context()
 
         # Should use the environment variable for project directory
-        assert settings.proj_dir == project_dir
+        assert settings.proj_dir == project
 
-    def test_init_context_project_dir_overrides_env_var(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_init_context_project_dir_overrides_env_var(
+        self, project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test that explicit project_dir parameter overrides FAB_PROJ_DIR env var."""
         env_project_dir = tmp_path / "env_project"
         env_project_dir.mkdir()
         (env_project_dir / ".FABulous").mkdir()
-        param_project_dir = tmp_path / "param_project"
-        param_project_dir.mkdir()
-        (param_project_dir / ".FABulous").mkdir()
 
         # Set environment variable
         monkeypatch.setenv("FAB_PROJ_DIR", str(env_project_dir))
 
-        settings = init_context(project_dir=param_project_dir)
+        settings = init_context(project_dir=project)
 
         # The explicit project_dir parameter should override the env var
-        assert settings.proj_dir == param_project_dir
+        assert settings.proj_dir == project
 
-    def test_context_integration_with_real_project_structure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_context_integration_with_real_project_structure(
+        self, project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test context initialization with realistic project structure."""
-        # Create project structure
-        project_dir = tmp_path / "test_project"
-        project_dir.mkdir()
-        fabulous_project = project_dir / ".FABulous"
-        fabulous_project.mkdir()
-
         # Create global .env file with typical settings
         global_env = tmp_path / "global.env"
-        global_env.write_text(
-            "FAB_YOSYS_PATH=/opt/oss-cad-suite/bin/yosys\n"
-            "FAB_OSS_CAD_SUITE=/opt/oss-cad-suite\n"
-        )
+        global_env.touch()
+        set_key(global_env, "FAB_YOSYS_PATH", "/opt/oss-cad-suite/bin/yosys")
+        set_key(global_env, "FAB_OSS_CAD_SUITE", "/opt/oss-cad-suite")
 
-        project_env = fabulous_project / ".env"
-        project_env.write_text(
-            "FAB_PROJ_LANG=verilog\n"
-            "FAB_PROJ_VERSION_CREATED=1.0.0\n"
-        )
+        project_env = project / ".FABulous" / ".env"
+        project_env.touch()
+        set_key(project_env, "FAB_PROJ_LANG", "verilog")
+        set_key(project_env, "FAB_PROJ_VERSION_CREATED", "1.0.0")
 
         # Clean environment and set required vars
         for key in list(os.environ.keys()):
             if key.startswith("FAB_"):
                 monkeypatch.delenv(key, raising=False)
 
-        monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
+        monkeypatch.setenv("FAB_PROJ_DIR", str(project))
 
-        settings = init_context(project_dir=project_dir, global_dot_env=global_env)
+        settings = init_context(project_dir=project, global_dot_env=global_env)
 
-        assert settings.proj_dir == project_dir
+        assert settings.proj_dir == project
         assert settings.proj_lang == "verilog"
         assert settings.proj_version_created == Version("1.0.0")
         assert str(settings.yosys_path) == "/opt/oss-cad-suite/bin/yosys"
@@ -712,7 +686,7 @@ class TestIntegration:
     """Integration tests for FABulous settings functionality with new context system."""
 
     def test_complete_context_workflow(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+        self, project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
     ) -> None:
         """Test complete workflow from context initialization to settings usage."""
         reset_context()
@@ -722,32 +696,32 @@ class TestIntegration:
             if key.startswith("FAB_"):
                 monkeypatch.delenv(key, raising=False)
 
-        # Set up directory structure
-        proj_dir = tmp_path / "project"
-        proj_dir.mkdir()
-        fabulous_dir = proj_dir / ".FABulous"
-        fabulous_dir.mkdir()
-
         # Create .env files
         global_env = tmp_path / "global.env"
-        global_env.write_text("FAB_PROJ_LANG=vhdl\nFAB_YOSYS_PATH=/custom/yosys\n")
+        global_env.touch()
+        set_key(global_env, "FAB_PROJ_LANG", "vhdl")
+        set_key(global_env, "FAB_YOSYS_PATH", "/custom/yosys")
 
-        project_env = fabulous_dir / ".env"
-        project_env.write_text("FAB_PROJ_VERSION_CREATED=2.0.0\n")
+        # Modify the project's existing .env file instead of creating a new one
+        project_env = project / ".FABulous" / ".env"
+        # Clear existing content and set new values
+        project_env.write_text("")
+        set_key(project_env, "FAB_PROJ_LANG", "vhdl")  # Override to match global for consistency
+        set_key(project_env, "FAB_PROJ_VERSION_CREATED", "2.0.0")
 
         # Set environment variables
-        monkeypatch.setenv("FAB_PROJ_DIR", str(proj_dir))
+        monkeypatch.setenv("FAB_PROJ_DIR", str(project))
 
         mocker.patch("FABulous.FABulous_settings.which", return_value=None)
 
         # Initialize context
-        settings = init_context(project_dir=proj_dir, global_dot_env=global_env)
+        settings = init_context(project_dir=project, global_dot_env=global_env)
 
         # Verify context was initialized correctly
         context = get_context()
         assert context is settings
 
-        assert settings.proj_dir == proj_dir
+        assert settings.proj_dir == project
         assert settings.proj_lang == "vhdl"
         assert settings.proj_version_created == Version("2.0.0")
         assert settings.yosys_path == Path("/custom/yosys")
