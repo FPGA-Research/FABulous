@@ -55,7 +55,7 @@ class FABulousSettings(BaseSettings):
             return None
         if not value.is_dir():
             raise ValueError(f"{value} is not a valid directory")
-        return value
+        return value.resolve()
 
     @field_validator("user_config_dir", mode="after")
     @classmethod
@@ -76,7 +76,7 @@ class FABulousSettings(BaseSettings):
 
         if not (Path(value) / ".FABulous").exists():
             raise ValueError(f"{value} is not a FABulous project")
-        return value
+        return value.resolve()
 
     @field_validator("proj_lang", mode="after")
     @classmethod

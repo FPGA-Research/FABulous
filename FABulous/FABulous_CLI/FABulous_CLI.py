@@ -168,7 +168,7 @@ class FABulous_CLI(Cmd):
 
         self.tiles = []
         self.superTiles = []
-        self.csvFile = Path(self.projectDir / "fabric.csv")
+        self.csvFile = Path(self.projectDir / "fabric.csv").resolve()
         self.add_settable(
             Settable(
                 "csvFile", Path, "The fabric file ", self, completer=Cmd.path_complete
@@ -350,7 +350,7 @@ class FABulous_CLI(Cmd):
                 self.fabulousAPI.loadFabric(self.csvFile)
             else:
                 raise FileNotFoundError(
-                    "No argument is given and the csv file is set but the file does not exist"
+                    f"No argument is given and the csv file is set at {self.csvFile} but the file does not exist"
                 )
         else:
             self.fabulousAPI.loadFabric(args.file)

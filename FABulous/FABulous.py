@@ -106,7 +106,8 @@ def common_options(
         typer.Option("--project-dot-env", "-pde", help="Set project .env file path"),
     ] = None,
     force: Annotated[
-        bool, typer.Option("--force", help="Force command execution and ignore errors")
+        bool,
+        typer.Option("--force", "-f", help="Force command execution and ignore errors"),
     ] = False,
     writer: Annotated[
         HDLType,
@@ -282,8 +283,9 @@ def script_cmd(
 
 
 @app.command("start")
+@app.command("s", hidden=True)
 def start_cmd(project_dir: ProjectDirType = None) -> None:
-    """Run FABulous with the specified project and options.
+    """Start FABulous in interactive mode. Alias: s.
 
     This is the main command for running FABulous in interactive mode or with scripts.
     If no project directory is specified, uses the current directory.
@@ -313,6 +315,7 @@ def start_cmd(project_dir: ProjectDirType = None) -> None:
 
 
 @app.command("run")
+@app.command("r", hidden=True)
 def run_cmd(
     project_dir: ProjectDirType = None,
     commands: Annotated[
@@ -325,6 +328,11 @@ def run_cmd(
         ),
     ] = None,
 ) -> None:
+    """Run commands directly in a FABulous project.
+
+    Alias: r
+    """
+
     settings = init_context(
         project_dir=project_dir,
         global_dot_env=shared_state.global_dot_env,
@@ -388,7 +396,12 @@ def run_cmd(
 
 def main() -> None:
     try:
-        if sys.argv[1] not in [i.name for i in app.registered_commands]:
+        if len(sys.argv) == 1:
+            app()
+
+        first_non_flag = [i for i in sys.argv[1:] if not i.startswith("-")][0]
+
+        if first_non_flag not in [i.name for i in app.registered_commands]:
             convert_legacy_args_with_deprecation_warning()
         else:
             app()
@@ -559,6 +572,8 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         r"  FABulous \<project_dir> --commands \<cmd> → FABulous run \<project_dir> \<cmd>"
         "\n"
         r"  FABulous \<project_dir>  → FABulous start \<project_dir>"
+        "\n"
+        r"  FABulous \<project_dir> --debug  → FABulous --debug start \<project_dir>"
         "\n"
         "  See 'FABulous --help' for more information."
     )
