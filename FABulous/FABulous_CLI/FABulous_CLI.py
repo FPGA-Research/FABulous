@@ -60,7 +60,7 @@ from FABulous.FABulous_CLI.helper import (
     remove_dir,
     wrap_with_except_handling,
 )
-from FABulous.FABulous_settings import get_context
+from FABulous.FABulous_settings import get_context, init_context
 
 META_DATA_DIR = ".FABulous"
 
@@ -123,7 +123,6 @@ class FABulous_CLI(Cmd):
     def __init__(
         self,
         writerType: str | None,
-        projectDir: Path,
         force: bool = False,
         interactive: bool = False,
         verbose: bool = False,
@@ -131,8 +130,7 @@ class FABulous_CLI(Cmd):
     ) -> None:
         """Initialises the FABulous shell instance.
 
-        Determines file extension based on the type of writer used in 'fab'
-        and sets fabricLoaded to true if 'fab' has 'fabric' attribute.
+        This sets up the necessary context and initialises the FABulous API.
 
         Parameters
         ----------
@@ -143,6 +141,11 @@ class FABulous_CLI(Cmd):
         script : str, optional
             Path to optional Tcl script to be executed, by default ""
         """
+        try:
+            get_context()
+        except RuntimeError:
+            init_context()
+
         super().__init__(
             persistent_history_file=f"{get_context().proj_dir}/{META_DATA_DIR}/.fabulous_history",
             allow_cli_args=False,
@@ -158,14 +161,14 @@ class FABulous_CLI(Cmd):
             )
             sys.exit(1)
 
-        self.projectDir = projectDir.absolute()
+        self.projectDir = get_context().proj_dir
         self.add_settable(
             Settable("projectDir", Path, "The directory of the project", self)
         )
 
         self.tiles = []
         self.superTiles = []
-        self.csvFile = Path(projectDir / "fabric.csv")
+        self.csvFile = Path(self.projectDir / "fabric.csv")
         self.add_settable(
             Settable(
                 "csvFile", Path, "The fabric file ", self, completer=Cmd.path_complete

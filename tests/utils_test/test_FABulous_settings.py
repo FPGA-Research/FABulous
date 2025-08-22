@@ -28,17 +28,15 @@ class TestFABulousSettings:
         # Set minimal PATH to avoid system tools
         monkeypatch.setenv("PATH", "/bin:/usr/bin")
 
-        # Set a valid root directory
-        test_root = tmp_path / "fab_root"
-        test_root.mkdir()
-        monkeypatch.setenv("FAB_ROOT", str(test_root))
-
         # Mock which to return None (no tools found)
         mocker.patch("FABulous.FABulous_settings.which", return_value=None)
 
         settings = FABulousSettings()
 
-        assert settings.root == test_root
+        # root now points to the package installation directory
+        assert settings.root.exists() and settings.root.is_dir()
+        # user_config_dir should be created and exist
+        assert settings.user_config_dir.exists() and settings.user_config_dir.is_dir()
         assert settings.yosys_path is None
         assert settings.nextpnr_path is None
         assert settings.iverilog_path is None
@@ -56,15 +54,13 @@ class TestFABulousSettings:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
     ) -> None:
         """Test FABulousSettings initialization with environment variables."""
-        test_root = tmp_path / "test_root"
-        test_root.mkdir()
         test_proj_dir = tmp_path / "test_proj"
         test_proj_dir.mkdir()
 
         # Set minimal PATH to avoid system tools
         monkeypatch.setenv("PATH", "/bin:/usr/bin")
 
-        monkeypatch.setenv("FAB_ROOT", str(test_root))
+        # FAB_ROOT is no longer used, removed
         monkeypatch.setenv("FAB_PROJ_DIR", str(test_proj_dir))
         monkeypatch.setenv("FAB_PROJ_LANG", "vhdl")
         monkeypatch.setenv("FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
@@ -75,7 +71,8 @@ class TestFABulousSettings:
 
         settings = FABulousSettings()
 
-        assert settings.root == test_root
+        # root is now the package directory, not settable via env var
+        assert settings.root.exists() and settings.root.is_dir()
         assert settings.proj_dir == test_proj_dir
         assert settings.proj_lang == "vhdl"
         assert settings.switch_matrix_debug_signal is True

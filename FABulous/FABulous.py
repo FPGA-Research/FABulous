@@ -20,7 +20,10 @@ from FABulous.FABulous_CLI.helper import (
     setup_logger,
     update_project_version,
 )
-from FABulous.FABulous_settings import get_context, init_context
+from FABulous.FABulous_settings import (
+    get_context,
+    init_context,
+)
 
 APP_NAME = "FABulous"
 
@@ -55,22 +58,15 @@ def version_callback(value: bool) -> None:
         raise typer.Exit
 
 
-def validate_project_directory(raw_project_dir: str | Path) -> Path:
-    """Validate that the project directory exists and is a valid FABulous project."""
-    project_dir = Path(raw_project_dir)
-
-    if (project_dir / ".FABulous").exists():
-        return project_dir
-
-    logger.error(
-        "The directory provided or current directory is not a FABulous project"
-        "as it does not have a .FABulous folder"
-    )
-    raise typer.Exit(1) from None
+def validate_project_directory(value: str) -> Path | None:
+    """Validate the project directory."""
+    if not (Path(value) / ".FABulous").exists():
+        raise ValueError(f"{value} is not a valid FABulous project")
+    return Path(value)
 
 
 ProjectDirType = Annotated[
-    Path,
+    Path | None,
     typer.Argument(
         help="Directory path to project folder",
         parser=validate_project_directory,
@@ -170,15 +166,8 @@ def create_project_cmd(
 
     Alias: c
     """
-    try:
-        init_context(None)
-        create_project(
-            project_dir, cast("Literal['verilog', 'vhdl']", shared_state.writer)
-        )
-        logger.info(f"FABulous project created successfully at {project_dir}")
-    except Exception as e:
-        logger.error(f"Failed to create FABulous project: {e}")
-        raise typer.Exit(1) from e
+    create_project(project_dir, cast("Literal['verilog', 'vhdl']", shared_state.writer))
+    logger.info(f"FABulous project created successfully at {project_dir}")
 
 
 @app.command("install-oss-cad-suite")
@@ -194,13 +183,8 @@ def install_oss_cad_suite_cmd(
     the FAB_OSS_CAD_SUITE env var in the global FABulous .env file.
     """
 
-    try:
-        init_context(None)
-        install_oss_cad_suite(directory)
-        logger.info(f"oss-cad-suite installed successfully at {directory}")
-    except Exception as e:
-        logger.error(f"Failed to install oss-cad-suite: {e}")
-        raise typer.Exit(1) from e
+    install_oss_cad_suite(directory)
+    logger.info(f"oss-cad-suite installed successfully at {directory}")
 
 
 @app.command("update-project-version")
@@ -214,13 +198,13 @@ def update_project_version_cmd(
         logger.error(
             "Failed to update project version. Please check the logs for more details."
         )
-        raise typer.Exit(1) from None
+        raise typer.Exit(1)
     logger.info("Project version updated successfully")
 
 
 @app.command("script")
 def script_cmd(
-    project_dir: ProjectDirType = Path(),
+    project_dir: ProjectDirType = None,
     script_file: Annotated[
         Path, typer.Argument(help="Script file to execute", resolve_path=True)
     ] = Path(),
@@ -242,9 +226,12 @@ def script_cmd(
 
     If no project directory is specified, uses the current directory.
     """
+
     # Initialize context
     entering_dir = Path.cwd()
-    os.chdir(project_dir)
+    if project_dir is not None:
+        os.chdir(project_dir)
+
     init_context(
         project_dir=project_dir,
         global_dot_env=shared_state.global_dot_env,
@@ -252,7 +239,6 @@ def script_cmd(
     )
     fab_CLI = FABulous_CLI(
         shared_state.writer,
-        project_dir,
         force=shared_state.force,
     )
     fab_CLI.debug = shared_state.debug
@@ -265,7 +251,7 @@ def script_cmd(
     if not script_file.exists():
         logger.error(f"Script file {script_file} does not exist")
         os.chdir(entering_dir)
-        sys.exit(1)
+        raise typer.Exit(1)
 
     # Execute the script based on type
     if (
@@ -277,9 +263,8 @@ def script_cmd(
                 f"FABulous script {script_file} execution failed with exit code {fab_CLI.exit_code}"
             )
             os.chdir(entering_dir)
-            sys.exit(fab_CLI.exit_code)
-        else:
-            logger.info(f"FABulous script {script_file} executed successfully")
+            raise typer.Exit(fab_CLI.exit_code)
+        logger.info(f"FABulous script {script_file} executed successfully")
     elif (
         script_file.suffix.lower() == ".tcl" and script_type is None
     ) or script_type == "tcl":
@@ -289,23 +274,21 @@ def script_cmd(
                 f"TCL script {script_file} execution failed with exit code {fab_CLI.exit_code}"
             )
             os.chdir(entering_dir)
-            sys.exit(fab_CLI.exit_code)
-        else:
-            logger.info(f"TCL script {script_file} executed successfully")
+            raise typer.Exit(fab_CLI.exit_code)
+        logger.info(f"TCL script {script_file} executed successfully")
     else:
         os.chdir(entering_dir)
         logger.error(f"Unknown script type: {script_type}")
-        sys.exit(1)
+        raise typer.Exit(1)
 
 
 @app.command("start")
-def start_cmd(project_dir: ProjectDirType = Path()) -> None:
+def start_cmd(project_dir: ProjectDirType = None) -> None:
     """Run FABulous with the specified project and options.
 
     This is the main command for running FABulous in interactive mode or with scripts.
     If no project directory is specified, uses the current directory.
     """
-
     # Initialize the global context with settings
     settings = init_context(
         project_dir=project_dir,
@@ -315,7 +298,6 @@ def start_cmd(project_dir: ProjectDirType = Path()) -> None:
     entering_dir = Path.cwd()
     fab_CLI = FABulous_CLI(
         settings.proj_lang,
-        project_dir,
         force=shared_state.force,
         interactive=True,
         verbose=shared_state.verbose >= 2,
@@ -324,7 +306,8 @@ def start_cmd(project_dir: ProjectDirType = Path()) -> None:
     fab_CLI.debug = shared_state.debug
 
     # Change to project directory
-    os.chdir(project_dir)
+    if project_dir is not None:
+        os.chdir(project_dir)
     fab_CLI.onecmd_plus_hooks("load_fabric")
     fab_CLI.cmdloop()
     os.chdir(entering_dir)
@@ -332,7 +315,7 @@ def start_cmd(project_dir: ProjectDirType = Path()) -> None:
 
 @app.command("run")
 def run_cmd(
-    project_dir: ProjectDirType = Path(),
+    project_dir: ProjectDirType = None,
     commands: Annotated[
         list[str] | None,
         typer.Argument(
@@ -348,11 +331,11 @@ def run_cmd(
         global_dot_env=shared_state.global_dot_env,
         project_dot_env=shared_state.project_dot_env,
     )
+
     entering_dir = Path.cwd()
 
     fab_CLI = FABulous_CLI(
         settings.proj_lang,
-        project_dir,
         force=shared_state.force,
         interactive=True,
         verbose=shared_state.verbose >= 2,
@@ -362,7 +345,8 @@ def run_cmd(
 
     # Change to project directory
     logger.info(f"Setting current working directory to: {project_dir}")
-    os.chdir(project_dir)
+    if project_dir is not None:
+        os.chdir(project_dir)
     fab_CLI.onecmd_plus_hooks("load_fabric")
 
     # Ensure commands is a list
@@ -404,12 +388,16 @@ def run_cmd(
 
 
 def main() -> None:
-    if sys.argv[1] not in [i.name for i in app.registered_commands]:
-        # Convert legacy arguments to new typer command format with deprecation warning
-        convert_legacy_args_with_deprecation_warning()
-    else:
-        # Use the new Typer interface
-        app()
+    try:
+        if sys.argv[1] not in [i.name for i in app.registered_commands]:
+            convert_legacy_args_with_deprecation_warning()
+        else:
+            app()
+    except typer.Exit as e:
+        sys.exit(e.exit_code)
+    except Exception as e:  # noqa: BLE001 General overall capture
+        logger.error(f"Unexpected error: {e}")
+        sys.exit(1)
 
 
 def convert_legacy_args_with_deprecation_warning() -> None:
@@ -516,7 +504,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
     parser.add_argument(
         "-gde",
         "--globalDotEnv",
-        help="Set the global .env file path. Default is $FAB_ROOT/.env",
+        help="Set the global .env file path. Default is ~/.config/FABulous/.env",
         type=Path,
     )
 
@@ -582,7 +570,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         # Convert to: FABulous create-project <project_dir>
         if not args.project_dir:
             logger.error("Project directory is required when creating a project")
-            sys.exit(2)
+            raise typer.Exit(2) from None
         create_project_cmd(project_dir)
 
     elif args.install_oss_cad_suite:
@@ -591,56 +579,58 @@ def convert_legacy_args_with_deprecation_warning() -> None:
     elif args.update_project_version:
         update_project_version_cmd(project_dir)
     elif args.FABulousScript:
-        # For FABulous scripts, allow running without a valid project directory
-        # The script_cmd function will handle cases where no valid project exists
-        if args.project_dir:
-            # Only validate if a project directory was explicitly provided
-            try:
-                validated_project_dir = validate_project_directory(project_dir)
-            except typer.Exit as e:
-                sys.exit(e.exit_code)
-        else:
-            # Use current directory when no project directory is provided
-            validated_project_dir = Path.cwd()
-        script_cmd(validated_project_dir, args.FABulousScript, script_type="fabulous")
-    elif args.TCLScript:
-        # For TCL scripts, allow running without a valid project directory
-        # The script_cmd function will handle cases where no valid project exists
-        if args.project_dir:
-            # Only validate if a project directory was explicitly provided
-            try:
-                validated_project_dir = validate_project_directory(project_dir)
-            except typer.Exit as e:
-                sys.exit(e.exit_code)
-        else:
-            # Use current directory when no project directory is provided
-            validated_project_dir = Path.cwd()
-        script_cmd(validated_project_dir, args.TCLScript, script_type="tcl")
-    elif args.commands:
-        # Validate project directory manually since we're bypassing Typer's validation
+        # Convert legacy --FABulousScript to new typer script command
+        # Use the new Typer script command internally
+        # Pass None when no project directory provided to trigger dotenv resolution
         try:
-            validated_project_dir = validate_project_directory(project_dir)
+            script_cmd(
+                project_dir=Path(args.project_dir) if args.project_dir else None,
+                script_file=args.FABulousScript,
+                script_type="fabulous",
+            )
         except typer.Exit as e:
             sys.exit(e.exit_code)
-        # Parse commands manually since we're bypassing Typer's argument parsing
+    elif args.TCLScript:
+        # Convert legacy --TCLScript to new typer script command
+        # Use the new Typer script command internally
+        # Pass None when no project directory provided to trigger dotenv resolution
+        try:
+            script_cmd(
+                project_dir=Path(args.project_dir) if args.project_dir else None,
+                script_file=args.TCLScript,
+                script_type="tcl",
+            )
+        except typer.Exit as e:
+            sys.exit(e.exit_code)
+    elif args.commands is not None:
+        # Convert legacy --commands to new typer run command
+        # Parse commands first to handle empty case
         parsed_commands = [
             cmd.strip() for cmd in args.commands.split("; ") if cmd.strip()
         ]
-        run_cmd(
-            project_dir=validated_project_dir,
-            commands=parsed_commands,
-        )
+
+        # Handle empty commands case - exit gracefully
+        if not parsed_commands:
+            logger.info("No commands provided, exiting gracefully")
+            sys.exit(0)
+
+        # Use the new Typer run command internally
+        # Pass None when no project directory provided to trigger dotenv resolution
+        try:
+            run_cmd(
+                project_dir=Path(args.project_dir) if args.project_dir else None,
+                commands=parsed_commands,
+            )
+        except typer.Exit as e:
+            sys.exit(e.exit_code)
     else:
-        # For legacy compatibility - if no project_dir specified, use current dir
-        if args.project_dir:
-            # Validate project directory manually since we're bypassing Typer's validation
-            try:
-                validated_project_dir = validate_project_directory(project_dir)
-            except typer.Exit as e:
-                sys.exit(e.exit_code)
-            start_cmd(project_dir=validated_project_dir)
-        else:
-            start_cmd(project_dir=Path.cwd())
+        # Convert legacy start to new typer start command
+        # Use the new Typer start command internally
+        # Pass None when no project directory provided to trigger dotenv resolution
+        try:
+            start_cmd(project_dir=Path(args.project_dir) if args.project_dir else None)
+        except typer.Exit as e:
+            sys.exit(e.exit_code)
 
     sys.exit(0)
 

@@ -5,8 +5,11 @@ import re
 import shutil
 import sys
 import tarfile
+import tempfile
 from collections.abc import Callable, Sequence
+from importlib import resources
 from importlib.metadata import version
+from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -16,7 +19,7 @@ from loguru import logger
 from packaging.version import Version
 
 from FABulous.custom_exception import PipelineCommandError
-from FABulous.FABulous_settings import get_context
+from FABulous.FABulous_settings import get_context, init_context
 
 if TYPE_CHECKING:
     from loguru import Record
@@ -94,20 +97,29 @@ def create_project(
     if lang not in ["verilog", "vhdl"]:
         lang = "verilog"
 
-    fabulousRoot = get_context().root
-
-    # Copy the project template
-    common_template = fabulousRoot / "fabric_files/FABulous_project_template_common"
-    lang_template = fabulousRoot / f"fabric_files/FABulous_project_template_{lang}"
-    if not common_template.exists():
-        raise FileNotFoundError(
-            f"Common template not found: {common_template}, is FAB_ROOT not set right?"
+    # Copy the project template using importlib.resources
+    try:
+        common_template_ref = (
+            resources.files("FABulous.fabric_files")
+            / "FABulous_project_template_common"
+        )
+        lang_template_ref = (
+            resources.files("FABulous.fabric_files")
+            / f"FABulous_project_template_{lang}"
         )
 
-    if not lang_template.exists():
+        # Check if templates exist
+        if not common_template_ref.is_dir():
+            raise FileNotFoundError("Common template not found in package resources")
+        if not lang_template_ref.is_dir():
+            raise FileNotFoundError(
+                f"Language template ({lang}) not found in package resources"
+            )
+
+    except (ImportError, AttributeError) as e:
         raise FileNotFoundError(
-            f"Language template not found: {lang_template}, is FAB_ROOT not set right?"
-        )
+            f"Unable to access fabric templates from package: {e}"
+        ) from e
 
     if project_dir.exists():
         logger.error("Project directory already exists!")
@@ -116,16 +128,28 @@ def create_project(
         project_dir.mkdir(parents=True, exist_ok=True)
         (project_dir / ".FABulous").mkdir(parents=True, exist_ok=True)
 
-    for source in [common_template, lang_template]:
-        for item in source.rglob("*"):
-            dest_item = project_dir / item.relative_to(source)
-            if item.is_dir():
-                dest_item.mkdir(parents=True, exist_ok=True)
-            else:
-                if dest_item.exists():
-                    logger.warning(f"File {dest_item} already exists. Overwriting...")
-                dest_item.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(item, dest_item)
+    # Copy templates from package resources using shutil.copytree
+    # Use a robust approach that works in all environments
+    def _copy_template_safely(template_ref: Traversable, target_dir: Path) -> None:
+        """Copy template files safely, handling different installation environments."""
+        try:
+            # Try direct copy first (works in development/editable installs)
+            with resources.as_file(template_ref) as template_src:
+                shutil.copytree(template_src, target_dir, dirs_exist_ok=True)
+        except (OSError, PermissionError, shutil.Error) as e:
+            # Fallback: extract to temp directory first (works with wheels, frozen apps)
+            logger.debug(f"Direct copy failed ({e}), using temp directory fallback")
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_template = Path(temp_dir) / "template"
+                with resources.as_file(template_ref) as template_src:
+                    shutil.copytree(template_src, temp_template)
+                shutil.copytree(temp_template, target_dir, dirs_exist_ok=True)
+
+    # Copy common template first
+    _copy_template_safely(common_template_ref, project_dir)
+
+    # Copy language-specific template (may overwrite some common files)
+    _copy_template_safely(lang_template_ref, project_dir)
 
     # Replace {HDL_SUFFIX} placeholder in all tile csv files
     new_suffix = "v" if lang == "verilog" else "vhdl"
@@ -307,6 +331,7 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
     system = platform.system().lower()
     machine = platform.machine().lower()
     url = None
+    init_context(None)
 
     # check if oss-cad-suite folder already exists
     ocs_folder = destination_folder / "oss-cad-suite"
@@ -388,29 +413,13 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
     logger.info(f"Remove archive {ocs_archive}")
     ocs_archive.unlink()
 
-    fab_root_env = get_context().root
-    if fab_root_env is None:
-        logger.error(
-            "FAB_ROOT environment variable is not set. Cannot update .env file for OSS CAD Suite."
-        )
-        raise OSError(
-            "FAB_ROOT is not set, cannot determine .env file path for OSS CAD Suite."
-        )
-    env_file = Path(fab_root_env) / ".env"
-    env_cont = ""
-    if env_file.is_file():
-        logger.info(f"Updating FAB_OSS_CAD_SUITE in .env file {env_file}")
-        env_cont = env_file.read_text()
-        env_cont = env_cont.split("\n")
-        for line in env_cont:
-            if "FAB_OSS_CAD_SUITE" in line:
-                env_cont.remove(line)
-        env_cont.append(f"FAB_OSS_CAD_SUITE={ocs_folder.absolute()}")
-    else:
-        logger.info(f"Creating .env file {env_file}")
-        env_cont = [f"FAB_OSS_CAD_SUITE={ocs_folder.absolute()}"]
-
-    env_file.write_text("\n".join(env_cont))
+    # Use user config directory for global .env file
+    user_config_dir = get_context().user_config_dir
+    user_config_dir.mkdir(parents=True, exist_ok=True)
+    env_file = user_config_dir / ".env"
+    if not env_file.exists():
+        env_file.touch()
+    set_key(env_file, "FAB_OSS_CAD_SUITE", str(ocs_folder.absolute()))
 
     # export oss-cad-suite to PATH
     os.environ["PATH"] += os.pathsep + str(ocs_folder / "bin")

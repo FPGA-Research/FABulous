@@ -39,19 +39,24 @@ def project_directories(tmp_path: Path) -> dict[str, Path]:
         project_dir.mkdir()
         (project_dir / ".FABulous").mkdir()
         env_file = project_dir / ".FABulous" / ".env"
-        env_file.write_text("FAB_PROJ_LANG=verilog\nVERSION=1.0.0\n")
+        env_file.touch()
+        set_key(env_file, "FAB_PROJ_LANG", "verilog")
+        set_key(env_file, "FAB_PROJ_VERSION", "1.0.0")
 
     # Create project-specific .env file for testing
     project_dotenv_file = tmp_path / "project_specific.env"
-    project_dotenv_file.write_text(f"FAB_PROJ_DIR={str(project_dotenv_dir)}\n")
+    project_dotenv_file.touch()
+    set_key(project_dotenv_file, "FAB_PROJ_DIR", str(project_dotenv_dir))
 
     # Create project-specific .env file that doesn't set FAB_PROJ_DIR (for fallback tests)
     project_dotenv_fallback_file = tmp_path / "project_fallback.env"
-    project_dotenv_fallback_file.write_text("FAB_PROJ_LANG=verilog\n")
+    project_dotenv_fallback_file.touch()
+    set_key(project_dotenv_fallback_file, "FAB_PROJ_LANG", "verilog")
 
     # Create global .env file for testing
     global_dotenv_file = tmp_path / "global.env"
-    global_dotenv_file.write_text(f"FAB_PROJ_DIR={str(global_dotenv_dir)}\n")
+    global_dotenv_file.touch()
+    set_key(global_dotenv_file, "FAB_PROJ_DIR", str(global_dotenv_dir))
 
     return {
         "user_provided_dir": user_provided_dir,
