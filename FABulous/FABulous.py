@@ -114,7 +114,7 @@ def common_options(
         typer.Option(
             "--writer",
             "-w",
-            help="Set type of HDL code generated",
+            help="Set type of HDL code generated. System Verilog is not supported yet.",
             case_sensitive=False,
         ),
     ] = HDLType.VERILOG,
