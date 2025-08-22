@@ -74,7 +74,6 @@ class FABulous_API:
         if fabricCSV != "":
             self.fabric = fileParser.parseFabricCSV(fabricCSV)
             self.geometryGenerator = GeometryGenerator(self.fabric)
-
         if isinstance(self.writer, VHDLCodeGenerator):
             self.fileExtension = ".vhdl"
 

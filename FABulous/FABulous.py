@@ -229,7 +229,7 @@ def script_cmd(
 
     # Initialize context
     entering_dir = Path.cwd()
-    init_context(
+    settings = init_context(
         project_dir=project_dir,
         global_dot_env=shared_state.global_dot_env,
         project_dot_env=shared_state.project_dot_env,
@@ -238,7 +238,7 @@ def script_cmd(
     if project_dir is not None:
         os.chdir(project_dir)
     fab_CLI = FABulous_CLI(
-        shared_state.writer,
+        settings.proj_lang,
         force=shared_state.force,
     )
     fab_CLI.debug = shared_state.debug
@@ -399,12 +399,12 @@ def main() -> None:
         if len(sys.argv) == 1:
             app()
 
-        first_non_flag = [i for i in sys.argv[1:] if not i.startswith("-")][0]
-
-        if first_non_flag not in [i.name for i in app.registered_commands]:
-            convert_legacy_args_with_deprecation_warning()
+        for i in sys.argv[1:]:
+            if i in [i.name for i in app.registered_commands]:
+                app()
+                break
         else:
-            app()
+            convert_legacy_args_with_deprecation_warning()
     except typer.Exit as e:
         sys.exit(e.exit_code)
     except Exception as e:  # noqa: BLE001 General overall capture
