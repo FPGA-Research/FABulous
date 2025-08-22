@@ -333,6 +333,9 @@ class YosysJson:
                 module.attributes["BelMap"] = True
                 module.attributes["FABulous"] = True
 
+            # because yosys reverses the order of attributes, we need to do the same
+            module.attributes = dict(reversed(list(module.attributes.items())))
+
             ports_entry = []
             port_start = False
             for i in vhdl_content.splitlines():
