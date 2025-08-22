@@ -70,7 +70,6 @@ ProjectDirType = Annotated[
     typer.Argument(
         help="Directory path to project folder",
         parser=validate_project_directory,
-        callback=lambda v: logger.info(f"Setting current working directory to: {v}"),
         resolve_path=True,
         exists=True,
     ),
@@ -306,8 +305,8 @@ def start_cmd(project_dir: ProjectDirType = None) -> None:
     fab_CLI.debug = shared_state.debug
 
     # Change to project directory
-    if project_dir is not None:
-        os.chdir(project_dir)
+    if settings.proj_dir is not None:
+        os.chdir(settings.proj_dir)
     fab_CLI.onecmd_plus_hooks("load_fabric")
     fab_CLI.cmdloop()
     os.chdir(entering_dir)
@@ -344,9 +343,9 @@ def run_cmd(
     fab_CLI.debug = shared_state.debug
 
     # Change to project directory
-    logger.info(f"Setting current working directory to: {project_dir}")
-    if project_dir is not None:
-        os.chdir(project_dir)
+    logger.info(f"Setting current working directory to: {settings.proj_dir}")
+    if settings.proj_dir is not None:
+        os.chdir(settings.proj_dir)
     fab_CLI.onecmd_plus_hooks("load_fabric")
 
     # Ensure commands is a list

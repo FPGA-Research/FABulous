@@ -8,6 +8,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from FABulous.FABulous import main
+from FABulous.FABulous_settings import init_context, reset_context
 
 
 def test_create_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -649,23 +650,20 @@ def test_dotenv_loading_verification(project_directories: dict[str, Path]) -> No
     """
     dirs = project_directories
 
-    env_without_fab_proj = os.environ.copy()
-    env_without_fab_proj.pop("FAB_PROJ_DIR", None)
+    import os
 
-    result = run(
-        [
-            "FABulous",
-            "--commands",
-            "help",
-            "--projectDotEnv",
-            str(dirs["project_dotenv_file"]),
-            "--globalDotEnv",
-            str(dirs["global_dotenv_file"]),
-        ],
-        capture_output=True,
-        text=True,
-        env=env_without_fab_proj,
-        cwd=str(dirs["default_dir"]),
+    # Clean up any existing context
+    reset_context()
+
+    env_backup = os.environ.get("FAB_PROJ_DIR")
+    if env_backup:
+        del os.environ["FAB_PROJ_DIR"]
+
+    # Initialize context with both global and project .env files
+    settings = init_context(
+        project_dir=None,  # No explicit project directory
+        global_dot_env=dirs["global_dotenv_file"],
+        project_dot_env=dirs["project_dotenv_file"],
     )
 
     # Should use project .env, not global .env or current directory
@@ -673,6 +671,11 @@ def test_dotenv_loading_verification(project_directories: dict[str, Path]) -> No
     # Verify that .env files are actually loaded
     assert "INFO: Load global .env file from" in result.stdout
     assert "INFO: Loaded global .env file from pde" in result.stdout
+    # Verify that the project .env setting overrides the global .env setting
+    # The project_dotenv_file contains FAB_PROJ_DIR pointing to project_dotenv_dir
+    # The global_dotenv_file contains FAB_PROJ_DIR pointing to global_dotenv_dir
+    # Project .env should win
+    assert settings.proj_dir == dirs["project_dotenv_dir"]
 
 
 def test_command_flag_with_stop_on_first_error(project: Path) -> None:
