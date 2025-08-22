@@ -229,14 +229,14 @@ def script_cmd(
 
     # Initialize context
     entering_dir = Path.cwd()
-    if project_dir is not None:
-        os.chdir(project_dir)
-
     init_context(
         project_dir=project_dir,
         global_dot_env=shared_state.global_dot_env,
         project_dot_env=shared_state.project_dot_env,
     )
+    script_file = script_file.absolute()
+    if project_dir is not None:
+        os.chdir(project_dir)
     fab_CLI = FABulous_CLI(
         shared_state.writer,
         force=shared_state.force,
