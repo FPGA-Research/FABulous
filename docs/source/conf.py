@@ -63,6 +63,7 @@ extensions = [
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
     "sphinx": ("https://www.sphinx-doc.org/en/master/", None),
+    "cmd2": ("https://cmd2.readthedocs.io/en/latest/", None),
     "numpy": ('https://numpy.org/doc/stable/', None),
     "pandas": ('https://pandas.pydata.org/docs/', None),
     "requests": ('https://docs.python-requests.org/en/master/', None),
