@@ -8,14 +8,12 @@ SPHINXBUILD   ?= uv run --directory . --quiet sphinx-build
 SPHINXAPIDOC  ?= uv run --directory . --quiet sphinx-apidoc
 SOURCEDIR     = source
 BUILDDIR      = build
-APIDIR        = $(SOURCEDIR)/references
 PACKAGEDIR    = ../FABulous
 
 # Put it first so that "make" without argument is like "make help".
 help:
 	@echo "Please use \`make <target>\` where <target> is one of"
 	@echo "  setup      to initialize the uv environment and install dependencies"
-	@echo "  apidoc     to generate API documentation from source code"
 	@echo "  html       to make standalone HTML files"
 	@echo "  clean      to remove build directory and generated API docs"
 	@echo "  livehtml   to build docs and serve with auto-reload (requires sphinx-autobuild)"
@@ -49,7 +47,7 @@ clean:
 	rm -rf $(SOURCEDIR)/generated_doc
 	@echo "Clean completed!"
 
-.PHONY: help setup apidoc html livehtml clean Makefile
+.PHONY: help setup html livehtml clean Makefile
 
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).

@@ -15,9 +15,11 @@ dependencies = [
 
     # Theme
     "pydata-sphinx-theme>=0.15.0",
-
-    # FABulous package is installed separately via make setup
 ]
+
+# Editable installation of FABulous package
+[tool.uv.sources]
+fabulous-fpga = { path = "..", editable = true }
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

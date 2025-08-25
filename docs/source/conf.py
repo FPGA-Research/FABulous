@@ -61,13 +61,23 @@ napoleon_attr_annotations = True
 
 # -- Mock imports for documentation build
 autodoc_mock_imports = [
-    # Only mock external dependencies that aren't available in docs environment
+    # External dependencies that aren't available in docs environment
     'numpy',
     'pandas',
     'matplotlib',
     'networkx',
     'lxml',
     'typing_extensions',
+    'loguru',
+    'cmd2',
+    'dotenv',
+    'bitarray',
+    'requests',
+    'pydantic',
+    'pydantic_settings',
+    'rich',
+    'textx',
+    'arpeggio',
 ]
 
 # Configure autodoc to avoid dataclass field duplication
@@ -79,10 +89,15 @@ autodoc_default_options = {
     'inherited-members': False,
 }
 
+# Prevent autodoc from automatically documenting modules
+autodoc_member_order = 'alphabetical'
+
 # Prevent duplicate object warnings from autosummary
 autodoc_typehints = 'description'
 autodoc_preserve_defaults = True
 autodoc_member_order = 'alphabetical'
+autodoc_class_signature = 'mixed'
+autodoc_inherit_docstrings = True
 
 # -- Autosummary options
 autosummary_generate = True
@@ -98,6 +113,7 @@ suppress_warnings = [
     'myst.header',
     'autodoc.duplicate_object',
     'app.add_node',
+    'autodoc.failed_signature',
 ]
 
 # Exclude patterns to prevent conflicts
