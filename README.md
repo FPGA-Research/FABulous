@@ -6,6 +6,7 @@
   - [Introduction](#introduction)
   - [How to cite](#how-to-cite)
   - [Prerequisites](#prerequisites)
+    - [Optional: uv for faster dependency management](#optional-uv-for-faster-dependency-management)
   - [Getting started](#getting-started)
     - [Using uv (optional)](#using-uv-optional)
   - [Contribution Guidelines](#contribution-guidelines)
@@ -112,7 +113,11 @@ Windows:
 powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
+Or from PyPI:
 
+```bash
+pip install uv
+```
 
 ## Getting started
 

@@ -35,6 +35,15 @@ Windows:
 
    $ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
+
+PyPI:
+
+.. code-block:: console
+
+   $ pip install uv
+
+
+
 Setting up the development environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
