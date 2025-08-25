@@ -13,6 +13,6 @@ jobs:
       - uses: actions/checkout@v5
       - uses: ammaraskar/sphinx-action@8.2.3
         with:
-          pre-build-command: "pip install uv && uv sync && uv run --directory . make apidoc"
-          build-command: 'uv run --directory . make html SPHINXOPTS+="-W --keep-going -n"'
+          pre-build-command: "pip install uv && uv sync --directory . && make apidoc"
+          build-command: 'make html SPHINXOPTS+="-W --keep-going -n"'
           docs-folder: "docs/"
