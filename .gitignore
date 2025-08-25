@@ -4,7 +4,7 @@ demo/
 .venv
 venv
 .env
-
+.vscode
 oss-cad-suite
 
 # Documentation build artifacts (auto-generated in CI)
