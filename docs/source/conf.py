@@ -76,11 +76,18 @@ autodoc_default_options = {
     'undoc-members': False,
     'show-inheritance': True,
     'special-members': False,
+    'inherited-members': False,
 }
+
+# Prevent duplicate object warnings from autosummary
+autodoc_typehints = 'description'
+autodoc_preserve_defaults = True
+autodoc_member_order = 'alphabetical'
 
 # -- Autosummary options
 autosummary_generate = True
 autosummary_generate_overwrite = True
+autosummary_recursive = True
 autosummary_imported_members = False
 autosummary_ignore_module_all = True
 
@@ -89,6 +96,15 @@ suppress_warnings = [
     'autosummary.import_error',
     'toc.not_included',
     'myst.header',
+    'autodoc.duplicate_object',
+    'app.add_node',
+]
+
+# Exclude patterns to prevent conflicts
+exclude_patterns = [
+    '_build',
+    'Thumbs.db',
+    '.DS_Store',
 ]
 
 # def setup(app):
@@ -142,7 +158,6 @@ html_sidebars = {
     "FPGA_CAD-tools/index": [],
     "gallary/index": [],
     "FPGA-to-bitstream/index": [],
-    "references/FABulous": [],
     "definitions": [],
     "contact": [],
     "publications": [],

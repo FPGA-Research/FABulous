@@ -282,16 +282,15 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
         update : bool
             If True, it will update the existing installation if it exists.
 
-    Raises:
-    -------
-        Exception
+    Raises
+    ------
+        FileExistsError
             If the folder already exists and update is not set to True.
-            If the download fails.
-            If the request to GitHub fails.
+        requests.RequestException
+            If the download fails or the request to GitHub fails.
         ValueError
             If the operating system or architecture is not supported.
             If no valid archive is found for the current OS and architecture.
-            No valid archive of OSS-CAD-Suite found in the latest release.
             If the file format of the downloaded archive is unsupported.
     """
     github_releases_url = (
