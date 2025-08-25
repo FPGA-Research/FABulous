@@ -11,11 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: ./.github/actions/prepare_FABulous_container
-        with:
-          install_ghdl_mcode: "false"
       - uses: ammaraskar/sphinx-action@8.2.3
         with:
-          pre-build-command: "uv run --directory . make apidoc"
+          pre-build-command: "pip install uv && uv sync && uv run --directory . make apidoc"
           build-command: 'uv run --directory . make html SPHINXOPTS+="-W --keep-going -n"'
           docs-folder: "docs/"
