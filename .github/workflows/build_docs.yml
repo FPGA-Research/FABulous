@@ -12,6 +12,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: ammaraskar/sphinx-action@8.2.3
+        env:
+          SETUPTOOLS_SCM_PRETEND_VERSION: "0.0"
         with:
           pre-build-command: "pip install uv && uv sync --directory . && make apidoc"
           build-command: 'make html SPHINXOPTS+="-W --keep-going -n"'
