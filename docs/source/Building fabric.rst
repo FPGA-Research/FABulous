@@ -14,17 +14,17 @@ completed.
 
 #. Create a new project
 
-   .. prompt:: bash
+   .. prompt:: bash (venv)
 
-        (venv)$ FABulous -c demo
+        $ FABulous -c demo
 
 This will create a new project named ``demo`` in the current directory.
 
 #. Running the FABulous shell
 
-   .. prompt:: bash
+   .. prompt:: bash (venv)
 
-        (venv)$ FABulous demo
+        $ FABulous demo
 
 And now, we will be in the FABulous shell. After running the above command, the current working directory will be
 moved into the project directory, which is ``demo`` in this case.

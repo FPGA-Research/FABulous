@@ -15,9 +15,9 @@ Version >= 3.12
 
 :Dependencies:
 
-.. code-block:: console
+.. prompt:: bash $
 
-    $ sudo apt-get install python3-virtualenv
+    sudo apt-get install python3-virtualenv
 
 .. note::
 
@@ -25,24 +25,24 @@ Version >= 3.12
     or errors when installing the requirements, you have to install the
     dependencies for your specific python version. For Python 3.12 use
 
-    .. code-block:: console
+    .. prompt:: bash $
 
-       $ sudo apt-get install python3.12-virtualenv
+       sudo apt-get install python3.12-virtualenv
 
 .. note::
 
     If you are using an older version than Ubuntu 24.04, you may need to install tkinter.
     Otherwise, you might get the warning ``ModuleNotFoundError: No module named 'tkinter'``.
 
-    .. code-block:: console
+    .. prompt:: bash $
 
-      $ sudo apt-get install python3-tk
+      sudo apt-get install python3-tk
 
 :FABulous repository:
 
-.. code-block:: console
+.. prompt:: bash $
 
-    $ git clone https://github.com/FPGA-Research-Manchester/FABulous
+    git clone https://github.com/FPGA-Research-Manchester/FABulous
 
 :Virtual environment:
 
@@ -50,11 +50,11 @@ We recommend using python virtual environments for the usage of FABulous.
 If you are not sure what this is and why you should use it, please read the
 `virtualenv documentation <https://virtualenv.pypa.io/en/latest/index.html>`_.
 
-.. code-block:: console
+.. prompt:: bash $
 
-   $ cd FABulous
-   $ virtualenv venv
-   $ source venv/bin/activate
+    cd FABulous
+    virtualenv venv
+    source venv/bin/activate
 
 Now there is a ``(venv)`` at the beginning of your command prompt.
 You can deactivate the virtual environment with the ``deactivate`` command.
@@ -63,9 +63,9 @@ with ``source venv/bin/activate`` to use FABulous.
 
 :Python dependencies:
 
-.. code-block:: console
+.. prompt:: bash (venv)$
 
-    (venv)$ pip install -r requirements.txt
+    pip install -r requirements.txt
 
 
 
@@ -113,21 +113,25 @@ We offer two ways to run the FABulous flow, either via the FABulous Shell or dir
 
 To use the FABulous Shell, you can run the following command:
 
-.. code-block:: console
+.. prompt:: bash (venv)$
 
-   (venv)$ FABulous -c <name_of_project>
-   (venv)$ FABulous <name_of_project>
+  FABulous -c <name_of_project>
+  FABulous <name_of_project>
 
-   # inside the FABulous shell
-   FABulous> run_FABulous_fabric
-   FABulous> run_FABulous_bitstream user_design/sequential_16bit_en.v
+Inside the FABulous shell, run:
+
+.. prompt:: text FABulous>
+
+  run_FABulous_fabric
+  run_FABulous_bitstream user_design/sequential_16bit_en.v
 
 
 To run the FABulous flow directly from the command line, you can use the following commands:
-.. code-block:: console
 
-   (venv)$ FABulous -c <name_of_project>
-   (venv)$ FABulous <name_of_project> -p "run_FABulous_fabric; run_FABulous_bitstream user_design/sequential_16bit_en.v"
+.. prompt:: bash (venv)$
+
+  FABulous -c <name_of_project>
+  FABulous <name_of_project> -p "run_FABulous_fabric; run_FABulous_bitstream user_design/sequential_16bit_en.v"
 
 
 

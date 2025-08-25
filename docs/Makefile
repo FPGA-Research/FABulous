@@ -47,6 +47,12 @@ clean:
 	rm -rf $(SOURCEDIR)/generated_doc
 	@echo "Clean completed!"
 
+# Force regeneration of AutoAPI docs (useful for development)
+clean-autoapi:
+	@echo "Cleaning AutoAPI generated files..."
+	rm -rf $(SOURCEDIR)/generated_doc
+	@echo "AutoAPI clean completed!"
+
 .PHONY: help setup html livehtml clean Makefile
 
 # Catch-all target: route all unknown targets to Sphinx using the new

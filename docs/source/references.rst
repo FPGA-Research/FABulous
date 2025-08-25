@@ -1,10 +1,9 @@
 References
 =============
 
-This section contains the complete software documentation for FABulous, automatically generated from the source code.
+This section contains the complete software documentation for FABulous.
 
-.. autosummary::
-   :toctree: generated_doc
-   :recursive:
+.. toctree::
+   :maxdepth: 3
 
-   ~FABulous
+   generated_doc/index
