@@ -61,6 +61,10 @@ extensions = [
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
     "sphinx": ("https://www.sphinx-doc.org/en/master/", None),
+    "numpy": ('https://numpy.org/doc/stable/', None),
+    "pandas": ('https://pandas.pydata.org/docs/', None),
+    "requests": ('https://docs.python-requests.org/en/master/', None),
+    "pydantic": ('https://docs.pydantic.dev/latest/', None),
 }
 
 # Enable cross-references within the project
@@ -71,6 +75,14 @@ intersphinx_disabled_domains = ["std"]
 nitpicky = False  # Disabled to avoid noisy warnings, type aliases still work
 python_use_unqualified_type_names = True
 
+# Type alias mappings for common types that cause reference warnings
+autodoc_type_aliases = {
+    'optional': 'typing.Optional',
+    'Path': 'pathlib.Path',
+    'Object': 'object',
+    'callable': 'typing.Callable',
+    'Ellipsis': 'type(Ellipsis)',
+}
 
 # Add additional paths for module resolution
 add_module_names = False
@@ -218,6 +230,8 @@ suppress_warnings = [
     # These are genuinely noisy and don't indicate real issues
     'autosummary.import_error',  # Expected when modules aren't importable in docs
     'app.add_node',  # Extension internal warnings
+    'ref.class',  # Missing type references that can't be resolved
+    'ref.exc',    # Missing exception references
 ]
 
 # Note: ~60 duplicate warnings are expected from AutoAPI's handling of dataclass attributes
