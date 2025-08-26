@@ -104,12 +104,12 @@ napoleon_include_special_with_doc = True
 napoleon_use_admonition_for_examples = False
 napoleon_use_admonition_for_notes = False
 napoleon_use_admonition_for_references = False
-napoleon_use_ivar = True
+napoleon_use_ivar = False
 napoleon_use_param = True
 napoleon_use_rtype = True
 napoleon_preprocess_types = False
 napoleon_type_aliases = None
-napoleon_attr_annotations = False
+napoleon_attr_annotations = True
 napoleon_custom_sections = [
     ('Command line arguments', 'Parameters'),
     ('Params', 'Parameters'),
@@ -201,6 +201,10 @@ def autoapi_skip_member(app, what, name, obj, skip, options):
     Attributes are documented in class docstrings; methods/functions are grouped via
     template.
     """
+    # Debug: Print what's being processed
+    if 'custom_exception' in str(obj):
+        print(f"DEBUG: Processing {what} {name} in custom_exception, skip={skip}")
+
     if what == 'attribute':
         return True
     return skip
