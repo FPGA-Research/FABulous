@@ -99,12 +99,18 @@ napoleon_include_special_with_doc = True
 napoleon_use_admonition_for_examples = False
 napoleon_use_admonition_for_notes = False
 napoleon_use_admonition_for_references = False
-napoleon_use_ivar = False
+napoleon_use_ivar = True
 napoleon_use_param = True
 napoleon_use_rtype = True
 napoleon_preprocess_types = False
 napoleon_type_aliases = None
-napoleon_attr_annotations = True
+napoleon_attr_annotations = False
+napoleon_custom_sections = [
+    ('Command line arguments', 'Parameters'),
+    ('Params', 'Parameters'),
+    ('Verilog', 'Other'),
+    ('VHDL', 'Other'),
+]
 
 # -- Mock imports for documentation build
 autodoc_mock_imports = [
@@ -182,18 +188,16 @@ autoapi_template_dir = '_templates/autoapi'
 autoapi_ignore = [
     '**/fabric_files/**',  # Exclude fabric_files directory and all contents
 ]
+autoapi_add_toctree_entry = True  # Auto-insert AutoAPI index into our main toctree to reduce toc.not_included
 
 def autoapi_skip_member(app, what, name, obj, skip, options):
-    """Control which members AutoAPI documents to avoid duplicates.
+    """Skip attribute objects to avoid duplicate descriptions.
 
-    Root-cause fix: Attributes are already described in class docstrings (via
-    NumPy-style "Attributes" sections). AutoAPI also creates attribute objects
-    from type annotations, which leads to duplicate object descriptions like
-    ``WireGeometry.path`` on a clean build. We skip all attributes here so
-    attributes are documented once via the class docstring only.
+    Attributes are documented in class docstrings; methods/functions are grouped via
+    template.
     """
     if what == 'attribute':
-        return True  # Skip attribute objects entirely
+        return True
     return skip
 autoapi_options = [
     'members',
@@ -221,8 +225,12 @@ suppress_warnings = [
     'app.add_node',  # Extension internal warnings
     'ref.class',  # Missing type references that can't be resolved
     'ref.exc',    # Missing exception references
-    'autosectionlabel.*',  # AutoAPI section label conflicts
-    'duplicate_object_description',  # Expected from AutoAPI dataclass handling
+    'ref.obj',    # Missing exception references
+    # TODO(doc): Temporary suppression for docutils-origin warnings coming from
+    # generated .rst/docstrings. Remove after cleaning docstrings and
+    # improving templates. Patterns below cover common docutils emitters.
+    'docutils',
+    'ref.doc',
 ]
 
 # Note: ~60 duplicate warnings are expected from AutoAPI's handling of dataclass attributes
@@ -244,7 +252,7 @@ html_theme = "pydata_sphinx_theme"
 html_logo = "figs/FABulouslogo_wide_2.png"
 
 html_theme_options = {
-    "collapse_navigation": False,
+    "collapse_navigation": True,
     "show_nav_level": 2,
     "show_toc_level": 2,
     "navigation_depth": 4,

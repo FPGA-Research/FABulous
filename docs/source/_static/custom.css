@@ -16,10 +16,21 @@
     flex: 1;
 }
 
-/* Make the main content area more flexible */
-.bd-container-fluid {
-    max-width: 100%;
-    padding: 0 1rem;
+/* Make the main content area fluid and grow with viewport */
+.bd-container,
+.bd-container-fluid,
+.bd-page-width,
+.bd-main .bd-content,
+.bd-content .bd-article-container,
+.bd-article {
+    max-width: none !important;
+}
+
+.bd-container-fluid,
+.bd-page-width {
+    width: 100% !important;
+    padding-left: 1rem;
+    padding-right: 1rem;
 }
 
 /* Reduce excessive padding on large screens */
@@ -53,15 +64,24 @@
     }
 }
 
-/* Ensure content doesn't get too narrow */
+/* Ensure content area can flex and scroll if needed */
+.bd-main .bd-content {
+    flex: 1 1 auto;
+}
+
 .bd-article {
     min-width: 0;
-    flex: 1;
+    flex: 1 1 auto;
     overflow-x: auto;
 }
 
 /* Better word wrapping for long titles */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
     word-wrap: break-word;
     overflow-wrap: break-word;
 }

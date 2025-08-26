@@ -102,7 +102,7 @@ qa = "task format && task check"
 
 # Documentation tasks  
 docs-setup = "cd docs && uv sync"
-docs-build = "cd docs && make html"
+docs-build = "cd docs && make clean && make html"
 docs-server = "cd docs && make clean && uv run --directory . make livehtml"
 docs-clean = "cd docs && make clean"
 

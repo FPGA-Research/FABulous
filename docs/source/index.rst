@@ -41,7 +41,6 @@ Contents
     FPGA-to-bitstream/index
     simulation/index
     gallery/index
-    references
     definitions
     contact
     publications
