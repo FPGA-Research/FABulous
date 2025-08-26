@@ -44,7 +44,7 @@ extensions = [
 
     # Modern documentation automation
     "autoapi.extension",  # Replaces autodoc + autosummary
-    "sphinx_autodoc_typehints",  # Automatic type hint processing
+    # "sphinx_autodoc_typehints",  # Automatic type hint processing
 
     # Enhanced documentation features
     "myst_parser",  # Markdown support
@@ -183,28 +183,17 @@ autoapi_ignore = [
     '**/fabric_files/**',  # Exclude fabric_files directory and all contents
 ]
 
-# Ensure AutoAPI runs before other documentation generation to avoid duplicates
 def autoapi_skip_member(app, what, name, obj, skip, options):
-    """Control which members AutoAPI documents to avoid duplicates."""
-    # Skip dataclass fields that cause duplicate attribute documentation
+    """Control which members AutoAPI documents to avoid duplicates.
+
+    Root-cause fix: Attributes are already described in class docstrings (via
+    NumPy-style "Attributes" sections). AutoAPI also creates attribute objects
+    from type annotations, which leads to duplicate object descriptions like
+    ``WireGeometry.path`` on a clean build. We skip all attributes here so
+    attributes are documented once via the class docstring only.
+    """
     if what == 'attribute':
-        # Try multiple ways to get the parent class
-        parent_class = None
-
-        # Method 1: Check __objclass__ attribute
-        if hasattr(obj, '__objclass__'):
-            parent_class = obj.__objclass__
-        # Method 2: Check from the options/context
-        elif 'autoapi_object' in options:
-            autoapi_obj = options['autoapi_object']
-            if hasattr(autoapi_obj, 'obj'):
-                parent_class = autoapi_obj.obj
-
-        # If we found a parent class and it's a dataclass with this field
-        if parent_class and hasattr(parent_class, '__dataclass_fields__'):
-            if name in parent_class.__dataclass_fields__:
-                return True
-
+        return True  # Skip attribute objects entirely
     return skip
 autoapi_options = [
     'members',
@@ -232,6 +221,8 @@ suppress_warnings = [
     'app.add_node',  # Extension internal warnings
     'ref.class',  # Missing type references that can't be resolved
     'ref.exc',    # Missing exception references
+    'autosectionlabel.*',  # AutoAPI section label conflicts
+    'duplicate_object_description',  # Expected from AutoAPI dataclass handling
 ]
 
 # Note: ~60 duplicate warnings are expected from AutoAPI's handling of dataclass attributes

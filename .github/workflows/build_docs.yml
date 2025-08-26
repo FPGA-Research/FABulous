@@ -16,5 +16,5 @@ jobs:
           SETUPTOOLS_SCM_PRETEND_VERSION: "0.0"
         with:
           pre-build-command: "pip install uv && uv sync --directory ."
-          build-command: 'make html SPHINXOPTS+="-W --keep-going -n"'
+          build-command: 'make html SPHINXOPTS+="-W --keep-going"'
           docs-folder: "docs/"

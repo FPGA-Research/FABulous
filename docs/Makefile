@@ -3,9 +3,8 @@
 
 # You can set these variables from the command line, and also
 # from the environment for the first two.
-SPHINXOPTS    ?= -q
+SPHINXOPTS    ?= -q -n
 SPHINXBUILD   ?= uv run --directory . --quiet sphinx-build
-SPHINXAPIDOC  ?= uv run --directory . --quiet sphinx-apidoc
 SOURCEDIR     = source
 BUILDDIR      = build
 PACKAGEDIR    = ../FABulous
@@ -29,9 +28,9 @@ setup:
 	uv pip install -e ..
 	@echo "Documentation environment ready!"
 
-# Build HTML documentation (pure autosummary approach)
+# Build HTML documentation
 html: setup
-	@echo "Building HTML documentation..."
+	@echo "Building final HTML documentation..."
 	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 	@echo "Documentation built successfully in $(BUILDDIR)/html"
 
@@ -53,7 +52,7 @@ clean-autoapi:
 	rm -rf $(SOURCEDIR)/generated_doc
 	@echo "AutoAPI clean completed!"
 
-.PHONY: help setup html livehtml clean Makefile
+.PHONY: help setup apidoc html livehtml clean clean-autoapi Makefile
 
 # Catch-all target: route all unknown targets to Sphinx using the new
 # "make mode" option.  $(O) is meant as a shortcut for $(SPHINXOPTS).
