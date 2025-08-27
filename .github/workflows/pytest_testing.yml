@@ -92,7 +92,7 @@ jobs:
           pytest \
             --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
             --store-durations --clean-durations -v -x \
-            --cov=FABulous --cov-config=.coveragerc --cov-report= \
+            --cov=FABulous --cov-report= \
             || {
             exit_code=$?
             if [ $exit_code -eq 5 ]; then
@@ -164,4 +164,82 @@ jobs:
         with:
           path: /tmp/.test_durations_cached
           key: tests-durations-${{ github.sha }}
+
+  coverage_check:
+    name: Combine, publish, and check coverage
+    needs: pytest_testing
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      COVERAGE_FAIL_UNDER: '70'
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download all partial coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-after-partial-*
+          merge-multiple: false
+
+      - name: Set up Python for coverage
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install coverage tool
+        run: |
+          python -m pip install --upgrade pip
+          pip install coverage
+
+      - name: Combine coverage and generate reports
+        shell: bash
+        run: |
+          echo "Found coverage artifacts:"
+          set -e
+          files=$(find . -type f -path "./coverage-after-partial-*/.coverage*" -print | sort || true)
+          echo "$files"
+          if [ -z "$files" ]; then
+            echo "No coverage files found. Skipping report generation."
+            exit 0
+          fi
+          # Combine .coverage files from all downloaded artifact directories
+          coverage combine $(find . -type f -path "./coverage-after-partial-*/.coverage*" -printf '%h\n' | sort -u)
+          coverage report -m | tee coverage_summary.txt
+          echo "\n\nCombined coverage summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "\n" >> "$GITHUB_STEP_SUMMARY"
+          sed 's/^/    /' coverage_summary.txt >> "$GITHUB_STEP_SUMMARY"
+          coverage xml -o coverage.xml
+          coverage html -d coverage_html
+
+      - name: Upload combined coverage XML
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: error
+
+      - name: Upload combined coverage HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: coverage_html
+          if-no-files-found: error
+
+      - name: Upload coverage to Codecov (OIDC)
+        if: ${{ hashFiles('coverage.xml') != '' }}
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          flags: python,pytest
+          name: coverage-merge
+          fail_ci_if_error: false
+          use_oidc: true
+
+      - name: Enforce coverage threshold
+        if: ${{ hashFiles('coverage.xml') != '' }}
+        shell: bash
+        run: |
+          echo "Enforcing coverage threshold: ${COVERAGE_FAIL_UNDER}%"
+          coverage report --fail-under=${COVERAGE_FAIL_UNDER}
 

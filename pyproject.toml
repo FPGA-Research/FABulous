@@ -67,3 +67,19 @@ dev = [
   "ruff>=0.12.7",
   "pyyaml>=6.0.0",
 ]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+source = ["FABulous"]
+
+[tool.coverage.report]
+omit = ["*/__init__.py", "*/__pycache__/*", "tests/*", "demo/*", "docs/*"]
+show_missing = true
+skip_covered = true
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.coverage.html]
+directory = "coverage_html"
