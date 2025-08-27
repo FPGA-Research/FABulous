@@ -85,6 +85,8 @@ jobs:
       # Removes the test duration info for tests which are not present 
       # while running the suite with '--store-durations'.
       - name: Run pytest
+        env:
+          COVERAGE_FILE: .coverage.${{ matrix.job-index }}
         run: |
           echo "Running at PATH=$PATH"
           which ghdl
@@ -94,7 +96,7 @@ jobs:
           pytest \
             --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
             --store-durations --clean-durations -v -x \
-            --cov=FABulous --cov-branch --cov-report= \
+            --cov=FABulous --cov-branch --cov-config=pyproject.toml --cov-report= \
             || {
             exit_code=$?
             if [ $exit_code -eq 5 ]; then
@@ -195,17 +197,20 @@ jobs:
           pip install coverage
 
       - name: Combine coverage and generate reports
+        env:
+          COVERAGE_FILE: .coverage
         shell: bash
         run: |
           echo "Found coverage artifacts:"
           set -e
-          files=$(find . -type f -path "./coverage-after-partial-*/.coverage*" -print | sort || true)
+          files=$(find . -type f -regextype posix-extended -regex "./coverage-after-partial-.*/\.coverage(\..+)?" -print | sort || true)
           echo "$files"
           if [ -z "$files" ]; then
             echo "No coverage files found. Skipping report generation."
             exit 0
           fi
-          # Combine .coverage files from all downloaded artifact directories
+          echo "Combining the following coverage data files:"
+          printf '%s\n' $files
           coverage combine $files
           coverage report -m | tee coverage_summary.txt
           echo "\n\nCombined coverage summary" >> "$GITHUB_STEP_SUMMARY"
