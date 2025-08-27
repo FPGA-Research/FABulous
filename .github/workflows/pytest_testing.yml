@@ -89,8 +89,8 @@ jobs:
           echo "Running at PATH=$PATH"
           which ghdl
           which iverilog
-          # Ensure no stale coverage data from previous attempts
-          python -m coverage erase || true
+          # Ensure no stale coverage data from previous attempts (no coverage module needed)
+          rm -f .coverage* || true
           pytest \
             --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
             --store-durations --clean-durations -v -x \
@@ -206,7 +206,7 @@ jobs:
             exit 0
           fi
           # Combine .coverage files from all downloaded artifact directories
-          coverage combine $(find . -type f -path "./coverage-after-partial-*/.coverage*" -printf '%h\n' | sort -u)
+          coverage combine $files
           coverage report -m | tee coverage_summary.txt
           echo "\n\nCombined coverage summary" >> "$GITHUB_STEP_SUMMARY"
           echo "\n" >> "$GITHUB_STEP_SUMMARY"
