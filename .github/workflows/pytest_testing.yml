@@ -89,10 +89,12 @@ jobs:
           echo "Running at PATH=$PATH"
           which ghdl
           which iverilog
+          # Ensure no stale coverage data from previous attempts
+          python -m coverage erase || true
           pytest \
             --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
             --store-durations --clean-durations -v -x \
-            --cov=FABulous --cov-report= \
+            --cov=FABulous --cov-branch --cov-report= \
             || {
             exit_code=$?
             if [ $exit_code -eq 5 ]; then
