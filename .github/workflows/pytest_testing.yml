@@ -245,22 +245,34 @@ jobs:
           echo "    ..." >> "$GITHUB_STEP_SUMMARY"
           head -n 20 coverage.xml || true
 
-      - name: Prepare PR coverage comment
-        if: ${{ github.event_name == 'pull_request' && hashFiles('coverage_summary.txt') != '' }}
+      - name: Generate coverage Markdown summary
+        if: ${{ hashFiles('coverage.xml') != '' }}
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.xml
+          format: markdown
+          hide_branch_rate: false
+          hide_complexity: true
+          indicators: true
+          output: both
+          fail_below_min: false
+          thresholds: '60 80'
+          badge: false
+
+      - name: Add coverage summary to job summary
+        if: ${{ hashFiles('code-coverage-results.md') != '' }}
         shell: bash
         run: |
-          echo "### Coverage Summary" > coverage_comment.md
-          echo "" >> coverage_comment.md
-          echo '```' >> coverage_comment.md
-          cat coverage_summary.txt >> coverage_comment.md
-          echo '```' >> coverage_comment.md
+          echo "\n### Coverage Summary\n" >> "$GITHUB_STEP_SUMMARY"
+          cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post coverage summary as PR comment
-        if: ${{ github.event_name == 'pull_request' && hashFiles('coverage_comment.md') != '' }}
+        if: ${{ github.event_name == 'pull_request' && hashFiles('code-coverage-results.md') != '' }}
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: coverage-summary
-          path: coverage_comment.md
+          path: code-coverage-results.md
+          recreate: true
 
       - name: Enforce coverage threshold
         if: ${{ hashFiles('coverage.xml') != '' }}
