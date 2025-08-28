@@ -240,7 +240,7 @@ jobs:
           cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post coverage summary as PR comment
-        if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork && hashFiles('code-coverage-results.md') != '' }}
+        if: ${{ github.event_name == 'pull_request' && hashFiles('code-coverage-results.md') != '' }}
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: coverage-summary
