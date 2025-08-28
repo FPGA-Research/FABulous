@@ -14,7 +14,6 @@
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
 [![Code Style](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Doc Style](https://img.shields.io/badge/%20style-numpy-459db9.svg)](https://numpydoc.readthedocs.io/en/latest/format.html)
-[![codecov](https://codecov.io/gh/KelvinChung2000/FABulous/branch/main/graph/badge.svg)](https://codecov.io/gh/KelvinChung2000/FABulous)
 
 ## Introduction
 
