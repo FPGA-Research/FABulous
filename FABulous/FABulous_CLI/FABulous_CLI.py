@@ -34,7 +34,7 @@ from cmd2 import (
 )
 from loguru import logger
 
-from FABulous.custom_exception import CommandError, EnvironmentNotSet
+from FABulous.custom_exception import CommandError, EnvironmentNotSet, InvalidFileType
 from FABulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
@@ -48,7 +48,7 @@ from FABulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from FABulous.FABulous_API import FABulous_API
 from FABulous.FABulous_CLI import cmd_synthesis
 from FABulous.FABulous_CLI.helper import (
-    allow_blank,
+    CommandPipeline,
     install_oss_cad_suite,
     wrap_with_except_handling,
 )
@@ -305,7 +305,6 @@ class FABulous_CLI(Cmd):
     )
 
     @with_category(CMD_SETUP)
-    @allow_blank
     @with_argparser(install_oss_cad_suite_parser)
     def do_install_oss_cad_suite(self, args: argparse.Namespace) -> None:
         """Downloads and extracts the latest OSS CAD suite.
@@ -321,7 +320,6 @@ class FABulous_CLI(Cmd):
         install_oss_cad_suite(dest_dir, args.update_existing)
 
     @with_category(CMD_SETUP)
-    @allow_blank
     @with_argparser(filePathOptionalParser)
     def do_load_fabric(self, args: argparse.Namespace) -> None:
         """Loads 'fabric.csv' file and generates an internal representation of the
@@ -404,11 +402,10 @@ class FABulous_CLI(Cmd):
         logger.info(f"Generating Config Memory for {' '.join(args.tiles)}")
         for i in args.tiles:
             logger.info(f"Generating configMem for {i}")
-            self.fabulousAPI.setWriterOutputFile(
-                self.projectDir / f"Tile/{i}/{i}_ConfigMem.{self.extension}"
-            )
             self.fabulousAPI.genConfigMem(
-                i, self.projectDir / f"Tile/{i}/{i}_ConfigMem.csv"
+                i,
+                self.projectDir / f"Tile/{i}/{i}_ConfigMem.csv",
+                self.projectDir / f"Tile/{i}/{i}_ConfigMem.{self.extension}",
             )
         logger.info("ConfigMem generation complete")
 
@@ -423,10 +420,9 @@ class FABulous_CLI(Cmd):
         logger.info(f"Generating switch matrix for {' '.join(args.tiles)}")
         for i in args.tiles:
             logger.info(f"Generating switch matrix for {i}")
-            self.fabulousAPI.setWriterOutputFile(
-                self.projectDir / f"Tile/{i}/{i}_switch_matrix.{self.extension}"
+            self.fabulousAPI.genSwitchMatrix(
+                i, self.projectDir / f"Tile/{i}/{i}_switch_matrix.{self.extension}"
             )
-            self.fabulousAPI.genSwitchMatrix(i)
         logger.info("Switch matrix generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
@@ -451,55 +447,54 @@ class FABulous_CLI(Cmd):
                     # Gen switch matrix
                     logger.info(f"Generating switch matrix for tile {t}")
                     logger.info(f"Generating switch matrix for {st}")
-                    self.fabulousAPI.setWriterOutputFile(
+                    self.fabulousAPI.genSwitchMatrix(
+                        st,
                         self.projectDir
-                        / f"Tile/{t}/{st}/{st}_switch_matrix.{self.extension}"
+                        / f"Tile/{t}/{st}/{st}_switch_matrix.{self.extension}",
                     )
-                    self.fabulousAPI.genSwitchMatrix(st)
                     logger.info(f"Generated switch matrix for {st}")
 
                     # Gen config mem
                     logger.info(f"Generating configMem for tile {t}")
                     logger.info(f"Generating ConfigMem for {st}")
-                    self.fabulousAPI.setWriterOutputFile(
-                        self.projectDir
-                        / f"Tile/{t}/{st}/{st}_ConfigMem.{self.extension}"
-                    )
                     self.fabulousAPI.genConfigMem(
-                        st, self.projectDir / f"Tile/{t}/{st}/{st}_ConfigMem.csv"
+                        st,
+                        self.projectDir / f"Tile/{t}/{st}/{st}_ConfigMem.csv",
+                        self.projectDir
+                        / f"Tile/{t}/{st}/{st}_ConfigMem.{self.extension}",
                     )
                     logger.info(f"Generated configMem for {st}")
 
                     # Gen tile
                     logger.info(f"Generating subtile for tile {t}")
                     logger.info(f"Generating subtile {st}")
-                    self.fabulousAPI.setWriterOutputFile(
-                        self.projectDir / f"Tile/{t}/{st}/{st}.{self.extension}"
+                    self.fabulousAPI.genTile(
+                        st, self.projectDir / f"Tile/{t}/{st}/{st}.{self.extension}"
                     )
-                    self.fabulousAPI.genTile(st)
                     logger.info(f"Generated subtile {st}")
 
                 # Gen super tile
                 logger.info(f"Generating super tile {t}")
-                self.fabulousAPI.setWriterOutputFile(
-                    self.projectDir / f"Tile/{t}/{t}.{self.extension}"
+                self.fabulousAPI.genSuperTile(
+                    t, self.projectDir / f"Tile/{t}/{t}.{self.extension}"
                 )
-                self.fabulousAPI.genSuperTile(t)
                 logger.info(f"Generated super tile {t}")
                 continue
 
             # Gen switch matrix
-            self.do_gen_switch_matrix(t)
-
-            # Gen config mem
-            self.do_gen_config_mem(t)
-
+            self.fabulousAPI.genSwitchMatrix(
+                t, self.projectDir / f"Tile/{t}/{t}_switch_matrix.{self.extension}"
+            )
+            self.fabulousAPI.genConfigMem(
+                t,
+                self.projectDir / f"Tile/{t}/{t}_ConfigMem.csv",
+                self.projectDir / f"Tile/{t}/{t}_ConfigMem.{self.extension}",
+            )
             logger.info(f"Generating tile {t}")
             # Gen tile
-            self.fabulousAPI.setWriterOutputFile(
-                self.projectDir / f"Tile/{t}/{t}.{self.extension}"
+            self.fabulousAPI.genTile(
+                t, self.projectDir / f"Tile/{t}/{t}.{self.extension}"
             )
-            self.fabulousAPI.genTile(t)
             logger.info(f"Generated tile {t}")
 
         logger.info("Tile generation complete")
@@ -508,7 +503,7 @@ class FABulous_CLI(Cmd):
     def do_gen_all_tile(self, *_ignored: str) -> None:
         """Generates all tiles using the API."""
         logger.info("Generating all tiles")
-        self.fabulousAPI.genAllTiles(self.allTile)
+        self.onecmd_plus_hooks(f"gen_tile {' '.join(self.allTile)}")
         logger.info("All tiles generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
@@ -522,10 +517,9 @@ class FABulous_CLI(Cmd):
         self.onecmd_plus_hooks("gen_all_tile")
         if self.exit_code != 0:
             raise CommandError("Tile generation failed")
-        self.fabulousAPI.setWriterOutputFile(
+        self.fabulousAPI.genFabric(
             self.projectDir / f"Fabric/{self.fabulousAPI.fabric.name}.{self.extension}"
         )
-        self.fabulousAPI.genFabric()
         logger.info("Fabric generation complete")
 
     geometryParser = Cmd2ArgumentParser()
@@ -540,7 +534,6 @@ class FABulous_CLI(Cmd):
     )
 
     @with_category(CMD_FABRIC_FLOW)
-    @allow_blank
     @with_argparser(geometryParser)
     def do_gen_geometry(self, args: argparse.Namespace) -> None:
         """Generates geometry of fabric for FABulator by checking if fabric is loaded,
@@ -551,12 +544,11 @@ class FABulous_CLI(Cmd):
         padding is not within the valid range of 4 to 32.
         """
         logger.info(f"Generating geometry for {self.fabulousAPI.fabric.name}")
-        geomFile = self.projectDir / f"{self.fabulousAPI.fabric.name}_geometry.csv"
-        self.fabulousAPI.setWriterOutputFile(geomFile)
-
-        self.fabulousAPI.genGeometry(args.padding)
+        self.fabulousAPI.genGeometry(
+            self.projectDir / f"{self.fabulousAPI.fabric.name}_geometry.csv",
+            args.padding,
+        )
         logger.info("Geometry generation complete")
-        logger.info(f"{geomFile} can now be imported into FABulator")
 
     @with_category(CMD_GUI)
     def do_start_FABulator(self, *_ignored: str) -> None:
@@ -587,10 +579,10 @@ class FABulous_CLI(Cmd):
         try:
             if self.verbose:
                 # log FABulator output to the FABulous shell
-                sp.Popen(startupCmd)
+                sp.run(startupCmd)
             else:
                 # discard FABulator output
-                sp.Popen(startupCmd, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+                sp.run(startupCmd, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
 
         except sp.SubprocessError as e:
             raise CommandError(
@@ -602,40 +594,116 @@ class FABulous_CLI(Cmd):
     def do_gen_bitStream_spec(self, *_ignored: str) -> None:
         """Generates bitstream specification using the API."""
         logger.info("Generating bitstream specification")
-        self.fabulousAPI.saveBitStreamSpec()
+        metaDataDir = self.projectDir / ".FABulous"
+        metaDataDir.mkdir(exist_ok=True)
+
+        self.fabulousAPI.genBitStreamSpec(
+            binPath=metaDataDir / "bitStreamSpec.bin",
+            csvPath=metaDataDir / "bitStreamSpec.csv",
+        )
         logger.info("Bitstream specification generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_top_wrapper(self, *_ignored: str) -> None:
         """Generates top wrapper of the fabric by calling 'genTopWrapper'."""
         logger.info("Generating top wrapper")
-        self.fabulousAPI.setWriterOutputFile(
+        self.fabulousAPI.genTopWrapper(
             self.projectDir
             / f"Fabric/{self.fabulousAPI.fabric.name}_top.{self.extension}"
         )
-        self.fabulousAPI.genTopWrapper()
         logger.info("Top wrapper generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
     def do_run_FABulous_fabric(self, *_ignored: str) -> None:
-        """Generates the fabric using the complete FABulous fabric flow from the API."""
+        """Generates the fabric based on the CSV file, creates bitstream specification
+        of the fabric, top wrapper of the fabric, Nextpnr model of the fabric and
+        geometry information of the fabric.
+
+        Does this by calling the respective functions 'do_gen_[function]'.
+        """
         logger.info("Running FABulous")
-        success = self.fabulousAPI.runFABulousFabricFlow()
-        if not success:
-            raise CommandError("FABulous fabric flow failed")
+
+        success = (
+            CommandPipeline(self)
+            .add_step("gen_io_fabric")
+            .add_step("gen_fabric")
+            .add_step("gen_bitStream_spec")
+            .add_step("gen_top_wrapper")
+            .add_step("gen_model_npnr")
+            .add_step("gen_geometry")
+            .execute()
+        )
+
+        if success:
+            logger.info("FABulous fabric flow complete")
+
+    genModelParser = Cmd2ArgumentParser()
+    genModelParser.add_argument(
+        "pips",
+        type=Path,
+        completer=Cmd.path_complete,
+        help="Path to the fabric CSV file",
+        nargs=argparse.OPTIONAL,
+    )
+    genModelParser.add_argument(
+        "bel",
+        type=Path,
+        completer=Cmd.path_complete,
+        help="Path to the fabric CSV file",
+        nargs=argparse.OPTIONAL,
+    )
+    genModelParser.add_argument(
+        "belv2",
+        type=Path,
+        completer=Cmd.path_complete,
+        help="Path to the fabric CSV file",
+        nargs=argparse.OPTIONAL,
+    )
+    genModelParser.add_argument(
+        "template",
+        type=Path,
+        completer=Cmd.path_complete,
+        help="Path to the fabric CSV file",
+        nargs=argparse.OPTIONAL,
+    )
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_model_npnr(self, *_ignored: str) -> None:
+    @with_argparser(genModelParser)
+    def do_gen_model_npnr(self, args: argparse.Namespace) -> None:
         """Generates Nextpnr model using the API."""
         logger.info("Generating npnr model")
-        self.fabulousAPI.saveRoutingModel()
+        metaDataDir = self.projectDir / ".FABulous"
+        metaDataDir.mkdir(exist_ok=True)
+
+        self.fabulousAPI.genRoutingModel(
+            pipPath=args.pips or metaDataDir / "pips.txt",
+            belPath=args.bel or metaDataDir / "bel.txt",
+            belv2Path=args.belv2 or metaDataDir / "bel.v2.txt",
+            templatePath=args.template or metaDataDir / "template.pcf",
+        )
         logger.info("Generated npnr model")
 
+    placeAndRouteParser = Cmd2ArgumentParser()
+    placeAndRouteParser.add_argument(
+        "synthJson",
+        type=Path,
+        completer=Cmd.path_complete,
+        help="Path to the synthesis JSON file",
+    )
+    placeAndRouteParser.add_argument(
+        "outFASM",
+        type=Path,
+        completer=Cmd.path_complete,
+        help="Path to the output FASM file",
+    )
+
     @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(filePathRequireParser)
+    @with_argparser(placeAndRouteParser)
     def do_place_and_route(self, args: argparse.Namespace) -> None:
         """Runs place and route using the API."""
-        self.fabulousAPI.runPlaceAndRoute(args.file)
+        self.fabulousAPI.runPlaceAndRoute(
+            args.synthJson, args.outFASM or args.synthJson.with_suffix(".fasm")
+        )
 
     @with_category(CMD_USER_DESIGN_FLOW)
     @with_argparser(filePathRequireParser)
@@ -670,27 +738,42 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_USER_DESIGN_FLOW)
     @with_argparser(filePathRequireParser)
     def do_run_FABulous_bitstream(self, args: argparse.Namespace) -> None:
-        """Runs FABulous bitstream generation flow using the API.
+        """Runs FABulous to generate bitstream on a given design starting from
+        synthesis.
 
-        Note: This is a simplified version. The synthesis step would need
-        to be implemented separately as it involves external tools.
+        Does this by calling synthesis, place and route, bitstream generation functions.
+        Requires Verilog file specified by <top_module_file>.
+
+        Also logs usage error and file not found error.
         """
-        logger.info("Running FABulous bitstream flow")
 
-        # Check for external primitives library
-        primsLib = self.projectDir / "user_design/custom_prims.v"
-        if primsLib.exists():
-            logger.info(f"Found external primsLib: {primsLib}")
+        file_path_no_suffix = args.file.parent / args.file.stem
+
+        if args.file.suffix != ".v":
+            raise InvalidFileType(
+                "No verilog file provided. Usage: run_FABulous_bitstream <top_module_file>"
+            )
+
+        json_file_path = file_path_no_suffix.with_suffix(".json")
+        fasm_file_path = file_path_no_suffix.with_suffix(".fasm")
+
+        do_synth_args = str(args.file)
+
+        primsLib = f"{self.projectDir}/user_design/custom_prims.v"
+        if Path(primsLib).exists():
+            do_synth_args += f" -extra-plib {primsLib}"
         else:
             logger.info("No external primsLib found.")
 
-        # Note: Synthesis step would be handled here before calling the API flow
-        logger.warning("Synthesis step needs to be implemented separately")
-
-        # For now, just try to run the flow assuming synthesis was done
-        success = self.fabulousAPI.runFABulousBitstreamFlow(args.file)
-        if not success:
-            raise CommandError("FABulous bitstream generation failed")
+        success = (
+            CommandPipeline(self)
+            .add_step(f"synthesis {do_synth_args}")
+            .add_step(f"place_and_route {json_file_path}")
+            .add_step(f"gen_bitStream_binary {fasm_file_path}")
+            .execute()
+        )
+        if success:
+            logger.info("FABulous bitstream generation complete")
 
     @with_category(CMD_SCRIPT)
     @with_argparser(filePathRequireParser)
@@ -795,6 +878,5 @@ class FABulous_CLI(Cmd):
                 self.fabulousAPI.genIOBelForTile(tile)
 
     @with_category(CMD_FABRIC_FLOW)
-    @allow_blank
     def do_gen_io_fabric(self, _args: str) -> None:
         self.fabulousAPI.genFabricIOBels()
