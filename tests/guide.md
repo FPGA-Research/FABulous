@@ -76,8 +76,21 @@ def test_cli_command(cli, caplog):
     log = normalize(caplog.text)
 
     # check is "something" in first line of log
-    assert "something" in log[0] 
+    assert "something" in log[0]
 
-    # or can do 
+    # or can do
     assert "something" in caplog.text
 ```
+
+### Reference Tests
+
+A pytest-based framework for testing FABulous against reference projects with regression testing capabilities.
+
+It automatically downloads reference projects from a GitHub repository,
+runs specified FABulous commands, and compares the outputs against expected results using git-style diffs.
+
+The default reference projects are hosted in the
+[FABulous-demo-projects repo](https://github.com/FPGA-Research/FABulous-demo-projects)
+
+For more information, please check the [reference_tests README](./reference_tests/README.md)
+

@@ -1,0 +1,258 @@
+"""Test suite for running FABulous on reference projects with difference checking.
+
+This module tests FABulous against reference projects defined in a config file,
+supporting both "run" mode (error checking) and "diff" mode (regression testing).
+"""
+
+import os
+import shutil
+from pathlib import Path
+from typing import Any, Literal, NamedTuple
+
+import pytest
+import yaml
+from loguru import logger
+
+from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
+from FABulous.FABulous_CLI.helper import (
+    setup_logger,
+)
+from tests.CLI_test.conftest import normalize, run_cmd
+from tests.reference_tests.helpers import (
+    compare_directories,
+    format_file_differences_report,
+)
+
+
+class ReferenceProject(NamedTuple):
+    """Configuration for a reference project test."""
+
+    name: str
+    path: Path
+    language: Literal["verilog", "vhdl"]
+    test_mode: Literal["run", "diff"]
+    description: str = ""
+    expected_outputs: list[str] | None = None
+    include_patterns: list[str] | None = None
+    exclude_patterns: list[str] | None = None
+    commands: list[str] | None = None
+    skip_reason: str | None = None
+
+
+def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
+    """Load reference projects configuration from YAML file."""
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
+
+    with config_path.open("r") as f:
+        config_data = yaml.safe_load(f)
+
+    projects = []
+    for project_data in config_data.get("reference_projects", []):
+        if Path(project_data["path"]).is_absolute():
+            path = Path(project_data["path"])
+        else:
+            path = config_path.parent / project_data["path"]
+        try:
+            project = ReferenceProject(
+                name=project_data["name"],
+                path=path.resolve(),
+                language=project_data["language"],
+                test_mode=project_data["test_mode"],
+                description=project_data.get("description", ""),
+                expected_outputs=project_data.get("expected_outputs"),
+                include_patterns=project_data.get("include_patterns"),
+                exclude_patterns=project_data.get("exclude_patterns"),
+                commands=project_data.get("commands"),
+                skip_reason=project_data.get("skip_reason"),
+            )
+            projects.append(project)
+        except KeyError as e:
+            logger.warning(f"Invalid project config, missing key {e}: {project_data}")
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Failed to load project config: {e}")
+
+    return projects
+
+
+def run_fabulous_commands_with_logging(
+    project_path: Path,
+    language: str,
+    caplog: pytest.LogCaptureFixture,
+    commands: list[str] | None = None,
+    skip_on_fail: bool = False,
+) -> tuple[FABulous_CLI, dict[str, Any]]:
+    """Run standard FABulous commands using existing test patterns."""
+
+    setup_logger(0, False)
+
+    os.environ["FAB_PROJ_DIR"] = str(project_path)
+
+    cli = FABulous_CLI(
+        writerType=language, projectDir=project_path, enteringDir=project_path.parent
+    )
+    cli.debug = True
+
+    if not commands:
+        # Standard FABulous command sequence
+        commands = [
+            "load_fabric",
+            # run_FABulous_fabric commands:
+            "gen_io_fabric",
+            "gen_fabric",
+            "gen_bitStream_spec",
+            "gen_top_wrapper",
+            "gen_model_npnr",
+            "gen_geometry",
+        ]
+
+    execution_info = {
+        "commands_run": [],
+        "commands_failed": [],
+        "commands_not_executed": [],
+        "errors": [],
+        "warnings": [],
+    }
+
+    for cmd in commands:
+        fail = False
+        try:
+            logger.info(f"Running command: {cmd}")
+            # Reuse the run_cmd function from CLI tests
+            run_cmd(cli, cmd)
+
+            # check for errors and warnings in logs
+            log_lines = normalize(caplog.text)
+
+            execution_info["warnings"] += ["WARNING" in line for line in log_lines]
+            if errors := ["ERROR" in line for line in log_lines]:
+                execution_info["commands_failed"].append(cmd)
+                execution_info["errors"] += errors
+                fail = True
+
+            caplog.clear()  # Clear for next command
+
+            execution_info["commands_run"].append(cmd)
+
+        except Exception as e:  # noqa: BLE001
+            execution_info["commands_failed"].append(cmd)
+            execution_info["errors"].append(f"Command '{cmd}' failed: {str(e)}")
+            logger.error(f"Command '{cmd}' failed: {e}")
+            fail = True
+
+        if skip_on_fail and fail:
+            # skip remaining commands on failure
+            execution_info["commands_not_executed"] = commands[
+                commands.index(cmd) + 1 :
+            ]
+            break
+
+    return cli, execution_info
+
+
+def pytest_generate_tests(metafunc) -> None:
+    """Generate test parameters dynamically based on config."""
+    if "project" in metafunc.fixturenames:
+        # Need to import _session_config here to avoid uninialized/circular import
+        from tests.reference_tests.conftest import _session_config
+
+        if _session_config.projects_conf is None:
+            raise RuntimeError("Session config not initialized. This should be set in pytest_configure.")
+
+        config_path = _session_config.projects_conf
+
+        assert config_path.exists(), f"Config file not found: {config_path}"
+
+        projects = load_reference_projects_config(config_path)
+
+        # Filter out skipped projects
+        active_projects = [p for p in projects if p.skip_reason is None]
+
+        assert active_projects, "No active reference projects found in config."
+
+        metafunc.parametrize(
+            "project", active_projects, ids=[p.name for p in active_projects]
+        )
+    else:
+        raise RuntimeError("No 'project' fixture found in test function.")
+
+
+def test_reference_project_execution(
+    project: ReferenceProject, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """Test execution of reference projects with run or diff mode."""
+
+    assert project.path.exists(), f"Reference project path does not exist: {project.path}"
+
+    # Copy project to temporary location
+    project_name = project.path.name
+    test_project_path = tmp_path / project_name
+    if project.path.is_dir():
+        shutil.copytree(project.path, test_project_path, symlinks=True)
+    else:
+        raise ValueError(f"Reference project path is not a directory: {project.path}")
+
+    # Run FABulous commands
+    _, execution_info = run_fabulous_commands_with_logging(
+        test_project_path, project.language, caplog, project.commands
+    )
+
+    # Always check that basic commands succeeded
+    assert not execution_info["commands_failed"], (
+        f"Commands failed for {project.name}: {execution_info['commands_failed']}\n"
+        f"Errors: {execution_info['errors']}"
+    )
+
+    # Verify expected outputs exist if specified
+    if project.expected_outputs:
+        for expected_file in project.expected_outputs:
+            file_path = test_project_path / expected_file
+            assert file_path.exists(), f"Expected output file missing: {expected_file}"
+            assert file_path.stat().st_size > 0, (
+                f"Expected output file is empty: {expected_file}"
+            )
+
+    # For "run" mode, just check for errors and expected outputs
+    if project.test_mode == "run":
+        logger.info(f"✓ Project {project.name} executed successfully in 'run' mode")
+
+    # For "diff" mode, perform simple comparison
+    if project.test_mode == "diff":
+        # Compare files
+        # Determine file patterns based on project configuration or language
+        if project.include_patterns:
+            logger.info("Using defined include patterns:")
+            include_patterns = project.include_patterns
+        else:
+            logger.info("Using default include patterns for:")
+            if project.language == "verilog":
+                include_patterns = ["*.v", "*.sv"]
+            else:  # vhdl
+                include_patterns = ["*.vhd", "*.vhdl"]
+            include_patterns += ["*.csv", "*.list", "*txt", "*.bin"]
+        logger.info(f"  Patterns: {include_patterns}")
+
+        cmp_diff = compare_directories(
+            project.path,
+            test_project_path,
+            include_patterns,
+            exclude_patterns=project.exclude_patterns,
+        )
+
+        if cmp_diff:
+            # Need to import _session_config here to avoid uninialized/circular import
+            from tests.reference_tests.conftest import _session_config
+            diff_report = format_file_differences_report(
+                cmp_diff,
+                verbose=_session_config.verbose,
+                current_dir=test_project_path,
+                reference_dir=project.path
+            )
+            pytest.fail(
+                f"Compare project differences in {project.name}:\n{diff_report}"
+            )
+
+        logger.info(
+            f"✓ Project {project.name} passed regression testing in 'diff' mode"
+        )
+
+    return
