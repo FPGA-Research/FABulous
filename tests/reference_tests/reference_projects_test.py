@@ -76,12 +76,13 @@ def run_fabulous_commands_with_logging(
     project_path: Path,
     language: str,
     caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
     commands: list[str] | None = None,
     skip_on_fail: bool = False,
 ) -> tuple[FABulous_CLI, dict[str, Any]]:
     """Run standard FABulous commands using existing test patterns."""
 
-    os.environ["FAB_PROJ_DIR"] = str(project_path)
+    monkeypatch.setenv("FAB_PROJ_DIR", str(project_path))
 
     cli = FABulous_CLI(
         writerType=language, projectDir=project_path, enteringDir=project_path.parent
@@ -173,7 +174,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 
 def test_reference_project_execution(
-    project: ReferenceProject, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    project: ReferenceProject, tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test execution of reference projects with run or diff mode."""
 
     assert project.path.exists(), f"Reference project path does not exist: {project.path}"
@@ -188,7 +189,7 @@ def test_reference_project_execution(
 
     # Run FABulous commands
     _, execution_info = run_fabulous_commands_with_logging(
-        test_project_path, project.language, caplog, project.commands
+        test_project_path, project.language, caplog, monkeypatch, commands=project.commands
     )
 
     # Always check that basic commands succeeded

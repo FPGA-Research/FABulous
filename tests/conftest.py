@@ -1,6 +1,5 @@
 """Global pytest configuration and fixtures for all FABulous tests."""
 
-import os
 from collections.abc import Generator
 from pathlib import Path
 
@@ -50,16 +49,15 @@ def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def cli(tmp_path: Path) -> Generator[FABulous_CLI]:
+def cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[FABulous_CLI]:
     """Create a FABulous CLI instance for testing with a temporary project."""
     project_dir = tmp_path / "test_project"
-    os.environ["FAB_PROJ_DIR"] = str(project_dir)
+    monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
     create_project(project_dir)
     cli = FABulous_CLI(writerType="verilog", projectDir=project_dir, enteringDir=tmp_path)
     cli.debug = True
     run_cmd(cli, "load_fabric")
     yield cli
-    os.environ.pop("FAB_PROJ_DIR", None)
 
 
 @pytest.fixture(autouse=True)
