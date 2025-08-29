@@ -4,20 +4,18 @@ This module tests FABulous against reference projects defined in a config file,
 supporting both "run" mode (error checking) and "diff" mode (regression testing).
 """
 
-import os
 import shutil
 from pathlib import Path
-from typing import Any, Literal, NamedTuple
+from typing import Literal, NamedTuple
 
 import pytest
 import yaml
 from loguru import logger
 
-from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
-from tests.conftest import normalize, run_cmd
 from tests.reference_tests.helpers import (
     compare_directories,
     format_file_differences_report,
+    run_fabulous_commands_with_logging,
 )
 
 
@@ -70,80 +68,6 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
             logger.warning(f"Failed to load project config: {e}")
 
     return projects
-
-
-def run_fabulous_commands_with_logging(
-    project_path: Path,
-    language: str,
-    caplog: pytest.LogCaptureFixture,
-    monkeypatch: pytest.MonkeyPatch,
-    commands: list[str] | None = None,
-    skip_on_fail: bool = False,
-) -> tuple[FABulous_CLI, dict[str, Any]]:
-    """Run standard FABulous commands using existing test patterns."""
-
-    monkeypatch.setenv("FAB_PROJ_DIR", str(project_path))
-
-    cli = FABulous_CLI(
-        writerType=language, projectDir=project_path, enteringDir=project_path.parent
-    )
-    cli.debug = True
-
-    if not commands:
-        # Standard FABulous command sequence
-        commands = [
-            "load_fabric",
-            # run_FABulous_fabric commands:
-            "gen_io_fabric",
-            "gen_fabric",
-            "gen_bitStream_spec",
-            "gen_top_wrapper",
-            "gen_model_npnr",
-            "gen_geometry",
-        ]
-
-    execution_info = {
-        "commands_run": [],
-        "commands_failed": [],
-        "commands_not_executed": [],
-        "errors": [],
-        "warnings": [],
-    }
-
-    for cmd in commands:
-        fail = False
-        try:
-            logger.info(f"Running command: {cmd}")
-            # Reuse the run_cmd function from CLI tests
-            run_cmd(cli, cmd)
-
-            # check for errors and warnings in logs
-            log_lines = normalize(caplog.text)
-
-            execution_info["warnings"] += ["WARNING" in line for line in log_lines]
-            if errors := ["ERROR" in line for line in log_lines]:
-                execution_info["commands_failed"].append(cmd)
-                execution_info["errors"] += errors
-                fail = True
-
-            caplog.clear()  # Clear for next command
-
-            execution_info["commands_run"].append(cmd)
-
-        except Exception as e:  # noqa: BLE001
-            execution_info["commands_failed"].append(cmd)
-            execution_info["errors"].append(f"Command '{cmd}' failed: {str(e)}")
-            logger.error(f"Command '{cmd}' failed: {e}")
-            fail = True
-
-        if skip_on_fail and fail:
-            # skip remaining commands on failure
-            execution_info["commands_not_executed"] = commands[
-                commands.index(cmd) + 1 :
-            ]
-            break
-
-    return cli, execution_info
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:

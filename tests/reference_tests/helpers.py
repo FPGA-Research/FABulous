@@ -10,7 +10,12 @@ import subprocess
 from pathlib import Path
 from typing import Any, NamedTuple
 
+import pytest
 from loguru import logger
+
+from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
+from FABulous.FABulous_CLI.helper import setup_logger
+from tests.conftest import normalize, run_cmd
 
 
 def download_reference_projects(repo_url: str, target_dir: Path, branch: str = "main") -> bool:
@@ -274,4 +279,98 @@ def format_file_differences_report(differences: list[FileDifference], verbose: b
         lines.append("")
 
     return "\n".join(lines)
+
+
+def run_fabulous_commands_with_logging(
+    project_path: Path,
+    language: str,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    commands: list[str] | None = None,
+    skip_on_fail: bool = False,
+) -> tuple[FABulous_CLI, dict[str, Any]]:
+    """Run standard FABulous commands using existing test patterns.
+
+    Args:
+        project_path: Path to the project directory to run commands in
+        language: Language type for FABulous CLI ("verilog" or "vhdl")
+        caplog: Pytest log capture fixture for collecting log output
+        monkeypatch: Pytest monkeypatch fixture for environment management
+        commands: Optional list of commands to run. If None, runs standard sequence
+        skip_on_fail: Whether to skip remaining commands if one fails
+
+    Returns:
+        Tuple of (FABulous_CLI instance, execution_info dict)
+
+    The execution_info dict contains:
+        - commands_run: List of successfully executed commands
+        - commands_failed: List of commands that failed
+        - commands_not_executed: List of commands skipped due to failures
+        - errors: List of error messages collected from logs
+        - warnings: List of warning messages collected from logs
+    """
+    setup_logger(0, False)
+
+    monkeypatch.setenv("FAB_PROJ_DIR", str(project_path))
+
+    cli = FABulous_CLI(
+        writerType=language, projectDir=project_path, enteringDir=project_path.parent
+    )
+    cli.debug = True
+
+    if not commands:
+        # Standard FABulous command sequence
+        commands = [
+            "load_fabric",
+            # run_FABulous_fabric commands:
+            "gen_io_fabric",
+            "gen_fabric",
+            "gen_bitStream_spec",
+            "gen_top_wrapper",
+            "gen_model_npnr",
+            "gen_geometry",
+        ]
+
+    execution_info = {
+        "commands_run": [],
+        "commands_failed": [],
+        "commands_not_executed": [],
+        "errors": [],
+        "warnings": [],
+    }
+
+    for cmd in commands:
+        fail = False
+        try:
+            logger.info(f"Running command: {cmd}")
+            # Reuse the run_cmd function from CLI tests
+            run_cmd(cli, cmd)
+
+            # check for errors and warnings in logs
+            log_lines = normalize(caplog.text)
+
+            execution_info["warnings"] += [line for line in log_lines if "WARNING" in line]
+            if errors := [line for line in log_lines if "ERROR" in line]:
+                execution_info["commands_failed"].append(cmd)
+                execution_info["errors"] += errors
+                fail = True
+
+            caplog.clear()  # Clear for next command
+
+            execution_info["commands_run"].append(cmd)
+
+        except Exception as e:  # noqa: BLE001
+            execution_info["commands_failed"].append(cmd)
+            execution_info["errors"].append(f"Command '{cmd}' failed: {str(e)}")
+            logger.error(f"Command '{cmd}' failed: {e}")
+            fail = True
+
+        if skip_on_fail and fail:
+            # skip remaining commands on failure
+            execution_info["commands_not_executed"] = commands[
+                commands.index(cmd) + 1 :
+            ]
+            break
+
+    return cli, execution_info
 
