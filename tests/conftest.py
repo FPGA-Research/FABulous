@@ -54,7 +54,13 @@ def cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FABulous_CLI:
     project_dir = tmp_path / "test_project"
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
     create_project(project_dir)
-    cli = FABulous_CLI(writerType="verilog", projectDir=project_dir, enteringDir=tmp_path)
+    cli = FABulous_CLI(
+        "verilog",
+        force=False,
+        interactive=False,
+        verbose=False,
+        debug=True,
+    )
     cli.debug = True
     run_cmd(cli, "load_fabric")
     return cli

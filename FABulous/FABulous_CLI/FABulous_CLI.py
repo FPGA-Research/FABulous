@@ -16,7 +16,6 @@
 
 import argparse
 import csv
-import os
 import pickle
 import pprint
 import subprocess as sp
@@ -53,7 +52,6 @@ from FABulous.FABulous_CLI import cmd_synthesis
 from FABulous.FABulous_CLI.helper import (
     CommandPipeline,
     allow_blank,
-    check_if_application_exists,
     copy_verilog_files,
     install_oss_cad_suite,
     make_hex,
@@ -883,9 +881,7 @@ class FABulous_CLI(Cmd):
         copy_verilog_files(self.projectDir / "Fabric", fabricFilesDir)
         file_list = [str(i) for i in fabricFilesDir.glob("*.v")]
 
-        iverilog = check_if_application_exists(
-            os.getenv("FAB_IVERILOG_PATH", "iverilog")
-        )
+        iverilog = get_context().iverilog_path
         runCmd = [
             f"{iverilog}",
             "-D",

@@ -1,3 +1,5 @@
+"""Helper functions for FABulous."""
+
 import functools
 import os
 import platform
@@ -30,6 +32,7 @@ MAX_BITBYTES = 16384
 
 
 def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
+    """Setup logger for FABulous."""
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 
@@ -228,35 +231,6 @@ def make_hex(binfile: Path, outfile: Path) -> None:
                 print(f"{bindata[i]:02x}", file=f)
             else:
                 print("0", file=f)
-
-
-def check_if_application_exists(application: str) -> Path:
-    """Checks if an application is installed on the system.
-
-    Parameters
-    ----------
-    application : str
-        Name of the application to check.
-    throw_exception : bool, optional
-        If True, throws an exception if the application is not installed, by default True
-
-    Returns
-    -------
-    Path
-        Path to  the application, if installed.
-
-    Raises
-    ------
-    Exception
-        If the application is not installed and throw_exception is True.
-    """
-    path = shutil.which(application)
-    if path is not None:
-        return Path(path)
-    error_msg = f"{application} is not installed. Please install it or set FAB_<APPLICATION>_PATH in the .env file."
-    # To satisfy the `-> Path` return type, an exception must be raised if no path is found.
-    # The throw_exception parameter's original intent might need review if non-exception paths were desired.
-    raise FileNotFoundError(error_msg)
 
 
 def wrap_with_except_handling(fun_to_wrap: Callable) -> Callable:

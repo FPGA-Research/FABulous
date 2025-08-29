@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from dotenv import set_key
 
 from FABulous.FABulous_CLI.helper import create_project
 
