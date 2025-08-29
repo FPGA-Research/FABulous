@@ -66,11 +66,12 @@ def cleanup_logger() -> Generator[None]:
     'logging to closed file' errors when tests exit quickly"""
     yield
     # Remove all logger handlers to prevent logging to closed files
+    # This handles cleanup for both regular logging and caplog fixtures
     logger.remove()
 
 
 @pytest.fixture
-def caplog(caplog: LogCaptureFixture) -> Generator[LogCaptureFixture]:
+def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
     """Custom caplog fixture that integrates with loguru."""
     handler_id = logger.add(
         caplog.handler,
@@ -79,5 +80,5 @@ def caplog(caplog: LogCaptureFixture) -> Generator[LogCaptureFixture]:
         filter=lambda record: record["level"].no >= caplog.handler.level,
         enqueue=False,  # Set to 'True' if your test is spawning child processes.
     )
-    yield caplog
-    logger.remove(handler_id)
+    return caplog
+    # No need to remove specific handler - cleanup_logger removes all handlers
