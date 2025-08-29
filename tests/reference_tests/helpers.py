@@ -37,11 +37,7 @@ def download_reference_projects(repo_url: str, target_dir: Path, branch: str = "
             if (target_dir / ".git").exists():
                 logger.info("Updating existing repository...")
                 result = subprocess.run(
-                    ["git", "pull", "origin", branch],
-                    cwd=target_dir,
-                    capture_output=True,
-                    text=True,
-                    timeout=60
+                    ["git", "pull", "origin", branch], cwd=target_dir, capture_output=True, text=True, timeout=60
                 )
                 if result.returncode != 0:
                     logger.warning(f"Git pull failed: {result.stderr}")
@@ -51,8 +47,10 @@ def download_reference_projects(repo_url: str, target_dir: Path, branch: str = "
                     logger.info("✓ Repository updated successfully")
                     return True
             else:
-                logger.error(f"Target directory {target_dir} exists but is not a git repository.",
-                             " Please remove or specify a different directory.")
+                logger.error(
+                    f"Target directory {target_dir} exists but is not a git repository.",
+                    " Please remove or specify a different directory.",
+                )
                 return False
 
         if not target_dir.exists():
@@ -64,7 +62,7 @@ def download_reference_projects(repo_url: str, target_dir: Path, branch: str = "
                 ["git", "clone", "--branch", branch, "--depth", "1", repo_url, str(target_dir)],
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=120,
             )
 
             if result.returncode != 0:
@@ -95,10 +93,7 @@ class FileDifference(NamedTuple):
     details: dict[str, Any]
 
 
-def compare_files_with_diff(
-    current_file: Path,
-    reference_file: Path
-) -> list[str] | None:
+def compare_files_with_diff(current_file: Path, reference_file: Path) -> list[str] | None:
     """Compare two files and return unified diff if they differ.
 
     Returns:
@@ -126,7 +121,7 @@ def compare_files_with_diff(
         current_lines,
         fromfile=f"reference/{reference_file.name}",
         tofile=f"current/{current_file.name}",
-        n=3
+        n=3,
     )
 
     diff_lines = list(diff)
@@ -134,10 +129,7 @@ def compare_files_with_diff(
 
 
 def compare_directories(
-    current_dir: Path,
-    reference_dir: Path,
-    file_patterns: list[str],
-    exclude_patterns: list[str] | None = None
+    current_dir: Path, reference_dir: Path, file_patterns: list[str], exclude_patterns: list[str] | None = None
 ) -> list[FileDifference]:
     """Compare files in two directories using simple pattern matching."""
 
@@ -164,15 +156,9 @@ def compare_directories(
         reference_files -= excluded_reference
 
     # Create relative path mappings
-    current_rel_map = {
-        str(f.relative_to(current_dir)): f
-        for f in current_files
-    }
+    current_rel_map = {str(f.relative_to(current_dir)): f for f in current_files}
 
-    reference_rel_map = {
-        str(f.relative_to(reference_dir)): f
-        for f in reference_files
-    }
+    reference_rel_map = {str(f.relative_to(reference_dir)): f for f in reference_files}
 
     # Compare all files
     all_rel_paths = set(current_rel_map.keys()) | set(reference_rel_map.keys())
@@ -183,37 +169,45 @@ def compare_directories(
 
         if not current_file:
             # File missing in current
-            differences.append(FileDifference(
-                file_path=rel_path,
-                difference_type="missing",
-                details={"message": "File exists in reference but missing in current"}
-            ))
+            differences.append(
+                FileDifference(
+                    file_path=rel_path,
+                    difference_type="missing",
+                    details={"message": "File exists in reference but missing in current"},
+                )
+            )
 
         elif not reference_file:
             # Extra file in current
-            differences.append(FileDifference(
-                file_path=rel_path,
-                difference_type="extra",
-                details={"message": "File exists in current but not in reference"}
-            ))
+            differences.append(
+                FileDifference(
+                    file_path=rel_path,
+                    difference_type="extra",
+                    details={"message": "File exists in current but not in reference"},
+                )
+            )
 
         else:
             # Compare file contents
             diff_result = compare_files_with_diff(current_file, reference_file)
             if diff_result:
-                differences.append(FileDifference(
-                    file_path=rel_path,
-                    difference_type="modified",
-                    details={
-                        "diff": diff_result,
-                        "total_diff_lines": len(diff_result)
-                    }
-                ))
+                differences.append(
+                    FileDifference(
+                        file_path=rel_path,
+                        difference_type="modified",
+                        details={"diff": diff_result, "total_diff_lines": len(diff_result)},
+                    )
+                )
 
     return differences
 
 
-def format_file_differences_report(differences: list[FileDifference], verbose: bool = False, current_dir: Path | None = None, reference_dir: Path | None = None) -> str:
+def format_file_differences_report(
+    differences: list[FileDifference],
+    verbose: bool = False,
+    current_dir: Path | None = None,
+    reference_dir: Path | None = None,
+) -> str:
     """Format file differences into a readable report with git-style diffs."""
 
     if not differences:
@@ -312,10 +306,9 @@ def run_fabulous_commands_with_logging(
     setup_logger(0, False)
 
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_path))
+    monkeypatch.setenv("FAB_PROJ_LANG", language.upper())
 
-    cli = FABulous_CLI(
-        writerType=language, projectDir=project_path, enteringDir=project_path.parent
-    )
+    cli = FABulous_CLI(writerType=language, projectDir=project_path, enteringDir=project_path.parent)
     cli.debug = True
 
     if not commands:
@@ -367,10 +360,7 @@ def run_fabulous_commands_with_logging(
 
         if skip_on_fail and fail:
             # skip remaining commands on failure
-            execution_info["commands_not_executed"] = commands[
-                commands.index(cmd) + 1 :
-            ]
+            execution_info["commands_not_executed"] = commands[commands.index(cmd) + 1 :]
             break
 
     return cli, execution_info
-

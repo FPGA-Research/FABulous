@@ -1,6 +1,7 @@
 import json
 import re
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -257,12 +258,19 @@ class YosysJson:
         ghdl = FABulousSettings().ghdl_path
         json_file = self.srcPath.with_suffix(".json")
 
+        # FIXME: a fake file to ensure things working with 1.3
+        temp: Path = Path(tempfile.gettempdir())
+        temp = temp / "my_package.vhd"
+        temp.touch()
+        temp.write_text("package my_package is\nend package;\n")
+
         if self.srcPath.suffix in {".vhd", ".vhdl"}:
             runCmd = [
                 f"{ghdl!s}",
                 "--synth",
                 "--std=08",
                 "--out=verilog",
+                str(temp),
                 f"{FABulousSettings().model_pack!s}",
                 f"{self.srcPath}",
                 "-e",
