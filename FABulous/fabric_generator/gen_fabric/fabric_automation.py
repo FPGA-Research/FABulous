@@ -7,7 +7,7 @@ from loguru import logger
 
 from FABulous.custom_exception import InvalidFileType, InvalidPortType, SpecMissMatch
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.define import IO, MultiplexerStyle
+from FABulous.fabric_definition.enum_and_type import IO, MultiplexerStyle
 from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_generator.code_generator.code_generator_Verilog import (

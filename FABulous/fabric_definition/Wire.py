@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 
-from FABulous.fabric_definition.define import Direction
+from FABulous.fabric_definition.enum_and_type import Direction
 
 
 @dataclass(frozen=True, eq=True)

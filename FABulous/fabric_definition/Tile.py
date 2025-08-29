@@ -2,7 +2,7 @@ import pathlib
 from dataclasses import dataclass, field
 
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.define import IO, Direction, Side
+from FABulous.fabric_definition.enum_and_type import IO, Direction, Side
 from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Wire import Wire

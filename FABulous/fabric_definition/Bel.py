@@ -1,7 +1,7 @@
 import pathlib
 from dataclasses import dataclass, field
 
-from FABulous.fabric_definition.define import IO
+from FABulous.fabric_definition.enum_and_type import IO
 
 
 @dataclass

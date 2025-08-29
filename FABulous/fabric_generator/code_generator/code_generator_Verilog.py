@@ -2,7 +2,7 @@ import math
 import re
 from pathlib import Path
 
-from FABulous.fabric_definition.define import IO
+from FABulous.fabric_definition.enum_and_type import IO
 from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
 
 

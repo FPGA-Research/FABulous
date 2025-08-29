@@ -3,7 +3,7 @@ from csv import writer as csvWriter
 
 from loguru import logger
 
-from FABulous.fabric_definition.define import IO, Direction, Side
+from FABulous.fabric_definition.enum_and_type import IO, Direction, Side
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.geometry_generator.bel_geometry import BelGeometry

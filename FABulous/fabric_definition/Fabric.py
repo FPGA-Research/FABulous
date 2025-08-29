@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.define import (
+from FABulous.fabric_definition.enum_and_type import (
     ConfigBitMode,
     Direction,
     MultiplexerStyle,

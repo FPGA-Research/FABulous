@@ -2,7 +2,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-from FABulous.fabric_definition.define import IO, ConfigBitMode, Direction
+from FABulous.fabric_definition.enum_and_type import IO, ConfigBitMode, Direction
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile

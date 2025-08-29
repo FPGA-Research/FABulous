@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from FABulous.fabric_definition.define import IO, Direction, Side
+from FABulous.fabric_definition.enum_and_type import IO, Direction, Side
 
 
 @dataclass(frozen=True, eq=True)

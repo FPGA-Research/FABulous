@@ -12,7 +12,7 @@ from FABulous.custom_exception import (
     InvalidPortType,
 )
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.define import IO
+from FABulous.fabric_definition.enum_and_type import IO
 
 
 def verilog_belMapProcessing(module_info: dict) -> dict:

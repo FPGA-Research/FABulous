@@ -32,3 +32,9 @@ class MultiplexerStyle(Enum):
 class ConfigBitMode(Enum):
     FRAME_BASED = "FRAME_BASED"
     FLIPFLOP_CHAIN = "FLIPFLOP_CHAIN"
+
+
+Loc = tuple[int, int]
+
+FrameIdx = int
+BitIdx = int

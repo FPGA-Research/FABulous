@@ -3,7 +3,7 @@ import math
 from loguru import logger
 
 from FABulous.custom_exception import InvalidFileType
-from FABulous.fabric_definition.define import (
+from FABulous.fabric_definition.enum_and_type import (
     IO,
     ConfigBitMode,
     Direction,

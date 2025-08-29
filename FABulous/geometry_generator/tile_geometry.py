@@ -1,7 +1,7 @@
 from csv import writer as csvWriter
 
 from FABulous.custom_exception import InvalidPortType
-from FABulous.fabric_definition.define import Direction, Side
+from FABulous.fabric_definition.enum_and_type import Direction, Side
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.geometry_generator.bel_geometry import BelGeometry
 from FABulous.geometry_generator.geometry_obj import Border, Location

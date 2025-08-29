@@ -1,7 +1,7 @@
 from csv import writer as csvWriter
 from enum import Enum
 
-from FABulous.fabric_definition.define import IO, Side
+from FABulous.fabric_definition.enum_and_type import IO, Side
 
 
 class PortType(Enum):

@@ -12,7 +12,7 @@ from FABulous.custom_exception import (
     InvalidSupertileDefinition,
     InvalidTileDefinition,
 )
-from FABulous.fabric_definition.define import IO, ConfigBitMode, MultiplexerStyle
+from FABulous.fabric_definition.enum_and_type import IO, ConfigBitMode, MultiplexerStyle
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.SuperTile import SuperTile
