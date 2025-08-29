@@ -6,6 +6,7 @@ requests>=2.0.0
 bitarray>=3.4.3
 pytest>=8.4.0
 pytest-mock>=3.14.0
+pytest-cov>=6.0.0
 cocotb>=1.9.0
 cocotb-test>=0.2.6
 pytest-split>=0.10.0

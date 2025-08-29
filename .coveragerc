@@ -1,0 +1,25 @@
+[run]
+branch = True
+parallel = True
+source = 
+    FABulous
+
+[report]
+omit = 
+    */__init__.py
+    */__pycache__/*
+    tests/*
+    demo/*
+    docs/*
+show_missing = True
+skip_covered = True
+
+[paths]
+source =
+    FABulous
+
+[xml]
+output = coverage.xml
+
+[html]
+directory = coverage_html

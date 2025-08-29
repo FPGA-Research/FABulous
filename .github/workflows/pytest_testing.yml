@@ -91,7 +91,9 @@ jobs:
           which iverilog
           pytest \
             --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
-            --store-durations --clean-durations -v -x || {
+            --store-durations --clean-durations -v -x \
+            --cov=FABulous --cov-config=.coveragerc --cov-report= \
+            || {
             exit_code=$?
             if [ $exit_code -eq 5 ]; then
               echo "No tests were collected (exit code 5). This is expected for some groups."
@@ -102,6 +104,12 @@ jobs:
             fi
           }
 
+      - name: Show coverage data files
+        if: github.run_attempt == 1
+        run: |
+          echo "Listing coverage data files in $PWD"
+          ls -la .coverage* || true
+
       # Each matrix job uploads its freshly updated partial test durations. We regroup them all
       # within one final file in the "Merge all partial test durations" step below.
       - name: Upload test durations
@@ -111,6 +119,14 @@ jobs:
           name: test-durations-after-partial-${{ matrix.job-index }}
           path: .test_durations
           if-no-files-found: error
+          include-hidden-files: true
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-after-partial-attempt-${{ github.run_attempt }}-${{ matrix.job-index }}
+          path: .coverage*
+          if-no-files-found: warn
           include-hidden-files: true
 
   cache_test_durations:
@@ -148,3 +164,4 @@ jobs:
         with:
           path: /tmp/.test_durations_cached
           key: tests-durations-${{ github.sha }}
+

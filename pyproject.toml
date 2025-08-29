@@ -61,6 +61,7 @@ dev = [
   "cocotb-test>=0.2.6",
   "pre-commit>=4.2.0",
   "pytest>=8.4.1",
+  "pytest-cov>=6.2.1",
   "pytest-mock>=3.14.1",
   "pytest-split>=0.10.0",
   "ruff>=0.12.7",
