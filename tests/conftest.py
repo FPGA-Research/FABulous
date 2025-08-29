@@ -1,5 +1,6 @@
 """Global pytest configuration and fixtures for all FABulous tests."""
 
+import os
 from collections.abc import Generator
 from pathlib import Path
 
@@ -9,6 +10,28 @@ from loguru import logger
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import create_project, setup_logger
+
+
+@pytest.fixture(autouse=True)
+def env() -> Generator[None]:
+    fabulousRoot = str(Path(__file__).resolve().parent.parent / "FABulous")
+    os.environ["FAB_ROOT"] = fabulousRoot
+    os.environ["FAB_MODEL_PACK"] = str(
+        Path(fabulousRoot) / "fabric_files/FABulous_project_template_verilog/Fabric/models_pack.v"
+    )
+    os.environ["FABULOUS_TESTING"] = "TRUE"
+    yield
+    os.environ.pop("FAB_ROOT", None)
+    os.environ.pop("FABULOUS_TESTING", None)
+
+
+@pytest.fixture(autouse=True)
+def cleanup_logger() -> Generator[None]:
+    """Ensure logger is properly cleaned up after each test to prevent
+    'logging to closed file' errors when tests exit quickly"""
+    yield
+    # Remove all logger handlers to prevent logging to closed files
+    logger.remove()
 
 
 def normalize(block: str) -> list[str]:
@@ -57,7 +80,7 @@ def cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[FABulous_C
     cli = FABulous_CLI(writerType="verilog", projectDir=project_dir, enteringDir=tmp_path)
     cli.debug = True
     run_cmd(cli, "load_fabric")
-    yield cli
+    return cli
 
 
 @pytest.fixture(autouse=True)

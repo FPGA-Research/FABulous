@@ -18,7 +18,12 @@ from FABulous.fabric_definition.Yosys_obj import (
 
 def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
     """Helper function to setup common mocks."""
-    monkeypatch.setattr("subprocess.run", lambda cmd, check=False, capture_output=False: type("MockResult", (), {"stdout": b"mock output", "stderr": b""})())
+    monkeypatch.setattr(
+        "subprocess.run",
+        lambda cmd, check=False, capture_output=False: type(
+            "MockResult", (), {"stdout": b"mock output", "stderr": b""}
+        )(),
+    )
     monkeypatch.setattr("json.load", lambda _: json_data)
 
     def mock_open_func(*_args: object, **_kwargs: object) -> object:
@@ -48,6 +53,7 @@ def test_yosys_vhdl_json_initialization(mocker: pytest_mock.MockerFixture, tmp_p
     assert m.call_count == 2
     assert "bin/ghdl" in str(m.call_args_list[0])
     assert "bin/yosys" in str(m.call_args_list[1])
+
 
 def test_yosyst_sv_json_initialization(mocker: pytest_mock.MockerFixture, tmp_path: Path) -> None:
     """Test YosysJson initialization with VHDL file."""
