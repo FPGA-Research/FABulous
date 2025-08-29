@@ -14,10 +14,7 @@ import yaml
 from loguru import logger
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
-from FABulous.FABulous_CLI.helper import (
-    setup_logger,
-)
-from tests.CLI_test.conftest import normalize, run_cmd
+from tests.conftest import normalize, run_cmd
 from tests.reference_tests.helpers import (
     compare_directories,
     format_file_differences_report,
@@ -84,8 +81,6 @@ def run_fabulous_commands_with_logging(
 ) -> tuple[FABulous_CLI, dict[str, Any]]:
     """Run standard FABulous commands using existing test patterns."""
 
-    setup_logger(0, False)
-
     os.environ["FAB_PROJ_DIR"] = str(project_path)
 
     cli = FABulous_CLI(
@@ -150,7 +145,7 @@ def run_fabulous_commands_with_logging(
     return cli, execution_info
 
 
-def pytest_generate_tests(metafunc) -> None:
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Generate test parameters dynamically based on config."""
     if "project" in metafunc.fixturenames:
         # Need to import _session_config here to avoid uninialized/circular import

@@ -1,6 +1,5 @@
 """Pytest configuration and fixtures for reference testing."""
 
-import os
 from pathlib import Path
 
 import pytest
@@ -19,46 +18,22 @@ class SessionConfig:
         self.download_projects: bool
         self.verbose: bool
 
-# globasl session config instance
+# global session config instance
 _session_config = SessionConfig()
-
-
-@pytest.fixture(autouse=True)
-def test_environment():
-    """Setup test environment for FABulous - reusing existing CLI test env setup."""
-    fabulous_root = str(Path(__file__).resolve().parent.parent.parent / "FABulous")
-    original_env = {}
-
-    # Save original environment
-    for key in ["FAB_ROOT", "FAB_PROJ_DIR", "FABULOUS_TESTING"]:
-        original_env[key] = os.environ.get(key)
-
-    # Set test environment
-    os.environ["FAB_ROOT"] = fabulous_root
-    os.environ["FABULOUS_TESTING"] = "TRUE"
-
-    yield
-
-    # Restore original environment
-    for key, value in original_env.items():
-        if value is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = value
 
 
 @pytest.fixture(scope="session")
 def config_path() -> Path:
     """Get the reference projects config path from session config."""
     if _session_config.projects_conf is None:
-        raise RuntimeError("Session config not initialized. This should be set in pytest_sessionstart.")
+        raise RuntimeError("Session config not initialized. This should be set in pytest_configure.")
     return _session_config.projects_conf
 
 @pytest.fixture(scope="session")
 def projects_dir() -> Path:
     """Get the projects directory from session config."""
     if _session_config.projects_dir is None:
-        raise RuntimeError("Session config not initialized. This should be set in pytest_sessionstart.")
+        raise RuntimeError("Session config not initialized. This should be set in pytest_configure.")
     return _session_config.projects_dir
 
 
