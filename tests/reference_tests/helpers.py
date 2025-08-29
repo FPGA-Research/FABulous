@@ -310,6 +310,13 @@ def run_fabulous_commands_with_logging(
 
     cli = FABulous_CLI(writerType=language, projectDir=project_path, enteringDir=project_path.parent)
     cli.debug = True
+    cli = FABulous_CLI(
+        language,
+        force=False,
+        interactive=False,
+        verbose=False,
+        debug=True,
+    )
 
     if not commands:
         # Standard FABulous command sequence
