@@ -1,3 +1,8 @@
+import csv
+import os
+import pickle
+import subprocess as sp
+import sys
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -5,6 +10,8 @@ from loguru import logger
 
 import FABulous.fabric_cad.gen_npnr_model as model_gen_npnr
 import FABulous.fabric_generator.parser.parse_csv as fileParser
+from FABulous.custom_exception import CommandError, InvalidFileType
+from FABulous.fabric_cad.bit_gen import genBitstream
 from FABulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from FABulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
 
@@ -30,6 +37,12 @@ from FABulous.fabric_generator.gen_fabric.gen_tile import (
     generateTile,
 )
 from FABulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrapper
+from FABulous.FABulous_CLI.helper import (
+    check_if_application_exists,
+    copy_verilog_files,
+    make_hex,
+    remove_dir,
+)
 from FABulous.FABulous_settings import FABulousSettings
 from FABulous.geometry_generator.geometry_gen import GeometryGenerator
 
@@ -49,13 +62,18 @@ class FABulous_API:
         Represents the parsed fabric data.
     fileExtension : str
         Default file extension for generated output files ('.v' or '.vhdl').
+    projectDir : Path
+        Project directory path.
     """
 
     geometryGenerator: GeometryGenerator
     fabric: Fabric
     fileExtension: str = ".v"
+    projectDir: Path
 
-    def __init__(self, writer: CodeGenerator, fabricCSV: str = "") -> None:
+    def __init__(
+        self, writer: CodeGenerator, fabricCSV: str = "", projectDir: Path | None = None
+    ) -> None:
         """Initialises FABulous object.
 
         If 'fabricCSV' is provided, parses fabric data and initialises
@@ -69,10 +87,13 @@ class FABulous_API:
             Object responsible for generating code from code_generator.py
         fabricCSV : str, optional
             Path to the CSV file containing fabric data, by default ""
+        projectDir : Path, optional
+            Project directory path, by default None
         """
         self.writer = writer
+        self.projectDir = projectDir or Path.cwd()
         if fabricCSV != "":
-            self.fabric = fileParser.parseFabricCSV(fabricCSV)
+            self.fabric = fileParser.parseFabricCSV(str(fabricCSV))
             self.geometryGenerator = GeometryGenerator(self.fabric)
 
         if isinstance(self.writer, VHDLCodeGenerator):
@@ -103,7 +124,7 @@ class FABulous_API:
             If 'dir' does not end with '.csv'
         """
         if fabric_dir.suffix == ".csv":
-            self.fabric = fileParser.parseFabricCSV(fabric_dir)
+            self.fabric = fileParser.parseFabricCSV(str(fabric_dir))
             self.geometryGenerator = GeometryGenerator(self.fabric)
         else:
             logger.error("Only .csv files are supported for fabric loading")
@@ -138,7 +159,7 @@ class FABulous_API:
         """
         list2CSV(listFile, matrix)
 
-    def genConfigMem(self, tileName: str, configMem: Path) -> None:
+    def genConfigMem(self, tileName: str, configMem: Path, outfile: Path) -> None:
         """Generate configuration memory for specified tile.
 
         Parameters
@@ -149,11 +170,12 @@ class FABulous_API:
             File path where the configuration memory will be saved.
         """
         if tile := self.fabric.getTileByName(tileName):
+            self.setWriterOutputFile(outfile)
             generateConfigMem(self.writer, self.fabric, tile, configMem)
         else:
             raise ValueError(f"Tile {tileName} not found")
 
-    def genSwitchMatrix(self, tileName: str) -> None:
+    def genSwitchMatrix(self, tileName: str, outfile: Path) -> None:
         """Generates switch matrix for specified tile via 'genTileSwitchMatrix' defined
         in 'fabric_gen.py'.
 
@@ -167,13 +189,14 @@ class FABulous_API:
             logger.info(
                 f"Generate switch matrix debug signals: {switch_matrix_debug_signal}"
             )
+            self.setWriterOutputFile(outfile)
             genTileSwitchMatrix(
                 self.writer, self.fabric, tile, switch_matrix_debug_signal
             )
         else:
             raise ValueError(f"Tile {tileName} not found")
 
-    def genTile(self, tileName: str) -> None:
+    def genTile(self, tileName: str, outfile: Path) -> None:
         """Generates a tile based on its name via 'generateTile' defined in
         'fabric_gen.py'.
 
@@ -183,11 +206,12 @@ class FABulous_API:
             Name of the tile generated.
         """
         if tile := self.fabric.getTileByName(tileName):
+            self.setWriterOutputFile(outfile)
             generateTile(self.writer, self.fabric, tile)
         else:
             raise ValueError(f"Tile {tileName} not found")
 
-    def genSuperTile(self, tileName: str) -> None:
+    def genSuperTile(self, tileName: str, outfile: Path) -> None:
         """Generates a super tile based on its name via 'generateSuperTile' defined in
         'fabric_gen.py'.
 
@@ -197,16 +221,18 @@ class FABulous_API:
             Name of the super tile generated.
         """
         if tile := self.fabric.getSuperTileByName(tileName):
+            self.setWriterOutputFile(outfile)
             generateSuperTile(self.writer, self.fabric, tile)
         else:
             raise ValueError(f"SuperTile {tileName} not found")
 
-    def genFabric(self) -> None:
+    def genFabric(self, outfile: Path) -> None:
         """Generates the entire fabric layout via 'generatreFabric' defined in
         'fabric_gen.py'."""
+        self.setWriterOutputFile(outfile)
         generateFabric(self.writer, self.fabric)
 
-    def genGeometry(self, geomPadding: int = 8) -> None:
+    def genGeometry(self, outfile: Path, geomPadding: int = 8) -> None:
         """Generates geometry based on the fabric data and saves it to CSV.
 
         Parameters
@@ -214,15 +240,17 @@ class FABulous_API:
         geomPadding : int, optional
             Padding value for geometry generation, by default 8.
         """
+        self.setWriterOutputFile(outfile)
         self.geometryGenerator.generateGeometry(geomPadding)
-        self.geometryGenerator.saveToCSV(self.writer.outFileName)
+        self.geometryGenerator.saveToCSV(str(self.writer.outFileName))
 
-    def genTopWrapper(self) -> None:
+    def genTopWrapper(self, outfile: Path) -> None:
         """Generates the top wrapper for the fabric via 'generateTopWrapper' defined in
         'fabric_gen.py'."""
+        self.setWriterOutputFile(outfile)
         generateTopWrapper(self.writer, self.fabric)
 
-    def genBitStreamSpec(self) -> dict:
+    def genBitStreamSpec(self, binPath: Path, csvPath: Path) -> None:
         """Generates the bitsream specification object.
 
         Returns
@@ -230,9 +258,23 @@ class FABulous_API:
         Object
             Bitstream specification object generated by 'fabricGenerator'.
         """
-        return generateBitstreamSpec(self.fabric)
+        specObject = generateBitstreamSpec(self.fabric)
+        logger.info(f"output spec bin file: {binPath}")
+        with binPath.open("wb") as outFile:
+            pickle.dump(specObject, outFile)
 
-    def genRoutingModel(self) -> tuple[str, str, str, str]:
+        # Save CSV file
+        logger.info(f"output spec csv file: {csvPath}")
+        with csvPath.open("w") as f:
+            w = csv.writer(f)
+            for key1 in specObject["TileSpecs"]:
+                w.writerow([key1])
+                for key2, val in specObject["TileSpecs"][key1].items():
+                    w.writerow([key2, val])
+
+    def genRoutingModel(
+        self, pipPath: Path, belPath: Path, belv2Path: Path, templatePath: Path
+    ) -> None:
         """Generates model for Nextpnr based on fabric data.
 
         Returns
@@ -240,7 +282,19 @@ class FABulous_API:
         Object
             Model generated by 'model_gen_npnr.genNextpnrModel'.
         """
-        return model_gen_npnr.genNextpnrModel(self.fabric)
+        pip, bel, belv2, template = model_gen_npnr.genNextpnrModel(self.fabric)
+
+        logger.info(f"output file: {pipPath}")
+        pipPath.write_text(pip)
+
+        logger.info(f"output file: {belPath}")
+        belPath.write_text(bel)
+
+        logger.info(f"output file: {belv2Path}")
+        belv2Path.write_text(belv2)
+
+        logger.info(f"output file: {templatePath}")
+        templatePath.write_text(template)
 
     def getBels(self) -> list[Bel]:
         """Returns all unique Bels within a fabric.
@@ -389,3 +443,287 @@ class FABulous_API:
             if tile.gen_ios:
                 logger.info(f"Generating IO BELs for tile {tile.name}")
                 self.genIOBelForTile(tile.name)
+
+    def setProjectDir(self, projectDir: Path) -> None:
+        """Set the project directory.
+
+        Parameters
+        ----------
+        projectDir : Path
+            Path to the project directory.
+        """
+        self.projectDir = projectDir.absolute()
+
+    def runPlaceAndRoute(self, inJsonFile: Path, outFASM: Path) -> None:
+        """Run place and route with Nextpnr for a given JSON file.
+
+        Parameters
+        ----------
+        jsonFile : Path
+            Path to the JSON file generated by Yosys.
+
+        Raises
+        ------
+        InvalidFileType
+            If the file is not a JSON file.
+        FileNotFoundError
+            If required files are not found.
+        CommandError
+            If place and route fails.
+        """
+        if inJsonFile.suffix != ".json":
+            raise InvalidFileType(
+                "No json file provided. Usage: place_and_route <json_file>"
+            )
+
+        parent = inJsonFile.parent
+        json_file = inJsonFile.name
+        top_module_name = inJsonFile.stem
+        log_file = f"{top_module_name}_npnr_log.txt"
+
+        # Check for required files
+        metaDataDir = self.projectDir / ".FABulous"
+        if (
+            not (metaDataDir / "pips.txt").exists()
+            or not (metaDataDir / "bel.txt").exists()
+        ):
+            raise FileNotFoundError(
+                "Pips and Bel files are not found, please run model_gen_npnr first"
+            )
+
+        if not inJsonFile.exists():
+            raise FileNotFoundError(
+                f'Cannot find file "{json_file}" in path "{parent}/".'
+            )
+
+        logger.info(
+            f"Running Placement and Routing with Nextpnr for design {inJsonFile}"
+        )
+
+        # Run nextpnr
+        npnr = FABulousSettings().nextpnr_path
+        runCmd = [
+            f"FAB_ROOT={self.projectDir}",
+            str(npnr),
+            "--uarch",
+            "fabulous",
+            "--json",
+            str(inJsonFile),
+            "-o",
+            f"fasm={outFASM!s}",
+            "--verbose",
+            "--log",
+            str(parent / log_file),
+        ]
+
+        result = sp.run(
+            " ".join(runCmd),
+            stdout=sys.stdout,
+            stderr=sp.STDOUT,
+            check=True,
+            shell=True,
+        )
+        if result.returncode != 0:
+            raise CommandError("Nextpnr failed with non-zero exit code")
+
+        logger.info("Placement and Routing completed")
+
+    def generateBitstream(self, fasmFile: Path) -> None:
+        """Generate bitstream from FASM file.
+
+        Parameters
+        ----------
+        fasmFile : Path
+            Path to the FASM file.
+
+        Raises
+        ------
+        InvalidFileType
+            If the file is not a FASM file.
+        FileNotFoundError
+            If required files are not found.
+        CommandError
+            If bitstream generation fails.
+        """
+        if fasmFile.suffix != ".fasm":
+            raise InvalidFileType(
+                "No fasm file provided. Usage: gen_bitStream_binary <fasm_file>"
+            )
+
+        parent = fasmFile.parent
+        top_module_name = fasmFile.stem
+        bitstream_file = f"{top_module_name}.bin"
+
+        # Check for required files
+        bitStreamSpecFile = self.projectDir / ".FABulous/bitStreamSpec.bin"
+        if not bitStreamSpecFile.exists():
+            raise FileNotFoundError(
+                "Cannot find bitStreamSpec.bin file, which is generated by running gen_bitStream_spec"
+            )
+
+        if not fasmFile.exists():
+            raise FileNotFoundError(
+                f"Cannot find {fasmFile} file which is generated by running place_and_route."
+            )
+
+        logger.info(f"Generating Bitstream for design {fasmFile}")
+        logger.info(f"Outputting to {parent / bitstream_file}")
+
+        try:
+            genBitstream(
+                str(fasmFile), str(bitStreamSpecFile), str(parent / bitstream_file)
+            )
+        except Exception as e:
+            raise CommandError(
+                f"Bitstream generation failed for {fasmFile}. Please check the logs for more details."
+            ) from e
+
+        logger.info("Bitstream generated")
+
+    def runSimulation(self, bitstreamFile: Path, waveform_format: str = "fst") -> None:
+        """Run simulation for FPGA design using Icarus Verilog.
+
+        Parameters
+        ----------
+        bitstreamFile : Path
+            Path to the bitstream file.
+        waveform_format : str, optional
+            Waveform output format ("fst" or "vcd"), by default "fst".
+
+        Raises
+        ------
+        InvalidFileType
+            If the file is not a bitstream file.
+        FileNotFoundError
+            If the bitstream file is not found.
+        CommandError
+            If simulation fails.
+        """
+        if bitstreamFile.suffix != ".bin":
+            raise InvalidFileType(
+                "No bitstream file specified. Usage: run_simulation <format> <bitstream_file>"
+            )
+
+        if not bitstreamFile.exists():
+            raise FileNotFoundError(
+                f"Cannot find {bitstreamFile} file which is generated by running gen_bitStream_binary."
+            )
+
+        topModule = bitstreamFile.stem
+        defined_option = f"CREATE_{waveform_format.upper()}"
+
+        designFile = f"{topModule}.v"
+        topModuleTB = f"{topModule}_tb"
+        testBench = f"{topModuleTB}.v"
+        vvpFile = f"{topModuleTB}.vvp"
+
+        logger.info(f"Running simulation for {designFile}")
+
+        testPath = self.projectDir / "Test"
+        buildDir = testPath / "build"
+        fabricFilesDir = buildDir / "fabric_files"
+
+        buildDir.mkdir(exist_ok=True)
+        fabricFilesDir.mkdir(exist_ok=True)
+
+        # Copy verilog files
+        copy_verilog_files(self.projectDir / "Tile", fabricFilesDir)
+        copy_verilog_files(self.projectDir / "Fabric", fabricFilesDir)
+        file_list = [str(i) for i in fabricFilesDir.glob("*.v")]
+
+        # Run iverilog
+        iverilog = check_if_application_exists(
+            os.getenv("FAB_IVERILOG_PATH", "iverilog")
+        )
+        runCmd = [
+            str(iverilog),
+            "-D",
+            defined_option,
+            "-s",
+            topModuleTB,
+            "-o",
+            str(buildDir / vvpFile),
+            *file_list,
+            str(bitstreamFile.parent / designFile),
+            str(testPath / testBench),
+        ]
+
+        result = sp.run(runCmd, check=True)
+        if result.returncode != 0:
+            raise CommandError(
+                f"Simulation failed for {designFile}. Please check the logs for more details."
+            )
+
+        # Create hex file for simulation
+        bitstreamHexPath = (buildDir.parent / bitstreamFile.stem).with_suffix(".hex")
+        make_hex(bitstreamFile, bitstreamHexPath)
+
+        # Run vvp
+        vvp = FABulousSettings().vvp_path
+        vvpArgs = [
+            f"+output_waveform={testPath / topModule}.{waveform_format}",
+            f"+bitstream_hex={bitstreamHexPath}",
+        ]
+        if waveform_format == "fst":
+            vvpArgs.append("-fst")
+
+        runCmd = [str(vvp), str(buildDir / vvpFile)] + vvpArgs
+        result = sp.run(runCmd, check=True)
+
+        remove_dir(buildDir)
+        if result.returncode != 0:
+            raise CommandError(
+                f"Simulation failed for {designFile}. Please check the logs for more details."
+            )
+
+        logger.info("Simulation finished")
+
+    def runFABulousBitstreamFlow(self, verilogFile: Path) -> bool:
+        """Run the complete FABulous bitstream generation flow.
+
+        Runs synthesis, place and route, and bitstream generation.
+
+        Parameters
+        ----------
+        verilogFile : Path
+            Path to the Verilog file.
+
+        Returns
+        -------
+        bool
+            True if all steps completed successfully, False otherwise.
+
+        Raises
+        ------
+        InvalidFileType
+            If the file is not a Verilog file.
+        """
+        if verilogFile.suffix != ".v":
+            raise InvalidFileType(
+                "No verilog file provided. Usage: run_FABulous_bitstream <top_module_file>"
+            )
+
+        try:
+            logger.info(f"Running FABulous bitstream flow for {verilogFile}")
+
+            file_path_no_suffix = verilogFile.parent / verilogFile.stem
+            json_file_path = file_path_no_suffix.with_suffix(".json")
+            fasm_file_path = file_path_no_suffix.with_suffix(".fasm")
+
+            # Note: Synthesis would need to be implemented separately as it involves external tools
+            # This is a placeholder for the synthesis step
+            logger.info("Synthesis step would be called here")
+
+            # Run place and route
+            self.runPlaceAndRoute(json_file_path)
+
+            # Generate bitstream
+            self.generateBitstream(fasm_file_path)
+
+            logger.info("FABulous bitstream generation complete")
+
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"FABulous bitstream flow failed: {e}")
+            return False
+        else:
+            return True

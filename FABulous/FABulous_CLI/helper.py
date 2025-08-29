@@ -1,14 +1,13 @@
-import functools
 import os
 import platform
 import re
 import shutil
 import sys
 import tarfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from importlib.metadata import version
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import requests
 from dotenv import get_key, set_key
@@ -255,17 +254,6 @@ def wrap_with_except_handling(fun_to_wrap: Callable) -> Callable:
     return inter
 
 
-def allow_blank(func: Callable) -> Callable:
-    @functools.wraps(func)
-    def _check_blank(*args: Sequence[str]) -> None:
-        if len(args) == 1:
-            func(*args, "")
-        else:
-            func(*args)
-
-    return _check_blank
-
-
 def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> None:
     """Downloads and extracts the latest OSS CAD Suite. Sets the the FAB_OSS_CAD_SUITE
     environment variable in the .env file.
@@ -428,6 +416,12 @@ def update_project_version(project_dir: Path) -> bool:
     return True
 
 
+class CommandStep(NamedTuple):
+    command: str
+    step_message: str
+    error_message: str
+
+
 class CommandPipeline:
     """Helper class to manage command execution with error handling."""
 
@@ -436,16 +430,23 @@ class CommandPipeline:
         self.steps = []
 
     def add_step(
-        self, command: str, error_message: str = "Command failed"
+        self, command: str, step_message: str = "", error_message: str = ""
     ) -> "CommandPipeline":
         """Add a command step to the pipeline."""
-        self.steps.append((command, error_message))
+        self.steps.append(
+            CommandStep(
+                command,
+                step_message or f"Running step {len(self.steps) + 1}: {command}",
+                error_message or f"{command} failed",
+            )
+        )
         return self
 
     def execute(self) -> bool:
         """Execute all steps in the pipeline."""
 
-        for command, error_message in self.steps:
+        for command, step_message, error_message in self.steps:
+            logger.info(step_message)
             self.cli.onecmd_plus_hooks(command)
             if self.cli.exit_code != 0:
                 raise PipelineCommandError(error_message)
