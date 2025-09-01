@@ -37,7 +37,7 @@ jobs:
         uses: trstringer/manual-approval@v1
         with:
           secret: ${{ github.TOKEN }}
-          approvers: FABulous
+          approvers: Core
           minimum-approvals: 2
           issue-title: "Backwards compatibility test failed for ${{ matrix.name }} - Manual approval required"
           issue-body: |
