@@ -1,6 +1,3 @@
-import sys
-from pathlib import Path
-
 # Configuration file for the Sphinx documentation builder.
 
 # -- Project information
@@ -13,6 +10,16 @@ release = "0.1"
 version = "0.1.0"
 
 # -- General configuration
+
+import os
+import sys
+from pathlib import Path
+
+# Ensure the repository root is importable so `import FABulous.*` works as a
+# proper package (and doesn't get shadowed by FABulous.py).
+_repo_root = Path(__file__).resolve().parents[2].as_posix()
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
 
 extensions = [
     "sphinx.ext.duration",
@@ -35,7 +42,7 @@ intersphinx_disabled_domains = ["std"]
 
 templates_path = ["_templates"]
 
-sys.path.append(str(Path().cwd() / "../../"))
+# FABulous package is installed as a dependency in the docs environment
 
 napoleon_google_docstring = False
 napoleon_numpy_docstring = True
@@ -69,7 +76,41 @@ nitpick_ignore = [
     ('py:class', 'Path')
 ]
 
-autodoc_mock_imports = ['FABulous.FABulous_settings']
+autodoc_mock_imports = [
+    # Only mock external dependencies that aren't available in docs environment
+    'numpy',
+    'pandas',
+    'matplotlib',
+    'networkx',
+    'lxml',
+    'typing_extensions',
+]
+
+# -- Autosummary options
+autosummary_generate = True
+autosummary_generate_overwrite = True
+autosummary_imported_members = True
+
+# -- Additional autodoc options to suppress warnings
+autodoc_default_options = {
+    'members': True,
+    'undoc-members': True,
+    'show-inheritance': True,
+    'ignore-module-all': True,
+}
+
+# Suppress specific warnings
+suppress_warnings = [
+    'autodoc.import_error',
+    'autodoc.mock',
+    'autodoc.mocked_object',
+    'autosummary.import_error',
+    'toc.not_included',
+    'myst.header',
+]
+
+# Don't halt on missing references
+autodoc_strict = False
 
 # -- Options for HTML output
 
@@ -92,7 +133,7 @@ html_sidebars = {
     "FPGA_CAD-tools/index": [],
     "gallary/index": [],
     "FPGA-to-bitstream/index": [],
-    "references/index": [],
+    "references/FABulous": [],
     "definitions": [],
     "contact": [],
     "publications": [],

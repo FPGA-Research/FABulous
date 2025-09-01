@@ -6,3 +6,8 @@ venv
 .env
 
 oss-cad-suite
+
+# Documentation build artifacts (auto-generated in CI)
+docs/build/
+docs/source/references/*.rst
+!docs/source/references/index.rst

@@ -1,1 +1,3 @@
 build
+references/*.rst
+!references/index.rst

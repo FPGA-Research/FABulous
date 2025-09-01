@@ -135,7 +135,8 @@ Documentation Tasks
 .. code-block:: console
 
    $ task docs-setup      # Setup documentation environment
-   $ task docs-build      # Build documentation with auto-generated API
+   $ task docs-apidoc     # Generate API documentation only
+   $ task docs-build      # Generate API docs + build documentation
    $ task docs-serve      # Serve docs with live reload for development
    $ task docs-clean      # Clean documentation build artifacts
 

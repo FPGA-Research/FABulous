@@ -97,15 +97,11 @@ check = "ruff check ."
 qa = "task format && task check"
 
 # Documentation tasks  
-docs-setup = "cd docs && make setup"
-docs-build = "cd docs && make html"
-docs-serve = "cd docs && make livehtml"
+docs-setup = "cd docs && uv sync"
+docs-apidoc = "cd docs && uv run --directory . make apidoc"
+docs-build = "cd docs && uv run --directory . make apidoc && uv run --directory . make html"
+docs-serve = "cd docs && uv run --directory . make livehtml"
 docs-clean = "cd docs && make clean"
-
-# Project creation tasks
-new-project-verilog = "FABulous -c -w verilog"
-new-project-vhdl = "FABulous -c -w vhdl"
-install-cad-suite = "FABulous -iocs"
 
 fab-proj = "FABulous -c demo"
 
