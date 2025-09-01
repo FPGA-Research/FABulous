@@ -98,7 +98,7 @@ def create_project(
     logger.info(project_dir)
 
     if lang not in ["verilog", "vhdl"]:
-        lang = "verilog"
+        raise ValueError(f"Unsupported language: {lang}")
 
     # Copy the project template using importlib.resources
     try:
