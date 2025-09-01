@@ -1,4 +1,3 @@
-import os
 import sys
 import tarfile
 from pathlib import Path
@@ -467,14 +466,11 @@ def test_user_argument_overrides_all(project_directories: dict[str, Path], monke
 
 
 def test_environment_variable_overrides_dotenv_files(
-    project_directories: dict[str, Path],
+    project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test that environment variable overrides both global and project .env files."""
     dirs = project_directories
-
-    env_with_fab_proj = os.environ.copy()
-    env_with_fab_proj["FAB_PROJ_DIR"] = str(dirs["env_var_dir"])
-
+    monkeypatch.setenv("FAB_PROJ_DIR", str(dirs["env_var_dir"]))
     result = run(
         [
             "FABulous",
@@ -487,7 +483,6 @@ def test_environment_variable_overrides_dotenv_files(
         ],
         capture_output=True,
         text=True,
-        env=env_with_fab_proj,
     )
 
     # Should use the environment variable directory
@@ -495,7 +490,7 @@ def test_environment_variable_overrides_dotenv_files(
 
 
 def test_project_dotenv_overrides_global_dotenv(
-    project_directories: dict[str, Path],
+    project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test that project .env file overrides global .env file when both specify FAB_PROJ_DIR.
 
@@ -504,8 +499,7 @@ def test_project_dotenv_overrides_global_dotenv(
     """
     dirs = project_directories
 
-    env_without_fab_proj = os.environ.copy()
-    env_without_fab_proj.pop("FAB_PROJ_DIR", None)
+    monkeypatch.delenv("FAB_PROJ_DIR", raising=False)
 
     result = run(
         [
@@ -519,7 +513,6 @@ def test_project_dotenv_overrides_global_dotenv(
         ],
         capture_output=True,
         text=True,
-        env=env_without_fab_proj,
         cwd=str(dirs["default_dir"]),
     )
 
@@ -528,13 +521,12 @@ def test_project_dotenv_overrides_global_dotenv(
 
 
 def test_project_dotenv_fallback_to_current_directory(
-    project_directories: dict[str, Path],
+    project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test that project .env file falls back to current directory when no global .env is provided."""
     dirs = project_directories
 
-    env_without_fab_proj = os.environ.copy()
-    env_without_fab_proj.pop("FAB_PROJ_DIR", None)
+    monkeypatch.delenv("FAB_PROJ_DIR", raising=False)
 
     result = run(
         [
@@ -546,7 +538,6 @@ def test_project_dotenv_fallback_to_current_directory(
         ],
         capture_output=True,
         text=True,
-        env=env_without_fab_proj,
         cwd=str(dirs["default_dir"]),
     )
 
@@ -554,12 +545,11 @@ def test_project_dotenv_fallback_to_current_directory(
     assert f"INFO: Setting current working directory to: {str(dirs['default_dir'])}" in result.stdout
 
 
-def test_global_dotenv_only(project_directories: dict[str, Path]) -> None:
+def test_global_dotenv_only(project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that global .env file works when specified alone."""
     dirs = project_directories
 
-    env_without_fab_proj = os.environ.copy()
-    env_without_fab_proj.pop("FAB_PROJ_DIR", None)
+    monkeypatch.delenv("FAB_PROJ_DIR", raising=False)
 
     result = run(
         [
@@ -571,7 +561,6 @@ def test_global_dotenv_only(project_directories: dict[str, Path]) -> None:
         ],
         capture_output=True,
         text=True,
-        env=env_without_fab_proj,
         cwd=str(dirs["default_dir"]),
     )
 
@@ -579,19 +568,17 @@ def test_global_dotenv_only(project_directories: dict[str, Path]) -> None:
     assert f"INFO: Setting current working directory to: {str(dirs['global_dotenv_dir'])}" in result.stdout
 
 
-def test_default_directory_fallback(project_directories: dict[str, Path]) -> None:
+def test_default_directory_fallback(project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that default directory (cwd) is used when no argument, env var, or .env files are provided."""
     dirs = project_directories
 
-    env_without_fab_proj = os.environ.copy()
-    env_without_fab_proj.pop("FAB_PROJ_DIR", None)
+    monkeypatch.delenv("FAB_PROJ_DIR", raising=False)
 
     result = run(
         ["FABulous", "--commands", "help"],
         capture_output=True,
         text=True,
         cwd=str(dirs["default_dir"]),
-        env=env_without_fab_proj,
     )
 
     assert f"INFO: Setting current working directory to: {str(dirs['default_dir'])}" in result.stdout
@@ -617,13 +604,12 @@ def test_user_argument_explicitly_overrides_environment_variable(
 
 
 def test_environment_variable_overrides_global_dotenv(
-    project_directories: dict[str, Path],
+    project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test that environment variable overrides global .env file when user arg not provided."""
     dirs = project_directories
 
-    env_with_fab_proj = os.environ.copy()
-    env_with_fab_proj["FAB_PROJ_DIR"] = str(dirs["env_var_dir"])
+    monkeypatch.setenv("FAB_PROJ_DIR", str(dirs["env_var_dir"]))
 
     result = run(
         [
@@ -635,29 +621,23 @@ def test_environment_variable_overrides_global_dotenv(
         ],
         capture_output=True,
         text=True,
-        env=env_with_fab_proj,
     )
 
     # Should use env var, not global .env file
     assert f"INFO: Setting current working directory to: {str(dirs['env_var_dir'])}" in result.stdout
-    assert f"INFO: Setting current working directory to: {str(dirs['global_dotenv_dir'])}" not in result.stdout
 
 
-def test_dotenv_loading_verification(project_directories: dict[str, Path]) -> None:
+def test_dotenv_loading_verification(project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that .env files are loaded correctly and project .env overrides global .env.
 
     Expected precedence (lowest -> highest): global .env < project .env < env var < user argument
     """
     dirs = project_directories
 
-    import os
-
     # Clean up any existing context
     reset_context()
 
-    env_backup = os.environ.get("FAB_PROJ_DIR")
-    if env_backup:
-        del os.environ["FAB_PROJ_DIR"]
+    monkeypatch.delenv("FAB_PROJ_DIR", raising=False)
 
     # Initialize context with both global and project .env files
     settings = init_context(

@@ -59,8 +59,9 @@ class FABulousSettings(BaseSettings):
         Uses already-validated proj_lang from info.data when available. Accepts None /
         empty string to mean unset.
         """
+
         proj_lang = info.data.get("proj_lang")
-        if value in (None, ""):
+        if value is None or value == "":
             if p := info.data.get("proj_dir"):
                 p = Path(p)
             else:
@@ -93,7 +94,8 @@ class FABulousSettings(BaseSettings):
                     "Cannot find a suitable model pack. This might lead to error if not set."
                 )
 
-        path = Path(str(value))
+            return None
+
         # Retrieve previously validated proj_lang (falls back to default enum value)
         try:
             # If provided as string earlier but not validated yet
@@ -104,14 +106,16 @@ class FABulousSettings(BaseSettings):
                 "Invalid project language while validating model_pack"
             ) from None
 
-        if proj_lang in {HDLType.VERILOG, HDLType.SYSTEM_VERILOG}:
-            if path.suffix not in {".v", ".sv"}:
-                raise ValueError(
-                    "Model pack for Verilog/System Verilog must be a .v or .sv file"
-                )
-        elif proj_lang == HDLType.VHDL and path.suffix not in {".vhdl", ".vhd"}:
+        if proj_lang in {
+            HDLType.VERILOG,
+            HDLType.SYSTEM_VERILOG,
+        } and value.suffix not in {".v", ".sv"}:
+            raise ValueError(
+                "Model pack for Verilog/System Verilog must be a .v or .sv file"
+            )
+        if proj_lang == HDLType.VHDL and value.suffix not in {".vhdl", ".vhd"}:
             raise ValueError("Model pack for VHDL must be a .vhdl or .vhd file")
-        return path
+        return value
 
     @field_validator("user_config_dir", mode="after")
     @classmethod
@@ -129,7 +133,6 @@ class FABulousSettings(BaseSettings):
         """Check if project_dir is a valid directory."""
         if value is None:
             raise ValueError("Project directory is not set.")
-
         if not (Path(value) / ".FABulous").exists():
             raise ValueError(f"{value} is not a FABulous project")
         return value.resolve()
