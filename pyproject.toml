@@ -66,6 +66,7 @@ dev = [
   "pytest-mock>=3.14.1",
   "pytest-split>=0.10.0",
   "ruff>=0.12.7",
+  "taskipy>=1.14.0",
   "pyyaml>=6.0.0",
 ]
 
@@ -87,3 +88,37 @@ directory = "coverage_html"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.taskipy.tasks]
+# Development and quality tasks
+format = "ruff format ."
+lint = "ruff check . --fix && pre-commit run --all-files"
+check = "ruff check ."
+qa = "task format && task check"
+
+# Documentation tasks  
+docs-setup = "cd docs && make setup"
+docs-build = "cd docs && make html"
+docs-serve = "cd docs && make livehtml"
+docs-clean = "cd docs && make clean"
+
+# Project creation tasks
+new-project-verilog = "FABulous -c -w verilog"
+new-project-vhdl = "FABulous -c -w vhdl"
+install-cad-suite = "FABulous -iocs"
+
+fab-proj = "FABulous -c demo"
+
+# FABulous fabric generation tasks
+fab-build = "task fab-proj && FABulous demo -p 'run_FABulous_fabric'"
+fab-build-clean = "rm -r demo && task fab-proj && FABulous demo -p 'run_FABulous_fabric'"
+
+# Test and simulation tasks (using Make targets)
+fab-sim = "task fab-proj && cd ./demo/Test && make FAB_sim"
+fab-sim-clean = "rm -r demo && task fab-proj && cd ./demo/Test && make FAB_sim"
+
+# CI/Development helper tasks
+pre-commit = "task format && task check"
+ci-check = "task check && task test && task docs-build"
+install-dev = "uv sync --group dev"
+clean-all = "find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && find . -name '*.pyc' -delete && rm -rf build/ dist/ *.egg-info/ .pytest_cache/ .ruff_cache/"

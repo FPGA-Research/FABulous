@@ -108,6 +108,101 @@ If you need to bypass the hooks temporarily (not recommended):
 
    $ git commit --no-verify
 
+.. _task_automation:
+
+Task Automation with Taskipy
+-----------------------------
+
+FABulous includes pre-configured `taskipy <https://github.com/taskipy/taskipy>`_ tasks to streamline common development and workflow tasks. After setting up the development environment, you can run these tasks using ``task <task-name>``.
+
+Development and Quality Tasks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: console
+
+   $ task format          # Format code with ruff
+   $ task lint            # Lint and fix code issues + run pre-commit
+   $ task check           # Check code without fixing
+   $ task qa              # Run format and check in sequence
+   $ task pre-commit      # Run format and check (for pre-commit hooks)
+   $ task ci-check        # Full CI check (format, lint, test, docs)
+   $ task install-dev     # Install development dependencies
+   $ task clean-all       # Clean all build artifacts and cache files
+
+Documentation Tasks
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: console
+
+   $ task docs-setup      # Setup documentation environment
+   $ task docs-build      # Build documentation with auto-generated API
+   $ task docs-serve      # Serve docs with live reload for development
+   $ task docs-clean      # Clean documentation build artifacts
+
+Project Creation and Setup
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: console
+
+   $ task fab-proj               # Create demo project
+
+FABulous Workflow Tasks
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: console
+
+   # Fabric generation and simulation
+   $ task fab-build              # Create demo project + run FABulous fabric generation
+   $ task fab-build-clean        # Clean build + create project + run fabric generation
+   $ task fab-sim                # Create demo project + run full simulation
+   $ task fab-sim-clean          # Clean build + create project + run simulation
+
+Example Development Workflows
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Standard development workflow:**
+
+.. code-block:: console
+
+   # Format and check your code
+   $ task qa
+
+   # Run full CI validation before submitting PR
+   $ task ci-check
+
+**Quick FABulous testing:**
+
+.. code-block:: console
+
+   # Create demo project and test fabric generation
+   $ task fab-build
+
+   # Run full simulation workflow
+   $ task fab-sim
+
+**Documentation development:**
+
+.. code-block:: console
+
+   # Setup docs environment (first time)
+   $ task docs-setup
+
+   # Build and serve docs with auto-reload
+   $ task docs-serve
+
+**Clean development environment:**
+
+.. code-block:: console
+
+   # Clean all build artifacts and caches
+   $ task clean-all
+
+.. note::
+
+   The taskipy tasks are defined in the ``[tool.taskipy.tasks]`` section of ``pyproject.toml``.
+   You can view all available tasks by running ``task --list`` or examine the configuration
+   in the project's ``pyproject.toml`` file.
+
 .. _code_standards:
 
 Code Standards
