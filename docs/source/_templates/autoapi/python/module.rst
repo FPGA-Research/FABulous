@@ -1,4 +1,4 @@
-{# Standalone AutoAPI module template to avoid duplicate object descriptions #}
+{# Hierarchical AutoAPI module template with proper nesting #}
 
 {{ obj.name }}
 {{ '=' * (obj.name|length) }}
@@ -17,28 +17,86 @@
 {% if classes %}
 Classes
 -------
+
 {% for c in classes if c.display %}
-{{ c.render() }}
+.. py:class:: {{ c.name }}({{ c.args }})
+{% if c.bases %}
+   {% set bases = c.bases | map(attribute='name') | list %}
+   {% if bases %}
+
+   **Bases:** {{ bases | join(', ') }}
+   {% endif %}
+{% endif %}
+{% if c.docstring %}
+
+   {{ c.docstring | indent(3) }}
+{% endif %}
+
+   {% set attributes = c.children | selectattr('type', 'equalto', 'data') | list %}
+   {% set properties = c.children | selectattr('type', 'equalto', 'property') | list %}
+   {% set methods = c.children | selectattr('type', 'equalto', 'method') | list %}
+{% if attributes %}
+
+   **Attributes:**
+{% for attr in attributes if attr.display %}
+
+   .. py:attribute:: {{ attr.name }}
+      :no-index:
+{% if attr.docstring %}
+
+      {{ attr.docstring | indent(6) }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if properties %}
+
+   **Properties:**
+{% for prop in properties if prop.display %}
+
+   .. py:property:: {{ prop.name }}
+{% if prop.docstring %}
+
+      {{ prop.docstring | indent(6) }}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if methods %}
+
+   **Methods:**
+{% for method in methods if method.display %}
+
+   .. py:method:: {{ method.name }}({{ method.args }})
+{% if method.docstring %}
+
+      {{ method.docstring | indent(6) }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
 {% endfor %}
 {% endif %}
 
 {% if functions %}
 Functions
 ---------
+
 {% for f in functions if f.display %}
-.. py:function:: {{ f.name }}{% if f.args %}{{ f.args }}{% endif %}
+.. py:function:: {{ f.name }}({{ f.args }})
 
    {% if f.docstring %}{{ f.docstring | indent(3) }}{% endif %}
+
 {% endfor %}
 {% endif %}
 
 {% if data %}
-Attributes
-----------
+Module Attributes
+-----------------
+
 {% for d in data if d.display %}
-.. py:attribute:: {{ d.name }}
+.. py:data:: {{ d.name }}
    :no-index:
 
    {% if d.docstring %}{{ d.docstring | indent(3) }}{% endif %}
+
 {% endfor %}
 {% endif %}

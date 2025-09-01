@@ -1,33 +1,64 @@
-{# Custom AutoAPI class template to group attributes and methods (standalone) #}
+{# Enhanced standalone class template with hierarchical organization #}
+{{ obj.name }}
+{{ "^" * (obj.name|length) }}
+
 .. py:class:: {{ obj.name }}{% if obj.args %}({{ obj.args }}){% endif %}
+   :module: {{ obj.module }}
 
    {% if obj.bases %}
    {% set bases = obj.bases | map(attribute='name') | list %}
    {% if bases %}
-   Bases: {{ bases | join(', ') }}
+
+   **Inheritance:** {{ bases | join(' → ') }} → {{ obj.name }}
    {% endif %}
    {% endif %}
 
    {% if obj.docstring %}
-   {{ obj.docstring | indent(3) }}
+   {{ obj.docstring }}
    {% endif %}
 
+   {% set attributes = obj.children | selectattr('type', 'equalto', 'data') | list %}
+   {% set properties = obj.children | selectattr('type', 'equalto', 'property') | list %}
    {% set methods = obj.children | selectattr('type', 'equalto', 'method') | list %}
-   {% set functions = obj.children | selectattr('type', 'equalto', 'function') | list %}
 
-   {% if methods or functions %}
-   Methods
-   -------
+   {% if attributes %}
 
-   {% for m in methods if m.display %}
-   .. py:method:: {{ m.name }}{{ m.args }}
+   Attributes
+   ~~~~~~~~~~
 
-      {% if m.docstring %}{{ m.docstring | indent(6) }}{% endif %}
+   {% for attr in attributes if attr.display %}
+   .. py:attribute:: {{ attr.name }}
+      :module: {{ obj.module }}
+
+      {% if attr.docstring %}{{ attr.docstring }}{% endif %}
+
    {% endfor %}
+   {% endif %}
 
-   {% for f in functions if f.display %}
-   .. py:function:: {{ f.name }}{{ f.args }}
+   {% if properties %}
 
-      {% if f.docstring %}{{ f.docstring | indent(6) }}{% endif %}
+   Properties
+   ~~~~~~~~~~
+
+   {% for prop in properties if prop.display %}
+   .. py:property:: {{ prop.name }}
+      :module: {{ obj.module }}
+
+      {% if prop.docstring %}{{ prop.docstring }}{% endif %}
+
+   {% endfor %}
+   {% endif %}
+
+   {% if methods %}
+
+   Methods
+   ~~~~~~~
+
+   {% for method in methods if method.display %}
+   .. py:method:: {{ method.name }}{% if method.args %}{{ method.args }}{% endif %}
+      :module: {{ obj.module }}
+
+      {% if method.docstring %}{{ method.docstring }}{% endif %}
+
    {% endfor %}
    {% endif %}

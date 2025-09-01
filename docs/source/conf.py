@@ -35,27 +35,29 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 extensions = [
-    # Core Sphinx extensions
+    # Core Sphinx extensions (scikit-learn style)
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
     "sphinx.ext.duration",
     "sphinx.ext.doctest",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
+    "sphinx.ext.imgconverter",
 
     # Modern documentation automation
-    "autoapi.extension",  # Replaces autodoc + autosummary
-    # "sphinx_autodoc_typehints",  # Automatic type hint processing
+    "autoapi.extension",  # Keep existing AutoAPI
 
-    # Enhanced documentation features
+    # Enhanced documentation features (scikit-learn additions)
     "myst_parser",  # Markdown support
     "sphinx_design",  # Modern UI components
     "sphinxext.opengraph",  # Social media cards
+    "sphinx_copybutton",  # Copy code button
+    "sphinx_remove_toctrees",  # Clean up AutoAPI navigation noise
+    "sphinx_prompt",
 
     # Utility extensions
     "sphinxcontrib.bibtex",
-    "sphinx_prompt",
-    "sphinx_copybutton",
-    "sphinx.ext.imgconverter",
 ]
 
 intersphinx_mapping = {
@@ -65,6 +67,9 @@ intersphinx_mapping = {
     "pandas": ('https://pandas.pydata.org/docs/', None),
     "requests": ('https://docs.python-requests.org/en/master/', None),
     "pydantic": ('https://docs.pydantic.dev/latest/', None),
+    # Additional scikit-learn style mappings
+    "scipy": ('https://docs.scipy.org/doc/scipy/', None),
+    "matplotlib": ('https://matplotlib.org/stable/', None),
 }
 
 # Enable cross-references within the project
@@ -207,9 +212,12 @@ autoapi_options = [
 ]
 
 # Custom AutoAPI configuration
-autoapi_python_class_content = 'class'  # Only class docstring to avoid duplicates
+autoapi_python_class_content = 'both'  # Include both class and __init__ docs (scikit-learn style)
 autoapi_member_order = 'alphabetical'
 autoapi_own_page_level = 'module'  # Each module gets its own page
+
+# Additional configuration for better navigation integration
+# remove_from_toctrees = ["generated_doc/FABulous/*/index.rst"]  # Disabled to ensure content accessibility
 
 
 def setup(app):
@@ -221,7 +229,6 @@ def setup(app):
 # Only suppress warnings that are definitely safe to ignore
 suppress_warnings = [
     # These are genuinely noisy and don't indicate real issues
-    'autosummary.import_error',  # Expected when modules aren't importable in docs
     'app.add_node',  # Extension internal warnings
     'ref.class',  # Missing type references that can't be resolved
     'ref.exc',    # Missing exception references
@@ -252,18 +259,46 @@ html_theme = "pydata_sphinx_theme"
 html_logo = "figs/FABulouslogo_wide_2.png"
 
 html_theme_options = {
-    "collapse_navigation": True,
-    "show_nav_level": 2,
-    "show_toc_level": 2,
-    "navigation_depth": 4,
+    # Core navigation settings (scikit-learn exact configuration)
+    "sidebar_includehidden": True,
+    "navigation_depth": 2,           # Optimal depth (reduced from 4)
+    "show_nav_level": 1,            # Show only top level initially
+    "show_toc_level": 1,            # Consistent with nav level (reduced from 3)
+    "collapse_navigation": True,     # Enable expandable navigation sections
+    "navigation_with_keys": False,   # Disable keyboard navigation (scikit-learn style)
+
+    # Interface elements
     "use_edit_page_button": False,
     "show_prev_next": True,
-    "article_header_start": [],
-    "article_header_end": [],
-    "secondary_sidebar_items": ["page-toc", "sourcelink"],
-    "navbar_align": "content",
-    "navbar_center": ["navbar-nav"],
+    "search_bar_text": "Search the docs ...",
     "show_version_warning_banner": True,
+
+    # Layout components (scikit-learn structure)
+    "navbar_align": "left",          # Changed from "content"
+    "navbar_start": ["navbar-logo"],
+    "navbar_center": ["navbar-nav"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
+    "navbar_persistent": ["search-button"],
+
+    # Article layout
+    "article_header_start": ["breadcrumbs"],
+    "article_footer_items": ["prev-next"],
+
+    # Secondary sidebar (enhanced)
+    "secondary_sidebar_items": {
+        "**": ["page-toc", "sourcelink"],
+        # Can add more specific page configs later
+    },
+
+    # Icon links (optional, like scikit-learn)
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/FABulous/FABulous",
+            "icon": "fa-brands fa-square-github",
+            "type": "fontawesome",
+        }
+    ],
 }
 
 # -- Over-riding theme options
