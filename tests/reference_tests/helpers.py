@@ -308,8 +308,6 @@ def run_fabulous_commands_with_logging(
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_path))
     monkeypatch.setenv("FAB_PROJ_LANG", language.upper())
 
-    cli = FABulous_CLI(writerType=language, projectDir=project_path, enteringDir=project_path.parent)
-    cli.debug = True
     cli = FABulous_CLI(
         language,
         force=False,
