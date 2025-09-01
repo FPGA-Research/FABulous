@@ -98,7 +98,6 @@ def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
 def project(tmp_path: Path) -> Generator[Path]:
     project_dir = tmp_path / "test_project"
     create_project(project_dir)
-
     yield project_dir
 
     # Cleanup

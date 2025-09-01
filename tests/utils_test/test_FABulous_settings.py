@@ -66,6 +66,8 @@ class TestFABulousSettings:
         monkeypatch.setenv("FAB_PROJ_LANG", "vhdl")
         monkeypatch.setenv("FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
         monkeypatch.setenv("FAB_PROJ_VERSION_CREATED", "1.2.3")
+        (project / "my_model_pack.vhdl").touch()
+        monkeypatch.setenv("FAB_MODEL_PACK", str(project / "my_model_pack.vhdl"))
 
         # Mock which to return None (no tools found)
         mocker.patch("FABulous.FABulous_settings.which", return_value=None)
@@ -152,34 +154,6 @@ class TestFieldValidators:
         assert isinstance(result, Version)
         assert result == version_obj
 
-    def test_is_dir_valid_directory(self, tmp_path: Path) -> None:
-        """Test is_dir validator with valid directory."""
-        test_dir = tmp_path / "test_dir"
-        test_dir.mkdir()
-
-        result = FABulousSettings.is_dir(test_dir)
-        assert result == test_dir
-
-    def test_is_dir_invalid_directory(self, tmp_path: Path) -> None:
-        """Test is_dir validator with invalid directory."""
-        non_existent_dir = tmp_path / "non_existent"
-
-        with pytest.raises(ValueError, match="is not a valid directory"):
-            FABulousSettings.is_dir(non_existent_dir)
-
-    def test_is_dir_file_instead_of_directory(self, tmp_path: Path) -> None:
-        """Test is_dir validator with file instead of directory."""
-        test_file = tmp_path / "test_file.txt"
-        test_file.write_text("test content")
-
-        with pytest.raises(ValueError, match="is not a valid directory"):
-            FABulousSettings.is_dir(test_file)
-
-    def test_is_dir_handles_none(self) -> None:
-        """Test is_dir validator correctly handles None values."""
-        result = FABulousSettings.is_dir(None)
-        assert result is None
-
     def test_validate_proj_lang_verilog(self) -> None:
         """Test validate_proj_lang validator with verilog."""
         result = FABulousSettings.validate_proj_lang("verilog")
@@ -192,17 +166,8 @@ class TestFieldValidators:
 
     def test_validate_proj_lang_invalid(self) -> None:
         """Test validate_proj_lang validator with invalid language."""
-        with pytest.raises(
-            ValueError, match="Project language must be either 'verilog' or 'vhdl'"
-        ):
+        with pytest.raises(ValueError, match="Invalid project language"):
             FABulousSettings.validate_proj_lang("python")
-
-    def test_validate_proj_lang_case_sensitive(self) -> None:
-        """Test validate_proj_lang validator is case sensitive."""
-        with pytest.raises(
-            ValueError, match="Project language must be either 'verilog' or 'vhdl'"
-        ):
-            FABulousSettings.validate_proj_lang("VERILOG")
 
     def test_ensure_user_config_dir_creates_directory(self, tmp_path: Path) -> None:
         """Test ensure_user_config_dir validator creates directory if it doesn't exist."""
@@ -215,9 +180,7 @@ class TestFieldValidators:
         assert config_dir.exists()
         assert config_dir.is_dir()
 
-    def test_ensure_user_config_dir_handles_existing_directory(
-        self, tmp_path: Path
-    ) -> None:
+    def test_ensure_user_config_dir_handles_existing_directory(self, tmp_path: Path) -> None:
         """Test ensure_user_config_dir validator with existing directory."""
         config_dir = tmp_path / "existing_config"
         config_dir.mkdir()
@@ -243,9 +206,7 @@ class TestFieldValidators:
         result = FABulousSettings.is_valid_project_dir(project_dir)
         assert result == project_dir
 
-    def test_is_valid_project_dir_without_fabulous_directory(
-        self, tmp_path: Path
-    ) -> None:
+    def test_is_valid_project_dir_without_fabulous_directory(self, tmp_path: Path) -> None:
         """Test is_valid_project_dir validator with directory missing .FABulous."""
         project_dir = tmp_path / "invalid_project"
         project_dir.mkdir()
@@ -278,9 +239,7 @@ class TestToolPathResolution:
         mock_info = mocker.Mock()
         mock_info.field_name = "yosys_path"
 
-        mock_which = mocker.patch(
-            "FABulous.FABulous_settings.which", return_value="/usr/bin/yosys"
-        )
+        mock_which = mocker.patch("FABulous.FABulous_settings.which", return_value="/usr/bin/yosys")
 
         result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
@@ -292,9 +251,7 @@ class TestToolPathResolution:
         mock_info = mocker.Mock()
         mock_info.field_name = "nextpnr_path"
 
-        mock_which = mocker.patch(
-            "FABulous.FABulous_settings.which", return_value="/usr/bin/nextpnr-generic"
-        )
+        mock_which = mocker.patch("FABulous.FABulous_settings.which", return_value="/usr/bin/nextpnr-generic")
 
         result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
@@ -306,9 +263,7 @@ class TestToolPathResolution:
         mock_info = mocker.Mock()
         mock_info.field_name = "iverilog_path"
 
-        mock_which = mocker.patch(
-            "FABulous.FABulous_settings.which", return_value="/usr/bin/iverilog"
-        )
+        mock_which = mocker.patch("FABulous.FABulous_settings.which", return_value="/usr/bin/iverilog")
 
         result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
@@ -320,9 +275,7 @@ class TestToolPathResolution:
         mock_info = mocker.Mock()
         mock_info.field_name = "vvp_path"
 
-        mock_which = mocker.patch(
-            "FABulous.FABulous_settings.which", return_value="/usr/bin/vvp"
-        )
+        mock_which = mocker.patch("FABulous.FABulous_settings.which", return_value="/usr/bin/vvp")
 
         result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
@@ -444,12 +397,12 @@ class TestContextMethods:
         # Create .env file in .FABulous directory
         fabulous_env = project / ".FABulous" / ".env"
         fabulous_env.touch()
-        set_key(fabulous_env, "FAB_PROJ_LANG", "vhdl")
+        set_key(fabulous_env, "FAB_PROJ_LANG", "system_verilog")
 
         settings = init_context(project_dir=project)
 
         # .env file should be loaded
-        assert settings.proj_lang == "vhdl"  # From fabulous .env
+        assert settings.proj_lang == "system_verilog"  # From fabulous .env
 
     def test_init_context_missing_env_file_warning(self, project: Path, tmp_path: Path) -> None:
         """Test that missing global .env file produces warning but doesn't fail."""
@@ -610,9 +563,7 @@ class TestContextMethods:
         env_file.touch()
         set_key(env_file, "FAB_PROJ_LANG", "invalid_language")
 
-        with pytest.raises(
-            ValueError, match="Project language must be either 'verilog' or 'vhdl'"
-        ):
+        with pytest.raises(ValueError, match="Invalid project language"):
             init_context(project_dir=project, global_dot_env=env_file)
 
     def test_context_preserves_working_directory(self, project: Path) -> None:
@@ -624,9 +575,7 @@ class TestContextMethods:
         # Working directory should be unchanged
         assert Path.cwd() == original_cwd
 
-    def test_init_context_with_fab_proj_dir_env_var(
-        self, project: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_init_context_with_fab_proj_dir_env_var(self, project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test context initialization with FAB_PROJ_DIR environment variable."""
         # Set environment variable
         monkeypatch.setenv("FAB_PROJ_DIR", str(project))

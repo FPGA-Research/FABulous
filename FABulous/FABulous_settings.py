@@ -153,8 +153,9 @@ class FABulousSettings(BaseSettings):
             "VHDL": "VHDL",
             "VHD": "VHDL",
         }
-        key = alias_map.get(key, key)
-        return HDLType[key]
+        if key not in alias_map:
+            raise ValueError(f"Invalid project language: {value}")
+        return HDLType[alias_map[key]]
 
     # Resolve external tool paths only after object creation (post env setup)
     @field_validator(
