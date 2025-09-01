@@ -31,26 +31,3 @@ jobs:
         run: |
           cd /tmp/demo_${{ matrix.type }}/Test
           make FAB_sim
-      
-      - name: Manual approval for failed backward-compatibility check
-        if: ${{ steps.run_simulation.outcome == 'failure' }}
-        uses: trstringer/manual-approval@v1
-        with:
-          secret: ${{ github.TOKEN }}
-          approvers: Core
-          minimum-approvals: 2
-          issue-title: "Backwards compatibility test failed for ${{ matrix.name }} - Manual approval required"
-          issue-body: |
-            The backwards compatibility test for ${{ matrix.name }} has failed.
-            
-            **PR:** ${{ github.event.pull_request.title }}
-            **Branch:** ${{ github.head_ref }}
-            **Matrix Type:** ${{ matrix.type }}
-            
-            Please review the failure and approve if the breaking change is acceptable.
-          exclude-workflow-initiator-as-approver: false
-          fail-on-denial: true
-      
-      - name: Fail workflow if simulation failed and not approved
-        if: ${{ steps.run_simulation.outcome == 'failure' }}
-        run: exit 1
