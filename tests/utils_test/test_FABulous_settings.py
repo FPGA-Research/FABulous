@@ -180,7 +180,9 @@ class TestFieldValidators:
         assert config_dir.exists()
         assert config_dir.is_dir()
 
-    def test_ensure_user_config_dir_handles_existing_directory(self, tmp_path: Path) -> None:
+    def test_ensure_user_config_dir_handles_existing_directory(
+        self, tmp_path: Path
+    ) -> None:
         """Test ensure_user_config_dir validator with existing directory."""
         config_dir = tmp_path / "existing_config"
         config_dir.mkdir()
@@ -206,7 +208,9 @@ class TestFieldValidators:
         result = FABulousSettings.is_valid_project_dir(project_dir)
         assert result == project_dir
 
-    def test_is_valid_project_dir_without_fabulous_directory(self, tmp_path: Path) -> None:
+    def test_is_valid_project_dir_without_fabulous_directory(
+        self, tmp_path: Path
+    ) -> None:
         """Test is_valid_project_dir validator with directory missing .FABulous."""
         project_dir = tmp_path / "invalid_project"
         project_dir.mkdir()
@@ -239,7 +243,9 @@ class TestToolPathResolution:
         mock_info = mocker.Mock()
         mock_info.field_name = "yosys_path"
 
-        mock_which = mocker.patch("FABulous.FABulous_settings.which", return_value="/usr/bin/yosys")
+        mock_which = mocker.patch(
+            "FABulous.FABulous_settings.which", return_value="/usr/bin/yosys"
+        )
 
         result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
@@ -251,7 +257,9 @@ class TestToolPathResolution:
         mock_info = mocker.Mock()
         mock_info.field_name = "nextpnr_path"
 
-        mock_which = mocker.patch("FABulous.FABulous_settings.which", return_value="/usr/bin/nextpnr-generic")
+        mock_which = mocker.patch(
+            "FABulous.FABulous_settings.which", return_value="/usr/bin/nextpnr-generic"
+        )
 
         result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
@@ -263,7 +271,9 @@ class TestToolPathResolution:
         mock_info = mocker.Mock()
         mock_info.field_name = "iverilog_path"
 
-        mock_which = mocker.patch("FABulous.FABulous_settings.which", return_value="/usr/bin/iverilog")
+        mock_which = mocker.patch(
+            "FABulous.FABulous_settings.which", return_value="/usr/bin/iverilog"
+        )
 
         result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
@@ -275,7 +285,9 @@ class TestToolPathResolution:
         mock_info = mocker.Mock()
         mock_info.field_name = "vvp_path"
 
-        mock_which = mocker.patch("FABulous.FABulous_settings.which", return_value="/usr/bin/vvp")
+        mock_which = mocker.patch(
+            "FABulous.FABulous_settings.which", return_value="/usr/bin/vvp"
+        )
 
         result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
@@ -330,7 +342,9 @@ class TestContextMethods:
 
         assert settings.proj_dir == project
 
-    def test_init_context_with_global_env_file(self, project: Path, tmp_path: Path) -> None:
+    def test_init_context_with_global_env_file(
+        self, project: Path, tmp_path: Path
+    ) -> None:
         """Test context initialization with global .env file."""
         # Remove the project's default .env file to test global .env file precedence
         project_env = project / ".FABulous" / ".env"
@@ -348,7 +362,9 @@ class TestContextMethods:
         assert settings.proj_lang == "vhdl"
         assert settings.switch_matrix_debug_signal is True
 
-    def test_init_context_with_project_env_file(self, project: Path, tmp_path: Path) -> None:
+    def test_init_context_with_project_env_file(
+        self, project: Path, tmp_path: Path
+    ) -> None:
         """Test context initialization with project .env file."""
         # Create project .env file
         project_env = tmp_path / "project.env"
@@ -361,7 +377,9 @@ class TestContextMethods:
         assert settings.switch_matrix_debug_signal is True
         assert settings.proj_lang == "verilog"
 
-    def test_init_context_env_file_precedence(self, project: Path, tmp_path: Path) -> None:
+    def test_init_context_env_file_precedence(
+        self, project: Path, tmp_path: Path
+    ) -> None:
         """Test that project .env file overrides global .env file."""
         # Remove the project's default .env file to test precedence properly
         project_default_env = project / ".FABulous" / ".env"
@@ -404,7 +422,9 @@ class TestContextMethods:
         # .env file should be loaded
         assert settings.proj_lang == "system_verilog"  # From fabulous .env
 
-    def test_init_context_missing_env_file_warning(self, project: Path, tmp_path: Path) -> None:
+    def test_init_context_missing_env_file_warning(
+        self, project: Path, tmp_path: Path
+    ) -> None:
         """Test that missing global .env file produces warning but doesn't fail."""
         nonexistent_env = tmp_path / "nonexistent.env"
 
@@ -414,7 +434,9 @@ class TestContextMethods:
         assert isinstance(settings, FABulousSettings)
         assert settings.proj_dir == project
 
-    def test_init_context_overwrites_existing(self, project: Path, tmp_path: Path) -> None:
+    def test_init_context_overwrites_existing(
+        self, project: Path, tmp_path: Path
+    ) -> None:
         """Test that subsequent init_context calls overwrite the existing context."""
         project_dir2 = tmp_path / "project2"
         project_dir2.mkdir()
@@ -490,7 +512,9 @@ class TestContextMethods:
         # .env file setting should still apply where no env var exists
         assert settings.switch_matrix_debug_signal is False
 
-    def test_context_with_different_env_file_combinations(self, project: Path, tmp_path: Path) -> None:
+    def test_context_with_different_env_file_combinations(
+        self, project: Path, tmp_path: Path
+    ) -> None:
         """Test various combinations of .env files."""
         # Remove the project's default .env file to test precedence properly
         project_default_env = project / ".FABulous" / ".env"
@@ -551,7 +575,9 @@ class TestContextMethods:
         assert context3 is settings
         assert context1 is context2 is context3
 
-    def test_context_with_invalid_env_file_values(self, project: Path, tmp_path: Path) -> None:
+    def test_context_with_invalid_env_file_values(
+        self, project: Path, tmp_path: Path
+    ) -> None:
         """Test context initialization with invalid values in .env files."""
         # Remove the project's default .env file so our invalid .env file takes precedence
         project_default_env = project / ".FABulous" / ".env"
@@ -575,7 +601,9 @@ class TestContextMethods:
         # Working directory should be unchanged
         assert Path.cwd() == original_cwd
 
-    def test_init_context_with_fab_proj_dir_env_var(self, project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_init_context_with_fab_proj_dir_env_var(
+        self, project: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test context initialization with FAB_PROJ_DIR environment variable."""
         # Set environment variable
         monkeypatch.setenv("FAB_PROJ_DIR", str(project))
@@ -635,7 +663,11 @@ class TestIntegration:
     """Integration tests for FABulous settings functionality with new context system."""
 
     def test_complete_context_workflow(
-        self, project: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+        self,
+        project: Path,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: MockerFixture,
     ) -> None:
         """Test complete workflow from context initialization to settings usage."""
         reset_context()
@@ -655,7 +687,9 @@ class TestIntegration:
         project_env = project / ".FABulous" / ".env"
         # Clear existing content and set new values
         project_env.write_text("")
-        set_key(project_env, "FAB_PROJ_LANG", "vhdl")  # Override to match global for consistency
+        set_key(
+            project_env, "FAB_PROJ_LANG", "vhdl"
+        )  # Override to match global for consistency
         set_key(project_env, "FAB_PROJ_VERSION_CREATED", "2.0.0")
 
         # Set environment variables

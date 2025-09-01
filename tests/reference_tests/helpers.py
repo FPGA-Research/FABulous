@@ -19,7 +19,9 @@ from FABulous.FABulous_settings import init_context
 from tests.conftest import normalize, run_cmd
 
 
-def download_reference_projects(repo_url: str, target_dir: Path, branch: str = "main") -> bool:
+def download_reference_projects(
+    repo_url: str, target_dir: Path, branch: str = "main"
+) -> bool:
     """Download reference projects from GitHub repository.
 
     Args:
@@ -38,7 +40,11 @@ def download_reference_projects(repo_url: str, target_dir: Path, branch: str = "
             if (target_dir / ".git").exists():
                 logger.info("Updating existing repository...")
                 result = subprocess.run(
-                    ["git", "pull", "origin", branch], cwd=target_dir, capture_output=True, text=True, timeout=60
+                    ["git", "pull", "origin", branch],
+                    cwd=target_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
                 )
                 if result.returncode != 0:
                     logger.warning(f"Git pull failed: {result.stderr}")
@@ -60,7 +66,16 @@ def download_reference_projects(repo_url: str, target_dir: Path, branch: str = "
             target_dir.parent.mkdir(parents=True, exist_ok=True)
 
             result = subprocess.run(
-                ["git", "clone", "--branch", branch, "--depth", "1", repo_url, str(target_dir)],
+                [
+                    "git",
+                    "clone",
+                    "--branch",
+                    branch,
+                    "--depth",
+                    "1",
+                    repo_url,
+                    str(target_dir),
+                ],
                 capture_output=True,
                 text=True,
                 timeout=120,
@@ -94,7 +109,9 @@ class FileDifference(NamedTuple):
     details: dict[str, Any]
 
 
-def compare_files_with_diff(current_file: Path, reference_file: Path) -> list[str] | None:
+def compare_files_with_diff(
+    current_file: Path, reference_file: Path
+) -> list[str] | None:
     """Compare two files and return unified diff if they differ.
 
     Returns:
@@ -130,7 +147,10 @@ def compare_files_with_diff(current_file: Path, reference_file: Path) -> list[st
 
 
 def compare_directories(
-    current_dir: Path, reference_dir: Path, file_patterns: list[str], exclude_patterns: list[str] | None = None
+    current_dir: Path,
+    reference_dir: Path,
+    file_patterns: list[str],
+    exclude_patterns: list[str] | None = None,
 ) -> list[FileDifference]:
     """Compare files in two directories using simple pattern matching."""
 
@@ -174,7 +194,9 @@ def compare_directories(
                 FileDifference(
                     file_path=rel_path,
                     difference_type="missing",
-                    details={"message": "File exists in reference but missing in current"},
+                    details={
+                        "message": "File exists in reference but missing in current"
+                    },
                 )
             )
 
@@ -196,7 +218,10 @@ def compare_directories(
                     FileDifference(
                         file_path=rel_path,
                         difference_type="modified",
-                        details={"diff": diff_result, "total_diff_lines": len(diff_result)},
+                        details={
+                            "diff": diff_result,
+                            "total_diff_lines": len(diff_result),
+                        },
                     )
                 )
 
@@ -266,7 +291,9 @@ def format_file_differences_report(
                     lines.append(f"    {line.rstrip()}")
 
                 if not verbose and len(diff_lines) > max_diff_lines:
-                    lines.append(f"    ... ({len(diff_lines) - max_diff_lines} more lines)")
+                    lines.append(
+                        f"    ... ({len(diff_lines) - max_diff_lines} more lines)"
+                    )
                 lines.append("")
 
         if not verbose and len(diff_list) > max_files:
@@ -348,7 +375,9 @@ def run_fabulous_commands_with_logging(
             # check for errors and warnings in logs
             log_lines = normalize(caplog.text)
 
-            execution_info["warnings"] += [line for line in log_lines if "WARNING" in line]
+            execution_info["warnings"] += [
+                line for line in log_lines if "WARNING" in line
+            ]
             if errors := [line for line in log_lines if "ERROR" in line]:
                 execution_info["commands_failed"].append(cmd)
                 execution_info["errors"] += errors
@@ -366,7 +395,9 @@ def run_fabulous_commands_with_logging(
 
         if skip_on_fail and fail:
             # skip remaining commands on failure
-            execution_info["commands_not_executed"] = commands[commands.index(cmd) + 1 :]
+            execution_info["commands_not_executed"] = commands[
+                commands.index(cmd) + 1 :
+            ]
             break
 
     return cli, execution_info

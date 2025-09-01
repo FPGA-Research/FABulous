@@ -83,7 +83,9 @@ def test_gen_top_wrapper(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) ->
     assert "Top wrapper generation complete" in log[-1]
 
 
-def test_run_FABulous_fabric(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_run_FABulous_fabric(
+    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
+) -> None:
     """Test running FABulous fabric flow"""
     run_cmd(cli, "run_FABulous_fabric")
     log = normalize_and_check_for_errors(caplog.text)
@@ -99,7 +101,9 @@ def test_gen_model_npnr(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> 
     assert "Generated npnr model" in log[-1]
 
 
-def test_run_FABulous_bitstream(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture) -> None:
+def test_run_FABulous_bitstream(
+    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
+) -> None:
     """Test the run_FABulous_bitstream command"""
 
     class MockCompletedProcess:
@@ -137,7 +141,9 @@ def test_run_simulation(
     assert m.call_count == 4
 
 
-def test_run_tcl(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, tmp_path: Path) -> None:
+def test_run_tcl(
+    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
     """Test running a Tcl script"""
     script_content = '# Dummy Tcl script\nputs "Text from tcl"'
     tcl_script_path = tmp_path / "test_script.tcl"

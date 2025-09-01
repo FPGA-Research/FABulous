@@ -28,7 +28,9 @@ _session_config = SessionConfig()
 def config_path() -> Path:
     """Get the reference projects config path from session config."""
     if _session_config.projects_conf is None:
-        raise RuntimeError("Session config not initialized. This should be set in pytest_configure.")
+        raise RuntimeError(
+            "Session config not initialized. This should be set in pytest_configure."
+        )
     return _session_config.projects_conf
 
 
@@ -36,7 +38,9 @@ def config_path() -> Path:
 def projects_dir() -> Path:
     """Get the projects directory from session config."""
     if _session_config.projects_dir is None:
-        raise RuntimeError("Session config not initialized. This should be set in pytest_configure.")
+        raise RuntimeError(
+            "Session config not initialized. This should be set in pytest_configure."
+        )
     return _session_config.projects_dir
 
 
@@ -56,17 +60,23 @@ def pytest_configure(config: pytest.Config) -> None:
     # Initialize session config from CLI parameters (before test collection)
     _session_config.repo_url = config.getoption("--repo-url")
     _session_config.projects_dir = Path(config.getoption("--projects-dir"))
-    _session_config.projects_conf = Path(config.getoption("--reference-projects-config"))
+    _session_config.projects_conf = Path(
+        config.getoption("--reference-projects-config")
+    )
     _session_config.download_projects = config.getoption("--download-projects")
     _session_config.verbose = config.getoption("-v") > 0
 
     if _session_config.download_projects and (
-        not download_reference_projects(_session_config.repo_url, _session_config.projects_dir)
+        not download_reference_projects(
+            _session_config.repo_url, _session_config.projects_dir
+        )
     ):
         raise AssertionError("Could not set up reference projects")
 
     if not _session_config.projects_conf.exists():
-        raise FileNotFoundError(f"Reference projects config file not found: {_session_config.projects_conf}")
+        raise FileNotFoundError(
+            f"Reference projects config file not found: {_session_config.projects_conf}"
+        )
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -92,6 +102,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--reference-projects-config",
         action="store",
-        default=str(Path(__file__).parent / "FABulous-demo-projects" / "reference_projects_config.yaml"),
+        default=str(
+            Path(__file__).parent
+            / "FABulous-demo-projects"
+            / "reference_projects_config.yaml"
+        ),
         help="Reference projects configuration file path",
     )

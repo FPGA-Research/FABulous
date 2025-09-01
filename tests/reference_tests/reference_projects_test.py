@@ -77,7 +77,9 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         from tests.reference_tests.conftest import _session_config
 
         if _session_config.projects_conf is None:
-            raise RuntimeError("Session config not initialized. This should be set in pytest_configure.")
+            raise RuntimeError(
+                "Session config not initialized. This should be set in pytest_configure."
+            )
 
         config_path = _session_config.projects_conf
 
@@ -90,17 +92,24 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
         assert active_projects, "No active reference projects found in config."
 
-        metafunc.parametrize("ref_project", active_projects, ids=[p.name for p in active_projects])
+        metafunc.parametrize(
+            "ref_project", active_projects, ids=[p.name for p in active_projects]
+        )
     else:
         raise RuntimeError("No 'project' fixture found in test function.")
 
 
 def test_reference_project_execution(
-    ref_project: ReferenceProject, tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ref_project: ReferenceProject,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test execution of reference projects with run or diff mode."""
 
-    assert ref_project.path.exists(), f"Reference project path does not exist: {ref_project.path}"
+    assert ref_project.path.exists(), (
+        f"Reference project path does not exist: {ref_project.path}"
+    )
 
     # Copy project to temporary location
     project_name = ref_project.path.name
@@ -108,11 +117,17 @@ def test_reference_project_execution(
     if ref_project.path.is_dir():
         shutil.copytree(ref_project.path, test_project_path, symlinks=True)
     else:
-        raise ValueError(f"Reference project path is not a directory: {ref_project.path}")
+        raise ValueError(
+            f"Reference project path is not a directory: {ref_project.path}"
+        )
 
     # Run FABulous commands
     _, execution_info = run_fabulous_commands_with_logging(
-        test_project_path, ref_project.language, caplog, monkeypatch, commands=ref_project.commands
+        test_project_path,
+        ref_project.language,
+        caplog,
+        monkeypatch,
+        commands=ref_project.commands,
     )
 
     # Always check that basic commands succeeded
@@ -125,7 +140,9 @@ def test_reference_project_execution(
         for expected_file in ref_project.expected_outputs:
             file_path = test_project_path / expected_file
             assert file_path.exists(), f"Expected output file missing: {expected_file}"
-            assert file_path.stat().st_size > 0, f"Expected output file is empty: {expected_file}"
+            assert file_path.stat().st_size > 0, (
+                f"Expected output file is empty: {expected_file}"
+            )
 
     # For "run" mode, just check for errors and expected outputs
     if ref_project.test_mode == "run":
@@ -158,10 +175,17 @@ def test_reference_project_execution(
             from tests.reference_tests.conftest import _session_config
 
             diff_report = format_file_differences_report(
-                cmp_diff, verbose=_session_config.verbose, current_dir=test_project_path, reference_dir=ref_project.path
+                cmp_diff,
+                verbose=_session_config.verbose,
+                current_dir=test_project_path,
+                reference_dir=ref_project.path,
             )
-            pytest.fail(f"Compare project differences in {ref_project.name}:\n{diff_report}")
+            pytest.fail(
+                f"Compare project differences in {ref_project.name}:\n{diff_report}"
+            )
 
-        logger.info(f"✓ Project {ref_project.name} passed regression testing in 'diff' mode")
+        logger.info(
+            f"✓ Project {ref_project.name} passed regression testing in 'diff' mode"
+        )
 
     return
