@@ -72,7 +72,7 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Generate test parameters dynamically based on config."""
-    if "project" in metafunc.fixturenames:
+    if "ref_project" in metafunc.fixturenames:
         # Need to import _session_config here to avoid uninialized/circular import
         from tests.reference_tests.conftest import _session_config
 
@@ -90,67 +90,67 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
         assert active_projects, "No active reference projects found in config."
 
-        metafunc.parametrize("project", active_projects, ids=[p.name for p in active_projects])
+        metafunc.parametrize("ref_project", active_projects, ids=[p.name for p in active_projects])
     else:
         raise RuntimeError("No 'project' fixture found in test function.")
 
 
 def test_reference_project_execution(
-    project: ReferenceProject, tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ref_project: ReferenceProject, tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test execution of reference projects with run or diff mode."""
 
-    assert project.path.exists(), f"Reference project path does not exist: {project.path}"
+    assert ref_project.path.exists(), f"Reference project path does not exist: {ref_project.path}"
 
     # Copy project to temporary location
-    project_name = project.path.name
+    project_name = ref_project.path.name
     test_project_path = tmp_path / project_name
-    if project.path.is_dir():
-        shutil.copytree(project.path, test_project_path, symlinks=True)
+    if ref_project.path.is_dir():
+        shutil.copytree(ref_project.path, test_project_path, symlinks=True)
     else:
-        raise ValueError(f"Reference project path is not a directory: {project.path}")
+        raise ValueError(f"Reference project path is not a directory: {ref_project.path}")
 
     # Run FABulous commands
     _, execution_info = run_fabulous_commands_with_logging(
-        test_project_path, project.language, caplog, monkeypatch, commands=project.commands
+        test_project_path, ref_project.language, caplog, monkeypatch, commands=ref_project.commands
     )
 
     # Always check that basic commands succeeded
     assert not execution_info["commands_failed"], (
-        f"Commands failed for {project.name}: {execution_info['commands_failed']}\nErrors: {execution_info['errors']}"
+        f"Commands failed for {ref_project.name}: {execution_info['commands_failed']}\nErrors: {execution_info['errors']}"
     )
 
     # Verify expected outputs exist if specified
-    if project.expected_outputs:
-        for expected_file in project.expected_outputs:
+    if ref_project.expected_outputs:
+        for expected_file in ref_project.expected_outputs:
             file_path = test_project_path / expected_file
             assert file_path.exists(), f"Expected output file missing: {expected_file}"
             assert file_path.stat().st_size > 0, f"Expected output file is empty: {expected_file}"
 
     # For "run" mode, just check for errors and expected outputs
-    if project.test_mode == "run":
-        logger.info(f"✓ Project {project.name} executed successfully in 'run' mode")
+    if ref_project.test_mode == "run":
+        logger.info(f"✓ Project {ref_project.name} executed successfully in 'run' mode")
 
     # For "diff" mode, perform simple comparison
-    if project.test_mode == "diff":
+    if ref_project.test_mode == "diff":
         # Compare files
         # Determine file patterns based on project configuration or language
-        if project.include_patterns:
+        if ref_project.include_patterns:
             logger.info("Using defined include patterns:")
-            include_patterns = project.include_patterns
+            include_patterns = ref_project.include_patterns
         else:
             logger.info("Using default include patterns for:")
             include_patterns = ["*.v", "*.sv"]
-            if project.language != "verilog":
+            if ref_project.language != "verilog":
                 include_patterns = ["*.vhd", "*.vhdl"]
             include_patterns += ["*.csv", "*.list", "*txt", "*.bin"]
         logger.info(f"  Patterns: {include_patterns}")
 
         cmp_diff = compare_directories(
-            project.path,
+            ref_project.path,
             test_project_path,
             include_patterns,
-            exclude_patterns=project.exclude_patterns,
+            exclude_patterns=ref_project.exclude_patterns,
         )
 
         if cmp_diff:
@@ -158,10 +158,10 @@ def test_reference_project_execution(
             from tests.reference_tests.conftest import _session_config
 
             diff_report = format_file_differences_report(
-                cmp_diff, verbose=_session_config.verbose, current_dir=test_project_path, reference_dir=project.path
+                cmp_diff, verbose=_session_config.verbose, current_dir=test_project_path, reference_dir=ref_project.path
             )
-            pytest.fail(f"Compare project differences in {project.name}:\n{diff_report}")
+            pytest.fail(f"Compare project differences in {ref_project.name}:\n{diff_report}")
 
-        logger.info(f"✓ Project {project.name} passed regression testing in 'diff' mode")
+        logger.info(f"✓ Project {ref_project.name} passed regression testing in 'diff' mode")
 
     return

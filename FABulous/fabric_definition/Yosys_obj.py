@@ -263,7 +263,6 @@ class YosysJson:
         temp = temp / "my_package.vhd"
         temp.touch()
         temp.write_text("package my_package is\nend package;\n")
-
         if self.srcPath.suffix in {".vhd", ".vhdl"}:
             runCmd = [
                 f"{ghdl!s}",

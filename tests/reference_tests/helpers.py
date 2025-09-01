@@ -15,6 +15,7 @@ from loguru import logger
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import setup_logger
+from FABulous.FABulous_settings import init_context
 from tests.conftest import normalize, run_cmd
 
 
@@ -307,7 +308,7 @@ def run_fabulous_commands_with_logging(
 
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_path))
     monkeypatch.setenv("FAB_PROJ_LANG", language.upper())
-
+    c = init_context()
     cli = FABulous_CLI(
         language,
         force=False,

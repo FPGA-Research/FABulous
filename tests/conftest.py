@@ -1,5 +1,6 @@
 """Global pytest configuration and fixtures for all FABulous tests."""
 
+import os
 from collections.abc import Generator
 from pathlib import Path
 
@@ -39,6 +40,9 @@ def normalize_and_check_for_errors(caplog_text: str) -> list[str]:
 def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Setup global test environment for FABulous tests."""
     fabulous_root = str(Path(__file__).resolve().parent.parent / "FABulous")
+
+    for i in os.environ:
+        monkeypatch.delenv(i[0], raising=False)
 
     # Set test environment using monkeypatch for automatic cleanup
     monkeypatch.setenv("FAB_ROOT", fabulous_root)

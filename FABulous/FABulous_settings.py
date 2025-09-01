@@ -51,15 +51,67 @@ class FABulousSettings(BaseSettings):
             return Version(value)
         return value
 
-    @field_validator("proj_dir", mode="after")
+    @field_validator("model_pack", mode="after")
     @classmethod
-    def is_dir(cls, value: Path | None) -> Path | None:
-        """Check if inputs is a directory."""
-        if value is None:
-            return None
-        if not value.is_dir():
-            raise ValueError(f"{value} is not a valid directory")
-        return value.resolve()
+    def parse_model_pack(cls, value: Path | None, info: ValidationInfo) -> Path | None:  # type: ignore[override]
+        """Validate and normalise model_pack path based on project language.
+
+        Uses already-validated proj_lang from info.data when available. Accepts None /
+        empty string to mean unset.
+        """
+        proj_lang = info.data.get("proj_lang")
+        if value in (None, ""):
+            if p := info.data.get("proj_dir"):
+                p = Path(p)
+            else:
+                raise ValueError("Project directory is not set.")
+            if proj_lang == HDLType.VHDL:
+                mp = p / "Fabric" / "my_lib.vhdl"
+                if mp.exists():
+                    logger.warning(
+                        f"Model pack path is not set. Guessing model pack as: {mp}"
+                    )
+                    return mp
+                mp = p / "Fabric" / "model_pack.vhdl"
+                if mp.exists():
+                    logger.warning(
+                        f"Model pack path is not set. Guessing model pack as: {mp}"
+                    )
+                    return mp
+                logger.warning(
+                    "Cannot find a suitable model pack. This might lead to error if not set."
+                )
+
+            if proj_lang in {HDLType.VERILOG, HDLType.SYSTEM_VERILOG}:
+                mp = p / "Fabric" / "models_pack.v"
+                if mp.exists():
+                    logger.warning(
+                        f"Model pack path is not set. Guessing model pack as: {mp}"
+                    )
+                    return mp
+                logger.warning(
+                    "Cannot find a suitable model pack. This might lead to error if not set."
+                )
+
+        path = Path(str(value))
+        # Retrieve previously validated proj_lang (falls back to default enum value)
+        try:
+            # If provided as string earlier but not validated yet
+            if isinstance(proj_lang, str):
+                proj_lang = HDLType[proj_lang.upper()]
+        except KeyError:
+            raise ValueError(
+                "Invalid project language while validating model_pack"
+            ) from None
+
+        if proj_lang in {HDLType.VERILOG, HDLType.SYSTEM_VERILOG}:
+            if path.suffix not in {".v", ".sv"}:
+                raise ValueError(
+                    "Model pack for Verilog/System Verilog must be a .v or .sv file"
+                )
+        elif proj_lang == HDLType.VHDL and path.suffix not in {".vhdl", ".vhd"}:
+            raise ValueError("Model pack for VHDL must be a .vhdl or .vhd file")
+        return path
 
     @field_validator("user_config_dir", mode="after")
     @classmethod
