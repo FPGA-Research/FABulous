@@ -17,22 +17,11 @@ dependencies = [
     "pydata-sphinx-theme>=0.15.0",
 
     # FABulous package is installed separately via make setup
-
-    # Additional dependencies that FABulous might need
-    "python-dotenv>=1.0.0",
-    "loguru>=0.7.0",
-    "cmd2>=2",
-    "bitarray>=3.3.0",
-    "pydantic-settings>=2.10.1",
-    "packaging>=25.0",
-    "setuptools>=80.9.0",
 ]
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.uv]
-dev-dependencies = [
-    "sphinx-autobuild",  # For live reload during development
-]
+[dependency-groups]
+dev = ["sphinx-autobuild"]

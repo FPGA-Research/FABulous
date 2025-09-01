@@ -9,3 +9,59 @@
 .navbar {
     min-height: 80px;
 }
+
+/* Responsive layout improvements */
+.bd-main .bd-content {
+    max-width: none;
+    flex: 1;
+}
+
+/* Make the main content area more flexible */
+.bd-container-fluid {
+    max-width: 100%;
+    padding: 0 1rem;
+}
+
+/* Reduce excessive padding on large screens */
+@media (min-width: 1200px) {
+    .bd-container-fluid {
+        padding: 0 2rem;
+    }
+}
+
+/* Improve sidebar width allocation */
+.bd-sidebar-primary {
+    min-width: 250px;
+    max-width: 300px;
+}
+
+.bd-sidebar-secondary {
+    min-width: 200px;
+    max-width: 250px;
+}
+
+/* Better responsive behavior */
+@media (max-width: 1400px) {
+    .bd-sidebar-secondary {
+        max-width: 200px;
+    }
+}
+
+@media (max-width: 1200px) {
+    .bd-sidebar-secondary {
+        display: none;
+    }
+}
+
+/* Ensure content doesn't get too narrow */
+.bd-article {
+    min-width: 0;
+    flex: 1;
+    overflow-x: auto;
+}
+
+/* Better word wrapping for long titles */
+h1, h2, h3, h4, h5, h6 {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}

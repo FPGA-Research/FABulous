@@ -182,13 +182,13 @@ dependencies = [
     { name = "bitarray" },
     { name = "cmd2" },
     { name = "fasm" },
+    { name = "gnureadline", marker = "sys_platform != 'win32'" },
     { name = "loguru" },
     { name = "packaging" },
     { name = "pydantic-settings" },
+    { name = "pyreadline3", marker = "sys_platform == 'win32'" },
     { name = "python-dotenv" },
     { name = "requests" },
-    { name = "setuptools" },
-    { name = "taskipy" },
 ]
 
 [package.dev-dependencies]
@@ -208,13 +208,13 @@ requires-dist = [
     { name = "bitarray", specifier = ">=3.3.0" },
     { name = "cmd2", specifier = ">=2" },
     { name = "fasm", specifier = ">=0.0.2" },
+    { name = "gnureadline", marker = "sys_platform != 'win32'", specifier = ">=8.2.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "packaging", specifier = ">=25.0" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
+    { name = "pyreadline3", marker = "sys_platform == 'win32'", specifier = ">=3.4.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests", specifier = ">=2.0.0" },
-    { name = "setuptools", specifier = ">=80.9.0" },
-    { name = "taskipy", specifier = ">=1.14.1" },
 ]
 
 [package.metadata.requires-dev]
@@ -226,7 +226,7 @@ dev = [
     { name = "pytest-mock", specifier = ">=3.14.1" },
     { name = "pytest-split", specifier = ">=0.10.0" },
     { name = "ruff", specifier = ">=0.12.7" },
-    { name = "taskipy", specifier = ">=1.14.0" },
+    { name = "taskipy", specifier = ">=1.14.1" },
 ]
 
 [[package]]
@@ -264,8 +264,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/cb/92/20723aa239b9a8024
 wheels = [
     { url = "https://files.pythonhosted.org/packages/68/bd/df8fd060e43efd3dbdd3b210bf558ce3ef854843cd093f910f4115ebe2e9/gnureadline-8.2.13-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:9c152a82613fa012ab4331bb9a0ffddb415e37561d376b910bf9e7d535607faf", size = 160504 },
     { url = "https://files.pythonhosted.org/packages/97/ee/322e5340c8cdfa40e71bd0485a82404ad4cf9aed2260cca090f3c1a3a032/gnureadline-8.2.13-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:85e362d2d0e85e45f0affae7bbfaf998b00167c55a78d31ee0f214de9ff429d2", size = 162380 },
+    { url = "https://files.pythonhosted.org/packages/92/64/ae5598fd1dbf7de863cd7066798fe882f2e9b5dcdb49f8ad859e736c2212/gnureadline-8.2.13-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b69e6608cc94e110018b721a11718d480a6330e0b62cbab65a22880e84011205", size = 648192 },
+    { url = "https://files.pythonhosted.org/packages/08/d3/1face508173298b6d4d9f96ad4e408bcbdea704c583646e41d0aa6826385/gnureadline-8.2.13-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0cc77fc9c8a8fcf10e0a554e49ee763219683386b8f906b7e6ef07c9e40e8420", size = 651945 },
     { url = "https://files.pythonhosted.org/packages/a1/b0/4a3c55a05b4c1c240fd6dc204ff597432008c4649ce500688a2441d27cf4/gnureadline-8.2.13-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:2d3e33d2e0dd694d623a2ca1fae6990b52f1d25955504b7293a9350fb9912940", size = 160646 },
     { url = "https://files.pythonhosted.org/packages/3a/41/8821db40f2b0dd9cc935d6838bc63776fb5bfb1df092f8d4698ec29ada6a/gnureadline-8.2.13-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:6c550d08c4d2882a83293a724b14a262ee5078fd4fa7acdc78aa59cab26ae343", size = 162630 },
+    { url = "https://files.pythonhosted.org/packages/16/8e/9f716757f875dfea0c9f5a323e103eec8a546e650a37c7f133a9b86c2c8f/gnureadline-8.2.13-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a7d6e3f5d9fd0cf8a84fb382d4e3ad2914331be4d929f17d50da01f1571c4b03", size = 650930 },
+    { url = "https://files.pythonhosted.org/packages/ee/2c/29cc2b99b9c7f49041edefe3c051c566e60080631dd4241cae269a2f067b/gnureadline-8.2.13-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f59275168cae1b02ca1ec7586a9804bb04ce427df92f8582a80d16e96c846b78", size = 654619 },
 ]
 
 [[package]]
@@ -638,15 +642,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/71/13/ab9120add1c0e4604c71bfc2e4ef7d63bebece0cfe617013da289539cef8/ruff-0.12.8-py3-none-win32.whl", hash = "sha256:daf3475060a617fd5bc80638aeaf2f5937f10af3ec44464e280a9d2218e720d3", size = 11694382 },
     { url = "https://files.pythonhosted.org/packages/f6/dc/a2873b7c5001c62f46266685863bee2888caf469d1edac84bf3242074be2/ruff-0.12.8-py3-none-win_amd64.whl", hash = "sha256:7209531f1a1fcfbe8e46bcd7ab30e2f43604d8ba1c49029bb420b103d0b5f76e", size = 12740482 },
     { url = "https://files.pythonhosted.org/packages/cb/5c/799a1efb8b5abab56e8a9f2a0b72d12bd64bb55815e9476c7d0a2887d2f7/ruff-0.12.8-py3-none-win_arm64.whl", hash = "sha256:c90e1a334683ce41b0e7a04f41790c429bf5073b62c1ae701c9dc5b3d14f0749", size = 11884718 },
-]
-
-[[package]]
-name = "setuptools"
-version = "80.9.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/18/5d/3bf57dcd21979b887f014ea83c24ae194cfcd12b9e0fda66b957c69d1fca/setuptools-80.9.0.tar.gz", hash = "sha256:f36b47402ecde768dbfafc46e8e4207b4360c654f1f3bb84475f0a28628fb19c", size = 1319958 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/dc/17031897dae0efacfea57dfd3a82fdd2a2aeb58e0ff71b77b87e44edc772/setuptools-80.9.0-py3-none-any.whl", hash = "sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922", size = 1201486 },
 ]
 
 [[package]]

@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "docs-build",
+			"type": "shell",
+			"command": "make html",
+			"args": [],
+			"isBackground": false,
+			"problemMatcher": [
+				"$sphinx"
+			],
+			"group": "build"
+		}
+	]
+}

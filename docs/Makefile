@@ -31,21 +31,14 @@ setup:
 	uv pip install -e ..
 	@echo "Documentation environment ready!"
 
-# Generate API documentation using sphinx-apidoc
-apidoc:
-	@echo "Generating API documentation..."
-	@mkdir -p $(APIDIR)
-	@$(SPHINXAPIDOC) -f -e -T -o $(APIDIR) $(PACKAGEDIR)
-	@echo "API documentation generated in $(APIDIR)"
-
-# Build HTML documentation (with API generation)
-html: setup apidoc
+# Build HTML documentation (pure autosummary approach)
+html: setup
 	@echo "Building HTML documentation..."
-	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O) 2>/dev/null || true
+	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 	@echo "Documentation built successfully in $(BUILDDIR)/html"
 
 # Live reload development server
-livehtml: setup apidoc
+livehtml: setup
 	@echo "Starting live documentation server..."
 	uv run --directory . sphinx-autobuild $(SOURCEDIR) $(BUILDDIR)/html $(SPHINXOPTS)
 
@@ -53,7 +46,7 @@ livehtml: setup apidoc
 clean:
 	@echo "Cleaning build directory and generated API docs..."
 	rm -rf $(BUILDDIR)
-	rm -rf $(APIDIR)
+	rm -rf $(SOURCEDIR)/generated_doc
 	@echo "Clean completed!"
 
 .PHONY: help setup apidoc html livehtml clean Makefile

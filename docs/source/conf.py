@@ -59,23 +59,7 @@ napoleon_preprocess_types = False
 napoleon_type_aliases = None
 napoleon_attr_annotations = True
 
-# -- Autodoc options
-autodoc_typehints = "description"
-autodoc_typehints_format = "short"
-autodoc_type_aliases = {
-    'Object': 'object',
-    'optional': 'typing.Optional',
-    'Path': 'pathlib.Path',
-}
-
-# Suppress warnings for missing references in type annotations
-nitpicky = False
-nitpick_ignore = [
-    ('py:class', 'Object'),
-    ('py:class', 'optional'),
-    ('py:class', 'Path')
-]
-
+# -- Mock imports for documentation build
 autodoc_mock_imports = [
     # Only mock external dependencies that aren't available in docs environment
     'numpy',
@@ -86,37 +70,62 @@ autodoc_mock_imports = [
     'typing_extensions',
 ]
 
+# Configure autodoc to avoid dataclass field duplication
+autodoc_default_options = {
+    'members': True,
+    'undoc-members': False,
+    'show-inheritance': True,
+    'special-members': False,
+}
+
 # -- Autosummary options
 autosummary_generate = True
 autosummary_generate_overwrite = True
-autosummary_imported_members = True
+autosummary_imported_members = False
+autosummary_ignore_module_all = True
 
-# -- Additional autodoc options to suppress warnings
-autodoc_default_options = {
-    'members': True,
-    'undoc-members': True,
-    'show-inheritance': True,
-    'ignore-module-all': True,
-}
-
-# Suppress specific warnings
+# Suppress specific warnings for CI builds
 suppress_warnings = [
-    'autodoc.import_error',
-    'autodoc.mock',
-    'autodoc.mocked_object',
     'autosummary.import_error',
     'toc.not_included',
     'myst.header',
 ]
 
-# Don't halt on missing references
-autodoc_strict = False
+# def setup(app):
+#     """Custom Sphinx setup to handle duplicate object warnings."""
+#     import logging
+
+#     # Get the Sphinx logger and filter duplicate object warnings
+#     sphinx_logger = logging.getLogger('sphinx')
+
+#     class DuplicateObjectFilter(logging.Filter):
+#         def filter(self, record):
+#             return not ('duplicate object description' in record.getMessage())
+
+#     sphinx_logger.addFilter(DuplicateObjectFilter())
+
+#     return {'version': '0.1', 'parallel_read_safe': True}
 
 # -- Options for HTML output
 
 html_theme = "pydata_sphinx_theme"
 
 html_logo = "figs/FABulouslogo_wide_2.png"
+
+html_theme_options = {
+    "collapse_navigation": False,
+    "show_nav_level": 2,
+    "show_toc_level": 2,
+    "navigation_depth": 4,
+    "use_edit_page_button": False,
+    "show_prev_next": True,
+    "article_header_start": [],
+    "article_header_end": [],
+    "secondary_sidebar_items": ["page-toc", "sourcelink"],
+    "navbar_align": "content",
+    "navbar_center": ["navbar-nav"],
+    "show_version_warning_banner": True,
+}
 
 # -- Over-riding theme options
 html_static_path = ["_static"]

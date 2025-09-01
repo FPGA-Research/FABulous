@@ -16,6 +16,6 @@ jobs:
           install_ghdl_mcode: "false"
       - uses: ammaraskar/sphinx-action@8.2.3
         with:
-          pre-build-command: "pip install -r requirements.txt"
-          build-command: 'make html SPHINXOPTS+="-W --keep-going -n"'
+          pre-build-command: "uv run --directory . make apidoc"
+          build-command: 'uv run --directory . make html SPHINXOPTS+="-W --keep-going -n"'
           docs-folder: "docs/"

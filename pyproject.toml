@@ -28,6 +28,10 @@ dependencies = [
   'bitarray>=3.3.0',
   "pydantic-settings>=2.10.1",
   "packaging>=25.0",
+
+  # OS-aware readline dependencies
+  'pyreadline3>=3.4.0; sys_platform == "win32"',
+  'gnureadline>=8.2.0; sys_platform != "win32"',
   "setuptools>=80.9.0",
 ]
 
@@ -100,7 +104,7 @@ qa = "task format && task check"
 docs-setup = "cd docs && uv sync"
 docs-apidoc = "cd docs && uv run --directory . make apidoc"
 docs-build = "cd docs && uv run --directory . make apidoc && uv run --directory . make html"
-docs-serve = "cd docs && uv run --directory . make livehtml"
+docs-server = "cd docs && uv run --directory . make livehtml"
 docs-clean = "cd docs && make clean"
 
 fab-proj = "FABulous -c demo"

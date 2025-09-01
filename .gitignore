@@ -11,3 +11,4 @@ oss-cad-suite
 docs/build/
 docs/source/references/*.rst
 !docs/source/references/index.rst
+docs/source/generated_doc/
