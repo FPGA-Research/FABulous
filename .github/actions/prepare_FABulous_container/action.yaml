@@ -23,7 +23,6 @@ inputs:
     required: false
     default: "true"
 
-
 runs:
   using: "composite"
   steps:
@@ -31,10 +30,11 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python_version }}
-        cache: "pip"
-        cache-dependency-path: |
-          requirements.txt
-          pyproject.toml
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        version: "latest"
+        enable-cache: true
     - name: Get OSS CAD Suite version
       id: oss-cad-version
       shell: bash
@@ -101,23 +101,16 @@ runs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ${{ inputs.additional_system_packages }}
-    - name: Upgrade pip
-      shell: bash
-      run: |
-        python3 -m pip install --upgrade pip
     - name: Install additional python packages
       if: ${{ inputs.additional_python_packages != '' }}
       shell: bash
       run: |
-        pip3 install ${{ inputs.additional_python_packages }}
-    - name: Install FABulous requirements.txt
+        uv add ${{ inputs.additional_python_packages }}
+    - name: Install FABulous with dev dependencies
       shell: bash
       run: |
-        if [ -f requirements.txt ]; then pip3 install -r requirements.txt; fi
-    - name: Install FABulous requirements
-      shell: bash
-      run: |
-        pip3 install -e .
+        uv sync --dev --locked --all-extras
+        uv pip install -e .
     - name: Set PATH
       shell: bash
       run: |

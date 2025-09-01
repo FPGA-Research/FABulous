@@ -7,8 +7,7 @@
   - [How to cite](#how-to-cite)
   - [Prerequisites](#prerequisites)
   - [Getting started](#getting-started)
-  - [Contribution Guidelines](#contribution-guidelines) - [Development Workflow](#development-workflow) - [Code Formatting](#code-formatting) - [Commit style](#commit-style) - [pre-commit](#pre-commit) - [Code Review](#code-review) - [License](#license)
-  <!--toc:end-->
+  - [Contribution Guidelines](#contribution-guidelines)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org)
@@ -143,52 +142,25 @@ Detailed documentation for the project can be found [here](https://fabulous.read
 
 ## Contribution Guidelines
 
-Thank you for considering contributing to FABulous! By contributing, you're helping us improve and grow the project for everyone. Before you start, please take a moment to review our guidelines to ensure a smooth contribution process.
+For comprehensive development information including environment setup, coding standards, and contribution workflows, please see our [Development Guide](https://fabulous.readthedocs.io/en/latest/development.html).
 
-### Development Workflow
+**Quick Reference for Contributors:**
 
-Please first check the [issues](Ghttps://github.com/FPGA-Research-Manchester/FABulous/issues) to and the [FABulous development branch](https://github.com/FPGA-Research/FABulous/tree/FABulous2.0-development) to see if your feature or bug fix has already been reported or implemented/fixed.
+- Use [uv](https://github.com/astral-sh/uv) for development environment setup
+- Follow [Ruff](https://docs.astral.sh/ruff/) formatting and linting standards
+- Use [conventional commits](https://www.conventionalcommits.org/) for commit messages
+- Target the `FABulous2.0-development` branch for pull requests
+- Ensure all tests pass and CI checks succeed
 
-We follow a standard Git workflow for contributions:
-
-- Fork the repository on GitHub.
-- Clone your forked repository to your local machine.
-- If you are not already on the `FABulous2.0-development` branch, switch to it, to use it as base for your work.
-- Create a new branch for your feature or bug fix.
-- Make your changes, following the coding standards and guidelines outlined below.
-- Commit your changes with clear, descriptive commit messages using the [conventional commits style](https://github.com/FPGA-Research/FABulous/tree/FABulous2.0-development).
-- Push your changes to your forked repository.
-- Submit a pull request to the main repository.
-- Ensure your pull request targets the `FABulous2.0-development` branch of the original repository if you add feature.
-- Check that your pull request passes the CI checks. If it does not, please fix the issues first.
-- We will review your pull request and may request changes or provide feedback. Please be responsive to these requests.
-
-### Code Formatting
-
-We use [Ruff](https://docs.astral.sh/ruff/) for code formatting and linting and provide a configuration file in the repository.
-Please make sure your code adheres to our coding standards before submitting a pull request.
-
-### Commit style
-
-We use the 'conventional commits' style for commit messages and pull requests.
-This helps us to automatically generate changelogs and understand the history of changes better.
-See the [conventional commits page](https://www.conventionalcommits.org/en/v1.0.0/) for more information.
-
-### pre-commit
-
-To aid development we suggest to use [pre-commit hooks](https://pre-commit.com/).
-
-To install the pre-commit hooks:
+**Quick Setup:**
 
 ```bash
-(venv)$ pip install pre-commit
-(venv)$ pre-commit install
+curl -LsSf https://astral.sh/uv/install.sh | sh  # Install uv
+git clone https://github.com/FPGA-Research-Manchester/FABulous
+cd FABulous
+uv sync --dev
+uv pip install -e .
+uv run pre-commit install
 ```
-
-### Code Review
-
-Once you've submitted a pull request, one of our maintainers will review your code. Please be patient during this process. We may suggest changes or improvements to ensure the quality and compatibility of your contribution.
-
-### License
 
 By contributing to this project, you agree that your contributions will be licensed under the project's [License](https://opensource.org/licenses/Apache-2.0).

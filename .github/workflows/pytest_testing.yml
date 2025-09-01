@@ -93,7 +93,7 @@ jobs:
           which iverilog
           # Ensure no stale coverage data from previous attempts (no coverage module needed)
           rm -f .coverage* || true
-          pytest \
+          uv run pytest \
             --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
             --store-durations --clean-durations -v -x \
             --cov=FABulous --cov-branch --cov-config=pyproject.toml --cov-report= \

@@ -33,6 +33,7 @@ Contents
    :maxdepth: 2
 
    Usage
+   development
    Building fabric
    fabric_definition
    fabric_automation

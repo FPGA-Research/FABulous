@@ -94,11 +94,17 @@ If you are using yosys oss-cad-suite, no need to install the following packages.
    versions) installed to meet the above requirement.
 
 
-Install FABulous with "editable" option:
+Development workflow (uv)
+-------------------------
 
-.. code-block:: console
+For development and contribution workflows, see the dedicated :doc:`development`
+page which covers:
 
-    (venv)$ pip install -e .
+- Setting up `uv <https://github.com/astral-sh/uv>`_ development environment
+- Pre-commit hooks and code standards
+- Git workflow and contribution guidelines
+- Testing and CI requirements
+
 
 Building Fabric and Bitstream
 -----------------------------

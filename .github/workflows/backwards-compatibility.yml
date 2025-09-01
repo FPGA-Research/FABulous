@@ -21,7 +21,7 @@ jobs:
       - uses: ./.github/actions/prepare_FABulous_container
       - name: generate old project
         run: |
-          FABulous -c /tmp/demo_${{ matrix.type }} -w ${{ matrix.type }}
+          uv run FABulous -c /tmp/demo_${{ matrix.type }} -w ${{ matrix.type }}
 
       - uses: actions/checkout@v5
       - uses: ./.github/actions/prepare_FABulous_container

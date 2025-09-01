@@ -28,6 +28,7 @@ dependencies = [
   'bitarray>=3.3.0',
   "pydantic-settings>=2.10.1",
   "packaging>=25.0",
+  "setuptools>=80.9.0",
 ]
 
 [project.urls]
@@ -83,3 +84,6 @@ output = "coverage.xml"
 
 [tool.coverage.html]
 directory = "coverage_html"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
