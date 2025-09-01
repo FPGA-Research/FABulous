@@ -11,6 +11,8 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from FABulous.fabric_definition.define import HDLType
+
 # User configuration directory for FABulous
 FAB_USER_CONFIG_DIR = Path(typer.get_app_dir("FABulous", force_posix=True))
 
@@ -30,11 +32,13 @@ class FABulousSettings(BaseSettings):
     nextpnr_path: Path | None = None
     iverilog_path: Path | None = None
     vvp_path: Path | None = None
+    ghdl_path: Path | None = None
     fabulator_root: Path | None = None
     oss_cad_suite: Path | None = None
 
     proj_dir: Path = Field(default_factory=Path.cwd)
     proj_lang: str = "verilog"
+    model_pack: Path | None = None
     switch_matrix_debug_signal: bool = False
     proj_version_created: Version = Version("0.0.1")
     proj_version: Version = Version(version("FABulous-FPGA"))
@@ -107,7 +111,6 @@ class FABulousSettings(BaseSettings):
         mode="before",
     )
     @classmethod
-    def resolve_tool_paths(cls, value: Path | None, info: FieldValidationInfo) -> Path | None:  # type: ignore[override]
     def resolve_tool_paths(
         cls, value: Path | None, info: ValidationInfo
     ) -> Path | None:  # type: ignore[override]
@@ -127,7 +130,9 @@ class FABulousSettings(BaseSettings):
         if tool_path is not None:
             return Path(tool_path).resolve()
 
-        logger.warning(f"{tool} not found in PATH during settings initialisation. Some features may be unavailable.")
+        logger.warning(
+            f"{tool} not found in PATH during settings initialisation. Some features may be unavailable."
+        )
         return None
 
 
@@ -167,7 +172,9 @@ def init_context(
         if global_dot_env.exists():
             env_files.append(global_dot_env)
         else:
-            logger.warning(f"Global .env file not found: {global_dot_env} this is ignored")
+            logger.warning(
+                f"Global .env file not found: {global_dot_env} this is ignored"
+            )
     if global_dot_env and global_dot_env.exists():
         env_files.append(global_dot_env)
     elif global_dot_env is not None:
@@ -224,7 +231,9 @@ def get_context() -> FABulousSettings:
     global _context_instance
 
     if _context_instance is None:
-        raise RuntimeError("FABulous context not initialized. Call init_context() first.")
+        raise RuntimeError(
+            "FABulous context not initialized. Call init_context() first."
+        )
 
     return _context_instance
 

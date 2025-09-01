@@ -11,12 +11,14 @@ from tests.reference_tests.reference_projects_test import load_reference_project
 # Session-level configuration storage
 class SessionConfig:
     """Centralized configuration that can be modified during session start."""
+
     def __init__(self) -> None:
         self.projects_dir: Path
         self.projects_conf: Path
         self.repo_url: str
         self.download_projects: bool
         self.verbose: bool
+
 
 # global session config instance
 _session_config = SessionConfig()
@@ -28,6 +30,7 @@ def config_path() -> Path:
     if _session_config.projects_conf is None:
         raise RuntimeError("Session config not initialized. This should be set in pytest_configure.")
     return _session_config.projects_conf
+
 
 @pytest.fixture(scope="session")
 def projects_dir() -> Path:
@@ -57,12 +60,14 @@ def pytest_configure(config: pytest.Config) -> None:
     _session_config.download_projects = config.getoption("--download-projects")
     _session_config.verbose = config.getoption("-v") > 0
 
-    if _session_config.download_projects:
-        if not download_reference_projects(_session_config.repo_url, _session_config.projects_dir):
-            raise AssertionError("Could not set up reference projects")
+    if _session_config.download_projects and (
+        not download_reference_projects(_session_config.repo_url, _session_config.projects_dir)
+    ):
+        raise AssertionError("Could not set up reference projects")
 
     if not _session_config.projects_conf.exists():
         raise FileNotFoundError(f"Reference projects config file not found: {_session_config.projects_conf}")
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Add custom command line options."""
@@ -70,24 +75,23 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--download-projects",
         action="store_true",
         default=True,
-        help="Download or update reference projects before running tests"
+        help="Download or update reference projects before running tests",
     )
     parser.addoption(
         "--repo-url",
         action="store",
         default="https://github.com/FPGA-Research/FABulous-demo-projects.git",
-        help="GitHub repository URL for reference projects"
+        help="GitHub repository URL for reference projects",
     )
     parser.addoption(
         "--projects-dir",
         action="store",
         default=str(Path(__file__).parent / "FABulous-demo-projects"),
-        help="Local directory for reference projects"
+        help="Local directory for reference projects",
     )
     parser.addoption(
         "--reference-projects-config",
         action="store",
         default=str(Path(__file__).parent / "FABulous-demo-projects" / "reference_projects_config.yaml"),
-        help="Reference projects configuration file path"
+        help="Reference projects configuration file path",
     )
-

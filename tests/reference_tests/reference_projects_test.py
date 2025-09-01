@@ -90,15 +90,14 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
         assert active_projects, "No active reference projects found in config."
 
-        metafunc.parametrize(
-            "project", active_projects, ids=[p.name for p in active_projects]
-        )
+        metafunc.parametrize("project", active_projects, ids=[p.name for p in active_projects])
     else:
         raise RuntimeError("No 'project' fixture found in test function.")
 
 
 def test_reference_project_execution(
-    project: ReferenceProject, tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+    project: ReferenceProject, tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test execution of reference projects with run or diff mode."""
 
     assert project.path.exists(), f"Reference project path does not exist: {project.path}"
@@ -118,8 +117,7 @@ def test_reference_project_execution(
 
     # Always check that basic commands succeeded
     assert not execution_info["commands_failed"], (
-        f"Commands failed for {project.name}: {execution_info['commands_failed']}\n"
-        f"Errors: {execution_info['errors']}"
+        f"Commands failed for {project.name}: {execution_info['commands_failed']}\nErrors: {execution_info['errors']}"
     )
 
     # Verify expected outputs exist if specified
@@ -127,9 +125,7 @@ def test_reference_project_execution(
         for expected_file in project.expected_outputs:
             file_path = test_project_path / expected_file
             assert file_path.exists(), f"Expected output file missing: {expected_file}"
-            assert file_path.stat().st_size > 0, (
-                f"Expected output file is empty: {expected_file}"
-            )
+            assert file_path.stat().st_size > 0, f"Expected output file is empty: {expected_file}"
 
     # For "run" mode, just check for errors and expected outputs
     if project.test_mode == "run":
@@ -144,9 +140,8 @@ def test_reference_project_execution(
             include_patterns = project.include_patterns
         else:
             logger.info("Using default include patterns for:")
-            if project.language == "verilog":
-                include_patterns = ["*.v", "*.sv"]
-            else:  # vhdl
+            include_patterns = ["*.v", "*.sv"]
+            if project.language != "verilog":
                 include_patterns = ["*.vhd", "*.vhdl"]
             include_patterns += ["*.csv", "*.list", "*txt", "*.bin"]
         logger.info(f"  Patterns: {include_patterns}")
@@ -161,18 +156,12 @@ def test_reference_project_execution(
         if cmp_diff:
             # Need to import _session_config here to avoid uninialized/circular import
             from tests.reference_tests.conftest import _session_config
-            diff_report = format_file_differences_report(
-                cmp_diff,
-                verbose=_session_config.verbose,
-                current_dir=test_project_path,
-                reference_dir=project.path
-            )
-            pytest.fail(
-                f"Compare project differences in {project.name}:\n{diff_report}"
-            )
 
-        logger.info(
-            f"✓ Project {project.name} passed regression testing in 'diff' mode"
-        )
+            diff_report = format_file_differences_report(
+                cmp_diff, verbose=_session_config.verbose, current_dir=test_project_path, reference_dir=project.path
+            )
+            pytest.fail(f"Compare project differences in {project.name}:\n{diff_report}")
+
+        logger.info(f"✓ Project {project.name} passed regression testing in 'diff' mode")
 
     return

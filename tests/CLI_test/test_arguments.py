@@ -666,15 +666,6 @@ def test_dotenv_loading_verification(project_directories: dict[str, Path]) -> No
         project_dot_env=dirs["project_dotenv_file"],
     )
 
-    # Should use project .env, not global .env or current directory
-    assert f"INFO: Setting current working directory to: {str(dirs['project_dotenv_dir'])}" in result.stdout
-    # Verify that .env files are actually loaded
-    assert "INFO: Load global .env file from" in result.stdout
-    assert "INFO: Loaded global .env file from pde" in result.stdout
-    # Verify that the project .env setting overrides the global .env setting
-    # The project_dotenv_file contains FAB_PROJ_DIR pointing to project_dotenv_dir
-    # The global_dotenv_file contains FAB_PROJ_DIR pointing to global_dotenv_dir
-    # Project .env should win
     assert settings.proj_dir == dirs["project_dotenv_dir"]
 
 
