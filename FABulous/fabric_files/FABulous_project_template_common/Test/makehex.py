@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert binary file to hex format for memory initialization.
+"""Convert a binary file to hex format for memory initialization.
 
 This is free and unencumbered software released into the public domain.
 

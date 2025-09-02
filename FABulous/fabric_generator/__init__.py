@@ -1,7 +1,7 @@
 """FABulous fabric generator module.
 
 This module provides functionality for generating FPGA fabric implementations from
-fabric definitions. It includes code generators for different HDL languages and
+fabric definitions. It includes code generators for different HDLs and
 tools for generating various fabric components.
 
 The fabric generator consists of:

@@ -8,7 +8,7 @@ Key features:
 - Individual tile RTL generation with BEL instantiation
 - Switch matrix integration and port mapping
 - Configuration data routing and management
-- Super tile wrapper generation for hierarchical designs
+- Supertile wrapper generation for hierarchical designs
 - Support for both VHDL and Verilog code generation
 - External I/O port handling and clock distribution
 """
@@ -559,8 +559,8 @@ def generateSuperTile(
     """Generate a super tile wrapper for given super tile.
 
     Creates a hierarchical wrapper that instantiates multiple individual tiles
-    and manages their interconnections. The super tile handles:
-    - Internal tile-to-tile connections within the super tile
+    and manages their interconnections. The supertile handles:
+    - Internal tile-to-tile connections within the supertile
     - External port mapping to fabric-level connections
     - Configuration data distribution to sub-tiles
     - Clock signal routing and buffering

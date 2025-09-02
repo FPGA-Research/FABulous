@@ -138,7 +138,7 @@ class VHDLCodeGenerator(CodeGenerator):
             name: Port name
             io: Input/output direction
             _reg: Register flag (unused in VHDL)
-            attribute: Additional attributes to add as comment
+            attribute: Additional attributes to add as a comment
             indentLevel: The indentation level
         """
         ioVHDL = ""
@@ -168,7 +168,7 @@ class VHDLCodeGenerator(CodeGenerator):
             io: Input/output direction
             msbIndex: Most significant bit index
             _reg: Register flag (unused in VHDL)
-            attribute: Additional attributes to add as comment
+            attribute: Additional attributes to add as a comment
             indentLevel: The indentation level
         """
         ioVHDL = ""
@@ -408,7 +408,7 @@ end process;
         self.addNewLine()
 
     def addComponentDeclarationForFile(self, fileName: str | Path) -> int:
-        """Add component declaration extracted from VHDL file.
+        """Add a component declaration extracted from the VHDL file.
 
         Args:
             fileName: Path to the VHDL file to extract component from
@@ -417,7 +417,7 @@ end process;
         -------
             1 if component uses configuration bits, 0 otherwise
         """
-        configPortUsed = 0  # 1 means is used
+        configPortUsed = 0
         with Path(fileName).open() as f:
             data = f.read()
 
@@ -489,7 +489,9 @@ CONFout <= ConfigBits(ConfigBits'high);
         self._add(template, indentLevel)
 
     def addPreprocIfDef(self, _macro: str, _indentLevel: int = 0) -> Never:
-        """VHDL does not support preprocessor directives.
+        """Define to keep parity with Verilog.
+
+        VHDL does not support preprocessor directives.
 
         Args:
             _macro: Macro name (unused)
@@ -502,7 +504,9 @@ CONFout <= ConfigBits(ConfigBits'high);
         raise AssertionError("preprocessor not supported in VHDL")
 
     def addPreprocIfNotDef(self, _macro: str, _indentLevel: int = 0) -> Never:
-        """VHDL does not support preprocessor directives.
+        """Define to keep parity with Verilog.
+
+        VHDL does not support preprocessor directives.
 
         Args:
             _macro: Macro name (unused)
@@ -515,7 +519,9 @@ CONFout <= ConfigBits(ConfigBits'high);
         raise AssertionError("preprocessor not supported in VHDL")
 
     def addPreprocElse(self, _indentLevel: int = 0) -> Never:
-        """VHDL does not support preprocessor directives.
+        """Define to keep parity with Verilog.
+
+        VHDL does not support preprocessor directives.
 
         Args:
             _indentLevel: Indentation level (unused)
@@ -527,7 +533,9 @@ CONFout <= ConfigBits(ConfigBits'high);
         raise AssertionError("preprocessor not supported in VHDL")
 
     def addPreprocEndif(self, _indentLevel: int = 0) -> Never:
-        """VHDL does not support preprocessor directives.
+        """Define to keep parity with Verilog.
+
+        VHDL does not support preprocessor directives.
 
         Args:
             _indentLevel: Indentation level (unused)
@@ -541,7 +549,7 @@ CONFout <= ConfigBits(ConfigBits'high);
     def addBelMapAttribute(
         self, configBitValues: list[tuple[str, int]], indentLevel: int = 0
     ) -> None:
-        """Add BEL mapping attribute as VHDL comment.
+        """Add the BEL mapping attribute as a VHDL comment.
 
         Args:
             configBitValues: List of (name, count) pairs for configuration bits

@@ -9,7 +9,7 @@ Key features:
 - Flat fabric instantiation with direct tile-to-tile connections
 - Support for both FlipFlop chain and Frame-based configuration
 - External I/O port handling for BEL connections
-- SuperTile support for hierarchical tile organization
+- Supertile support for hierarchical tile organization
 - Configuration data distribution and management
 """
 

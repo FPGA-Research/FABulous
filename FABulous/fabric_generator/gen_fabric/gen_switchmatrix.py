@@ -42,7 +42,7 @@ def genTileSwitchMatrix(
     """Generate the RTL code for the tile switch matrix.
 
     The switch matrix generated will be based on the `matrixDir` attribute of the
-    tile. If the given file format is CSV, it will be parsed as a switch matrix CSV
+    tile. If the given file format is `.csv`, it will be parsed as a switch matrix `.csv`
     file. If the given file format is `.list`, the tool will convert the `.list` file
     into a switch matrix with specific ordering first before progressing. If the given
     file format is Verilog or VHDL, then the function will not generate anything.

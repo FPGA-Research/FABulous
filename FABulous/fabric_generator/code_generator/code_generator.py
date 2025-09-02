@@ -13,7 +13,7 @@ class CodeGenerator(abc.ABC):
 
     @property
     def outFileName(self) -> Path:
-        """Get the output file name.
+        """Get the output file path.
 
         Returns
         -------
@@ -45,7 +45,7 @@ class CodeGenerator(abc.ABC):
         """Write the content to the output file.
 
         Writes all content strings to the specified output file,
-        filtering out None values. Clears content after writing.
+        filtering out `None` values. Clears content after writing.
 
         Raises
         ------
@@ -62,7 +62,7 @@ class CodeGenerator(abc.ABC):
 
     @outFileName.setter
     def outFileName(self, outFileName: Path) -> None:
-        """Set the output file name.
+        """Set the output file path.
 
         Parameters
         ----------
@@ -494,9 +494,9 @@ class CodeGenerator(abc.ABC):
     ) -> None:
         """Add an instantiation.
 
-        This will line up the ports and signals. So ports[0] will have signals[0] and so on.
+        Align ports and signals such that `ports[i]` corresponds to `signals[i]` for all indices i.
 
-        This is also the same case for paramPorts and paramSignals.
+        This is also the same case for `paramPorts` and `paramSignals`.
 
         Parameters
         ----------
@@ -645,7 +645,7 @@ class CodeGenerator(abc.ABC):
     ) -> None:
         """Add a scalar assign statement.
 
-        Delay is provided by currently not being used by any of the code generator. If **right** is a list, it will be concatenated.
+        Delay is provided by currently not being used by any of the code generator. If `right` is a list, it will be concatenated.
         Verilog will concatenate with comma ','. VHDL will concatenate with ampersand
         '&' instead.
 

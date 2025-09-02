@@ -64,9 +64,7 @@ def parseBelFile(
     filename: Path,
     belPrefix: str = "",
 ) -> Bel:
-    """Parse a Verilog or VHDL bel file and return related information of the bel.
-
-    The tuple returned for relating to ports will be a list of (belName, IO) pair.
+    """Parse a Verilog or VHDL BEL file and return related information of the BEL.
 
     The function will also parse and record all the FABulous attribute which all
     starts with ::

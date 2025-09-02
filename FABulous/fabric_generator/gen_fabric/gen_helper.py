@@ -69,7 +69,7 @@ def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
 
 
 def list2CSV(InFileName: Path, OutFileName: Path) -> None:
-    """Export a list file into its equivalent CSV switch matrix description.
+    """Export a list file into its equivalent CSV switch matrix representation.
 
     A comment will be appended to the end of the column and
     row of the matrix, which will indicate the number of signals in a given row.
@@ -156,7 +156,7 @@ def list2CSV(InFileName: Path, OutFileName: Path) -> None:
 
 
 def CSV2list(InFileName: str, OutFileName: str) -> None:
-    """Export a CSV switch matrix description into its equivalent list description.
+    """Export a CSV switch matrix description into its equivalent list representation.
 
     Parameters
     ----------

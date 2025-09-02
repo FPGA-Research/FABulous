@@ -30,9 +30,9 @@ def generateCustomTileConfig(tile_path: Path) -> Path:
     """Generate a custom tile configuration.
 
     A tile .csv file and a switch matrix .list file will be generated based on
-    the given tile folder or path to bel folder.
+    the given tile folder or the path to the BEL folder.
 
-    The provided path may contain bel files, which will be included
+    The provided path may contain BEL files, which will be included
     in the generated tile .csv file as well as the generated
     switch matrix .list file.
 
@@ -157,11 +157,11 @@ def generateSwitchmatrixList(
     carryportsTile: dict[str, dict[IO, str]],
     localSharedPortsTile: dict[str, list[Port]],
 ) -> None:
-    """Generate a switchmatrix list file for a given tile and its bels.
+    """Generate a switch matrix list file for a given tile and its BELs.
 
     The list file is based on a dummy list file, derived from the LUT4AB switch matrix
     list file. It is also possible to automatically generate connections for carry
-    chains between the bels.
+    chains between the BELs.
 
     Parameters
     ----------
@@ -386,6 +386,7 @@ def addBelsToPrim(
             Boolean to support vectors for ports in the prims file
             Default False,
             since the FABulous nextpn integration does not support vectors
+
     Raises
     ------
         FileNotFoundError :

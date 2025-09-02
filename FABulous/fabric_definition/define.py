@@ -1,7 +1,7 @@
 """Fabric definition enumerations and constants.
 
-This module defines various enumerations used throughout the FABulous FPGA toolkit for
-fabric definition, including I/O types, directions, sides, and configuration modes.
+This module defines various enumerations used throughout FABulous for fabric definition,
+including I/O types, directions, sides, and configuration modes.
 """
 
 from enum import Enum
@@ -63,8 +63,9 @@ class MultiplexerStyle(Enum):
     """Enumeration for multiplexer implementation styles.
 
     Defines how multiplexers are implemented in the fabric:
-    - CUSTOM: Custom multiplexer implementations which use instantiation
-    - GENERIC: Generic/standard multiplexer implementations which uses behavioral modeling
+    - CUSTOM:  Custom multiplexer implementations which instantiate a custom multiplexer layout.
+    - GENERIC: Generic/standard multiplexer implementations which uses behavioral modeling and will use standard cells
+               in the physical implementation.
     """
 
     CUSTOM = "CUSTOM"

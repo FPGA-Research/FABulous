@@ -30,7 +30,7 @@ class VerilogCodeGenerator(CodeGenerator):
             self._add(f"{' ':<{indentLevel * 4}}" + f"// {comment}{end}")
 
     def addHeader(self, name: str, _package: str = "", indentLevel: int = 0) -> None:
-        """Add Verilog module header.
+        """Add the Verilog module header.
 
         Args:
             name: Module name
@@ -128,7 +128,7 @@ class VerilogCodeGenerator(CodeGenerator):
         Args:
             name: Port name
             io: Input/output direction
-            reg: Whether port should be declared as reg type
+            reg: Whether the port should be declared as a `reg` type
             attribute: Additional attributes to add as Verilog attribute
             indentLevel: The indentation level
         """
@@ -153,7 +153,7 @@ class VerilogCodeGenerator(CodeGenerator):
             name: Port name
             io: Input/output direction
             msbIndex: Most significant bit index
-            reg: Whether port should be declared as reg type
+            reg: Whether port should be declared as `reg` type
             attribute: Additional attributes to add as Verilog attribute
             indentLevel: The indentation level
         """
@@ -194,11 +194,12 @@ class VerilogCodeGenerator(CodeGenerator):
     def addConnectionScalar(
         self, name: str, reg: bool = False, indentLevel: int = 0
     ) -> None:
-        """Add a scalar wire or reg declaration.
+        """Add a scalar `wire` or `reg` declaration.
 
         Args:
             name: Signal name
-            reg: Whether to declare as reg type
+            reg: If True, the connection will be declared as a `reg` type.
+                 If False, the connection will be declared as a `wire`. Defaults to False.
             indentLevel: The indentation level
         """
         con_type = "reg" if reg else "wire"
@@ -218,7 +219,7 @@ class VerilogCodeGenerator(CodeGenerator):
             name: Signal name
             startIndex: Start index (MSB)
             endIndex: End index (LSB)
-            reg: Whether to declare as reg type
+            reg: Whether to declare as `reg` type
             indentLevel: The indentation level
         """
         con_type = "reg" if reg else "wire"
@@ -411,7 +412,7 @@ end
             left: Left-hand side signal
             right: Right-hand side signal or expression
             delay: Delay (unused in Verilog implementation)
-            indentLevel: The indentation level
+            inverted: Whether to invert the right-hand side of the expression
             inverted: Whether to invert the right-hand side
         """
         inv = "~" if inverted else ""
@@ -436,14 +437,14 @@ end
             right: Right-hand side signal
             widthL: Upper bound of slice
             widthR: Lower bound of slice
-            indentLevel: The indentation level
+            inverted: Whether to invert the right-hand side of the expression
             inverted: Whether to invert the right-hand side
         """
         inv = "~" if inverted else ""
         self._add(f"assign {left} = {inv}{right}[{widthL}:{widthR}];", indentLevel)
 
     def addPreprocIfDef(self, macro: str, indentLevel: int = 0) -> None:
-        """Add an ifdef preprocessor directive.
+        """Add an `ifdef` preprocessor directive.
 
         Args:
             macro: Macro name to check
@@ -452,7 +453,7 @@ end
         self._add(f"`ifdef {macro}", indentLevel)
 
     def addPreprocIfNotDef(self, macro: str, indentLevel: int = 0) -> None:
-        """Add an ifndef preprocessor directive.
+        """Add an `ifndef` preprocessor directive.
 
         Args:
             macro: Macro name to check
@@ -461,7 +462,7 @@ end
         self._add(f"`ifndef {macro}", indentLevel)
 
     def addPreprocElse(self, indentLevel: int = 0) -> None:
-        """Add an else preprocessor directive.
+        """Add an `else` preprocessor directive.
 
         Args:
             indentLevel: The indentation level
@@ -469,7 +470,7 @@ end
         self._add("`else", indentLevel)
 
     def addPreprocEndif(self, indentLevel: int = 0) -> None:
-        """Add an endif preprocessor directive.
+        """Add an `endif` preprocessor directive.
 
         Args:
             indentLevel: The indentation level
@@ -479,7 +480,7 @@ end
     def addBelMapAttribute(
         self, configBitValues: list[tuple[str, int]], indentLevel: int = 0
     ) -> None:
-        """Add BEL mapping attribute as Verilog attribute.
+        """Add the BEL mapping attribute as a Verilog attribute.
 
         Args:
             configBitValues: List of (name, count) pairs for configuration bits
