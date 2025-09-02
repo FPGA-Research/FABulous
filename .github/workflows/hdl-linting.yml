@@ -7,7 +7,7 @@ jobs:
   format-verilog:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: ./.github/actions/prepare_FABulous_container
     - uses: chipsalliance/verible-formatter-action@main
       with:
@@ -15,7 +15,7 @@ jobs:
   lint-verilog:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: ./.github/actions/prepare_FABulous_container
     - uses: chipsalliance/verible-linter-action@main
       with:
@@ -23,15 +23,15 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
     - name: Run Verilog Linter
       run: |
-        FABulous -c demo
+        uv run FABulous -c demo
         verilator --lint-only demo/**/*.v
 
   lint-vhdl:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: ./.github/actions/prepare_FABulous_container
     - name: Run VHDL Linter
       run: | 
-        FABulous -c demo_vhdl -w vhdl
+        uv run FABulous -c demo_vhdl -w vhdl
         ghdl -s --std=08 demo_vhdl/**/*.vhdl
