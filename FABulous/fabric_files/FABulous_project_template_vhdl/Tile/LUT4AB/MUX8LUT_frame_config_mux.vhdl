@@ -60,133 +60,143 @@ begin
 
   --AB <= A when (S(0) = '0') else B;
   cus_mux21_AB : entity work.cus_mux21
-  port map
-  (
-    A0 => A,
-    A1 => B,
-    S  => S(0),
-    X  => AB
-  );
+    port map
+    (
+      A0 => A,
+      A1 => B,
+      S  => S(0),
+      X  => AB
+    );
 
   --CD <= C when (sCD = '0') else D;
   cus_mux21_CD : entity work.cus_mux21
-  port map
-  (
-    A0 => C,
-    A1 => D,
-    S  => sCD,
-    X  => CD
-  );
+    port map
+    (
+      A0 => C,
+      A1 => D,
+      S  => sCD,
+      X  => CD
+    );
 
   --EF <= E when (sEF = '0') else F;
   cus_mux21_EF : entity work.cus_mux21
-  port map
-  (
-    A0 => E,
-    A1 => F,
-    S  => sEF,
-    X  => EF
-  );
+    port map
+    (
+      A0 => E,
+      A1 => F,
+      S  => sEF,
+      X  => EF
+    );
 
   --GH <= G when (sGH = '0') else H;
   cus_mux21_GH : entity work.cus_mux21
-  port map
-  (
-    A0 => G,
-    A1 => H,
-    S  => sGH,
-    X  => GH
-  );
+    port map
+    (
+      A0 => G,
+      A1 => H,
+      S  => sGH,
+      X  => GH
+    );
 
   -- sCD <= S(1) when (c0 = '0') else S(0);
   cus_mux21_sCD : entity work.cus_mux21
-  port map
-  (
-    A0 => S(1),
-    A1 => S(0),
-    S  => c0,
-    X  => sCD
-  );
+    port map
+    (
+      A0 => S(1),
+      A1 => S(0),
+      S  => c0,
+      X  => sCD
+    );
 
   -- sEF <= S(2) when (c1 = '0') else S(0);
   cus_mux21_sEF : entity work.cus_mux21
-  port map
-  (
-    A0 => S(2),
-    A1 => S(0),
-    S  => c1,
-    X  => sEF
-  );
+    port map
+    (
+      A0 => S(2),
+      A1 => S(0),
+      S  => c1,
+      X  => sEF
+    );
 
   -- sGH <= sEH when (c0 = '0') else sEF;
   cus_mux21_sGH : entity work.cus_mux21
-  port map
-  (
-    A0 => sEH,
-    A1 => sEF,
-    S  => c0,
-    X  => sGH
-  );
+    port map
+    (
+      A0 => sEH,
+      A1 => sEF,
+      S  => c0,
+      X  => sGH
+    );
 
   -- sEH <= S(3) when (c1 = '0') else S(1);
   cus_mux21_sEH : entity work.cus_mux21
-  port map
-  (
-    A0 => S(3),
-    A1 => S(1),
-    S  => c1,
-    X  => sEH
-  );
+    port map
+    (
+      A0 => S(3),
+      A1 => S(1),
+      S  => c1,
+      X  => sEH
+    );
 
   -- AD <= AB when (S(1) = '0') else CD;
   cus_mux21_AD : entity work.cus_mux21
-  port map
-  (
-    A0 => AB,
-    A1 => CD,
-    S  => s(1),
-    X  => AD
-  );
+    port map
+    (
+      A0 => AB,
+      A1 => CD,
+      S  => s(1),
+      X  => AD
+    );
   -- EH <= EF when (sEH = '0') else GH;
   cus_mux21_EH : entity work.cus_mux21
-  port map
-  (
-    A0 => EF,
-    A1 => GH,
-    S  => sEH,
-    X  => EH
-  );
+    port map
+    (
+      A0 => EF,
+      A1 => GH,
+      S  => sEH,
+      X  => EH
+    );
 
   -- AH <= AD when (S(3) = '0') else EH;
   cus_mux21_AH : entity work.cus_mux21
-  port map
-  (
-    A0 => AD,
-    A1 => EH,
-    S  => S(3),
-    X  => AH
-  );
+    port map
+    (
+      A0 => AD,
+      A1 => EH,
+      S  => S(3),
+      X  => AH
+    );
+
+  -- EH_GH <= GH when (c0 = '0') else EH;
+  cus_mux21_EH_GH : entity work.cus_mux21
+    port map
+    (
+      A0 => GH,
+      A1 => EH,
+      S  => c0,
+      X  => EH_GH
+    );
 
   M_AB <= AB;
 
   -- M_AD <= CD when (c0 = '0') else AD;
   cus_mux21_M_AD : entity work.cus_mux21
-  port map
-  (
-    A0 => CD,
-    A1 => AD,
-    S  => c0,
-    X  => M_AD
-  );
+    port map
+    (
+      A0 => CD,
+      A1 => AD,
+      S  => c0,
+      X  => M_AD
+    );
   -- M_AH <= EH_GH when (c1 = '0') else AH;
   cus_mux21_M_AH : entity work.cus_mux21
-  port map
-  (
-    A0 => EH_GH,
-    A1 => AH,
-    S  => c1,
-    X  => M_AH
-  );
+    port map
+    (
+      A0 => EH_GH,
+      A1 => AH,
+      S  => c1,
+      X  => M_AH
+    );
   M_EF <= EF;
 
 end architecture Behavioral;

@@ -4,9 +4,9 @@ use ieee.numeric_std.all;
 
 entity LHQD1 is
   port (
-    D : in std_logic;
-    E : in std_logic;
-    Q : out std_logic;
+    D  : in std_logic;
+    E  : in std_logic;
+    Q  : out std_logic;
     QN : out std_logic
   );
 end entity;
@@ -16,7 +16,7 @@ begin
   process (E, D) is
   begin
     if E = '1' then
-      Q <= D;
+      Q  <= D;
       QN <= not D;
     end if;
   end process;
@@ -28,7 +28,7 @@ use ieee.numeric_std.all;
 
 entity MUX16PTv2 is
   port (
-    IN1 : in std_logic;
+    IN1  : in std_logic;
     IN10 : in std_logic;
     IN11 : in std_logic;
     IN12 : in std_logic;
@@ -36,19 +36,19 @@ entity MUX16PTv2 is
     IN14 : in std_logic;
     IN15 : in std_logic;
     IN16 : in std_logic;
-    IN2 : in std_logic;
-    IN3 : in std_logic;
-    IN4 : in std_logic;
-    IN5 : in std_logic;
-    IN6 : in std_logic;
-    IN7 : in std_logic;
-    IN8 : in std_logic;
-    IN9 : in std_logic;
-    O : out std_logic;
-    S1 : in std_logic;
-    S2 : in std_logic;
-    S3 : in std_logic;
-    S4 : in std_logic
+    IN2  : in std_logic;
+    IN3  : in std_logic;
+    IN4  : in std_logic;
+    IN5  : in std_logic;
+    IN6  : in std_logic;
+    IN7  : in std_logic;
+    IN8  : in std_logic;
+    IN9  : in std_logic;
+    O    : out std_logic;
+    S1   : in std_logic;
+    S2   : in std_logic;
+    S3   : in std_logic;
+    S4   : in std_logic
   );
 end entity;
 
@@ -61,16 +61,16 @@ architecture from_verilog of MUX16PTv2 is
     variable r : std_logic;
   begin
     r := a when s = '0' else
-         b when s = '1' else
-         a when a = b else -- case when S is undefined, but it's don't care because a and b are the same
-         'U';
+      b when s = '1' else
+      a when a = b else -- case when S is undefined, but it's don't care because a and b are the same
+      'U';
     return r;
   end function;
 begin
   a0 <= f_mux2(IN15, IN16, S1) & f_mux2(IN13, IN14, S1) & f_mux2(IN11, IN12, S1) & f_mux2(IN9, IN10, S1) & f_mux2(IN7, IN8, S1) & f_mux2(IN5, IN6, S1) & f_mux2(IN3, IN4, S1) & f_mux2(IN1, IN2, S1);
   a1 <= f_mux2(a0(6), a0(7), S2) & f_mux2(a0(4), a0(5), S2) & f_mux2(a0(2), a0(3), S2) & f_mux2(a0(0), a0(1), S2);
   a2 <= f_mux2(a1(2), a1(3), S3) & f_mux2(a1(0), a1(1), S3);
-  O <= f_mux2(a2(0), a2(1), S4) ;
+  O  <= f_mux2(a2(0), a2(1), S4);
 end architecture;
 
 library ieee;
@@ -83,9 +83,9 @@ entity MUX4PTv4 is
     IN2 : in std_logic;
     IN3 : in std_logic;
     IN4 : in std_logic;
-    O : out std_logic;
-    S1 : in std_logic;
-    S2 : in std_logic
+    O   : out std_logic;
+    S1  : in std_logic;
+    S2  : in std_logic
   );
 end entity;
 
@@ -95,11 +95,11 @@ begin
   SEL <= S2 & S1;
 
   with SEL select
-    O <= IN1  when "00",
-         IN2  when "01",
-         IN3  when "10",
-         IN4  when "11",
-         '0'  when others ;
+    O <= IN1 when "00",
+    IN2 when "01",
+    IN3 when "10",
+    IN4 when "11",
+    '0' when others;
 
 end architecture;
 
@@ -109,31 +109,31 @@ use ieee.numeric_std.all;
 
 entity cus_mux161 is
   port (
-    A0 : in std_logic;
-    A1 : in std_logic;
+    A0  : in std_logic;
+    A1  : in std_logic;
     A10 : in std_logic;
     A11 : in std_logic;
     A12 : in std_logic;
     A13 : in std_logic;
     A14 : in std_logic;
     A15 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    A4 : in std_logic;
-    A5 : in std_logic;
-    A6 : in std_logic;
-    A7 : in std_logic;
-    A8 : in std_logic;
-    A9 : in std_logic;
-    S0 : in std_logic;
+    A2  : in std_logic;
+    A3  : in std_logic;
+    A4  : in std_logic;
+    A5  : in std_logic;
+    A6  : in std_logic;
+    A7  : in std_logic;
+    A8  : in std_logic;
+    A9  : in std_logic;
+    S0  : in std_logic;
     S0N : in std_logic;
-    S1 : in std_logic;
+    S1  : in std_logic;
     S1N : in std_logic;
-    S2 : in std_logic;
+    S2  : in std_logic;
     S2N : in std_logic;
-    S3 : in std_logic;
+    S3  : in std_logic;
     S3N : in std_logic;
-    X : out std_logic
+    X   : out std_logic
   );
 end entity;
 
@@ -145,85 +145,90 @@ architecture from_verilog of cus_mux161 is
 
   component cus_mux41 is
     port (
-      A0 : in std_logic;
-      A1 : in std_logic;
-      A2 : in std_logic;
-      A3 : in std_logic;
-      S0 : in std_logic;
+      A0  : in std_logic;
+      A1  : in std_logic;
+      A2  : in std_logic;
+      A3  : in std_logic;
+      S0  : in std_logic;
       S0N : in std_logic;
-      S1 : in std_logic;
+      S1  : in std_logic;
       S1N : in std_logic;
-      X : out std_logic
+      X   : out std_logic
     );
   end component;
   signal X_Readable : std_logic;
 begin
 
-  cus_mux41_inst0: cus_mux41
-    port map (
-      A0 => A0,
-      A1 => A1,
-      A2 => A2,
-      A3 => A3,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_out0
-    );
+  cus_mux41_inst0 : cus_mux41
+  port map
+  (
+    A0  => A0,
+    A1  => A1,
+    A2  => A2,
+    A3  => A3,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_out0
+  );
 
-  cus_mux41_inst1: cus_mux41
-    port map (
-      A0 => A4,
-      A1 => A5,
-      A2 => A6,
-      A3 => A7,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_out1
-    );
+  cus_mux41_inst1 : cus_mux41
+  port map
+  (
+    A0  => A4,
+    A1  => A5,
+    A2  => A6,
+    A3  => A7,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_out1
+  );
 
-  cus_mux41_inst2: cus_mux41
-    port map (
-      A0 => A8,
-      A1 => A9,
-      A2 => A10,
-      A3 => A11,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_out2
-    );
+  cus_mux41_inst2 : cus_mux41
+  port map
+  (
+    A0  => A8,
+    A1  => A9,
+    A2  => A10,
+    A3  => A11,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_out2
+  );
 
-  cus_mux41_inst3: cus_mux41
-    port map (
-      A0 => A12,
-      A1 => A13,
-      A2 => A14,
-      A3 => A15,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_out3
-    );
+  cus_mux41_inst3 : cus_mux41
+  port map
+  (
+    A0  => A12,
+    A1  => A13,
+    A2  => A14,
+    A3  => A15,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_out3
+  );
   X <= X_Readable;
 
-  cus_mux41_inst4: cus_mux41
-    port map (
-      A0 => cus_mux41_out0,
-      A1 => cus_mux41_out1,
-      A2 => cus_mux41_out2,
-      A3 => cus_mux41_out3,
-      S0 => S2,
-      S0N => S2N,
-      S1 => S3,
-      S1N => S3N,
-      X => X_Readable
-    );
+  cus_mux41_inst4 : cus_mux41
+  port map
+  (
+    A0  => cus_mux41_out0,
+    A1  => cus_mux41_out1,
+    A2  => cus_mux41_out2,
+    A3  => cus_mux41_out3,
+    S0  => S2,
+    S0N => S2N,
+    S1  => S3,
+    S1N => S3N,
+    X   => X_Readable
+  );
 end architecture;
 
 library ieee;
@@ -248,56 +253,62 @@ use ieee.numeric_std.all;
 
 entity cus_mux41 is
   port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    S0 : in std_logic;
+    A0  : in std_logic;
+    A1  : in std_logic;
+    A2  : in std_logic;
+    A3  : in std_logic;
+    S0  : in std_logic;
     S0N : in std_logic;
-    S1 : in std_logic;
+    S1  : in std_logic;
     S1N : in std_logic;
-    X : out std_logic
+    X   : out std_logic
   );
 end entity;
 
 architecture from_verilog of cus_mux41 is
   signal AIN : std_logic_vector(3 downto 0);
-  signal B0 : std_logic;
-  signal B1 : std_logic;
+  signal B0  : std_logic;
+  signal B1  : std_logic;
 
   component break_comb_loop is
-  port
-  (
-    A : in std_logic;
-    X : out std_logic
-  );
+    port (
+      A : in std_logic;
+      X : out std_logic
+    );
   end component;
 
 begin
-  break_comb_loop_inst0: break_comb_loop
-    port map (
-      A => A0,
-      X => AIN(0)
-    );
-  break_comb_loop_inst1: break_comb_loop
-    port map (
-      A => A1,
-      X => AIN(1)
-    );
-  break_comb_loop_inst2: break_comb_loop
-    port map (
-      A => A2,
-      X => AIN(2)
-    );
-  break_comb_loop_inst3: break_comb_loop
-    port map (
-      A => A3,
-      X => AIN(3)
-    );
+  break_comb_loop_inst0 : break_comb_loop
+  port map
+  (
+    A => A0,
+    X => AIN(0)
+  );
+  break_comb_loop_inst1 : break_comb_loop
+  port map
+  (
+    A => A1,
+    X => AIN(1)
+  );
+  break_comb_loop_inst2 : break_comb_loop
+  port map
+  (
+    A => A2,
+    X => AIN(2)
+  );
+  break_comb_loop_inst3 : break_comb_loop
+  port map
+  (
+    A => A3,
+    X => AIN(3)
+  );
 
-  B0 <= AIN(1) when S0 = '1' else AIN(0);
-  B1 <= AIN(3) when S0 = '1' else AIN(2);
-  X <= B1 when S1 = '1' else B0;
+  B0 <= AIN(1) when S0 = '1' else
+    AIN(0);
+  B1 <= AIN(3) when S0 = '1' else
+    AIN(2);
+  X <= B1 when S1 = '1' else
+    B0;
 
 end architecture;
 
@@ -307,31 +318,31 @@ use ieee.numeric_std.all;
 
 entity cus_mux161_buf is
   port (
-    A0 : in std_logic;
-    A1 : in std_logic;
+    A0  : in std_logic;
+    A1  : in std_logic;
     A10 : in std_logic;
     A11 : in std_logic;
     A12 : in std_logic;
     A13 : in std_logic;
     A14 : in std_logic;
     A15 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    A4 : in std_logic;
-    A5 : in std_logic;
-    A6 : in std_logic;
-    A7 : in std_logic;
-    A8 : in std_logic;
-    A9 : in std_logic;
-    S0 : in std_logic;
+    A2  : in std_logic;
+    A3  : in std_logic;
+    A4  : in std_logic;
+    A5  : in std_logic;
+    A6  : in std_logic;
+    A7  : in std_logic;
+    A8  : in std_logic;
+    A9  : in std_logic;
+    S0  : in std_logic;
     S0N : in std_logic;
-    S1 : in std_logic;
+    S1  : in std_logic;
     S1N : in std_logic;
-    S2 : in std_logic;
+    S2  : in std_logic;
     S2N : in std_logic;
-    S3 : in std_logic;
+    S3  : in std_logic;
     S3N : in std_logic;
-    X : out std_logic
+    X   : out std_logic
   );
 end entity;
 
@@ -344,84 +355,89 @@ architecture from_verilog of cus_mux161_buf is
 
   component cus_mux41_buf is
     port (
-      A0 : in std_logic;
-      A1 : in std_logic;
-      A2 : in std_logic;
-      A3 : in std_logic;
-      S0 : in std_logic;
+      A0  : in std_logic;
+      A1  : in std_logic;
+      A2  : in std_logic;
+      A3  : in std_logic;
+      S0  : in std_logic;
       S0N : in std_logic;
-      S1 : in std_logic;
+      S1  : in std_logic;
       S1N : in std_logic;
-      X : out std_logic
+      X   : out std_logic
     );
   end component;
   signal X_Readable : std_logic;
 begin
-  cus_mux41_buf_inst0: cus_mux41_buf
-    port map (
-      A0 => A0,
-      A1 => A1,
-      A2 => A2,
-      A3 => A3,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_buf_out0
-    );
+  cus_mux41_buf_inst0 : cus_mux41_buf
+  port map
+  (
+    A0  => A0,
+    A1  => A1,
+    A2  => A2,
+    A3  => A3,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_buf_out0
+  );
 
-  cus_mux41_buf_inst1: cus_mux41_buf
-    port map (
-      A0 => A4,
-      A1 => A5,
-      A2 => A6,
-      A3 => A7,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_buf_out1
-    );
+  cus_mux41_buf_inst1 : cus_mux41_buf
+  port map
+  (
+    A0  => A4,
+    A1  => A5,
+    A2  => A6,
+    A3  => A7,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_buf_out1
+  );
 
-  cus_mux41_buf_inst2: cus_mux41_buf
-    port map (
-      A0 => A8,
-      A1 => A9,
-      A2 => A10,
-      A3 => A11,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_buf_out2
-    );
+  cus_mux41_buf_inst2 : cus_mux41_buf
+  port map
+  (
+    A0  => A8,
+    A1  => A9,
+    A2  => A10,
+    A3  => A11,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_buf_out2
+  );
 
-  cus_mux41_buf_inst3: cus_mux41_buf
-    port map (
-      A0 => A12,
-      A1 => A13,
-      A2 => A14,
-      A3 => A15,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_buf_out3
-    );
+  cus_mux41_buf_inst3 : cus_mux41_buf
+  port map
+  (
+    A0  => A12,
+    A1  => A13,
+    A2  => A14,
+    A3  => A15,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_buf_out3
+  );
   X <= X_Readable;
 
-  cus_mux41_buf_inst4: cus_mux41_buf
-    port map (
-      A0 => cus_mux41_buf_out0,
-      A1 => cus_mux41_buf_out1,
-      A2 => cus_mux41_buf_out2,
-      A3 => cus_mux41_buf_out3,
-      S0 => S2,
-      S0N => S2N,
-      S1 => S3,
-      S1N => S3N,
-      X => X_Readable
-    );
+  cus_mux41_buf_inst4 : cus_mux41_buf
+  port map
+  (
+    A0  => cus_mux41_buf_out0,
+    A1  => cus_mux41_buf_out1,
+    A2  => cus_mux41_buf_out2,
+    A3  => cus_mux41_buf_out3,
+    S0  => S2,
+    S0N => S2N,
+    S1  => S3,
+    S1N => S3N,
+    X   => X_Readable
+  );
 end architecture;
 
 library ieee;
@@ -430,56 +446,62 @@ use ieee.numeric_std.all;
 
 entity cus_mux41_buf is
   port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    S0 : in std_logic;
+    A0  : in std_logic;
+    A1  : in std_logic;
+    A2  : in std_logic;
+    A3  : in std_logic;
+    S0  : in std_logic;
     S0N : in std_logic;
-    S1 : in std_logic;
+    S1  : in std_logic;
     S1N : in std_logic;
-    X : out std_logic
+    X   : out std_logic
   );
 end entity;
 
 architecture from_verilog of cus_mux41_buf is
   signal AIN : std_logic_vector(3 downto 0);
-  signal B0 : std_logic;
-  signal B1 : std_logic;
+  signal B0  : std_logic;
+  signal B1  : std_logic;
 
   component break_comb_loop is
-  port
-  (
-    A : in std_logic;
-    X : out std_logic
-  );
+    port (
+      A : in std_logic;
+      X : out std_logic
+    );
   end component;
 
 begin
-  break_comb_loop_inst0: break_comb_loop
-    port map (
-      A => A0,
-      X => AIN(0)
-    );
-  break_comb_loop_inst1: break_comb_loop
-    port map (
-      A => A1,
-      X => AIN(1)
-    );
-  break_comb_loop_inst2: break_comb_loop
-    port map (
-      A => A2,
-      X => AIN(2)
-    );
-  break_comb_loop_inst3: break_comb_loop
-    port map (
-      A => A3,
-      X => AIN(3)
-    );
+  break_comb_loop_inst0 : break_comb_loop
+  port map
+  (
+    A => A0,
+    X => AIN(0)
+  );
+  break_comb_loop_inst1 : break_comb_loop
+  port map
+  (
+    A => A1,
+    X => AIN(1)
+  );
+  break_comb_loop_inst2 : break_comb_loop
+  port map
+  (
+    A => A2,
+    X => AIN(2)
+  );
+  break_comb_loop_inst3 : break_comb_loop
+  port map
+  (
+    A => A3,
+    X => AIN(3)
+  );
 
-  B0 <= AIN(1) when S0 = '1' else AIN(0);
-  B1 <= AIN(3) when S0 = '1' else AIN(2);
-  X <= B1 when S1 = '1' else B0;
+  B0 <= AIN(1) when S0 = '1' else
+    AIN(0);
+  B1 <= AIN(3) when S0 = '1' else
+    AIN(2);
+  X <= B1 when S1 = '1' else
+    B0;
 end architecture;
 
 library ieee;
@@ -488,21 +510,21 @@ use ieee.numeric_std.all;
 
 entity cus_mux81 is
   port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    A4 : in std_logic;
-    A5 : in std_logic;
-    A6 : in std_logic;
-    A7 : in std_logic;
-    S0 : in std_logic;
+    A0  : in std_logic;
+    A1  : in std_logic;
+    A2  : in std_logic;
+    A3  : in std_logic;
+    A4  : in std_logic;
+    A5  : in std_logic;
+    A6  : in std_logic;
+    A7  : in std_logic;
+    S0  : in std_logic;
     S0N : in std_logic;
-    S1 : in std_logic;
+    S1  : in std_logic;
     S1N : in std_logic;
-    S2 : in std_logic;
+    S2  : in std_logic;
     S2N : in std_logic;
-    X : out std_logic
+    X   : out std_logic
   );
 end entity;
 
@@ -512,15 +534,15 @@ architecture from_verilog of cus_mux81 is
 
   component cus_mux41 is
     port (
-      A0 : in std_logic;
-      A1 : in std_logic;
-      A2 : in std_logic;
-      A3 : in std_logic;
-      S0 : in std_logic;
+      A0  : in std_logic;
+      A1  : in std_logic;
+      A2  : in std_logic;
+      A3  : in std_logic;
+      S0  : in std_logic;
       S0N : in std_logic;
-      S1 : in std_logic;
+      S1  : in std_logic;
       S1N : in std_logic;
-      X : out std_logic
+      X   : out std_logic
     );
   end component;
 
@@ -528,47 +550,50 @@ architecture from_verilog of cus_mux81 is
     port (
       A0 : in std_logic;
       A1 : in std_logic;
-      S : in std_logic;
-      X : out std_logic
+      S  : in std_logic;
+      X  : out std_logic
     );
   end component;
   signal X_Readable : std_logic;
 begin
 
-  cus_mux41_inst0: cus_mux41
-    port map (
-      A0 => A0,
-      A1 => A1,
-      A2 => A2,
-      A3 => A3,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_out0
-    );
+  cus_mux41_inst0 : cus_mux41
+  port map
+  (
+    A0  => A0,
+    A1  => A1,
+    A2  => A2,
+    A3  => A3,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_out0
+  );
 
-  cus_mux41_inst1: cus_mux41
-    port map (
-      A0 => A4,
-      A1 => A5,
-      A2 => A6,
-      A3 => A7,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_out1
-    );
+  cus_mux41_inst1 : cus_mux41
+  port map
+  (
+    A0  => A4,
+    A1  => A5,
+    A2  => A6,
+    A3  => A7,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_out1
+  );
   X <= X_Readable;
 
-  cus_mux21_inst: cus_mux21
-    port map (
-      A0 => cus_mux41_out0,
-      A1 => cus_mux41_out1,
-      S => S2,
-      X => X_Readable
-    );
+  cus_mux21_inst : cus_mux21
+  port map
+  (
+    A0 => cus_mux41_out0,
+    A1 => cus_mux41_out1,
+    S  => S2,
+    X  => X_Readable
+  );
 end architecture;
 
 library ieee;
@@ -579,8 +604,8 @@ entity cus_mux21 is
   port (
     A0 : in std_logic;
     A1 : in std_logic;
-    S : in std_logic;
-    X : out std_logic
+    S  : in std_logic;
+    X  : out std_logic
   );
 end entity;
 
@@ -588,32 +613,33 @@ architecture from_verilog of cus_mux21 is
   signal SEL : std_logic;
 
   component break_comb_loop is
-  port
-  (
-    A : in std_logic;
-    X : out std_logic
-  );
+    port (
+      A : in std_logic;
+      X : out std_logic
+    );
   end component;
   signal AIN : std_logic_vector(1 downto 0);
 
 begin
   SEL <= S;
 
-  break_comb_loop_inst0: break_comb_loop
-    port map (
-      A => A0,
-      X => AIN(0)
-    );
-  break_comb_loop_inst1: break_comb_loop
-    port map (
-      A => A1,
-      X => AIN(1)
-    );
+  break_comb_loop_inst0 : break_comb_loop
+  port map
+  (
+    A => A0,
+    X => AIN(0)
+  );
+  break_comb_loop_inst1 : break_comb_loop
+  port map
+  (
+    A => A1,
+    X => AIN(1)
+  );
 
   with SEL select
-    X <= AIN(0)  when '0',
-         AIN(1)  when '1',
-        'U'  when others;
+    X <= AIN(0) when '0',
+    AIN(1) when '1',
+    'U' when others;
 
 end architecture;
 
@@ -624,40 +650,40 @@ use ieee.numeric_std.all;
 -- Generated from Verilog module cus_mux81_buf (./models_pack.v:273)
 entity cus_mux81_buf is
   port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    A4 : in std_logic;
-    A5 : in std_logic;
-    A6 : in std_logic;
-    A7 : in std_logic;
-    S0 : in std_logic;
+    A0  : in std_logic;
+    A1  : in std_logic;
+    A2  : in std_logic;
+    A3  : in std_logic;
+    A4  : in std_logic;
+    A5  : in std_logic;
+    A6  : in std_logic;
+    A7  : in std_logic;
+    S0  : in std_logic;
     S0N : in std_logic;
-    S1 : in std_logic;
+    S1  : in std_logic;
     S1N : in std_logic;
-    S2 : in std_logic;
+    S2  : in std_logic;
     S2N : in std_logic;
-    X : out std_logic
+    X   : out std_logic
   );
 end entity;
 
 -- Generated from Verilog module cus_mux81_buf (./models_pack.v:273)
 architecture from_verilog of cus_mux81_buf is
-  signal cus_mux41_buf_out0 : std_logic;  -- Declared at ./models_pack.v:290
-  signal cus_mux41_buf_out1 : std_logic;  -- Declared at ./models_pack.v:291
+  signal cus_mux41_buf_out0 : std_logic; -- Declared at ./models_pack.v:290
+  signal cus_mux41_buf_out1 : std_logic; -- Declared at ./models_pack.v:291
 
   component cus_mux41_buf is
     port (
-      A0 : in std_logic;
-      A1 : in std_logic;
-      A2 : in std_logic;
-      A3 : in std_logic;
-      S0 : in std_logic;
+      A0  : in std_logic;
+      A1  : in std_logic;
+      A2  : in std_logic;
+      A3  : in std_logic;
+      S0  : in std_logic;
       S0N : in std_logic;
-      S1 : in std_logic;
+      S1  : in std_logic;
       S1N : in std_logic;
-      X : out std_logic
+      X   : out std_logic
     );
   end component;
 
@@ -665,50 +691,53 @@ architecture from_verilog of cus_mux81_buf is
     port (
       A0 : in std_logic;
       A1 : in std_logic;
-      S : in std_logic;
-      X : out std_logic
+      S  : in std_logic;
+      X  : out std_logic
     );
   end component;
-  signal X_Readable : std_logic;  -- Needed to connect outputs
+  signal X_Readable : std_logic; -- Needed to connect outputs
 begin
 
   -- Generated from instantiation at ./models_pack.v:293
-  cus_mux41_buf_inst0: cus_mux41_buf
-    port map (
-      A0 => A0,
-      A1 => A1,
-      A2 => A2,
-      A3 => A3,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_buf_out0
-    );
+  cus_mux41_buf_inst0 : cus_mux41_buf
+  port map
+  (
+    A0  => A0,
+    A1  => A1,
+    A2  => A2,
+    A3  => A3,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_buf_out0
+  );
 
   -- Generated from instantiation at ./models_pack.v:305
-  cus_mux41_buf_inst1: cus_mux41_buf
-    port map (
-      A0 => A4,
-      A1 => A5,
-      A2 => A6,
-      A3 => A7,
-      S0 => S0,
-      S0N => S0N,
-      S1 => S1,
-      S1N => S1N,
-      X => cus_mux41_buf_out1
-    );
+  cus_mux41_buf_inst1 : cus_mux41_buf
+  port map
+  (
+    A0  => A4,
+    A1  => A5,
+    A2  => A6,
+    A3  => A7,
+    S0  => S0,
+    S0N => S0N,
+    S1  => S1,
+    S1N => S1N,
+    X   => cus_mux41_buf_out1
+  );
   X <= X_Readable;
 
   -- Generated from instantiation at ./models_pack.v:317
-  cus_mux21_inst: cus_mux21
-    port map (
-      A0 => cus_mux41_buf_out0,
-      A1 => cus_mux41_buf_out1,
-      S => S2,
-      X => X_Readable
-    );
+  cus_mux21_inst : cus_mux21
+  port map
+  (
+    A0 => cus_mux41_buf_out0,
+    A1 => cus_mux41_buf_out1,
+    S  => S2,
+    X  => X_Readable
+  );
 end architecture;
 
 library ieee;
@@ -752,209 +781,339 @@ use ieee.std_logic_1164.all;
 
 package my_package is
 
-component LHQD1 is
-  port (
-    D : in std_logic;
-    E : in std_logic;
-    Q : out std_logic;
-    QN : out std_logic
-  );
-end component;
+  component LHQD1 is
+    port (
+      D  : in std_logic;
+      E  : in std_logic;
+      Q  : out std_logic;
+      QN : out std_logic
+    );
+  end component;
 
-component MUX16PTv2 is
-  port (
-    IN1 : in std_logic;
-    IN10 : in std_logic;
-    IN11 : in std_logic;
-    IN12 : in std_logic;
-    IN13 : in std_logic;
-    IN14 : in std_logic;
-    IN15 : in std_logic;
-    IN16 : in std_logic;
-    IN2 : in std_logic;
-    IN3 : in std_logic;
-    IN4 : in std_logic;
-    IN5 : in std_logic;
-    IN6 : in std_logic;
-    IN7 : in std_logic;
-    IN8 : in std_logic;
-    IN9 : in std_logic;
-    O : out std_logic;
-    S1 : in std_logic;
-    S2 : in std_logic;
-    S3 : in std_logic;
-    S4 : in std_logic
-  );
-end component;
+  component MUX16PTv2 is
+    port (
+      IN1  : in std_logic;
+      IN10 : in std_logic;
+      IN11 : in std_logic;
+      IN12 : in std_logic;
+      IN13 : in std_logic;
+      IN14 : in std_logic;
+      IN15 : in std_logic;
+      IN16 : in std_logic;
+      IN2  : in std_logic;
+      IN3  : in std_logic;
+      IN4  : in std_logic;
+      IN5  : in std_logic;
+      IN6  : in std_logic;
+      IN7  : in std_logic;
+      IN8  : in std_logic;
+      IN9  : in std_logic;
+      O    : out std_logic;
+      S1   : in std_logic;
+      S2   : in std_logic;
+      S3   : in std_logic;
+      S4   : in std_logic
+    );
+  end component;
 
-component MUX4PTv4 is
-  port (
-    IN1 : in std_logic;
-    IN2 : in std_logic;
-    IN3 : in std_logic;
-    IN4 : in std_logic;
-    O : out std_logic;
-    S1 : in std_logic;
-    S2 : in std_logic
-  );
-end component;
+  component MUX4PTv4 is
+    port (
+      IN1 : in std_logic;
+      IN2 : in std_logic;
+      IN3 : in std_logic;
+      IN4 : in std_logic;
+      O   : out std_logic;
+      S1  : in std_logic;
+      S2  : in std_logic
+    );
+  end component;
 
-component cus_mux161 is
-  port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A10 : in std_logic;
-    A11 : in std_logic;
-    A12 : in std_logic;
-    A13 : in std_logic;
-    A14 : in std_logic;
-    A15 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    A4 : in std_logic;
-    A5 : in std_logic;
-    A6 : in std_logic;
-    A7 : in std_logic;
-    A8 : in std_logic;
-    A9 : in std_logic;
-    S0 : in std_logic;
-    S0N : in std_logic;
-    S1 : in std_logic;
-    S1N : in std_logic;
-    S2 : in std_logic;
-    S2N : in std_logic;
-    S3 : in std_logic;
-    S3N : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component cus_mux161 is
+    port (
+      A0  : in std_logic;
+      A1  : in std_logic;
+      A10 : in std_logic;
+      A11 : in std_logic;
+      A12 : in std_logic;
+      A13 : in std_logic;
+      A14 : in std_logic;
+      A15 : in std_logic;
+      A2  : in std_logic;
+      A3  : in std_logic;
+      A4  : in std_logic;
+      A5  : in std_logic;
+      A6  : in std_logic;
+      A7  : in std_logic;
+      A8  : in std_logic;
+      A9  : in std_logic;
+      S0  : in std_logic;
+      S0N : in std_logic;
+      S1  : in std_logic;
+      S1N : in std_logic;
+      S2  : in std_logic;
+      S2N : in std_logic;
+      S3  : in std_logic;
+      S3N : in std_logic;
+      X   : out std_logic
+    );
+  end component;
 
-component cus_mux41 is
-  port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    S0 : in std_logic;
-    S0N : in std_logic;
-    S1 : in std_logic;
-    S1N : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component cus_mux41 is
+    port (
+      A0  : in std_logic;
+      A1  : in std_logic;
+      A2  : in std_logic;
+      A3  : in std_logic;
+      S0  : in std_logic;
+      S0N : in std_logic;
+      S1  : in std_logic;
+      S1N : in std_logic;
+      X   : out std_logic
+    );
+  end component;
 
-component cus_mux161_buf is
-  port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A10 : in std_logic;
-    A11 : in std_logic;
-    A12 : in std_logic;
-    A13 : in std_logic;
-    A14 : in std_logic;
-    A15 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    A4 : in std_logic;
-    A5 : in std_logic;
-    A6 : in std_logic;
-    A7 : in std_logic;
-    A8 : in std_logic;
-    A9 : in std_logic;
-    S0 : in std_logic;
-    S0N : in std_logic;
-    S1 : in std_logic;
-    S1N : in std_logic;
-    S2 : in std_logic;
-    S2N : in std_logic;
-    S3 : in std_logic;
-    S3N : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component cus_mux161_buf is
+    port (
+      A0  : in std_logic;
+      A1  : in std_logic;
+      A10 : in std_logic;
+      A11 : in std_logic;
+      A12 : in std_logic;
+      A13 : in std_logic;
+      A14 : in std_logic;
+      A15 : in std_logic;
+      A2  : in std_logic;
+      A3  : in std_logic;
+      A4  : in std_logic;
+      A5  : in std_logic;
+      A6  : in std_logic;
+      A7  : in std_logic;
+      A8  : in std_logic;
+      A9  : in std_logic;
+      S0  : in std_logic;
+      S0N : in std_logic;
+      S1  : in std_logic;
+      S1N : in std_logic;
+      S2  : in std_logic;
+      S2N : in std_logic;
+      S3  : in std_logic;
+      S3N : in std_logic;
+      X   : out std_logic
+    );
+  end component;
 
-component cus_mux41_buf is
-  port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    S0 : in std_logic;
-    S0N : in std_logic;
-    S1 : in std_logic;
-    S1N : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component cus_mux41_buf is
+    port (
+      A0  : in std_logic;
+      A1  : in std_logic;
+      A2  : in std_logic;
+      A3  : in std_logic;
+      S0  : in std_logic;
+      S0N : in std_logic;
+      S1  : in std_logic;
+      S1N : in std_logic;
+      X   : out std_logic
+    );
+  end component;
 
-component cus_mux81 is
-  port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    A4 : in std_logic;
-    A5 : in std_logic;
-    A6 : in std_logic;
-    A7 : in std_logic;
-    S0 : in std_logic;
-    S0N : in std_logic;
-    S1 : in std_logic;
-    S1N : in std_logic;
-    S2 : in std_logic;
-    S2N : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component cus_mux81 is
+    port (
+      A0  : in std_logic;
+      A1  : in std_logic;
+      A2  : in std_logic;
+      A3  : in std_logic;
+      A4  : in std_logic;
+      A5  : in std_logic;
+      A6  : in std_logic;
+      A7  : in std_logic;
+      S0  : in std_logic;
+      S0N : in std_logic;
+      S1  : in std_logic;
+      S1N : in std_logic;
+      S2  : in std_logic;
+      S2N : in std_logic;
+      X   : out std_logic
+    );
+  end component;
 
-component cus_mux21 is
-  port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    S : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component cus_mux21 is
+    port (
+      A0 : in std_logic;
+      A1 : in std_logic;
+      S  : in std_logic;
+      X  : out std_logic
+    );
+  end component;
 
-component cus_mux81_buf is
-  port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    A4 : in std_logic;
-    A5 : in std_logic;
-    A6 : in std_logic;
-    A7 : in std_logic;
-    S0 : in std_logic;
-    S0N : in std_logic;
-    S1 : in std_logic;
-    S1N : in std_logic;
-    S2 : in std_logic;
-    S2N : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component cus_mux81_buf is
+    port (
+      A0  : in std_logic;
+      A1  : in std_logic;
+      A2  : in std_logic;
+      A3  : in std_logic;
+      A4  : in std_logic;
+      A5  : in std_logic;
+      A6  : in std_logic;
+      A7  : in std_logic;
+      S0  : in std_logic;
+      S0N : in std_logic;
+      S1  : in std_logic;
+      S1N : in std_logic;
+      S2  : in std_logic;
+      S2N : in std_logic;
+      X   : out std_logic
+    );
+  end component;
 
-component my_buf is
-  port (
-    A : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component my_buf is
+    port (
+      A : in std_logic;
+      X : out std_logic
+    );
+  end component;
 
-component break_comb_loop is
-  port (
-    A : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component break_comb_loop is
+    port (
+      A : in std_logic;
+      X : out std_logic
+    );
+  end component;
 
-component clk_buf is
-  port (
-    A : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component clk_buf is
+    port (
+      A : in std_logic;
+      X : out std_logic
+    );
+  end component;
+
+  component sram_1rw1r_32_256_8_sky130 is
+    port (
+      addr0  : in std_logic_vector(7 downto 0);
+      addr1  : in std_logic_vector(7 downto 0);
+      clk0   : in std_logic;
+      clk1   : in std_logic;
+      csb0   : in std_logic;
+      csb1   : in std_logic;
+      din0   : in std_logic_vector(31 downto 0);
+      dout0  : out std_logic_vector(31 downto 0);
+      dout1  : out std_logic_vector(31 downto 0);
+      web0   : in std_logic;
+      wmask0 : in std_logic_vector(3 downto 0)
+    );
+  end component;
 
 end package my_package;
+
+-- Sky130 SRAM 1RW1R 32x256x8 simulation model
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+-- Generated from Verilog module sram_1rw1r_32_256_8_sky130 (/home/kelvin/FABulous_fork.worktrees/FABulous2.0-development/FABulous/fabric_files/FABulous_project_template_verilog/Fabric/models_pack.v:508)
+--   ADDR_WIDTH = 8
+--   DATA_WIDTH = 32
+--   DELAY = 3
+--   NUM_WMASKS = 4
+--   RAM_DEPTH = 256
+entity sram_1rw1r_32_256_8_sky130 is
+  port (
+    addr0  : in unsigned(7 downto 0);
+    addr1  : in unsigned(7 downto 0);
+    clk0   : in std_logic;
+    clk1   : in std_logic;
+    csb0   : in std_logic;
+    csb1   : in std_logic;
+    din0   : in unsigned(31 downto 0);
+    dout0  : out unsigned(31 downto 0);
+    dout1  : out unsigned(31 downto 0);
+    web0   : in std_logic;
+    wmask0 : in unsigned(3 downto 0)
+  );
+end entity;
+
+-- Generated from Verilog module sram_1rw1r_32_256_8_sky130
+--   ADDR_WIDTH = 8
+--   DATA_WIDTH = 32
+--   DELAY = 3
+--   NUM_WMASKS = 4
+--   RAM_DEPTH = 256
+architecture from_verilog of sram_1rw1r_32_256_8_sky130 is
+  signal dout0_Reg : unsigned(31 downto 0);
+  signal dout1_Reg : unsigned(31 downto 0);
+  signal addr0_reg : unsigned(7 downto 0);
+  signal addr1_reg : unsigned(7 downto 0);
+  signal csb0_reg  : std_logic;
+  signal csb1_reg  : std_logic;
+  signal din0_reg  : unsigned(31 downto 0);
+  type mem_Type is array (255 downto 0) of unsigned(31 downto 0);
+  signal mem        : mem_Type;
+  signal web0_reg   : std_logic;
+  signal wmask0_reg : unsigned(3 downto 0);
+begin
+  dout0 <= dout0_Reg;
+  dout1 <= dout1_Reg;
+
+  -- Generated from always process in sram_1rw1r_32_256_8_sky130
+  process (clk0) is
+  begin
+    if rising_edge(clk0) then
+      csb0_reg   <= csb0;
+      web0_reg   <= web0;
+      wmask0_reg <= wmask0;
+      addr0_reg  <= addr0;
+      din0_reg   <= din0;
+      dout0_Reg  <= "UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU";
+    end if;
+  end process;
+
+  -- Generated from always process in sram_1rw1r_32_256_8_sky130
+  process (clk1) is
+  begin
+    if rising_edge(clk1) then
+      csb1_reg  <= csb1;
+      addr1_reg <= addr1;
+      dout1_Reg <= "UUUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU";
+    end if;
+  end process;
+
+  -- Generated from always process in sram_1rw1r_32_256_8_sky130
+  MEM_WRITE0 : process (clk0) is
+  begin
+    if falling_edge(clk0) then
+      if ((not csb0_reg) = '1') and ((not web0_reg) = '1') then
+        if wmask0_reg(0) = '1' then
+          mem(0) <= Resize(din0_reg(0 + 7 downto 0), 32);
+        end if;
+        if wmask0_reg(1) = '1' then
+          mem(8) <= Resize(din0_reg(8 + 7 downto 8), 32);
+        end if;
+        if wmask0_reg(2) = '1' then
+          mem(16) <= Resize(din0_reg(16 + 7 downto 16), 32);
+        end if;
+        if wmask0_reg(3) = '1' then
+          mem(24) <= Resize(din0_reg(24 + 7 downto 24), 32);
+        end if;
+      end if;
+    end if;
+  end process;
+
+  -- Generated from always process in sram_1rw1r_32_256_8_sky130
+  MEM_READ0 : process (clk0) is
+  begin
+    if falling_edge(clk0) then
+      if ((not csb0_reg) = '1') and (web0_reg = '1') then
+        dout0_Reg <= mem(To_Integer(Resize(addr0_reg, 10))) after 3 ms;
+      end if;
+    end if;
+  end process;
+
+  -- Generated from always process in sram_1rw1r_32_256_8_sky130
+  MEM_READ1 : process (clk1) is
+  begin
+    if falling_edge(clk1) then
+      if (not csb1_reg) = '1' then
+        dout1_Reg <= mem(To_Integer(Resize(addr1_reg, 10))) after 3 ms;
+      end if;
+    end if;
+  end process;
+end architecture;
