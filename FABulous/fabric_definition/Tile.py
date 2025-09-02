@@ -65,7 +65,7 @@ class Tile:
         ports : list[Port]
             List of ports for the tile.
         bels : list[Bel]
-            List of Basic Elements (BELs) in the tile.
+            List of Basic Elements of Logic (BELs) in the tile.
         tileDir : pathlib.Path
             Directory path for the tile.
         matrixDir : pathlib.Path
@@ -73,9 +73,9 @@ class Tile:
         gen_ios : list[Gen_IO]
             List of general I/O components.
         userCLK : bool
-            Whether the tile has user clock functionality.
+            True if the tile uses a clk signal.
         configBit : int, optional
-            Number of configuration bits for the matrix. Defaults to 0.
+            Number of configuration bits for the switch matrix. Defaults to 0.
         """
         self.name = name
         self.portsInfo = ports
@@ -88,7 +88,7 @@ class Tile:
         self.tileDir = tileDir
 
     def __eq__(self, __o: object) -> bool:
-        """Check equality between tiles based on name.
+        """Check equality between tiles based on their name.
 
         Parameters
         ----------
@@ -264,7 +264,7 @@ class Tile:
     def globalConfigBits(self) -> int:
         """Get the total number of global configuration bits.
 
-        Calculates the sum of matrix configuration bits and all BEL configuration bits.
+        Calculates the sum of switch matrix configuration bits and all BEL configuration bits.
 
         Returns
         -------

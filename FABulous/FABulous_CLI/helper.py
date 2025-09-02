@@ -47,17 +47,16 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
         0: Basic level and message only
         1+: Includes timestamp, module name, function, line number
     debug : bool
-        Whether to enable debug level logging. If True, sets log level to DEBUG,
-        otherwise sets to INFO.
+        If True, sets log level to `DEBUG`, otherwise sets to `INFO`.
     log_file : pathlib.Path, optional
         Path to log file. If provided, logs will be written to file instead of stdout.
-        Default is empty Path(), which results in logging to stdout.
+        Default is `Path()`, which results in logging to stdout.
 
     Notes
     -----
     This function removes any existing loggers and sets up a new one with custom
     formatting. The format includes color coding and adjusts based on verbosity level.
-    When FABULOUS_TESTING environment variable is set, uses simplified formatting.
+    When `FABULOUS_TESTING` environment variable is set, uses simplified formatting.
     """
     # Remove the default logger to avoid duplicate logs
     logger.remove()
@@ -121,10 +120,10 @@ def create_project(
 ) -> None:
     """Create a FABulous project containing all required files.
 
-    Copies the common files and the appropriate project template. Replaces the {HDL_SUFFIX}
-    placeholder in all tile csv files with the appropriate file extension. Creates a .FABulous
-    directory in the project. Also creates a .env file in the project directory with the
-    project language.
+    Copies the common files and the appropriate project template. Replaces the `{HDL_SUFFIX}`
+    placeholder in all tile csv files with the appropriate file extension. Creates a `.FABulous`
+    directory in the project. Also creates a `.env` file in the project directory with the
+    project settings.
 
     File structure as follows:
         FABulous_project_template --> project_dir/
@@ -343,7 +342,7 @@ def allow_blank(func: Callable) -> Callable:
 def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> None:
     """Download and extract the latest OSS CAD Suite.
 
-    Set the FAB_OSS_CAD_SUITE environment variable in the .env file.
+    Set the `FAB_OSS_CAD_SUITE` environment variable in the .env file.
 
     Parameters
     ----------
@@ -483,7 +482,7 @@ def update_project_version(project_dir: Path) -> bool:
     Returns
     -------
     bool
-        True if the version was successfully updated, False otherwise.
+        `True` if the version was successfully updated, `False` otherwise.
 
     Notes
     -----
@@ -541,7 +540,7 @@ class CommandPipeline:
         Returns
         -------
         CommandPipeline
-            Returns self to allow method chaining.
+            Returns `self` to allow method chaining.
         """
         self.steps.append((command, error_message))
         return self

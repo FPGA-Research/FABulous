@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """FABulous command-line interface module.
 
-This module provides the main command-line interface for the FABulous FPGA toolkit. It
+This module provides the main command-line interface for the FABulous FPGA framework. It
 includes interactive and batch mode support for fabric generation, bitstream creation,
 simulation, and project management.
 """
@@ -115,7 +115,7 @@ class FABulous_CLI(Cmd):
     """FABulous command-line interface for FPGA fabric generation and management.
 
     This class provides an interactive and non-interactive command-line interface
-    for the FABulous FPGA toolkit. It supports fabric generation, bitstream creation,
+    for the FABulous FPGA framework. It supports fabric generation, bitstream creation,
     project management, and various utilities for FPGA development workflow.
 
     Attributes
@@ -141,9 +141,9 @@ class FABulous_CLI(Cmd):
     script : str
         Batch script commands to execute
     force : bool
-        Whether to force operations without confirmation
+        If true, force operations without confirmation
     interactive : bool
-        Whether CLI is running in interactive mode
+        If true, run in interactive CLI mode
 
     Notes
     -----
@@ -173,7 +173,7 @@ class FABulous_CLI(Cmd):
     ) -> None:
         """Initialize the FABulous shell instance.
 
-        This sets up the necessary context and initialises the FABulous API.
+        Determines file extension based on the type of writer used in `fabulousAPI`.
 
         Parameters
         ----------
@@ -362,7 +362,7 @@ class FABulous_CLI(Cmd):
     def do_install_oss_cad_suite(self, args: argparse.Namespace) -> None:
         """Download and extract the latest OSS CAD suite.
 
-        Sets the the FAB_OSS_CAD_SUITE environment variable in the .env file.
+        The installation will set the `FAB_OSS_CAD_SUITE` environment variable in the `.env` file.
         """
         if args.destination_folder == "":
             dest_dir = get_context().root
@@ -377,11 +377,8 @@ class FABulous_CLI(Cmd):
     def do_load_fabric(self, args: argparse.Namespace) -> None:
         """Load 'fabric.csv' file and generate an internal representation of the fabric.
 
-        Do this by parsing input arguments, set an internal state to indicate that
-        fabric is loaded and determine the available tiles by comparing directories in
-        the project with tiles defined by fabric.
-
-        Logs error if no CSV file is found.
+        Parse input arguments and set a few internal variables to assist fabric
+        generation.
         """
         # if no argument is given will use the one set by set_fabric_csv
         # else use the argument

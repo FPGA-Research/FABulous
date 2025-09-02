@@ -10,7 +10,7 @@ from FABulous.fabric_definition.define import Direction
 class Wire:
     """Store wire connections that span across multiple tiles.
 
-    If working for connections between two adjacent tiles, the Port class should have all the
+    If working on connections between two adjacent tiles, the Port class should have all the
     required information. The main use of this class is to assist model generation,
     where information at individual wire level is needed.
 
@@ -51,7 +51,7 @@ class Wire:
         return f"{self.source}-X{self.xOffset}Y{self.yOffset}>{self.destination}"
 
     def __eq__(self, __o: object) -> bool:
-        """Check if two Wire objects are equal.
+        """Check if two `Wire` objects are equal.
 
         Two wires are considered equal if they have the same source and destination names.
 
@@ -72,7 +72,7 @@ class Wire:
     def __post_init__(self) -> None:
         """Validate wire configuration after initialization.
 
-        Checks that source and destination tile names follow the expected format
+        Check that source and destination tile names follow the expected format
         (X{num}Y{num}) or are empty for boundary conditions. This validation
         ensures that wires don't reference tiles outside the fabric boundaries.
 

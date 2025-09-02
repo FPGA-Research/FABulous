@@ -1,12 +1,12 @@
 """Synthesis command implementation for the FABulous CLI.
 
 This module provides the synthesis command functionality for the FABulous command-line
-interface. It implements Yosys-based FPGA synthesis targeting the Nextpnr place-and-
+interface. It implements Yosys-based FPGA synthesis targeting the nextpnr place-and-
 route tool, with support for various synthesis options and output formats.
 
-The synthesis flow includes multiple stages from Verilog reading through final netlist
-generation, with options for LUT mapping, FSM optimization, carry chain mapping, and
-memory inference.
+The synthesis flow includes multiple stages, from reading the Verilog files through
+final netlist generation, with options for LUT mapping, FSM optimization, carry chain
+mapping, and memory inference.
 """
 
 import argparse
@@ -260,8 +260,8 @@ synthesis_parser.add_argument(
 def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
     """Run Yosys synthesis for the specified Verilog files.
 
-    This function performs FPGA synthesis using Yosys with the Nextpnr JSON backend
-    to synthesize Verilog designs and generate Nextpnr-compatible JSON files for
+    Performs FPGA synthesis using Yosys with the nextpnr JSON backend
+    to synthesize Verilog designs and generate nextpnr-compatible JSON files for
     place and route. It supports various synthesis options including LUT architecture,
     FSM optimization, carry mapping, and different output formats.
 

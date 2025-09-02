@@ -46,12 +46,10 @@ def bitstring_to_bytes(s: str) -> bytes:
     return int(s, 2).to_bytes((len(s) + 7) // 8, byteorder="big")
 
 
-# CAD methods from summer vacation project 2020
-# Method to generate bitstream in the output format - more detail at the end
 def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str) -> None:
-    """Generate bitstream from FASM file using specification.
+    """
+    Generate the bitstream from the FASM file using the bitstream specification.
 
-    Parameters
     ----------
     fasmFile : str
         Path to FASM file containing configuration features

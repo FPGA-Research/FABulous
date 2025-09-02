@@ -243,7 +243,7 @@ class Fabric:
                 tile.wireList = list(dict.fromkeys(tile.wireList))
 
     def __repr__(self) -> str:
-        """Return string representation of the fabric.
+        """Return the string representation of the fabric.
 
         Returns
         -------
@@ -275,7 +275,7 @@ class Fabric:
     def getTileByName(self, name: str) -> Tile | None:
         """Get a tile by its name from the fabric.
 
-        Searches for the tile first in the used tiles dictionary, then in the unused tiles
+        Search for the tile first in the used tiles dictionary, then in the unused tiles
         dictionary if not found.
 
         Parameters
@@ -302,15 +302,15 @@ class Fabric:
         return ret
 
     def getSuperTileByName(self, name: str) -> SuperTile | None:
-        """Get a super tile by its name from the fabric.
+        """Get a supertile by its name from the fabric.
 
-        Searches for the super tile first in the used super tiles dictionary, then in the
-        unused super tiles dictionary if not found.
+        Searches for the supertile first in the used supertiles dictionary, then in the
+        unused supertiles dictionary if not found.
 
         Parameters
         ----------
         name : str
-            The name of the super tile to retrieve.
+            The name of the supertile to retrieve.
 
         Returns
         -------

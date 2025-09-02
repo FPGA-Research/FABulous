@@ -14,7 +14,7 @@ from FABulous.fabric_definition.define import IO
 class Gen_IO:
     """Store information about a generated IO port (GEN_IO).
 
-    The information are parsed from the GEN_IO definitions in the tile CSV file.
+    The information are parsed from the `GEN_IO` definitions in the tile CSV file.
 
     Attributes
     ----------

@@ -1,4 +1,4 @@
-"""Storing the information about a super tile."""
+"""Store the information about a supertile."""
 
 from dataclasses import dataclass, field
 
@@ -9,7 +9,7 @@ from FABulous.fabric_definition.Tile import Tile
 
 @dataclass
 class SuperTile:
-    """Storing the information about a super tile.
+    """Store the information about a super tile.
 
     Attributes
     ----------
@@ -32,9 +32,9 @@ class SuperTile:
     withUserCLK: bool = False
 
     def getPortsAroundTile(self) -> dict[str, list[list[Port]]]:
-        """Return all the ports that are around the super tile.
+        """Return all the ports that are around the supertile.
 
-        The dictionary key is the location of where the tile is located in the super tile map with the format
+        The dictionary key is the location of where the tile is located in the supertile map with the format
         of "X{x}Y{y}", where x is the x coordinate of the tile and y is the y coordinate
         of the tile. The top left tile will have key "00".
 
@@ -60,7 +60,7 @@ class SuperTile:
         return ports
 
     def getInternalConnections(self) -> list[tuple[list[Port], int, int]]:
-        """Return all the internal connections of the super tile.
+        """Return all the internal connections of the supertile.
 
         Returns
         -------

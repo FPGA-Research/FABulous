@@ -20,10 +20,10 @@ if TYPE_CHECKING:
 
 
 def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
-    """Generate the bitstream specification of the fabric.
+    """Generate the fabric's bitstream specification.
 
     This is needed to tell where each FASM configuration is mapped to the physical bitstream
-    The result file will be further parsed by the bit_gen.py.
+    The result file will be further parsed by `bit_gen.py`.
 
     Returns
     -------
