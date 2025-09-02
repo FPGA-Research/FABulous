@@ -4,16 +4,16 @@ module sequential_16bit_en (
     output wire [27:0] io_out,
     io_oeb
 );
-  wire rst = io_in[0];
-  wire en = io_in[1];
-  reg [15:0] ctr;
+    wire rst = io_in[0];
+    wire en = io_in[1];
+    reg [15:0] ctr;
 
-  always @(posedge clk)
-    if (en)
-      if (rst) ctr <= 0;
-      else ctr <= ctr + 1'b1;
-    else ctr <= ctr;
+    always @(posedge clk)
+        if (en)
+            if (rst) ctr <= 0;
+            else ctr <= ctr + 1'b1;
+        else ctr <= ctr;
 
-  assign io_out = {12'b0, ctr};  // pass thru reset for debugging
-  assign io_oeb = 28'b0000000000000000000000000001;
+    assign io_out = {12'b0, ctr};  // pass thru reset for debugging
+    assign io_oeb = 28'b0000000000000000000000000001;
 endmodule

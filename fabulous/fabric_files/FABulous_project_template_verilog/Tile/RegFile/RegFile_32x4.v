@@ -38,40 +38,40 @@ module RegFile_32x4 #(
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
 
-  //type memtype is array (31 downto 0) of std_logic_vector(3 downto 0); // 32 entries of 4 bit
-  //signal mem : memtype := (others => (others => '0'));
-  reg     [3:0] mem                                         [31];
+    //type memtype is array (31 downto 0) of std_logic_vector(3 downto 0); // 32 entries of 4 bit
+    //signal mem : memtype := (others => (others => '0'));
+    reg     [3:0] mem                                         [31];
 
-  wire    [3:0] AD_comb;  // port A read data, combinatorial
-  wire    [3:0] BD_comb;  // port B read data, combinatorial
+    wire    [3:0] AD_comb;  // port A read data, combinatorial
+    wire    [3:0] BD_comb;  // port B read data, combinatorial
 
-  reg     [3:0] AD_reg;  // port A read data, registered
-  reg     [3:0] BD_reg;  // port B read data, registered
+    reg     [3:0] AD_reg;  // port A read data, registered
+    reg     [3:0] BD_reg;  // port B read data, registered
 
-  integer       i;
+    integer       i;
 
-  initial begin
-    for (i = 0; i < 32; i = i + 1) begin
-      mem[i] = 4'b0000;
+    initial begin
+        for (i = 0; i < 32; i = i + 1) begin
+            mem[i] = 4'b0000;
+        end
     end
-  end
 
-  //P_write: process (UserCLK)
-  always @(posedge UserCLK) begin : P_write
-    if (W_en == 1'b1) begin
-      mem[W_ADR] <= D;
+    //P_write: process (UserCLK)
+    always @(posedge UserCLK) begin : P_write
+        if (W_en == 1'b1) begin
+            mem[W_ADR] <= D;
+        end
     end
-  end
 
-  assign AD_comb = mem[A_ADR];
-  assign BD_comb = mem[B_ADR];
+    assign AD_comb = mem[A_ADR];
+    assign BD_comb = mem[B_ADR];
 
-  always @(posedge UserCLK) begin
-    AD_reg <= AD_comb;
-    BD_reg <= BD_comb;
-  end
+    always @(posedge UserCLK) begin
+        AD_reg <= AD_comb;
+        BD_reg <= BD_comb;
+    end
 
-  assign AD = ConfigBits[0] ? AD_reg : AD_comb;
-  assign BD = ConfigBits[1] ? BD_reg : BD_comb;
+    assign AD = ConfigBits[0] ? AD_reg : AD_comb;
+    assign BD = ConfigBits[1] ? BD_reg : BD_comb;
 
 endmodule

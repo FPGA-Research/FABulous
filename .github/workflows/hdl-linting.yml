@@ -12,6 +12,7 @@ jobs:
     - uses: chipsalliance/verible-formatter-action@main
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
+        parameters: --inplace, --flagfile, .rules.verible_format
   lint-verilog:
     runs-on: ubuntu-latest
     steps:
@@ -24,7 +25,7 @@ jobs:
     - name: Run Verilog Linter
       run: |
         uv run FABulous -c demo
-        verilator --lint-only demo/**/*.v
+        verilator -Wall --no-timing --lint-only demo/**/*.v
 
   lint-vhdl:
     runs-on: ubuntu-latest

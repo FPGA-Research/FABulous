@@ -13,7 +13,7 @@ module Config_access #(
     // GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
-  // we just wire configuration bits to fabric top
-  assign C_bit = ConfigBits;
+    // we just wire configuration bits to fabric top
+    assign C_bit = ConfigBits;
 
 endmodule
