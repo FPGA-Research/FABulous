@@ -242,10 +242,10 @@ class WireConstraints:
             westPositions: List[int]
 
     """
-    northPositions: List[int]
-    southPositions: List[int]
-    eastPositions: List[int]
-    westPositions: List[int]
+    northPositions: list[int]
+    southPositions: list[int]
+    eastPositions: list[int]
+    westPositions: list[int]
 
     def __init__(self):
         self.northPositions = []

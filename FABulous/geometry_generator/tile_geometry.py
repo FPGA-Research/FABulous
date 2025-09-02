@@ -1,10 +1,3 @@
-from typing import List
-from fabric_generator.fabric import Tile, Side, Direction
-from geometry_generator.geometry_obj import Border, Location
-from geometry_generator.sm_geometry import SmGeometry
-from geometry_generator.bel_geometry import BelGeometry
-from geometry_generator.wire_geometry import WireGeometry, StairWires, WireConstraints
-from geometry_generator.port_geometry import PortGeometry
 from csv import writer as csvWriter
 
 from FABulous.custom_exception import InvalidPortType
@@ -14,7 +7,11 @@ from FABulous.geometry_generator.bel_geometry import BelGeometry
 from FABulous.geometry_generator.geometry_obj import Border, Location
 from FABulous.geometry_generator.port_geometry import PortGeometry
 from FABulous.geometry_generator.sm_geometry import SmGeometry
-from FABulous.geometry_generator.wire_geometry import StairWires, WireGeometry
+from FABulous.geometry_generator.wire_geometry import (
+    StairWires,
+    WireConstraints,
+    WireGeometry,
+)
 
 
 class TileGeometry:
@@ -47,9 +44,9 @@ class TileGeometry:
     wireConstraints: WireConstraints
     neighbourConstraints: WireConstraints
     smGeometry: SmGeometry
-    belGeomList: List[BelGeometry]
-    wireGeomList: List[WireGeometry]
-    stairWiresList: List[StairWires]
+    belGeomList: list[BelGeometry]
+    wireGeomList: list[WireGeometry]
+    stairWiresList: list[StairWires]
 
     def __init__(self) -> None:
         self.name = None

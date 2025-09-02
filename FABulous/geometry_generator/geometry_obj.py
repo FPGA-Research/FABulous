@@ -1,5 +1,6 @@
 from enum import Enum
-from fabric_generator.fabric import IO
+
+from FABulous.fabric_definition.define import IO
 
 
 class Location:

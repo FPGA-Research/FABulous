@@ -1,8 +1,4 @@
-from typing import List
-from fabric_generator.fabric import Port, Tile, Direction, Side, IO
-from geometry_generator.geometry_obj import Border, oppositeIO
-from geometry_generator.bel_geometry import BelGeometry
-from geometry_generator.port_geometry import PortGeometry, PortType
+import pathlib
 from csv import writer as csvWriter
 
 from loguru import logger
@@ -11,7 +7,7 @@ from FABulous.fabric_definition.define import IO, Direction, Side
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.geometry_generator.bel_geometry import BelGeometry
-from FABulous.geometry_generator.geometry_obj import Border
+from FABulous.geometry_generator.geometry_obj import Border, oppositeIO
 from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 
 
@@ -238,10 +234,10 @@ class SmGeometry:
         self.jumpPorts = mergedJumpPorts
 
     def generateGeometry(self, tile: Tile, tileBorder: Border,
-                         belGeoms: List[BelGeometry], padding: int) -> None:
+                         belGeoms: list[BelGeometry], padding: int) -> None:
         self.name = tile.name + "_switch_matrix"
-        self.src = tile.filePath + "/" + self.name + ".v"
-        self.csv = tile.filePath + "/" + self.name + ".csv"
+        self.src = tile.tileDir /  f"{self.name}.v"
+        self.csv = tile.tileDir /  f"{self.name}.csv"
 
         self.jumpPorts = [port for port in tile.portsInfo if port.wireDirection == Direction.JUMP]
         self.northPorts = tile.getNorthSidePorts()
@@ -415,7 +411,7 @@ class SmGeometry:
                 westPortX += 1
             PortGeometry.nextId += 1
 
-    def generateBelPorts(self, belGeomList: List[BelGeometry]) -> None:
+    def generateBelPorts(self, belGeomList: list[BelGeometry]) -> None:
         for belGeom in belGeomList:
             for belPortGeom in belGeom.internalPortGeoms:
                 portX = self.width
