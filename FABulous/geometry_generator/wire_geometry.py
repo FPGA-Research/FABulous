@@ -230,24 +230,22 @@ class StairWires:
 
 
 class WireConstraints:
-    """
-        A simple datastruct for storing
-        information on where wires arrive
-        at the border of a tile.
+    """A simple datastruct for storing information on where wires arrive at the border
+    of a tile.
 
-        Attributes:
-            northPositions: List[int]
-            southPositions: List[int]
-            eastPositions: List[int]
-            westPositions: List[int]
-
+    Attributes:
+        northPositions: List[int]
+        southPositions: List[int]
+        eastPositions: List[int]
+        westPositions: List[int]
     """
+
     northPositions: list[int]
     southPositions: list[int]
     eastPositions: list[int]
     westPositions: list[int]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.northPositions = []
         self.southPositions = []
         self.eastPositions = []
@@ -259,7 +257,7 @@ class WireConstraints:
         if stairWires.direction == Direction.NORTH:
             refX = stairWires.refX
 
-            for i in range(totalWires):
+            for _i in range(totalWires):
                 self.northPositions.append(refX)
                 self.southPositions.append(refX - stairWires.groupWires)
                 refX -= 1
@@ -267,7 +265,7 @@ class WireConstraints:
         if stairWires.direction == Direction.SOUTH:
             refX = stairWires.refX
 
-            for i in range(totalWires):
+            for _i in range(totalWires):
                 self.northPositions.append(refX)
                 self.southPositions.append(refX + stairWires.groupWires)
                 refX += 1
@@ -275,7 +273,7 @@ class WireConstraints:
         if stairWires.direction == Direction.EAST:
             refY = stairWires.refY
 
-            for i in range(totalWires):
+            for _i in range(totalWires):
                 self.eastPositions.append(refY)
                 self.westPositions.append(refY + stairWires.groupWires)
                 refY += 1
@@ -283,7 +281,7 @@ class WireConstraints:
         if stairWires.direction == Direction.WEST:
             refY = stairWires.refY
 
-            for i in range(totalWires):
+            for _i in range(totalWires):
                 self.eastPositions.append(refY)
                 self.westPositions.append(refY - stairWires.groupWires)
                 refY -= 1

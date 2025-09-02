@@ -100,7 +100,9 @@ def test_yosys_json_initialization_parametric(
     # Mock external dependencies
     m = mocker.patch(
         "subprocess.run",
-        return_value=type("MockResult", (), {"stdout": b"mock output", "stderr": b""})(),
+        return_value=type(
+            "MockResult", (), {"stdout": b"mock output", "stderr": b""}
+        )(),
     )
 
     # Apply environment if provided (e.g., force VHDL mode)
@@ -144,7 +146,9 @@ def test_yosys_json_initialization_parametric(
             assert needle in str(m.call_args_list[idx])
 
 
-def test_yosys_json_file_not_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_yosys_json_file_not_exists(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Test YosysJson with unsupported file type."""
     setup_mocks(monkeypatch, {})
     fakePath = tmp_path / "file.txt"
@@ -152,7 +156,9 @@ def test_yosys_json_file_not_exists(monkeypatch: pytest.MonkeyPatch, tmp_path: P
         YosysJson(fakePath)
 
 
-def test_yosys_json_unsupported_file_type(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_yosys_json_unsupported_file_type(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Test YosysJson with unsupported file type."""
     setup_mocks(monkeypatch, {})
     fakePath = tmp_path / "file.txt"

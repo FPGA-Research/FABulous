@@ -1,6 +1,5 @@
 from csv import writer as csvWriter
 
-from FABulous.custom_exception import InvalidPortType
 from FABulous.fabric_definition.define import Direction, Side
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.geometry_generator.bel_geometry import BelGeometry
@@ -71,35 +70,38 @@ class TileGeometry:
         self.smGeometry.generateGeometry(tile, self.border, self.belGeomList, padding)
 
         maxBelWidth = max([belGeom.width for belGeom in self.belGeomList] + [0])
-        self.width = (self.smGeometry.relX
-                      + self.smGeometry.width
-                      + 2 * padding + maxBelWidth)
+        self.width = (
+            self.smGeometry.relX + self.smGeometry.width + 2 * padding + maxBelWidth
+        )
 
-        self.height = (self.smGeometry.relY
-                       + self.smGeometry.height
-                       + max(self.smGeometry.eastWiresReservedHeight,
-                             self.smGeometry.westWiresReservedHeight)
-                       + 2 * padding)
+        self.height = (
+            self.smGeometry.relY
+            + self.smGeometry.height
+            + max(
+                self.smGeometry.eastWiresReservedHeight,
+                self.smGeometry.westWiresReservedHeight,
+            )
+            + 2 * padding
+        )
 
-    def adjustDimensions(self, maxWidthInColumn: int,
-                         maxHeightInRow: int,
-                         maxSmWidthInColumn: int,
-                         maxSmRelXInColumn: int) -> None:
-
+    def adjustDimensions(
+        self,
+        maxWidthInColumn: int,
+        maxHeightInRow: int,
+        maxSmWidthInColumn: int,
+        maxSmRelXInColumn: int,
+    ) -> None:
         self.width = maxWidthInColumn
         self.height = maxHeightInRow
         self.smGeometry.width = maxSmWidthInColumn
         self.smGeometry.relX = maxSmRelXInColumn
 
     def adjustSmPos(self, lowestSmYInRow: int, padding: int) -> None:
-        """
-        adjusts the position of the switch matrix, using
-        the lowest Y coordinate of any switch matrix in
-        the same row for reference. After this step is
-        completed for all switch matrices, their southern
-        edge will be on the same Y coordinate, allowing
-        for easier inter-tile routing.
+        """Adjusts the position of the switch matrix, using the lowest Y coordinate of
+        any switch matrix in the same row for reference.
 
+        After this step is completed for all switch matrices, their southern edge will
+        be on the same Y coordinate, allowing for easier inter-tile routing.
         """
         currentSmY = self.smGeometry.relY + self.smGeometry.height
         additionalOffset = lowestSmYInRow - currentSmY
@@ -112,11 +114,8 @@ class TileGeometry:
         self.smGeometry.generateBelPorts(self.belGeomList)
 
     def setBelPositions(self, padding: int) -> None:
-        """
-        The position of the switch matrix is final when
-        this is called, thus bel positions can be set.
-
-        """
+        """The position of the switch matrix is final when this is called, thus bel
+        positions can be set."""
         belPadding = padding // 2
         belX = self.smGeometry.relX + self.smGeometry.width + padding
         belY = self.smGeometry.relY + belPadding
@@ -141,11 +140,7 @@ class TileGeometry:
         self.generateIndirectWires(padding)
 
     def generateBelWires(self) -> None:
-        """
-        Generates the wires between the switch matrix
-        and its bels.
-
-        """
+        """Generates the wires between the switch matrix and its bels."""
         for belGeom in self.belGeomList:
             belToSmDistanceX = belGeom.relX - (
                 self.smGeometry.relX + self.smGeometry.width
@@ -171,19 +166,20 @@ class TileGeometry:
     westMiddleY = None
 
     def generateDirectWires(self, padding: int) -> None:
-        """
-        Generates wires to neighbouring tiles, which are
-        straightforward to generate.
-
-        """
+        """Generates wires to neighbouring tiles, which are straightforward to
+        generate."""
         self.northMiddleX = self.smGeometry.relX - padding
         self.southMiddleX = self.smGeometry.relX - padding
         self.eastMiddleY = self.smGeometry.relY + self.smGeometry.height + padding
         self.westMiddleY = self.smGeometry.relY + self.smGeometry.height + padding
 
         if self.border == Border.NORTHSOUTH:
-            wireNorthPositions = sorted(self.neighbourConstraints.southPositions, reverse=True)
-            wireSouthPositions = sorted(self.neighbourConstraints.northPositions, reverse=True)
+            wireNorthPositions = sorted(
+                self.neighbourConstraints.southPositions, reverse=True
+            )
+            wireSouthPositions = sorted(
+                self.neighbourConstraints.northPositions, reverse=True
+            )
             northIter = iter(wireNorthPositions)
             southIter = iter(wireSouthPositions)
             self.northMiddleX = next(northIter, None)
@@ -286,12 +282,11 @@ class TileGeometry:
     queuedAdjustmentLeft = 0
     queuedAdjustmentBottom = 0
 
-    def generateIndirectWires(self, padding: int):
-        """
-        Generates wires to non-neighbouring tiles.
-        These are not straightforward to generate,
-        as they require a staircase-like shape.
+    def generateIndirectWires(self, padding: int) -> None:
+        """Generates wires to non-neighbouring tiles.
 
+        These are not straightforward to generate, as they require a staircase-like
+        shape.
         """
         for portGeom in self.smGeometry.portGeoms:
             if abs(portGeom.offset) < 2:
@@ -312,7 +307,9 @@ class TileGeometry:
         """Generates indirect wires on the north side of the tile, along with the stair-
         like wires needed."""
 
-        generateNorthSouthStairWire = (self.border != Border.NORTHSOUTH and self.border != Border.CORNER)
+        generateNorthSouthStairWire = (
+            self.border != Border.NORTHSOUTH and self.border != Border.CORNER
+        )
 
         # with a new group of ports, there will be the
         # need for a new stair-like wire for that group
@@ -350,18 +347,9 @@ class TileGeometry:
 
         wireName = f"{portGeom.sourceName} ⟶ {portGeom.destName}"
         wireGeom = WireGeometry(wireName)
-        start = Location(
-            self.northMiddleX,
-            0
-        )
-        middle = Location(
-            self.northMiddleX,
-            self.smGeometry.relY + portGeom.relY
-        )
-        end = Location(
-            self.smGeometry.relX,
-            self.smGeometry.relY + portGeom.relY
-        )
+        start = Location(self.northMiddleX, 0)
+        middle = Location(self.northMiddleX, self.smGeometry.relY + portGeom.relY)
+        end = Location(self.smGeometry.relX, self.smGeometry.relY + portGeom.relY)
         wireGeom.addPathLoc(start)
         wireGeom.addPathLoc(middle)
         wireGeom.addPathLoc(end)
@@ -370,13 +358,11 @@ class TileGeometry:
         self.northMiddleX -= 1
 
     def indirectSouthSideWire(self, portGeom: PortGeometry) -> None:
-        """
-        In contrast to indirectNorthSideWire(), this method
-        generates only indirect wires on the south side of
-        the tile, but no stair-like wires.
-
-        """
-        generateNorthSouthStairWire = (self.border != Border.NORTHSOUTH and self.border != Border.CORNER)
+        """In contrast to indirectNorthSideWire(), this method generates only indirect
+        wires on the south side of the tile, but no stair-like wires."""
+        generateNorthSouthStairWire = (
+            self.border != Border.NORTHSOUTH and self.border != Border.CORNER
+        )
 
         # with a new group of ports, there will be the
         # need for space for the generated stair-like wire
@@ -398,18 +384,9 @@ class TileGeometry:
 
         wireName = f"{portGeom.sourceName} ⟶ {portGeom.destName}"
         wireGeom = WireGeometry(wireName)
-        start = Location(
-            self.southMiddleX,
-            self.height
-        )
-        middle = Location(
-            self.southMiddleX,
-            self.smGeometry.relY + portGeom.relY
-        )
-        end = Location(
-            self.smGeometry.relX,
-            self.smGeometry.relY + portGeom.relY
-        )
+        start = Location(self.southMiddleX, self.height)
+        middle = Location(self.southMiddleX, self.smGeometry.relY + portGeom.relY)
+        end = Location(self.smGeometry.relX, self.smGeometry.relY + portGeom.relY)
         wireGeom.addPathLoc(start)
         wireGeom.addPathLoc(middle)
         wireGeom.addPathLoc(end)
@@ -421,7 +398,9 @@ class TileGeometry:
         """Generates indirect wires on the east side of the tile, along with the stair-
         like wires needed."""
 
-        generateEastWestStairWire = (self.border != Border.EASTWEST and self.border != Border.CORNER)
+        generateEastWestStairWire = (
+            self.border != Border.EASTWEST and self.border != Border.CORNER
+        )
 
         # with a new group of ports, there will be the
         # need for a new stair-like wire for that group
@@ -460,17 +439,10 @@ class TileGeometry:
         wireName = f"{portGeom.sourceName} ⟶ {portGeom.destName}"
         wireGeom = WireGeometry(wireName)
         start = Location(
-            self.smGeometry.relX + portGeom.relX,
-            self.smGeometry.relY + portGeom.relY
+            self.smGeometry.relX + portGeom.relX, self.smGeometry.relY + portGeom.relY
         )
-        middle = Location(
-            self.smGeometry.relX + portGeom.relX,
-            self.eastMiddleY
-        )
-        end = Location(
-            self.width,
-            self.eastMiddleY
-        )
+        middle = Location(self.smGeometry.relX + portGeom.relX, self.eastMiddleY)
+        end = Location(self.width, self.eastMiddleY)
         middle = Location(self.smGeometry.relX + portGeom.relX, self.eastMiddleY)
         end = Location(self.width, self.eastMiddleY)
         wireGeom.addPathLoc(start)
@@ -481,13 +453,11 @@ class TileGeometry:
         self.eastMiddleY += 1
 
     def indirectWestSideWire(self, portGeom: PortGeometry) -> None:
-        """
-        In contrast to indirectEastSideWire(), this method
-        generates only indirect wires on the south side of
-        the tile, but no stair-like wires.
-
-        """
-        generateEastWestStairWire = (self.border != Border.EASTWEST and self.border != Border.CORNER)
+        """In contrast to indirectEastSideWire(), this method generates only indirect
+        wires on the south side of the tile, but no stair-like wires."""
+        generateEastWestStairWire = (
+            self.border != Border.EASTWEST and self.border != Border.CORNER
+        )
 
         # with a new group of ports, there will be the
         # need for space for the generated stair-like wire
@@ -509,14 +479,8 @@ class TileGeometry:
 
         wireName = f"{portGeom.sourceName} ⟶ {portGeom.destName}"
         wireGeom = WireGeometry(wireName)
-        start = Location(
-            0,
-            self.westMiddleY
-        )
-        middle = Location(
-            self.smGeometry.relX + portGeom.relX,
-            self.westMiddleY
-        )
+        start = Location(0, self.westMiddleY)
+        middle = Location(self.smGeometry.relX + portGeom.relX, self.westMiddleY)
         end = Location(
             self.smGeometry.relX + portGeom.relX, self.smGeometry.relY + portGeom.relY
         )
@@ -528,11 +492,8 @@ class TileGeometry:
         self.westMiddleY += 1
 
     def totalWireLines(self) -> int:
-        """
-        Returns the total amount of lines (segments)
-        of wires of the tiles routing.
-
-        """
+        """Returns the total amount of lines (segments) of wires of the tiles
+        routing."""
         totalWireLines = 0
 
         for wireGeom in self.wireGeomList:
@@ -547,13 +508,15 @@ class TileGeometry:
         return totalWireLines
 
     def saveToCSV(self, writer: csvWriter) -> None:
-        writer.writerows([
-            ["TILE"],
-            ["Name"] + [self.name],
-            ["Width"] + [str(self.width)],
-            ["Height"] + [str(self.height)],
-            []
-        ])
+        writer.writerows(
+            [
+                ["TILE"],
+                ["Name"] + [self.name],
+                ["Width"] + [str(self.width)],
+                ["Height"] + [str(self.height)],
+                [],
+            ]
+        )
         self.smGeometry.saveToCSV(writer)
 
         for belGeometry in self.belGeomList:

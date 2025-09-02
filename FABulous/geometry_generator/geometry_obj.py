@@ -32,7 +32,6 @@ class Border(Enum):
     NONE = "NONE"
 
 
-
 def oppositeIO(io: IO):
     if io == IO.INPUT:
         return IO.OUTPUT

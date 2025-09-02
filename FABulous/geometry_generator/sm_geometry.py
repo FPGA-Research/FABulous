@@ -98,12 +98,8 @@ class SmGeometry:
         self.westPortsRightX = 0
 
     def preprocessPorts(self, tileBorder: Border) -> None:
-        """
-        Ensures that ports are ordered correctly,
-        merges connected jump ports and augments
-        ports for term tiles.
-
-        """
+        """Ensures that ports are ordered correctly, merges connected jump ports and
+        augments ports for term tiles."""
         # This step ensures correct ordering, this is important
         # for the wire generation step.
         self.northPorts = sorted(self.northPorts, key=lambda port: abs(port.yOffset))
@@ -233,13 +229,16 @@ class SmGeometry:
 
         self.jumpPorts = mergedJumpPorts
 
-    def generateGeometry(self, tile: Tile, tileBorder: Border,
-                         belGeoms: list[BelGeometry], padding: int) -> None:
+    def generateGeometry(
+        self, tile: Tile, tileBorder: Border, belGeoms: list[BelGeometry], padding: int
+    ) -> None:
         self.name = tile.name + "_switch_matrix"
-        self.src = tile.tileDir /  f"{self.name}.v"
-        self.csv = tile.tileDir /  f"{self.name}.csv"
+        self.src = tile.tileDir / f"{self.name}.v"
+        self.csv = tile.tileDir / f"{self.name}.csv"
 
-        self.jumpPorts = [port for port in tile.portsInfo if port.wireDirection == Direction.JUMP]
+        self.jumpPorts = [
+            port for port in tile.portsInfo if port.wireDirection == Direction.JUMP
+        ]
         self.northPorts = tile.getNorthSidePorts()
         self.southPorts = tile.getSouthSidePorts()
         self.eastPorts = tile.getEastSidePorts()
@@ -253,12 +252,23 @@ class SmGeometry:
         westWires = sum([port.wireCount for port in self.westPorts])
         jumpWires = sum([port.wireCount for port in self.jumpPorts])
 
-        self.northWiresReservedWidth = sum([abs(port.yOffset) * port.wireCount for port in self.northPorts])
-        self.southWiresReservedWidth = sum([abs(port.yOffset) * port.wireCount for port in self.southPorts])
-        self.eastWiresReservedHeight = sum([abs(port.xOffset) * port.wireCount for port in self.eastPorts])
-        self.westWiresReservedHeight = sum([abs(port.xOffset) * port.wireCount for port in self.westPorts])
+        self.northWiresReservedWidth = sum(
+            [abs(port.yOffset) * port.wireCount for port in self.northPorts]
+        )
+        self.southWiresReservedWidth = sum(
+            [abs(port.yOffset) * port.wireCount for port in self.southPorts]
+        )
+        self.eastWiresReservedHeight = sum(
+            [abs(port.xOffset) * port.wireCount for port in self.eastPorts]
+        )
+        self.westWiresReservedHeight = sum(
+            [abs(port.xOffset) * port.wireCount for port in self.westPorts]
+        )
 
-        self.relX = max(self.northWiresReservedWidth, self.southWiresReservedWidth) + 2 * padding
+        self.relX = (
+            max(self.northWiresReservedWidth, self.southWiresReservedWidth)
+            + 2 * padding
+        )
         self.relY = padding
 
         # These gaps are for the stair-like wires,
@@ -268,7 +278,11 @@ class SmGeometry:
             portsGapWest = 0
         else:
             portsGapWest = sum(
-                [port.wireCount for port in (self.northPorts + self.southPorts) if abs(port.yOffset) > 1]
+                [
+                    port.wireCount
+                    for port in (self.northPorts + self.southPorts)
+                    if abs(port.yOffset) > 1
+                ]
             )
             portsGapWest += padding
 
@@ -290,13 +304,18 @@ class SmGeometry:
         belsReservedSpace = belsHeightTotal + belsPaddingTotal
 
         self.width = max(eastWires + westWires + portsGapSouth, jumpWires) + 2 * padding
-        self.height = max(southWires + northWires + portsGapWest + 2 * padding, belsReservedSpace)
+        self.height = max(
+            southWires + northWires + portsGapWest + 2 * padding, belsReservedSpace
+        )
         self.generatePortsGeometry(padding)
 
         self.southPortsTopY = min(
-            [geom.relY for geom in self.portGeoms if geom.sideOfTile == Side.SOUTH] + [self.height]
+            [geom.relY for geom in self.portGeoms if geom.sideOfTile == Side.SOUTH]
+            + [self.height]
         )
-        self.westPortsRightX = max([geom.relX for geom in self.portGeoms if geom.sideOfTile == Side.WEST] + [0])
+        self.westPortsRightX = max(
+            [geom.relX for geom in self.portGeoms if geom.sideOfTile == Side.WEST] + [0]
+        )
 
     def generatePortsGeometry(self, padding: int) -> None:
         jumpPortX = padding
@@ -375,7 +394,8 @@ class SmGeometry:
                     f"{port.destinationName}{i}",
                     PortType.SWITCH_MATRIX,
                     port.inOut,
-                    eastPortX, eastPortY
+                    eastPortX,
+                    eastPortY,
                 )
                 portGeom.sideOfTile = port.sideOfTile
                 portGeom.offset = port.xOffset
@@ -424,22 +444,25 @@ class SmGeometry:
                     belPortGeom.destName,
                     PortType.SWITCH_MATRIX,
                     oppositeIO(belPortGeom.ioDirection),
-                    portX, portY
+                    portX,
+                    portY,
                 )
                 self.portGeoms.append(portGeom)
 
     def saveToCSV(self, writer: csvWriter) -> None:
-        writer.writerows([
-            ["SWITCH_MATRIX"],
-            ["Name"] + [self.name],
-            ["Src"] + [self.src],
-            ["Csv"] + [self.csv],
-            ["RelX"] + [str(self.relX)],
-            ["RelY"] + [str(self.relY)],
-            ["Width"] + [str(self.width)],
-            ["Height"] + [str(self.height)],
-            []
-        ])
+        writer.writerows(
+            [
+                ["SWITCH_MATRIX"],
+                ["Name"] + [self.name],
+                ["Src"] + [self.src],
+                ["Csv"] + [self.csv],
+                ["RelX"] + [str(self.relX)],
+                ["RelY"] + [str(self.relY)],
+                ["Width"] + [str(self.width)],
+                ["Height"] + [str(self.height)],
+                [],
+            ]
+        )
 
         for portGeom in self.portGeoms:
             portGeom.saveToCSV(writer)

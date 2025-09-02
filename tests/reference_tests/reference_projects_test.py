@@ -77,7 +77,9 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         from tests.reference_tests.conftest import _session_config
 
         if _session_config.projects_conf is None:
-            raise RuntimeError("Session config not initialized. This should be set in pytest_configure.")
+            raise RuntimeError(
+                "Session config not initialized. This should be set in pytest_configure."
+            )
 
         config_path = _session_config.projects_conf
 
@@ -98,10 +100,16 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 
 def test_reference_project_execution(
-    project: ReferenceProject, tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
+    project: ReferenceProject,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test execution of reference projects with run or diff mode."""
 
-    assert project.path.exists(), f"Reference project path does not exist: {project.path}"
+    assert project.path.exists(), (
+        f"Reference project path does not exist: {project.path}"
+    )
 
     # Copy project to temporary location
     project_name = project.path.name
@@ -113,7 +121,11 @@ def test_reference_project_execution(
 
     # Run FABulous commands
     _, execution_info = run_fabulous_commands_with_logging(
-        test_project_path, project.language, caplog, monkeypatch, commands=project.commands
+        test_project_path,
+        project.language,
+        caplog,
+        monkeypatch,
+        commands=project.commands,
     )
 
     # Always check that basic commands succeeded
@@ -161,11 +173,12 @@ def test_reference_project_execution(
         if cmp_diff:
             # Need to import _session_config here to avoid uninialized/circular import
             from tests.reference_tests.conftest import _session_config
+
             diff_report = format_file_differences_report(
                 cmp_diff,
                 verbose=_session_config.verbose,
                 current_dir=test_project_path,
-                reference_dir=project.path
+                reference_dir=project.path,
             )
             pytest.fail(
                 f"Compare project differences in {project.name}:\n{diff_report}"
