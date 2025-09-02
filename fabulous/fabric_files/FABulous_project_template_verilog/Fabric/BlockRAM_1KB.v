@@ -190,27 +190,6 @@ module BlockRAM_1KB #(
                 end
         end
 endmodule
-`default_nettype wire (* blackbox *)
-module sram_1rw1r_32_256_8_sky130 #(
-    parameter integer NUM_WMASKS = 4              ,
-    parameter integer DATA_WIDTH = 32             ,
-    parameter integer ADDR_WIDTH = 8              ,
-    parameter integer RAM_DEPTH  = 1 << ADDR_WIDTH,
-    // NOTE: This delay is arbitrary.
-    parameter integer DELAY      = 3
-) (
-    // Port 0: RW
-    input                   clk0  , // clock
-    input                   csb0  , // active low chip select
-    input                   web0  , // active low write control
-    input  [NUM_WMASKS-1:0] wmask0, // write mask
-    input  [ADDR_WIDTH-1:0] addr0 ,
-    input  [DATA_WIDTH-1:0] din0  ,
-    output [DATA_WIDTH-1:0] dout0 ,
-    // Port 1: R
-    input                   clk1  , // clock
-    input                   csb1  , // active low chip select
-    input  [ADDR_WIDTH-1:0] addr1 ,
-    output [DATA_WIDTH-1:0] dout1
-);
-endmodule
+`default_nettype wire
+
+// The sram_1rw1r_32_256_8_sky130 simulation model lives in models_pack.v

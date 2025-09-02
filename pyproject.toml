@@ -124,6 +124,7 @@ dev = [
   "ruff>=0.12.7",
   "pyyaml>=6.0.0",
   "interrogate>=1.7.0",
+  "cocotbext-uart>=0.1.4",
 ]
 
 [tool.coverage.run]
