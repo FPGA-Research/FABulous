@@ -33,48 +33,50 @@ FF=16,
 IOmux=17,
 SET_NORESET=18
 *)
-module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
+module LUT4c_frame_config_dffesr #(
+    parameter integer NoConfigBits = 19
+) (
     // ConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
-    input [3:0]  I,   // Vector for I0, I1, I2, I3
-    output       O,           // Single output for LUT result
-    input        Ci,          // Carry chain input
-    output       Co,          // Carry chain output
-    input        SR,          // SHARED_RESET
-    input        EN,          // SHARED_ENABLE
-    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK, // External and shared clock
-    (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits // Config bits as vector
+    input [3:0] I,  // Vector for I0, I1, I2, I3
+    output O,  // Single output for LUT result
+    input Ci,  // Carry chain input
+    output Co,  // Carry chain output
+    input SR,  // SHARED_RESET
+    input EN,  // SHARED_ENABLE
+    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,  // External and shared clock
+    (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits  // Config bits as vector
 );
-    localparam LUT_SIZE = 4;
-    localparam N_LUT_flops = 2 ** LUT_SIZE;
+  localparam integer LUT_SIZE = 4;
+  localparam integer N_LUT_FLOPS = 2 ** LUT_SIZE;
 
-    wire [N_LUT_flops-1 : 0] LUT_values;
-    wire [LUT_SIZE-1 : 0] LUT_index;
-    wire LUT_out;
-    reg LUT_flop;
-    wire I0mux; // normal input '0', or carry input '1'
-    wire c_out_mux, c_I0mux, c_reset_value; // extra configuration bits
+  wire [N_LUT_FLOPS-1 : 0] LUT_values;
+  wire [LUT_SIZE-1 : 0] LUT_index;
+  wire LUT_out;
+  reg LUT_flop;
+  wire I0mux;  // normal input '0', or carry input '1'
+  wire c_out_mux, c_I0mux, c_reset_value;  // extra configuration bits
 
-    assign LUT_values = ConfigBits[15:0];
-    assign c_out_mux  = ConfigBits[16];
-    assign c_I0mux = ConfigBits[17];
-    assign c_reset_value = ConfigBits[18];
+  assign LUT_values = ConfigBits[15:0];
+  assign c_out_mux = ConfigBits[16];
+  assign c_I0mux = ConfigBits[17];
+  assign c_reset_value = ConfigBits[18];
 
-//CONFout <= c_I0mux;
+  //CONFout <= c_I0mux;
 
-    //assign I0mux = c_I0mux ? Ci : I0;
-    cus_mux21 cus_mux21_I0mux(
-    .A0(I[0]),
-    .A1(Ci),
-    .S(c_I0mux),
-    .X(I0mux)
-    );
+  //assign I0mux = c_I0mux ? Ci : I0;
+  cus_mux21 cus_mux21_I0mux (
+      .A0(I[0]),
+      .A1(Ci),
+      .S (c_I0mux),
+      .X (I0mux)
+  );
 
-    assign LUT_index = {I[3],I[2],I[1],I0mux};
+  assign LUT_index = {I[3], I[2], I[1], I0mux};
 
-// The LUT is just a multiplexer
-// for a first shot, I am using a 16:1
-// LUT_out <= LUT_values(TO_INTEGER(LUT_index));
-    /*MUX16PTv2 inst_MUX16PTv2_E6BEG1(
+  // The LUT is just a multiplexer
+  // for a first shot, I am using a 16:1
+  // LUT_out <= LUT_values(TO_INTEGER(LUT_index));
+  /*MUX16PTv2 inst_MUX16PTv2_E6BEG1(
     .IN1(LUT_values[0]),
     .IN2(LUT_values[1]),
     .IN3(LUT_values[2]),
@@ -125,23 +127,22 @@ module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
     .X  (LUT_out)
     );
 
-    //assign O = c_out_mux ? LUT_flop : LUT_out;
-    cus_mux21 cus_mux21_O(
-    .A0(LUT_out),
-    .A1(LUT_flop),
-    .S(c_out_mux),
-    .X(O)
-    );
+  //assign O = c_out_mux ? LUT_flop : LUT_out;
+  cus_mux21 cus_mux21_O (
+      .A0(LUT_out),
+      .A1(LUT_flop),
+      .S (c_out_mux),
+      .X (O)
+  );
 
-    assign Co = (Ci & I[1]) | (Ci & I[2]) | (I[1] & I[2]);// iCE40 like carry chain (as this is supported in Yosys; would normally go for fractured LUT)
+  // iCE40 like carry chain (as this is supported in Yosys; would normally go for fractured LUT)
+  assign Co = (Ci & I[1]) | (Ci & I[2]) | (I[1] & I[2]);
 
-    always @ (posedge UserCLK) begin
-        if (EN) begin
-            if (SR)
-                LUT_flop <= c_reset_value;
-            else
-                LUT_flop <= LUT_out;
-        end
+  always @(posedge UserCLK) begin
+    if (EN) begin
+      if (SR) LUT_flop <= c_reset_value;
+      else LUT_flop <= LUT_out;
     end
+  end
 
 endmodule
