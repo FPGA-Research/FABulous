@@ -24,6 +24,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx-prompt",
     "sphinx.ext.todo",
+    "sphinx_rtd_theme",
 ]
 
 intersphinx_mapping = {
@@ -54,10 +55,15 @@ napoleon_attr_annotations = True
 
 # -- Options for HTML output
 
-html_theme = "sphinx_materialdesign_theme"
+html_theme = "sphinx_rtd_theme"
 
 html_logo = "figs/FAB_logo.png"
 
+# Set the serachbar background to FABulous blue
+html_theme_options = {
+    'style_nav_header_background': '#333399',
+}
+default_dark_mode = True
 
 # -- Options for EPUB output
 epub_show_urls = "footnote"
