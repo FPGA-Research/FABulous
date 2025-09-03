@@ -64,13 +64,21 @@ def genTileSwitchMatrix(
 
     Parameters
     ----------
+    writer : CodeGenerator
+        The code generator instance for RTL output
+    fabric : Fabric
+        The fabric object containing global configuration
     tile : Tile
-        A tile object.
+        The tile object containing BELs and port information
+    switch_matrix_debug_signal : bool
+        Whether to generate debug signals for the switch matrix.
 
     Raises
     ------
-    ValueError
+    InvalidFileType
         If `matrixDir` does not contain a valid file format.
+    ValueError
+        If any port in the switch matrix is not connected to anything.
     """
     # convert the matrix to a dictionary map and performs entry check
     connections: dict[str, list[str]] = {}

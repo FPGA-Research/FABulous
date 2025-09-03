@@ -280,13 +280,6 @@ def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
         - lut: LUT architecture size (default: 4)
         - And various other synthesis options
 
-    Raises
-    ------
-    CommandError
-        If synthesis fails or if required files are not found.
-    FileNotFoundError
-        If any of the input files do not exist.
-
     Notes
     -----
     The synthesis process includes multiple stages: hierarchy checking,

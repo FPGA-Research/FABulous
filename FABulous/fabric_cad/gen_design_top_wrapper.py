@@ -30,8 +30,10 @@ def generateUserDesignTopWrapper(
 
     Raises
     ------
-    ValueError
+    InvalidFileType
         Output file is not a Verilog file or user design path is not a file
+    FileNotFoundError
+        User design file is not a file or does not exist
     """
     top_wrapper: list[str] = [""]
 

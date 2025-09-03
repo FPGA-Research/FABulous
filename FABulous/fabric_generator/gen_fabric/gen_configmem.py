@@ -37,10 +37,17 @@ def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) 
 
     Parameters
     ----------
+    fabric : Fabric
+        The fabric object containing fabric configuration
     file : Path
         The output file of the config memory initialization file.
     tileConfigBitsCount : int
         The number of tile config bits of the tile.
+
+    Raises
+    ------
+    ValueError
+        If the tile config bits exceed the fabric capacity.
     """
     if tileConfigBitsCount > fabric.frameBitsPerRow * fabric.maxFramesPerCol:
         raise ValueError(
@@ -105,10 +112,21 @@ def generateConfigMem(
 
     Parameters
     ----------
+    writer : CodeGenerator
+        The code generator instance for RTL output
+    fabric : Fabric
+        The fabric object containing fabric configuration
     tile : Tile
         A tile object.
-    configMemCsv : str
+    configMemCsv : Path
         The directory of the config memory CSV file.
+
+    Raises
+    ------
+    ValueError
+        - If the tile config bits exceed the fabric capacity.
+        - If the total config bits in the config memory CSV file does not match
+          the tile's global config bits.
     """
     # test if we have a bitstream mapping file
     # if not, we will take the default, which was passed on from  GenerateConfigMemInit

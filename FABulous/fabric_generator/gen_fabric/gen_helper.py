@@ -43,7 +43,7 @@ def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
     ----------
     tile : Tile
         The tile to generate the switch matrix for
-    outputDir : str
+    outputDir : Path
         The output directory to write the switch matrix to
     """
     logger.info(f"Generate matrix csv for {tile.name} # filename: {outputDir}")
@@ -84,15 +84,10 @@ def list2CSV(InFileName: Path, OutFileName: Path) -> None:
 
     Parameters
     ----------
-    InFileName : str
+    InFileName : Path
         The input file name of the list file
-    OutFileName : str
+    OutFileName : Path
         The directory of the CSV file to be written
-
-    Raises
-    ------
-    ValueError
-        If the list file contains signals that are not in the matrix file
     """
     logger.info(f"Adding {InFileName} to {OutFileName}")
 

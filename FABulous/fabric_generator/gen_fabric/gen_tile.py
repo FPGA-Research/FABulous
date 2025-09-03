@@ -75,7 +75,12 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         The fabric object containing global configuration
     tile : Tile
         The tile object containing BELs and port information
-        The tile object containing BELs and port information
+
+    Raises
+    ------
+    FileNotFoundError
+        Only raised for VHDL output. If required component files
+        (e.g., switch matrix or config memory) are missing.
     """
     allJumpWireList = []
 
