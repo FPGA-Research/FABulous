@@ -12,8 +12,7 @@ from FABulous.fabric_definition.Yosys_obj import YosysJson, YosysModule
 
 
 def belMapProcessing(module_info: YosysModule) -> dict:
-    """Extracts and transforms BEL mapping attributes in the JSON created from a Verilog
-    module.
+    """Extract and transform BEL mapping attributes in `YosysModule`.
 
     Parameters
     ----------

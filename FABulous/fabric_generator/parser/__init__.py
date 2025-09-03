@@ -1,0 +1,1 @@
+"""Parser module for FABulous."""

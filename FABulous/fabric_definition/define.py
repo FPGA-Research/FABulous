@@ -4,7 +4,7 @@ This module defines various enumerations used throughout FABulous for fabric def
 including I/O types, directions, sides, and configuration modes.
 """
 
-from enum import Enum
+from enum import Enum, StrEnum
 
 
 class IO(Enum):
@@ -85,12 +85,30 @@ class ConfigBitMode(Enum):
 
 
 class HDLType(StrEnum):
+    """Enumeration for HDLs supported by FABulous.
+
+    This enumeration includes the following values:
+    - VERILOG: Verilog HDL
+    - VHDL: VHDL HDL
+    - SYSTEM_VERILOG: SystemVerilog HDL
+    """
+
     VERILOG = "verilog"
     VHDL = "vhdl"
     SYSTEM_VERILOG = "system_verilog"
 
 
 class FABulousAttribute(StrEnum):
+    """Enumeration for FABulous attributes in the HDL.
+
+    This enumeration includes the following values:
+    - EXTERNAL: External attribute
+    - SHARED_PORT: Shared port attribute
+    - GLOBAL: Global attribute
+    - USER_CLK: User clock attribute
+    - CONFIG_BIT: Configuration bit attribute
+    """
+
     EXTERNAL = "EXTERNAL"
     SHARED_PORT = "SHARED_PORT"
     GLOBAL = "GLOBAL"

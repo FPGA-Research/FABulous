@@ -480,19 +480,19 @@ def test_user_argument_overrides_all(
     5. Default value - current working directory (lowest priority).
     """
     # Set environment variable and change to default directory
-    monkeypatch.setenv("FAB_PROJ_DIR", str(dirs["env_var_dir"]))
-    monkeypatch.chdir(dirs["default_dir"])
+    monkeypatch.setenv("FAB_PROJ_DIR", str(project_directories["env_var_dir"]))
+    monkeypatch.chdir(project_directories["default_dir"])
 
     result = run(
         [
             "FABulous",
-            str(dirs["user_provided_dir"]),
+            str(project_directories["user_provided_dir"]),
             "--commands",
             "help",
             "--projectDotEnv",
-            str(dirs["project_dotenv_file"]),
+            str(project_directories["project_dotenv_file"]),
             "--globalDotEnv",
-            str(dirs["global_dotenv_file"]),
+            str(project_directories["global_dotenv_file"]),
         ],
         capture_output=True,
         text=True,
@@ -500,7 +500,7 @@ def test_user_argument_overrides_all(
 
     # The log should show the user provided directory being used
     assert (
-        f"INFO: Setting current working directory to: {str(dirs['user_provided_dir'])}"
+        f"INFO: Setting current working directory to: {str(project_directories['user_provided_dir'])}"
         in result.stdout
     )
 
@@ -589,8 +589,8 @@ def test_project_dotenv_fallback_to_current_directory(
         cwd=str(dirs["default_dir"]),
     )
 
-    # Project .env now sets FAB_PROJ_DIR when provided explicitly, even without
-    # an explicit global .env argument
+    # Project .env now sets FAB_PROJ_DIR when provided explicitly,
+    # even without an explicit global .env argument
     assert (
         f"INFO: Setting current working directory to: {str(dirs['default_dir'])}"
         in result.stdout
@@ -628,8 +628,7 @@ def test_global_dotenv_only(
 def test_default_directory_fallback(
     project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that default directory (cwd) is used when no argument, env var, or
-    .env files are provided."""
+    """Test that default directory (cwd) is used when nothing is provided."""
     dirs = project_directories
 
     monkeypatch.delenv("FAB_PROJ_DIR", raising=False)
@@ -676,8 +675,7 @@ def test_user_argument_explicitly_overrides_environment_variable(
 def test_environment_variable_overrides_global_dotenv(
     project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that environment variable overrides global .env file when user arg
-    not provided."""
+    """Test that environment variable overrides global .env file."""
     dirs = project_directories
 
     monkeypatch.setenv("FAB_PROJ_DIR", str(dirs["env_var_dir"]))
@@ -727,8 +725,7 @@ def test_dotenv_loading_verification(
 
 
 def test_command_flag_with_stop_on_first_error(project: Path) -> None:
-    """Test that using `--commands` with multiple commands raises an error on the
-    first failure"""
+    """Test multiple commands run raises an error on the first failure."""
     # Run with multiple commands, where the first one fails
     result = run(
         [

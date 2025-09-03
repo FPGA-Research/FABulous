@@ -107,9 +107,11 @@ class SmGeometry:
     def preprocessPorts(self, tileBorder: Border) -> None:
         """Order the ports for downstream drawing.
 
-        Ensure that ports are ordered correctly, merge connected jump ports and augment ports for term tiles.
-        This step augments ports in border tiles. This is needed, as these are not contained
-        in the (north...west)SidePorts in FABulous.
+        Ensure that ports are ordered correctly, merge connected jump ports and augment
+        ports for term tiles.
+        This step augments ports in border tiles.
+        This is needed, as these are not contained in the (north...west)SidePorts
+        in FABulous.
         """
         # TODO: check if numbering is generated correctly
         #  for augmented ports

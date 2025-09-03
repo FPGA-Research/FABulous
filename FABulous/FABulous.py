@@ -125,8 +125,7 @@ def common_options(
         ),
     ] = HDLType.VERILOG,
 ) -> None:
-    """Common options for all FABulous commands."""
-
+    """Provide common options for all FABulous commands."""
     shared_state.verbose = verbose
     shared_state.debug = debug
     shared_state.log_file = log_file
@@ -204,7 +203,6 @@ def update_project_version_cmd(
     project_dir: ProjectDirType = Path(),
 ) -> None:
     """Update project version to match package version."""
-
     logger.info(f"Using {project_dir} directory as project directory")
     if not update_project_version(project_dir):
         logger.error(
@@ -238,7 +236,6 @@ def script_cmd(
 
     If no project directory is specified, uses the current directory.
     """
-
     # Initialize context
     entering_dir = Path.cwd()
     settings = init_context(
@@ -349,7 +346,6 @@ def run_cmd(
 
     Alias: r
     """
-
     settings = init_context(
         project_dir=project_dir,
         global_dot_env=shared_state.global_dot_env,
@@ -412,6 +408,7 @@ def run_cmd(
 
 
 def main() -> None:
+    """Entry point for the application."""
     try:
         if len(sys.argv) == 1:
             app()
@@ -430,8 +427,7 @@ def main() -> None:
 
 
 def convert_legacy_args_with_deprecation_warning() -> None:
-    """Convert legacy argparse arguments to new Typer commands with deprecation
-    warning."""
+    """Convert legacy argparse arguments to new Typer commands."""
     import argparse
     import sys
     from pathlib import Path

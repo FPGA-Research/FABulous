@@ -1,4 +1,5 @@
 """Integration tests for FABulous fabric generation."""
+
 from pathlib import Path
 from subprocess import run
 

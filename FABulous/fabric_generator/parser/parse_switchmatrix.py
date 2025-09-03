@@ -117,8 +117,8 @@ def expandListPorts(port: str, PortList: list[str]) -> None:
     else:
         # Multiply ports by the number of multipliers, given in the curly braces.
         # We let all curly braces in the port Expansion to be expanded and
-        # calculate the total number of ports to be added afterward, based on the
-        # number of multipliers.
+        # calculate the total number of ports to be added afterward,
+        # based on the number of multipliers.
         # Also remove the multipliers from port name, before adding it to the list.
         port = port.replace(" ", "")  # remove spaces
         multipliers = re.findall(r"\{(\d+)\}", port)

@@ -4,6 +4,7 @@ This module handles configuration settings for the FABulous FPGA framework, incl
 tool paths, project settings, and environment variable management.
 """
 
+from importlib.metadata import version as meta_version
 from pathlib import Path
 from shutil import which
 
@@ -69,7 +70,6 @@ class FABulousSettings(BaseSettings):
         Uses already-validated proj_lang from info.data when available. Accepts None /
         empty string to mean unset.
         """
-
         proj_lang = info.data.get("proj_lang")
         if value is None or value == "":
             if p := info.data.get("proj_dir"):
@@ -247,7 +247,8 @@ def init_context(
         project_dot_env: Project .env file path
         explicit_project_dir: Explicitly provided project directory (highest priority)
 
-    Returns:
+    Returns
+    -------
         The initialized FABulousSettings instance
     """
     global _context_instance
@@ -317,10 +318,12 @@ def init_context(
 def get_context() -> FABulousSettings:
     """Get the global FABulous context.
 
-    Returns:
+    Returns
+    -------
         The current FABulousSettings instance
 
-    Raises:
+    Raises
+    ------
         RuntimeError: If context has not been initialized with init_context()
     """
     global _context_instance

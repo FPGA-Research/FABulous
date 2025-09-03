@@ -29,7 +29,8 @@ def download_reference_projects(
         target_dir: Local directory to clone/download to
         branch: Git branch to checkout (default: "main")
 
-    Returns:
+    Returns
+    -------
         True if successful, False otherwise
     """
     try:
@@ -114,7 +115,8 @@ def compare_files_with_diff(
 ) -> list[str] | None:
     """Compare two files and return unified diff if they differ.
 
-    Returns:
+    Returns
+    -------
         None if files are identical, list of diff lines if different
     """
     try:
@@ -153,7 +155,6 @@ def compare_directories(
     exclude_patterns: list[str] | None = None,
 ) -> list[FileDifference]:
     """Compare files in two directories using simple pattern matching."""
-
     differences = []
 
     # Find all matching files
@@ -235,7 +236,6 @@ def format_file_differences_report(
     reference_dir: Path | None = None,
 ) -> str:
     """Format file differences into a readable report with git-style diffs."""
-
     if not differences:
         return "No differences found."
 
@@ -321,7 +321,8 @@ def run_fabulous_commands_with_logging(
         commands: Optional list of commands to run. If None, runs standard sequence
         skip_on_fail: Whether to skip remaining commands if one fails
 
-    Returns:
+    Returns
+    -------
         Tuple of (FABulous_CLI instance, execution_info dict)
 
     The execution_info dict contains:
