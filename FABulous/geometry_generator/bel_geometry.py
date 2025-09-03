@@ -8,11 +8,15 @@ from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 class BelGeometry:
     """A data structure representing the geometry of a bel.
 
+    Sets all attributes to default values: None for names/sources,
+    zero for dimensions and coordinates, and empty lists for
+    port names and geometries.
+
     Attributes
     ----------
-    name : str
+    name : str | None
         Name of the bel
-    src : str
+    src : str | None
         File path of the bel HDL source file
     width : int
         Width of the bel
@@ -22,22 +26,22 @@ class BelGeometry:
         X coordinate of the bel, relative within the tile
     relY : int
         Y coordinate of the bel, relative within the tile
-    internalInputs : List[str]
+    internalInputs : list[str]
         Internal input port names of the bel
-    internalOutputs : List[str]
+    internalOutputs : list[str]
         Internal output port names of the bel
-    externalInputs : List[str]
+    externalInputs : list[str]
         External input port names of the bel
-    externalOutputs : List[str]
+    externalOutputs : list[str]
         External output port names of the bel
-    internalPortGeoms : List[PortGeometry]
+    internalPortGeoms : list[PortGeometry]
         List of geometries of the internal ports of the bel
-    externalPortGeoms : List[PortGeometry]
+    externalPortGeoms : list[PortGeometry]
         List of geometries of the external ports of the bel
     """
 
-    name: str
-    src: str
+    name: str | None
+    src: str | None
     width: int
     height: int
     relX: int
@@ -50,12 +54,6 @@ class BelGeometry:
     externalPortGeoms: list[PortGeometry]
 
     def __init__(self) -> None:
-        """Initialize a BelGeometry instance.
-
-        Sets all attributes to default values: None for names/sources,
-        zero for dimensions and coordinates, and empty lists for
-        port names and geometries.
-        """
         """Initialize a BelGeometry instance.
 
         Sets all attributes to default values: None for names/sources,
@@ -208,7 +206,7 @@ class BelGeometry:
 
         Parameters
         ----------
-        writer :
+        writer : object
             The CSV writer object to use for output
         """
         writer.writerows(

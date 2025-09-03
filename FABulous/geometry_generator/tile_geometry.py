@@ -6,6 +6,8 @@ It handles both direct connections to neighboring tiles and complex stair-like r
 for longer-distance connections.
 """
 
+from dataclasses import dataclass, field
+
 from FABulous.custom_exception import InvalidPortType
 from FABulous.fabric_definition.define import Direction, Side
 from FABulous.fabric_definition.Tile import Tile
@@ -16,6 +18,7 @@ from FABulous.geometry_generator.sm_geometry import SmGeometry
 from FABulous.geometry_generator.wire_geometry import StairWires, WireGeometry
 
 
+@dataclass
 class TileGeometry:
     """A data structure representing the geometry of a tile.
 
@@ -42,10 +45,6 @@ class TileGeometry:
         List of the stair-like wires of the tile
     currPortGroupId : int
         Current port group ID being processed
-    eastMiddleY : int
-        Middle Y coordinate for east side
-    northMiddleX : int
-        Middle X coordinate for north side
     queuedAdjustmentBottom : int
         Queued adjustment for bottom positioning
     queuedAdjustmentLeft : int
@@ -54,49 +53,33 @@ class TileGeometry:
         Whether to reserve space at bottom for stair wires
     reserveStairSpaceLeft : bool
         Whether to reserve space at left for stair wires
+    eastMiddleY : int
+        Middle Y coordinate for east side
+    northMiddleX : int
+        Middle X coordinate for north side
     southMiddleX : int
         Middle X coordinate for south side
     westMiddleY : int
         Middle Y coordinate for west side
     """
 
-    name: str
-    width: int
-    height: int
-    border: Border
-    smGeometry: SmGeometry
-    belGeomList: list[BelGeometry]
-    wireGeomList: list[WireGeometry]
-    stairWiresList: list[StairWires]
-    currPortGroupId: int
-    eastMiddleY: int
-    northMiddleX: int
-    queuedAdjustmentBottom: int
-    queuedAdjustmentLeft: int
-    reserveStairSpaceBottom: bool
-    reserveStairSpaceLeft: bool
-    southMiddleX: int
-    westMiddleY: int
-
-    def __init__(self) -> None:
-        self.name = ""
-        self.width = 0
-        self.height = 0
-        self.border = Border.NONE
-        self.smGeometry = SmGeometry()
-        self.belGeomList = []
-        self.wireGeomList = []
-        self.stairWiresList = []
-        # Routing bookkeeping and alignment helpers
-        self.currPortGroupId = -1
-        self.queuedAdjustmentBottom = 0
-        self.queuedAdjustmentLeft = 0
-        self.reserveStairSpaceBottom = False
-        self.reserveStairSpaceLeft = False
-        self.northMiddleX = 0
-        self.southMiddleX = 0
-        self.eastMiddleY = 0
-        self.westMiddleY = 0
+    name: str = ""
+    width: int = 0
+    height: int = 0
+    border: Border = Border.NONE
+    smGeometry: SmGeometry = field(default_factory=SmGeometry)
+    belGeomList: list[BelGeometry] = field(default_factory=list)
+    wireGeomList: list[WireGeometry] = field(default_factory=list)
+    stairWiresList: list[StairWires] = field(default_factory=list)
+    currPortGroupId: int = -1
+    queuedAdjustmentBottom: int = 0
+    queuedAdjustmentLeft: int = 0
+    reserveStairSpaceBottom: bool = False
+    reserveStairSpaceLeft: bool = False
+    eastMiddleY: int = 0
+    northMiddleX: int = 0
+    southMiddleX: int = 0
+    westMiddleY: int = 0
 
     def generateGeometry(self, tile: Tile, padding: int) -> None:
         """Generate the geometry for a tile.

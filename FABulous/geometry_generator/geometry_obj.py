@@ -1,8 +1,10 @@
 """Simple FPGA geometry location base object class."""
 
+from dataclasses import dataclass
 from enum import Enum
 
 
+@dataclass
 class Location:
     """A simple data structure for storing a location.
 
@@ -16,19 +18,6 @@ class Location:
 
     x: int
     y: int
-
-    def __init__(self, x: int, y: int) -> None:
-        """Initialize a `Location` instance.
-
-        Parameters
-        ----------
-        x : int
-            X coordinate
-        y : int
-            Y coordinate
-        """
-        self.x = x
-        self.y = y
 
     def __repr__(self) -> str:
         """Return the string representation of the location.

@@ -16,15 +16,25 @@ class FabricGeometry:
     Objects of this class can be constructed by passing a `Fabric` object
     and optionally, padding.
 
+    Creates the fabric geometry by processing the given fabric definition
+    and automatically generating the complete geometric layout.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric object from CSV definition files
+    padding : int, optional
+        Padding used throughout the geometry, by default 8
+
     Attributes
     ----------
     fabric : Fabric
         The fabric object passed from the CSV definition files
-    tileNames : Set[str]
+    tileNames : set[str]
         Set of unique tileNames in the fabric
-    tileGeomMap : Dict[str, TileGeometry]
+    tileGeomMap : dict[str, TileGeometry]
         Map of the geometry of each tile by name
-    tileLocs : List[List[Location]]
+    tileLocs : list[list[Location]]
         Locations of all tiles in the fabric
     padding : int
         Padding used throughout the geometry, in multiples of the width between wires
@@ -43,30 +53,6 @@ class FabricGeometry:
     height: int
 
     def __init__(self, fabric: Fabric, padding: int = 8) -> None:
-        """Initialize a FabricGeometry instance.
-
-        Creates the fabric geometry by processing the given fabric definition
-        and automatically generating the complete geometric layout.
-
-        Parameters
-        ----------
-        fabric : Fabric
-            The fabric object from CSV definition files
-        padding : int, optional
-            Padding used throughout the geometry, by default 8
-        """
-        """Initialize a FabricGeometry instance.
-
-        Creates the fabric geometry by processing the given fabric definition
-        and automatically generating the complete geometric layout.
-
-        Parameters
-        ----------
-        fabric : Fabric
-            The fabric object from CSV definition files
-        padding : int, optional
-            Padding used throughout the geometry, by default 8
-        """
         self.fabric = fabric
         self.tileNames = set()
         self.tileGeomMap = {}

@@ -1,8 +1,9 @@
 """Port geometry definitions."""
 
+from dataclasses import dataclass
 from enum import Enum
 
-from FABulous.fabric_definition.define import IO, Side
+from FABulous.fabric_definition.define import IO, Direction, Side
 
 
 class PortType(Enum):
@@ -19,74 +20,56 @@ class PortType(Enum):
     BEL = "BEL_PORT"
 
 
+@dataclass
 class PortGeometry:
     """A data structure representing the geometry of a Port.
 
+    Sets all attributes to default values: None for names and directions,
+    zero for numeric values, and appropriate defaults for enumerated types.
+
     Attributes
     ----------
-    name : str
+    name : str | None, optional
         Name of the port
-    sourceName : str
+    sourceName : str | None, optional
         Name of the port source
-    destName : str
+    destName : str | None, optional
         Name of the port destination
-    type : PortType
+    type : PortType | None, optional
         Type of the port
     ioDirection : IO
-        IO direction of the port
+        IO direction of the port.
     sideOfTile : Side
-        Side of the tile the ports wire is on
+        Side of the tile the port's wire is on.
     offset : int
-        Offset to the connected port
-    wireDirection : Direction
+        Offset to the connected port.
+    wireDirection : Direction | None, optional
         Direction of the ports wire
     groupId : int
-        Id of the port group
+        ID of the port group.
     groupWires : int
-        Amount of wires of the port group
+        Number of wires in the port group.
     relX : int
-        X coordinate of the port, relative to its parent (bel, switch matrix)
+        X coordinate of the port, relative to its parent (bel, switch matrix).
     relY : int
-        Y coordinate of the port, relative to its parent (bel, switch matrix)
+        Y coordinate of the port, relative to its parent (bel, switch matrix).
+    nextId : int
+        ID of the next port in the group.
     """
 
-    name: str
-    sourceName: str
-    destName: str
-    type: PortType
-    ioDirection: IO
-    sideOfTile: Side
-    offset: int
-    groupId: int
-    groupWires: int
-    relX: int
-    relY: int
-
-    nextId = 1
-
-    def __init__(self) -> None:
-        """Initialize a PortGeometry instance.
-
-        Sets all attributes to default values: None for names and directions,
-        zero for numeric values, and appropriate defaults for enumerated types.
-        """
-        """Initialize a PortGeometry instance.
-
-        Sets all attributes to default values: None for names and directions,
-        zero for numeric values, and appropriate defaults for enumerated types.
-        """
-        self.name = None
-        self.sourceName = None
-        self.destName = None
-        self.type = None
-        self.ioDirection = IO.NULL
-        self.sideOfTile = Side.ANY
-        self.offset = 0
-        self.wireDirection = None
-        self.groupId = 0
-        self.groupWires = 0
-        self.relX = 0
-        self.relY = 0
+    name: str | None = None
+    sourceName: str | None = None
+    destName: str | None = None
+    type: PortType | None = None
+    ioDirection: IO = IO.NULL
+    sideOfTile: Side = Side.ANY
+    offset: int = 0
+    wireDirection: Direction | None = None
+    groupId: int = 0
+    groupWires: int = 0
+    relX: int = 0
+    relY: int = 0
+    nextId: int = 1
 
     def generateGeometry(
         self,
@@ -161,7 +144,7 @@ class PortGeometry:
 
         Parameters
         ----------
-        writer
+        writer : object
             The CSV `writer` object to use for output
         """
         writer.writerows(

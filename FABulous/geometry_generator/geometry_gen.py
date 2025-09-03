@@ -24,24 +24,25 @@ from FABulous.geometry_generator.fabric_geometry import FabricGeometry
 
 class GeometryGenerator:
     """Class to handle the generation of the geometry for a fabric.
-    """Class to handle the generation of the geometry for a fabric.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric object passed from the CSV definition files
+
 
     Attributes
     ----------
     fabric : Fabric
         The fabric object passed from the CSV definition files
-    fabricGeometry : FabricGeometry
+    fabricGeometry : FabricGeometry | None, optional
         The generated geometry object
     """
 
-    def __init__(self, fabric: Fabric) -> None:
-        """Initialize a `GeometryGenerator` instance.
+    fabric: Fabric
+    fabricGeometry: FabricGeometry | None
 
-        Parameters
-        ----------
-        fabric : Fabric
-            The fabric object from CSV definition files
-        """
+    def __init__(self, fabric: Fabric) -> None:
         self.fabric = fabric
         self.fabricGeometry = None
 
@@ -60,8 +61,7 @@ class GeometryGenerator:
         self.fabricGeometry = FabricGeometry(self.fabric, padding)
 
     def saveToCSV(self, fileName: str) -> None:
-        """Save the generated geometry into a file specified by the given file name.
-        """Save the generated geometry into a file specified by the given file name.
+                """Save the generated geometry into a file specified by the given file name.
 
         Exports the complete fabric geometry data to a CSV file that can be
         imported into FABulator for visualization and analysis.
@@ -82,10 +82,5 @@ class GeometryGenerator:
         ----------
         fileName : str
             The name of the CSV file to create
-
-        Raises
-        ------
-        AttributeError
-            If generateGeometry() has not been called yet
         """
         self.fabricGeometry.saveToCSV(fileName)
