@@ -98,7 +98,7 @@ select = [
   "SIM",
   "PT",
   "ARG",
-  "ANN"
+  "ANN",
 ]
 
 
@@ -113,10 +113,9 @@ select = [
 # - PL: pylint
 
 # Ignoed rules:
-# - E501: Line too long -- Not automatically fixable
 # - PYI063: https://docs.astral.sh/ruff/rules/pep484-style-positional-only-parameter/
 # - TRY003: https://docs.astral.sh/ruff/rules/raise-vanilla-args/
-ignore = ["E501", "PYI063", "TRY003"]
+ignore = ["PYI063", "TRY003"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
