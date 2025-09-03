@@ -75,6 +75,40 @@ TILE = "LUT4AB"
 
 
 @pytest.fixture
+def cli(tmp_path: Path) -> Generator[FABulous_CLI]:
+    """Create a configured FABulous CLI instance for testing.
+
+    This fixture creates a temporary test project and initializes a FABulous
+    CLI instance with the fabric loaded and ready for testing. It handles
+    project creation, environment setup, and initial fabric loading.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Pytest temporary directory path.
+
+    Yields
+    ------
+    FABulous_CLI
+        A configured CLI instance with loaded fabric ready for testing.
+
+    """
+    projectDir = tmp_path / "test_project"
+    os.environ["FAB_PROJ_DIR"] = str(projectDir)
+    create_project(projectDir)
+    setup_logger(0, False)
+    cli = FABulous_CLI(
+        writerType="verilog", projectDir=projectDir, enteringDir=tmp_path
+    )
+    cli.debug = True
+    run_cmd(cli, "load_fabric")
+    yield cli
+    os.environ.pop("FAB_ROOT", None)
+    os.environ.pop("FAB_PROJ_DIR", None)
+
+
+@pytest.fixture
+def project(tmp_path: Path) -> Generator[Path]:
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Create a test project directory for testing.
 
