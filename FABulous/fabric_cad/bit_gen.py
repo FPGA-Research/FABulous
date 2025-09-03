@@ -76,10 +76,10 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str) -> None:
         tileDict[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
         tileDict_No_Mask[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
 
-    # NOTE: SOME OF THE FOLLOWING METHODS HAVE BEEN CHANGED DUE TO A MODIFIED
-    # BITSTREAM SPEC FORMAT
-    # Please bear in mind that the tilespecs are now mapped by tile loc and
-    #  not by cell type
+    # NOTE: SOME OF THE FOLLOWING METHODS HAVE BEEN CHANGED DUE TO A MODIFIED BITSTREAM
+    # SPEC FORMAT
+    # Please bear in mind that the tilespecs are now mapped by
+    # tile loc and not by cell type
 
     for line in canonList:
         if "CLK" in set_feature_to_str(line.set_feature):

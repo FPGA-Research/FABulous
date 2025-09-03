@@ -1,6 +1,7 @@
 """Basic Element of Logic (BEL) definition module.
 
-This module contains the `Bel` class which represents a Basic Element of Logic in the FPGA fabric.
+This module contains the `Bel` class which represents a Basic Element of Logic in the
+FPGA fabric.
 BELs are the fundamental building blocks that can be placed and configured within tiles,
 such as LUTs, flip-flops, and other logic elements.
 """
@@ -15,14 +16,15 @@ from FABulous.fabric_definition.define import IO, HDLType
 class Bel:
     """Information about a single BEL.
 
-    The information is parsed from the directory of the BEL in the CSV definition file. There are some things to be noted:
+    The information is parsed from the directory of the BEL in the CSV definition file.
+    There are some things to be noted:
 
     - The parsed name will contain the prefix of the bel.
-    - The `sharedPort` attribute is a list of Tuples with the name of the port and IO
-      information, which is not expanded out yet.
+    - The `sharedPort` attribute is a list of Tuples with the name of the port and
+      IO information, which is not expanded out yet.
     - If a port is marked as both shared and external, the port is considered as shared,
-     as a result, signals like UserCLK will be in the shared port list,
-     but not in the external port list.
+      as a result, signals like UserCLK will be in the shared port list,
+      but not in the external port list.
 
     Attributes
     ----------

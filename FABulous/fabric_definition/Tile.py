@@ -234,7 +234,8 @@ class Tile:
         Returns
         -------
         list[str]
-            List of destination names for input ports, excluding NULL and JUMP direction ports.
+            List of destination names for input ports, excluding NULL and
+            JUMP direction ports.
         """
         return [
             p.destinationName
@@ -250,7 +251,8 @@ class Tile:
         Returns
         -------
         list[str]
-            List of source names for output ports, excluding NULL and JUMP direction ports.
+            List of source names for output ports, excluding NULL and
+            JUMP direction ports.
         """
         return [
             p.sourceName
@@ -264,7 +266,8 @@ class Tile:
     def globalConfigBits(self) -> int:
         """Get the total number of global configuration bits.
 
-        Calculates the sum of switch matrix configuration bits and all BEL configuration bits.
+        Calculates the sum of switch matrix configuration bits
+        and all BEL configuration bits.
 
         Returns
         -------

@@ -34,9 +34,10 @@ class SuperTile:
     def getPortsAroundTile(self) -> dict[str, list[list[Port]]]:
         """Return all the ports that are around the supertile.
 
-        The dictionary key is the location of where the tile is located in the supertile map with the format
-        of "X{x}Y{y}", where x is the x coordinate of the tile and y is the y coordinate
-        of the tile. The top left tile will have key "00".
+        The dictionary key is the location of where the tile is located in the
+        supertile map with the format of "X{x}Y{y}",
+        where x is the x coordinate of the tile and y is the y coordinate of the tile.
+        The top left tile will have key "00".
 
         Returns
         -------

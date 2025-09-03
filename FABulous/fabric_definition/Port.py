@@ -9,13 +9,15 @@ from FABulous.fabric_definition.define import IO, Direction, Side
 class Port:
     """Store all the port information defined in the CSV file.
 
-    The `name`, `inOut` and `sideOfTile` are added attributes to aid the generation of the
-    fabric. The `name` and `inOut` are related. If the `inOut` is `INPUT`, then the name is the
-    source name of the port on the tile. Otherwise, the name is the destination name of
-    the port on the tile. The `sideOfTile` defines where the port is physically located
-    on the tile, since for a north direction wire, the input will be physically located
-    on the south side of the tile. The `sideOfTile` will make determining where the port
-    is located much easier.
+    The `name`, `inOut` and `sideOfTile` are added attributes to aid the generation
+    of the fabric.
+    The `name` and `inOut` are related. If the `inOut` is `INPUT`,
+    then the name is the source name of the port on the tile.
+    Otherwise, the name is the destination name of the port on the tile.
+    The `sideOfTile` defines where the port is physically located on the tile,
+    since for a north direction wire, the input will be physically located on
+    the south side of the tile.
+    The `sideOfTile` will make determining where the port is located much easier.
 
     Attributes
     ----------
@@ -191,9 +193,8 @@ class Port:
 
         elif mode in ["AutoTop", "AutoTopIndexed"]:
             if self.sourceName == "NULL" or self.destinationName == "NULL":
-                # in case one port is NULL,
-                # then the all the other port wires get connected to
-                #  the switch matrix.
+                # in case one port is NULL, then the all the other port wires get
+                # connected to the switch matrix.
                 startIndex = 0
             else:
                 # "normal" case as for the CLBs

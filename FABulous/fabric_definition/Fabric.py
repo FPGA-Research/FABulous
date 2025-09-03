@@ -35,8 +35,8 @@ class Fabric:
     numberOfColumns : int
         The number of columns of the fabric
     configMitMode : ConfigBitMode
-        The configuration bit mode of the fabric. Currently supports frame based or
-        ff chain
+        The configuration bit mode of the fabric.
+        Currently supports frame based or ff chain
     frameBitsPerRow : int
         The number of frame bits per row of the fabric
     maxFramesPerCol : int
@@ -46,8 +46,8 @@ class Fabric:
     generateDelayInSwitchMatrix : int
         The amount of delay in a switch matrix.
     multiplexerStyle : MultiplexerStyle
-        The style of the multiplexer used in the fabric. Currently supports custom
-        or generic
+        The style of the multiplexer used in the fabric.
+        Currently supports custom or generic
     frameSelectWidth : int
         The width of the frame select signal.
     rowSelectWidth : int
@@ -64,7 +64,7 @@ class Fabric:
         the value is the tile.
     superTileDic : dict[str, SuperTile]
         A dictionary of super tiles used in the fabric. The key is the name of the
-        super tile and the value is the super tile.
+        supertile and the value is the supertile.
     unusedTileDic: dict[str, Tile]
         A dictionary of tiles that are not used in the fabric,
         but defined in the fabric.csv.

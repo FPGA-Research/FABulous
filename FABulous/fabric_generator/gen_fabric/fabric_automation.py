@@ -233,16 +233,16 @@ def generateSwitchmatrixList(
             "only handle 8 outputs"
         )
 
-    # build a dict, with the old names from the list file and the replacement
-    # from the bels
+    # build a dict, with the old names from the list file and
+    # the replacement from the bels
     replaceDic = {}
     for i, port in enumerate(belIns):
         replaceDic[f"CLB{math.floor(i / 4)}_I{i % 4}"] = f"{port}"
     for i, port in enumerate(belOuts):
         replaceDic[f"CLB{i % 8}_O"] = f"{port}"
 
-    # generate a list of sinks, with their connection count, if they have at
-    # least 5 connections
+    # generate a list of sinks, with their connection count,
+    # if they have at least 5 connections
     sinks_num = [sink for _, sink in portPairs]
     sinks_num = {i: sinks_num.count(i) for i in sinks_num if sinks_num.count(i) > 4}
 

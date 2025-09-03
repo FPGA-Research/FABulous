@@ -65,8 +65,8 @@ def parseBelFile(
 ) -> Bel:
     """Parse a Verilog or VHDL BEL file and return related information of the BEL.
 
-    The function will also parse and record all the FABulous attribute which all
-    starts with:
+    The function will also parse and record all the FABulous attributes
+    which all start with:
 
         (* FABulous, <type>, ... *)
 
@@ -80,30 +80,29 @@ def parseBelFile(
     * **SHARED_ENABLE**
     * **SHARED_RESET**
 
-    The **BelMap** attribute will specify the bel mapping for the bel. This
-    attribute should be placed before the start of
-    the module The bel mapping is then used for generating the bitstream
-    specification. Each of the entry in the attribute will have the following
-    format::
+    The **BelMap** attribute will specify the bel mapping for the bel.
+    This attribute should be placed before the start of the module.
+    The bel mapping is then used for generating the bitstream specification.
+    Each of the entry in the attribute will have the following format::
 
     <name> = <value>
 
-    ``<name>`` is the name of the feature and
-    and ``<value>`` will be the bit position of the feature. ie. ``INIT=0`` will
-    specify that the feature ``INIT`` is located at bit 0.
-    Since a single feature can be mapped to multiple bits,
-    this is currently done by specifying multiple entries for the same
-    feature. This will be changed in the future.
+    ``<name>`` is the name of the feature and ``<value>`` will be the
+    bit position of the feature. ie. ``INIT=0`` will specify that the feature
+    ``INIT`` is located at bit 0.
+    Since a single feature can be mapped to multiple bits, this is currently done by
+    specifying multiple entries for the same feature.
+    This will be changed in the future.
     The bit specification is done in the following way::
 
         INIT_a_1=1, INIT_a_2=2, ...
 
-    The name of the feature will be converted to ``INIT_a[1]``,
-    ``INIT_a[2]`` for the above example. This is necessary
+    The name of the feature will be converted to ``INIT_a[1]``, ``INIT_a[2]``
+    for the above example. This is necessary
     because  Verilog does not allow square brackets as part of the attribute name.
 
-    **EXTERNAL** attribute will notify FABulous to put the pin in the top module
-    during the fabric generation.
+    **EXTERNAL** attribute will notify FABulous to put the pin in the top module during
+    the fabric generation.
 
     **SHARED_PORT** attribute will notify FABulous this the pin is shared between
     multiple bels. Attribute need to go with

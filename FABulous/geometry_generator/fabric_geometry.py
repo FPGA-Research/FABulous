@@ -13,7 +13,8 @@ from FABulous.geometry_generator.tile_geometry import TileGeometry
 class FabricGeometry:
     """Fetch and hold geometric information about a fabric.
 
-    Objects of this class can be constructed by passing a `Fabric` object and optionally, padding.
+    Objects of this class can be constructed by passing a `Fabric` object
+    and optionally, padding.
 
     Attributes
     ----------

@@ -494,7 +494,8 @@ class CodeGenerator(abc.ABC):
     ) -> None:
         """Add an instantiation.
 
-        Align ports and signals such that `ports[i]` corresponds to `signals[i]` for all indices i.
+        Align ports and signals such that `ports[i]` corresponds to `signals[i]`
+        for all indices i.
 
         This is also the same case for `paramPorts` and `paramSignals`.
 
@@ -645,7 +646,8 @@ class CodeGenerator(abc.ABC):
     ) -> None:
         """Add a scalar assign statement.
 
-        Delay is provided by currently not being used by any of the code generator. If `right` is a list, it will be concatenated.
+        Delay is provided by currently not being used by any of the code generator.
+        If `right` is a list, it will be concatenated.
         Verilog will concatenate with comma ','. VHDL will concatenate with ampersand
         '&' instead.
 

@@ -165,8 +165,8 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
 
                 curBitOffset += controlWidth
 
-            # And now we add empty config bit mappings for immutable connections (wires)
-            #  as nextpnr sees these the same as normal pips
+            # And now we add empty config bit mappings for immutable connections
+            # (i.e. wires), as nextpnr sees these the same as normal pips
             for wire in tile.wireList:
                 curTileMap[f"{wire.source}.{wire.destination}"] = {}
                 curTileMapNoMask[f"{wire.source}.{wire.destination}"] = {}

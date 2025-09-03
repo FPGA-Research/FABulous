@@ -63,9 +63,10 @@ class MultiplexerStyle(Enum):
     """Enumeration for multiplexer implementation styles.
 
     Defines how multiplexers are implemented in the fabric:
-    - CUSTOM:  Custom multiplexer implementations which instantiate a custom multiplexer layout.
-    - GENERIC: Generic/standard multiplexer implementations which uses behavioral modeling and will use standard cells
-               in the physical implementation.
+    - CUSTOM:  Custom multiplexer implementations which instantiate a
+               custom multiplexer layout.
+    - GENERIC: Generic/standard multiplexer implementations which uses behavioral
+               modeling and will use standard cells in the physical implementation.
     """
 
     CUSTOM = "CUSTOM"

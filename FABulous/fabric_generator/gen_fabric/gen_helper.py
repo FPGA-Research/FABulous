@@ -20,8 +20,8 @@ from FABulous.fabric_generator.parser.parse_switchmatrix import parseList
 def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
     """Generate a blank switch matrix CSV file for the given tile.
 
-    The top left corner will contain the name of the tile. Columns are the source signals and rows are the
-    destination signals.
+    The top left corner will contain the name of the tile.
+    Columns are the source signals and rows are the destination signals.
 
     The order of the signal will be:
     - standard wire

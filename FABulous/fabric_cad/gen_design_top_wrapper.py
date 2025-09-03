@@ -63,8 +63,8 @@ def generateUserDesignTopWrapper(
 
     # generate component instantioations
     for x in range(fabric.numberOfColumns):
-        # we walk backwards through the Y list,
-        # since there is something mixed up with the coordinate system
+        # we walk backwards through the Y list, since there is something mixed up with
+        # the coordinate system
         for y in range(fabric.numberOfRows - 1, -1, -1):
             bels = fabric.getBelsByTileXY(x, y)
             if not bels:

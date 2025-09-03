@@ -44,8 +44,8 @@ def parseConfigMem(
         - Invalid amount of frame entries in the config memory CSV file
         - Too many values in bit mask
         - Length of bit mask does not match the number of frame bits per row
-        - Bit mask does not have enough values matching the number of the given
-          config bits
+        - Bit mask does not have enough values matching the number of the
+          given config bits
         - Repeated config bit entry in ':' separated format in config bit range
         - Repeated config bit entry in list format in config bit range
         - Invalid range entry in config bit range

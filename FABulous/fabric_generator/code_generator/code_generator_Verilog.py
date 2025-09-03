@@ -199,7 +199,8 @@ class VerilogCodeGenerator(CodeGenerator):
         Args:
             name: Signal name
             reg: If True, the connection will be declared as a `reg` type.
-                 If False, the connection will be declared as a `wire`. Defaults to False.
+                 If False, the connection will be declared as a `wire`.
+                 Defaults to False.
             indentLevel: The indentation level
         """
         con_type = "reg" if reg else "wire"

@@ -41,9 +41,10 @@ def genTileSwitchMatrix(
 ) -> None:
     """Generate the RTL code for the tile switch matrix.
 
-    The switch matrix generated will be based on the `matrixDir` attribute of the
-    tile. If the given file format is `.csv`, it will be parsed as a switch matrix `.csv`
-    file. If the given file format is `.list`, the tool will convert the `.list` file
+    The switch matrix generated will be based on the `matrixDir` attribute of the tile.
+    If the given file format is `.csv`, it will be parsed as a switch matrix
+    `.csv` file.
+    If the given file format is `.list`, the tool will convert the `.list` file
     into a switch matrix with specific ordering first before progressing. If the given
     file format is Verilog or VHDL, then the function will not generate anything.
 
@@ -159,8 +160,8 @@ def genTileSwitchMatrix(
     writer.addDesignDescriptionStart(f"{tile.name}_switch_matrix")
 
     # constant declaration
-    # we may use the following in the switch matrix for providing '0' and '1' to a
-    # mux input:
+    # we may use the following in the switch matrix for providing
+    # '0' and '1' to a mux input:
     if isinstance(writer, VHDLCodeGenerator):
         writer.addConstant("GND0", "0")
         writer.addConstant("GND", "0")
@@ -238,8 +239,8 @@ def genTileSwitchMatrix(
             pass
 
     # the switch matrix implementation
-    # we use the following variable to count the configuration bits of a long shift
-    # register which actually holds the switch matrix configuration
+    # we use the following variable to count the configuration bits of a
+    # long shift register which actually holds the switch matrix configuration
     configBitstreamPosition = 0
     for portName in connections:
         muxSize = len(connections[portName])
@@ -257,9 +258,10 @@ def genTileSwitchMatrix(
         elif muxSize == 1:
             # just route through : can be used for auxiliary wires or diagonal routing
             # (Manhattan, just go to a switch matrix when turning
-            # can also be used to tap a wire. A double with a mid is nothing else as
-            # a single cascaded with another single where the second single has only
-            # one '1' to cascade from the first single
+            # can also be used to tap a wire.
+            # A double with a mid is nothing else as a single cascaded with another
+            # single where the second single has only one '1' to cascade
+            # from the first single
             if connections[portName][0] == "0":
                 writer.addAssignScalar(portName, 0)
             elif connections[portName][0] == "1":
@@ -310,10 +312,10 @@ def genTileSwitchMatrix(
 
             if fabric.multiplexerStyle == MultiplexerStyle.CUSTOM:
                 # we add the input signal in reversed order
-                # Changed it such that the left-most entry is located at the end of
-                # the concatenated vector for the multiplexing
-                # This was done such that the index from left-to-right in the
-                # adjacency matrix corresponds with the multiplexer select input (index)
+                # Changed it such that the left-most entry is located at the end of the
+                # concatenated vector for the multiplexing
+                # This was done such that the index from left-to-right in the adjacency
+                # matrix corresponds with the multiplexer select input (index)
                 writer.addAssignScalar(
                     f"{portName}_input",
                     connections[portName][::-1],
