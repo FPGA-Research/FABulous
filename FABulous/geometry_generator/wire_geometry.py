@@ -17,21 +17,19 @@ class WireGeometry:
     ----------
     name : str
         Name of the wire
-    path : List[Location]
+    path : list[Location]
         Path of the wire
+
+    Parameters
+    ----------
+    name : str
+        Name of the wire
     """
 
     name: str
     path: list[Location]
 
     def __init__(self, name: str) -> None:
-        """Initialize a `WireGeometry` instance.
-
-        Parameters
-        ----------
-        name : str
-            The name of the wire
-        """
         self.name = name
         self.path = []
 
@@ -53,8 +51,8 @@ class WireGeometry:
 
         Parameters
         ----------
-        writer
-            The CSV `writer` object to use for output
+        writer : object
+            The CSV writer object to use for output
         """
         writer.writerows([["WIRE"], ["Name"] + [self.name]])
         for pathPoint in self.path:
@@ -66,6 +64,11 @@ class WireGeometry:
 
 class StairWires:
     """A data structure representing a stair-like collection of wires.
+
+    Parameters
+    ----------
+    name : str
+        The name of the stair wire structure
 
     Attributes
     ----------
@@ -85,15 +88,13 @@ class StairWires:
         Width of the tile containing the wires
     tileHeight : int
         Height of the tile containing the wires
-    wireGeoms : List[WireGeometry]
+    wireGeoms : list[WireGeometry]
         List of the wires geometries
 
-    Structure
-    ---------
-    The (refX,refY) point refers to the following location(s)
-    of the stair-like structure:
-
-    .. asciiart::
+    Notes
+    -----
+    The (refX, refY) point refers to the following location(s) of the
+    stair-like structure:
 
         |        @   @   @                  @@  @@  @@
         |        @   @   @                  @@  @@  @@
@@ -111,11 +112,10 @@ class StairWires:
         |              .@  @.  @@     @   @. .@
         |              .@  @@  @@     @   @. .@
 
-
-    Depending on the orientation of the structure. Rotate right by 90° to get
-    the image for the corresponding left-right stair-ike wire structure.
-    The right stair-like structure represents a north stair, the left one
-    represents a south stair (These being the directions of the wires).
+    Depending on the orientation of the structure, rotate right by 90° to get
+    the image for the corresponding left-right stair-like wire structure.
+    The right stair-like structure represents a north stair; the left one
+    represents a south stair (these being the directions of the wires).
     """
 
     name: str
@@ -129,18 +129,11 @@ class StairWires:
     wireGeoms: list[WireGeometry]
 
     def __init__(self, name: str) -> None:
-        """Initialize a `StairWires` instance.
-
-        Parameters
-        ----------
-        name : str
-            The name of the stair wire structure
-        """
         self.name = name
         self.refX = 0
         self.refY = 0
         self.offset = 0
-        self.direction = None
+        self.direction = Direction.NORTH  # Default value
         self.groupWires = 0
         self.tileWidth = 0
         self.tileHeight = 0
@@ -177,6 +170,11 @@ class StairWires:
             Width of the containing tile
         tileHeight : int
             Height of the containing tile
+
+        Raises
+        ------
+        InvalidPortType
+            If the direction is invalid for stair wires.
         """
         self.refX = refX
         self.refY = refY
@@ -307,8 +305,8 @@ class StairWires:
 
         Parameters
         ----------
-        writer
-            The CSV `writer` object to use for output
+        writer : object
+            The CSV writer object to use for output
         """
         for wireGeom in self.wireGeoms:
             wireGeom.saveToCSV(writer)
