@@ -70,8 +70,8 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str) -> None:
     FrameBitsPerRow = specDict["ArchSpecs"]["FrameBitsPerRow"]
     MaxFramesPerCol = specDict["ArchSpecs"]["MaxFramesPerCol"]
 
-    # Change this so it has the actual right dimensions,
-    #  initialised as an empty bitstream
+    # Change this so it has the actual right dimensions, initialised as
+    # an empty bitstream
     for tile in specDict["TileMap"]:
         tileDict[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
         tileDict_No_Mask[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)

@@ -138,8 +138,8 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                             curBitOffset += len(keyDict[entry])
 
             # All the generation will be working on the tile level with the tileDic
-            # This is added to propagate the updated switch matrix to
-            #  each of the tile in the fabric
+            # This is added to propagate the updated switch matrix to each of the tile
+            # in the fabric
             if tile.matrixDir.suffix == ".list":
                 tile.matrixDir = tile.matrixDir.with_suffix(".csv")
 

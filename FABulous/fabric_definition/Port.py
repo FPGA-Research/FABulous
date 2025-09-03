@@ -1,4 +1,5 @@
 """Store all the port information defined in the CSV file."""
+"""Store all the port information defined in the CSV file."""
 
 from dataclasses import dataclass
 
@@ -7,6 +8,7 @@ from FABulous.fabric_definition.define import IO, Direction, Side
 
 @dataclass(frozen=True, eq=True)
 class Port:
+    """Store all the port information defined in the CSV file.
     """Store all the port information defined in the CSV file.
 
     The `name`, `inOut` and `sideOfTile` are added attributes to aid the generation
@@ -53,6 +55,7 @@ class Port:
 
     def __repr__(self) -> str:
         """Return a string representation of the `Port` object.
+        """Return a string representation of the `Port` object.
 
         Returns
         -------
@@ -79,6 +82,8 @@ class Port:
         Parameters
         ----------
         indexed : bool, optional
+            If True, wire names use bracket notation (e.g., `port[0]`).
+            If False, wire names use simple concatenation (e.g., `port0`).
             If True, wire names use bracket notation (e.g., `port[0]`).
             If False, wire names use simple concatenation (e.g., `port0`).
             Defaults to False.
@@ -108,6 +113,8 @@ class Port:
         indexed : bool, optional
             If True, wire names use bracket notation (e.g., `port[0]`).
             If False, wire names use simple concatenation (e.g., `port0`).
+            If True, wire names use bracket notation (e.g., `port[0]`).
+            If False, wire names use simple concatenation (e.g., `port0`).
             Defaults to False.
 
         Returns
@@ -135,9 +142,6 @@ class Port:
         ]
 
     def expandPortInfo(self, mode: str = "SwitchMatrix") -> tuple[list[str], list[str]]:
-        """Expand the port information to the individual bit signal.
-
-        If 'Indexed' is in the mode, then brackets are added to the signal name.
         """Expand the port information to the individual bit signal.
 
         If 'Indexed' is in the mode, then brackets are added to the signal name.
@@ -171,12 +175,12 @@ class Port:
             thisRange = self.wireCount
         elif mode == "AutoSwitchMatrix" or mode == "AutoSwitchMatrixIndexed":
             if self.sourceName == "NULL" or self.destinationName == "NULL":
-                # the following line connects all wires to the switch matrix in the
-                #  case one port is NULL (typically termination)
+                # the following line connects all wires to the switch matrix in the case
+                # one port is NULL (typically termination)
                 thisRange = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
             else:
-                # the following line connects all bottom wires to the switch matrix
-                # in the case begin and end ports are used
+                # the following line connects all bottom wires to the switch matrix in
+                # the case begin and end ports are used
                 thisRange = self.wireCount
         # range ((wires*distance)-1 downto 0) as connected to the tile top
         elif mode in [
@@ -189,8 +193,8 @@ class Port:
         ]:
             thisRange = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
 
-        # the following three lines are needed to get the top line[wires] that are
-        # actually the connection from a switch matrix to the routing fabric
+        # the following three lines are needed to get the top line[wires] that
+        # are actually the connection from a switch matrix to the routing fabric
         startIndex = 0
         if mode in ["Top", "TopIndexed"]:
             startIndex = ((abs(self.xOffset) + abs(self.yOffset)) - 1) * self.wireCount
