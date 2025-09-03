@@ -11,6 +11,7 @@ from FABulous.custom_exception import (
     InvalidFabricDefinition,
     InvalidFabricParameter,
     InvalidFileType,
+    InvalidPortType,
     InvalidSupertileDefinition,
     InvalidTileDefinition,
 )
@@ -42,24 +43,24 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
 
     Parameters
     ----------
-    fileName : str
+    fileName : Path
         The path to the CSV file.
 
     Returns
     -------
-    Tuple[List[Tile], List[Tuple[str, str]]]
+    tuple[list[Tile], list[tuple[str, str]]]
         A tuple containing a list of Tile objects and a list of common wire pairs.
 
     Raises
     ------
-    ValueError : If the input csv file is not a CSV file.
-    ValueError : If the input csv file does not exist.
-    ValueError : If the BEL file is not a VHDL or Verilog file.
-    ValueError : If GEN_IO pins are lower than 1
-    ValueError : If a GEN_IO is a CONFIGACCESS and not an OUTPUT.
-    ValueError : If a GEN_IO with the same prefix already exists in the tile.
-    ValueError : If a GEN_IO is CLOCKED and CLOCKED_COMB at the same time.
-    ValueError : If the MATRIX file is not a .list, .csv, .v, or .vhdl file.
+    FileExistsError
+        If the input does not exist.
+    InvalidFileType
+        If the input file is not a CSV file.
+    InvalidTileDefinition
+        If the tile definition is invalid.
+    InvalidPortType
+        If port type is invalid.
     """
     logger.info(f"Reading tile configuration: {fileName}")
 
@@ -115,9 +116,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         tileCarry[carryPrefix][IO.OUTPUT] = f"{temp[1]}0"
                         tileCarry[carryPrefix][IO.INPUT] = f"{temp[4]}0"
                     else:
-                        raise ValueError(
-                            "There is already a carrychain with the prefix "
-                            f"{carryPrefix}"
+                        raise InvalidPortType(
+                            f"There is already a carrychain with the prefix {carryPrefix}"
                         )
                 if "SHARED_" in temp[6]:
                     if "JUMP" not in temp[0]:
@@ -359,14 +359,23 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
     Parameters
     ----------
-    fileName : str
+    fileName : Path
         The path to the CSV file.
-    tileDic : Dict[str, Tile]
+    tileDic : dict[str, Tile]
         Dict of tiles.
+
+    Raises
+    ------
+    InvalidFileType
+        If the input file is not a CSV file.
+    FileNotFoundError
+        If the input does not exist.
+    InvalidSupertileDefinition
+        If the supertile definition is invalid.
 
     Returns
     -------
-    List[SuperTile]
+    list[SuperTile]
         List of SuperTile objects.
     """
     logger.info(f"Reading supertile configuration: {fileName}")
@@ -438,19 +447,14 @@ def parseFabricCSV(fileName: str) -> Fabric:
 
     Raises
     ------
-    ValueError
-        - File provided is not a CSV file.
-        - CSV file does not exist.
-        - FabricBegin and FabricEnd regions cannot be found.
-        - ParametersBegin and ParametersEnd regions cannot be found.
-        - Bel entry extension is not ".v" or ".vhdl".
-        - Matrix entry extension is not ".list", ".csv", ".v", or ".vhdl".
-        - Unknown tile description entry is found in the CSV file.
-        - Unknown tile is found in the fabric entry in the CSV file.
-        - Unknown super tile is found in the super tile entry in the CSV file.
-        - Invalid ConfigBitMode is found in the parameter entry in the CSV file.
-        - Invalid MultiplexerStyle is found in the parameter entry in the CSV file.
-        - Invalid parameter entry is found in the CSV file.
+    FileNotFoundError
+        If the input does not exist.
+    InvalidFabricDefinition
+        If the fabric definition is invalid.
+    InvalidFabricParameter
+        If the fabric parameter is invalid.
+    InvalidFileType
+        If the input file is not a CSV file.
 
     Returns
     -------

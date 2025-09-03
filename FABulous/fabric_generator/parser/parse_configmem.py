@@ -29,10 +29,10 @@ def parseConfigMem(
 
     Parameters
     ----------
-    fileName : str
+    fileName : Path
         Directory of the config memory CSV file
     maxFramePerCol : int
-        Maximum number of frames per colum
+        Maximum number of frames per column
     frameBitPerRow : int
         Number of bits per row
     globalConfigBits : int

@@ -54,6 +54,11 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
             - indices: Tuple of numeric indices extracted from port name
             - basename: Base port name without coordinates and indices
 
+        Raises
+        ------
+        ValueError
+            If the port name does not match the expected format.
+
         Examples
         --------
         >>> split_port("Tile_X9Y6_RAM2FAB_D1_I0")

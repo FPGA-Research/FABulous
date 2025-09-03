@@ -16,13 +16,13 @@ def belMapProcessing(module_info: YosysModule) -> dict:
 
     Parameters
     ----------
-    module_info : dict
+    module_info : YosysModule
         A dictionary containing the module's attributes, including
         potential BEL mapping information.
 
     Returns
     -------
-    dic
+    dict
         Dictionary containing the parsed bel mapping information.
     """
     belMapDic = {}
@@ -138,30 +138,25 @@ def parseBelFile(
 
     Parameters
     ----------
-        filename : str
-            The filename of the bel file.
-        belPrefix : str, optional)
-            The bel prefix provided by the CSV file. Defaults to "".
+    filename : Path
+        The filename of the bel file.
+    belPrefix : str, optional
+        The bel prefix provided by the CSV file. Defaults to "".
 
     Returns
     -------
-    Tuple containing
-        - List of Bel Internal ports (belName, IO).
-        - List of Bel External ports (belName, IO).
-        - List of Bel Config ports (belName, IO).
-        - List of Bel Shared ports (belName, IO).
-        - Number of configuration bits in the bel.
-        - Whether the bel has UserCLK.
-        - Bel config bit mapping as a dict {port_name: bit_number}.
+    Bel
+        A Bel object containing all the parsed information.
 
     Raises
     ------
+    FabricParsingError
+        Fabric cannot be parsed
+    InvalidBelDefinition
+        The BEL file contains invalid BEL definitions. Such as wrong attribute type on
+        wrong port type. i.e SHARE_EN on output ports
     ValueError
-        File not found
-    ValueError
-        No permission to access the file
-    ValueError
-        Bel file contains no or more than one module
+        Port naming is reused
     """
     internal: list[tuple[str, IO]] = []
     external: list[tuple[str, IO]] = []
