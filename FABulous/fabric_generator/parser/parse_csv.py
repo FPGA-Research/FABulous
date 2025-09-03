@@ -114,7 +114,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         tileCarry[carryPrefix][IO.INPUT] = f"{temp[4]}0"
                     else:
                         raise ValueError(
-                            f"There is already a carrychain with the prefix {carryPrefix}"
+                            f"There is already a carrychain with the prefix "
+                            f"{carryPrefix}"
                         )
                 if "SHARED_" in temp[6]:
                     if "JUMP" not in temp[0]:
@@ -126,7 +127,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         raise InvalidTileDefinition("SHARED_ cannot be empty.")
                     if localShared not in ["RESET", "ENABLE"]:
                         raise InvalidTileDefinition(
-                            f"LOCAL SHARED_ port {localShared} is not supported. Only SHARED_RESET and SHARED_ENABLE are supported."
+                            f"LOCAL SHARED_ port {localShared} is not supported. "
+                            f"Only SHARED_RESET and SHARED_ENABLE are supported."
                         )
                     if localShared not in localSharedPorts:
                         localSharedPorts[localShared] = port
@@ -150,7 +152,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     bels.append(parseBelFile(belFilePath, bel_prefix))
                 else:
                     raise InvalidFileType(
-                        f"File {belFilePath} is not a .vhdl or .v file. Please check the BEL file."
+                        f"File {belFilePath} is not a .vhdl or .v file. "
+                        f"Please check the BEL file."
                     )
 
                 if "ADD_AS_CUSTOM_PRIM" in temp[3:]:
@@ -177,11 +180,13 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     if param == "CONFIGACCESS":
                         if temp[2] != "OUTPUT":
                             raise InvalidTileDefinition(
-                                f"CONFIGACCESS GEN_IO can only be used with OUTPUT, but is {temp[2]}"
+                                f"CONFIGACCESS GEN_IO can only be used with OUTPUT,"
+                                f"but is {temp[2]}"
                             )
                         if not configAccess and temp[2] != "OUTPUT":
                             raise InvalidTileDefinition(
-                                f"CONFIGACCESS GEN_IO can only be used with OUTPUT, but is {temp[2]}"
+                                f"CONFIGACCESS GEN_IO can only be used with OUTPUT,"
+                                f"but is {temp[2]}"
                             )
                         configAccess = True
                         configBit = int(temp[1])
@@ -198,7 +203,9 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         continue
                     else:
                         raise InvalidTileDefinition(
-                            f"Unknown parameter {param} in GEN_IO. Valid parameters are CONFIGACCESS, INVERTED, CLOCKED, CLOCKED_COMB, CLOCKED_MUX."
+                            f"Unknown parameter {param} in GEN_IO. "
+                            f"Valid parameters are CONFIGACCESS, INVERTED, CLOCKED, "
+                            f"CLOCKED_COMB, CLOCKED_MUX."
                         )
 
                     if configAccess and (clocked or clockedComb or clockedMux):
@@ -207,7 +214,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         )
                     if sum([clocked, clockedComb, clockedMux]) > 1:
                         raise InvalidTileDefinition(
-                            "CLOCKED, CLOCKED_COMB or CLOCKED_MUX can not be combined for one GEN_IO"
+                            "CLOCKED, CLOCKED_COMB or CLOCKED_MUX can not be combined "
+                            "for one GEN_IO"
                         )
 
                 if temp[3] not in (gio.prefix for gio in gen_ios):
@@ -226,7 +234,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     )
                 else:
                     raise InvalidTileDefinition(
-                        f"GEN_IO with prefix {temp[3]} already exists in tile {tileName}."
+                        f"GEN_IO with prefix {temp[3]} already exists in tile "
+                        f"{tileName}."
                     )
             elif temp[0] == "MATRIX":
                 configBit = 0
@@ -241,7 +250,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         matrixDir = fileName.parent.joinpath(temp[2])
                     if matrixDir.is_file() and matrixDir.suffix == ".list":
                         logger.warning(
-                            f"Matrix file {matrixDir} already exists and will be overwritten."
+                            f"Matrix file {matrixDir} already exists and will be "
+                            f"overwritten."
                         )
                     elif matrixDir.parent == proj_dir.joinpath("Tile"):
                         matrixDir = matrixDir.joinpath(
@@ -253,7 +263,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                             f"./Tile/{tileName}/{tileName}_generated_switch_matrix.list"
                         )
                         logger.warning(
-                            f"No destination directory for matrix file sepicified, using default path {matrixDir}."
+                            f"No destination directory for matrix file sepicified, "
+                            f"using default path {matrixDir}."
                         )
                         if not matrixDir.parent.exists():
                             matrixDir.parent.mkdir(parents=True)
@@ -282,7 +293,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                                 else:
                                     configBit = 0
                                     logger.warning(
-                                        f"Cannot find NumberOfConfigBits in {matrixDir} assume 0 config bits."
+                                        f"Cannot find NumberOfConfigBits in "
+                                        f"{matrixDir} assume 0 config bits."
                                     )
                         case _:
                             raise InvalidFileType("Unknown file extension for matrix.")
@@ -309,7 +321,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
             else:
                 raise InvalidTileDefinition(
                     f"Unknown tile description {temp[0]} in tile {tileName}. "
-                    "Valid descriptions are NORTH, SOUTH, EAST, WEST, JUMP, BEL, GEN_IO, MATRIX, and INCLUDE."
+                    "Valid descriptions are NORTH, SOUTH, EAST, WEST, JUMP, BEL, "
+                    "GEN_IO, MATRIX, and INCLUDE."
                 )
 
             withUserCLK = any(bel.withUserCLK for bel in bels)
@@ -402,7 +415,8 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                     row.append(None)
                 else:
                     raise InvalidSupertileDefinition(
-                        f"The super tile {name} contains definitions that are not tiles or Null."
+                        f"The super tile {name} contains definitions that are not "
+                        f"tiles or Null."
                     )
             tileMap.append(row)
 
@@ -543,7 +557,8 @@ def parseFabricCSV(fileName: str) -> Fabric:
                 configBitMode = ConfigBitMode.FLIPFLOP_CHAIN
             else:
                 raise InvalidFabricParameter(
-                    f"Invalid config bit mode {i[1]} in parameters. Valid options are frame_based and FlipFlopChain."
+                    f"Invalid config bit mode {i[1]} in parameters. "
+                    f"Valid options are frame_based and FlipFlopChain."
                 )
         elif i[0].startswith("FrameBitsPerRow"):
             frameBitsPerRow = int(i[1])
@@ -560,7 +575,8 @@ def parseFabricCSV(fileName: str) -> Fabric:
                 multiplexerStyle = MultiplexerStyle.GENERIC
             else:
                 raise InvalidFabricParameter(
-                    f"Invalid multiplexer style {i[1]} in parameters. Valid options are custom and generic."
+                    f"Invalid multiplexer style {i[1]} in parameters. "
+                    f"Valid options are custom and generic."
                 )
         elif i[0].startswith("SuperTileEnable"):
             superTileEnable = i[1] == "TRUE"
@@ -584,7 +600,8 @@ def parseFabricCSV(fileName: str) -> Fabric:
                 fabricLine.append(None)
             else:
                 raise InvalidFabricDefinition(
-                    f"Unknown tile {i} in fabric description. Please check the tile definitions."
+                    f"Unknown tile {i} in fabric description. "
+                    f"Please check the tile definitions."
                 )
         fabricTiles.append(fabricLine)
 
@@ -598,7 +615,8 @@ def parseFabricCSV(fileName: str) -> Fabric:
     for i in list(superTileDic.keys()):
         if any(j.name not in usedTile for j in superTileDic[i].tiles):
             logger.info(
-                f"Supertile {i} is not used in the fabric. Removing from tile dictionary."
+                f"Supertile {i} is not used in the fabric. "
+                f"Removing from tile dictionary."
             )
             unusedSuperTileDic[i] = superTileDic[i]
             del superTileDic[i]

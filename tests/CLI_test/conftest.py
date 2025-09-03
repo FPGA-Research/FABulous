@@ -21,7 +21,8 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 @pytest.fixture
 def project_directories(tmp_path: Path) -> dict[str, Path]:
-    """Fixture that creates test directories and .env files for project directory precedence tests."""
+    """Fixture that creates test directories and .env files for project directory
+    precedence tests."""
     # Create multiple project directories for testing
     user_provided_dir = tmp_path / "user_provided_project"
     env_var_dir = tmp_path / "env_var_project"
@@ -50,7 +51,8 @@ def project_directories(tmp_path: Path) -> dict[str, Path]:
     project_dotenv_file.touch()
     set_key(project_dotenv_file, "FAB_PROJ_DIR", str(project_dotenv_dir))
 
-    # Create project-specific .env file that doesn't set FAB_PROJ_DIR (for fallback tests)
+    # Create project-specific .env file that doesn't set FAB_PROJ_DIR (for
+    # fallback tests)
     project_dotenv_fallback_file = tmp_path / "project_fallback.env"
     project_dotenv_fallback_file.touch()
     set_key(project_dotenv_fallback_file, "FAB_PROJ_LANG", "verilog")

@@ -335,7 +335,8 @@ class FABulous_API:
         ValueError
             If tile not found in fabric.
             In case of an invalid IO type for generative IOs.
-            If the number of config access ports does not match the number of config bits.
+            If the number of config access ports does not match the number of
+            config bits.
         """
         tile = self.fabric.getTileByName(tile_name)
         bels: list[Bel] = []

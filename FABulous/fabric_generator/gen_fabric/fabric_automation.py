@@ -94,17 +94,20 @@ def generateCustomTileConfig(tile_path: Path) -> Path:
 
         elif file.suffix.lower() == ".csv":
             logger.warning(
-                f"Found tile config CSV file {file} for custom tile {tile_name}, nothing to do here."
+                f"Found tile config CSV file {file} for custom tile {tile_name}, "
+                "nothing to do here."
             )
             return file
         elif file.suffix.lower() == ".list":
             tile_switchmatrix = file
             logger.warning(
-                f"Found tile tile_switchmatrix list file {file} for custom tile {tile_name}, no switchmatrix list file will be generated."
+                f"Found tile tile_switchmatrix list file {file} for custom tile "
+                f"{tile_name}, no switchmatrix list file will be generated."
             )
         else:
             logger.warning(
-                f"File {file} in custom tile {tile_name} is not a valid config or bel file."
+                f"File {file} in custom tile {tile_name} is not a valid config or "
+                "bel file."
             )
 
     has_reset = False
@@ -216,22 +219,26 @@ def generateSwitchmatrixList(
 
     if len(belIns) > 32:
         raise ValueError(
-            f"Tile {tileName} has {len(belIns)} Bel inputs, switchmatrix gen can only handle 32 inputs"
+            f"Tile {tileName} has {len(belIns)} Bel inputs, switchmatrix gen can "
+            "only handle 32 inputs"
         )
 
     if len(belOuts) > 8:
         raise ValueError(
-            f"Tile {tileName} has {len(belOuts)} Bel outputs, switchmatrix gen can only handle 8 outputs"
+            f"Tile {tileName} has {len(belOuts)} Bel outputs, switchmatrix gen can "
+            "only handle 8 outputs"
         )
 
-    # build a dict, with the old names from the list file and the replacement from the bels
+    # build a dict, with the old names from the list file and the replacement
+    # from the bels
     replaceDic = {}
     for i, port in enumerate(belIns):
         replaceDic[f"CLB{math.floor(i / 4)}_I{i % 4}"] = f"{port}"
     for i, port in enumerate(belOuts):
         replaceDic[f"CLB{i % 8}_O"] = f"{port}"
 
-    # generate a list of sinks, with their connection count, if they have at least 5 connections
+    # generate a list of sinks, with their connection count, if they have at
+    # least 5 connections
     sinks_num = [sink for _, sink in portPairs]
     sinks_num = {i: sinks_num.count(i) for i in sinks_num if sinks_num.count(i) > 4}
 
@@ -251,11 +258,13 @@ def generateSwitchmatrixList(
         connections[source].append(sink)
 
     for source in connections:
-        # copy the dict, since we need only want to update the connection count, if we found a sink
+        # copy the dict, since we need only want to update the connection count,
+        # if we found a sink
         for i, sink in enumerate(connections[source]):
             if "CLB" in sink:
                 sinks_num_run = sinks_num.copy()
-                # replace sink with the sink with the lowest connection count and check if it's already connected
+                # replace sink with the sink with the lowest connection count and
+                # check if it's already connected
                 while True:
                     sink = min(sinks_num_run, key=sinks_num_run.get)
                     sinks_num_run[sink] = sinks_num_run[sink] + 1
@@ -306,7 +315,9 @@ def generateSwitchmatrixList(
                 carryports[prefix][IO.OUTPUT]
             ):
                 raise ValueError(
-                    f"Carryports mismatch! There are {len(carryports[prefix][IO.INPUT])} INPUTS and {len(carryports[prefix][IO.OUTPUT])} outputs!"
+                    f"Carryports mismatch! There are "
+                    f"{len(carryports[prefix][IO.INPUT])} "
+                    f"INPUTS and {len(carryports[prefix][IO.OUTPUT])} outputs!"
                 )
 
             listfile.append(f"# Connect carry chain {prefix}")
@@ -369,7 +380,8 @@ def addBelsToPrim(
             List of bels to add
         support_vectors : bool
             Boolean to support vectors for ports in the prims file
-            Default False, since the FABulous nextpn integration does not support vectors
+            Default False,
+                since the FABulous nextpn integration does not support vectors
     Raises
     ------
         FileNotFoundError :
@@ -388,20 +400,23 @@ def addBelsToPrim(
     # remove all duplicate bels in list.
     bels = list({bel.src: bel for bel in bels}.values())
     logger.info(
-        f"Adding bels {', '.join(bel.name for bel in bels)} to yosys primitives file {primsFile}."
+        f"Adding bels {', '.join(bel.name for bel in bels)} to yosys primitives file "
+        f"{primsFile}."
     )
 
     for bel in bels:
         if bel.filetype != HDLType.VERILOG:
             logger.warning(
-                f"Bel {bel.src} is not a Verilog file, a generalized verilog description will be added to {primsFile}.",
+                f"Bel {bel.src} is not a Verilog file, "
+                f"a generalized verilog description will be added to {primsFile}.",
                 "This is experimental and may not work as expected!",
             )
 
         # check if belis already in prims file or already added to primsAdd
         if bel.module_name not in prims and bel.module_name not in " ".join(primsAdd):
             primsAdd.append(
-                f"\n//Warning: The primitive {bel.module_name} was added by FABulous automatically."
+                f"\n//Warning: The primitive {bel.module_name} was added by FABulous "
+                f"automatically."
             )
             primsAdd.append("(* blackbox, keep *)")
 
@@ -425,7 +440,8 @@ def addBelsToPrim(
 
             if support_vectors:
                 # Find all ports with their directions
-                # need to parse the json file again, since port width is not known in BEL object
+                # need to parse the json file again,
+                # since port width is not known in BEL object
                 with bel.src.with_suffix(".json").open() as f:
                     bel_dict = json.load(f)
                 module_ports = bel_dict["modules"][bel.module_name]["ports"]
@@ -575,7 +591,8 @@ def genIOBel(
         language = "vhdl"
     else:
         raise InvalidFileType(
-            f"File suffix {language} of file {bel_path} is not supported for genIOBel generation"
+            f"File suffix {language} of file {bel_path} is not supported for "
+            f"genIOBel generation"
         )
 
     writer: CodeGenerator = (
@@ -612,7 +629,8 @@ def genIOBel(
     writer.addPortStart(indentLevel=1)
 
     # Append generative IO ports as gel ports and also as external ports
-    # Since one port goes to the fabric and one to the top level, we need to generate both
+    # Since one port goes to the fabric and one to the top level,
+    # we need to generate both
     # Only the top-level ports are added to the externalPorts list
 
     externalPorts: list[tuple[str, IO, bool]] = []  # [(name, IO, reg)]
@@ -656,7 +674,8 @@ def genIOBel(
                         internalPorts.append((f"{gio.prefix}{j}", IO.OUTPUT, False))
 
                 else:
-                    # if the GIO is a config access port, we need to add it to the external ports
+                    # if the GIO is a config access port,
+                    # we need to add it to the external ports
                     externalPorts.append((f"{gio.prefix}{j}", IO.OUTPUT, False))
                     configAccessPorts.append((f"{gio.prefix}{j}", gio.inverted))
             else:
@@ -701,7 +720,8 @@ def genIOBel(
         writer.addComment("gen_io config access", onNewLine=True)
         if len(configAccessPorts) != configBits:
             raise SpecMissMatch(
-                f"Config access ports ({len(configAccessPorts)}) do not match the number of config bits ({configBits})"
+                f"Config access ports ({len(configAccessPorts)}) do not match the "
+                f"number of config bits ({configBits})"
             )
         for i in range(configBits):
             port, inverted = configAccessPorts[i]

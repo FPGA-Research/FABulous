@@ -50,7 +50,8 @@ def genTileSwitchMatrix(
     elif tile.matrixDir.suffix == ".list":
         logger.info(f"{tile.name} matrix is a list file")
         logger.info(
-            f"Bootstrapping {tile.name} to matrix form and adding the list file to the matrix"
+            f"Bootstrapping {tile.name} to matrix form and adding the list file to the "
+            "matrix"
         )
         matrixDir = tile.matrixDir.with_suffix(".csv")
         bootstrapSwitchMatrix(tile, matrixDir)
@@ -62,7 +63,8 @@ def genTileSwitchMatrix(
         connections = parseMatrix(tile.matrixDir, tile.name)
     elif tile.matrixDir.suffix == ".v" or tile.matrixDir.suffix == ".vhdl":
         logger.info(
-            f"A switch matrix file is provided in {tile.name}, will skip the matrix generation process"
+            f"A switch matrix file is provided in {tile.name}, "
+            "will skip the matrix generation process"
         )
         return
     else:
@@ -77,7 +79,8 @@ def genTileSwitchMatrix(
             noConfigBits += (mux_size - 1).bit_length()
 
     # we pass the NumberOfConfigBits as a comment in the beginning of the file.
-    # This simplifies it to generate the configuration port only if needed later when building the fabric where we are only working with the VHDL files
+    # This simplifies it to generate the configuration port only if needed later when
+    # building the fabric where we are only working with the VHDL files
 
     # Generate header
     writer.addComment(f"NumberOfConfigBits: {noConfigBits}")
@@ -142,7 +145,8 @@ def genTileSwitchMatrix(
     writer.addDesignDescriptionStart(f"{tile.name}_switch_matrix")
 
     # constant declaration
-    # we may use the following in the switch matrix for providing '0' and '1' to a mux input:
+    # we may use the following in the switch matrix for providing '0' and '1' to a
+    # mux input:
     if isinstance(writer, VHDLCodeGenerator):
         writer.addConstant("GND0", "0")
         writer.addConstant("GND", "0")
@@ -191,7 +195,8 @@ def genTileSwitchMatrix(
     )
 
     # we are only generate configuration bits, if we really need configurations bits
-    # for example in terminating switch matrices at the fabric borders, we may just change direction without any switching
+    # for example in terminating switch matrices at the fabric borders,
+    # we may just change direction without any switching
     if noConfigBits > 0:
         if fabric.configBitMode == "ff_chain":
             writer.addConnectionVector("ConfigBits", noConfigBits)
@@ -219,7 +224,8 @@ def genTileSwitchMatrix(
             pass
 
     # the switch matrix implementation
-    # we use the following variable to count the configuration bits of a long shift register which actually holds the switch matrix configuration
+    # we use the following variable to count the configuration bits of a long shift
+    # register which actually holds the switch matrix configuration
     configBitstreamPosition = 0
     for portName in connections:
         muxSize = len(connections[portName])
@@ -228,15 +234,18 @@ def genTileSwitchMatrix(
         )
         if muxSize == 0:
             logger.warning(
-                f"Input port {portName} of switch matrix in Tile {tile.name} is not used"
+                f"Input port {portName} of switch matrix in Tile {tile.name} is unused"
             )
             writer.addComment(
                 f"WARNING unused multiplexer MUX-{portName}", onNewLine=True
             )
 
         elif muxSize == 1:
-            # just route through : can be used for auxiliary wires or diagonal routing (Manhattan, just go to a switch matrix when turning
-            # can also be used to tap a wire. A double with a mid is nothing else as a single cascaded with another single where the second single has only one '1' to cascade from the first single
+            # just route through : can be used for auxiliary wires or diagonal routing
+            # (Manhattan, just go to a switch matrix when turning
+            # can also be used to tap a wire. A double with a mid is nothing else as
+            # a single cascaded with another single where the second single has only
+            # one '1' to cascade from the first single
             if connections[portName][0] == "0":
                 writer.addAssignScalar(portName, 0)
             elif connections[portName][0] == "1":
@@ -287,8 +296,10 @@ def genTileSwitchMatrix(
 
             if fabric.multiplexerStyle == MultiplexerStyle.CUSTOM:
                 # we add the input signal in reversed order
-                # Changed it such that the left-most entry is located at the end of the concatenated vector for the multiplexing
-                # This was done such that the index from left-to-right in the adjacency matrix corresponds with the multiplexer select input (index)
+                # Changed it such that the left-most entry is located at the end of
+                # the concatenated vector for the multiplexing
+                # This was done such that the index from left-to-right in the
+                # adjacency matrix corresponds with the multiplexer select input (index)
                 writer.addAssignScalar(
                     f"{portName}_input",
                     connections[portName][::-1],
@@ -301,13 +312,15 @@ def genTileSwitchMatrix(
                 )
                 if muxSize != 2 and muxSize != 4 and muxSize != 8 and muxSize != 16:
                     logger.warning(
-                        f"creating a MUX-{muxSize} for port {portName} using MUX-{muxSize} in switch matrix for tile {tile.name}"
+                        f"creating a MUX-{muxSize} for port {portName} using "
+                        f"MUX-{muxSize} in switch matrix for tile {tile.name}"
                     )
             else:
                 # generic multiplexer
                 writer.addAssignScalar(
                     portName,
-                    f"{portName}_input[ConfigBits[{configBitstreamPosition - 1}:{configBitstreamPosition}]]",
+                    f"{portName}_input[ConfigBits[{configBitstreamPosition - 1}:"
+                    f"{configBitstreamPosition}]]",
                 )
 
             # update the configuration bitstream position

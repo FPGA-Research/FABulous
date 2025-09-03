@@ -97,7 +97,8 @@ def test_fabulous_script_nonexistent_file(
 def test_fabulous_script_with_no_project_dir_in_fabulous_project(
     tmp_path: Path, project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test FABulous script with no project directory when current dir is a FABulous project"""
+    """Test FABulous script with no project directory when current dir is a
+    FABulous project"""
     script_file = tmp_path / "test_script.fab"
     # Use a simple script that doesn't require a loaded fabric
     script_file.write_text("# Test FABulous script\nhelp\n")
@@ -117,7 +118,8 @@ def test_fabulous_script_with_no_project_dir_in_fabulous_project(
 def test_fabulous_script_with_no_project_dir_in_non_fabulous_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test FABulous script with no project directory when current dir is not a FABulous project"""
+    """Test FABulous script with no project directory when current dir is not a
+    FABulous project"""
     script_file = tmp_path / "test_script.fab"
     script_file.write_text("# Test FABulous script\nexit\n")
 
@@ -465,7 +467,8 @@ def test_create_project_with_invalid_writer(
 def test_user_argument_overrides_all(
     project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that user provided argument takes highest priority over all other settings."""
+    """Test that user provided argument takes highest priority over all other
+    settings."""
     dirs = project_directories
 
     # Set environment variable and change to default directory
@@ -524,7 +527,8 @@ def test_environment_variable_overrides_dotenv_files(
 def test_project_dotenv_overrides_global_dotenv(
     project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that project .env file overrides global .env file when both specify FAB_PROJ_DIR.
+    """Test that project .env file overrides global .env file when both specify
+    FAB_PROJ_DIR.
 
     Precedence order (lowest -> highest):
         global .env < project .env < environment variable < user argument
@@ -558,7 +562,8 @@ def test_project_dotenv_overrides_global_dotenv(
 def test_project_dotenv_fallback_to_current_directory(
     project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that project .env file falls back to current directory when no global .env is provided."""
+    """Test that project .env file falls back to current directory when no
+    global .env is provided."""
     dirs = project_directories
 
     monkeypatch.delenv("FAB_PROJ_DIR", raising=False)
@@ -576,7 +581,8 @@ def test_project_dotenv_fallback_to_current_directory(
         cwd=str(dirs["default_dir"]),
     )
 
-    # Project .env now sets FAB_PROJ_DIR when provided explicitly, even without an explicit global .env argument
+    # Project .env now sets FAB_PROJ_DIR when provided explicitly, even without
+    # an explicit global .env argument
     assert (
         f"INFO: Setting current working directory to: {str(dirs['default_dir'])}"
         in result.stdout
@@ -614,7 +620,8 @@ def test_global_dotenv_only(
 def test_default_directory_fallback(
     project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that default directory (cwd) is used when no argument, env var, or .env files are provided."""
+    """Test that default directory (cwd) is used when no argument, env var, or
+    .env files are provided."""
     dirs = project_directories
 
     monkeypatch.delenv("FAB_PROJ_DIR", raising=False)
@@ -635,7 +642,8 @@ def test_default_directory_fallback(
 def test_user_argument_explicitly_overrides_environment_variable(
     project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that user argument explicitly overrides FAB_PROJ_DIR environment variable."""
+    """Test that user argument explicitly overrides FAB_PROJ_DIR environment
+    variable."""
     dirs = project_directories
 
     monkeypatch.setenv("FAB_PROJ_DIR", str(dirs["env_var_dir"]))
@@ -660,7 +668,8 @@ def test_user_argument_explicitly_overrides_environment_variable(
 def test_environment_variable_overrides_global_dotenv(
     project_directories: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that environment variable overrides global .env file when user arg not provided."""
+    """Test that environment variable overrides global .env file when user arg
+    not provided."""
     dirs = project_directories
 
     monkeypatch.setenv("FAB_PROJ_DIR", str(dirs["env_var_dir"]))
@@ -689,7 +698,8 @@ def test_dotenv_loading_verification(
 ) -> None:
     """Test that .env files are loaded correctly and project .env overrides global .env.
 
-    Expected precedence (lowest -> highest): global .env < project .env < env var < user argument
+    Expected precedence (lowest -> highest): global .env < project .env <
+    env var < user argument
     """
     dirs = project_directories
 
@@ -709,7 +719,8 @@ def test_dotenv_loading_verification(
 
 
 def test_command_flag_with_stop_on_first_error(project: Path) -> None:
-    """Test that using --commands with multiple commands raises an error on the first failure"""
+    """Test that using --commands with multiple commands raises an error on the
+    first failure"""
     # Run with multiple commands, where the first one fails
     result = run(
         [

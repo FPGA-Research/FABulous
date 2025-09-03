@@ -85,7 +85,8 @@ class FABulousSettings(BaseSettings):
                     )
                     return mp
                 logger.warning(
-                    "Cannot find a suitable model pack. This might lead to error if not set."
+                    "Cannot find a suitable model pack. "
+                    "This might lead to error if not set."
                 )
 
             if proj_lang in {HDLType.VERILOG, HDLType.SYSTEM_VERILOG}:
@@ -96,7 +97,8 @@ class FABulousSettings(BaseSettings):
                     )
                     return mp
                 logger.warning(
-                    "Cannot find a suitable model pack. This might lead to error if not set."
+                    "Cannot find a suitable model pack. "
+                    "This might lead to error if not set."
                 )
 
             return None
@@ -192,7 +194,8 @@ class FABulousSettings(BaseSettings):
             return Path(tool_path).resolve()
 
         logger.warning(
-            f"{tool} not found in PATH during settings initialisation. Some features may be unavailable."
+            f"{tool} not found in PATH during settings initialisation. "
+            f"Some features may be unavailable."
         )
         return None
 
@@ -208,7 +211,8 @@ def init_context(
 ) -> FABulousSettings:
     """Initialize the global FABulous context with settings.
 
-    This function gathers .env files and lets the pydantic-settings system handle project directory resolution.
+    This function gathers .env files and lets the pydantic-settings system handle
+    project directory resolution.
 
     Args:
         global_dot_env: Global .env file path
@@ -249,7 +253,8 @@ def init_context(
             env_files.append(Path().cwd() / ".FABulous" / ".env")
         elif project_dir is not None:
             logger.warning(
-                f"Project .env file not found: {Path().cwd() / '.FABulous' / '.env'} this entry is ignored"
+                f"Project .env file not found: {Path().cwd() / '.FABulous' / '.env'} "
+                f"this entry is ignored"
             )
 
     # 4. explicit project dir .env
@@ -257,7 +262,8 @@ def init_context(
         env_files.append(project_dir / ".FABulous" / ".env")
     elif project_dir is not None:
         logger.warning(
-            f"Project .env file not found: {project_dir / '.FABulous' / '.env'} this entry is ignored"
+            f"Project .env file not found: {project_dir / '.FABulous' / '.env'} "
+            f"this entry is ignored"
         )
 
     # 5. User-provided project .env file (highest .env priority)

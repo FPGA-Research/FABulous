@@ -56,7 +56,8 @@ def generateUserDesignTopWrapper(
 
     # generate component instantioations
     for x in range(fabric.numberOfColumns):
-        # we walk backwards through the Y list, since there is something mixed up with the coordinate system
+        # we walk backwards through the Y list,
+        # since there is something mixed up with the coordinate system
         for y in range(fabric.numberOfRows - 1, -1, -1):
             bels = fabric.getBelsByTileXY(x, y)
             if not bels:
@@ -68,12 +69,15 @@ def generateUserDesignTopWrapper(
                 # we only add bels with external ports to the top wrapper.
                 if not bel.externalInput and not bel.externalOutput:
                     logger.info(
-                        f"Skipping bel {bel.name} in tile X{x}Y{y} since it has no external ports"
+                        f"Skipping bel {bel.name} in tile X{x}Y{y} since it has no "
+                        f"external ports"
                     )
                     continue
                 if len(bel.inputs + bel.outputs) == 0:
                     logger.info(
-                        f"{bel.name} in tile X{x}Y{y} has no internal ports, only external ports, we just add a dummy to the user design top wrapper!"
+                        f"{bel.name} in tile X{x}Y{y} has no internal ports, "
+                        "only external ports, we just add a dummy to the user design "
+                        "top wrapper!"
                     )
                     belstr += "//"
 
@@ -92,7 +96,8 @@ def generateUserDesignTopWrapper(
                 # This is done similar in the npnr model gen, to get the bel prefix
                 # So we assume to get the same Bel prefix here.
                 # convert number of bel i to character A,B,C ...
-                # But we need to do this backwards, starting with the highest letter for a tile
+                # But we need to do this backwards,
+                # starting with the highest letter for a tile
                 prefix = chr(ord("A") + len(bels) - 1 - i)
 
                 if bel.name in [
@@ -103,12 +108,16 @@ def generateUserDesignTopWrapper(
                 ]:
                     # This is a special case for the RAM_IO bels, since
                     # for some unknown reasons, the prefix used in the nexpnr backend
-                    # is not based on the number of bels, it is based on the actual bel prefix
+                    # is not based on the number of bels,
+                    # it is based on the actual bel prefix
                     # which is defined in the tile csv.
                     # https://github.com/YosysHQ/nextpnr/blob/master/generic/viaduct/fabulous/fabulous.cc#L355
                     prefix = bel.prefix.removesuffix("_")
 
-                belstr += f'(* keep, BEL="X{x}Y{y}.{prefix}" *) {bel.name} bel_X{x}Y{y}_{prefix} ('
+                belstr += (
+                    f'(* keep, BEL="X{x}Y{y}.{prefix}" *) {bel.name} '
+                    f"bel_X{x}Y{y}_{prefix} ("
+                )
 
                 first = True
                 for port in bel.inputs + bel.outputs:
@@ -152,7 +161,8 @@ def generateUserDesignTopWrapper(
     ):
         # hardcoded for now
         logger.info(
-            "Using default design, with sequential_16bit_en counter and IO_1_bidirectional_frame_config_pass"
+            "Using default design, "
+            "with sequential_16bit_en counter and IO_1_bidirectional_frame_config_pass"
         )
 
         user_design_inst += ".clk(clk), "
@@ -163,12 +173,16 @@ def generateUserDesignTopWrapper(
         # if its not our default design, we are just instantiate it,
         # and the user needs to take connect the ports
         logger.warning(
-            f"Custom design detected, please connect the ports manually in user design top wrapper {user_design_path}!"
+            f"Custom design detected, "
+            f"please connect the ports manually in user design top wrapper "
+            f"{user_design_path}!"
         )
 
         if user_design.language == "vhdl":
             logger.warning(
-                f"VHDL design detected, please check the generated top wrapper {top_wrapper} and check the user design module name, as well as the ports!"
+                f"VHDL design detected, "
+                f"please check the generated top wrapper {top_wrapper} and check the "
+                "user design module name, as well as the ports!"
             )
             first = True
             for port in user_design.inputs + user_design.outputs:

@@ -250,7 +250,8 @@ class YosysJson:
             raise FileNotFoundError(f"File {path} does not exist")
         if path.suffix not in {".vhd", ".vhdl", ".v", ".sv"}:
             raise InvalidFileType(
-                f"Unsupported HDL file type: {path.suffix}. Supported types are .vhd, .vhdl, .v, .sv"
+                f"Unsupported HDL file type: {path.suffix}. "
+                f"Supported types are .vhd, .vhdl, .v, .sv"
             )
 
         self.srcPath = path
@@ -280,7 +281,8 @@ class YosysJson:
                 self.srcPath.with_suffix(".v").write_text(r.stdout.decode())
             except subprocess.CalledProcessError as e:
                 raise RuntimeError(
-                    f"Failed to run GHDL on {self.srcPath}: {e.stderr.decode()} run cmd: {' '.join(runCmd)}"
+                    f"Failed to run GHDL on {self.srcPath}: {e.stderr.decode()} "
+                    f"run cmd: {' '.join(runCmd)}"
                 ) from e
         runCmd = [
             f"{yosys!s}",

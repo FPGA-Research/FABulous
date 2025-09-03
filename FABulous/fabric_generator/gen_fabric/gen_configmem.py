@@ -37,7 +37,8 @@ def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) 
     if tileConfigBitsCount > fabric.frameBitsPerRow * fabric.maxFramesPerCol:
         raise ValueError(
             f"Tile config bits ({tileConfigBitsCount}) exceed fabric capacity "
-            f"({fabric.frameBitsPerRow * fabric.maxFramesPerCol} bits). Please adjust the tile configuration."
+            f"({fabric.frameBitsPerRow * fabric.maxFramesPerCol} bits). "
+            f"Please adjust the tile configuration."
         )
 
     fieldName = [
@@ -70,9 +71,9 @@ def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) 
             if bitSlice.count(1) == 0:
                 entry["ConfigBits_ranges"] = "# NULL"
             else:
-                entry["ConfigBits_ranges"] = (
-                    f"{tileConfigBitsCount}:{max(tileConfigBitsCount - fabric.frameBitsPerRow + 1, 0)}"
-                )
+                entry["ConfigBits_ranges"] = f"{tileConfigBitsCount}:{
+                    max(tileConfigBitsCount - fabric.frameBitsPerRow + 1, 0)
+                }"
             count += fabric.frameBitsPerRow
             tileConfigBitsCount -= fabric.frameBitsPerRow
 
@@ -94,26 +95,32 @@ def generateConfigMem(
         The directory of the config memory CSV file.
     """
     # we use a file to describe the exact configuration bits to frame mapping
-    # the following command generates an init file with a simple enumerated default mapping (e.g. 'LUT4AB_ConfigMem.init.csv')
-    # if we run this function again, but have such a file (without the .init), then that mapping will be used
+    # the following command generates an init file with a simple enumerated default
+    # mapping (e.g. 'LUT4AB_ConfigMem.init.csv')
+    # if we run this function again, but have such a file (without the .init),
+    # then that mapping will be used
 
     # test if we have a bitstream mapping file
     # if not, we will take the default, which was passed on from  GenerateConfigMemInit
     if tile.globalConfigBits > fabric.frameBitsPerRow * fabric.maxFramesPerCol:
         raise ValueError(
-            f"Tile {tile.name} has {tile.globalConfigBits} global config bits, which exceeds fabric capacity "
-            f"({fabric.frameBitsPerRow * fabric.maxFramesPerCol} bits). Please adjust the tile configuration."
+            f"Tile {tile.name} has {tile.globalConfigBits} global config bits, "
+            " which exceeds fabric capacity "
+            f"({fabric.frameBitsPerRow * fabric.maxFramesPerCol} bits). "
+            "Please adjust the tile configuration."
         )
 
     configMemList: list[ConfigMem] = []
     if configMemCsv.exists():
         if tile.globalConfigBits <= 0:
             logger.warning(
-                f"Found bitstream mapping file {tile.name}_configMem.csv for tile {tile.name}, but no global config bits are defined"
+                f"Found bitstream mapping file {tile.name}_configMem.csv for tile "
+                f"{tile.name}, but no global config bits are defined"
             )
         else:
             logger.info(
-                f"Found bitstream mapping file {tile.name}_configMem.csv for tile {tile.name}"
+                f"Found bitstream mapping file {tile.name}_configMem.csv for tile "
+                f"{tile.name}"
             )
         logger.info(f"Parsing {tile.name}_configMem.csv")
         configMemList = parseConfigMem(
@@ -135,19 +142,22 @@ def generateConfigMem(
         )
     else:
         logger.info(
-            f"No config bits defined and no bitstream mapping file provided for tile {tile.name}"
+            f"No config bits defined and no bitstream mapping file provided for "
+            f"tile {tile.name}"
         )
         return
 
     totalConfigBits = sum(i.bitsUsedInFrame for i in configMemList)
     logger.info(
-        f"Found {len(configMemList)} config memory entries in {tile.name}_configMem.csv with a total of {totalConfigBits} bits"
+        f"Found {len(configMemList)} config memory entries in "
+        f"{tile.name}_configMem.csv with a total of {totalConfigBits} bits"
     )
     logger.info(f"Tile {tile.name} has {tile.globalConfigBits} global config bits")
 
     if totalConfigBits != tile.globalConfigBits:
         raise ValueError(
-            f"Total config bits in {tile.name}_configMem.csv ({totalConfigBits}) does not match tile global config bits ({tile.globalConfigBits})"
+            f"Total config bits in {tile.name}_configMem.csv ({totalConfigBits}) "
+            f"does not match tile global config bits ({tile.globalConfigBits})"
         )
 
     # start writing the file
@@ -194,9 +204,12 @@ def generateConfigMem(
                 # Safely check if bit is set, treat missing bits as '0'
                 bit_value = i.usedBitMask[k] if k < len(i.usedBitMask) else "0"
                 if bit_value == "1":
+                    index = i.frameIndex * fabric.frameBitsPerRow + (
+                        fabric.frameBitsPerRow - 1 - k
+                    )
                     writer.addAssignScalar(
                         f"ConfigBits[{i.configBitRanges[counter]}]",
-                        f"Emulate_Bitstream[{i.frameIndex * fabric.frameBitsPerRow + (fabric.frameBitsPerRow - 1 - k)}]",
+                        f"Emulate_Bitstream[{index}]",
                     )
                     counter += 1
         writer.addPreprocElse()
@@ -212,7 +225,9 @@ def generateConfigMem(
             if bit_value == "1":
                 writer.addInstantiation(
                     compName="LHQD1",
-                    compInsName=f"Inst_{i.frameName}_bit{fabric.frameBitsPerRow - 1 - k}",
+                    compInsName=(
+                        f"Inst_{i.frameName}_bit{fabric.frameBitsPerRow - 1 - k}"
+                    ),
                     portsPairs=[
                         ("D", f"FrameData[{fabric.frameBitsPerRow - 1 - k}]"),
                         ("E", f"FrameStrobe[{i.frameIndex}]"),

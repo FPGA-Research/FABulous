@@ -71,7 +71,10 @@ The following commands are executed by when executing the synthesis command:
 
     map_iopad:    (if -iopad)
         opt -full
-        iopadmap -bits -outpad $__FABULOUS_OBUF I:PAD -inpad $__FABULOUS_IBUF O:PAD -toutpad IO_1_bidirectional_frame_config_pass ~T:I:PAD -tinoutpad IO_1_bidirectional_frame_config_pass ~T:O:I:PAD A:top    (skip if '-noiopad')
+        iopadmap -bits -outpad $__FABULOUS_OBUF I:PAD -inpad $__FABULOUS_IBUF O:PAD
+            -toutpad IO_1_bidirectional_frame_config_pass ~T:I:PAD
+            -tinoutpad IO_1_bidirectional_frame_config_pass ~T:O:I:PAD A:top
+            (skip if '-noiopad')
         techmap -map +/fabulous/io_map.v
 
     map_ffs:
@@ -123,15 +126,15 @@ synthesis_parser.add_argument(
 synthesis_parser.add_argument(
     "-blif",
     type=Path,
-    help="Write the design to the specified BLIF file. Writing of an output file is omitted "
-    "if this parameter is not specified.",
+    help="Write the design to the specified BLIF file. "
+    "Writing of an output file is omitted if this parameter is not specified.",
     completer=Cmd.path_complete,
 )
 synthesis_parser.add_argument(
     "-edif",
     type=Path,
-    help="Write the design to the specified EDIF file. Writing of an output file is omitted "
-    "if this parameter is not specified.",
+    help="Write the design to the specified EDIF file. "
+    "Writing of an output file is omitted if this parameter is not specified.",
     completer=Cmd.path_complete,
 )
 synthesis_parser.add_argument(
@@ -156,14 +159,16 @@ synthesis_parser.add_argument(
 synthesis_parser.add_argument(
     "-extra-plib",
     type=Path,
-    help="Use the specified Verilog file for extra primitives (can be specified multiple times).",
+    help="Use the specified Verilog file for extra primitives "
+    "(can be specified multiple times).",
     action="append",
     completer=Cmd.path_complete,
 )
 synthesis_parser.add_argument(
     "-extra-map",
     type=Path,
-    help="Use the specified Verilog file for extra techmap rules (can be specified multiple times).",
+    help="Use the specified Verilog file for extra techmap rules "
+    "(can be specified multiple times).",
     action="append",
     completer=Cmd.path_complete,
 )
@@ -180,7 +185,8 @@ synthesis_parser.add_argument(
 )
 synthesis_parser.add_argument(
     "-noalumacc",
-    help="Do not run 'alumacc' pass. I.e., keep arithmetic operators in their direct form ($add, $sub, etc.).",
+    help="Do not run 'alumacc' pass. I.e., keep arithmetic operators in"
+    " their direct form ($add, $sub, etc.).",
     action="store_true",
 )
 synthesis_parser.add_argument(
@@ -204,7 +210,8 @@ synthesis_parser.add_argument(
 )
 synthesis_parser.add_argument(
     "-complex-dff",
-    help="Enable support for FFs with enable and synchronous SR (must also be supported by the target fabric).",
+    help="Enable support for FFs with enable and synchronous SR "
+    "(must also be supported by the target fabric).",
     action="store_true",
 )
 synthesis_parser.add_argument(
@@ -225,13 +232,14 @@ synthesis_parser.add_argument(
 synthesis_parser.add_argument(
     "-run",
     type=str,
-    help="Only run the commands between the labels (see above). An empty from label is synonymous to 'begin',"
+    help="Only run the commands between the labels (see above). An empty from label is "
+    "synonymous to 'begin',"
     " and empty to label is synonymous to the end of the command list.",
 )
 synthesis_parser.add_argument(
     "-no-rw-check",
-    help="Marks all recognized read ports as 'return don't-care value on read/write collision'"
-    " (same result as setting the 'no_rw_check' attribute on all memories).",
+    help="Marks all recognized read ports as 'return don't-care value on read/write"
+    "collision' (same result as setting 'no_rw_check' attribute on all memories).",
     action="store_true",
 )
 
@@ -240,7 +248,7 @@ synthesis_parser.add_argument(
 @with_argparser(synthesis_parser)
 def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
     logger.info(
-        f"Running synthesis targeting Nextpnr with design {[str(i) for i in args.files]}"
+        f"Running synthesis targeting Nextpnr with design{[str(i) for i in args.files]}"
     )
 
     p: Path

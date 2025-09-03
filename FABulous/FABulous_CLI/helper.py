@@ -47,7 +47,10 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
         msg = f"<level>{record['message']}</level>"
         exc = ""
         if record["exception"] and record["exception"].type:
-            exc = f"<bg red><white>{record['exception'].type.__name__}</white></bg red> | "
+            exc = (
+                f"<bg red><white>{record['exception'].type.__name__}</white>"
+                f"</bg red> | "
+            )
 
         final_log = f"{level}{exc}{msg}\n"
         if verbosity >= 1:
@@ -320,7 +323,8 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
             ocs_folder.rmdir()
         else:
             raise FileExistsError(
-                f"The folder {ocs_folder} already exists. Please set the update flag, remove it or choose a different folder."
+                f"The folder {ocs_folder} already exists. Please set the update flag, "
+                f"remove it or choose a different folder."
             )
     else:
         if not destination_folder.is_dir():
@@ -334,7 +338,8 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
     # format system and machine to match the OSS-CAD-Suite release naming
     if system not in ["linux", "windows", "darwin"]:
         raise ValueError(
-            f"Unsupported operating system {system}. Please install OSS-CAD-Suite manually."
+            f"Unsupported operating system {system}. "
+            f"Please install OSS-CAD-Suite manually."
         )
     if machine in ["x86_64", "amd64"]:
         machine = "x64"
@@ -342,7 +347,8 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
         machine = "arm64"
     else:
         raise ValueError(
-            f"Unsupported architecture {machine}. Please install OSS-CAD-Suite manually."
+            f"Unsupported architecture {machine}. "
+            f"Please install OSS-CAD-Suite manually."
         )
 
     if response.status_code == 200:
@@ -452,7 +458,8 @@ class CommandPipeline:
             if self.cli.exit_code != 0:
                 self.final_exit_code = self.cli.exit_code
                 logger.error(
-                    f"Command '{command}' execution failed with exit code {self.cli.exit_code}"
+                    f"Command '{command}' execution failed with exit code "
+                    f"{self.cli.exit_code}"
                 )
 
                 if not self.force:

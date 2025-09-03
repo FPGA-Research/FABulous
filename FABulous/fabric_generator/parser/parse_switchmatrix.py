@@ -45,7 +45,8 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     if file[0].split(",")[0] != tileName:
         raise InvalidSwitchMatrixDefinition(
             f"{fileName} {file[0].split(',')} {tileName}\n"
-            f"Tile name (top left element) in csv file does not match tile name in tile object"
+            "Tile name (top left element) in csv file does not match tile name "
+            "in tile object"
         )
     destList = file[0].split(",")[1:]
 
@@ -110,7 +111,8 @@ def expandListPorts(port: str, PortList: list[str]) -> None:
     else:
         # Multiply ports by the number of multipliers, given in the curly braces.
         # We let all curly braces in the port Expansion to be expanded and
-        # calculate the total number of ports to be added afterward, based on the number of multipliers.
+        # calculate the total number of ports to be added afterward, based on the
+        # number of multipliers.
         # Also remove the multipliers from port name, before adding it to the list.
         port = port.replace(" ", "")  # remove spaces
         multipliers = re.findall(r"\{(\d+)\}", port)
@@ -147,7 +149,8 @@ def parseList(
     Returns
     -------
     Union : [list[tuple[str, str]], dict[str, list[str]]]
-        Return either a list of connection pairs or a dictionary of lists which is collected by the specified option, source or sink.
+        Return either a list of connection pairs or a dictionary of lists which
+        is collected by the specified option, source or sink.
     """
     if not filePath.exists():
         raise FileNotFoundError(f"The file {filePath} does not exist.")
@@ -178,7 +181,8 @@ def parseList(
         expandListPorts(right, rightList)
         if len(leftList) != len(rightList):
             raise InvalidListFileDefinition(
-                f"List file {filePath} does not have the same number of source and sink ports at line {i}: {line}"
+                f"List file {filePath} does not have the same number of source and "
+                f"sink ports at line {i}: {line}"
             )
         resultList += list(zip(leftList, rightList, strict=False))
 

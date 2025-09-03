@@ -78,7 +78,8 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
         if _session_config.projects_conf is None:
             raise RuntimeError(
-                "Session config not initialized. This should be set in pytest_configure."
+                "Session config not initialized. This should be set in "
+                "pytest_configure."
             )
 
         config_path = _session_config.projects_conf
@@ -132,7 +133,8 @@ def test_reference_project_execution(
 
     # Always check that basic commands succeeded
     assert not execution_info["commands_failed"], (
-        f"Commands failed for {ref_project.name}: {execution_info['commands_failed']}\nErrors: {execution_info['errors']}"
+        f"Commands failed for {ref_project.name}: {execution_info['commands_failed']}"
+        f"\nErrors: {execution_info['errors']}"
     )
 
     # Verify expected outputs exist if specified

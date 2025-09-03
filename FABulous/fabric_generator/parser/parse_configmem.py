@@ -30,7 +30,8 @@ def parseConfigMem(
         - Invalid amount of frame entries in the config memory CSV file
         - Too many values in bit mask
         - Length of bit mask does not match the number of frame bits per row
-        - Bit mask does not have enough values matching the number of the given config bits
+        - Bit mask does not have enough values matching the number of the given
+          config bits
         - Repeated config bit entry in ':' separated format in config bit range
         - Repeated config bit entry in list format in config bit range
         - Invalid range entry in config bit range
@@ -52,25 +53,31 @@ def parseConfigMem(
         # we should have as many lines as we have frames (=framePerCol)
         if len(mappingFile) != maxFramePerCol:
             raise ValueError(
-                f"The bitstream mapping file has only {len(mappingFile)} entries but MaxFramesPerCol is {maxFramePerCol}."
+                f"The bitstream mapping file has only {len(mappingFile)} entries "
+                f"but MaxFramesPerCol is {maxFramePerCol}."
             )
 
-        # we also check used_bits_mask (is a vector that is as long as a frame and contains a '1' for a bit used and a '0' if not used (padded)
+        # we also check used_bits_mask (is a vector that is as long as a frame and
+        # contains a '1' for a bit used and a '0' if not used (padded)
         usedBitsCounter = 0
         for entry in mappingFile:
             if entry["used_bits_mask"].count("1") > frameBitPerRow:
                 raise ValueError(
-                    f"bitstream mapping file {fileName} has to many 1-elements in bitmask for frame : {entry['frame_name']}"
+                    f"bitstream mapping file {fileName} has to many 1-elements in "
+                    f"bitmask for frame : {entry['frame_name']}"
                 )
             if len(entry["used_bits_mask"]) != frameBitPerRow:
                 raise ValueError(
-                    f"bitstream mapping file {fileName} has has a too long or short bitmask for frame : {entry['frame_name']}"
+                    f"bitstream mapping file {fileName} has has a too long or short "
+                    f"bitmask for frame : {entry['frame_name']}"
                 )
             usedBitsCounter += entry["used_bits_mask"].count("1")
 
         if usedBitsCounter != globalConfigBits:
             raise ValueError(
-                f"bitstream mapping file {fileName} has a bitmask mismatch; bitmask has in total {usedBitsCounter} 1-values for {globalConfigBits} bits."
+                f"bitstream mapping file {fileName} has a bitmask mismatch; "
+                f"bitmask has in total {usedBitsCounter} 1-values for "
+                f"{globalConfigBits} bits."
             )
 
         allConfigBitsOrder = []
@@ -83,7 +90,8 @@ def parseConfigMem(
 
             if ":" in entry["ConfigBits_ranges"]:
                 left, right = re.split(":", entry["ConfigBits_ranges"])
-                # check the order of the number, if right is smaller than left, then we swap them
+                # check the order of the number, if right is smaller than left,
+                # then we swap them
                 left, right = int(left), int(right)
                 if right < left:
                     left, right = right, left
@@ -94,7 +102,8 @@ def parseConfigMem(
                 for i in numList:
                     if i in allConfigBitsOrder:
                         raise ValueError(
-                            f"Configuration bit index {i} already allocated in {fileName}, {entry['frame_name']}."
+                            f"Configuration bit index {i} already allocated in "
+                            f"{fileName}, {entry['frame_name']}."
                         )
                     configBitsOrder.append(i)
 
@@ -102,14 +111,16 @@ def parseConfigMem(
                 for item in entry["ConfigBits_ranges"].split(";"):
                     if int(item) in allConfigBitsOrder:
                         raise ValueError(
-                            f"Configuration bit index {item} already allocated in {fileName}, {entry['frame_name']}."
+                            f"Configuration bit index {item} already allocated in "
+                            f"{fileName}, {entry['frame_name']}."
                         )
                     configBitsOrder.append(int(item))
             elif entry["ConfigBits_ranges"].isdigit():
                 v = int(entry["ConfigBits_ranges"])
                 if v in allConfigBitsOrder:
                     raise ValueError(
-                        f"Configuration bit index {v} already allocated in {fileName}, {entry['frame_name']}."
+                        f"Configuration bit index {v} already allocated in "
+                        f"{fileName}, {entry['frame_name']}."
                     )
                 configBitsOrder.append(v)
 
@@ -118,19 +129,23 @@ def parseConfigMem(
 
             else:
                 raise ValueError(
-                    f"Range {entry['ConfigBits_ranges']} is not a valid format. It should be in the form [int]:[int] or [int]. "
-                    "If there are multiple ranges it should be separated by ';'."
+                    f"Range {entry['ConfigBits_ranges']} is not a valid format. "
+                    f"It should be in the form [int]:[int] or [int]. "
+                    f"If there are multiple ranges it should be separated by ';'."
                 )
 
             if len(configBitsOrder) != entry["used_bits_mask"].count("1"):
                 raise ValueError(
-                    f"bitstream mapping file {fileName} has a mismatch between the number of bits used in the frame"
-                    f"({entry['used_bits_mask'].count('1')}) and the number of config bits in the range({len(configBitsOrder)}) "
+                    f"bitstream mapping file {fileName} has a mismatch between the "
+                    f"number of bits used in the frame "
+                    f"({entry['used_bits_mask'].count('1')}) and the number of "
+                    f"config bits in the range({len(configBitsOrder)}) "
                     f"for frame {entry['frame_name']}."
                 )
             if any([i < 0 for i in configBitsOrder]):
                 raise ValueError(
-                    f"Configuration bit index {configBitsOrder} in {fileName}, {entry['frame_name']} is negative."
+                    f"Configuration bit index {configBitsOrder} in {fileName},"
+                    f"{entry['frame_name']} is negative."
                 )
 
             allConfigBitsOrder += configBitsOrder

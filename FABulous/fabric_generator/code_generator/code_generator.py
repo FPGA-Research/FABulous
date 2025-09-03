@@ -81,7 +81,8 @@ class CodeGenerator(abc.ABC):
         name : str
             Name of the module.
         package : str, optional
-            The package used by VHDL. Only useful with VHDL. Defaults to an empty string ''.
+            The package used by VHDL. Only useful with VHDL.
+            Defaults to an empty string ''.
         indentLevel : int, optional
             The level of indentation. Defaults to 0.
 
@@ -450,9 +451,11 @@ class CodeGenerator(abc.ABC):
         portsPairs : List[Tuple[str, str]]
             List of tuples pairing component ports with signals.
         paramPairs : List[Tuple[str, str]], optional
-            List of tuples pairing parameter ports with parameter signals. Defaults to [].
+            List of tuples pairing parameter ports with parameter signals.
+            Defaults to [].
         emulateParamPairs : List[Tuple[str, str]], optional
-            List of parameter signals of the component in emulation mode only. Defaults to [].
+            List of parameter signals of the component in emulation mode only.
+            Defaults to [].
         indentLevel : int, optional
             The level of indentation. Defaults to 0.
 

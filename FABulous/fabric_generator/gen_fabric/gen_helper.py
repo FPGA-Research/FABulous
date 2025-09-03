@@ -173,5 +173,6 @@ def CSV2list(InFileName: str, OutFileName: str) -> None:
         for line in InFile[1:]:
             for i in range(1, cols):
                 if line[i] != "0":
-                    # it is [i-1] because the beginning of the line is the destination port
+                    # it is [i-1] because the beginning of the line is the
+                    # destination port
                     _ = f.write(f"{line[0]},{inputs[i - 1]}")

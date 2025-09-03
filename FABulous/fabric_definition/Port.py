@@ -47,7 +47,15 @@ class Port:
     sideOfTile: Side
 
     def __repr__(self) -> str:
-        return f"Port(Name={self.name}, IO={self.inOut.value}, XOffset={self.xOffset}, YOffset={self.yOffset}, WireCount={self.wireCount}, Side={self.sideOfTile.value})"
+        return (
+            f"Port("
+            f"Name={self.name},"
+            f"IO={self.inOut.value},"
+            f"XOffset={self.xOffset},"
+            f"YOffset={self.yOffset},"
+            f"WireCount={self.wireCount},"
+            f"Side={self.sideOfTile.value})"
+        )
 
     def expandPortInfoByName(self, indexed: bool = False) -> list[str]:
         if self.sourceName == "NULL" or self.destinationName == "NULL":
@@ -109,10 +117,13 @@ class Port:
             thisRange = self.wireCount
         elif mode == "AutoSwitchMatrix" or mode == "AutoSwitchMatrixIndexed":
             if self.sourceName == "NULL" or self.destinationName == "NULL":
-                # the following line connects all wires to the switch matrix in the case one port is NULL (typically termination)
+                # the following line connects all wires to the switch matrix in the
+                #  case one port is NULL (typically termination)
                 thisRange = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
             else:
-                # the following line connects all bottom wires to the switch matrix in the case begin and end ports are used
+                # the following line connects all bottom wires to the switch matrix
+                # in the case begin and
+                #  end ports are used
                 thisRange = self.wireCount
         # range ((wires*distance)-1 downto 0) as connected to the tile top
         elif mode in [
@@ -125,14 +136,18 @@ class Port:
         ]:
             thisRange = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
 
-        # the following three lines are needed to get the top line[wires] that are actually the connection from a switch matrix to the routing fabric
+        # the following three lines are needed to get the top line[wires] that are
+        # actually the connection from a switch matrix to
+        #  the routing fabric
         startIndex = 0
         if mode in ["Top", "TopIndexed"]:
             startIndex = ((abs(self.xOffset) + abs(self.yOffset)) - 1) * self.wireCount
 
         elif mode in ["AutoTop", "AutoTopIndexed"]:
             if self.sourceName == "NULL" or self.destinationName == "NULL":
-                # in case one port is NULL, then the all the other port wires get connected to the switch matrix.
+                # in case one port is NULL,
+                # then the all the other port wires get connected to
+                #  the switch matrix.
                 startIndex = 0
             else:
                 # "normal" case as for the CLBs

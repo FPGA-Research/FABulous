@@ -36,7 +36,8 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
                 numbuf += ch
             else:
                 if ch == "_":
-                    # this way we treat the 2 in RAM2FAB as part of the name, rather than an index
+                    # this way we treat the 2 in RAM2FAB as part of the name,
+                    # rather than an index
                     got_split = True
                 if numbuf != "":
                     indices.append(int(numbuf))
@@ -157,7 +158,8 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
             raise FileExistsError("Config.vhdl not found in the 'Fabric' directory.")
         if not (basePath / "eFPGA.vhdl").exists():
             raise FileExistsError(
-                "eFPGA.vhdl not found in the 'Fabric' directory, need to generate the eFPGA first."
+                "eFPGA.vhdl not found in the 'Fabric' directory, "
+                "need to generate the eFPGA first."
             )
         if not (basePath / "BlockRAM_1KB.vhdl").exists():
             raise FileExistsError(

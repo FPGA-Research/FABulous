@@ -65,7 +65,8 @@ def parseBelFile(
     """Parse a Verilog or VHDL bel file and return all the related information of the
     bel. The tuple returned for relating to ports will be a list of (belName, IO) pair.
 
-    The function will also parse and record all the FABulous attribute which all starts with ::
+    The function will also parse and record all the FABulous attribute which all
+    starts with ::
 
         (* FABulous, <type>, ... *)
 
@@ -79,26 +80,37 @@ def parseBelFile(
     * **SHARED_ENABLE**
     * **SHARED_RESET**
 
-    The **BelMap** attribute will specify the bel mapping for the bel. This attribute should be placed before the start of
-    the module The bel mapping is then used for generating the bitstream specification. Each of the entry in the attribute will have the following format::
+    The **BelMap** attribute will specify the bel mapping for the bel. This
+    attribute should be placed before the start of
+    the module The bel mapping is then used for generating the bitstream
+    specification. Each of the entry in the attribute will have the following
+    format::
 
     <name> = <value>
 
-    ``<name>`` is the name of the feature and ``<value>`` will be the bit position of the feature. ie. ``INIT=0`` will specify that the feature ``INIT`` is located at bit 0.
-    Since a single feature can be mapped to multiple bits, this is currently done by specifying multiple entries for the same feature. This will be changed in the future.
+    ``<name>`` is the name of the feature and
+    and ``<value>`` will be the bit position of the feature. ie. ``INIT=0`` will
+    specify that the feature ``INIT`` is located at bit 0.
+    Since a single feature can be mapped to multiple bits,
+        this is currently done by specifying multiple entries for the same
+        feature. This will be changed in the future.
     The bit specification is done in the following way::
 
         INIT_a_1=1, INIT_a_2=2, ...
 
-    The name of the feature will be converted to ``INIT_a[1]``, ``INIT_a[2]`` for the above example. This is necessary
+    The name of the feature will be converted to ``INIT_a[1]``,
+        ``INIT_a[2]`` for the above example. This is necessary
     because  Verilog does not allow square brackets as part of the attribute name.
 
-    **EXTERNAL** attribute will notify FABulous to put the pin in the top module during the fabric generation.
+    **EXTERNAL** attribute will notify FABulous to put the pin in the top module
+    during the fabric generation.
 
-    **SHARED_PORT** attribute will notify FABulous this the pin is shared between multiple bels. Attribute need to go with
+    **SHARED_PORT** attribute will notify FABulous this the pin is shared between
+    multiple bels. Attribute need to go with
     the **EXTERNAL** attribute.
 
-    **GLOBAL** attribute will notify FABulous to stop parsing any pin after this attribute.
+    **GLOBAL** attribute will notify FABulous to stop parsing any pin after this
+    attribute.
 
     **CONFIG_PORT** attribute will notify FABulous the port is for configuration.
 
@@ -112,7 +124,12 @@ def parseBelFile(
         multiple_bits_0=1, //multiple bit feature bit0, multiple_bits[0]=1
         multiple_bits_1=2 //multiple bit feature bit1, multiple_bits[1]=2
         *)
-        module exampleModule (externalPin, normalPin1, normalPin2, sharedPin, globalPin);
+        module exampleModule (
+            externalPin,
+            normalPin1,
+            normalPin2,
+            sharedPin,
+            globalPin);
             (* FABulous, EXTERNAL *) input externalPin;
             input normalPin;
             (* FABulous, EXTERNAL, SHARED_PORT *) input sharedPin;
@@ -181,8 +198,9 @@ def parseBelFile(
         if "UserCLK" in port_name:
             userClk = True
         if port_name[-1].isdigit():
-            # FIXME:  This is a temporary fix for the issue where the ports are individually declared
-            #         Check for the last charcter in portname is not really reliable and sould be handeled more rubust in the future.
+            # FIXME:  This is a temporary fix for the issue where the ports are
+            # individually declared. Check for the last charcter in portname is
+            # not really reliable and sould be handeled more rubust in the future.
             individually_declared = True
         direction = IO[details.direction.upper()]
         filtered_ports[port_name] = (direction, details.bits)
@@ -192,7 +210,8 @@ def parseBelFile(
     if configBitsPort:
         noConfigBits = len(configBitsPort.bits)
     # Passed attributes dont show in port list, checks for attributes in netnames.
-    # (If passed attributes missing, may need to expand to check other lists e.g "memories".)
+    # (If passed attributes missing, may need to expand to check other lists
+    # e.g "memories".)
     for portName, (direction, bits) in filtered_ports.items():
         attributes = module_info.netnames[portName].attributes
         # Unrolled Ports
@@ -215,7 +234,8 @@ def parseBelFile(
             if "SHARED_ENABLE" in attributes or "SHARED_RESET" in attributes:
                 if direction is not IO["INPUT"]:
                     raise InvalidBelDefinition(
-                        "SHARED_ENABLE or SHARED_RESET can only be used with INPUT ports."
+                        "SHARED_ENABLE or SHARED_RESET can only be used with "
+                        "INPUT ports."
                     )
                 if "SHARED_ENABLE" in attributes:
                     localSharedPorts["ENABLE"] = (
@@ -236,7 +256,8 @@ def parseBelFile(
                     carryPrefix = "FABulous_default"
                 if direction is IO["INOUT"]:
                     raise ValueError(
-                        f"CARRY can't be used with INOUT ports for port {new_port_name}!"
+                        f"CARRY can't be used with INOUT ports for port "
+                        f"{new_port_name}!"
                     )
                 if carryPrefix not in carry:
                     carry[carryPrefix] = {}
@@ -244,8 +265,9 @@ def parseBelFile(
                     carry[carryPrefix][direction] = f"{belPrefix}{new_port_name}"
                 else:
                     raise ValueError(
-                        f"Port {portName} with prefix {carryPrefix} can't be a carry {direction}, \
-                        since port {carry[carryPrefix][direction]} already is!"
+                        f"Port {portName} with prefix {carryPrefix} can't be a "
+                        f"carry {direction}, since port "
+                        f"{carry[carryPrefix][direction]} already is!"
                     )
 
         # Port vectors:
@@ -261,7 +283,9 @@ def parseBelFile(
     belMapDic = belMapProcessing(module_info)
     if len(belMapDic) != noConfigBits:
         raise ValueError(
-            f"NoConfigBits does not match with the BEL map in file {filename}, length of BelMap is {len(belMapDic)}, but with {noConfigBits} config bits"
+            f"NoConfigBits does not match with the BEL map in file {filename}, "
+            f"length of BelMap is {len(belMapDic)}, but with {noConfigBits} "
+            "config bits"
         )
 
     return Bel(

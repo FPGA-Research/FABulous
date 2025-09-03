@@ -55,7 +55,7 @@ def download_reference_projects(
                     return True
             else:
                 logger.error(
-                    f"Target directory {target_dir} exists but is not a git repository.",
+                    f"Target directory {target_dir} exists but is not a git repository."
                     " Please remove or specify a different directory.",
                 )
                 return False

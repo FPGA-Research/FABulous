@@ -30,10 +30,12 @@ def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
     belStr = []
     belv2Str = []
     belStr.append(
-        f"# BEL descriptions: top left corner Tile_X0Y0, bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
+        f"# BEL descriptions: top left corner Tile_X0Y0,"
+        f" bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
     )
     belv2Str.append(
-        f"# BEL descriptions: top left corner Tile_X0Y0, bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
+        f"# BEL descriptions: top left corner Tile_X0Y0, "
+        f"bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
     )
     constrainStr = []
 
@@ -68,11 +70,14 @@ def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
                     not (0 <= yDst <= fabric.numberOfRows)
                 ):
                     raise InvalidState(
-                        f"Wire {wire} in tile X{x}Y{y} points to an invalid tile X{xDst}Y{yDst}."
+                        f"Wire {wire} in tile X{x}Y{y} points to an invalid tile "
+                        f"X{xDst}Y{yDst}. "
                         "Please check your tile CSV file for unmatching wires/offsets!"
                     )
                 pipStr.append(
-                    f"X{x}Y{y},{wire.source},X{x + wire.xOffset}Y{y + wire.yOffset},{wire.destination},{8},{wire.source}.{wire.destination}"
+                    f"X{x}Y{y},{wire.source},X{x + wire.xOffset}Y{y + wire.yOffset},{
+                        wire.destination
+                    },{8},{wire.source}.{wire.destination}"
                 )
 
             # Old style bel definition

@@ -29,9 +29,12 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
     # Currently we assume that each primitive needs a configuration port
     # However, a switch matrix can have no switch matrix multiplexers
     # (e.g., when only bouncing back in border termination tiles)
-    # we can detect this as each switch matrix file contains a comment -- NumberOfConfigBits
+    # we can detect this as each switch matrix file contains a comment --
+    # NumberOfConfigBits
     # NumberOfConfigBits:0 tells us that the switch matrix does not have a config port
-    # TODO: we don't do this and always create a configuration port for each tile. This may dangle the CLK and MODE ports hanging in the air, which will throw a warning
+    # TODO: we don't do this and always create a configuration port for each tile.
+    # This may dangle the CLK and MODE ports hanging in the air, which will throw a
+    # warning
 
     writer.addHeader(f"{tile.name}")
     writer.addParameterStart(indentLevel=1)
@@ -78,7 +81,8 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         writer.addPortVector(port.name, port.inOut, wireSize, indentLevel=2)
         writer.addComment(str(port), indentLevel=2, onNewLine=False)
 
-    # now we have to scan all BELs if they use external pins, because they have to be exported to the tile entity
+    # now we have to scan all BELs if they use external pins,
+    # because they have to be exported to the tile entity
     externalPorts = []
     for i in tile.bels:
         for p in i.externalInput:
@@ -128,7 +132,8 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
     if isinstance(writer, VHDLCodeGenerator):
         # insert CLB, I/O (or whatever BEL) component declaration
         # specified in the fabric csv file after the 'BEL' key word
-        # we use this list to check if we have seen a BEL description before so we only insert one component declaration
+        # we use this list to check if we have seen a BEL description before so we
+        # only insert one component declaration
         BEL_VHDL_riles_processed = []
         for i in tile.bels:
             if i.src not in BEL_VHDL_riles_processed:
@@ -143,7 +148,8 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
             )
         else:
             raise FileNotFoundError(
-                f"Could not find {tile.name}_switch_matrix.vhdl in {basePath} Need to run matrix generation first"
+                f"Could not find {tile.name}_switch_matrix.vhdl in {basePath} "
+                f"Need to run matrix generation first"
             )
 
         if tile.globalConfigBits > 0:
@@ -153,7 +159,8 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
                 )
             else:
                 raise FileNotFoundError(
-                    f"Could not find {tile.name}_ConfigMem.vhdl in {basePath} config_mem generation first"
+                    f"Could not find {tile.name}_ConfigMem.vhdl in {basePath} "
+                    f"config_mem generation first"
                 )
 
     # signal declarations
@@ -181,18 +188,24 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
             for k in range(p.wireCount):
                 allJumpWireList.append(f"{p.name}( {k} )")
 
-    # internal configuration data signal to daisy-chain all BELs (if any and in the order they are listed in the fabric.csv)
+    # internal configuration data signal to daisy-chain all BELs (if any and in the
+    # order they are listed in the fabric.csv)
     writer.addComment(
-        "internal configuration data signal to daisy-chain all BELs (if any and in the order they are listed in the fabric.csv)",
+        "internal configuration data signal to daisy-chain all BELs (if any and in "
+        "the order they are listed in the fabric.csv)",
         onNewLine=True,
     )
 
     # the signal has to be number of BELs+2 bits wide (Bel_counter+1 downto 0)
-    # we chain switch matrices only to the configuration port, if they really contain configuration bits
-    # i.e. switch matrices have a config port which is indicated by "NumberOfConfigBits:0 is false"
+    # we chain switch matrices only to the configuration port,
+    # if they really contain configuration bits
+    # i.e. switch matrices have a config port which is indicated by
+    # "NumberOfConfigBits:0 is false"  # noqa: ERA001
 
-    # The following conditional as intended to only generate the config_data signal if really anything is actually configured
-    # however, we leave it and just use this signal as conf_data(0 downto 0) for simply touting through CONFin to CONFout
+    # The following conditional as intended to only generate the config_data signal
+    # if really anything is actually configured
+    # however, we leave it and just use this signal as conf_data(0 downto 0) for
+    # simply touting through CONFin to CONFout
     # maybe even useful if we want to add a buffer here
 
     # all the signal wire need to declare first for compatibility with VHDL
@@ -270,7 +283,8 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         if span >= 2 and port.sourceName != "NULL" and port.destinationName != "NULL":
             highBoundIndex = span * port.wireCount - 1
             # using scalar assignment to connect the two vectors
-            # could replace with assign as vector, but will lose the - wireCount readability
+            # could replace with assign as vector,
+            # but will lose the - wireCount readability
             writer.addAssignScalar(
                 f"{port.sourceName}_i[{highBoundIndex}-{port.wireCount}:0]",
                 f"{port.destinationName}_i[{highBoundIndex}:{port.wireCount}]",
@@ -312,7 +326,8 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         writer.addAssignScalar("conf_data(conf_data'high)", "CONFout")
         writer.addComment("CONFout is from tile entity")
 
-    # the <entity>_ConfigMem module is only parametrized through generics, so we hard code its instantiation here
+    # the <entity>_ConfigMem module is only parametrized through generics,
+    # so we hard code its instantiation here
     if fabric.configBitMode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
         writer.addComment("configuration storage latches", onNewLine=True)
         writer.addInstantiation(
@@ -389,7 +404,9 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
                 portsPairs.append(
                     (
                         "ConfigBits",
-                        f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:{belConfigBitsCounter}]",
+                        f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:{
+                            belConfigBitsCounter
+                        }]",
                     )
                 )
         elif fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
@@ -416,13 +433,15 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
     # important to know:
     # Each switch matrix entity is build up is a specific order:
     # 1.a) interconnect wire INPUTS (in the order defined by the fabric file,)
-    # 2.a) BEL primitive INPUTS (in the order the BEL-VHDLs are listed in the fabric CSV)
+    # 2.a) BEL primitive INPUTS (in the order the BELs are listed in the fabric CSV)
     #      within each BEL, the order from the entity is maintained
-    #      Note that INPUTS refers to the view of the switch matrix! Which corresponds to BEL outputs at the actual BEL
+    #      Note that INPUTS refers to the view of the witch matrix!
+    #      Which corresponds to BEL outputs at the actual BEL
     # 3.a) JUMP wire INPUTS (in the order defined by the fabric file)
     # 1.b) interconnect wire OUTPUTS
     # 2.b) BEL primitive OUTPUTS
-    #      Again: OUTPUTS refers to the view of the switch matrix which corresponds to BEL inputs at the actual BEL
+    #      Again: OUTPUTS refers to the view of the switch matrix which corresponds
+    #      to BEL inputs at the actual BEL
     # 3.b) JUMP wire OUTPUTS
     # The switch matrix uses single bit ports (std_logic and not std_logic_vector)!!!
 
@@ -638,7 +657,8 @@ def generateSuperTile(
 
     if isinstance(writer, VHDLCodeGenerator):
         for t in superTile.tiles:
-            # This is only relevant to VHDL code generation, will not affect Verilog code generation
+            # This is only relevant to VHDL code generation,
+            # will not affect Verilog code generation
             writer.addComponentDeclarationForFile(
                 f"{Path(writer.outFileName).parent}/{t.name}/{t.name}.vhdl"
             )

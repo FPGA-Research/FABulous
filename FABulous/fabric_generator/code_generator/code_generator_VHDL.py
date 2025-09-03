@@ -108,7 +108,8 @@ class VHDLCodeGenerator(CodeGenerator):
         if attribute:
             attribute = f" -- {attribute}"
         self._add(
-            f"{name:<10} : {ioVHDL} STD_LOGIC_VECTOR( {msbIndex} downto 0 );{attribute}",
+            f"{name:<10} : {ioVHDL} STD_LOGIC_VECTOR( {msbIndex} downto 0 );"
+            f"{attribute}",
             indentLevel=indentLevel,
         )
 
@@ -226,7 +227,9 @@ end process;
         self._add("Port map(", indentLevel=indentLevel + 1)
         connectPair = []
         for p, s in portsPairs:
-            # NOTE: This is a temporary fix for the issue of curly braces in the port names and needs to be fixed properly a later refactoring of the code generation
+            # NOTE: This is a temporary fix for the issue of curly braces in the port
+            # names and needs to be fixed properly a later refactoring of the code
+            # generation
             port = p.replace("{", "(").replace("}", ")")
             signal = s.replace("{", "(").replace("}", ")")
             if "[" in port:

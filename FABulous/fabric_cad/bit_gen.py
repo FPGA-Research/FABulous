@@ -39,13 +39,16 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str) -> None:
     FrameBitsPerRow = specDict["ArchSpecs"]["FrameBitsPerRow"]
     MaxFramesPerCol = specDict["ArchSpecs"]["MaxFramesPerCol"]
 
-    # Change this so it has the actual right dimensions, initialised as an empty bitstream
+    # Change this so it has the actual right dimensions,
+    #  initialised as an empty bitstream
     for tile in specDict["TileMap"]:
         tileDict[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
         tileDict_No_Mask[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
 
-    # NOTE: SOME OF THE FOLLOWING METHODS HAVE BEEN CHANGED DUE TO A MODIFIED BITSTREAM SPEC FORMAT
-    # Please bear in mind that the tilespecs are now mapped by tile loc and not by cell type
+    # NOTE: SOME OF THE FOLLOWING METHODS HAVE BEEN CHANGED DUE TO A MODIFIED
+    # BITSTREAM SPEC FORMAT
+    # Please bear in mind that the tilespecs are now mapped by tile loc and
+    #  not by cell type
 
     for line in canonList:
         if "CLK" in set_feature_to_str(line.set_feature):
@@ -107,10 +110,16 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str) -> None:
         ):
             continue
         verilog_str += f"// {tileKey}, {specDict['TileMap'][tileKey]}\n"
-        verilog_str += f"`define Tile_{tileKey}_Emulate_Bitstream {MaxFramesPerCol * FrameBitsPerRow}'b"
+        verilog_str += (
+            f"`define Tile_{tileKey}_Emulate_Bitstream "
+            f"{MaxFramesPerCol * FrameBitsPerRow}'b"
+        )
 
         vhdl_str += f"--{tileKey}, {specDict['TileMap'][tileKey]}\n"
-        vhdl_str += f'constant Tile_{tileKey}_Emulate_Bitstream : std_logic_vector({MaxFramesPerCol * FrameBitsPerRow}-1 downto 0) := "'
+        vhdl_str += (
+            f"constant Tile_{tileKey}_Emulate_Bitstream : std_logic_vector("
+            f'{MaxFramesPerCol * FrameBitsPerRow}-1 downto 0) := "'
+        )
 
         for i in range((MaxFramesPerCol * FrameBitsPerRow) - 1, -1, -1):
             verilog_str += str(tileDict_No_Mask[tileKey][i])
@@ -206,7 +215,8 @@ def bit_gen() -> None:
         argIndex = processedArguments.index("-genBitstream".lower())
         if len(processedArguments) <= argIndex + 3:
             logger.error(
-                "genBitstream expects three file names - the fasm file, the spec file and the output file"
+                "genBitstream expects three file names - the fasm file, the spec file "
+                "and the output file"
             )
             raise ValueError
         if (
@@ -215,8 +225,11 @@ def bit_gen() -> None:
             or flagRE.match(caseProcessedArguments[argIndex + 3])
         ):
             logger.error(
-                "genBitstream expects three file names, but found a flag in the arguments:"
-                f" {caseProcessedArguments[argIndex + 1]}, {caseProcessedArguments[argIndex + 2]}, {caseProcessedArguments[argIndex + 3]}"
+                "genBitstream expects three file names, but"
+                " found a flag in the arguments: "
+                f"{caseProcessedArguments[argIndex + 1]}, "
+                f"{caseProcessedArguments[argIndex + 2]}, "
+                f"{caseProcessedArguments[argIndex + 3]}"
             )
             raise ValueError
 
@@ -230,7 +243,9 @@ def bit_gen() -> None:
         logger.info("Help:")
         logger.info("Options/Switches")
         logger.info(
-            "  -genBitstream foo.fasm spec.txt bitstream.txt - generates a bitstream - the first file is the fasm file, the second is the bitstream spec and the third is the fasm file to write to"
+            "  -genBitstream foo.fasm spec.txt bitstream.txt - generates a bitstream - "
+            "the first file is the fasm file, the second is the bitstream spec and "
+            "the third is the fasm file to write to"
         )
 
 

@@ -16,7 +16,8 @@ from FABulous.FABulous_settings import reset_context
 def normalize(block: str) -> list[str]:
     """Normalize a block of text to perform comparison.
 
-    Strip newlines from the very beginning and very end, then split into separate lines and strip trailing whitespace
+    Strip newlines from the very beginning and very end, then split into
+    separate lines and strip trailing whitespace
     from each line.
     """
     assert isinstance(block, str)
@@ -25,7 +26,8 @@ def normalize(block: str) -> list[str]:
 
 
 def run_cmd(app: FABulous_CLI, cmd: str) -> None:
-    """Clear stdout, stdin and stderr buffers, run the command, and return stdout and stderr"""
+    """Clear stdout, stdin and stderr buffers, run the command, and return
+    stdout and stderr"""
     app.onecmd_plus_hooks(cmd)
 
 
@@ -83,7 +85,7 @@ def cleanup_logger() -> Generator[None]:
 @pytest.fixture
 def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
     """Custom caplog fixture that integrates with loguru."""
-    handler_id = logger.add(
+    handler_id = logger.add(  # noqa: F841
         caplog.handler,
         format="{message}",
         level=0,

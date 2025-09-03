@@ -117,7 +117,8 @@ async def test_configmem_settings(dut: ConfigMemDUT) -> None:
 
                 assert dut.ConfigBits[expected_config_bit].value == 1, (
                     f"Frame {frame_idx}, FrameData bit {framedata_bit_idx}: "
-                    f"ConfigBits[{expected_config_bit}] should maintain value when strobe deasserted"
+                    f"ConfigBits[{expected_config_bit}] should maintain value when "
+                    "strobe deasserted"
                 )
             else:
                 assert dut.ConfigBits.value == 0, (
@@ -142,7 +143,8 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     tile_requirements = tile_config.globalConfigBits
     if fabric_capacity < tile_requirements and tile_requirements > 0:
         pytest.skip(
-            f"Impossible configuration: fabric capacity ({fabric_capacity}) < tile requirements ({tile_requirements})"
+            f"Impossible configuration: fabric capacity ({fabric_capacity}) < "
+            f"tile requirements ({tile_requirements})"
         )
 
     # Create code generator using the factory fixture, but with tmp_path output
@@ -223,7 +225,8 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     tile_requirements = default_tile.globalConfigBits
     if fabric_capacity < tile_requirements and tile_requirements > 0:
         pytest.skip(
-            f"Impossible configuration: fabric capacity ({fabric_capacity}) < tile requirements ({tile_requirements})"
+            f"Impossible configuration: fabric capacity ({fabric_capacity}) < "
+            f"tile requirements ({tile_requirements})"
         )
 
     # Create code generator using the factory fixture, but with tmp_path output

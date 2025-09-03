@@ -26,7 +26,10 @@ APP_NAME = "FABulous"
 
 app = typer.Typer(
     rich_markup_mode="rich",
-    help="[bold blue]FABulous FPGA Fabric Generator[/bold blue]\n\nA command line interface for FABulous FPGA fabric generation and management.",
+    help=(
+        "[bold blue]FABulous FPGA Fabric Generator[/bold blue]\n\n"
+        "A command line interface for FABulous FPGA fabric generation and management."
+    ),
     no_args_is_help=True,
 )
 
@@ -140,15 +143,19 @@ def check_version_compatibility(_: Path) -> None:
 
     if package_version.release < project_version.release:
         logger.error(
-            f"Version incompatible! FABulous-FPGA version: {package_version}, Project version: {project_version}\n"
-            r'Please run "FABulous <project_dir> --update-project-version" to update the project version.'
+            f"Version incompatible! FABulous-FPGA version: {package_version}, "
+            f"Project version: {project_version}\n"
+            r'Please run "FABulous <project_dir> --update-project-version" '
+            r"to update the project version."
         )
         raise typer.Exit(1) from None
 
     if project_version.major != package_version.major:
         logger.error(
-            f"Major version mismatch! FABulous-FPGA major version: {package_version.major}, Project major version: {project_version.major}\n"
-            "This may lead to compatibility issues. Please ensure the project is compatible with the current FABulous-FPGA version."
+            f"Major version mismatch! FABulous-FPGA major version: "
+            f"{package_version.major}, Project major version: {project_version.major}\n"
+            "This may lead to compatibility issues. Please ensure the project is "
+            "compatible with the current FABulous-FPGA version."
         )
 
 
@@ -259,7 +266,8 @@ def script_cmd(
         fab_CLI.onecmd_plus_hooks(f"run_script {script_file.absolute()}")
         if fab_CLI.exit_code:
             logger.error(
-                f"FABulous script {script_file} execution failed with exit code {fab_CLI.exit_code}"
+                f"FABulous script {script_file} execution failed with "
+                f"exit code {fab_CLI.exit_code}"
             )
             os.chdir(entering_dir)
             raise typer.Exit(fab_CLI.exit_code)
@@ -270,7 +278,8 @@ def script_cmd(
         fab_CLI.onecmd_plus_hooks(f"run_tcl {script_file.absolute()}")
         if fab_CLI.exit_code:
             logger.error(
-                f"TCL script {script_file} execution failed with exit code {fab_CLI.exit_code}"
+                f"TCL script {script_file} execution failed with "
+                f"exit code {fab_CLI.exit_code}"
             )
             os.chdir(entering_dir)
             raise typer.Exit(fab_CLI.exit_code)
@@ -320,7 +329,10 @@ def run_cmd(
     commands: Annotated[
         list[str] | None,
         typer.Argument(
-            help="Commands to execute (separated by semicolon + whitespace: 'cmd1; cmd2')",
+            help=(
+                "Commands to execute (separated by semicolon + whitespace: "
+                "'cmd1; cmd2')"
+            ),
             parser=lambda cmds: [
                 cmd.strip() for cmd in cmds.split("; ") if cmd.strip()
             ],
@@ -435,11 +447,15 @@ def convert_legacy_args_with_deprecation_warning() -> None:
     create_group.add_argument(
         "-iocs",
         "--install_oss_cad_suite",
-        help="Install the oss-cad-suite in the directory."
-        "This will create a new directory called oss-cad-suite in the provided"
-        "directory and install the oss-cad-suite there."
-        "If there is already a directory called oss-cad-suite, it will be removed and replaced with a new one."
-        "This will also automatically add the FAB_OSS_CAD_SUITE env var in the global FABulous .env file. ",
+        help=(
+            "Install the oss-cad-suite in the directory."
+            "This will create a new directory called oss-cad-suite in the provided "
+            "directory and install the oss-cad-suite there."
+            "If there is already a directory called oss-cad-suite, it will be removed "
+            "and replaced with a new one."
+            "This will also automatically add the FAB_OSS_CAD_SUITE env var in the "
+            "global FABulous .env file. "
+        ),
         action="store_true",
         default=False,
     )
@@ -457,8 +473,12 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         "-fs",
         "--FABulousScript",
         default=None,
-        help="Run FABulous with a FABulous script. A FABulous script is a text file containing only FABulous commands"
-        "This will automatically exit the CLI once the command finish execution, and the exit will always happen gracefully.",
+        help=(
+            "Run FABulous with a FABulous script. A FABulous script is a text file "
+            "containing only FABulous commands. This will automatically exit the CLI "
+            "once the command finish execution, and the exit will always happen "
+            "gracefully."
+        ),
         type=Path,
     )
 
@@ -466,8 +486,12 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         "-ts",
         "--TCLScript",
         default=None,
-        help="Run FABulous with a TCL script. A TCL script is a text file containing a mix of TCL commands and FABulous commands."
-        "This will automatically exit the CLI once the command finish execution, and the exit will always happen gracefully.",
+        help=(
+            "Run FABulous with a TCL script. A TCL script is a text file containing "
+            "a mix of TCL commands and FABulous commands. This will automatically exit "
+            "the CLI once the command finish execution, and the exit will always happen"
+            "gracefully."
+        ),
         type=Path,
     )
 
@@ -475,7 +499,10 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         "-p",
         "--commands",
         type=str,
-        help="execute <commands> (to chain commands, separate them with semicolon + whitespace: 'cmd1; cmd2')",
+        help=(
+            "execute <commands> (to chain commands, separate them with semicolon + "
+            "whitespace: 'cmd1; cmd2')"
+        ),
     )
 
     parser.add_argument(
@@ -491,7 +518,10 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         "-w",
         "--writer",
         choices=list(HDLType),
-        help="Set the type of HDL code generated by the tool. Currently support Verilog and VHDL (Default using Verilog)",
+        help=(
+            "Set the type of HDL code generated by the tool. Currently support Verilog "
+            "and VHDL (Default using Verilog)"
+        ),
         default=HDLType.VERILOG,
     )
 
@@ -508,8 +538,11 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         "--verbose",
         default=False,
         action="count",
-        help="Show detailed log information including function and line number. For -vv additionally output from "
-        "FABulator is logged to the shell for the start_FABulator command",
+        help=(
+            "Show detailed log information including function and line number. For -vv "
+            "additionally output from FABulator is logged to the shell for the "
+            "start_FABulator command"
+        ),
     )
 
     parser.add_argument(
@@ -529,7 +562,10 @@ def convert_legacy_args_with_deprecation_warning() -> None:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force the command to run and ignore any errors. This feature does not work for the TCLScript argument",
+        help=(
+            "Force the command to run and ignore any errors. This feature does not "
+            "work for the TCLScript argument"
+        ),
     )
 
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
@@ -568,7 +604,8 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         "\n"
         r"  FABulous --install_oss_cad_suite → FABulous install-oss-cad-suite \<dir>"
         "\n"
-        r"  FABulous \<project_dir> --commands \<cmd> → FABulous run \<project_dir> \<cmd>"
+        r"  FABulous \<project_dir> --commands \<cmd> → FABulous run \<project_dir> "
+        r"\<cmd>"
         "\n"
         r"  FABulous \<project_dir>  → FABulous start \<project_dir>"
         "\n"

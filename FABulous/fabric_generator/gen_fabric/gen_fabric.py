@@ -15,9 +15,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     """
 
     # There are of course many possibilities for generating the fabric.
-    # I decided to generate a flat description as it may allow for a little easier debugging.
+    # I decided to generate a flat description as it may allow easier debugging.
     # For larger fabrics, this may be an issue, but not for now.
-    # We only have wires between two adjacent tiles in North, East, South, West direction.
+    # We only have wires between two adjacent tiles in North, East, South,
+    # West direction.
     # So we use the output ports to generate wires.
 
     # we first scan all tiles if those have IOs that have to go to top
@@ -151,7 +152,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     writer.addLogicStart()
 
     # top configuration data daisy chaining
-    # this is copy and paste from tile code generation (so we can modify this here without side effects
+    # this is copy and paste from tile code generation
+    # (so we can modify this here without side effects
     if fabric.configBitMode == "FlipFlopChain":
         writer.addComment("configuration data daisy chaining", onNewLine=True)
         writer.addAssignScalar("conf_dat'low", "CONFin")
@@ -430,8 +432,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         )
 
                     # Connecting FrameData_O is easier:
-                    # Always connect FrameData_O, except the next tile (to the east of it)
-                    # in the row is part of the supertile (already connected internally).
+                    # Always connect FrameData_O, except the next tile (to the east
+                    # of it)
+                    # in the row is part of the supertile (already connected
+                    # internally).
                     if (supertile_x + 1, supertile_y) not in superTileLoc:
                         portsPairs.append(
                             (
@@ -485,8 +489,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         )
 
                     # Connecting FrameStrobe_O is easier:
-                    # Always connect FrameStrobe_O, except the next tile (to the north of it)
-                    # in the column is part of the supertile (already connected internally).
+                    # Always connect FrameStrobe_O, except the next tile (to the
+                    # north of it)
+                    # in the column is part of the supertile (already connected
+                    # internally).
                     if (supertile_x, supertile_y - 1) not in superTileLoc:
                         portsPairs.append(
                             (

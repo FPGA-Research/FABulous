@@ -217,7 +217,8 @@ class FabricGeometry:
             The name of the csv file
         """
         logger.info(
-            f"Generating geometry csv file for {self.fabric.name} # file name: {fileName}"
+            f"Generating geometry csv file for {self.fabric.name} # file name: "
+            f"{fileName}"
         )
 
         with Path(f"{fileName}").open("w", newline="", encoding="utf-8") as file:

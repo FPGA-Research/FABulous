@@ -27,7 +27,8 @@ class Fabric:
     numberOfColumns : int
         The number of columns of the fabric
     configMitMode : ConfigBitMode
-        The configuration bit mode of the fabric. Currently supports frame based or ff chain
+        The configuration bit mode of the fabric. Currently supports frame based or
+        ff chain
     frameBitsPerRow : int
         The number of frame bits per row of the fabric
     maxFramesPerCol : int
@@ -37,26 +38,32 @@ class Fabric:
     generateDelayInSwitchMatrix : int
         The amount of delay in a switch matrix.
     multiplexerStyle : MultiplexerStyle
-        The style of the multiplexer used in the fabric. Currently supports custom or generic
+        The style of the multiplexer used in the fabric. Currently supports custom
+        or generic
     frameSelectWidth : int
         The width of the frame select signal.
     rowSelectWidth : int
         The width of the row select signal.
     desync_flag : int
-        The flag indicating desynchronization status, used to manage timing issues within the fabric.
+        The flag indicating desynchronization status,
+            used to manage timing issues within the fabric.
     numberOfBRAMs : int
         The number of BRAMs in the fabric.
     superTileEnable : bool
         Whether the fabric has super tile.
     tileDic : dict[str, Tile]
-        A dictionary of tiles used in the fabric. The key is the name of the tile and the value is the tile.
+        A dictionary of tiles used in the fabric. The key is the name of the tile and
+            and the value is the tile.
     superTileDic : dict[str, SuperTile]
-        A dictionary of super tiles used in the fabric. The key is the name of the super tile and the value is the super tile.
+        A dictionary of super tiles used in the fabric. The key is the name of the
+        super tile and the value is the super tile.
     unusedTileDic: dict[str, Tile]
-        A dictionary of tiles that are not used in the fabric, but defined in the fabric.csv.
+        A dictionary of tiles that are not used in the fabric,
+            but defined in the fabric.csv.
         The key is the name of the tile and the value is the tile.
     unusedSuperTileDic: dict[str, Tile]
-        A dictionary of super tiles that are not used in the fabric, but defined in the fabric.csv.
+        A dictionary of super tiles that are not used in the fabric,
+            but defined in the fabric.csv.
         The key is the name of the tile and the value is the tile.
     """
 
@@ -296,7 +303,8 @@ class Fabric:
         """
         if x < 0 or x >= self.numberOfColumns or y < 0 or y >= self.numberOfRows:
             raise ValueError(
-                f"Invalid tile coordinates: ({x}, {y}) max (0, 0) - ({self.numberOfRows}, {self.numberOfColumns})"
+                f"Invalid tile coordinates: ({x},{y}) max (0,0) - ({self.numberOfRows},"
+                f"{self.numberOfColumns})"
             )
         if self.tile[y][x] is None:
             return []

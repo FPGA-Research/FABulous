@@ -89,7 +89,9 @@ class TileGeometry:
         self.smGeometry.width = maxSmWidthInColumn  # TODO: needed?
         self.smGeometry.relX = maxSmRelXInColumn
 
-        # TODO: dim.smWidth = dim.smWidth*2 if dim.smWidth*2 < maxSmWidths[j] else dim.smWidth
+        # TODO: dim.smWidth =
+        # dim.smWidth*2 if dim.smWidth*2 < maxSmWidths[j]
+        # else dim.smWidth
 
     def adjustSmPos(self, lowestSmYInRow: int, padding: int) -> None:
         """Ajusts the position of the switch matrix, using the lowest Y coordinate of

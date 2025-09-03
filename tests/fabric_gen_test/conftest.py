@@ -75,7 +75,8 @@ def default_tile(mocker: MockerFixture) -> Tile:
     ids=lambda config: config.name,
 )
 def fabric_config(request: pytest.FixtureRequest, mocker: MockerFixture) -> Fabric:
-    """Comprehensive parametric fabric configurations for testing different scenarios."""
+    """Comprehensive parametric fabric configurations for testing different
+    scenarios."""
     config = request.param
     fabric = mocker.create_autospec(Fabric, spec_set=False)
     fabric.frameBitsPerRow = config.frame_bits_per_row

@@ -64,7 +64,8 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                         / f"{tile.name}_ConfigMem.csv"
                     )
                     logger.warning(
-                        f"MatrixDir for {tile.name} is not a valid file or directory. Assuming default path: {configMemPath}"
+                        f"MatrixDir for {tile.name} is not a valid file or directory. "
+                        f"Assuming default path: {configMemPath}"
                     )
             else:
                 configMemPath = tile.tileDir.parent.joinpath(
@@ -81,7 +82,8 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                 )
             elif tile.globalConfigBits > 0:
                 logger.critical(
-                    f"No ConfigMem csv file found for {tile.name} which have config bits"
+                    f"No ConfigMem csv file found for {tile.name} which "
+                    "have config bits"
                 )
                 configMemList = []
             else:
@@ -128,7 +130,8 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                             curBitOffset += len(keyDict[entry])
 
             # All the generation will be working on the tile level with the tileDic
-            # This is added to propagate the updated switch matrix to each of the tile in the fabric
+            # This is added to propagate the updated switch matrix to
+            #  each of the tile in the fabric
             if tile.matrixDir.suffix == ".list":
                 tile.matrixDir = tile.matrixDir.with_suffix(".csv")
 
@@ -154,7 +157,8 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
 
                 curBitOffset += controlWidth
 
-            # And now we add empty config bit mappings for immutable connections (i.e. wires), as nextpnr sees these the same as normal pips
+            # And now we add empty config bit mappings for immutable connections (wires)
+            #  as nextpnr sees these the same as normal pips
             for wire in tile.wireList:
                 curTileMap[f"{wire.source}.{wire.destination}"] = {}
                 curTileMapNoMask[f"{wire.source}.{wire.destination}"] = {}
