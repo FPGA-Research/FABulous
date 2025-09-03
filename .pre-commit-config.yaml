@@ -44,3 +44,9 @@ repos:
         args: [--fix]
       # Run the formatter.
       - id: ruff-format
+
+  - repo: https://github.com/jsh9/pydoclint
+    rev: 0.7.3
+    hooks:
+      - id: pydoclint
+        args: [--style=numpy, --exclude="tests/*"]
