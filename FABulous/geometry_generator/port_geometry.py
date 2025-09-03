@@ -6,12 +6,12 @@ from FABulous.fabric_definition.define import IO, Side
 
 
 class PortType(Enum):
-    """Enumeration for different types of ports in fabric geometry.
+    """Enumeration for different types of ports in the fabric geometry.
 
     Defines the various categories of ports that can exist within the fabric:
     - SWITCH_MATRIX: Ports connected to switch matrices
     - JUMP: Jump ports for long-distance connections
-    - BEL: Ports connected to Basic Elements
+    - BEL: Ports connected to Basic Elements of Logic
     """
 
     SWITCH_MATRIX = "PORT"
@@ -134,7 +134,7 @@ class PortGeometry:
         Parameters
         ----------
         writer
-            The CSV writer object to use for output
+            The CSV `writer` object to use for output
         """
         writer.writerows(
             [

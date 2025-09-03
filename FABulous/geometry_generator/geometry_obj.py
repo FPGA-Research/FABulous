@@ -18,7 +18,7 @@ class Location:
     y: int
 
     def __init__(self, x: int, y: int) -> None:
-        """Initialize a Location instance.
+        """Initialize a `Location` instance.
 
         Parameters
         ----------
@@ -31,7 +31,7 @@ class Location:
         self.y = y
 
     def __repr__(self) -> str:
-        """Return string representation of the location.
+        """Return the string representation of the location.
 
         Returns
         -------
@@ -42,7 +42,7 @@ class Location:
 
 
 class Border(Enum):
-    """Enumeration for tile border types in fabric geometry.
+    """Enumeration for tile border types in the fabric geometry.
 
     Used to specify which type of border a tile has within the fabric layout.
     """

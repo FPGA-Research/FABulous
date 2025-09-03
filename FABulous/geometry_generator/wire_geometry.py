@@ -25,7 +25,7 @@ class WireGeometry:
     path: list[Location]
 
     def __init__(self, name: str) -> None:
-        """Initialize a WireGeometry instance.
+        """Initialize a `WireGeometry` instance.
 
         Parameters
         ----------
@@ -54,7 +54,7 @@ class WireGeometry:
         Parameters
         ----------
         writer
-            The CSV writer object to use for output
+            The CSV `writer` object to use for output
         """
         writer.writerows([["WIRE"], ["Name"] + [self.name]])
         for pathPoint in self.path:
@@ -129,7 +129,7 @@ class StairWires:
     wireGeoms: list[WireGeometry]
 
     def __init__(self, name: str) -> None:
-        """Initialize a StairWires instance.
+        """Initialize a `StairWires` instance.
 
         Parameters
         ----------
@@ -308,7 +308,7 @@ class StairWires:
         Parameters
         ----------
         writer
-            The CSV writer object to use for output
+            The CSV `writer` object to use for output
         """
         for wireGeom in self.wireGeoms:
             wireGeom.saveToCSV(writer)

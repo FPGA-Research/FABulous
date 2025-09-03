@@ -163,7 +163,7 @@ def test_tcl_script_execution(
 
 
 def test_commands_execution(project: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test direct command execution with -p/--commands."""
+    """Test direct command execution with `-p/--commands`."""
     test_args = ["FABulous", str(project), "--commands", "help; help"]
     monkeypatch.setattr(sys, "argv", test_args)
 
@@ -479,7 +479,6 @@ def test_user_argument_overrides_all(
     4. Global .env file (handled by setup functions)
     5. Default value - current working directory (lowest priority).
     """
-
     # Set environment variable and change to default directory
     monkeypatch.setenv("FAB_PROJ_DIR", str(dirs["env_var_dir"]))
     monkeypatch.chdir(dirs["default_dir"])
@@ -728,7 +727,7 @@ def test_dotenv_loading_verification(
 
 
 def test_command_flag_with_stop_on_first_error(project: Path) -> None:
-    """Test that using --commands with multiple commands raises an error on the
+    """Test that using `--commands` with multiple commands raises an error on the
     first failure"""
     # Run with multiple commands, where the first one fails
     result = run(

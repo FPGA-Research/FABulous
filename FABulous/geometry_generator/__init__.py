@@ -5,7 +5,7 @@ FPGA fabrics for the FABulator GUI. It converts fabric definitions
 into geometric objects with positioning and routing information.
 
 The geometry generator includes:
-- bel_geometry: Geometric representation of Basic Elements (BELs)
+- bel_geometry: Geometric representation of Basic Elements of Logic (BELs)
 - fabric_geometry: Complete fabric geometric layout
 - geometry_gen: Main geometry generation controller
 - geometry_obj: Base geometric object definitions

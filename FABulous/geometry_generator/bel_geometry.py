@@ -79,7 +79,7 @@ class BelGeometry:
         Parameters
         ----------
         bel : Bel
-            The BEL object to generate geometry for
+            The BEL object to generate the geometry for
         padding : int
             The padding space to add around the BEL
         """
@@ -103,8 +103,8 @@ class BelGeometry:
         """Generate the geometry for all ports of the BEL.
 
         Creates PortGeometry objects for all internal and external input/output
-        ports of the BEL. Internal ports are positioned on the left side (x=0),
-        while external ports are positioned on the right side (x=width).
+        ports of the BEL. Internal ports are positioned on the left side (X=0),
+        while external ports are positioned on the right side (X=width).
 
         Parameters
         ----------

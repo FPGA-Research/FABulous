@@ -13,7 +13,7 @@ from FABulous.geometry_generator.tile_geometry import TileGeometry
 class FabricGeometry:
     """Fetch and hold geometric information about a fabric.
 
-    Objects of this class can be constructed by passing a Fabric object and optionally, padding.
+    Objects of this class can be constructed by passing a `Fabric` object and optionally, padding.
 
     Attributes
     ----------
@@ -65,13 +65,13 @@ class FabricGeometry:
         self.generateGeometry()
 
     def generateGeometry(self) -> None:
-        """Generate the geometric information from the given fabric object."""
-        # here, the border attribute is set for tiles that are
-        # located at a border of the tile. This is done to
-        # ensure no stair-like wires being generated for these tiles.
-        # The distinction left/right and top/bottom is made, to
-        # prevent generation of horizontal and vertical stair-like
-        # wires respectively.
+        """Generate the geometric information from the given fabric object.
+
+        The border attribute is set for tiles that are located at a border of the tile.
+        This is done to ensure no stair-like wires being generated for these tiles. The
+        distinction left/right and top/bottom is made, to prevent generation of
+        horizontal and vertical stair-like wires respectively.
+        """
         for i in range(self.fabric.numberOfRows):
             for j in range(self.fabric.numberOfColumns):
                 tile = self.fabric.tile[i][j]
@@ -222,7 +222,7 @@ class FabricGeometry:
             tileGeom.generateWires(self.padding)
 
     def saveToCSV(self, fileName: str) -> None:
-        """Save geometric information of the given fabric to for the graphical frontend.
+        """Save geometric information of the given fabric for the graphical frontend.
 
         Parameters
         ----------
@@ -271,9 +271,9 @@ class FabricGeometry:
                 tileGeometry.saveToCSV(writer)
 
     def __repr__(self) -> str:
-        """Return string representation of the fabric geometry.
+        """Return the string representation of the fabric geometry.
 
-        Provides a formatted view of tile dimensions and locations in a
+        Provides a formatted view of the tile dimensions and locations in a
         grid layout showing the fabric structure.
 
         Returns

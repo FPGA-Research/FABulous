@@ -1,4 +1,5 @@
 """Tests for FABulous CLI helper functions."""
+
 from pathlib import Path
 
 import pytest
@@ -80,7 +81,7 @@ def test_update_project_version_success(
 
 
 def test_update_project_version_missing_version(tmp_path: Path) -> None:
-    """Test version update when version is missing from env file."""
+    """Test version update when version is missing from `.env` file."""
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)
     env_file = env_dir / ".env"

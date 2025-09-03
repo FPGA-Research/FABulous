@@ -1,6 +1,6 @@
 """Tile geometry generation and management for FABulous FPGA tiles.
 
-This module provides the TileGeometry class for representing and generating the
+This module provides the `TileGeometry` class for representing and generating the
 geometric layout of FPGA tiles, including switch matrices, BELs, and interconnect wires.
 It handles both direct connections to neighboring tiles and complex stair-like routing
 for longer-distance connections.
@@ -49,7 +49,7 @@ class TileGeometry:
     stairWiresList: list[StairWires]
 
     def __init__(self) -> None:
-        """Initialize a TileGeometry instance.
+        """Initialize a `TileGeometry` instance.
 
         Initializes all attributes to default values: empty name, zero dimensions,
         no border, and empty lists for geometric components.
@@ -73,7 +73,7 @@ class TileGeometry:
         Parameters
         ----------
         tile : Tile
-            The tile object to generate geometry for
+            The `Tile` object to generate geometry for
         padding : int
             The padding space to add around components
         """
@@ -137,8 +137,8 @@ class TileGeometry:
     def adjustSmPos(self, lowestSmYInRow: int, padding: int) -> None:
         """Ajusts the position of the switch matrix.
 
-        This done by using the lowest Y coordinate of any switch matrix in the same row
-        for reference.
+        This is done by using the lowest Y coordinate of any switch matrix in the same
+        row for reference.
 
         After this step is completed for all switch matrices, their southern edge will
         be on the same Y coordinate, allowing for easier inter-tile routing.
@@ -154,7 +154,7 @@ class TileGeometry:
         self.smGeometry.generateBelPorts(self.belGeomList)
 
     def setBelPositions(self, padding: int) -> None:
-        """Set bel positions."""
+        """Set BEL positions."""
         belPadding = padding // 2
         belX = self.smGeometry.relX + self.smGeometry.width + padding
         belY = self.smGeometry.relY + belPadding
@@ -550,7 +550,7 @@ class TileGeometry:
         Parameters
         ----------
         writer
-            The CSV writer object to use for output
+            The CSV `writer` object to use for output
         """
         writer.writerows(
             [

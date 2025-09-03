@@ -3,6 +3,7 @@
 This module contains tests for various CLI commands including fabric generation,
 tile generation, bitstream creation, and simulation execution.
 """
+
 from pathlib import Path
 
 import pytest
@@ -98,7 +99,7 @@ def test_run_FABulous_fabric(
 
 
 def test_gen_model_npnr(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating Nextpnr model."""
+    """Test generating nextpnr model."""
     run_cmd(cli, "gen_model_npnr")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Generating npnr model" in log[0]
@@ -108,7 +109,7 @@ def test_gen_model_npnr(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> 
 def test_run_FABulous_bitstream(
     cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
 ) -> None:
-    """Test the run_FABulous_bitstream command."""
+    """Test the `run_FABulous_bitstream` command."""
 
     class MockCompletedProcess:
         returncode = 0

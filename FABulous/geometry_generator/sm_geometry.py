@@ -107,12 +107,10 @@ class SmGeometry:
     def preprocessPorts(self, tileBorder: Border) -> None:
         """Order the ports for downstream drawing.
 
-        Ensure that ports are ordered correctly, merges connected jump ports and
-        augments ports for term tiles.
+        Ensure that ports are ordered correctly, merge connected jump ports and augment ports for term tiles.
+        This step augments ports in border tiles. This is needed, as these are not contained
+        in the (north...west)SidePorts in FABulous.
         """
-        # This step augments ports in border tiles.
-        # This is needed, as these are not contained
-        # in the (north...west)SidePorts in FABulous.
         # TODO: check if numbering is generated correctly
         #  for augmented ports
         if tileBorder == Border.NORTHSOUTH or tileBorder == Border.CORNER:
@@ -250,6 +248,7 @@ class SmGeometry:
         dimensions, port arrangements, and spatial relationships. Calculates
         the required space for routing wires and positions the switch matrix
         within the tile.
+        the required space for routing wires and positions for the switch matrix
 
         Parameters
         ----------
@@ -350,7 +349,7 @@ class SmGeometry:
     def generatePortsGeometry(self, padding: int) -> None:
         """Generate the geometry for all ports of the switch matrix.
 
-        Creates PortGeometry objects for all jump, north, south, east, and west
+        Creates `PortGeometry` objects for all jump, north, south, east, and west
         ports of the switch matrix. Positions each port according to its type
         and assigns appropriate coordinates and grouping information.
 
@@ -475,7 +474,7 @@ class SmGeometry:
     def generateBelPorts(self, belGeomList: list[BelGeometry]) -> None:
         """Generate port geometries for BEL connections to the switch matrix.
 
-        Creates PortGeometry objects for connecting BEL internal ports to the
+        Creates `PortGeometry` objects for connecting BEL internal ports to the
         switch matrix. These ports facilitate routing between BELs and the
         switch matrix interconnect network.
 
@@ -511,7 +510,7 @@ class SmGeometry:
         Parameters
         ----------
         writer :
-            The CSV writer object to use for output
+            The CSV `writer` object to use for output
         """
         writer.writerows(
             [

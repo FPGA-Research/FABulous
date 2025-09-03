@@ -32,7 +32,7 @@ class GeometryGenerator:
     """
 
     def __init__(self, fabric: Fabric) -> None:
-        """Initialize a GeometryGenerator instance.
+        """Initialize a `GeometryGenerator` instance.
 
         Parameters
         ----------
@@ -45,7 +45,7 @@ class GeometryGenerator:
     def generateGeometry(self, padding: int = 8) -> None:
         """Start the geometry generation for the given fabric.
 
-        Creates a FabricGeometry object that contains the complete geometric
+        Creates a `FabricGeometry` object that contains the complete geometric
         layout of the fabric including all tiles, switch matrices, BELs,
         and interconnect wiring.
 

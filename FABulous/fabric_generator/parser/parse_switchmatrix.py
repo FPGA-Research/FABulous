@@ -213,7 +213,7 @@ def parseList(
 
 
 def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
-    """Parse a single line of port configuration from CSV.
+    """Parse a single line of the port configuration from the CSV file.
 
     Parameters
     ----------

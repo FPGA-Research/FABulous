@@ -24,7 +24,7 @@ from FABulous.fabric_generator.parser.parse_configmem import parseConfigMem
 class ConfigMemDUT(Protocol):
     """Protocol for configuration memory DUT.
 
-    Defines the interface for configuration memory testing for typing
+    Defines the interface for configuration memory testing for type annotation
     """
 
     FrameData: Any

@@ -67,7 +67,7 @@ def parseBelFile(
     """Parse a Verilog or VHDL BEL file and return related information of the BEL.
 
     The function will also parse and record all the FABulous attribute which all
-    starts with ::
+    starts with:
 
         (* FABulous, <type>, ... *)
 
