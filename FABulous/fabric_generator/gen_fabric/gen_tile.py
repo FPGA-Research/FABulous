@@ -149,7 +149,7 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         else:
             raise FileNotFoundError(
                 f"Could not find {tile.name}_switch_matrix.vhdl in {basePath} "
-                f"Need to run matrix generation first"
+                "Need to run matrix generation first"
             )
 
         if tile.globalConfigBits > 0:
