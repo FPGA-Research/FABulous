@@ -558,7 +558,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
             else:
                 raise InvalidFabricParameter(
                     f"Invalid config bit mode {i[1]} in parameters. "
-                    f"Valid options are frame_based and FlipFlopChain."
+                    "Valid options are frame_based and FlipFlopChain."
                 )
         elif i[0].startswith("FrameBitsPerRow"):
             frameBitsPerRow = int(i[1])
