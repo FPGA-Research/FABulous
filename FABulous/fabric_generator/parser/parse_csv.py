@@ -114,7 +114,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         tileCarry[carryPrefix][IO.INPUT] = f"{temp[4]}0"
                     else:
                         raise ValueError(
-                            f"There is already a carrychain with the prefix "
+                            "There is already a carrychain with the prefix "
                             f"{carryPrefix}"
                         )
                 if "SHARED_" in temp[6]:
