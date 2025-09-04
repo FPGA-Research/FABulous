@@ -46,7 +46,7 @@ class Fabric:
         The width of the row select signal.
     desync_flag : int
         The flag indicating desynchronization status,
-            used to manage timing issues within the fabric.
+        used to manage timing issues within the fabric.
     numberOfBRAMs : int
         The number of BRAMs in the fabric.
     superTileEnable : bool
