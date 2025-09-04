@@ -699,7 +699,7 @@ def test_dotenv_loading_verification(
     """Test that .env files are loaded correctly and project .env overrides global .env.
 
     Expected precedence (lowest -> highest):
-    global .env < project .env < env var < user argument
+        global .env < project .env < env var < user argument
     """
     dirs = project_directories
 
