@@ -75,9 +75,9 @@ def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
                         "Please check your tile CSV file for unmatching wires/offsets!"
                     )
                 pipStr.append(
-                    f"X{x}Y{y},{wire.source},X{x + wire.xOffset}Y{y + wire.yOffset},{
-                        wire.destination
-                    },{8},{wire.source}.{wire.destination}"
+                    f"X{x}Y{y},{wire.source},"
+                    f"X{x + wire.xOffset}Y{y + wire.yOffset},{wire.destination},"
+                    f"{8},{wire.source}.{wire.destination}"
                 )
 
             # Old style bel definition

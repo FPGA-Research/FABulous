@@ -336,6 +336,7 @@ def run_cmd(
             parser=lambda cmds: [
                 cmd.strip() for cmd in cmds.split("; ") if cmd.strip()
             ],
+            callback=lambda cmds: cmds[0] if cmds else None,
         ),
     ] = None,
 ) -> None:
@@ -366,7 +367,6 @@ def run_cmd(
     if settings.proj_dir is not None:
         os.chdir(settings.proj_dir)
     fab_CLI.onecmd_plus_hooks("load_fabric")
-
     # Ensure commands is a list
     if isinstance(commands, str):
         commands = [commands]
