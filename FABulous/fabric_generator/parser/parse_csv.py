@@ -128,7 +128,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     if localShared not in ["RESET", "ENABLE"]:
                         raise InvalidTileDefinition(
                             f"LOCAL SHARED_ port {localShared} is not supported. "
-                            f"Only SHARED_RESET and SHARED_ENABLE are supported."
+                            "Only SHARED_RESET and SHARED_ENABLE are supported."
                         )
                     if localShared not in localSharedPorts:
                         localSharedPorts[localShared] = port
