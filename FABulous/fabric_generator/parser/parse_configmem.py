@@ -130,7 +130,7 @@ def parseConfigMem(
             else:
                 raise ValueError(
                     f"Range {entry['ConfigBits_ranges']} is not a valid format. "
-                    f"It should be in the form [int]:[int] or [int]. "
+                    "It should be in the form [int]:[int] or [int]. "
                     "If there are multiple ranges it should be separated by ';'."
                 )
 
