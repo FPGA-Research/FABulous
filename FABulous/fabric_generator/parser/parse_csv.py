@@ -616,7 +616,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         if any(j.name not in usedTile for j in superTileDic[i].tiles):
             logger.info(
                 f"Supertile {i} is not used in the fabric. "
-                f"Removing from tile dictionary."
+                "Removing from tile dictionary."
             )
             unusedSuperTileDic[i] = superTileDic[i]
             del superTileDic[i]
