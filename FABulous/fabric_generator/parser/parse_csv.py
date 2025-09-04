@@ -251,7 +251,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     if matrixDir.is_file() and matrixDir.suffix == ".list":
                         logger.warning(
                             f"Matrix file {matrixDir} already exists and will be "
-                            f"overwritten."
+                            "overwritten."
                         )
                     elif matrixDir.parent == proj_dir.joinpath("Tile"):
                         matrixDir = matrixDir.joinpath(
