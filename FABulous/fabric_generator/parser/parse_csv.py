@@ -180,7 +180,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     if param == "CONFIGACCESS":
                         if temp[2] != "OUTPUT":
                             raise InvalidTileDefinition(
-                                f"CONFIGACCESS GEN_IO can only be used with OUTPUT, "
+                                "CONFIGACCESS GEN_IO can only be used with OUTPUT, "
                                 f"but is {temp[2]}"
                             )
                         if not configAccess and temp[2] != "OUTPUT":
