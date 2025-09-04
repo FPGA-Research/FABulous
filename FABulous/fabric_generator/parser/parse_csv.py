@@ -205,7 +205,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         raise InvalidTileDefinition(
                             f"Unknown parameter {param} in GEN_IO. "
                             f"Valid parameters are CONFIGACCESS, INVERTED, CLOCKED, "
-                            f"CLOCKED_COMB, CLOCKED_MUX."
+                            "CLOCKED_COMB, CLOCKED_MUX."
                         )
 
                     if configAccess and (clocked or clockedComb or clockedMux):
