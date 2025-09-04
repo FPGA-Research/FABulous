@@ -404,9 +404,8 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
                 portsPairs.append(
                     (
                         "ConfigBits",
-                        f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:{
-                            belConfigBitsCounter
-                        }]",
+                        f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:"
+                        f"{belConfigBitsCounter}]",
                     )
                 )
         elif fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:

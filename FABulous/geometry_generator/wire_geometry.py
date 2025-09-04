@@ -61,9 +61,8 @@ class StairWires:
 
     Structure
     ---------
-    The (
-        refX,
-        refY) point refers to the following location(s) of the stair-like structure:
+    The (refX,refY) point refers to the following location(s)
+    of the stair-like structure:
 
     .. asciiart::
 

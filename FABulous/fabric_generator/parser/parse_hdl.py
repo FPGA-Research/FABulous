@@ -92,14 +92,14 @@ def parseBelFile(
     and ``<value>`` will be the bit position of the feature. ie. ``INIT=0`` will
     specify that the feature ``INIT`` is located at bit 0.
     Since a single feature can be mapped to multiple bits,
-        this is currently done by specifying multiple entries for the same
-        feature. This will be changed in the future.
+    this is currently done by specifying multiple entries for the same
+    feature. This will be changed in the future.
     The bit specification is done in the following way::
 
         INIT_a_1=1, INIT_a_2=2, ...
 
     The name of the feature will be converted to ``INIT_a[1]``,
-        ``INIT_a[2]`` for the above example. This is necessary
+    ``INIT_a[2]`` for the above example. This is necessary
     because  Verilog does not allow square brackets as part of the attribute name.
 
     **EXTERNAL** attribute will notify FABulous to put the pin in the top module

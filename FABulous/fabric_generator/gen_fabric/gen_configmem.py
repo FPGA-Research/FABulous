@@ -71,9 +71,10 @@ def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) 
             if bitSlice.count(1) == 0:
                 entry["ConfigBits_ranges"] = "# NULL"
             else:
-                entry["ConfigBits_ranges"] = f"{tileConfigBitsCount}:{
-                    max(tileConfigBitsCount - fabric.frameBitsPerRow + 1, 0)
-                }"
+                entry["ConfigBits_ranges"] = (
+                    f"{tileConfigBitsCount}:"
+                    f"{max(tileConfigBitsCount - fabric.frameBitsPerRow + 1, 0)}"
+                )
             count += fabric.frameBitsPerRow
             tileConfigBitsCount -= fabric.frameBitsPerRow
 

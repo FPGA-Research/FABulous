@@ -185,8 +185,8 @@ synthesis_parser.add_argument(
 )
 synthesis_parser.add_argument(
     "-noalumacc",
-    help="Do not run 'alumacc' pass. I.e., keep arithmetic operators in"
-    " their direct form ($add, $sub, etc.).",
+    help="Do not run 'alumacc' pass. I.e., keep arithmetic operators in "
+    "their direct form ($add, $sub, etc.).",
     action="store_true",
 )
 synthesis_parser.add_argument(
