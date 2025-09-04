@@ -153,7 +153,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                 else:
                     raise InvalidFileType(
                         f"File {belFilePath} is not a .vhdl or .v file. "
-                        f"Please check the BEL file."
+                        "Please check the BEL file."
                     )
 
                 if "ADD_AS_CUSTOM_PRIM" in temp[3:]:
