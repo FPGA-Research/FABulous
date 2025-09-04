@@ -85,7 +85,7 @@ def cleanup_logger() -> Generator[None]:
 @pytest.fixture
 def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
     """Custom caplog fixture that integrates with loguru."""
-    handler_id = logger.add(  # noqa: F841
+    logger.add(
         caplog.handler,
         format="{message}",
         level=0,
