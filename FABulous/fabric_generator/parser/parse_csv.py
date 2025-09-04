@@ -263,7 +263,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                             f"./Tile/{tileName}/{tileName}_generated_switch_matrix.list"
                         )
                         logger.warning(
-                            f"No destination directory for matrix file sepicified, "
+                            "No destination directory for matrix file sepicified, "
                             f"using default path {matrixDir}."
                         )
                         if not matrixDir.parent.exists():
