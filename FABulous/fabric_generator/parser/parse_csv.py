@@ -576,7 +576,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
             else:
                 raise InvalidFabricParameter(
                     f"Invalid multiplexer style {i[1]} in parameters. "
-                    f"Valid options are custom and generic."
+                    "Valid options are custom and generic."
                 )
         elif i[0].startswith("SuperTileEnable"):
             superTileEnable = i[1] == "TRUE"
