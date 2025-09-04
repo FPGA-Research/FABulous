@@ -122,8 +122,7 @@ class Port:
                 thisRange = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
             else:
                 # the following line connects all bottom wires to the switch matrix
-                # in the case begin and
-                #  end ports are used
+                # in the case begin and end ports are used
                 thisRange = self.wireCount
         # range ((wires*distance)-1 downto 0) as connected to the tile top
         elif mode in [
