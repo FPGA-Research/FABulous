@@ -293,7 +293,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                                 else:
                                     configBit = 0
                                     logger.warning(
-                                        f"Cannot find NumberOfConfigBits in "
+                                        "Cannot find NumberOfConfigBits in "
                                         f"{matrixDir} assume 0 config bits."
                                     )
                         case _:
