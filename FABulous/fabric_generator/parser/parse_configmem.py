@@ -131,7 +131,7 @@ def parseConfigMem(
                 raise ValueError(
                     f"Range {entry['ConfigBits_ranges']} is not a valid format. "
                     f"It should be in the form [int]:[int] or [int]. "
-                    f"If there are multiple ranges it should be separated by ';'."
+                    "If there are multiple ranges it should be separated by ';'."
                 )
 
             if len(configBitsOrder) != entry["used_bits_mask"].count("1"):
