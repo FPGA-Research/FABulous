@@ -416,7 +416,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                 else:
                     raise InvalidSupertileDefinition(
                         f"The super tile {name} contains definitions that are not "
-                        f"tiles or Null."
+                        "tiles or Null."
                     )
             tileMap.append(row)
 
