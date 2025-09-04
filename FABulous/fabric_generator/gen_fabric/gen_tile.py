@@ -160,7 +160,7 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
             else:
                 raise FileNotFoundError(
                     f"Could not find {tile.name}_ConfigMem.vhdl in {basePath} "
-                    f"config_mem generation first"
+                    "config_mem generation first"
                 )
 
     # signal declarations
