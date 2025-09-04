@@ -136,8 +136,7 @@ class Port:
             thisRange = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
 
         # the following three lines are needed to get the top line[wires] that are
-        # actually the connection from a switch matrix to
-        #  the routing fabric
+        # actually the connection from a switch matrix to the routing fabric
         startIndex = 0
         if mode in ["Top", "TopIndexed"]:
             startIndex = ((abs(self.xOffset) + abs(self.yOffset)) - 1) * self.wireCount
