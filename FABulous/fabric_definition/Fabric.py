@@ -53,7 +53,7 @@ class Fabric:
         Whether the fabric has super tile.
     tileDic : dict[str, Tile]
         A dictionary of tiles used in the fabric. The key is the name of the tile and
-            and the value is the tile.
+        the value is the tile.
     superTileDic : dict[str, SuperTile]
         A dictionary of super tiles used in the fabric. The key is the name of the
         super tile and the value is the super tile.
