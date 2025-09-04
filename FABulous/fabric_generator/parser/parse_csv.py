@@ -601,7 +601,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
             else:
                 raise InvalidFabricDefinition(
                     f"Unknown tile {i} in fabric description. "
-                    f"Please check the tile definitions."
+                    "Please check the tile definitions."
                 )
         fabricTiles.append(fabricLine)
 
