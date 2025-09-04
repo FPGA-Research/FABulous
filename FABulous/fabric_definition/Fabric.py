@@ -63,7 +63,7 @@ class Fabric:
         The key is the name of the tile and the value is the tile.
     unusedSuperTileDic: dict[str, Tile]
         A dictionary of super tiles that are not used in the fabric,
-            but defined in the fabric.csv.
+        but defined in the fabric.csv.
         The key is the name of the tile and the value is the tile.
     """
 
