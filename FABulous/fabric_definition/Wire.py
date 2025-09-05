@@ -1,7 +1,5 @@
 """Wire class for managing connections between tiles."""
 
-"""Wire class for managing connections between tiles."""
-
 import re
 from dataclasses import dataclass
 

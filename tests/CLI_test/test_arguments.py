@@ -500,8 +500,8 @@ def test_user_argument_overrides_all(
 
     # The log should show the user provided directory being used
     assert (
-        f"INFO: Setting current working directory to: {str(project_directories['user_provided_dir'])}"
-        in result.stdout
+        f"INFO: Setting current working directory to: "
+        f"{str(project_directories['user_provided_dir'])}" in result.stdout
     )
 
 

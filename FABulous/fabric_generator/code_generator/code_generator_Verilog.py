@@ -305,11 +305,14 @@ class VerilogCodeGenerator(CodeGenerator):
     def addComponentDeclarationForFile(self, fileName: Path | str) -> int:
         """Check if a Verilog file uses configuration bits.
 
-        Args:
-            fileName: Path to the Verilog file to analyze
+        Parameters
+        ----------
+        fileName : Path | str
+            Path to the Verilog file to analyze
 
         Returns
         -------
+        int
             1 if file uses configuration bits, 0 otherwise
         """
         configPortUsed = 0  # 1 means is used

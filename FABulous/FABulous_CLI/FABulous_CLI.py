@@ -118,6 +118,19 @@ class FABulous_CLI(Cmd):
     for the FABulous FPGA framework. It supports fabric generation, bitstream creation,
     project management, and various utilities for FPGA development workflow.
 
+    Parameters
+    ----------
+    writerType : str | None
+        The writer type to use for generating fabric.
+    force : bool
+        If True, force operations without confirmation, by default False
+    interactive : bool
+        If True, run in interactive CLI mode, by default False
+    verbose : bool
+        If True, enable verbose logging, by default False
+    debug : bool
+        If True, enable debug logging, by default False
+
     Attributes
     ----------
     intro : str
@@ -128,8 +141,6 @@ class FABulous_CLI(Cmd):
         Instance of the FABulous API for fabric operations
     projectDir : pathlib.Path
         Current project directory path
-    enteringDir : pathlib.Path
-        Directory where CLI was started
     top : str
         Top-level module name for synthesis
     allTile : list[str]
@@ -171,19 +182,6 @@ class FABulous_CLI(Cmd):
         verbose: bool = False,
         debug: bool = False,
     ) -> None:
-        """Initialize the FABulous shell instance.
-
-        Determines file extension based on the type of writer used in `fabulousAPI`.
-
-        Parameters
-        ----------
-        writerType : str
-            The writer type to use for generating fabric.
-        projectDir : Path
-            Path to the project directory.
-        script : str, optional
-            Path to optional Tcl script to be executed, by default ""
-        """
         try:
             get_context()
         except RuntimeError:
@@ -287,11 +285,18 @@ class FABulous_CLI(Cmd):
         logger.info("Exiting FABulous shell")
         return True
 
-    do_quit = do_exit
-    do_q = do_exit
+    def do_quit(self, *_ignored: str) -> None:
+        """Exit the FABulous shell and log info message."""
+        self.onecmd_plus_hooks("exit")
+
+    def do_q(self, *_ignored: str) -> None:
+        """Exit the FABulous shell and log info message."""
+        self.onecmd_plus_hooks("exit")
 
     # Import do_synthesis from cmd_synthesis
-    do_synthesis = cmd_synthesis.do_synthesis
+    def do_synthesis(self, args: argparse.Namespace) -> None:
+        """Run synthesis on the specified design."""
+        cmd_synthesis.do_synthesis(self, args)
 
     filePathOptionalParser = Cmd2ArgumentParser()
     filePathOptionalParser.add_argument(
@@ -362,7 +367,8 @@ class FABulous_CLI(Cmd):
     def do_install_oss_cad_suite(self, args: argparse.Namespace) -> None:
         """Download and extract the latest OSS CAD suite.
 
-        The installation will set the `FAB_OSS_CAD_SUITE` environment variable in the `.env` file.
+        The installation will set the `FAB_OSS_CAD_SUITE` environment variable
+        in the `.env` file.
         """
         if args.destination_folder == "":
             dest_dir = get_context().root

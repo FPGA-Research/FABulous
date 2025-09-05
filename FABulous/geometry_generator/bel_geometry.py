@@ -54,12 +54,6 @@ class BelGeometry:
     externalPortGeoms: list[PortGeometry]
 
     def __init__(self) -> None:
-        """Initialize a BelGeometry instance.
-
-        Sets all attributes to default values: None for names/sources,
-        zero for dimensions and coordinates, and empty lists for
-        port names and geometries.
-        """
         self.name = None
         self.src = None
         self.width = 0

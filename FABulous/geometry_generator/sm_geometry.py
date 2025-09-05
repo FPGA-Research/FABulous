@@ -82,16 +82,6 @@ class SmGeometry:
     westPortsRightX: int
 
     def __init__(self) -> None:
-        """Initialize a SmGeometry instance.
-
-        Sets all attributes to default values: None for names and paths,
-        zero for dimensions and coordinates, and empty lists for ports
-        and port geometries.
-
-        Sets all attributes to default values: None for names and paths,
-        zero for dimensions and coordinates, and empty lists for ports
-        and port geometries.
-        """
         self.name = None
         self.src = None
         self.csv = None

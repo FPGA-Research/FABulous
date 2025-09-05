@@ -5,13 +5,6 @@ including tile layout, configuration parameters, and connectivity information. T
 fabric is the top-level container for all tiles, BELs, and routing resources.
 """
 
-"""FPGA fabric definition module.
-
-This module contains the Fabric class which represents the complete FPGA fabric
-including tile layout, configuration parameters, and connectivity information. The
-fabric is the top-level container for all tiles, BELs, and routing resources.
-"""
-
 from dataclasses import dataclass, field
 
 from FABulous.fabric_definition.Bel import Bel
@@ -30,9 +23,6 @@ class Fabric:
     """Store the configuration of a fabric.
 
     All the information is parsed from the CSV file.
-    """Store the configuration of a fabric.
-
-    All the information is parsed from the CSV file.
 
     Attributes
     ----------
@@ -44,7 +34,7 @@ class Fabric:
         The number of rows of the fabric
     numberOfColumns : int
         The number of columns of the fabric
-    configMitMode : ConfigBitMode
+    configBitMode : ConfigBitMode
         The configuration bit mode of the fabric.
         Currently supports frame based or ff chain
     frameBitsPerRow : int
@@ -79,10 +69,12 @@ class Fabric:
         A dictionary of tiles that are not used in the fabric,
         but defined in the fabric.csv.
         The key is the name of the tile and the value is the tile.
-    unusedSuperTileDic: dict[str, Tile]
+    unusedSuperTileDic: dict[str, SuperTile]
         A dictionary of super tiles that are not used in the fabric,
         but defined in the fabric.csv.
         The key is the name of the tile and the value is the tile.
+    commonWirePair: list[tuple[str, str]]
+        A list of common wire pairs in the fabric.
     """
 
     tile: list[list[Tile]] = field(default_factory=list)
@@ -109,7 +101,6 @@ class Fabric:
     commonWirePair: list[tuple[str, str]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        """Generate and get all the wire pairs in the fabric.
         """Generate and get all the wire pairs in the fabric.
 
         The wire pair are used during model generation when some of the signals have
@@ -387,4 +378,5 @@ class Fabric:
             )
         if self.tile[y][x] is None:
             return []
+
         return self.tile[y][x].bels

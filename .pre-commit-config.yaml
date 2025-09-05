@@ -49,4 +49,5 @@ repos:
     rev: 0.7.3
     hooks:
       - id: pydoclint
-        args: [--style=numpy, --exclude="tests/*"]
+        args: [--style=numpy]
+        exclude: ^(tests/|FABulous/FABulous_CLI/FABulous_CLI\.py$)

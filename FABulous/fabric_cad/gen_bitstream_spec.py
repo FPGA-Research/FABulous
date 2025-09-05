@@ -22,12 +22,18 @@ if TYPE_CHECKING:
 def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
     """Generate the fabric's bitstream specification.
 
-    This is needed to tell where each FASM configuration is mapped to the physical bitstream
+    This is needed to tell where each FASM configuration is mapped to the physical
+    bitstream
     The result file will be further parsed by `bit_gen.py`.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric object for generating the bitstream specification
 
     Returns
     -------
-    dict [str, dict]
+    dict[str, dict]
         The bits stream specification of the fabric.
     """
     specData = {

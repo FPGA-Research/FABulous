@@ -1,7 +1,4 @@
 """Classes for geometry generation."""
-
-"""Classes for geometry generation."""
-
 # Copyright 2023 Heidelberg University
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -61,20 +58,8 @@ class GeometryGenerator:
         self.fabricGeometry = FabricGeometry(self.fabric, padding)
 
     def saveToCSV(self, fileName: str) -> None:
-                """Save the generated geometry into a file specified by the given file name.
+        """Save the generated geometry into a file specified by the given file name.
 
-        Exports the complete fabric geometry data to a CSV file that can be
-        imported into FABulator for visualization and analysis.
-
-        Parameters
-        ----------
-        fileName : str
-            The name of the CSV file to create
-
-        Raises
-        ------
-        AttributeError
-            If generateGeometry() has not been called yet
         Exports the complete fabric geometry data to a CSV file that can be
         imported into FABulator for visualization and analysis.
 
