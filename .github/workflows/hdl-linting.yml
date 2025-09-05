@@ -20,7 +20,7 @@ jobs:
     - uses: ./.github/actions/prepare_FABulous_container
     - uses: chipsalliance/verible-linter-action@main
       with:
-        config_file: 'config.rule'
+        config_file: 'config.rules'
         github_token: ${{ secrets.GITHUB_TOKEN }}
     - name: Run Verilog Linter
       run: |
