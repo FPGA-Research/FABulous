@@ -16,7 +16,7 @@ from FABulous.fabric_definition.Yosys_obj import YosysJson
 
 
 def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
-    """Helper function to setup common mocks."""
+    """Set up mocks."""
     monkeypatch.setattr(
         "subprocess.run",
         lambda cmd, check=False, capture_output=False: type(  # noqa: ARG005
@@ -169,7 +169,6 @@ def test_yosys_json_unsupported_file_type(
 
 def test_get_top_module(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Test getTopModule method."""
-
     json_data = {
         "creator": "Yosys 0.33",
         "modules": {
@@ -199,7 +198,6 @@ def test_get_top_module(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
 
 def test_get_top_module_no_top(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Test getTopModule method."""
-
     json_data = {
         "creator": "Yosys 0.33",
         "modules": {
@@ -225,6 +223,7 @@ def test_get_top_module_no_top(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 
 
 def test_getNetPortSrcSinks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Test getNetPortSrcSinks method."""
     json_data = {
         "creator": "Yosys 0.33",
         "modules": {

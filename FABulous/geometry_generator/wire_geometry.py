@@ -1,4 +1,9 @@
-from csv import writer as csvWriter
+"""Wire geometry classes for FABulous FPGA routing structures.
+
+This module provides classes for representing wire geometries within FPGA tiles,
+including simple wires and complex stair-like wire structures for multi-tile routing. It
+supports CSV serialization for integration with geometry files.
+"""
 
 from FABulous.custom_exception import InvalidPortType
 from FABulous.fabric_definition.Fabric import Direction
@@ -12,8 +17,13 @@ class WireGeometry:
     ----------
     name : str
         Name of the wire
-    path : List[Location]
+    path : list[Location]
         Path of the wire
+
+    Parameters
+    ----------
+    name : str
+        Name of the wire
     """
 
     name: str
@@ -24,9 +34,26 @@ class WireGeometry:
         self.path = []
 
     def addPathLoc(self, pathLoc: Location) -> None:
+        """Add a location point to the wire path.
+
+        Parameters
+        ----------
+        pathLoc : Location
+            The location point to add to the wire path
+        """
         self.path.append(pathLoc)
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: object) -> None:
+        """Save wire geometry data to CSV format.
+
+        Writes the wire name and all path points with their coordinates
+        to a CSV file using the provided writer.
+
+        Parameters
+        ----------
+        writer : object
+            The CSV writer object to use for output
+        """
         writer.writerows([["WIRE"], ["Name"] + [self.name]])
         for pathPoint in self.path:
             writer.writerows(
@@ -37,6 +64,11 @@ class WireGeometry:
 
 class StairWires:
     """A data structure representing a stair-like collection of wires.
+
+    Parameters
+    ----------
+    name : str
+        The name of the stair wire structure
 
     Attributes
     ----------
@@ -56,15 +88,13 @@ class StairWires:
         Width of the tile containing the wires
     tileHeight : int
         Height of the tile containing the wires
-    wireGeoms : List[WireGeometry]
+    wireGeoms : list[WireGeometry]
         List of the wires geometries
 
-    Structure
-    ---------
-    The (refX,refY) point refers to the following location(s)
-    of the stair-like structure:
-
-    .. asciiart::
+    Notes
+    -----
+    The (refX, refY) point refers to the following location(s) of the
+    stair-like structure:
 
         |        @   @   @                  @@  @@  @@
         |        @   @   @                  @@  @@  @@
@@ -82,11 +112,10 @@ class StairWires:
         |              .@  @.  @@     @   @. .@
         |              .@  @@  @@     @   @. .@
 
-
-    Depending on the orientation of the structure. Rotate right by 90° to get
-    the image for the corresponding left-right stair-ike wire structure.
-    The right stair-like structure represents a north stair, the left one
-    represents a south stair (These being the directions of the wires).
+    Depending on the orientation of the structure, rotate right by 90° to get
+    the image for the corresponding left-right stair-like wire structure.
+    The right stair-like structure represents a north stair; the left one
+    represents a south stair (these being the directions of the wires).
     """
 
     name: str
@@ -104,7 +133,7 @@ class StairWires:
         self.refX = 0
         self.refY = 0
         self.offset = 0
-        self.direction = None
+        self.direction = Direction.NORTH  # Default value
         self.groupWires = 0
         self.tileWidth = 0
         self.tileHeight = 0
@@ -120,6 +149,33 @@ class StairWires:
         tileWidth: int,
         tileHeight: int,
     ) -> None:
+        """Generate the stair wire geometry based on parameters and direction.
+
+        Creates the complete stair-like wire structure by calling the appropriate
+        directional generation method based on the specified direction.
+
+        Parameters
+        ----------
+        refX : int
+            Reference X coordinate for the stair structure
+        refY : int
+            Reference Y coordinate for the stair structure
+        offset : int
+            Wire offset distance
+        direction : Direction
+            Direction of the wire routing (NORTH, SOUTH, EAST, or WEST)
+        groupWires : int
+            Number of wires in each group or strand
+        tileWidth : int
+            Width of the containing tile
+        tileHeight : int
+            Height of the containing tile
+
+        Raises
+        ------
+        InvalidPortType
+            If the direction is invalid for stair wires.
+        """
         self.refX = refX
         self.refY = refY
         self.offset = offset
@@ -142,6 +198,12 @@ class StairWires:
             )
 
     def generateNorthStairWires(self) -> None:
+        """Generate stair-like wires for north direction routing.
+
+        Creates a series of L-shaped wire segments that form a stair-like pattern for
+        routing connections northward across multiple tiles. Each wire starts at the
+        bottom edge, goes to a stair step, then continues to the top edge.
+        """
         totalWires = self.groupWires * (abs(self.offset) - 1)
 
         for i in range(totalWires):
@@ -161,6 +223,12 @@ class StairWires:
             self.refY -= 1
 
     def generateSouthStairWires(self) -> None:
+        """Generate stair-like wires for south direction routing.
+
+        Creates a series of L-shaped wire segments that form a stair-like pattern for
+        routing connections southward across multiple tiles. Each wire starts at the
+        bottom edge, goes to a stair step, then continues to the top edge.
+        """
         totalWires = self.groupWires * (abs(self.offset) - 1)
 
         for i in range(totalWires):
@@ -180,6 +248,12 @@ class StairWires:
             self.refY -= 1
 
     def generateEastStairWires(self) -> None:
+        """Generate stair-like wires for east direction routing.
+
+        Creates a series of L-shaped wire segments that form a stair-like pattern for
+        routing connections eastward across multiple tiles. Each wire starts at the
+        right edge, goes to a stair step, then continues to the left edge.
+        """
         totalWires = self.groupWires * (abs(self.offset) - 1)
 
         for i in range(totalWires):
@@ -199,6 +273,12 @@ class StairWires:
             self.refY += 1
 
     def generateWestStairWires(self) -> None:
+        """Generate stair-like wires for west direction routing.
+
+        Creates a series of L-shaped wire segments that form a stair-like pattern for
+        routing connections westward across multiple tiles. Each wire starts at the
+        right edge, goes to a stair step, then continues to the left edge.
+        """
         totalWires = self.groupWires * (abs(self.offset) - 1)
 
         for i in range(totalWires):
@@ -217,6 +297,16 @@ class StairWires:
             self.refX += 1
             self.refY -= 1
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: object) -> None:
+        """Save all stair wire geometries to CSV format.
+
+        Writes all individual wire geometries in the stair structure
+        to a CSV file using the provided writer.
+
+        Parameters
+        ----------
+        writer : object
+            The CSV writer object to use for output
+        """
         for wireGeom in self.wireGeoms:
             wireGeom.saveToCSV(writer)

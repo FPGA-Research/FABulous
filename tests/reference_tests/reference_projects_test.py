@@ -107,7 +107,6 @@ def test_reference_project_execution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test execution of reference projects with run or diff mode."""
-
     assert ref_project.path.exists(), (
         f"Reference project path does not exist: {ref_project.path}"
     )

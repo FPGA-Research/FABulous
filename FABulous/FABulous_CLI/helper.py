@@ -1,4 +1,10 @@
-"""Helper functions for FABulous."""
+"""Helper functions and utilities for the FABulous CLI.
+
+This module provides various utility functions for the FABulous command-line interface,
+including project creation, file operations, logging setup, external application
+management, and OSS CAD Suite installation. It serves as a collection of common
+functionalities used throughout the CLI components.
+"""
 
 import functools
 import os
@@ -32,12 +38,43 @@ MAX_BITBYTES = 16384
 
 
 def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
-    """Setup logger for FABulous."""
+    """Set up the loguru logger with custom formatting based on verbosity level.
+
+    Parameters
+    ----------
+    verbosity : int
+        The verbosity level for logging. Higher values provide more detailed output.
+        0: Basic level and message only
+        1+: Includes timestamp, module name, function, line number
+    debug : bool
+        If True, sets log level to `DEBUG`, otherwise sets to `INFO`.
+    log_file : Path
+        Path to log file. If provided, logs will be written to file instead of stdout.
+        Default is `Path()`, which results in logging to stdout.
+
+    Notes
+    -----
+    This function removes any existing loggers and sets up a new one with custom
+    formatting. The format includes color coding and adjusts based on verbosity level.
+    When `FABULOUS_TESTING` environment variable is set, uses simplified formatting.
+    """
     # Remove the default logger to avoid duplicate logs
     logger.remove()
 
     # Define a custom formatting function that has access to 'verbosity'
     def custom_format_function(record: "Record") -> str:
+        """Format log record with custom formatting.
+
+        Parameters
+        ----------
+        record : Record
+            Loguru record object to format
+
+        Returns
+        -------
+        str
+            Formatted log message string
+        """
         # Construct the standard part of the log message based on verbosity
         level = f"<level>{record['level'].name}</level> | "
         time = f"<cyan>[{record['time']:DD-MM-YYYY HH:mm:ss}]</cyan> | "
@@ -81,11 +118,13 @@ def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
 def create_project(
     project_dir: Path, lang: Literal["verilog", "vhdl"] = "verilog"
 ) -> None:
-    """Creates a FABulous project containing all required files by copying the common
-    files and the appropriate project template. Replces the {HDL_SUFFIX} placeholder in
-    all tile csv files with the appropriate file extension. Creates a .FABulous
-    directory in the project. Also creates a .env file in the project directory with the
-    project language.
+    """Create a FABulous project containing all required files.
+
+    Copies the common files and the appropriate project template.
+    Replaces the `{HDL_SUFFIX}` placeholder in all tile csv files with the appropriate
+    file extension.
+    Creates a `.FABulous` directory in the project. Also creates a `.env` file in the
+    project directory with the project settings.
 
     File structure as follows:
         FABulous_project_template --> project_dir/
@@ -97,6 +136,13 @@ def create_project(
         Directory where the project will be created.
     lang : Literal["verilog", "vhdl"], optional
         The language of project to create ("verilog" or "vhdl"), by default "verilog".
+
+    Raises
+    ------
+    FileNotFoundError
+        If the template files cannot be found in the package resources.
+    ValueError
+        If an unsupported language is specified.
     """
     logger.info(project_dir)
 
@@ -178,29 +224,28 @@ def create_project(
 
 
 def copy_verilog_files(src: Path, dst: Path) -> None:
-    """Copies all Verilog files from source directory to the destination directory.
+    """Copy all Verilog files from source directory to the destination directory.
 
     Parameters
     ----------
-    src : str
+    src : Path
         Source directory.
-    dst : str
+    dst : Path
         Destination directory
     """
-
     for file_path in src.rglob("*.v"):
         destination_path = dst / file_path.name
         shutil.copy(file_path, destination_path)
 
 
 def remove_dir(path: Path) -> None:
-    """Removes a directory and all its contents.
+    """Remove a directory and all its contents.
 
     If the directory cannot be removed, logs OS error.
 
     Parameters
     ----------
-    path : str
+    path : Path
         Path of the directory to remove.
     """
     try:
@@ -210,15 +255,15 @@ def remove_dir(path: Path) -> None:
 
 
 def make_hex(binfile: Path, outfile: Path) -> None:
-    """Converts a binary file into hex file.
+    """Convert a binary file into hex file.
 
     If the binary file exceeds MAX_BITBYTES, logs error.
 
     Parameters
     ----------
-    binfile : str
+    binfile : Path
         Path to binary file.
-    outfile : str
+    outfile : Path
         Path to ouput hex file.
     """
     with Path(binfile).open("rb") as f:
@@ -237,24 +282,33 @@ def make_hex(binfile: Path, outfile: Path) -> None:
 
 
 def wrap_with_except_handling(fun_to_wrap: Callable) -> Callable:
-    """Decorator function that wraps 'fun_to_wrap' with exception handling.
+    """Wrap function with 'fun_to_wrap' with exception handling.
 
     Parameters
     ----------
-    fun_to_wrap : callable
+    fun_to_wrap : Callable
         The function to be wrapped with exception handling.
+
+    Returns
+    -------
+    Callable
+        The wrapped function with exception handling.
     """
 
     def inter(*args: Any, **varargs: Any) -> None:  # noqa: ANN401
-        """Wrapped function that executes 'fun_to_wrap' with arguments and exception
-        handling.
+        """Execute 'fun_to_wrap' with arguments and exception handling.
 
         Parameters
         ----------
-        *args : tuple
+        *args : Any
             Positional arguments to pass to 'fun_to_wrap'.
-        **varags : dict
+        **varargs : Any
             Keyword arguments to pass to 'fun_to_wrap'.
+
+        Raises
+        ------
+        Exception
+            Reraises any exception caught during the execution of 'fun_to_wrap'.
         """
         try:
             fun_to_wrap(*args, **varargs)
@@ -269,8 +323,32 @@ def wrap_with_except_handling(fun_to_wrap: Callable) -> Callable:
 
 
 def allow_blank(func: Callable) -> Callable:
+    """Allow function to be called with blank arguments.
+
+    This decorator wraps a function to handle cases where fewer arguments are provided
+    than expected. If only one argument is provided, it calls the function with an
+    additional empty string argument.
+
+    Parameters
+    ----------
+    func : Callable
+        The function to be wrapped.
+
+    Returns
+    -------
+    Callable
+        The wrapped function that can handle missing arguments.
+    """
+
     @functools.wraps(func)
     def _check_blank(*args: Sequence[str]) -> None:
+        """Check for blank arguments.
+
+        Parameters
+        ----------
+        *args : Sequence[str]
+            Variable number of string arguments.
+        """
         if len(args) == 1:
             func(*args, "")
         else:
@@ -280,26 +358,27 @@ def allow_blank(func: Callable) -> Callable:
 
 
 def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> None:
-    """Downloads and extracts the latest OSS CAD Suite. Sets the the FAB_OSS_CAD_SUITE
-    environment variable in the .env file.
+    """Download and extract the latest OSS CAD Suite.
+
+    Set the `FAB_OSS_CAD_SUITE` environment variable in the .env file.
 
     Parameters
     ----------
-        destination_folder: Path
-            The folder where the OSS CAD Suite will be installed.
-        update : bool
-            If True, it will update the existing installation if it exists.
+    destination_folder: Path
+        The folder where the OSS CAD Suite will be installed.
+    update : bool
+        If True, it will update the existing installation if it exists.
 
     Raises
     ------
-        FileExistsError
-            If the folder already exists and update is not set to True.
-        requests.RequestException
-            If the download fails or the request to GitHub fails.
-        ValueError
-            If the operating system or architecture is not supported.
-            If no valid archive is found for the current OS and architecture.
-            If the file format of the downloaded archive is unsupported.
+    ConnectionError
+        If the download fails or the request to GitHub fails.
+    FileExistsError
+        If the folder already exists and update is not set to True.
+    ValueError
+        If the operating system or architecture is not supported.
+        If no valid archive is found for the current OS and architecture.
+        If the file format of the downloaded archive is unsupported.
     """
     github_releases_url = (
         "https://api.github.com/repos/YosysHQ/oss-cad-suite-build/releases/latest"
@@ -407,6 +486,27 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
 
 
 def update_project_version(project_dir: Path) -> bool:
+    """Update the project version in the .env file.
+
+    This function reads the current project version from the .env file and updates it
+    to match the currently installed FABulous package version, provided there are no
+    major version mismatches.
+
+    Parameters
+    ----------
+    project_dir : Path
+        The path to the project directory containing the .FABulous/.env file.
+
+    Returns
+    -------
+    bool
+        `True` if the version was successfully updated, `False` otherwise.
+
+    Notes
+    -----
+    The function will refuse to update if there is a major version mismatch between
+    the project version and the package version, as this could indicate incompatibility.
+    """
     env_file = project_dir / ".FABulous" / ".env"
 
     project_version = get_key(env_file, "FAB_PROJ_VERSION")
@@ -428,7 +528,15 @@ def update_project_version(project_dir: Path) -> bool:
 
 
 class CommandPipeline:
-    """Helper class to manage command execution with error handling."""
+    """Helper class to manage command execution with error handling.
+
+    Parameters
+    ----------
+    cli_instance : FABulous_CLI
+        The CLI instance to use for command execution.
+    force : bool
+        If True, continues executing commands even if one fails.
+    """
 
     def __init__(self, cli_instance: "FABulous_CLI", force: bool = False) -> None:
         self.cli = cli_instance
@@ -439,20 +547,40 @@ class CommandPipeline:
     def add_step(
         self, command: str, error_message: str = "Command failed"
     ) -> "CommandPipeline":
-        """Add a command step to the pipeline."""
+        """Add a command step to the pipeline.
+
+        Parameters
+        ----------
+        command : str
+            The command string to execute.
+        error_message : str, optional
+            Custom error message to use if the command fails.
+            Defaults to "Command failed".
+
+        Returns
+        -------
+        CommandPipeline
+            Returns `self` to allow method chaining.
+        """
         self.steps.append((command, error_message))
         return self
 
     def execute(self) -> bool:
         """Execute all steps in the pipeline.
 
-        Returns:
-            bool: True if all commands succeeded, False if any failed.
+        Executes each command step in sequence. If any command fails (exit code != 0),
+        raises a PipelineCommandError with the associated error message.
 
-        Raises:
-            PipelineCommandError: If any command fails and force=False.
+        Returns
+        -------
+        bool
+            True if all commands executed successfully.
+
+        Raises
+        ------
+        PipelineCommandError
+            If any command in the pipeline fails during execution.
         """
-
         for command, error_message in self.steps:
             self.cli.onecmd_plus_hooks(command)
             if self.cli.exit_code != 0:

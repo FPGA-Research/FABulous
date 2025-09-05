@@ -1,3 +1,5 @@
+"""Functions for fabric automation, such as generating tile configurations and IOs."""
+
 import json
 import math
 from pathlib import Path
@@ -25,16 +27,17 @@ if TYPE_CHECKING:
 
 
 def generateCustomTileConfig(tile_path: Path) -> Path:
-    """Generates a custom tile configuration for a given tile folder or path to bel
-    folder. A tile .csv file and a switch matrix .list file will be generated.
+    """Generate a custom tile configuration.
 
-    The provided path may contain bel files, which will be included
+    A tile .csv file and a switch matrix .list file will be generated based on
+    the given tile folder or the path to the BEL folder.
+
+    The provided path may contain BEL files, which will be included
     in the generated tile .csv file as well as the generated
     switch matrix .list file.
 
     Parameters
     ----------
-
     tile_path : Path
         The path to the tile folder. If the path is a file, the parent
         directory will be used as the tile folder.
@@ -43,6 +46,11 @@ def generateCustomTileConfig(tile_path: Path) -> Path:
     -------
     Path
         Path to the generated tile .csv file.
+
+    Raises
+    ------
+    ValueError
+        If the tile path is not a valid tile path or if the tile folder does not exist.
     """
     tile_name: str = ""
     project_tile_dir: Path = get_context().proj_dir / "Tile"
@@ -154,34 +162,32 @@ def generateSwitchmatrixList(
     carryportsTile: dict[str, dict[IO, str]],
     localSharedPortsTile: dict[str, list[Port]],
 ) -> None:
-    """Generate a switchmatrix list file for a given tile ans its bels. This list File
-    is based on a dummy list file from CLB_DUMMY and is based on the LUT4AB switchtmatix
+    """Generate a switch matrix list file for a given tile and its BELs.
+
+    The list file is based on a dummy list file, derived from the LUT4AB switch matrix
     list file. It is also possible to automatically generate connections for carry
-    chains between the bels.
+    chains between the BELs.
 
     Parameters
     ----------
-         tileName :str
-             Name of the tile
-         bels : list[Bel]
-             List of bels in the tile
-         outFile : Path
-             Path to the switchmatrix list file output
-         carryportsTile : dict[str, dict[IO, str]]
-             Dictionary of carry ports for the tile
-         localSharedPortsTile : dicst[str, list[Port]]
-            list of local shared ports for the tile, based on JUMP wire definitions
+    tileName :str
+        Name of the tile
+    bels : list[Bel]
+        List of bels in the tile
+    outFile : Path
+        Path to the switchmatrix list file output
+    carryportsTile : dict[str, dict[IO, str]]
+        Dictionary of carry ports for the tile
+    localSharedPortsTile : dict[str, list[Port]]
+        List of local shared ports for the tile, based on JUMP wire definitions
 
     Raises
     ------
-         ValueError
-             Bels have more than 32 Bel inputs.
-         ValueError
-             Bels have more than 8 Bel outputs.
-         ValueError
-             Invalid list formatting in file.
-         ValueError
-             Number of carry ins and carry outs do not match.
+    ValueError
+        - Bels have more than 32 Bel inputs.
+        - Bels have more than 8 Bel outputs.
+        - Invalid list formatting in file.
+        - Number of carry ins and carry outs do not match.
     """
     projdir = get_context().proj_dir
     fab_root = get_context().root
@@ -229,16 +235,16 @@ def generateSwitchmatrixList(
             "only handle 8 outputs"
         )
 
-    # build a dict, with the old names from the list file and the replacement
-    # from the bels
+    # build a dict, with the old names from the list file and
+    # the replacement from the bels
     replaceDic = {}
     for i, port in enumerate(belIns):
         replaceDic[f"CLB{math.floor(i / 4)}_I{i % 4}"] = f"{port}"
     for i, port in enumerate(belOuts):
         replaceDic[f"CLB{i % 8}_O"] = f"{port}"
 
-    # generate a list of sinks, with their connection count, if they have at
-    # least 5 connections
+    # generate a list of sinks, with their connection count,
+    # if they have at least 5 connections
     sinks_num = [sink for _, sink in portPairs]
     sinks_num = {i: sinks_num.count(i) for i in sinks_num if sinks_num.count(i) > 4}
 
@@ -370,22 +376,18 @@ def addBelsToPrim(
     bels: list[Bel],
     support_vectors: bool = False,
 ) -> None:
-    """Adds a list of Bels as blackbox primitives to yosys prims file.
+    """Add a list of Bels as blackbox primitives to yosys prims file.
 
     Parameters
     ----------
-        primsFile : str
-            Path to yosys prims file
-        bels : list[Bel]
-            List of bels to add
-        support_vectors : bool
-            Boolean to support vectors for ports in the prims file
-            Default False,
-                since the FABulous nextpn integration does not support vectors
-    Raises
-    ------
-        FileNotFoundError :
-            Prims file is not found
+    primsFile : Path
+        Path to yosys prims file
+    bels : list[Bel]
+        List of bels to add
+    support_vectors : bool
+        Boolean to support vectors for ports in the prims file
+        Default False,
+        since the FABulous nextpn integration does not support vectors
     """
     prims: str = ""  # prims.v
     primsAdd: list[str] = []  # append to prims.v
@@ -440,8 +442,8 @@ def addBelsToPrim(
 
             if support_vectors:
                 # Find all ports with their directions
-                # need to parse the json file again,
-                # since port width is not known in BEL object
+                # need to parse the json file again, since port width
+                # is not known in BEL object
                 with bel.src.with_suffix(".json").open() as f:
                     bel_dict = json.load(f)
                 module_ports = bel_dict["modules"][bel.module_name]["ports"]
@@ -551,7 +553,7 @@ def genIOBel(
 
     Parameters
     ----------
-    gen_ios : List[Gen_IO]
+    gen_ios : list[Gen_IO]
         List of Generative IOs to generate the IO BEL.
     bel_path : Path
         Name of the BEL to be generated.
@@ -564,20 +566,22 @@ def genIOBel(
         Default is MultiplexerStyle.CUSTOM
         Use generic or custom multiplexers.
 
-
-    Raises
-    ------
-    ValueError
-        - If a wrong bel file suffix is specified.
-        - In case of an invalid IO type for generative IOs.
-        - If the number of config access ports does not match the number of config bits.
-
     Returns
     -------
     Bel | None
         The generated Bel object or None if no generative IOs are present.
-    """
 
+    Raises
+    ------
+    InvalidFileType
+        If a wrong bel file suffix is specified.
+    InvalidPortType
+        If an invalid IO type is specified for generative IOs.
+    SpecMissMatch
+        If the multiplexer style is not supported for generative IOs.
+    ValueError
+        If the number of config access ports does not match the number of config bits.
+    """
     if len(gen_ios) == 0:
         logger.info(f"No generative IOs for {bel_path}, skipping genIOBel generation")
         return None

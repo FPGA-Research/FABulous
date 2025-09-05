@@ -1,3 +1,9 @@
+"""Test module for configuration memory generation functions.
+
+This module contains comprehensive tests for the configuration memory generation
+functionality, including CSV initialization file creation and RTL generation.
+"""
+
 from collections.abc import Callable
 from pathlib import Path
 
@@ -45,8 +51,7 @@ class TestGenerateConfigMemInit:
     def test_configmem_init_generates_correct_csv_structure(
         self, tmp_path: Path, fabric_config: Fabric, tile_config: Tile
     ) -> None:
-        """Test that generateConfigMemInit creates CSV with correct structure and
-        bit allocation."""
+        """Test that generateConfigMemInit creates CSV with correct structure."""
         output_file = tmp_path / f"test_{fabric_config.name}_{tile_config.name}.csv"
         tile_config_bits = tile_config.globalConfigBits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
@@ -78,8 +83,7 @@ class TestGenerateConfigMemInit:
     def test_bitmask_format_is_valid_binary_with_correct_bit_counts(
         self, tmp_path: Path, fabric_config: Fabric, tile_config: Tile
     ) -> None:
-        """Test that generated bitmasks have valid binary format and correct bit
-        counts."""
+        """Test that generated bitmasks are valid."""
         tile_config_bits = tile_config.globalConfigBits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
             fabric_config, tile_config_bits
@@ -117,8 +121,7 @@ class TestGenerateConfigMemInit:
     def test_bit_allocation_strategy_follows_frame_priority_order(
         self, tmp_path: Path, fabric_config: Fabric, tile_config: Tile
     ) -> None:
-        """Test that bits are allocated across frames following priority order
-        from frame 0."""
+        """Test that bits are allocated across frames following priority order."""
         tile_config_bits = tile_config.globalConfigBits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
             fabric_config, tile_config_bits
@@ -161,8 +164,7 @@ class TestGenerateConfigMemInit:
     def test_config_bit_ranges_have_valid_descending_format(
         self, tmp_path: Path, default_fabric: Fabric, default_tile: Tile
     ) -> None:
-        """Test that ConfigBits_ranges are formatted correctly with descending
-        bit order."""
+        """Test that ConfigBits_ranges are formatted correctly."""
         tile_config_bits = default_tile.globalConfigBits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
             default_fabric, tile_config_bits
@@ -208,8 +210,7 @@ class TestGeneratedConfigMemRTL:
         tile_config: Tile,
         code_generator_factory: Callable[..., CodeGenerator],
     ) -> None:
-        """Test that generateConfigMem creates RTL with correct number of LHQD1
-        instantiations."""
+        """Test generateConfigMem creates RTL with right number of LHQD1."""
         # Create config CSV file path
         config_csv = tmp_path / f"{tile_config.name}_configMem.csv"
 
@@ -254,8 +255,8 @@ class TestGeneratedConfigMemRTL:
         mocker: MockerFixture,
     ) -> None:
         """Test that generated RTL correctly maps FrameData and FrameStrobe to
-        ConfigBits."""
-
+        ConfigBits.
+        """
         # Create code generator
         writer = code_generator_factory(".v", f"{default_tile.name}_ConfigMem")
         writer.outFileName = tmp_path / f"{default_tile.name}_ConfigMem.v"

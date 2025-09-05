@@ -1,3 +1,14 @@
+"""Nextpnr model generation for FABulous FPGA fabrics.
+
+This module provides functionality to generate nextpnr models from FABulous fabric
+definitions. The nextpnr model includes detailed descriptions of programmable
+interconnect points (PIPs), basic elements of logic (BELs), and routing resources needed
+for place-and-route operations.
+
+The generated models enable nextpnr to understand the fabric architecture and perform
+placement and routing for user designs.
+"""
+
 import string
 
 from FABulous.custom_exception import InvalidFileType, InvalidState
@@ -6,7 +17,7 @@ from FABulous.fabric_generator.parser.parse_switchmatrix import parseList, parse
 
 
 def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
-    """Generates Nextpnr model for given fabric.
+    """Generate the fabric's nextpnr model.
 
     Parameters
     ----------
@@ -15,7 +26,7 @@ def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
 
     Returns
     -------
-    Tuple[str, str, str, str]
+    tuple[str, str, str, str]
         - pipStr: A string with tile-internal and tile-external pip descriptions.
         - belStr: A string with old style BEL definitions.
         - belv2Str: A string with new style BEL definitions.
@@ -23,8 +34,10 @@ def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
 
     Raises
     ------
-    ValueError
+    InvalidFileType
         If matrixDir of a tile is not '.csv' or '.list' file.
+    InvalidState
+        If a wire in a tile points to an invalid tile outside the fabric bounds.
     """
     pipStr = []
     belStr = []
@@ -75,9 +88,10 @@ def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
                         "Please check your tile CSV file for unmatching wires/offsets!"
                     )
                 pipStr.append(
-                    f"X{x}Y{y},{wire.source},X{x + wire.xOffset}Y{y + wire.yOffset},{
-                        wire.destination
-                    },{8},{wire.source}.{wire.destination}"
+                    f"X{x}Y{y},{wire.source},"
+                    f"X{x + wire.xOffset}Y{y + wire.yOffset},{wire.destination},"
+                    f"{8},"
+                    f"{wire.source}.{wire.destination}"
                 )
 
             # Old style bel definition

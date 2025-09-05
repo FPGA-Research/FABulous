@@ -1,3 +1,11 @@
+"""Helper functions for FPGA fabric generation.
+
+This module provides utility functions that assist in various aspects of FPGA fabric
+generation, including switch matrix bootstrapping, signal ordering, and file generation
+utilities. These functions support the main fabric generation workflow by providing
+common operations needed across multiple generation stages.
+"""
+
 import csv
 import re
 from pathlib import Path
@@ -10,9 +18,10 @@ from FABulous.fabric_generator.parser.parse_switchmatrix import parseList
 
 
 def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
-    """Generates a blank switch matrix CSV file for the given tile. The top left corner
-    will contain the name of the tile. Columns are the source signals and rows are the
-    destination signals.
+    """Generate a blank switch matrix CSV file for the given tile.
+
+    The top left corner will contain the name of the tile.
+    Columns are the source signals and rows are the destination signals.
 
     The order of the signal will be:
     - standard wire
@@ -26,7 +35,7 @@ def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
     ----------
     tile : Tile
         The tile to generate the switch matrix for
-    outputDir : str
+    outputDir : Path
         The output directory to write the switch matrix to
     """
     logger.info(f"Generate matrix csv for {tile.name} # filename: {outputDir}")
@@ -60,23 +69,18 @@ def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
 
 
 def list2CSV(InFileName: Path, OutFileName: Path) -> None:
-    """This function is used to export a given list description into its equivalent CSV
-    switch matrix description. A comment will be appended to the end of the column and
+    """Export a list file into its equivalent CSV switch matrix representation.
+
+    A comment will be appended to the end of the column and
     row of the matrix, which will indicate the number of signals in a given row.
 
     Parameters
     ----------
-    InFileName : str
+    InFileName : Path
         The input file name of the list file
-    OutFileName : str
+    OutFileName : Path
         The directory of the CSV file to be written
-
-    Raises
-    ------
-    ValueError
-        If the list file contains signals that are not in the matrix file
     """
-
     logger.info(f"Adding {InFileName} to {OutFileName}")
 
     connectionPair = parseList(InFileName)
@@ -147,8 +151,7 @@ def list2CSV(InFileName: Path, OutFileName: Path) -> None:
 
 
 def CSV2list(InFileName: str, OutFileName: str) -> None:
-    """This function is used to export a given CSV switch matrix description into its
-    equivalent list description.
+    """Export a CSV switch matrix description into its equivalent list representation.
 
     Parameters
     ----------

@@ -1,3 +1,5 @@
+"""The base class for all code generators."""
+
 import abc
 from pathlib import Path
 
@@ -11,10 +13,24 @@ class CodeGenerator(abc.ABC):
 
     @property
     def outFileName(self) -> Path:
+        """Get the output file path.
+
+        Returns
+        -------
+        Path
+            The output file path.
+        """
         return self._outFileName
 
     @property
     def content(self) -> list[str]:
+        """Get the content list.
+
+        Returns
+        -------
+        list[str]
+            List of content strings.
+        """
         return self._content
 
     def __init__(self) -> None:
@@ -22,6 +38,11 @@ class CodeGenerator(abc.ABC):
         self._outFileName = Path()
 
     def writeToFile(self) -> None:
+        """Write the content to the output file.
+
+        Writes all content strings to the specified output file,
+        filtering out `None` values. Clears content after writing.
+        """
         if self._outFileName == Path():
             logger.critical("OutFileName is not set")
             exit(-1)
@@ -32,18 +53,42 @@ class CodeGenerator(abc.ABC):
 
     @outFileName.setter
     def outFileName(self, outFileName: Path) -> None:
+        """Set the output file path.
+
+        Parameters
+        ----------
+        outFileName : Path
+            The output file path to set.
+        """
         self._outFileName = outFileName
 
     def _add(self, line: str, indentLevel: int = 0) -> None:
+        """Add a line to the content with optional indentation.
+
+        Parameters
+        ----------
+        line : str
+            The line of code to add.
+        indentLevel : int, optional
+            The indentation level (each level = 4 spaces). Defaults to 0.
+        """
         if indentLevel == 0:
             self._content.append(line)
         else:
             self._content.append(f"{' ':<{4 * indentLevel}}" + line)
 
     def popLastLine(self) -> str:
+        """Remove and return the last line from content.
+
+        Returns
+        -------
+        str
+            The last line that was removed.
+        """
         return self._content.pop()
 
     def addNewLine(self) -> None:
+        """Add an empty line to the content."""
         self._add("")
 
     @abc.abstractmethod
@@ -266,11 +311,11 @@ class CodeGenerator(abc.ABC):
             Name of the port.
         io : IO
             Direction of the port (input, output, inout).
-        msbIndex : int or str
+        msbIndex : str | int
             Index of the MSB of the vector. Can be a string.
-        reg: bool, optional
+        reg : bool, optional
             port is a register. Only useful with Verilog.
-        attribute: str, optional
+        attribute : str, optional
             Add a FABulous ATTRIBUTE to the port.
         indentLevel : int, optional
             The level of indentation. Defaults to 0.
@@ -327,18 +372,18 @@ class CodeGenerator(abc.ABC):
         ----------
         name : str
             Name of the constant.
-        value :
+        value : str
             The value of the constant.
         indentLevel : int, optional
             The level of indentation. Defaults to 0.
 
         Examples
         --------
-        Verilog
-            parameter **name** = **value**;
+            Verilog
+                parameter **name** = **value**;
 
-        VHDL
-            constant **name** : STD_LOGIC := **value**;
+            VHDL
+                constant **name** : STD_LOGIC := **value**;
         """
 
     @abc.abstractmethod
@@ -379,10 +424,10 @@ class CodeGenerator(abc.ABC):
         ----------
         name : str
             Name of the connection
-        startIndex : str
-            Start index of the vector. Can be a string.
-        endIndex : int, optional
-            End index of the vector. Can be a string. Defaults to 0.
+        startIndex : str | int
+            Start index of the vector.
+        endIndex : str | int, optional
+            End index of the vector. Defaults to 0.
         reg : bool, optional
             Connection is a register. Only useful with Verilog.
         indentLevel : int, optional
@@ -438,9 +483,12 @@ class CodeGenerator(abc.ABC):
         emulateParamPairs: list[tuple[str, str]] | None = None,
         indentLevel: int = 0,
     ) -> None:
-        """Add an instantiation. This will line up the ports and signals. So ports[0]
-        will have signals[0] and so on. This is also the same case for paramPorts and
-        paramSignals.
+        """Add an instantiation.
+
+        Align ports and signals such that `ports[i]` corresponds to `signals[i]`
+        for all indices i.
+
+        This is also the same case for `paramPorts` and `paramSignals`.
 
         Parameters
         ----------
@@ -448,14 +496,14 @@ class CodeGenerator(abc.ABC):
             Name of the component.
         compInsName : str
             Name of the component instance.
-        portsPairs : List[Tuple[str, str]]
+        portsPairs : list[tuple[str, str]]
             List of tuples pairing component ports with signals.
-        paramPairs : List[Tuple[str, str]], optional
+        paramPairs : list[tuple[str, str]] | None, optional
             List of tuples pairing parameter ports with parameter signals.
-            Defaults to [].
-        emulateParamPairs : List[Tuple[str, str]], optional
+            Defaults to None.
+        emulateParamPairs : list[tuple[str, str]] | None, optional
             List of parameter signals of the component in emulation mode only.
-            Defaults to [].
+            Defaults to None.
         indentLevel : int, optional
             The level of indentation. Defaults to 0.
 
@@ -507,6 +555,11 @@ class CodeGenerator(abc.ABC):
         ----------
         fileName : str
             Name of the VHDL file.
+
+        Returns
+        -------
+        int
+            1 if the component/file uses configuration bits, 0 otherwise.
         """
 
     @abc.abstractmethod
@@ -587,16 +640,15 @@ class CodeGenerator(abc.ABC):
         indentLevel: int = 0,
         inverted: bool = False,
     ) -> None:
-        """Add a scalar assign statement. Delay is provided by currently not being used
-        by any of the code generator. If **right** is a list, it will be concatenated.
-        Verilog will concatenate with comma ','. VHDL will concatenate with ampersand
-        '&' instead.
+        """Add a scalar assign statement.
+
+        Delay is provided by currently not being used by any of the code generator.
 
         Parameters
         ----------
-        left : object
+        left : str
             The left hand side of the assign statement.
-        right : object
+        right : str
             The right hand side of the assign statement.
         delay : int, optional
             Delay in the assignment. Defaults to 0.
@@ -607,13 +659,13 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-        Verilog
-        -------
-        assign **left** = **right**;
+            Verilog
+            -------
+            assign **left** = **right**;
 
-        VHDL
-        ----
-        **left** <= **right** after **delay** ps;
+            VHDL
+            ----
+            **left** <= **right** after **delay** ps;
         """
 
     @abc.abstractmethod
@@ -630,14 +682,14 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        left : object
+        left : str
             The left hand side of the assign statement.
-        right : object
+        right : str
             The right hand side of the assign statement.
-        widthL : object
-            The start index of the vector. Can be a string.
-        widthR : object
-            The end index of the vector. Can be a string.
+        widthL : str | int
+            The start index of the vector.
+        widthR : str | int
+            The end index of the vector.
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
         inverted : bool, optional
@@ -660,20 +712,20 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        macro : object
+        macro : str
             The macro to check for.
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
 
         Examples
         --------
-        Verilog
-        -------
-        \`ifdef **macro**
+            Verilog
+            -------
+            \`ifdef **macro**
 
-        VHDL
-        ----
-        unsupported
+            VHDL
+            ----
+            unsupported
         """
 
     @abc.abstractmethod
@@ -682,20 +734,20 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        macro : object
+        macro : str
             The macro to check for.
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
 
         Examples
         --------
-        Verilog
-        -------
-        \`ifndef **macro**
+            Verilog
+            -------
+            \`ifndef **macro**
 
-        VHDL
-        ----
-        unsupported
+            VHDL
+            ----
+            unsupported
         """
 
     @abc.abstractmethod
@@ -746,27 +798,25 @@ class CodeGenerator(abc.ABC):
 
         Parameters
         ----------
-        configBits: list[tuple[str,int]]
+        configBitValues : list[tuple[str, int]]
             The list of config bit value information.
             Each config bit should have a name and number of bits
             Should be sorted by number list is equal to NoConfigBits map.
+
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
 
         Examples
         --------
-        configBitValues input:
-        ::
+            input:
+                list[("INIT", 3), ("FF", 1)]
 
-            List[("INIT",3),("FF",1)]
-
-        Verilog:
-        ::
-
-            (*FABulous, BelMap, INIT=0, INIT_1=1, INIT_2=2,FF=3 *)
-
-        VHDL:
-        ::
-
-            -- (* FABulous, BelMap, INIT=0, INIT[1]=1, INIT[2]=2, FF=3 *)
+            Verilog:
+            ```
+                (*FABulous, BelMap, INIT=0, INIT_1=1, INIT_2=2,FF=3 *)
+            ```
+            VHDL:
+            ```
+                -- (* FABulous, BelMap, INIT=0, INIT[1]=1, INIT[2]=2, FF=3 *)
+            ```
         """

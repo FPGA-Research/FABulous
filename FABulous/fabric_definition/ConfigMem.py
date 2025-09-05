@@ -1,10 +1,18 @@
+"""Configuration memory definition module.
+
+This module contains the ConfigMem class which represents configuration memory entries
+for FPGA fabric tiles. Each entry maps configuration bits to frame locations for
+bitstream generation.
+"""
+
 from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True, eq=True)
 class ConfigMem:
-    """Data structure to store the information about a config memory. Each structure
-    represents a row of entries in the config memory CSV file.
+    """Data structure to store the information about a config memory.
+
+    Each structure represents a row of entries in the config memory CSV file.
 
     Attributes
     ----------
@@ -12,11 +20,11 @@ class ConfigMem:
         The name of the frame
     frameIndex : int
         The index of the frame
-    bitUsedInFrame : int
+    bitsUsedInFrame : int
         The number of bits used in the frame
-    usedBitMask : int
+    usedBitMask : str
         The bit mask of the bits used in the frame
-    configBitRanges : List[int]
+    configBitRanges : list[int]
         A list of config bit mapping values
     """
 

@@ -24,14 +24,7 @@ repos:
     rev: 1.7.0
     hooks:
       - id: interrogate
-        args: [
-            -vv,
-            --ignore-magic,
-            --ignore-init-module,
-            --fail-under=40,
-            --exclude,
-            docs,
-          ] # we should aim at 90%
+        args: [-vv, -c, pyproject.toml] # we should aim at 90%
         pass_filenames: false # needed if excluding files with pyproject.toml or setup.cfg
 
   - repo: https://github.com/Lucas-C/pre-commit-hooks
@@ -51,3 +44,10 @@ repos:
         args: [--fix]
       # Run the formatter.
       - id: ruff-format
+
+  - repo: https://github.com/jsh9/pydoclint
+    rev: 0.7.3
+    hooks:
+      - id: pydoclint
+        args: [--style=numpy]
+        exclude: ^(tests/|FABulous/FABulous_CLI/FABulous_CLI\.py$)

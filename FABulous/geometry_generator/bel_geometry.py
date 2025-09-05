@@ -1,4 +1,4 @@
-from csv import writer as csvWriter
+"""Class for generating and managing the geometry of BELs."""
 
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.define import IO
@@ -8,11 +8,15 @@ from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 class BelGeometry:
     """A data structure representing the geometry of a bel.
 
+    Sets all attributes to default values: None for names/sources,
+    zero for dimensions and coordinates, and empty lists for
+    port names and geometries.
+
     Attributes
     ----------
-    name : str
+    name : str | None
         Name of the bel
-    src : str
+    src : str | None
         File path of the bel HDL source file
     width : int
         Width of the bel
@@ -22,22 +26,22 @@ class BelGeometry:
         X coordinate of the bel, relative within the tile
     relY : int
         Y coordinate of the bel, relative within the tile
-    internalInputs : List[str]
+    internalInputs : list[str]
         Internal input port names of the bel
-    internalOutputs : List[str]
+    internalOutputs : list[str]
         Internal output port names of the bel
-    externalInputs : List[str]
+    externalInputs : list[str]
         External input port names of the bel
-    externalOutputs : List[str]
+    externalOutputs : list[str]
         External output port names of the bel
-    internalPortGeoms : List[PortGeometry]
+    internalPortGeoms : list[PortGeometry]
         List of geometries of the internal ports of the bel
-    externalPortGeoms : List[PortGeometry]
+    externalPortGeoms : list[PortGeometry]
         List of geometries of the external ports of the bel
     """
 
-    name: str
-    src: str
+    name: str | None
+    src: str | None
     width: int
     height: int
     relX: int
@@ -64,6 +68,19 @@ class BelGeometry:
         self.externalPortGeoms = []
 
     def generateGeometry(self, bel: Bel, padding: int) -> None:
+        """Generate the geometry for a BEL (Basic Element).
+
+        Creates the geometric representation of a BEL including its dimensions
+        and port layout. The height is determined by the maximum number of
+        ports on either side plus padding, while width is currently fixed.
+
+        Parameters
+        ----------
+        bel : Bel
+            The BEL object to generate the geometry for
+        padding : int
+            The padding space to add around the BEL
+        """
         self.name = bel.name
         self.src = bel.src
         self.internalInputs = bel.inputs
@@ -81,6 +98,19 @@ class BelGeometry:
         self.generatePortsGeometry(bel, padding)
 
     def generatePortsGeometry(self, bel: Bel, padding: int) -> None:
+        """Generate the geometry for all ports of the BEL.
+
+        Creates PortGeometry objects for all internal and external input/output
+        ports of the BEL. Internal ports are positioned on the left side (X=0),
+        while external ports are positioned on the right side (X=width).
+
+        Parameters
+        ----------
+        bel : Bel
+            The BEL object containing port information
+        padding : int
+            The padding space to add around ports
+        """
         internalPortX = 0
         internalPortY = padding // 2
         for port in self.internalInputs:
@@ -146,10 +176,33 @@ class BelGeometry:
             externalPortY += 1
 
     def adjustPos(self, relX: int, relY: int) -> None:
+        """Adjust the position of the BEL within its containing tile.
+
+        Updates the relative X and Y coordinates of the BEL to position
+        it correctly within the tile layout.
+
+        Parameters
+        ----------
+        relX : int
+            New relative X coordinate within the tile
+        relY : int
+            New relative Y coordinate within the tile
+        """
         self.relX = relX
         self.relY = relY
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: object) -> None:
+        """Save BEL geometry data to CSV format.
+
+        Writes the BEL geometry information including name, source file,
+        position, dimensions, and all port geometries to a CSV file
+        using the provided writer.
+
+        Parameters
+        ----------
+        writer : object
+            The CSV writer object to use for output
+        """
         writer.writerows(
             [
                 ["BEL"],

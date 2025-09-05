@@ -1,3 +1,9 @@
+"""FABulous settings management and environment configuration.
+
+This module handles configuration settings for the FABulous FPGA framework, including
+tool paths, project settings, and environment variable management.
+"""
+
 from importlib.metadata import version as meta_version
 from pathlib import Path
 from shutil import which
@@ -64,7 +70,6 @@ class FABulousSettings(BaseSettings):
         Uses already-validated proj_lang from info.data when available. Accepts None /
         empty string to mean unset.
         """
-
         proj_lang = info.data.get("proj_lang")
         if value is None or value == "":
             if p := info.data.get("proj_dir"):
@@ -176,7 +181,30 @@ class FABulousSettings(BaseSettings):
     @classmethod
     def resolve_tool_paths(
         cls, value: Path | None, info: ValidationInfo
-    ) -> Path | None:  # type: ignore[override]
+    ) -> Path | None:
+        """Resolve tool paths by checking if tools are available in `PATH`.
+
+        This method is used as a field validator to automatically resolve tool paths
+        during settings initialization. If a tool path is not explicitly provided,
+        it searches for the tool in the system `PATH`.
+
+        Parameters
+        ----------
+        value : Path | None
+            The explicitly provided tool path, if any.
+        info : ValidationInfo
+            Validation context containing field information.
+
+        Returns
+        -------
+        Path | None
+            The resolved path to the tool if found, `None` otherwise.
+
+        Notes
+        -----
+        This method logs a warning if a tool is not found in `PATH`, as some
+        features may be unavailable without the tool.
+        """
         if value is not None:
             return value
         tool_map = {
@@ -214,12 +242,18 @@ def init_context(
     This function gathers .env files and lets the pydantic-settings system handle
     project directory resolution.
 
-    Args:
-        global_dot_env: Global .env file path
-        project_dot_env: Project .env file path
-        explicit_project_dir: Explicitly provided project directory (highest priority)
+    Parameters
+    ----------
+    project_dir : Path | None
+        Project directory path (if None, uses cwd)
+    global_dot_env : Path | None
+        Path to a global .env file (if any)
+    project_dot_env : Path | None
+        Path to a project-specific .env file (if any)
 
-    Returns:
+    Returns
+    -------
+    FABulousSettings
         The initialized FABulousSettings instance
     """
     global _context_instance
@@ -289,11 +323,15 @@ def init_context(
 def get_context() -> FABulousSettings:
     """Get the global FABulous context.
 
-    Returns:
+    Returns
+    -------
+    FABulousSettings
         The current FABulousSettings instance
 
-    Raises:
-        RuntimeError: If context has not been initialized with init_context()
+    Raises
+    ------
+    RuntimeError
+        If context has not been initialized with init_context()
     """
     global _context_instance
 

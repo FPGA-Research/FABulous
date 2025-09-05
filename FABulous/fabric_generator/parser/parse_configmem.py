@@ -1,3 +1,17 @@
+"""Configuration memory parser for FABulous FPGA tiles.
+
+This module parses configuration memory CSV files that define how configuration
+bits are mapped to memory frames in frame-based configuration systems. It validates
+the configuration data structure and creates ConfigMem objects for code generation.
+
+The parser handles:
+- Frame-based configuration bit mapping
+- Bit mask validation for frame utilization
+- Configuration bit range parsing (single bits, ranges, lists)
+- Error checking for bit allocation conflicts
+- Memory frame structure validation
+"""
+
 import csv
 import re
 from pathlib import Path
@@ -15,10 +29,10 @@ def parseConfigMem(
 
     Parameters
     ----------
-    fileName : str
+    fileName : Path
         Directory of the config memory CSV file
     maxFramePerCol : int
-        Maximum number of frames per colum
+        Maximum number of frames per column
     frameBitPerRow : int
         Number of bits per row
     globalConfigBits : int
@@ -30,8 +44,8 @@ def parseConfigMem(
         - Invalid amount of frame entries in the config memory CSV file
         - Too many values in bit mask
         - Length of bit mask does not match the number of frame bits per row
-        - Bit mask does not have enough values matching the number of the given
-          config bits
+        - Bit mask does not have enough values matching the number of the
+          given config bits
         - Repeated config bit entry in ':' separated format in config bit range
         - Repeated config bit entry in list format in config bit range
         - Invalid range entry in config bit range

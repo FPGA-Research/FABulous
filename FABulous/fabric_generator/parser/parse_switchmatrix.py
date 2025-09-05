@@ -1,3 +1,10 @@
+"""Parser functions for switch matrix and list file configurations.
+
+This module provides utilities for parsing switch matrix CSV files and list files used
+in fabric definition. It handles expansion of port definitions, connection mappings, and
+validation of port configurations.
+"""
+
 import re
 from pathlib import Path
 from typing import Literal, overload
@@ -27,15 +34,14 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
 
     Raises
     ------
-    ValueError
+    InvalidSwitchMatrixDefinition
         Non matching matrix file content and tile name
 
     Returns
     -------
-    dict : [str, list[str]]
+    dict[str, list[str]]
         Dictionary from destination to a list of sources.
     """
-
     connectionsDic = {}
     with fileName.open() as f:
         file = f.read()
@@ -74,7 +80,7 @@ def parseList(
     pass
 
 
-def expandListPorts(port: str, PortList: list[str]) -> None:
+def expandListPorts(port: str, portList: list[str]) -> None:
     """Expand the .list file entry into a list of tuples.
 
     Parameters
@@ -82,7 +88,7 @@ def expandListPorts(port: str, PortList: list[str]) -> None:
     port : str
         The port entry to expand. If it contains "[", it's split
         into multiple entries based on "|".
-    PortList : list
+    portList : list[str]
         The list where expanded port entries are appended.
 
     Raises
@@ -106,13 +112,13 @@ def expandListPorts(port: str, PortList: list[str]) -> None:
         ExpandList = re.split(r"\|", port[left_index + 1 : right_index])
         for entry in ExpandList:
             ExpandListItem = before_left_index + entry + after_right_index
-            expandListPorts(ExpandListItem, PortList)
+            expandListPorts(ExpandListItem, portList)
 
     else:
         # Multiply ports by the number of multipliers, given in the curly braces.
         # We let all curly braces in the port Expansion to be expanded and
-        # calculate the total number of ports to be added afterward, based on the
-        # number of multipliers.
+        # calculate the total number of ports to be added afterward,
+        # based on the number of multipliers.
         # Also remove the multipliers from port name, before adding it to the list.
         port = port.replace(" ", "")  # remove spaces
         multipliers = re.findall(r"\{(\d+)\}", port)
@@ -121,9 +127,9 @@ def expandListPorts(port: str, PortList: list[str]) -> None:
             port = re.sub(r"\{(\d+)\}", "", port)
             logger.debug(f"Port {port} has {portMultiplier} multipliers")
             for _i in range(portMultiplier):
-                PortList.append(port)
+                portList.append(port)
         else:
-            PortList.append(port)
+            portList.append(port)
 
 
 def parseList(
@@ -134,23 +140,23 @@ def parseList(
 
     Parameters
     ----------
-    fileName : Path
-        ""
-    collect : (Literal["", "source", "sink"], optional)
+    filePath : Path
+        The path to the list file to parse.
+    collect : Literal["pair", "source", "sink"], optional
         Collect value by source, sink or just as pair. Defaults to "pair".
 
     Raises
     ------
-    ValueError
+    FileNotFoundError
         The file does not exist.
-    ValueError
+    InvalidListFileDefinition
         Invalid format in the list file.
 
     Returns
     -------
-    Union : [list[tuple[str, str]], dict[str, list[str]]]
-        Return either a list of connection pairs or a dictionary of lists which
-        is collected by the specified option, source or sink.
+    list[tuple[str, str]] | dict[str, list[str]]
+        Return either a list of connection pairs or a dictionary of lists which is
+        collected by the specified option, source or sink.
     """
     if not filePath.exists():
         raise FileNotFoundError(f"The file {filePath} does not exist.")
@@ -207,6 +213,23 @@ def parseList(
 
 
 def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
+    """Parse a single line of the port configuration from the CSV file.
+
+    Parameters
+    ----------
+    line : str
+        CSV line containing port configuration data.
+
+    Raises
+    ------
+    InvalidPortType
+        If the port definition is invalid.
+
+    Returns
+    -------
+    tuple[list[Port], tuple[str, str] | None]
+        A tuple containing a list of parsed ports and an optional common wire pair.
+    """
     ports = []
     commonWirePair: tuple[str, str] | None
     temp: list[str] = line.split(",")
