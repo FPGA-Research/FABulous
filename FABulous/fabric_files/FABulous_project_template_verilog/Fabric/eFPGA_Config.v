@@ -1,8 +1,24 @@
-module eFPGA_Config (CLK, resetn, Rx, ComActive, ReceiveLED, s_clk, s_data, SelfWriteData, SelfWriteStrobe, ConfigWriteData, ConfigWriteStrobe, FrameAddressRegister, LongFrameStrobe, RowSelect);
-    parameter NumberOfRows = 16;
-    parameter RowSelectWidth = 5;
-    parameter FrameBitsPerRow = 32;
-    parameter desync_flag = 20;
+`timescale 1ps/1ps
+module eFPGA_Config (
+    CLK,
+    resetn,
+    Rx,
+    ComActive,
+    ReceiveLED,
+    s_clk,
+    s_data,
+    SelfWriteData,
+    SelfWriteStrobe,
+    ConfigWriteData,
+    ConfigWriteStrobe,
+    FrameAddressRegister,
+    LongFrameStrobe,
+    RowSelect
+);
+    parameter integer NumberOfRows = 16;
+    parameter integer RowSelectWidth = 5;
+    parameter integer FrameBitsPerRow = 32;
+    parameter integer desync_flag = 20;  // verilog_lint: waive parameter-name-style
     input CLK;
     input resetn;
     // UART configuration port
@@ -13,8 +29,8 @@ module eFPGA_Config (CLK, resetn, Rx, ComActive, ReceiveLED, s_clk, s_data, Self
     input s_clk;
     input s_data;
     // CPU configuration port
-    input [32-1:0] SelfWriteData; // configuration data write port
-    input SelfWriteStrobe; // must decode address and write enable
+    input [32-1:0] SelfWriteData;  // configuration data write port
+    input SelfWriteStrobe;  // must decode address and write enable
 
     output [32-1:0] ConfigWriteData;
     output ConfigWriteStrobe;
@@ -40,25 +56,25 @@ module eFPGA_Config (CLK, resetn, Rx, ComActive, ReceiveLED, s_clk, s_data, Self
     wire FSM_Reset;
 
     config_UART INST_config_UART (
-    .CLK(CLK),
-    .resetn(resetn),
-    .Rx(Rx),
-    .WriteData(UART_WriteData),
-    .ComActive(UART_ComActive),
-    .WriteStrobe(UART_WriteStrobe),
-    .Command(Command),
-    .ReceiveLED(UART_LED)
+        .CLK(CLK),
+        .resetn(resetn),
+        .Rx(Rx),
+        .WriteData(UART_WriteData),
+        .ComActive(UART_ComActive),
+        .WriteStrobe(UART_WriteStrobe),
+        .Command(Command),
+        .ReceiveLED(UART_LED)
     );
 
     //bitbang
     bitbang Inst_bitbang (
-    .s_clk(s_clk),
-    .s_data(s_data),
-    .strobe(BitBangWriteStrobe),
-    .data(BitBangWriteData),
-    .active(BitBangActive),
-    .clk(CLK),
-    .resetn(resetn)
+        .s_clk(s_clk),
+        .s_data(s_data),
+        .strobe(BitBangWriteStrobe),
+        .data(BitBangWriteData),
+        .active(BitBangActive),
+        .clk(CLK),
+        .resetn(resetn)
     );
 
     // BitBangActive is used to switch between bitbang or internal configuration port (BitBang has therefore higher priority)
@@ -75,28 +91,27 @@ module eFPGA_Config (CLK, resetn, Rx, ComActive, ReceiveLED, s_clk, s_data, Self
     assign FSM_Reset = UART_ComActive || BitBangActive;
 
     assign ComActive = UART_ComActive;
-    assign ReceiveLED = UART_LED^BitBangWriteStrobe;
+    assign ReceiveLED = UART_LED ^ BitBangWriteStrobe;
 
-//  wire [FrameBitsPerRow-1:0] FrameAddressRegister;
-//  wire LongFrameStrobe;
-//  wire [RowSelectWidth-1:0] RowSelect;
+    //  wire [FrameBitsPerRow-1:0] FrameAddressRegister;
+    //  wire LongFrameStrobe;
+    //  wire [RowSelectWidth-1:0] RowSelect;
 
     ConfigFSM #(
-    .NumberOfRows(NumberOfRows),
-    .RowSelectWidth(RowSelectWidth),
-    .FrameBitsPerRow(FrameBitsPerRow),
-    .desync_flag(desync_flag)
-    )
-    ConfigFSM_inst
-    (.CLK(CLK),
-    .resetn(resetn),
-    .WriteData(UART_WriteData_Mux),
-    .WriteStrobe(UART_WriteStrobe_Mux),
-    .FSM_Reset(FSM_Reset),
-    //outputs
-    .FrameAddressRegister(FrameAddressRegister),
-    .LongFrameStrobe(LongFrameStrobe),
-    .RowSelect(RowSelect)
+        .NumberOfRows(NumberOfRows),
+        .RowSelectWidth(RowSelectWidth),
+        .FrameBitsPerRow(FrameBitsPerRow),
+        .desync_flag(desync_flag)
+    ) ConfigFSM_inst (
+        .CLK(CLK),
+        .resetn(resetn),
+        .WriteData(UART_WriteData_Mux),
+        .WriteStrobe(UART_WriteStrobe_Mux),
+        .FSM_Reset(FSM_Reset),
+        //outputs
+        .FrameAddressRegister(FrameAddressRegister),
+        .LongFrameStrobe(LongFrameStrobe),
+        .RowSelect(RowSelect)
     );
 
 endmodule

@@ -1,0 +1,38 @@
+name: HDL linting
+
+on: [pull_request]
+
+jobs:
+
+  format-verilog:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - uses: ./.github/actions/prepare_FABulous_container
+    - uses: chipsalliance/verible-formatter-action@main
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        parameters: --inplace, --flagfile, .rules.verible_format
+  lint-verilog:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - uses: ./.github/actions/prepare_FABulous_container
+    - uses: chipsalliance/verible-linter-action@main
+      with:
+        config_file: 'config.rules'
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Run Verilog Linter
+      run: |
+        uv run FABulous -c demo
+        verilator -Wall --no-timing --lint-only demo/**/*.v
+
+  lint-vhdl:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - uses: ./.github/actions/prepare_FABulous_container
+    - name: Run VHDL Linter
+      run: | 
+        uv run FABulous -c demo_vhdl -w vhdl
+        ghdl -s --std=08 demo_vhdl/**/*.vhdl
