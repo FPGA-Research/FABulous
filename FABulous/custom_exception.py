@@ -1,3 +1,11 @@
+"""Custom exception classes for the FABulous framework.
+
+This module defines all custom exceptions used throughout the FABulous framework for
+better error handling and debugging. Each exception class is designed for specific error
+scenarios that can occur during fabric generation, parsing, and configuration.
+"""
+
+
 class CommandError(Exception):
     """Exception raised for errors in the command execution."""
 

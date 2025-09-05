@@ -1,3 +1,5 @@
+"""Classes for generating and managing the geometry of FPGA fabrics."""
+
 from csv import writer as csvWriter
 from pathlib import Path
 
@@ -9,8 +11,10 @@ from FABulous.geometry_generator.tile_geometry import TileGeometry
 
 
 class FabricGeometry:
-    """This class fetches and holds geometric information about a fabric. Objects of
-    this class can be constructed by passing a Fabric object and optionally, padding.
+    """Fetch and hold geometric information about a fabric.
+
+    Objects of this class can be constructed by passing a `Fabric` object
+    and optionally, padding.
 
     Attributes
     ----------
@@ -39,6 +43,18 @@ class FabricGeometry:
     height: int
 
     def __init__(self, fabric: Fabric, padding: int = 8) -> None:
+        """Initialize a FabricGeometry instance.
+
+        Creates the fabric geometry by processing the given fabric definition
+        and automatically generating the complete geometric layout.
+
+        Parameters
+        ----------
+        fabric : Fabric
+            The fabric object from CSV definition files
+        padding : int, optional
+            Padding used throughout the geometry, by default 8
+        """
         self.fabric = fabric
         self.tileNames = set()
         self.tileGeomMap = {}
@@ -50,14 +66,13 @@ class FabricGeometry:
         self.generateGeometry()
 
     def generateGeometry(self) -> None:
-        """Generates the geometric information from the given fabric object."""
+        """Generate the geometric information from the given fabric object.
 
-        # here, the border attribute is set for tiles that are
-        # located at a border of the tile. This is done to
-        # ensure no stair-like wires being generated for these tiles.
-        # The distinction left/right and top/bottom is made, to
-        # prevent generation of horizontal and vertical stair-like
-        # wires respectively.
+        The border attribute is set for tiles that are located at a border of the tile.
+        This is done to ensure no stair-like wires being generated for these tiles. The
+        distinction left/right and top/bottom is made, to prevent generation of
+        horizontal and vertical stair-like wires respectively.
+        """
         for i in range(self.fabric.numberOfRows):
             for j in range(self.fabric.numberOfColumns):
                 tile = self.fabric.tile[i][j]
@@ -208,8 +223,7 @@ class FabricGeometry:
             tileGeom.generateWires(self.padding)
 
     def saveToCSV(self, fileName: str) -> None:
-        """Saves the generated geometric information of the given fabric to a .csv file
-        that can be imported into the graphical frontend.
+        """Save geometric information of the given fabric for the graphical frontend.
 
         Parameters
         ----------
@@ -258,6 +272,16 @@ class FabricGeometry:
                 tileGeometry.saveToCSV(writer)
 
     def __repr__(self) -> str:
+        """Return the string representation of the fabric geometry.
+
+        Provides a formatted view of the tile dimensions and locations in a
+        grid layout showing the fabric structure.
+
+        Returns
+        -------
+        str
+            Multi-line string showing tile dimensions and locations
+        """
         geometry = "Respective dimensions of tiles: \n"
         for i in range(self.fabric.numberOfRows):
             for j in range(self.fabric.numberOfColumns):

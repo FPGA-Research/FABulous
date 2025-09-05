@@ -1,4 +1,4 @@
-from csv import writer as csvWriter
+"""Class for generating and managing the geometry of BELs."""
 
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.define import IO
@@ -50,6 +50,12 @@ class BelGeometry:
     externalPortGeoms: list[PortGeometry]
 
     def __init__(self) -> None:
+        """Initialize a BelGeometry instance.
+
+        Sets all attributes to default values: None for names/sources,
+        zero for dimensions and coordinates, and empty lists for
+        port names and geometries.
+        """
         self.name = None
         self.src = None
         self.width = 0
@@ -64,6 +70,19 @@ class BelGeometry:
         self.externalPortGeoms = []
 
     def generateGeometry(self, bel: Bel, padding: int) -> None:
+        """Generate the geometry for a BEL (Basic Element).
+
+        Creates the geometric representation of a BEL including its dimensions
+        and port layout. The height is determined by the maximum number of
+        ports on either side plus padding, while width is currently fixed.
+
+        Parameters
+        ----------
+        bel : Bel
+            The BEL object to generate the geometry for
+        padding : int
+            The padding space to add around the BEL
+        """
         self.name = bel.name
         self.src = bel.src
         self.internalInputs = bel.inputs
@@ -81,6 +100,19 @@ class BelGeometry:
         self.generatePortsGeometry(bel, padding)
 
     def generatePortsGeometry(self, bel: Bel, padding: int) -> None:
+        """Generate the geometry for all ports of the BEL.
+
+        Creates PortGeometry objects for all internal and external input/output
+        ports of the BEL. Internal ports are positioned on the left side (X=0),
+        while external ports are positioned on the right side (X=width).
+
+        Parameters
+        ----------
+        bel : Bel
+            The BEL object containing port information
+        padding : int
+            The padding space to add around ports
+        """
         internalPortX = 0
         internalPortY = padding // 2
         for port in self.internalInputs:
@@ -146,10 +178,33 @@ class BelGeometry:
             externalPortY += 1
 
     def adjustPos(self, relX: int, relY: int) -> None:
+        """Adjust the position of the BEL within its containing tile.
+
+        Updates the relative X and Y coordinates of the BEL to position
+        it correctly within the tile layout.
+
+        Parameters
+        ----------
+        relX : int
+            New relative X coordinate within the tile
+        relY : int
+            New relative Y coordinate within the tile
+        """
         self.relX = relX
         self.relY = relY
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: object) -> None:
+        """Save BEL geometry data to CSV format.
+
+        Writes the BEL geometry information including name, source file,
+        position, dimensions, and all port geometries to a CSV file
+        using the provided writer.
+
+        Parameters
+        ----------
+        writer :
+            The CSV writer object to use for output
+        """
         writer.writerows(
             [
                 ["BEL"],

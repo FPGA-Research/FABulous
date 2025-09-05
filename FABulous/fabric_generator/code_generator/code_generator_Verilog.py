@@ -1,3 +1,5 @@
+"""The Verilog code generator."""
+
 import math
 import re
 from pathlib import Path
@@ -12,6 +14,14 @@ class VerilogCodeGenerator(CodeGenerator):
     def addComment(
         self, comment: str, onNewLine: bool = False, end: str = "", indentLevel: int = 0
     ) -> None:
+        """Add a Verilog comment to the generated code.
+
+        Args:
+            comment: The comment text to add
+            onNewLine: Whether to add the comment on a new line
+            end: Additional text to append at the end
+            indentLevel: The indentation level for the comment
+        """
         if onNewLine:
             self._add("")
         if self._content:
@@ -20,15 +30,37 @@ class VerilogCodeGenerator(CodeGenerator):
             self._add(f"{' ':<{indentLevel * 4}}" + f"// {comment}{end}")
 
     def addHeader(self, name: str, _package: str = "", indentLevel: int = 0) -> None:
+        """Add the Verilog module header.
+
+        Args:
+            name: Module name
+            _package: Package parameter (unused in Verilog)
+            indentLevel: The indentation level
+        """
         self._add(f"module {name}", indentLevel)
 
     def addHeaderEnd(self, name: str, indentLevel: int = 0) -> None:
-        pass
+        """Add the module end statement (no-op for Verilog).
+
+        Args:
+            name: Module name (unused)
+            indentLevel: The indentation level (unused)
+        """
 
     def addParameterStart(self, indentLevel: int = 0) -> None:
+        """Start the parameter declaration section.
+
+        Args:
+            indentLevel: The indentation level
+        """
         self._add("#(", indentLevel)
 
     def addParameterEnd(self, indentLevel: int = 0) -> None:
+        """End the parameter declaration section.
+
+        Args:
+            indentLevel: The indentation level
+        """
         temp = self._content.pop()
         if "//" in temp:
             temp2 = self._content.pop()[:-1]
@@ -41,15 +73,34 @@ class VerilogCodeGenerator(CodeGenerator):
     def addParameter(
         self, name: str, storageType: str, value: str, indentLevel: int = 0
     ) -> None:
+        """Add a parameter declaration.
+
+        Args:
+            name: Parameter name
+            storageType: Parameter type or width specification
+            value: Default value
+            indentLevel: The indentation level
+        """
         if storageType.startswith("["):
             self._add(f"parameter {storageType} {name}={value},", indentLevel)
         else:
             self._add(f"parameter {name}={value},", indentLevel)
 
     def addPortStart(self, indentLevel: int = 0) -> None:
+        """Start the port declaration section.
+
+        Args:
+            indentLevel: The indentation level
+        """
         self._add("(", indentLevel)
 
     def addPortEnd(self, indentLevel: int = 0) -> None:
+        """End the port declaration section.
+
+        Args:
+            indentLevel: The indentation level
+        """
+
         def deComma(x: str) -> str:
             cpos = x.rfind(",")
             assert cpos != -1, x
@@ -72,6 +123,15 @@ class VerilogCodeGenerator(CodeGenerator):
         attribute: str = "",
         indentLevel: int = 0,
     ) -> None:
+        """Add a scalar port declaration.
+
+        Args:
+            name: Port name
+            io: Input/output direction
+            reg: Whether the port should be declared as a `reg` type
+            attribute: Additional attributes to add as Verilog attribute
+            indentLevel: The indentation level
+        """
         ioString = io.value.lower()
         if attribute:
             attribute = f"(* FABulous, {attribute} *) "
@@ -87,6 +147,16 @@ class VerilogCodeGenerator(CodeGenerator):
         attribute: str = "",
         indentLevel: int = 0,
     ) -> None:
+        """Add a vector port declaration.
+
+        Args:
+            name: Port name
+            io: Input/output direction
+            msbIndex: Most significant bit index
+            reg: Whether port should be declared as `reg` type
+            attribute: Additional attributes to add as Verilog attribute
+            indentLevel: The indentation level
+        """
         ioString = io.value.lower()
         regString = "reg" if reg else ""
         if attribute:
@@ -96,17 +166,43 @@ class VerilogCodeGenerator(CodeGenerator):
         )
 
     def addDesignDescriptionStart(self, name: str, indentLevel: int = 0) -> None:
-        pass
+        """Start the design description (no-op for Verilog).
+
+        Args:
+            name: Module name (unused)
+            indentLevel: The indentation level (unused)
+        """
 
     def addDesignDescriptionEnd(self, indentLevel: int = 0) -> None:
+        """End the design description with endmodule.
+
+        Args:
+            indentLevel: The indentation level
+        """
         self._add("endmodule", indentLevel)
 
     def addConstant(self, name: str, value: str, indentLevel: int = 0) -> None:
+        """Add a parameter/constant declaration.
+
+        Args:
+            name: Constant name
+            value: Constant value
+            indentLevel: The indentation level
+        """
         self._add(f"parameter {name} = {value};", indentLevel)
 
     def addConnectionScalar(
         self, name: str, reg: bool = False, indentLevel: int = 0
     ) -> None:
+        """Add a scalar `wire` or `reg` declaration.
+
+        Args:
+            name: Signal name
+            reg: If True, the connection will be declared as a `reg` type.
+                 If False, the connection will be declared as a `wire`.
+                 Defaults to False.
+            indentLevel: The indentation level
+        """
         con_type = "reg" if reg else "wire"
         self._add(f"{con_type} {name};", indentLevel)
 
@@ -118,14 +214,31 @@ class VerilogCodeGenerator(CodeGenerator):
         reg: bool = False,
         indentLevel: int = 0,
     ) -> None:
+        """Add a vector wire or reg declaration.
+
+        Args:
+            name: Signal name
+            startIndex: Start index (MSB)
+            endIndex: End index (LSB)
+            reg: Whether to declare as `reg` type
+            indentLevel: The indentation level
+        """
         con_type = "reg" if reg else "wire"
         self._add(f"{con_type}[{startIndex}:{endIndex}] {name};", indentLevel)
 
     def addLogicStart(self, indentLevel: int = 0) -> None:
-        pass
+        """Start the logic section (no-op for Verilog).
+
+        Args:
+            indentLevel: The indentation level (unused)
+        """
 
     def addLogicEnd(self, indentLevel: int = 0) -> None:
-        pass
+        """End the logic section (no-op for Verilog).
+
+        Args:
+            indentLevel: The indentation level (unused)
+        """
 
     def addInstantiation(
         self,
@@ -136,6 +249,16 @@ class VerilogCodeGenerator(CodeGenerator):
         emulateParamPairs: list[tuple[str, str]] | None = None,
         indentLevel: int = 0,
     ) -> None:
+        """Add a module instantiation.
+
+        Args:
+            compName: Module name
+            compInsName: Instance name
+            portsPairs: List of (port, signal) pairs for port mapping
+            paramPairs: List of (parameter, value) pairs for parameter mapping
+            emulateParamPairs: Parameters for emulation mode only
+            indentLevel: The indentation level
+        """
         if emulateParamPairs is None:
             emulateParamPairs = []
         if paramPairs is None:
@@ -180,6 +303,15 @@ class VerilogCodeGenerator(CodeGenerator):
         self.addNewLine()
 
     def addComponentDeclarationForFile(self, fileName: Path | str) -> int:
+        """Check if a Verilog file uses configuration bits.
+
+        Args:
+            fileName: Path to the Verilog file to analyze
+
+        Returns
+        -------
+            1 if file uses configuration bits, 0 otherwise
+        """
         configPortUsed = 0  # 1 means is used
         with Path(fileName).open() as f:
             data = f.read()
@@ -194,6 +326,12 @@ class VerilogCodeGenerator(CodeGenerator):
         return configPortUsed
 
     def addShiftRegister(self, configBits: int, indentLevel: int = 0) -> None:
+        """Add a shift register for configuration bits.
+
+        Args:
+            configBits: Number of configuration bits
+            indentLevel: The indentation level
+        """
         template = f"""
 // the configuration bits shift register
     always @ (posedge CLK)
@@ -208,6 +346,12 @@ class VerilogCodeGenerator(CodeGenerator):
         self._add(template, indentLevel)
 
     def addFlipFlopChain(self, configBits: int, indentLevel: int = 0) -> None:
+        """Add a flip-flop chain for configuration bits.
+
+        Args:
+            configBits: Number of configuration bits
+            indentLevel: The indentation level
+        """
         cfgBit = int(math.ceil(configBits / 2.0)) * 2
         template = f"""
     genvar k;
@@ -237,6 +381,15 @@ class VerilogCodeGenerator(CodeGenerator):
         inverted: bool = False,
         indentLevel: int = 0,
     ) -> None:
+        """Add a clocked register always block.
+
+        Args:
+            reg: Register output signal name
+            regIn: Register input signal name
+            clk: Clock signal name
+            inverted: Whether to invert the input
+            indentLevel: The indentation level
+        """
         inv = "~" if inverted else ""
         template = f"""
 always @ (posedge {clk})
@@ -254,6 +407,15 @@ end
         indentLevel: int = 0,
         inverted: bool = False,
     ) -> None:
+        """Add a continuous assignment statement.
+
+        Args:
+            left: Left-hand side signal
+            right: Right-hand side signal or expression
+            delay: Delay (unused in Verilog implementation)
+            inverted: Whether to invert the right-hand side of the expression
+            inverted: Whether to invert the right-hand side
+        """
         inv = "~" if inverted else ""
         if isinstance(right, list):
             self._add(f"assign {left} = {inv}{{{','.join(right)}}};", indentLevel)
@@ -269,24 +431,62 @@ end
         indentLevel: int = 0,
         inverted: bool = False,
     ) -> None:
+        """Add a vector slice assignment.
+
+        Args:
+            left: Left-hand side signal
+            right: Right-hand side signal
+            widthL: Upper bound of slice
+            widthR: Lower bound of slice
+            inverted: Whether to invert the right-hand side of the expression
+            inverted: Whether to invert the right-hand side
+        """
         inv = "~" if inverted else ""
         self._add(f"assign {left} = {inv}{right}[{widthL}:{widthR}];", indentLevel)
 
     def addPreprocIfDef(self, macro: str, indentLevel: int = 0) -> None:
+        """Add an `ifdef` preprocessor directive.
+
+        Args:
+            macro: Macro name to check
+            indentLevel: The indentation level
+        """
         self._add(f"`ifdef {macro}", indentLevel)
 
     def addPreprocIfNotDef(self, macro: str, indentLevel: int = 0) -> None:
+        """Add an `ifndef` preprocessor directive.
+
+        Args:
+            macro: Macro name to check
+            indentLevel: The indentation level
+        """
         self._add(f"`ifndef {macro}", indentLevel)
 
     def addPreprocElse(self, indentLevel: int = 0) -> None:
+        """Add an `else` preprocessor directive.
+
+        Args:
+            indentLevel: The indentation level
+        """
         self._add("`else", indentLevel)
 
     def addPreprocEndif(self, indentLevel: int = 0) -> None:
+        """Add an `endif` preprocessor directive.
+
+        Args:
+            indentLevel: The indentation level
+        """
         self._add("`endif", indentLevel)
 
     def addBelMapAttribute(
         self, configBitValues: list[tuple[str, int]], indentLevel: int = 0
     ) -> None:
+        """Add the BEL mapping attribute as a Verilog attribute.
+
+        Args:
+            configBitValues: List of (name, count) pairs for configuration bits
+            indentLevel: The indentation level
+        """
         template = "(* FABulous, BelMap"
         bit_count = 0
         for value, count in configBitValues:

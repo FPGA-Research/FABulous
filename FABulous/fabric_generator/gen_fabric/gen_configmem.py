@@ -1,3 +1,11 @@
+"""Configuration memory generation module.
+
+This module provides functions to generate configuration memory initialization files and
+RTL code for fabric tiles. It handles the mapping of configuration bits to frames and
+generates the necessary hardware description language code for memory access and
+control.
+"""
+
 import csv
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -19,8 +27,9 @@ if TYPE_CHECKING:
 
 
 def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) -> None:
-    """This function is used to generate the config memory initialization file for a
-    given amount of configuration bits. The amount of configuration bits is determined
+    """Generate the config memory initialization file.
+
+    The amount of configuration bits is determined
     by the `frameBitsPerRow` attribute of the fabric. The function will pack the
     configuration bit from the highest to the lowest bit in the config memory. I. e. if
     there are 100 configuration bits, with 32 frame bits per row, the function will pack
@@ -33,7 +42,6 @@ def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) 
     tileConfigBitsCount : int
         The number of tile config bits of the tile.
     """
-
     if tileConfigBitsCount > fabric.frameBitsPerRow * fabric.maxFramesPerCol:
         raise ValueError(
             f"Tile config bits ({tileConfigBitsCount}) exceed fabric capacity "
@@ -84,9 +92,16 @@ def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) 
 def generateConfigMem(
     writer: CodeGenerator, fabric: Fabric, tile: Tile, configMemCsv: Path
 ) -> None:
-    """This function will generate the RTL code for configuration memory of the given
-    tile. If the given configMemCsv file does not exist, it will be created using
+    """Generate the RTL code for configuration memory.
+
+    If the given configMemCsv file does not exist, it will be created using
     `generateConfigMemInit`.
+
+    We use a file to describe the exact configuration bits to frame mapping
+    the following command generates an init file with a
+    simple enumerated default mapping (e.g. 'LUT4AB_ConfigMem.init.csv')
+    if we run this function again, but have such a file (without the .init),
+    then that mapping will be used
 
     Parameters
     ----------
@@ -95,12 +110,6 @@ def generateConfigMem(
     configMemCsv : str
         The directory of the config memory CSV file.
     """
-    # we use a file to describe the exact configuration bits to frame mapping
-    # the following command generates an init file with a simple enumerated default
-    # mapping (e.g. 'LUT4AB_ConfigMem.init.csv')
-    # if we run this function again, but have such a file (without the .init),
-    # then that mapping will be used
-
     # test if we have a bitstream mapping file
     # if not, we will take the default, which was passed on from  GenerateConfigMemInit
     if tile.globalConfigBits > fabric.frameBitsPerRow * fabric.maxFramesPerCol:

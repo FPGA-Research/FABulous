@@ -1,3 +1,5 @@
+"""Test FABulousSettings class."""
+
 import os
 from pathlib import Path
 
@@ -20,8 +22,7 @@ class TestFABulousSettings:
     def test_default_initialization(
         self, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture, project: Path
     ) -> None:
-        """Test FABulousSettings initialization with default values and no
-        environment variables."""
+        """Test FABulousSettings initialization with clean state."""
         # Clear all FAB_ environment variables
         for key in list(os.environ.keys()):
             if key.startswith("FAB_"):
@@ -171,8 +172,7 @@ class TestFieldValidators:
             FABulousSettings.validate_proj_lang("python")
 
     def test_ensure_user_config_dir_creates_directory(self, tmp_path: Path) -> None:
-        """Test ensure_user_config_dir validator creates directory if it doesn't
-        exist."""
+        """Test ensure_user_config_dir creates directory if it doesn't exist."""
         config_dir = tmp_path / "config" / "nested"
         assert not config_dir.exists()
 
@@ -581,8 +581,8 @@ class TestContextMethods:
         self, project: Path, tmp_path: Path
     ) -> None:
         """Test context initialization with invalid values in .env files."""
-        # Remove the project's default .env file so our invalid .env file takes
-        # precedence
+        # Remove the project's default .env file so our invalid
+        # .env file takes precedence
         project_default_env = project / ".FABulous" / ".env"
         if project_default_env.exists():
             project_default_env.unlink()

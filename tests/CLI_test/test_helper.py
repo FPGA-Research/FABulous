@@ -1,3 +1,5 @@
+"""Tests for FABulous CLI helper functions."""
+
 from pathlib import Path
 
 import pytest
@@ -6,6 +8,7 @@ from FABulous.FABulous_CLI.helper import create_project, update_project_version
 
 
 def test_create_project(tmp_path: Path) -> None:
+    """Test creating a Verilog project."""
     # Test Verilog project creation
     project_dir = tmp_path / "test_project_verilog"
     create_project(project_dir)
@@ -29,6 +32,7 @@ def test_create_project(tmp_path: Path) -> None:
 
 
 def test_create_project_vhdl(tmp_path: Path) -> None:
+    """Test creating a VHDL project."""
     # Test VHDL project creation
     project_dir = tmp_path / "test_project_vhdl"
     create_project(project_dir, lang="vhdl")
@@ -51,6 +55,7 @@ def test_create_project_vhdl(tmp_path: Path) -> None:
 
 
 def test_create_project_existing_dir(tmp_path: Path) -> None:
+    """Test creating project in existing directory should fail."""
     # Test creating project in existing directory
     project_dir = tmp_path / "existing_dir"
     project_dir.mkdir()
@@ -62,6 +67,7 @@ def test_create_project_existing_dir(tmp_path: Path) -> None:
 def test_update_project_version_success(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Test successful project version update."""
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)
     env_file = env_dir / ".env"
@@ -75,6 +81,7 @@ def test_update_project_version_success(
 
 
 def test_update_project_version_missing_version(tmp_path: Path) -> None:
+    """Test version update when version is missing from `.env` file."""
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)
     env_file = env_dir / ".env"
@@ -86,6 +93,7 @@ def test_update_project_version_missing_version(tmp_path: Path) -> None:
 def test_update_project_version_major_mismatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Test version update when major versions don't match."""
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)
     env_file = env_dir / ".env"

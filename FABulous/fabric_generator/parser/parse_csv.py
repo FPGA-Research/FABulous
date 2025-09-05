@@ -1,3 +1,5 @@
+"""Contains functions for parsing CSV files related to the fabric definition."""
+
 import re
 from copy import deepcopy
 from pathlib import Path
@@ -36,7 +38,7 @@ if TYPE_CHECKING:
 
 
 def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
-    """Parses a CSV tile configuration file and returns all tile objects.
+    """Parse a CSV tile configuration file and returns all tile objects.
 
     Parameters
     ----------
@@ -353,7 +355,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
 
 
 def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]:
-    """Parses a CSV supertile configuration file and returns all SuperTile objects.
+    """Parse a CSV supertile configuration file and returns all SuperTile objects.
 
     Parameters
     ----------
@@ -427,7 +429,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
 
 def parseFabricCSV(fileName: str) -> Fabric:
-    """Parses a CSV file and returns a fabric object.
+    """Parse a CSV file and returns a fabric object.
 
     Parameters
     ----------
@@ -455,7 +457,6 @@ def parseFabricCSV(fileName: str) -> Fabric:
     Fabric
         The fabric object.
     """
-
     fName = Path(fileName)
     if fName.suffix != ".csv":
         raise InvalidFileType("File must be a csv file")

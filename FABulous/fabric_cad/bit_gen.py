@@ -1,5 +1,15 @@
 #!/usr/bin/env python
 
+"""Bitstream generation utilities for FABulous FPGA fabrics.
+
+This module provides functionality for generating bitstreams from FASM (FPGA Assembly)
+files for FABulous FPGA fabrics. It handles the conversion of place-and-route results
+into configuration bitstreams that can be loaded onto the FPGA fabric.
+
+The module includes functions for parsing FASM files, processing configuration bits, and
+generating the final bitstream output in various formats.
+"""
+
 import pickle
 import re
 import sys
@@ -21,12 +31,33 @@ except ImportError:
 
 
 def bitstring_to_bytes(s: str) -> bytes:
+    """Convert binary string to bytes.
+
+    Parameters
+    ----------
+    s : str
+        Binary string (e.g., '10110101')
+
+    Returns
+    -------
+    bytes
+        Byte representation of the binary string
+    """
     return int(s, 2).to_bytes((len(s) + 7) // 8, byteorder="big")
 
 
-# CAD methods from summer vacation project 2020
-# Method to generate bitstream in the output format - more detail at the end
 def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str) -> None:
+    """
+    Generate the bitstream from the FASM file using the bitstream specification.
+
+    ----------
+    fasmFile : str
+        Path to FASM file containing configuration features
+    specFile : str
+        Path to pickle file containing bitstream specification
+    bitstreamFile : str
+        Output path for generated bitstream file
+    """
     lGen = parse_fasm_filename(fasmFile)
     canonStr = fasm_tuple_to_string(lGen, True)
     canonList = list(parse_fasm_string(canonStr))
@@ -45,10 +76,10 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str) -> None:
         tileDict[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
         tileDict_No_Mask[tile] = [0] * (MaxFramesPerCol * FrameBitsPerRow)
 
-    # NOTE: SOME OF THE FOLLOWING METHODS HAVE BEEN CHANGED DUE TO A MODIFIED
-    # BITSTREAM SPEC FORMAT
-    # Please bear in mind that the tilespecs are now mapped by tile loc and
-    #  not by cell type
+    # NOTE: SOME OF THE FOLLOWING METHODS HAVE BEEN CHANGED DUE TO A MODIFIED BITSTREAM
+    # SPEC FORMAT
+    # Please bear in mind that the tilespecs are now mapped by
+    # tile loc and not by cell type
 
     for line in canonList:
         if "CLK" in set_feature_to_str(line.set_feature):
@@ -207,6 +238,11 @@ def genBitstream(fasmFile: str, specFile: str, bitstreamFile: str) -> None:
 # Main
 #####################################################################################
 def bit_gen() -> None:
+    """Command-line entry point for bitstream generation.
+
+    Parses command-line arguments and calls genBitstream to create bitstream files from
+    FASM and specification inputs.
+    """
     # Strip arguments
     caseProcessedArguments = list(map(lambda x: x.strip(), sys.argv))
     processedArguments = list(map(lambda x: x.lower(), caseProcessedArguments))

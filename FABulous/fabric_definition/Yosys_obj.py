@@ -1,3 +1,5 @@
+"""Object representation of the Yosys Json file."""
+
 import json
 import re
 import subprocess
@@ -245,7 +247,6 @@ class YosysJson:
         ValueError
             If the HDL file type is unsupported.
         """
-
         if not path.exists():
             raise FileNotFoundError(f"File {path} does not exist")
         if path.suffix not in {".vhd", ".vhdl", ".v", ".sv"}:

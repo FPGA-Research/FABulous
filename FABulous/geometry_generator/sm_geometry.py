@@ -1,5 +1,6 @@
+"""Switch matrix geometry definitions."""
+
 import pathlib
-from csv import writer as csvWriter
 
 from loguru import logger
 
@@ -77,6 +78,12 @@ class SmGeometry:
     westPortsRightX: int
 
     def __init__(self) -> None:
+        """Initialize a SmGeometry instance.
+
+        Sets all attributes to default values: None for names and paths,
+        zero for dimensions and coordinates, and empty lists for ports
+        and port geometries.
+        """
         self.name = None
         self.src = None
         self.csv = None
@@ -98,11 +105,14 @@ class SmGeometry:
         self.westPortsRightX = 0
 
     def preprocessPorts(self, tileBorder: Border) -> None:
-        """Ensures that ports are ordered correctly, merges connected jump ports and
-        augments ports for term tiles."""
-        # This step augments ports in border tiles.
-        # This is needed, as these are not contained
-        # in the (north...west)SidePorts in FABulous.
+        """Order the ports for downstream drawing.
+
+        Ensure that ports are ordered correctly, merge connected jump ports and augment
+        ports for term tiles.
+        This step augments ports in border tiles.
+        This is needed, as these are not contained in the (north...west)SidePorts
+        in FABulous.
+        """
         # TODO: check if numbering is generated correctly
         #  for augmented ports
         if tileBorder == Border.NORTHSOUTH or tileBorder == Border.CORNER:
@@ -234,6 +244,25 @@ class SmGeometry:
     def generateGeometry(
         self, tile: Tile, tileBorder: Border, belGeoms: list[BelGeometry], padding: int
     ) -> None:
+        """Generate the geometry for a switch matrix.
+
+        Creates the geometric representation of a switch matrix including its
+        dimensions, port arrangements, and spatial relationships. Calculates
+        the required space for routing wires and positions the switch matrix
+        within the tile.
+        the required space for routing wires and positions for the switch matrix
+
+        Parameters
+        ----------
+        tile : Tile
+            The tile object containing the switch matrix definition
+        tileBorder : Border
+            The border type of the tile within the fabric
+        belGeoms : list[BelGeometry]
+            List of BEL geometries within the same tile
+        padding : int
+            The padding space to add around the switch matrix
+        """
         self.name = f"{tile.name}_switch_matrix"
         self.src = tile.tileDir.parent.joinpath(f"{self.name}.v")
         self.csv = tile.tileDir.parent.joinpath(f"{self.name}.csv")
@@ -320,6 +349,17 @@ class SmGeometry:
         )
 
     def generatePortsGeometry(self, padding: int) -> None:
+        """Generate the geometry for all ports of the switch matrix.
+
+        Creates `PortGeometry` objects for all jump, north, south, east, and west
+        ports of the switch matrix. Positions each port according to its type
+        and assigns appropriate coordinates and grouping information.
+
+        Parameters
+        ----------
+        padding : int
+            The padding space to add around ports
+        """
         jumpPortX = padding
         jumpPortY = 0
         for port in self.jumpPorts:
@@ -434,6 +474,17 @@ class SmGeometry:
             PortGeometry.nextId += 1
 
     def generateBelPorts(self, belGeomList: list[BelGeometry]) -> None:
+        """Generate port geometries for BEL connections to the switch matrix.
+
+        Creates `PortGeometry` objects for connecting BEL internal ports to the
+        switch matrix. These ports facilitate routing between BELs and the
+        switch matrix interconnect network.
+
+        Parameters
+        ----------
+        belGeomList : list[BelGeometry]
+            List of BEL geometries to connect to the switch matrix
+        """
         for belGeom in belGeomList:
             for belPortGeom in belGeom.internalPortGeoms:
                 portX = self.width
@@ -451,7 +502,18 @@ class SmGeometry:
                 )
                 self.portGeoms.append(portGeom)
 
-    def saveToCSV(self, writer: csvWriter) -> None:
+    def saveToCSV(self, writer: object) -> None:
+        """Save switch matrix geometry data to CSV format.
+
+        Writes the switch matrix geometry information including name, source
+        and CSV file paths, position, dimensions, and all port geometries
+        to a CSV file using the provided writer.
+
+        Parameters
+        ----------
+        writer :
+            The CSV `writer` object to use for output
+        """
         writer.writerows(
             [
                 ["SWITCH_MATRIX"],

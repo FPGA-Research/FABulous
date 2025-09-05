@@ -33,7 +33,7 @@ class TileConfig(NamedTuple):
 
 @pytest.fixture
 def default_fabric(mocker: MockerFixture) -> Fabric:
-    """Helper function to create a Fabric instance with given parameters."""
+    """Create a Fabric instance with given parameters."""
     fabric = mocker.create_autospec(Fabric, spec_set=False)
     fabric.frameBitsPerRow = 32
     fabric.maxFramesPerCol = 20
@@ -43,7 +43,7 @@ def default_fabric(mocker: MockerFixture) -> Fabric:
 
 @pytest.fixture
 def default_tile(mocker: MockerFixture) -> Tile:
-    """Helper function to create a Tile instance with given parameters."""
+    """Create a Tile instance with given parameters."""
     tile = mocker.create_autospec(Tile, spec_set=False)
     tile.name = "DefaultTile"
     tile.globalConfigBits = 127
@@ -75,8 +75,7 @@ def default_tile(mocker: MockerFixture) -> Tile:
     ids=lambda config: config.name,
 )
 def fabric_config(request: pytest.FixtureRequest, mocker: MockerFixture) -> Fabric:
-    """Comprehensive parametric fabric configurations for testing different
-    scenarios."""
+    """Parametric fabric configurations for testing different scenarios."""
     config = request.param
     fabric = mocker.create_autospec(Fabric, spec_set=False)
     fabric.frameBitsPerRow = config.frame_bits_per_row
@@ -108,7 +107,7 @@ def tile_config(request: pytest.FixtureRequest, mocker: MockerFixture) -> Tile:
 
 
 def create_config_csv(file_path: Path, data: list[dict]) -> None:
-    """Helper function to create config memory CSV files from dictionary data.
+    """Create config memory CSV files from dictionary data.
 
     Parameters
     ----------
@@ -116,6 +115,7 @@ def create_config_csv(file_path: Path, data: list[dict]) -> None:
         The path where the CSV file should be created
     data : list[dict]
         List of dictionaries containing the CSV row data
+
     """
     with file_path.open("w", newline="") as f:
         if data:
@@ -125,7 +125,7 @@ def create_config_csv(file_path: Path, data: list[dict]) -> None:
 
 
 def verify_csv_content(file_path: Path, expected_rows: int | None = None) -> list[dict]:
-    """Helper function to verify CSV content and return parsed data.
+    """Verify CSV content and return parsed data.
 
     Parameters
     ----------
@@ -138,6 +138,7 @@ def verify_csv_content(file_path: Path, expected_rows: int | None = None) -> lis
     -------
     list[dict]
         The parsed CSV data as a list of dictionaries
+
     """
     assert file_path.exists(), f"CSV file {file_path} does not exist"
 
@@ -192,6 +193,21 @@ def configmem_list(
 
         # Helper function to generate random bit mask
         def generate_mask(bits_used: int, total_bits: int) -> str:
+            """Generate a random bit mask with specified number of '1's and '0's.
+
+            Parameters
+            ----------
+            bits_used : int
+                Number of bits that should be set to '1'.
+            total_bits : int
+                Total length of the bit mask.
+
+            Returns
+            -------
+            str
+                Random bit mask string with bits_used '1's and remaining '0's.
+
+            """
             if bits_used == 0:
                 return "0" * total_bits
             if bits_used >= total_bits:
@@ -256,7 +272,7 @@ def configmem_list(
 
 @pytest.fixture
 def code_generator_factory(tmp_path: Path) -> Callable[[str, str], CodeGenerator]:
-    """Factory fixture to create code generators with temporary output files."""
+    """Create code generators with temporary output files."""
 
     def _create_generator(extension: str, name: str = "test_output") -> CodeGenerator:
         from FABulous.fabric_generator.code_generator.code_generator_Verilog import (
@@ -283,7 +299,7 @@ def code_generator_factory(tmp_path: Path) -> Callable[[str, str], CodeGenerator
 
 @pytest.fixture
 def cocotb_runner(tmp_path: Path) -> Callable:
-    """Factory fixture to create cocotb runners for RTL simulation."""
+    """Create cocotb runners for RTL simulation."""
 
     def _create_runner(
         sources: list[Path], hdl_top_level: str, test_module_path: Path

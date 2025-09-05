@@ -63,7 +63,7 @@ target-version = "py312"
 # - UP: flake8 unused
 # - BLE: flake8 blind except
 # - ERA: commented code
-
+# - D: docstyle
 
 select = [
   "E",
@@ -99,6 +99,8 @@ select = [
   "PT",
   "ARG",
   "ANN",
+  "D",
+  "DOC",
 ]
 
 
@@ -106,7 +108,6 @@ select = [
 # - E501: Line too long -- Not automatically fixable
 # - N: flake8 Naming
 # - DOC: Doclint
-# - D: docstyle
 # - S: flake8 Bandit
 # - TD: flake8 TODOS
 # - FIX: flake8 fixme
@@ -123,6 +124,16 @@ unfixable = []
 
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[lint.per-file-ignores]
+"tests/*" = ["D", "E501"]
+
+[lint.pydoclint]
+ignore-one-line-docstrings = true
+
+[lint.pydocstyle]
+convention = "numpy"
+ignore-var-parameters = true
 
 [format]
 # Like Black, use double quotes for strings.

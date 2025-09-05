@@ -17,8 +17,7 @@ def normalize(block: str) -> list[str]:
     """Normalize a block of text to perform comparison.
 
     Strip newlines from the very beginning and very end, then split into
-    separate lines and strip trailing whitespace
-    from each line.
+    separate lines and strip trailing whitespace from each line.
     """
     assert isinstance(block, str)
     block = block.strip("\n")
@@ -26,8 +25,7 @@ def normalize(block: str) -> list[str]:
 
 
 def run_cmd(app: FABulous_CLI, cmd: str) -> None:
-    """Clear stdout, stdin and stderr buffers, run the command, and return
-    stdout and stderr"""
+    """Run a command in the given FABulous_CLI instance."""
     app.onecmd_plus_hooks(cmd)
 
 
@@ -40,7 +38,7 @@ def normalize_and_check_for_errors(caplog_text: str) -> list[str]:
 
 @pytest.fixture(autouse=True)
 def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Setup global test environment for FABulous tests."""
+    """Set up global test environment for FABulous tests."""
     fabulous_root = str(Path(__file__).resolve().parent.parent / "FABulous")
 
     for i in os.environ:
@@ -74,8 +72,11 @@ def cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FABulous_CLI:
 
 @pytest.fixture(autouse=True)
 def cleanup_logger() -> Generator[None]:
-    """Ensure logger is properly cleaned up after each test to prevent
-    'logging to closed file' errors when tests exit quickly"""
+    """Ensure logger is properly cleaned up.
+
+    Run after each test to prevent 'logging to closed file' errors when tests exit
+    quickly.
+    """
     yield
     # Remove all logger handlers to prevent logging to closed files
     # This handles cleanup for both regular logging and caplog fixtures
@@ -84,7 +85,7 @@ def cleanup_logger() -> Generator[None]:
 
 @pytest.fixture
 def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
-    """Custom caplog fixture that integrates with loguru."""
+    """Caplog fixture that integrates with loguru."""
     logger.add(
         caplog.handler,
         format="{message}",

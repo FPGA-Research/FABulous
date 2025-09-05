@@ -1,3 +1,10 @@
+"""Bitstream specification generation module.
+
+This module provides functionality to generate bitstream specifications from FPGA fabric
+definitions. The specification defines how configuration bits map to physical frame
+locations and is used during bitstream generation.
+"""
+
 import string
 from typing import TYPE_CHECKING
 
@@ -13,15 +20,17 @@ if TYPE_CHECKING:
 
 
 def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
-    """Generate the bitstream specification of the fabric. This is needed and will be
-    further parsed by the bit_gen.py.
+    """Generate the fabric's bitstream specification.
+
+    This is needed to tell where each FASM configuration is mapped to the physical
+    bitstream
+    The result file will be further parsed by `bit_gen.py`.
 
     Returns
     -------
     dict [str, dict]
         The bits stream specification of the fabric.
     """
-
     specData = {
         "TileMap": {},
         "TileSpecs": {},
@@ -157,8 +166,8 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
 
                 curBitOffset += controlWidth
 
-            # And now we add empty config bit mappings for immutable connections (wires)
-            #  as nextpnr sees these the same as normal pips
+            # And now we add empty config bit mappings for immutable connections
+            # (i.e. wires), as nextpnr sees these the same as normal pips
             for wire in tile.wireList:
                 curTileMap[f"{wire.source}.{wire.destination}"] = {}
                 curTileMapNoMask[f"{wire.source}.{wire.destination}"] = {}

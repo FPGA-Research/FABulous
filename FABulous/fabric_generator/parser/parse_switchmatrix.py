@@ -1,3 +1,10 @@
+"""Parser functions for switch matrix and list file configurations.
+
+This module provides utilities for parsing switch matrix CSV files and list files used
+in fabric definition. It handles expansion of port definitions, connection mappings, and
+validation of port configurations.
+"""
+
 import re
 from pathlib import Path
 from typing import Literal, overload
@@ -35,7 +42,6 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     dict : [str, list[str]]
         Dictionary from destination to a list of sources.
     """
-
     connectionsDic = {}
     with fileName.open() as f:
         file = f.read()
@@ -111,8 +117,8 @@ def expandListPorts(port: str, PortList: list[str]) -> None:
     else:
         # Multiply ports by the number of multipliers, given in the curly braces.
         # We let all curly braces in the port Expansion to be expanded and
-        # calculate the total number of ports to be added afterward, based on the
-        # number of multipliers.
+        # calculate the total number of ports to be added afterward,
+        # based on the number of multipliers.
         # Also remove the multipliers from port name, before adding it to the list.
         port = port.replace(" ", "")  # remove spaces
         multipliers = re.findall(r"\{(\d+)\}", port)
@@ -207,6 +213,18 @@ def parseList(
 
 
 def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
+    """Parse a single line of the port configuration from the CSV file.
+
+    Parameters
+    ----------
+    line : str
+        CSV line containing port configuration data.
+
+    Returns
+    -------
+    tuple[list[Port], tuple[str, str] | None]
+        A tuple containing a list of parsed ports and an optional common wire pair.
+    """
     ports = []
     commonWirePair: tuple[str, str] | None
     temp: list[str] = line.split(",")

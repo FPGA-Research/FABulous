@@ -1,3 +1,5 @@
+"""The base class for all code generators."""
+
 import abc
 from pathlib import Path
 
@@ -11,17 +13,45 @@ class CodeGenerator(abc.ABC):
 
     @property
     def outFileName(self) -> Path:
+        """Get the output file path.
+
+        Returns
+        -------
+        Path
+            The output file path.
+        """
         return self._outFileName
 
     @property
     def content(self) -> list[str]:
+        """Get the content list.
+
+        Returns
+        -------
+        list[str]
+            List of content strings.
+        """
         return self._content
 
     def __init__(self) -> None:
+        """Initialize the code generator.
+
+        Initializes empty content list and output filename.
+        """
         self._content = []
         self._outFileName = Path()
 
     def writeToFile(self) -> None:
+        """Write the content to the output file.
+
+        Writes all content strings to the specified output file,
+        filtering out `None` values. Clears content after writing.
+
+        Raises
+        ------
+        SystemExit
+            If output filename is not set.
+        """
         if self._outFileName == Path():
             logger.critical("OutFileName is not set")
             exit(-1)
@@ -32,18 +62,42 @@ class CodeGenerator(abc.ABC):
 
     @outFileName.setter
     def outFileName(self, outFileName: Path) -> None:
+        """Set the output file path.
+
+        Parameters
+        ----------
+        outFileName : Path
+            The output file path to set.
+        """
         self._outFileName = outFileName
 
     def _add(self, line: str, indentLevel: int = 0) -> None:
+        """Add a line to the content with optional indentation.
+
+        Parameters
+        ----------
+        line : str
+            The line of code to add.
+        indentLevel : int, optional
+            The indentation level (each level = 4 spaces). Defaults to 0.
+        """
         if indentLevel == 0:
             self._content.append(line)
         else:
             self._content.append(f"{' ':<{4 * indentLevel}}" + line)
 
     def popLastLine(self) -> str:
+        """Remove and return the last line from content.
+
+        Returns
+        -------
+        str
+            The last line that was removed.
+        """
         return self._content.pop()
 
     def addNewLine(self) -> None:
+        """Add an empty line to the content."""
         self._add("")
 
     @abc.abstractmethod
@@ -438,9 +492,12 @@ class CodeGenerator(abc.ABC):
         emulateParamPairs: list[tuple[str, str]] | None = None,
         indentLevel: int = 0,
     ) -> None:
-        """Add an instantiation. This will line up the ports and signals. So ports[0]
-        will have signals[0] and so on. This is also the same case for paramPorts and
-        paramSignals.
+        """Add an instantiation.
+
+        Align ports and signals such that `ports[i]` corresponds to `signals[i]`
+        for all indices i.
+
+        This is also the same case for `paramPorts` and `paramSignals`.
 
         Parameters
         ----------
@@ -587,8 +644,10 @@ class CodeGenerator(abc.ABC):
         indentLevel: int = 0,
         inverted: bool = False,
     ) -> None:
-        """Add a scalar assign statement. Delay is provided by currently not being used
-        by any of the code generator. If **right** is a list, it will be concatenated.
+        """Add a scalar assign statement.
+
+        Delay is provided by currently not being used by any of the code generator.
+        If `right` is a list, it will be concatenated.
         Verilog will concatenate with comma ','. VHDL will concatenate with ampersand
         '&' instead.
 

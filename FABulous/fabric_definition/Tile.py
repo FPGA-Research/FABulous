@@ -1,3 +1,5 @@
+"""Store information about a tile."""
+
 import pathlib
 from dataclasses import dataclass, field
 
@@ -10,7 +12,7 @@ from FABulous.fabric_definition.Wire import Wire
 
 @dataclass
 class Tile:
-    """This class is for storing the information about a tile.
+    """Store information about a tile.
 
     Attributes
     ----------
@@ -54,6 +56,27 @@ class Tile:
         userCLK: bool,
         configBit: int = 0,
     ) -> None:
+        """Initialize a tile with its components.
+
+        Parameters
+        ----------
+        name : str
+            The name of the tile.
+        ports : list[Port]
+            List of ports for the tile.
+        bels : list[Bel]
+            List of Basic Elements of Logic (BELs) in the tile.
+        tileDir : pathlib.Path
+            Directory path for the tile.
+        matrixDir : pathlib.Path
+            Directory path for the tile matrix.
+        gen_ios : list[Gen_IO]
+            List of general I/O components.
+        userCLK : bool
+            True if the tile uses a clk signal.
+        configBit : int, optional
+            Number of configuration bits for the switch matrix. Defaults to 0.
+        """
         self.name = name
         self.portsInfo = ports
         self.bels = bels
@@ -65,31 +88,83 @@ class Tile:
         self.tileDir = tileDir
 
     def __eq__(self, __o: object) -> bool:
+        """Check equality between tiles based on their name.
+
+        Parameters
+        ----------
+        __o : object
+            The object to compare with.
+
+        Returns
+        -------
+        bool
+            True if both tiles have the same name, False otherwise.
+        """
         if __o is None or not isinstance(__o, Tile):
             return False
         return self.name == __o.name
 
     def getWestSidePorts(self) -> list[Port]:
+        """Get all ports physically located on the west side of the tile.
+
+        Returns
+        -------
+        list[Port]
+            List of ports on the west side, excluding NULL ports.
+        """
         return [
             p for p in self.portsInfo if p.sideOfTile == Side.WEST and p.name != "NULL"
         ]
 
     def getEastSidePorts(self) -> list[Port]:
+        """Get all ports physically located on the east side of the tile.
+
+        Returns
+        -------
+        list[Port]
+            List of ports on the east side, excluding NULL ports.
+        """
         return [
             p for p in self.portsInfo if p.sideOfTile == Side.EAST and p.name != "NULL"
         ]
 
     def getNorthSidePorts(self) -> list[Port]:
+        """Get all ports physically located on the north side of the tile.
+
+        Returns
+        -------
+        list[Port]
+            List of ports on the north side, excluding NULL ports.
+        """
         return [
             p for p in self.portsInfo if p.sideOfTile == Side.NORTH and p.name != "NULL"
         ]
 
     def getSouthSidePorts(self) -> list[Port]:
+        """Get all ports physically located on the south side of the tile.
+
+        Returns
+        -------
+        list[Port]
+            List of ports on the south side, excluding NULL ports.
+        """
         return [
             p for p in self.portsInfo if p.sideOfTile == Side.SOUTH and p.name != "NULL"
         ]
 
     def getNorthPorts(self, io: IO) -> list[Port]:
+        """Get all ports with north wire direction filtered by I/O type.
+
+        Parameters
+        ----------
+        io : IO
+            The I/O direction to filter by (INPUT or OUTPUT).
+
+        Returns
+        -------
+        list[Port]
+            List of north-direction ports with specified I/O type, excluding NULL ports.
+        """
         return [
             p
             for p in self.portsInfo
@@ -97,6 +172,18 @@ class Tile:
         ]
 
     def getSouthPorts(self, io: IO) -> list[Port]:
+        """Get all ports with south wire direction filtered by I/O type.
+
+        Parameters
+        ----------
+        io : IO
+            The I/O direction to filter by (INPUT or OUTPUT).
+
+        Returns
+        -------
+        list[Port]
+            List of south-direction ports with specified I/O type, excluding NULL ports.
+        """
         return [
             p
             for p in self.portsInfo
@@ -104,6 +191,18 @@ class Tile:
         ]
 
     def getEastPorts(self, io: IO) -> list[Port]:
+        """Get all ports with east wire direction filtered by I/O type.
+
+        Parameters
+        ----------
+        io : IO
+            The I/O direction to filter by (INPUT or OUTPUT).
+
+        Returns
+        -------
+        list[Port]
+            List of east-direction ports with specified I/O type, excluding NULL ports.
+        """
         return [
             p
             for p in self.portsInfo
@@ -111,6 +210,18 @@ class Tile:
         ]
 
     def getWestPorts(self, io: IO) -> list[Port]:
+        """Get all ports with west wire direction filtered by I/O type.
+
+        Parameters
+        ----------
+        io : IO
+            The I/O direction to filter by (INPUT or OUTPUT).
+
+        Returns
+        -------
+        list[Port]
+            List of west-direction ports with specified I/O type, excluding NULL ports.
+        """
         return [
             p
             for p in self.portsInfo
@@ -118,6 +229,14 @@ class Tile:
         ]
 
     def getTileInputNames(self) -> list[str]:
+        """Get all input port destination names for the tile.
+
+        Returns
+        -------
+        list[str]
+            List of destination names for input ports, excluding NULL and
+            JUMP direction ports.
+        """
         return [
             p.destinationName
             for p in self.portsInfo
@@ -127,6 +246,14 @@ class Tile:
         ]
 
     def getTileOutputNames(self) -> list[str]:
+        """Get all output port source names for the tile.
+
+        Returns
+        -------
+        list[str]
+            List of source names for output ports, excluding NULL and
+            JUMP direction ports.
+        """
         return [
             p.sourceName
             for p in self.portsInfo
@@ -137,8 +264,16 @@ class Tile:
 
     @property
     def globalConfigBits(self) -> int:
-        """Returns the number of global configuration bits."""
+        """Get the total number of global configuration bits.
 
+        Calculates the sum of switch matrix configuration bits
+        and all BEL configuration bits.
+
+        Returns
+        -------
+        int
+            Total number of global configuration bits for the tile.
+        """
         ret = self.matrixConfigBits
 
         for b in self.bels:
