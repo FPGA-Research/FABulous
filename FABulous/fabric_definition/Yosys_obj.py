@@ -27,15 +27,15 @@ class YosysPortDetails:
 
     Attributes
     ----------
-    direction : {"input", "output", "inout"}
+    direction : Literal["input", "output", "inout"]
         Port direction.
     bits : BitVector
         Bit vector representing the port's signals.
-    offset : int, default 0
+    offset : int
         Bit offset for multi-bit ports.
-    upto : int, default 0
+    upto : int
         Upper bound for bit ranges.
-    signed : int, default 0
+    signed : int
         Whether the port is signed (0=unsigned, 1=signed).
     """
 
@@ -55,17 +55,17 @@ class YosysCellDetails:
 
     Attributes
     ----------
-    hide_name : {0, 1}
+    hide_name : Literal[1, 0]
         Whether to hide the cell name in output (1=hide, 0=show).
     type : str
         Cell type/primitive name (e.g., "AND", "DFF", custom module name).
-    parameters : dict[str, str]
+    parameters : KeyValue
         Cell parameters as string key-value pairs.
-    attributes : dict[str, str | int]
+    attributes : KeyValue
         Cell attributes including metadata and synthesis directives.
     connections : dict[str, BitVector]
         Port connections mapping port names to bit vectors.
-    port_directions : dict[str, {"input", "output", "inout"}], optional
+    port_directions : dict[str, Literal["input", "output", "inout"]], optional
         Direction of each port. Default is empty dict.
     model : str, optional
         Associated model name. Default is "".
@@ -90,9 +90,9 @@ class YosysMemoryDetails:
 
     Attributes
     ----------
-    hide_name : {0, 1}
+    hide_name : Literal[1, 0]
         Whether to hide the memory name in output (1=hide, 0=show).
-    attributes : dict[str, str]
+    attributes : KeyValue
         Memory attributes and metadata.
     width : int
         Data width in bits.
@@ -117,17 +117,17 @@ class YosysNetDetails:
 
     Attributes
     ----------
-    hide_name : {0, 1}
+    hide_name : Literal[1, 0]
         Whether to hide the net name in output (1=hide, 0=show).
     bits : BitVector
         Bit vector representing the net's signals.
-    attributes : dict[str, str]
+    attributes : KeyValue
         Net attributes including unused bit information.
-    offset : int, default 0
+    offset : int
         Bit offset for multi-bit nets.
-    upto : int, default 0
+    upto : int
         Upper bound for bit ranges.
-    signed : int, default 0
+    signed : int
         Whether the net is signed (0=unsigned, 1=signed).
     """
 
@@ -147,11 +147,26 @@ class YosysModule:
     its interface (ports), internal components (cells), memory blocks, and
     interconnections (nets).
 
+    Parameters
+    ----------
+    attributes : KeyValue
+        Module attributes dictionary.
+    parameter_default_values : KeyValue
+        Parameter defaults dictionary.
+    ports : dict[str, YosysPortDetails]
+        Ports dictionary (will be converted to YosysPortDetails objects).
+    cells : dict[str, YosysCellDetails]
+        Cells dictionary (will be converted to YosysCellDetails objects).
+    memories : dict[str, YosysMemoryDetails]
+        Memories dictionary (will be converted to YosysMemoryDetails objects).
+    netnames : dict[str, YosysNetDetails]
+        Netnames dictionary (will be converted to YosysNetDetails objects).
+
     Attributes
     ----------
-    attributes : dict[str, str | int]
+    attributes : KeyValue
         Module attributes and metadata (e.g., "top" for top module).
-    parameter_default_values : dict[str, str | int]
+    parameter_default_values : KeyValue
         Default values for module parameters.
     ports : dict[str, YosysPortDetails]
         Dictionary mapping port names to YosysPortDetails.
@@ -180,23 +195,6 @@ class YosysModule:
         memories: dict[str, YosysMemoryDetails],
         netnames: dict[str, YosysNetDetails],
     ) -> None:
-        """Initialize a YosysModule from parsed JSON data.
-
-        Parameters
-        ----------
-        attributes : dict
-            Module attributes dictionary.
-        parameter_default_values : dict
-            Parameter defaults dictionary.
-        ports : dict
-            Ports dictionary (will be converted to YosysPortDetails objects).
-        cells : dict
-            Cells dictionary (will be converted to YosysCellDetails objects).
-        memories : dict
-            Memories dictionary (will be converted to YosysMemoryDetails objects).
-        netnames : dict
-            Netnames dictionary (will be converted to YosysNetDetails objects).
-        """
         self.attributes = attributes
         self.parameter_default_values = parameter_default_values
         self.ports = {k: YosysPortDetails(**v) for k, v in ports.items()}
@@ -209,9 +207,16 @@ class YosysModule:
 class YosysJson:
     """Root object representing a complete Yosys JSON file.
 
+    Load and parse a HDL file to a Yosys JSON object.
+
     This class provides the main interface for loading and analyzing Yosys JSON
     netlists. It contains all modules in the design and provides utility methods
     for common netlist analysis tasks.
+
+    Parameters
+    ----------
+    path : Path
+        Path to a HDL file.
 
     Attributes
     ----------
@@ -223,6 +228,17 @@ class YosysJson:
         Dictionary mapping module names to YosysModule objects.
     models : dict
         Dictionary of behavioral models (implementation-specific).
+
+    Raises
+    ------
+    FileNotFoundError
+        If the JSON file doesn't exist.
+    InvalidFileType
+        If the file type is not .vhd, .vhdl, .v, or .sv.
+    RuntimeError
+        If Yosys or GHDL fails to process the file.
+    ValueError
+        If there is a miss match in the VHDL entity and the Yosys top module.
     """
 
     srcPath: Path
@@ -231,22 +247,6 @@ class YosysJson:
     models: dict
 
     def __init__(self, path: Path) -> None:
-        """Load and parse a HDL file to a Yosys JSON object.
-
-        Parameters
-        ----------
-        path : Path
-            Path to a HDL file.
-
-        Raises
-        ------
-        FileNotFoundError
-            If the JSON file doesn't exist.
-        json.JSONDecodeError
-            If the file contains invalid JSON.
-        ValueError
-            If the HDL file type is unsupported.
-        """
         if not path.exists():
             raise FileNotFoundError(f"File {path} does not exist")
         if path.suffix not in {".vhd", ".vhdl", ".v", ".sv"}:

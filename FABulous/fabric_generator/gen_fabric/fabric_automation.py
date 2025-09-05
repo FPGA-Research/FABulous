@@ -46,6 +46,11 @@ def generateCustomTileConfig(tile_path: Path) -> Path:
     -------
     Path
         Path to the generated tile .csv file.
+
+    Raises
+    ------
+    ValueError
+        If the tile path is not a valid tile path or if the tile folder does not exist.
     """
     tile_name: str = ""
     project_tile_dir: Path = get_context().proj_dir / "Tile"
@@ -165,27 +170,24 @@ def generateSwitchmatrixList(
 
     Parameters
     ----------
-         tileName :str
-             Name of the tile
-         bels : list[Bel]
-             List of bels in the tile
-         outFile : Path
-             Path to the switchmatrix list file output
-         carryportsTile : dict[str, dict[IO, str]]
-             Dictionary of carry ports for the tile
-         localSharedPortsTile : dicst[str, list[Port]]
-            list of local shared ports for the tile, based on JUMP wire definitions
+    tileName :str
+        Name of the tile
+    bels : list[Bel]
+        List of bels in the tile
+    outFile : Path
+        Path to the switchmatrix list file output
+    carryportsTile : dict[str, dict[IO, str]]
+        Dictionary of carry ports for the tile
+    localSharedPortsTile : dict[str, list[Port]]
+        List of local shared ports for the tile, based on JUMP wire definitions
 
     Raises
     ------
-         ValueError
-             Bels have more than 32 Bel inputs.
-         ValueError
-             Bels have more than 8 Bel outputs.
-         ValueError
-             Invalid list formatting in file.
-         ValueError
-             Number of carry ins and carry outs do not match.
+    ValueError
+        - Bels have more than 32 Bel inputs.
+        - Bels have more than 8 Bel outputs.
+        - Invalid list formatting in file.
+        - Number of carry ins and carry outs do not match.
     """
     projdir = get_context().proj_dir
     fab_root = get_context().root
@@ -378,19 +380,14 @@ def addBelsToPrim(
 
     Parameters
     ----------
-        primsFile : str
-            Path to yosys prims file
-        bels : list[Bel]
-            List of bels to add
-        support_vectors : bool
-            Boolean to support vectors for ports in the prims file
-            Default False,
-            since the FABulous nextpn integration does not support vectors
-
-    Raises
-    ------
-        FileNotFoundError :
-            Prims file is not found
+    primsFile : Path
+        Path to yosys prims file
+    bels : list[Bel]
+        List of bels to add
+    support_vectors : bool
+        Boolean to support vectors for ports in the prims file
+        Default False,
+        since the FABulous nextpn integration does not support vectors
     """
     prims: str = ""  # prims.v
     primsAdd: list[str] = []  # append to prims.v
@@ -556,7 +553,7 @@ def genIOBel(
 
     Parameters
     ----------
-    gen_ios : List[Gen_IO]
+    gen_ios : list[Gen_IO]
         List of Generative IOs to generate the IO BEL.
     bel_path : Path
         Name of the BEL to be generated.
@@ -569,18 +566,21 @@ def genIOBel(
         Default is MultiplexerStyle.CUSTOM
         Use generic or custom multiplexers.
 
-
-    Raises
-    ------
-    ValueError
-        - If a wrong bel file suffix is specified.
-        - In case of an invalid IO type for generative IOs.
-        - If the number of config access ports does not match the number of config bits.
-
     Returns
     -------
     Bel | None
         The generated Bel object or None if no generative IOs are present.
+
+    Raises
+    ------
+    InvalidFileType
+        If a wrong bel file suffix is specified.
+    InvalidPortType
+        If an invalid IO type is specified for generative IOs.
+    SpecMissMatch
+        If the multiplexer style is not supported for generative IOs.
+    ValueError
+        If the number of config access ports does not match the number of config bits.
     """
     if len(gen_ios) == 0:
         logger.info(f"No generative IOs for {bel_path}, skipping genIOBel generation")

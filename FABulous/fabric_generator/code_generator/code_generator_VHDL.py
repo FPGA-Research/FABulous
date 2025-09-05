@@ -20,11 +20,16 @@ class VHDLCodeGenerator(CodeGenerator):
     ) -> None:
         """Add a VHDL comment to the generated code.
 
-        Args:
-            comment: The comment text to add
-            onNewLine: Whether to add the comment on a new line
-            end: Additional text to append at the end
-            indentLevel: The indentation level for the comment
+        Parameters
+        ----------
+        comment : str
+            The comment text to add
+        onNewLine : bool
+            Whether to add the comment on a new line
+        end : str
+            Additional text to append at the end
+        indentLevel : int
+            The indentation level for the comment
         """
         if onNewLine:
             self._add("")
@@ -36,10 +41,14 @@ class VHDLCodeGenerator(CodeGenerator):
     def addHeader(self, name: str, package: str = "", indentLevel: int = 0) -> None:
         """Add VHDL entity header with standard libraries.
 
-        Args:
-            name: Entity name
-            package: Additional package to include
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        name : str
+            Entity name
+        package : str
+            Additional package to include
+        indentLevel : int
+            The indentation level
         """
         #   library template
         self._add("library IEEE;", indentLevel)
@@ -53,25 +62,32 @@ class VHDLCodeGenerator(CodeGenerator):
     def addHeaderEnd(self, name: str, indentLevel: int = 0) -> None:
         """Add the entity end statement.
 
-        Args:
-            name: Entity name
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        name : str
+            Entity name
+        indentLevel : int
+            The indentation level
         """
         self._add(f"end entity {name};", indentLevel)
 
     def addParameterStart(self, indentLevel: int = 0) -> None:
         """Start the generic parameter declaration section.
 
-        Args:
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        indentLevel : int
+            The indentation level
         """
         self._add("Generic(", indentLevel)
 
     def addParameterEnd(self, indentLevel: int = 0) -> None:
         """End the generic parameter declaration section.
 
-        Args:
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        indentLevel : int
+            The indentation level
         """
         temp = self._content.pop()
         if "--" in temp:
@@ -87,27 +103,36 @@ class VHDLCodeGenerator(CodeGenerator):
     ) -> None:
         """Add a generic parameter declaration.
 
-        Args:
-            name: Parameter name
-            storageType: Parameter type
-            value: Default value
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        name : str
+            Parameter name
+        storageType : str
+            Parameter type
+        value : str
+            Default value
+        indentLevel : int
+            The indentation level
         """
         self._add(f"{name} : {storageType} := {value};", indentLevel)
 
     def addPortStart(self, indentLevel: int = 0) -> None:
         """Start the port declaration section.
 
-        Args:
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        indentLevel : int
+            The indentation level
         """
         self._add("Port (", indentLevel)
 
     def addPortEnd(self, indentLevel: int = 0) -> None:
         """End the port declaration section.
 
-        Args:
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        indentLevel : int
+            The indentation level
         """
 
         def deSemiColon(x: str) -> str:
@@ -134,12 +159,18 @@ class VHDLCodeGenerator(CodeGenerator):
     ) -> None:
         """Add a scalar port declaration.
 
-        Args:
-            name: Port name
-            io: Input/output direction
-            _reg: Register flag (unused in VHDL)
-            attribute: Additional attributes to add as a comment
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        name : str
+            Port name
+        io : IO
+            Input/output direction
+        _reg : bool
+            Register flag (unused in VHDL)
+        attribute : str
+            Additional attributes to add as a comment
+        indentLevel : int
+            The indentation level
         """
         ioVHDL = ""
         if io.value.lower() == "input":
@@ -163,13 +194,20 @@ class VHDLCodeGenerator(CodeGenerator):
     ) -> None:
         """Add a vector port declaration.
 
-        Args:
-            name: Port name
-            io: Input/output direction
-            msbIndex: Most significant bit index
-            _reg: Register flag (unused in VHDL)
-            attribute: Additional attributes to add as a comment
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        name : str
+            Port name
+        io : IO
+            Input/output direction
+        msbIndex : int
+            Most significant bit index
+        _reg : bool
+            Register flag (unused in VHDL)
+        attribute : str
+            Additional attributes to add as a comment
+        indentLevel : int
+            The indentation level
         """
         ioVHDL = ""
         if io.value.lower() == "input":
@@ -187,27 +225,36 @@ class VHDLCodeGenerator(CodeGenerator):
     def addDesignDescriptionStart(self, name: str, indentLevel: int = 0) -> None:
         """Start the architecture declaration.
 
-        Args:
-            name: Entity name
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        name : str
+            Entity name
+        indentLevel : int
+            The indentation level
         """
         self._add(f"architecture Behavioral of {name} is", indentLevel)
 
     def addDesignDescriptionEnd(self, indentLevel: int = 0) -> None:
         """End the architecture declaration.
 
-        Args:
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        indentLevel : int
+            The indentation level
         """
         self._add("end architecture Behavioral;", indentLevel)
 
     def addConstant(self, name: str, value: str, indentLevel: int = 0) -> None:
         """Add a constant declaration.
 
-        Args:
-            name: Constant name
-            value: Constant value
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        name : str
+            Constant name
+        value : str
+            Constant value
+        indentLevel : int
+            The indentation level
         """
         self._add(f"constant {name} : STD_LOGIC := '{value}';", indentLevel)
 
@@ -216,10 +263,14 @@ class VHDLCodeGenerator(CodeGenerator):
     ) -> None:
         """Add a scalar signal declaration.
 
-        Args:
-            name: Signal name
-            _reg: Register flag (unused in VHDL)
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        name : str
+            Signal name
+        _reg : bool
+            Register flag (unused in VHDL)
+        indentLevel : int
+            The indentation level
         """
         self._add(f"signal {name} : STD_LOGIC;", indentLevel)
 
@@ -233,12 +284,18 @@ class VHDLCodeGenerator(CodeGenerator):
     ) -> None:
         """Add a vector signal declaration.
 
-        Args:
-            name: Signal name
-            startIndex: Start index (MSB)
-            _reg: Register flag (unused in VHDL)
-            endIndex: End index (LSB)
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        name : str
+            Signal name
+        startIndex : int
+            Start index (MSB)
+        _reg : bool
+            Register flag (unused in VHDL)
+        endIndex : int
+            End index (LSB)
+        indentLevel : int
+            The indentation level
         """
         self._add(
             f"signal {name} : STD_LOGIC_VECTOR( {startIndex} downto {endIndex} );",
@@ -248,16 +305,20 @@ class VHDLCodeGenerator(CodeGenerator):
     def addLogicStart(self, indentLevel: int = 0) -> None:
         """Start the logic section (begin statement).
 
-        Args:
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        indentLevel : int
+            The indentation level
         """
         self._add("\nbegin\n", indentLevel)
 
     def addLogicEnd(self, indentLevel: int = 0) -> None:
         """End the logic section (end statement).
 
-        Args:
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        indentLevel : int
+            The indentation level
         """
         self._add("\nend\n", indentLevel)
 
@@ -271,12 +332,18 @@ class VHDLCodeGenerator(CodeGenerator):
     ) -> None:
         """Add a clocked register process.
 
-        Args:
-            reg: Register output signal name
-            regIn: Register input signal name
-            clk: Clock signal name
-            inverted: Whether to invert the input
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        reg : str
+            Register output signal name
+        regIn : str
+            Register input signal name
+        clk : str
+            Clock signal name
+        inverted : bool
+            Whether to invert the input
+        indentLevel : int
+            The indentation level
         """
         inv = "not " if inverted else ""
         template = f"""
@@ -299,12 +366,18 @@ end process;
     ) -> None:
         """Add a signal assignment statement.
 
-        Args:
-            left: Left-hand side signal
-            right: Right-hand side signal or expression
-            delay: Delay in picoseconds
-            indentLevel: The indentation level
-            inverted: Whether to invert the right-hand side
+        Parameters
+        ----------
+        left : str
+            Left-hand side signal
+        right : str
+            Right-hand side signal or expression
+        delay : int
+            Delay in picoseconds
+        indentLevel : int
+            The indentation level
+        inverted : bool
+            Whether to invert the right-hand side
         """
         inv = "not " if inverted else ""
         if isinstance(right, list):
@@ -331,13 +404,20 @@ end process;
     ) -> None:
         """Add a vector slice assignment.
 
-        Args:
-            left: Left-hand side signal
-            right: Right-hand side signal
-            widthL: Upper bound of slice
-            widthR: Lower bound of slice
-            indentLevel: The indentation level
-            inverted: Whether to invert the right-hand side
+        Parameters
+        ----------
+        left : str
+            Left-hand side signal
+        right : str
+            Right-hand side signal
+        widthL : str | int
+            Upper bound of slice
+        widthR : str | int
+            Lower bound of slice
+        indentLevel : int
+            The indentation level
+        inverted : bool
+            Whether to invert the right-hand side
         """
         inv = "not " if inverted else ""
         self._add(f"{left} <= {inv}{right}( {widthL} downto {widthR} );", indentLevel)
@@ -353,13 +433,20 @@ end process;
     ) -> None:
         """Add a component instantiation.
 
-        Args:
-            compName: Component name
-            compInsName: Instance name
-            portsPairs: List of (port, signal) pairs for port mapping
-            paramPairs: List of (parameter, value) pairs for generic mapping
-            emulateParamPairs: Additional parameters (unused)
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        compName : str
+            Component name
+        compInsName : str
+            Instance name
+        portsPairs : list[tuple[str, str]]
+            List of (port, signal) pairs for port mapping
+        paramPairs : list[tuple[str, str]] | None
+            List of (parameter, value) pairs for generic mapping
+        emulateParamPairs : list[tuple[str, str]] | None
+            Additional parameters (unused)
+        indentLevel : int
+            The indentation level
         """
         if emulateParamPairs is None:
             emulateParamPairs = []
@@ -408,14 +495,17 @@ end process;
         self.addNewLine()
 
     def addComponentDeclarationForFile(self, fileName: str | Path) -> int:
-        """Add a component declaration extracted from the VHDL file.
+        """Add a component declaration extracted from a VHDL file.
 
-        Args:
-            fileName: Path to the VHDL file to extract component from
+        Parameters
+        ----------
+        fileName : str | Path
+            Path to the VHDL file to extract the component from.
 
         Returns
         -------
-            1 if component uses configuration bits, 0 otherwise
+        int
+            1 if the component uses configuration bits; 0 otherwise.
         """
         configPortUsed = 0
         with Path(fileName).open() as f:
@@ -445,8 +535,10 @@ end process;
     def addFlipFlopChain(self, configBitCounter: int) -> None:
         """Add a flip-flop chain for configuration bits.
 
-        Args:
-            configBitCounter: Total number of configuration bits
+        Parameters
+        ----------
+        configBitCounter : int
+            Total number of configuration bits.
         """
         template = f"""
 ConfigBitsInput <= ConfigBits(ConfigBitsInput'high-1 downto 0) & CONFin;
@@ -470,8 +562,10 @@ CONFout <= ConfigBits(ConfigBits'high);
     def addShiftRegister(self, indentLevel: int = 0) -> None:
         """Add a shift register for configuration bits.
 
-        Args:
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        indentLevel : int, optional
+            The indentation level. Defaults to 0.
         """
         template = """
 -- the configuration bits shift register
@@ -493,13 +587,22 @@ CONFout <= ConfigBits(ConfigBits'high);
 
         VHDL does not support preprocessor directives.
 
-        Args:
-            _macro: Macro name (unused)
-            _indentLevel: Indentation level (unused)
+        Parameters
+        ----------
+        _macro : str
+            Macro name (unused).
+        _indentLevel : int
+            Indentation level (unused).
+
+        Returns
+        -------
+        Never
+            This function always raises an exception.
 
         Raises
         ------
-            AssertionError: Always, as VHDL doesn't support preprocessing
+        AssertionError
+            Always, as VHDL doesn't support preprocessing.
         """
         raise AssertionError("preprocessor not supported in VHDL")
 
@@ -508,13 +611,22 @@ CONFout <= ConfigBits(ConfigBits'high);
 
         VHDL does not support preprocessor directives.
 
-        Args:
-            _macro: Macro name (unused)
-            _indentLevel: Indentation level (unused)
+        Parameters
+        ----------
+        _macro : str
+            Macro name (unused).
+        _indentLevel : int
+            Indentation level (unused).
+
+        Returns
+        -------
+        Never
+            This function always raises an exception.
 
         Raises
         ------
-            AssertionError: Always, as VHDL doesn't support preprocessing
+        AssertionError
+            Always, as VHDL doesn't support preprocessing.
         """
         raise AssertionError("preprocessor not supported in VHDL")
 
@@ -523,12 +635,20 @@ CONFout <= ConfigBits(ConfigBits'high);
 
         VHDL does not support preprocessor directives.
 
-        Args:
-            _indentLevel: Indentation level (unused)
+        Parameters
+        ----------
+        _indentLevel : int
+            Indentation level (unused).
+
+        Returns
+        -------
+        Never
+            This function always raises an exception.
 
         Raises
         ------
-            AssertionError: Always, as VHDL doesn't support preprocessing
+        AssertionError
+            Always, as VHDL doesn't support preprocessing.
         """
         raise AssertionError("preprocessor not supported in VHDL")
 
@@ -537,12 +657,20 @@ CONFout <= ConfigBits(ConfigBits'high);
 
         VHDL does not support preprocessor directives.
 
-        Args:
-            _indentLevel: Indentation level (unused)
+        Parameters
+        ----------
+        _indentLevel : int
+            Indentation level (unused).
+
+        Returns
+        -------
+        Never
+            This function always raises an exception.
 
         Raises
         ------
-            AssertionError: Always, as VHDL doesn't support preprocessing
+        AssertionError
+            Always, as VHDL doesn't support preprocessing.
         """
         raise AssertionError("preprocessor not supported in VHDL")
 
@@ -551,9 +679,12 @@ CONFout <= ConfigBits(ConfigBits'high);
     ) -> None:
         """Add the BEL mapping attribute as a VHDL comment.
 
-        Args:
-            configBitValues: List of (name, count) pairs for configuration bits
-            indentLevel: The indentation level
+        Parameters
+        ----------
+        configBitValues : list[tuple[str, int]]
+            List of (name, count) pairs for configuration bits
+        indentLevel : int
+            The indentation level
         """
         template = "-- (* FABulous, BelMap"
         bit_count = 0
