@@ -1,7 +1,9 @@
 files: ^(FABulous)|(docs)/
+default_language_version:
+  python: python3.12
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-ast
       - id: end-of-file-fixer
@@ -24,6 +26,7 @@ repos:
     rev: 1.7.0
     hooks:
       - id: interrogate
+        language_version: python3.12
         args: [
             -vv,
             --ignore-magic,
@@ -33,7 +36,6 @@ repos:
             docs,
           ] # we should aim at 90%
         pass_filenames: false # needed if excluding files with pyproject.toml or setup.cfg
-
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.5
     hooks:
@@ -44,7 +46,7 @@ repos:
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.12.1
+    rev: v0.12.12
     hooks:
       # Run the linter.
       - id: ruff
