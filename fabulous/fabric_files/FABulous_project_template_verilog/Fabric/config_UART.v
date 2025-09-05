@@ -94,16 +94,16 @@ module config_UART #(
     reg TimeToSend;
     reg [14:0] TimeToSendCounter;
 
-    localparam logic [2:0] IDLE=3'd0,
-                           GET_ID_00=3'd1,
-                           GET_ID_AA=3'd2,
-                           GET_ID_FF=3'd3,
-                           GET_COMMAND=3'd4,
-                           EVAL_COMMAND=3'd5,
-                           GET_DATA=3'd6;
+    localparam reg [2:0] IDLE=3'd0,
+                         GET_ID_00=3'd1,
+                         GET_ID_AA=3'd2,
+                         GET_ID_FF=3'd3,
+                         GET_COMMAND=3'd4,
+                         EVAL_COMMAND=3'd5,
+                         GET_DATA=3'd6;
     reg [2:0] PresentState;
 
-    localparam [1:0] WORD_0 = 2'd0, WORD_1 = 2'd1, WORD_2 = 2'd2, WORD_3 = 2'd3;
+    localparam reg [1:0] WORD_0 = 2'd0, WORD_1 = 2'd1, WORD_2 = 2'd2, WORD_3 = 2'd3;
     reg [1:0] GetWordState;
 
     reg LocalWriteStrobe;

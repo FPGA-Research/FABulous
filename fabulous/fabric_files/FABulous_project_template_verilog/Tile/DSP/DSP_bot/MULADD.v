@@ -23,16 +23,19 @@ ACCout=5
 module MULADD #(
     parameter integer NoConfigBits = 6
 ) (
-    // ConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
+    // ConfigBits has to be adjusted manually
+    //(we don't use an arithmetic parser for the value)
     input [7:0] A,  // operand A
     input [7:0] B,  // operand B
     input [19:0] C,  // operand C
     output [19:0] Q,  // result
     input clr,
     //the EXTERNAL keyword will send this sisgnal all the way to top and the
-    //SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
+    //SHARED Allows multiple BELs using the same port
+    // (e.g. for exporting a clock to the top)
     (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,
-    // GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
+    // GLOBAL all primitive pins that are connected to the switch matrix have
+    // to go before the GLOBAL label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
     reg  [ 7:0] A_reg;  // port A read data register
@@ -56,8 +59,9 @@ module MULADD #(
     assign product = OPA * OPB;
 
     // The sign extension was not tested
-    assign product_extended = ConfigBits[4] ? {product[15],product[15],product[15],product[15],product}
-                                          : {4'b0000,product};
+    assign product_extended = ConfigBits[4] ?
+                             {product[15],product[15],product[15],product[15],product} :
+                             {4'b0000,product};
 
     assign sum = product_extended + sum_in;
 
