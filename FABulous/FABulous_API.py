@@ -332,7 +332,8 @@ class FABulous_API:
     def genIOBelForTile(self, tile_name: str) -> list[Bel]:
         """Generate the IO BELs for the generative IOs of a tile.
 
-        Config Access Generative IOs will be a separate Bel. Updates the tileDic with the generated IO BELs.
+        Config Access Generative IOs will be a separate Bel.
+        Updates the tileDic with the generated IO BELs.
 
         Parameters
         ----------

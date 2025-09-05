@@ -362,7 +362,8 @@ class FABulous_CLI(Cmd):
     def do_install_oss_cad_suite(self, args: argparse.Namespace) -> None:
         """Download and extract the latest OSS CAD suite.
 
-        The installation will set the `FAB_OSS_CAD_SUITE` environment variable in the `.env` file.
+        The installation will set the `FAB_OSS_CAD_SUITE` environment variable in the
+        `.env` file.
         """
         if args.destination_folder == "":
             dest_dir = get_context().root

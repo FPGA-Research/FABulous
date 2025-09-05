@@ -120,10 +120,11 @@ def create_project(
 ) -> None:
     """Create a FABulous project containing all required files.
 
-    Copies the common files and the appropriate project template. Replaces the `{HDL_SUFFIX}`
-    placeholder in all tile csv files with the appropriate file extension. Creates a `.FABulous`
-    directory in the project. Also creates a `.env` file in the project directory with the
-    project settings.
+    Copies the common files and the appropriate project template.
+    Replaces the `{HDL_SUFFIX}` placeholder in all tile csv files with the appropriate
+    file extension.
+    Creates a `.FABulous` directory in the project. Also creates a `.env` file in the
+    project directory with the project settings.
 
     File structure as follows:
         FABulous_project_template --> project_dir/
@@ -535,7 +536,8 @@ class CommandPipeline:
         command : str
             The command string to execute.
         error_message : str, optional
-            Custom error message to use if the command fails. Defaults to "Command failed".
+            Custom error message to use if the command fails.
+            Defaults to "Command failed".
 
         Returns
         -------
