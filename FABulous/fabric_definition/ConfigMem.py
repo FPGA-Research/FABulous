@@ -20,11 +20,11 @@ class ConfigMem:
         The name of the frame
     frameIndex : int
         The index of the frame
-    bitUsedInFrame : int
+    bitsUsedInFrame : int
         The number of bits used in the frame
-    usedBitMask : int
+    usedBitMask : str
         The bit mask of the bits used in the frame
-    configBitRanges : List[int]
+    configBitRanges : list[int]
         A list of config bit mapping values
     """
 

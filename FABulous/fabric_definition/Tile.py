@@ -1,7 +1,7 @@
 """Store information about a tile."""
 
-import pathlib
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.define import IO, Direction, Side
@@ -14,69 +14,71 @@ from FABulous.fabric_definition.Wire import Wire
 class Tile:
     """Store information about a tile.
 
+    Parameters
+    ----------
+    name : str
+        The name of the tile
+    ports : list[Port]
+        List of ports for the tile
+    bels : list[Bel]
+        List of Basic Elements of Logic (BELs) in the tile
+    tileDir : Path
+        Directory path for the tile
+    matrixDir : Path
+        Directory path for the tile matrix
+    gen_ios : list[Gen_IO]
+        List of general I/O components
+    userCLK : bool
+        True if the tile uses a clk signal
+    configBit : int, optional
+        Number of configuration bits for the switch matrix. Default is 0.
+
     Attributes
     ----------
     name : str
         The name of the tile
     portsInfo : list[Port]
         The list of ports of the tile
-    matrixDir : str
+    bels: list[Bel]
+        The list of BELs of the tile
+    matrixDir : Path
         The directory of the tile matrix
-    gen_ios : List[Gen_IO]
-        The list of GEN_IOs of the tile
     matrixConfigBits : int
         The number of config bits the tile switch matrix has
+    gen_ios : list[Gen_IO]
+        The list of GEN_IOs of the tile
     withUserCLK : bool
         Whether the tile has a userCLK port. Default is False.
     wireList : list[Wire]
         The list of wires of the tile
-    tileDir : str
+    tileDir : Path
         The path to the tile folder
+    partOfSuperTile : bool
+        Whether the tile is part of a super tile. Default is False.
     """
 
     name: str
     portsInfo: list[Port]
     bels: list[Bel]
-    matrixDir: pathlib.Path
+    matrixDir: Path
     matrixConfigBits: int
     gen_ios: list[Gen_IO]
     withUserCLK: bool = False
     wireList: list[Wire] = field(default_factory=list)
-    tileDir: pathlib.Path = pathlib.Path()
-    partOfSuperTile = False
+    tileDir: Path = Path()
+    partOfSuperTile: bool = False
 
     def __init__(
         self,
         name: str,
         ports: list[Port],
         bels: list[Bel],
-        tileDir: pathlib.Path,
-        matrixDir: pathlib.Path,
+        tileDir: Path,
+        matrixDir: Path,
         gen_ios: list[Gen_IO],
         userCLK: bool,
         configBit: int = 0,
     ) -> None:
-        """Initialize a tile with its components.
-
-        Parameters
-        ----------
-        name : str
-            The name of the tile.
-        ports : list[Port]
-            List of ports for the tile.
-        bels : list[Bel]
-            List of Basic Elements of Logic (BELs) in the tile.
-        tileDir : pathlib.Path
-            Directory path for the tile.
-        matrixDir : pathlib.Path
-            Directory path for the tile matrix.
-        gen_ios : list[Gen_IO]
-            List of general I/O components.
-        userCLK : bool
-            True if the tile uses a clk signal.
-        configBit : int, optional
-            Number of configuration bits for the switch matrix. Defaults to 0.
-        """
         self.name = name
         self.portsInfo = ports
         self.bels = bels

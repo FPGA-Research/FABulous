@@ -41,7 +41,7 @@ class SuperTile:
 
         Returns
         -------
-        dict : [str, list[list[Port]]]
+        dict[str, list[list[Port]]]
             The dictionary of the ports around the super tile.
         """
         ports = {}
@@ -65,7 +65,7 @@ class SuperTile:
 
         Returns
         -------
-        list : [tuple[list[Port], int, int]]
+        list[tuple[list[Port], int, int]]
             A list of tuples which contains the internal connected port
             and the x and y coordinate of the tile.
         """

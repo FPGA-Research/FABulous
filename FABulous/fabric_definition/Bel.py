@@ -6,8 +6,8 @@ BELs are the fundamental building blocks that can be placed and configured withi
 such as LUTs, flip-flops, and other logic elements.
 """
 
-import pathlib
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from FABulous.fabric_definition.define import IO, HDLType
 
@@ -26,9 +26,40 @@ class Bel:
       as a result, signals like UserCLK will be in the shared port list,
       but not in the external port list.
 
+    Parameters
+    ----------
+    src : Path
+        The source directory path of the BEL.
+    prefix : str
+        The prefix of the BEL.
+    module_name : str
+        The name of the module in the BEL.
+    internal : list[tuple[str, IO]]
+        List of internal ports with their IO direction.
+    external : list[tuple[str, IO]]
+        List of external ports with their IO direction.
+    configPort : list[tuple[str, IO]]
+        List of configuration ports with their IO direction.
+    sharedPort : list[tuple[str, IO]]
+        List of shared ports with their IO direction.
+    configBit : int
+        The number of configuration bits of the BEL.
+    belMap : dict[str, dict]
+        The feature map of the BEL.
+    userCLK : bool
+        Whether the BEL has userCLK port.
+    individually_declared : bool
+        Whether ports are individually declared.
+    ports_vectors : dict[str, dict[str, tuple[IO, int]]]
+        Dictionary structure to save vectorized port information.
+    carry : dict[str, dict[IO, str]]
+        Carry chains by name.
+    localShared : dict[str, tuple[str, IO]]
+        Local shared ports of the BEL.
+
     Attributes
     ----------
-    src : pathlib.Path
+    src : Path
         The source directory of the BEL given in the CSV file.
     prefix : str
         The prefix of the BEL given in the CSV file.
@@ -48,7 +79,7 @@ class Bel:
         All the external input ports of the BEL.
     externalOutput : list[str]
         All the external output ports of the BEL.
-    configPort : list[str]
+    configPort : list[tuple[str, IO]]
         All the config ports of the BEL.
     sharedPort : list[tuple[str, IO]]
         All the shared ports of the BEL.
@@ -72,9 +103,14 @@ class Bel:
         {RESET/ENABLE,(portname, IO)}
         Local shared ports of the BEL.
         Are only shared in the Tile, not in the fabric.
+
+    Raises
+    ------
+    ValueError
+        If the file type is not recognized (not .sv, .v, .vhd, or .vhdl).
     """
 
-    src: pathlib.Path
+    src: Path
     prefix: str
     name: str
     module_name: str
@@ -96,7 +132,7 @@ class Bel:
 
     def __init__(
         self,
-        src: pathlib.Path,
+        src: Path,
         prefix: str,
         module_name: str,
         internal: list[tuple[str, IO]],
@@ -111,46 +147,6 @@ class Bel:
         carry: dict[str, dict[IO, str]],
         localShared: dict[str, tuple[str, IO]],
     ) -> None:
-        """Initialize a `Bel` object with the given parameters.
-
-        Parameters
-        ----------
-        src : pathlib.Path
-            The source directory path of the BEL.
-        prefix : str
-            The prefix of the BEL.
-        module_name : str
-            The name of the module in the BEL.
-        filetype : str
-            The file type of the BEL.
-        internal : list[tuple[str, IO]]
-            List of internal ports with their IO direction.
-        external : list[tuple[str, IO]]
-            List of external ports with their IO direction.
-        configPort : list[tuple[str, IO]]
-            List of configuration ports with their IO direction.
-        sharedPort : list[tuple[str, IO]]
-            List of shared ports with their IO direction.
-        configBit : int
-            The number of configuration bits of the BEL.
-        belMap : dict[str, dict]
-            The feature map of the BEL.
-        userCLK : bool
-            Whether the BEL has userCLK port.
-        individually_declared : bool
-            Whether ports are individually declared.
-        ports_vectors : dict[str, dict[str, tuple[IO, int]]]
-            Dictionary structure to save vectorized port information.
-        carry : dict[str, dict[IO, str]]
-            Carry chains by name.
-        localShared : dict[str, tuple[str, IO]]
-            Local shared ports of the BEL.
-
-        Raises
-        ------
-        ValueError
-            If the file type is not recognized (not .sv, .v, .vhd, or .vhdl).
-        """
         self.src = src
         self.prefix = prefix
         self.name = src.stem
