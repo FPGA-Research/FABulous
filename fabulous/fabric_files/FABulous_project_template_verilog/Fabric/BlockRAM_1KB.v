@@ -52,14 +52,16 @@ module BlockRAM_1KB (
         if (alwaysWriteEnable) begin
             memWriteEnable = 0;  // This RAM primitive is active low.
         end else begin
-            memWriteEnable = (!(wr_data[WriteEnableFromData])); // inverting the bit to make it active-high
+            // inverting the bit to make it active-high
+            memWriteEnable = (!(wr_data[WriteEnableFromData]));
         end
     end
     reg  [ 3:0] mem_wr_mask;
     reg  [31:0] muxedDataIn;
 
     wire [ 1:0] wr_addr_topbits;
-    assign wr_addr_topbits = wr_data[WriteAddressMSBFromDataLSB+1:WriteAddressMSBFromDataLSB];
+    assign wr_addr_topbits =
+        wr_data[WriteAddressMSBFromDataLSB+1:WriteAddressMSBFromDataLSB];
     always_comb begin  //write port config -> mask + write data multiplex
         muxedDataIn = 32'd0;
         if (wr_port_configuration == 0) begin
@@ -172,12 +174,12 @@ module sram_1rw1r_32_256_8_sky130 (
     dout1
 );
 
-    parameter integer NUM_WMASKS = 4;  // verilog_lint: waive parameter-name-style
-    parameter integer DATA_WIDTH = 32;  // verilog_lint: waive parameter-name-style
-    parameter integer ADDR_WIDTH = 8;  // verilog_lint: waive parameter-name-style
-    parameter integer RAM_DEPTH = 1 << ADDR_WIDTH;  // verilog_lint: waive parameter-name-style
+    parameter integer NUM_WMASKS = 4;
+    parameter integer DATA_WIDTH = 32;
+    parameter integer ADDR_WIDTH = 8;
+    parameter integer RAM_DEPTH = 1 << ADDR_WIDTH;
     // FIXME: This delay is arbitrary.
-    parameter integer DELAY = 3;  // verilog_lint: waive parameter-name-style
+    parameter integer DELAY = 3;
     //`ifdef USE_POWER_PINS
     // inout vdd;
     // inout gnd;

@@ -3,10 +3,12 @@ module config_UART #(
     parameter integer Mode = 0,
     // binary mode and takes a bit more logic,
     // bin is for faster binary mode, but might not work on all machines/boards
-    // auto uses the MSB in the command byte (the 8th byte in the comload header) to set the mode
+    // auto uses the MSB in the command byte (the 8th byte in the comload header)
+    // to set the mode
     // 1 is for hex mode, 0 for bin mode
     // [0:auto|1:hex|2:bin] auto selects between ASCII-Hex and binary mode and takes a bit more logic,
-    parameter logic [11:0] ComRate = 12'd217  // ComRate = f_CLK / Boud_rate (e.g., 25 MHz/115200 Boud = 217)
+    // ComRate = f_CLK / Boud_rate (e.g., 25 MHz/115200 Boud = 217)
+    parameter logic [11:0] ComRate = 12'd217
 ) (
     input CLK,
     input resetn,
@@ -18,7 +20,8 @@ module config_UART #(
     output reg ReceiveLED
 );
 
-    localparam logic [14:0] TIME_TO_SEND_VALUE = 15'd16776;  // 25e6/1500 ~= 16666, original minus one
+    // 25e6/1500 ~= 16666, original minus one
+    localparam logic [14:0] TIME_TO_SEND_VALUE = 15'd16776;
 
     localparam logic [19:0] TEST_FILE_CHECKSUM = 20'h4FB00;
 
@@ -49,7 +52,8 @@ module config_UART #(
                 8'h46: ASCII2HEX = 5'b01111;  // F
                 8'h66: ASCII2HEX = 5'b01111;  // f
                 default:
-                ASCII2HEX = 5'b10000;  // The MSB encodes if there was an unknown code -> error
+                // The MSB encodes if there was an unknown code -> error
+                ASCII2HEX = 5'b10000;
             endcase
         end
     endfunction
@@ -64,8 +68,15 @@ module config_UART #(
     reg [11:0] ComCount;
     reg ComTick;
     localparam logic [3:0] WAIT_FOR_START_BIT = 4'd0, DELAY_AFTER_START_BIT = 4'd1;
-    localparam logic [3:0] GET_BIT_0 = 4'd2, GET_BIT_1 = 4'd3, GET_BIT_2 = 4'd4, GET_BIT_3 = 4'd5, GET_BIT_4 = 4'd6;
-    localparam logic [3:0] GET_BIT_5 = 4'd7, GET_BIT_6 = 4'd8, GET_BIT_7 = 4'd9, GET_STOP_BIT = 4'd10;
+    localparam logic [3:0] GET_BIT_0 = 4'd2,
+                           GET_BIT_1 = 4'd3,
+                           GET_BIT_2 = 4'd4,
+                           GET_BIT_3 = 4'd5,
+                           GET_BIT_4 = 4'd6,
+                           GET_BIT_5 = 4'd7,
+                           GET_BIT_6 = 4'd8,
+                           GET_BIT_7 = 4'd9,
+                           GET_STOP_BIT = 4'd10;
 
     reg [3:0] ComState;
     reg [7:0] ReceivedWord;
@@ -83,7 +94,13 @@ module config_UART #(
     reg TimeToSend;
     reg [14:0] TimeToSendCounter;
 
-    localparam logic [2:0] IDLE=3'd0, GET_ID_00=3'd1, GET_ID_AA=3'd2, GET_ID_FF=3'd3, GET_COMMAND=3'd4, EVAL_COMMAND=3'd5, GET_DATA=3'd6;
+    localparam logic [2:0] IDLE=3'd0,
+                           GET_ID_00=3'd1,
+                           GET_ID_AA=3'd2,
+                           GET_ID_FF=3'd3,
+                           GET_COMMAND=3'd4,
+                           EVAL_COMMAND=3'd5,
+                           GET_DATA=3'd6;
     reg [2:0] PresentState;
 
     localparam [1:0] WORD_0 = 2'd0, WORD_1 = 2'd1, WORD_2 = 2'd2, WORD_3 = 2'd3;
@@ -198,8 +215,10 @@ module config_UART #(
                 end
             endcase
             // scan order:
-            // <-to_modules_scan_in <- LSB_W0..MSB_W0 <- LSB_W1.... <- LSB_W7 <- from_modules_scan_out
-            // W8(7..1)
+            //  <-to_modules_scan_in
+            //  <- LSB_W0..MSB_W0 <- LSB_W1.... <- LSB_W7
+            //  <- from_modules_scan_out
+            //  W8(7..1)
             if (ComState == GET_STOP_BIT && ComTick == 1'b1) begin
                 case (PresentState)
                     GET_ID_00: ID_Reg[23:16] <= ReceivedWord;
@@ -254,7 +273,8 @@ module config_UART #(
                     end
                 end
                 EVAL_COMMAND: begin
-                    if (ID_Reg==24'h00AAFF && (Command_Reg[6:0]=={3'b000,4'h1} || Command_Reg[6:0]=={3'b000,4'h2})) begin
+                    if (ID_Reg==24'h00AAFF && (Command_Reg[6:0]=={3'b000,4'h1}
+                        || Command_Reg[6:0]=={3'b000,4'h2})) begin
                         PresentState <= GET_DATA;
                     end else begin
                         PresentState <= IDLE;
@@ -284,14 +304,16 @@ module config_UART #(
             end else begin
                 if (PresentState != GET_DATA) begin
                     ReceiveState <= HIGH_NIBBLE;
-                end else if (ComState == GET_STOP_BIT && ComTick == 1'b1 && HexValue[4] == 1'b0) begin
+                end else if (ComState == GET_STOP_BIT && ComTick == 1'b1
+                        && HexValue[4] == 1'b0) begin
                     if (ReceiveState == HIGH_NIBBLE) begin
                         ReceiveState <= LOW_NIBBLE;
                     end
                 end else begin
                     ReceiveState <= HIGH_NIBBLE;
                 end
-                if (ComState == GET_STOP_BIT && ComTick == 1'b1 && HexValue[4] == 1'b0) begin
+                if (ComState == GET_STOP_BIT && ComTick == 1'b1
+                    && HexValue[4] == 1'b0) begin
                     if (ReceiveState == HIGH_NIBBLE) begin
                         HighReg <= HexValue[3:0];
                         HexWriteStrobe <= 1'b0;
@@ -315,15 +337,18 @@ module config_UART #(
             if (PresentState == GET_COMMAND) begin  // init before data arrives
                 CRCReg <= 0;
                 b_counter <= 0;
-            end else if (Mode==1 || (Mode==0 && Command_Reg[7]==1'b1)) begin // mode [0:auto|1:hex|2:bin]
-                // if hex mode or if auto mode with detected hex mode in the command register
+            // mode [0:auto|1:hex|2:bin]
+            end else if (Mode==1 || (Mode==0 && Command_Reg[7]==1'b1)) begin
+                // if hex mode or if auto mode with detected hex mode in the command
+                // register
                 if (ComState==GET_STOP_BIT && ComTick==1'b1 && HexValue[4]==1'b0
             && PresentState==GET_DATA && ReceiveState==LOW_NIBBLE) begin
                     CRCReg <= CRCReg + {{12{1'b0}}, HighReg, HexValue[3:0]};
                     b_counter <= b_counter + 1;
                 end
             end else begin  // binary mode
-                if (ComState == GET_STOP_BIT && ComTick == 1'b1 && (PresentState == GET_DATA)) begin
+                if (ComState == GET_STOP_BIT && ComTick == 1'b1
+                    && (PresentState == GET_DATA)) begin
                     CRCReg <= CRCReg + {{12{1'b0}}, ReceivedWord};
                     b_counter <= b_counter + 1;
                 end
@@ -348,15 +373,19 @@ module config_UART #(
         end else begin
             if (PresentState == EVAL_COMMAND) begin
                 LocalWriteStrobe <= 1'b0;
-            end else if (PresentState == GET_DATA && ComState == GET_STOP_BIT && ComTick == 1'b1) begin
+            end else if (PresentState == GET_DATA && ComState == GET_STOP_BIT
+                && ComTick == 1'b1) begin
                 LocalWriteStrobe <= 1'b1;
             end else begin
                 LocalWriteStrobe <= 1'b0;
             end
 
-            if (Mode == 2 || (Mode == 0 && Command_Reg[7] == 1'b0)) begin  // mode [0:auto|1:hex|2:bin]
-                // if binary mode or if auto mode with detected binary mode in the command register
-                ByteWriteStrobe <= LocalWriteStrobe; // delay Strobe to ensure that data is valid when applying CLK
+            // mode [0:auto|1:hex|2:bin]
+            if (Mode == 2 || (Mode == 0 && Command_Reg[7] == 1'b0)) begin
+                // if binary mode or if auto mode with detected binary mode in the
+                // command register
+                // delay Strobe to ensure that data is valid when applying CLK
+                ByteWriteStrobe <= LocalWriteStrobe;
                 // should further prevent glitches in ICAP CLK
             end else begin
                 ByteWriteStrobe <= HexWriteStrobe;
@@ -414,7 +443,8 @@ module config_UART #(
     end  // CLK
 
     // mode [0:auto|1:hex|2:bin]
-    assign ReceivedByte = (Mode == 2 || (Mode == 0 && Command_Reg[7] == 1'b0)) ? Data_Reg : HexData;
+    assign ReceivedByte = (Mode == 2 || (Mode == 0 && Command_Reg[7] == 1'b0)) ?
+                          Data_Reg : HexData;
     // if binary mode or if auto mode with detected binary mode in the command register
     assign ComActive = (PresentState == GET_DATA) ? 1'b1 : 1'b0;
 
