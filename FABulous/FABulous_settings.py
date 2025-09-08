@@ -3,6 +3,7 @@ from pathlib import Path
 from shutil import which
 
 import typer
+from dotenv import set_key
 from loguru import logger
 from packaging.version import Version
 from pydantic import Field, ValidationInfo, field_validator
@@ -289,10 +290,13 @@ def init_context(
 def get_context() -> FABulousSettings:
     """Get the global FABulous context.
 
-    Returns:
-        The current FABulousSettings instance
+    Returns
+    -------
+        FABulousSettings:
+            The current FABulousSettings instance
 
-    Raises:
+    Raises
+    ------
         RuntimeError: If context has not been initialized with init_context()
     """
     global _context_instance
@@ -310,3 +314,34 @@ def reset_context() -> None:
     global _context_instance
     _context_instance = None
     logger.debug("FABulous context reset")
+
+
+def add_var_to_global_env(key: str, value: str) -> None:
+    """Add or update a key-value pair to the global .env file.
+
+    Parameters
+    ----------
+        key: str
+            The environment variable key to add or update.
+        value: str
+            The value to set for the environment variable.
+    Raises
+    ------
+        RuntimeError
+            If the user config directory is not set.
+    """
+
+    # Use user config directory for global .env file
+    user_config_dir = FAB_USER_CONFIG_DIR
+
+    if user_config_dir is None:
+        raise RuntimeError("User config directory is not set.")
+
+    if not user_config_dir.exists():
+        logger.info(f"Creating user config directory at {user_config_dir}")
+        user_config_dir.mkdir(parents=True, exist_ok=True)
+
+    env_file = user_config_dir / ".env"
+    if not env_file.exists():
+        env_file.touch()
+    set_key(env_file, key, value)
