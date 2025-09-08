@@ -87,9 +87,10 @@ async def test_configfsm_basic(dut: ConfigFSMProtocol) -> None:
     dut.WriteStrobe.value = 0
     await Timer(Decimal(10), units="ps")
 
-    # Check that FrameAddressRegister is set
+    # Allow one extra cycle for register capture
+    await RisingEdge(dut.CLK)
     assert dut.FrameAddressRegister.value == frame_address, (
-        f"Expected FrameAddressRegister = 0x{frame_address:08x}, got 0x{dut.FrameAddressRegister.value:08x}"
+        f"Expected FrameAddressRegister = 0x{frame_address:08x}, got 0x{int(dut.FrameAddressRegister.value):08x}"
     )
 
     # Test case 3: Send frame data (NumberOfRows times)
@@ -183,7 +184,7 @@ async def test_configfsm_desync(dut: ConfigFSMProtocol) -> None:
 
     assert dut.FrameAddressRegister.value == normal_header, (
         f"After desync recovery: Expected FrameAddressRegister = 0x{normal_header:08x}, "
-        f"got 0x{dut.FrameAddressRegister.value:08x}"
+        f"got 0x{int(dut.FrameAddressRegister.value):08x}"
     )
 
 

@@ -7,9 +7,9 @@ from typing import Any, Protocol
 import cocotb
 import pytest
 from cocotb.triggers import Timer
+
 # NOTE: cocotb-coverage integration prepared but not active due to environment dependency
 # from cocotb_coverage.coverage import coverage_section, CoverPoint, CoverCross
-
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
 
 
