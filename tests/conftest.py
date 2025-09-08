@@ -2,6 +2,7 @@
 
 import os
 import shutil
+from collections.abc import Generator
 from pathlib import Path
 from typing import Protocol
 
@@ -53,27 +54,44 @@ def cocotb_runner(tmp_path: Path) -> CocotbRunner:
     def _create_runner(
         sources: list[Path], hdl_top_level: str, test_module_path: Path
     ) -> None:
-        lang = set([i.suffix for i in sources])
+        """Build and run a cocotb simulation.
 
+        Inject correct model pack file for each language (verilog: models_pack.v,
+        vhdl: model_pack.vhdl) if not already supplied, replacing the previous
+        reference to a non-existent tests/testdata directory.
+        """
+        if not sources:
+            raise ValueError("No HDL sources provided")
+
+        lang = {p.suffix for p in sources}
         if len(lang) > 1:
             raise ValueError("All source files must have the same HDL language suffix")
-
-        hdl_toplevel_lang = lang.pop()  # Get the single language suffix
-        if hdl_toplevel_lang not in {".v", ".vhdl"}:
+        hdl_toplevel_lang = lang.pop()
+        if hdl_toplevel_lang not in {".v", ".sv", ".vhdl"}:
             raise ValueError(f"Unsupported HDL language: {hdl_toplevel_lang}")
 
-        sim = {".v": "icarus", ".vhdl": "ghdl"}[hdl_toplevel_lang]
+        sim = {".v": "icarus", ".sv": "icarus", ".vhdl": "ghdl"}[hdl_toplevel_lang]
+
+        # No graceful skip: allow missing simulator to raise error for visibility
+
+        # Ensure model pack file is present for primitives if not explicitly provided
+        if hdl_toplevel_lang == ".v":
+            model_pack_path = VERILOG_SOURCE_PATH / "Fabric" / "models_pack.v"
+        else:  # .vhdl
+            model_pack_path = VHDL_SOURCE_PATH / "Fabric" / "model_pack.vhdl"
+
+        # Only add if not already one of the provided sources (compare resolved paths)
+        resolved_sources = {p.resolve() for p in sources}
+        if (
+            model_pack_path.exists()
+            and model_pack_path.resolve() not in resolved_sources
+        ):
+            # Prepend so dependencies are available early
+            sources.insert(0, model_pack_path)
+
         runner = get_runner(sim)
 
-        timescales = ("1ps", "1ps")
-
-        # Only add testdata models if models_pack.v is not already included
-        models_pack_included = any("models_pack.v" in str(source) for source in sources)
-        if not models_pack_included:
-            sources.insert(
-                0, Path(__file__).parent / "testdata" / f"models{hdl_toplevel_lang}"
-            )
-        # Copy test module and models to temp directory for cocotb
+        # Copy test module to temp directory for cocotb
         test_dir = tmp_path / "tests"
         test_dir.mkdir(exist_ok=True)
 
@@ -91,8 +109,9 @@ def cocotb_runner(tmp_path: Path) -> CocotbRunner:
                 always=True,
                 build_dir=build_dir,
                 defines={"NOTIMESCALE": 1},
+                timescale=("1ns", "1ps"),  # Set simulation time unit/precision
             )
-        elif hdl_toplevel_lang == ".vhdl":
+        else:  # .vhdl
             # GHDL converts identifiers to lowercase for elaboration and execution
             hdl_top_level = hdl_top_level.lower()
             runner.build(
@@ -101,9 +120,14 @@ def cocotb_runner(tmp_path: Path) -> CocotbRunner:
                 always=True,
                 build_dir=build_dir,
                 defines={"NOTIMESCALE": 1},
+                build_args=[
+                    "--std=08",
+                    "--ieee=synopsys",
+                ],  # VHDL-2008 & IEEE extensions
+                timescale=("1ns", "1ps"),
             )
 
-            # Copy all files from build_dir to test_dir
+            # Copy all files from build_dir to test_dir for execution context
             for file in build_dir.iterdir():
                 if file.is_file():
                     shutil.copy(file, test_dir / file.name)
@@ -227,7 +251,7 @@ def caplog(caplog: LogCaptureFixture) -> LogCaptureFixture:
 
 
 @pytest.fixture
-def project(tmp_path: Path) -> Generator[Path]:
+def project(tmp_path: Path) -> Generator[Path, None, None]:
     project_dir = tmp_path / "test_project"
     create_project(project_dir)
     yield project_dir
