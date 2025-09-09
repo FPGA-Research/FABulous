@@ -22,11 +22,12 @@ repos:
         language: python
         types: [python]
 
-  - repo: https://github.com/econchick/interrogate
-    rev: 1.7.0
+  - repo: local
     hooks:
       - id: interrogate
-        language_version: python3.12
+        name: interrogate
+        entry: interrogate
+        language: python
         args: [-vv, -c, pyproject.toml]
         pass_filenames: false # needed if excluding files with pyproject.toml or setup.cfg
   - repo: https://github.com/Lucas-C/pre-commit-hooks

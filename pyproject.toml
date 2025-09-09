@@ -85,6 +85,7 @@ dev = [
   "ruff>=0.12.7",
   "taskipy>=1.14.0",
   "pyyaml>=6.0.0",
+  "interrogate>=1.7.0",
 ]
 
 [tool.coverage.run]
