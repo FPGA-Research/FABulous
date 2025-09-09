@@ -18,6 +18,7 @@ import argparse
 import csv
 import pickle
 import pprint
+import shutil
 import subprocess as sp
 import sys
 import tkinter as tk
@@ -605,6 +606,11 @@ class FABulous_CLI(Cmd):
         """
         logger.info("Checking for FABulator installation")
         fabulatorRoot = get_context().fabulator_root
+        if shutil.which("mvn") is None:
+            raise FileNotFoundError(
+                "Application mvn (Java Maven) not found in PATH",
+                " please install it to use FABulator",
+            )
 
         if fabulatorRoot is None:
             logger.warning("FABULATOR_ROOT environment variable not set.")

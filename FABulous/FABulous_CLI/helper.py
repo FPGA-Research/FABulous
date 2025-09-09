@@ -487,6 +487,10 @@ def clone_git_repo(repo_url: str, target_dir: Path, branch: str = "main") -> boo
     Raises
     ------
     """
+
+    if shutil.which("git") is None:
+        raise FileNotFoundError("Application git not found in PATH")
+
     try:
         logger.info(f"Cloning repo {repo_url} (branch: {branch}) into {target_dir}")
 
@@ -546,9 +550,6 @@ def clone_git_repo(repo_url: str, target_dir: Path, branch: str = "main") -> boo
     except subprocess.TimeoutExpired:
         logger.error("Git operation timed out")
         return False
-    except FileNotFoundError:
-        logger.error("Git command not found. Please install git.")
-        return False
     except Exception as e:  # noqa: BLE001
         logger.error(f"Failed to download reference projects: {e}")
         return False
@@ -577,6 +578,12 @@ def install_fabulator(install_dir: Path) -> None:
 
     # TODO: Update branch to main, when new release available
     if not clone_git_repo(repo_url, fabulator_dir, "develop"):
-        raise RuntimeError("Failed to install FABulator.")
+        raise RuntimeError("Failed to install FABulator. Please install manually.")
 
-    add_var_to_global_env("FABULATOR_ROOT", str(fabulator_dir.absolute()))
+    if shutil.which("mvn") is None:
+        logger.warning(
+            "Application mvn (Java Maven) not found in PATH."
+            "FABulator may not work correctly."
+        )
+
+    add_var_to_global_env("FAB_FABULATOR_ROOT", str(fabulator_dir.absolute()))
