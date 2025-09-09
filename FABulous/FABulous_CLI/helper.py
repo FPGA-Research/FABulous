@@ -443,7 +443,6 @@ class CommandPipeline:
         """Execute all steps in the pipeline.
 
         Returns:
-
             bool: True if all commands succeeded, False if any failed.
 
         Raises:
@@ -489,7 +488,7 @@ def clone_git_repo(repo_url: str, target_dir: Path, branch: str = "main") -> boo
     ------
     """
     try:
-        logger.info(f"Downloading reference projects from {repo_url}")
+        logger.info(f"Cloning repo {repo_url} (branch: {branch}) into {target_dir}")
 
         if target_dir.exists():
             # If directory exists, try to update it

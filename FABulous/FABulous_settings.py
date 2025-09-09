@@ -334,9 +334,6 @@ def add_var_to_global_env(key: str, value: str) -> None:
     # Use user config directory for global .env file
     user_config_dir = FAB_USER_CONFIG_DIR
 
-    if user_config_dir is None:
-        raise RuntimeError("User config directory is not set.")
-
     if not user_config_dir.exists():
         logger.info(f"Creating user config directory at {user_config_dir}")
         user_config_dir.mkdir(parents=True, exist_ok=True)
