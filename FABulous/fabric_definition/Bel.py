@@ -51,8 +51,6 @@ class Bel:
         The feature map of the BEL.
     withUserCLK : bool
         Whether the BEL has userCLK port. Default is False.
-    individually_declared : bool
-        Indicates if ports are individually declared. Default is False.
     ports_vectors: dict[str, dict[str, tuple[IO, int]]]
         Dict structure to save vectorized port information
         {<porttype>:{<portname>:(IO, <portwidth>)}}
@@ -80,7 +78,6 @@ class Bel:
     language: str
     belFeatureMap: dict[str, dict] = field(default_factory=dict)
     withUserCLK: bool = False
-    individually_declared: bool = False
     ports_vectors: dict[str, dict[str, tuple[IO, int]]] = field(default_factory=dict)
     carry: dict[str, dict[IO, str]] = field(default_factory=dict)
     localShared: dict[str, tuple[str, IO]] = field(default_factory=dict)
@@ -97,7 +94,6 @@ class Bel:
         configBit: int,
         belMap: dict[str, dict],
         userCLK: bool,
-        individually_declared: bool,
         ports_vectors: dict[str, dict[str, tuple[IO, int]]],
         carry: dict[str, dict[IO, str]],
         localShared: dict[str, tuple[str, IO]],
@@ -115,7 +111,6 @@ class Bel:
         self.configBit = configBit
         self.belFeatureMap = belMap
         self.withUserCLK = userCLK
-        self.individually_declared = individually_declared
         self.ports_vectors = ports_vectors
         if self.src.suffix in [".sv", ".v"]:
             self.language = "verilog"
