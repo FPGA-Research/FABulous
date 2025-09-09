@@ -1,4 +1,3 @@
-import re
 from collections import defaultdict
 from pathlib import Path
 
@@ -356,16 +355,20 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         signal = []
         userclk_pair = None
 
-        # internal + external ports
-        for port in bel.inputs + bel.outputs + bel.externalInput + bel.externalOutput:
-            port_name = port.removeprefix(bel.prefix)
-            if r := re.search(r"\d+$", port_name):
-                number = r.group()
-                portname = port_name.removesuffix(number)
-            else:
-                portname = port_name
-                number = ""
-            port_dict[portname].append((port, number))
+        # build port list for internal and external ports
+        for port_type, bel_ports in bel.ports_vectors.items():
+            if port_type in ["external", "internal"]:
+                for port_name, info in bel_ports.items():
+                    _direction, width = info
+                    if width > 1:
+                        port_dict[port_name] = [
+                            (f"{bel.prefix}{port_name}{i}", f"{i}")
+                            for i in range(width)
+                        ]
+                    else:
+                        port_dict[port_name] = [
+                            (f"{bel.prefix}{port_name}", f"{i}") for i in range(width)
+                        ]
 
         # Shared ports
         for port in bel.sharedPort:
