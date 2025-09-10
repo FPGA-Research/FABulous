@@ -22,6 +22,7 @@ from FABulous.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import (
     CommandPipeline,
     create_project,
+    install_fabulator,
     install_oss_cad_suite,
     setup_logger,
     update_project_version,
@@ -196,6 +197,26 @@ def install_oss_cad_suite_cmd(
     else:
         install_oss_cad_suite(directory)
     logger.info(f"oss-cad-suite installed successfully at {directory}")
+
+
+@app.command("install-fabulator")
+def install_fabulator_cmd(
+    directory: Annotated[
+        Path | None, typer.Argument(help="Directory to install FABulator in")
+    ] = None,
+) -> None:
+    """Install FABulator in the specified directory.
+
+    This will create a new directory FABulator and install the suite there. If the
+    directory already exists, it will be replaced. This also automatically adds the
+    FABULATOR_ROOT env var in the global FABulous .env file.
+    """
+    if directory is None:
+        directory = FAB_USER_CONFIG_DIR
+
+    install_fabulator(directory)
+
+    logger.info(f"FABulator installed successfully at {directory}")
 
 
 @app.command("update-project-version")

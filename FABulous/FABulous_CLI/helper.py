@@ -11,6 +11,7 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -27,7 +28,7 @@ from loguru import logger
 from packaging.version import Version
 
 from FABulous.custom_exception import PipelineCommandError
-from FABulous.FABulous_settings import FAB_USER_CONFIG_DIR
+from FABulous.FABulous_settings import add_var_to_global_env
 
 if TYPE_CHECKING:
     from loguru import Record
@@ -455,12 +456,7 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
     ocs_archive.unlink()
 
     # Use user config directory for global .env file
-    user_config_dir = FAB_USER_CONFIG_DIR
-    user_config_dir.mkdir(parents=True, exist_ok=True)
-    env_file = user_config_dir / ".env"
-    if not env_file.exists():
-        env_file.touch()
-    set_key(env_file, "FAB_OSS_CAD_SUITE", str(ocs_folder.absolute()))
+    add_var_to_global_env("FAB_OSS_CAD_SUITE", str(ocs_folder.absolute()))
 
     # export oss-cad-suite to PATH
     os.environ["PATH"] += os.pathsep + str(ocs_folder / "bin")
@@ -580,3 +576,124 @@ class CommandPipeline:
     def get_exit_code(self) -> int:
         """Get the final exit code from pipeline execution."""
         return self.final_exit_code
+
+
+def clone_git_repo(repo_url: str, target_dir: Path, branch: str = "main") -> bool:
+    """Clone or update a GitHub repository.
+
+    Parameters
+    ----------
+        repo_url: str
+            GitHub repository URL (e.g., "https://github.com/user/repo.git")
+        target_dir: Path
+            Local directory to clone/download to
+        branch: str
+            Git branch to checkout (default: "main")
+
+    Returns
+    -------
+        True if successful, False otherwise
+
+    Raises
+    ------
+    """
+
+    if shutil.which("git") is None:
+        raise FileNotFoundError("Application git not found in PATH")
+
+    try:
+        logger.info(f"Cloning repo {repo_url} (branch: {branch}) into {target_dir}")
+
+        if target_dir.exists():
+            # If directory exists, try to update it
+            if (target_dir / ".git").exists():
+                logger.info("Updating existing repository...")
+                result = subprocess.run(
+                    ["git", "pull", "origin", branch],
+                    cwd=target_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+                if result.returncode != 0:
+                    logger.warning(f"Git pull failed: {result.stderr}")
+                    logger.info("Attempting fresh clone...")
+                    shutil.rmtree(target_dir)
+                else:
+                    logger.info("✓ Repository updated successfully")
+                    return True
+            else:
+                logger.error(
+                    f"Target directory {target_dir} exists but is not a git repository."
+                    " Please remove or specify a different directory.",
+                )
+                return False
+
+        if not target_dir.exists():
+            # Fresh clone
+            logger.info("Cloning repository...")
+            target_dir.parent.mkdir(parents=True, exist_ok=True)
+
+            result = subprocess.run(
+                [
+                    "git",
+                    "clone",
+                    "--branch",
+                    branch,
+                    "--depth",
+                    "1",
+                    repo_url,
+                    str(target_dir),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+            if result.returncode != 0:
+                logger.error(f"Failed to clone repository: {result.stderr}")
+                return False
+
+            logger.info("✓ Repository cloned successfully")
+            return True
+
+    except subprocess.TimeoutExpired:
+        logger.error("Git operation timed out")
+        return False
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Failed to download reference projects: {e}")
+        return False
+
+    return False
+
+
+def install_fabulator(install_dir: Path) -> None:
+    """Installs FABulator into the specified directory by downloading the latest release
+    and sets the FABULATOR_ROOT environment variable in the global .env file.
+
+    Parameters
+    ----------
+        install_dir: Path
+            The directory where FABulator will be installed.
+    """
+
+    fabulator_dir = install_dir / "FABulator"
+    repo_url = "https://github.com/FPGA-Research/FABulator.git"
+
+    if not install_dir.exists():
+        logger.info(f"Creating installation directory {install_dir}")
+        install_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info(f"Installing FABulator in {fabulator_dir.absolute()}")
+
+    # TODO: Update branch to main, when new release available
+    if not clone_git_repo(repo_url, fabulator_dir, "develop"):
+        raise RuntimeError("Failed to install FABulator. Please install manually.")
+
+    if shutil.which("mvn") is None:
+        logger.warning(
+            "Application mvn (Java Maven) not found in PATH."
+            "FABulator may not work correctly."
+        )
+
+    add_var_to_global_env("FAB_FABULATOR_ROOT", str(fabulator_dir.absolute()))

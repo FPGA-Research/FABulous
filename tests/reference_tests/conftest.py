@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.reference_tests.helpers import download_reference_projects
+from FABulous.FABulous_CLI.helper import clone_git_repo
 from tests.reference_tests.reference_projects_test import load_reference_projects_config
 
 
@@ -67,7 +67,7 @@ def pytest_configure(config: pytest.Config) -> None:
     _session_config.verbose = config.getoption("-v") > 0
 
     if _session_config.download_projects and (
-        not download_reference_projects(
+        not clone_git_repo(
             _session_config.repo_url, _session_config.projects_dir
         )
     ):

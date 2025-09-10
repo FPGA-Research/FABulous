@@ -14,6 +14,7 @@ Key features:
 """
 
 import re
+
 from collections import defaultdict
 from pathlib import Path
 
@@ -392,16 +393,20 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         signal = []
         userclk_pair = None
 
-        # internal + external ports
-        for port in bel.inputs + bel.outputs + bel.externalInput + bel.externalOutput:
-            port_name = port.removeprefix(bel.prefix)
-            if r := re.search(r"\d+$", port_name):
-                number = r.group()
-                portname = port_name.removesuffix(number)
-            else:
-                portname = port_name
-                number = ""
-            port_dict[portname].append((port, number))
+        # build port list for internal and external ports
+        for port_type, bel_ports in bel.ports_vectors.items():
+            if port_type in ["external", "internal"]:
+                for port_name, info in bel_ports.items():
+                    _direction, width = info
+                    if width > 1:
+                        port_dict[port_name] = [
+                            (f"{bel.prefix}{port_name}{i}", f"{i}")
+                            for i in range(width)
+                        ]
+                    else:
+                        port_dict[port_name] = [
+                            (f"{bel.prefix}{port_name}", f"{i}") for i in range(width)
+                        ]
 
         # Shared ports
         for port in bel.sharedPort:
@@ -410,26 +415,17 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
             else:
                 portsPairs.append((port[0], port[0]))
 
-        if bel.individually_declared:
-            for portname, ports in port_dict.items():
-                for port, number in ports:
-                    # If there's a number, include it in the port name.
-                    if number:
-                        portsPairs.append((f"{portname}{number}", port))
-                    else:
-                        portsPairs.append((portname, port))
-        else:
-            for portname, ports in port_dict.items():
-                if len(ports) > 1:
-                    # Sort ports based on bit significance.
-                    ports.sort(key=lambda x: int(x[1]) if x[1].isdigit() else -1)
-                    # Concatenate the ports in the correct order.
-                    concatenated_ports = ", ".join(port for port, _ in ports[::-1])
-                    portsPairs.append((portname, f"{{{concatenated_ports}}}"))
-                else:
-                    # Single port, no need for concatenation.
-                    single_port = ports[0][0]
-                    portsPairs.append((portname, single_port))
+        for portname, ports in port_dict.items():
+            if len(ports) > 1:
+                # Sort ports based on bit significance.
+                ports.sort(key=lambda x: int(x[1]) if x[1].isdigit() else -1)
+                # Concatenate the ports in the correct order.
+                concatenated_ports = ", ".join(port for port, _ in ports[::-1])
+                portsPairs.append((portname, f"{{{concatenated_ports}}}"))
+            else:
+                # Single port, no need for concatenation.
+                single_port = ports[0][0]
+                portsPairs.append((portname, single_port))
 
         # Makes sure UserCLK is after ports.
         if userclk_pair is not None:

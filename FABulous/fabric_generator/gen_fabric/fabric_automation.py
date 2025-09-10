@@ -2,6 +2,7 @@
 
 import json
 import math
+from importlib import resources
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -188,10 +189,11 @@ def generateSwitchmatrixList(
              Number of carry ins and carry outs do not match.
     """
     projdir = get_context().proj_dir
-    fab_root = get_context().root
-    CLBDummyFile = (
-        fab_root / "fabric_files" / "dummy_files" / "DUMMY_switch_matrix.list"
-    )
+
+    with resources.path(
+        "FABulous.fabric_files.dummy_files", "DUMMY_switch_matrix.list"
+    ) as dummy_file_path:
+        CLBDummyFile = dummy_file_path
 
     belIns = sum((bel.inputs for bel in bels), [])
     belOuts = sum((bel.outputs for bel in bels), [])

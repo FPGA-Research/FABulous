@@ -172,7 +172,6 @@ def parseBelFile(
     carry: dict[str, dict[IO, str]] = {}
     carryPrefix: str = ""
     userClk = False
-    individually_declared = False
     noConfigBits = 0
     belMapDic = {}
     ports_vectors: dict[str, dict[str, tuple[IO, int]]] = {}
@@ -196,11 +195,6 @@ def parseBelFile(
             continue
         if "UserCLK" in port_name:
             userClk = True
-        if port_name[-1].isdigit():
-            # FIXME:  This is a temporary fix for the issue where the ports are
-            # individually declared. Check for the last charcter in portname is
-            # not really reliable and sould be handeled more rubust in the future.
-            individually_declared = True
         direction = IO[details.direction.upper()]
         filtered_ports[port_name] = (direction, details.bits)
 
@@ -298,7 +292,6 @@ def parseBelFile(
         configBit=noConfigBits,
         belMap=belMapDic,
         userCLK=userClk,
-        individually_declared=individually_declared,
         ports_vectors=ports_vectors,
         carry=carry,
         localShared=localSharedPorts,

@@ -24,6 +24,7 @@ import argparse
 import csv
 import pickle
 import pprint
+import shutil
 import subprocess as sp
 import sys
 import tkinter as tk
@@ -59,6 +60,7 @@ from FABulous.FABulous_CLI.helper import (
     CommandPipeline,
     allow_blank,
     copy_verilog_files,
+    install_fabulator,
     install_oss_cad_suite,
     make_hex,
     remove_dir,
@@ -372,6 +374,34 @@ class FABulous_CLI(Cmd):
 
         install_oss_cad_suite(dest_dir, args.update_existing)
 
+    install_FABulator_parser = Cmd2ArgumentParser()
+    install_FABulator_parser.add_argument(
+        "destination_folder",
+        type=Path,
+        help="Destination folder for the installation",
+        default="",
+        completer=Cmd.path_complete,
+        nargs=argparse.OPTIONAL,
+    )
+
+    @with_category(CMD_SETUP)
+    @allow_blank
+    @with_argparser(install_oss_cad_suite_parser)
+    def do_install_FABulator(self, args: argparse.Namespace) -> None:
+        """Downloads and install the latest version of FABulator.
+
+        Sets the the FABULATOR_ROOT environment variable in the .env file.
+        """
+        if args.destination_folder == "":
+            dest_dir = get_context().root
+        else:
+            dest_dir = args.destination_folder
+
+        if not install_fabulator(dest_dir):
+            raise RuntimeError("FABulator installation failed")
+
+        logger.info("FABulator successfully installed")
+
     @with_category(CMD_SETUP)
     @allow_blank
     @with_argparser(filePathOptionalParser)
@@ -408,6 +438,10 @@ class FABulous_CLI(Cmd):
         tileByFabric = list(self.fabulousAPI.fabric.tileDic.keys())
         superTileByFabric = list(self.fabulousAPI.fabric.superTileDic.keys())
         self.allTile = list(set(tileByPath) & set(tileByFabric + superTileByFabric))
+
+        proj_dir = get_context().proj_dir
+        if (proj_dir / "eFPGA_geometry.csv").exists():
+            self.enable_category(CMD_GUI)
 
         self.enable_category(CMD_FABRIC_FLOW)
         self.enable_category(CMD_USER_DESIGN_FLOW)
@@ -620,6 +654,11 @@ class FABulous_CLI(Cmd):
         """
         logger.info("Checking for FABulator installation")
         fabulatorRoot = get_context().fabulator_root
+        if shutil.which("mvn") is None:
+            raise FileNotFoundError(
+                "Application mvn (Java Maven) not found in PATH",
+                " please install it to use FABulator",
+            )
 
         if fabulatorRoot is None:
             logger.warning("FABULATOR_ROOT environment variable not set.")
