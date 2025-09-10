@@ -67,9 +67,7 @@ def pytest_configure(config: pytest.Config) -> None:
     _session_config.verbose = config.getoption("-v") > 0
 
     if _session_config.download_projects and (
-        not clone_git_repo(
-            _session_config.repo_url, _session_config.projects_dir
-        )
+        not clone_git_repo(_session_config.repo_url, _session_config.projects_dir)
     ):
         raise AssertionError("Could not set up reference projects")
 

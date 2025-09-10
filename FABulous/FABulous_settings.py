@@ -353,12 +353,12 @@ def add_var_to_global_env(key: str, value: str) -> None:
             The environment variable key to add or update.
         value: str
             The value to set for the environment variable.
+
     Raises
     ------
         RuntimeError
             If the user config directory is not set.
     """
-
     # Use user config directory for global .env file
     user_config_dir = FAB_USER_CONFIG_DIR
 

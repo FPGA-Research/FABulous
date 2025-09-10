@@ -596,8 +596,9 @@ def clone_git_repo(repo_url: str, target_dir: Path, branch: str = "main") -> boo
 
     Raises
     ------
+        FileNotFoundError
+            If git application not found in PATH
     """
-
     if shutil.which("git") is None:
         raise FileNotFoundError("Application git not found in PATH")
 
@@ -668,15 +669,16 @@ def clone_git_repo(repo_url: str, target_dir: Path, branch: str = "main") -> boo
 
 
 def install_fabulator(install_dir: Path) -> None:
-    """Installs FABulator into the specified directory by downloading the latest release
-    and sets the FABULATOR_ROOT environment variable in the global .env file.
+    """Install FABulator and set FABULATOR_ROOT environment variable.
+
+    Clones FABulator into the specified directory by downloading the latest release
+    and sets the FAB_FABULATOR_ROOT environment variable in the global .env file.
 
     Parameters
     ----------
         install_dir: Path
             The directory where FABulator will be installed.
     """
-
     fabulator_dir = install_dir / "FABulator"
     repo_url = "https://github.com/FPGA-Research/FABulator.git"
 

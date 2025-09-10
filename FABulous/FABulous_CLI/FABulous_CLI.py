@@ -388,7 +388,7 @@ class FABulous_CLI(Cmd):
     @allow_blank
     @with_argparser(install_oss_cad_suite_parser)
     def do_install_FABulator(self, args: argparse.Namespace) -> None:
-        """Downloads and install the latest version of FABulator.
+        """Download and install the latest version of FABulator.
 
         Sets the the FABULATOR_ROOT environment variable in the .env file.
         """

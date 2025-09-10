@@ -5,8 +5,6 @@ file comparison, and other testing helpers.
 """
 
 import difflib
-import shutil
-import subprocess
 from pathlib import Path
 from typing import Any, NamedTuple
 

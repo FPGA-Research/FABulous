@@ -13,8 +13,6 @@ Key features:
 - External I/O port handling and clock distribution
 """
 
-import re
-
 from collections import defaultdict
 from pathlib import Path
 
