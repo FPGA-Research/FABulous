@@ -10,11 +10,13 @@ Test coverage includes:
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import cocotb  # type: ignore
-import pytest
 from cocotb.clock import Clock  # type: ignore
+
+if TYPE_CHECKING:  # pragma: no cover
+    from cocotb.handle import ModifiableObject  # type: ignore
 from cocotb.triggers import RisingEdge  # type: ignore
 from cocotbext.uart import UartSource  # type: ignore
 
@@ -22,14 +24,14 @@ from tests.conftest import VERILOG_SOURCE_PATH, CocotbRunner
 
 
 class ConfigUartProtocol(Protocol):  # pragma: no cover - interface typing only
-    CLK: Any
-    resetn: Any
-    Rx: Any
-    WriteData: Any
-    ComActive: Any
-    WriteStrobe: Any
-    Command: Any
-    ReceiveLED: Any
+    CLK: ModifiableObject  # System clock (handle)
+    resetn: ModifiableObject  # Reset (active low) (handle)
+    Rx: ModifiableObject  # UART receive (handle)
+    WriteData: ModifiableObject  # [31:0] Write data output (handle)
+    ComActive: ModifiableObject  # Communication active flag (handle)
+    WriteStrobe: ModifiableObject  # Write strobe output (handle)
+    Command: ModifiableObject  # [7:0] Command output (handle)
+    ReceiveLED: ModifiableObject  # Receive LED indicator (handle)
 
 
 def test_config_uart_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -90,8 +92,8 @@ async def wait_for_strobe_or_timeout(
 
 
 # -------------- Cocotb Tests --------------
-@cocotb.test()
-async def test_config_uart_binary_word(
+@cocotb.test
+async def config_uart_binary_word(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     # Match the ComRate parameter: ComRate = f_CLK / Baud_rate
@@ -122,8 +124,8 @@ async def test_config_uart_binary_word(
         # For now, allow test to pass with reduced expectations if FSM issues persist
 
 
-@cocotb.test()
-async def test_config_uart_hex_mode_word(
+@cocotb.test
+async def config_uart_hex_mode_word(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     clk_period_ns = 40  # 25MHz
@@ -143,8 +145,8 @@ async def test_config_uart_hex_mode_word(
         assert int(dut.WriteData.value) == 0x12345678
 
 
-@cocotb.test()
-async def test_config_uart_invalid_command(
+@cocotb.test
+async def config_uart_invalid_command(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     clk_period_ns = 40  # 25MHz
@@ -164,8 +166,8 @@ async def test_config_uart_invalid_command(
     # The actual value depends on how the FSM processed the complete frame
 
 
-@cocotb.test()
-async def test_config_uart_partial_word(
+@cocotb.test
+async def config_uart_partial_word(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     clk_period_ns = 40  # 25MHz
@@ -182,8 +184,10 @@ async def test_config_uart_partial_word(
     assert int(dut.WriteStrobe.value) == 0
 
 
-@cocotb.test()
-async def test_config_uart_timeout(dut: ConfigUartProtocol) -> None:  # pragma: no cover
+@cocotb.test
+async def config_uart_timeout(
+    dut: ConfigUartProtocol,
+) -> None:  # pragma: no cover
     clk_period_ns = 40  # 25MHz
     cocotb.start_soon(Clock(dut.CLK, clk_period_ns, units="ns").start())
     uart = UartSource(dut.Rx, baud=115200, bits=8, stop_bits=1)
@@ -198,8 +202,8 @@ async def test_config_uart_timeout(dut: ConfigUartProtocol) -> None:  # pragma: 
     assert int(dut.WriteStrobe.value) == 0
 
 
-@cocotb.test()
-async def test_config_uart_multi_word_stream(
+@cocotb.test
+async def config_uart_multi_word_stream(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Test streaming two consecutive 32-bit words"""
@@ -229,8 +233,8 @@ async def test_config_uart_multi_word_stream(
             assert words[1] == 0xAABBCCDD
 
 
-@cocotb.test()
-async def test_config_uart_receive_led_behavior(
+@cocotb.test
+async def config_uart_receive_led_behavior(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Test ReceiveLED behavior during and after transfer"""
@@ -263,9 +267,9 @@ async def test_config_uart_receive_led_behavior(
 
 
 # Minimal legacy wrapper
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
-@cocotb.test()
-async def test_config_uart_legacy_basic(
-    dut: ConfigUartProtocol,
-) -> None:  # pragma: no cover
-    pass  # superseded by comprehensive tests above
+@cocotb.test
+async def config_uart_legacy_basic(dut: ConfigUartProtocol) -> None:  # pragma: no cover
+    # Simple sanity: clock a few cycles to ensure elaboration works
+    cocotb.start_soon(Clock(dut.CLK, 20, units="ns").start())
+    for _ in range(5):
+        await RisingEdge(dut.CLK)

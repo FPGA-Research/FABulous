@@ -2,14 +2,13 @@
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Protocol
 
 import cocotb
-import pytest
+from cocotb.handle import ModifiableObject
 from cocotb.triggers import Timer
 
 # NOTE: cocotb-coverage integration prepared but not active due to environment dependency
-# from cocotb_coverage.coverage import coverage_section, CoverPoint, CoverCross
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
 
 
@@ -17,12 +16,12 @@ class FrameSelectProtocol(Protocol):
     """Protocol defining the Frame_Select module interface."""
 
     # Inputs
-    FrameStrobe_I: Any  # [MaxFramesPerCol-1:0]
-    FrameSelect: Any  # [FrameSelectWidth-1:0]
-    FrameStrobe: Any
+    FrameStrobe_I: ModifiableObject  # [MaxFramesPerCol-1:0]
+    FrameSelect: ModifiableObject  # [FrameSelectWidth-1:0]
+    FrameStrobe: ModifiableObject
 
     # Outputs
-    FrameStrobe_O: Any  # [MaxFramesPerCol-1:0]
+    FrameStrobe_O: ModifiableObject  # [MaxFramesPerCol-1:0]
 
 
 def test_Frame_Select_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -43,13 +42,12 @@ def test_Frame_Select_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
     )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 # NOTE: Coverage decorators prepared but commented out due to environment dependency
-# @CoverPoint("frame_select.frame_select_value", xf=lambda dut: dut.FrameSelect.value, bins=list(range(32)))
-# @CoverPoint("frame_select.frame_strobe", xf=lambda dut: dut.FrameStrobe.value, bins=[0, 1])
-# @CoverPoint("frame_select.strobe_input_pattern", xf=lambda dut: dut.FrameStrobe_I.value & 0xFF, bins=list(range(0, 256, 32)))
+# @CoverPoint("frame_select.frame_select_value", xf=lambda dut: dut.FrameSelect, bins=list(range(32)))
+# @CoverPoint("frame_select.frame_strobe", xf=lambda dut: dut.FrameStrobe, bins=[0, 1])
+# @CoverPoint("frame_select.strobe_input_pattern", xf=lambda dut: dut.FrameStrobe_I & 0xFF, bins=list(range(0, 256, 32)))
 @cocotb.test
-async def test_frame_select_basic(dut: FrameSelectProtocol) -> None:
+async def frame_select_basic_test(dut: FrameSelectProtocol) -> None:
     """Test basic functionality of Frame_Select."""
     # Initialize inputs
     dut.FrameStrobe_I.value = 0
@@ -58,7 +56,7 @@ async def test_frame_select_basic(dut: FrameSelectProtocol) -> None:
     await Timer(Decimal(10), units="ps")
 
     # Check initial state - output should be 0
-    assert dut.FrameStrobe_O.value == 0, "FrameStrobe_O should be 0 initially"
+    assert int(dut.FrameStrobe_O.value) == 0, "FrameStrobe_O should be 0 initially"
 
     # Test case 1: FrameSelect matches Col parameter (default Col = 18)
     # Set test pattern on FrameStrobe_I
@@ -69,9 +67,9 @@ async def test_frame_select_basic(dut: FrameSelectProtocol) -> None:
     await Timer(Decimal(10), units="ps")
 
     # When FrameSelect matches Col and FrameStrobe is high, output should match input
-    assert dut.FrameStrobe_O.value == test_pattern, (
-        f"Expected FrameStrobe_O = 0x{test_pattern:05x}, got 0x{dut.FrameStrobe_O.value:05x} "
-        f"when FrameSelect ({dut.FrameSelect.value}) matches Col"
+    assert int(dut.FrameStrobe_O.value) == test_pattern, (
+        f"Expected FrameStrobe_O = 0x{test_pattern:05x}, got 0x{int(dut.FrameStrobe_O.value):05x} "
+        f"when FrameSelect ({int(dut.FrameSelect.value)}) matches Col"
     )
 
     # Test case 2: FrameSelect does not match Col parameter
@@ -79,9 +77,9 @@ async def test_frame_select_basic(dut: FrameSelectProtocol) -> None:
     await Timer(Decimal(10), units="ps")
 
     # Output should be 0 when FrameSelect != Col
-    assert dut.FrameStrobe_O.value == 0, (
-        f"Expected FrameStrobe_O = 0, got 0x{dut.FrameStrobe_O.value:05x} "
-        f"when FrameSelect ({dut.FrameSelect.value}) does not match Col"
+    assert int(dut.FrameStrobe_O.value) == 0, (
+        f"Expected FrameStrobe_O = 0, got 0x{int(dut.FrameStrobe_O.value):05x} "
+        f"when FrameSelect ({int(dut.FrameSelect.value)}) does not match Col"
     )
 
     # Test case 3: FrameStrobe is low (disabled)
@@ -90,8 +88,8 @@ async def test_frame_select_basic(dut: FrameSelectProtocol) -> None:
     await Timer(Decimal(10), units="ps")
 
     # Output should be 0 when FrameStrobe is low, even if FrameSelect matches
-    assert dut.FrameStrobe_O.value == 0, (
-        f"Expected FrameStrobe_O = 0, got 0x{dut.FrameStrobe_O.value:05x} when FrameStrobe is low"
+    assert int(dut.FrameStrobe_O.value) == 0, (
+        f"Expected FrameStrobe_O = 0, got 0x{int(dut.FrameStrobe_O.value):05x} when FrameStrobe is low"
     )
 
     # Test case 4: Different test patterns
@@ -103,14 +101,13 @@ async def test_frame_select_basic(dut: FrameSelectProtocol) -> None:
         dut.FrameStrobe_I.value = pattern
         await Timer(Decimal(10), units="ps")
 
-        assert dut.FrameStrobe_O.value == pattern, (
-            f"Pattern 0x{pattern:05x}: Expected FrameStrobe_O = 0x{pattern:05x}, got 0x{dut.FrameStrobe_O.value:05x}"
+        assert int(dut.FrameStrobe_O.value) == pattern, (
+            f"Pattern 0x{pattern:05x}: Expected FrameStrobe_O = 0x{pattern:05x}, got 0x{int(dut.FrameStrobe_O.value):05x}"
         )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_frame_select_col_sweep(dut: FrameSelectProtocol) -> None:
+async def frame_select_col_sweep_test(dut: FrameSelectProtocol) -> None:
     """Test Frame_Select with different FrameSelect values."""
     # Test pattern
     test_pattern = 0x12345
@@ -120,22 +117,19 @@ async def test_frame_select_col_sweep(dut: FrameSelectProtocol) -> None:
 
     # Test various FrameSelect values
     # Only FrameSelect = 18 (default Col) should pass through the pattern
-    for frame_select in range(
-        32
-    ):  # Test wider range than FrameSelectWidth=5 (32 values)
+    for frame_select in range(32):  # Test wider range than FrameSelectWidth=5 (32 values)
         dut.FrameSelect.value = frame_select
         await Timer(Decimal(10), units="ps")
 
         expected = test_pattern if frame_select == 18 else 0
-        actual = dut.FrameStrobe_O.value
+        actual = int(dut.FrameStrobe_O.value)
         assert actual == expected, (
             f"FrameSelect {frame_select}: Expected FrameStrobe_O = 0x{expected:05x}, got 0x{actual:05x}"
         )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_frame_select_bit_patterns(dut: FrameSelectProtocol) -> None:
+async def frame_select_bit_patterns_test(dut: FrameSelectProtocol) -> None:
     """Test Frame_Select with various bit patterns."""
     # Set up for matching condition
     dut.FrameSelect.value = 18  # Match default Col parameter
@@ -148,8 +142,8 @@ async def test_frame_select_bit_patterns(dut: FrameSelectProtocol) -> None:
         dut.FrameStrobe_I.value = pattern
         await Timer(Decimal(10), units="ps")
 
-        assert dut.FrameStrobe_O.value == pattern, (
-            f"Bit {bit_pos}: Expected FrameStrobe_O = 0x{pattern:05x}, got 0x{dut.FrameStrobe_O.value:05x}"
+        assert int(dut.FrameStrobe_O.value) == pattern, (
+            f"Bit {bit_pos}: Expected FrameStrobe_O = 0x{pattern:05x}, got 0x{int(dut.FrameStrobe_O.value):05x}"
         )
 
     # Test walking zeros (all bits high except one)
@@ -159,14 +153,13 @@ async def test_frame_select_bit_patterns(dut: FrameSelectProtocol) -> None:
         dut.FrameStrobe_I.value = pattern
         await Timer(Decimal(10), units="ps")
 
-        assert dut.FrameStrobe_O.value == pattern, (
-            f"Walking zero bit {bit_pos}: Expected FrameStrobe_O = 0x{pattern:05x}, got 0x{dut.FrameStrobe_O.value:05x}"
+        assert int(dut.FrameStrobe_O.value) == pattern, (
+            f"Walking zero bit {bit_pos}: Expected FrameStrobe_O = 0x{pattern:05x}, got 0x{int(dut.FrameStrobe_O.value):05x}"
         )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_frame_select_edge_cases(dut: FrameSelectProtocol) -> None:
+async def frame_select_edge_cases_test(dut: FrameSelectProtocol) -> None:
     """Test Frame_Select edge cases."""
     # Test case 1: All zeros
     dut.FrameStrobe_I.value = 0
@@ -174,9 +167,7 @@ async def test_frame_select_edge_cases(dut: FrameSelectProtocol) -> None:
     dut.FrameStrobe.value = 1
     await Timer(Decimal(10), units="ps")
 
-    assert dut.FrameStrobe_O.value == 0, (
-        "All zeros input should produce all zeros output"
-    )
+    assert int(dut.FrameStrobe_O.value) == 0, "All zeros input should produce all zeros output"
 
     # Test case 2: All ones (within MaxFramesPerCol)
     max_frames = 20  # Default MaxFramesPerCol
@@ -184,8 +175,8 @@ async def test_frame_select_edge_cases(dut: FrameSelectProtocol) -> None:
     dut.FrameStrobe_I.value = all_ones
     await Timer(Decimal(10), units="ps")
 
-    assert dut.FrameStrobe_O.value == all_ones, (
-        f"All ones input should produce all ones output: expected 0x{all_ones:05x}, got 0x{dut.FrameStrobe_O.value:05x}"
+    assert int(dut.FrameStrobe_O.value) == all_ones, (
+        f"All ones input should produce all ones output: expected 0x{all_ones:05x}, got 0x{int(dut.FrameStrobe_O.value):05x}"
     )
 
     # Test case 3: Rapid FrameStrobe toggling
@@ -196,16 +187,14 @@ async def test_frame_select_edge_cases(dut: FrameSelectProtocol) -> None:
     # Toggle FrameStrobe and check response
     dut.FrameStrobe.value = 0
     await Timer(Decimal(5), units="ps")
-    assert dut.FrameStrobe_O.value == 0, "Output should be 0 when FrameStrobe is low"
+    assert int(dut.FrameStrobe_O.value) == 0, "Output should be 0 when FrameStrobe is low"
 
     dut.FrameStrobe.value = 1
     await Timer(Decimal(5), units="ps")
-    assert dut.FrameStrobe_O.value == test_pattern, (
+    assert int(dut.FrameStrobe_O.value) == test_pattern, (
         "Output should follow input when FrameStrobe is high"
     )
 
     dut.FrameStrobe.value = 0
     await Timer(Decimal(5), units="ps")
-    assert dut.FrameStrobe_O.value == 0, (
-        "Output should be 0 when FrameStrobe goes low again"
-    )
+    assert int(dut.FrameStrobe_O.value) == 0, "Output should be 0 when FrameStrobe goes low again"

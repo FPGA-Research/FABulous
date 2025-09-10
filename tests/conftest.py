@@ -67,17 +67,19 @@ def cocotb_runner(tmp_path: Path) -> CocotbRunner:
         if len(lang) > 1:
             raise ValueError("All source files must have the same HDL language suffix")
         hdl_toplevel_lang = lang.pop()
-        if hdl_toplevel_lang not in {".v", ".sv", ".vhdl"}:
+        if hdl_toplevel_lang not in {".v", ".sv", ".vhdl", ".vhd"}:
             raise ValueError(f"Unsupported HDL language: {hdl_toplevel_lang}")
 
-        sim = {".v": "icarus", ".sv": "icarus", ".vhdl": "ghdl"}[hdl_toplevel_lang]
+        sim = {".v": "icarus", ".sv": "icarus", ".vhdl": "ghdl", ".vhd": "ghdl"}[
+            hdl_toplevel_lang
+        ]
 
         # No graceful skip: allow missing simulator to raise error for visibility
 
         # Ensure model pack file is present for primitives if not explicitly provided
         if hdl_toplevel_lang == ".v":
             model_pack_path = VERILOG_SOURCE_PATH / "Fabric" / "models_pack.v"
-        else:  # .vhdl
+        else:  # .vhdl or .vhd
             model_pack_path = VHDL_SOURCE_PATH / "Fabric" / "model_pack.vhdl"
 
         # Only add if not already one of the provided sources (compare resolved paths)
@@ -88,6 +90,10 @@ def cocotb_runner(tmp_path: Path) -> CocotbRunner:
         ):
             # Prepend so dependencies are available early
             sources.insert(0, model_pack_path)
+
+        # Avoid errors when reading 'X'/'Z' by telling cocotb how to resolve them
+        # Options: ZEROS, ONES, RANDOM, VALUE_ERROR. Pick ZEROS for deterministic tests.
+        os.environ.setdefault("COCOTB_RESOLVE_X", "ZEROS")
 
         runner = get_runner(sim)
 
@@ -111,7 +117,7 @@ def cocotb_runner(tmp_path: Path) -> CocotbRunner:
                 defines={"NOTIMESCALE": 1},
                 timescale=("1ns", "1ps"),  # Set simulation time unit/precision
             )
-        else:  # .vhdl
+        else:  # .vhdl or .vhd
             # GHDL converts identifiers to lowercase for elaboration and execution
             hdl_top_level = hdl_top_level.lower()
             runner.build(

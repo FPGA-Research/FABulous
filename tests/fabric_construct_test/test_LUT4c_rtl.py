@@ -1,12 +1,12 @@
-"""RTL behavior validation for LUT4c_frame_config_dffesr module using cocotb."""
+"""RTL behavior validation for LUT4c_frame_config_dffesr module using cocotb-native model style (like MULADD)."""
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Protocol
 
 import cocotb
-import pytest
 from cocotb.clock import Clock
+from cocotb.handle import ModifiableObject
 from cocotb.triggers import RisingEdge, Timer
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -16,16 +16,16 @@ class LUT4cProtocol(Protocol):
     """Protocol defining the LUT4c_frame_config_dffesr module interface."""
 
     # Inputs
-    I: Any  # [3:0] LUT inputs  # noqa: E741
-    Ci: Any  # Carry input
-    SR: Any  # Shared reset
-    EN: Any  # Shared enable
-    UserCLK: Any  # External clock
-    ConfigBits: Any  # Configuration bits
+    I: ModifiableObject  # [3:0] LUT inputs (handle)  # noqa: E741
+    Ci: ModifiableObject  # Carry input (handle)
+    SR: ModifiableObject  # Shared reset (handle)
+    EN: ModifiableObject  # Shared enable (handle)
+    UserCLK: ModifiableObject  # External clock (handle)
+    ConfigBits: ModifiableObject  # Configuration bits (handle)
 
     # Outputs
-    O: Any  # LUT output (can be combinational or registered based on config)  # noqa: E741
-    Co: Any  # Carry output
+    O: ModifiableObject  # LUT output (can be combinational or registered based on config) (handle)  # noqa: E741
+    Co: ModifiableObject  # Carry output (handle)
 
 
 def test_LUT4c_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -40,7 +40,6 @@ def test_LUT4c_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
     )
 
 
-@pytest.mark.skip(reason="Need update VHDL source")
 def test_LUT4c_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
     """Test the LUT4c_frame_config_dffesr module with VHDL source."""
     cocotb_runner(
@@ -53,80 +52,64 @@ def test_LUT4c_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
 
 
 class LUT4cModel:
-    """Software model for LUT4c_frame_config_dffesr module functionality."""
+    """Cocotb-native model mirroring LUT4c_frame_config_dffesr behavior."""
 
-    def __init__(self) -> None:
-        self.ff_out = 0
+    # Inputs
+    I_vec: int = 0
+    Ci: int = 0
+    SR: int = 0
+    EN: int = 1
+    ConfigBits: int = 0
 
-    def compute_lut_output(self, I: int, ConfigBits: int) -> int:
-        """
-        Compute LUT output based on 4-bit input and 16-bit LUT configuration.
+    # Outputs/state
+    O_val: int = 0
+    Co: int = 0
+    _lut_out: int = 0
+    _lut_flop: int = 0
 
-        Args:
-            I: 4-bit input to LUT
-            ConfigBits: Configuration bits (first 16 bits are LUT init)
+    def __init__(self, clk: ModifiableObject) -> None:
+        self._clk_signal = clk
+        cocotb.start_soon(self._clocked_process())
+        cocotb.start_soon(self._combinational_process())
 
-        Returns:
-            LUT output (0 or 1)
-        """
-        # Extract LUT initialization from ConfigBits[15:0]
+    @staticmethod
+    def _lut(I_vec: int, ConfigBits: int) -> int:
         lut_init = ConfigBits & 0xFFFF
+        idx = I_vec & 0xF
+        return (lut_init >> idx) & 1
 
-        # Use I as index into LUT
-        input_index = I & 0xF
-
-        # Return the bit at position input_index
-        return (lut_init >> input_index) & 1
-
-    def clock_cycle(
-        self, I: int, Ci: int, SR: int, EN: int, ConfigBits: int
-    ) -> tuple[int, int]:  # noqa: E741
-        """
-        Simulate one clock cycle of the LUT4c module.
-
-        Args:
-            I: 4-bit LUT input
-            Ci: Carry input
-            SR: Set/Reset signal
-            EN: Enable signal
-            ConfigBits: Configuration bits
-
-        Returns:
-            tuple: (O, Co, Q) - LUT output, Carry output, FF output
-        """
-        # Compute LUT output
-        lut_out = self.compute_lut_output(I, ConfigBits)
-
-        # Carry chain logic (simplified - depends on specific implementation)
-        # For basic test, carry out = carry in XOR lut_out
-        carry_out = Ci ^ lut_out
-
-        # Flip-flop logic
-        ff_mode = (ConfigBits >> 16) & 1  # ConfigBits[16] enables FF
-
-        if ff_mode:
-            if SR:  # Synchronous reset/set
-                if (ConfigBits >> 17) & 1:  # ConfigBits[17] determines set vs reset
-                    self.ff_out = 1  # Set
+    async def _clocked_process(self) -> None:
+        while True:
+            await RisingEdge(self._clk_signal)
+            reset_value = (self.ConfigBits >> 18) & 1
+            if self.EN:
+                if self.SR:
+                    self._lut_flop = reset_value
                 else:
-                    self.ff_out = 0  # Reset
-            elif EN:  # Clock enable
-                self.ff_out = lut_out
-            # else: hold current value
-        else:
-            # Combinational mode - FF output follows LUT
-            self.ff_out = lut_out
+                    self._lut_flop = self._lut_out
 
-        # Output selection
-        output = lut_out
-        if ff_mode:
-            output = self.ff_out
+    async def _combinational_process(self) -> None:
+        while True:
+            # I0 mux with carry when ConfigBits[17]=1, matches HDL
+            i0 = (self.Ci & 1) if ((self.ConfigBits >> 17) & 1) else (self.I_vec & 1)
+            idx = (
+                ((self.I_vec >> 3) & 1) << 3
+                | ((self.I_vec >> 2) & 1) << 2
+                | ((self.I_vec >> 1) & 1) << 1
+                | (i0 & 1)
+            )
+            lut_init = self.ConfigBits & 0xFFFF
+            self._lut_out = (lut_init >> idx) & 1
 
-        return output, carry_out
+            # Co matches verilog: (Ci & I[1]) | (Ci & I[2]) | (I[1] & I[2])
+            i1 = (self.I_vec >> 1) & 1
+            i2 = (self.I_vec >> 2) & 1
+            self.Co = (self.Ci & i1) | (self.Ci & i2) | (i1 & i2)
 
-    def reset(self) -> None:
-        """Reset the model state."""
-        self.ff_out = 0
+            use_ff = (self.ConfigBits >> 16) & 1
+            self.O_val = self._lut_flop if use_ff else self._lut_out
+
+            await Timer(Decimal(1), units="ps")
 
 
 async def setup_dut(dut: LUT4cProtocol) -> None:
@@ -147,40 +130,47 @@ async def setup_dut(dut: LUT4cProtocol) -> None:
     await RisingEdge(dut.UserCLK)
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_lut4c_basic_lut_functionality(dut: LUT4cProtocol) -> None:
-    """Test basic LUT functionality with different configurations."""
+async def lut4c_basic_lut_functionality_test(dut: LUT4cProtocol) -> None:
+    """Basic LUT functionality (AND gate example)"""
+    await setup_dut(dut)
+    dut.ConfigBits.value = 0x8000  # Only bit 15 set
+    for vec, expected in [(0b0000, 0), (0b1111, 1), (0b1110, 0)]:
+        dut.I.value = vec
+        await Timer(Decimal(100), units="ps")
+        assert int(dut.O.value) == expected, (
+            f"AND gate I={vec:04b} expected {expected} got {int(dut.O.value)}"
+        )
+
+
+@cocotb.test
+async def lut4c_model_alignment_basic_test(dut: LUT4cProtocol) -> None:
+    """Model-aligned basic behavior: verify O and Co match a cocotb-native model."""
     await setup_dut(dut)
 
-    # Test Case 1: Configure LUT as AND gate (only input 15 = 1111 gives output 1)
-    dut.ConfigBits.value = 0x8000  # Only bit 15 is set
+    model = LUT4cModel(dut.UserCLK)
 
-    # Test all 0s input
-    dut.I.value = 0b0000
-    await Timer(Decimal(100), units="ps")
-    assert dut.O.value == 0, (
-        f"AND gate with input 0000 should output 0, got {dut.O.value}"
-    )
+    # Configure simple LUT: passthrough I0 (bit 1 set) and FF disabled
+    lut_init = 0xAAAA  # bit pattern 1010...
+    dut.ConfigBits.value = lut_init
+    model.ConfigBits = lut_init
 
-    # Test all 1s input
-    dut.I.value = 0b1111  # Index 15
-    await Timer(Decimal(100), units="ps")
-    assert dut.O.value == 1, (
-        f"AND gate with input 1111 should output 1, got {dut.O.value}"
-    )
-
-    # Test partial input
-    dut.I.value = 0b1110  # Index 14
-    await Timer(Decimal(100), units="ps")
-    assert dut.O.value == 0, (
-        f"AND gate with input 1110 should output 0, got {dut.O.value}"
-    )
+    for vec in [0b0000, 0b0001, 0b0010, 0b0100, 0b1000, 0b1111]:
+        dut.I.value = vec
+        model.I_vec = vec
+        dut.Ci.value = 0
+        model.Ci = 0
+        await Timer(Decimal(100), units="ps")
+        assert int(dut.O.value) == model.O_val, (
+            f"LUT O mismatch for I={vec:04b}: HDL={int(dut.O.value)} model={model.O_val}"
+        )
+        assert int(dut.Co.value) == model.Co, (
+            f"Carry Co mismatch for I={vec:04b}: HDL={int(dut.Co.value)} model={model.Co}"
+        )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_lut4c_or_gate_functionality(dut: LUT4cProtocol) -> None:
+async def or_gate_functionality_test(dut: LUT4cProtocol) -> None:
     """Test LUT configured as OR gate."""
     await setup_dut(dut)
 
@@ -208,9 +198,8 @@ async def test_lut4c_or_gate_functionality(dut: LUT4cProtocol) -> None:
     )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_lut4c_flip_flop_functionality(dut: LUT4cProtocol) -> None:
+async def _flip_flop_functionality_test(dut: LUT4cProtocol) -> None:
     """Test flip-flop functionality when ConfigBits[16] = 1."""
     await setup_dut(dut)
 
@@ -233,7 +222,6 @@ async def test_lut4c_flip_flop_functionality(dut: LUT4cProtocol) -> None:
     old_output = dut.O.value
     dut.I.value = 0b0000
     await Timer(Decimal(100), units="ps")
-
     # In FF mode, output should not change immediately without clock
     new_output = dut.O.value
     assert new_output == old_output, (
@@ -241,9 +229,8 @@ async def test_lut4c_flip_flop_functionality(dut: LUT4cProtocol) -> None:
     )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_lut4c_carry_chain_functionality(dut: LUT4cProtocol) -> None:
+async def lut4c_carry_chain_functionality_test(dut: LUT4cProtocol) -> None:
     """Test carry chain functionality."""
     await setup_dut(dut)
 
@@ -270,9 +257,8 @@ async def test_lut4c_carry_chain_functionality(dut: LUT4cProtocol) -> None:
     )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_lut4c_set_reset_functionality(dut: LUT4cProtocol) -> None:
+async def lut4c_set_reset_functionality_test(dut: LUT4cProtocol) -> None:
     """Test set/reset functionality of the flip-flop."""
     await setup_dut(dut)
 
@@ -306,9 +292,8 @@ async def test_lut4c_set_reset_functionality(dut: LUT4cProtocol) -> None:
     )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_lut4c_enable_functionality(dut: LUT4cProtocol) -> None:
+async def lut4c_enable_functionality_test(dut: LUT4cProtocol) -> None:
     """Test enable functionality of the flip-flop."""
     await setup_dut(dut)
 
@@ -340,6 +325,6 @@ async def test_lut4c_enable_functionality(dut: LUT4cProtocol) -> None:
     await Timer(Decimal(100), units="ps")
 
     # Now O should update when EN=1 (exact value depends on LUT configuration)
-    updated_output = dut.O.value
+    _updated_output = dut.O.value
     # Verify that output changed after re-enabling (unless new input happens to give same LUT output)
     # For comprehensive testing, we expect the output to reflect the new input after enable

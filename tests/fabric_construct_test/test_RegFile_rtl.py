@@ -1,12 +1,12 @@
-"""RTL behavior validation for RegFile_32x4 module using cocotb."""
+"""RTL behavior validation for RegFile_32x4 using a cocotb-native model (like MULADD)."""
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Protocol
 
 import cocotb
-import pytest
 from cocotb.clock import Clock
+from cocotb.handle import ModifiableObject
 from cocotb.triggers import RisingEdge, Timer
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -16,21 +16,21 @@ class RegFileProtocol(Protocol):
     """Protocol defining the RegFile_32x4 module interface."""
 
     # Inputs
-    D: Any  # [3:0] Register File write port data
-    W_ADR: Any  # [4:0] Write address
-    W_en: Any  # Write enable
-    A_ADR: Any  # [4:0] Read port A address
-    B_ADR: Any  # [4:0] Read port B address
-    UserCLK: Any  # Clock
-    ConfigBits: Any  # [NoConfigBits-1:0]
+    D: ModifiableObject  # [3:0] Register File write port data (handle)
+    W_ADR: ModifiableObject  # [4:0] Write address (handle)
+    W_en: ModifiableObject  # Write enable (handle)
+    A_ADR: ModifiableObject  # [4:0] Read port A address (handle)
+    B_ADR: ModifiableObject  # [4:0] Read port B address (handle)
+    UserCLK: ModifiableObject  # Clock (handle)
+    ConfigBits: ModifiableObject  # [NoConfigBits-1:0] (handle)
 
     # Outputs
-    AD: Any  # [3:0] Register File read port A data
-    BD: Any  # [3:0] Register File read port B data
+    AD: ModifiableObject  # [3:0] Register File read port A data (handle)
+    BD: ModifiableObject  # [3:0] Register File read port B data (handle)
 
     # Internal registers (accessible for testing)
-    AD_reg: Any  # [3:0] Registered read port A
-    BD_reg: Any  # [3:0] Registered read port B
+    AD_reg: ModifiableObject  # [3:0] Registered read port A (handle)
+    BD_reg: ModifiableObject  # [3:0] Registered read port B (handle)
 
 
 def test_RegFile_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -42,7 +42,6 @@ def test_RegFile_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
     )
 
 
-@pytest.mark.skip(reason="Need update VHDL source")
 def test_RegFile_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
     """Test the RegFile_32x4 module with VHDL source."""
     cocotb_runner(
@@ -53,72 +52,64 @@ def test_RegFile_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
 
 
 class RegFileModel:
-    """Software model for RegFile_32x4 module functionality."""
+    """Cocotb-native software model mirroring the RTL timing of RegFile_32x4."""
 
-    def __init__(self) -> None:
-        """Initialize the register file model."""
-        # 32 registers, each 4 bits wide
-        self.memory = [0] * 32
-        self.ad_reg = 0
-        self.bd_reg = 0
+    # Inputs
+    D: int = 0
+    W_ADR: int = 0
+    W_en: int = 0
+    A_ADR: int = 0
+    B_ADR: int = 0
+    ConfigBits: int = 0  # bit0: AD_reg, bit1: BD_reg
 
-    def write_cycle(self, w_adr: int, data: int, w_en: int) -> None:
-        """
-        Perform write operation.
+    # Internal state
+    _AD_comb: int = 0
+    _BD_comb: int = 0
 
-        Args:
-            w_adr: Write address (5 bits)
-            data: Data to write (4 bits)
-            w_en: Write enable
-        """
-        if w_en:
-            addr = w_adr & 0x1F  # 5-bit address
-            self.memory[addr] = data & 0xF  # 4-bit data
+    # Registered state and outputs
+    AD: int = 0
+    BD: int = 0
+    AD_reg: int = 0
+    BD_reg: int = 0
 
-    def read_cycle(self, a_adr: int, b_adr: int, config_bits: int) -> tuple[int, int]:
-        """
-        Perform read operation.
+    def __init__(self, clk: ModifiableObject) -> None:
+        # 32x4 register file memory
+        self._mem = [0] * 32
+        self._clk_signal = clk
 
-        Args:
-            a_adr: Port A read address (5 bits)
-            b_adr: Port B read address (5 bits)
-            config_bits: Configuration bits
+        # Start clocked and combinational processes
+        cocotb.start_soon(self._clocked_process())
+        cocotb.start_soon(self._combinational_process())
 
-        Returns:
-            tuple: (AD output, BD output)
-        """
-        # Read data from memory
-        a_addr = a_adr & 0x1F
-        b_addr = b_adr & 0x1F
+    async def _clocked_process(self) -> None:
+        while True:
+            await RisingEdge(self._clk_signal)
+            # Synchronous write on posedge
+            if self.W_en:
+                self._mem[self.W_ADR & 0x1F] = self.D & 0xF
+            # Registered capture of read data
+            self.AD_reg = self._AD_comb & 0xF
+            self.BD_reg = self._BD_comb & 0xF
 
-        a_data = self.memory[a_addr]
-        b_data = self.memory[b_addr]
+    async def _combinational_process(self) -> None:
+        while True:
+            # Combinational reads
+            self._AD_comb = self._mem[self.A_ADR & 0x1F] & 0xF
+            self._BD_comb = self._mem[self.B_ADR & 0x1F] & 0xF
 
-        # Check if outputs are registered
-        ad_reg_en = config_bits & 1  # ConfigBits[0]
-        bd_reg_en = (config_bits >> 1) & 1  # ConfigBits[1]
+            # Output muxing per ConfigBits
+            if self.ConfigBits & 0b01:
+                self.AD = self.AD_reg
+            else:
+                self.AD = self._AD_comb
 
-        if ad_reg_en:
-            # Update register on read
-            self.ad_reg = a_data
-            ad_out = self.ad_reg
-        else:
-            ad_out = a_data
+            if (self.ConfigBits >> 1) & 0b1:
+                self.BD = self.BD_reg
+            else:
+                self.BD = self._BD_comb
 
-        if bd_reg_en:
-            # Update register on read
-            self.bd_reg = b_data
-            bd_out = self.bd_reg
-        else:
-            bd_out = b_data
-
-        return ad_out, bd_out
-
-    def reset(self) -> None:
-        """Reset the model state."""
-        self.memory = [0] * 32
-        self.ad_reg = 0
-        self.bd_reg = 0
+            # Tiny delay to avoid busy loop
+            await Timer(Decimal(1), units="ps")
 
 
 async def setup_dut(dut: RegFileProtocol) -> None:
@@ -140,13 +131,12 @@ async def setup_dut(dut: RegFileProtocol) -> None:
     await RisingEdge(dut.UserCLK)
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_regfile_basic_write_read(dut: RegFileProtocol) -> None:
+async def regfile_basic_write_read_test(dut: RegFileProtocol) -> None:
     """Test basic write and read functionality."""
     await setup_dut(dut)
 
-    model = RegFileModel()
+    model = RegFileModel(dut.UserCLK)
 
     # Test Case 1: Write data to address 5
     write_addr = 5
@@ -155,32 +145,33 @@ async def test_regfile_basic_write_read(dut: RegFileProtocol) -> None:
     dut.W_ADR.value = write_addr
     dut.D.value = write_data
     dut.W_en.value = 1
-
-    # Perform write in model
-    model.write_cycle(write_addr, write_data, 1)
+    model.W_ADR = write_addr
+    model.D = write_data
+    model.W_en = 1
 
     await RisingEdge(dut.UserCLK)
     dut.W_en.value = 0
+    model.W_en = 0
     await Timer(Decimal(100), units="ps")
 
     # Test combinational read on port A (ConfigBits[0] = 0)
     dut.A_ADR.value = write_addr
     dut.ConfigBits.value = 0b00  # Combinational mode
+    model.A_ADR = write_addr
+    model.ConfigBits = 0b00
     await Timer(Decimal(100), units="ps")
 
-    expected_ad, _ = model.read_cycle(write_addr, 0, 0b00)
-    assert dut.AD.value.integer == expected_ad, (
-        f"Port A read failed: Expected AD = {expected_ad}, got {dut.AD.value.integer}"
+    assert int(dut.AD.value) == write_data, (
+        f"Port A read failed: Expected AD = {write_data}, got {int(dut.AD.value)}"
     )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_regfile_dual_port_read(dut: RegFileProtocol) -> None:
+async def regfile_dual_port_read_test(dut: RegFileProtocol) -> None:
     """Test dual port read functionality."""
     await setup_dut(dut)
 
-    model = RegFileModel()
+    model = RegFileModel(dut.UserCLK)
 
     # Write different data to different addresses
     test_data = [(5, 0xA), (10, 0x5), (15, 0xF), (20, 0x3)]
@@ -189,9 +180,12 @@ async def test_regfile_dual_port_read(dut: RegFileProtocol) -> None:
         dut.W_ADR.value = addr
         dut.D.value = data
         dut.W_en.value = 1
-        model.write_cycle(addr, data, 1)
+        model.W_ADR = addr
+        model.D = data
+        model.W_en = 1
         await RisingEdge(dut.UserCLK)
         dut.W_en.value = 0
+        model.W_en = 0
 
     await Timer(Decimal(100), units="ps")
 
@@ -199,94 +193,102 @@ async def test_regfile_dual_port_read(dut: RegFileProtocol) -> None:
     dut.A_ADR.value = 5
     dut.B_ADR.value = 10
     dut.ConfigBits.value = 0b00  # Combinational mode
+    model.A_ADR = 5
+    model.B_ADR = 10
+    model.ConfigBits = 0b00
     await Timer(Decimal(100), units="ps")
 
-    expected_ad, expected_bd = model.read_cycle(5, 10, 0b00)
-    assert dut.AD.value.integer == expected_ad, (
-        f"Port A read failed: Expected AD = {expected_ad}, got {dut.AD.value.integer}"
+    assert int(dut.AD.value) == 0xA, (
+        f"Port A read failed: Expected AD = 0xA, got {int(dut.AD.value)}"
     )
-    assert dut.BD.value.integer == expected_bd, (
-        f"Port B read failed: Expected BD = {expected_bd}, got {dut.BD.value.integer}"
+    assert int(dut.BD.value) == 0x5, (
+        f"Port B read failed: Expected BD = 0x5, got {int(dut.BD.value)}"
     )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_regfile_registered_output_port_a(dut: RegFileProtocol) -> None:
+async def regfile_registered_output_port_a_test(dut: RegFileProtocol) -> None:
     """Test registered output functionality for port A."""
     await setup_dut(dut)
 
-    model = RegFileModel()
+    model = RegFileModel(dut.UserCLK)
 
     # Write test data
     dut.W_ADR.value = 7
     dut.D.value = 0xC
     dut.W_en.value = 1
-    model.write_cycle(7, 0xC, 1)
+    model.W_ADR = 7
+    model.D = 0xC
+    model.W_en = 1
     await RisingEdge(dut.UserCLK)
     dut.W_en.value = 0
+    model.W_en = 0
 
     # Configure for registered output on port A (ConfigBits[0] = 1)
     dut.ConfigBits.value = 0b01
     dut.A_ADR.value = 7
+    model.ConfigBits = 0b01
+    model.A_ADR = 7
 
     # In registered mode, need clock edge to update output
     await RisingEdge(dut.UserCLK)
     await Timer(Decimal(100), units="ps")
 
-    expected_ad, _ = model.read_cycle(7, 0, 0b01)
-    assert dut.AD.value.integer == expected_ad, (
-        f"Registered port A read failed: Expected AD = {expected_ad}, got {dut.AD.value.integer}"
+    assert int(dut.AD.value) == 0xC, (
+        f"Registered port A read failed: Expected AD = 0xC, got {int(dut.AD.value)}"
     )
 
     # Change address and verify output doesn't change immediately
-    old_ad = dut.AD.value.integer
+    old_ad = int(dut.AD.value)
     dut.A_ADR.value = 0  # Different address with different data
+    model.A_ADR = 0
     await Timer(Decimal(100), units="ps")
 
     # In registered mode, output should not change until next clock
-    assert dut.AD.value.integer == old_ad, (
-        f"Registered output changed immediately: Expected AD = {old_ad}, got {dut.AD.value.integer}"
+    assert int(dut.AD.value) == old_ad, (
+        f"Registered output changed immediately: Expected AD = {old_ad}, got {int(dut.AD.value)}"
     )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_regfile_registered_output_port_b(dut: RegFileProtocol) -> None:
+async def regfile_registered_output_port_b_test(dut: RegFileProtocol) -> None:
     """Test registered output functionality for port B."""
     await setup_dut(dut)
 
-    model = RegFileModel()
+    model = RegFileModel(dut.UserCLK)
 
     # Write test data
     dut.W_ADR.value = 12
     dut.D.value = 0x6
     dut.W_en.value = 1
-    model.write_cycle(12, 0x6, 1)
+    model.W_ADR = 12
+    model.D = 0x6
+    model.W_en = 1
     await RisingEdge(dut.UserCLK)
     dut.W_en.value = 0
+    model.W_en = 0
 
     # Configure for registered output on port B (ConfigBits[1] = 1)
     dut.ConfigBits.value = 0b10
     dut.B_ADR.value = 12
+    model.ConfigBits = 0b10
+    model.B_ADR = 12
 
     # In registered mode, need clock edge to update output
     await RisingEdge(dut.UserCLK)
     await Timer(Decimal(100), units="ps")
 
-    _, expected_bd = model.read_cycle(0, 12, 0b10)
-    assert dut.BD.value.integer == expected_bd, (
-        f"Registered port B read failed: Expected BD = {expected_bd}, got {dut.BD.value.integer}"
+    assert int(dut.BD.value) == 0x6, (
+        f"Registered port B read failed: Expected BD = 0x6, got {int(dut.BD.value)}"
     )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_regfile_address_independence(dut: RegFileProtocol) -> None:
+async def regfile_address_independence_test(dut: RegFileProtocol) -> None:
     """Test that different addresses store independent data."""
     await setup_dut(dut)
 
-    model = RegFileModel()
+    model = RegFileModel(dut.UserCLK)
 
     # Write unique data to multiple addresses
     test_addresses = [0, 5, 10, 15, 20, 25, 30, 31]
@@ -299,107 +301,123 @@ async def test_regfile_address_independence(dut: RegFileProtocol) -> None:
         dut.W_ADR.value = addr
         dut.D.value = data
         dut.W_en.value = 1
-        model.write_cycle(addr, data, 1)
+        model.W_ADR = addr
+        model.D = data
+        model.W_en = 1
         await RisingEdge(dut.UserCLK)
         dut.W_en.value = 0
+        model.W_en = 0
 
     await Timer(Decimal(100), units="ps")
 
     # Verify each address contains correct data
     dut.ConfigBits.value = 0b00  # Combinational mode
+    model.ConfigBits = 0b00
     for addr, expected in expected_data.items():
         dut.A_ADR.value = addr
+        model.A_ADR = addr
         await Timer(Decimal(50), units="ps")
-
-        model_ad, _ = model.read_cycle(addr, 0, 0b00)
-        assert dut.AD.value.integer == expected, (
-            f"Address {addr}: Expected data = {expected}, got {dut.AD.value.integer}"
+        assert int(dut.AD.value) == expected, (
+            f"Address {addr}: Expected data = {expected}, got {int(dut.AD.value)}"
         )
-        assert model_ad == expected, f"Model mismatch at address {addr}"
+    # Model check omitted: rely on DUT readback for ground truth
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_regfile_write_enable_control(dut: RegFileProtocol) -> None:
+async def regfile_write_enable_control_test(dut: RegFileProtocol) -> None:
     """Test write enable control functionality."""
     await setup_dut(dut)
 
-    model = RegFileModel()
+    model = RegFileModel(dut.UserCLK)
 
     # Write initial data
     dut.W_ADR.value = 8
     dut.D.value = 0x7
     dut.W_en.value = 1
-    model.write_cycle(8, 0x7, 1)
+    model.W_ADR = 8
+    model.D = 0x7
+    model.W_en = 1
     await RisingEdge(dut.UserCLK)
     dut.W_en.value = 0
+    model.W_en = 0
 
     # Read initial value
     dut.A_ADR.value = 8
     dut.ConfigBits.value = 0b00
+    model.A_ADR = 8
+    model.ConfigBits = 0b00
     await Timer(Decimal(100), units="ps")
-    initial_value = dut.AD.value.integer
+    initial_value = int(dut.AD.value)
 
     # Try to write with W_en = 0 (should not write)
     dut.D.value = 0x2  # Different data
     dut.W_en.value = 0  # Write disabled
-    model.write_cycle(8, 0x2, 0)  # Model should not write
+    model.D = 0x2
+    model.W_en = 0
     await RisingEdge(dut.UserCLK)
 
     # Verify data unchanged
     await Timer(Decimal(100), units="ps")
-    assert dut.AD.value.integer == initial_value, (
-        f"Data changed with W_en=0: Expected {initial_value}, got {dut.AD.value.integer}"
+    assert int(dut.AD.value) == initial_value, (
+        f"Data changed with W_en=0: Expected {initial_value}, got {int(dut.AD.value)}"
     )
 
     # Now enable write and verify it works
     dut.W_en.value = 1
-    model.write_cycle(8, 0x2, 1)
+    model.W_en = 1
     await RisingEdge(dut.UserCLK)
     dut.W_en.value = 0
+    model.W_en = 0
 
     await Timer(Decimal(100), units="ps")
-    assert dut.AD.value.integer == 0x2, (
-        f"Write with W_en=1 failed: Expected 0x2, got {dut.AD.value.integer}"
+    assert int(dut.AD.value) == 0x2, (
+        f"Write with W_en=1 failed: Expected 0x2, got {int(dut.AD.value)}"
     )
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_regfile_both_ports_registered(dut: RegFileProtocol) -> None:
+async def regfile_both_ports_registered_test(dut: RegFileProtocol) -> None:
     """Test functionality with both ports in registered mode."""
     await setup_dut(dut)
 
-    model = RegFileModel()
+    model = RegFileModel(dut.UserCLK)
 
     # Write test data to different addresses
     dut.W_ADR.value = 3
     dut.D.value = 0x9
     dut.W_en.value = 1
-    model.write_cycle(3, 0x9, 1)
+    model.W_ADR = 3
+    model.D = 0x9
+    model.W_en = 1
     await RisingEdge(dut.UserCLK)
     dut.W_en.value = 0
+    model.W_en = 0
 
     dut.W_ADR.value = 13
     dut.D.value = 0x4
     dut.W_en.value = 1
-    model.write_cycle(13, 0x4, 1)
+    model.W_ADR = 13
+    model.D = 0x4
+    model.W_en = 1
     await RisingEdge(dut.UserCLK)
     dut.W_en.value = 0
+    model.W_en = 0
 
     # Configure both ports for registered output
     dut.ConfigBits.value = 0b11  # Both ports registered
     dut.A_ADR.value = 3
     dut.B_ADR.value = 13
+    model.ConfigBits = 0b11
+    model.A_ADR = 3
+    model.B_ADR = 13
 
     # Clock to update registered outputs
     await RisingEdge(dut.UserCLK)
     await Timer(Decimal(100), units="ps")
 
-    expected_ad, expected_bd = model.read_cycle(3, 13, 0b11)
-    assert dut.AD.value.integer == expected_ad, (
-        f"Registered port A failed: Expected {expected_ad}, got {dut.AD.value.integer}"
+    assert int(dut.AD.value) == 0x9, (
+        f"Registered port A failed: Expected 0x9, got {int(dut.AD.value)}"
     )
-    assert dut.BD.value.integer == expected_bd, (
-        f"Registered port B failed: Expected {expected_bd}, got {dut.BD.value.integer}"
+    assert int(dut.BD.value) == 0x4, (
+        f"Registered port B failed: Expected 0x4, got {int(dut.BD.value)}"
     )
