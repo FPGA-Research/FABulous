@@ -13,5 +13,8 @@ jobs:
       run: |
         echo "UV_SYSTEM_PYTHON=1" >> $GITHUB_ENV
         uv sync --locked --all-extras --dev
+
     - name: run pre-commit
-      uses: pre-commit/action@v3.0.1
+      run: |
+        uv run pre-commit install
+        uv run pre-commit run --show-diff-on-failure --color=always --all-files
