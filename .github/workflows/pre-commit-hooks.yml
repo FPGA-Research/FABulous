@@ -12,4 +12,6 @@ jobs:
     - name: Install the project
       run: uv sync --locked --all-extras --dev
     - name: run pre-commit
-      uses: pre-commit/action@v3.0.1
+      run: |
+        pre-commit install
+        pre-commit run --show-diff-on-failure --color=always --all-files
