@@ -2,9 +2,11 @@
 
 from decimal import Decimal
 from pathlib import Path
+from random import randint
 from typing import Protocol
 
 import cocotb
+from cocotb.binary import LogicArray
 from cocotb.handle import ModifiableObject
 from cocotb.triggers import Timer
 
@@ -65,78 +67,198 @@ class MUX8LUTModel:
     signals and proper cus_mux21 primitive logic: X = S ? A1 : A0
     """
 
-    def __init__(self) -> None:
-        """Initialize the MUX8LUT model."""
+    _A = 0
+    _B = 0
+    _C = 0
+    _D = 0
+    _E = 0
+    _F = 0
+    _G = 0
+    _H = 0
+    _S = 0  # 4-bit select
+    _ConfigBits = 0  # 2-bit configuration
 
-    def compute_mux_output(
-        self, inputs: list[int], select: int, config_bits: int
-    ) -> dict[str, int]:
-        """
-        Compute MUX outputs based on inputs and select signals.
+    @property
+    def A(self) -> int:
+        """Input A."""
+        return self._A
 
-        This implementation follows the exact HDL structure with proper
-        CocoTB timing consideration for combinational logic.
+    @A.setter
+    def A(self, value: int) -> None:
+        self._A = value & 1  # Ensure single bit
 
-        Args:
-            inputs: List of input signals [A,B,C,D,E,F,G,H] (8 inputs)
-            select: 4-bit select signal S[3:0]
-            config_bits: Configuration bits [c1,c0] (2 bits)
+    @property
+    def B(self) -> int:
+        """Input B."""
+        return self._B
 
-        Returns:
-            Dictionary with output names and values: M_AB, M_AD, M_AH, M_EF
-        """
-        if len(inputs) != 8:
-            raise ValueError("MUX8LUT requires exactly 8 inputs")
+    @B.setter
+    def B(self, value: int) -> None:
+        self._B = value & 1  # Ensure single bit
 
-        A, B, C, D, E, F, G, H = inputs
+    @property
+    def C(self) -> int:
+        """Input C."""
+        return self._C
 
-        # Extract configuration bits
-        c0 = config_bits & 1  # ConfigBits[0]
-        c1 = (config_bits >> 1) & 1  # ConfigBits[1]
+    @C.setter
+    def C(self, value: int) -> None:
+        self._C = value & 1  # Ensure single bit
 
-        # Extract select bits
-        S = [select & 1, (select >> 1) & 1, (select >> 2) & 1, (select >> 3) & 1]
+    @property
+    def D(self) -> int:
+        """Input D."""
+        return self._D
 
-        # Level 1: First level MUXes (following HDL exactly)
-        # cus_mux21: X = S ? A1 : A0
-        AB = B if S[0] else A  # S[0] ? B : A
+    @D.setter
+    def D(self, value: int) -> None:
+        self._D = value & 1  # Ensure single bit
 
-        # CD mux uses sCD as select
-        sCD = S[0] if c0 else S[1]  # c0 ? S[0] : S[1]
-        CD = D if sCD else C  # sCD ? D : C
+    @property
+    def E(self) -> int:
+        """Input E."""
+        return self._E
 
-        # EF mux uses sEF as select
-        sEF = S[0] if c1 else S[2]  # c1 ? S[0] : S[2]
-        EF = F if sEF else E  # sEF ? F : E
+    @E.setter
+    def E(self, value: int) -> None:
+        self._E = value & 1  # Ensure single bit
 
-        # GH mux uses sGH as select
-        sEH = S[1] if c1 else S[3]  # c1 ? S[1] : S[3]
-        sGH = sEF if c0 else sEH  # c0 ? sEF : sEH
-        GH = H if sGH else G  # sGH ? H : G
+    @property
+    def F(self) -> int:
+        """Input F."""
+        return self._F
 
-        # Level 2: Second level MUXes
-        AD = CD if S[1] else AB  # S[1] ? CD : AB
-        EH = GH if sEH else EF  # sEH ? GH : EF
+    @F.setter
+    def F(self, value: int) -> None:
+        self._F = value & 1  # Ensure single bit
 
-        # Level 3: Third level MUXes
-        AH = EH if S[3] else AD  # S[3] ? EH : AD
-        EH_GH = EH if c0 else GH  # c0 ? EH : GH
+    @property
+    def G(self) -> int:
+        """Input G."""
+        return self._G
 
-        # Output assignments (following HDL exactly)
-        M_AB = AB  # Direct assignment
-        M_AD = AD if c0 else CD  # c0 ? AD : CD
-        M_AH = AH if c1 else EH_GH  # c1 ? AH : EH_GH
-        M_EF = EF  # Direct assignment
+    @G.setter
+    def G(self, value: int) -> None:
+        self._G = value & 1  # Ensure single bit
 
-        return {
-            "M_AB": M_AB & 1,
-            "M_AD": M_AD & 1,
-            "M_AH": M_AH & 1,
-            "M_EF": M_EF & 1,
-        }
+    @property
+    def H(self) -> int:
+        """Input H."""
+        return self._H
 
-    def reset(self) -> None:
-        """Reset the model state (no state for combinational logic)."""
+    @H.setter
+    def H(self, value: int) -> None:
+        self._H = value & 1  # Ensure single bit
+
+    @property
+    def S(self) -> int:
+        """4-bit select signal."""
+        return self._S
+
+    @S.setter
+    def S(self, value: int) -> None:
+        self._S = value & 0xF  # Ensure 4-bit value
+
+    @property
+    def ConfigBits(self) -> int:
+        """2-bit configuration bits."""
+        return self._ConfigBits
+
+    @ConfigBits.setter
+    def ConfigBits(self, value: int) -> None:
+        self._ConfigBits = value & 0x3  # Ensure 2-bit value
+
+    @classmethod
+    def mux2(cls, A: int, B: int, S: int) -> int:
+        return B if (S & 1) else A
+
+    @property
+    def _S0(self) -> int:
+        return self.S & 1
+
+    @property
+    def _S1(self) -> int:
+        return (self.S >> 1) & 1
+
+    @property
+    def _S2(self) -> int:
+        return (self.S >> 2) & 1
+
+    @property
+    def _S3(self) -> int:
+        return (self.S >> 3) & 1
+
+    @property
+    def _c0(self) -> int:
+        return self.ConfigBits & 1
+
+    @property
+    def _c1(self) -> int:
+        return (self.ConfigBits >> 1) & 1
+
+    @property
+    def _AB(self) -> int:
+        return self.mux2(self.A, self.B, self._S0)
+
+    @property
+    def _CD(self) -> int:
+        return self.mux2(self.C, self.D, self._sCD)
+
+    @property
+    def _EF(self) -> int:
+        return self.mux2(self.E, self.F, self._sEF)
+
+    @property
+    def _GH(self) -> int:
+        return self.mux2(self.G, self.H, self._sGH)
+
+    @property
+    def _sCD(self) -> int:
+        return self.mux2(self._S1, self._S0, self._c0)
+
+    @property
+    def _sEF(self) -> int:
+        return self.mux2(self._S2, self._S0, self._c1)
+
+    @property
+    def _sGH(self) -> int:
+        return self.mux2(self._sEH, self._sEF, self._c0)
+
+    @property
+    def _sEH(self) -> int:
+        return self.mux2(self._S3, self._S1, self._c1)
+
+    @property
+    def _AD(self) -> int:
+        return self.mux2(self._AB, self._CD, self._S1)
+
+    @property
+    def _EH(self) -> int:
+        return self.mux2(self._EF, self._GH, self._sEH)
+
+    @property
+    def _AH(self) -> int:
+        return self.mux2(self._AD, self._EH, self._S3)
+
+    @property
+    def _EH_GH(self) -> int:
+        return self.mux2(self._GH, self._EH, self._c0)
+
+    @property
+    def M_AB(self) -> int:
+        return self._AB
+
+    @property
+    def M_AD(self) -> int:
+        return self.mux2(self._CD, self._AD, self._c0)
+
+    @property
+    def M_AH(self) -> int:
+        return self.mux2(self._EH_GH, self._AH, self._c1)
+
+    @property
+    def M_EF(self) -> int:
+        return self._EF
 
 
 async def setup_dut(dut: MUX8LUTProtocol) -> None:
@@ -160,298 +282,56 @@ async def setup_dut(dut: MUX8LUTProtocol) -> None:
     await Timer(Decimal(50), units="ps")  # Initial stabilization
 
 
-async def set_mux_inputs_with_timing(
-    dut: MUX8LUTProtocol, input_values: list[int]
-) -> None:
-    """
-    CocoTB timing-aware helper to set MUX input values.
-
-    Provides proper signal transition timing for realistic
-    hardware behavior simulation.
-    """
-    if len(input_values) != 8:
-        raise ValueError("Must provide exactly 8 input values")
-
-    # Set all inputs simultaneously (as would happen in hardware)
-    dut.A.value = input_values[0] & 1
-    dut.B.value = input_values[1] & 1
-    dut.C.value = input_values[2] & 1
-    dut.D.value = input_values[3] & 1
-    dut.E.value = input_values[4] & 1
-    dut.F.value = input_values[5] & 1
-    dut.G.value = input_values[6] & 1
-    dut.H.value = input_values[7] & 1
-
-    # CocoTB timing: Allow signal propagation through combinational logic
-    await Timer(Decimal(20), units="ps")
-
-
-async def set_config_with_timing(dut: MUX8LUTProtocol, config_bits: int) -> None:
-    """
-    CocoTB timing-aware helper to set configuration bits.
-
-    Configuration changes require propagation through the
-    entire combinational network.
-    """
-    dut.ConfigBits.value = config_bits & 0x3  # Ensure 2-bit value
-    # Configuration changes affect all internal mux selects
-    await Timer(Decimal(30), units="ps")  # Longer delay for config propagation
-
-
-async def set_select_with_timing(dut: MUX8LUTProtocol, select_value: int) -> None:
-    """
-    CocoTB timing-aware helper to set select signals.
-
-    Select changes propagate through multiple mux levels.
-    """
-    dut.S.value = select_value & 0xF  # Ensure 4-bit value
-    # Select changes propagate through hierarchical mux structure
-    await Timer(Decimal(25), units="ps")
-
-
 @cocotb.test
-async def mux8lut_basic_selection_test(dut: MUX8LUTProtocol) -> None:
+async def mux8lut_selection_test(dut: MUX8LUTProtocol) -> None:
     """Test basic MUX selection functionality with proper CocoTB timing."""
-    await setup_dut(dut)
+    dut.A.value = 0
+    dut.B.value = 1
+    dut.C.value = 0
+    dut.D.value = 1
+    dut.E.value = 0
+    dut.F.value = 1
+    dut.G.value = 0
+    dut.H.value = 1
+    dut.ConfigBits.value = 0  # c1=0, c0=0
+    dut.S.value = 0  # Select input A
+    await Timer(Decimal(20), units="ps")  # Allow propagation
+    assert int(dut.M_AB.value) == 0, f"M_AB expected 0, got {int(dut.M_AB.value)}"
+    assert int(dut.M_AD.value) == 0, f"M_AD expected 0, got {int(dut.M_AD.value)}"
+    assert int(dut.M_AH.value) == 0, f"M_AH expected 0, got {int(dut.M_AH.value)}"
+    assert int(dut.M_EF.value) == 0, f"M_EF expected 0, got {int(dut.M_EF.value)}"
 
     model = MUX8LUTModel()
 
-    # Test pattern: alternating 0s and 1s
-    test_inputs = [0, 1, 0, 1, 0, 1, 0, 1]
-    await set_mux_inputs_with_timing(dut, test_inputs)
+    for s in range(16):  # 4-bit select supports 0-15
+        for c in range(4):  # 2-bit config supports 0-3
+            # Set inputs in both DUT and model
+            dut.A.value = model.A = randint(0, 1)
+            dut.B.value = model.B = randint(0, 1)
+            dut.C.value = model.C = randint(0, 1)
+            dut.D.value = model.D = randint(0, 1)
+            dut.E.value = model.E = randint(0, 1)
+            dut.F.value = model.F = randint(0, 1)
+            dut.G.value = model.G = randint(0, 1)
+            dut.H.value = model.H = randint(0, 1)
 
-    # Set configuration bits for testing
-    config_bits = 0  # c1=0, c0=0
-    await set_config_with_timing(dut, config_bits)
+            # Set select and config in both DUT and model
+            dut.S.value = model.S = s
+            dut.ConfigBits.value = model.ConfigBits = c
 
-    # Test each select value with proper timing
-    for select_val in range(16):  # 4-bit select supports 0-15
-        await set_select_with_timing(dut, select_val)
+            # CocoTB timing: Allow signal propagation through combinational logic
+            await Timer(Decimal(20), units="ps")
 
-        expected_outputs = model.compute_mux_output(
-            test_inputs, select_val, config_bits
-        )
-
-        # Check all MUX outputs with proper timing verification
-        assert int(dut.M_AB.value) == expected_outputs["M_AB"], (
-            f"Select {select_val}: M_AB expected {expected_outputs['M_AB']}, got {int(dut.M_AB.value)}"
-        )
-        assert int(dut.M_AD.value) == expected_outputs["M_AD"], (
-            f"Select {select_val}: M_AD expected {expected_outputs['M_AD']}, got {int(dut.M_AD.value)}"
-        )
-        assert int(dut.M_AH.value) == expected_outputs["M_AH"], (
-            f"Select {select_val}: M_AH expected {expected_outputs['M_AH']}, got {int(dut.M_AH.value)}"
-        )
-        assert int(dut.M_EF.value) == expected_outputs["M_EF"], (
-            f"Select {select_val}: M_EF expected {expected_outputs['M_EF']}, got {int(dut.M_EF.value)}"
-        )
-
-
-@cocotb.test
-async def mux8lut_all_ones_pattern_test(dut: MUX8LUTProtocol) -> None:
-    """Test MUX with all inputs high."""
-    await setup_dut(dut)
-
-    model = MUX8LUTModel()
-
-    # All inputs high
-    test_inputs = [1, 1, 1, 1, 1, 1, 1, 1]
-    await set_mux_inputs_with_timing(dut, test_inputs)
-    await Timer(Decimal(100), units="ps")
-
-    # Test each select value - all should output 1
-    for select_val in range(8):
-        await set_select_with_timing(dut, select_val)
-        await Timer(Decimal(100), units="ps")
-
-        expected_outputs = model.compute_mux_output(test_inputs, select_val, 0)
-        actual_output = int(dut.M_AB.value)
-
-        assert actual_output == 1, (
-            f"All ones pattern, select {select_val}: Expected 1, got {actual_output}"
-        )
-        assert actual_output == expected_outputs["M_AB"], (
-            f"Model mismatch at select {select_val}"
-        )
-
-
-@cocotb.test
-async def mux8lut_all_zeros_pattern_test(dut: MUX8LUTProtocol) -> None:
-    """Test MUX with all inputs low."""
-    await setup_dut(dut)
-
-    model = MUX8LUTModel()
-
-    # All inputs low
-    test_inputs = [0, 0, 0, 0, 0, 0, 0, 0]
-    await set_mux_inputs_with_timing(dut, test_inputs)
-    await Timer(Decimal(100), units="ps")
-
-    # Test each select value - all should output 0
-    for select_val in range(8):
-        await set_select_with_timing(dut, select_val)
-        await Timer(Decimal(100), units="ps")
-
-        expected_outputs = model.compute_mux_output(test_inputs, select_val, 0)
-        actual_output = int(dut.M_AB.value)
-
-        assert actual_output == 0, (
-            f"All zeros pattern, select {select_val}: Expected 0, got {actual_output}"
-        )
-        assert actual_output == expected_outputs["M_AB"], (
-            f"Model mismatch at select {select_val}"
-        )
-
-
-@cocotb.test
-async def mux8lut_single_high_pattern_test(dut: MUX8LUTProtocol) -> None:
-    """Test MUX with only one input high at a time."""
-    await setup_dut(dut)
-
-    model = MUX8LUTModel()
-
-    # Test each input individually
-    for high_input in range(8):
-        # Create pattern with only one input high
-        test_inputs = [0] * 8
-        test_inputs[high_input] = 1
-
-        await set_mux_inputs_with_timing(dut, test_inputs)
-        await Timer(Decimal(100), units="ps")
-
-        # Test all select values
-        for select_val in range(8):
-            await set_select_with_timing(dut, select_val)
-            await Timer(Decimal(100), units="ps")
-
-            expected_outputs = model.compute_mux_output(test_inputs, select_val, 0)
-
-            # Check one of the MUX outputs
-            actual_output = int(dut.M_AB.value)
-
-            # Should be 1 only when selecting the high input
-            if select_val == high_input:
-                assert actual_output == 1, (
-                    f"Input {high_input} high, select {select_val}: Expected 1, got {actual_output}"
-                )
-            else:
-                assert actual_output == 0, (
-                    f"Input {high_input} high, select {select_val}: Expected 0, got {actual_output}"
-                )
-
-            assert actual_output == expected_outputs["M_AB"], (
-                f"Model mismatch: input {high_input}, select {select_val}"
+            # Check all MUX outputs
+            assert int(dut.M_AB.value) == model.M_AB, (
+                f"Select {s}, Config {c}: M_AB expected {model.M_AB}, got {int(dut.M_AB.value)}"
             )
-
-
-@cocotb.test
-async def mux8lut_binary_count_pattern_test(dut: MUX8LUTProtocol) -> None:
-    """Test MUX with binary counting pattern."""
-    await setup_dut(dut)
-
-    model = MUX8LUTModel()
-
-    # Binary counting pattern: input i has value (i & 1)
-    test_inputs = [i & 1 for i in range(8)]  # [0, 1, 0, 1, 0, 1, 0, 1]
-    await set_mux_inputs_with_timing(dut, test_inputs)
-    await Timer(Decimal(100), units="ps")
-
-    # Test select pattern that follows the input pattern
-    for select_val in range(8):
-        await set_select_with_timing(dut, select_val)
-        await Timer(Decimal(100), units="ps")
-
-        expected_outputs = model.compute_mux_output(test_inputs, select_val, 0)
-
-        # Check output
-        actual_output = int(dut.M_AB.value)
-
-        # Output should match select_val & 1
-        expected_pattern = select_val & 1
-        assert actual_output == expected_pattern, (
-            f"Binary pattern, select {select_val}: Expected {expected_pattern}, got {actual_output}"
-        )
-        assert actual_output == expected_outputs["M_AB"], (
-            f"Model mismatch at select {select_val}"
-        )
-
-
-@cocotb.test
-async def mux8lut_select_boundary_conditions_test(dut: MUX8LUTProtocol) -> None:
-    """Test MUX select signal boundary conditions."""
-    await setup_dut(dut)
-
-    model = MUX8LUTModel()
-
-    # Unique pattern to verify correct selection
-    test_inputs = [0, 1, 1, 0, 1, 0, 0, 1]
-    await set_mux_inputs_with_timing(dut, test_inputs)
-    await Timer(Decimal(100), units="ps")
-
-    # Test boundary select values
-    boundary_selects = [0, 7]  # First and last valid select values
-
-    for select_val in boundary_selects:
-        await set_select_with_timing(dut, select_val)
-        await Timer(Decimal(100), units="ps")
-
-        expected_outputs = model.compute_mux_output(test_inputs, select_val, 0)
-
-        actual_output = int(dut.M_AB.value)
-
-        assert actual_output == expected_outputs["M_AB"], (
-            f"Boundary select {select_val}: Expected {expected_outputs['M_AB']}, got {actual_output}"
-        )
-
-    # Test that 4-bit select properly wraps (if implementation allows > 4-bit values)
-    # Select value 16 should behave same as select value 0
-    if len(dut.S) > 4:
-        await set_select_with_timing(dut, 16)  # Should wrap to 0
-        await Timer(Decimal(100), units="ps")
-
-        wrapped_output = int(dut.M_AB.value)
-
-        await set_select_with_timing(dut, 0)
-        await Timer(Decimal(100), units="ps")
-
-        normal_output = int(dut.M_AB.value)
-
-        assert wrapped_output == normal_output, (
-            f"Select wrapping failed: select 16 gave {wrapped_output}, select 0 gave {normal_output}"
-        )
-
-
-@cocotb.test
-async def mux8lut_dynamic_input_changes_test(dut: MUX8LUTProtocol) -> None:
-    """Test MUX response to dynamic input changes."""
-    await setup_dut(dut)
-
-    # Set select to input 3 (D)
-    select_val = 3
-    await set_select_with_timing(dut, select_val)
-
-    # Start with input 3 = 0 (only D is 0)
-    test_inputs = [1, 1, 1, 0, 1, 1, 1, 1]  # Only input 3 is 0
-    await set_mux_inputs_with_timing(dut, test_inputs)
-    await Timer(Decimal(100), units="ps")
-
-    # Verify output reflects input D (should be 0)
-    assert int(dut.M_AB.value) == 0, "Should select input 3 (value 0)"
-
-    # Change input 3 to 1
-    test_inputs[3] = 1
-    await set_mux_inputs_with_timing(dut, test_inputs)
-    await Timer(Decimal(100), units="ps")
-
-    # Verify output changes to 1
-    assert int(dut.M_AB.value) == 1, "Should now output 1 (input 3 changed to 1)"
-
-    # Change a different input (should not affect output)
-    test_inputs[5] = 0  # Change input 5 (F), but we're selecting input 3 (D)
-    await set_mux_inputs_with_timing(dut, test_inputs)
-    await Timer(Decimal(100), units="ps")
-
-    # Output should remain 1 (still selecting input 3)
-    assert int(dut.M_AB.value) == 1, (
-        "Output should not change when non-selected input changes"
-    )
+            assert int(dut.M_AD.value) == model.M_AD, (
+                f"Select {s}, Config {c}: M_AD expected {model.M_AD}, got {int(dut.M_AD.value)}"
+            )
+            assert int(dut.M_AH.value) == model.M_AH, (
+                f"Select {s}, Config {c}: M_AH expected {model.M_AH}, got {int(dut.M_AH.value)}"
+            )
+            assert int(dut.M_EF.value) == model.M_EF, (
+                f"Select {s}, Config {c}: M_EF expected {model.M_EF}, got {int(dut.M_EF.value)}"
+            )
