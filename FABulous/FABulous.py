@@ -196,9 +196,9 @@ def install_oss_cad_suite_cmd(
     the FAB_OSS_CAD_SUITE env var in the global FABulous .env file.
     """
     if directory is None:
-        install_oss_cad_suite(FAB_USER_CONFIG_DIR)
-    else:
-        install_oss_cad_suite(directory)
+        directory = FAB_USER_CONFIG_DIR
+
+    install_oss_cad_suite(directory)
     logger.info(f"oss-cad-suite installed successfully at {directory}")
 
 
