@@ -6,7 +6,6 @@ package attr_pack_RAM_IO_Config_access is
   attribute C_bit2      : integer;
   attribute C_bit3      : integer;
   attribute EXTERNAL    : string;
-  attribute SHARED_PORT : string;
   attribute GLOBAL      : string;
 end package;
 library IEEE;
@@ -29,7 +28,6 @@ entity Config_access is
   attribute C_bit2 of Config_access   : entity is 2;
   attribute C_bit3 of Config_access   : entity is 3;
   attribute EXTERNAL of C             : signal is "TRUE";
-  attribute SHARED_PORT of C          : signal is "TRUE";
   attribute GLOBAL of ConfigBits      : signal is "TRUE";
 end entity Config_access;
 

@@ -1,5 +1,6 @@
 """Contains functions for processing BEL related information from HDL files."""
 
+import re
 from pathlib import Path
 
 from FABulous.custom_exception import (
@@ -24,10 +25,23 @@ def belMapProcessing(module_info: YosysModule) -> dict:
     -------
     dict
         Dictionary containing the parsed bel mapping information.
+
+    Raises
+    ------
+    ValueError
+        If any BEL mapping attribute has an invalid format or index.
     """
     belMapDic = {}
+
+    # update attributes to remove the fab_attr_ prefix, ignoring case
+    fab_attrs = [key for key in module_info.attributes if "fab_attr_" in key.casefold()]
+    for key in fab_attrs:
+        attr = module_info.attributes.pop(key)
+        key = re.sub(r"fab_attr_", "", key, flags=re.IGNORECASE)
+        module_info.attributes[key] = attr
+
     # if BelMap not present defaults belMapDic to {}
-    if "BelMap" not in module_info.attributes:
+    if "belmap" not in (attr.casefold() for attr in module_info.attributes):
         return belMapDic
     # Passed attributes that dont need appending. (May need refining.)
     exclude_attributes = {
@@ -38,25 +52,64 @@ def belMapProcessing(module_info: YosysModule) -> dict:
         "src",
         "top",
     }
-    # match case for INIT. (may need modifying for other naming conventions.)
-    for key, _value in module_info.attributes.items():
-        if key in exclude_attributes:
+
+    # Convert attributes ending with _<digits> to vector notation
+    # First pass: identify which base names have indexed variants
+    indexed_bases = set()
+    for key in module_info.attributes:
+        if key.casefold() in (item.casefold() for item in exclude_attributes):
             continue
-        match key:
-            case key if key.startswith("INIT_") and key[5:].isdigit():
-                index = key[5:]
-                new_key = f"INIT[{index}]"
-            case "INIT":
-                new_key = "INIT"
-            case key if key.isupper() and "_" not in key:
-                new_key = key
-            case _:
-                new_key = key
+        if "_" in key:
+            parts = key.rsplit("_", 1)
+            if len(parts) == 2 and parts[1].isdigit():
+                indexed_bases.add(parts[0])
 
-        belMapDic[new_key] = {0: {0: "1"}}
+    # Second pass: convert keys to appropriate format
+    atters = {}
+    for key, value in module_info.attributes.items():
+        # skip excluded attributes
+        if key.casefold() in (item.casefold() for item in exclude_attributes):
+            continue
 
-    # yosys reverses belmap, reverse back to keep original belmap.
-    return dict(reversed(list(belMapDic.items())))
+        # check if value is an integer or digit string,
+        # since it specifies the bit position
+        if (type(value) is str and not value.isdigit()) and type(value) is not int:
+            raise ValueError(
+                f"BelMap attribute {key} does not have int / digit value:{value}."
+            )
+
+        # Check if key contains underscore and last part after underscore is all digits
+        if "_" in key:
+            parts = key.rsplit("_", 1)  # Split from the right, only once
+            if len(parts) == 2 and parts[1].isdigit():
+                # Convert to vector notation: SOME_KEY_NAME_123 -> SOME_KEY_NAME[123]
+                base_name = parts[0]
+                index = parts[1]
+                new_key = f"{base_name}[{index}]"
+            else:
+                new_key = key
+        else:
+            # Check if this key has indexed variants
+            # (e.g., INIT exists and INIT_1, INIT_2 exist)
+            # and Convert to vector notation with index 0
+            new_key = f"{key}[0]" if key in indexed_bases else key
+
+        atters[new_key] = int(value)
+
+    # sort attributes by their integer values
+    atters = dict(sorted(atters.items(), key=lambda item: item[1]))
+
+    for i, (key, value) in enumerate(atters.items()):
+        # check if the index matches the expected sequence
+        if i != value:
+            raise ValueError(
+                f"BelMap attribute {key} has incorrect index {value}."
+                f" Expected value {i}."
+            )
+
+        belMapDic[key] = {0: {0: "1"}}
+
+    return belMapDic
 
 
 def parseBelFile(

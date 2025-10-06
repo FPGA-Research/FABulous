@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from FABulous.custom_exception import InvalidFileType
 from FABulous.FABulous_settings import get_context
@@ -339,9 +339,13 @@ class YosysJson:
                 res = [x.strip() for x in res]
                 res = [x for x in res if x]  # Remove empty strings
                 res = dict(x.split("=", 1) for x in res)
-                module.attributes.update(res)
-                module.attributes["BelMap"] = True
-                module.attributes["FABulous"] = True
+                # FIXME: This is a workaround for the VHDL parser until GHDL
+                # fixes the issue that all attributes are converted to lowercase.
+                # https://github.com/ghdl/ghdl/issues/3067
+                _update_dict_ignore_case(module.attributes, res)
+                _update_dict_ignore_case(
+                    module.attributes, {"BelMap": True, "FABulous": True}
+                )
 
             # because yosys reverses the order of attributes, we need to do the same
             module.attributes = dict(reversed(list(module.attributes.items())))
@@ -467,3 +471,33 @@ class YosysJson:
             raise ValueError(f"Multiple driver found for net {net}: {src}")
 
         return src[0], sinks
+
+
+def _update_dict_ignore_case(
+    original: dict[str, Any], updates: dict[str, Any]
+) -> dict[str, Any]:
+    """Update a dictionary with another dictionary, ignoring key case.
+
+    Parameters
+    ----------
+    original : dict[str, Any]
+        The original dictionary to be updated.
+    updates : dict[str, Any]
+        The dictionary containing updates.
+
+    Returns
+    -------
+    dict[str, Any]
+        The updated dictionary with keys from `updates` applied to `original`,
+        ignoring case differences.
+    """
+    lower_original = {k.lower(): k for k in original}
+
+    for key, value in updates.items():
+        lower_key = key.lower()
+        if lower_key in lower_original:
+            # overwrite existing key (case-insensitive)
+            original.pop(lower_original[lower_key])
+        original[key] = value
+
+    return original
