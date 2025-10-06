@@ -76,7 +76,7 @@ class FABulousSettings(BaseSettings):
         proj_lang = info.data.get("proj_lang")
         if value is None or value == "":
             if p := info.data.get("proj_dir"):
-                p = Path(p)
+                p = Path(p).absolute()
             else:
                 raise ValueError("Project directory is not set.")
             if proj_lang == HDLType.VHDL:
@@ -111,6 +111,34 @@ class FABulousSettings(BaseSettings):
 
             return None
 
+        if not value.is_file():
+            # models_pack path is by default as a relative path starting from proj_dir
+            # This can cause errors if FABulous is called from a different working dir
+            # So we have to puzzle the models_pack path back together from there.
+            if proj_dir := info.data.get("proj_dir"):
+                proj_dir = Path(proj_dir).absolute()
+                if not proj_dir.exists():
+                    raise ValueError(f"Project directory {proj_dir} does not exist.")
+            else:
+                raise ValueError("Project directory is not set.")
+
+            # check if project dir is in model pack path, since in the default it is
+            # put there as folder
+            if proj_dir.name in value.parts:
+                parts = list(value.parts)
+                index = parts.index(proj_dir.name)
+                value = proj_dir.joinpath(*parts[index + 1 :])
+                if not value.is_file():
+                    raise ValueError(
+                        f"Model pack file does not exist: {value}"
+                        " Check your FAB_MODELS_PACK env var setting."
+                    )
+            else:
+                raise ValueError(
+                    f"Model pack file does not exist: {value}"
+                    " Check your FAB_MODELS_PACK env var setting."
+                )
+
         # Retrieve previously validated proj_lang (falls back to default enum value)
         try:
             # If provided as string earlier but not validated yet
@@ -130,7 +158,7 @@ class FABulousSettings(BaseSettings):
             )
         if proj_lang == HDLType.VHDL and value.suffix not in {".vhdl", ".vhd"}:
             raise ValueError("Model pack for VHDL must be a .vhdl or .vhd file")
-        return value
+        return value.absolute()
 
     @field_validator("user_config_dir", mode="after")
     @classmethod

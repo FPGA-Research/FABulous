@@ -42,6 +42,10 @@ def project_directories(tmp_path: Path) -> dict[str, Path]:
         (project_dir / ".FABulous").mkdir()
         env_file = project_dir / ".FABulous" / ".env"
         env_file.touch()
+
+        # create an empty models pack file
+        models_pack_file = project_dir / "models_pack.v"
+        models_pack_file.touch()
         set_key(env_file, "FAB_PROJ_LANG", "verilog")
         set_key(env_file, "FAB_PROJ_VERSION", "1.0.0")
         set_key(env_file, "FAB_MODELS_PACK", str(models_pack_file))
