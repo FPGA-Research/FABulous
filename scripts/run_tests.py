@@ -161,7 +161,7 @@ def merge_and_update_durations(num_groups: int) -> None:
         logger.error(f"Failed writing fallback '{DURATIONS_FALLBACK_FILE}' : {e}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run pytest in parallel locally, mimicking GitHub Actions parallel matrix.",
         formatter_class=argparse.RawTextHelpFormatter,

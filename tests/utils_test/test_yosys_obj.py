@@ -46,7 +46,7 @@ def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
         # In rare cases temp dir may be read-only; fallback to current working dir
         tmp_mp = Path.cwd() / "models_pack.v"
         tmp_mp.write_text("// test model pack\n")
-    monkeypatch.setenv("FAB_MODEL_PACK", str(tmp_mp))
+    monkeypatch.setenv("FAB_MODELS_PACK", str(tmp_mp))
 
 
 @pytest.mark.parametrize(
@@ -111,13 +111,13 @@ def test_yosys_json_initialization_parametric(
 
     # Provide a valid model pack path to satisfy FABulousSettings validation
     if suffix in {".vhd", ".vhdl"}:
-        mp = tmp_path / "model_pack.vhdl"
+        mp = tmp_path / "models_pack.vhdl"
     elif suffix == ".sv":
         mp = tmp_path / "models_pack.v"  # .v is acceptable for SystemVerilog projects
     else:
         mp = tmp_path / "models_pack.v"
     mp.write_text("// dummy model pack\n")
-    monkeypatch.setenv("FAB_MODEL_PACK", str(mp))
+    monkeypatch.setenv("FAB_MODELS_PACK", str(mp))
 
     # Prepare files
     (tmp_path / "file.json").write_text(json_text)

@@ -272,7 +272,7 @@ class YosysJson:
                 "--std=08",
                 "--out=verilog",
                 str(temp),
-                f"{get_context().model_pack!s}",
+                f"{get_context().models_pack!s}",
                 f"{self.srcPath}",
                 "-e",
                 f"{self.srcPath.stem}",

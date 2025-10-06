@@ -68,8 +68,8 @@ class TestFABulousSettings:
         monkeypatch.setenv("FAB_PROJ_LANG", "vhdl")
         monkeypatch.setenv("FAB_SWITCH_MATRIX_DEBUG_SIGNAL", "true")
         monkeypatch.setenv("FAB_PROJ_VERSION_CREATED", "1.2.3")
-        (project / "my_model_pack.vhdl").touch()
-        monkeypatch.setenv("FAB_MODEL_PACK", str(project / "my_model_pack.vhdl"))
+        (project / "my_models_pack.vhdl").touch()
+        monkeypatch.setenv("FAB_MODELS_PACK", str(project / "my_models_pack.vhdl"))
 
         # Mock which to return None (no tools found)
         mocker.patch("FABulous.FABulous_settings.which", return_value=None)

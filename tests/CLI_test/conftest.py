@@ -44,7 +44,7 @@ def project_directories(tmp_path: Path) -> dict[str, Path]:
         env_file.touch()
         set_key(env_file, "FAB_PROJ_LANG", "verilog")
         set_key(env_file, "FAB_PROJ_VERSION", "1.0.0")
-        set_key(env_file, "FAB_MODEL_PACK", str(project_dir / "model_pack.v"))
+        set_key(env_file, "FAB_MODELS_PACK", str(models_pack_file))
 
     # Create project-specific .env file for testing
     project_dotenv_file = tmp_path / "project_specific.env"

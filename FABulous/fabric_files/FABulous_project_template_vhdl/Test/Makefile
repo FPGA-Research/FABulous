@@ -58,7 +58,7 @@ clean:
 
 run_simulation: mkdir_build
 	ulimit -s unlimited && \
-	${GHDL} -a ${GHDL_FLAGS} ${FAB_FABRIC_FOLDER}/model_pack.vhdl && \
+	${GHDL} -a ${GHDL_FLAGS} ${FAB_FABRIC_FOLDER}/models_pack.vhdl && \
 	${GHDL} -a ${GHDL_FLAGS} \
 	              ${FAB_TILE_FOLDER}/LUT4AB/LUT4AB_switch_matrix.vhdl \
 	              ${FAB_TILE_FOLDER}/LUT4AB/LUT4AB_ConfigMem.vhdl \

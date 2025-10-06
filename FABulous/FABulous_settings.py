@@ -45,7 +45,7 @@ class FABulousSettings(BaseSettings):
 
     proj_dir: Path = Field(default_factory=Path.cwd)
     proj_lang: str = "verilog"
-    model_pack: Path | None = None
+    models_pack: Path | None = None
     switch_matrix_debug_signal: bool = False
     proj_version_created: Version = Version("0.0.1")
     proj_version: Version = Version(meta_version("FABulous-FPGA"))
@@ -65,10 +65,10 @@ class FABulousSettings(BaseSettings):
             return Version(value)
         return value
 
-    @field_validator("model_pack", mode="after")
+    @field_validator("models_pack", mode="after")
     @classmethod
-    def parse_model_pack(cls, value: Path | None, info: ValidationInfo) -> Path | None:  # type: ignore[override]
-        """Validate and normalise model_pack path based on project language.
+    def parse_models_pack(cls, value: Path | None, info: ValidationInfo) -> Path | None:  # type: ignore[override]
+        """Validate and normalise models_pack path based on project language.
 
         Uses already-validated proj_lang from info.data when available. Accepts None /
         empty string to mean unset.
@@ -86,7 +86,7 @@ class FABulousSettings(BaseSettings):
                         f"Model pack path is not set. Guessing model pack as: {mp}"
                     )
                     return mp
-                mp = p / "Fabric" / "model_pack.vhdl"
+                mp = p / "Fabric" / "models_pack.vhdl"
                 if mp.exists():
                     logger.warning(
                         f"Model pack path is not set. Guessing model pack as: {mp}"
@@ -118,7 +118,7 @@ class FABulousSettings(BaseSettings):
                 proj_lang = HDLType[proj_lang.upper()]
         except KeyError:
             raise ValueError(
-                "Invalid project language while validating model_pack"
+                "Invalid project language while validating models_pack"
             ) from None
 
         if proj_lang in {
