@@ -258,7 +258,11 @@ class FABulousSettings(BaseSettings):
         }
         tool = tool_map.get(info.field_name, None)  # type: ignore[attr-defined]
         if tool is None:
-            return value
+            logger.warning(
+                f"No tool found for {info.field_name} during settings initialisation. "
+                f"Some features may be unavailable."
+            )
+            return None
         tool_path = which(tool)
         if tool_path is not None:
             return Path(tool_path).resolve()

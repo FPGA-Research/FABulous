@@ -26,6 +26,8 @@ dependencies = [
   'requests>=2.0.0',
   'cmd2>=2',
   'bitarray>=3.3.0',
+  # in pydantic v2.12 the fieldvalidators info.field_name property is broken
+  "pydantic<2.12",
   "pydantic-settings>=2.10.1",
   "packaging>=25.0",
   "typer>=0.16.1",
