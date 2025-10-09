@@ -123,9 +123,10 @@ class FABulousSettings(BaseSettings):
             else:
                 raise ValueError("Project directory is not set.")
 
-            # check if project dir is in model pack path, since in the default it is
+            # check if project dir is  not absolute and
+            # in model pack path, since in the default it is
             # put there as folder
-            if proj_dir.name in value.parts:
+            if not value.is_absolute() and proj_dir.name in value.parts:
                 parts = list(value.parts)
                 index = parts.index(proj_dir.name)
                 value = proj_dir.joinpath(*parts[index + 1 :])
