@@ -84,17 +84,17 @@ class FABulousSettings(BaseSettings):
                 mp = p / "Fabric" / "my_lib.vhdl"
                 if mp.exists():
                     logger.warning(
-                        f"Model pack path is not set. Guessing model pack as: {mp}"
+                        f"Models pack path is not set. Guessing models pack as: {mp}"
                     )
                     return mp
                 mp = p / "Fabric" / "models_pack.vhdl"
                 if mp.exists():
                     logger.warning(
-                        f"Model pack path is not set. Guessing model pack as: {mp}"
+                        f"Models pack path is not set. Guessing models pack as: {mp}"
                     )
                     return mp
                 logger.warning(
-                    "Cannot find a suitable model pack. "
+                    "Cannot find a suitable models pack. "
                     "This might lead to error if not set."
                 )
 
@@ -102,11 +102,11 @@ class FABulousSettings(BaseSettings):
                 mp = p / "Fabric" / "models_pack.v"
                 if mp.exists():
                     logger.warning(
-                        f"Model pack path is not set. Guessing model pack as: {mp}"
+                        f"Models pack path is not set. Guessing models pack as: {mp}"
                     )
                     return mp
                 logger.warning(
-                    "Cannot find a suitable model pack. "
+                    "Cannot find a suitable models pack. "
                     "This might lead to error if not set."
                 )
 
@@ -123,21 +123,21 @@ class FABulousSettings(BaseSettings):
             else:
                 raise ValueError("Project directory is not set.")
 
-            # check if project dir is  not absolute and
-            # in model pack path, since in the default it is
-            # put there as folder
+            # Check if `project_dir` is not an absolute path and
+            # in the models_pack path, since in the default it is
+            # put there as folder.
             if not value.is_absolute() and proj_dir.name in value.parts:
                 parts = list(value.parts)
                 index = parts.index(proj_dir.name)
                 value = proj_dir.joinpath(*parts[index + 1 :])
                 if not value.is_file():
                     raise ValueError(
-                        f"Model pack file does not exist: {value}"
+                        f"Models pack file does not exist: {value}"
                         " Check your FAB_MODELS_PACK env var setting."
                     )
             else:
                 raise ValueError(
-                    f"Model pack file does not exist: {value}"
+                    f"Models pack file does not exist: {value}"
                     " Check your FAB_MODELS_PACK env var setting."
                 )
 
@@ -156,10 +156,10 @@ class FABulousSettings(BaseSettings):
             HDLType.SYSTEM_VERILOG,
         } and value.suffix not in {".v", ".sv"}:
             raise ValueError(
-                "Model pack for Verilog/System Verilog must be a .v or .sv file"
+                "Models pack for Verilog/System Verilog must be a .v or .sv file"
             )
         if proj_lang == HDLType.VHDL and value.suffix not in {".vhdl", ".vhd"}:
-            raise ValueError("Model pack for VHDL must be a .vhdl or .vhd file")
+            raise ValueError("Models pack for VHDL must be a .vhdl or .vhd file")
         return value.absolute()
 
     @field_validator("user_config_dir", mode="after")

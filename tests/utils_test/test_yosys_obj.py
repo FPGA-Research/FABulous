@@ -38,14 +38,14 @@ def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
 
     monkeypatch.setattr("builtins.open", mock_open_func)
 
-    # Ensure FABulousSettings validation passes by providing a model pack
+    # Ensure FABulousSettings validation passes by providing a models pack
     tmp_mp = Path(tempfile.gettempdir()) / "models_pack.v"
     try:
-        tmp_mp.write_text("// test model pack\n")
+        tmp_mp.write_text("// test models pack\n")
     except OSError:
         # In rare cases temp dir may be read-only; fallback to current working dir
         tmp_mp = Path.cwd() / "models_pack.v"
-        tmp_mp.write_text("// test model pack\n")
+        tmp_mp.write_text("// test models pack\n")
     monkeypatch.setenv("FAB_MODELS_PACK", str(tmp_mp))
 
 
@@ -109,14 +109,14 @@ def test_yosys_json_initialization_parametric(
     for k, v in (set_env or {}).items():
         monkeypatch.setenv(k, v)
 
-    # Provide a valid model pack path to satisfy FABulousSettings validation
+    # Provide a valid models pack path to satisfy FABulousSettings validation
     if suffix in {".vhd", ".vhdl"}:
         mp = tmp_path / "models_pack.vhdl"
     elif suffix == ".sv":
         mp = tmp_path / "models_pack.v"  # .v is acceptable for SystemVerilog projects
     else:
         mp = tmp_path / "models_pack.v"
-    mp.write_text("// dummy model pack\n")
+    mp.write_text("// dummy models pack\n")
     monkeypatch.setenv("FAB_MODELS_PACK", str(mp))
 
     # Prepare files
