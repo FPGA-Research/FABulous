@@ -40,10 +40,10 @@ from cmd2 import (
     with_argparser,
     with_category,
 )
+from FABulous_bit_gen import genBitstream
 from loguru import logger
 
 from FABulous.custom_exception import CommandError, EnvironmentNotSet, InvalidFileType
-from FABulous.fabric_cad.bit_gen import genBitstream
 from FABulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )

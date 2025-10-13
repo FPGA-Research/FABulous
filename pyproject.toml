@@ -33,6 +33,7 @@ dependencies = [
   "pydantic-settings>=2.10.1",
   "packaging>=25.0",
   "typer>=0.16.1",
+  "FABulous-bit-gen>=0.1.0",
   # OS-aware readline dependencies
   'pyreadline3>=3.4.0; sys_platform == "win32"',
   'gnureadline>=8.2.0; sys_platform != "win32"',
@@ -48,7 +49,6 @@ Discussions = "https://github.com/FPGA-Research/FABulous/discussions"
 
 [project.scripts]
 FABulous = "FABulous.FABulous:main"
-bit_gen = "FABulous.fabric_cad.bit_gen:bit_gen"
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
