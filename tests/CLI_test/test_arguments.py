@@ -1151,3 +1151,34 @@ def test_start_invalid_project() -> None:
         text=True,
     )
     assert result.returncode != 0
+
+
+def test_install_nix(
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+) -> None:
+    """Test install-oss-cad-suite on unsupported NixOS platform."""
+    test_argv = ["FABulous", "install-nix"]
+
+    mocker.patch("shutil.which", return_value=None)
+    mocker.patch("subprocess.run", return_value=run(["true"]))
+    monkeypatch.setattr(sys, "argv", test_argv)
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
+
+
+def test_install_nix_skip(
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+) -> None:
+    """Test install-oss-cad-suite on unsupported NixOS platform."""
+    test_argv = ["FABulous", "install-nix"]
+
+    mocker.patch("shutil.which", return_value="nix")
+    monkeypatch.setattr(sys, "argv", test_argv)
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
