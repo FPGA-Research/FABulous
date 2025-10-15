@@ -40,82 +40,68 @@ def grid_to_tracks(origin: float, count: int, step: float) -> list[float]:
 
 
 def equally_spaced_sequence(
-    side_pin_placement: list[int | odbBTermLike], possible_locations: list[float]
-) -> list[tuple[float, odbBTermLike]]:
-    """Equally space pins along possible locations on a side.
-
-    Parameters
-    ----------
-    side_pin_placement: list[int | odbBTermLike]
-        The actual pin placement list for the side, including virtual pins as integers.
-    possible_locations: list[float]
-        The possible locations on the side to place pins.
-
-    Returns
-    -------
-    list[tuple[float, odbBTermLike]]
-        list of (pin_location, pin) tuples for actual pins placed.
-    """
+    side: str, side_pin_placement: list, possible_locations: list
+) -> tuple[list, list[odbBTermLike]]:
+    """Select evenly spaced slots for the given pins on a single side."""
     virtual_pin_count = 0
     actual_pin_count = len(side_pin_placement)
     total_pin_count = actual_pin_count + virtual_pin_count
+    for i in range(len(side_pin_placement)):
+        if isinstance(
+            side_pin_placement[i], int
+        ):  # This is an int value indicating virtual pins
+            virtual_pin_count = virtual_pin_count + side_pin_placement[i]
+            actual_pin_count = actual_pin_count - 1
+            # Decrement actual pin count, this value was only there to
+            # indicate virtual pin count
+            total_pin_count = actual_pin_count + virtual_pin_count
+    result = []
+    tracks = len(possible_locations)
 
-    actual_pin_count = 0
-    virtual_pin_count = 0
-    for i in side_pin_placement:
-        if isinstance(i, int):
-            virtual_pin_count += i
-        else:
-            actual_pin_count += 1
-
-    total_pin_count = actual_pin_count + virtual_pin_count
-
-    result: list[tuple[float, odbBTermLike]] = []
-    tracks_count = len(possible_locations)
-
-    if total_pin_count > tracks_count:
+    if total_pin_count > tracks:
         err(
-            f"The floorplan doesn't have enough tracks for all "
-            f"the pins: {total_pin_count} pins/{tracks_count} tracks."
+            f"The {side} side of the floorplan doesn't have enough tracks for all "
+            f"the pins: {total_pin_count} pins/{tracks} tracks."
         )
         err(
             "Try re-assigning pins to other sides, enabling proportional allocation, "
             "or making the floorplan larger."
         )
         sys.exit(1)
-    elif total_pin_count == tracks_count:
-        idx = 0
-        for p in side_pin_placement:
-            if not isinstance(p, int):  # We have an actual pin
-                result.append((possible_locations[idx], p))
-                idx += 1
-            else:  # Virtual Pins, so just leave their needed spaces
-                idx += p
-        return result
+    elif total_pin_count == tracks:
+        return possible_locations, side_pin_placement  # All positions.
     elif total_pin_count == 0:
-        return []
+        return result, side_pin_placement
 
     # From this point, pin_count always < tracks.
-    tracks_per_pin = math.floor(tracks_count / total_pin_count)  # >=1
+    tracks_per_pin = math.floor(tracks / total_pin_count)  # >=1
     # O| | | O| | | O| | |
     # Example scenario where tracks_per_pin equals 3
     # notice the last two tracks are unused
     # thus:
     used_tracks = tracks_per_pin * (total_pin_count - 1) + 1
-    unused_tracks = tracks_count - used_tracks
+    unused_tracks = tracks - used_tracks
 
     # Place the pins at those tracks...
     current_track = unused_tracks // 2  # So that the tracks used are centered
     starting_track_index = current_track
-    for i in side_pin_placement:
-        if isinstance(i, int):
-            current_track += tracks_per_pin * i
-        else:
-            result.append((possible_locations[current_track], i))
+    if virtual_pin_count == 0:  # No virtual pins
+        for _ in range(total_pin_count):
+            result.append(possible_locations[current_track])
             current_track += tracks_per_pin
+    else:  # There are virtual pins
+        for i in range(len(side_pin_placement)):
+            if not isinstance(side_pin_placement[i], int):  # We have an actual pin
+                result.append(possible_locations[current_track])
+                current_track += tracks_per_pin
+            else:  # Virtual Pins, so just leave their needed spaces
+                current_track += tracks_per_pin * side_pin_placement[i]
+        side_pin_placement = [
+            pin for pin in side_pin_placement if not isinstance(pin, int)
+        ]  # Remove the virtual pins from the side_pin_placement list
 
     info(
-        f"Placement details: "
+        f"Placement details {side} | "
         f"{virtual_pin_count=} {actual_pin_count=} {total_pin_count=} "
         f"possible_locations={len(possible_locations)} "
         f"{tracks_per_pin=} {used_tracks=} {unused_tracks=} {starting_track_index=}",
@@ -397,8 +383,8 @@ class PinPlacementPlan:
                 neighbor_exists = (x + dx, y + dy) in tiles
 
                 value = None
-                if side.value in tile_config:
-                    value = tile_config[side.value]
+                if side.name in tile_config:
+                    value = tile_config[side.name]
 
                 if value is None:
                     segments = []
@@ -666,11 +652,7 @@ class PinPlacementPlan:
         """
         for side, segments in self.segments_by_side.items():
             for segment in segments:
-                if (
-                    segment.min_distance is None
-                    or segment.min_distance < min_by_side[side]
-                ):
-                    segment.min_distance = min_by_side[side]
+                segment.ensure_min_distance(min_by_side[side])
 
     def assign_unmatched_pins(self) -> None:
         """Place unmatched pins into the lowest-utilization segments."""
