@@ -53,17 +53,6 @@ def belMapProcessing(module_info: YosysModule) -> dict:
         "top",
     }
 
-    # Convert attributes ending with _<digits> to vector notation
-    # First pass: identify which base names have indexed variants
-    indexed_bases = set()
-    for key in module_info.attributes:
-        if key.casefold() in (item.casefold() for item in exclude_attributes):
-            continue
-        if "_" in key:
-            parts = key.rsplit("_", 1)
-            if len(parts) == 2 and parts[1].isdigit():
-                indexed_bases.add(parts[0])
-
     # Second pass: convert keys to appropriate format
     atters = {}
     for key, value in module_info.attributes.items():
@@ -79,20 +68,15 @@ def belMapProcessing(module_info: YosysModule) -> dict:
             )
 
         # Check if key contains underscore and last part after underscore is all digits
-        if "_" in key:
-            parts = key.rsplit("_", 1)  # Split from the right, only once
-            if len(parts) == 2 and parts[1].isdigit():
-                # Convert to vector notation: SOME_KEY_NAME_123 -> SOME_KEY_NAME[123]
-                base_name = parts[0]
-                index = parts[1]
-                new_key = f"{base_name}[{index}]"
-            else:
-                new_key = key
+        parts = key.rsplit("_", 1)  # Split from the right, only once
+        if len(parts) == 2 and parts[1].isdigit():
+            # Convert to vector notation: SOME_KEY_NAME_123 -> SOME_KEY_NAME[123]
+            base_name = parts[0]
+            index = parts[1]
+            new_key = f"{base_name}[{index}]"
         else:
-            # Check if this key has indexed variants
-            # (e.g., INIT exists and INIT_1, INIT_2 exist)
-            # and Convert to vector notation with index 0
-            new_key = f"{key}[0]" if key in indexed_bases else key
+            # Leave key unchanged
+            new_key = key
 
         atters[new_key] = int(value)
 
