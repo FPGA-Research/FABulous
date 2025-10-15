@@ -5,7 +5,6 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixpkgs-stable = {
       url = "github:nixos/nixpkgs/nixos-25.05";
-      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     pyproject-nix = {
@@ -74,17 +73,16 @@
       pyproject_pkg_overlay = final: prev: {
         # Override fasm to use GitHub source instead of PyPI and add missing build deps
         fasm = prev.fasm.overrideAttrs (old: {
-          # Use GitHub source for better compatibility
           src = final.pkgs.fetchFromGitHub {
             owner = "chipsalliance";
             repo = "fasm";
             rev = "v0.0.2";
             sha256 = "sha256-AMG4+qMk2+40GllhE8UShagN/jxSVN+RNtJCW3vFLBU=";
           };
-          # Add required build dependencies that may be missing
           nativeBuildInputs = (old.nativeBuildInputs or []) ++ final.resolveBuildSystem {
             setuptools = [ ]; wheel = [ ]; cython = [ ];
           };
+          propagatedBuildInputs = (old.propagatedBuildInputs or []) ++ [ prev.textx ];
         });
 
         pyperclip = prev.pyperclip.overrideAttrs (old: {
@@ -93,6 +91,11 @@
           };
         });
         librelane = prev.librelane.overrideAttrs (old: {
+          nativeBuildInputs = (old.nativeBuildInputs or []) ++ final.resolveBuildSystem {
+            setuptools = [ ]; wheel = [ ];
+          };
+        });
+        cocotb-test = prev.cocotb-test.overrideAttrs (old: {
           nativeBuildInputs = (old.nativeBuildInputs or []) ++ final.resolveBuildSystem {
             setuptools = [ ]; wheel = [ ];
           };
@@ -107,8 +110,6 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-
-          # I can only get Tkinter support by using python3Full from nixpkgs-stable
           python = nixpkgs-stable.legacyPackages.${system}.python312Full;
         in
         (pkgs.callPackage pyproject-nix.build.packages {
@@ -128,10 +129,6 @@
         default = import ./nix/overlay.nix;
       };
       devshell-overlay = librelane.inputs.devshell;
-      # Build a per-system package set that already includes the EDA and
-      # librelane overlays plus our project overlays so downstream code can
-      # simply pick the per-system `pkgs` and find attributes like mkShell.
-      # IMPORTANT: Use nix-eda's nixpkgs (not our nixos-unstable) to match the gcc version
       nix_eda_pkgs = nix-eda.forAllSystems (system:
         import nix-eda.inputs.nixpkgs {
           inherit system;
@@ -203,6 +200,10 @@
               {
                 name = "NIX_PYTHONPATH";
                 value = "${librelane-python-path}";
+              }
+              {
+                name = "PYTHONWARNINGS";
+                value = "ignore:Importing fasm.parse_fasm:RuntimeWarning,ignore:Falling back on slower textX parser implementation:RuntimeWarning";
               }
               {
                 name = "UV_NO_SYNC";
