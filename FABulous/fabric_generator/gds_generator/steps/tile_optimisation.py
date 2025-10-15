@@ -1,24 +1,21 @@
 """Tile size optimisation step for FABulous fabric generator."""
 
-from decimal import Decimal
 from enum import StrEnum
 from typing import cast
 
 from librelane.config.variable import Variable
-from librelane.logging.logger import info
 from librelane.state.design_format import DesignFormat
 from librelane.state.state import State
 from librelane.steps import checker as Checker
 from librelane.steps import odb as Odb
 from librelane.steps import openroad as OpenROAD
-from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
+from librelane.steps.step import Step
 
-from FABulous.fabric_generator.gds_generator.helper import round_up_decimal
 from FABulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
-from FABulous.fabric_generator.gds_generator.steps.auto_diode import (
-    AutoEcoDiodeInsertion,
-)
 from FABulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
+from FABulous.fabric_generator.gds_generator.steps.round_die_area import (
+    RoundDieArea,
+)
 from FABulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
     FABulousTileIOPlacement,
 )
@@ -26,43 +23,32 @@ from FABulous.fabric_generator.gds_generator.steps.while_step import WhileStep
 
 
 class OptMode(StrEnum):
-    """Optimisation modes for tile size finding."""
+    """Optimisation modes for tile size reduction."""
 
-    FIND_MIN_WIDTH = "find_min_width"
-    FIND_MIN_HEIGHT = "find_min_height"
-    BALANCE = "balance"
-    LARGE = "large"
+    FIX_HEIGHT = "fix_height"
+    FIX_WIDTH = "fix_width"
+    BALANCED = "balanced"
+    AGGRESSIVE = "aggressive"
 
 
 var = [
     Variable(
-        "FABULOUS_OPTIMISATION_WIDTH_STEP_COUNT",
+        "FABULOUS_OPTIMISATION_STEP_COUNT",
         int,
         "The number of placement sites by which the tile size reduces in each "
         "iteration. The actual reduction in DBU is this count multiplied by the PDK "
         "site dimensions.",
-        default=4,
-    ),
-    Variable(
-        "FABULOUS_OPTIMISATION_HEIGHT_STEP_COUNT",
-        int,
-        "The number of placement sites by which the tile size reduces in each "
-        "iteration. The actual reduction in DBU is this count multiplied by the PDK "
-        "site dimensions.",
-        default=1,
+        default=5,
     ),
     Variable(
         "FABULOUS_OPT_MODE",
         OptMode,
         "Optimisation mode to use. Options are: "
-        " - 'find_min_width': default, finds minimal width by increasing from "
-        "initial guess. "
-        " - 'find_min_height': finds minimal height by increasing from initial guess. "
-        " - 'balance': finds minimal area by starting from square bounding box and "
-        "increasing alternatingly. "
-        " - 'large': finds minimal area by starting from square bounding box and "
-        "increasing both dimensions.",
-        default=OptMode.FIND_MIN_WIDTH,
+        " - 'fix_height': default, keeps height constant and reduces width. "
+        " - 'fix_width': keeps width constant and reduces height. "
+        " - 'balanced': alternate width and height reduction. "
+        " - 'aggressive': reduces both height and width at the same time.",
+        default=OptMode.FIX_HEIGHT,
     ),
     Variable(
         "FABULOUS_OPT_RELAX",
@@ -72,39 +58,6 @@ var = [
         "The OptMode still controls which dimension changes (width/height/both). "
         "Default: False (area minimization)",
         default=False,
-    ),
-    Variable(
-        "IGNORE_ANTENNA_VIOLATIONS",
-        bool,
-        "If True, antenna violations are ignored during tile optimisation. "
-        "Default is False.",
-        default=False,
-    ),
-    Variable(
-        "IGNORE_DEFAULT_DIE_AREA",
-        bool,
-        "If True, default die area is ignored and using instance area for "
-        "initial sizing. "
-        "Default is False.",
-        default=False,
-    ),
-    Variable(
-        "FABULOUS_IO_MIN_WIDTH",
-        Decimal,
-        "Minimum width required for IO pin spacing constraints. "
-        "This is the physical lower bound based on the number of IO pins "
-        "on the north/south edges and track pitch. "
-        "Default is 0 (no IO constraint).",
-        default=Decimal(0),
-    ),
-    Variable(
-        "FABULOUS_IO_MIN_HEIGHT",
-        Decimal,
-        "Minimum height required for IO pin spacing constraints. "
-        "This is the physical lower bound based on the number of IO pins "
-        "on the west/east edges and track pitch. "
-        "Default is 0 (no IO constraint).",
-        default=Decimal(0),
     ),
 ]
 
@@ -119,6 +72,7 @@ class TileOptimisation(WhileStep):
     inputs = [DesignFormat.NETLIST]
 
     Steps = [
+        RoundDieArea,
         OpenROAD.Floorplan,
         OpenROAD.DumpRCValues,
         Odb.CheckMacroAntennaProperties,
@@ -145,7 +99,6 @@ class TileOptimisation(WhileStep):
         Odb.DiodesOnPorts,
         OpenROAD.RepairAntennas,
         OpenROAD.DetailedRouting,
-        AutoEcoDiodeInsertion,
         Odb.RemoveRoutingObstructions,
         OpenROAD.CheckAntennas,
         Checker.TrDRC,
@@ -157,30 +110,25 @@ class TileOptimisation(WhileStep):
 
     config_vars = var
 
-    max_iterations = 20
+    max_iterations = 5
 
     last_working_state: State | None = None
 
-    raise_on_failure: bool = False
-
-    break_next_iteration: bool = False
-
     def condition(self, state: State) -> bool:
         """Loop condition."""
-        if state.metrics.get("route__drc_errors") is None:
-            return True
-
-        checklist = []
-        if not self.config["IGNORE_ANTENNA_VIOLATIONS"]:
-            checklist.append("antenna__violating__pins")
-            checklist.append("antenna__violating__nets")
-
-        checklist.append("route__drc_errors")
-        for i in checklist:
-            if (v := state.metrics.get(i)) and cast("int", v) > 0:
+        for i in [
+            "antenna__violating__pins",
+            "antenna__violating__nets",
+            "route__antenna_violation__count",
+            "route__drc_errors",
+        ]:
+            if v := state.metrics.get(i):
+                if cast("int", v) > 0:
+                    return False
+            else:
                 return True
 
-        return False
+        return True
 
     def post_iteration_callback(
         self, post_iteration: State, full_iter_completed: bool
@@ -188,116 +136,72 @@ class TileOptimisation(WhileStep):
         """Save state if iteration completed successfully."""
         if full_iter_completed:
             self.last_working_state = post_iteration.copy()
-            return post_iteration
-
-        die_bbox = post_iteration.metrics.get("design__die__bbox", "0 0 0 0").split(" ")
-        core_bbox = post_iteration.metrics.get("design__core__bbox", "0 0 0 0").split(
-            " "
-        )
-
-        # Convert bbox string components to Decimal,
-        # compute per-component absolute differences
-        die_vals = list(map(Decimal, die_bbox))
-        core_vals = list(map(Decimal, core_bbox))
-        if post_iteration.metrics.get(
-            "design__core__area", 0
-        ) < post_iteration.metrics.get("design__instance__area__stdcell", 0):
-            extra = tuple(abs(a - b) for a, b in zip(die_vals, core_vals, strict=True))
-            # Update config DIE_AREA to make core area at least equal to instance area
-            self.config = self.config.copy(
-                DIE_AREA=(
-                    Decimal(0),
-                    Decimal(0),
-                    die_vals[2] + extra[0] + extra[2],
-                    die_vals[3] + extra[1] + extra[3],
-                )
-            )
-            return post_iteration
-
         return post_iteration
 
     def pre_iteration_callback(self, pre_iteration: State) -> State:
         """Pre iteration callback."""
-        die_area_raw: tuple[Decimal, Decimal, Decimal, Decimal] = self.config.get(
-            "DIE_AREA", None
-        )
-        if die_area_raw is None:
+        die_area_raw: tuple[int, int, int, int] = self.config.get("DIE_AREA", None)
+        _, _, width, height = die_area_raw
+        die_area = (width, height)
+        if die_area is None:
             raise ValueError("DIE_AREA metric not found in state.")
 
-        _, _, width, height = die_area_raw
-
         # Get PDK site dimensions from metrics (if available)
-        site_width = Decimal(pre_iteration.metrics.get("pdk__site_width", Decimal(1)))
-        site_height = Decimal(pre_iteration.metrics.get("pdk__site_height", Decimal(1)))
+        site_width_dbu = int(pre_iteration.metrics.get("pdk__site_width", 1))
+        site_height_dbu = int(pre_iteration.metrics.get("pdk__site_height", 1))
 
         # Calculate step size based on PDK site dimensions
-        width_step_count = self.config["FABULOUS_OPTIMISATION_WIDTH_STEP_COUNT"]
-        height_step_count = self.config["FABULOUS_OPTIMISATION_HEIGHT_STEP_COUNT"]
-        width_step = site_width * width_step_count
-        height_step = site_height * height_step_count
+        step_count = self.config["FABULOUS_OPTIMISATION_STEP_COUNT"]
+        width_step = site_width_dbu * step_count
+        height_step = site_height_dbu * step_count
 
-        instance_area = Decimal(pre_iteration.metrics.get("design__instance__area", 0))
-        new_height: Decimal
-        new_width: Decimal
-
-        if height == 0:
-            height = instance_area.sqrt()
-
-        if width == 0:
-            width = instance_area.sqrt()
+        # Determine direction: relaxation (+) or minimization (-)
+        direction = 1 if self.config["FABULOUS_OPT_RELAX"] else -1
 
         match self.config["FABULOUS_OPT_MODE"]:
-            case OptMode.FIND_MIN_WIDTH:
-                if width == 0 or width * height < instance_area:
-                    new_width, new_height = (instance_area / height, height)
+            case OptMode.FIX_HEIGHT:
+                die_area = (
+                    0,
+                    0,
+                    width + (direction * width_step),
+                    height,
+                )
+            case OptMode.FIX_WIDTH:
+                die_area = (
+                    0,
+                    0,
+                    width,
+                    height + (direction * height_step),
+                )
+            case OptMode.BALANCED:
+                if (
+                    width > height  # Adjust the larger dimension first
+                ):
+                    die_area = (
+                        0,
+                        0,
+                        width + (direction * width_step),
+                        height,
+                    )
                 else:
-                    new_width, new_height = (width + width_step, height)
-            case OptMode.FIND_MIN_HEIGHT:
-                # Initialize height based on instance area if not yet set properly
-                if height == 0 or width * height < instance_area:
-                    new_width, new_height = (width, instance_area / width)
-                else:
-                    new_width, new_height = (width, height + height_step)
-            case OptMode.BALANCE:
-                # Initialize to square bounding box if not yet set properly
-                if width == 0 or height == 0 or width * height < instance_area:
-                    initial_side = instance_area.sqrt()
-                    new_width, new_height = (initial_side, initial_side)
-                else:
-                    if height > width:
-                        new_width, new_height = (width + width_step, height)
-                    else:
-                        new_width, new_height = (width, height + height_step)
-            case OptMode.LARGE:
-                # Initialize to square bounding box if not yet set properly
-                if width == 0 or height == 0 or width * height < instance_area:
-                    initial_side = instance_area.sqrt()
-                    new_width, new_height = (initial_side, initial_side)
-                else:
-                    new_width, new_height = (width + width_step, height + height_step)
+                    die_area = (
+                        0,
+                        0,
+                        width,
+                        height + (direction * height_step),
+                    )
+            case OptMode.AGGRESSIVE:
+                die_area = (
+                    0,
+                    0,
+                    width + (direction * width_step),
+                    height + (direction * height_step),
+                )
             case _:
                 raise ValueError(
                     f"Unknown FABULOUS_OPT_MODE: {self.config['FABULOUS_OPT_MODE']}"
                 )
-
-        new_width = max(
-            new_width, self.config["FABULOUS_IO_MIN_WIDTH"], site_width * 10
-        )
-
-        new_height = max(
-            new_height, self.config["FABULOUS_IO_MIN_HEIGHT"], site_height * 10
-        )
-
-        die_area = (
-            Decimal(0),
-            Decimal(0),
-            round_up_decimal(new_width, Decimal(site_width)),
-            round_up_decimal(new_height, Decimal(site_height)),
-        )
         self.config = self.config.copy(DIE_AREA=die_area)
-
-        if p := self.get_current_iteration_dir():
-            (p / "config.json").write_text(self.config.dumps())
 
         return pre_iteration
 
@@ -310,44 +214,9 @@ class TileOptimisation(WhileStep):
     def mid_iteration_break(self, state: State, step: type[Step]) -> bool:
         """Mid iteration callback."""
         if isinstance(step, Checker.TrDRC):
-            if self.config["IGNORE_ANTENNA_VIOLATIONS"]:
-                return cast("int", state.metrics.get("route__drc_errors")) > 0
-
             return (cast("int", state.metrics.get("antenna__violating__nets")) > 0) or (
                 cast("int", state.metrics.get("antenna__violating__pins")) > 0
                 or cast("int", state.metrics.get("route__drc_errors")) > 0
             )
 
         return False
-
-    def run(
-        self,
-        state_in: State,
-        **_kwargs: dict,
-    ) -> tuple[ViewsUpdate, MetricsUpdate]:
-        """Run the tile optimisation step."""
-        if self.config["IGNORE_ANTENNA_VIOLATIONS"]:
-            info("Ignoring antenna violations during tile optimisation.")
-            self.config = self.config.copy(ERROR_ON_TR_DRC=False)
-        if self.config["IGNORE_DEFAULT_DIE_AREA"]:
-            if not (i := self.config.get("FABULOUS_IO_MIN_HEIGHT")) or (i < 0):
-                raise ValueError(
-                    "FABULOUS_IO_MIN_HEIGHT must be set to a positive value when "
-                    "IGNORE_DEFAULT_DIE_AREA is True."
-                )
-            if not (i := self.config.get("FABULOUS_IO_MIN_WIDTH")) or (i < 0):
-                raise ValueError(
-                    "FABULOUS_IO_MIN_WIDTH must be set to a positive value when "
-                    "IGNORE_DEFAULT_DIE_AREA is True."
-                )
-
-            info("Using instance area for initial die area sizing.")
-            self.config = self.config.copy(
-                DIE_AREA=(
-                    Decimal(0),
-                    Decimal(0),
-                    Decimal(0),
-                    Decimal(0),
-                )
-            )
-        return super().run(state_in, **_kwargs)
