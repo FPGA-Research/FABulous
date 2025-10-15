@@ -7,12 +7,13 @@ tool paths, project settings, and environment variable management.
 from importlib.metadata import version as meta_version
 from pathlib import Path
 from shutil import which
+from typing import Self
 
 import typer
 from dotenv import set_key
 from loguru import logger
 from packaging.version import Version
-from pydantic import Field, ValidationInfo, field_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
@@ -42,6 +43,8 @@ class FABulousSettings(BaseSettings):
     ghdl_path: Path | None = None
     fabulator_root: Path | None = None
     oss_cad_suite: Path | None = None
+    openroad_path: Path | None = None
+    klayout_path: Path | None = None
 
     proj_dir: Path = Field(default_factory=Path.cwd)
     proj_lang: HDLType = HDLType.VERILOG
@@ -55,10 +58,15 @@ class FABulousSettings(BaseSettings):
         description="Deprecated, use proj_version instead",
     )
 
-    # CLI options
-    debug: bool = False
-    verbose: int = 0
+    # CLI variable
     editor: str | None = None
+    verbose: int = 0
+    debug: bool = False
+
+    # GDS variables
+    pdk_root: Path = Path().home() / ".ciel"
+    pdk: str | None = None
+    fabric_die_area: tuple[int, int, int, int] = (0, 0, 1000, 1000)
 
     @field_validator("proj_version", "proj_version_created", "version", mode="before")
     @classmethod
@@ -221,6 +229,8 @@ class FABulousSettings(BaseSettings):
         "iverilog_path",
         "vvp_path",
         "ghdl_path",
+        "openroad_path",
+        "klayout_path",
         mode="before",
     )
     @classmethod
@@ -250,6 +260,8 @@ class FABulousSettings(BaseSettings):
         This method logs a warning if a tool is not found in `PATH`, as some
         features may be unavailable without the tool.
         """
+        logger.info(f"Resolved path: {value}")
+
         if value is not None:
             return value
         tool_map = {
@@ -258,6 +270,8 @@ class FABulousSettings(BaseSettings):
             "iverilog_path": "iverilog",
             "vvp_path": "vvp",
             "ghdl_path": "ghdl",
+            "openroad_path": "openroad",
+            "klayout_path": "klayout",
         }
         tool = tool_map.get(info.field_name, None)  # type: ignore[attr-defined]
         if tool is None:
@@ -267,6 +281,7 @@ class FABulousSettings(BaseSettings):
             )
             return None
         tool_path = which(tool)
+        logger.info(f"Resolved {tool} path: {tool_path}")
         if tool_path is not None:
             return Path(tool_path).resolve()
 
@@ -275,6 +290,20 @@ class FABulousSettings(BaseSettings):
             f"Some features may be unavailable."
         )
         return None
+
+    @model_validator(mode="after")
+    def check_pdk(self) -> Self:
+        """Check if PDK_root and PDK are set correctly."""
+        if self.pdk_root is None or self.pdk is None:
+            logger.warning(
+                "PDK_root or PDK is not set. Back-end GDS features may be unavailable."
+            )
+            return self
+        pdk_path = self.pdk_root.resolve()
+        if not pdk_path.exists():
+            raise ValueError(f"PDK path {pdk_path} does not exist.")
+        logger.info(f"Using PDK at {pdk_path}")
+        return self
 
 
 # Module-level singleton pattern for settings management
