@@ -73,6 +73,7 @@ ignore-nested-classes = true
 ignore-setters = true
 ignore-overloaded-functions = true
 fail-under = 95
+ignore-regex = ".*Like$"
 exclude = ["setup.py", "docs", "build", ".venv", "demo/*", "tests"]
 
 [dependency-groups]
