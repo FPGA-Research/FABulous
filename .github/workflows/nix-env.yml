@@ -40,7 +40,9 @@ jobs:
       - name: Build default package (smoke)
         run: nix build
 
-      - name: DevShell smoke test (FABulous --version)
+      - name: DevShell smoke test
         run: |
           nix develop --command bash -c "which FABulous"
+          nix develop --command bash -c "FABulous --version"
           nix develop --command bash -c "which openroad"
+          nix develop --command bash -c "openroad --version"
