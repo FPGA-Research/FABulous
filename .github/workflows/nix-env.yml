@@ -2,7 +2,17 @@ name: Nix environment CI
 
 on:
   push:
+    paths:
+      - "flake.nix"
+      - "*.lock"
+      - "nix/**"
+      - ".github/workflows/nix-env.yml"
   pull_request:
+    paths:
+      - "flake.nix"
+      - "*.lock"
+      - "nix/**"
+      - ".github/workflows/nix-env.yml"
   workflow_dispatch:
 
 permissions:
@@ -45,4 +55,4 @@ jobs:
           nix develop --command bash -c "which FABulous"
           nix develop --command bash -c "FABulous --version"
           nix develop --command bash -c "which openroad"
-          nix develop --command bash -c "openroad --version"
+          nix develop --command bash -c "openroad -version"
