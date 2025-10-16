@@ -1,6 +1,6 @@
 # Systematic EDA tool dependency management
 # Version-controlled builds with easy hash management
-{ pkgs, srcs ? { } }:
+{ pkgs, srcs ? { }, gnat ? null, llvm ? null }:
 
 let
   # Import version configurations
@@ -35,15 +35,23 @@ let
              else if branchAttempt.success then branchAttempt.value
              else builtins.error ("Could not resolve rev '" + revVal + "' for " + toString toolName + " as tag or branch")
         );
+      # Build the base arguments for the tool
+      baseArgs = {
+        inherit (config) owner repo;
+        rev = commit;
+        fetchSubmodules = config.fetchSubmodules or false;
+      } // (if (!isCommit) && (pinnedSrc != null) then { prefetchedSrc = pinnedSrc; } else { });
+      # Add gnat and llvm only if they're provided and the tool is ghdl
+      # On Darwin, explicitly set gnat = null to prevent callPackage from auto-supplying it
+      toolArgs = if toolName == "ghdl" then
+        baseArgs // (if gnat != null then { inherit gnat; } else { gnat = null; }) // (if llvm != null then { inherit llvm; } else { })
+      else
+        baseArgs;
     in
       if builtins.match "^[0-9a-f]{40}$" commit == null then
         builtins.error ("Resolved rev for " + toString toolName + " is not a commit SHA: " + toString commit)
       else
-        pkgs.callPackage (./tools + "/${toolName}.nix") ({
-          inherit (config) owner repo;
-          rev = commit;
-          fetchSubmodules = config.fetchSubmodules or false;
-        } // (if (!isCommit) && (pinnedSrc != null) then { prefetchedSrc = pinnedSrc; } else { }));
+        pkgs.callPackage (./tools + "/${toolName}.nix") toolArgs;
 
 in
 {
