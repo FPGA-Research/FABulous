@@ -13,13 +13,13 @@ stdenv.mkDerivation rec {
     inherit rev;
   });
 
-  # Choose native build inputs depending on platform/backend availability
-  nativeBuildInputs = (
-    if stdenv.isDarwin then
-      [ pkg-config which ] ++ lib.optionals (llvm != null) [ llvm ]
-    else
-      [ pkg-config which ] ++ lib.optionals (gnat != null) [ gnat ]
-  ) ++ lib.optionals stdenv.isDarwin [ darwin.cctools ];
+  # Choose native build inputs depending on platform/backend availability.
+  # Provide GNAT when available on any platform so configure can detect it
+  # (GHDL's build sometimes requires GNAT even on Darwin/LLVM builds).
+  nativeBuildInputs = [ pkg-config which ]
+    ++ lib.optionals (stdenv.isDarwin && (llvm != null)) [ llvm ]
+    ++ lib.optionals (gnat != null) [ gnat ]
+    ++ lib.optionals stdenv.isDarwin [ darwin.cctools ];
 
   buildInputs = [
     zlib
@@ -45,8 +45,8 @@ stdenv.mkDerivation rec {
     # Use LLVM/clang on Darwin
     export CC=${llvm}/bin/clang
     export CXX=${llvm}/bin/clang++
-  '' ]) + lib.concatStringsSep "\n" (lib.optionals (!stdenv.isDarwin && (gnat != null)) [ ''
-    # Use GNAT on non-Darwin
+  '' ]) + lib.concatStringsSep "\n" (lib.optionals (gnat != null) [ ''
+    # Make GNAT available to configure/build when provided
     export PATH=${gnat}/bin:$PATH
   '' ]);
 

@@ -171,13 +171,17 @@
               nextpnr = nextpnr-src;
             };
             # Provide appropriate toolchain to custom packages
-            # Use LLVM/clang on Darwin, GNAT elsewhere
+            # Ensure GNAT is available on all platforms so GHDL's build
+            # scripts can detect it; additionally provide LLVM on Darwin.
+            inherit (
+              { gnat = pkgs.gnat; }
+            );
             inherit (
               if pkgs.stdenv.isDarwin then
                 { llvm = pkgs.llvmPackages.latest; }
               else
-                { gnat = pkgs.gnat; }
-            ) ;
+                { }
+            );
           };
 
           # Get librelane from our patched pkgs (which includes our overlays)
