@@ -165,6 +165,14 @@
               ghdl = ghdl-src;
               nextpnr = nextpnr-src;
             };
+            # Provide appropriate toolchain to custom packages
+            # Use LLVM/clang on Darwin, GNAT elsewhere
+            inherit (
+              if pkgs.stdenv.isDarwin then
+                { llvm = pkgs.llvmPackages.latest; }
+              else
+                { gnat = pkgs.gnat; }
+            ) ;
           };
 
           # Get librelane from our patched pkgs (which includes our overlays)
@@ -176,6 +184,9 @@
 
           # Combine all packages: librelane tools (with patched OpenROAD) + our custom tools + uv2nix env
           # Note: We only include virtualenv for Python, not librelane-env, to avoid collisions
+          # Filter custom tools and librelane tools by meta.platforms so only those that support the current system are included
+          systemSupported = tool: (tool ? meta) && (tool.meta ? platforms) && (builtins.elem system tool.meta.platforms);
+
           allPackages =
             [
               virtualenv
@@ -188,7 +199,7 @@
               customPkgs.nextpnr
               customPkgs.ghdl
             ]
-            ++ librelane-pkg.includedTools; # This includes patched OpenROAD, yosys, klayout, etc.
+            ++ (builtins.filter systemSupported librelane-pkg.includedTools);
 
           prompt = ''\[\033[1;32m\][FABulous-nix:\w]\$\[\033[0m\] '';
         in

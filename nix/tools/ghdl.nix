@@ -1,17 +1,7 @@
 # Custom GHDL derivation with mcode backend from master branch
-{ lib
-, stdenv
-, gnat
-, zlib
-, which
-, pkg-config
-, darwin ? null
- # Version control parameters (provided by default.nix)
- , owner ? "ghdl"
- , repo ? "ghdl"
- , rev
- , fetchSubmodules ? false
- , prefetchedSrc ? null
+{ lib, stdenv, gnat ? null, llvm ? null, zlib, which, pkg-config, darwin ? null
+  # Version control parameters (provided by default.nix)
+  , owner ? "ghdl", repo ? "ghdl", rev, fetchSubmodules ? false, prefetchedSrc ? null
 }:
 
 stdenv.mkDerivation rec {
@@ -23,13 +13,13 @@ stdenv.mkDerivation rec {
     inherit rev;
   });
 
-  nativeBuildInputs = [
-    pkg-config
-    which
-    gnat
-  ] ++ lib.optionals stdenv.isDarwin [
-    darwin.cctools
-  ];
+  # Choose native build inputs depending on platform/backend availability
+  nativeBuildInputs = (
+    if stdenv.isDarwin then
+      [ pkg-config which ] ++ lib.optionals (llvm != null) [ llvm ]
+    else
+      [ pkg-config which ] ++ lib.optionals (gnat != null) [ gnat ]
+  ) ++ lib.optionals stdenv.isDarwin [ darwin.cctools ];
 
   buildInputs = [
     zlib
@@ -48,11 +38,17 @@ stdenv.mkDerivation rec {
   # GHDL often needs this
   hardeningDisable = [ "format" ];
 
-  # Set up environment variables for mcode backend
+  # Set up environment variables for the selected backend
   preConfigure = ''
     chmod +x configure
+  '' + lib.concatStringsSep "\n" (lib.optionals (stdenv.isDarwin && (llvm != null)) [ ''
+    # Use LLVM/clang on Darwin
+    export CC=${llvm}/bin/clang
+    export CXX=${llvm}/bin/clang++
+  '' ]) + lib.concatStringsSep "\n" (lib.optionals (!stdenv.isDarwin && (gnat != null)) [ ''
+    # Use GNAT on non-Darwin
     export PATH=${gnat}/bin:$PATH
-  '';
+  '' ]);
 
   meta = with lib; {
     description = "GHDL - the open-source analyzer, compiler, and simulator for VHDL with mcode backend (master branch)";
