@@ -1,1 +1,1 @@
-"""GDS generator for FABulous."""
+"""GDS generation for FABulous."""
