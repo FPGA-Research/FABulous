@@ -100,6 +100,11 @@
             setuptools = [ ]; wheel = [ ];
           };
         });
+        cocotb = prev.cocotb-test.overrideAttrs (old: {
+          nativeBuildInputs = (old.nativeBuildInputs or []) ++ final.resolveBuildSystem {
+            setuptools = [ ]; wheel = [ ];
+          };
+        });
       };
 
       editableOverlay = workspace.mkEditablePyprojectOverlay {
