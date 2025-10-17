@@ -164,20 +164,14 @@
 
           # pass the current pkgs to the nix overlay so it returns a package set
           # also pass flake-locked sources so tags resolve to a fixed commit
-          customPkgs = import ./nix ({
+          # Using pre-built GHDL binaries for all platforms - no GNAT needed
+          customPkgs = import ./nix {
             inherit pkgs;
             srcs = {
               ghdl = ghdl-src;
               nextpnr = nextpnr-src;
             };
-            # Provide appropriate toolchain to custom packages
-            # On Darwin (macOS), use LLVM backend; on Linux, prefer GNAT if available
-          } // (
-            if system == "aarch64-darwin" || system == "x86_64-darwin" then
-              { llvm = pkgs.llvmPackages.llvm; }
-            else
-              { gnat = pkgs.gnat; }
-          ));
+          };
 
           # Get librelane from our patched pkgs (which includes our overlays)
           librelane-pkg = pkgs.python3.pkgs.librelane;

@@ -1,6 +1,6 @@
 # Systematic EDA tool dependency management
 # Version-controlled builds with easy hash management
-{ pkgs, srcs ? { }, gnat ? null, llvm ? null }:
+{ pkgs, srcs ? { } }:
 
 let
   # Import version configurations
@@ -41,27 +41,30 @@ let
         rev = commit;
         fetchSubmodules = config.fetchSubmodules or false;
       } // (if (!isCommit) && (pinnedSrc != null) then { prefetchedSrc = pinnedSrc; } else { });
-      # Add gnat and llvm only if they're provided and the tool is ghdl
-      # On Darwin, explicitly set gnat = null to prevent callPackage from auto-supplying it
-      toolArgs = if toolName == "ghdl" then
-        baseArgs // (if gnat != null then { inherit gnat; } else { gnat = null; }) // (if llvm != null then { inherit llvm; } else { })
-      else
-        baseArgs;
     in
       if builtins.match "^[0-9a-f]{40}$" commit == null then
         builtins.error ("Resolved rev for " + toString toolName + " is not a commit SHA: " + toString commit)
       else
-        pkgs.callPackage (./tools + "/${toolName}.nix") toolArgs;
+        pkgs.callPackage (./tools + "/${toolName}.nix") baseArgs;
 
 in
 {
   # Custom builds only for these tools
   nextpnr = buildTool "nextpnr";
-  ghdl = buildTool "ghdl";
-
-  # Convenience aliases for common usage patterns
-  # yosys-latest = buildTool "yosys";
-  ghdl-master = buildTool "ghdl";
+  
+  # GHDL: Use pre-built binaries for all platforms
+  # Pass the flake-locked source to get the commit hash for nightly builds
+  ghdl = let
+    config = versions.ghdl;
+    pinnedSrc = srcs.ghdl or null;
+    # Get the actual commit hash from flake lock or resolve the tag/branch
+    commit = if pinnedSrc != null then pinnedSrc.rev else config.rev;
+  in pkgs.callPackage ./tools/ghdl.nix {
+    inherit (config) owner repo;
+    rev = commit;
+    # Pass the original rev for version string
+    originalRev = config.rev;
+  };
 
   # Export the versions for inspection
   edaVersions = versions;

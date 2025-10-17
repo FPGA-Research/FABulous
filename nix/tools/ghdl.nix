@@ -1,60 +1,105 @@
-# Custom GHDL derivation with mcode backend from master branch
-{ lib, stdenv, gnat ? null, llvm ? null, zlib, which, pkg-config, darwin ? null
+# GHDL binary distribution - version controlled, mcode backend where available
+{ lib, stdenv, fetchurl, autoPatchelfHook, zlib
   # Version control parameters (provided by default.nix)
-  , owner ? "ghdl", repo ? "ghdl", rev, fetchSubmodules ? false, prefetchedSrc ? null
+  , owner ? "ghdl", repo ? "ghdl", rev, originalRev ? rev
 }:
 
+let
+  # Determine if this is a release version or nightly/branch based on originalRev
+  isRelease = lib.hasPrefix "v" originalRev;
+  
+  # For version string: use originalRev if it's a tag, otherwise use commit hash
+  version = if isRelease 
+            then lib.removePrefix "v" originalRev
+            else rev; # Use the commit hash as version for nightly
+  
+  # Determine the tag/branch name for URL construction
+  urlTag = if isRelease then originalRev else originalRev; # "nightly", "master", etc.
+  
+  # Platform-specific binary information - prefer mcode backend where available
+  # For nightly builds, we use the GitHub Actions artifacts which follow a different naming convention
+  sources = {
+    x86_64-linux = {
+      # For releases: use versioned filename, for nightly: use tag-based filename
+      url = if isRelease 
+            then "https://github.com/${owner}/${repo}/releases/download/${originalRev}/ghdl-mcode-${version}-ubuntu24.04-x86_64.tar.gz"
+            else "https://github.com/${owner}/${repo}/releases/download/${urlTag}/ghdl-mcode-ubuntu24.04-x86_64.tar.gz";
+      # No hardcoded hash - will use lib.fakeSha256 and require --impure or FOD
+      sha256 = null;
+    };
+    aarch64-linux = {
+      # No official aarch64-linux binary available
+      url = null;
+      sha256 = null;
+    };
+    x86_64-darwin = {
+      url = if isRelease
+            then "https://github.com/${owner}/${repo}/releases/download/${originalRev}/ghdl-mcode-${version}-macos13-x86_64.tar.gz"
+            else "https://github.com/${owner}/${repo}/releases/download/${urlTag}/ghdl-mcode-macos13-x86_64.tar.gz";
+      sha256 = null;
+    };
+    aarch64-darwin = {
+      # mcode backend not available for aarch64-darwin, only llvm
+      # Fall back to llvm for Apple Silicon
+      url = if isRelease
+            then "https://github.com/${owner}/${repo}/releases/download/${originalRev}/ghdl-llvm-${version}-macos15-aarch64.tar.gz"
+            else "https://github.com/${owner}/${repo}/releases/download/${urlTag}/ghdl-llvm-macos15-aarch64.tar.gz";
+      sha256 = null;
+    };
+  };
+
+  platformInfo = sources.${stdenv.hostPlatform.system} or (throw "Unsupported platform: ${stdenv.hostPlatform.system}");
+
+in
+assert platformInfo.url != null || abort "No pre-built GHDL binary available for ${stdenv.hostPlatform.system} with version ${version}";
+
 stdenv.mkDerivation rec {
-  pname = "ghdl-master";
-  version = if rev == "master" then "5.0-dev" else rev;
+  pname = "ghdl-bin";
+  inherit version;
 
-  src = if prefetchedSrc != null then prefetchedSrc else (builtins.fetchGit {
-    url = "https://github.com/${owner}/${repo}.git";
-    inherit rev;
-  });
+  src = fetchurl {
+    inherit (platformInfo) url;
+    # Use lib.fakeSha256 for FOD (Fixed Output Derivation)
+    # Nix will automatically determine the correct hash
+    sha256 = lib.fakeSha256;
+  };
 
-  # Choose native build inputs depending on platform/backend availability.
-  # Provide GNAT when available on any platform so configure can detect it
-  # (GHDL's build sometimes requires GNAT even on Darwin/LLVM builds).
-  nativeBuildInputs = [ pkg-config which ]
-    ++ lib.optionals (stdenv.isDarwin && (llvm != null)) [ llvm ]
-    ++ lib.optionals (gnat != null) [ gnat ]
-    ++ lib.optionals stdenv.isDarwin [ darwin.cctools ];
+  nativeBuildInputs = lib.optionals stdenv.isLinux [ autoPatchelfHook ];
 
-  buildInputs = [
-    zlib
-  ];
+  buildInputs = [ zlib ];
 
-  # GHDL uses a custom configure script, not autotools
-  configureScript = "./configure";
+  # The tarball contains a directory structure like: ghdl-{backend}-X.X.X-{platform}-{arch}/
+  sourceRoot = ".";
 
-  configureFlags = [
-    "--enable-libghdl"
-    "--enable-synth"
-  ];
+  installPhase = ''
+    runHook preInstall
 
-  enableParallelBuilding = true;
+    # Find the extracted directory (it will match ghdl-*)
+    GHDL_DIR=$(find . -maxdepth 1 -type d -name "ghdl-*" | head -n1)
+    
+    if [ -z "$GHDL_DIR" ]; then
+      echo "Error: Could not find GHDL directory in extracted archive"
+      exit 1
+    fi
 
-  # GHDL often needs this
-  hardeningDisable = [ "format" ];
+    # Copy everything to output
+    mkdir -p $out
+    cp -r "$GHDL_DIR"/* $out/
 
-  # Set up environment variables for the selected backend
-  preConfigure = ''
-    chmod +x configure
-  '' + lib.concatStringsSep "\n" (lib.optionals (stdenv.isDarwin && (llvm != null)) [ ''
-    # Use LLVM/clang on Darwin
-    export CC=${llvm}/bin/clang
-    export CXX=${llvm}/bin/clang++
-  '' ]) + lib.concatStringsSep "\n" (lib.optionals (gnat != null) [ ''
-    # Make GNAT available to configure/build when provided
-    export PATH=${gnat}/bin:$PATH
-  '' ]);
+    # Ensure bin directory exists
+    if [ ! -d "$out/bin" ]; then
+      echo "Error: No bin directory found in GHDL distribution"
+      exit 1
+    fi
+
+    runHook postInstall
+  '';
 
   meta = with lib; {
-    description = "GHDL - the open-source analyzer, compiler, and simulator for VHDL with mcode backend (master branch)";
-    homepage = "https://github.com/ghdl/ghdl";
+    description = "GHDL - VHDL simulator (binary distribution, mcode backend where available)";
+    homepage = "https://github.com/${owner}/${repo}";
     license = licenses.gpl2Plus;
-    platforms = platforms.linux ++ platforms.darwin;
-    maintainers = with maintainers; [ ];
+    platforms = [ "x86_64-linux" "x86_64-darwin" "aarch64-darwin" ];
+    maintainers = [ ];
   };
 }
