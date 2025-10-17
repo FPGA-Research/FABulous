@@ -52,19 +52,38 @@ in
   # Custom builds only for these tools
   nextpnr = buildTool "nextpnr";
   
-  # GHDL: Use pre-built binaries for all platforms
-  # Pass the flake-locked source to get the commit hash for nightly builds
+  # GHDL: Build from source on Linux, use pre-built binaries on macOS
   ghdl = let
     config = versions.ghdl;
     pinnedSrc = srcs.ghdl or null;
     # Get the actual commit hash from flake lock or resolve the tag/branch
     commit = if pinnedSrc != null then pinnedSrc.rev else config.rev;
-  in pkgs.callPackage ./tools/ghdl.nix {
-    inherit (config) owner repo;
-    rev = commit;
-    # Pass the original rev for version string
-    originalRev = config.rev;
-  };
+    
+    # Choose derivation based on platform
+    isLinux = pkgs.stdenv.isLinux;
+    ghdlDerivation = if isLinux then
+      # Linux: build from source
+      ./tools/ghdl-src.nix
+    else if pkgs.stdenv.isDarwin then
+      # macOS: use pre-built binary
+      ./tools/ghdl-bin.nix
+    else
+      throw "Unsupported platform for GHDL";
+    
+    # Platform-specific arguments
+    args = if isLinux then {
+      # Source build arguments
+      inherit (config) owner repo;
+      rev = commit;
+    } // (if pinnedSrc != null then { prefetchedSrc = pinnedSrc; } else {})
+    else {
+      # Binary build arguments
+      inherit (config) owner repo;
+      rev = commit;
+      originalRev = config.rev;
+    };
+    
+  in pkgs.callPackage ghdlDerivation args;
 
   # Export the versions for inspection
   edaVersions = versions;
