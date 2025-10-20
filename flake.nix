@@ -31,6 +31,11 @@
       url = "github:ghdl/ghdl/nightly";
       flake = false;
     };
+    # Prebuilt GHDL binary tarball for macOS Apple Silicon (locked in flake.lock)
+    ghdl-bin-aarch64-darwin = {
+      url = "https://github.com/ghdl/ghdl/releases/download/nightly/ghdl-llvm-jit-6.0.0-dev-macos15-aarch64.tar.gz";
+      flake = false;
+    };
     nextpnr-src = {
       url = "github:YosysHQ/nextpnr/nextpnr-0.9";
       flake = false;
@@ -53,6 +58,7 @@
       nixpkgs-stable,
       librelane,
       ghdl-src,
+      ghdl-bin-aarch64-darwin,
       nextpnr-src,
       pyproject-nix,
       uv2nix,
@@ -164,11 +170,12 @@
 
           # pass the current pkgs to the nix overlay so it returns a package set
           # also pass flake-locked sources so tags resolve to a fixed commit
-          # Using pre-built GHDL binaries for all platforms - no GNAT needed
+          # Using pre-built GHDL binaries for macOS (Apple Silicon only) - no GNAT needed
           customPkgs = import ./nix {
             inherit pkgs;
             srcs = {
               ghdl = ghdl-src;
+              ghdl-darwin-bin = ghdl-bin-aarch64-darwin;
               nextpnr = nextpnr-src;
             };
           };
@@ -195,8 +202,8 @@
               pkgs.zsh
               pkgs.gtkwave
               customPkgs.nextpnr
-              customPkgs.ghdl
             ]
+            ++ (lib.optional (pkgs.stdenv.isLinux || system == "aarch64-darwin") customPkgs.ghdl)
             ++ (builtins.filter systemSupported librelane-pkg.includedTools);
 
           prompt = ''\[\033[1;32m\][FABulous-nix:\w]\$\[\033[0m\] '';

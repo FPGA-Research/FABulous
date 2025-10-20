@@ -57,6 +57,19 @@
         "url": "https://flakehub.com/f/edolstra/flake-compat/1.tar.gz"
       }
     },
+    "ghdl-bin-aarch64-darwin": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1759271367,
+        "narHash": "sha256-S3hkctS29pEg1Xhro5Jb9yrcjP9tRCP8PK8IE3cCqSo=",
+        "type": "tarball",
+        "url": "https://github.com/ghdl/ghdl/releases/download/nightly/ghdl-llvm-jit-6.0.0-dev-macos15-aarch64.tar.gz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://github.com/ghdl/ghdl/releases/download/nightly/ghdl-llvm-jit-6.0.0-dev-macos15-aarch64.tar.gz"
+      }
+    },
     "ghdl-src": {
       "flake": false,
       "locked": {
@@ -150,11 +163,11 @@
     },
     "nixpkgs-stable": {
       "locked": {
-        "lastModified": 1760139962,
-        "narHash": "sha256-4xggC56Rub3WInz5eD7EZWXuLXpNvJiUPahGtMkwtuc=",
+        "lastModified": 1760862643,
+        "narHash": "sha256-PXwG0TM7Ek87DNx4LbGWuD93PbFeKAJs4FfALtp7Wo0=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "7e297ddff44a3cc93673bb38d0374df8d0ad73e4",
+        "rev": "33c6dca0c0cb31d6addcd34e90a63ad61826b28c",
         "type": "github"
       },
       "original": {
@@ -166,11 +179,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1760284886,
-        "narHash": "sha256-TK9Kr0BYBQ/1P5kAsnNQhmWWKgmZXwUQr4ZMjCzWf2c=",
+        "lastModified": 1760878510,
+        "narHash": "sha256-K5Osef2qexezUfs0alLvZ7nQFTGS9DL2oTVsIXsqLgs=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "cf3f5c4def3c7b5f1fc012b3d839575dbe552d43",
+        "rev": "5e2a59a5b1a82f89f2c7e598302a9cacebb72a67",
         "type": "github"
       },
       "original": {
@@ -228,6 +241,7 @@
     },
     "root": {
       "inputs": {
+        "ghdl-bin-aarch64-darwin": "ghdl-bin-aarch64-darwin",
         "ghdl-src": "ghdl-src",
         "librelane": "librelane",
         "nextpnr-src": "nextpnr-src",

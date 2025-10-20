@@ -55,32 +55,30 @@ in
   # GHDL: Build from source on Linux, use pre-built binaries on macOS
   ghdl = let
     config = versions.ghdl;
-    pinnedSrc = srcs.ghdl or null;
-    # Get the actual commit hash from flake lock or resolve the tag/branch
-    commit = if pinnedSrc != null then pinnedSrc.rev else config.rev;
+    # Always use the commit hash from flake lock for reproducibility
+    flakeLocked = srcs.ghdl or null;
+    commit = if flakeLocked != null then flakeLocked.rev else config.rev;
     
     # Choose derivation based on platform
     isLinux = pkgs.stdenv.isLinux;
     ghdlDerivation = if isLinux then
-      # Linux: build from source
       ./tools/ghdl-src.nix
     else if pkgs.stdenv.isDarwin then
-      # macOS: use pre-built binary
       ./tools/ghdl-bin.nix
     else
       throw "Unsupported platform for GHDL";
     
     # Platform-specific arguments
     args = if isLinux then {
-      # Source build arguments
       inherit (config) owner repo;
       rev = commit;
-    } // (if pinnedSrc != null then { prefetchedSrc = pinnedSrc; } else {})
+      # Only pass prefetchedSrc if available
+    } // (if flakeLocked != null then { prefetchedSrc = flakeLocked; } else {})
     else {
-      # Binary build arguments
       inherit (config) owner repo;
       rev = commit;
       originalRev = config.rev;
+      prefetchedTarball = srcs.ghdl-darwin-bin or null;
     };
     
   in pkgs.callPackage ghdlDerivation args;
