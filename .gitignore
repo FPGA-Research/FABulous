@@ -1,4 +1,4 @@
-demo/
+demo*/
 **/__pycache__
 *.egg-info/
 .venv
@@ -12,3 +12,4 @@ docs/build/
 docs/source/references/*.rst
 !docs/source/references/index.rst
 docs/source/generated_doc/
+build

@@ -4,7 +4,9 @@ This module defines various enumerations used throughout FABulous for fabric def
 including I/O types, directions, sides, and configuration modes.
 """
 
+from decimal import Decimal
 from enum import Enum, StrEnum
+from typing import NamedTuple
 
 
 class IO(Enum):
@@ -41,7 +43,7 @@ class Direction(Enum):
     JUMP = "JUMP"
 
 
-class Side(Enum):
+class Side(StrEnum):
     """Enumeration for tile sides and placement.
 
     Defines the physical sides of tiles in the fabric:
@@ -52,10 +54,10 @@ class Side(Enum):
     - ANY: Any side (no specific placement)
     """
 
-    NORTH = "NORTH"
-    SOUTH = "SOUTH"
-    EAST = "EAST"
-    WEST = "WEST"
+    NORTH = "N"
+    SOUTH = "S"
+    EAST = "E"
+    WEST = "W"
     ANY = "ANY"
 
 
@@ -115,3 +117,18 @@ class FABulousAttribute(StrEnum):
     GLOBAL = "GLOBAL"
     USER_CLK = "USER_CLK"
     CONFIG_BIT = "CONFIG_BIT"
+
+
+class PinSortMode(StrEnum):
+    """Enumeration for pin sorting modes."""
+
+    BUS_MAJOR = "bus_major"
+    BIT_MINOR = "bit_minor"
+    CUSTOM = "custom"
+
+
+class TileSize(NamedTuple):
+    """Named tuple representing the size of a tile."""
+
+    width: Decimal
+    height: Decimal

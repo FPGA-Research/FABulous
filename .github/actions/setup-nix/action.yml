@@ -1,0 +1,25 @@
+name: setup-nix
+description: "Install Nix with flakes and nix-command enabled for CI runs (wrapper around DeterminateSystems/nix-installer-action)."
+runs:
+  using: "composite"
+  steps:
+    - name: Install Nix
+      uses: nixbuild/nix-quick-install-action@v33
+      with:
+        nix_conf: |
+          substituters = https://nix-cache.fossi-foundation.org
+          extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
+
+    - name: Verify Nix installation
+      shell: bash
+      run: |
+        echo 'Nix version:'
+        nix --version || true
+        echo '/etc/nix/nix.conf content (if present):'
+        if [ -f /etc/nix/nix.conf ]; then sudo cat /etc/nix/nix.conf || true; else echo '(no /etc/nix/nix.conf)'; fi
+    - name: Setup Magic Nix Cache
+      uses: DeterminateSystems/magic-nix-cache-action@v13
+    - name: build
+      shell: bash
+      run: |
+        nix build .#devShells.x86_64-linux.default

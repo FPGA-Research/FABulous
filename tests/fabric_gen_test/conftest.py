@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
-from cocotb.runner import get_runner
+from cocotb_tools.runner import get_runner
 from pytest_mock import MockerFixture
 
 from FABulous.fabric_definition.ConfigMem import ConfigMem

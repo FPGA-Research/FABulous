@@ -306,6 +306,26 @@ def install_fabulator_cmd(
     logger.info(f"FABulator installed successfully at {directory}")
 
 
+@app.command("install-nix")
+def install_and_config_nix_cmd() -> None:
+    """Install Nix."""
+    import shutil
+    import subprocess
+
+    if which := shutil.which("nix"):
+        logger.info(f"Nix is already installed at {which}, skipping installation")
+        return
+
+    try:
+        subprocess.run(
+            "curl -L https://nixos.org/nix/install | sh", shell=True, check=True
+        )
+        logger.info("Nix installed successfully")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to install Nix: {e}")
+        raise typer.Exit(1) from None
+
+
 @app.command("update-project-version")
 def update_project_version_cmd() -> None:
     """Update project version to match package version."""
