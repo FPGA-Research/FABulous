@@ -274,7 +274,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                             logger.warning(f"Creating directory {matrixDir.parent}.")
 
                 else:
-                    matrixDir = fileName.parent.joinpath(temp[1])
+                    matrixDir = fileName.parent.joinpath(temp[1]).absolute()
                     match matrixDir.suffix:
                         case ".list":
                             for _, v in parseList(matrixDir, "source").items():
@@ -462,7 +462,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     Fabric
         The fabric object.
     """
-    fName = Path(fileName)
+    fName = Path(fileName).absolute()
     if fName.suffix != ".csv":
         raise InvalidFileType("File must be a csv file")
 

@@ -5,6 +5,7 @@ including tile layout, configuration parameters, and connectivity information. T
 fabric is the top-level container for all tiles, BELs, and routing resources.
 """
 
+from collections.abc import Generator
 from dataclasses import dataclass, field
 
 from FABulous.fabric_definition.Bel import Bel
@@ -12,6 +13,7 @@ from FABulous.fabric_definition.define import (
     ConfigBitMode,
     Direction,
     MultiplexerStyle,
+    Side,
 )
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
@@ -274,11 +276,25 @@ class Fabric:
         fabric += f"tileDic: {list(self.tileDic.keys())}\n"
         return fabric
 
-    def getTileByName(self, name: str) -> Tile | None:
+    def __iter__(self) -> Generator[tuple[tuple[int, int], Tile | None]]:
+        """Iterate over all tiles in the fabric in row-major order.
+
+        Yields
+        ------
+        Generator[tuple[tuple[int, int], Tile | None]]
+            Generator yielding a tuple where the first element is the (x, y)
+            coordinates and the second is the Tile at that position or None
+            if the position is empty.
+        """
+        for y, row in enumerate(self.tile):
+            for x, tile in enumerate(row):
+                yield (x, y), tile
+
+    def getTileByName(self, name: str) -> Tile | SuperTile:
         """Get a tile by its name from the fabric.
 
         Search for the tile first in the used tiles dictionary, then in the unused tiles
-        dictionary if not found.
+        dictionary then in the supertiles if not found.
 
         Parameters
         ----------
@@ -287,8 +303,8 @@ class Fabric:
 
         Returns
         -------
-        Tile | None
-            The tile object if found.
+        Tile | SuperTile
+            The tile or supertile object if found.
 
         Raises
         ------
@@ -299,11 +315,12 @@ class Fabric:
         if ret is None:
             ret = self.unusedTileDic.get(name)
         if ret is None:
+            ret = self.getSuperTileByName(name)  # Check if it's a supertile
+        if ret is None:
             raise KeyError(f"Tile {name} not found in fabric.")
-
         return ret
 
-    def getSuperTileByName(self, name: str) -> SuperTile | None:
+    def getSuperTileByName(self, name: str) -> SuperTile:
         """Get a supertile by its name from the fabric.
 
         Searches for the supertile first in the used supertiles dictionary, then in the
@@ -316,7 +333,7 @@ class Fabric:
 
         Returns
         -------
-        SuperTile | None
+        SuperTile
             The super tile object if found.
 
         Raises
@@ -329,6 +346,7 @@ class Fabric:
             ret = self.unusedSuperTileDic.get(name)
         if ret is None:
             raise KeyError(f"SuperTile {name} not found in fabric.")
+
         return ret
 
     def getAllUniqueBels(self) -> list[Bel]:
@@ -373,3 +391,118 @@ class Fabric:
             return []
 
         return self.tile[y][x].bels
+
+    def find_tile_positions(
+        self, tile: Tile | SuperTile
+    ) -> list[tuple[int, int]] | None:
+        """Find all positions where a tile or supertile appears in the fabric grid.
+
+        Parameters
+        ----------
+        tile : Tile | SuperTile
+            The tile or supertile to search for
+
+        Returns
+        -------
+        list[tuple[int, int]] | None
+            List of (x, y) positions where the tile/supertile appears,
+            or None if not found
+        """
+        positions = []
+        if isinstance(tile, SuperTile):
+            # For SuperTiles, find where they appear
+            for y, row in enumerate(self.tile):
+                for x, fabric_tile in enumerate(row):
+                    if fabric_tile is None:
+                        continue
+                    # Check if this fabric tile belongs to the supertile
+                    for st in self.superTileDic.values():
+                        if st == tile:
+                            # Check if fabric_tile is part of this supertile
+                            for st_row in st.tileMap:
+                                for st_tile in st_row:
+                                    if st_tile and st_tile.name == fabric_tile.name:
+                                        positions.append((x, y))
+        else:
+            # For regular Tiles, find where they appear
+            for y, row in enumerate(self.tile):
+                for x, fabric_tile in enumerate(row):
+                    if fabric_tile and fabric_tile.name == tile.name:
+                        positions.append((x, y))
+
+        return positions if positions else None
+
+    def determine_border_side(self, x: int, y: int) -> Side | None:
+        """Determine which border side a tile position is on, if any.
+
+        Parameters
+        ----------
+        x : int
+            X coordinate in the fabric grid
+        y : int
+            Y coordinate in the fabric grid
+
+        Returns
+        -------
+        Side | None
+            The border side (NORTH, SOUTH, EAST, or WEST) if the position is on
+            a border, None otherwise. If on a corner, returns the vertical side
+            (NORTH or SOUTH) as priority.
+        """
+        is_north = y == 0
+        is_south = y == self.numberOfRows - 1
+        is_east = x == self.numberOfColumns - 1
+        is_west = x == 0
+
+        # Priority: corners get vertical sides (NORTH/SOUTH)
+        if is_north:
+            return Side.NORTH
+        if is_south:
+            return Side.SOUTH
+        if is_east:
+            return Side.EAST
+        if is_west:
+            return Side.WEST
+
+        return None
+
+    def get_unique_tile_types(self) -> list[Tile]:
+        """Get list of unique tile types used in the fabric.
+
+        Returns
+        -------
+        list[Tile]
+            List of unique tile types (one instance per type name)
+        """
+        unique_tiles: dict[str, Tile] = {}
+
+        for row in self.tile:
+            for tile in row:
+                if tile is not None and tile.name not in unique_tiles:
+                    unique_tiles[tile.name] = tile
+
+        return list(unique_tiles.values())
+
+    def get_tile_row_column_indices(self, tile_name: str) -> tuple[set[int], set[int]]:
+        """Get all row and column indices where a tile type appears.
+
+        Parameters
+        ----------
+        tile_name : str
+            Name of the tile type to search for
+
+        Returns
+        -------
+        tuple[set[int], set[int]]
+            (row_indices, column_indices) where the tile type appears
+        """
+        rows: set[int] = set()
+        cols: set[int] = set()
+
+        for row_idx, row in enumerate(self.tile):
+            for col_idx, tile in enumerate(row):
+                if tile is not None and tile.name == tile_name:
+                    rows.add(row_idx)
+                    cols.add(col_idx)
+
+        return rows, cols

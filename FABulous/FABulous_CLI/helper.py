@@ -146,7 +146,8 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
     ValueError
         If an unsupported language is specified.
     """
-    logger.info(project_dir)
+    project_dir = project_dir.resolve()
+    logger.info(f"Creating project at {project_dir}")
 
     if lang not in ["verilog", "vhdl"]:
         raise ValueError(f"Unsupported language: {lang!s}")

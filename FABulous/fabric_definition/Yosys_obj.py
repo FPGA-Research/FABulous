@@ -255,7 +255,7 @@ class YosysJson:
                 f"Supported types are .vhd, .vhdl, .v, .sv"
             )
 
-        self.srcPath = path
+        self.srcPath = path.absolute()
         yosys = get_context().yosys_path
         ghdl = get_context().ghdl_path
         json_file = self.srcPath.with_suffix(".json")

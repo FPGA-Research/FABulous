@@ -2,12 +2,18 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.define import IO, Direction, Side
+from FABulous.fabric_definition.define import IO, Direction, PinSortMode, Side
 from FABulous.fabric_definition.Gen_IO import Gen_IO
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Wire import Wire
+
+if TYPE_CHECKING:
+    from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+        PinOrderConfig,
+    )
 
 
 @dataclass
@@ -32,6 +38,9 @@ class Tile:
         True if the tile uses a clk signal
     configBit : int, optional
         Number of configuration bits for the switch matrix. Default is 0.
+    pinOrderConfig : dict[Side, PinOrderConfig] | None, optional
+        Configuration for pin ordering on each side of the tile. If None, defaults to
+        BUS_MAJOR sorting on all sides.
 
     Attributes
     ----------
@@ -53,8 +62,10 @@ class Tile:
         The list of wires of the tile
     tileDir : Path
         The path to the tile folder
-    partOfSuperTile : bool
+    partOfSuperTile : bool, optional
         Whether the tile is part of a super tile. Default is False.
+    pinOrderConfig : dict, optional
+        Configuration for pin ordering on each side of the tile.
     """
 
     name: str
@@ -67,6 +78,7 @@ class Tile:
     wireList: list[Wire] = field(default_factory=list)
     tileDir: Path = Path()
     partOfSuperTile: bool = False
+    pinOrderConfig: dict = field(default_factory=dict)
 
     def __init__(
         self,
@@ -78,6 +90,7 @@ class Tile:
         gen_ios: list[Gen_IO],
         userCLK: bool,
         configBit: int = 0,
+        pinOrderConfig: dict[Side, "PinOrderConfig"] | None = None,
     ) -> None:
         self.name = name
         self.portsInfo = ports
@@ -88,6 +101,20 @@ class Tile:
         self.matrixConfigBits = configBit
         self.wireList = []
         self.tileDir = tileDir
+
+        if pinOrderConfig is None:
+            from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+                PinOrderConfig,
+            )
+
+            self.pinOrderConfig = {
+                Side.NORTH: PinOrderConfig(sort_mode=PinSortMode.BUS_MAJOR),
+                Side.EAST: PinOrderConfig(sort_mode=PinSortMode.BUS_MAJOR),
+                Side.SOUTH: PinOrderConfig(sort_mode=PinSortMode.BUS_MAJOR),
+                Side.WEST: PinOrderConfig(sort_mode=PinSortMode.BUS_MAJOR),
+            }
+        else:
+            self.pinOrderConfig = pinOrderConfig
 
     def __eq__(self, __o: object, /) -> bool:
         """Check equality between tiles based on their name.

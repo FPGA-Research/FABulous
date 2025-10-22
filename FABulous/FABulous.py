@@ -4,7 +4,6 @@ This module provides the main entry point for the FABulous FPGA framework comman
 interface. It handles argument parsing, project setup, and CLI initialization.
 """
 
-import os
 import sys
 from importlib.metadata import version
 from pathlib import Path
@@ -350,9 +349,7 @@ def script_cmd(
     If no project directory is specified, uses the current directory.
     """
     # Initialize context
-    entering_dir = Path.cwd()
     script_file = script_file.absolute()
-    os.chdir(get_context().proj_dir)
     fab_CLI = FABulous_CLI(
         writerType=get_context().proj_lang,
         force=force,
@@ -366,7 +363,6 @@ def script_cmd(
     # Check if script file exists before trying to execute
     if not script_file.exists():
         logger.error(f"Script file {script_file} does not exist")
-        os.chdir(entering_dir)
         raise typer.Exit(1)
 
     # Execute the script based on type
@@ -379,7 +375,6 @@ def script_cmd(
                 f"FABulous script {script_file} execution failed with "
                 f"exit code {fab_CLI.exit_code}"
             )
-            os.chdir(entering_dir)
             raise typer.Exit(fab_CLI.exit_code)
         logger.info(f"FABulous script {script_file} executed successfully")
     elif (
@@ -391,11 +386,9 @@ def script_cmd(
                 f"TCL script {script_file} execution failed with "
                 f"exit code {fab_CLI.exit_code}"
             )
-            os.chdir(entering_dir)
             raise typer.Exit(fab_CLI.exit_code)
         logger.info(f"TCL script {script_file} executed successfully")
     else:
-        os.chdir(entering_dir)
         logger.error(f"Unknown script type: {script_type}")
         raise typer.Exit(1)
 
@@ -408,7 +401,6 @@ def start_cmd(force: ForceType = False) -> None:
     This is the main command for running FABulous in interactive mode or with scripts.
     If no project directory is specified, uses the current directory.
     """
-    entering_dir = Path.cwd()
     fab_CLI = FABulous_CLI(
         get_context().proj_lang,
         force=force,
@@ -416,10 +408,8 @@ def start_cmd(force: ForceType = False) -> None:
         verbose=get_context().verbose >= 2,
         debug=get_context().debug,
     )
-    os.chdir(get_context().proj_dir)
     fab_CLI.onecmd_plus_hooks("load_fabric")
     fab_CLI.cmdloop()
-    os.chdir(entering_dir)
 
 
 @app.command("run")
@@ -444,18 +434,16 @@ def run_cmd(
 
     Alias: r
     """
-    entering_dir = Path.cwd()
     fab_CLI = FABulous_CLI(
         get_context().proj_lang,
         force=force,
-        interactive=False,
+        interactive=True,
         verbose=get_context().verbose >= 2,
         debug=get_context().debug,
     )
 
     # Change to project directory
     logger.info(f"Setting current working directory to: {get_context().proj_dir}")
-    os.chdir(get_context().proj_dir)
     fab_CLI.onecmd_plus_hooks("load_fabric")
     # Ensure commands is a list
     if isinstance(commands, str):
@@ -484,10 +472,7 @@ def run_cmd(
     except PipelineCommandError:
         # Handle any pipeline errors that weren't caught by force flag
         # Don't log additional error message as CommandPipeline already logged it
-        os.chdir(entering_dir)
         raise typer.Exit(1) from None
-
-    os.chdir(entering_dir)
 
     # Always report the final exit code, even with --force
     final_exit_code = pipeline.get_exit_code()

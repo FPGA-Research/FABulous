@@ -78,7 +78,37 @@ class Port:
             f"Side={self.sideOfTile.value})"
         )
 
-    def expandPortInfoByName(self, indexed: bool = False) -> list[str]:
+    def getPortRegex(self, indexed: bool = False, prefix: str = "") -> str:
+        """Expand port information to individual wire names.
+
+        Generates a regex expression for this port, accounting for wire count and
+        offset calculations.
+
+        Parameters
+        ----------
+        indexed : bool, optional
+            If True, wire names use bracket notation (e.g., `port[0]`).
+            If False, wire names use simple concatenation (e.g., `port0`).
+            Defaults to False.
+        prefix : str, optional
+            A prefix to prepend to the port name, by default "".
+
+        Returns
+        -------
+        str
+            A regex expression matching the port's wire names.
+        """
+        wireCount = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
+
+        if wireCount == 1 and self.name != "NULL":
+            return f"{prefix}{self.name}"
+        if indexed:
+            return rf"{prefix}{self.name}\[\d+\]"
+        return rf"{prefix}{self.name}\d+"
+
+    def expandPortInfoByName(
+        self, indexed: bool = False, prefix: str = "", escape: bool = False
+    ) -> list[str]:
         """Expand port information to individual wire names.
 
         Generates a list of individual wire names for this port, accounting for
@@ -91,6 +121,11 @@ class Port:
             If True, wire names use bracket notation (e.g., `port[0]`).
             If False, wire names use simple concatenation (e.g., `port0`).
             Defaults to False.
+        prefix : str, optional
+            A prefix to prepend to the port name, by default "".
+        escape : bool, optional
+            If True, escape special characters in the port names (e.g., for regex),
+            by default False.
 
         Returns
         -------
@@ -101,11 +136,27 @@ class Port:
             wireCount = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
         else:
             wireCount = self.wireCount
-        if not indexed:
-            return [f"{self.name}{i}" for i in range(wireCount) if self.name != "NULL"]
-        return [f"{self.name}[{i}]" for i in range(wireCount) if self.name != "NULL"]
 
-    def expandPortInfoByNameTop(self, indexed: bool = False) -> list[str]:
+        if not indexed:
+            return [
+                f"{prefix}{self.name}{i}"
+                for i in range(wireCount)
+                if self.name != "NULL"
+            ]
+
+        if escape:
+            return [
+                rf"{prefix}{self.name}\[{i}\]"
+                for i in range(wireCount)
+                if self.name != "NULL"
+            ]
+        return [
+            f"{prefix}{self.name}[{i}]" for i in range(wireCount) if self.name != "NULL"
+        ]
+
+    def expandPortInfoByNameTop(
+        self, indexed: bool = False, prefix: str = "", escape: bool = False
+    ) -> list[str]:
         """Expand port information for top-level connections.
 
         Similar to expandPortInfoByName but specifically for top-level tile
@@ -118,6 +169,11 @@ class Port:
             If True, wire names use bracket notation (e.g., `port[0]`).
             If False, wire names use simple concatenation (e.g., `port0`).
             Defaults to False.
+        prefix : str, optional
+            A prefix to prepend to the port name, by default "".
+        escape : bool, optional
+            If True, escape special characters in the port names (e.g., for regex),
+            by default False.
 
         Returns
         -------
@@ -133,12 +189,19 @@ class Port:
 
         if not indexed:
             return [
-                f"{self.name}{i}"
+                f"{prefix}{self.name}{i}"
+                for i in range(startIndex, wireCount)
+                if self.name != "NULL"
+            ]
+
+        if escape:
+            return [
+                rf"{prefix}{self.name}\[{i}\]"
                 for i in range(startIndex, wireCount)
                 if self.name != "NULL"
             ]
         return [
-            f"{self.name}[{i}]"
+            f"{prefix}{self.name}[{i}]"
             for i in range(startIndex, wireCount)
             if self.name != "NULL"
         ]

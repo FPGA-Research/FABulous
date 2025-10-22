@@ -43,6 +43,7 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
         Dictionary from destination to a list of sources.
     """
     connectionsDic = {}
+    fileName = fileName.absolute()
     with fileName.open() as f:
         file = f.read()
         file = re.sub(r"#.*", "", file)
@@ -158,6 +159,7 @@ def parseList(
         Return either a list of connection pairs or a dictionary of lists which is
         collected by the specified option, source or sink.
     """
+    filePath = filePath.absolute()
     if not filePath.exists():
         raise FileNotFoundError(f"The file {filePath} does not exist.")
 

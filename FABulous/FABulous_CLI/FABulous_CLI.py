@@ -1167,9 +1167,10 @@ class FABulous_CLI(Cmd):
         """
         if not self.fabricLoaded:
             raise CommandError("Need to load fabric first")
-
+        project_dir = get_context().proj_dir
         self.fabulousAPI.generateUserDesignTopWrapper(
-            args.user_design, args.user_design_top_wrapper
+            project_dir / Path(args.user_design),
+            project_dir / args.user_design_top_wrapper,
         )
 
     gen_tile_parser = Cmd2ArgumentParser()
