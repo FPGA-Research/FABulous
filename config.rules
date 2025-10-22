@@ -1,0 +1,4 @@
+-always-comb
++line-length=length:88
+-explicit-function-lifetime
++parameter-name-style=localparam_style:ALL_CAPS;parameter_style:CamelCase
