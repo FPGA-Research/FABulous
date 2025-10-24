@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# orginal source: https://github.com/librelane/librelane/blob/main/librelane/scripts/openroad/pdn.tcl
+# this script is copied in to provide the script itself for FABulous as the original librelane package
+# location cannot be accessed directly.
+
 source $::env(SCRIPTS_DIR)/openroad/common/io.tcl
 read_current_odb
 

@@ -1,5 +1,6 @@
 """OpenDB script to connect power rails for FABulous fabric."""
 #
+# Original src: https://github.com/mole99/librelane_plugin_fabulous/blob/main/librelane_plugin_fabulous/scripts/odb_power.py
 # OpenDB script for custom Power for FABulous fabric
 # This script places vertical PDN straps on top
 # of already existing straps in order to tell OpenROAD

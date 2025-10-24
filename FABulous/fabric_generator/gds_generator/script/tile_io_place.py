@@ -1,16 +1,3 @@
-# Copyright 2020-2022 Efabless Corporation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 """Utilities for placing IO pins by expanding configuration segments."""
 
 import logging
@@ -572,7 +559,7 @@ class PinPlacementPlan:
         if num_divisions <= 0:
             return []
 
-        # Check if tracks can be evenly divided (librelane requirement)
+        # Check if tracks can be evenly divided
         if count_total % num_divisions != 0:
             warn(
                 f"Track count {count_total} not evenly divisible by "
@@ -602,7 +589,7 @@ class PinPlacementPlan:
                 side, tile_x, tile_y, tile_idx, num_divisions
             )
 
-            # Calculate offset based on PHYSICAL position (librelane approach)
+            # Calculate offset based on PHYSICAL position
             # Proportional positioning in the die area
             physical_offset = int(physical_dimension * division_index / num_divisions)
             tile_origin = origin + physical_offset

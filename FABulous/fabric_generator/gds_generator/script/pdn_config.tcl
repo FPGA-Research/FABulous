@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Original source: https://github.com/librelane/librelane/blob/main/librelane/scripts/openroad/common/pdn_cfg.tcl
+# Adapted for FABulous fabric generator GDS flow.
 
 source $::env(SCRIPTS_DIR)/openroad/common/set_global_connections.tcl
 set_global_connections
