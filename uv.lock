@@ -261,11 +261,21 @@ wheels = [
 ]
 
 [[package]]
+name = "fabulous-bit-gen"
+version = "0.1.dev3+ga6b2b6fb0"
+source = { git = "https://github.com/FPGA-Research/FABulous-bit-gen.git#a6b2b6fb0fbbb2881f00ad4e4b0b8bdccf44dfe7" }
+dependencies = [
+    { name = "fasm" },
+    { name = "loguru" },
+]
+
+[[package]]
 name = "fabulous-fpga"
 source = { editable = "." }
 dependencies = [
     { name = "bitarray" },
     { name = "cmd2" },
+    { name = "fabulous-bit-gen" },
     { name = "fasm" },
     { name = "gnureadline", marker = "sys_platform != 'win32'" },
     { name = "loguru" },
@@ -297,6 +307,7 @@ dev = [
 requires-dist = [
     { name = "bitarray", specifier = ">=3.3.0" },
     { name = "cmd2", specifier = ">=2" },
+    { name = "fabulous-bit-gen", git = "https://github.com/FPGA-Research/FABulous-bit-gen.git" },
     { name = "fasm", specifier = ">=0.0.2" },
     { name = "gnureadline", marker = "sys_platform != 'win32'", specifier = ">=8.2.0" },
     { name = "loguru", specifier = ">=0.7.0" },

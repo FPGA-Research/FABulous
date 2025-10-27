@@ -31,6 +31,7 @@ dependencies = [
   "pydantic-settings>=2.10.1",
   "packaging>=25.0",
   "typer>=0.16.1",
+  "FABulous-bit-gen @ git+https://github.com/FPGA-Research/FABulous-bit-gen.git",
   # OS-aware readline dependencies
   'pyreadline3>=3.4.0; sys_platform == "win32"',
   'gnureadline>=8.2.0; sys_platform != "win32"',
@@ -46,7 +47,6 @@ Discussions = "https://github.com/FPGA-Research/FABulous/discussions"
 
 [project.scripts]
 FABulous = "FABulous.FABulous:main"
-bit_gen = "FABulous.fabric_cad.bit_gen:bit_gen"
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
@@ -118,7 +118,7 @@ lint = "ruff check . --fix && pre-commit run --all-files"
 check = "ruff check ."
 qa = "task format && task check"
 
-# Documentation tasks  
+# Documentation tasks
 docs-setup = "cd docs && uv sync"
 docs-build = "cd docs && make clean && make html"
 docs-server = "cd docs && make clean && uv run --directory . make livehtml"
