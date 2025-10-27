@@ -1,5 +1,5 @@
 {
-  description = "hello world application using uv2nix";
+  description = "FABulous EDA development environment with Nix - includes GHDL, Yosys, NextPNR, Librelane, and more";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -24,6 +24,8 @@
       inputs.uv2nix.follows = "uv2nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # TODO: change to official librelane when available
     librelane.url = "github:kelvinchung2000/librelane/my-dev";
 
     # Tag-pinned sources for custom tools (locked in flake.lock)
