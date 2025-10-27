@@ -8,21 +8,14 @@
 , eigen
 , python3Packages
 , darwin ? null
-, owner ? "YosysHQ"
-, repo ? "nextpnr"
-, rev
-, fetchSubmodules ? true
- , prefetchedSrc ? null
+, prefetchedSrc
 }:
 
 stdenv.mkDerivation rec {
   pname = "nextpnr";
-  version = "nextpnr-0.8";
+  version = "unstable";
 
-  src = if prefetchedSrc != null then prefetchedSrc else (builtins.fetchGit {
-    url = "https://github.com/${owner}/${repo}.git";
-    inherit rev;
-  });
+  src = prefetchedSrc;
 
   nativeBuildInputs = [
     cmake

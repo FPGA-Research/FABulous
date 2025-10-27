@@ -1,17 +1,14 @@
 # Custom GHDL derivation - build from source (for Linux)
 { lib, stdenv, gnat, zlib, which, pkg-config
   # Version control parameters (provided by default.nix)
-  , owner ? "ghdl", repo ? "ghdl", rev, fetchSubmodules ? false, prefetchedSrc ? null
+  , owner ? "ghdl", repo ? "ghdl", prefetchedSrc
 }:
 
 stdenv.mkDerivation rec {
   pname = "ghdl";
-  version = rev;
+  version = "unstable";
 
-  src = if prefetchedSrc != null then prefetchedSrc else (builtins.fetchGit {
-    url = "https://github.com/${owner}/${repo}.git";
-    inherit rev;
-  });
+  src = prefetchedSrc;
 
   nativeBuildInputs = [ pkg-config which gnat ];
 
