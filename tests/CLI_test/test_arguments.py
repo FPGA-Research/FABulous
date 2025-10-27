@@ -1157,7 +1157,7 @@ def test_install_nix(
     monkeypatch: pytest.MonkeyPatch,
     mocker: MockerFixture,
 ) -> None:
-    """Test install-oss-cad-suite on unsupported NixOS platform."""
+    """Test install-nix on unsupported NixOS platform."""
     test_argv = ["FABulous", "install-nix"]
 
     mocker.patch("shutil.which", return_value=None)
@@ -1173,7 +1173,7 @@ def test_install_nix_skip(
     monkeypatch: pytest.MonkeyPatch,
     mocker: MockerFixture,
 ) -> None:
-    """Test install-oss-cad-suite on unsupported NixOS platform."""
+    """Test install-nix when Nix is already installed."""
     test_argv = ["FABulous", "install-nix"]
 
     mocker.patch("shutil.which", return_value="nix")
