@@ -112,7 +112,7 @@
             nix-eda.overlays.default
             devshell-overlay.overlays.default
             librelane.overlays.default
-            nix_eda_overlays.default
+            nix_eda_overlays
           ];
         }
       );
