@@ -35,7 +35,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Nix
-        uses: nixbuild/nix-quick-install-action@v33
+        uses: nixbuild/nix-quick-install-action@v34
         with:
           nix_conf: |
             substituters = https://nix-cache.fossi-foundation.org

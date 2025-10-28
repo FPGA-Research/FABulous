@@ -73,17 +73,17 @@
     "ghdl-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1759249048,
-        "narHash": "sha256-pSnzBu7pPsnGalHPzFjNNlViDYQxwRrDudewfRaBNxY=",
+        "lastModified": 1761160029,
+        "narHash": "sha256-aOxJ4Jmngo4ceVjVZy69kNP54MIU4EV8kghNidYOQ28=",
         "owner": "ghdl",
         "repo": "ghdl",
-        "rev": "83cd1710a32c9c9c76152342f57f179613bde945",
+        "rev": "c01020b2d3f2bf00d97c759e854b434181358c27",
         "type": "github"
       },
       "original": {
         "owner": "ghdl",
-        "ref": "nightly",
         "repo": "ghdl",
+        "rev": "c01020b2d3f2bf00d97c759e854b434181358c27",
         "type": "github"
       }
     },

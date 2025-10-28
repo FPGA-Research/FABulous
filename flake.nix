@@ -30,7 +30,7 @@
 
     # Tag-pinned sources for custom tools (locked in flake.lock)
     ghdl-src = {
-      url = "github:ghdl/ghdl/nightly";
+      url = "github:ghdl/ghdl/c01020b2d3f2bf00d97c759e854b434181358c27";
       flake = false;
     };
     # Prebuilt GHDL binary tarball for macOS Apple Silicon (locked in flake.lock)
