@@ -78,42 +78,7 @@
       };
 
       # Custom Python package overlay for packages that need special handling
-      pyproject_pkg_overlay = final: prev: {
-        # Override fasm to use GitHub source instead of PyPI and add missing build deps
-        fasm = prev.fasm.overrideAttrs (old: {
-          src = final.pkgs.fetchFromGitHub {
-            owner = "chipsalliance";
-            repo = "fasm";
-            rev = "v0.0.2";
-            sha256 = "sha256-AMG4+qMk2+40GllhE8UShagN/jxSVN+RNtJCW3vFLBU=";
-          };
-          nativeBuildInputs = (old.nativeBuildInputs or []) ++ final.resolveBuildSystem {
-            setuptools = [ ]; wheel = [ ]; cython = [ ];
-          };
-          propagatedBuildInputs = (old.propagatedBuildInputs or []) ++ [ prev.textx ];
-        });
-
-        pyperclip = prev.pyperclip.overrideAttrs (old: {
-          nativeBuildInputs = (old.nativeBuildInputs or []) ++ final.resolveBuildSystem {
-            setuptools = [ ]; wheel = [ ];
-          };
-        });
-        librelane = prev.librelane.overrideAttrs (old: {
-          nativeBuildInputs = (old.nativeBuildInputs or []) ++ final.resolveBuildSystem {
-            setuptools = [ ]; wheel = [ ];
-          };
-        });
-        cocotb-test = prev.cocotb-test.overrideAttrs (old: {
-          nativeBuildInputs = (old.nativeBuildInputs or []) ++ final.resolveBuildSystem {
-            setuptools = [ ]; wheel = [ ];
-          };
-        });
-        cocotb = prev.cocotb-test.overrideAttrs (old: {
-          nativeBuildInputs = (old.nativeBuildInputs or []) ++ final.resolveBuildSystem {
-            setuptools = [ ]; wheel = [ ];
-          };
-        });
-      };
+      pyproject_pkg_overlay = import ./nix/overlay/python.nix;
 
       editableOverlay = workspace.mkEditablePyprojectOverlay {
         root = "$REPO_ROOT";
@@ -138,9 +103,7 @@
       );
 
       nix-eda = librelane.inputs.nix-eda;
-      nix_eda_overlays = {
-        default = import ./nix/overlay.nix;
-      };
+      nix_eda_overlays = import ./nix/overlay/nix-eda.nix;
       devshell-overlay = librelane.inputs.devshell;
       nix_eda_pkgs = nix-eda.forAllSystems (system:
         import nix-eda.inputs.nixpkgs {
@@ -170,9 +133,6 @@
           # Create virtualenv with all deps
           virtualenv = pythonSet.mkVirtualEnv "FABulous-env" workspace.deps.all;
 
-          # pass the current pkgs to the nix overlay so it returns a package set
-          # also pass flake-locked sources so tags resolve to a fixed commit
-          # Using pre-built GHDL binaries for macOS (Apple Silicon only) - no GNAT needed
           customPkgs = import ./nix {
             inherit pkgs;
             srcs = {
