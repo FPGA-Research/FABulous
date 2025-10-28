@@ -39,7 +39,7 @@ jobs:
         with:
           nix_version: "2.31.2"
           nix_conf: |
-            substituters = https://nix-cache.fossi-foundation.org
+            substituters = https://cache.nixos.org https://nix-cache.fossi-foundation.org
             extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
 
       # - name: Enable magic Nix cache
