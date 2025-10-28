@@ -41,8 +41,8 @@ jobs:
             substituters = https://nix-cache.fossi-foundation.org
             extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
 
-      - name: Enable magic Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v8
+      # - name: Enable magic Nix cache
+      #   uses: DeterminateSystems/magic-nix-cache-action@v8
 
       - name: Print Nix version
         run: nix --version
