@@ -322,6 +322,22 @@ def install_nix_cmd() -> None:
             "curl -L https://nixos.org/nix/install | sh", shell=True, check=True
         )
         logger.info("Nix installed successfully")
+        config_path = Path().home() / ".config" / "nix" / "nix.conf"
+        if (not config_path.exists()) or (
+            config_path.exists() and (config_path.stat().st_size == 0)
+        ):
+            config_path.write_text(
+                "extra-experimental-features = nix-command flakes\n"
+                "extra-substituters = https://nix-cache.fossi-foundation.org\n"
+                "extra-trusted-public-keys = nix-cache.fossi-foundation.org:"
+                "3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=\n"
+            )
+            logger.info("Nix binary cache configured successfully")
+        else:
+            logger.info(
+                f"Nix config file {config_path} already exists and is not empty, "
+                "skipping binary cache configuration"
+            )
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to install Nix: {e}")
         raise typer.Exit(1) from None

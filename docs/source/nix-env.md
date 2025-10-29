@@ -10,7 +10,13 @@ You can install the Nix environment by running the following command:
 FABulous install-nix
 ```
 
-This command will download and run the Nix installation scripts with installation cache set up to speed up the process. Note that during the installation you will be prompted to provide `sudo` access. If this is not possible, you can try installing Nix as a standalone executable by following this [guide](https://nixos.org/download.html#nix-standalone).
+Or follow the following [guide](https://github.com/fossi-foundation/nix-eda/blob/main/docs/installation.md#i-dont-have-nix) to install manually.
+
+The `FABulous install-nix` command will download and run the Nix installation scripts with installation cache set up to speed up the process. Note that during the installation you will be prompted to provide `sudo` access. If this is not possible, you can try installing Nix as a standalone executable by following this [guide](https://nixos.org/download.html#nix-standalone).
+
+## Already have Nix setup
+
+If you already have Nix installed, you will need to add the binary cache yourself and enable the experimental feature, `flake`. For more details check the following [guide](https://github.com/fossi-foundation/nix-eda/blob/main/docs/installation.md#i-already-have-nix).
 
 ## Activating the Nix Shell
 
