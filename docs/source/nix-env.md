@@ -32,7 +32,7 @@ nix develop .#fish
 
 ```
 
-On first start this will take a bit of time. Subsequent start will be much faster. This command sets up the environment with the necessary dependencies and tools required for FABulous development and usage. After running it, your shell prompt should change, indicating that you are now in the Nix development environment.
+On first start this will take a bit of time. Subsequent starts will be much faster. This command sets up the environment with the necessary dependencies and tools required for FABulous development and usage. After running it, your shell prompt should change, indicating that you are now in the Nix development environment.
 
 We recommend running a quick smoke test to ensure everything is working correctly. You can do this by running:
 
