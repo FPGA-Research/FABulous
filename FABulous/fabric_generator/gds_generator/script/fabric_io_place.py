@@ -3,7 +3,6 @@
 import logging
 import math
 from decimal import Decimal
-from typing import Any, Protocol
 
 import click
 import odb  # type: ignore[import]
