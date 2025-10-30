@@ -326,15 +326,16 @@ def install_nix_cmd() -> None:
         if (not config_path.exists()) or (
             config_path.exists() and (config_path.stat().st_size == 0)
         ):
+            config_path.parent.mkdir(parents=True, exist_ok=True)
             config_path.write_text(
                 "extra-experimental-features = nix-command flakes\n"
                 "extra-substituters = https://nix-cache.fossi-foundation.org\n"
                 "extra-trusted-public-keys = nix-cache.fossi-foundation.org:"
-                "3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=\n"
+                "3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs="
             )
             logger.info("Nix binary cache configured successfully")
         else:
-            logger.info(
+            logger.warning(
                 f"Nix config file {config_path} already exists and is not empty, "
                 "skipping binary cache configuration"
             )
