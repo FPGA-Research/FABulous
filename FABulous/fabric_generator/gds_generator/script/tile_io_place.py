@@ -46,15 +46,17 @@ def equally_spaced_sequence(
     virtual_pin_count = 0
     actual_pin_count = len(side_pin_placement)
     total_pin_count = actual_pin_count + virtual_pin_count
-    for i in range(len(side_pin_placement)):
-        if isinstance(
-            side_pin_placement[i], int
-        ):  # This is an int value indicating virtual pins
-            virtual_pin_count = virtual_pin_count + side_pin_placement[i]
-            actual_pin_count = actual_pin_count - 1
-            # Decrement actual pin count, this value was only there to
-            # indicate virtual pin count
-            total_pin_count = actual_pin_count + virtual_pin_count
+
+    actual_pin_count = 0
+    virtual_pin_count = 0
+    for i in side_pin_placement:
+        if isinstance(i, int):
+            virtual_pin_count += i
+        else:
+            actual_pin_count += 1
+
+    total_pin_count = actual_pin_count + virtual_pin_count
+
     result = []
     tracks = len(possible_locations)
 
@@ -652,7 +654,11 @@ class PinPlacementPlan:
         """
         for side, segments in self.segments_by_side.items():
             for segment in segments:
-                segment.ensure_min_distance(min_by_side[side])
+                if (
+                    segment.min_distance is None
+                    or segment.min_distance < min_by_side[side]
+                ):
+                    segment.min_distance = min_by_side[side]
 
     def assign_unmatched_pins(self) -> None:
         """Place unmatched pins into the lowest-utilization segments."""
