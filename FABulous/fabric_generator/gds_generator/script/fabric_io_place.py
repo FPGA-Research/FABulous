@@ -3,53 +3,16 @@
 import logging
 import math
 from decimal import Decimal
-from typing import Any, Protocol
 
 import click
 import odb  # type: ignore[import]
 from librelane.logging.logger import warn
 from librelane.scripts.odbpy.reader import click_odb
 
-
-class OdbReaderLike(Protocol):
-    """Protocol describing the reader object provided by the click wrapper."""
-
-    dbunits: float
-    tech: Any
-    block: Any
-    name: str
-
-
-class odbBTermLike(Protocol):
-    """Protocol describing the odb.dbBTerm object."""
-
-    def getName(self) -> str: ...  # noqa: D102
-    def getBPins(self) -> list[Any]: ...  # noqa: D102
-
-
-class odbPointLike(Protocol):
-    """Protocol describing the odb.dbPoint object."""
-
-    def x(self) -> int: ...  # noqa: D102
-    def y(self) -> int: ...  # noqa: D102
-
-
-class odbRectLike(Protocol):
-    """Protocol describing the odb.dbRect object."""
-
-    def xMin(self) -> int: ...  # noqa: D102
-    def yMin(self) -> int: ...  # noqa: D102
-    def xMax(self) -> int: ...  # noqa: D102
-    def yMax(self) -> int: ...  # noqa: D102
-    def dx(self) -> int: ...  # noqa: D102
-    def dy(self) -> int: ...  # noqa: D102
-    def xCenter(self) -> int: ...  # noqa: D102
-    def yCenter(self) -> int: ...  # noqa: D102
-    def ll(self) -> odbPointLike: ...  # noqa: D102
-    def ul(self) -> odbPointLike: ...  # noqa: D102
-    def ur(self) -> odbPointLike: ...  # noqa: D102
-    def lr(self) -> odbPointLike: ...  # noqa: D102
-    def center(self) -> odbPointLike: ...  # noqa: D102
+from FABulous.fabric_generator.gds_generator.script.odb_protocol import (
+    OdbReaderLike,
+    odbRectLike,
+)
 
 
 @click.command()

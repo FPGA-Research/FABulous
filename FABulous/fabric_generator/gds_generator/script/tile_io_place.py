@@ -5,12 +5,10 @@ import math
 import os
 import re
 import sys
-from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 from functools import partial
 from pathlib import Path
-from typing import Any, Protocol
 
 import click
 import odb  # type: ignore[import]
@@ -22,47 +20,10 @@ from FABulous.fabric_definition.define import PinSortMode, Side
 from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     PinOrderConfig,
 )
-
-
-class OdbReaderLike(Protocol):
-    """Protocol describing the reader object provided by the click wrapper."""
-
-    dbunits: float
-    tech: Any
-    block: Any
-    name: str
-
-
-class odbBTermLike(Protocol):
-    """Protocol describing the odb.dbBTerm object."""
-
-    def getName(self) -> str: ...  # noqa: D102
-    def getBPins(self) -> list[Any]: ...  # noqa: D102
-
-
-class odbPointLike(Protocol):
-    """Protocol describing the odb.dbPoint object."""
-
-    def x(self) -> int: ...  # noqa: D102
-    def y(self) -> int: ...  # noqa: D102
-
-
-class odbRectLike(Protocol):
-    """Protocol describing the odb.dbRect object."""
-
-    def xMin(self) -> int: ...  # noqa: D102
-    def yMin(self) -> int: ...  # noqa: D102
-    def xMax(self) -> int: ...  # noqa: D102
-    def yMax(self) -> int: ...  # noqa: D102
-    def dx(self) -> int: ...  # noqa: D102
-    def dy(self) -> int: ...  # noqa: D102
-    def xCenter(self) -> int: ...  # noqa: D102
-    def yCenter(self) -> int: ...  # noqa: D102
-    def ll(self) -> odbPointLike: ...  # noqa: D102
-    def ul(self) -> odbPointLike: ...  # noqa: D102
-    def ur(self) -> odbPointLike: ...  # noqa: D102
-    def lr(self) -> odbPointLike: ...  # noqa: D102
-    def center(self) -> odbPointLike: ...  # noqa: D102
+from FABulous.fabric_generator.gds_generator.script.odb_protocol import (
+    OdbReaderLike,
+    odbBTermLike,
+)
 
 
 def grid_to_tracks(origin: float, count: int, step: float) -> list[float]:
@@ -85,15 +46,17 @@ def equally_spaced_sequence(
     virtual_pin_count = 0
     actual_pin_count = len(side_pin_placement)
     total_pin_count = actual_pin_count + virtual_pin_count
-    for i in range(len(side_pin_placement)):
-        if isinstance(
-            side_pin_placement[i], int
-        ):  # This is an int value indicating virtual pins
-            virtual_pin_count = virtual_pin_count + side_pin_placement[i]
-            actual_pin_count = actual_pin_count - 1
-            # Decrement actual pin count, this value was only there to
-            # indicate virtual pin count
-            total_pin_count = actual_pin_count + virtual_pin_count
+
+    actual_pin_count = 0
+    virtual_pin_count = 0
+    for i in side_pin_placement:
+        if isinstance(i, int):
+            virtual_pin_count += i
+        else:
+            actual_pin_count += 1
+
+    total_pin_count = actual_pin_count + virtual_pin_count
+
     result = []
     tracks = len(possible_locations)
 
@@ -146,37 +109,22 @@ def equally_spaced_sequence(
         f"{tracks_per_pin=} {used_tracks=} {unused_tracks=} {starting_track_index=}",
     )
 
-    VISUALIZE_PLACEMENT = False
-    if VISUALIZE_PLACEMENT:
-        debug("Placement Map:")
-        map_str = ["["]
-        used_track_indices = []
-        for i, location in enumerate(possible_locations):
-            if location in result:
-                map_str.append(f"*{location}, ")
-                used_track_indices.append(i)
-            else:
-                map_str.append(f"{location}, ")
-        map_str.append("]")
-        debug("".join(map_str))
-        debug(f"Used track indices: {used_track_indices}")
-
     return result, side_pin_placement
 
 
-identifiers = re.compile(r"\b[A-Za-z_][A-Za-z_0-9]*\b")
-standalone_numbers = re.compile(r"\b\d+\b")
-trash = re.compile(r"^[^\w\d]+$")
+_identifiers = re.compile(r"\b[A-Za-z_][A-Za-z_0-9]*\b")
+_standalone_numbers = re.compile(r"\b\d+\b")
+_trash = re.compile(r"^[^\w\d]+$")
 
 
-def sorter(bterm: "odb.dbBTerm", order: PinSortMode) -> list[list[str | int]]:
+def sorter(bterm: odbBTermLike, order: PinSortMode) -> list[list[str | int]]:
     """Return sorting keys for a boundary term using the requested strategy."""
     text: str = bterm.getName()
     keys = []
     priority_keys = []
     # tokenize and add to key
-    while trash.match(text) is None:
-        if match := identifiers.search(text):
+    while _trash.match(text) is None:
+        if match := _identifiers.search(text):
             bus = match[0]
             start, end = match.span(0)
             if order == PinSortMode.BUS_MAJOR:
@@ -184,7 +132,7 @@ def sorter(bterm: "odb.dbBTerm", order: PinSortMode) -> list[list[str | int]]:
             else:
                 keys.append(bus)
             text = text[:start] + text[end:]
-        elif match := standalone_numbers.search(text):
+        elif match := _standalone_numbers.search(text):
             index = int(match[0])
             if order == PinSortMode.BIT_MINOR:
                 priority_keys.append(index)
@@ -272,31 +220,6 @@ class SegmentInfo:
         """Return the number of concrete pins in this segment."""
         return sum(1 for entry in self.pin_entries if not isinstance(entry, int))
 
-    @property
-    def has_virtual_placeholders(self) -> bool:
-        """Return True if this segment reserves space using virtual pins."""
-        return any(isinstance(entry, int) for entry in self.pin_entries)
-
-    def ensure_min_distance(self, min_allowed: float) -> None:
-        """Clamp the minimum spacing constraint to the technology limit."""
-        if self.min_distance is None or self.min_distance < min_allowed:
-            debug(
-                "Adjusting min_distance for side %s segment (given=%s -> %s)",
-                self.side.value,
-                self.min_distance,
-                min_allowed,
-            )
-            self.min_distance = min_allowed
-
-    def apply_reverse(self) -> None:
-        """Reverse pin order when requested by the configuration."""
-        if self.reverse_result:
-            self.pin_entries.reverse()
-
-    def replace_pin_entries(self, entries: list) -> None:
-        """Overwrite the stored pin list after track allocation."""
-        self.pin_entries = entries
-
 
 @dataclass
 class RawSegmentData:
@@ -367,21 +290,15 @@ class PinPlacementPlan:
             bterm.getName() for bterm in self.unmatched_design_bterms
         }
 
-        self._handle_unmatched(unmatched_error)
-
-    def _handle_unmatched(self, unmatched_error: str) -> None:
-        """Report unmatched pins and enforce error policy."""
         for pin_name in self.unmatched_config_patterns:
-            should_error = unmatched_error in {"unmatched_cfg", "both"}
-            if should_error:
+            if unmatched_error in {"unmatched_cfg", "both"}:
                 self.critical_errors_found = True
                 err(f"{pin_name} not found in design but found in config.")
             else:
                 warn(f"{pin_name} not found in design but found in config.")
 
         for pin_name in self.unmatched_design_pin_names:
-            should_error = unmatched_error in {"unmatched_design", "both"}
-            if should_error:
+            if unmatched_error in {"unmatched_design", "both"}:
                 self.critical_errors_found = True
                 err(f"{pin_name} not found in config but found in design.")
             else:
@@ -720,19 +637,6 @@ class PinPlacementPlan:
 
         return tracks_container
 
-    def tracks_for_segment(self, side: Side, index: int) -> list[float]:
-        """Return the raw track coordinates allocated for a segment."""
-        return self.track_coordinates[side][index]
-
-    def segments(self, side: Side) -> list[SegmentInfo]:
-        """Return the ordered list of segments for a given side."""
-        return self.segments_by_side[side]
-
-    def all_segments(self) -> Iterable[SegmentInfo]:
-        """Iterate over all segments across every side."""
-        for side in Side:
-            yield from self.segments_by_side[side]
-
     def ensure_min_distances(self, min_by_side: dict[Side, float]) -> None:
         """Ensure each segment meets technology minimum spacing requirements.
 
@@ -743,7 +647,11 @@ class PinPlacementPlan:
         """
         for side, segments in self.segments_by_side.items():
             for segment in segments:
-                segment.ensure_min_distance(min_by_side[side])
+                if (
+                    segment.min_distance is None
+                    or segment.min_distance < min_by_side[side]
+                ):
+                    segment.min_distance = min_by_side[side]
 
     def assign_unmatched_pins(self) -> None:
         """Place unmatched pins into the lowest-utilization segments."""
@@ -784,24 +692,9 @@ class PinPlacementPlan:
             return candidates[0][4]
 
         side_choice = min(Side, key=lambda side: len(self.segments_by_side[side]))
-        return self._create_empty_segment(side_choice)
 
-    def _create_empty_segment(self, side: Side) -> SegmentInfo:
-        """Create a placeholder segment for unmatched pins on the given side.
-
-        Parameters
-        ----------
-        side : Side
-            Side to create the segment on.
-
-        Returns
-        -------
-        SegmentInfo
-            Newly created empty segment.
-        """
-        # Use tile_index=0 for single-tile fallback
         segment = SegmentInfo(
-            side=side,
+            side=side_choice,
             sort_mode=PinSortMode.BUS_MAJOR,
             min_distance=None,
             max_distance=None,
@@ -809,10 +702,10 @@ class PinPlacementPlan:
             pin_entries=[],
             tile_index=0,
         )
-        self.segments_by_side[side].append(segment)
+        self.segments_by_side[side_choice].append(segment)
         # Ensure this side has at least 1 tile count
-        if self.tile_counts_by_side[side] == 0:
-            self.tile_counts_by_side[side] = 1
+        if self.tile_counts_by_side[side_choice] == 0:
+            self.tile_counts_by_side[side_choice] = 1
         return segment
 
 
@@ -1023,16 +916,15 @@ def io_place(
     pin_tracks: dict[Side, list[list[float]]] = {side: [] for side in Side}
 
     for side in Side:
-        for segment_index, segment in enumerate(plan.segments(side)):
-            min_distance_value = segment.min_distance
-            if min_distance_value is None:
+        for segment_index, segment in enumerate(plan.segments_by_side[side]):
+            if segment.min_distance is None:
                 raise AssertionError("min_distance must be defined before placement")
-            min_distance = min_distance_value * micron_in_units
+            min_distance = segment.min_distance * micron_in_units
             max_distance = segment.max_distance
             if max_distance is not None:
                 max_distance = max_distance * micron_in_units
 
-            raw_tracks = plan.tracks_for_segment(side, segment_index)
+            raw_tracks = plan.track_coordinates[side][segment_index]
             step = step_by_side[side]
 
             stride = max(1, math.ceil(min_distance / step))
@@ -1071,11 +963,14 @@ def io_place(
 
             pin_tracks[side].append(filtered)
 
-    for segment in plan.all_segments():
-        segment.apply_reverse()
+    for side in Side:
+        for segment in plan.segments_by_side[side]:
+            # reverse pin order if requested
+            if segment.reverse_result:
+                segment.pin_entries.reverse()
 
     for side in Side:
-        for segment_index, segment in enumerate(plan.segments(side)):
+        for segment_index, segment in enumerate(plan.segments_by_side[side]):
             debug(
                 "Placing side=%s seg=%d pins=%d slots=%d",
                 side.value,
