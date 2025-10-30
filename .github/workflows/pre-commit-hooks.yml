@@ -17,4 +17,4 @@ jobs:
     - name: run pre-commit
       run: |
         uv run pre-commit install
-        uv run pre-commit run --show-diff-on-failure --color=always --all-files
+        SKIP=no-commit-to-branch uv run pre-commit run --show-diff-on-failure --color=always --all-files
