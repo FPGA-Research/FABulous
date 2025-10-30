@@ -1151,3 +1151,67 @@ def test_start_invalid_project() -> None:
         text=True,
     )
     assert result.returncode != 0
+
+
+def test_install_nix(
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    tmp_path: Path,
+) -> None:
+    """Test install-nix on unsupported NixOS platform."""
+    test_argv = ["FABulous", "install-nix"]
+
+    # Patch Path.home in the module under test so the FABulous code picks up the mocked home
+    mocker.patch("pathlib.Path.home", return_value=tmp_path)
+    mocker.patch("shutil.which", return_value=None)
+    mocker.patch("subprocess.run", return_value=run(["true"]))
+    monkeypatch.setattr(sys, "argv", test_argv)
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    config_path = tmp_path / ".config" / "nix" / "nix.conf"
+    assert config_path.exists()
+    assert len(config_path.read_text().split("\n")) == 3
+    assert exc_info.value.code == 0
+
+
+def test_install_nix_skip(
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+) -> None:
+    """Test install-nix when Nix is already installed."""
+    test_argv = ["FABulous", "install-nix"]
+
+    mocker.patch("shutil.which", return_value="nix")
+    monkeypatch.setattr(sys, "argv", test_argv)
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 0
+
+
+def test_install_nix_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    mocker: MockerFixture,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """Test install-nix when Nix is not installed."""
+    test_argv = ["FABulous", "install-nix"]
+
+    # Patch Path.home in the module under test so the FABulous code picks up the mocked home
+    mocker.patch("pathlib.Path.home", return_value=tmp_path)
+    mocker.patch("shutil.which", return_value=None)
+    mocker.patch("subprocess.run", return_value=run(["true"]))
+    monkeypatch.setattr(sys, "argv", test_argv)
+
+    config_path = tmp_path / ".config" / "nix" / "nix.conf"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text("already exists\n")
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert config_path.read_text() == "already exists\n"
+    assert capsys.readouterr().out.count("is not empty") == 1
+    assert exc_info.value.code == 0

@@ -306,6 +306,43 @@ def install_fabulator_cmd(
     logger.info(f"FABulator installed successfully at {directory}")
 
 
+@app.command("install-nix")
+def install_nix_cmd() -> None:
+    """Install Nix."""
+    import shutil
+    import subprocess
+
+    if which := shutil.which("nix"):
+        logger.info(f"Nix is already installed at {which}, skipping installation")
+        return
+
+    try:
+        subprocess.run(
+            "curl -L https://nixos.org/nix/install | sh", shell=True, check=True
+        )
+        logger.info("Nix installed successfully")
+        config_path = Path().home() / ".config" / "nix" / "nix.conf"
+        if (not config_path.exists()) or (
+            config_path.exists() and (config_path.stat().st_size == 0)
+        ):
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            config_path.write_text(
+                "extra-experimental-features = nix-command flakes\n"
+                "extra-substituters = https://nix-cache.fossi-foundation.org\n"
+                "extra-trusted-public-keys = nix-cache.fossi-foundation.org:"
+                "3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs="
+            )
+            logger.info("Nix binary cache configured successfully")
+        else:
+            logger.warning(
+                f"Nix config file {config_path} already exists and is not empty, "
+                "skipping binary cache configuration"
+            )
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to install Nix: {e}")
+        raise typer.Exit(1) from None
+
+
 @app.command("update-project-version")
 def update_project_version_cmd() -> None:
     """Update project version to match package version."""

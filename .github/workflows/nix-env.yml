@@ -1,0 +1,59 @@
+name: Nix environment CI
+
+on:
+  push:
+    paths:
+      - "flake.nix"
+      - "*.lock"
+      - "nix/**"
+      - ".github/workflows/nix-env.yml"
+  pull_request:
+    paths:
+      - "flake.nix"
+      - "*.lock"
+      - "nix/**"
+      - ".github/workflows/nix-env.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nix-smoke-test:
+    name: Smoke test (Nix ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, ubuntu-22.04]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@v34
+        with:
+          nix_version: "2.31.2"
+          nix_conf: |
+            substituters = https://cache.nixos.org https://nix-cache.fossi-foundation.org
+            extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
+
+      # - name: Enable magic Nix cache
+      #   uses: DeterminateSystems/magic-nix-cache-action@v8
+
+      - name: Print Nix version
+        run: nix --version
+
+      - name: Build default package (smoke)
+        run: nix build
+
+      - name: DevShell smoke test
+        run: |
+          nix develop --command bash -c "which FABulous"
+          nix develop --command bash -c "FABulous --version"
+          nix develop --command bash -c "which openroad"
+          nix develop --command bash -c "openroad -version"

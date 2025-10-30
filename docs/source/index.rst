@@ -44,3 +44,4 @@ Contents
     definitions
     contact
     publications
+    nix-env
