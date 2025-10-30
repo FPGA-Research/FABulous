@@ -312,9 +312,7 @@ def wrap_with_except_handling(fun_to_wrap: Callable) -> Callable:
             Reraises any exception caught during the execution of 'fun_to_wrap'.
         """
         try:
-            # Print the name of the function being wrapped (fallback to class name)
-            if not args:
-                args = ("",)
+            args = ("",) if not args else (" ".join(args),)
             fun_to_wrap(*args, **varargs)
         except Exception:  # noqa: BLE001 - Catching all exceptions is ok here
             import traceback
