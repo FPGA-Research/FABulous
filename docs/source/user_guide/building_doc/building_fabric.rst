@@ -3,7 +3,7 @@ Building fabric
 
 The user can run the flow step by step as well (see below for instructions on building HDLs):
 
-.. figure:: figs/FABulous_flow2.*
+.. figure:: ./figs/FABulous_flow2.png
         :width: 80%
         :align: center
 

@@ -60,6 +60,10 @@ extensions = [
     "sphinxcontrib.bibtex",
 ]
 
+myst_enable_extensions = [
+    "colon_fence",
+]
+
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
     "sphinx": ("https://www.sphinx-doc.org/en/master/", None),
@@ -202,9 +206,10 @@ def autoapi_skip_member(app, what, name, obj, skip, options):
     Attributes are documented in class docstrings; methods/functions are grouped via
     template.
     """
-    # Debug: Print what's being processed
-    if 'custom_exception' in str(obj):
-        print(f"DEBUG: Processing {what} {name} in custom_exception, skip={skip}")
+    # NOTE: Keep this in for future use
+    # # Debug: Print what's being processed
+    # if 'custom_exception' in str(obj):
+    #     print(f"DEBUG: Processing {what} {name} in custom_exception, skip={skip}")
 
     if what == 'attribute':
         return True
@@ -287,7 +292,7 @@ html_theme_options = {
 
     # Article layout
     "article_header_start": ["breadcrumbs"],
-    "article_footer_items": ["prev-next"],
+    "article_footer_items": [],
 
     # Secondary sidebar (enhanced)
     "secondary_sidebar_items": {
@@ -331,6 +336,6 @@ html_sidebars = {
 # -- Options for EPUB output
 epub_show_urls = "footnote"
 
-bibtex_bibfiles = ["publications.bib"]
+bibtex_bibfiles = ["misc/publications.bib"]
 copybutton_prompt_text = r"\$ |FABulous> |\(venv\)\$ "
 copybutton_prompt_is_regexp = True

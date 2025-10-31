@@ -1,5 +1,5 @@
 Publications
 ============
 
-.. bibliography:: publications.bib
+.. bibliography:: ./publications.bib
     :all:

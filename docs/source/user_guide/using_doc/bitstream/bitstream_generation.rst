@@ -1,5 +1,5 @@
-Bitstream generation
-====================
+FASM to Bitstream
+=================
 
 Generate Bitstream <-- Meta Data
 
