@@ -179,6 +179,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/cd/49/2d00e3518fcff0abc4c15207b1d14745420c6b4b4c7ece60d5c35717842e/cocotb_test-0.2.6.tar.gz", hash = "sha256:a4661948ca145eee6bccaf832174b5efb9f6d3420677157c04ade72bb2160692", size = 21254, upload-time = "2025-01-04T15:42:34.136Z" }
 
 [[package]]
+name = "cocotbext-uart"
+version = "0.1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cocotb" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0d/14/150453a9113885a93f8be7a4f21b89e8c67f91369e808d4e16ad8ec35869/cocotbext_uart-0.1.4.tar.gz", hash = "sha256:574643c82067be5e1dd6e2e830f46b8803c07fc1f27b7f75bf25066fd6d06798", size = 7948, upload-time = "2025-09-07T18:51:30.235Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/24/32/351045b5ac3feb65c3b54153a20ffb882a5445297572d67752ac755791c9/cocotbext_uart-0.1.4-py3-none-any.whl", hash = "sha256:be78f266449765a1cb7877a733f796bbfdbe492e7205051c4cc413e2e0c4727f", size = 6627, upload-time = "2025-09-07T18:51:14.381Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -282,6 +294,7 @@ dependencies = [
 dev = [
     { name = "cocotb" },
     { name = "cocotb-test" },
+    { name = "cocotbext-uart" },
     { name = "interrogate" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -313,6 +326,7 @@ requires-dist = [
 dev = [
     { name = "cocotb", specifier = ">=1.9.2" },
     { name = "cocotb-test", specifier = ">=0.2.6" },
+    { name = "cocotbext-uart", specifier = ">=0.1.4" },
     { name = "interrogate", specifier = ">=1.7.0" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pytest", specifier = ">=8.4.1" },
