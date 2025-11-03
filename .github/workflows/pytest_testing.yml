@@ -1,6 +1,20 @@
 name: Testing with pytest and cocotb
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - 'FABulous/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - '.github/workflows/pytest_testing.yml'
+      - '.github/actions/**'
+  pull_request:
+    paths:
+      - 'FABulous/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - '.github/workflows/pytest_testing.yml'
+      - '.github/actions/**'
 
 # copy and modified based on https://github.com/jerry-git/pytest-split/issues/20#issuecomment-2576031836
 
