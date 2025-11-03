@@ -31,7 +31,7 @@ class ExtractPDKInfo(Floorplan):
             Placement site height in database units
     """
 
-    id = "FABulous.ExtractPDKSite"
+    id = "FABulous.ExtractPDKInfo"
     name = "Extract PDK Site Dimensions"
     long_name = "Extract PDK Site Dimensions"
 
