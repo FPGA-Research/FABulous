@@ -1,6 +1,7 @@
 """FABulous GDS Generator - Tile to Macro Conversion Step."""
 
 from librelane.config.variable import Variable
+from librelane.logging.logger import warn
 from librelane.state.design_format import DesignFormat
 from librelane.state.state import State
 from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
@@ -31,6 +32,12 @@ class TileMarcoGen(Step):
             "before macro generation.",
             default=True,
         ),
+        Variable(
+            "FABULOUS_IGNORE_ERROR",
+            bool,
+            description="Whether to ignore errors during macro generation.",
+            default=True,
+        ),
     ]
 
     inputs = []
@@ -49,8 +56,19 @@ class TileMarcoGen(Step):
             flow = FABulousTileVerilogMarcoFlow(self.config, **kwargs)
         else:
             flow = FABulousTileVerilogMarcoFlowClassic(self.config, **kwargs)
-        final_state = flow.start(state_in)
-        metrics_updates.update({self.config["DESIGN_NAME"]: final_state.metrics})
+
+        try:
+            final_state = flow.start(state_in, _force_run_dir=self.step_dir)
+        except Exception as e:
+            if self.config["FABULOUS_IGNORE_ERRORS"]:
+                warn(
+                    f"Tile macro generation step failed with exception {e}, "
+                    "but continuing as FABULOUS_IGNORE_ERRORS is True."
+                )
+                final_state = state_in
+            else:
+                raise e from None
+        metrics_updates.update(final_state.metrics)
 
         for key in final_state:
             if (

@@ -24,7 +24,11 @@ class WhileStep(Step):
 
     max_iterations: int = 10
 
+    raise_on_failure: bool = True
+
     break_on_failure: bool = True
+
+    _current_iter_dir: Path | None = None
 
     def __init_subclass__(Self):  # noqa: ANN204, D105
         super().__init_subclass__()
@@ -84,6 +88,10 @@ class WhileStep(Step):
         """Modify the state after each iteration."""
         return post_iteration
 
+    def get_current_iteration_dir(self) -> Path | None:
+        """Get the current iteration directory, if any."""
+        return self._current_iter_dir
+
     def run(
         self,
         state_in: State,
@@ -110,11 +118,11 @@ class WhileStep(Step):
             for si, cStep in enumerate(self.Steps):
                 step = cStep(self.config, current_state)
                 try:
+                    self._current_iter_dir = Path(self.step_dir) / f"iter_{i}"
                     current_state = step.start(
                         toolbox=self.toolbox,
                         step_dir=str(
-                            Path(self.step_dir)
-                            / f"iter_{i}"
+                            self._current_iter_dir
                             / f"{si:0{ordinal_length}d}-{slugify(step.id)}"
                         ),
                         _no_rule=True,
@@ -122,11 +130,15 @@ class WhileStep(Step):
                     if self.mid_iteration_break(current_state, step):
                         break
                 except Exception as e:
-                    if self.break_on_failure:
+                    if self.raise_on_failure:
                         raise e from None
+                    if self.break_on_failure:
+                        break
+
                     warn(
                         f"Step {step.name} failed with exception {e}, "
-                        "but continuing as break_on_failure is False."
+                        "but continuing as both break_on_failure and "
+                        "break_on_raise is False."
                     )
             else:
                 full_iter_completed = True
