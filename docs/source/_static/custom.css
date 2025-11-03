@@ -1,0 +1,23 @@
+/* Make transparent image backgrounds white */
+
+/* Apply white background to all images in the content area */
+.content img {
+    background-color: white !important;
+}
+
+/* Also apply to figures */
+figure img {
+    background-color: white !important;
+}
+
+/* Apply to images in tables */
+table img {
+    background-color: white !important;
+}
+
+/* Ensure images in dark mode also have white backgrounds */
+[data-theme="dark"] .content img,
+[data-theme="dark"] figure img,
+[data-theme="dark"] table img {
+    background-color: white !important;
+}

@@ -303,7 +303,8 @@ html_theme_options = {
 }
 
 # -- Over-riding theme options
-# html_static_path = ["_static"]  # Removed - no custom static files
+html_static_path = ["_static"]
+html_css_files = ["custom.css"]
 
 # -- removing left side bar on pages that don't benefit
 html_sidebars = {
