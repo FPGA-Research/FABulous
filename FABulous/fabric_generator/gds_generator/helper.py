@@ -47,6 +47,18 @@ def get_pitch(config: Config) -> tuple[Decimal, Decimal]:
     return x_pitch, y_pitch
 
 
+def round_up_decimal(value: Decimal, pitch: Decimal) -> Decimal:
+    """Round up value to the next multiple of pitch."""
+    if pitch == 0:
+        return value
+    quotient = value // pitch
+
+    remainder = value % pitch
+    if remainder > 0:
+        quotient += 1
+    return quotient * pitch
+
+
 def round_die_area(config: Config) -> Config:
     """Round the DIE_AREA to multiples of the minimum pitch.
 
@@ -64,16 +76,6 @@ def round_die_area(config: Config) -> Config:
 
     # Round width (X) and height (Y) to the next multiple of the
     # respective minimum pitches using pure Decimal arithmetic
-    def round_up_decimal(value: Decimal, pitch: Decimal) -> Decimal:
-        """Round up value to the next multiple of pitch."""
-        if pitch == 0:
-            return value
-        quotient = value // pitch
-
-        remainder = value % pitch
-        if remainder > 0:
-            quotient += 1
-        return quotient * pitch
 
     mWidth = int(config["FABULOUS_TILE_LOGICAL_WIDTH"])
     mHeight = int(config["FABULOUS_TILE_LOGICAL_HEIGHT"])
