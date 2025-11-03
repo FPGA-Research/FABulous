@@ -58,6 +58,9 @@ extensions = [
 
     # Utility extensions
     "sphinxcontrib.bibtex",
+
+    # Dark mode support for Read the Docs theme
+    "sphinx_rtd_dark_mode",
 ]
 
 myst_enable_extensions = [
@@ -264,58 +267,43 @@ exclude_patterns = [
 
 # -- Options for HTML output
 
-html_theme = "pydata_sphinx_theme"
+html_theme = "sphinx_rtd_theme"
 
 html_logo = "figs/FABulouslogo_wide_2.png"
 
 html_theme_options = {
-    # Core navigation settings (scikit-learn exact configuration)
-    "sidebar_includehidden": True,
-    "navigation_depth": 2,           # Optimal depth (reduced from 4)
-    "show_nav_level": 1,            # Show only top level initially
-    "show_toc_level": 1,            # Consistent with nav level (reduced from 3)
-    "collapse_navigation": True,     # Enable expandable navigation sections
-    "navigation_with_keys": False,   # Disable keyboard navigation (scikit-learn style)
+    # Navigation settings
+    "collapse_navigation": False,     # Keep navigation expanded
+    "sticky_navigation": True,        # Keep navigation visible when scrolling
+    "navigation_depth": 4,            # Show up to 4 levels in navigation
+    "includehidden": True,            # Include hidden toctrees
+    "titles_only": False,             # Show all page sections in navigation
 
-    # Interface elements
-    "use_edit_page_button": False,
-    "show_prev_next": True,
-    "search_bar_text": "Search the docs ...",
-    "show_version_warning_banner": True,
+    # Display settings
+    "prev_next_buttons_location": "bottom",  # Navigation buttons at bottom
+    "style_nav_header_background": '#333399',
+    "style_external_links": False,    # Don't style external links differently
 
-    # Layout components (scikit-learn structure)
-    "navbar_align": "left",          # Changed from "content"
-    "navbar_start": ["navbar-logo"],
-    "navbar_center": ["navbar-nav"],
-    "navbar_end": ["theme-switcher", "navbar-icon-links"],
-    "navbar_persistent": ["search-button"],
-
-    # Article layout
-    "article_header_start": ["breadcrumbs"],
-    "article_footer_items": [],
-
-    # Secondary sidebar (enhanced)
-    "secondary_sidebar_items": {
-        "**": ["page-toc", "sourcelink"],
-        # Can add more specific page configs later
-    },
-
-    # Icon links (optional, like scikit-learn)
-    "icon_links": [
-        {
-            "name": "GitHub",
-            "url": "https://github.com/FABulous/FABulous",
-            "icon": "fa-brands fa-square-github",
-            "type": "fontawesome",
-        }
-    ],
+    # Version control
+    "vcs_pageview_mode": "blob",
 }
 
+# Context variables for templates
+html_context = {
+    "display_github": True,
+    "github_user": "FPGA-Research",
+    "github_repo": "FABulous",
+    "github_version": "main",
+    "conf_py_path": "/docs/source/",
+}
+
+# -- Dark mode configuration
+# Default to dark mode, with manual toggle available
+# Set to True for dark mode by default, False for light mode
+default_dark_mode = True
+
 # -- Over-riding theme options
-html_static_path = ["_static"]
-html_css_files = [
-    "custom.css",
-]
+# html_static_path = ["_static"]  # Removed - no custom static files
 
 # -- removing left side bar on pages that don't benefit
 html_sidebars = {
