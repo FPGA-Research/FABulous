@@ -72,6 +72,39 @@ var = [
         "Default is False.",
         default=False,
     ),
+    Variable(
+        "IGNORE_ANTENNA_VIOLATIONS",
+        bool,
+        "If True, antenna violations are ignored during tile optimisation. "
+        "Default is False.",
+        default=False,
+    ),
+    Variable(
+        "IGNORE_DEFAULT_DIE_AREA",
+        bool,
+        "If True, default die area is ignored and using instance area for "
+        "initial sizing. "
+        "Default is False.",
+        default=False,
+    ),
+    Variable(
+        "FABULOUS_IO_MIN_WIDTH",
+        Decimal,
+        "Minimum width required for IO pin spacing constraints. "
+        "This is the physical lower bound based on the number of IO pins "
+        "on the north/south edges and track pitch. "
+        "Default is 0 (no IO constraint).",
+        default=Decimal(0),
+    ),
+    Variable(
+        "FABULOUS_IO_MIN_HEIGHT",
+        Decimal,
+        "Minimum height required for IO pin spacing constraints. "
+        "This is the physical lower bound based on the number of IO pins "
+        "on the west/east edges and track pitch. "
+        "Default is 0 (no IO constraint).",
+        default=Decimal(0),
+    ),
 ]
 
 
@@ -112,6 +145,7 @@ class TileOptimisation(WhileStep):
         Odb.DiodesOnPorts,
         OpenROAD.RepairAntennas,
         OpenROAD.DetailedRouting,
+        AutoEcoDiodeInsertion,
         Odb.RemoveRoutingObstructions,
         OpenROAD.CheckAntennas,
         Checker.TrDRC,
@@ -250,6 +284,9 @@ class TileOptimisation(WhileStep):
         self.config = self.config.copy(
             ROUTING_OBSTRUCTIONS=get_routing_obstructions(self.config)
         )
+        if p := self.get_current_iteration_dir():
+            (p / "config.json").write_text(self.config.dumps())
+
         if p := self.get_current_iteration_dir():
             (p / "config.json").write_text(self.config.dumps())
 
