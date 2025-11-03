@@ -1,4 +1,5 @@
 """Tests for tile_io_place module."""
+# ruff: noqa: E402, SLF001, E501, F841
 
 import sys
 from typing import TYPE_CHECKING
