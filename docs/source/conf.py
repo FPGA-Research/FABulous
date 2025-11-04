@@ -1,32 +1,59 @@
 # Configuration file for the Sphinx documentation builder.
 
+import sys
+from pathlib import Path
+
 # -- Project information
 
 project = "FABulous: an Embedded FPGA Framework and CAD Tools"
 copyright = "2021, University of Manchester"
 author = "Jing, Nguyen, Bea, Bardia, Dirk"
 
-# Automated version management from git
+# Automated version management from installed package
 def get_version():
-    """Get version from git tags or fallback to default."""
+    """Get version from installed package, git tags, or commit ID."""
+    # Try to get version from the installed package
     try:
-        import subprocess
-        result = subprocess.run(['git', 'describe', '--tags', '--abbrev=0'],
-                              capture_output=True, text=True, cwd=Path(__file__).parent)
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except:
+        from importlib.metadata import version
+        return version("fabulous-fpga")
+    except Exception:
         pass
-    return "0.1.0"
+
+    repo_root = Path(__file__).parent.parent.parent
+
+    # Fallback: read git data directly from .git directory
+    try:
+        git_dir = repo_root / ".git"
+
+        # Get current commit hash
+        head_file = git_dir / "HEAD"
+        if head_file.exists():
+            head_content = head_file.read_text().strip()
+
+            # HEAD usually contains "ref: refs/heads/branch_name"
+            if head_content.startswith("ref: "):
+                ref_path = head_content[5:]  # Remove "ref: " prefix
+                commit_file = git_dir / ref_path
+                if commit_file.exists():
+                    commit_hash = commit_file.read_text().strip()[:7]
+                else:
+                    commit_hash = "unknown"
+            else:
+                # Detached HEAD - contains the commit hash directly
+                commit_hash = head_content[:7]
+
+            # No tags found, return dev version with commit hash
+            return f"dev-{commit_hash}"
+    except Exception:
+        pass
+
+    # Fallback to unknown version
+    return "unknown"
 
 version = get_version()
 release = version
 
 # -- General configuration
-
-import os
-import sys
-from pathlib import Path
 
 # Ensure the repository root is importable so `import FABulous.*` works as a
 # proper package (and doesn't get shadowed by FABulous.py).
