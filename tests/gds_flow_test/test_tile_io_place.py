@@ -6,6 +6,8 @@ import sys
 import pytest
 from pytest_mock import MockerFixture
 
+from FABulous.fabric_generator.gds_generator.script.odb_protocol import odbBTermLike
+
 # Mock external dependencies BEFORE importing the module under test
 from FABulous.fabric_definition.define import PinSortMode, Side
 from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
