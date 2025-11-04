@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Documentation build environment for FABulous FPGA"
 requires-python = ">=3.12"
 dependencies = [
+  # FABulous package (for API documentation)
+  "fabulous-fpga",
   # Sphinx core
   "Sphinx>=8.0.0",
   "docutils>=0.21.0",
