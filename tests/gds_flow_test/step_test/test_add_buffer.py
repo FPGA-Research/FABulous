@@ -17,15 +17,16 @@ class TestAddBuffers:
         self, mocker: MockerFixture, mock_config: Config, mock_state: State
     ) -> None:
         """Test run method uses RSZ_CORNERS when available."""
-        mock_config["RSZ_CORNERS"] = ["typical", "fast"]
+        mock_config = mock_config.copy(RSZ_CORNERS=["typical", "fast"])
 
         mock_run = mocker.patch(
             "FABulous.fabric_generator.gds_generator.steps.add_buffer.OpenROADStep.run",
             return_value=({}, {}),
         )
 
-        step = AddBuffers(mock_config)
+        step = AddBuffers(mock_config, mock_state)
         step.step_dir = "/tmp/test"
+        step.config = mock_config
 
         mocker.patch.object(step, "extract_env", return_value=({}, {}))
         step.run(mock_state)
@@ -38,16 +39,17 @@ class TestAddBuffers:
         self, mocker: MockerFixture, mock_config: Config, mock_state: State
     ) -> None:
         """Test run method falls back to STA_CORNERS when RSZ_CORNERS is None."""
-        mock_config["RSZ_CORNERS"] = None
-        mock_config["STA_CORNERS"] = ["typical"]
+        mock_config = mock_config.copy(RSZ_CORNERS=None)
+        mock_config = mock_config.copy(STA_CORNERS=["typical"])
 
         mock_run = mocker.patch(
             "FABulous.fabric_generator.gds_generator.steps.add_buffer.OpenROADStep.run",
             return_value=({}, {}),
         )
 
-        step = AddBuffers(mock_config)
+        step = AddBuffers(mock_config, mock_state)
         step.step_dir = "/tmp/test"
+        step.config = mock_config
 
         mocker.patch.object(step, "extract_env", return_value=({}, {}))
         step.run(mock_state)

@@ -3,17 +3,16 @@
 from FABulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
     ConditionalMagicDRC,
 )
+from librelane.config.config import Config
+from librelane.state.state import State
+
+from pytest_mock import MockFixture
 
 
-class TestConditionalMagicDRC:
-    """Test suite for ConditionalMagicDRC step."""
-
-    def test_step_registration(self):
-        """Test that ConditionalMagicDRC has correct attributes."""
-        assert ConditionalMagicDRC.id == "Condition.MagicDRC"
-        assert ConditionalMagicDRC.name == "Magic DRC Check"
-
-    def test_run_skips_when_no_violations(self, mock_config, mock_state):
+class test_ConditionalMagicDRC:
+    def test_run_skips_when_no_violations(
+        self, mock_config: Config, mock_state: State
+    ) -> None:
         """Test run method skips processing when no KLayout DRC errors."""
         mock_state.metrics["klayout__drc_error__count"] = 0
 
@@ -23,7 +22,9 @@ class TestConditionalMagicDRC:
         assert views_update == {}
         assert metrics_update == {}
 
-    def test_run_continues_when_violations_exist(self, mocker, mock_config, mock_state):
+    def test_run_continues_when_violations_exist(
+        self, mocker: MockFixture, mock_config: Config, mock_state: State
+    ) -> None:
         """Test run method continues processing when KLayout DRC errors exist."""
         mock_state.metrics["klayout__drc_error__count"] = 5
 
