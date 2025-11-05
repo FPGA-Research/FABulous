@@ -62,7 +62,7 @@ class AutoEcoDiodeInsertion(WhileStep):
         report_line = [i for i in report.splitlines() if i.strip()]
         entry_set = set()
         for line in report_line[3:-1]:
-            _, partial, required, net, pin, _ = [
+            _, partial, required, _, pin, _ = [
                 i.strip() for i in line.split("│") if i.strip()
             ]
             partial = float(partial)
@@ -127,6 +127,7 @@ class AutoEcoDiodeInsertion(WhileStep):
             (state.metrics["antenna__violating__nets"] > 1)
             or (state.metrics["antenna__violating__pins"] > 1)
         ):
+            print("test")
             raise RuntimeError("Antenna violations remain after auto-diode insertion.")
         return state
 
