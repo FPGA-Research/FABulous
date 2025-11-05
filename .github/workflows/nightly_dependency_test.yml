@@ -1,0 +1,150 @@
+name: Nightly Dependency Compatibility Test
+
+on:
+  schedule:
+    # Run every night at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  nightly_test:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/prepare_FABulous_container
+
+      # Override the locked installation with latest dependencies
+      - name: Reinstall FABulous with latest dependencies
+        run: |
+          # Upgrade lock file file to get latest compatible dependencies
+          uv lock --upgrade
+          uv sync --dev --all-extras
+          uv pip install -e .
+
+      - name: Capture installed dependency versions
+        run: |
+          echo "## Installed Dependency Versions" > dependency_versions.txt
+          echo "\`\`\`" >> dependency_versions.txt
+          uv pip list >> dependency_versions.txt
+          echo "\`\`\`" >> dependency_versions.txt
+
+      - name: Run pytest
+        id: pytest
+        continue-on-error: true
+        run: |
+          uv run pytest -v --runslow --tb=short 2>&1 | tee pytest_output.txt
+
+      - name: Check test results
+        id: check_results
+        run: |
+          if [ ${{ steps.pytest.outcome }} == 'failure' ]; then
+            echo "tests_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "tests_failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create issue on failure
+        if: steps.check_results.outputs.tests_failed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            // Read dependency versions
+            let depVersions = '';
+            try {
+              depVersions = fs.readFileSync('dependency_versions.txt', 'utf8');
+            } catch (error) {
+              depVersions = 'Could not read dependency versions';
+            }
+
+            // Read pytest output (last 5000 chars to avoid hitting size limits)
+            let pytestOutput = '';
+            try {
+              const fullOutput = fs.readFileSync('pytest_output.txt', 'utf8');
+              pytestOutput = fullOutput.slice(-5000);
+              if (fullOutput.length > 5000) {
+                pytestOutput = '... (truncated)\n\n' + pytestOutput;
+              }
+            } catch (error) {
+              pytestOutput = 'Could not read pytest output';
+            }
+
+            const date = new Date().toISOString().split('T')[0];
+            const title = `Nightly Dependency Test Failed - ${date}`;
+
+            const body = `## Nightly Dependency Compatibility Test Failed
+
+            The nightly test run with the latest compatible dependency versions has failed.
+
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ${depVersions}
+
+            ### Test Output (last 5000 characters)
+
+            <details>
+            <summary>Click to expand pytest output</summary>
+
+            \`\`\`
+            ${pytestOutput}
+            \`\`\`
+
+            </details>
+
+            ### Action Items
+
+            - [ ] Review the failing tests
+            - [ ] Determine if the failure is due to:
+              - Breaking changes in dependencies
+              - Incompatibilities with new dependency versions
+              - Actual bugs in FABulous
+            - [ ] Update dependency constraints in \`pyproject.toml\` if needed
+            - [ ] Update lock file with \`uv lock\` after fixing
+            - [ ] Close this issue once resolved
+
+            ---
+            *This issue was automatically created by the nightly dependency test workflow.*`;
+
+            // Check if there's already an open issue for today
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['nightly-test-failure'],
+              per_page: 100
+            });
+
+            const todayIssue = issues.data.find(issue => issue.title === title);
+
+            if (!todayIssue) {
+              // Create new issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['nightly-test-failure', 'dependencies', 'automated']
+              });
+              console.log('Created new issue for test failure');
+            } else {
+              console.log('Issue already exists for today, skipping creation');
+            }
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-test-results
+          path: |
+            pytest_output.txt
+            dependency_versions.txt
+          if-no-files-found: warn
