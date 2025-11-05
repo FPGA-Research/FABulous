@@ -11,9 +11,11 @@ description = "FABulous FPGA Fabric generator"
 readme = "README.md"
 requires-python = ">=3.12"
 dynamic = ["version"]
+license = {text = "Apache-2.0"}
 
 classifiers = [
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
   "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
 ]
@@ -54,11 +56,15 @@ local_scheme = "node-and-date"
 
 [tool.setuptools.packages.find]
 exclude = [
-  "docs, demo",
+  "docs",
+  "demo",
+  "tests",
+  "scripts",
+  "nix",
 ] # exclude packages matching these glob patterns (empty by default)
 
 [tool.setuptools.package-data]
-mypkg = ["FABulous/**/*"]
+FABulous = ["**/*"]
 
 [tool.interrogate]
 ignore-init-method = false
@@ -118,7 +124,7 @@ lint = "ruff check . --fix && pre-commit run --all-files"
 check = "ruff check ."
 qa = "task format && task check"
 
-# Documentation tasks  
+# Documentation tasks
 docs-setup = "cd docs && uv sync"
 docs-build = "cd docs && make clean && make html"
 docs-server = "cd docs && make clean && uv run --directory . make livehtml"
