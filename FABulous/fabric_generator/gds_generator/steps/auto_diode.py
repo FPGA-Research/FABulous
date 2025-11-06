@@ -127,7 +127,6 @@ class AutoEcoDiodeInsertion(WhileStep):
             (state.metrics["antenna__violating__nets"] > 1)
             or (state.metrics["antenna__violating__pins"] > 1)
         ):
-            print("test")
             raise RuntimeError("Antenna violations remain after auto-diode insertion.")
         return state
 
