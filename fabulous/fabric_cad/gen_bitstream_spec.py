@@ -10,13 +10,13 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_generator.parser.parse_configmem import parseConfigMem
-from FABulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
-from FABulous.FABulous_settings import get_context
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
+from fabulous.FABulous_settings import get_context
 
 if TYPE_CHECKING:
-    from FABulous.fabric_definition.ConfigMem import ConfigMem
+    from fabulous.fabric_definition.ConfigMem import ConfigMem
 
 
 def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:

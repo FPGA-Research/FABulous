@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 
-from FABulous.fabric_definition.define import Direction
+from fabulous.fabric_definition.define import Direction
 
 
 @dataclass(frozen=True, eq=True)

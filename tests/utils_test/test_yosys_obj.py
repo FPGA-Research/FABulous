@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 import pytest_mock
 
-from FABulous.custom_exception import InvalidFileType
-from FABulous.fabric_definition.Yosys_obj import YosysJson
+from fabulous.custom_exception import InvalidFileType
+from fabulous.fabric_definition.Yosys_obj import YosysJson
 
 
 def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:

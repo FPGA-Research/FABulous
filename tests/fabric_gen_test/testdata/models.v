@@ -1,5 +1,5 @@
 // Essential modules for ConfigMem RTL simulation
-// Extracted from FABulous fabric models
+// Extracted from fabulous fabric models
 
 `timescale 1ps/1ps
 

@@ -7,7 +7,7 @@ internals to external pins.
 
 from dataclasses import dataclass
 
-from FABulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO
 
 
 @dataclass

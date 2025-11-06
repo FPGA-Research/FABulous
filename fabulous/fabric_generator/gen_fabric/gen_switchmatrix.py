@@ -16,24 +16,24 @@ import math
 
 from loguru import logger
 
-from FABulous.custom_exception import InvalidFileType
-from FABulous.fabric_definition.define import (
+from fabulous.custom_exception import InvalidFileType
+from fabulous.fabric_definition.define import (
     IO,
     ConfigBitMode,
     Direction,
     MultiplexerStyle,
 )
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
-from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.Tile import Tile
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
-from FABulous.fabric_generator.gen_fabric.gen_helper import (
+from fabulous.fabric_generator.gen_fabric.gen_helper import (
     bootstrapSwitchMatrix,
     list2CSV,
 )
-from FABulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
 
 
 def genTileSwitchMatrix(

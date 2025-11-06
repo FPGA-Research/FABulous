@@ -4,8 +4,8 @@ import math
 import re
 from pathlib import Path
 
-from FABulous.fabric_definition.define import IO
-from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_definition.define import IO
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 
 
 class VerilogCodeGenerator(CodeGenerator):

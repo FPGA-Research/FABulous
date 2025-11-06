@@ -5,8 +5,8 @@ import re
 from pathlib import Path
 from typing import Never
 
-from FABulous.fabric_definition.define import IO
-from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_definition.define import IO
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 
 
 class VHDLCodeGenerator(CodeGenerator):

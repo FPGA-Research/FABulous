@@ -17,11 +17,11 @@ from typing import TYPE_CHECKING
 from cmd2 import Cmd, Cmd2ArgumentParser, with_argparser, with_category
 from loguru import logger
 
-from FABulous.custom_exception import CommandError
-from FABulous.FABulous_settings import get_context
+from fabulous.custom_exception import CommandError
+from fabulous.FABulous_settings import get_context
 
 if TYPE_CHECKING:
-    from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
+    from fabulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 
 CMD_USER_DESIGN_FLOW = "User Design Flow"
 HELP = """

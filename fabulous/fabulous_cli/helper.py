@@ -27,14 +27,14 @@ from dotenv import get_key, set_key
 from loguru import logger
 from packaging.version import Version
 
-from FABulous.custom_exception import PipelineCommandError
-from FABulous.fabric_definition.define import HDLType
-from FABulous.FABulous_settings import add_var_to_global_env
+from fabulous.custom_exception import PipelineCommandError
+from fabulous.fabric_definition.define import HDLType
+from fabulous.FABulous_settings import add_var_to_global_env
 
 if TYPE_CHECKING:
     from loguru import Record
 
-    from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
+    from fabulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 
 MAX_BITBYTES = 16384
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from FABulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO
 
 
 class CodeGenerator(abc.ABC):

@@ -14,10 +14,10 @@ import typer
 from loguru import logger
 from packaging.version import Version
 
-from FABulous.custom_exception import PipelineCommandError
-from FABulous.fabric_definition.define import HDLType
-from FABulous.FABulous_CLI import FABulous_CLI
-from FABulous.FABulous_CLI.helper import (
+from fabulous.custom_exception import PipelineCommandError
+from fabulous.fabric_definition.define import HDLType
+from fabulous.FABulous_CLI import FABulous_CLI
+from fabulous.FABulous_CLI.helper import (
     CommandPipeline,
     create_project,
     install_fabulator,
@@ -25,7 +25,7 @@ from FABulous.FABulous_CLI.helper import (
     setup_logger,
     update_project_version,
 )
-from FABulous.FABulous_settings import (
+from fabulous.FABulous_settings import (
     FAB_USER_CONFIG_DIR,
     get_context,
     init_context,

@@ -9,13 +9,13 @@ interfaces.
 import re
 from pathlib import Path
 
-from FABulous.fabric_definition.define import IO
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
-from FABulous.fabric_generator.code_generator.code_generator_Verilog import (
+from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
-from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
+from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
 

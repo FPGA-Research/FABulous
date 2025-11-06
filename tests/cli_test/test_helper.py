@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from FABulous.fabric_definition.define import HDLType
-from FABulous.FABulous_CLI.helper import create_project, update_project_version
+from fabulous.fabric_definition.define import HDLType
+from fabulous.FABulous_CLI.helper import create_project, update_project_version
 
 
 def test_create_project(tmp_path: Path) -> None:

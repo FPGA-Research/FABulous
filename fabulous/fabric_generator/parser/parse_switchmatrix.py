@@ -11,13 +11,13 @@ from typing import Literal, overload
 
 from loguru import logger
 
-from FABulous.custom_exception import (
+from fabulous.custom_exception import (
     InvalidListFileDefinition,
     InvalidPortType,
     InvalidSwitchMatrixDefinition,
 )
-from FABulous.fabric_definition.define import IO, Direction, Side
-from FABulous.fabric_definition.Port import Port
+from fabulous.fabric_definition.define import IO, Direction, Side
+from fabulous.fabric_definition.Port import Port
 
 oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST"}
 

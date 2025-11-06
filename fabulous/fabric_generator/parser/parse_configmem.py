@@ -16,7 +16,7 @@ import csv
 import re
 from pathlib import Path
 
-from FABulous.fabric_definition.ConfigMem import ConfigMem
+from fabulous.fabric_definition.ConfigMem import ConfigMem
 
 
 def parseConfigMem(
