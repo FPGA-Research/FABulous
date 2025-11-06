@@ -49,6 +49,8 @@ Discussions = "https://github.com/FPGA-Research/FABulous/discussions"
 
 [project.scripts]
 FABulous = "FABulous.FABulous:main"
+#alias for better usability
+fabulous = "FABulous.FABulous:main"
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
