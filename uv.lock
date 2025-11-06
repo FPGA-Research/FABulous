@@ -325,9 +325,9 @@ name = "fabulous-fpga"
 source = { editable = "." }
 dependencies = [
     { name = "bitarray" },
+    { name = "click" },
     { name = "cmd2" },
     { name = "fabulous-bit-gen" },
-    { name = "fasm" },
     { name = "gnureadline", marker = "sys_platform != 'win32'" },
     { name = "loguru" },
     { name = "packaging" },
@@ -335,6 +335,7 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyreadline3", marker = "sys_platform == 'win32'" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "requests" },
     { name = "typer" },
 ]
@@ -356,9 +357,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bitarray", specifier = ">=3.3.0" },
+    { name = "click", specifier = ">=8.0.0" },
     { name = "cmd2", specifier = ">=2" },
     { name = "fabulous-bit-gen", specifier = ">=0.1.0" },
-    { name = "fasm", specifier = ">=0.0.2" },
     { name = "gnureadline", marker = "sys_platform != 'win32'", specifier = ">=8.2.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "packaging", specifier = ">=25.0" },
@@ -366,6 +367,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pyreadline3", marker = "sys_platform == 'win32'", specifier = ">=3.4.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "requests", specifier = ">=2.0.0" },
     { name = "typer", specifier = ">=0.20.0" },
 ]
