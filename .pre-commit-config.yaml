@@ -30,6 +30,12 @@ repos:
         language: python
         args: [-vv, -c, pyproject.toml]
         pass_filenames: false # needed if excluding files with pyproject.toml or setup.cfg
+      - id: deptry
+        name: deptry
+        entry: deptry .
+        language: python
+        pass_filenames: false
+        always_run: true
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.5
     hooks:

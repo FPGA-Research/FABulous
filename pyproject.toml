@@ -85,6 +85,7 @@ exclude = ["setup.py", "docs", "build", ".venv", "demo/*", "tests"]
 [dependency-groups]
 dev = [
   "cocotb>=2.0.0",
+  "deptry>=0.20.0",
   "pre-commit>=4.2.0",
   "pytest>=8.4.1",
   "pytest-cov>=6.2.1",
@@ -157,3 +158,13 @@ clean-all = "find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null ||
 test = "uv run scripts/run_tests.py"
 
 project-upgrade = "uv lock --upgrade && nix flake update && task test"
+
+[tool.deptry]
+# Ignore platform-specific readline dependencies for DEP002 (defined but not used)
+# These are indirect requirements needed by cmd2 and other interactive CLI tools
+
+[tool.deptry.per_rule_ignores]
+DEP002 = ["pyreadline3", "gnureadline"]
+
+[tool.deptry.package_module_name_map]
+FABulous-bit-gen = "FABulous_bit_gen"
