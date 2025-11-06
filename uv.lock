@@ -196,23 +196,6 @@ wheels = [
 ]
 
 [[package]]
-name = "ciel"
-version = "2.3.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "click" },
-    { name = "httpx" },
-    { name = "pcpp" },
-    { name = "pyyaml" },
-    { name = "rich" },
-    { name = "zstandard" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f0/a6/3d8909ab112fbcf9a2303ea873eee4c987bfaf8d5e0001ba612b47ee5592/ciel-2.3.1.tar.gz", hash = "sha256:d0afd6b55238e69931e0bfb2cbd64d279ad2c112717355e6e2a296ea9b96671a", size = 26551, upload-time = "2025-10-08T10:25:32.654Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/96/00a24bed8107106cb5f0b17fe6f47807748ae5edc0b17e78a3c3a08b50fc/ciel-2.3.1-py3-none-any.whl", hash = "sha256:0c76f839b396aa945aafc7eb9518f4be32c718f2f8b99c9af2ca3878eb8f4426", size = 38603, upload-time = "2025-10-08T10:25:31.326Z" },
-]
-
-[[package]]
 name = "click"
 version = "8.1.8"
 source = { registry = "https://pypi.org/simple" }
@@ -405,18 +388,6 @@ wheels = [
 ]
 
 [[package]]
-name = "deprecated"
-version = "1.3.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "wrapt" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/49/85/12f0a49a7c4ffb70572b6c2ef13c90c88fd190debda93b23f026b25f9634/deprecated-1.3.1.tar.gz", hash = "sha256:b1b50e0ff0c1fddaa5708a2c6b0a6588bb09b892825ab2b214ac9ea9d92a5223", size = 2932523, upload-time = "2025-10-30T08:19:02.757Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/84/d0/205d54408c08b13550c733c4b85429e7ead111c7f0014309637425520a9a/deprecated-1.3.1-py2.py3-none-any.whl", hash = "sha256:597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f", size = 11298, upload-time = "2025-10-30T08:19:00.758Z" },
-]
-
-[[package]]
 name = "distlib"
 version = "0.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -481,6 +452,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.0.0" },
     { name = "cmd2", specifier = ">=2" },
     { name = "fabulous-bit-gen", specifier = ">=0.1.0" },
+    { name = "fasm", specifier = ">=0.0.2" },
     { name = "gnureadline", marker = "sys_platform != 'win32'", specifier = ">=8.2.0" },
     { name = "librelane", specifier = ">=3.0.0.dev43" },
     { name = "loguru", specifier = ">=0.7.0" },
@@ -1317,15 +1289,6 @@ wheels = [
 ]
 
 [[package]]
-name = "semver"
-version = "3.0.4"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/72/d1/d3159231aec234a59dd7d601e9dd9fe96f3afff15efd33c1070019b26132/semver-3.0.4.tar.gz", hash = "sha256:afc7d8c584a5ed0a11033af086e8af226a9c0b206f313e0301f8dd7b6b589602", size = 269730, upload-time = "2025-01-24T13:19:27.617Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a6/24/4d91e05817e92e3a61c8a21e08fd0f390f5301f1c448b137c57c4bc6e543/semver-3.0.4-py3-none-any.whl", hash = "sha256:9c824d87ba7f7ab4a1890799cec8596f15c1241cb473404ea1cb0c55e4b04746", size = 17912, upload-time = "2025-01-24T13:19:24.949Z" },
-]
-
-[[package]]
 name = "shellingham"
 version = "1.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1640,4 +1603,3 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/3a/43/241f9615bcf8ba8903b3f0432da069e857fc4fd1783bd26183db53c4804b/zstandard-0.25.0-cp314-cp314-win_amd64.whl", hash = "sha256:c19bcdd826e95671065f8692b5a4aa95c52dc7a02a4c5a0cac46deb879a017a2", size = 516118, upload-time = "2025-09-14T22:18:17.849Z" },
     { url = "https://files.pythonhosted.org/packages/f0/ef/da163ce2450ed4febf6467d77ccb4cd52c4c30ab45624bad26ca0a27260c/zstandard-0.25.0-cp314-cp314-win_arm64.whl", hash = "sha256:d7541afd73985c630bafcd6338d2518ae96060075f9463d7dc14cfb33514383d", size = 476940, upload-time = "2025-09-14T22:18:19.088Z" },
 ]
-
