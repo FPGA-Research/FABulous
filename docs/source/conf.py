@@ -274,6 +274,7 @@ suppress_warnings = [
     # improving templates. Patterns below cover common docutils emitters.
     'docutils',
     'ref.doc',
+        'autoapi.python_import_resolution',  # Ignore AutoAPI import resolution warnings
 ]
 
 # Note: ~60 duplicate warnings are expected from AutoAPI's handling of dataclass attributes
