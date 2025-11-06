@@ -24,7 +24,6 @@ classifiers = [
 dependencies = [
   'python-dotenv>=1.0.0',
   'loguru>=0.7.0',
-  'fasm>=0.0.2',
   'requests>=2.0.0',
   'cmd2>=2',
   'bitarray>=3.3.0',
@@ -33,6 +32,8 @@ dependencies = [
   "packaging>=25.0",
   "typer>=0.20.0",
   "FABulous-bit-gen>=0.1.0",
+  'PyYAML>=6.0.0',
+  'click>=8.0.0',
   # OS-aware readline dependencies
   'pyreadline3>=3.4.0; sys_platform == "win32"',
   'gnureadline>=8.2.0; sys_platform != "win32"',
