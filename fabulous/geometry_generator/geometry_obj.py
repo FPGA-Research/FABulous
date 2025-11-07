@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from FABulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO
 
 
 @dataclass

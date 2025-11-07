@@ -36,5 +36,4 @@ developer_guide/development
 gallery/index
 misc/contact
 misc/publications
-generated_doc/index
 ```

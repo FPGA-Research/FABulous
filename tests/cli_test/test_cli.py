@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
+from fabulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from tests.CLI_test.conftest import TILE
 from tests.conftest import (
     normalize_and_check_for_errors,

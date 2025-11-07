@@ -15,8 +15,8 @@ import typer
 from dotenv import set_key
 from pytest_mock import MockerFixture
 
-from FABulous.FABulous import main
-from FABulous.FABulous_settings import init_context, reset_context
+from fabulous.FABulous import main
+from fabulous.FABulous_settings import init_context, reset_context
 
 
 @pytest.mark.parametrize(
@@ -934,7 +934,7 @@ def test_subcommand_help(
 
 def test_version_callback() -> None:
     """Test version_callback function behavior"""
-    from FABulous.FABulous import version_callback
+    from fabulous.FABulous import version_callback
 
     # Test that version_callback raises typer.Exit when value is True
     with pytest.raises(typer.Exit):
@@ -946,7 +946,7 @@ def test_version_callback() -> None:
 
 def test_validate_project_directory_success(project: Path) -> None:
     """Test validate_project_directory with valid project"""
-    from FABulous.FABulous import validate_project_directory
+    from fabulous.FABulous import validate_project_directory
 
     result = validate_project_directory(str(project))
     assert result == project
@@ -954,7 +954,7 @@ def test_validate_project_directory_success(project: Path) -> None:
 
 def test_validate_project_directory_invalid(tmp_path: Path) -> None:
     """Test validate_project_directory with invalid project"""
-    from FABulous.FABulous import validate_project_directory
+    from fabulous.FABulous import validate_project_directory
 
     invalid_dir = tmp_path / "not_a_project"
     invalid_dir.mkdir()
@@ -981,8 +981,8 @@ def test_check_version_compatibility_cases(
 ) -> None:
     """Test version compatibility checking with different version scenarios"""
 
-    from FABulous.FABulous import check_version_compatibility
-    from FABulous.FABulous_settings import init_context, reset_context
+    from fabulous.FABulous import check_version_compatibility
+    from fabulous.FABulous_settings import init_context, reset_context
 
     reset_context()
 

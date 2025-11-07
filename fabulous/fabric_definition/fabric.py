@@ -8,16 +8,16 @@ fabric is the top-level container for all tiles, BELs, and routing resources.
 from collections.abc import Generator
 from dataclasses import dataclass, field
 
-from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.define import (
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import (
     ConfigBitMode,
     Direction,
     MultiplexerStyle,
     Side,
 )
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_definition.Wire import Wire
+from fabulous.fabric_definition.SuperTile import SuperTile
+from fabulous.fabric_definition.Tile import Tile
+from fabulous.fabric_definition.Wire import Wire
 
 
 @dataclass

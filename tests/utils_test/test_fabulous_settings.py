@@ -9,7 +9,7 @@ from packaging.version import Version
 from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
-from FABulous.FABulous_settings import (
+from fabulous.FABulous_settings import (
     FABulousSettings,
     get_context,
     init_context,
@@ -423,7 +423,7 @@ class TestContextMethods:
         settings = init_context(project_dir=project)
 
         # .env file should be loaded
-        assert settings.proj_lang == "system_verilog"  # From fabulous .env
+        assert settings.proj_lang == "system_verilog"  # from fabulous .env
 
     def test_init_context_missing_env_file_warning(
         self, project: Path, tmp_path: Path

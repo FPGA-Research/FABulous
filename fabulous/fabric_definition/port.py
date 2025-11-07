@@ -9,7 +9,7 @@ that describes the fabric architecture.
 
 from dataclasses import dataclass
 
-from FABulous.fabric_definition.define import IO, Direction, Side
+from fabulous.fabric_definition.define import IO, Direction, Side
 
 
 @dataclass(frozen=True, eq=True)

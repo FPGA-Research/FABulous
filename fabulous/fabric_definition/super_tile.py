@@ -8,9 +8,9 @@ functionalities into a single, reusable block.
 
 from dataclasses import dataclass, field
 
-from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.Port import Port
-from FABulous.fabric_definition.Tile import Tile
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.Port import Port
+from fabulous.fabric_definition.Tile import Tile
 
 
 @dataclass

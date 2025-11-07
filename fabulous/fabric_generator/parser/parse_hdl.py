@@ -3,13 +3,13 @@
 import re
 from pathlib import Path
 
-from FABulous.custom_exception import (
+from fabulous.custom_exception import (
     FabricParsingError,
     InvalidBelDefinition,
 )
-from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.define import IO, FABulousAttribute
-from FABulous.fabric_definition.Yosys_obj import YosysJson, YosysModule
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import IO, FABulousAttribute
+from fabulous.fabric_definition.Yosys_obj import YosysJson, YosysModule
 
 
 def belMapProcessing(module_info: YosysModule) -> dict:

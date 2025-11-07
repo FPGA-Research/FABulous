@@ -9,14 +9,14 @@ for longer-distance connections.
 from csv import writer as csvWriter
 from dataclasses import dataclass, field
 
-from FABulous.custom_exception import InvalidPortType
-from FABulous.fabric_definition.define import Direction, Side
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.geometry_generator.bel_geometry import BelGeometry
-from FABulous.geometry_generator.geometry_obj import Border, Location
-from FABulous.geometry_generator.port_geometry import PortGeometry
-from FABulous.geometry_generator.sm_geometry import SmGeometry
-from FABulous.geometry_generator.wire_geometry import (
+from fabulous.custom_exception import InvalidPortType
+from fabulous.fabric_definition.define import Direction, Side
+from fabulous.fabric_definition.Tile import Tile
+from fabulous.geometry_generator.bel_geometry import BelGeometry
+from fabulous.geometry_generator.geometry_obj import Border, Location
+from fabulous.geometry_generator.port_geometry import PortGeometry
+from fabulous.geometry_generator.sm_geometry import SmGeometry
+from fabulous.geometry_generator.wire_geometry import (
     StairWires,
     WireConstraints,
     WireGeometry,

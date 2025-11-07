@@ -9,9 +9,9 @@ from pathlib import Path
 
 from loguru import logger
 
-from FABulous.custom_exception import InvalidFileType
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_generator.parser.parse_hdl import parseBelFile
+from fabulous.custom_exception import InvalidFileType
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 
 
 def generateUserDesignTopWrapper(

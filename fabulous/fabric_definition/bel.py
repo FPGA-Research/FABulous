@@ -9,7 +9,7 @@ such as LUTs, flip-flops, and other logic elements.
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from FABulous.fabric_definition.define import IO, HDLType
+from fabulous.fabric_definition.define import IO, HDLType
 
 
 @dataclass
