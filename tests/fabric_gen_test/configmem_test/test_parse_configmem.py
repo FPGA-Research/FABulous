@@ -11,7 +11,7 @@ from typing import NamedTuple
 
 import pytest
 
-from FABulous.fabric_generator.parser.parse_configmem import parseConfigMem
+from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
 from tests.fabric_gen_test.conftest import create_config_csv
 
 

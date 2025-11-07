@@ -11,9 +11,9 @@ from typing import Any, NamedTuple
 import pytest
 from loguru import logger
 
-from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
-from FABulous.FABulous_CLI.helper import setup_logger
-from FABulous.FABulous_settings import init_context
+from fabulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
+from fabulous.FABulous_CLI.helper import setup_logger
+from fabulous.FABulous_settings import init_context
 from tests.conftest import normalize, run_cmd
 
 

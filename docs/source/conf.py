@@ -80,7 +80,7 @@ extensions = [
     "sphinx_design",  # Modern UI components
     "sphinxext.opengraph",  # Social media cards
     "sphinx_copybutton",  # Copy code button
-    "sphinx_remove_toctrees",  # Clean up AutoAPI navigation noise
+    # "sphinx_remove_toctrees",  # Clean up AutoAPI navigation noise
     "sphinx_prompt",
 
     # Utility extensions
@@ -217,8 +217,7 @@ ogp_social_cards = {
 
 # -- AutoAPI Configuration (Modern replacement for autosummary)
 autoapi_type = 'python'
-autoapi_dirs = ['../../FABulous']  # Path to source code
-autoapi_root = 'generated_doc'  # Directory name for generated docs (consistent with existing setup)
+autoapi_dirs = ['../../fabulous']  # Path to source codeautoapi_root = 'generated_doc'  # Directory name for generated docs (consistent with existing setup)
 autoapi_keep_files = True  # Keep generated .rst files for debugging
 autoapi_generate_api_docs = True
 autoapi_template_dir = '_templates/autoapi'
@@ -267,14 +266,11 @@ def setup(app):
 suppress_warnings = [
     # These are genuinely noisy and don't indicate real issues
     'app.add_node',  # Extension internal warnings
-    'ref.class',  # Missing type references that can't be resolved
-    'ref.exc',    # Missing exception references
-    'ref.obj',    # Missing exception references
-    # TODO(doc): Temporary suppression for docutils-origin warnings coming from
-    # generated .rst/docstrings. Remove after cleaning docstrings and
-    # improving templates. Patterns below cover common docutils emitters.
-    'docutils',
-    'ref.doc',
+        # NOTE: AutoAPI doc warnings intentionally left visible for debugging
+        # Maintainer note: AutoAPI warnings (docutils/ref.doc/etc.) are now visible again
+        # to improve doc completeness and debugging visibility.
+
+
 ]
 
 # Note: ~60 duplicate warnings are expected from AutoAPI's handling of dataclass attributes

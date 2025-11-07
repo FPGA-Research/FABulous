@@ -9,5 +9,5 @@ This section contains the complete software documentation for FABulous.
    :titlesonly:
    :glob:
 
-   FABulous/index
-   FABulous/**/index
+   fabulous/index
+   fabulous/**/index

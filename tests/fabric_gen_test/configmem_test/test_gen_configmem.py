@@ -10,11 +10,11 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from FABulous.fabric_definition.ConfigMem import ConfigMem
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
-from FABulous.fabric_generator.gen_fabric.gen_configmem import (
+from fabulous.fabric_definition.ConfigMem import ConfigMem
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.Tile import Tile
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     generateConfigMem,
     generateConfigMemInit,
 )
