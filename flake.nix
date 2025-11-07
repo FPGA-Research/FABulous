@@ -151,8 +151,10 @@
 
           # Combine all packages: librelane tools (with patched OpenROAD) + our custom tools + uv2nix env
           # Note: We only include virtualenv for Python, not librelane-env, to avoid collisions
-          # Filter custom tools and librelane tools by meta.platforms so only those that support the current system are included
-          systemSupported = tool: (tool ? meta) && (tool.meta ? platforms) && (builtins.elem system tool.meta.platforms);
+          # Filter by platform support: include if no platforms specified or current system matches
+          systemSupported = tool:
+            let platforms = tool.meta.platforms or [];
+            in platforms == [] || (builtins.elem system platforms);
 
           allPackages =
             [
