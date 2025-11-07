@@ -124,7 +124,7 @@ class FABulousTileVerilogMarcoFlowClassic(SequentialFlow):
         if (
             "ROUTING_OBSTRUCTIONS" not in self.config
             or self.config["ROUTING_OBSTRUCTIONS"] is None
-        ):
+        ) and self.config["ROUTING_OBSTRUCTIONS"] is not False:
             self.config = self.config.copy(
                 ROUTING_OBSTRUCTIONS=get_routing_obstructions(self.config)
             )
@@ -152,7 +152,7 @@ class FABulousTileVHDLMarcoFlowClassic(SequentialFlow):
         if (
             "ROUTING_OBSTRUCTIONS" not in self.config
             or self.config["ROUTING_OBSTRUCTIONS"] is None
-        ):
+        ) and self.config["ROUTING_OBSTRUCTIONS"] is not False:
             self.config = self.config.copy(
                 ROUTING_OBSTRUCTIONS=get_routing_obstructions(self.config)
             )
