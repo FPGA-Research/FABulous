@@ -187,7 +187,6 @@ class SegmentInfo:
 
             anchored = f"^{pattern}$"
             matched_terms = [b for b in bterms if re.match(anchored, b.getName())]
-
             if not matched_terms:
                 unmatched_regexes.add(pattern)
                 continue
@@ -385,23 +384,22 @@ class PinPlacementPlan:
                 neighbor_exists = (x + dx, y + dy) in tiles
 
                 value = None
-                if side.value in tile_config:
-                    value = tile_config[side.value]
-
+                if side.name in tile_config:
+                    value = tile_config[side.name]
                 if value is None:
                     segments = []
                 else:
                     if not isinstance(value, list):
                         raise TypeError(
                             "Segments for tile X"
-                            f"{x}Y{y} side {side.value} must be provided as a list"
+                            f"{x}Y{y} side {side.name} must be provided as a list"
                         )  # Raise TypeError if segments are not a list
                     segments = value
 
                 if neighbor_exists:
                     if segments:
                         raise ValueError(
-                            f"Tile X{x}Y{y} side {side.value} is not on the boundary; "
+                            f"Tile X{x}Y{y} side {side.name} is not on the boundary; "
                             "remove its configuration."
                         )
                     continue
