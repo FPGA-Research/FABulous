@@ -99,3 +99,13 @@ class SuperTile:
                 ):
                     internalConnections.append((tile.getWestSidePorts(), x, y))
         return internalConnections
+
+    @property
+    def max_width(self) -> int:
+        """Return the maximum width of the supertile."""
+        return max(len(i) for i in self.tileMap)
+
+    @property
+    def max_height(self) -> int:
+        """Return the maximum height of the supertile."""
+        return len(self.tileMap)

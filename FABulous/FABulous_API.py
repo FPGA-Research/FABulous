@@ -539,8 +539,8 @@ class FABulous_API:
             final_config_args["FABULOUS_TILE_LOGICAL_WIDTH"] = 1
             final_config_args["FABULOUS_TILE_LOGICAL_HEIGHT"] = 1
         elif isinstance(tile, SuperTile):
-            final_config_args["FABULOUS_TILE_LOGICAL_WIDTH"] = tile.maxWidth()
-            final_config_args["FABULOUS_TILE_LOGICAL_HEIGHT"] = tile.maxHeight()
+            final_config_args["FABULOUS_TILE_LOGICAL_WIDTH"] = tile.max_width
+            final_config_args["FABULOUS_TILE_LOGICAL_HEIGHT"] = tile.max_height
         else:
             raise TypeError(f"Tile {tile_dir.name} not found in fabric.")
 
@@ -616,10 +616,6 @@ class FABulous_API:
         """
         if pdk_root is None:
             pdk_root = get_context().pdk_root
-            if pdk_root is None:
-                raise ValueError(
-                    "PDK root must be specified either here or in settings."
-                )
         if pdk is None:
             pdk = get_context().pdk
             if pdk is None:
@@ -686,6 +682,7 @@ class FABulous_API:
                     yaml.safe_load(config_override.read_text(encoding="utf-8"))
                 )
 
+        print(final_config_args)
         flow = FABulousFabricMacroFlow(
             final_config_args,
             name=self.fabric.name,

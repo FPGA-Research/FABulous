@@ -95,6 +95,9 @@ class FABulousFabricMacroFlow(Classic):
     ) -> tuple[list[Decimal], list[Decimal]]:
         """Compute row heights and column widths in a single pass.
 
+        Considers both regular tiles and supertiles when computing dimensions.
+        Also builds back-references from non-anchor subtiles to their anchor.
+
         Parameters
         ----------
         fabric : Fabric
@@ -113,16 +116,56 @@ class FABulousFabricMacroFlow(Classic):
         row_heights_map: dict[int, Decimal] = {}
         col_widths_map: dict[int, Decimal] = {}
 
+        # Build supertile anchor map for quick lookup and back-references
+        supertile_anchors: dict[str, str] = {}
+        subtile_to_anchor: dict[str, str] = {}
+        for supertile_name, supertile in fabric.superTileDic.items():
+            anchor = supertile.tileMap[-1][0]
+            supertile_anchors[anchor.name] = supertile_name
+            # Create back-references from all subtiles to their anchor
+            for tile in supertile.tiles:
+                subtile_to_anchor[tile.name] = anchor.name
+
         # Single pass through the grid; capture the first non-null in each row/col
-        for y in range(rows):
-            for x in range(cols):
-                t = fabric.tile[y][x]
-                if t is None:
-                    continue
-                if y not in row_heights_map:
-                    row_heights_map[y] = tile_sizes[t.name][1]
-                if x not in col_widths_map:
-                    col_widths_map[x] = tile_sizes[t.name][0]
+        for (x, y), tile in fabric:
+            if tile is None:
+                continue
+
+            # Check if this tile is a supertile anchor
+            tile_key = tile.name
+            if tile_key in supertile_anchors:
+                supertile_name = supertile_anchors[tile_key]
+                supertile = fabric.superTileDic[supertile_name]
+                width, height = tile_sizes[supertile_name]
+                num_rows_spanned = len(supertile.tileMap)
+                num_cols_spanned = len(supertile.tileMap[0]) if supertile.tileMap else 1
+            elif tile_key in subtile_to_anchor:
+                # This is a non-anchor subtile, skip it but process only when we hit the anchor
+                continue
+            else:
+                width, height = tile_sizes[tile.name]
+                num_rows_spanned = 1
+                num_cols_spanned = 1
+
+            # Record column widths for all columns spanned by this tile/supertile
+            for col_offset in range(num_cols_spanned):
+                col_idx = x + col_offset
+                if col_idx not in col_widths_map:
+                    col_widths_map[col_idx] = width / num_cols_spanned
+                else:
+                    expected_width = width / num_cols_spanned
+                    if col_widths_map[col_idx] != expected_width:
+                        raise ValueError(f"Non-uniform tile widths in column {col_idx}")
+
+            # Record row heights for all rows spanned by this tile/supertile
+            for row_offset in range(num_rows_spanned):
+                row_idx = y + row_offset
+                if row_idx not in row_heights_map:
+                    row_heights_map[row_idx] = height / num_rows_spanned
+                else:
+                    expected_height = height / num_rows_spanned
+                    if row_heights_map[row_idx] != expected_height:
+                        raise ValueError(f"Non-uniform tile heights in row {row_idx}")
 
         # Build ordered lists and validate completeness
         row_heights: list[Decimal] = []
@@ -264,17 +307,20 @@ class FABulousFabricMacroFlow(Classic):
 
     def _validate_tile_sizes(
         self,
+        fabric: Fabric,
         tile_sizes: dict[str, tuple[Decimal, Decimal]],
         pitch_x: Decimal,
         pitch_y: Decimal,
     ) -> bool:
-        """Validate that all tile sizes are aligned to the routing pitch grid.
+        """Validate tile and supertile sizes are aligned to the routing pitch grid.
 
         This checks that each tile's width is a multiple of min_pitch_x and
-        each tile's height is a multiple of min_pitch_y.
+        each tile's height is a multiple of min_pitch_y. Also validates supertiles.
 
         Parameters
         ----------
+        fabric : Fabric
+            The fabric object with supertile information.
         tile_sizes : dict[str, tuple[Decimal, Decimal]]
             Dictionary mapping tile names to their sizes (width, height).
         pitch_x : Decimal
@@ -326,41 +372,37 @@ class FABulousFabricMacroFlow(Classic):
                     f"(remainder: {height_remainder})"
                 )
 
-        # Additional check: ensure widths/heights are integer multiples of the
-        # smallest corresponding dimension.
-        if widths:
-            min_width = min(widths)
-            if min_width == 0:
-                tile_size_errors.append(
-                    "Tile has zero width; cannot validate multiples"
-                )
-            else:
-                for tile_name, (width, _) in tile_sizes.items():
-                    width_dec = Decimal(str(width))
-                    # Compute ratio and check it's an integer within tolerance
-                    ratio = width_dec / min_width
-                    # Use to_integral_value to check integer-ness
-                    if ratio != ratio.to_integral_value():
-                        tile_size_errors.append(
-                            f"{tile_name}: width {width_dec} is not an integer "
-                            f"multiple of smallest width {min_width} (ratio: {ratio})"
-                        )
+        # Also validate supertiles
+        for supertile_name, _ in fabric.superTileDic.items():
+            if supertile_name not in tile_sizes:
+                continue
 
-        if heights:
-            min_height = min(heights)
-            if min_height == 0:
-                tile_size_errors.append(
-                    "Tile has zero height; cannot validate multiples"
-                )
+            width, height = tile_sizes[supertile_name]
+            width_dec = Decimal(str(width))
+            height_dec = Decimal(str(height))
+
+            if pitch_x != 0:
+                width_remainder = str(round(width_dec / pitch_x, 2))[-2:]
             else:
-                for tile_name, (_, height) in tile_sizes.items():
-                    height_dec = Decimal(str(height))
-                    ratio = height_dec / min_height
-                    if ratio != ratio.to_integral_value():
-                        tile_size_errors.append(
-                            f"{tile_name}: height {height_dec} is not an integer "
-                            f"multiple of smallest height {min_height} (ratio: {ratio})"
-                        )
+                width_remainder = "00"
+
+            if pitch_y != 0:
+                height_remainder = str(round(height_dec / pitch_y, 2))[-2:]
+            else:
+                height_remainder = "00"
+
+            if width_remainder != "00":
+                tile_size_errors.append(
+                    f"{supertile_name} (supertile): "
+                    f"width {width_dec} not aligned to {pitch_x} "
+                    f"(remainder: {width_remainder})"
+                )
+            if height_remainder != "00":
+                tile_size_errors.append(
+                    f"{supertile_name} (supertile): "
+                    f"height {height_dec} not aligned to {pitch_y} "
+                    f"(remainder: {height_remainder})"
+                )
 
         if tile_size_errors:
             err("Tile sizes validation failed:")
@@ -425,7 +467,7 @@ class FABulousFabricMacroFlow(Classic):
 
         # Validate that all tile sizes are pitch-aligned
         info("Validating tile sizes are aligned to pitch grid...")
-        self._validate_tile_sizes(tile_sizes, pitch_x, pitch_y)
+        self._validate_tile_sizes(fabric, tile_sizes, pitch_x, pitch_y)
 
         # Use rounded left/bottom and original right/top for initial calculation
         halo_spacing = (halo_left, halo_bottom, halo_right, halo_top)
