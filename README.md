@@ -264,7 +264,6 @@ For comprehensive development information including environment setup, coding st
 - Use [uv](https://github.com/astral-sh/uv) for development environment setup
 - Follow [Ruff](https://docs.astral.sh/ruff/) formatting and linting standards
 - Use [conventional commits](https://www.conventionalcommits.org/) for commit messages
-- Target the `FABulous2.0-development` branch for pull requests
 - Ensure all tests pass and CI checks succeed
 
 **Quick Setup:**

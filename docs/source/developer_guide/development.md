@@ -57,7 +57,7 @@ You can either:
 
 - Use `uv run <command>` for each command (recommended for reproducibility)
 - Activate the environment with `source .venv/bin/activate` and run commands directly
-:::
+  :::
 
 Common development commands:
 
@@ -244,10 +244,10 @@ We follow a standard Git workflow for contributions. Please ensure you're famili
 
 ### Getting Started
 
-1. Check the [issues](https://github.com/FPGA-Research-Manchester/FABulous/issues) and [FABulous development branch](https://github.com/FPGA-Research/FABulous/tree/FABulous2.0-development) to see if your feature or bug fix has already been reported or implemented.
+1. Check the [issues](https://github.com/FPGA-Research-Manchester/FABulous/issues) and the latest commits at the [FABulous main branch](https://github.com/FPGA-Research/FABulous) to see if your feature or bug fix has already been reported or implemented.
 2. Fork the repository on GitHub.
 3. Clone your forked repository to your local machine.
-4. If you are not already on the `FABulous2.0-development` branch, switch to it to use it as base for your work.
+4. Use the latest version of the `main` branch as base for your work.
 
 ### Making Changes
 
@@ -277,7 +277,7 @@ We follow a standard Git workflow for contributions. Please ensure you're famili
 
 2. Submit a pull request to the main repository.
 
-3. Ensure your pull request targets the `FABulous2.0-development` branch of the original repository.
+3. Ensure your pull request targets the `main` branch of the original repository.
 
 4. Check that your pull request passes all CI checks. If it does not, please fix the issues first.
 
