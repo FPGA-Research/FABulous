@@ -4,6 +4,7 @@ This module provides the main entry point for the FABulous FPGA framework comman
 interface. It handles argument parsing, project setup, and CLI initialization.
 """
 
+import platform
 import sys
 from importlib.metadata import version
 from pathlib import Path
@@ -523,6 +524,19 @@ def run_cmd(
 
 def main() -> None:
     """Entry point for the application."""
+    # Check if running on native Windows (not WSL)
+    if platform.system() == "Windows":
+        logger.error(
+            "FABulous is not officially supported on native Windows. "
+            "You are using it at your own risk - errors may occur.\n"
+            "For the best experience on Windows-based system, "
+            "please use Windows Subsystem for Linux (WSL).\n"
+            "For more information, visit: "
+            "https://docs.microsoft.com/en-us/windows/wsl/install"
+            "For all FABulous installation options, see:"
+            "https://fabulous.readthedocs.io/en/latest/getting_started/installation/index.html"
+        )
+
     try:
         if len(sys.argv) == 1:
             app()
