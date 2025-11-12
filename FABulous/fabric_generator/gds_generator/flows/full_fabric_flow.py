@@ -138,9 +138,9 @@ def _run_tile_flow_worker(
 class DillProcessPoolExecutor(ProcessPoolExecutor):
     """ProcessPoolExecutor that uses dill for serialization.
 
-    This executor patches both the main process and worker processes to use
-    dill instead of pickle, allowing serialization of thread locks and other
-    complex objects that standard pickle cannot handle.
+    This executor patches both the main process and worker processes to use dill instead
+    of pickle, allowing serialization of thread locks and other complex objects that
+    standard pickle cannot handle.
     """
 
     def __init__(self, *args, **kwargs):
