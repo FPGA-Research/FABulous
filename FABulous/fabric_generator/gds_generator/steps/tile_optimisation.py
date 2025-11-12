@@ -5,7 +5,6 @@ from enum import StrEnum
 from typing import cast
 
 from librelane.config.variable import Variable
-from librelane.flows.flow import FlowException
 from librelane.logging.logger import info
 from librelane.state.design_format import DesignFormat
 from librelane.state.state import State
@@ -71,32 +70,6 @@ var = [
         "If True, antenna violations are ignored during tile optimisation. "
         "Default is False.",
         default=False,
-    ),
-    Variable(
-        "IGNORE_DEFAULT_DIE_AREA",
-        bool,
-        "If True, default die area is ignored and using instance area for "
-        "initial sizing. "
-        "Default is False.",
-        default=False,
-    ),
-    Variable(
-        "FABULOUS_IO_MIN_WIDTH",
-        Decimal,
-        "Minimum width required for IO pin spacing constraints. "
-        "This is the physical lower bound based on the number of IO pins "
-        "on the north/south edges and track pitch. "
-        "Default is 0 (no IO constraint).",
-        default=Decimal(0),
-    ),
-    Variable(
-        "FABULOUS_IO_MIN_HEIGHT",
-        Decimal,
-        "Minimum height required for IO pin spacing constraints. "
-        "This is the physical lower bound based on the number of IO pins "
-        "on the west/east edges and track pitch. "
-        "Default is 0 (no IO constraint).",
-        default=Decimal(0),
     ),
 ]
 
@@ -226,7 +199,9 @@ class TileOptimisation(WhileStep):
         width_step = site_width * width_step_count
         height_step = site_height * height_step_count
 
-        instance_area = Decimal(pre_iteration.metrics.get("design__instance__area", 0))
+        instance_area = Decimal(
+            pre_iteration.metrics.get("design__instance__area_stdcell", 0)
+        )
         new_height: Decimal
         new_width: Decimal
 
@@ -270,14 +245,6 @@ class TileOptimisation(WhileStep):
                     f"Unknown FABULOUS_OPT_MODE: {self.config['FABULOUS_OPT_MODE']}"
                 )
 
-        new_width = max(
-            new_width, self.config["FABULOUS_IO_MIN_WIDTH"], site_width * 10
-        )
-
-        new_height = max(
-            new_height, self.config["FABULOUS_IO_MIN_HEIGHT"], site_height * 10
-        )
-
         die_area = (
             Decimal(0),
             Decimal(0),
@@ -319,26 +286,6 @@ class TileOptimisation(WhileStep):
         if self.config["IGNORE_ANTENNA_VIOLATIONS"]:
             info("Ignoring antenna violations during tile optimisation.")
             self.config = self.config.copy(ERROR_ON_TR_DRC=False)
-        if self.config["FABULOUS_OPT_MODE"] != OptMode.NO_OPT:
-            min_width, min_height = self.config[""]
-            if not (i := self.config.get("FABULOUS_IO_MIN_HEIGHT")) or (i < 0):
-                
-            if not (i := self.config.get("FABULOUS_IO_MIN_WIDTH")) or (i < 0):
-                raise FlowException(
-                    "FABULOUS_IO_MIN_WIDTH must be set to a positive value when "
-                    "when you are trying to do optimisation."
-                )
-
-            info("Using instance area for initial die area sizing.")
-            self.config = self.config.copy(
-                DIE_AREA=(
-                    Decimal(0),
-                    Decimal(0),
-                    Decimal(0),
-                    Decimal(0),
-                )
-            )
-
-        else:
+        if self.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT:
             self.max_iterations = 1
         return super().run(state_in, **_kwargs)

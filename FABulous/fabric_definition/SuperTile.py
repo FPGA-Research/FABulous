@@ -8,6 +8,7 @@ functionalities into a single, reusable block.
 
 from dataclasses import dataclass, field
 from decimal import Decimal
+from pathlib import Path
 
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.Port import Port
@@ -33,6 +34,7 @@ class SuperTile:
     """
 
     name: str
+    tileDir: Path
     tiles: list[Tile]
     tileMap: list[list[Tile]]
     bels: list[Bel] = field(default_factory=list)
