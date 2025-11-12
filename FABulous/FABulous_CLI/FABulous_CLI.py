@@ -54,6 +54,7 @@ from FABulous.fabric_generator.code_generator.code_generator_Verilog import (
 from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
+from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 from FABulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
 )
@@ -1255,9 +1256,6 @@ class FABulous_CLI(Cmd):
         """
         self.fabulousAPI.genFabricIOBels()
 
-    # The `do_gen_gds` command was removed; restore if GDS generation via CLI
-    # is required in the future.
-
     gds_parser = Cmd2ArgumentParser()
     gds_parser.add_argument(
         "tile",
@@ -1269,8 +1267,8 @@ class FABulous_CLI(Cmd):
         "--optimise",
         "-opt",
         help="Optimize the GDS layout",
-        default=False,
-        action="store_true",
+        default=OptMode.BALANCE,
+        type=OptMode,
     )
     gds_parser.add_argument(
         "--override",
@@ -1332,8 +1330,8 @@ class FABulous_CLI(Cmd):
         "--optimise",
         "-opt",
         help="Optimize the GDS layout of all tiles",
-        default=False,
-        action="store_true",
+        default=OptMode.NO_OPT,
+        type=OptMode,
     )
 
     @with_argparser(gen_all_tile_parser)
@@ -1343,7 +1341,9 @@ class FABulous_CLI(Cmd):
         commands = CommandPipeline(self)
         for i in sorted(self.allTile):
             if args.optimise:
-                commands.add_step(f"gen_tile_macro {i} --optimise")
+                commands.add_step(
+                    f"gen_tile_macro {i} --optimise {args.optimise.value}"
+                )
             else:
                 commands.add_step(f"gen_tile_macro {i}")
         if not args.parallel:
@@ -1377,6 +1377,14 @@ class FABulous_CLI(Cmd):
             self.projectDir / "Fabric" / f"{self.fabulousAPI.fabric.name}.v",
             self.projectDir / "Fabric" / "macro",
             base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
+        )
+
+    @with_category(CMD_FABRIC_FLOW)
+    def do_run_FABulous_eFPGA_macro(self, *_arg: str) -> None:
+        """Run the full FABulous eFPGA macro generation flow."""
+        (self.projectDir / "Fabric" / "macro").mkdir(exist_ok=True)
+        self.fabulousAPI.full_fabric_automation(
+            self.projectDir, self.projectDir / "Fabric" / "macro"
         )
 
     gui_parser = Cmd2ArgumentParser()

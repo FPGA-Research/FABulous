@@ -1,6 +1,7 @@
 """Store information about a tile."""
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -309,3 +310,86 @@ class Tile:
             ret += b.configBit
 
         return ret
+
+    def get_min_die_area(
+        self, x_pitch: Decimal, y_pitch: Decimal
+    ) -> tuple[Decimal, Decimal]:
+        """Calculate minimum tile dimensions based on IO pin density.
+
+        For this tile, calculates the minimum physical width and height
+        required to accommodate all IO pins at the PDK's track pitch.
+
+        Parameters
+        ----------
+        x_pitch : Decimal
+            Horizontal pitch between tracks (DBU)
+        y_pitch : Decimal
+            Vertical pitch between tracks (DBU)
+
+        Returns
+        -------
+        tuple[Decimal, Decimal]
+            (min_width, min_height) where:
+            - min_width: minimum width needed for north/south edge IO pins
+            - min_height: minimum height needed for west/east edge IO pins
+
+        Notes
+        -----
+        The minimum dimensions are calculated as:
+        - min_width = max(north_pins, south_pins) × x_pitch
+        - min_height = max(west_pins, east_pins) × y_pitch
+
+        These constraints prevent the LP solver from suggesting dimensions
+        that are physically impossible due to IO pin spacing requirements.
+        """
+        import itertools
+        from decimal import Decimal
+
+        # Count ports on each physical side
+        north_ports = len(
+            list(
+                itertools.chain.from_iterable(
+                    [
+                        list(itertools.chain.from_iterable(i.expandPortInfo()))
+                        for i in self.getNorthSidePorts()
+                    ]
+                )
+            )
+        )
+        south_ports = len(
+            list(
+                itertools.chain.from_iterable(
+                    [
+                        list(itertools.chain.from_iterable(i.expandPortInfo()))
+                        for i in self.getSouthSidePorts()
+                    ]
+                )
+            )
+        )
+        west_ports = len(
+            list(
+                itertools.chain.from_iterable(
+                    [
+                        list(itertools.chain.from_iterable(i.expandPortInfo()))
+                        for i in self.getWestSidePorts()
+                    ]
+                )
+            )
+        )
+        east_ports = len(
+            list(
+                itertools.chain.from_iterable(
+                    [
+                        list(itertools.chain.from_iterable(i.expandPortInfo()))
+                        for i in self.getEastSidePorts()
+                    ]
+                )
+            )
+        )
+
+        # Min width constrained by north/south edges
+        min_width_io = Decimal(max(north_ports, south_ports)) * x_pitch
+        # Min height constrained by west/east edges
+        min_height_io = Decimal(max(west_ports, east_ports)) * y_pitch
+
+        return min_width_io, min_height_io

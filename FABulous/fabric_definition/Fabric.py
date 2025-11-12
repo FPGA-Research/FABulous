@@ -466,7 +466,7 @@ class Fabric:
 
         return None
 
-    def get_unique_tile_types(self) -> list[Tile]:
+    def get_all_unique_tiles(self) -> list[Tile | SuperTile]:
         """Get list of unique tile types used in the fabric.
 
         Returns
@@ -474,14 +474,15 @@ class Fabric:
         list[Tile]
             List of unique tile types (one instance per type name)
         """
-        unique_tiles: dict[str, Tile] = {}
+        result: list[Tile | SuperTile] = []
 
-        for row in self.tile:
-            for tile in row:
-                if tile is not None and tile.name not in unique_tiles:
-                    unique_tiles[tile.name] = tile
+        # Add all regular tiles from tileDic
+        result.extend([i for i in self.tileDic.values() if not i.partOfSuperTile])
 
-        return list(unique_tiles.values())
+        # Add all SuperTiles from superTileDic
+        result.extend(self.superTileDic.values())
+
+        return result
 
     def get_tile_row_column_indices(self, tile_name: str) -> tuple[set[int], set[int]]:
         """Get all row and column indices where a tile type appears.
