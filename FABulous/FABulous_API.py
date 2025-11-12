@@ -16,7 +16,6 @@ from librelane.config.variable import Macro
 from loguru import logger
 
 import FABulous.fabric_cad.gen_npnr_model as model_gen_npnr
-from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 import FABulous.fabric_generator.parser.parse_csv as fileParser
 from FABulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from FABulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
@@ -39,11 +38,11 @@ from FABulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
 )
 from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMarcoFlow,
-    FABulousTileVerilogMarcoFlowClassic,
 )
 from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
+from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 from FABulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from FABulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from FABulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
