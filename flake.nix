@@ -204,7 +204,7 @@
             ];
             devshell.startup.fabulous-setup = {
               text = ''
-
+                
                 export REPO_ROOT=$(git rev-parse --show-toplevel)
                 ORIGINAL_PS1="$PS1"
 

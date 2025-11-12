@@ -41,6 +41,7 @@ class AutoEcoDiodeInsertion(WhileStep):
     current_iteration: int = 0
     max_iterations: int = sys.maxsize
     done_enough: bool = False
+    total_diodes_inserted: int = 0
 
     def condition(self, state: State) -> bool:  # noqa: ARG002
         """Continue looping until no more diodes need to be inserted."""
@@ -116,6 +117,7 @@ class AutoEcoDiodeInsertion(WhileStep):
             self.current_iteration += 1
         else:
             raise RuntimeError("Fail to insert ECO diodes")
+        self.total_diodes_inserted += len(self.config["INSERT_ECO_DIODES"])
         return post_iteration
 
     def post_loop_callback(self, state: State) -> State:
@@ -127,7 +129,6 @@ class AutoEcoDiodeInsertion(WhileStep):
             (state.metrics["antenna__violating__nets"] > 1)
             or (state.metrics["antenna__violating__pins"] > 1)
         ):
-            print("test")
             raise RuntimeError("Antenna violations remain after auto-diode insertion.")
         return state
 
@@ -142,4 +143,6 @@ class AutoEcoDiodeInsertion(WhileStep):
             return {}, {}
 
         self.previous_state = state_in
-        return super().run(state_in)
+        view, metrics = super().run(state_in)
+        metrics["auto_diode_inserted_total"] = self.total_diodes_inserted
+        return view, metrics

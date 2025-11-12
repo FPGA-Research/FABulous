@@ -7,6 +7,7 @@ functionalities into a single, reusable block.
 """
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.Port import Port
@@ -109,3 +110,92 @@ class SuperTile:
     def max_height(self) -> int:
         """Return the maximum height of the supertile."""
         return len(self.tileMap)
+
+    def get_min_die_area(
+        self, x_pitch: Decimal, y_pitch: Decimal
+    ) -> tuple[Decimal, Decimal]:
+        """Calculate minimum SuperTile dimensions based on IO pin density.
+
+        For this SuperTile, aggregates IO pins from all constituent tiles
+        that appear on the outer edges and calculates the minimum physical
+        width and height required.
+
+        Parameters
+        ----------
+        x_pitch : Decimal
+            Horizontal pitch between tracks (DBU)
+        y_pitch : Decimal
+            Vertical pitch between tracks (DBU)
+
+        Returns
+        -------
+        tuple[Decimal, Decimal]
+            (min_width, min_height) where:
+            - min_width: minimum width needed for north/south edge IO pins
+            - min_height: minimum height needed for west/east edge IO pins
+
+        Notes
+        -----
+        For SuperTiles, we aggregate IO pins from all constituent tiles
+        that appear on the outer edges of the SuperTile to get conservative
+        estimates for minimum dimensions.
+        """
+        import itertools
+        from decimal import Decimal
+
+        max_north = 0
+        max_south = 0
+        max_west = 0
+        max_east = 0
+
+        for subtile in self.tiles:
+            north_ports = len(
+                list(
+                    itertools.chain.from_iterable(
+                        [
+                            list(itertools.chain.from_iterable(i.expandPortInfo()))
+                            for i in subtile.getNorthSidePorts()
+                        ]
+                    )
+                )
+            )
+            south_ports = len(
+                list(
+                    itertools.chain.from_iterable(
+                        [
+                            list(itertools.chain.from_iterable(i.expandPortInfo()))
+                            for i in subtile.getSouthSidePorts()
+                        ]
+                    )
+                )
+            )
+            west_ports = len(
+                list(
+                    itertools.chain.from_iterable(
+                        [
+                            list(itertools.chain.from_iterable(i.expandPortInfo()))
+                            for i in subtile.getWestSidePorts()
+                        ]
+                    )
+                )
+            )
+            east_ports = len(
+                list(
+                    itertools.chain.from_iterable(
+                        [
+                            list(itertools.chain.from_iterable(i.expandPortInfo()))
+                            for i in subtile.getEastSidePorts()
+                        ]
+                    )
+                )
+            )
+
+            max_north = max(max_north, north_ports)
+            max_south = max(max_south, south_ports)
+            max_west = max(max_west, west_ports)
+            max_east = max(max_east, east_ports)
+
+        min_width_io = Decimal(max(max_north, max_south)) * x_pitch
+        min_height_io = Decimal(max(max_west, max_east)) * y_pitch
+
+        return min_width_io, min_height_io

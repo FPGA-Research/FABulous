@@ -16,6 +16,7 @@ from librelane.config.variable import Macro
 from loguru import logger
 
 import FABulous.fabric_cad.gen_npnr_model as model_gen_npnr
+from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 import FABulous.fabric_generator.parser.parse_csv as fileParser
 from FABulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from FABulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
@@ -32,6 +33,9 @@ from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
 )
 from FABulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
+)
+from FABulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
+    FABulousFabricMacroFullFlow,
 )
 from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMarcoFlow,
@@ -490,7 +494,7 @@ class FABulous_API:
         out_folder: Path,
         *,
         final_view: Path | None = None,
-        optimisation: bool = True,
+        optimisation: OptMode = OptMode.BALANCE,
         base_config_path: Path | None = None,
         config_override: dict | Path | None = None,
         pdk_root: Path | None = None,
@@ -499,10 +503,6 @@ class FABulous_API:
         """Run the marco flow to generate the marco Verilog files."""
         if pdk_root is None:
             pdk_root = get_context().pdk_root
-            if pdk_root is None:
-                raise ValueError(
-                    "PDK root must be specified either here or in settings."
-                )
         if pdk is None:
             pdk = get_context().pdk
             if pdk is None:
@@ -552,22 +552,14 @@ class FABulous_API:
                     yaml.safe_load(config_override.read_text(encoding="utf-8"))
                 )
 
-        if optimisation:
-            flow = FABulousTileVerilogMarcoFlow(
-                final_config_args,
-                name=tile_dir.name,
-                design_dir=str(out_folder.resolve()),
-                pdk=pdk,
-                pdk_root=str((pdk_root).resolve().parent),
-            )
-        else:
-            flow = FABulousTileVerilogMarcoFlowClassic(
-                final_config_args,
-                name=tile_dir.name,
-                design_dir=str(out_folder.resolve()),
-                pdk=pdk,
-                pdk_root=str((pdk_root).resolve().parent),
-            )
+        final_config_args["FABULOUS_OPT_MODE"] = optimisation
+        flow = FABulousTileVerilogMarcoFlow(
+            final_config_args,
+            name=tile_dir.name,
+            design_dir=str(out_folder.resolve()),
+            pdk=pdk,
+            pdk_root=str((pdk_root).resolve().parent),
+        )
         result = flow.start()
         if final_view:
             logger.info(f"Saving final view to {final_view}")
@@ -682,7 +674,6 @@ class FABulous_API:
                     yaml.safe_load(config_override.read_text(encoding="utf-8"))
                 )
 
-        print(final_config_args)
         flow = FABulousFabricMacroFlow(
             final_config_args,
             name=self.fabric.name,
@@ -709,3 +700,50 @@ class FABulous_API:
         counts = Counter(chain.from_iterable(row for row in self.fabric.tile))
         most_common_tile, _ = counts.most_common(1)[0]
         return most_common_tile
+
+    def full_fabric_automation(
+        self,
+        project_dir: Path,
+        out_folder: Path,
+        *,
+        pdk_root: Path | None = None,
+        pdk: str | None = None,
+        config_override: dict | Path | None = None,
+    ) -> None:
+        """Run the stitching flow to assemble tile macros into a fabric-level GDS."""
+        if pdk_root is None:
+            pdk_root = get_context().pdk_root
+            if pdk_root is None:
+                raise ValueError(
+                    "PDK root must be specified either here or in settings."
+                )
+        if pdk is None:
+            pdk = get_context().pdk
+            if pdk is None:
+                raise ValueError("PDK must be specified either here or in settings.")
+
+        logger.info(f"PDK root: {pdk_root}")
+        logger.info(f"PDK: {pdk}")
+        logger.info(f"Output folder: {out_folder.resolve()}")
+        final_config_args = {}
+        final_config_args["FABULOUS_PROJ_DIR"] = str(project_dir.resolve())
+        final_config_args["FABULOUS_FABRIC"] = self.fabric
+        final_config_args["DESIGN_NAME"] = self.fabric.name
+        if config_override:
+            if isinstance(config_override, dict):
+                final_config_args.update(config_override)
+            else:
+                final_config_args.update(
+                    yaml.safe_load(config_override.read_text(encoding="utf-8"))
+                )
+        flow = FABulousFabricMacroFullFlow(
+            final_config_args,
+            name=self.fabric.name,
+            design_dir=str(out_folder.resolve()),
+            pdk=pdk,
+            pdk_root=str((pdk_root).resolve().parent),
+        )
+        result = flow.start()
+        logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
+        result.save_snapshot(out_folder / "final_views")
+        logger.info("Stitching flow completed.")

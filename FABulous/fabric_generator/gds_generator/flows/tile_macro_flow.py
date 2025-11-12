@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from typing import Any
-
+from FABulous.fabric_definition.Tile import Tile
 from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
 from librelane.flows.flow import Flow
@@ -32,6 +32,11 @@ from FABulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
 from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import (
     TileOptimisation,
 )
+from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+    generate_IO_pin_order_config,
+)
+from FABulous.FABulous_settings import get_context
+from FABulous.fabric_definition.SuperTile import SuperTile
 
 subs = {
     # Disable STA
@@ -53,15 +58,8 @@ configs = Classic.config_vars + [
         Path,
         "Path to the tile directory where the CSV file is located.",
     ),
-    Variable(
-        "FABULOUS_TILE_LOGICAL_WIDTH", int, "The logical width of the tile.", default=1
-    ),
-    Variable(
-        "FABULOUS_TILE_LOGICAL_HEIGHT",
-        int,
-        "The logical height of the tile.",
-        default=1,
-    ),
+    Variable("FABULOUS_TILE_LOGICAL_WIDTH", int, "The logical width of the tile."),
+    Variable("FABULOUS_TILE_LOGICAL_HEIGHT", int, "The logical height of the tile."),
 ]
 
 
@@ -86,6 +84,71 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
 
     gating_config_vars = classic_gating_config_vars
 
+    def __init__(
+        self, tile_type: Tile | SuperTile, io_pin_config: Path, **config_overrides: dict
+    ) -> None:
+        tile_dir = tile_type.tileDir
+        tile_name = tile_type.name
+
+        # Build file list
+        file_list = [str(f) for f in tile_dir.glob("**/*.v") if "macro" not in f.parts]
+        if models_pack := get_context().models_pack:
+            file_list.append(str(models_pack.resolve()))
+
+        # Load base config
+        tile_config_overrides = {}
+        if (proj_dir / "Tile" / "include" / "gds_config.yaml").exists():
+            tile_config_overrides.update(
+                yaml.safe_load(
+                    (proj_dir / "Tile" / "include" / "gds_config.yaml").read_text(
+                        encoding="utf-8"
+                    )
+                )
+            )
+
+        gds_config_file = tile_dir / "gds_config.yaml"
+        if gds_config_file.exists():
+            tile_config_overrides.update(
+                yaml.safe_load(gds_config_file.read_text(encoding="utf-8"))
+            )
+
+        # Apply die area override if provided
+        if die_area is not None:
+            tile_config_overrides["DIE_AREA"] = die_area
+
+        # Determine logical dimensions
+        if isinstance(tile_type, SuperTile):
+            logical_width = tile_type.max_width
+            logical_height = tile_type.max_height
+        else:
+            logical_width = 1
+            logical_height = 1
+
+        # Build tile configuration
+        tile_config_dict = {
+            "DESIGN_NAME": tile_name,
+            "FABULOUS_IO_PIN_ORDER_CFG": out_file,
+            "FABULOUS_TILE_DIR": str(tile_dir),
+            "VERILOG_FILES": file_list,
+            "FABULOUS_TILE_LOGICAL_WIDTH": logical_width,
+            "FABULOUS_TILE_LOGICAL_HEIGHT": logical_height,
+            "FABULOUS_OPT_MODE": opt_mode,
+            "FABULOUS_FABRIC": fabric,
+            "FABULOUS_PROJ_DIR": str(proj_dir),
+        }
+
+        # Add IO constraints if provided
+        if io_min_width is not None:
+            tile_config_dict["FABULOUS_IO_MIN_WIDTH"] = io_min_width
+        if io_min_height is not None:
+            tile_config_dict["FABULOUS_IO_MIN_HEIGHT"] = io_min_height
+
+        # Add run directory override if provided
+
+        # Add extra config if provided
+        if extra_config:
+            tile_config_dict.update(extra_config)
+
     def run(
         self,
         initial_state: State,
@@ -93,14 +156,7 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
         **kwargs: dict,
     ) -> tuple[State, list[Step]]:
         """Run the FABulous tile optimisation flow."""
-        self.config = round_die_area(self.config)
-        if (
-            "ROUTING_OBSTRUCTIONS" not in self.config
-            or self.config["ROUTING_OBSTRUCTIONS"] is None
-        ):
-            self.config = self.config.copy(
-                ROUTING_OBSTRUCTIONS=get_routing_obstructions(self.config)
-            )
+
         return super().run(initial_state, *args, **kwargs)
 
 

@@ -5,6 +5,7 @@ from enum import StrEnum
 from typing import cast
 
 from librelane.config.variable import Variable
+from librelane.flows.flow import FlowException
 from librelane.logging.logger import info
 from librelane.state.design_format import DesignFormat
 from librelane.state.state import State
@@ -32,6 +33,7 @@ class OptMode(StrEnum):
     FIND_MIN_HEIGHT = "find_min_height"
     BALANCE = "balance"
     LARGE = "large"
+    NO_OPT = "no_opt"
 
 
 var = [
@@ -60,18 +62,8 @@ var = [
         " - 'find_min_height': finds minimal height by increasing from initial guess. "
         " - 'balance': finds minimal area by starting from square bounding box and "
         "increasing alternatingly. "
-        " - 'large': finds minimal area by starting from square bounding box and "
-        "increasing both dimensions.",
-        default=OptMode.FIND_MIN_WIDTH,
-    ),
-    Variable(
-        "FABULOUS_OPT_RELAX",
-        bool,
-        "When True, increases dimensions instead of reducing (relaxation mode). "
-        "When False, reduces dimensions for area minimization. "
-        "The OptMode still controls which dimension changes (width/height/both). "
-        "Default: False (area minimization)",
-        default=False,
+        " - 'no-opt': Disable optimisation.",
+        default=OptMode.BALANCE,
     ),
     Variable(
         "IGNORE_ANTENNA_VIOLATIONS",
@@ -189,12 +181,10 @@ class TileOptimisation(WhileStep):
         if full_iter_completed:
             self.last_working_state = post_iteration.copy()
             return post_iteration
-
         die_bbox = post_iteration.metrics.get("design__die__bbox", "0 0 0 0").split(" ")
         core_bbox = post_iteration.metrics.get("design__core__bbox", "0 0 0 0").split(
             " "
         )
-
         # Convert bbox string components to Decimal,
         # compute per-component absolute differences
         die_vals = list(map(Decimal, die_bbox))
@@ -329,16 +319,14 @@ class TileOptimisation(WhileStep):
         if self.config["IGNORE_ANTENNA_VIOLATIONS"]:
             info("Ignoring antenna violations during tile optimisation.")
             self.config = self.config.copy(ERROR_ON_TR_DRC=False)
-        if self.config["IGNORE_DEFAULT_DIE_AREA"]:
+        if self.config["FABULOUS_OPT_MODE"] != OptMode.NO_OPT:
+            min_width, min_height = self.config[""]
             if not (i := self.config.get("FABULOUS_IO_MIN_HEIGHT")) or (i < 0):
-                raise ValueError(
-                    "FABULOUS_IO_MIN_HEIGHT must be set to a positive value when "
-                    "IGNORE_DEFAULT_DIE_AREA is True."
-                )
+                
             if not (i := self.config.get("FABULOUS_IO_MIN_WIDTH")) or (i < 0):
-                raise ValueError(
+                raise FlowException(
                     "FABULOUS_IO_MIN_WIDTH must be set to a positive value when "
-                    "IGNORE_DEFAULT_DIE_AREA is True."
+                    "when you are trying to do optimisation."
                 )
 
             info("Using instance area for initial die area sizing.")
@@ -350,4 +338,7 @@ class TileOptimisation(WhileStep):
                     Decimal(0),
                 )
             )
+
+        else:
+            self.max_iterations = 1
         return super().run(state_in, **_kwargs)
