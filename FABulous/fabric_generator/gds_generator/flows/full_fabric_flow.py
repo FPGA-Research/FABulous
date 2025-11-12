@@ -9,7 +9,6 @@ This flow uses Linear Programming to optimize tile dimensions:
 """
 
 import contextlib
-import itertools
 import json
 import multiprocessing
 import traceback
@@ -20,7 +19,6 @@ from typing import cast
 
 import dill
 import yaml
-from librelane.config.config import Config
 from librelane.config.flow import flow_common_variables
 from librelane.config.variable import Macro, Variable
 from librelane.flows.classic import Classic
@@ -40,7 +38,7 @@ from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
 from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
-from FABulous.fabric_generator.gds_generator.helper import get_pitch, round_die_area
+from FABulous.fabric_generator.gds_generator.helper import round_die_area
 from FABulous.fabric_generator.gds_generator.steps.fabric_macro_gen import (
     FabricMacroGen,
 )
@@ -322,156 +320,6 @@ class FABulousFabricMacroFullFlow(Flow):
 
         raise ValueError("Could not extract tile dimensions from state")
 
-    def _compute_io_min_dimensions(
-        self, fabric: Fabric, config: Config
-    ) -> dict[str, tuple[Decimal, Decimal]]:
-        """Compute minimum tile dimensions based on IO pin density.
-
-        For each tile type, calculates the minimum physical width and height
-        required to accommodate all IO pins at the PDK's track pitch.
-
-        Parameters
-        ----------
-        fabric : Fabric
-            Fabric configuration with all tiles
-        config : Config
-            Configuration containing FP_TRACKS_INFO for pitch information
-
-        Returns
-        -------
-        dict[str, tuple[Decimal, Decimal]]
-            Map from tile_type to (min_width_io, min_height_io) where:
-            - min_width_io: minimum width needed for north/south edge IO pins
-            - min_height_io: minimum height needed for west/east edge IO pins
-
-        Notes
-        -----
-        The minimum dimensions are calculated as:
-        - min_width = max(north_pins, south_pins) × x_pitch
-        - min_height = max(west_pins, east_pins) × y_pitch
-
-        These constraints prevent the LP solver from suggesting dimensions
-        that are physically impossible due to IO pin spacing requirements.
-        """
-        x_pitch, y_pitch = get_pitch(config)
-
-        io_min_dims: dict[str, tuple[Decimal, Decimal]] = {}
-
-        # Process regular tiles
-        for tile in fabric.tileDic.values():
-            # Count ports on each physical side
-            north_ports = len(
-                list(
-                    itertools.chain.from_iterable(
-                        [
-                            list(itertools.chain.from_iterable(i.expandPortInfo()))
-                            for i in tile.getNorthSidePorts()
-                        ]
-                    )
-                )
-            )
-            south_ports = len(
-                list(
-                    itertools.chain.from_iterable(
-                        [
-                            list(itertools.chain.from_iterable(i.expandPortInfo()))
-                            for i in tile.getSouthSidePorts()
-                        ]
-                    )
-                )
-            )
-            west_ports = len(
-                list(
-                    itertools.chain.from_iterable(
-                        [
-                            list(itertools.chain.from_iterable(i.expandPortInfo()))
-                            for i in tile.getWestSidePorts()
-                        ]
-                    )
-                )
-            )
-            east_ports = len(
-                list(
-                    itertools.chain.from_iterable(
-                        [
-                            list(itertools.chain.from_iterable(i.expandPortInfo()))
-                            for i in tile.getEastSidePorts()
-                        ]
-                    )
-                )
-            )
-
-            # Min width constrained by north/south edges
-            min_width_io = Decimal(max(north_ports, south_ports)) * x_pitch
-            # Min height constrained by west/east edges
-            min_height_io = Decimal(max(west_ports, east_ports)) * y_pitch
-
-            io_min_dims[tile.name] = (min_width_io, min_height_io)
-
-        # Process SuperTiles
-        for supertile in fabric.superTileDic.values():
-            # For SuperTiles, we need to aggregate IO pins from all constituent tiles
-            # that appear on the outer edges of the SuperTile
-            # For now, we use a conservative estimate based on the largest tile
-            max_north = 0
-            max_south = 0
-            max_west = 0
-            max_east = 0
-
-            for subtile in supertile.tiles:
-                north_ports = len(
-                    list(
-                        itertools.chain.from_iterable(
-                            [
-                                list(itertools.chain.from_iterable(i.expandPortInfo()))
-                                for i in subtile.getNorthSidePorts()
-                            ]
-                        )
-                    )
-                )
-                south_ports = len(
-                    list(
-                        itertools.chain.from_iterable(
-                            [
-                                list(itertools.chain.from_iterable(i.expandPortInfo()))
-                                for i in subtile.getSouthSidePorts()
-                            ]
-                        )
-                    )
-                )
-                west_ports = len(
-                    list(
-                        itertools.chain.from_iterable(
-                            [
-                                list(itertools.chain.from_iterable(i.expandPortInfo()))
-                                for i in subtile.getWestSidePorts()
-                            ]
-                        )
-                    )
-                )
-                east_ports = len(
-                    list(
-                        itertools.chain.from_iterable(
-                            [
-                                list(itertools.chain.from_iterable(i.expandPortInfo()))
-                                for i in subtile.getEastSidePorts()
-                            ]
-                        )
-                    )
-                )
-
-                max_north = max(max_north, north_ports)
-                max_south = max(max_south, south_ports)
-                max_west = max(max_west, west_ports)
-                max_east = max(max_east, east_ports)
-
-            min_width_io = Decimal(max(max_north, max_south)) * x_pitch
-            min_height_io = Decimal(max(max_west, max_east)) * y_pitch
-
-            io_min_dims[supertile.name] = (min_width_io, min_height_io)
-
-        return io_min_dims
-
     def _compilation_successful(
         self, state: State, check_antenna: bool = False
     ) -> bool:
@@ -614,13 +462,6 @@ class FABulousFabricMacroFullFlow(Flow):
         # Compute IO-based minimum dimensions upfront
         # This ensures TileOptimisation starts from IO-aware bounds
         info("\n=== Computing IO pin density constraints ===")
-        io_min_dimensions = self._compute_io_min_dimensions(fabric, self.config)
-
-        for tile_name, (min_w_io, min_h_io) in io_min_dimensions.items():
-            info(
-                f"  {tile_name}: IO constraints: "
-                f"min_width={min_w_io} DBU, min_height={min_h_io} DBU"
-            )
 
         # Step 1: Parallel compilation to find minimum dimensions
         info("\n=== Step 1: Finding minimum tile dimensions ===")
@@ -634,36 +475,22 @@ class FABulousFabricMacroFullFlow(Flow):
         # Create compilation steps for all tiles with all optimization modes
         min_dim_flow_steps: list[Flow] = []
         for tile_type in fabric.get_all_unique_tiles():
-            # Get IO constraints for this tile
-            io_min_width = Decimal(1)
-            io_min_height = Decimal(1)
-            if tile_type.name in io_min_dimensions:
-                io_min_width, io_min_height = io_min_dimensions[tile_type.name]
-
-            io_min_width = max(Decimal(1), io_min_width)
-            io_min_height = max(Decimal(1), io_min_height)
-            # Create one compilation step for each optimization mode
+            out_file = tile_type.tileDir / "io_pin_order.yaml"
+            generate_IO_pin_order_config(fabric, tile_type, out_file)
             for opt_mode in opt_modes:
-                # Additional configuration for minimum dimension exploration
-                extra_config = {
-                    "IGNORE_ANTENNA_VIOLATIONS": True,
-                    "IGNORE_DEFAULT_DIE_AREA": True,
-                    "YOSYS_LOG_LEVEL": "ERROR",
-                    "FABULOUS_IGNORE_ERRORS": False,
-                    "DRT_OPT_ITERS": 5,
-                }
-
-                # Create compilation step using helper
-                tile_flow = self._get_compile_tile_flow(
-                    tile_type=tile_type,
-                    fabric=fabric,
-                    proj_dir=proj_dir,
-                    opt_mode=opt_mode,
-                    io_min_width=io_min_width,
-                    io_min_height=io_min_height,
-                    extra_config=extra_config,
+                min_dim_flow_steps.append(
+                    FABulousTileVerilogMarcoFlow(
+                        tile_type,
+                        out_file,
+                        opt_mode,
+                        base_config_path=proj_dir
+                        / "Tile"
+                        / "include"
+                        / "gds_config.yaml",
+                        override_config_path=tile_type.tileDir / "gds_config.yaml",
+                        FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
+                    )
                 )
-                min_dim_flow_steps.append(tile_flow)
 
         # TODO: Makeing this working with async setps again once librelane is fixed
         handlers: list[tuple[Future[tuple[State, str]], Flow, dict]] = []

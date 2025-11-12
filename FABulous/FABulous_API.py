@@ -508,57 +508,12 @@ class FABulous_API:
             if pdk is None:
                 raise ValueError("PDK must be specified either here or in settings.")
 
-        file_list = [str(f) for f in tile_dir.glob("**/*.v") if "macro" not in f.parts]
-        if f := get_context().models_pack:
-            file_list.append(str(f.resolve()))
-        (tile_dir / "macro").mkdir(exist_ok=True)
-        logger.info(f"PDK root: {pdk_root}")
-        logger.info(f"PDK: {pdk}")
-        logger.info(f"Output folder: {out_folder.resolve()}")
-        final_config_args: dict = {
-            "DIE_AREA": [0, 0, 250, 250],
-        }
-        if base_config_path:
-            final_config_args.update(
-                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
-            )
-
-        if (tile_dir / "gds_config.yaml").exists():
-            final_config_args.update(
-                yaml.safe_load(
-                    (tile_dir / "gds_config.yaml").read_text(encoding="utf-8")
-                )
-            )
-
-        final_config_args["DESIGN_NAME"] = tile_dir.name
-        final_config_args["FABULOUS_IO_PIN_ORDER_CFG"] = str(io_pin_config)
-        final_config_args["FABULOUS_TILE_DIR"] = str(tile_dir)
-        final_config_args["VERILOG_FILES"] = file_list
-        tile = self.fabric.getTileByName(tile_dir.name)
-        if isinstance(tile, Tile):
-            final_config_args["FABULOUS_TILE_LOGICAL_WIDTH"] = 1
-            final_config_args["FABULOUS_TILE_LOGICAL_HEIGHT"] = 1
-        elif isinstance(tile, SuperTile):
-            final_config_args["FABULOUS_TILE_LOGICAL_WIDTH"] = tile.max_width
-            final_config_args["FABULOUS_TILE_LOGICAL_HEIGHT"] = tile.max_height
-        else:
-            raise TypeError(f"Tile {tile_dir.name} not found in fabric.")
-
-        if config_override:
-            if isinstance(config_override, dict):
-                final_config_args.update(config_override)
-            else:
-                final_config_args.update(
-                    yaml.safe_load(config_override.read_text(encoding="utf-8"))
-                )
-
-        final_config_args["FABULOUS_OPT_MODE"] = optimisation
         flow = FABulousTileVerilogMarcoFlow(
-            final_config_args,
-            name=tile_dir.name,
-            design_dir=str(out_folder.resolve()),
-            pdk=pdk,
-            pdk_root=str((pdk_root).resolve().parent),
+            self.fabric.getTileByName(tile_dir.name),
+            io_pin_config,
+            optimisation,
+            base_config_path=base_config_path,
+            override_config_path=config_override,
         )
         result = flow.start()
         if final_view:
