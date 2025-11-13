@@ -312,7 +312,13 @@ class Tile:
         return ret
 
     def get_min_die_area(
-        self, x_pitch: Decimal, y_pitch: Decimal
+        self,
+        x_pitch: Decimal,
+        y_pitch: Decimal,
+        x_pin_thickness: Decimal,
+        y_pin_thickness: Decimal,
+        x_spacing: Decimal,
+        y_spacing: Decimal,
     ) -> tuple[Decimal, Decimal]:
         """Calculate minimum tile dimensions based on IO pin density.
 
@@ -388,8 +394,12 @@ class Tile:
         )
 
         # Min width constrained by north/south edges
-        min_width_io = Decimal(max(north_ports, south_ports)) * x_pitch
+        min_width_io = Decimal(max(north_ports, south_ports)) * (
+            x_pitch * x_pin_thickness + x_spacing
+        )
         # Min height constrained by west/east edges
-        min_height_io = Decimal(max(west_ports, east_ports)) * y_pitch
+        min_height_io = Decimal(max(west_ports, east_ports)) * (
+            y_pitch * y_pin_thickness + y_spacing
+        )
 
         return min_width_io, min_height_io

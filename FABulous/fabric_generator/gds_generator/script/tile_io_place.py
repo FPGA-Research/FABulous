@@ -958,9 +958,9 @@ def io_place(
             if needed > len(filtered):
                 err(
                     "Insufficient tracks: "
-                    f"min_distance={segment.min_distance:.3f} µm "
-                    f"side={side.value} seg={segment_index} pins={needed} "
-                    f"got {len(filtered)} slots "
+                    f"min_distance={min_distance:.3f} step={step:.3f} "
+                    f"side={side.value} seg={segment_index} needed pins={needed} "
+                    f"but only got {len(filtered)} slots "
                     f"stride={stride} raw={len(raw_tracks)}"
                 )
                 err("Hint: reduce min_distance, enlarge die, or redistribute pins.")

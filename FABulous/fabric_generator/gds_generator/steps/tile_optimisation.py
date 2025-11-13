@@ -199,9 +199,7 @@ class TileOptimisation(WhileStep):
         width_step = site_width * width_step_count
         height_step = site_height * height_step_count
 
-        instance_area = Decimal(
-            pre_iteration.metrics.get("design__instance__area_stdcell", 0)
-        )
+        instance_area = Decimal(pre_iteration.metrics.get("design__instance__area", 0))
         new_height: Decimal
         new_width: Decimal
 
@@ -226,8 +224,13 @@ class TileOptimisation(WhileStep):
             case OptMode.BALANCE:
                 # Initialize to square bounding box if not yet set properly
                 if width == 0 or height == 0 or width * height < instance_area:
-                    initial_side = instance_area.sqrt()
-                    new_width, new_height = (initial_side, initial_side)
+                    if width == 0 and height == 0:
+                        side = instance_area.sqrt()
+                        new_width, new_height = side, side
+                    elif width > height:
+                        new_width, new_height = width, instance_area / width
+                    else:
+                        new_width, new_height = instance_area / height, height
                 else:
                     if height > width:
                         new_width, new_height = (width + width_step, height)
@@ -245,6 +248,20 @@ class TileOptimisation(WhileStep):
                     f"Unknown FABULOUS_OPT_MODE: {self.config['FABULOUS_OPT_MODE']}"
                 )
 
+        margin_width = (
+            site_width * self.config["LEFT_MARGIN_MULT"]
+            + site_width * self.config["RIGHT_MARGIN_MULT"]
+        )
+        margin_height = (
+            site_height * self.config["BOTTOM_MARGIN_MULT"]
+            + site_height * self.config["TOP_MARGIN_MULT"]
+        )
+        core_area_width = new_width - margin_width
+        core_area_height = new_height - margin_height
+
+        if core_area_width * core_area_height < instance_area:
+            new_width = new_width + margin_width
+            new_height = new_height + margin_height
         die_area = (
             Decimal(0),
             Decimal(0),
