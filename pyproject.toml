@@ -81,7 +81,21 @@ ignore-setters = true
 ignore-overloaded-functions = true
 fail-under = 95
 ignore-regex = ".*Like$"
-exclude = ["setup.py", "docs", "build", ".venv", "demo/*", "tests"]
+# Exclude patterns - kept in sync with .gitignore
+# Note: interrogate doesn't natively support .gitignore files
+exclude = [
+  "setup.py",
+  "docs",
+  "build",
+  ".venv",
+  "venv",
+  "demo*",
+  "tests",
+  "**/__pycache__",
+  "*.egg-info",
+  ".vscode",
+  "oss-cad-suite",
+]
 
 [dependency-groups]
 dev = [
