@@ -1314,8 +1314,9 @@ class FABulous_CLI(Cmd):
             tile_dir,
             pin_order_file,
             tile_dir / "macro",
-            base_config_path=self.projectDir / "Tile" / "include" / "gds_config.yaml",
             optimisation=args.optimise,
+            base_config_path=self.projectDir / "Tile" / "include" / "gds_config.yaml",
+            config_override_path=tile_dir / "gds_config.yaml",
         )
 
     gen_all_tile_parser = Cmd2ArgumentParser()

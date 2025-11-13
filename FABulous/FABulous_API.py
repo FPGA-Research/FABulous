@@ -495,7 +495,8 @@ class FABulous_API:
         final_view: Path | None = None,
         optimisation: OptMode = OptMode.BALANCE,
         base_config_path: Path | None = None,
-        config_override: dict | Path | None = None,
+        config_override_path: Path | None = None,
+        custom_config_overrides: dict | None = None,
         pdk_root: Path | None = None,
         pdk: str | None = None,
     ) -> None:
@@ -512,7 +513,8 @@ class FABulous_API:
             io_pin_config,
             optimisation,
             base_config_path=base_config_path,
-            override_config_path=config_override,
+            override_config_path=config_override_path,
+            **custom_config_overrides or {},
         )
         result = flow.start()
         if final_view:

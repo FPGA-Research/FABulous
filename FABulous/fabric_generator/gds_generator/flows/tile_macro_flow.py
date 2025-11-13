@@ -1,6 +1,7 @@
 """Tile optimisation flows for FABulous fabric generation."""
 
 from decimal import Decimal
+from os.path import exists
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,7 @@ from FABulous.fabric_generator.gds_generator.helper import (
     get_pitch,
     get_routing_obstructions,
     round_die_area,
+    get_offset,
 )
 from FABulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
 from FABulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
@@ -98,7 +100,9 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
     ) -> None:
         # Build file list
         file_list = [
-            str(f) for f in tile_type.tileDir.glob("**/*.v") if "macro" not in f.parts
+            str(f)
+            for f in tile_type.tileDir.parent.glob("**/*.v")
+            if "macro" not in f.parts
         ]
         if models_pack := get_context().models_pack:
             file_list.append(str(models_pack.resolve()))
@@ -115,11 +119,8 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
         tile_config_dict = {
             "DESIGN_NAME": tile_type.name,
             "FABULOUS_IO_PIN_ORDER_CFG": str(io_pin_config),
-            "FABULOUS_TILE_DIR": str(tile_type.tileDir),
             "VERILOG_FILES": file_list,
             "FABULOUS_OPT_MODE": opt_mode,
-            "FABULOUS_TILE_LOGICAL_WIDTH": logical_width,
-            "FABULOUS_TILE_LOGICAL_HEIGHT": logical_height,
         }
 
         # Load base config
@@ -135,16 +136,29 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
 
         tile_config_dict.update(**custom_config_overrides)
 
+        default_design_dir = tile_type.tileDir.parent / "macro" / opt_mode.value
+        default_design_dir.mkdir(parents=True, exist_ok=True)
         super().__init__(
             tile_config_dict,
             name=tile_type.name,
-            design_dir=design_dir or tile_type.tileDir / "macro" / opt_mode.value,
+            design_dir=design_dir or default_design_dir,
             pdk=get_context().pdk,
             pdk_root=str(get_context().pdk_root.resolve().parent),
         )
-        self.config = round_die_area(self.config)
+        self.config = self.config.copy(
+            FABULOUS_TILE_LOGICAL_WIDTH=logical_width,
+            FABULOUS_TILE_LOGICAL_HEIGHT=logical_height,
+        )
         x_pitch, y_pitch = get_pitch(self.config)
-        min_x, min_y = tile_type.get_min_die_area(x_pitch, y_pitch)
+        x_spacing, y_spacing = get_offset(self.config)
+        min_x, min_y = tile_type.get_min_die_area(
+            x_pitch,
+            y_pitch,
+            self.config.get("IO_PIN_V_THINKNESS_MULT", Decimal(1)),
+            self.config.get("IO_PIN_H_THINKNESS_MULT", Decimal(1)),
+            x_pitch,
+            y_pitch,
+        )
         if opt_mode != OptMode.NO_OPT:
             if (
                 self.config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"]
@@ -165,6 +179,7 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
                         f"tile {tile_type.name}. Please update the DIE_AREA "
                     )
 
+        self.config = round_die_area(self.config)
         if (
             "ROUTING_OBSTRUCTIONS" not in self.config
             or self.config["ROUTING_OBSTRUCTIONS"] is None
