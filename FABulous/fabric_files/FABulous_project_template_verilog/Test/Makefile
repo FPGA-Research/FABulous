@@ -59,19 +59,19 @@ run_bitgen: mkdir_build
 	python3 makehex.py ${BUILD_DIR}/${DESIGN}.bin ${MAX_BITBYTES} ${BUILD_DIR}/${DESIGN}.hex
 
 copy_files: mkdir_build
-	find ${FAB_PROJ_ROOT}/Tile/ -name '*.v' -type f -print0 | xargs -0 cp -u -t ./${FABRIC_FILES_DIR}/
-	find ${FAB_PROJ_ROOT}/Fabric/ -name '*.v' -type f -print0 | xargs -0 cp -u -t ./${FABRIC_FILES_DIR}/
+	find ${FAB_PROJ_ROOT}/Tile/ -name '*.v' -type f -exec cp -n {} ${FABRIC_FILES_DIR}/ \;
+	find ${FAB_PROJ_ROOT}/Fabric/ -name '*.v' -type f -exec cp -n {} ${FABRIC_FILES_DIR}/ \;
 
 mkdir_build:
 	mkdir -p ${BUILD_DIR}
 	mkdir -p ${FABRIC_FILES_DIR}
 
 run_simulation:
-	iverilog -s ${TESTBENCH} -o ${BUILD_DIR}/${DESIGN}.vvp ${FABRIC_FILES_DIR}/* ${USER_DESIGN_VERILOG} ${TESTBENCH}.v -g2012
+	iverilog -g2012 -s ${TESTBENCH} -o ${BUILD_DIR}/${DESIGN}.vvp ${FABRIC_FILES_DIR}/* ${USER_DESIGN_VERILOG} ${TESTBENCH}.v
 	vvp ${BUILD_DIR}/${DESIGN}.vvp ${VVP_ARGS}
 
 run_emulation:
-	iverilog -D EMULATION -s ${TESTBENCH} -o ${BUILD_DIR}/${DESIGN}.vvp ${BUILD_DIR}/${DESIGN}.vh ${FABRIC_FILES_DIR}/* ${USER_DESIGN_VERILOG} ${TESTBENCH}.v -g2012
+	iverilog -g2012 -D EMULATION -s ${TESTBENCH} -o ${BUILD_DIR}/${DESIGN}.vvp ${BUILD_DIR}/${DESIGN}.vh ${FABRIC_FILES_DIR}/* ${USER_DESIGN_VERILOG} ${TESTBENCH}.v
 	vvp ${BUILD_DIR}/${DESIGN}.vvp ${VVP_ARGS}
 
 run_GTKWave:
