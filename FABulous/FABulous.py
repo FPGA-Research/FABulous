@@ -524,18 +524,57 @@ def run_cmd(
 
 def main() -> None:
     """Entry point for the application."""
-    # Check if running on native Windows (not WSL)
+    # Check for Windows and show warning (before any command processing)
     if platform.system() == "Windows":
-        logger.error(
+        from pydantic_settings import BaseSettings, SettingsConfigDict
+
+        # Always show warning for Windows systems
+        logger.warning(
             "FABulous is not officially supported on native Windows. "
             "You are using it at your own risk - errors may occur.\n"
-            "For the best experience on Windows-based system, "
-            "please use Windows Subsystem for Linux (WSL).\n"
-            "For more information, visit: "
-            "https://docs.microsoft.com/en-us/windows/wsl/install"
-            "For all FABulous installation options, see:"
-            "https://fabulous.readthedocs.io/en/latest/getting_started/installation/index.html"
+            "For the best experience, please use Windows Subsystem for Linux (WSL).\n"
+            "For more information, visit: https://docs.microsoft.com/en-us/windows/wsl/install"
         )
+
+        # Since the init_context of FABulousSettings context happens
+        # only on actual command execution, but we want this to be executed
+        # for every run on Windows, we create a minimal settings here,
+        # to check if the user has already acknowledged the warning.
+        class MinimalSettings(BaseSettings):
+            model_config = SettingsConfigDict(
+                env_prefix="FAB_",
+                case_sensitive=False,
+                env_file=str(FAB_USER_CONFIG_DIR / ".env"),
+                env_file_encoding="utf-8",
+            )
+            windows_warning_acknowledged: bool = False
+
+        settings = MinimalSettings()
+
+        if not settings.windows_warning_acknowledged:
+            # Ask user if they want to continue
+            continue_anyway = typer.confirm(
+                "Do you want to continue anyway?", default=False
+            )
+
+            if not continue_anyway:
+                logger.info("Exiting. Please use WSL for the best experience.")
+                sys.exit(0)
+
+            # Ask if they want to remember this choice
+            remember = typer.confirm(
+                "Do you want to remember this choice? (Will be saved to global .env)",
+                default=True,
+            )
+
+            if remember:
+                from FABulous.FABulous_settings import add_var_to_global_env
+
+                add_var_to_global_env("FAB_WINDOWS_WARNING_ACKNOWLEDGED", "true")
+                logger.info(
+                    "Choice saved. You won't be prompted again, "
+                    "but the warning will still be shown."
+                )
 
     try:
         if len(sys.argv) == 1:

@@ -14,21 +14,22 @@ Global environment variables always start with `FAB_` and are used to configure 
 To add a global .env file, create a file named `.env` in the root directory of the FABulous repository or use the `--globalDotEnv` command line argument when running FABulous.
 The following global environment variables are available:
 
-| Variable Name      | Description                                     | Default Value                                                              |
-| ------------------ | ----------------------------------------------- | -------------------------------------------------------------------------- |
-| FAB_ROOT           | The root directory of the FABulous repository   | The directory where the FABulous repository is located                     |
-| FAB_FABULATOR_ROOT | The root directory of the FABulator repository  | \<None>                                                                    |
-| FAB_YOSYS_PATH     | Path to Yosys binary                            | yosys (Uses global Yosys installation)                                     |
-| FAB_NEXTPNR_PATH   | Path to Nextpnr binary                          | nextpnr-generic (Uses global Nextpnr installation)                         |
-| FAB_IVERILOG_PATH  | Path to Icarus Verilog binary                   | iverilog (Uses global Icarus Verilog installation)                         |
-| FAB_VVP_PATH       | Path to Verilog VVP binary                      | vvp (Uses global Verilog VVP installation)                                 |
-| FAB_GHDL_PATH      | Path to GHDL binary                             | ghdl (Uses global GHDL installation)                                       |
-| FAB_PROJ_DIR       | The root directory of the FABulous project      | The directory where the FABulous project is located, given by command line |
-| FAB_MODELS_PACK    | The models pack for the project                 | Pointing to \<project_dir>/Fabric/models_pack.\<project_lang>              |
-| FAB_OSS_CAD_SUITE  | Path to the oss-cad-suite installation          | \<None>                                                                    |
-| FAB_DEBUG          | Enable debug mode                               | False                                                                      |
-| FAB_VERBOSE        | Enable verbose mode                             | 0                                                                          |
-| FAB_EDITOR         | Set the editor to be used by the `edit` command | \<None>                                                                    |
+| Variable Name                       | Description                                                           | Default Value                                                              |
+| ----------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| FAB_ROOT                            | The root directory of the FABulous repository                         | The directory where the FABulous repository is located                     |
+| FAB_FABULATOR_ROOT                  | The root directory of the FABulator repository                        | \<None>                                                                    |
+| FAB_YOSYS_PATH                      | Path to Yosys binary                                                  | yosys (Uses global Yosys installation)                                     |
+| FAB_NEXTPNR_PATH                    | Path to Nextpnr binary                                                | nextpnr-generic (Uses global Nextpnr installation)                         |
+| FAB_IVERILOG_PATH                   | Path to Icarus Verilog binary                                         | iverilog (Uses global Icarus Verilog installation)                         |
+| FAB_VVP_PATH                        | Path to Verilog VVP binary                                            | vvp (Uses global Verilog VVP installation)                                 |
+| FAB_GHDL_PATH                       | Path to GHDL binary                                                   | ghdl (Uses global GHDL installation)                                       |
+| FAB_PROJ_DIR                        | The root directory of the FABulous project                            | The directory where the FABulous project is located, given by command line |
+| FAB_MODELS_PACK                     | The models pack for the project                                       | Pointing to \<project_dir>/Fabric/models_pack.\<project_lang>              |
+| FAB_OSS_CAD_SUITE                   | Path to the oss-cad-suite installation                                | \<None>                                                                    |
+| FAB_DEBUG                           | Enable debug mode                                                     | False                                                                      |
+| FAB_VERBOSE                         | Enable verbose mode                                                   | 0                                                                          |
+| FAB_EDITOR                          | Set the editor to be used by the `edit` command                       | \<None>                                                                    |
+| FAB_WINDOWS_WARNING_ACKNOWLEDGED    | Suppress Windows compatibility warning (use at your own risk)         | False                                                                      |
 
 ## Project Specific Environment Variables
 
