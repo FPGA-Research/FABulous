@@ -1405,7 +1405,15 @@ class FABulous_CLI(Cmd):
         "--last-run", help="launch GUI to view last run", action="store_true"
     )
 
-    def _get_file_path(self, args: argparse.Namespace, file_extension: str) -> str:
+    gui_parser.add_argument(
+        "--head",
+        help="number of item to select from",
+        default=10,
+    )
+
+    def _get_file_path(
+        self, args: argparse.Namespace, file_extension: str, show_count: int = 0
+    ) -> str:
         """Get the file path for the specified file extension."""
 
         def get_latest(directory: Path, file_extension: str) -> str:
@@ -1424,7 +1432,7 @@ class FABulous_CLI(Cmd):
                 f.glob(f"**/*.{file_extension}"),
                 key=lambda f: f.stat().st_mtime,
                 reverse=True,
-            )[:10]
+            )[:show_count]
             _, idx = pick(
                 list(map(lambda x: str(x.relative_to(self.projectDir)), files_list)),
                 title,
@@ -1467,7 +1475,7 @@ class FABulous_CLI(Cmd):
         if args.fabric and args.tile is not None:
             raise CommandError("Please specify either --fabric or --tile, not both")
 
-        db_file: str = self._get_file_path(args, "odb")
+        db_file: str = self._get_file_path(args, "odb", show_count=int(args.head))
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".tcl", delete=False
         ) as script_file:

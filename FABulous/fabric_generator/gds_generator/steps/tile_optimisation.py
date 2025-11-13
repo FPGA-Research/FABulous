@@ -154,29 +154,10 @@ class TileOptimisation(WhileStep):
         if full_iter_completed:
             self.last_working_state = post_iteration.copy()
             return post_iteration
-        die_bbox = post_iteration.metrics.get("design__die__bbox", "0 0 0 0").split(" ")
-        core_bbox = post_iteration.metrics.get("design__core__bbox", "0 0 0 0").split(
-            " "
-        )
-        # Convert bbox string components to Decimal,
-        # compute per-component absolute differences
-        die_vals = list(map(Decimal, die_bbox))
-        core_vals = list(map(Decimal, core_bbox))
-        if post_iteration.metrics.get(
-            "design__core__area", 0
-        ) < post_iteration.metrics.get("design__instance__area__stdcell", 0):
-            extra = tuple(abs(a - b) for a, b in zip(die_vals, core_vals, strict=True))
-            # Update config DIE_AREA to make core area at least equal to instance area
-            self.config = self.config.copy(
-                DIE_AREA=(
-                    Decimal(0),
-                    Decimal(0),
-                    die_vals[2] + extra[0] + extra[2],
-                    die_vals[3] + extra[1] + extra[3],
-                )
-            )
-            return post_iteration
 
+        die_area_raw: tuple[Decimal, Decimal, Decimal, Decimal] = self.config.get(
+            "DIE_AREA", None
+        )
         return post_iteration
 
     def pre_iteration_callback(self, pre_iteration: State) -> State:
@@ -268,6 +249,8 @@ class TileOptimisation(WhileStep):
             round_up_decimal(new_width, Decimal(site_width)),
             round_up_decimal(new_height, Decimal(site_height)),
         )
+        if instance_area != 0:
+            self.config = self.config.copy(PL_TARGET_DENSITY_PCT=int(90))
         self.config = self.config.copy(DIE_AREA=die_area)
 
         if p := self.get_current_iteration_dir():

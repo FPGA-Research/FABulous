@@ -1,5 +1,3 @@
-"""Store information about a tile."""
-
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -319,6 +317,8 @@ class Tile:
         y_pin_thickness: Decimal,
         x_spacing: Decimal,
         y_spacing: Decimal,
+        frame_data_width: int = 32,
+        frame_stroble_width: int = 20,
     ) -> tuple[Decimal, Decimal]:
         """Calculate minimum tile dimensions based on IO pin density.
 
@@ -356,7 +356,7 @@ class Tile:
             list(
                 itertools.chain.from_iterable(
                     [
-                        list(itertools.chain.from_iterable(i.expandPortInfo()))
+                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
                         for i in self.getNorthSidePorts()
                     ]
                 )
@@ -366,7 +366,7 @@ class Tile:
             list(
                 itertools.chain.from_iterable(
                     [
-                        list(itertools.chain.from_iterable(i.expandPortInfo()))
+                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
                         for i in self.getSouthSidePorts()
                     ]
                 )
@@ -376,7 +376,7 @@ class Tile:
             list(
                 itertools.chain.from_iterable(
                     [
-                        list(itertools.chain.from_iterable(i.expandPortInfo()))
+                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
                         for i in self.getWestSidePorts()
                     ]
                 )
@@ -386,7 +386,7 @@ class Tile:
             list(
                 itertools.chain.from_iterable(
                     [
-                        list(itertools.chain.from_iterable(i.expandPortInfo()))
+                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
                         for i in self.getEastSidePorts()
                     ]
                 )
@@ -394,12 +394,20 @@ class Tile:
         )
 
         # Min width constrained by north/south edges
-        min_width_io = Decimal(max(north_ports, south_ports)) * (
-            x_pitch * x_pin_thickness + x_spacing
+        width_io_count = max(north_ports, south_ports) + frame_stroble_width
+        min_width_io = (
+            Decimal(width_io_count) * (x_pitch * x_pin_thickness)
+            + x_spacing * width_io_count
+            + 2 * x_spacing
         )
         # Min height constrained by west/east edges
-        min_height_io = Decimal(max(west_ports, east_ports)) * (
-            y_pitch * y_pin_thickness + y_spacing
+        height_io_count = max(west_ports, east_ports) + frame_data_width
+        min_height_io = (
+            height_io_count * (y_pitch * y_pin_thickness)
+            + y_spacing * height_io_count
+            + 2 * y_spacing
         )
-
+        print(x_spacing, y_spacing)
+        print(len(self.getSouthSidePorts()))
+        print(south_ports, north_ports, east_ports, west_ports)
         return min_width_io, min_height_io
