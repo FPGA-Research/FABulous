@@ -513,7 +513,9 @@ class PinPlacementPlan:
 
             # Calculate offset based on PHYSICAL position
             # Proportional positioning in the die area
-            physical_offset = int(physical_dimension * division_index / num_divisions)
+            physical_offset = math.ceil(
+                physical_dimension * division_index / num_divisions
+            )
             tile_origin = origin + physical_offset
 
             tile_tracks = self._allocate_tracks_for_tile(
@@ -613,7 +615,7 @@ class PinPlacementPlan:
                 start += size
         else:
             fractional = [c / total * track_count for c in counts]
-            sizes = [max(1, int(round(fraction))) for fraction in fractional]
+            sizes = [max(1, int(math.ceil(fraction))) for fraction in fractional]
             delta = track_count - sum(sizes)
 
             while delta > 0:
@@ -919,6 +921,7 @@ def io_place(
     }
 
     pin_tracks: dict[Side, list[list[float]]] = {side: [] for side in Side}
+    track_errors: list[dict] = []
 
     for side in Side:
         for segment_index, segment in enumerate(plan.segments_by_side[side]):
@@ -956,17 +959,40 @@ def io_place(
 
             needed = segment.actual_pin_count
             if needed > len(filtered):
-                err(
-                    "Insufficient tracks: "
-                    f"min_distance={min_distance:.3f} step={step:.3f} "
-                    f"side={side.value} seg={segment_index} needed pins={needed} "
-                    f"but only got {len(filtered)} slots "
-                    f"stride={stride} raw={len(raw_tracks)}"
+                track_errors.append(
+                    {
+                        "side": side,
+                        "shortage": needed - len(filtered),
+                        "step": step,
+                        "min_distance": min_distance,
+                    }
                 )
-                err("Hint: reduce min_distance, enlarge die, or redistribute pins.")
-                raise SystemExit(os.EX_DATAERR)
 
             pin_tracks[side].append(filtered)
+
+    if track_errors:
+        err("Insufficient tracks for pin allocation. Minimum die size increase needed:")
+        side_requirements = {}
+        for error in track_errors:
+            side = error["side"]
+            if side not in side_requirements:
+                side_requirements[side] = {
+                    "shortage": 0,
+                    "step": error["step"],
+                    "min_distance": error["min_distance"],
+                }
+            side_requirements[side]["shortage"] += error["shortage"]
+
+        for side, req in side_requirements.items():
+            additional_dimension = req["shortage"] * req["step"] / micron_in_units
+            dimension = "WIDTH" if side in {Side.NORTH, Side.SOUTH} else "HEIGHT"
+            err(
+                f"  {side.value}: +{additional_dimension:.3f} um ({dimension}) "
+                f"min_distance={req['min_distance'] / micron_in_units} um "
+                f"steps={req['step'] / micron_in_units} um"
+            )
+
+        raise SystemExit(os.EX_DATAERR)
 
     for side in Side:
         for segment in plan.segments_by_side[side]:

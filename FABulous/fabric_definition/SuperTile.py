@@ -114,7 +114,13 @@ class SuperTile:
         return len(self.tileMap)
 
     def get_min_die_area(
-        self, x_pitch: Decimal, y_pitch: Decimal
+        self,
+        x_pitch: Decimal,
+        y_pitch: Decimal,
+        x_pin_thickness_mult: Decimal,
+        y_pin_thickness_mult: Decimal,
+        x_spacing: Decimal,
+        y_spacing: Decimal,
     ) -> tuple[Decimal, Decimal]:
         """Calculate minimum SuperTile dimensions based on IO pin density.
 
@@ -197,7 +203,11 @@ class SuperTile:
             max_west = max(max_west, west_ports)
             max_east = max(max_east, east_ports)
 
-        min_width_io = Decimal(max(max_north, max_south)) * x_pitch
-        min_height_io = Decimal(max(max_west, max_east)) * y_pitch
+        min_width_io = Decimal(max(max_north, max_south)) * (
+            x_pitch * x_pin_thickness_mult + x_spacing
+        )
+        min_height_io = Decimal(max(max_west, max_east)) * (
+            y_pitch * y_pin_thickness_mult + y_spacing
+        )
 
         return min_width_io, min_height_io
