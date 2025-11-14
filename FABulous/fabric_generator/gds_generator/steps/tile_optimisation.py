@@ -1,5 +1,7 @@
 """Tile size optimisation step for FABulous fabric generator."""
 
+from FABulous.fabric_generator.gds_generator.helper import get_routing_obstructions
+
 from decimal import Decimal
 from enum import StrEnum
 from typing import cast
@@ -130,6 +132,10 @@ class TileOptimisation(WhileStep):
 
     break_next_iteration: bool = False
 
+    to_change_width: bool = False
+
+    iter_count: int = 0
+
     def condition(self, state: State) -> bool:
         """Loop condition."""
         if state.metrics.get("route__drc_errors") is None:
@@ -155,9 +161,8 @@ class TileOptimisation(WhileStep):
             self.last_working_state = post_iteration.copy()
             return post_iteration
 
-        die_area_raw: tuple[Decimal, Decimal, Decimal, Decimal] = self.config.get(
-            "DIE_AREA", None
-        )
+        self.to_change_width = not self.to_change_width
+        self.iter_count += 1
         return post_iteration
 
     def pre_iteration_callback(self, pre_iteration: State) -> State:
@@ -213,7 +218,7 @@ class TileOptimisation(WhileStep):
                     else:
                         new_width, new_height = instance_area / height, height
                 else:
-                    if height > width:
+                    if self.to_change_width:
                         new_width, new_height = (width + width_step, height)
                     else:
                         new_width, new_height = (width, height + height_step)
@@ -249,10 +254,12 @@ class TileOptimisation(WhileStep):
             round_up_decimal(new_width, Decimal(site_width)),
             round_up_decimal(new_height, Decimal(site_height)),
         )
-        if instance_area != 0:
-            self.config = self.config.copy(PL_TARGET_DENSITY_PCT=int(90))
+        self.config = self.config.copy(DRT_OPT_ITERS=5 + self.iter_count)
         self.config = self.config.copy(DIE_AREA=die_area)
-
+        self.config = self.config.copy(ROUTING_OBSTRUCTIONS=None)
+        self.config = self.config.copy(
+            ROUTING_OBSTRUCTIONS=get_routing_obstructions(self.config)
+        )
         if p := self.get_current_iteration_dir():
             (p / "config.json").write_text(self.config.dumps())
 

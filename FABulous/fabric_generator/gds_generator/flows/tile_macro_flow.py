@@ -135,7 +135,10 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
             )
 
         tile_config_dict.update(**custom_config_overrides)
-
+        if "FABULOUS_OPT_MODE" in tile_config_dict:
+            tile_config_dict["FABULOUS_OPT_MODE"] = OptMode(
+                tile_config_dict["FABULOUS_OPT_MODE"]
+            )
         default_design_dir = tile_type.tileDir.parent / "macro" / opt_mode.value
         default_design_dir.mkdir(parents=True, exist_ok=True)
         super().__init__(
