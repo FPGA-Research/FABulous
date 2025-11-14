@@ -35,11 +35,11 @@ class FABulousSettings(BaseSettings):
 
     user_config_dir: Path = Field(default_factory=lambda: FAB_USER_CONFIG_DIR)
 
-    yosys_path: Path | None = None
-    nextpnr_path: Path | None = None
-    iverilog_path: Path | None = None
-    vvp_path: Path | None = None
-    ghdl_path: Path | None = None
+    yosys_path: Path | str = Field(default="yosys", validate_default=True)
+    nextpnr_path: Path | str = Field(default="nextpnr-generic", validate_default=True)
+    iverilog_path: Path | str = Field(default="iverilog", validate_default=True)
+    vvp_path: Path | str = Field(default="vvp", validate_default=True)
+    ghdl_path: Path | str = Field(default="ghdl", validate_default=True)
     fabulator_root: Path | None = None
     oss_cad_suite: Path | None = None
 
@@ -228,8 +228,8 @@ class FABulousSettings(BaseSettings):
     )
     @classmethod
     def resolve_tool_paths(
-        cls, value: Path | None, info: ValidationInfo
-    ) -> Path | None:
+        cls, value: Path | str | None, info: ValidationInfo
+    ) -> Path | str:
         """Resolve tool paths by checking if tools are available in `PATH`.
 
         This method is used as a field validator to automatically resolve tool paths
@@ -238,23 +238,25 @@ class FABulousSettings(BaseSettings):
 
         Parameters
         ----------
-        value : Path | None
+        value : Path | str | None
             The explicitly provided tool path, if any.
         info : ValidationInfo
             Validation context containing field information.
 
         Returns
         -------
-        Path | None
-            The resolved path to the tool if found, `None` otherwise.
+        Path | str
+            The resolved path to the tool if found, tool name otherwise.
 
         Notes
         -----
         This method logs a warning if a tool is not found in `PATH`, as some
         features may be unavailable without the tool.
         """
-        if value is not None:
+        if isinstance(value, Path):
             return value
+        if isinstance(value, str) and value != "" and Path(value).exists():
+            return Path(value).resolve()
         tool_map = {
             "yosys_path": "yosys",
             "nextpnr_path": "nextpnr-generic",
@@ -263,12 +265,6 @@ class FABulousSettings(BaseSettings):
             "ghdl_path": "ghdl",
         }
         tool = tool_map.get(info.field_name, None)  # type: ignore[attr-defined]
-        if tool is None:
-            logger.warning(
-                f"No tool found for {info.field_name} during settings initialisation. "
-                f"Some features may be unavailable."
-            )
-            return None
         tool_path = which(tool)
         if tool_path is not None:
             return Path(tool_path).resolve()
@@ -277,7 +273,7 @@ class FABulousSettings(BaseSettings):
             f"{tool} not found in PATH during settings initialisation. "
             f"Some features may be unavailable."
         )
-        return None
+        return tool_map[info.field_name]
 
 
 # Module-level singleton pattern for settings management
@@ -288,6 +284,7 @@ def init_context(
     project_dir: Path | None = None,
     global_dot_env: Path | None = None,
     project_dot_env: Path | None = None,
+    api_mode: bool = False,
 ) -> FABulousSettings:
     """Initialize the global FABulous context with settings.
 
@@ -302,6 +299,8 @@ def init_context(
         Path to a global .env file (if any)
     project_dot_env : Path | None
         Path to a project-specific .env file (if any)
+    api_mode: bool
+        If True, skips all validation for API mode
 
     Returns
     -------
@@ -313,53 +312,47 @@ def init_context(
     # Gather .env files in priority order
     env_files: list[Path] = []
 
+    if api_mode:
+        logger.debug("API mode: skipping all validation")
+        return FABulousSettings.model_construct()
+
     # 1. User config .env file (global)
     user_config_env = FAB_USER_CONFIG_DIR / ".env"
     if user_config_env.exists():
         env_files.append(user_config_env)
+        logger.debug(f"Loading user config .env file from {user_config_env}")
 
     # 2. User-provided global .env file
-    if global_dot_env:
-        if global_dot_env.exists():
-            env_files.append(global_dot_env)
-        else:
-            logger.warning(
-                f"Global .env file not found: {global_dot_env} this is ignored"
-            )
-    if global_dot_env and global_dot_env.exists():
+    if global_dot_env is not None and global_dot_env.exists():
         env_files.append(global_dot_env)
-    elif global_dot_env is not None:
-        logger.warning(
-            f"Global .env file not found: {global_dot_env} this entry is ignored"
-        )
+        logger.info(f"Loading global .env file from {global_dot_env}")
+    else:
+        if global_dot_env is not None:
+            logger.warning(
+                f"Explicit Global .env file: {global_dot_env} is provided, "
+                "but this is not found, this entry is ignored"
+            )
 
     # 3. cwd project dir .env
-    if project_dir is None:
-        if (Path().cwd() / ".FABulous" / ".env").exists():
-            env_files.append(Path().cwd() / ".FABulous" / ".env")
-        elif project_dir is not None:
-            logger.warning(
-                f"Project .env file not found: {Path().cwd() / '.FABulous' / '.env'} "
-                f"this entry is ignored"
-            )
+    if project_dir is None and (Path().cwd() / ".FABulous" / ".env").exists():
+        env_files.append(Path().cwd() / ".FABulous" / ".env")
+        logger.debug("Loading project .env file from cwd")
 
     # 4. explicit project dir .env
     if project_dir is not None and (project_dir / ".FABulous" / ".env").exists():
         env_files.append(project_dir / ".FABulous" / ".env")
-    elif project_dir is not None:
-        logger.warning(
-            f"Project .env file not found: {project_dir / '.FABulous' / '.env'} "
-            f"this entry is ignored"
-        )
+        logger.debug(f"Loading project .env file from project_dir: {project_dir}")
 
     # 5. User-provided project .env file (highest .env priority)
     if project_dot_env and project_dot_env.exists():
         env_files.append(project_dot_env)
         logger.info(f"Loading project .env file from {project_dot_env}")
-    elif project_dot_env is not None:
-        logger.warning(
-            f"Project .env file not found: {project_dot_env} this entry is ignored"
-        )
+    else:
+        if project_dot_env is not None:
+            logger.warning(
+                f"Explicit project .env file: {project_dot_env} is provided, "
+                "but this is not found, this entry is ignored"
+            )
 
     if project_dir:
         _context_instance = FABulousSettings(
@@ -368,7 +361,6 @@ def init_context(
     else:
         _context_instance = FABulousSettings(_env_file=tuple(env_files))
 
-    logger.debug("FABulous context initialized")
     return _context_instance
 
 
@@ -379,19 +371,11 @@ def get_context() -> FABulousSettings:
     -------
     FABulousSettings
         The current FABulousSettings instance
-
-    Raises
-    ------
-    RuntimeError
-        If context has not been initialized with init_context()
     """
     global _context_instance
 
     if _context_instance is None:
-        raise RuntimeError(
-            "FABulous context not initialized. Call init_context() first."
-        )
-
+        _context_instance = init_context(api_mode=True)
     return _context_instance
 
 

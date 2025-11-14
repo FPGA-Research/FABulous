@@ -10,7 +10,7 @@ from loguru import logger
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import create_project, setup_logger
-from FABulous.FABulous_settings import reset_context
+from FABulous.FABulous_settings import reset_context, init_context
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]
@@ -81,6 +81,7 @@ def cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FABulous_CLI:
     project_dir = tmp_path / "test_project"
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
     create_project(project_dir)
+    init_context(project_dir)
     cli = FABulous_CLI(
         "verilog",
         force=False,
