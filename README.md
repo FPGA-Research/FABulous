@@ -64,6 +64,14 @@ Dirk Koch, Nguyen Dao, Bea Healy, Jing Yu, and Andrew Attwood. 2021. FABulous: A
 
 ## Prerequisites
 
+> [!WARNING]
+> **Windows Support**
+>
+> FABulous is not officially supported on native Windows. While the tool may work, you may encounter errors and unexpected behavior.
+> **For the best experience on Windows-based systems, we strongly recommend using Windows Subsystem for Linux (WSL).**
+>
+> To set up WSL, visit: https://docs.microsoft.com/en-us/windows/wsl/install
+
 The following packages need to be installed for generating fabric HDL models and using the FABulous front end:
 
 - Python 3.12 or later

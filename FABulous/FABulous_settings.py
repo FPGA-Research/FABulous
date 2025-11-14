@@ -60,6 +60,9 @@ class FABulousSettings(BaseSettings):
     verbose: int = 0
     editor: str | None = None
 
+    # Windows warning acknowledgement
+    windows_warning_acknowledged: bool = False
+
     @field_validator("proj_version", "proj_version_created", "version", mode="before")
     @classmethod
     def parse_version_str(cls, value: str | Version) -> Version:
