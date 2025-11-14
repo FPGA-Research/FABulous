@@ -525,9 +525,8 @@ class FABulousFabricMacroFullFlow(Flow):
 
         result_summary = {}
         for state_future, subflow, flow_config_dict, tile_type in handlers:
-            with contextlib.suppress(FlowError):
+            try:
                 state, design_name = state_future.result()
-                print(state, design_name)
                 state.save_snapshot(
                     str(Path(cast("str", subflow.run_dir)) / "final_views")
                 )
@@ -557,17 +556,23 @@ class FABulousFabricMacroFullFlow(Flow):
                         f"Tile {tile_name} with {opt_mode} mode failed compilation, "
                         "skipping"
                     )
-                    continue
-                info(
-                    f"{tile_name} ({opt_mode}): bounding box "
-                    f"{state.metrics['design__die__bbox']}"
-                )
+                else:
+                    info(
+                        f"{tile_name} ({opt_mode}): bounding box "
+                        f"{state.metrics['design__die__bbox']}"
+                    )
+            except Exception as e:
+                err(f"Error processing tile result: {e}")
+                err(traceback.format_exc())
+                result_summary[f"error_{flow_config_dict.get('DESIGN_NAME', 'unknown')}"] = {
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                }
 
+            # Write summary after each iteration for debugging
             (Path(self.design_dir) / "tile_optimisation_summary.json").write_text(
-                json.dumps(result_summary), encoding="utf-8"
+                json.dumps(result_summary, indent=2), encoding="utf-8"
             )
-
-        raise
         # Step 2: Formulate and solve NLP problem
         info("\n=== Step 2: Solving NLP optimization ===")
         self.progress_bar.start_stage("NLP Optimization")
