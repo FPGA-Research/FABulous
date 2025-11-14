@@ -924,6 +924,12 @@ def io_place(
     track_errors: list[dict] = []
 
     for side in Side:
+        # Get origin for this side to calculate global alignment
+        if side in {Side.NORTH, Side.SOUTH}:
+            global_origin = origin_v
+        else:
+            global_origin = origin_h
+        
         for segment_index, segment in enumerate(plan.segments_by_side[side]):
             if segment.min_distance is None:
                 raise AssertionError("min_distance must be defined before placement")
@@ -936,25 +942,35 @@ def io_place(
             step = step_by_side[side]
 
             stride = max(1, math.ceil(min_distance / step))
-            filtered = [raw_tracks[i] for i in range(0, len(raw_tracks), stride)]
+            
+            # Calculate which tracks align with global stride pattern
+            filtered = []
+            for i, track_coord in enumerate(raw_tracks):
+                # Find this track's global index from origin
+                global_track_idx = round((track_coord - global_origin) / step)
+                # Check if it aligns with the stride pattern
+                if global_track_idx % stride == 0:
+                    filtered.append(track_coord)
 
             if max_distance is not None:
                 max_stride = max(1, math.floor(max_distance / step))
                 enforced = []
-                last_index = None
-                for idx, track in enumerate(raw_tracks):
-                    if idx % stride == 0:
-                        if last_index is None:
-                            enforced.append(track)
-                            last_index = idx
-                        else:
-                            if idx - last_index > max_stride:
-                                interim = last_index + max_stride
-                                while interim < idx:
-                                    enforced.append(raw_tracks[interim])
-                                    interim += max_stride
-                            enforced.append(track)
-                            last_index = idx
+                last_global_idx = None
+                for track_coord in filtered:
+                    global_track_idx = round((track_coord - global_origin) / step)
+                    if last_global_idx is None:
+                        enforced.append(track_coord)
+                        last_global_idx = global_track_idx
+                    else:
+                        if global_track_idx - last_global_idx > max_stride:
+                            # Need to add intermediate tracks
+                            interim_idx = last_global_idx + max_stride
+                            while interim_idx < global_track_idx:
+                                interim_coord = global_origin + interim_idx * step
+                                enforced.append(interim_coord)
+                                interim_idx += max_stride
+                        enforced.append(track_coord)
+                        last_global_idx = global_track_idx
                 filtered = enforced
 
             needed = segment.actual_pin_count

@@ -96,7 +96,12 @@ def _init_worker() -> None:
 
 
 def _run_tile_flow_worker(
-    flow_config: dict, flow_name: str, design_dir: str
+    tile_type: Tile,
+    io_pin_config: Path,
+    optimisation: OptMode,
+    base_config_path: Path,
+    override_config_path: Path,
+    **custom_config_overrides,
 ) -> tuple[State, str]:
     """Worker function to run a tile flow in a separate process.
 
@@ -124,14 +129,15 @@ def _run_tile_flow_worker(
     init_context()
     # Reconstruct the flow in the worker process with serializable data
     flow = FABulousTileVerilogMarcoFlow(
-        flow_config,
-        name=flow_name,
-        design_dir=design_dir,
-        pdk=get_context().pdk,
-        pdk_root=str(get_context().pdk_root.resolve().parent),
+        tile_type,
+        io_pin_config,
+        optimisation,
+        base_config_path=base_config_path,
+        override_config_path=override_config_path,
+        **custom_config_overrides or {},
     )
     state = flow.start()
-    design_name = flow_config["DESIGN_NAME"]
+    design_name = tile_type.name + optimisation.value
     return state, design_name
 
 
@@ -473,50 +479,55 @@ class FABulousFabricMacroFullFlow(Flow):
         ]
 
         # Create compilation steps for all tiles with all optimization modes
-        min_dim_flow_steps: list[Flow] = []
+        min_dim_flow_steps: list[tuple[Flow, Tile | SuperTile]] = []
         for tile_type in fabric.get_all_unique_tiles():
-            out_file = tile_type.tileDir / "io_pin_order.yaml"
+            out_file = tile_type.tileDir.parent / "io_pin_order.yaml"
             generate_IO_pin_order_config(fabric, tile_type, out_file)
             for opt_mode in opt_modes:
-                min_dim_flow_steps.append(
-                    FABulousTileVerilogMarcoFlow(
-                        tile_type,
-                        out_file,
-                        opt_mode,
-                        base_config_path=proj_dir
-                        / "Tile"
-                        / "include"
-                        / "gds_config.yaml",
-                        override_config_path=tile_type.tileDir / "gds_config.yaml",
-                        FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
-                    )
+                flow = FABulousTileVerilogMarcoFlow(
+                    tile_type,
+                    out_file,
+                    opt_mode,
+                    base_config_path=proj_dir / "Tile" / "include" / "gds_config.yaml",
+                    override_config_path=tile_type.tileDir.parent / "gds_config.yaml",
+                    FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
                 )
+                min_dim_flow_steps.append((flow, tile_type))
 
         # TODO: Makeing this working with async setps again once librelane is fixed
-        handlers: list[tuple[Future[tuple[State, str]], Flow, dict]] = []
+        handlers: list[
+            tuple[Future[tuple[State, str]], Flow, dict, Tile | SuperTile]
+        ] = []
         mp_context = multiprocessing.get_context("spawn")
         with DillProcessPoolExecutor(
             max_workers=None,
             mp_context=mp_context,
             initializer=_init_worker,
         ) as executor:
-            for subflow in min_dim_flow_steps:
+            for subflow, tile_type in min_dim_flow_steps:
                 # Extract serializable config (as dict to avoid Config lock issues)
                 flow_config_dict = dict(subflow.config)
+                io_pin_config = Path(flow_config_dict["FABULOUS_IO_PIN_ORDER_CFG"])
+                opt_mode = flow_config_dict["FABULOUS_OPT_MODE"]
+                base_config_path = proj_dir / "Tile" / "include" / "gds_config.yaml"
+                override_config_path = tile_type.tileDir.parent / "gds_config.yaml"
+
                 result = executor.submit(
                     _run_tile_flow_worker,
-                    flow_config_dict,
-                    subflow.name,
-                    str(subflow.design_dir),
+                    tile_type,
+                    io_pin_config,
+                    opt_mode,
+                    base_config_path,
+                    override_config_path,
+                    FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
                 )
-                handlers.append((result, subflow, flow_config_dict))
+                handlers.append((result, subflow, flow_config_dict, tile_type))
 
         result_summary = {}
-        for state_future, subflow, flow_config_dict in handlers:
+        for state_future, subflow, flow_config_dict, tile_type in handlers:
             with contextlib.suppress(FlowError):
                 state, design_name = state_future.result()
                 print(state, design_name)
-                raise
                 state.save_snapshot(
                     str(Path(cast("str", subflow.run_dir)) / "final_views")
                 )
@@ -556,6 +567,7 @@ class FABulousFabricMacroFullFlow(Flow):
                 json.dumps(result_summary), encoding="utf-8"
             )
 
+        raise
         # Step 2: Formulate and solve NLP problem
         info("\n=== Step 2: Solving NLP optimization ===")
         self.progress_bar.start_stage("NLP Optimization")

@@ -116,10 +116,10 @@ def get_routing_obstructions(config: Config) -> list[tuple[int, int, int, int]]:
 
     parsed_obstructions = defaultdict(list)
     for obs in obstructions:
-        if len(obs) != 4:
+        if len(obs) != 5:
             raise ValueError(
                 f"Invalid obstruction {obs}. Each obstruction must be a tuple of "
-                "4 integers."
+                "metal layer flowed by 4 decimals"
             )
         met, *box = obs
         parsed_obstructions[met].append(box)
