@@ -434,9 +434,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
         withUserCLK = any(bel.withUserCLK for bel in bels)
         new_supertiles.append(
-            SuperTile(
-                name, fileName.absolute().parent, tiles, tileMap, bels, withUserCLK
-            )
+            SuperTile(name, fileName.absolute(), tiles, tileMap, bels, withUserCLK)
         )
 
     return new_supertiles

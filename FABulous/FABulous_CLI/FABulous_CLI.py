@@ -1270,6 +1270,7 @@ class FABulous_CLI(Cmd):
         default=OptMode.NO_OPT,
         type=OptMode,
         const=OptMode.BALANCE,
+        nargs="?",
     )
     gds_parser.add_argument(
         "--override",
@@ -1335,6 +1336,7 @@ class FABulous_CLI(Cmd):
         default=OptMode.NO_OPT,
         type=OptMode,
         const=OptMode.BALANCE,
+        nargs="?",
     )
 
     @with_argparser(gen_all_tile_parser)
