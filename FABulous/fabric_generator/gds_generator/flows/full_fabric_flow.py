@@ -8,21 +8,19 @@ This flow uses Linear Programming to optimize tile dimensions:
 5. Stitches all tiles into final fabric
 """
 
-import contextlib
 import json
 import multiprocessing
 import traceback
-from concurrent.futures import Future, ProcessPoolExecutor
+from concurrent.futures import Future
 from decimal import Decimal
+from itertools import product
 from pathlib import Path
 from typing import cast
 
-import dill
-import yaml
 from librelane.config.flow import flow_common_variables
 from librelane.config.variable import Macro, Variable
 from librelane.flows.classic import Classic
-from librelane.flows.flow import Flow, FlowError
+from librelane.flows.flow import Flow
 from librelane.logging.logger import err, info, warn
 from librelane.state.design_format import DesignFormat
 from librelane.state.state import State
@@ -47,7 +45,8 @@ from FABulous.fabric_generator.gds_generator.steps.global_tile_opitmisation impo
 )
 from FABulous.fabric_generator.gds_generator.steps.tile_macro_gen import TileMarcoGen
 from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
-from FABulous.FABulous_settings import get_context, init_context
+from FABulous.FABulous_settings import init_context
+from FABulous.processpool import DillProcessPoolExecutor
 
 configs = (
     Classic.config_vars
@@ -84,15 +83,6 @@ configs = (
         ),
     ]
 )
-
-
-def _init_worker() -> None:
-    """Initialize worker process to use dill for pickling."""
-    from multiprocessing.reduction import ForkingPickler
-
-    # Override ForkingPickler with dill
-    ForkingPickler.dumps = dill.dumps
-    ForkingPickler.loads = dill.loads
 
 
 def _run_tile_flow_worker(
@@ -141,23 +131,6 @@ def _run_tile_flow_worker(
     return state, design_name
 
 
-class DillProcessPoolExecutor(ProcessPoolExecutor):
-    """ProcessPoolExecutor that uses dill for serialization.
-
-    This executor patches both the main process and worker processes to use dill instead
-    of pickle, allowing serialization of thread locks and other complex objects that
-    standard pickle cannot handle.
-    """
-
-    def __init__(self, *args, **kwargs):
-        # Patch the main process to use dill BEFORE calling parent init
-        from multiprocessing.reduction import ForkingPickler
-
-        ForkingPickler.dumps = dill.dumps
-        ForkingPickler.loads = dill.loads
-        super().__init__(*args, **kwargs)
-
-
 @Flow.factory.register()
 class FABulousFabricMacroFullFlow(Flow):
     """Full automatic fabric flow with LP-optimized tile dimensions.
@@ -172,131 +145,6 @@ class FABulousFabricMacroFullFlow(Flow):
     Steps = [TileMarcoGen, GlobalTileSizeOptimization, FabricMacroGen]
 
     config_vars = configs
-
-    def _get_compile_tile_flow(
-        self,
-        tile_type: Tile | SuperTile,
-        fabric: Fabric,
-        proj_dir: Path,
-        opt_mode: OptMode,
-        die_area: list | None = None,
-        io_min_width: Decimal | None = None,
-        io_min_height: Decimal | None = None,
-        extra_config: dict | None = None,
-    ) -> Flow:
-        """Create a TileMarcoGen step for compiling a tile.
-
-        This function centralizes tile compilation step creation to maximize code reuse.
-
-        Parameters
-        ----------
-        tile_type : Tile | SuperTile
-            Tile to compile
-        fabric : Fabric
-            Fabric configuration
-        proj_dir : Path
-            Project directory
-        initial_state : State
-            Initial state for the step
-        step_id : str
-            Unique ID for the step
-        tile_optimization : bool
-            Whether to enable tile optimization
-        opt_mode : OptMode | None
-            Optimization mode (if tile_optimization=True)
-        die_area : list | None
-            Override DIE_AREA constraint [llx, lly, urx, ury]
-        io_min_width : Decimal | None
-            Minimum width constraint from IO pins
-        io_min_height : Decimal | None
-            Minimum height constraint from IO pins
-        extra_config : dict | None
-            Additional configuration overrides
-
-        Returns
-        -------
-        Step
-            TileMarcoGen step ready to be executed
-        """
-        tile_dir = proj_dir / "Tile" / tile_type.name
-        tile_name = tile_type.name
-
-        # Generate IO pin configuration
-        out_file = tile_dir / "io_pin_order.yaml"
-        generate_IO_pin_order_config(fabric, tile_type, out_file)
-
-        # Build file list
-        file_list = [str(f) for f in tile_dir.glob("**/*.v") if "macro" not in f.parts]
-        if models_pack := get_context().models_pack:
-            file_list.append(str(models_pack.resolve()))
-
-        # Load base config
-        tile_config_overrides = {}
-        if (proj_dir / "Tile" / "include" / "gds_config.yaml").exists():
-            tile_config_overrides.update(
-                yaml.safe_load(
-                    (proj_dir / "Tile" / "include" / "gds_config.yaml").read_text(
-                        encoding="utf-8"
-                    )
-                )
-            )
-
-        gds_config_file = tile_dir / "gds_config.yaml"
-        if gds_config_file.exists():
-            tile_config_overrides.update(
-                yaml.safe_load(gds_config_file.read_text(encoding="utf-8"))
-            )
-
-        # Apply die area override if provided
-        if die_area is not None:
-            tile_config_overrides["DIE_AREA"] = die_area
-
-        # Determine logical dimensions
-        if isinstance(tile_type, SuperTile):
-            logical_width = tile_type.max_width
-            logical_height = tile_type.max_height
-        else:
-            logical_width = 1
-            logical_height = 1
-
-        # Build tile configuration
-        tile_config_dict = {
-            "DESIGN_NAME": tile_name,
-            "FABULOUS_IO_PIN_ORDER_CFG": out_file,
-            "FABULOUS_TILE_DIR": str(tile_dir),
-            "VERILOG_FILES": file_list,
-            "FABULOUS_TILE_LOGICAL_WIDTH": logical_width,
-            "FABULOUS_TILE_LOGICAL_HEIGHT": logical_height,
-            "FABULOUS_OPT_MODE": opt_mode,
-            "FABULOUS_FABRIC": fabric,
-            "FABULOUS_PROJ_DIR": str(proj_dir),
-        }
-
-        # Add IO constraints if provided
-        if io_min_width is not None:
-            tile_config_dict["FABULOUS_IO_MIN_WIDTH"] = io_min_width
-        if io_min_height is not None:
-            tile_config_dict["FABULOUS_IO_MIN_HEIGHT"] = io_min_height
-
-        # Add run directory override if provided
-
-        # Add extra config if provided
-        if extra_config:
-            tile_config_dict.update(extra_config)
-
-        # Add tile-specific overrides
-        tile_config_dict.update(tile_config_overrides)
-        design_dir = tile_dir / "macro" / opt_mode.value
-        design_dir.mkdir(parents=True, exist_ok=True)
-        # full librelane config resolve
-        # Create and return the step
-        return FABulousTileVerilogMarcoFlow(
-            tile_config_dict,
-            name=tile_name,
-            design_dir=str(design_dir),
-            pdk=get_context().pdk,
-            pdk_root=str(get_context().pdk_root.resolve().parent),
-        )
 
     def _extract_tile_dimensions_from_state(
         self, state: State
@@ -494,63 +342,49 @@ class FABulousFabricMacroFullFlow(Flow):
                 )
                 min_dim_flow_steps.append((flow, tile_type))
 
-        # TODO: Makeing this working with async setps again once librelane is fixed
-        handlers: list[
-            tuple[Future[tuple[State, str]], Flow, dict, Tile | SuperTile]
-        ] = []
-        mp_context = multiprocessing.get_context("spawn")
-        with DillProcessPoolExecutor(
-            max_workers=None,
-            mp_context=mp_context,
-            initializer=_init_worker,
-        ) as executor:
-            for subflow, tile_type in min_dim_flow_steps:
+        handlers: list[tuple[Future[tuple[State, str]], OptMode, Tile | SuperTile]] = []
+        with DillProcessPoolExecutor(max_workers=1) as executor:
+            for opt_mode, tile_type in product(
+                opt_modes, fabric.get_all_unique_tiles()
+            ):
                 # Extract serializable config (as dict to avoid Config lock issues)
-                flow_config_dict = dict(subflow.config)
-                io_pin_config = Path(flow_config_dict["FABULOUS_IO_PIN_ORDER_CFG"])
-                opt_mode = flow_config_dict["FABULOUS_OPT_MODE"]
+
+                io_config_path = tile_type.tileDir.parent / "io_pin_order.yaml"
+                generate_IO_pin_order_config(fabric, tile_type, io_config_path)
                 base_config_path = proj_dir / "Tile" / "include" / "gds_config.yaml"
                 override_config_path = tile_type.tileDir.parent / "gds_config.yaml"
 
                 result = executor.submit(
                     _run_tile_flow_worker,
                     tile_type,
-                    io_pin_config,
+                    io_config_path,
                     opt_mode,
                     base_config_path,
                     override_config_path,
                     FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
                 )
-                handlers.append((result, subflow, flow_config_dict, tile_type))
+                handlers.append((result, opt_mode, tile_type))
 
         result_summary = {}
-        for state_future, subflow, flow_config_dict, tile_type in handlers:
-            tile_name = flow_config_dict.get('DESIGN_NAME', 'unknown')
-            state = None
-            design_name = None
+        for state_future, opt_mode, tile_type in handlers:
+            tile_name = tile_type.name
             error = None
             error_trace = None
-            
+            state = None
+
             try:
                 state, design_name = state_future.result()
             except Exception as e:
                 error = str(e)
                 error_trace = traceback.format_exc()
-                err(f"Error getting tile result for {tile_name}: {e}")
-                err(error_trace)
-            
             # Try to save snapshot if state exists
-            if state is not None:
-                try:
-                    state.save_snapshot(
-                        str(Path(cast("str", subflow.run_dir)) / "final_views")
-                    )
-                except Exception as e:
-                    err(f"Failed to save snapshot for {tile_name}: {e}")
-            
             # Always build the metrics dict
             metrics_dict = {}
             if state is not None:
+                state.save_snapshot(
+                    str(Path(cast("str", tile_type.tileDir.parent)) / "final_views")
+                )
+
                 metrics_dict = {
                     k: state.metrics.get(k)
                     for k in [
@@ -563,32 +397,29 @@ class FABulousFabricMacroFullFlow(Flow):
                         "antenna__violating__pins",
                     ]
                 }
-            
+
             # Add error info if present
             if error is not None:
                 metrics_dict["error"] = error
                 metrics_dict["error_traceback"] = error_trace
-            
+
             # Use design_name if available, otherwise use tile_name
-            result_key = design_name if design_name else tile_name
-            result_summary[result_key] = metrics_dict
-            
+            result_summary[tile_type.name] = metrics_dict
+
             # Process successful state
             if state is not None and error is None:
-                subflow_list.append(subflow)
-                opt_mode = flow_config_dict["FABULOUS_OPT_MODE"]
-                initial_state.metrics[f"{result_key}_opt_mode_{opt_mode}"] = (
+                initial_state.metrics[f"{tile_type.name}_opt_mode_{opt_mode}"] = (
                     state.metrics
                 )
 
                 if not self._compilation_successful(state):
                     warn(
-                        f"Tile {result_key} with {opt_mode} mode failed compilation, "
-                        "skipping"
+                        f"Tile {tile_type.name} with {opt_mode} mode "
+                        "failed compilation, skipping"
                     )
                 else:
                     info(
-                        f"{result_key} ({opt_mode}): bounding box "
+                        f"{tile_type.name} ({opt_mode}): bounding box "
                         f"{state.metrics['design__die__bbox']}"
                     )
 
@@ -612,7 +443,6 @@ class FABulousFabricMacroFullFlow(Flow):
             err(f"NLP optimization step failed to start/execute: {e}")
             err(traceback.format_exc())
             raise
-        subflow_list.append(nlp_step)
 
         self.progress_bar.end_stage()
 

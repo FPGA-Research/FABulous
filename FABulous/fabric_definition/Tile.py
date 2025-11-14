@@ -407,7 +407,4 @@ class Tile:
             + y_spacing * height_io_count
             + 2 * y_spacing
         )
-        print(x_spacing, y_spacing)
-        print(len(self.getSouthSidePorts()))
-        print(south_ports, north_ports, east_ports, west_ports)
         return min_width_io, min_height_io

@@ -229,6 +229,9 @@ class TileOptimisation(WhileStep):
                     new_width, new_height = (initial_side, initial_side)
                 else:
                     new_width, new_height = (width + width_step, height + height_step)
+
+            case OptMode.NO_OPT:
+                new_width, new_height = (width, height)
             case _:
                 raise ValueError(
                     f"Unknown FABULOUS_OPT_MODE: {self.config['FABULOUS_OPT_MODE']}"

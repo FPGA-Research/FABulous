@@ -10,7 +10,7 @@ from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
 from librelane.flows.flow import Flow, FlowException
 from librelane.flows.sequential import SequentialFlow
-from librelane.logging.logger import warn
+from librelane.logging.logger import err, warn
 from librelane.state.state import State
 from librelane.steps import odb as Odb
 from librelane.steps import openroad as OpenROAD
@@ -26,10 +26,10 @@ from FABulous.fabric_generator.gds_generator.flows.flow_define import (
     write_out_steps,
 )
 from FABulous.fabric_generator.gds_generator.helper import (
+    get_offset,
     get_pitch,
     get_routing_obstructions,
     round_die_area,
-    get_offset,
 )
 from FABulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
 from FABulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
@@ -181,6 +181,10 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
                         f"minimum required area ({min_x}, {min_y}) for the "
                         f"tile {tile_type.name}. Please update the DIE_AREA "
                     )
+        else:
+            if not self.config.get("DIE_AREA"):
+                err("If not using any optimisatin, DIE_AREA must be set.")
+                raise FlowException("Invalid DIE_AREA configuration.")
 
         self.config = round_die_area(self.config)
         if (
