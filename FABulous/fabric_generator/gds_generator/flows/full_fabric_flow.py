@@ -525,12 +525,33 @@ class FABulousFabricMacroFullFlow(Flow):
 
         result_summary = {}
         for state_future, subflow, flow_config_dict, tile_type in handlers:
+            tile_name = flow_config_dict.get('DESIGN_NAME', 'unknown')
+            state = None
+            design_name = None
+            error = None
+            error_trace = None
+            
             try:
                 state, design_name = state_future.result()
-                state.save_snapshot(
-                    str(Path(cast("str", subflow.run_dir)) / "final_views")
-                )
-                result_summary[design_name] = {
+            except Exception as e:
+                error = str(e)
+                error_trace = traceback.format_exc()
+                err(f"Error getting tile result for {tile_name}: {e}")
+                err(error_trace)
+            
+            # Try to save snapshot if state exists
+            if state is not None:
+                try:
+                    state.save_snapshot(
+                        str(Path(cast("str", subflow.run_dir)) / "final_views")
+                    )
+                except Exception as e:
+                    err(f"Failed to save snapshot for {tile_name}: {e}")
+            
+            # Always build the metrics dict
+            metrics_dict = {}
+            if state is not None:
+                metrics_dict = {
                     k: state.metrics.get(k)
                     for k in [
                         "FABULOUS_OPT_MODE",
@@ -542,32 +563,34 @@ class FABulousFabricMacroFullFlow(Flow):
                         "antenna__violating__pins",
                     ]
                 }
+            
+            # Add error info if present
+            if error is not None:
+                metrics_dict["error"] = error
+                metrics_dict["error_traceback"] = error_trace
+            
+            # Use design_name if available, otherwise use tile_name
+            result_key = design_name if design_name else tile_name
+            result_summary[result_key] = metrics_dict
+            
+            # Process successful state
+            if state is not None and error is None:
                 subflow_list.append(subflow)
-
-                tile_name = design_name
                 opt_mode = flow_config_dict["FABULOUS_OPT_MODE"]
-
-                initial_state.metrics[f"{tile_name}_opt_mode_{opt_mode}"] = (
+                initial_state.metrics[f"{result_key}_opt_mode_{opt_mode}"] = (
                     state.metrics
                 )
 
                 if not self._compilation_successful(state):
                     warn(
-                        f"Tile {tile_name} with {opt_mode} mode failed compilation, "
+                        f"Tile {result_key} with {opt_mode} mode failed compilation, "
                         "skipping"
                     )
                 else:
                     info(
-                        f"{tile_name} ({opt_mode}): bounding box "
+                        f"{result_key} ({opt_mode}): bounding box "
                         f"{state.metrics['design__die__bbox']}"
                     )
-            except Exception as e:
-                err(f"Error processing tile result: {e}")
-                err(traceback.format_exc())
-                result_summary[f"error_{flow_config_dict.get('DESIGN_NAME', 'unknown')}"] = {
-                    "error": str(e),
-                    "traceback": traceback.format_exc(),
-                }
 
             # Write summary after each iteration for debugging
             (Path(self.design_dir) / "tile_optimisation_summary.json").write_text(

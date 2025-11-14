@@ -144,7 +144,7 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
         super().__init__(
             tile_config_dict,
             name=tile_type.name,
-            design_dir=str(design_dir) or str(default_design_dir),
+            design_dir=design_dir or default_design_dir,
             pdk=get_context().pdk,
             pdk_root=str(get_context().pdk_root.resolve().parent),
         )
