@@ -324,31 +324,16 @@ class FABulousFabricMacroFullFlow(Flow):
         # Optimization modes to try for each tile
         opt_modes = [
             OptMode.BALANCE,
+            OptMode.FIND_MIN_HEIGHT,
+            OptMode.FIND_MIN_WIDTH,
         ]
 
-        # Create compilation steps for all tiles with all optimization modes
-        min_dim_flow_steps: list[tuple[Flow, Tile | SuperTile]] = []
-        for tile_type in fabric.get_all_unique_tiles():
-            out_file = tile_type.tileDir.parent / "io_pin_order.yaml"
-            generate_IO_pin_order_config(fabric, tile_type, out_file)
-            for opt_mode in opt_modes:
-                flow = FABulousTileVerilogMarcoFlow(
-                    tile_type,
-                    out_file,
-                    opt_mode,
-                    base_config_path=proj_dir / "Tile" / "include" / "gds_config.yaml",
-                    override_config_path=tile_type.tileDir.parent / "gds_config.yaml",
-                    FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
-                )
-                min_dim_flow_steps.append((flow, tile_type))
-
         handlers: list[tuple[Future[tuple[State, str]], OptMode, Tile | SuperTile]] = []
-        with DillProcessPoolExecutor(max_workers=1) as executor:
+        with DillProcessPoolExecutor(max_workers=None) as executor:
             for opt_mode, tile_type in product(
                 opt_modes, fabric.get_all_unique_tiles()
             ):
                 # Extract serializable config (as dict to avoid Config lock issues)
-
                 io_config_path = tile_type.tileDir.parent / "io_pin_order.yaml"
                 generate_IO_pin_order_config(fabric, tile_type, io_config_path)
                 base_config_path = proj_dir / "Tile" / "include" / "gds_config.yaml"
@@ -365,7 +350,7 @@ class FABulousFabricMacroFullFlow(Flow):
                 )
                 handlers.append((result, opt_mode, tile_type))
 
-        result_summary = {}
+        result_summary = {opt_mode.value: {} for opt_mode in opt_modes}
         for state_future, opt_mode, tile_type in handlers:
             tile_name = tile_type.name
             error = None
@@ -381,20 +366,13 @@ class FABulousFabricMacroFullFlow(Flow):
             # Always build the metrics dict
             metrics_dict = {}
             if state is not None:
-                state.save_snapshot(
-                    str(Path(cast("str", tile_type.tileDir.parent)) / "final_views")
-                )
-
                 metrics_dict = {
                     k: state.metrics.get(k)
                     for k in [
-                        "FABULOUS_OPT_MODE",
                         "design__die__bbox",
                         "design__core__bbox",
                         "design__instance__area__stdcell",
                         "design__instance__utilization__stdcell",
-                        "antenna__violating__nets",
-                        "antenna__violating__pins",
                     ]
                 }
 
@@ -403,30 +381,19 @@ class FABulousFabricMacroFullFlow(Flow):
                 metrics_dict["error"] = error
                 metrics_dict["error_traceback"] = error_trace
 
-            # Use design_name if available, otherwise use tile_name
-            result_summary[tile_type.name] = metrics_dict
+            result_summary[opt_mode.value][tile_type.name] = metrics_dict
+            info(f"opt_mode={opt_mode.value}, tile={tile_name}, metrics={metrics_dict}")
 
-            # Process successful state
-            if state is not None and error is None:
-                initial_state.metrics[f"{tile_type.name}_opt_mode_{opt_mode}"] = (
-                    state.metrics
-                )
+        self.config = self.config.copy(TILE_OPT_INFO=result_summary)
 
-                if not self._compilation_successful(state):
-                    warn(
-                        f"Tile {tile_type.name} with {opt_mode} mode "
-                        "failed compilation, skipping"
-                    )
-                else:
-                    info(
-                        f"{tile_type.name} ({opt_mode}): bounding box "
-                        f"{state.metrics['design__die__bbox']}"
-                    )
+        def custom_serializer(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            return obj
 
-            # Write summary after each iteration for debugging
-            (Path(self.design_dir) / "tile_optimisation_summary.json").write_text(
-                json.dumps(result_summary, indent=2), encoding="utf-8"
-            )
+        (Path(self.run_dir) / "tile_optimisation_summary.json").write_text(
+            json.dumps(result_summary, indent=4, default=custom_serializer)
+        )
         # Step 2: Formulate and solve NLP problem
         info("\n=== Step 2: Solving NLP optimization ===")
         self.progress_bar.start_stage("NLP Optimization")
@@ -473,47 +440,56 @@ class FABulousFabricMacroFullFlow(Flow):
                     unique_tile_types_recompile.append(tile_obj)
                     result_set.add(tname)
 
-        final_steps: list[Step] = []
+        # Compile tiles with optimal dimensions in parallel
+        handlers: list[tuple[Future[tuple[State, str]], Tile | SuperTile]] = []
+        with DillProcessPoolExecutor(max_workers=None) as executor:
+            for tile_type in unique_tile_types_recompile:
+                tile_name = tile_type.name
 
-        for tile_type in unique_tile_types_recompile:
-            tile_name = tile_type.name
+                # Get optimal dimensions
+                optimal_width_float = optimal_widths.get(tile_name, 1)
+                optimal_height_float = optimal_heights.get(tile_name, 1)
 
-            # Get optimal dimensions
-            optimal_width_float = optimal_widths.get(tile_name, 1)
-            optimal_height_float = optimal_heights.get(tile_name, 1)
+                # Round to pitch grid
+                temp_config = self.config.copy(
+                    DIE_AREA=[0, 0, int(optimal_width_float), int(optimal_height_float)]
+                )
+                rounded_config = round_die_area(temp_config)
+                _, _, optimal_width, optimal_height = rounded_config["DIE_AREA"]
 
-            # Round to pitch grid
-            temp_config = self.config.copy(
-                DIE_AREA=[0, 0, int(optimal_width_float), int(optimal_height_float)]
-            )
-            rounded_config = round_die_area(temp_config)
-            _, _, optimal_width, optimal_height = rounded_config["DIE_AREA"]
+                info(
+                    f"  {tile_name}: optimal={optimal_width_float:.1f}x"
+                    f"{optimal_height_float:.1f}, "
+                    f"rounded={optimal_width}x{optimal_height} DBU"
+                )
 
-            info(
-                f"  {tile_name}: optimal={optimal_width_float:.1f}x"
-                f"{optimal_height_float:.1f}, "
-                f"rounded={optimal_width}x{optimal_height} DBU"
-            )
-            extra_config = {
-                "IGNORE_ANTENNA_VIOLATIONS": True,
-                "YOSYS_LOG_LEVEL": "ERROR",
-                "DRT_OPT_ITERS": 5,
-            }
-            # Create compilation step using helper with optimal dimensions
-            tile_flow = self._get_compile_tile_flow(
-                tile_type=tile_type,
-                fabric=fabric,
-                proj_dir=proj_dir,
-                opt_mode=OptMode.NO_OPT,
-                extra_config=extra_config,
-            )
+                # Generate IO config
+                io_config_path = tile_type.tileDir.parent / "io_pin_order.yaml"
+                generate_IO_pin_order_config(fabric, tile_type, io_config_path)
+                base_config_path = proj_dir / "Tile" / "include" / "gds_config.yaml"
+                override_config_path = tile_type.tileDir.parent / "gds_config.yaml"
 
-        # Start all final compilation steps and collect results
+                # Submit tile compilation with optimal dimensions
+                result = executor.submit(
+                    _run_tile_flow_worker,
+                    tile_type,
+                    io_config_path,
+                    OptMode.NO_OPT,
+                    base_config_path,
+                    override_config_path,
+                    DIE_AREA=[0, 0, optimal_width, optimal_height],
+                    IGNORE_ANTENNA_VIOLATIONS=True,
+                    YOSYS_LOG_LEVEL="ERROR",
+                    DRT_OPT_ITERS=5,
+                )
+                handlers.append((result, tile_type))
+
+        # Collect results
         tile_type_states: dict[str, State] = {}
-        for tile_step in final_steps:
+        for state_future, tile_type in handlers:
+            tile_name = tile_type.name
             try:
-                state = self.start_step(tile_step)
-                tile_name = tile_step.config["DESIGN_NAME"]
+                state, design_name = state_future.result()
 
                 # Verify compilation succeeded
                 if not state.get(DesignFormat.GDS) or not state.get(DesignFormat.LEF):
@@ -526,7 +502,7 @@ class FABulousFabricMacroFullFlow(Flow):
                 info(f"✓ {tile_name} recompiled successfully")
 
             except Exception as e:
-                err(f"Recompilation failed: {e}")
+                err(f"Recompilation of {tile_name} failed: {e}")
                 err(traceback.format_exc())
                 raise
 
