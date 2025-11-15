@@ -1,9 +1,12 @@
 """Tests for tile_io_place module."""
+# ruff: noqa: E402, SLF001, E501, F841
 
 import sys
 
 import pytest
 from pytest_mock import MockerFixture
+
+from FABulous.fabric_generator.gds_generator.script.odb_protocol import odbBTermLike
 
 # Mock external dependencies BEFORE importing the module under test
 from FABulous.fabric_definition.define import PinSortMode, Side
