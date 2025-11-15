@@ -86,12 +86,12 @@ configs = (
 
 
 def _run_tile_flow_worker(
-    tile_type: Tile,
+    tile_type: Tile | SuperTile,
     io_pin_config: Path,
     optimisation: OptMode,
     base_config_path: Path,
     override_config_path: Path,
-    **custom_config_overrides,
+    **custom_config_overrides: dict,
 ) -> tuple[State, str]:
     """Worker function to run a tile flow in a separate process.
 
