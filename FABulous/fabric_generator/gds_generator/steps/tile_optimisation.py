@@ -1,7 +1,5 @@
 """Tile size optimisation step for FABulous fabric generator."""
 
-from FABulous.fabric_generator.gds_generator.helper import get_routing_obstructions
-
 from decimal import Decimal
 from enum import StrEnum
 from typing import cast
@@ -15,7 +13,10 @@ from librelane.steps import odb as Odb
 from librelane.steps import openroad as OpenROAD
 from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
 
-from FABulous.fabric_generator.gds_generator.helper import round_up_decimal
+from FABulous.fabric_generator.gds_generator.helper import (
+    get_routing_obstructions,
+    round_up_decimal,
+)
 from FABulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
 from FABulous.fabric_generator.gds_generator.steps.auto_diode import (
     AutoEcoDiodeInsertion,

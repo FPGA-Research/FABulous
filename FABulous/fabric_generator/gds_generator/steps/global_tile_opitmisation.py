@@ -35,7 +35,7 @@ class NLPTileProblem(Problem):
     def __init__(
         self,
         fabric: Fabric,
-        tile_metrics,  # dict[tile_name, dict] - per-tile metrics
+        tile_metrics,  # dict[tile_name, dict] OR dict[opt_mode, dict[tile_name, dict]]
         row_to_types,
         col_to_types,
         supertile_positions,
@@ -43,6 +43,20 @@ class NLPTileProblem(Problem):
         num_cols,
     ):
         self.fabric = fabric
+        
+        # Handle nested format {opt_mode: {tile_name: metrics}}
+        # Flatten to {tile_name: metrics} by using first opt_mode
+        if tile_metrics:
+            first_key = next(iter(tile_metrics.keys()))
+            first_value = tile_metrics[first_key]
+            if isinstance(first_value, dict):
+                # Check if nested format
+                nested_first = next(iter(first_value.values()), None) if first_value else None
+                if isinstance(nested_first, dict) and "design__die__bbox" in nested_first:
+                    # Nested format detected
+                    info(f"Detected nested metrics format, using opt_mode: '{first_key}'")
+                    tile_metrics = first_value
+        
         self.tile_metrics = tile_metrics  # dict[tile_name -> metric_dict]
         self.row_to_types = row_to_types
         self.col_to_types = col_to_types
@@ -64,8 +78,18 @@ class NLPTileProblem(Problem):
                     unique_tiles.add(fabric.tile[r][c].name)
 
         for tile_name in unique_tiles:
-            if tile_name in tile_metrics:
-                tile_metric_data = tile_metrics[tile_name]
+            # For supertile components (e.g., DSP_top, DSP_bot), use parent supertile metrics
+            metrics_key = tile_name
+            tile_obj = fabric.tileDic.get(tile_name)
+            if tile_obj and tile_obj.partOfSuperTile:
+                # Find parent supertile name
+                for super_name, super_tile in fabric.superTileDic.items():
+                    if tile_name in [t.name for t in super_tile.tiles]:
+                        metrics_key = super_name
+                        break
+            
+            if metrics_key in tile_metrics:
+                tile_metric_data = tile_metrics[metrics_key]
 
                 # Extract die area (quad tuple) - x1,y1,x2,y2
                 die_area_tuple = tile_metric_data.get("design__die__bbox", (0, 0, 1, 1))
@@ -78,12 +102,14 @@ class NLPTileProblem(Problem):
                     # Already a tuple
                     _, _, width, height = die_area_tuple
 
-                # Area from stdcell
+                # Area from stdcell - ensure it's numeric
                 area = tile_metric_data.get(
                     "design__instance__area__stdcell", width * height
                 )
+                if isinstance(area, str):
+                    area = float(area)
 
-                tile_min_areas[tile_name] = area
+                tile_min_areas[tile_name] = float(area)
                 min_tile_widths[tile_name] = int(width)
                 min_tile_heights[tile_name] = int(height)
 
@@ -145,8 +171,8 @@ class NLPTileProblem(Problem):
         super_var_map = {}
         for type_name, r_start, c_start in supertile_positions:
             supertile = fabric.superTileDic[type_name]
-            h_span = supertile.maxHeight()
-            w_span = supertile.maxWidth()
+            h_span = supertile.max_height
+            w_span = supertile.max_width
             min_h = h_span  # At least 1 per row
             min_w = w_span  # At least 1 per col
             max_h = min_h * 2 if h_span == 1 else min_h + 10
@@ -176,8 +202,8 @@ class NLPTileProblem(Problem):
                 tname = tile.name
                 if tname in fabric.superTileDic:
                     supertile = fabric.superTileDic[tname]
-                    h_span = supertile.maxHeight()
-                    w_span = supertile.maxWidth()
+                    h_span = supertile.max_height
+                    w_span = supertile.max_width
                     super_constraints.append(
                         (tname, r, c, tile_min_areas[tname], h_span, w_span)
                     )
@@ -466,6 +492,7 @@ class GlobalTileSizeOptimization(Step):
         ]
         status = "Optimal" if res.success else "Feasible"
 
+
         # Report results
         info(f"NLP solver status: {status}")
         if res and res.success:
@@ -488,190 +515,7 @@ class GlobalTileSizeOptimization(Step):
             "nlp_row_heights": row_heights_list,
             "nlp_col_widths": col_widths_list,
             "nlp_solver_status": status,
+            "type_to_positions": type_to_positions,
         }
 
-        # Recompile tiles with optimal dimensions
-        recompiled_states = self._recompile_tiles_with_optimal_dimensions(
-            fabric,
-            proj_dir,
-            type_to_positions,
-            optimal_widths_int,
-            optimal_heights_int,
-            state_in,
-        )
-
-        # Store recompiled states for fabric stitching
-        metrics_updates["recompiled_tile_states"] = recompiled_states
-
         return views_updates, metrics_updates
-
-    def _recompile_tiles_with_optimal_dimensions(
-        self,
-        fabric: Fabric,
-        proj_dir: Path,
-        type_to_positions: dict[str, list[tuple[int, int]]],
-        optimal_widths: dict[str, int],
-        optimal_heights: dict[str, int],
-        initial_state: State,
-    ) -> dict[str, State]:
-        """Recompile all tiles using optimal dimensions from NLP solver.
-
-        Parameters
-        ----------
-        fabric : Fabric
-            Fabric configuration
-        proj_dir : Path
-            Project directory
-        type_to_positions : dict[str, list[tuple[int, int]]]
-            Mapping of tile type names to (row, col) positions
-        optimal_widths : dict[str, int]
-            Optimal width for each tile type
-        optimal_heights : dict[str, int]
-            Optimal height for each tile type
-        initial_state : State
-            Initial state for recompilation steps
-
-        Returns
-        -------
-        dict[str, State]
-            Mapping of tile type names to their final recompiled states
-        """
-        from FABulous.fabric_definition.SuperTile import SuperTile
-        from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
-            generate_IO_pin_order_config,
-        )
-
-        # Build list of unique tile types
-        unique_tile_types: list[Tile | SuperTile] = []
-        result_set = set()
-        for tname in type_to_positions:
-            if tname in fabric.tileDic:
-                tile_obj = fabric.tileDic[tname]
-                if not tile_obj.partOfSuperTile and tname not in result_set:
-                    unique_tile_types.append(tile_obj)
-                    result_set.add(tname)
-            if tname in fabric.superTileDic:
-                tile_obj = fabric.superTileDic[tname]
-                if tname not in result_set:
-                    unique_tile_types.append(tile_obj)
-                    result_set.add(tname)
-
-        recompiled_states: dict[str, State] = {}
-        final_steps: list[Step] = []
-        final_async_handles = []
-
-        for tile_type in unique_tile_types:
-            tile_dir = proj_dir / "Tile" / tile_type.name
-            tile_name = tile_type.name
-
-            # Get optimal dimensions
-            optimal_width_float = optimal_widths.get(tile_name, 1)
-            optimal_height_float = optimal_heights.get(tile_name, 1)
-
-            # Round to pitch grid
-            temp_config = self.config.copy(
-                DIE_AREA=[0, 0, int(optimal_width_float), int(optimal_height_float)]
-            )
-            rounded_config = round_die_area(temp_config)
-            _, _, optimal_width, optimal_height = rounded_config["DIE_AREA"]
-
-            info(
-                f"  {tile_name}: optimal={optimal_width_float:.1f}x"
-                f"{optimal_height_float:.1f}, "
-                f"rounded={optimal_width}x{optimal_height} DBU"
-            )
-
-            # Generate IO pin configuration
-            out_file = tile_dir / "io_pin_order.yaml"
-            generate_IO_pin_order_config(fabric, tile_type, out_file)
-
-            # Build file list
-            file_list = [
-                str(f) for f in tile_dir.glob("**/*.v") if "macro" not in f.parts
-            ]
-            if models_pack := get_context().models_pack:
-                file_list.append(str(models_pack.resolve()))
-
-            # Load base config
-            tile_config_overrides = {}
-            if (proj_dir / "Tile" / "include" / "gds_config.yaml").exists():
-                tile_config_overrides.update(
-                    yaml.safe_load(
-                        (proj_dir / "Tile" / "include" / "gds_config.yaml").read_text(
-                            encoding="utf-8"
-                        )
-                    )
-                )
-
-            gds_config_file = tile_dir / "gds_config.yaml"
-            if gds_config_file.exists():
-                tile_config_overrides.update(
-                    yaml.safe_load(gds_config_file.read_text(encoding="utf-8"))
-                )
-
-            # Override DIE_AREA with optimal dimensions
-            tile_config_overrides["DIE_AREA"] = [0, 0, optimal_width, optimal_height]
-
-            # Determine logical dimensions
-            if isinstance(tile_type, SuperTile):
-                logical_width = tile_type.max_width
-                logical_height = tile_type.max_height
-            else:
-                logical_width = 1
-                logical_height = 1
-
-            # Create tile config for final compilation
-            tile_config = self.config.copy(
-                DESIGN_NAME=tile_name,
-                FABULOUS_IO_PIN_ORDER_CFG=out_file,
-                FABULOUS_TILE_DIR=str(tile_dir),
-                VERILOG_FILES=file_list,
-                FABULOUS_TILE_LOGICAL_WIDTH=logical_width,
-                FABULOUS_TILE_LOGICAL_HEIGHT=logical_height,
-                TILE_OPTIMISATION=False,  # Use exact dimensions
-                **tile_config_overrides,
-            )
-
-            # Create step
-            tile_step = TileMarcoGen(
-                tile_config,
-                id=f"TileMarcoGen_Final_{tile_name}",
-                state_in=initial_state,
-                _no_filter_conf=True,
-            )
-            final_steps.append(tile_step)
-
-        # Start all final compilation steps asynchronously
-        for step in final_steps:
-            try:
-                handle = self.start_step_async(step)
-                final_async_handles.append((handle, step))
-            except Exception as e:
-                err(f"Failed to start final compilation for step {step.id}: {e}")
-                err(traceback.format_exc())
-                raise
-
-        # Wait for all final compilations and collect results
-        for handle, step in final_async_handles:
-            try:
-                state = handle.result()
-                tile_name = step.config["DESIGN_NAME"]
-
-                # Verify compilation succeeded
-                if not state.get(DesignFormat.GDS) or not state.get(DesignFormat.LEF):
-                    err(f"Tile {tile_name} missing required outputs (GDS or LEF)")
-                    raise RuntimeError(
-                        f"Tile {tile_name} failed final compilation with optimal dimensions"
-                    )
-
-                recompiled_states[tile_name] = state
-                info(f"✓ {tile_name} recompiled successfully")
-
-            except Exception as e:
-                err(f"Recompilation of tile {step.config['DESIGN_NAME']} failed: {e}")
-                err(traceback.format_exc())
-                raise
-
-        info(f"✓ All {len(recompiled_states)} tiles recompiled with optimal dimensions")
-
-        return recompiled_states
