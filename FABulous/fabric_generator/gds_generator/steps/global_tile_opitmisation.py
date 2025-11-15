@@ -43,32 +43,18 @@ class NLPTileProblem(Problem):
         num_cols,
     ):
         self.fabric = fabric
-        
-        # Handle nested format {opt_mode: {tile_name: metrics}}
-        # Flatten to {tile_name: metrics} by using first opt_mode
-        if tile_metrics:
-            first_key = next(iter(tile_metrics.keys()))
-            first_value = tile_metrics[first_key]
-            if isinstance(first_value, dict):
-                # Check if nested format
-                nested_first = next(iter(first_value.values()), None) if first_value else None
-                if isinstance(nested_first, dict) and "design__die__bbox" in nested_first:
-                    # Nested format detected
-                    info(f"Detected nested metrics format, using opt_mode: '{first_key}'")
-                    tile_metrics = first_value
-        
-        self.tile_metrics = tile_metrics  # dict[tile_name -> metric_dict]
+        self.tile_metrics = tile_metrics  # Keep nested format: {opt_mode: {tile_name: {metrics}}}
         self.row_to_types = row_to_types
         self.col_to_types = col_to_types
         self.supertile_positions = supertile_positions
         self.num_rows = num_rows
         self.num_cols = num_cols
 
-        # Extract per-tile metrics and compute aggregates
-        tile_min_areas = {}
-        tile_mode_options = {}
-        min_tile_widths = {}
-        min_tile_heights = {}
+        # Extract per-tile metrics from all opt_modes
+        # tile_metrics has format: {opt_mode: {tile_name: {metrics}}}
+        tile_mode_constraints = {}  # {tile_name: [(min_w, min_h, area, mode_name)]}
+        min_tile_widths = {}  # Absolute minimum width across all modes
+        min_tile_heights = {}  # Absolute minimum height across all modes
 
         # Get unique tile names to process
         unique_tiles = set()
@@ -88,37 +74,45 @@ class NLPTileProblem(Problem):
                         metrics_key = super_name
                         break
             
-            if metrics_key in tile_metrics:
-                tile_metric_data = tile_metrics[metrics_key]
+            # Extract metrics from all opt_modes
+            mode_constraints = []
+            all_widths = []
+            all_heights = []
+            
+            for opt_mode, tiles_data in tile_metrics.items():
+                if metrics_key in tiles_data:
+                    tile_metric_data = tiles_data[metrics_key]
 
-                # Extract die area (quad tuple) - x1,y1,x2,y2
-                die_area_tuple = tile_metric_data.get("design__die__bbox", (0, 0, 1, 1))
-                if isinstance(die_area_tuple, str):
-                    # Parse string format like "0.0 0.0 200.16 250.32"
-                    bbox_vals = [float(x) for x in die_area_tuple.split()]
-                    width = bbox_vals[2] - bbox_vals[0]
-                    height = bbox_vals[3] - bbox_vals[1]
-                else:
-                    # Already a tuple
-                    _, _, width, height = die_area_tuple
+                    # Extract die area (quad tuple) - x1,y1,x2,y2
+                    die_area_tuple = tile_metric_data.get("design__die__bbox", (0, 0, 1, 1))
+                    if isinstance(die_area_tuple, str):
+                        # Parse string format like "0.0 0.0 200.16 250.32"
+                        bbox_vals = [float(x) for x in die_area_tuple.split()]
+                        width = bbox_vals[2] - bbox_vals[0]
+                        height = bbox_vals[3] - bbox_vals[1]
+                    else:
+                        # Already a tuple
+                        _, _, width, height = die_area_tuple
 
-                # Area from stdcell - ensure it's numeric
-                area = tile_metric_data.get(
-                    "design__instance__area__stdcell", width * height
-                )
-                if isinstance(area, str):
-                    area = float(area)
+                    # Area from stdcell - ensure it's numeric
+                    area = tile_metric_data.get(
+                        "design__instance__area__stdcell", width * height
+                    )
+                    if isinstance(area, str):
+                        area = float(area)
 
-                tile_min_areas[tile_name] = float(area)
-                min_tile_widths[tile_name] = int(width)
-                min_tile_heights[tile_name] = int(height)
-
-                # For now, set basic mode options based on current dimensions
-                # This could be extended to get from metrics if available
-                tile_mode_options[tile_name] = [(width, height, "default")]
-
-        self.tile_min_areas = tile_min_areas
-        self.tile_mode_options = tile_mode_options
+                    mode_constraints.append((width, height, float(area), opt_mode))
+                    all_widths.append(width)
+                    all_heights.append(height)
+            
+            if mode_constraints:
+                tile_mode_constraints[tile_name] = mode_constraints
+                min_tile_widths[tile_name] = int(min(all_widths))
+                min_tile_heights[tile_name] = int(min(all_heights))
+        
+        self.tile_mode_constraints = tile_mode_constraints
+        self.min_tile_widths = min_tile_widths
+        self.min_tile_heights = min_tile_heights
         self.min_tile_widths = min_tile_widths
         self.min_tile_heights = min_tile_heights
 
@@ -130,23 +124,12 @@ class NLPTileProblem(Problem):
         for r in sorted(row_to_types.keys()):
             types_in_row = row_to_types[r]
             min_h = max(min_tile_heights.get(t, 1) for t in types_in_row)
-            max_h = (
-                max(
-                    max(
-                        (
-                            h
-                            for w, h, _ in tile_mode_options.get(
-                                t, [(min_h, min_h, "")]
-                            )
-                        )
-                    )
-                    for t in types_in_row
-                    if tile_mode_options.get(t)
-                )
-                if any(t in tile_mode_options for t in types_in_row)
-                else min_h * 2
-            )
-            max_h = max(max_h, min_h + 10)  # Ensure upper bound
+            # Max height: maximum across all modes for all tiles in row
+            max_h = min_h
+            for t in types_in_row:
+                if t in tile_mode_constraints:
+                    max_h = max(max_h, max(h for w, h, a, mode in tile_mode_constraints[t]))
+            max_h = max(max_h, min_h * 3)  # Allow some flexibility
             var_bounds[f"row_h_{r}"] = (min_h, max_h)
             self.var_names.append(f"row_h_{r}")
 
@@ -154,45 +137,22 @@ class NLPTileProblem(Problem):
         for c in sorted(col_to_types.keys()):
             types_in_col = col_to_types[c]
             min_w = max(min_tile_widths.get(t, 1) for t in types_in_col)
-            max_w = (
-                max(
-                    max((w for w, h, _ in tile_mode_options.get(t, [(min_w, 1, "")])))
-                    for t in types_in_col
-                    if tile_mode_options.get(t)
-                )
-                if any(t in tile_mode_options for t in types_in_col)
-                else min_w * 2
-            )
-            max_w = max(max_w, min_w + 10)
+            # Max width: maximum across all modes for all tiles in column
+            max_w = min_w
+            for t in types_in_col:
+                if t in tile_mode_constraints:
+                    max_w = max(max_w, max(w for w, h, a, mode in tile_mode_constraints[t]))
+            max_w = max(max_w, min_w * 3)  # Allow some flexibility
             var_bounds[f"col_w_{c}"] = (min_w, max_w)
             self.var_names.append(f"col_w_{c}")
 
-        # Supertile dimensions
-        super_var_map = {}
-        for type_name, r_start, c_start in supertile_positions:
-            supertile = fabric.superTileDic[type_name]
-            h_span = supertile.max_height
-            w_span = supertile.max_width
-            min_h = h_span  # At least 1 per row
-            min_w = w_span  # At least 1 per col
-            max_h = min_h * 2 if h_span == 1 else min_h + 10
-            max_w = min_w * 2 if w_span == 1 else min_w + 10
-            var_bounds[f"super_h_{type_name}_{r_start}_{c_start}"] = (min_h, max_h)
-            var_bounds[f"super_w_{type_name}_{r_start}_{c_start}"] = (min_w, max_w)
-            self.var_names.extend(
-                [
-                    f"super_h_{type_name}_{r_start}_{c_start}",
-                    f"super_w_{type_name}_{r_start}_{c_start}",
-                ]
-            )
-            h_idx = self.var_names.index(f"super_h_{type_name}_{r_start}_{c_start}")
-            w_idx = self.var_names.index(f"super_w_{type_name}_{r_start}_{c_start}")
-            super_var_map[(type_name, r_start, c_start)] = (h_idx, w_idx)
+        # Don't create separate supertile variables
+        # Supertiles will use sum of row/col heights/widths they span
 
-        # Build constraints
+        # Build constraints - for each tile position, use minimum area across all modes
+        # The tile must be able to accommodate at least its smallest feasible configuration
         regular_constraints = []  # (row, col, A_min)
         super_constraints = []  # (type, r_start, c_start, A_min, h_span, w_span)
-        type_to_positions = {}  # temp for constraint building
 
         for r in range(num_rows):
             for c in range(num_cols):
@@ -200,19 +160,51 @@ class NLPTileProblem(Problem):
                 if tile is None:
                     continue
                 tname = tile.name
+                
+                # Find metrics key (handle supertile components)
+                metrics_key = tname
+                tile_obj = fabric.tileDic.get(tname)
+                if tile_obj and tile_obj.partOfSuperTile:
+                    for super_name, super_tile in fabric.superTileDic.items():
+                        if tname in [t.name for t in super_tile.tiles]:
+                            metrics_key = super_name
+                            break
+                
+                # Check if this is a supertile or component tile
                 if tname in fabric.superTileDic:
+                    # Direct supertile reference
                     supertile = fabric.superTileDic[tname]
                     h_span = supertile.max_height
                     w_span = supertile.max_width
+                    # Use maximum die area across all modes (accounts for aspect ratio constraints)
+                    # This ensures the tile has enough space for any feasible configuration
+                    if metrics_key in tile_mode_constraints:
+                        # Use max die area (w×h) across modes, not just stdcell area
+                        # This captures the aspect ratio constraints from OpenROAD
+                        max_die_area = max(w * h for w, h, a, mode in tile_mode_constraints[metrics_key])
+                        constraint_area = max_die_area
+                    else:
+                        constraint_area = 1
                     super_constraints.append(
-                        (tname, r, c, tile_min_areas[tname], h_span, w_span)
+                        (tname, r, c, constraint_area, h_span, w_span)
                     )
+                elif tile.partOfSuperTile:
+                    # This is a component tile (e.g., DSP_top/DSP_bot)
+                    # Skip it - the parent supertile constraint will handle it
+                    pass
                 else:
-                    regular_constraints.append((r, c, tile_min_areas[tname]))
+                    # Regular tile - use maximum die area to capture aspect ratio constraints
+                    if metrics_key in tile_mode_constraints:
+                        # Use max die area (w×h) across modes
+                        # This ensures dimensions satisfy feasibility from at least one mode
+                        max_die_area = max(w * h for w, h, a, mode in tile_mode_constraints[metrics_key])
+                        constraint_area = max_die_area
+                    else:
+                        constraint_area = 1
+                    regular_constraints.append((r, c, constraint_area))
 
         self.regular_constraints = regular_constraints
         self.super_constraints = super_constraints
-        self.super_var_map = super_var_map
 
         # Pre-compute variable index mappings for efficient access
         self.row_height_indices = {}  # row_idx -> x array position
@@ -278,7 +270,12 @@ class NLPTileProblem(Problem):
             g_idx += 1
 
     def _add_super_tile_constraints(self, x, G, p):
-        """Add supertile constraints for a single solution."""
+        """Add supertile constraints for a single solution.
+        
+        Supertiles span multiple rows/columns, so we sum the heights/widths:
+        For DSP spanning rows r, r+1 and column c:
+        (row_h[r] + row_h[r+1]) * col_w[c] >= DSP_min_area
+        """
         g_idx = len(self.regular_constraints)  # Start after regular constraints
         for (
             type_name,
@@ -288,11 +285,20 @@ class NLPTileProblem(Problem):
             h_span,
             w_span,
         ) in self.super_constraints:
-            if (type_name, r_start, c_start) in self.super_var_map:
-                h_idx, w_idx = self.super_var_map[(type_name, r_start, c_start)]
-                super_h = x[h_idx]
-                super_w = x[w_idx]
-                G[p, g_idx] = a_min - super_h * super_w  # <=0 means >= a_min
+            # Sum row heights for rows spanned by supertile
+            total_h = 0.0
+            for r in range(r_start, r_start + h_span):
+                if r in self.row_height_indices:
+                    total_h += x[self.row_height_indices[r]]
+            
+            # Sum col widths for columns spanned by supertile
+            total_w = 0.0
+            for c in range(c_start, c_start + w_span):
+                if c in self.col_width_indices:
+                    total_w += x[self.col_width_indices[c]]
+            
+            # Constraint: total_h * total_w >= a_min
+            G[p, g_idx] = a_min - total_h * total_w  # <=0 means >= a_min
             g_idx += 1
 
 
@@ -380,41 +386,52 @@ class GlobalTileSizeOptimization(Step):
         type_to_positions: dict[str, list[tuple[int, int]]] = {}
         supertile_positions: list[tuple[str, int, int]] = []  # (type, row, col)
 
+        # Track supertile instances by detecting component tiles
+        supertile_seen = set()  # Track (super_name, r_start, c_start) to avoid duplicates
+        
         for r in range(num_rows):
             for c in range(num_cols):
                 tile = fabric.tile[r][c]
                 if tile is None:
                     continue
                 tname = tile.name
-                row_to_types.setdefault(r, set()).add(tname)
-                col_to_types.setdefault(c, set()).add(tname)
-                type_to_positions.setdefault(tname, []).append((r, c))
-                if tname in fabric.superTileDic:
+                
+                # Check if this tile is part of a supertile
+                if tile.partOfSuperTile:
+                    # This is a component of a supertile (e.g., DSP_top is part of DSP)
+                    # Don't add component tiles to row_to_types/col_to_types individually
+                    # Only record the parent supertile
+                    for super_name, super_tile in fabric.superTileDic.items():
+                        if any(t.name == tname for t in super_tile.tiles):
+                            # Found parent supertile
+                            # Only record once at first component position
+                            if tname == super_tile.tiles[0].name:  # First component
+                                key = (super_name, r, c)
+                                if key not in supertile_seen:
+                                    supertile_positions.append((super_name, r, c))
+                                    supertile_seen.add(key)
+                                    # Add parent supertile to row/col types (not components)
+                                    for rr in range(r, r + super_tile.max_height):
+                                        row_to_types.setdefault(rr, set()).add(super_name)
+                                    for cc in range(c, c + super_tile.max_width):
+                                        col_to_types.setdefault(cc, set()).add(super_name)
+                                    type_to_positions.setdefault(super_name, []).append((r, c))
+                            break
+                elif tname in fabric.superTileDic:
+                    # This is a supertile type appearing directly (shouldn't happen normally)
                     supertile_positions.append((tname, r, c))
+                    row_to_types.setdefault(r, set()).add(tname)
+                    col_to_types.setdefault(c, set()).add(tname)
+                    type_to_positions.setdefault(tname, []).append((r, c))
+                else:
+                    # Regular tile
+                    row_to_types.setdefault(r, set()).add(tname)
+                    col_to_types.setdefault(c, set()).add(tname)
+                    type_to_positions.setdefault(tname, []).append((r, c))
 
         info(
             f"Fabric: {num_rows}x{num_cols}, {len(type_to_positions)} tile types, {len(supertile_positions)} supertile instances"
         )
-
-        # Get tile metrics
-        min_tile_widths = state_in.metrics.get("tile_min_widths", {})
-        min_tile_heights = state_in.metrics.get("tile_min_heights", {})
-        tile_mode_options = state_in.metrics.get("tile_dimension_options", {})
-
-        # Compute A_min,i for each tile type
-        tile_min_areas: dict[str, int] = {}
-        for tname in type_to_positions:
-            if tile_mode_options and tname in tile_mode_options:
-                # Min area from available modes
-                min_area = min(w * h for w, h, _ in tile_mode_options[tname])
-                tile_min_areas[tname] = min_area
-            else:
-                # Fallback to min dimensions
-                tile_min_areas[tname] = min_tile_widths.get(
-                    tname, 1
-                ) * min_tile_heights.get(tname, 1)
-
-        info(f"Tile minimum areas: {tile_min_areas}")
 
         # Create pymoo problem - constructor handles all the formatting
         problem = NLPTileProblem(
@@ -426,6 +443,15 @@ class GlobalTileSizeOptimization(Step):
             num_rows,
             num_cols,
         )
+        
+        # Log mode information
+        mode_summary = {}
+        for tname, modes in problem.tile_mode_constraints.items():
+            mode_summary[tname] = {
+                mode: f"{w:.0f}x{h:.0f} ({a:.0f})" 
+                for w, h, a, mode in modes
+            }
+        info(f"Tile optimization modes: {mode_summary}")
 
         # Solve with DE
         algorithm = DE(
@@ -437,13 +463,19 @@ class GlobalTileSizeOptimization(Step):
             F=0.8,
         )
 
-        # Time limit via termination
-        termination = get_termination("time", time_limit * 1000)  # in ms
+        # Time limit termination
+        from pymoo.termination.max_time import TimeBasedTermination
+        termination = TimeBasedTermination(max_time=time_limit)
 
+        info(f"Running optimization with time limit: {time_limit}s")
         res = minimize(problem, algorithm, termination, verbose=True)
 
-        if not res.success:
-            raise RuntimeError(f"NLP optimization failed: {res}")
+        # Check if we have a valid solution (X is not None)
+        # res.success can be False when time limit is reached, but solution is still valid
+        if res.X is None:
+            raise RuntimeError(f"NLP optimization failed to find any solution")
+        
+        info(f"Optimization terminated. Success={res.success}, found solution with objective={res.F}")
 
         # Extract results
         x_opt = res.X
@@ -467,20 +499,31 @@ class GlobalTileSizeOptimization(Step):
         for tname in type_to_positions:
             positions = type_to_positions[tname]
             if tname in fabric.superTileDic:
-                # Supertile dimensions from specific instances
-                for (tn, r, c), (h_idx, w_idx) in problem.super_var_map.items():
-                    if tn == tname:
-                        optimal_heights_int[tn] = int(x_opt[h_idx])
-                        optimal_widths_int[tn] = int(x_opt[w_idx])
-                        break
+                # Supertile: sum the row heights and col widths it spans
+                supertile = fabric.superTileDic[tname]
+                r_start, c_start = positions[0]
+                
+                # Sum heights for rows spanned
+                total_h = sum(
+                    optimal_row_h.get(r, 0)
+                    for r in range(r_start, r_start + supertile.max_height)
+                )
+                # Sum widths for cols spanned
+                total_w = sum(
+                    optimal_col_w.get(c, 0)
+                    for c in range(c_start, c_start + supertile.max_width)
+                )
+                
+                optimal_heights_int[tname] = int(total_h)
+                optimal_widths_int[tname] = int(total_w)
             else:
                 # Regular tile: use row/col dimensions
                 r, c = positions[0]  # Assume all same
                 optimal_heights_int[tname] = int(
-                    optimal_row_h.get(r, min_tile_heights.get(tname, 1))
+                    optimal_row_h.get(r, problem.min_tile_heights.get(tname, 1))
                 )
                 optimal_widths_int[tname] = int(
-                    optimal_col_w.get(c, min_tile_widths.get(tname, 1))
+                    optimal_col_w.get(c, problem.min_tile_widths.get(tname, 1))
                 )
 
         total_area = int(res.F[0])
