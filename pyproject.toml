@@ -11,9 +11,11 @@ description = "FABulous FPGA Fabric generator"
 readme = "README.md"
 requires-python = ">=3.12"
 dynamic = ["version"]
+license = { text = "Apache-2.0" }
 
 classifiers = [
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
   "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
 ]
@@ -22,18 +24,22 @@ classifiers = [
 dependencies = [
   'python-dotenv>=1.0.0',
   'loguru>=0.7.0',
-  'fasm>=0.0.2',
   'requests>=2.0.0',
   'cmd2>=2',
   'bitarray>=3.3.0',
-  # in pydantic v2.12 the fieldvalidators info.field_name property is broken
-  "pydantic<2.12",
+  "pydantic>=2.12.1",
   "pydantic-settings>=2.10.1",
   "packaging>=25.0",
-  "typer>=0.16.1",
+  "typer>=0.20.0",
+  "FABulous-bit-gen>=0.1.0",
+  'PyYAML>=6.0.0',
+  'click>=8.0.0',
   # OS-aware readline dependencies
   'pyreadline3>=3.4.0; sys_platform == "win32"',
   'gnureadline>=8.2.0; sys_platform != "win32"',
+  "librelane>=3.0.0.dev43",
+  "pick>=2.4.0",
+  "pymoo>=0.6.1.5",
 ]
 
 [project.urls]
@@ -46,7 +52,8 @@ Discussions = "https://github.com/FPGA-Research/FABulous/discussions"
 
 [project.scripts]
 FABulous = "FABulous.FABulous:main"
-bit_gen = "FABulous.fabric_cad.bit_gen:bit_gen"
+#alias for better usability
+fabulous = "FABulous.FABulous:main"
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
@@ -54,11 +61,14 @@ local_scheme = "node-and-date"
 
 [tool.setuptools.packages.find]
 exclude = [
-  "docs, demo",
+  "docs",
+  "tests",
+  "scripts",
+  "nix",
 ] # exclude packages matching these glob patterns (empty by default)
 
 [tool.setuptools.package-data]
-mypkg = ["FABulous/**/*"]
+FABulous = ["**/*"]
 
 [tool.interrogate]
 ignore-init-method = false
@@ -73,12 +83,12 @@ ignore-nested-classes = true
 ignore-setters = true
 ignore-overloaded-functions = true
 fail-under = 95
+ignore-regex = ".*Like$"
 exclude = ["setup.py", "docs", "build", ".venv", "demo/*", "tests"]
 
 [dependency-groups]
 dev = [
-  "cocotb>=1.9.2",
-  "cocotb-test>=0.2.6",
+  "cocotb>=2.0.0",
   "pre-commit>=4.2.0",
   "pytest>=8.4.1",
   "pytest-cov>=6.2.1",
@@ -118,7 +128,7 @@ lint = "ruff check . --fix && pre-commit run --all-files"
 check = "ruff check ."
 qa = "task format && task check"
 
-# Documentation tasks  
+# Documentation tasks
 docs-setup = "cd docs && uv sync"
 docs-build = "cd docs && make clean && make html"
 docs-server = "cd docs && make clean && uv run --directory . make livehtml"
@@ -149,3 +159,5 @@ clean-all = "find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null ||
 # Provide flags after first '--'.
 
 test = "uv run scripts/run_tests.py"
+
+project-upgrade = "uv lock --upgrade && nix flake update && task test"

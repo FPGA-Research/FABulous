@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
-from cocotb.runner import get_runner
+from cocotb_tools.runner import get_runner
 from pytest_mock import MockerFixture
 
 from FABulous.fabric_definition.ConfigMem import ConfigMem
@@ -317,6 +317,8 @@ def cocotb_runner(tmp_path: Path) -> Callable:
             sim = "icarus"
         elif hdl_toplevel_lang == ".vhd":
             sim = "ghdl"
+        else:
+            raise ValueError(f"Unsupported HDL language: {hdl_toplevel_lang}")
         runner = get_runner(sim)
 
         sources.insert(
@@ -358,8 +360,6 @@ def cocotb_runner(tmp_path: Path) -> Callable:
         runner.test(
             hdl_toplevel=hdl_top_level,
             test_module=test_module_path.stem,
-            build_dir=build_dir,
-            test_dir=test_dir,
         )
 
     return _create_runner

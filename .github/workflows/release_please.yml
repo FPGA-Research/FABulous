@@ -1,0 +1,42 @@
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+name: release-please
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/create-github-app-token@v2
+      id: app-token
+      with:
+        app-id: ${{ vars.RP_APP_ID }}
+        private-key: ${{ secrets.RP_APP_PK }}
+        owner: ${{ github.repository_owner }}
+        repositories: ${{ github.event.repository.name }}
+    - uses: googleapis/release-please-action@v4
+      id: release
+      with:
+        token: ${{ steps.app-token.outputs.token }}
+        release-type: python
+        
+    - name: tag major and minor versions
+      if: ${{ steps.release.outputs.release_created }}
+      run: |
+        git config user.name github-actions[bot]
+        git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+        git tag -d v${{ steps.release.outputs.major }} || true
+        git tag -d v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }} || true
+        git push origin :v${{ steps.release.outputs.major }} || true
+        git push origin :v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }} || true
+        git tag -a v${{ steps.release.outputs.major }} -m "Release v${{ steps.release.outputs.major }}"
+        git tag -a v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }} -m "Release v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}"
+        git push origin v${{ steps.release.outputs.major }}
+        git push origin v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}

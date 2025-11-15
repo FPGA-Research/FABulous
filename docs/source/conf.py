@@ -1,32 +1,59 @@
 # Configuration file for the Sphinx documentation builder.
 
+import sys
+from pathlib import Path
+
 # -- Project information
 
-project = "FABulous Documentation"
+project = "FABulous: an Embedded FPGA Framework and CAD Tools"
 copyright = "2021, University of Manchester"
 author = "Jing, Nguyen, Bea, Bardia, Dirk"
 
-# Automated version management from git
+# Automated version management from installed package
 def get_version():
-    """Get version from git tags or fallback to default."""
+    """Get version from installed package, git tags, or commit ID."""
+    # Try to get version from the installed package
     try:
-        import subprocess
-        result = subprocess.run(['git', 'describe', '--tags', '--abbrev=0'],
-                              capture_output=True, text=True, cwd=Path(__file__).parent)
-        if result.returncode == 0:
-            return result.stdout.strip()
-    except:
+        from importlib.metadata import version
+        return version("fabulous-fpga")
+    except Exception:
         pass
-    return "0.1.0"
+
+    repo_root = Path(__file__).parent.parent.parent
+
+    # Fallback: read git data directly from .git directory
+    try:
+        git_dir = repo_root / ".git"
+
+        # Get current commit hash
+        head_file = git_dir / "HEAD"
+        if head_file.exists():
+            head_content = head_file.read_text().strip()
+
+            # HEAD usually contains "ref: refs/heads/branch_name"
+            if head_content.startswith("ref: "):
+                ref_path = head_content[5:]  # Remove "ref: " prefix
+                commit_file = git_dir / ref_path
+                if commit_file.exists():
+                    commit_hash = commit_file.read_text().strip()[:7]
+                else:
+                    commit_hash = "unknown"
+            else:
+                # Detached HEAD - contains the commit hash directly
+                commit_hash = head_content[:7]
+
+            # No tags found, return dev version with commit hash
+            return f"dev-{commit_hash}"
+    except Exception:
+        pass
+
+    # Fallback to unknown version
+    return "unknown"
 
 version = get_version()
 release = version
 
 # -- General configuration
-
-import os
-import sys
-from pathlib import Path
 
 # Ensure the repository root is importable so `import FABulous.*` works as a
 # proper package (and doesn't get shadowed by FABulous.py).
@@ -58,6 +85,10 @@ extensions = [
 
     # Utility extensions
     "sphinxcontrib.bibtex",
+]
+
+myst_enable_extensions = [
+    "colon_fence",
 ]
 
 intersphinx_mapping = {
@@ -202,9 +233,10 @@ def autoapi_skip_member(app, what, name, obj, skip, options):
     Attributes are documented in class docstrings; methods/functions are grouped via
     template.
     """
-    # Debug: Print what's being processed
-    if 'custom_exception' in str(obj):
-        print(f"DEBUG: Processing {what} {name} in custom_exception, skip={skip}")
+    # NOTE: Keep this in for future use
+    # # Debug: Print what's being processed
+    # if 'custom_exception' in str(obj):
+    #     print(f"DEBUG: Processing {what} {name} in custom_exception, skip={skip}")
 
     if what == 'attribute':
         return True
@@ -259,58 +291,47 @@ exclude_patterns = [
 
 # -- Options for HTML output
 
-html_theme = "pydata_sphinx_theme"
+html_theme = "furo"
 
 html_logo = "figs/FABulouslogo_wide_2.png"
 
 html_theme_options = {
-    # Core navigation settings (scikit-learn exact configuration)
-    "sidebar_includehidden": True,
-    "navigation_depth": 2,           # Optimal depth (reduced from 4)
-    "show_nav_level": 1,            # Show only top level initially
-    "show_toc_level": 1,            # Consistent with nav level (reduced from 3)
-    "collapse_navigation": True,     # Enable expandable navigation sections
-    "navigation_with_keys": False,   # Disable keyboard navigation (scikit-learn style)
+    # Sidebar
+    "sidebar_hide_name": False,
 
-    # Interface elements
-    "use_edit_page_button": False,
-    "show_prev_next": True,
-    "search_bar_text": "Search the docs ...",
-    "show_version_warning_banner": True,
-
-    # Layout components (scikit-learn structure)
-    "navbar_align": "left",          # Changed from "content"
-    "navbar_start": ["navbar-logo"],
-    "navbar_center": ["navbar-nav"],
-    "navbar_end": ["theme-switcher", "navbar-icon-links"],
-    "navbar_persistent": ["search-button"],
-
-    # Article layout
-    "article_header_start": ["breadcrumbs"],
-    "article_footer_items": ["prev-next"],
-
-    # Secondary sidebar (enhanced)
-    "secondary_sidebar_items": {
-        "**": ["page-toc", "sourcelink"],
-        # Can add more specific page configs later
+    # Light/dark mode
+    "light_css_variables": {
+        "color-brand-primary": "#336699",
+        "color-brand-content": "#336699",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#5599dd",
+        "color-brand-content": "#5599dd",
     },
 
-    # Icon links (optional, like scikit-learn)
-    "icon_links": [
+    # Source code repository
+    "source_repository": "https://github.com/FPGA-Research/FABulous/",
+    "source_branch": "main",
+    "source_directory": "docs/source/",
+
+    # Footer
+    "footer_icons": [
         {
             "name": "GitHub",
-            "url": "https://github.com/FABulous/FABulous",
-            "icon": "fa-brands fa-square-github",
-            "type": "fontawesome",
-        }
+            "url": "https://github.com/FPGA-Research/FABulous",
+            "html": """
+                <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path>
+                </svg>
+            """,
+            "class": "",
+        },
     ],
 }
 
 # -- Over-riding theme options
 html_static_path = ["_static"]
-html_css_files = [
-    "custom.css",
-]
+html_css_files = ["custom.css"]
 
 # -- removing left side bar on pages that don't benefit
 html_sidebars = {
@@ -331,6 +352,6 @@ html_sidebars = {
 # -- Options for EPUB output
 epub_show_urls = "footnote"
 
-bibtex_bibfiles = ["publications.bib"]
+bibtex_bibfiles = ["misc/publications.bib"]
 copybutton_prompt_text = r"\$ |FABulous> |\(venv\)\$ "
 copybutton_prompt_is_regexp = True

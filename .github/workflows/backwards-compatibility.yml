@@ -1,6 +1,13 @@
 name: Test fabric generation against base branch
 
-on: [pull_request]
+on:
+  pull_request:
+    paths:
+      - 'FABulous/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - '.github/workflows/backwards-compatibility.yml'
+      - '.github/actions/**'
 
 jobs:
   run_sim_makefile_on_base_project:

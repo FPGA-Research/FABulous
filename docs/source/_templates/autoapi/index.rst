@@ -5,7 +5,7 @@ API Reference
 This section contains the complete software documentation for FABulous.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :titlesonly:
    :glob:
 

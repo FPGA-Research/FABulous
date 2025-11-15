@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from FABulous.fabric_definition.define import IO
+
 
 @dataclass
 class Location:
@@ -40,3 +42,14 @@ class Border(Enum):
     EASTWEST = "EASTWEST"
     CORNER = "CORNER"
     NONE = "NONE"
+
+
+def oppositeIO(io: IO) -> IO:
+    """Return opposite IO port."""
+    if io == IO.INPUT:
+        return IO.OUTPUT
+    if io == IO.OUTPUT:
+        return IO.INPUT
+    if io == IO.INOUT:
+        return IO.INOUT
+    return IO.NULL

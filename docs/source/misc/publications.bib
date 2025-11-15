@@ -1,0 +1,61 @@
+@inproceedings{9415607,
+    author={Dao, Nguyen and Attwood, Andrew and Healy, Bea and Koch, Dirk},
+    booktitle={2020 International Conference on Field-Programmable Technology (ICFPT)},
+    title={FlexBex: A RISC-V with a Reconfigurable Instruction Extension},
+    year={2020},
+    volume={},
+    number={},
+    pages={190-195},
+    doi={10.1109/ICFPT51103.2020.00034}
+}
+
+@inproceedings{10.1145/3431920.3439302,
+    author = {Koch, Dirk and Dao, Nguyen and Healy, Bea and Yu, Jing and Attwood, Andrew},
+    title = {FABulous: An Embedded FPGA Framework},
+    year = {2021},
+    isbn = {9781450382182},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    url = {https://doi.org/10.1145/3431920.3439302},
+    doi = {10.1145/3431920.3439302},
+    abstract = {At the end of CMOS-scaling, the role of architecture design is increasingly gaining importance. Supporting this trend, customizable embedded FPGAs are an ingredient in ASIC architectures to provide the advantages of reconfigurable hardware exactly where and how it is most beneficial. To enable this, we are introducing the FABulous embedded open-source FPGA framework. FABulous is designed to fulfill the objectives of ease of use, maximum portability to different process nodes, good control for customization, and delivering good area, power, and performance characteristics of the generated FPGA fabrics. The framework provides templates for logic, arithmetic, memory, and I/O blocks that can be easily stitched together, whilst enabling users to add their own fully customized blocks and primitives. The FABulous ecosystem generates the embedded FPGA fabric for chip fabrication, integrates Yosys, ABC, VPR and nextpnr as FPGA CAD tools, deals with the bitstream generation and after fabrication tests. Additionally, we provide an emulation path for system development. FABulous was demonstrated for an ASIC integrating a RISC-V core with an embedded FPGA fabric for custom instruction set extensions using a TSMC 180nm process and an open-source 45nm process node.},
+    booktitle = {The 2021 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays},
+    pages = {45–56},
+    numpages = {12},
+    keywords = {FPGAs, eFPGAs, cad tools, partial reconfiguration, embedded FPGAs, open-source},
+    location = {Virtual Event, USA},
+    series = {FPGA '21}
+}
+
+@inproceedings{10.1145/3490422.3502371,
+author = {Chung, King Lok and Dao, Nguyen and Yu, Jing and Koch, Dirk},
+title = {How to Shrink My FPGAs — Optimizing Tile Interfaces and the Configuration Logic in FABulous FPGA Fabrics},
+year = {2022},
+isbn = {9781450391498},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3490422.3502371},
+doi = {10.1145/3490422.3502371},
+abstract = {Commercial FPGAs from major vendors are extensively optimized, and fabrics use many hand-crafted custom cells, including switch matrix multiplexers and configuration memory cells. The physical design optimizations commonly improve area, latency (=speed), and power consumption together. This paper is dedicated to improving the physical implementation of FPGA tiles and the configuration storage in SRAM FPGAs. This paper proposes to remap configuration bits and interface wires to implement tightly packed tiles. Using the FABulous FPGA framework, we show that our optimizations are virtually for free but can save over 20\% in area and improve latency at the same time. We will evaluate our approach in different scenarios by changing the available metal layers or the requested channel capacity. Our optimizations consider all tiles and we propose a flow that resolves dependencies between the CLBs and other tiles. Moreover, we will show that frame-based reconfiguration is, in almost all cases, better than shift register configuration.},
+booktitle = {Proceedings of the 2022 ACM/SIGDA International Symposium on Field-Programmable Gate Arrays},
+pages = {13–23},
+numpages = {11},
+keywords = {optimization, open source, open hardware, fpgas},
+location = {Virtual Event, USA},
+series = {FPGA '22}
+}
+
+@article{Gonski_2024,
+doi = {10.1088/1748-0221/19/08/P08023},
+url = {https://dx.doi.org/10.1088/1748-0221/19/08/P08023},
+year = {2024},
+month = {aug},
+publisher = {IOP Publishing},
+volume = {19},
+number = {08},
+pages = {P08023},
+author = {J. Gonski and A. Gupta and H. Jia and H. Kim and L. Rota and L. Ruckman and A. Dragone and R. Herbst},
+title = {Embedded FPGA developments in 130 nm and 28 nm CMOS for machine learning in particle detector readout},
+journal = {Journal of Instrumentation},
+abstract = {Embedded field programmable gate array (eFPGA) technology allows the implementation of reconfigurable logic within the design of an application-specific integrated circuit (ASIC).  This approach offers the low power and efficiency of an ASIC along with the ease of FPGA configuration, particularly beneficial for the use case of machine learning in the data pipeline of next-generation collider experiments.  An open-source framework called “FABulous” was used to design eFPGAs using 130 nm and 28 nm CMOS technology nodes, which were subsequently fabricated and verified through testing. The capability of an eFPGA to act as a front-end readout chip was assessed using simulation of high energy particles passing through a silicon pixel sensor.  A machine learning-based classifier, designed for reduction of sensor data at the source, was synthesized and configured onto the eFPGA.  A successful proof-of-concept was demonstrated through reproduction of the expected algorithm result on the eFPGA with perfect accuracy.  Further development of the eFPGA technology and its application to collider detector readout is discussed.}
+}

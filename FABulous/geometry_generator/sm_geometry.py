@@ -111,8 +111,16 @@ class SmGeometry:
         This is needed, as these are not contained in the (north...west)SidePorts
         in FABulous.
         """
-        # TODO: check if numbering is generated correctly
-        #  for augmented ports
+        # This step ensures correct ordering, this is important
+        # for the wire generation step.
+        self.northPorts = sorted(self.northPorts, key=lambda port: abs(port.yOffset))
+        self.southPorts = sorted(self.southPorts, key=lambda port: abs(port.yOffset))
+        self.eastPorts = sorted(self.eastPorts, key=lambda port: abs(port.xOffset))
+        self.westPorts = sorted(self.westPorts, key=lambda port: abs(port.xOffset))
+
+        # This step augments ports in border tiles.
+        # This is needed, as these are not contained
+        # in the (north...west)SidePorts in FABulous.
         if tileBorder == Border.NORTHSOUTH or tileBorder == Border.CORNER:
             augmentedSouthPorts = []
             for southPort in self.southPorts:
@@ -190,13 +198,6 @@ class SmGeometry:
                 else:
                     augmentedWestPorts.append(westPort)
             self.westPorts = augmentedWestPorts
-
-        # This step ensures correct ordering, this is important
-        # for the wire generation step.
-        self.northPorts = sorted(self.northPorts, key=lambda port: abs(port.yOffset))
-        self.southPorts = sorted(self.southPorts, key=lambda port: abs(port.yOffset))
-        self.eastPorts = sorted(self.eastPorts, key=lambda port: abs(port.xOffset))
-        self.westPorts = sorted(self.westPorts, key=lambda port: abs(port.xOffset))
 
         # This step merges connected jump ports into
         # a single port.

@@ -1,0 +1,57 @@
+# Copyright 2020-2023 Efabless Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# orginal source: https://github.com/mole99/librelane_plugin_fabulous/blob/main/librelane_plugin_fabulous/scripts/add_buffers.tcl
+source $::env(SCRIPTS_DIR)/openroad/common/io.tcl
+source $::env(SCRIPTS_DIR)/openroad/common/resizer.tcl
+
+read_current_odb
+
+unset_propagated_clock [all_clocks]
+
+set_dont_touch_objects
+
+# set rc values
+source $::env(SCRIPTS_DIR)/openroad/common/set_rc.tcl
+
+# CTS and detailed placement move instances, so update parastic estimates.
+# estimate wire rc parasitics
+estimate_parasitics -placement
+
+
+# Buffer I/O
+if { $::env(DESIGN_REPAIR_REMOVE_BUFFERS) } {
+    remove_buffers
+}
+
+if { $::env(DESIGN_REPAIR_BUFFER_INPUT_PORTS) } {
+    buffer_ports -inputs
+}
+
+if { $::env(DESIGN_REPAIR_BUFFER_OUTPUT_PORTS) } {
+    buffer_ports -outputs
+}
+
+report_floating_nets -verbose
+
+# Legalize
+source $::env(SCRIPTS_DIR)/openroad/common/dpl.tcl
+
+unset_dont_touch_objects
+
+source $::env(SCRIPTS_DIR)/openroad/common/set_rc.tcl
+estimate_parasitics -placement
+
+
+write_views

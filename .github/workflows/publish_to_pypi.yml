@@ -1,0 +1,62 @@
+name: Publish FABulous to PyPI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7.1.2
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+    - name: Build a binary wheel and a source tarball
+      run: uv build
+    - name: Store the distribution packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  publish-to-pypi:
+    name: Publish to PyPI (${{ github.event.release.prerelease && 'Pre-release' || 'Stable' }})
+    needs:
+    - build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: pypi
+      url: https://pypi.org/p/FABulous-FPGA
+
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+    - name: Check release type
+      run: |
+        if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+          echo "📦 Publishing PRE-RELEASE to PyPI"
+          echo "Users will need to use: pip install FABulous-FPGA --pre"
+        else
+          echo "🚀 Publishing STABLE RELEASE to PyPI"
+          echo "Users can install with: pip install FABulous-FPGA"
+        fi
+
+    - name: Publish distribution to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1

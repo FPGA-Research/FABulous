@@ -59,9 +59,8 @@ async def initialize_configmem(dut: ConfigMemDUT) -> None:
     await Timer(10, units="ps")
 
 
-@pytest.mark.skip(reason="Cocotb test - run by simulation, not pytest")
 @cocotb.test
-async def test_configmem_settings(dut: ConfigMemDUT) -> None:
+async def cocotb_test_configmem_settings(dut: ConfigMemDUT) -> None:
     """Test exact bit mapping from FrameData to ConfigBits using direct mapping."""
     await initialize_configmem(dut)
 
