@@ -66,7 +66,7 @@ from FABulous.FABulous_CLI.helper import (
     remove_dir,
     wrap_with_except_handling,
 )
-from FABulous.FABulous_settings import get_context, init_context
+from FABulous.FABulous_settings import get_context
 
 META_DATA_DIR = ".FABulous"
 
@@ -184,11 +184,6 @@ class FABulous_CLI(Cmd):
         verbose: bool = False,
         debug: bool = False,
     ) -> None:
-        try:
-            get_context()
-        except RuntimeError:
-            init_context()
-
         super().__init__(
             persistent_history_file=f"{get_context().proj_dir}/{META_DATA_DIR}/.fabulous_history",
             allow_cli_args=False,

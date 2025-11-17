@@ -791,7 +791,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
 
     common_options(
         ctx=typer.Context(click.Command("legacy_args")),
-        project_dir=Path(args.project_dir) if args.project_dir else None,
+        project_dir=project_dir if args.project_dir else None,
         verbose=args.verbose,
         debug=args.debug,
         log_file=args.log,

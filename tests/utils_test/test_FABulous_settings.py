@@ -16,6 +16,16 @@ from FABulous.FABulous_settings import (
     reset_context,
 )
 
+from collections.abc import Generator
+
+
+@pytest.fixture(autouse=True)
+def reset_context_before_and_after_tests() -> Generator:
+    """Reset context before and after each test to ensure isolation."""
+    reset_context()
+    yield
+    reset_context()
+
 
 class TestFABulousSettings:
     """Test cases for FABulousSettings class."""
@@ -45,10 +55,10 @@ class TestFABulousSettings:
         # user_config_dir should be created and exist
         assert settings.user_config_dir.exists()
         assert settings.user_config_dir.is_dir()
-        assert settings.yosys_path is None
-        assert settings.nextpnr_path is None
-        assert settings.iverilog_path is None
-        assert settings.vvp_path is None
+        assert settings.yosys_path == "yosys"
+        assert settings.nextpnr_path == "nextpnr-generic"
+        assert settings.iverilog_path == "iverilog"
+        assert settings.vvp_path == "vvp"
         assert settings.proj_dir == project
         assert settings.fabulator_root is None
         # Note: oss_cad_suite might be set from previous tests or environment
@@ -113,7 +123,11 @@ class TestFABulousSettings:
         assert settings.vvp_path == Path("/usr/bin/vvp")
 
     def test_initialization_with_explicit_tool_paths(
-        self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: MockerFixture,
+        tmp_path: Path,
     ) -> None:
         """Test FABulousSettings initialization with explicitly set tool paths."""
         # Clear all FAB_ environment variables first
@@ -124,21 +138,29 @@ class TestFABulousSettings:
         # Set minimal PATH to avoid system tools
         monkeypatch.setenv("PATH", "/bin:/usr/bin")
 
-        yosys_path = "/custom/yosys"
-        nextpnr_path = "/custom/nextpnr-generic"
+        yosys_path = tmp_path / "yosys"
+        nextpnr_path = tmp_path / "nextpnr-generic"
+        yosys_path.touch()
+        nextpnr_path.touch()
 
-        monkeypatch.setenv("FAB_YOSYS_PATH", yosys_path)
-        monkeypatch.setenv("FAB_NEXTPNR_PATH", nextpnr_path)
+        monkeypatch.setenv("FAB_YOSYS_PATH", str(yosys_path))
+        monkeypatch.setenv("FAB_NEXTPNR_PATH", str(nextpnr_path))
 
         mocker.patch("FABulous.FABulous_settings.which", return_value=None)
-
         settings = init_context(project)
 
         assert settings.yosys_path == Path(yosys_path)
         assert settings.nextpnr_path == Path(nextpnr_path)
         # Tools not explicitly set should still be resolved via which
-        assert settings.iverilog_path is None
-        assert settings.vvp_path is None
+        assert settings.iverilog_path == "iverilog"
+        assert settings.vvp_path == "vvp"
+
+    def test_initialization_with_no_init_called(self, mocker: MockerFixture) -> None:
+        """Test init context in api mode"""
+        mocker.patch("FABulous.FABulous_settings.which", return_value=None)
+        settings = get_context()
+        assert settings.yosys_path == "yosys"
+        assert settings.nextpnr_path == "nextpnr-generic"
 
 
 class TestFieldValidators:
@@ -306,19 +328,8 @@ class TestToolPathResolution:
 
         result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
-        assert result is None
+        assert result == "yosys"
         mock_which.assert_called_once_with("yosys")
-
-    def test_resolve_tool_paths_unknown_field(self, mocker: MockerFixture) -> None:
-        """Test resolve_tool_paths with unknown field name."""
-        mock_info = mocker.Mock()
-        mock_info.field_name = "unknown_path"
-
-        mock_which = mocker.patch("FABulous.FABulous_settings.which")
-        result = FABulousSettings.resolve_tool_paths(None, mock_info)
-
-        assert result is None
-        mock_which.assert_not_called()
 
 
 class TestContextMethods:
@@ -464,14 +475,6 @@ class TestContextMethods:
         assert init_settings is retrieved_settings
         assert retrieved_settings.proj_dir == project
 
-    def test_get_context_before_init_raises_error(self) -> None:
-        """Test that getting context before initialization raises RuntimeError."""
-        # Ensure context is reset
-        reset_context()
-
-        with pytest.raises(RuntimeError, match="FABulous context not initialized"):
-            get_context()
-
     def test_reset_context(self, project: Path) -> None:
         """Test context reset functionality."""
         # Initialize context
@@ -483,8 +486,9 @@ class TestContextMethods:
         reset_context()
 
         # Should raise error after reset
-        with pytest.raises(RuntimeError, match="FABulous context not initialized"):
-            get_context()
+        from FABulous.FABulous_settings import _context_instance
+
+        assert _context_instance is None
 
     def test_context_singleton_behavior(self, project: Path) -> None:
         """Test that context follows singleton pattern."""
@@ -640,8 +644,9 @@ class TestContextMethods:
         # Create global .env file with typical settings
         global_env = tmp_path / "global.env"
         global_env.touch()
-        set_key(global_env, "FAB_YOSYS_PATH", "/opt/oss-cad-suite/bin/yosys")
-        set_key(global_env, "FAB_OSS_CAD_SUITE", "/opt/oss-cad-suite")
+        set_key(global_env, "FAB_YOSYS_PATH", str(tmp_path / "yosys"))
+        set_key(global_env, "FAB_OSS_CAD_SUITE", str(tmp_path / "oss-cad-suite"))
+        (tmp_path / "yosys").touch()
 
         project_env = project / ".FABulous" / ".env"
         project_env.touch()
@@ -660,7 +665,7 @@ class TestContextMethods:
         assert settings.proj_dir == project
         assert settings.proj_lang == "verilog"
         assert settings.proj_version_created == Version("1.0.0")
-        assert str(settings.yosys_path) == "/opt/oss-cad-suite/bin/yosys"
+        assert str(settings.yosys_path) == str(tmp_path / "yosys")
 
     def test_debug_env_variable(
         self, project: Path, monkeypatch: pytest.MonkeyPatch
@@ -716,7 +721,7 @@ class TestIntegration:
         monkeypatch.setenv("FAB_PROJ_DIR", str(project))
 
         mocker.patch("FABulous.FABulous_settings.which", return_value=None)
-
+        mocker.patch("pathlib.Path.exists", return_value=True)
         # Initialize context
         settings = init_context(project_dir=project, global_dot_env=global_env)
 
@@ -731,5 +736,6 @@ class TestIntegration:
 
         # Test context reset
         reset_context()
-        with pytest.raises(RuntimeError, match="FABulous context not initialized"):
-            get_context()
+        from FABulous.FABulous_settings import _context_instance
+
+        assert _context_instance is None
