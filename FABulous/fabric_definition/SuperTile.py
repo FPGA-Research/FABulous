@@ -13,6 +13,7 @@ from pathlib import Path
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Tile import Tile
+from collections.abc import Generator
 
 
 @dataclass
@@ -68,6 +69,12 @@ class SuperTile:
                 if x - 1 < 0 or self.tileMap[y][x - 1] is None:
                     ports[f"{x},{y}"].append(tile.getWestSidePorts())
         return ports
+
+    def __iter__(self) -> Generator[tuple[tuple[int, int], Tile], None, None]:
+        for x, row in enumerate(self.tileMap):
+            for y, tile in enumerate(row):
+                if tile is not None:
+                    yield (x, y), tile
 
     def getInternalConnections(self) -> list[tuple[list[Port], int, int]]:
         """Return all the internal connections of the supertile.
