@@ -37,6 +37,7 @@ from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
 from FABulous.fabric_generator.gds_generator.helper import round_die_area
+from FABulous.fabric_generator.gds_generator.steps import global_tile_opitmisation
 from FABulous.fabric_generator.gds_generator.steps.fabric_macro_gen import (
     FabricMacroGen,
 )
@@ -52,6 +53,7 @@ configs = (
     Classic.config_vars
     + Floorplan.config_vars
     + flow_common_variables
+    + GlobalTileSizeOptimization.config_vars
     + [
         Variable(
             "FABULOUS_PROJ_DIR",
@@ -87,6 +89,7 @@ configs = (
 
 def _run_tile_flow_worker(
     tile_type: Tile | SuperTile,
+    proj_dir: Path,
     io_pin_config: Path,
     optimisation: OptMode,
     base_config_path: Path,
@@ -112,11 +115,7 @@ def _run_tile_flow_worker(
     tuple[State, str]
         (compiled_state, design_name) for result processing
     """
-    from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
-        FABulousTileVerilogMarcoFlow,
-    )
-
-    init_context()
+    init_context(project_dir=proj_dir)
     # Reconstruct the flow in the worker process with serializable data
     flow = FABulousTileVerilogMarcoFlow(
         tile_type,
@@ -279,48 +278,7 @@ class FABulousFabricMacroFullFlow(Flow):
                 f"({found_regular_tiles} regular tiles, {found_supertiles} SuperTiles)"
             )
 
-    def run(self, initial_state: State, **_kwargs: dict) -> tuple[State, list[Step]]:
-        """Execute the NLP-based fabric flow.
-
-        Flow steps:
-        1. Compile all tiles with optimization mode in parallel
-        2. Formulate NLP problem to minimize total fabric area
-        3. Solve for optimal tile dimensions with row/column grid constraints
-        4. Recompile tiles with optimal dimensions in parallel
-        5. Stitch all tiles into final fabric
-
-        Parameters
-        ----------
-        initial_state : State
-            Initial state
-        **_kwargs : dict
-            Additional keyword arguments
-
-        Returns
-        -------
-        tuple[State, list[Step]]
-            Final state and list of executed steps
-
-        Raises
-        ------
-        RuntimeError
-            If tile compilation or NLP optimization fails
-        """
-        subflow_list: list[Flow] = []
-        fabric: Fabric = self.config["FABULOUS_FABRIC"]
-        proj_dir = Path(self.config["FABULOUS_PROJ_DIR"])
-        self.progress_bar.set_max_stage_count(3)
-
-        self._validate_project_dir(proj_dir, fabric)
-
-        # Compute IO-based minimum dimensions upfront
-        # This ensures TileOptimisation starts from IO-aware bounds
-        info("\n=== Computing IO pin density constraints ===")
-
-        # Step 1: Parallel compilation to find minimum dimensions
-        info("\n=== Step 1: Finding minimum tile dimensions ===")
-        self.progress_bar.start_stage("Finding Minimum Dimensions")
-
+    def init_compile(self, fabric: Fabric, proj_dir: Path) -> None:
         # Optimization modes to try for each tile
         opt_modes = [
             OptMode.BALANCE,
@@ -342,6 +300,7 @@ class FABulousFabricMacroFullFlow(Flow):
                 result = executor.submit(
                     _run_tile_flow_worker,
                     tile_type,
+                    proj_dir,
                     io_config_path,
                     opt_mode,
                     base_config_path,
@@ -394,7 +353,51 @@ class FABulousFabricMacroFullFlow(Flow):
         (Path(self.run_dir) / "tile_optimisation_summary.json").write_text(
             json.dumps(result_summary, indent=4, default=custom_serializer)
         )
-        # Step 2: Formulate and solve NLP problem
+
+    def run(self, initial_state: State, **_kwargs: dict) -> tuple[State, list[Step]]:
+        """Execute the NLP-based fabric flow.
+
+        Flow steps:
+        1. Compile all tiles with optimization mode in parallel
+        2. Formulate NLP problem to minimize total fabric area
+        3. Solve for optimal tile dimensions with row/column grid constraints
+        4. Recompile tiles with optimal dimensions in parallel
+        5. Stitch all tiles into final fabric
+
+        Parameters
+        ----------
+        initial_state : State
+            Initial state
+        **_kwargs : dict
+            Additional keyword arguments
+
+        Returns
+        -------
+        tuple[State, list[Step]]
+            Final state and list of executed steps
+
+        Raises
+        ------
+        RuntimeError
+            If tile compilation or NLP optimization fails
+        """
+        subflow_list: list[Flow] = []
+        fabric: Fabric = self.config["FABULOUS_FABRIC"]
+        proj_dir = Path(self.config["FABULOUS_PROJ_DIR"])
+        self.progress_bar.set_max_stage_count(3)
+
+        self._validate_project_dir(proj_dir, fabric)
+
+        # Step 1: Parallel compilation to find minimum dimensions
+        info("\n=== Step 1: Finding minimum tile dimensions ===")
+        self.progress_bar.start_stage("Finding Minimum Dimensions")
+        if self.config.get("TILE_OPT_INFO") is None:
+            self.init_compile(fabric, proj_dir)
+        else:
+            info(
+                "Tile optimization info already present, skipping initial compilation."
+            )
+
         info("\n=== Step 2: Solving NLP optimization ===")
         self.progress_bar.start_stage("NLP Optimization")
 

@@ -664,7 +664,10 @@ class FABulous_API:
         *,
         pdk_root: Path | None = None,
         pdk: str | None = None,
-        config_override: dict | Path | None = None,
+        base_config_path: Path | None = None,
+        config_override_path: Path | None = None,
+        tile_opt_config: Path | None = None,
+        **config_overrides: dict,
     ) -> None:
         """Run the stitching flow to assemble tile macros into a fabric-level GDS."""
         if pdk_root is None:
@@ -682,16 +685,22 @@ class FABulous_API:
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
         final_config_args = {}
+        if base_config_path is not None:
+            final_config_args.update(
+                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
+            )
+        if config_override_path is not None:
+            final_config_args.update(
+                yaml.safe_load(config_override_path.read_text(encoding="utf-8"))
+            )
         final_config_args["FABULOUS_PROJ_DIR"] = str(project_dir.resolve())
         final_config_args["FABULOUS_FABRIC"] = self.fabric
         final_config_args["DESIGN_NAME"] = self.fabric.name
-        if config_override:
-            if isinstance(config_override, dict):
-                final_config_args.update(config_override)
-            else:
-                final_config_args.update(
-                    yaml.safe_load(config_override.read_text(encoding="utf-8"))
-                )
+        if tile_opt_config is not None:
+            final_config_args["TILE_OPT_INFO"] = str(tile_opt_config)
+        if config_overrides:
+            final_config_args.update(config_overrides)
+        print(final_config_args)
         flow = FABulousFabricMacroFullFlow(
             final_config_args,
             name=self.fabric.name,

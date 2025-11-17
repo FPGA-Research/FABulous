@@ -1389,7 +1389,12 @@ class FABulous_CLI(Cmd):
         """Run the full FABulous eFPGA macro generation flow."""
         (self.projectDir / "Fabric" / "macro").mkdir(exist_ok=True)
         self.fabulousAPI.full_fabric_automation(
-            self.projectDir, self.projectDir / "Fabric" / "macro"
+            self.projectDir,
+            self.projectDir / "Fabric" / "macro",
+            base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
+            tile_opt_config=self.projectDir
+            / "Fabric"
+            / "tile_optimisation_summary.json",
         )
 
     gui_parser = Cmd2ArgumentParser()
