@@ -1,4 +1,5 @@
 (quick-start)=
+
 # Quick start
 
 (setup)=
@@ -36,7 +37,7 @@ sudo apt-get install python3-tk
 :::
 
 ```bash
-git clone https://github.com/FPGA-Research-Manchester/FABulous
+git clone https://github.com/FPGA-Research/FABulous
 ```
 
 We recommend using python virtual environments for the usage of FABulous.
@@ -61,7 +62,7 @@ If you are using yosys oss-cad-suite, no need to install the following packages.
 1. [Nextpnr-generic](https://github.com/YosysHQ/nextpnr#nextpnr-generic) version > 0.4-28-gac17c36b
 
 2. [Yosys ghdl plugin](https://github.com/ghdl/ghdl-yosys-plugin>):
-    Only needed for VHDL synthesis
+   Only needed for VHDL synthesis
 
 We have also provided a command to install the above packages automatically.
 

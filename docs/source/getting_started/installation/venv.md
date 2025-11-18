@@ -1,4 +1,5 @@
 (venv-install)=
+
 # `venv` based setup
 
 ## Dependencies
@@ -31,7 +32,7 @@ sudo apt-get install python3-tk
 ## FABulous repository
 
 ```bash
-git clone https://github.com/FPGA-Research-Manchester/FABulous
+git clone https://github.com/FPGA-Research/FABulous
 ```
 
 ## Virtual environment
