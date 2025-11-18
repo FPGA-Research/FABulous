@@ -168,6 +168,8 @@ class TileOptimisation(WhileStep):
 
     def pre_iteration_callback(self, pre_iteration: State) -> State:
         """Pre iteration callback."""
+        if self.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT:
+            return pre_iteration
         die_area_raw: tuple[Decimal, Decimal, Decimal, Decimal] = self.config.get(
             "DIE_AREA", None
         )
@@ -231,8 +233,6 @@ class TileOptimisation(WhileStep):
                 else:
                     new_width, new_height = (width + width_step, height + height_step)
 
-            case OptMode.NO_OPT:
-                new_width, new_height = (width, height)
             case _:
                 raise ValueError(
                     f"Unknown FABULOUS_OPT_MODE: {self.config['FABULOUS_OPT_MODE']}"
