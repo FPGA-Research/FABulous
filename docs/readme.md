@@ -2,27 +2,28 @@
 
 The upstream FABulous documentation is available at [https://fabulous.readthedocs.io](https://fabulous.readthedocs.io/en/latest/)
 
-
 ## General
+
 Our docs are built using [Sphinx](https://www.sphinx-doc.org/en/master).
 The documentation is written in [reStructuredText](https://docutils.sourceforge.io/rst.html) format.
 
-
 ## Prerequisites
+
 To build the documentation, you should already have set up your virtual environment and installed the required packages to use FABulous
 as described in the [README](../README.md). Make sure you have picked the right FABulous branch, you want to build the documentation for.
 
 First source your virtual environment:
+
 ```bash
 $ source venv/bin/activate
 ```
 
 Then navigate to the `docs` directory and install the required pacakges:
+
 ```bash
 (venv) $ cd docs
 (vevn) $ pip install -r requirements.txt
 ```
-
 
 ## Building the documentation
 
@@ -33,6 +34,7 @@ To build the documentation in HTML format, run:
 ```bash
 (venv) $ make html
 ```
+
 This should create a `build/html/` directory path in the `docs` directory for the HTML documentation.
 
 Open it with your browser:
@@ -81,6 +83,6 @@ This will remove the `build/` directory.
 
 Thank you for considering contributing to FABulous!
 If you find any issues or have any suggestions, improvements, new features or questions,
-please open an [issue](https://github.com/FPGA-Research-Manchester/FABulous/issues),
-start a [discussion](https://github.com/FPGA-Research-Manchester/FABulous/discussions)
-or create a [pull request](https://github.com/FPGA-Research-Manchester/FABulous/pulls).
+please open an [issue](https://github.com/FPGA-Research/FABulous/issues),
+start a [discussion](https://github.com/FPGA-Research/FABulous/discussions)
+or create a [pull request](https://github.com/FPGA-Research/FABulous/pulls).
