@@ -216,7 +216,7 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
     set_key(
         env_file,
         "FAB_MODELS_PACK",
-        str(project_dir.absolute() / "Fabric" / f"models_pack.{new_suffix}"),
+        str(Path(project_dir.name) / "Fabric" / f"models_pack.{new_suffix}"),
     )
 
     logger.info(

@@ -165,6 +165,8 @@ class FABulousSettings(BaseSettings):
             )
         if proj_lang == HDLType.VHDL and value.suffix not in {".vhdl", ".vhd"}:
             raise ValueError("Models pack for VHDL must be a .vhdl or .vhd file")
+
+        logger.info(f"Using models pack at: {value.absolute()}")
         return value.absolute()
 
     @field_validator("user_config_dir", mode="after")
