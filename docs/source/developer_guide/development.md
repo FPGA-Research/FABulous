@@ -44,7 +44,7 @@ pip install uv
 Clone the repository and set up the development environment:
 
 ```console
-git clone https://github.com/FPGA-Research-Manchester/FABulous
+git clone https://github.com/FPGA-Research/FABulous
 cd FABulous
 uv sync --dev                # install runtime + dev dependencies (locked)
 uv pip install -e .          # editable install
@@ -244,7 +244,7 @@ We follow a standard Git workflow for contributions. Please ensure you're famili
 
 ### Getting Started
 
-1. Check the [issues](https://github.com/FPGA-Research-Manchester/FABulous/issues) and the latest commits at the [FABulous main branch](https://github.com/FPGA-Research/FABulous) to see if your feature or bug fix has already been reported or implemented.
+1. Check the [issues](https://github.com/FPGA-Research/FABulous/issues) and the latest commits at the [FABulous main branch](https://github.com/FPGA-Research/FABulous) to see if your feature or bug fix has already been reported or implemented.
 2. Fork the repository on GitHub.
 3. Clone your forked repository to your local machine.
 4. Use the latest version of the `main` branch as base for your work.

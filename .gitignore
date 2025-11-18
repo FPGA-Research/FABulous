@@ -6,6 +6,7 @@ venv
 .env
 .vscode
 oss-cad-suite
+.ltex
 
 # Documentation build artifacts (auto-generated in CI)
 docs/build/
