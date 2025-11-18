@@ -163,7 +163,8 @@ class FABulousFabricMacroFlow(Classic):
 
             # Record row heights for all rows spanned by this tile/supertile
             for row_offset in range(num_rows_spanned):
-                row_idx = y + row_offset
+                row_idx = y - row_offset
+                print(x, y, tile.name, row_idx, height, num_rows_spanned)
                 if row_idx not in row_heights_map:
                     row_heights_map[row_idx] = height / num_rows_spanned
                 else:
