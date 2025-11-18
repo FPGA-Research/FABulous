@@ -155,7 +155,11 @@ class FABulousFabricMacroFlow(Classic):
                 else:
                     expected_width = width / num_cols_spanned
                     if col_widths_map[col_idx] != expected_width:
-                        raise ValueError(f"Non-uniform tile widths in column {col_idx}")
+                        raise ValueError(
+                            f"Non-uniform tile widths in column {col_idx}"
+                            f" expected {expected_width}, got "
+                            f"{col_widths_map[col_idx]}"
+                        )
 
             # Record row heights for all rows spanned by this tile/supertile
             for row_offset in range(num_rows_spanned):
@@ -165,7 +169,11 @@ class FABulousFabricMacroFlow(Classic):
                 else:
                     expected_height = height / num_rows_spanned
                     if row_heights_map[row_idx] != expected_height:
-                        raise ValueError(f"Non-uniform tile heights in row {row_idx}")
+                        raise ValueError(
+                            f"Non-uniform tile heights in row {row_idx} "
+                            f"expected {expected_height}, got "
+                            f"{row_heights_map[row_idx]}"
+                        )
 
         # Build ordered lists and validate completeness
         row_heights: list[Decimal] = []
