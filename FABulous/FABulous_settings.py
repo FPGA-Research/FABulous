@@ -4,6 +4,7 @@ This module handles configuration settings for the FABulous FPGA framework, incl
 tool paths, project settings, and environment variable management.
 """
 
+import os
 from importlib.metadata import version as meta_version
 from pathlib import Path
 from shutil import which
@@ -35,13 +36,13 @@ class FABulousSettings(BaseSettings):
 
     user_config_dir: Path = Field(default_factory=lambda: FAB_USER_CONFIG_DIR)
 
+    oss_cad_suite: Path | None = None
     yosys_path: Path | str = Field(default="yosys", validate_default=True)
     nextpnr_path: Path | str = Field(default="nextpnr-generic", validate_default=True)
     iverilog_path: Path | str = Field(default="iverilog", validate_default=True)
     vvp_path: Path | str = Field(default="vvp", validate_default=True)
     ghdl_path: Path | str = Field(default="ghdl", validate_default=True)
     fabulator_root: Path | None = None
-    oss_cad_suite: Path | None = None
 
     proj_dir: Path = Field(default_factory=Path.cwd)
     proj_lang: HDLType = HDLType.VERILOG
@@ -62,6 +63,37 @@ class FABulousSettings(BaseSettings):
 
     # Windows warning acknowledgement
     windows_warning_acknowledged: bool = False
+
+    @field_validator("oss_cad_suite", mode="before")
+    @classmethod
+    def parse_oss_cad_suite_path(cls, value: Path | str | None) -> Path | None:
+        """Parse oss-cad-suite path and publish it to $PATH.
+
+        Parses the oss-cad-suite path from env var and publishes it to PATH before the
+        init of other tools, that then can be found in PATH.
+        """
+        if value is None:
+            return None
+
+        ocs_path = None
+        if isinstance(value, str):
+            ocs_path = Path(value).absolute()
+        elif isinstance(value, Path):
+            ocs_path = value.absolute()
+
+        if ocs_path.is_dir():
+            if (ocs_path / "bin").is_dir():
+                ocs_path = ocs_path / "bin"
+            logger.info(f"Using oss-cad-suite path: {ocs_path}")
+
+            # Add the oss-cad-suite bin folder to PATH
+            os.environ["PATH"] += os.pathsep + ocs_path.as_posix()
+            return ocs_path
+
+        logger.warning(
+            f"Could not find oss-cad-suite path{ocs_path}, ignoring setting."
+        )
+        return None
 
     @field_validator("proj_version", "proj_version_created", "version", mode="before")
     @classmethod
