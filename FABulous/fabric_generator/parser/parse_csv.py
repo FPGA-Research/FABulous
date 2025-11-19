@@ -638,6 +638,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     ]
 
     return Fabric(
+        fabric_dir=fName,
         tile=fabricTiles,
         numberOfColumns=width,
         numberOfRows=height,
