@@ -5,14 +5,10 @@ parsing fabric definitions, generating HDL code, creating geometries, and handli
 various fabric-related operations.
 """
 
-import json
 from collections.abc import Iterable
-from decimal import Decimal
 from pathlib import Path
-from typing import cast
 
 import yaml
-from librelane.config.variable import Macro
 from loguru import logger
 
 import FABulous.fabric_cad.gen_npnr_model as model_gen_npnr
@@ -22,7 +18,6 @@ from FABulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrap
 
 # Importing Modules from FABulous Framework.
 from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.define import TileSize
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
@@ -502,16 +497,21 @@ class FABulous_API:
     ) -> None:
         """Run the marco flow to generate the marco Verilog files."""
         if pdk_root is None:
-            pdk_root = get_context().pdk_root
+            pdk_root = get_context().pdk_root.parent
         if pdk is None:
             pdk = get_context().pdk
             if pdk is None:
                 raise ValueError("PDK must be specified either here or in settings.")
 
+        logger.info(f"PDK root: {pdk_root}")
+        logger.info(f"PDK: {pdk}")
+        logger.info(f"Output folder: {out_folder.resolve()}")
         flow = FABulousTileVerilogMarcoFlow(
             self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
             optimisation,
+            pdk=pdk,
+            pdk_root=pdk_root,
             base_config_path=base_config_path,
             override_config_path=config_override_path,
             **custom_config_overrides or {},
@@ -534,9 +534,10 @@ class FABulous_API:
         out_folder: Path,
         *,
         base_config_path: Path | None = None,
-        config_override: dict | Path | None = None,
+        config_override_path: Path | None = None,
         pdk_root: Path | None = None,
         pdk: str | None = None,
+        **custom_config_overrides: dict,
     ) -> None:
         """Run the stitching flow to assemble tile macros into a fabric-level GDS.
 
@@ -569,73 +570,20 @@ class FABulous_API:
             if pdk is None:
                 raise ValueError("PDK must be specified either here or in settings.")
 
-        file_list = [str(fabric_path)]
-        macros: dict[str, Macro] = {}
-        tile_sizes: dict[str, TileSize] = {}
-        for name, tile_marco_path in tile_marco_paths.items():
-            die_area = json.loads(
-                (tile_marco_path / "metrics.json").read_text(encoding="utf-8")
-            ).get("design__die__bbox", None)
-
-            if die_area is None:
-                raise ValueError(f"metrics.json for {name} missing die bbox")
-            _, _, width, height = [Decimal(m) for m in die_area.split(" ")]
-
-            spef_dict = {}
-            for i in (tile_marco_path / "spef").iterdir():
-                spef_dict[str(i.name)] = list(i.glob("*.spef"))
-
-            macros[name] = Macro(
-                gds=cast("list", [i for i in (tile_marco_path / "gds").glob("*.gds")]),
-                lef=cast(
-                    "list",
-                    [str(i) for i in (tile_marco_path / "lef").glob("*.lef")],
-                ),
-                vh=cast(
-                    "list", [str(i) for i in (tile_marco_path / "vh").glob("*.vh")]
-                ),
-                nl=cast(
-                    "list", [str(i) for i in (tile_marco_path / "nl").glob("*.nl.v")]
-                ),
-                pnl=cast(
-                    "list",
-                    [str(i) for i in (tile_marco_path / "pnl").glob("*.pnl.v")],
-                ),
-                spef=spef_dict,
-            )
-
-            tile_sizes[name] = TileSize(width=width, height=height)
-
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        final_config_args = {}
-
-        if base_config_path:
-            final_config_args.update(
-                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
-            )
-
-        final_config_args["DESIGN_NAME"] = self.fabric.name
-        final_config_args["FABULOUS_FABRIC"] = self.fabric
-        final_config_args["VERILOG_FILES"] = file_list
-        final_config_args["FABULOUS_MACROS_SETTINGS"] = macros
-        final_config_args["FABULOUS_TILE_SIZES"] = tile_sizes
-
-        if config_override:
-            if isinstance(config_override, dict):
-                final_config_args.update(config_override)
-            else:
-                final_config_args.update(
-                    yaml.safe_load(config_override.read_text(encoding="utf-8"))
-                )
 
         flow = FABulousFabricMacroFlow(
-            final_config_args,
-            name=self.fabric.name,
-            design_dir=str(out_folder.resolve()),
+            fabric=self.fabric,
+            fabric_verilog_paths=[fabric_path],
+            tile_macro_dirs=tile_marco_paths,
+            base_config_path=base_config_path,
+            config_override_path=config_override_path,
+            design_dir=out_folder,
+            pdk_root=pdk_root,
             pdk=pdk,
-            pdk_root=str((pdk_root).resolve().parent),
+            **custom_config_overrides,
         )
         result = flow.start()
         logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
@@ -700,7 +648,6 @@ class FABulous_API:
             final_config_args["TILE_OPT_INFO"] = str(tile_opt_config)
         if config_overrides:
             final_config_args.update(config_overrides)
-        print(final_config_args)
         flow = FABulousFabricMacroFullFlow(
             final_config_args,
             name=self.fabric.name,

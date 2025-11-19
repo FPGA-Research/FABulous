@@ -14,13 +14,11 @@ from librelane.steps import openroad as OpenROAD
 from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
 
 from FABulous.fabric_generator.gds_generator.helper import (
+    get_pitch,
     get_routing_obstructions,
     round_up_decimal,
 )
 from FABulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
-from FABulous.fabric_generator.gds_generator.steps.auto_diode import (
-    AutoEcoDiodeInsertion,
-)
 from FABulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
 from FABulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
     FABulousTileIOPlacement,
@@ -109,11 +107,11 @@ class TileOptimisation(WhileStep):
         OpenROAD.DetailedPlacement,
         OpenROAD.CTS,
         OpenROAD.GlobalRouting,
+        # AutoEcoDiodeInsertion,
         OpenROAD.CheckAntennas,
         Odb.DiodesOnPorts,
         OpenROAD.RepairAntennas,
         OpenROAD.DetailedRouting,
-        AutoEcoDiodeInsertion,
         Odb.RemoveRoutingObstructions,
         OpenROAD.CheckAntennas,
         Checker.TrDRC,
@@ -169,6 +167,7 @@ class TileOptimisation(WhileStep):
     def pre_iteration_callback(self, pre_iteration: State) -> State:
         """Pre iteration callback."""
         if self.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT:
+            self.config = self.config.copy(DRT_OPT_ITERS=64)
             return pre_iteration
         die_area_raw: tuple[Decimal, Decimal, Decimal, Decimal] = self.config.get(
             "DIE_AREA", None
@@ -181,6 +180,7 @@ class TileOptimisation(WhileStep):
         # Get PDK site dimensions from metrics (if available)
         site_width = Decimal(pre_iteration.metrics.get("pdk__site_width", Decimal(1)))
         site_height = Decimal(pre_iteration.metrics.get("pdk__site_height", Decimal(1)))
+        x_pitch, y_pitch = get_pitch(self.config)
 
         # Calculate step size based on PDK site dimensions
         width_step_count = self.config["FABULOUS_OPTIMISATION_WIDTH_STEP_COUNT"]
@@ -255,8 +255,8 @@ class TileOptimisation(WhileStep):
         die_area = (
             Decimal(0),
             Decimal(0),
-            round_up_decimal(new_width, Decimal(site_width)),
-            round_up_decimal(new_height, Decimal(site_height)),
+            round_up_decimal(new_width, x_pitch),
+            round_up_decimal(new_height, y_pitch),
         )
         self.config = self.config.copy(DRT_OPT_ITERS=5 + self.iter_count)
         self.config = self.config.copy(DIE_AREA=die_area)
@@ -273,6 +273,10 @@ class TileOptimisation(WhileStep):
         """Post loop callback."""
         if self.last_working_state is not None:
             return self.last_working_state
+        if self.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT:
+            raise RuntimeError(
+                "Fail to find a clean state after the physical implementation"
+            )
         raise RuntimeError("No working state found after tile optimisation.")
 
     def mid_iteration_break(self, state: State, step: type[Step]) -> bool:

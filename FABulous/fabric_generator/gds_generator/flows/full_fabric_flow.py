@@ -9,16 +9,14 @@ This flow uses Linear Programming to optimize tile dimensions:
 """
 
 import json
-import multiprocessing
 import traceback
 from concurrent.futures import Future
 from decimal import Decimal
 from itertools import product
 from pathlib import Path
-from typing import cast
 
 from librelane.config.flow import flow_common_variables
-from librelane.config.variable import Macro, Variable
+from librelane.config.variable import Macro
 from librelane.flows.classic import Classic
 from librelane.flows.flow import Flow
 from librelane.logging.logger import err, info, warn
@@ -30,14 +28,18 @@ from librelane.steps.step import Step
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
+    FABulousFabricMacroFlow,
+)
 from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMarcoFlow,
 )
 from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
-from FABulous.fabric_generator.gds_generator.helper import round_die_area
-from FABulous.fabric_generator.gds_generator.steps import global_tile_opitmisation
+from FABulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
+    ExtractPDKInfo,
+)
 from FABulous.fabric_generator.gds_generator.steps.fabric_macro_gen import (
     FabricMacroGen,
 )
@@ -54,36 +56,6 @@ configs = (
     + Floorplan.config_vars
     + flow_common_variables
     + GlobalTileSizeOptimization.config_vars
-    + [
-        Variable(
-            "FABULOUS_PROJ_DIR",
-            Path,
-            description="Path to the FABulous project directory",
-        ),
-        Variable(
-            "FABULOUS_FABRIC",
-            Fabric,
-            description="Fabric configuration object",
-        ),
-        Variable(
-            "FABULOUS_TILE_SPACING",
-            Decimal,
-            description="Spacing between tiles in database units",
-            default=Decimal(0),
-        ),
-        Variable(
-            "FABULOUS_HALO_SPACING",
-            tuple[Decimal, Decimal, Decimal, Decimal],
-            description="Halo spacing around fabric [left, bottom, right, top] in DBU",
-            default=(Decimal(100), Decimal(100), Decimal(100), Decimal(100)),
-        ),
-        Variable(
-            "FABULOUS_ILP_SOLVER_TIME_LIMIT",
-            int,
-            description="Time limit in seconds for ILP solver",
-            default=300,
-        ),
-    ]
 )
 
 
@@ -95,7 +67,7 @@ def _run_tile_flow_worker(
     base_config_path: Path,
     override_config_path: Path,
     **custom_config_overrides: dict,
-) -> tuple[State, str]:
+) -> tuple[State | None, str, str | None]:
     """Worker function to run a tile flow in a separate process.
 
     This function is called by ProcessPoolExecutor to compile tiles in parallel
@@ -112,22 +84,27 @@ def _run_tile_flow_worker(
 
     Returns
     -------
-    tuple[State, str]
-        (compiled_state, design_name) for result processing
+    tuple[State | None, str, str | None]
+        (compiled_state, design_name, error_trace) for result processing
     """
-    init_context(project_dir=proj_dir)
-    # Reconstruct the flow in the worker process with serializable data
-    flow = FABulousTileVerilogMarcoFlow(
-        tile_type,
-        io_pin_config,
-        optimisation,
-        base_config_path=base_config_path,
-        override_config_path=override_config_path,
-        **custom_config_overrides or {},
-    )
-    state = flow.start()
-    design_name = tile_type.name + optimisation.value
-    return state, design_name
+    try:
+        context = init_context(project_dir=proj_dir)
+        # Reconstruct the flow in the worker process with serializable data
+        flow = FABulousTileVerilogMarcoFlow(
+            tile_type,
+            io_pin_config,
+            optimisation,
+            pdk=context.pdk,
+            pdk_root=context.pdk_root.parent,
+            base_config_path=base_config_path,
+            override_config_path=override_config_path,
+            **custom_config_overrides or {},
+        )
+        state = flow.start()
+        design_name = tile_type.name + optimisation.value
+        return state, design_name, None
+    except Exception:
+        return None, tile_type.name + optimisation.value, traceback.format_exc()
 
 
 @Flow.factory.register()
@@ -141,7 +118,7 @@ class FABulousFabricMacroFullFlow(Flow):
     4. Stitches all tiles into final fabric with minimal area
     """
 
-    Steps = [TileMarcoGen, GlobalTileSizeOptimization, FabricMacroGen]
+    Steps = [ExtractPDKInfo, TileMarcoGen, GlobalTileSizeOptimization, FabricMacroGen]
 
     config_vars = configs
 
@@ -278,7 +255,7 @@ class FABulousFabricMacroFullFlow(Flow):
                 f"({found_regular_tiles} regular tiles, {found_supertiles} SuperTiles)"
             )
 
-    def init_compile(self, fabric: Fabric, proj_dir: Path) -> None:
+    def _init_compile(self, fabric: Fabric, proj_dir: Path) -> None:
         # Optimization modes to try for each tile
         opt_modes = [
             OptMode.BALANCE,
@@ -317,7 +294,10 @@ class FABulousFabricMacroFullFlow(Flow):
             state = None
 
             try:
-                state, design_name = state_future.result()
+                state, design_name, error_trace_worker = state_future.result()
+                if error_trace_worker:
+                    error = "Worker execution failed"
+                    error_trace = error_trace_worker
             except Exception as e:
                 error = str(e)
                 error_trace = traceback.format_exc()
@@ -392,15 +372,15 @@ class FABulousFabricMacroFullFlow(Flow):
         info("\n=== Step 1: Finding minimum tile dimensions ===")
         self.progress_bar.start_stage("Finding Minimum Dimensions")
         if self.config.get("TILE_OPT_INFO") is None:
-            self.init_compile(fabric, proj_dir)
+            self._init_compile(fabric, proj_dir)
         else:
             info(
                 "Tile optimization info already present, skipping initial compilation."
             )
 
-        info("\n=== Step 2: Solving NLP optimization ===")
         self.progress_bar.start_stage("NLP Optimization")
-
+        info("\n=== Step 2: Solving NLP optimization ===")
+        print(self.config)
         # Create and run NLP optimization step
         nlp_config = self.config.copy(FABULOUS_PROJ_DIR=proj_dir)
 
@@ -416,74 +396,31 @@ class FABulousFabricMacroFullFlow(Flow):
 
         self.progress_bar.end_stage()
 
-        # Extract optimal dimensions from step metrics
-        optimal_widths = nlp_state.metrics["nlp_optimal_widths"]
-        optimal_heights = nlp_state.metrics["nlp_optimal_heights"]
-        type_to_positions = nlp_state.metrics.get("type_to_positions", {})
-
-        info(f"Optimal tile width: {optimal_widths}")
-        info(f"Optimal tile height: {optimal_heights}")
-
         # Step 3: Recompile tiles with optimal dimensions
-        info("\n=== Step 3: Recompiling tiles with optimal dimensions ===")
         self.progress_bar.start_stage("Tile Recompilation")
-
-        # Build list of unique tile types
-        unique_tile_types_recompile: list[Tile | SuperTile] = []
-        result_set = set()
-        for tname in type_to_positions:
-            if tname in fabric.tileDic:
-                tile_obj = fabric.tileDic[tname]
-                if not tile_obj.partOfSuperTile and tname not in result_set:
-                    unique_tile_types_recompile.append(tile_obj)
-                    result_set.add(tname)
-            if tname in fabric.superTileDic:
-                tile_obj = fabric.superTileDic[tname]
-                if tname not in result_set:
-                    unique_tile_types_recompile.append(tile_obj)
-                    result_set.add(tname)
+        info("\n=== Step 3: Recompiling tiles with optimal dimensions ===")
 
         # Compile tiles with optimal dimensions in parallel
         handlers: list[tuple[Future[tuple[State, str]], Tile | SuperTile]] = []
         with DillProcessPoolExecutor(max_workers=None) as executor:
-            for tile_type in unique_tile_types_recompile:
-                tile_name = tile_type.name
-
-                # Get optimal dimensions
-                optimal_width_float = optimal_widths.get(tile_name, 1)
-                optimal_height_float = optimal_heights.get(tile_name, 1)
-
-                # Round to pitch grid
-                temp_config = self.config.copy(
-                    DIE_AREA=[0, 0, int(optimal_width_float), int(optimal_height_float)]
+            for tile_type in fabric.get_all_unique_tiles():
+                io_config_path = (
+                    tile_type.tileDir.parent / f"{tile_type.name}_io_pin_order.yaml"
                 )
-                rounded_config = round_die_area(temp_config)
-                _, _, optimal_width, optimal_height = rounded_config["DIE_AREA"]
-
-                info(
-                    f"  {tile_name}: optimal={optimal_width_float:.1f}x"
-                    f"{optimal_height_float:.1f}, "
-                    f"rounded={optimal_width}x{optimal_height} DBU"
-                )
-
-                # Generate IO config
-                io_config_path = tile_type.tileDir.parent / "io_pin_order.yaml"
-                generate_IO_pin_order_config(fabric, tile_type, io_config_path)
                 base_config_path = proj_dir / "Tile" / "include" / "gds_config.yaml"
                 override_config_path = tile_type.tileDir.parent / "gds_config.yaml"
 
+                die_area = nlp_state.metrics["nlp__tile__area"][tile_type.name]
                 # Submit tile compilation with optimal dimensions
                 result = executor.submit(
                     _run_tile_flow_worker,
                     tile_type,
+                    proj_dir,
                     io_config_path,
                     OptMode.NO_OPT,
                     base_config_path,
                     override_config_path,
-                    DIE_AREA=[0, 0, optimal_width, optimal_height],
-                    IGNORE_ANTENNA_VIOLATIONS=True,
-                    YOSYS_LOG_LEVEL="ERROR",
-                    DRT_OPT_ITERS=5,
+                    DIE_AREA=die_area,
                 )
                 handlers.append((result, tile_type))
 
@@ -492,7 +429,12 @@ class FABulousFabricMacroFullFlow(Flow):
         for state_future, tile_type in handlers:
             tile_name = tile_type.name
             try:
-                state, design_name = state_future.result()
+                state, design_name, error_trace = state_future.result()
+
+                if error_trace:
+                    raise RuntimeError(
+                        f"Tile {tile_name} compilation failed:\n{error_trace}"
+                    )
 
                 # Verify compilation succeeded
                 if not state.get(DesignFormat.GDS) or not state.get(DesignFormat.LEF):
@@ -514,14 +456,20 @@ class FABulousFabricMacroFullFlow(Flow):
         self.progress_bar.end_stage()
 
         # Step 4: Collect tile macros for fabric stitching
-        info("\n=== Step 4: Preparing fabric stitching ===")
-
         macros: dict[str, Macro] = {}
         tile_sizes: dict[str, tuple[Decimal, Decimal]] = {}
 
         for tile_type_name, tile_state in tile_type_states.items():
-            width = Decimal(optimal_widths[tile_type_name])
-            height = Decimal(optimal_heights[tile_type_name])
+            width = Decimal(
+                tile_type_states[tile_type_name]
+                .metrics["design__die__bbox"]
+                .split(" ")[2]
+            )
+            height = Decimal(
+                tile_type_states[tile_type_name]
+                .metrics["design__die__bbox"]
+                .split(" ")[3]
+            )
             tile_sizes[tile_type_name] = (width, height)
 
             # Get tile output files
@@ -554,23 +502,20 @@ class FABulousFabricMacroFullFlow(Flow):
         fabric_io_config_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Step 5: Run fabric stitching
-        info("\n=== Step 5: Fabric stitching ===")
         self.progress_bar.start_stage("Fabric Stitching")
 
-        fabric_config = self.config.copy(
-            FABULOUS_MACROS_SETTINGS=macros,
-            FABULOUS_TILE_SIZES=tile_sizes,
-            FABULOUS_TILE_SPACING=self.config["FABULOUS_TILE_SPACING"],
-            FABULOUS_HALO_SPACING=self.config["FABULOUS_HALO_SPACING"],
+        stitching_flow = FABulousFabricMacroFlow(
+            fabric,
+            fabric_verilog_paths=[proj_dir / "Fabric" / f"{fabric.name}.v"],
+            tile_macro_dirs={
+                k.name: (proj_dir / "macro" / "Tile" / k.name / "final_view")
+                for k in fabric.get_all_unique_tiles()
+            },
+            base_config_path=proj_dir / "Fabric" / "gds_config.yaml",
         )
 
-        fabric_step = FabricMacroGen(
-            fabric_config, id="FabricMacroGen", state_in=initial_state
-        )
-        final_state = self.start_step(fabric_step)
-        subflow_list.append(fabric_step)
-
+        final_state = stitching_flow.start()
         self.progress_bar.end_stage()
 
         info("\n✓ Fabric flow completed successfully!")
-        return final_state, subflow_list
+        return final_state, []
