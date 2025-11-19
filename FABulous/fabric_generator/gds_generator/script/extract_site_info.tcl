@@ -18,4 +18,3 @@ set ::default_site_width [expr [$::default_site getWidth] / double($::dbu)]
 
 puts "%OL_METRIC pdk__site_height $::default_site_height"
 puts "%OL_METRIC pdk__site_width $::default_site_width"
-
