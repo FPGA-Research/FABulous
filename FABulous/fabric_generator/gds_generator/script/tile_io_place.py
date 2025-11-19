@@ -433,6 +433,7 @@ class PinPlacementPlan:
     def allocate_tracks(
         self,
         specs: dict[Side, tuple[int, float, float, float]],
+        offset: int = 2,
     ) -> None:
         """Allocate tracks for all segments based on physical tile-based allocation.
 
@@ -448,7 +449,13 @@ class PinPlacementPlan:
                 continue
             count_total, step, origin, physical_dimension = specs[side]
             self.track_coordinates[side] = self._build_tracks_for_segments(
-                count_total, step, origin, physical_dimension, segments, side
+                count_total,
+                step,
+                origin,
+                physical_dimension,
+                segments,
+                side,
+                offset=offset,
             )
 
     def _build_tracks_for_segments(
@@ -459,6 +466,7 @@ class PinPlacementPlan:
         physical_dimension: float,
         segments_for_side: list[SegmentInfo],
         side: Side,
+        offset: int = 2,
     ) -> list[list[float]]:
         """Build track lists for segments using physical tile-based allocation.
 
@@ -471,12 +479,12 @@ class PinPlacementPlan:
             return []
 
         # Get fabric dimensions to calculate per-tile allocation
-        fabric_width, fabric_height = self.fabric_dimensions
+        logical_width, logical_height = self.fabric_dimensions
 
         # For North/South sides, width determines horizontal divisions
         # For East/West sides, height determines vertical divisions
         num_divisions = (
-            fabric_width if side in (Side.NORTH, Side.SOUTH) else fabric_height
+            logical_width if side in (Side.NORTH, Side.SOUTH) else logical_height
         )
         if num_divisions <= 0:
             return []
@@ -519,7 +527,7 @@ class PinPlacementPlan:
             tile_origin = origin + physical_offset
 
             tile_tracks = self._allocate_tracks_for_tile(
-                tracks_per_tile, step, tile_origin, tile_segments
+                tracks_per_tile, step, tile_origin, tile_segments, offset=offset
             )
 
             # Assign tracks to correct segment positions
@@ -594,6 +602,7 @@ class PinPlacementPlan:
         step: float,
         origin: float,
         segments: list[SegmentInfo],
+        offset: int = 2,
     ) -> list[list[float]]:
         """Allocate tracks within a single tile for its segments."""
         tracks_container: list[list[float]] = []
@@ -601,12 +610,16 @@ class PinPlacementPlan:
         if num_segments == 0:
             return tracks_container
 
+        available_tracks = track_count - offset
+        if available_tracks < 0:
+            available_tracks = 0
+
         counts = [segment.actual_pin_count for segment in segments]
         total = sum(counts)
 
         if total == 0:
-            base = track_count // num_segments if num_segments else 0
-            remainder = track_count - base * num_segments
+            base = available_tracks // num_segments if num_segments else 0
+            remainder = available_tracks - base * num_segments
             slices = []
             start = 0
             for idx in range(num_segments):
@@ -614,9 +627,9 @@ class PinPlacementPlan:
                 slices.append((start, size))
                 start += size
         else:
-            fractional = [c / total * track_count for c in counts]
+            fractional = [c / total * available_tracks for c in counts]
             sizes = [max(1, int(math.ceil(fraction))) for fraction in fractional]
-            delta = track_count - sum(sizes)
+            delta = available_tracks - sum(sizes)
 
             while delta > 0:
                 for idx in range(num_segments):
@@ -639,7 +652,7 @@ class PinPlacementPlan:
                 start += size
 
         for start_idx, size in slices:
-            start_coord = origin + start_idx * step
+            start_coord = origin + (start_idx + offset) * step
             tracks_container.append(grid_to_tracks(start_coord, size, step))
 
         return tracks_container
@@ -925,11 +938,8 @@ def io_place(
 
     for side in Side:
         # Get origin for this side to calculate global alignment
-        if side in {Side.NORTH, Side.SOUTH}:
-            global_origin = origin_v
-        else:
-            global_origin = origin_h
-        
+        global_origin = origin_v if side in {Side.NORTH, Side.SOUTH} else origin_h
+
         for segment_index, segment in enumerate(plan.segments_by_side[side]):
             if segment.min_distance is None:
                 raise AssertionError("min_distance must be defined before placement")
@@ -942,7 +952,7 @@ def io_place(
             step = step_by_side[side]
 
             stride = max(1, math.ceil(min_distance / step))
-            
+
             # Calculate which tracks align with global stride pattern
             filtered = []
             for i, track_coord in enumerate(raw_tracks):
