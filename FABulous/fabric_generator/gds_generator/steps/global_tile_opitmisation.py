@@ -1,38 +1,49 @@
 """FABulous GDS Generator - NLP Optimization Step using pymoo."""
 
-from typing import Optional
-from librelane.flows.flow import FlowException
-from collections import Counter
-import math
-from typing import NamedTuple
-from collections import defaultdict
 import json
+from collections import Counter, defaultdict
+from decimal import Decimal
 from pathlib import Path
+from typing import NamedTuple, Optional
 
 import numpy as np
 from librelane.config.variable import Variable
-from librelane.logging.logger import info
+from librelane.flows.flow import FlowException
+from librelane.logging.logger import info, warn
 from librelane.state.design_format import DesignFormat
 from librelane.state.state import State
 from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
-from pymoo.algorithms.soo.nonconvex.de import DE
-from pymoo.core.problem import ElementwiseProblem, Problem
+from pymoo.algorithms.soo.nonconvex.isres import ISRES
+from pymoo.core.problem import ElementwiseProblem
+from pymoo.core.repair import Repair
+from pymoo.core.termination import TerminateIfAny
 from pymoo.optimize import minimize
+from pymoo.termination.ftol import SingleObjectiveSpaceTermination
+from pymoo.termination.max_gen import MaximumGenerationTermination
 
 from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_generator.gds_generator.helper import round_up_decimal
 from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 
 
 class NLPTileProblem(ElementwiseProblem):
     """NLP problem class for tile size optimization using pymoo.
 
-    This class defines the optimization problem with bilinear constraints
-    for minimizing total fabric area subject to minimum area requirements.
+    This class defines the optimization problem with bilinear constraints for minimizing
+    total fabric area subject to minimum area requirements.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        the fabric object that contains the tile layout and structure
+    tile_metrics : dict[OptMode, dict]
+        Dictionary of tile metrics per optimization mode, containing die bounding boxes
     """
 
     class PositionIndex(NamedTuple):
+        """Helper class for named values."""
+
         width_idx: int
         height_idx: int
 
@@ -72,17 +83,18 @@ class NLPTileProblem(ElementwiseProblem):
 
         tile_min: dict[str, tuple[float, float]] = {}
 
-        print(self.tile_metrics)
         for i in unique_tiles:
             if i.partOfSuperTile:
                 # Skip component tiles of supertiles
                 continue
-            tmp_min_width: float = -math.inf
-            tmp_min_height: float = -math.inf
+            tmp_min_width: float = 1.0
+            tmp_min_height: float = 1.0
             for j in self.tile_metrics.values():
                 if i.name not in j:
                     continue
-                _, _, w, h = j[i.name]["design__die__bbox"]
+                x0, y0, x1, y1 = j[i.name]["design__die__bbox"]
+                w = x1 - x0
+                h = y1 - y0
                 tmp_min_width = max(tmp_min_width, w)
                 tmp_min_height = max(tmp_min_height, h)
             tile_min[i.name] = (tmp_min_width, tmp_min_height)
@@ -91,7 +103,8 @@ class NLPTileProblem(ElementwiseProblem):
         for supertile in fabric.superTileDic.values():
             row_min_heights: dict[str, float] = {}
             for row in supertile.tileMap:
-                # Compute min_height for this row from max of component tile min_heights in that row
+                # Compute min_height for this row from max of component tile
+                # min_heights in that row
                 for component_tile in row:
                     if component_tile is None:
                         continue
@@ -137,86 +150,82 @@ class NLPTileProblem(ElementwiseProblem):
                 )
 
         xl = np.zeros(len(self.tile_to_solution_index) * 2)
-        for t, indices in self.tile_to_solution_index.items():
-            xl[indices.width_idx] = tile_min[t][0]
-            xl[indices.height_idx] = tile_min[t][1]
+        xu = np.zeros(len(self.tile_to_solution_index) * 2)
 
-        xu = np.full(len(self.tile_to_solution_index) * 2, np.inf)
+        for k, v in tile_min.items():
+            indices = self.tile_to_solution_index[k]
+            xl[indices.width_idx] = v[0]
+            xl[indices.height_idx] = v[1]
 
-        # Count constraints
-        n_constr = (
-            len(fabric.tileDic.values()) * 2 + len(fabric.superTileDic.values()) * 2
-        )
+        xu = xl.copy() * 4  # Arbitrary upper bound: 4x min size
+
+        # Count constraints by simulating what will be generated
+        x = np.zeros(len(self.tile_to_solution_index) * 2)
 
         super().__init__(
             n_var=len(self.tile_to_solution_index) * 2,
             n_obj=1,
-            n_constr=n_constr,
+            n_ieq_constr=len(self._add_mode_constraints(x))
+            + len(self._add_equality_constraints(x)),
             xl=xl,
             xu=xu,
         )
 
-    def _evaluate(self, X, out):
-        # X shape: (pop_size, n_var)
-        if X.ndim == 1:
-            X = X.reshape(1, -1)
-        pop_size = X.shape[0]
-        F = np.zeros(pop_size)
-        G = np.zeros((pop_size, self.n_constr))
+    def _evaluate(self, x: np.ndarray, out: dict) -> None:
+        """Pymoo evaluation function for objective and constraints."""
+        # x shape: (n_var,) - single solution vector for ElementwiseProblem
+        out["F"] = self._compute_objective(x)
 
-        out["F"] = self._compute_objective(X)
-        out["G"] = np.column_stack(
-            [
-                self._add_equality_constraints(X),
-                self._add_mode_constraints(X),
-            ]
-        )
+        eq_constraints = self._add_equality_constraints(x)
+        mode_constraints = self._add_mode_constraints(x)
 
-    def _compute_objective(self, x):
+        # Concatenate all constraints
+        all_constraints = eq_constraints + mode_constraints
+        out["G"] = np.array(all_constraints)
+
+    def _compute_objective(self, x: np.ndarray) -> float:
         """Compute the total area objective for a single solution."""
         total_area = 0.0
         for tile_name, indices in self.tile_to_solution_index.items():
-            w = x[0][indices.width_idx]
-            h = x[0][indices.height_idx]
+            w = x[indices.width_idx]
+            h = x[indices.height_idx]
             total_area += w * h * self.tile_count[tile_name]
         return total_area
 
-    def _add_equality_constraints(self, x):
-        """Add equality constraints: tiles on same row have same height, same column have same width.
+    def _add_equality_constraints(self, x: np.ndarray) -> list:
+        """Add equality constraints on tile dimensions.
 
-        Uses abs(a - b) <= tolerance for equality.
+        For pymoo: g(x) <= 0, so we use (h1 - h2)^2 - tolerance <= 0
+        This is better than abs(h1-h2) for differentiability.
         """
         result = []
+        tolerance = 0.5  # Allow tiles to differ by ~1 unit
+
         # Height equality: tiles on same row
         for tile_name in self.tile_row_set:
-            tile = self.fabric.tileDic[tile_name]
-            if tile.partOfSuperTile:
-                continue
             on_rows = self.tile_row_set[tile_name]
             tile_idx = self.tile_to_solution_index[tile_name]
             tile_h = x[tile_idx.height_idx]
 
             for other_name in self.tile_row_set:
-                if other_name == tile_name:  # Avoid duplicates
+                if other_name == tile_name:  # Skip self-comparison only
                     continue
                 other_tile = self.fabric.tileDic[other_name]
                 other_rows = self.tile_row_set[other_name]
                 if len(on_rows & other_rows) > 0:
                     other_idx = self.tile_to_solution_index[other_name]
                     other_h = x[other_idx.height_idx]
-                    result.append(abs(tile_h - other_h) - 0.1)
+                    # Use squared difference for differentiability
+                    result.append((tile_h - other_h) ** 2 - tolerance)
 
         # Width equality: tiles on same column
         for tile_name in self.tile_column_set:
-            tile = self.fabric.tileDic[tile_name]
-            if tile.partOfSuperTile:
-                continue
             on_cols = self.tile_column_set[tile_name]
             tile_idx = self.tile_to_solution_index[tile_name]
             tile_w = x[tile_idx.width_idx]
 
             for other_name in self.tile_column_set:
-                if other_name <= tile_name:  # Avoid duplicates
+                if other_name == tile_name:  # Skip self-comparison only
                     continue
                 other_tile = self.fabric.tileDic[other_name]
                 if other_tile.partOfSuperTile:
@@ -225,15 +234,16 @@ class NLPTileProblem(ElementwiseProblem):
                 if len(on_cols & other_cols) > 0:
                     other_idx = self.tile_to_solution_index[other_name]
                     other_w = x[other_idx.width_idx]
-                    result.append(abs(tile_w - other_w) - 0.1)
+                    result.append((tile_w - other_w) ** 2 - tolerance)
 
         return result
 
-    def _add_mode_constraints(self, x):
-        """Add mode constraints: at least one mode must be satisfied.
+    def _add_mode_constraints(self, x: np.ndarray) -> list:
+        """Add mode constraints on tile dimensions.
 
         For regular tiles: w * h >= mode_die_area for at least one mode
-        For supertiles: sum(component_widths) * sum(component_heights) >= mode_die_area for at least one mode
+        For supertiles: sum(component_widths) * sum(component_heights) >= mode_die_area
+                        for at least one mode
         """
         result = []
         # Regular tiles
@@ -249,30 +259,40 @@ class NLPTileProblem(ElementwiseProblem):
             mode_constraints = []
             for mode_metrics in self.tile_metrics.values():
                 if tile.name in mode_metrics:
-                    _, _, w, h = mode_metrics[tile.name]["DESIGN__DIE__BBOX"]
-                    mode_die_area = w * h
-                    # Constraint: mode_die_area - tile_w * tile_h <= 0
-                    result.append(mode_die_area - tile_w * tile_h)
+                    x0, y0, x1, y1 = mode_metrics[tile.name]["design__die__bbox"]
+                    mode_die_area = (x1 - x0) * (y1 - y0)
+                    # Constraint: mode_die_area - tile_w * tile_h <= 0  # noqa: ERA001
+                    mode_constraints.append(mode_die_area - tile_w * tile_h)
+            result.append(min(mode_constraints))
 
         # Supertiles
         for supertile in self.fabric.superTileDic.values():
-            # Sum component tile dimensions
+            # Sum component tile dimensions from first row (width) and
+            # first column (height)
+            # Width is sum of widths in the first row
             total_w = 0.0
-            total_h = 0.0
+            if supertile.tileMap and len(supertile.tileMap) > 0:
+                for tile in supertile.tileMap[0]:  # First row
+                    if tile is not None:
+                        sub_idx = self.tile_to_solution_index[tile.name]
+                        total_w += x[sub_idx.width_idx]
 
-            for sub_tile in supertile.tiles:
-                sub_idx = self.tile_to_solution_index[sub_tile.name]
-                total_w += x[sub_idx.width_idx]
-                total_h += x[sub_idx.height_idx]
+            # Height is sum of heights in the first column
+            total_h = 0.0
+            for row in supertile.tileMap:
+                if row and len(row) > 0 and row[0] is not None:  # First column
+                    sub_idx = self.tile_to_solution_index[row[0].name]
+                    total_h += x[sub_idx.height_idx]
 
             # Collect all modes for this supertile
             mode_constraints = []
             for mode_metrics in self.tile_metrics.values():
                 if supertile.name in mode_metrics:
-                    _, _, w, h = mode_metrics[supertile.name]["DESIGN__DIE__BBOX"]
-                    mode_die_area = w * h
-                    # Constraint: mode_die_area - total_w * total_h <= 0
-                    result.append(mode_die_area - total_w * total_h)
+                    x0, y0, x1, y1 = mode_metrics[supertile.name]["design__die__bbox"]
+                    mode_die_area = (x1 - x0) * (y1 - y0)
+                    # Constraint: mode_die_area - total_w * total_h <= 0  # noqa: ERA001
+                    mode_constraints.append(mode_die_area - total_w * total_h)
+            result.append(min(mode_constraints))
 
         return result
 
@@ -282,11 +302,11 @@ class GlobalTileSizeOptimization(Step):
     """LibreLane step for solving NLP optimization to find optimal tile dimensions.
 
     This step formulates and solves a Non-Linear Program using pymoo to minimize total
-    fabric area subject to minimum area constraints (bilinear w*h >= A_min),
-    row/column grid constraints, and SuperTile boundary constraints.
+    fabric area subject to minimum area constraints (bilinear w*h >= A_min), row/column
+    grid constraints, and SuperTile boundary constraints.
 
-    After optimization, it automatically recompiles all tiles with the optimal dimensions
-    and stores the recompiled states in metrics for downstream processing.
+    After optimization, it automatically recompiles all tiles with the optimal
+    dimensions and stores the recompiled states in metrics for downstream processing.
     """
 
     id = "FABulous.GlobalTileSizeOptimization"
@@ -310,10 +330,11 @@ class GlobalTileSizeOptimization(Step):
             description="Path to the FABulous project directory",
         ),
         Variable(
-            "FABULOUS_ILP_SOLVER_TIME_LIMIT",
-            int,
-            description="Time limit in seconds for ILP solver",
-            default=300,
+            "FABULOUS_NLP_FTOL_TOLERANCE",
+            float,
+            description="Function tolerance for NLP optimizer - "
+            "stops when objective change is below this value",
+            default=1e-6,
         ),
     ]
 
@@ -325,7 +346,7 @@ class GlobalTileSizeOptimization(Step):
         DesignFormat.DEF,
     ]
 
-    def run(self, state_in: State, **kwargs: str) -> tuple[ViewsUpdate, MetricsUpdate]:  # noqa: ARG002
+    def run(self, state_in: State, **_kwargs: str) -> tuple[ViewsUpdate, MetricsUpdate]:
         """Solve NLP problem and recompile tiles with optimal dimensions.
 
         The NLP formulation minimizes total fabric area sum(w_i*h_i) for all tiles,
@@ -352,6 +373,7 @@ class GlobalTileSizeOptimization(Step):
             Updated views (design files) and metrics with optimal dimensions and recompiled states
         """
         info("Formulating NLP problem using pymoo...")
+        print(self.config)
 
         if self.config["TILE_OPT_INFO"] is None:
             raise FlowException(
@@ -359,7 +381,7 @@ class GlobalTileSizeOptimization(Step):
             )
         # Get fabric configuration
         fabric: Fabric = self.config["FABULOUS_FABRIC"]
-        time_limit = self.config.get("FABULOUS_ILP_SOLVER_TIME_LIMIT", 300)
+        tolerance = self.config.get("FABULOUS_NLP_FTOL_TOLERANCE", 10.0)
         if isinstance(self.config["TILE_OPT_INFO"], Path):
             tile_data: dict[OptMode, dict] = {}
             tile_data_raw = json.load(self.config["TILE_OPT_INFO"].open())
@@ -378,181 +400,123 @@ class GlobalTileSizeOptimization(Step):
             tile_opt_data = tile_data
         else:
             tile_opt_data = self.config["TILE_OPT_INFO"]
-        # Build fabric structure
-        num_rows = len(fabric.tile)
-        num_cols = len(fabric.tile[0]) if num_rows > 0 else 0
-
-        row_to_types: dict[int, set[str]] = {}
-        col_to_types: dict[int, set[str]] = {}
-        type_to_positions: dict[str, list[tuple[int, int]]] = {}
-        supertile_positions: list[tuple[str, int, int]] = []  # (type, row, col)
-
-        # Track supertile instances by detecting component tiles
-        supertile_seen = (
-            set()
-        )  # Track (super_name, r_start, c_start) to avoid duplicates
-
-        for r in range(num_rows):
-            for c in range(num_cols):
-                tile = fabric.tile[r][c]
-                if tile is None:
-                    continue
-                tname = tile.name
-
-                # Check if this tile is part of a supertile
-                if tile.partOfSuperTile:
-                    # This is a component of a supertile (e.g., DSP_top is part of DSP)
-                    # Don't add component tiles to row_to_types/col_to_types individually
-                    # Only record the parent supertile
-                    for super_name, super_tile in fabric.superTileDic.items():
-                        if any(t.name == tname for t in super_tile.tiles):
-                            # Found parent supertile
-                            # Only record once at first component position
-                            if tname == super_tile.tiles[0].name:  # First component
-                                key = (super_name, r, c)
-                                if key not in supertile_seen:
-                                    supertile_positions.append((super_name, r, c))
-                                    supertile_seen.add(key)
-                                    # Add parent supertile to row/col types (not components)
-                                    for rr in range(r, r + super_tile.max_height):
-                                        row_to_types.setdefault(rr, set()).add(
-                                            super_name
-                                        )
-                                    for cc in range(c, c + super_tile.max_width):
-                                        col_to_types.setdefault(cc, set()).add(
-                                            super_name
-                                        )
-                                    type_to_positions.setdefault(super_name, []).append(
-                                        (r, c)
-                                    )
-                            break
-                elif tname in fabric.superTileDic:
-                    # This is a supertile type appearing directly (shouldn't happen normally)
-                    supertile_positions.append((tname, r, c))
-                    row_to_types.setdefault(r, set()).add(tname)
-                    col_to_types.setdefault(c, set()).add(tname)
-                    type_to_positions.setdefault(tname, []).append((r, c))
-                else:
-                    # Regular tile
-                    row_to_types.setdefault(r, set()).add(tname)
-                    col_to_types.setdefault(c, set()).add(tname)
-                    type_to_positions.setdefault(tname, []).append((r, c))
-
-        info(
-            f"Fabric: {num_rows}x{num_cols}, {len(type_to_positions)} tile types, {len(supertile_positions)} supertile instances"
-        )
-
         # Create pymoo problem - constructor handles all the formatting
         problem = NLPTileProblem(
             fabric,
             tile_opt_data,
         )
 
-        # Solve with DE
-        algorithm = DE(
-            variant="DE/rand/1/bin",
-            CR=0.9,
-            F=0.8,
-        )
+        x_pitch = Decimal(state_in.metrics.get("pdk__site_width", 0.5))
+        y_pitch = Decimal(state_in.metrics.get("pdk__site_height", 0.5))
 
-        # Time limit termination
-        from pymoo.termination.max_time import TimeBasedTermination
+        # Solve with ISRES - specifically designed for constrained optimization
+        class RoundRepair(Repair):
+            def _do(self, problem, X: np.ndarray, **kwargs) -> np.ndarray:
+                """Solution repair to round to nearest grid pitch."""
+                for j in range(X.shape[0]):
+                    for i in range(X.shape[1]):
+                        if i % 2 == 0:
+                            X[j][i] = float(round_up_decimal(Decimal(X[j][i]), y_pitch))
+                        else:
+                            X[j][i] = float(round_up_decimal(Decimal(X[j][i]), x_pitch))
+                return X
 
-        termination = TimeBasedTermination(max_time=time_limit)
+        algorithm = ISRES(repair=RoundRepair())
 
-        info(f"Running optimization with time limit: {time_limit}s")
+        info("Running optimization with function tolerance termination")
+
+        # Combine: stop when objective stops changing (ftol) OR feasible solution found
+        # OR max 50000 generations
+        ftol_termination = SingleObjectiveSpaceTermination(tol=tolerance)
+        max_gen_termination = MaximumGenerationTermination(50000)
+        termination = TerminateIfAny(ftol_termination, max_gen_termination)
+
         res = minimize(problem, algorithm, termination, verbose=True)
 
-        # Check if we have a valid solution (X is not None)
-        # res.success can be False when time limit is reached, but solution is still valid
+        # Check if we have a valid solution
+        # Try to get best solution even if infeasible
         if res.X is None:
-            raise RuntimeError("NLP optimization failed to find any solution")
+            # Check if there's a population with solutions
+            if hasattr(res, "pop") and res.pop is not None and len(res.pop) > 0:
+                info("No single best solution found, using best from population")
+                # Sort population by constraint violation, then by objective
+                pop_sorted = sorted(
+                    res.pop,
+                    key=lambda ind: (
+                        ind.CV[0]
+                        if hasattr(ind, "CV") and ind.CV is not None
+                        else float("inf"),
+                        ind.F[0],
+                    ),
+                )
+                best_ind = pop_sorted[0]
+                res.X = best_ind.X
+                res.F = best_ind.F
+                res.CV = best_ind.CV if hasattr(best_ind, "CV") else None
+            else:
+                raise RuntimeError("NLP optimization failed to find any solution")
 
-        info(
-            f"Optimization terminated. Success={res.success}, found solution with objective={res.F}"
-        )
+        # Check constraint violation
+        if hasattr(res, "CV") and res.CV is not None:
+            if res.CV[0] > 1e-6:
+                warn(f"Solution has constraint violation of {res.CV[0]}")
+            else:
+                info(f"Found feasible solution with CV={res.CV[0]}")
+        else:
+            info("Found solution (constraint violation not available)")
+
+        info(f"Optimization terminated with objective={res.F[0]}")
 
         # Extract results
-        x_opt = res.X
 
-        # Map back to dimensions
-        optimal_row_h = {}
-        optimal_col_w = {}
+        result_dict = {}
+        for tile_name, indices in problem.tile_to_solution_index.items():
+            w = res.X[indices.width_idx]
+            h = res.X[indices.height_idx]
+            if fabric.tileDic[tile_name].partOfSuperTile:
+                # Skip component tiles of supertiles
+                continue
+            result_dict[tile_name] = (
+                Decimal(0),
+                Decimal(0),
+                Decimal(w).quantize(Decimal(".01")),
+                Decimal(h).quantize(Decimal(".01")),
+            )
 
-        for i, name in enumerate(problem.var_names):
-            if name.startswith("row_h_"):
-                r = int(name.split("_")[2])
-                optimal_row_h[r] = x_opt[i]
-            elif name.startswith("col_w_"):
-                c = int(name.split("_")[2])
-                optimal_col_w[c] = x_opt[i]
+        for supertile in fabric.superTileDic.values():
+            # Sum component tile dimensions from first row (width) and first column (height)
+            # Width is sum of widths in the first row
+            total_w = 0.0
+            if supertile.tileMap and len(supertile.tileMap) > 0:
+                for tile in supertile.tileMap[0]:  # First row
+                    if tile is not None:
+                        sub_idx = problem.tile_to_solution_index[tile.name]
+                        total_w += res.X[sub_idx.width_idx]
 
-        # Tile dimensions from row/col
-        optimal_widths_int = {}
-        optimal_heights_int = {}
+            # Height is sum of heights in the first column
+            total_h = 0.0
+            for row in supertile.tileMap:
+                if row and len(row) > 0 and row[0] is not None:  # First column
+                    sub_idx = problem.tile_to_solution_index[row[0].name]
+                    total_h += res.X[sub_idx.height_idx]
 
-        for tname in type_to_positions:
-            positions = type_to_positions[tname]
-            if tname in fabric.superTileDic:
-                # Supertile: sum the row heights and col widths it spans
-                supertile = fabric.superTileDic[tname]
-                r_start, c_start = positions[0]
+            result_dict[supertile.name] = (
+                Decimal(0),
+                Decimal(0),
+                Decimal(total_w).quantize(Decimal(".01")),
+                Decimal(total_h).quantize(Decimal(".01")),
+            )
 
-                # Sum heights for rows spanned
-                total_h = sum(
-                    optimal_row_h.get(r, 0)
-                    for r in range(r_start, r_start + supertile.max_height)
-                )
-                # Sum widths for cols spanned
-                total_w = sum(
-                    optimal_col_w.get(c, 0)
-                    for c in range(c_start, c_start + supertile.max_width)
-                )
-
-                optimal_heights_int[tname] = int(total_h)
-                optimal_widths_int[tname] = int(total_w)
-            else:
-                # Regular tile: use row/col dimensions
-                r, c = positions[0]  # Assume all same
-                optimal_heights_int[tname] = int(
-                    optimal_row_h.get(r, problem.min_tile_heights.get(tname, 1))
-                )
-                optimal_widths_int[tname] = int(
-                    optimal_col_w.get(c, problem.min_tile_widths.get(tname, 1))
-                )
-
+        # Calculate total area
         total_area = int(res.F[0])
-        row_heights_list = [
-            int(optimal_row_h.get(r, 1)) for r in sorted(row_to_types.keys())
-        ]
-        col_widths_list = [
-            int(optimal_col_w.get(c, 1)) for c in sorted(col_to_types.keys())
-        ]
-        status = "Optimal" if res.success else "Feasible"
 
         # Report results
-        info(f"NLP solver status: {status}")
-        if res and res.success:
-            info(f"  Converged in {res.algorithm.evaluator.n_eval} evaluations")
-
         info(f"  Total fabric area: {total_area}")
-        info(f"  Optimal tile widths: {optimal_widths_int}")
-        info(f"  Optimal tile heights: {optimal_heights_int}")
-        info(f"  Row heights: {row_heights_list}")
-        info(f"  Col widths: {col_widths_list}")
+        info(f"  Optimal tile dimensions: {result_dict}")
 
-        # Step 4: Recompile tiles with optimal dimensions
-        info("\n=== Recompiling tiles with optimal dimensions ===")
-
-        views_updates = {}
         metrics_updates = {
-            "nlp_optimal_widths": optimal_widths_int,
-            "nlp_optimal_heights": optimal_heights_int,
-            "nlp_total_area": total_area,
-            "nlp_row_heights": row_heights_list,
-            "nlp_col_widths": col_widths_list,
-            "nlp_solver_status": status,
-            "type_to_positions": type_to_positions,
+            "nlp__tile__area": result_dict,
+            "nlp__total__area": total_area,
         }
 
-        return views_updates, metrics_updates
+        return {}, metrics_updates

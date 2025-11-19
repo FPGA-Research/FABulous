@@ -1,8 +1,11 @@
 """Stitching flow to assemble FABulous tile macros into a complete fabric."""
 
+import json
 from decimal import Decimal
 from pathlib import Path
+from typing import cast
 
+import yaml
 from librelane.config.variable import Instance, Macro, Orientation, Variable
 from librelane.flows.classic import Classic
 from librelane.flows.flow import Flow
@@ -24,6 +27,7 @@ from FABulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
 from FABulous.fabric_generator.gds_generator.steps.odb_connect_power import (
     FABulousPower,
 )
+from FABulous.FABulous_settings import get_context
 
 # Add namedtuple for tile sizes
 
@@ -40,21 +44,6 @@ subs = {
 }
 
 configs = Classic.config_vars + [
-    Variable(
-        "FABULOUS_FABRIC",
-        Fabric,
-        "The fabric configuration object.",
-    ),
-    Variable(
-        "FABULOUS_MACROS_SETTINGS",
-        dict[str, Macro],
-        "A dictionary mapping tile names to their macro views (GDS, LEF, NL, SPEF).",
-    ),
-    Variable(
-        "FABULOUS_TILE_SIZES",
-        dict[str, tuple[Decimal, Decimal]],
-        "A dictionary mapping tile names to their sizes (width, height).",
-    ),
     Variable(
         "FABULOUS_TILE_SPACING",
         tuple[Decimal, Decimal],
@@ -86,9 +75,98 @@ class FABulousFabricMacroFlow(Classic):
     create the final fabric layout, including power distribution and IO placement.
     """
 
+    macros: dict[str, Macro]
+    tile_sizes: dict[str, tuple[Decimal, Decimal]]
+    fabric: Fabric
+
     Steps = prep_steps + physical_steps + write_out_steps + check_steps
     Substitutions = subs
     config_vars = configs
+
+    def __init__(
+        self,
+        fabric: Fabric,
+        fabric_verilog_paths: list[Path],
+        tile_macro_dirs: dict[str, Path],
+        *,
+        base_config_path: Path | None = None,
+        config_override_path: Path | None = None,
+        design_dir: Path | None = None,
+        pdk_root: Path | None = None,
+        pdk: str | None = None,
+        **custom_config_overrides: dict,
+    ) -> None:
+        self.macros: dict[str, Macro] = {}
+        self.tile_sizes: dict[str, tuple[Decimal, Decimal]] = {}
+        self.fabric = fabric
+
+        if pdk_root is None:
+            pdk_root = get_context().pdk_root
+        if pdk is None:
+            pdk = get_context().pdk
+            if pdk is None:
+                raise ValueError("PDK must be specified either here or in settings.")
+
+        for name, tile_marco_path in tile_macro_dirs.items():
+            die_area = json.loads(
+                (tile_marco_path / "metrics.json").read_text(encoding="utf-8")
+            ).get("design__die__bbox", None)
+
+            if die_area is None:
+                raise ValueError(f"metrics.json for {name} missing die bbox")
+            _, _, width, height = [Decimal(m) for m in die_area.split(" ")]
+
+            spef_dict = {}
+            for i in (tile_marco_path / "spef").iterdir():
+                spef_dict[str(i.name)] = list(i.glob("*.spef"))
+
+            self.macros[name] = Macro(
+                gds=cast("list", [i for i in (tile_marco_path / "gds").glob("*.gds")]),
+                lef=cast(
+                    "list",
+                    [str(i) for i in (tile_marco_path / "lef").glob("*.lef")],
+                ),
+                vh=cast(
+                    "list", [str(i) for i in (tile_marco_path / "vh").glob("*.vh")]
+                ),
+                nl=cast(
+                    "list", [str(i) for i in (tile_marco_path / "nl").glob("*.nl.v")]
+                ),
+                pnl=cast(
+                    "list",
+                    [str(i) for i in (tile_marco_path / "pnl").glob("*.pnl.v")],
+                ),
+                spef=spef_dict,
+            )
+
+            self.tile_sizes[name] = (width, height)
+
+        final_config = {}
+        final_config["VERILOG_FILES"] = [str(i) for i in fabric_verilog_paths]
+        final_config["DESIGN_NAME"] = fabric.name
+        if base_config_path is not None:
+            final_config.update(
+                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
+            )
+
+        if config_override_path is not None:
+            final_config.update(
+                yaml.safe_load(config_override_path.read_text(encoding="utf-8"))
+            )
+        final_config.update(**custom_config_overrides)
+        if design_dir is not None:
+            final_design_dir = str(design_dir.resolve())
+        else:
+            p = self.fabric.fabric_dir.parent / "macro"
+            p.mkdir(parents=True, exist_ok=True)
+            final_design_dir = str(p)
+        super().__init__(
+            final_config,
+            name=self.fabric.name,
+            design_dir=final_design_dir,
+            pdk=pdk,
+            pdk_root=str(pdk_root.resolve().parent),
+        )
 
     def _compute_row_and_column_sizes(
         self, fabric: Fabric, tile_sizes: dict[str, tuple[Decimal, Decimal]]
@@ -156,7 +234,8 @@ class FABulousFabricMacroFlow(Classic):
                     expected_width = width / num_cols_spanned
                     if col_widths_map[col_idx] != expected_width:
                         raise ValueError(
-                            f"Non-uniform tile widths in column {col_idx}"
+                            f"Non-uniform tile widths in column {col_idx} "
+                            f"for tile: {tile.name} "
                             f" expected {expected_width}, got "
                             f"{col_widths_map[col_idx]}"
                         )
@@ -164,7 +243,6 @@ class FABulousFabricMacroFlow(Classic):
             # Record row heights for all rows spanned by this tile/supertile
             for row_offset in range(num_rows_spanned):
                 row_idx = y - row_offset
-                print(x, y, tile.name, row_idx, height, num_rows_spanned)
                 if row_idx not in row_heights_map:
                     row_heights_map[row_idx] = height / num_rows_spanned
                 else:
@@ -172,6 +250,7 @@ class FABulousFabricMacroFlow(Classic):
                     if row_heights_map[row_idx] != expected_height:
                         raise ValueError(
                             f"Non-uniform tile heights in row {row_idx} "
+                            f"for tile: {tile.name} "
                             f"expected {expected_height}, got "
                             f"{row_heights_map[row_idx]}"
                         )
@@ -440,14 +519,6 @@ class FABulousFabricMacroFlow(Classic):
         tuple[State, list[Step]]
             Tuple of final state and list of executed steps
         """
-        fabric: Fabric = self.config["FABULOUS_FABRIC"]
-
-        # Get macro configurations from config
-        macros: dict[str, Macro] = self.config["FABULOUS_MACROS_SETTINGS"]
-        tile_sizes: dict[str, tuple[Decimal, Decimal]] = self.config[
-            "FABULOUS_TILE_SIZES"
-        ]
-
         # Tile Placement
         tile_spacing: tuple[Decimal, Decimal] = self.config["FABULOUS_TILE_SPACING"]
         halo_spacing: tuple[Decimal, Decimal, Decimal, Decimal] = self.config[
@@ -476,23 +547,25 @@ class FABulousFabricMacroFlow(Classic):
 
         # Validate that all tile sizes are pitch-aligned
         info("Validating tile sizes are aligned to pitch grid...")
-        self._validate_tile_sizes(fabric, tile_sizes, pitch_x, pitch_y)
+        self._validate_tile_sizes(self.fabric, self.tile_sizes, pitch_x, pitch_y)
 
         # Use rounded left/bottom and original right/top for initial calculation
         halo_spacing = (halo_left, halo_bottom, halo_right, halo_top)
 
         # Compute per-row and per-column sizes once, then derive DIE_AREA
         row_heights, column_widths = self._compute_row_and_column_sizes(
-            fabric, tile_sizes
+            self.fabric, self.tile_sizes
         )
         info(f"row_heights: {row_heights}")
-        if len(row_heights) != fabric.numberOfRows:
-            err(f"Expected {fabric.numberOfRows} row heights, got {len(row_heights)}")
+        if len(row_heights) != self.fabric.numberOfRows:
+            err(
+                f"Expected {self.fabric.numberOfRows} row heights, got {len(row_heights)}"
+            )
 
         info(f"column_widths: {column_widths}")
-        if len(column_widths) != fabric.numberOfColumns:
+        if len(column_widths) != self.fabric.numberOfColumns:
             err(
-                f"Expected {fabric.numberOfColumns} column widths, got "
+                f"Expected {self.fabric.numberOfColumns} column widths, got "
                 f"{len(column_widths)}"
             )
 
@@ -536,15 +609,15 @@ class FABulousFabricMacroFlow(Classic):
 
         # Place macros
         cur_y = 0
-        for y, row in enumerate(reversed(fabric.tile)):
+        for y, row in enumerate(reversed(self.fabric.tile)):
             cur_x = 0
-            flipped_y = fabric.numberOfRows - 1 - y
+            flipped_y = self.fabric.numberOfRows - 1 - y
 
             for x, tile in enumerate(row):
                 tile_name = tile.name if tile is not None else None
                 prefix = f"Tile_X{x}Y{flipped_y}_"
 
-                for supertile_name, supertile in fabric.superTileDic.items():
+                for supertile_name, supertile in self.fabric.superTileDic.items():
                     subtiles = [tile.name for tile in supertile.tiles]
 
                     # Get the anchor of the supertile (bottom left)
@@ -565,10 +638,10 @@ class FABulousFabricMacroFlow(Classic):
                 if tile_name is None:
                     info(f"Skipping {tile_name}")
                 else:
-                    if tile_name not in macros:
+                    if tile_name not in self.macros:
                         err(f"Could not find {tile_name} in macros")
 
-                    macros[tile_name].instances[f"{prefix}{tile_name}"] = Instance(
+                    self.macros[tile_name].instances[f"{prefix}{tile_name}"] = Instance(
                         location=(
                             halo_left + cur_x,
                             halo_bottom + cur_y,
@@ -584,16 +657,18 @@ class FABulousFabricMacroFlow(Classic):
 
         # Validate that no macros overlap before proceeding
         info("Validating macro placements for overlaps...")
-        self._validate_no_macro_overlaps(macros, tile_sizes)
+        self._validate_no_macro_overlaps(self.macros, self.tile_sizes)
 
         # Set DIE_AREA and FP_SIZING
         self.config = self.config.copy(FP_SIZING="absolute")
 
         info(f"Setting DIE_AREA to {self.config['DIE_AREA']}")
         info(f"Setting FP_SIZING to {self.config['FP_SIZING']}")
-        info(f"Macros: {macros}")
+        info(f"Macros: {self.macros}")
 
-        self.config = self.config.copy(MACROS=macros, SPACING_TO_IGNORE=halo_spacing)
+        self.config = self.config.copy(
+            MACROS=self.macros, SPACING_TO_IGNORE=halo_spacing
+        )
 
         info(f"Setting MACROS to {self.config['MACROS']}")
 

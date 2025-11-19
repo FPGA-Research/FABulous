@@ -7,6 +7,7 @@ fabric is the top-level container for all tiles, BELs, and routing resources.
 
 from collections.abc import Generator
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.define import (
@@ -79,6 +80,7 @@ class Fabric:
         A list of common wire pairs in the fabric.
     """
 
+    fabric_dir: Path
     tile: list[list[Tile]] = field(default_factory=list)
 
     name: str = "eFPGA"

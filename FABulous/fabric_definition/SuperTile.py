@@ -6,6 +6,7 @@ larger, complex and hierarchical structures within the FPGA fabric, combining di
 functionalities into a single, reusable block.
 """
 
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -13,7 +14,6 @@ from pathlib import Path
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Tile import Tile
-from collections.abc import Generator
 
 
 @dataclass

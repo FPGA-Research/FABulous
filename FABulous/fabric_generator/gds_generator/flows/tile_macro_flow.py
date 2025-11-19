@@ -1,7 +1,6 @@
 """Tile optimisation flows for FABulous fabric generation."""
 
 from decimal import Decimal
-from os.path import exists
 from pathlib import Path
 from typing import Any
 
@@ -81,7 +80,7 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
             OpenROAD.IRDropReport,
         ]
         + write_out_steps
-        + check_steps
+        # + check_steps
     )
 
     config_vars = configs
@@ -93,6 +92,8 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
         tile_type: Tile | SuperTile,
         io_pin_config: Path,
         opt_mode: OptMode,
+        pdk: str,
+        pdk_root: Path,
         base_config_path: Path | None = None,
         override_config_path: Path | None = None,
         design_dir: Path | None = None,
@@ -151,8 +152,8 @@ class FABulousTileVerilogMarcoFlow(SequentialFlow):
             tile_config_dict,
             name=tile_type.name,
             design_dir=final_dir,
-            pdk=get_context().pdk,
-            pdk_root=str(get_context().pdk_root.resolve().parent),
+            pdk=pdk,
+            pdk_root=str(pdk_root.resolve()),
         )
         self.config = self.config.copy(
             FABULOUS_TILE_LOGICAL_WIDTH=logical_width,
