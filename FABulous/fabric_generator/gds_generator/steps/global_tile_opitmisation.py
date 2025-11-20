@@ -4,7 +4,7 @@ import json
 from collections import Counter, defaultdict
 from decimal import Decimal
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional
 
 import numpy as np
 from librelane.config.variable import Variable
@@ -22,9 +22,11 @@ from pymoo.termination.ftol import SingleObjectiveSpaceTermination
 from pymoo.termination.max_gen import MaximumGenerationTermination
 
 from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.Tile import Tile
 from FABulous.fabric_generator.gds_generator.helper import round_up_decimal
 from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
+
+if TYPE_CHECKING:
+    from FABulous.fabric_definition.Tile import Tile
 
 
 class NLPTileProblem(ElementwiseProblem):
@@ -53,7 +55,7 @@ class NLPTileProblem(ElementwiseProblem):
         tile_metrics: dict[
             OptMode, dict
         ],  # dict[tile_name, dict] OR dict[opt_mode, dict[tile_name, dict]]
-    ):
+    ) -> None:
         self.fabric = fabric
         self.tile_metrics = (
             tile_metrics  # Keep nested format: {opt_mode: {tile_name: {metrics}}}
@@ -315,7 +317,7 @@ class GlobalTileSizeOptimization(Step):
     config_vars = [
         Variable(
             "TILE_OPT_INFO",
-            Optional[Path],
+            Optional[Path],  # noqa: UP045 librelane issue
             description="Tile optimization information dictionary or path to JSON file",
             default=None,
         ),
@@ -366,15 +368,24 @@ class GlobalTileSizeOptimization(Step):
         ----------
         state_in : State
             Input state with fabric structure and tile dimension options
+        **_kwargs: str
+            Additional keyword arguments (not used)
 
         Returns
         -------
         tuple[ViewsUpdate, MetricsUpdate]
-            Updated views (design files) and metrics with optimal dimensions and recompiled states
+            Updated views (design files) and metrics with optimal dimensions
+            and recompiled states
+
+
+        Raises
+        ------
+        FlowException
+            TILE_OPT_INFO not set in configuration
+        RuntimeError
+            No NLP solution found
         """
         info("Formulating NLP problem using pymoo...")
-        print(self.config)
-
         if self.config["TILE_OPT_INFO"] is None:
             raise FlowException(
                 "Values of TILE_OPT_INFO should have been set when calling this step."
@@ -413,7 +424,7 @@ class GlobalTileSizeOptimization(Step):
 
         # Solve with ISRES - specifically designed for constrained optimization
         class RoundRepair(Repair):
-            def _do(self, problem, X: np.ndarray, **kwargs) -> np.ndarray:
+            def _do(self, _problem: Any, X: np.ndarray, **_kwargs: Any) -> np.ndarray:  # noqa: ANN401
                 """Solution repair to round to nearest grid pitch."""
                 for j in range(X.shape[0]):
                     for i in range(X.shape[1]):
@@ -486,8 +497,8 @@ class GlobalTileSizeOptimization(Step):
             )
 
         for supertile in fabric.superTileDic.values():
-            # Sum component tile dimensions from first row (width) and first column (height)
-            # Width is sum of widths in the first row
+            # Sum component tile dimensions from first row (width) and
+            # first column (height) Width is sum of widths in the first row
             total_w = 0.0
             if supertile.tileMap and len(supertile.tileMap) > 0:
                 for tile in supertile.tileMap[0]:  # First row

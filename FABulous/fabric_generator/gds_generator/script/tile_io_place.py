@@ -442,6 +442,8 @@ class PinPlacementPlan:
         specs : dict[Side, tuple[int, float, float, float]]
             Track specifications per side:
             side -> (total_track_count, track_step, origin, physical_dimension)
+        offset : int, optional
+            amount of offset tracks to reserve at start of each tile, by default 2
         """
         for side, segments in self.segments_by_side.items():
             if side not in specs:
@@ -955,7 +957,7 @@ def io_place(
 
             # Calculate which tracks align with global stride pattern
             filtered = []
-            for i, track_coord in enumerate(raw_tracks):
+            for track_coord in raw_tracks:
                 # Find this track's global index from origin
                 global_track_idx = round((track_coord - global_origin) / step)
                 # Check if it aligns with the stride pattern

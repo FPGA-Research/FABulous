@@ -10,16 +10,16 @@ This flow uses Linear Programming to optimize tile dimensions:
 
 import json
 import traceback
-from concurrent.futures import Future
 from decimal import Decimal
 from itertools import product
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from librelane.config.flow import flow_common_variables
 from librelane.config.variable import Macro
 from librelane.flows.classic import Classic
-from librelane.flows.flow import Flow
-from librelane.logging.logger import err, info, warn
+from librelane.flows.flow import Flow, FlowException
+from librelane.logging.logger import err, info
 from librelane.state.design_format import DesignFormat
 from librelane.state.state import State
 from librelane.steps.openroad import Floorplan
@@ -51,6 +51,9 @@ from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptM
 from FABulous.FABulous_settings import init_context
 from FABulous.processpool import DillProcessPoolExecutor
 
+if TYPE_CHECKING:
+    from concurrent.futures import Future
+
 configs = (
     Classic.config_vars
     + Floorplan.config_vars
@@ -67,7 +70,7 @@ def _run_tile_flow_worker(
     base_config_path: Path,
     override_config_path: Path,
     **custom_config_overrides: dict,
-) -> tuple[State | None, str, str | None]:
+) -> tuple[State | None, str | None]:
     """Worker function to run a tile flow in a separate process.
 
     This function is called by ProcessPoolExecutor to compile tiles in parallel
@@ -75,17 +78,25 @@ def _run_tile_flow_worker(
 
     Parameters
     ----------
-    flow_config : dict
-        Configuration dictionary for the flow (serializable copy)
-    flow_name : str
-        Name of the flow instance
-    design_dir : str
-        Design directory path for the flow
+    tile_type : Tile | SuperTile
+        The tile to compile
+    proj_dir : Path
+        The path to the project directory
+    io_pin_config : Path
+        Path to the IO pin configuration YAML file
+    optimisation : OptMode
+        The optimization mode for tile compilation
+    base_config_path : Path
+        Base configuration file path for the flow
+    override_config_path : Path
+        Override configuration file path for the flow
+    **custom_config_overrides : dict
+        Any software overrides for the flow configuration
 
     Returns
     -------
-    tuple[State | None, str, str | None]
-        (compiled_state, design_name, error_trace) for result processing
+    tuple[State | None, str | None]
+        (compiled_state, error_trace) for result processing
     """
     try:
         context = init_context(project_dir=proj_dir)
@@ -101,10 +112,10 @@ def _run_tile_flow_worker(
             **custom_config_overrides or {},
         )
         state = flow.start()
-        design_name = tile_type.name + optimisation.value
-        return state, design_name, None
-    except Exception:
-        return None, tile_type.name + optimisation.value, traceback.format_exc()
+    except Exception:  # noqa: BLE001
+        return None, traceback.format_exc()
+    else:
+        return state, None
 
 
 @Flow.factory.register()
@@ -122,73 +133,8 @@ class FABulousFabricMacroFullFlow(Flow):
 
     config_vars = configs
 
-    def _extract_tile_dimensions_from_state(
-        self, state: State
-    ) -> tuple[Decimal, Decimal]:
-        """Extract final tile dimensions from compiled state.
-
-        Parameters
-        ----------
-        state : State
-            Compiled tile state
-
-        Returns
-        -------
-        tuple[int, int]
-            (width_dbu, height_dbu) of compiled tile
-
-        Raises
-        ------
-        ValueError
-            If tile dimensions cannot be determined
-        """
-        # Get DIE_AREA from metrics if available
-        die_area_metric = state.metrics.get("design__die__bbox")
-        if die_area_metric:
-            llx, lly, urx, ury = map(Decimal, die_area_metric.split(" "))
-            return urx - llx, ury - lly
-
-        raise ValueError("Could not extract tile dimensions from state")
-
-    def _compilation_successful(
-        self, state: State, check_antenna: bool = False
-    ) -> bool:
-        """Check if tile compilation was successful.
-
-        Parameters
-        ----------
-        state : State
-            Compiled tile state
-
-        Returns
-        -------
-        bool
-            True if compilation succeeded without critical errors
-        """
-        # Check for critical errors in metrics
-        critical_metrics = [
-            "route__drc_errors",
-        ]
-
-        if check_antenna:
-            critical_metrics.append("antenna__violating__nets")
-            critical_metrics.append("antenna__violating__pins")
-
-        for metric in critical_metrics:
-            value = state.metrics.get(metric)
-            if value is not None and int(value) > 0:
-                warn(f"Tile compilation has {metric}={value}")
-                return False
-
-        # Check if required outputs exist
-        if not state.get(DesignFormat.GDS) or not state.get(DesignFormat.LEF):
-            err("Tile compilation missing required outputs (GDS or LEF)")
-            return False
-
-        return True
-
     def _validate_project_dir(self, proj_dir: Path, fabric: Fabric) -> None:
-        # Validate project directory structure
+        """Validate the project directory structure for required tile directories."""
         info("Validating project directory structure...")
         if not proj_dir.exists():
             raise FileNotFoundError(f"Project directory not found: {proj_dir}")
@@ -256,6 +202,7 @@ class FABulousFabricMacroFullFlow(Flow):
             )
 
     def _init_compile(self, fabric: Fabric, proj_dir: Path) -> None:
+        """Compile all tiles for design space exploration."""
         # Optimization modes to try for each tile
         opt_modes = [
             OptMode.BALANCE,
@@ -263,7 +210,9 @@ class FABulousFabricMacroFullFlow(Flow):
             OptMode.FIND_MIN_WIDTH,
         ]
 
-        handlers: list[tuple[Future[tuple[State, str]], OptMode, Tile | SuperTile]] = []
+        handlers: list[
+            tuple[Future[tuple[State | None, str | None]], OptMode, Tile | SuperTile]
+        ] = []
         with DillProcessPoolExecutor(max_workers=None) as executor:
             for opt_mode, tile_type in product(
                 opt_modes, fabric.get_all_unique_tiles()
@@ -294,11 +243,11 @@ class FABulousFabricMacroFullFlow(Flow):
             state = None
 
             try:
-                state, design_name, error_trace_worker = state_future.result()
+                state, error_trace_worker = state_future.result()
                 if error_trace_worker:
                     error = "Worker execution failed"
                     error_trace = error_trace_worker
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 error = str(e)
                 error_trace = traceback.format_exc()
             # Try to save snapshot if state exists
@@ -322,7 +271,7 @@ class FABulousFabricMacroFullFlow(Flow):
 
             info(f"opt_mode={opt_mode.value}, tile={tile_name}, metrics={metrics_dict}")
 
-        def custom_serializer(obj):
+        def custom_serializer(obj: object) -> float | object:
             if isinstance(obj, Decimal):
                 return float(obj)
             return obj
@@ -359,6 +308,8 @@ class FABulousFabricMacroFullFlow(Flow):
         ------
         RuntimeError
             If tile compilation or NLP optimization fails
+        FlowException
+            When NLP optimization step fails
         """
         fabric: Fabric = self.config["FABULOUS_FABRIC"]
         proj_dir = Path(self.config["FABULOUS_PROJ_DIR"])
@@ -378,7 +329,6 @@ class FABulousFabricMacroFullFlow(Flow):
 
         self.progress_bar.start_stage("NLP Optimization")
         info("\n=== Step 2: Solving NLP optimization ===")
-        print(self.config)
         # Create and run NLP optimization step
         nlp_config = self.config.copy(FABULOUS_PROJ_DIR=proj_dir)
 
@@ -390,7 +340,7 @@ class FABulousFabricMacroFullFlow(Flow):
         except Exception as e:
             err(f"NLP optimization step failed to start/execute: {e}")
             err(traceback.format_exc())
-            raise
+            raise FlowException("NLP optimization step failed") from e
 
         self.progress_bar.end_stage()
 
@@ -399,7 +349,9 @@ class FABulousFabricMacroFullFlow(Flow):
         info("\n=== Step 3: Recompiling tiles with optimal dimensions ===")
 
         # Compile tiles with optimal dimensions in parallel
-        handlers: list[tuple[Future[tuple[State, str]], Tile | SuperTile]] = []
+        handlers: list[
+            tuple[Future[tuple[State | None, str | None]], Tile | SuperTile]
+        ] = []
         with DillProcessPoolExecutor(max_workers=None) as executor:
             for tile_type in fabric.get_all_unique_tiles():
                 io_config_path = (
@@ -426,28 +378,21 @@ class FABulousFabricMacroFullFlow(Flow):
         tile_type_states: dict[str, State] = {}
         for state_future, tile_type in handlers:
             tile_name = tile_type.name
-            try:
-                state, design_name, error_trace = state_future.result()
+            state, error_trace = state_future.result()
+            if error_trace or state is None:
+                raise RuntimeError(
+                    f"Tile {tile_name} compilation failed:\n{error_trace}"
+                )
 
-                if error_trace:
-                    raise RuntimeError(
-                        f"Tile {tile_name} compilation failed:\n{error_trace}"
-                    )
+            # Verify compilation succeeded
+            if not state.get(DesignFormat.GDS) or not state.get(DesignFormat.LEF):
+                err(f"Tile {tile_name} missing required outputs (GDS or LEF)")
+                raise RuntimeError(
+                    f"Tile {tile_name} failed final compilation with optimal dimensions"
+                )
 
-                # Verify compilation succeeded
-                if not state.get(DesignFormat.GDS) or not state.get(DesignFormat.LEF):
-                    err(f"Tile {tile_name} missing required outputs (GDS or LEF)")
-                    raise RuntimeError(
-                        f"Tile {tile_name} failed final compilation with optimal dimensions"
-                    )
-
-                tile_type_states[tile_name] = state
-                info(f"✓ {tile_name} recompiled successfully")
-
-            except Exception as e:
-                err(f"Recompilation of {tile_name} failed: {e}")
-                err(traceback.format_exc())
-                raise
+            tile_type_states[tile_name] = state
+            info(f"✓ {tile_name} recompiled successfully")
 
         info(f"✓ All {len(tile_type_states)} tiles recompiled with optimal dimensions")
 

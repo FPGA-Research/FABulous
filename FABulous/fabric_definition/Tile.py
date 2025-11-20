@@ -313,8 +313,8 @@ class Tile:
         self,
         x_pitch: Decimal,
         y_pitch: Decimal,
-        x_pin_thickness: Decimal,
-        y_pin_thickness: Decimal,
+        x_pin_thickness_mult: Decimal,
+        y_pin_thickness_mult: Decimal,
         x_spacing: Decimal,
         y_spacing: Decimal,
         frame_data_width: int = 32,
@@ -339,6 +339,10 @@ class Tile:
             pin spacing in the horizontal direction (DBU)
         y_spacing : Decimal
             pin spacing in the vertical direction (DBU)
+        frame_data_width : int, optional
+            frame data width in pins, by default 32
+        frame_stroble_width : int, optional
+            frame stroble width in pins, by default 20
 
         Returns
         -------
@@ -404,14 +408,14 @@ class Tile:
         # Min width constrained by north/south edges
         width_io_count = max(north_ports, south_ports) + frame_stroble_width
         min_width_io = (
-            Decimal(width_io_count) * (x_pitch * x_pin_thickness)
+            Decimal(width_io_count) * (x_pitch * x_pin_thickness_mult)
             + x_spacing * width_io_count
             + 2 * x_spacing
         )
         # Min height constrained by west/east edges
         height_io_count = max(west_ports, east_ports) + frame_data_width
         min_height_io = (
-            height_io_count * (y_pitch * y_pin_thickness)
+            height_io_count * (y_pitch * y_pin_thickness_mult)
             + y_spacing * height_io_count
             + 2 * y_spacing
         )
