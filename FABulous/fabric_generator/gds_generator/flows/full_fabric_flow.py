@@ -320,19 +320,18 @@ class FABulousFabricMacroFullFlow(Flow):
                 metrics_dict["error"] = error
                 metrics_dict["error_traceback"] = error_trace
 
-            result_summary[opt_mode.value][tile_type.name] = metrics_dict
             info(f"opt_mode={opt_mode.value}, tile={tile_name}, metrics={metrics_dict}")
-
-        self.config = self.config.copy(TILE_OPT_INFO=result_summary)
 
         def custom_serializer(obj):
             if isinstance(obj, Decimal):
                 return float(obj)
             return obj
 
-        (Path(self.run_dir) / "tile_optimisation_summary.json").write_text(
+        out_summary_path = Path(self.run_dir) / "tile_optimisation_summary.json"
+        out_summary_path.write_text(
             json.dumps(result_summary, indent=4, default=custom_serializer)
         )
+        self.config = self.config.copy(TILE_OPT_INFO=str(out_summary_path))
 
     def run(self, initial_state: State, **_kwargs: dict) -> tuple[State, list[Step]]:
         """Execute the NLP-based fabric flow.
@@ -361,7 +360,6 @@ class FABulousFabricMacroFullFlow(Flow):
         RuntimeError
             If tile compilation or NLP optimization fails
         """
-        subflow_list: list[Flow] = []
         fabric: Fabric = self.config["FABULOUS_FABRIC"]
         proj_dir = Path(self.config["FABULOUS_PROJ_DIR"])
         self.progress_bar.set_max_stage_count(3)
@@ -508,7 +506,7 @@ class FABulousFabricMacroFullFlow(Flow):
             fabric,
             fabric_verilog_paths=[proj_dir / "Fabric" / f"{fabric.name}.v"],
             tile_macro_dirs={
-                k.name: (proj_dir / "macro" / "Tile" / k.name / "final_view")
+                k.name: (proj_dir / "Tile" / k.name / "macro" / "final_views")
                 for k in fabric.get_all_unique_tiles()
             },
             base_config_path=proj_dir / "Fabric" / "gds_config.yaml",

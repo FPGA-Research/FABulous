@@ -384,7 +384,9 @@ class GlobalTileSizeOptimization(Step):
         tolerance = self.config.get("FABULOUS_NLP_FTOL_TOLERANCE", 10.0)
         if isinstance(self.config["TILE_OPT_INFO"], Path):
             tile_data: dict[OptMode, dict] = {}
-            tile_data_raw = json.load(self.config["TILE_OPT_INFO"].open())
+            tile_data_raw = json.load(
+                Path(self.config["TILE_OPT_INFO"]).resolve().open()
+            )
             for mode, tile_info in tile_data_raw.items():
                 tile_data[OptMode(mode)] = {}
                 for tile_name, data in tile_info.items():

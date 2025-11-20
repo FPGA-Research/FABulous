@@ -29,6 +29,8 @@ class Fabric:
 
     Attributes
     ----------
+    fabric_dir : Path
+        The path to the fabric config file
     tile : list[list[Tile]]
         The tile map of the fabric
     name : str
@@ -473,7 +475,7 @@ class Fabric:
 
         Returns
         -------
-        list[Tile]
+        list[Tile | SuperTile]
             List of unique tile types (one instance per type name)
         """
         result: list[Tile | SuperTile] = []
