@@ -38,6 +38,7 @@ def grid_to_tracks(origin: float, count: int, step: float) -> list[float]:
 
     return tracks
 
+
 def equally_spaced_sequence(
     side_pin_placement: list[int | odbBTermLike], possible_locations: list[float]
 ) -> list[tuple[float, odbBTermLike]]:
