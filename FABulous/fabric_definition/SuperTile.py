@@ -73,6 +73,7 @@ class SuperTile:
         return ports
 
     def __iter__(self) -> Generator[tuple[tuple[int, int], Tile], None, None]:
+        """Iterate over all sub-tiles in the supertile."""
         for x, row in enumerate(self.tileMap):
             for y, tile in enumerate(row):
                 if tile is not None:

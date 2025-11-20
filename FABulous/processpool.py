@@ -1,5 +1,8 @@
+"""A custom ProcessPoolExecutor that uses dill for serialization."""
+
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
+from typing import Any
 
 import dill
 
@@ -21,15 +24,21 @@ class DillProcessPoolExecutor(ProcessPoolExecutor):
     standard pickle cannot handle.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        max_workers: int | None = None,
+        initargs: tuple[Any, ...] = (),
+        max_tasks_per_child: int | None = None,
+    ) -> None:
         # Patch the main process to use dill BEFORE calling parent init
         from multiprocessing.reduction import ForkingPickler
 
         ForkingPickler.dumps = dill.dumps
         ForkingPickler.loads = dill.loads
         super().__init__(
-            *args,
+            max_workers=max_workers,
             mp_context=multiprocessing.get_context("spawn"),
             initializer=_init_worker,
-            **kwargs,
+            initargs=initargs,
+            max_tasks_per_child=max_tasks_per_child,
         )

@@ -187,6 +187,11 @@ class FABulousFabricMacroFlow(Classic):
         -------
         tuple[list[Decimal], list[Decimal]]
             Row heights (len = numberOfRows) and column widths (len = numberOfColumns).
+
+        Raises
+        ------
+        ValueError
+            If the tile sizes are inconsistent within a row or column.
         """
         rows = fabric.numberOfRows
         cols = fabric.numberOfColumns
@@ -218,7 +223,8 @@ class FABulousFabricMacroFlow(Classic):
                 num_rows_spanned = len(supertile.tileMap)
                 num_cols_spanned = len(supertile.tileMap[0]) if supertile.tileMap else 1
             elif tile_key in subtile_to_anchor:
-                # This is a non-anchor subtile, skip it but process only when we hit the anchor
+                # This is a non-anchor subtile, skip it but process only
+                # when we hit the anchor
                 continue
             else:
                 width, height = tile_sizes[tile.name]
@@ -559,7 +565,8 @@ class FABulousFabricMacroFlow(Classic):
         info(f"row_heights: {row_heights}")
         if len(row_heights) != self.fabric.numberOfRows:
             err(
-                f"Expected {self.fabric.numberOfRows} row heights, got {len(row_heights)}"
+                f"Expected {self.fabric.numberOfRows} row heights, "
+                f"got {len(row_heights)}"
             )
 
         info(f"column_widths: {column_widths}")
