@@ -331,6 +331,14 @@ class Tile:
             Horizontal pitch between tracks (DBU)
         y_pitch : Decimal
             Vertical pitch between tracks (DBU)
+        x_pin_thickness_mult : Decimal
+            pin thickness multiplier in the horizontal direction
+        y_pin_thickness_mult : Decimal
+            pin thickness multiplier in the vertical direction
+        x_spacing : Decimal
+            pin spacing in the horizontal direction (DBU)
+        y_spacing : Decimal
+            pin spacing in the vertical direction (DBU)
 
         Returns
         -------

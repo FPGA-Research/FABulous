@@ -551,12 +551,14 @@ class FABulous_API:
             Output directory for the stitched fabric.
         base_config_path : Path | None
             Path to base configuration YAML file.
-        config_override : dict | Path | None, optional
+        config_override_path : Path | None, optional
             Additional configuration overrides.
         pdk_root : Path | None, optional
             Path to PDK root directory.
         pdk : str | None, optional
             PDK name to use.
+        **custom_config_overrides : dict
+            software configuration overrides.
 
         Raises
         ------
