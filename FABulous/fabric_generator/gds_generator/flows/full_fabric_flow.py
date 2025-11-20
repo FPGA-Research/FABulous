@@ -40,13 +40,9 @@ from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
 from FABulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
     ExtractPDKInfo,
 )
-from FABulous.fabric_generator.gds_generator.steps.fabric_macro_gen import (
-    FabricMacroGen,
-)
 from FABulous.fabric_generator.gds_generator.steps.global_tile_opitmisation import (
     GlobalTileSizeOptimization,
 )
-from FABulous.fabric_generator.gds_generator.steps.tile_macro_gen import TileMarcoGen
 from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 from FABulous.FABulous_settings import init_context
 from FABulous.processpool import DillProcessPoolExecutor
@@ -129,7 +125,7 @@ class FABulousFabricMacroFullFlow(Flow):
     4. Stitches all tiles into final fabric with minimal area
     """
 
-    Steps = [ExtractPDKInfo, TileMarcoGen, GlobalTileSizeOptimization, FabricMacroGen]
+    Steps = [ExtractPDKInfo, GlobalTileSizeOptimization]
 
     config_vars = configs
 
