@@ -580,7 +580,7 @@ class TestIntegration:
                 10.0,
             ),  # 10 tracks, step=1.0, origin=0, length=10
         }
-        plan.allocate_tracks(specs)
+        plan.allocate_tracks(specs, offset=0)
 
         # Verify tracks were allocated
         assert len(plan.track_coordinates[Side.NORTH]) == 1

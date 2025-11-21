@@ -10,7 +10,7 @@ from loguru import logger
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
 from FABulous.FABulous_CLI.helper import create_project, setup_logger
-from FABulous.FABulous_settings import reset_context, init_context
+from FABulous.FABulous_settings import init_context, reset_context
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]
@@ -60,7 +60,7 @@ def normalize_and_check_for_errors(caplog_text: str) -> list[str]:
 
 
 @pytest.fixture(autouse=True)
-def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Set up global test environment for FABulous tests."""
     fabulous_root = str(Path(__file__).resolve().parent.parent / "FABulous")
 
@@ -70,6 +70,9 @@ def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     # Set test environment using monkeypatch for automatic cleanup
     monkeypatch.setenv("FAB_ROOT", fabulous_root)
     monkeypatch.setenv("FABULOUS_TESTING", "TRUE")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda _: tmp_path)
+    (tmp_path / ".ciel" / "ihp-sg13g2").mkdir(parents=True, exist_ok=True)
     setup_logger(0, False)
 
     return
