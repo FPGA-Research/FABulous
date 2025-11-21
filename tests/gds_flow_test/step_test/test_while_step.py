@@ -6,21 +6,20 @@ from FABulous.fabric_generator.gds_generator.steps.while_step import WhileStep
 class TestWhileStep:
     """Test suite for WhileStep base class."""
 
-    def test_default_max_iterations(self):
-        """Test that max_iterations has a default value."""
-        assert WhileStep.max_iterations == 10
-
-    def test_default_raise_on_failure(self):
-        """Test that raise_on_failure defaults to True."""
-        assert WhileStep.raise_on_failure is True
-
-    def test_default_break_on_failure(self):
-        """Test that break_on_failure defaults to True."""
-        assert WhileStep.break_on_failure is True
-
     def test_condition_default(self, mock_config, mock_state):
-        """Test that condition returns True by default."""
+        """Test that condition returns True by default.
+
+        Also validates that default class attributes are set correctly,
+        as they affect the condition behavior.
+        """
         step = WhileStep(mock_config)
+
+        # Verify default class attributes are set (tests actual behavior dependency)
+        assert WhileStep.max_iterations == 10, "max_iterations should default to 10"
+        assert WhileStep.raise_on_failure is True, "raise_on_failure should default to True"
+        assert WhileStep.break_on_failure is True, "break_on_failure should default to True"
+
+        # Test the actual condition behavior
         assert step.condition(mock_state) is True
 
     def test_mid_iteration_break_default(self, mock_config, mock_state, mocker):
