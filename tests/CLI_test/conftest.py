@@ -16,8 +16,6 @@ def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.chdir(tmp_path)
     project_dir = tmp_path / "test_project"
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
-    monkeypatch.setattr(Path, "home", lambda _: tmp_path)
-    (tmp_path / ".ciel").mkdir()
     create_project(project_dir)
     return project_dir
 
