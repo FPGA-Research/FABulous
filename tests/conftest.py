@@ -84,6 +84,7 @@ def cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FABulous_CLI:
     project_dir = tmp_path / "test_project"
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
     create_project(project_dir)
+    monkeypatch.setattr(Path, "home", lambda _: tmp_path)
     init_context(project_dir)
     cli = FABulous_CLI(
         "verilog",
