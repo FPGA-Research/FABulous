@@ -2,6 +2,7 @@
 # ruff: noqa: E402, SLF001, E501, F841
 
 import sys
+from typing import TYPE_CHECKING
 
 import pytest
 from pytest_mock import MockerFixture
@@ -11,13 +12,15 @@ from FABulous.fabric_definition.define import PinSortMode, Side
 from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     PinOrderConfig,
 )
-from FABulous.fabric_generator.gds_generator.script.odb_protocol import odbBTermLike
 from FABulous.fabric_generator.gds_generator.script.tile_io_place import (
     PinPlacementPlan,
     SegmentInfo,
     equally_spaced_sequence,
     grid_to_tracks,
 )
+
+if TYPE_CHECKING:
+    from FABulous.fabric_generator.gds_generator.script.odb_protocol import odbBTermLike
 
 
 @pytest.fixture(autouse=True)
@@ -577,7 +580,7 @@ class TestIntegration:
                 10.0,
             ),  # 10 tracks, step=1.0, origin=0, length=10
         }
-        plan.allocate_tracks(specs)
+        plan.allocate_tracks(specs, offset=0)
 
         # Verify tracks were allocated
         assert len(plan.track_coordinates[Side.NORTH]) == 1
