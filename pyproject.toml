@@ -40,6 +40,8 @@ dependencies = [
   "librelane>=3.0.0.dev43",
   "pick>=2.4.0",
   "pymoo>=0.6.1.5",
+  "numpy>=2.3.5",
+  "dill>=0.4.0",
 ]
 
 [project.urls]
@@ -113,7 +115,6 @@ dev = [
   "taskipy>=1.14.0",
   "pyyaml>=6.0.0",
   "interrogate>=1.7.0",
-  "librelane>=3.0.0.dev43",
 ]
 
 [tool.coverage.run]

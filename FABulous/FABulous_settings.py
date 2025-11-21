@@ -43,7 +43,7 @@ class FABulousSettings(BaseSettings):
     iverilog_path: Path | str = Field(default="iverilog", validate_default=True)
     vvp_path: Path | str = Field(default="vvp", validate_default=True)
     ghdl_path: Path | str = Field(default="ghdl", validate_default=True)
-    klaout_path: Path | str = Field(default="klayout", validate_default=True)
+    klayout_path: Path | str = Field(default="klayout", validate_default=True)
     openroad_path: Path | str = Field(default="openroad", validate_default=True)
     fabulator_root: Path | None = None
 
@@ -65,7 +65,7 @@ class FABulousSettings(BaseSettings):
     debug: bool = False
 
     # GDS variables
-    pdk_root: Path = Path().home() / ".ciel"
+    pdk_root: Path | None = None
     pdk: str | None = None
     fabric_die_area: tuple[int, int, int, int] = (0, 0, 1000, 1000)
 
