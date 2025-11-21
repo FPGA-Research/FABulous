@@ -1,0 +1,26 @@
+(interactive-cli-commands-reference)=
+# Interactive CLI Commands Reference
+
+This is an auto-generated reference of all FABulous CLI commands available in interactive mode.
+{% for category, commands in commands_by_category.items() %}
+
+## {{ category }}
+{% for cmd in commands %}
+
+### `{{ cmd.name }}`
+
+{{ cmd.full_desc }}
+{% if cmd.arguments %}
+
+**Arguments:**
+
+| Argument | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+{% for arg in cmd.arguments %}| `{{ arg.name }}` | {{ arg.type }} | {% if arg.required %}Yes{% else %}No{% endif %} | {{ arg.default if arg.default else "-" }} | {{ arg.help }} |
+{% endfor %}
+{% endif %}
+
+
+
+{% endfor %}
+{% endfor %}
