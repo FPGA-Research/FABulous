@@ -23,9 +23,6 @@ def reset_context_before_and_after_tests(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> Generator:
     """Reset context before and after each test to ensure isolation."""
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / ".ciel").mkdir()
-    monkeypatch.setattr(Path, "home", lambda _: tmp_path)
     reset_context()
     yield
     reset_context()
