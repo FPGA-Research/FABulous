@@ -216,7 +216,7 @@ def test_start_openroad_gui(
     assert m.call_count == 1
 
 
-def test_start_kalayout_gui(
+def test_start_klayout_gui(
     cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
 ) -> None:
     """Test starting OpenROAD GUI."""
@@ -229,7 +229,7 @@ def test_start_kalayout_gui(
         "FABulous.FABulous_CLI.FABulous_CLI.FABulous_CLI._get_file_path",
         return_value="dummy.gds",
     )
-    run_cmd(cli, "start_kalayout_gui")
+    run_cmd(cli, "start_klayout_gui")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Start klayout GUI with gds: dummy.gds" in log[-2]
     assert m.call_count == 1
