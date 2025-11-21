@@ -74,7 +74,7 @@ class TestFABulousSettings:
         assert isinstance(settings.proj_version, Version)
         assert settings.proj_lang == "verilog"  # Default value
         assert settings.switch_matrix_debug_signal is False
-        assert settings.pdk_root == tmp_path / ".ciel"
+        assert settings.pdk_root is None
 
     def test_initialization_with_environment_variables(
         self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture

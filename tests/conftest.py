@@ -5,6 +5,7 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
+from pyfakefs import fake_filesystem
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
 
@@ -72,7 +73,7 @@ def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     monkeypatch.setenv("FABULOUS_TESTING", "TRUE")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda _: tmp_path)
-    mkdir = tmp_path / ".ciel"
+    (tmp_path / ".ciel" / "ihp-sg13g2").mkdir(parents=True, exist_ok=True)
     setup_logger(0, False)
 
     return
@@ -84,8 +85,6 @@ def cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FABulous_CLI:
     project_dir = tmp_path / "test_project"
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
     create_project(project_dir)
-    monkeypatch.setattr(Path, "home", lambda _: tmp_path)
-    (tmp_path / ".ciel").mkdir()
     init_context(project_dir)
     cli = FABulous_CLI(
         "verilog",
