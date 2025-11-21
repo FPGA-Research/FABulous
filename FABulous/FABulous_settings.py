@@ -65,7 +65,7 @@ class FABulousSettings(BaseSettings):
     debug: bool = False
 
     # GDS variables
-    pdk_root: Path = Path().home() / ".ciel"
+    pdk_root: Path = Field(default_factory=lambda: Path().home() / ".ciel")
     pdk: str | None = None
     fabric_die_area: tuple[int, int, int, int] = (0, 0, 1000, 1000)
 

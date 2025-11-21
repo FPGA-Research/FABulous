@@ -19,8 +19,13 @@ from FABulous.FABulous_settings import (
 
 
 @pytest.fixture(autouse=True)
-def reset_context_before_and_after_tests() -> Generator:
+def reset_context_before_and_after_tests(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Generator:
     """Reset context before and after each test to ensure isolation."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".ciel").mkdir()
+    monkeypatch.setattr(Path, "home", lambda _: tmp_path)
     reset_context()
     yield
     reset_context()
@@ -30,7 +35,11 @@ class TestFABulousSettings:
     """Test cases for FABulousSettings class."""
 
     def test_default_initialization(
-        self, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture, project: Path
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: MockerFixture,
+        project: Path,
+        tmp_path: Path,
     ) -> None:
         """Test FABulousSettings initialization with clean state."""
         # Clear all FAB_ environment variables
@@ -68,6 +77,7 @@ class TestFABulousSettings:
         assert isinstance(settings.proj_version, Version)
         assert settings.proj_lang == "verilog"  # Default value
         assert settings.switch_matrix_debug_signal is False
+        assert settings.pdk_root == tmp_path / ".ciel"
 
     def test_initialization_with_environment_variables(
         self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
