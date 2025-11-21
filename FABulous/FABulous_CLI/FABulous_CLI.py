@@ -1395,6 +1395,7 @@ class FABulous_CLI(Cmd):
         )
 
     gui_parser = Cmd2ArgumentParser()
+    gui_parser.add_argument("file", nargs="?", help="file to open", default=None)
     gui_parser.add_argument(
         "--tile",
         help="launch GUI to view a specific tile",
@@ -1481,7 +1482,10 @@ class FABulous_CLI(Cmd):
         if args.fabric and args.tile is not None:
             raise CommandError("Please specify either --fabric or --tile, not both")
 
-        db_file: str = self._get_file_path(args, "odb", show_count=int(args.head))
+        if args.file is None:
+            db_file: str = self._get_file_path(args, "odb", show_count=int(args.head))
+        else:
+            db_file = args.file
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".tcl", delete=False
         ) as script_file:
@@ -1504,12 +1508,15 @@ class FABulous_CLI(Cmd):
 
         If no installation can be found, a warning is produced.
         """
-        logger.info("Checking for OpenROAD installation")
+        logger.info("Checking for klayout installation")
         klayout = get_context().klayout_path
         if args.fabric and args.tile is not None:
             raise CommandError("Please specify either --fabric or --tile, not both")
 
-        gds_file: str = self._get_file_path(args, "gds")
+        if args.file is None:
+            gds_file: str = self._get_file_path(args, "gds")
+        else:
+            gds_file = args.file
         if get_context().pdk == "ihp-sg13g2":
             layer_file = (
                 (get_context().pdk_root)
