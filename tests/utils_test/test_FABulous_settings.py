@@ -36,7 +36,6 @@ class TestFABulousSettings:
         monkeypatch: pytest.MonkeyPatch,
         mocker: MockerFixture,
         project: Path,
-        tmp_path: Path,
     ) -> None:
         """Test FABulousSettings initialization with clean state."""
         # Clear all FAB_ environment variables
