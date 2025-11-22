@@ -50,6 +50,8 @@ from FABulous.processpool import DillProcessPoolExecutor
 if TYPE_CHECKING:
     from concurrent.futures import Future
 
+    from librelane.config.config import Config
+
 configs = (
     Classic.config_vars
     + Floorplan.config_vars
@@ -95,9 +97,11 @@ def _run_tile_flow_worker(
         (compiled_state, error_trace) for result processing
     """
     try:
-        context = init_context(project_dir=proj_dir)
+        from FABulous.FABulous_settings import FABulousSettings
+
+        context: FABulousSettings = init_context(project_dir=proj_dir)
         # Reconstruct the flow in the worker process with serializable data
-        flow = FABulousTileVerilogMarcoFlow(
+        flow: FABulousTileVerilogMarcoFlow = FABulousTileVerilogMarcoFlow(
             tile_type,
             io_pin_config,
             optimisation,
@@ -107,7 +111,7 @@ def _run_tile_flow_worker(
             override_config_path=override_config_path,
             **custom_config_overrides or {},
         )
-        state = flow.start()
+        state: State = flow.start()
     except Exception:  # noqa: BLE001
         return None, traceback.format_exc()
     else:
@@ -137,7 +141,7 @@ class FABulousFabricMacroFullFlow(Flow):
         if not proj_dir.is_dir():
             raise NotADirectoryError(f"Project path is not a directory: {proj_dir}")
 
-        tile_dir_base = proj_dir / "Tile"
+        tile_dir_base: Path = proj_dir / "Tile"
         if not tile_dir_base.exists():
             raise FileNotFoundError(
                 f"Tile directory not found: {tile_dir_base}. "
@@ -147,8 +151,8 @@ class FABulousFabricMacroFullFlow(Flow):
         # Validate all tile directories exist
         # Check both regular tiles and SuperTiles from their dictionaries
         missing_tiles: list[str] = []
-        found_regular_tiles = 0
-        found_supertiles = 0
+        found_regular_tiles: int = 0
+        found_supertiles: int = 0
 
         # Build set of all sub-tile names that are part of SuperTiles
         # Sub-tiles don't need their own directories
@@ -163,7 +167,7 @@ class FABulousFabricMacroFullFlow(Flow):
             if tile_name in subtile_names:
                 # This tile is part of a SuperTile, skip directory check
                 continue
-            tile_dir = tile_dir_base / tile_name
+            tile_dir: Path = tile_dir_base / tile_name
             if not tile_dir.exists():
                 missing_tiles.append(f"{tile_name} (regular tile)")
             else:
@@ -172,7 +176,7 @@ class FABulousFabricMacroFullFlow(Flow):
         # Validate SuperTile directories
         # Note: SuperTiles should have their own directories with compiled output
         for supertile_name in fabric.superTileDic:
-            supertile_dir = tile_dir_base / supertile_name
+            supertile_dir: Path = tile_dir_base / supertile_name
             if not supertile_dir.exists():
                 missing_tiles.append(f"{supertile_name} (SuperTile)")
             else:
@@ -184,7 +188,7 @@ class FABulousFabricMacroFullFlow(Flow):
                 + "\n".join(f"  - {tile}" for tile in missing_tiles)
             )
 
-        total_types = found_regular_tiles + found_supertiles
+        total_types: int = found_regular_tiles + found_supertiles
         if subtile_names:
             info(
                 f"✓ Project structure validated: {total_types} tile types found "
@@ -200,7 +204,7 @@ class FABulousFabricMacroFullFlow(Flow):
     def _init_compile(self, fabric: Fabric, proj_dir: Path) -> None:
         """Compile all tiles for design space exploration."""
         # Optimization modes to try for each tile
-        opt_modes = [
+        opt_modes: list[OptMode] = [
             OptMode.BALANCE,
             OptMode.FIND_MIN_HEIGHT,
             OptMode.FIND_MIN_WIDTH,
@@ -214,12 +218,16 @@ class FABulousFabricMacroFullFlow(Flow):
                 opt_modes, fabric.get_all_unique_tiles()
             ):
                 # Extract serializable config (as dict to avoid Config lock issues)
-                io_config_path = tile_type.tileDir.parent / "io_pin_order.yaml"
+                io_config_path: Path = tile_type.tileDir.parent / "io_pin_order.yaml"
                 generate_IO_pin_order_config(fabric, tile_type, io_config_path)
-                base_config_path = proj_dir / "Tile" / "include" / "gds_config.yaml"
-                override_config_path = tile_type.tileDir.parent / "gds_config.yaml"
+                base_config_path: Path = (
+                    proj_dir / "Tile" / "include" / "gds_config.yaml"
+                )
+                override_config_path: Path = (
+                    tile_type.tileDir.parent / "gds_config.yaml"
+                )
 
-                result = executor.submit(
+                result: Future[tuple[State | None, str | None]] = executor.submit(
                     _run_tile_flow_worker,
                     tile_type,
                     proj_dir,
@@ -231,12 +239,14 @@ class FABulousFabricMacroFullFlow(Flow):
                 )
                 handlers.append((result, opt_mode, tile_type))
 
-        result_summary = {opt_mode.value: {} for opt_mode in opt_modes}
+        result_summary: dict[str, dict[str, object]] = {
+            opt_mode.value: {} for opt_mode in opt_modes
+        }
         for state_future, opt_mode, tile_type in handlers:
-            tile_name = tile_type.name
-            error = None
-            error_trace = None
-            state = None
+            tile_name: str = tile_type.name
+            error: str | None = None
+            error_trace: str | None = None
+            state: State | None = None
 
             try:
                 state, error_trace_worker = state_future.result()
@@ -248,7 +258,7 @@ class FABulousFabricMacroFullFlow(Flow):
                 error_trace = traceback.format_exc()
             # Try to save snapshot if state exists
             # Always build the metrics dict
-            metrics_dict = {}
+            metrics_dict: dict[str, object] = {}
             if state is not None:
                 metrics_dict = {
                     k: state.metrics.get(k)
@@ -272,7 +282,7 @@ class FABulousFabricMacroFullFlow(Flow):
                 return float(obj)
             return obj
 
-        out_summary_path = Path(self.run_dir) / "tile_optimisation_summary.json"
+        out_summary_path: Path = Path(self.run_dir) / "tile_optimisation_summary.json"
         out_summary_path.write_text(
             json.dumps(result_summary, indent=4, default=custom_serializer)
         )
@@ -308,7 +318,7 @@ class FABulousFabricMacroFullFlow(Flow):
             When NLP optimization step fails
         """
         fabric: Fabric = self.config["FABULOUS_FABRIC"]
-        proj_dir = Path(self.config["FABULOUS_PROJ_DIR"])
+        proj_dir: Path = Path(self.config["FABULOUS_PROJ_DIR"])
         self.progress_bar.set_max_stage_count(3)
 
         self._validate_project_dir(proj_dir, fabric)
@@ -326,13 +336,13 @@ class FABulousFabricMacroFullFlow(Flow):
         self.progress_bar.start_stage("NLP Optimization")
         info("\n=== Step 2: Solving NLP optimization ===")
         # Create and run NLP optimization step
-        nlp_config = self.config.copy(FABULOUS_PROJ_DIR=proj_dir)
+        nlp_config: Config = self.config.copy(FABULOUS_PROJ_DIR=proj_dir)
 
-        nlp_step = GlobalTileSizeOptimization(
+        nlp_step: GlobalTileSizeOptimization = GlobalTileSizeOptimization(
             nlp_config, id="SolveNLPOptimization", state_in=initial_state
         )
         try:
-            nlp_state = self.start_step(nlp_step)
+            nlp_state: State = self.start_step(nlp_step)
         except Exception as e:
             err(f"NLP optimization step failed to start/execute: {e}")
             err(traceback.format_exc())
@@ -350,15 +360,21 @@ class FABulousFabricMacroFullFlow(Flow):
         ] = []
         with DillProcessPoolExecutor(max_workers=None) as executor:
             for tile_type in fabric.get_all_unique_tiles():
-                io_config_path = (
+                io_config_path: Path = (
                     tile_type.tileDir.parent / f"{tile_type.name}_io_pin_order.yaml"
                 )
-                base_config_path = proj_dir / "Tile" / "include" / "gds_config.yaml"
-                override_config_path = tile_type.tileDir.parent / "gds_config.yaml"
+                base_config_path: Path = (
+                    proj_dir / "Tile" / "include" / "gds_config.yaml"
+                )
+                override_config_path: Path = (
+                    tile_type.tileDir.parent / "gds_config.yaml"
+                )
 
-                die_area = nlp_state.metrics["nlp__tile__area"][tile_type.name]
+                die_area: tuple[int, int, Decimal, Decimal] = nlp_state.metrics[
+                    "nlp__tile__area"
+                ][tile_type.name]
                 # Submit tile compilation with optimal dimensions
-                result = executor.submit(
+                result: Future[tuple[State | None, str | None]] = executor.submit(
                     _run_tile_flow_worker,
                     tile_type,
                     proj_dir,
@@ -373,7 +389,9 @@ class FABulousFabricMacroFullFlow(Flow):
         # Collect results
         tile_type_states: dict[str, State] = {}
         for state_future, tile_type in handlers:
-            tile_name = tile_type.name
+            tile_name: str = tile_type.name
+            state: State | None
+            error_trace: str | None
             state, error_trace = state_future.result()
             if error_trace or state is None:
                 raise RuntimeError(
@@ -399,12 +417,12 @@ class FABulousFabricMacroFullFlow(Flow):
         tile_sizes: dict[str, tuple[Decimal, Decimal]] = {}
 
         for tile_type_name, tile_state in tile_type_states.items():
-            width = Decimal(
+            width: Decimal = Decimal(
                 tile_type_states[tile_type_name]
                 .metrics["design__die__bbox"]
                 .split(" ")[2]
             )
-            height = Decimal(
+            height: Decimal = Decimal(
                 tile_type_states[tile_type_name]
                 .metrics["design__die__bbox"]
                 .split(" ")[3]
@@ -412,9 +430,11 @@ class FABulousFabricMacroFullFlow(Flow):
             tile_sizes[tile_type_name] = (width, height)
 
             # Get tile output files
-            gds_file = tile_state.get(DesignFormat.GDS)
-            lef_file = tile_state.get(DesignFormat.LEF)
-            lib_files = tile_state.get(DesignFormat.LIB)
+            gds_file: Path | None = tile_state.get(DesignFormat.GDS)
+            lef_file: Path | None = tile_state.get(DesignFormat.LEF)
+            lib_files: (
+                dict[str, list[Path]] | list[Path] | Path | None
+            ) = tile_state.get(DesignFormat.LIB)
 
             # Build lib dict
             lib_dict: dict[str, list[Path]] = {}
@@ -437,13 +457,13 @@ class FABulousFabricMacroFullFlow(Flow):
         info(f"Collected {len(macros)} tile macros")
 
         # Generate fabric-level IO pin configuration
-        fabric_io_config_path = proj_dir / "Fabric" / "fabric_io_pin_order.yaml"
+        fabric_io_config_path: Path = proj_dir / "Fabric" / "fabric_io_pin_order.yaml"
         fabric_io_config_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Step 5: Run fabric stitching
         self.progress_bar.start_stage("Fabric Stitching")
 
-        stitching_flow = FABulousFabricMacroFlow(
+        stitching_flow: FABulousFabricMacroFlow = FABulousFabricMacroFlow(
             fabric,
             fabric_verilog_paths=[proj_dir / "Fabric" / f"{fabric.name}.v"],
             tile_macro_dirs={
@@ -453,7 +473,7 @@ class FABulousFabricMacroFullFlow(Flow):
             base_config_path=proj_dir / "Fabric" / "gds_config.yaml",
         )
 
-        final_state = stitching_flow.start()
+        final_state: State = stitching_flow.start()
         self.progress_bar.end_stage()
 
         info("\n✓ Fabric flow completed successfully!")
