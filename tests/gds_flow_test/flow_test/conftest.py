@@ -19,7 +19,7 @@ from FABulous.fabric_definition.SuperTile import SuperTile
 from FABulous.fabric_definition.Tile import Tile
 
 # PDK track info content for realistic routing grid
-TRACKS_INFO_CONTENT = """M1 X 0 0.28
+TRACKS_INFO_CONTENT: str = """M1 X 0 0.28
 M1 Y 0 0.28
 M2 X 0.14 0.56
 M2 Y 0 0.56
@@ -40,12 +40,12 @@ def mock_pdk_root(tmp_path: Path) -> dict[str, Any]:
     - tracks_file: Path to tracks info file
     - config_vars: Dict of PDK config variables
     """
-    pdk_name = "sky130A"
-    pdk_dir = tmp_path / "pdk" / pdk_name
+    pdk_name: str = "sky130A"
+    pdk_dir: Path = tmp_path / "pdk" / pdk_name
     pdk_dir.mkdir(parents=True)
 
     # Create tracks info file
-    tracks_file = pdk_dir / "tracks.info"
+    tracks_file: Path = pdk_dir / "tracks.info"
     tracks_file.write_text(TRACKS_INFO_CONTENT)
 
     return {
@@ -77,9 +77,10 @@ def mock_config_load(
     ) -> tuple[Config, str]:
         # Config.load is called with keyword arguments:
         # Config.load(config_in=..., design_dir=..., pdk=..., etc.)
-        config = kwargs.get("config_in", args[0] if args else {})
+        config: Any = kwargs.get("config_in", args[0] if args else {})
 
         # It can be a dict or a Config object
+        config_dict: dict[str, Any]
         if isinstance(config, dict):
             config_dict = dict(config)
         elif hasattr(config, "to_dict"):
@@ -89,7 +90,7 @@ def mock_config_load(
         else:
             config_dict = {}
 
-        design_dir = kwargs.get("design_dir", str(tmp_path / "design"))
+        design_dir: str = kwargs.get("design_dir", str(tmp_path / "design"))
 
         # Add required PDK config variables (don't override existing)
         for key, value in mock_pdk_root["config_vars"].items():
@@ -97,7 +98,7 @@ def mock_config_load(
                 config_dict[key] = value
 
         # Add default values for FABulous-specific configs (don't override existing)
-        defaults = {
+        defaults: dict[str, Any] = {
             "DESIGN_DIR": design_dir,
             "FABULOUS_IGNORE_DEFAULT_DIE_AREA": False,
             "ROUTING_OBSTRUCTIONS": None,
@@ -117,14 +118,14 @@ def mock_config_load(
 @pytest.fixture
 def mock_tile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
     """Create a mock Tile object with realistic attributes."""
-    tile_dir = tmp_path / "tiles" / "test_tile"
+    tile_dir: Path = tmp_path / "tiles" / "test_tile"
     tile_dir.mkdir(parents=True)
 
     # Create a Verilog file for the tile
-    verilog_file = tile_dir.parent / "test.v"
+    verilog_file: Path = tile_dir.parent / "test.v"
     verilog_file.write_text("module TestTile(); endmodule")
 
-    mock = mocker.MagicMock(spec=Tile)
+    mock: MagicMock = mocker.MagicMock(spec=Tile)
     mock.name = "TestTile"
     mock.tileDir = tile_dir
     mock.get_min_die_area.return_value = (Decimal("100.0"), Decimal("100.0"))
@@ -135,15 +136,15 @@ def mock_tile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
 @pytest.fixture
 def mock_supertile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
     """Create a mock SuperTile object with realistic attributes."""
-    tile_dir = tmp_path / "tiles" / "test_supertile"
+    tile_dir: Path = tmp_path / "tiles" / "test_supertile"
     tile_dir.mkdir(parents=True)
 
     # Create a Verilog file for the supertile
-    verilog_file = tile_dir.parent / "test.v"
+    verilog_file: Path = tile_dir.parent / "test.v"
     if not verilog_file.exists():
         verilog_file.write_text("module TestSuperTile(); endmodule")
 
-    mock = mocker.MagicMock(spec=SuperTile)
+    mock: MagicMock = mocker.MagicMock(spec=SuperTile)
     mock.name = "TestSuperTile"
     mock.tileDir = tile_dir
     mock.max_width = 4
@@ -156,7 +157,7 @@ def mock_supertile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
 @pytest.fixture
 def io_pin_config(tmp_path: Path) -> Path:
     """Create a temporary IO pin config file."""
-    config_path = tmp_path / "io_pins.yaml"
+    config_path: Path = tmp_path / "io_pins.yaml"
     config_path.write_text(yaml.dump({"pins": []}))
     return config_path
 
@@ -164,7 +165,7 @@ def io_pin_config(tmp_path: Path) -> Path:
 @pytest.fixture
 def base_config_file(tmp_path: Path) -> Path:
     """Create a base config file for testing config merging."""
-    config_path = tmp_path / "base_config.yaml"
+    config_path: Path = tmp_path / "base_config.yaml"
     config_path.write_text(
         yaml.dump(
             {
@@ -180,7 +181,7 @@ def base_config_file(tmp_path: Path) -> Path:
 @pytest.fixture
 def override_config_file(tmp_path: Path) -> Path:
     """Create an override config file for testing config merging."""
-    config_path = tmp_path / "override_config.yaml"
+    config_path: Path = tmp_path / "override_config.yaml"
     config_path.write_text(
         yaml.dump({"OVERRIDE_ME": "override", "OVERRIDE_VAR": "override_value"})
     )
@@ -190,7 +191,7 @@ def override_config_file(tmp_path: Path) -> Path:
 @pytest.fixture
 def mock_fabric(mocker: MockerFixture) -> MagicMock:
     """Create a minimal mock Fabric object for testing."""
-    fabric = mocker.MagicMock()
+    fabric: MagicMock = mocker.MagicMock()
     fabric.name = "TestFabric"
     fabric.numberOfRows = 2
     fabric.numberOfColumns = 2
