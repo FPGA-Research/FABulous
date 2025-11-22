@@ -1,6 +1,7 @@
 """Tests for tile_io_place module."""
 
 import sys
+from typing import TYPE_CHECKING
 
 import pytest
 from pytest_mock import MockerFixture
@@ -10,13 +11,15 @@ from FABulous.fabric_definition.define import PinSortMode, Side
 from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     PinOrderConfig,
 )
-from FABulous.fabric_generator.gds_generator.script.odb_protocol import odbBTermLike
 from FABulous.fabric_generator.gds_generator.script.tile_io_place import (
     PinPlacementPlan,
     SegmentInfo,
     equally_spaced_sequence,
     grid_to_tracks,
 )
+
+if TYPE_CHECKING:
+    from FABulous.fabric_generator.gds_generator.script.odb_protocol import odbBTermLike
 
 
 @pytest.fixture(autouse=True)

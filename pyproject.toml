@@ -37,6 +37,7 @@ dependencies = [
   # OS-aware readline dependencies
   'pyreadline3>=3.4.0; sys_platform == "win32"',
   'gnureadline>=8.2.0; sys_platform != "win32"',
+  "librelane>=3.0.0.dev43",
 ]
 
 [project.urls]
@@ -110,7 +111,6 @@ dev = [
   "taskipy>=1.14.0",
   "pyyaml>=6.0.0",
   "interrogate>=1.7.0",
-  "librelane>=3.0.0.dev43",
 ]
 
 [tool.coverage.run]
