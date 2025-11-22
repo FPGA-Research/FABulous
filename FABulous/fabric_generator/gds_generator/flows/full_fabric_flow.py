@@ -432,9 +432,9 @@ class FABulousFabricMacroFullFlow(Flow):
             # Get tile output files
             gds_file: Path | None = tile_state.get(DesignFormat.GDS)
             lef_file: Path | None = tile_state.get(DesignFormat.LEF)
-            lib_files: (
-                dict[str, list[Path]] | list[Path] | Path | None
-            ) = tile_state.get(DesignFormat.LIB)
+            lib_files: dict[str, list[Path]] | list[Path] | Path | None = (
+                tile_state.get(DesignFormat.LIB)
+            )
 
             # Build lib dict
             lib_dict: dict[str, list[Path]] = {}
