@@ -7,6 +7,7 @@ fabric is the top-level container for all tiles, BELs, and routing resources.
 
 from collections.abc import Generator
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from FABulous.fabric_definition.Bel import Bel
 from FABulous.fabric_definition.define import (
@@ -28,6 +29,8 @@ class Fabric:
 
     Attributes
     ----------
+    fabric_dir : Path
+        The path to the fabric config file
     tile : list[list[Tile]]
         The tile map of the fabric
     name : str
@@ -79,6 +82,7 @@ class Fabric:
         A list of common wire pairs in the fabric.
     """
 
+    fabric_dir: Path
     tile: list[list[Tile]] = field(default_factory=list)
 
     name: str = "eFPGA"
@@ -466,22 +470,23 @@ class Fabric:
 
         return None
 
-    def get_unique_tile_types(self) -> list[Tile]:
+    def get_all_unique_tiles(self) -> list[Tile | SuperTile]:
         """Get list of unique tile types used in the fabric.
 
         Returns
         -------
-        list[Tile]
+        list[Tile | SuperTile]
             List of unique tile types (one instance per type name)
         """
-        unique_tiles: dict[str, Tile] = {}
+        result: list[Tile | SuperTile] = []
 
-        for row in self.tile:
-            for tile in row:
-                if tile is not None and tile.name not in unique_tiles:
-                    unique_tiles[tile.name] = tile
+        # Add all regular tiles from tileDic
+        result.extend([i for i in self.tileDic.values() if not i.partOfSuperTile])
 
-        return list(unique_tiles.values())
+        # Add all SuperTiles from superTileDic
+        result.extend(self.superTileDic.values())
+
+        return result
 
     def get_tile_row_column_indices(self, tile_name: str) -> tuple[set[int], set[int]]:
         """Get all row and column indices where a tile type appears.

@@ -5,6 +5,7 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
+from pyfakefs import fake_filesystem
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
 
@@ -60,7 +61,7 @@ def normalize_and_check_for_errors(caplog_text: str) -> list[str]:
 
 
 @pytest.fixture(autouse=True)
-def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Set up global test environment for FABulous tests."""
     fabulous_root = str(Path(__file__).resolve().parent.parent / "FABulous")
 
@@ -70,6 +71,9 @@ def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     # Set test environment using monkeypatch for automatic cleanup
     monkeypatch.setenv("FAB_ROOT", fabulous_root)
     monkeypatch.setenv("FABULOUS_TESTING", "TRUE")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda _: tmp_path)
+    (tmp_path / ".ciel" / "ihp-sg13g2").mkdir(parents=True, exist_ok=True)
     setup_logger(0, False)
 
     return

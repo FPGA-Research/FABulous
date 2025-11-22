@@ -6,7 +6,7 @@ This section provides all the information required to build your custom eFPGA an
 :maxdepth: 2
 
 building_doc/index
-using_doc/index
 cli_doc/index
+using_doc/index
 simulation/index
 ```
