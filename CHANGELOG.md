@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/FPGA-Research/FABulous/compare/v2.0.0...v2.1.0) (2025-11-22)
+
+
+### Features
+
+* all librelane steps ([#499](https://github.com/FPGA-Research/FABulous/issues/499)) ([6e74775](https://github.com/FPGA-Research/FABulous/commit/6e74775c865ada0f13186491a0ea250140466e0d))
+
 ## [1.3.1](https://github.com/FPGA-Research/FABulous/compare/v1.3.0...v1.3.1) (2025-09-04)
 
 
