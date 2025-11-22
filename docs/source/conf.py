@@ -61,6 +61,11 @@ _repo_root = Path(__file__).resolve().parents[2].as_posix()
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
+# Add _ext directory to path for custom extensions
+_ext_dir = Path(__file__).resolve().parent / "_ext"
+if _ext_dir.as_posix() not in sys.path:
+    sys.path.insert(0, _ext_dir.as_posix())
+
 extensions = [
     # Core Sphinx extensions (scikit-learn style)
     "sphinx.ext.autodoc",
@@ -85,6 +90,10 @@ extensions = [
 
     # Utility extensions
     "sphinxcontrib.bibtex",
+
+    # Custom FABulous extensions
+    "generate_cli_docs",
+    "generate_configvar_docs",
 ]
 
 myst_enable_extensions = [
