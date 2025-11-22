@@ -51,6 +51,42 @@ def generate_cli_docs(app: Sphinx, conf: Config) -> None:
         exit(-1)
 
 
+def clean_docstring(docstring: str) -> str:
+    """Remove Parameters, Raises, and other formal sections from docstring.
+    
+    This removes numpy/scipy style parameter documentation and other formal
+    sections that are already being presented in the Arguments table.
+    """
+    lines = docstring.split('\n')
+    result = []
+    skip_until_blank = False
+    
+    # Section headers we want to remove entirely
+    formal_sections = {'Parameters', 'Raises', 'Returns', 'Yields', 'Examples', 'Notes', 'See Also'}
+    
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        # Check if this is the start of a formal section
+        if stripped in formal_sections and i + 1 < len(lines):
+            next_line = lines[i + 1].strip()
+            # Check if followed by dashes (numpy style)
+            if next_line == '-' * len(stripped) or next_line.startswith('-' * 5):
+                skip_until_blank = True
+                continue
+        
+        # Skip lines until we hit a blank line (end of section)
+        if skip_until_blank:
+            if line.strip() == '':
+                skip_until_blank = False
+            continue
+        
+        result.append(line)
+    
+    # Clean up trailing whitespace
+    text = '\n'.join(result).strip()
+    return text
+
+
 def extract_cli_commands_ast(cli_file: Path) -> dict:
     """Extract CLI commands using AST parsing (no runtime imports)."""
     source = cli_file.read_text()
@@ -82,7 +118,9 @@ def extract_cli_commands_ast(cli_file: Path) -> dict:
                 if isinstance(item, ast.FunctionDef) and item.name.startswith("do_"):
                     cmd_name = item.name[3:]
                     docstring = ast.get_docstring(item) or "No documentation available"
-                    short_desc = docstring.split("\n")[0].strip()
+                    # Clean the docstring to remove Parameters section
+                    cleaned_docstring = clean_docstring(docstring)
+                    short_desc = cleaned_docstring.split("\n")[0].strip()
 
                     # Get category from decorators
                     category = "Other"
@@ -109,7 +147,7 @@ def extract_cli_commands_ast(cli_file: Path) -> dict:
                     commands_by_category[category].append({
                         "name": cmd_name,
                         "short_desc": short_desc,
-                        "full_desc": docstring,
+                        "full_desc": cleaned_docstring,
                         "arguments": arguments,
                     })
 

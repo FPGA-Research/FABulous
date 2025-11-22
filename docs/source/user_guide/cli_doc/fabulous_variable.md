@@ -1,49 +1,76 @@
-# FABulous Environment Variables
+(fabulous-variables)=
+# FABulous Configuration Variables
 
-FABulous can use environment variables to configure options, paths and projects. We distinguish between two types of environment variables: global and project specific environment variables.
-Global environment variables are used to configure FABulous itself, while project specific environment variables are used to configure a specific FABulous project.
-All environment variables can be set in the shell before running FABulous or can be set via .env files.
+This is an auto-generated reference of all FABulous configuration variables.
 
-:::{note}
-Environment variables can be set in the shell before running FABulous. Shell environment variables always have the highest priority.
-:::
+## Environment Variables
 
-## Global Environment Variables
+FABulous settings can be configured via environment variables with the `FAB_` prefix. These can be set in your shell or in a `.env` file in your project's `.FABulous` directory.
 
-Global environment variables always start with `FAB_` and are used to configure FABulous itself.
-To add a global .env file, create a file named `.env` in the root directory of the FABulous repository or use the `--globalDotEnv` command line argument when running FABulous.
-The following global environment variables are available:
 
-| Variable Name                       | Description                                                           | Default Value                                                              |
-| ----------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| FAB_ROOT                            | The root directory of the FABulous repository                         | The directory where the FABulous repository is located                     |
-| FAB_FABULATOR_ROOT                  | The root directory of the FABulator repository                        | \<None>                                                                    |
-| FAB_YOSYS_PATH                      | Path to Yosys binary                                                  | yosys (Uses global Yosys installation)                                     |
-| FAB_NEXTPNR_PATH                    | Path to Nextpnr binary                                                | nextpnr-generic (Uses global Nextpnr installation)                         |
-| FAB_IVERILOG_PATH                   | Path to Icarus Verilog binary                                         | iverilog (Uses global Icarus Verilog installation)                         |
-| FAB_VVP_PATH                        | Path to Verilog VVP binary                                            | vvp (Uses global Verilog VVP installation)                                 |
-| FAB_GHDL_PATH                       | Path to GHDL binary                                                   | ghdl (Uses global GHDL installation)                                       |
-| FAB_PROJ_DIR                        | The root directory of the FABulous project                            | The directory where the FABulous project is located, given by command line |
-| FAB_MODELS_PACK                     | The models pack for the project                                       | Pointing to \<project_dir>/Fabric/models_pack.\<project_lang>              |
-| FAB_OSS_CAD_SUITE                   | Path to the oss-cad-suite installation                                | \<None>                                                                    |
-| FAB_DEBUG                           | Enable debug mode                                                     | False                                                                      |
-| FAB_VERBOSE                         | Enable verbose mode                                                   | 0                                                                          |
-| FAB_EDITOR                          | Set the editor to be used by the `edit` command                       | \<None>                                                                    |
-| FAB_WINDOWS_WARNING_ACKNOWLEDGED    | Suppress Windows compatibility warning (use at your own risk)         | False                                                                      |
+### Tool Paths
 
-## Project Specific Environment Variables
+| Variable | Environment Variable | Type | Default | Description |
+|----------|---------------------|------|---------|-------------|
+| `yosys_path` | `FAB_YOSYS_PATH` | Path | yosys | - |
+| `nextpnr_path` | `FAB_NEXTPNR_PATH` | Path | nextpnr-generic | - |
+| `iverilog_path` | `FAB_IVERILOG_PATH` | Path | iverilog | - |
+| `vvp_path` | `FAB_VVP_PATH` | Path | vvp | - |
+| `ghdl_path` | `FAB_GHDL_PATH` | Path | ghdl | - |
+| `openroad_path` | `FAB_OPENROAD_PATH` | Path | openroad | - |
+| `klayout_path` | `FAB_KLAYOUT_PATH` | Path | klayout | - |
+| `fabulator_root` | `FAB_FABULATOR_ROOT` | Path | None | - |
+| `oss_cad_suite` | `FAB_OSS_CAD_SUITE` | Path | None | - |
 
-Project specific environment variables always start with `FAB_PROJ_` and are used to configure a specific FABulous project.
-To add a project specific .env file, create a file named `.env` in the `.FABulous` directory of the FABulous project or use the `--projectDotEnv` command line argument when running FABulous.
-The following project specific environment variables are available:
 
-:::{note}
-The project specific environment variables overwrite the global environment variables.
-:::
 
-| Variable Name                  | Description                                                             | Default Value                                                         |
-| ------------------------------ | ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| FAB_PROJ_LANG                  | RTL language used in FABulous project [verilog/vhdl]                    | verilog (default) or language specified by `-w` command line argument |
-| FAB_SWITCH_MATRIX_DEBUG_SIGNAL | Generate debug signals in switch matrix RTL implementation [True/False] | True                                                                  |
-| FAB_PROJ_VERSION_CREATED       | The version of FABulous used to create the project                      | Same as the version of FABulous-FPGA package installed                |
-| FAB_PROJ_VERSION               | The current project version                                             | Same as the version of FABulous-FPGA package installed                |
+### Project Settings
+
+| Variable | Environment Variable | Type | Default | Description |
+|----------|---------------------|------|---------|-------------|
+| `proj_dir` | `FAB_PROJ_DIR` | Path | - | - |
+| `proj_lang` | `FAB_PROJ_LANG` | HDLType | - | - |
+| `models_pack` | `FAB_MODELS_PACK` | Path | None | - |
+| `proj_version` | `FAB_PROJ_VERSION` | Version | - | - |
+| `proj_version_created` | `FAB_PROJ_VERSION_CREATED` | Version | 0.0.1 | - |
+| `user_config_dir` | `FAB_USER_CONFIG_DIR` | Path | - | - |
+
+
+
+### GDS Settings
+
+| Variable | Environment Variable | Type | Default | Description |
+|----------|---------------------|------|---------|-------------|
+| `pdk_root` | `FAB_PDK_ROOT` | Path | None | - |
+| `pdk` | `FAB_PDK` | str | None | - |
+| `fabric_die_area` | `FAB_FABRIC_DIE_AREA` | tuple | - | - |
+| `switch_matrix_debug_signal` | `FAB_SWITCH_MATRIX_DEBUG_SIGNAL` | bool | False | - |
+
+
+
+### CLI Settings
+
+| Variable | Environment Variable | Type | Default | Description |
+|----------|---------------------|------|---------|-------------|
+| `editor` | `FAB_EDITOR` | str | None | - |
+| `verbose` | `FAB_VERBOSE` | int | 0 | - |
+| `debug` | `FAB_DEBUG` | bool | False | - |
+
+
+
+## Interactive CLI Settables
+
+These variables can be set and get interactively in the FABulous CLI using the `set` and `get` commands.
+
+**Usage:**
+```bash
+FABulous> set <variable> <value>
+FABulous> get <variable>
+```
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `projectDir` | Path | The directory of the project |
+| `csvFile` | Path | The fabric CSV definition file |
+| `verbose` | bool | Enable verbose output |
+| `force` | bool | Force execution without confirmation |
