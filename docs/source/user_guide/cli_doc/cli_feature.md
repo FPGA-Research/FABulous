@@ -17,7 +17,7 @@ But some times you might want to start the REPL in for a sepecific project direc
 
 Once you are in the REPL there are many features that help you with the flow and we will list out a few useful ones below. For more details please refer to the [cmd2 documentation](https://cmd2.readthedocs.io/en/stable/) since FABulous CLI is built on top of cmd2.
 
-For more details about the available commands, please refer to the [Interactive CLI Commands Reference](interactive-cli-commands.md).
+For more details about the available commands, please refer to the [Interactive CLI Commands Reference](./interactive_cli_commands.md).
 
 ### Session variables
 
@@ -190,21 +190,29 @@ print('script argv:', sys.argv)
 
 Since running a written script or doing automation with in a CI is very common, we also offer batch mode to directly run scripts and commands directly using the `FABulous` command.
 
-### Batch mode (CI)
+A very common use case is to compile a fabric which can be done by doing the following:
 
 ```bash
-FABulous script demo/FABulous.tcl --type tcl
-FABulous run "load_fabric; gen_fabric; gen_top_wrapper"
+FABulous run "load_fabric; run_FABulous_fabric"
 ```
 
-### Interactive (day-to-day)
+Which will load the fabric and generate the fabric RTL code.
+
+Similarly, you can also run a script file directly by doing:
 
 ```bash
-FABulous start
-FABulous> load_fabric
-FABulous> set target TILE_A
-FABulous> edit Tile/TILE_A/TILE_A_ConfigMem.csv
-FABulous> history
-FABulous> !-1
-FABulous> exit
+# fabulous text script
+FABulous script script.fab
+
+# fabulous tcl script
+FABulous script script.tcl
+
+# python script
+FABulous script script.py
 ```
+
+We have included some simple logic to determine the script type based on the file extension, but if desired you can also explicitly specify the script type by using the `--type` argument.
+
+
+The `FABulous` tool can also do more than just starting the shell and running scripts. For more details of what it is capable of, please refer to the `FABulous --help` output.
+
