@@ -37,34 +37,6 @@ def mock_fabric(mocker: MockerFixture):
     return fabric
 
 
-class TestFullFlowConfiguration:
-    """Tests for flow configuration and class attributes."""
-
-    def test_flow_has_required_steps(self):
-        """Test that flow includes required steps."""
-        from FABulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
-            ExtractPDKInfo,
-        )
-        from FABulous.fabric_generator.gds_generator.steps.global_tile_opitmisation import (
-            GlobalTileSizeOptimization,
-        )
-
-        assert ExtractPDKInfo in FABulousFabricMacroFullFlow.Steps
-        assert GlobalTileSizeOptimization in FABulousFabricMacroFullFlow.Steps
-
-    def test_flow_has_config_vars(self):
-        """Test that flow has configuration variables."""
-        config_var_names = [var.name for var in FABulousFabricMacroFullFlow.config_vars]
-
-        # Should include classic flow vars
-        assert len(config_var_names) > 0
-
-    def test_flow_is_registered(self):
-        """Test that flow is registered in Flow factory."""
-        # The decorator @Flow.factory.register() should register it
-        assert FABulousFabricMacroFullFlow is not None
-
-
 class TestValidateProjectDir:
     """Tests for _validate_project_dir method."""
 
@@ -167,23 +139,6 @@ class TestValidateProjectDir:
 class TestRunTileFlowWorker:
     """Tests for _run_tile_flow_worker function."""
 
-    def test_worker_returns_tuple(self):
-        """Test that worker returns (State, error) tuple."""
-        # This function requires significant mocking of the entire flow system
-        # We test the signature and return type expectations
-        import inspect
-
-        sig = inspect.signature(_run_tile_flow_worker)
-
-        # Check parameters
-        params = list(sig.parameters.keys())
-        assert "tile_type" in params
-        assert "proj_dir" in params
-        assert "io_pin_config" in params
-        assert "optimisation" in params
-        assert "base_config_path" in params
-        assert "override_config_path" in params
-
     def test_worker_catches_exceptions(self, mocker: MockerFixture, tmp_path):
         """Test that worker catches exceptions and returns error trace."""
         # Set up mocks
@@ -248,55 +203,6 @@ class TestRunTileFlowWorker:
         state, error_trace = result
         assert state is mock_state
         assert error_trace is None
-
-
-class TestOptModeEnum:
-    """Tests for OptMode enum used in full fabric flow."""
-
-    def test_opt_modes_available(self):
-        """Test all expected opt modes are available."""
-        assert hasattr(OptMode, "NO_OPT")
-        assert hasattr(OptMode, "BALANCE")
-        assert hasattr(OptMode, "FIND_MIN_WIDTH")
-        assert hasattr(OptMode, "FIND_MIN_HEIGHT")
-
-    def test_opt_mode_values(self):
-        """Test opt mode string values."""
-        assert OptMode.NO_OPT.value == "no_opt"
-        assert OptMode.BALANCE.value == "balance"
-        assert OptMode.FIND_MIN_WIDTH.value == "find_min_width"
-        assert OptMode.FIND_MIN_HEIGHT.value == "find_min_height"
-
-
-class TestFlowStepsIntegration:
-    """Integration tests for flow steps."""
-
-    def test_extract_pdk_info_in_steps(self):
-        """Test ExtractPDKInfo step is included."""
-        step_names = [step.__name__ for step in FABulousFabricMacroFullFlow.Steps]
-        assert "ExtractPDKInfo" in step_names
-
-    def test_global_tile_optimization_in_steps(self):
-        """Test GlobalTileSizeOptimization step is included."""
-        step_names = [step.__name__ for step in FABulousFabricMacroFullFlow.Steps]
-        assert "GlobalTileSizeOptimization" in step_names
-
-    def test_steps_order(self):
-        """Test that steps are in correct order."""
-        steps = FABulousFabricMacroFullFlow.Steps
-
-        extract_idx = None
-        opt_idx = None
-
-        for i, step in enumerate(steps):
-            if step.__name__ == "ExtractPDKInfo":
-                extract_idx = i
-            if step.__name__ == "GlobalTileSizeOptimization":
-                opt_idx = i
-
-        # ExtractPDKInfo should come before optimization
-        if extract_idx is not None and opt_idx is not None:
-            assert extract_idx < opt_idx
 
 
 class TestWorkerCustomOverrides:

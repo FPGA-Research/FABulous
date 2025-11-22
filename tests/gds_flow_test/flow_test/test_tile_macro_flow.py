@@ -27,7 +27,7 @@ from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
 from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 
 
-@pytest.mark.usefixtures("mock_dependencies")
+@pytest.mark.usefixtures("mock_config_load")
 class TestFABulousTileVerilogMarcoFlowInit:
     """Tests for FABulousTileVerilogMarcoFlow initialization and configuration."""
 

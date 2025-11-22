@@ -72,7 +72,7 @@ def mock_config_load(
     """
 
     def _mock_load(
-        *args: Any,
+        *args: Any,  # noqa: ANN401
         **kwargs: Any,  # noqa: ANN401
     ) -> tuple[Config, str]:
         # Config.load is called with keyword arguments:

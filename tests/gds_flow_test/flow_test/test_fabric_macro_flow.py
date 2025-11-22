@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from conftest import create_instance, create_macro
-from librelane.config.variable import Orientation
+from librelane.config.variable import Instance, Orientation
 from pytest_mock import MockerFixture
 
 from FABulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
@@ -184,6 +184,71 @@ class TestValidateNoMacroOverlaps:
         result = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
         assert result is True
 
+    def test_y_overlap_only(self, flow: MagicMock) -> None:
+        """Test macros that overlap in Y but not X don't overlap."""
+        instance1 = create_instance(Decimal(0), Decimal(0))
+        instance2 = create_instance(Decimal(200), Decimal(50))
+
+        macro1 = create_macro({"inst1": instance1})
+        macro2 = create_macro({"inst2": instance2})
+
+        macros = {"tile1": macro1, "tile2": macro2}
+        tile_sizes = {
+            "tile1": (Decimal(100), Decimal(100)),
+            "tile2": (Decimal(100), Decimal(100)),
+        }
+
+        # No overlap - they overlap in Y (0-100 and 50-150) but not in X
+        result = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
+        assert result is True
+
+    def test_x_overlap_only(self, flow: MagicMock) -> None:
+        """Test macros that overlap in X but not Y don't overlap."""
+        instance1 = create_instance(Decimal(0), Decimal(0))
+        instance2 = create_instance(Decimal(50), Decimal(200))
+
+        macro1 = create_macro({"inst1": instance1})
+        macro2 = create_macro({"inst2": instance2})
+
+        macros = {"tile1": macro1, "tile2": macro2}
+        tile_sizes = {
+            "tile1": (Decimal(100), Decimal(100)),
+            "tile2": (Decimal(100), Decimal(100)),
+        }
+
+        # No overlap - they overlap in X (0-100 and 50-150) but not in Y
+        result = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
+        assert result is True
+
+    def test_instance_without_location(self, flow: MagicMock) -> None:
+        """Test handling of instance without location set."""
+        instance = Instance(location=None, orientation=Orientation.N)
+        macro = create_macro({"inst1": instance})
+
+        macros = {"tile1": macro}
+        tile_sizes = {"tile1": (Decimal(100), Decimal(100))}
+
+        # Should not raise - just logs error
+        result = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
+        assert result is True
+
+    def test_tile_not_in_sizes(self, flow: MagicMock) -> None:
+        """Test handling when tile is not in tile_sizes."""
+        instance = create_instance(Decimal(0), Decimal(0))
+        macro = create_macro({"inst1": instance})
+
+        macros = {"unknown_tile": macro}
+        tile_sizes: dict[str, Any] = {}  # Empty
+
+        # Should not raise - just logs error
+        result = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
+        assert result is True
+
+    def test_empty_macros_dict(self, flow: MagicMock) -> None:
+        """Test with empty macros dictionary."""
+        result = flow._validate_no_macro_overlaps(flow, {}, {})
+        assert result is True
+
 
 class TestValidateTileSizes:
     """Tests for _validate_tile_sizes method."""
@@ -258,11 +323,11 @@ class TestValidateTileSizes:
         assert result is True
 
     def test_supertile_validation(
-        self, flow: MagicMock, mocker: MockerFixture
+        self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
     ) -> None:
         """Test validation also checks supertiles."""
-        fabric = mocker.MagicMock()
-        fabric.superTileDic = {"super1": mocker.MagicMock()}
+        # Modify mock_fabric to include a supertile
+        mock_fabric.superTileDic = {"super1": mocker.MagicMock()}
 
         tile_sizes = {
             "tile1": (Decimal(100), Decimal(200)),
@@ -272,7 +337,9 @@ class TestValidateTileSizes:
         pitch_y = Decimal(100)
 
         with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(flow, fabric, tile_sizes, pitch_x, pitch_y)
+            flow._validate_tile_sizes(
+                flow, mock_fabric, tile_sizes, pitch_x, pitch_y
+            )
 
 
 class TestComputeRowAndColumnSizes:
@@ -288,20 +355,15 @@ class TestComputeRowAndColumnSizes:
         return mock_flow
 
     def test_compute_sizes_simple_grid(
-        self, flow: MagicMock, mocker: MockerFixture
+        self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
     ) -> None:
         """Test computing sizes for a simple 2x2 grid."""
-        fabric = mocker.MagicMock()
-        fabric.numberOfRows = 2
-        fabric.numberOfColumns = 2
-        fabric.superTileDic = {}
-
         # Mock tile
         tile1 = mocker.MagicMock()
         tile1.name = "tile1"
 
-        # Iterator returns (x, y), tile
-        fabric.__iter__ = mocker.MagicMock(
+        # Set up fabric iterator
+        mock_fabric.__iter__ = mocker.MagicMock(
             return_value=iter(
                 [
                     ((0, 0), tile1),
@@ -315,7 +377,7 @@ class TestComputeRowAndColumnSizes:
         tile_sizes = {"tile1": (Decimal(100), Decimal(50))}
 
         row_heights, col_widths = flow._compute_row_and_column_sizes(
-            flow, fabric, tile_sizes
+            flow, mock_fabric, tile_sizes
         )
 
         assert len(row_heights) == 2
@@ -326,19 +388,14 @@ class TestComputeRowAndColumnSizes:
         assert col_widths[1] == Decimal(100)
 
     def test_compute_sizes_with_none_tiles(
-        self, flow: MagicMock, mocker: MockerFixture
+        self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
     ) -> None:
         """Test computing sizes when some tiles are None."""
-        fabric = mocker.MagicMock()
-        fabric.numberOfRows = 2
-        fabric.numberOfColumns = 2
-        fabric.superTileDic = {}
-
         tile1 = mocker.MagicMock()
         tile1.name = "tile1"
 
         # Only two tiles, rest are None
-        fabric.__iter__ = mocker.MagicMock(
+        mock_fabric.__iter__ = mocker.MagicMock(
             return_value=iter(
                 [
                     ((0, 0), tile1),
@@ -352,7 +409,7 @@ class TestComputeRowAndColumnSizes:
         tile_sizes = {"tile1": (Decimal(100), Decimal(50))}
 
         row_heights, col_widths = flow._compute_row_and_column_sizes(
-            flow, fabric, tile_sizes
+            flow, mock_fabric, tile_sizes
         )
 
         # Should still compute sizes from available tiles
@@ -360,20 +417,19 @@ class TestComputeRowAndColumnSizes:
         assert len(col_widths) == 2
 
     def test_compute_sizes_non_uniform_raises_error(
-        self, flow: MagicMock, mocker: MockerFixture
+        self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
     ) -> None:
         """Test that non-uniform tile sizes in a column raise error."""
-        fabric = mocker.MagicMock()
-        fabric.numberOfRows = 2
-        fabric.numberOfColumns = 1
-        fabric.superTileDic = {}
+        # Override fabric dimensions for this test
+        mock_fabric.numberOfRows = 2
+        mock_fabric.numberOfColumns = 1
 
         tile1 = mocker.MagicMock()
         tile1.name = "tile1"
         tile2 = mocker.MagicMock()
         tile2.name = "tile2"
 
-        fabric.__iter__ = mocker.MagicMock(
+        mock_fabric.__iter__ = mocker.MagicMock(
             return_value=iter(
                 [
                     ((0, 0), tile1),
@@ -389,7 +445,7 @@ class TestComputeRowAndColumnSizes:
         }
 
         with pytest.raises(ValueError, match="Non-uniform tile widths"):
-            flow._compute_row_and_column_sizes(flow, fabric, tile_sizes)
+            flow._compute_row_and_column_sizes(flow, mock_fabric, tile_sizes)
 
 
 class TestFlowConfiguration:
@@ -430,90 +486,6 @@ class TestFlowConfiguration:
         )
 
         assert subs["OpenROAD.GeneratePDN"] == FABulousPower
-
-
-class TestMacroOverlapEdgeCases:
-    """Additional edge case tests for macro overlap validation."""
-
-    @pytest.fixture
-    def flow(self, mocker: MockerFixture) -> MagicMock:
-        """Create a mock flow with _validate_no_macro_overlaps method bound."""
-        mock_flow = mocker.MagicMock(spec=FABulousFabricMacroFlow)
-        mock_flow._validate_no_macro_overlaps = (
-            FABulousFabricMacroFlow._validate_no_macro_overlaps
-        )
-        return mock_flow
-
-    def test_y_overlap_only(self, flow: MagicMock) -> None:
-        """Test macros that overlap in Y but not X don't overlap."""
-        instance1 = create_instance(Decimal(0), Decimal(0))
-        instance2 = create_instance(Decimal(200), Decimal(50))
-
-        macro1 = create_macro({"inst1": instance1})
-        macro2 = create_macro({"inst2": instance2})
-
-        macros = {"tile1": macro1, "tile2": macro2}
-        tile_sizes = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
-
-        # No overlap - they overlap in Y (0-100 and 50-150) but not in X
-        result = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_x_overlap_only(self, flow: MagicMock) -> None:
-        """Test macros that overlap in X but not Y don't overlap."""
-        instance1 = create_instance(Decimal(0), Decimal(0))
-        instance2 = create_instance(Decimal(50), Decimal(200))
-
-        macro1 = create_macro({"inst1": instance1})
-        macro2 = create_macro({"inst2": instance2})
-
-        macros = {"tile1": macro1, "tile2": macro2}
-        tile_sizes = {
-            "tile1": (Decimal(100), Decimal(100)),
-            "tile2": (Decimal(100), Decimal(100)),
-        }
-
-        # No overlap - they overlap in X (0-100 and 50-150) but not in Y
-        result = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_instance_without_location(self, flow: MagicMock) -> None:
-        """Test handling of instance without location set."""
-        from librelane.config.variable import Instance
-
-        instance = Instance(location=None, orientation=Orientation.N)
-        macro = create_macro({"inst1": instance})
-
-        macros = {"tile1": macro}
-        tile_sizes = {"tile1": (Decimal(100), Decimal(100))}
-
-        # Should not raise - just logs error
-        result = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_tile_not_in_sizes(self, flow: MagicMock) -> None:
-        """Test handling when tile is not in tile_sizes."""
-        instance = create_instance(Decimal(0), Decimal(0))
-        macro = create_macro({"inst1": instance})
-
-        macros = {"unknown_tile": macro}
-        tile_sizes: dict[str, Any] = {}  # Empty
-
-        # Should not raise - just logs error
-        result = flow._validate_no_macro_overlaps(flow, macros, tile_sizes)
-        assert result is True
-
-    def test_empty_macros_dict(self, flow: MagicMock) -> None:
-        """Test with empty macros dictionary."""
-        result = flow._validate_no_macro_overlaps(flow, {}, {})
-        assert result is True
-
-
-class TestFlowSteps:
-    """Tests for flow step configuration."""
 
     def test_flow_steps_attribute(self) -> None:
         """Test that flow has Steps attribute."""
