@@ -219,7 +219,7 @@ async def cocotb_test_muladd_configbit1_b_register(dut: MULADDProtocol) -> None:
     await RisingEdge(dut.UserCLK)  # Clock to load B_reg
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
     # Verify B_reg updates regardless of ConfigBits[1]
-    assert dut.B_reg == model.B_reg
+    assert dut.B_reg.value == model.B_reg
 
     # Test with B register (ConfigBits[1] = 1) - registered B input
     model.ConfigBits = 0b000010  # B_reg = 1
@@ -228,13 +228,13 @@ async def cocotb_test_muladd_configbit1_b_register(dut: MULADDProtocol) -> None:
     dut.B.value = 9
     await RisingEdge(dut.UserCLK)  # Clock to load B_reg
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    assert dut.B_reg == model.B_reg
+    assert dut.B_reg.value == model.B_reg
     # Change B input to verify register is being used
     model.B = 2
     dut.B.value = 2
     await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
     # The output should use the registered value (9), not the new input (2)
-    assert dut.B_reg == model.B_reg, (
+    assert dut.B_reg.value == model.B_reg, (
         f"Registered B mode failed: Expected B_reg = {model.B_reg}, got {dut.B_reg.value}"
     )
 
@@ -256,7 +256,7 @@ async def cocotb_test_muladd_configbit2_c_register(dut: MULADDProtocol) -> None:
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
     await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
     # Verify C_reg updates regardless of ConfigBits[2]
-    assert dut.C_reg == model.C_reg
+    assert dut.C_reg.value == model.C_reg
 
     # Test with C register (ConfigBits[2] = 1) - registered C input
     model.ConfigBits = 0b000100  # C_reg = 1
@@ -265,13 +265,13 @@ async def cocotb_test_muladd_configbit2_c_register(dut: MULADDProtocol) -> None:
     dut.C.value = 20
     await RisingEdge(dut.UserCLK)  # Clock to load C_reg
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
-    assert dut.C_reg == model.C_reg
+    assert dut.C_reg.value == model.C_reg
     # Change C input to verify register is being used
     model.C = 5
     dut.C.value = 5
     await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
     # The output should use the registered value (20), not the new input (5)
-    assert dut.C_reg == model.C_reg
+    assert dut.C_reg.value == model.C_reg
 
 
 @cocotb.test
@@ -298,7 +298,7 @@ async def cocotb_test_muladd_configbit3_accumulator_mode(
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
 
     # Verify non-accumulator mode uses C input directly
-    assert dut.Q == model.Q, (
+    assert dut.Q.value == model.Q, (
         f"Non-accumulator mode failed: Expected Q = {model.Q}, got {dut.Q}"
     )
 
@@ -316,7 +316,7 @@ async def cocotb_test_muladd_configbit3_accumulator_mode(
     await RisingEdge(dut.UserCLK)
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
 
-    assert dut.Q == model.Q, (
+    assert dut.Q.value == model.Q, (
         f"First accumulator operation failed: Expected Q = {model.Q}, got {dut.Q}"
     )
 
@@ -324,7 +324,7 @@ async def cocotb_test_muladd_configbit3_accumulator_mode(
     await RisingEdge(dut.UserCLK)
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
 
-    assert dut.Q == model.Q, (
+    assert dut.Q.value == model.Q, (
         f"Second accumulator operation failed: Expected Q = {model.Q}, got {dut.Q}"
     )
 
@@ -353,8 +353,8 @@ async def cocotb_test_muladd_configbit4_sign_extension(dut: MULADDProtocol) -> N
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
 
     # Verify zero extension behavior
-    assert dut.Q == model.Q, (
-        f"Zero extension failed: Expected Q = {model.Q}, got {dut.Q}"
+    assert dut.Q.value == model.Q, (
+        f"Zero extension failed: Expected Q = {model.Q}, got {dut.Q.value}"
     )
 
     # Test with sign extension (ConfigBits[4] = 1)
@@ -371,8 +371,8 @@ async def cocotb_test_muladd_configbit4_sign_extension(dut: MULADDProtocol) -> N
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
 
     # Verify sign extension behavior
-    assert dut.Q == model.Q, (
-        f"Sign extension failed: Expected Q = {model.Q}, got {dut.Q}"
+    assert dut.Q.value == model.Q, (
+        f"Sign extension failed: Expected Q = {model.Q}, got {dut.Q.value}"
     )
 
     # Additional verification: Check if sign extension occurred (top 4 bits should match bit 15 of product)
@@ -383,7 +383,8 @@ async def cocotb_test_muladd_configbit4_sign_extension(dut: MULADDProtocol) -> N
     actual_top_bits = (result >> 16) & 0xF
 
     assert actual_top_bits == expected_top_bits, (
-        f"Sign extension verification failed: Expected top 4 bits = {expected_top_bits:04b}, got {actual_top_bits:04b}"
+        f"Sign extension verification failed: Expected top 4 bits = {expected_top_bits:04b}, "
+        f"got {actual_top_bits:04b}"
     )
 
 
@@ -431,7 +432,7 @@ async def cocotb_test_muladd_configbit5_output_select(dut: MULADDProtocol) -> No
     acc_output = int(dut.Q.value)
 
     # Verify model consistency
-    assert dut.Q == model.Q, f"Model mismatch: Expected {model.Q}, got {dut.Q}"
+    assert dut.Q.value == model.Q, f"Model mismatch: Expected {model.Q}, got {dut.Q}"
 
     # The ACC output should be the previously accumulated value
     # while the sum output would be the new calculation
@@ -482,13 +483,13 @@ async def cocotb_test_muladd_clear_functionality(dut: MULADDProtocol) -> None:
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
 
     # Verify clear behavior
-    assert dut.Q == model.Q, f"Clear failed: Expected Q = {model.Q}, got {dut.Q}"
+    assert dut.Q.value == model.Q, f"Clear failed: Expected Q = {model.Q}, got {dut.Q}"
 
     # Verify normal operation resumes after clear
     await RisingEdge(dut.UserCLK)
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
 
     # Verify operation continues normally after clear
-    assert dut.Q == model.Q, (
+    assert dut.Q.value == model.Q, (
         f"Operation after clear failed: Expected Q = {model.Q}, got {dut.Q}"
     )
