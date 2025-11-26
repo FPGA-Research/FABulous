@@ -44,7 +44,8 @@ def test_LUT4c_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
     """Test the LUT4c_frame_config_dffesr module with VHDL source."""
     cocotb_runner(
         sources=[
-            VHDL_SOURCE_PATH / "Tile" / "LUT4AB" / "LUT4c_frame_config_dffesr.vhdl"
+            VHDL_SOURCE_PATH / "Fabric" / "models_pack.vhdl",  # Include custom modules
+            VHDL_SOURCE_PATH / "Tile" / "LUT4AB" / "LUT4c_frame_config_dffesr.vhdl",
         ],
         hdl_top_level="lut4c_frame_config_dffesr",  # GHDL converts to lowercase
         test_module_path=Path(__file__),

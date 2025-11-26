@@ -51,7 +51,8 @@ def test_MUX8LUT_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
     """Test the MUX8LUT_frame_config_mux module with VHDL source."""
     cocotb_runner(
         sources=[
-            VHDL_SOURCE_PATH / "Tile" / "LUT4AB" / "MUX8LUT_frame_config_mux.vhdl"
+            VHDL_SOURCE_PATH / "Tile" / "LUT4AB" / "MUX8LUT_frame_config_mux.vhdl",
+            VHDL_SOURCE_PATH / "Fabric" / "models_pack.vhdl",  # Include custom modules
         ],
         hdl_top_level="mux8lut_frame_config_mux",  # GHDL converts to lowercase
         test_module_path=Path(__file__),
