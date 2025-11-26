@@ -1348,9 +1348,9 @@ class FABulous_CLI(Cmd):
     def do_gen_all_tile_macros(self, args: argparse.Namespace) -> None:
         """Generate GDSII files for all tiles in the fabric.
 
-        Iterates through all unique tiles and generates GDSII for each.
-        Use --parallel to compile tiles concurrently for faster builds.
-        Use --optimise to enable tile size optimization (balance mode by default).
+        Iterates through all unique tiles and generates GDSII for each. Use --parallel
+        to compile tiles concurrently for faster builds. Use --optimise to enable tile
+        size optimization (balance mode by default).
         """
         commands = CommandPipeline(self)
         for i in sorted(self.allTile):
@@ -1369,8 +1369,8 @@ class FABulous_CLI(Cmd):
     def do_gen_fabric_macro(self, *_args: str) -> None:
         """Generate GDSII files for the entire fabric by stitching tiles.
 
-        Assembles all pre-compiled tile macros into a complete fabric layout.
-        Requires tile GDS files to be generated first using gen_tile_macro or
+        Assembles all pre-compiled tile macros into a complete fabric layout. Requires
+        tile GDS files to be generated first using gen_tile_macro or
         gen_all_tile_macros. Configuration is read from Fabric/gds_config.yaml.
         """
         tile_macro_root = self.projectDir / "Tile"

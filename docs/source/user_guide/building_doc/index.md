@@ -9,5 +9,5 @@ fabric_definition
 building_fabric
 fabric_automation
 fabric_gds
-gds_variable
+/generated_doc/gds_variable
 ```
