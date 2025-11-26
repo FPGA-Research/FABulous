@@ -15,7 +15,7 @@ To take advantage of fabric stitching, there are two limitations to the tile phy
 
 ### Install tools
 
-We use [librelane](https://github.com/librelane/librelane) as our main flow. To access the full flow, you will need to use the [Nix based installation method](). Which will provide you the full environment with all the required tools.
+We use [librelane](https://github.com/librelane/librelane) as our main flow. To access the full flow, you will need to use the [Nix based installation method](../../getting_started/installation/nix-env.md). Which will provide you the full environment with all the required tools.
 
 :::{note}
 As of writing, we are using custom build of librelane, as a result, the upstream version of the librelane will not work. We are aiming to upstream all the changes.
@@ -55,7 +55,7 @@ This will generate the tile GDS for you under the tile macro folder.
 
 You can change and customise any setting you want via modifying the `gds_config.yaml` file. There are two layers of configuration. There is a `gds_config.yaml` located at the `<project>/Tile/include` and in each of the tile, they have it respective `gds_config.yaml`. The one in the `include` is the base configuration which applies to all the tile, you can put all the settings that is common to all the tile in that file. For per tile specific configuration, you can set them using the `gds_config.yaml` at the tile.
 
-The per tile `gds_config.yaml` is particularly useful and important as you can set per tile `die_area`. In order for the tile to perfectly stitch together, as mention before all tile in the same row much have the same height, and tile in the same column must have the same width, and you can control the tile sizing by using it. For what variable can be configured please check the [flow variable table](./gds_variable.md)
+The per tile `gds_config.yaml` is particularly useful and important as you can set per tile `die_area`. In order for the tile to perfectly stitch together, as mention before all tile in the same row much have the same height, and tile in the same column must have the same width, and you can control the tile sizing by using it. For what variable can be configured please check the [flow variable table](gds_variable.md)
 
 ### Pin Config
 
@@ -88,7 +88,7 @@ The entry key `X0Y0` represent the location of the pin of a tile. For normal til
 
 You can change the order of the list by setting the `reverse_result` to reverse the order of the list and sort_mode to change how the pin is being sorted. We support to sort mode, which is `bus_major` and `bit_minor`. `bus_major` will be sorting by the name of the name of the bus, and `bit_minor` will sort by the bit index of the bus. The following is an example:
 
-```None
+```text
 # Given these pins: [
     "data_bus[1]", "addr_bus[0]", "data_bus[0]", "addr_bus[1]"
 ]
@@ -118,4 +118,4 @@ And the full fabric will be stitched together.
 
 ```image>```
 
-We have a custom top level IO placement script which will align all the pins with the IO pins around the parameter. You will notice there is a small halo ring around the fabric as we will need some extra space to get the clock leader routed. Same as tile implementation, there is a `gds_config.yaml` file under the `Fabric` folder there are some extra variables that you can set, and you can check what can be from the [flow variable table](./gds_variable.md)
+We have a custom top level IO placement script which will align all the pins with the IO pins around the parameter. You will notice there is a small halo ring around the fabric as we will need some extra space to get the clock leader routed. Same as tile implementation, there is a `gds_config.yaml` file under the `Fabric` folder there are some extra variables that you can set, and you can check what can be set from the [flow variable table](gds_variable.md)

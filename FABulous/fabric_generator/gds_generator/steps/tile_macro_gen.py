@@ -8,7 +8,7 @@ from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
 
 from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMarcoFlow,
-    FABulousTileVerilogMarcoFlowClassic,
+    FABulousTileVHDLMarcoFlowClassic,
 )
 
 
@@ -55,7 +55,7 @@ class TileMarcoGen(Step):
         if self.config["FABULOUS_RUN_TILE_OPTIMISATION"]:
             flow = FABulousTileVerilogMarcoFlow(self.config, **kwargs)
         else:
-            flow = FABulousTileVerilogMarcoFlowClassic(self.config, **kwargs)
+            flow = FABulousTileVHDLMarcoFlowClassic(self.config, **kwargs)
 
         try:
             final_state = flow.start(state_in, _force_run_dir=self.step_dir)
