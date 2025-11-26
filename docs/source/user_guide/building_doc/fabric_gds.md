@@ -73,7 +73,7 @@ fabulous> gen_all_tile_macros --optimise      # With optimization (balance mode)
 
 You can change and customise any setting you want via modifying the `gds_config.yaml` file. There are two layers of configuration. There is a `gds_config.yaml` located at the `<project>/Tile/include` and in each of the tile, they have it respective `gds_config.yaml`. The one in the `include` is the base configuration which applies to all the tile, you can put all the settings that is common to all the tile in that file. For per tile specific configuration, you can set them using the `gds_config.yaml` at the tile.
 
-The per tile `gds_config.yaml` is particularly useful and important as you can set per tile `die_area`. In order for the tile to perfectly stitch together, as mention before all tile in the same row much have the same height, and tile in the same column must have the same width, and you can control the tile sizing by using it. For what variable can be configured please check the [flow variable table](gds_variable.md)
+The per tile `gds_config.yaml` is particularly useful and important as you can set per tile `die_area`. In order for the tile to perfectly stitch together, as mention before all tile in the same row much have the same height, and tile in the same column must have the same width, and you can control the tile sizing by using it. For what variable can be configured please check the [flow variable table](/generated_doc/gds_variable.md)
 
 ### Pin Config
 
@@ -134,7 +134,7 @@ fabulous>gen_fabric_macro
 
 And the full fabric will be stitched together.
 
-We have a custom top level IO placement script which will align all the pins with the IO pins around the perimeter. You will notice there is a small halo ring around the fabric as we will need some extra space to get the clock leader routed. Same as tile implementation, there is a `gds_config.yaml` file under the `Fabric` folder where you can set additional variables. Check the [flow variable table](gds_variable.md) for available options.
+We have a custom top level IO placement script which will align all the pins with the IO pins around the perimeter. You will notice there is a small halo ring around the fabric as we will need some extra space to get the clock leader routed. Same as tile implementation, there is a `gds_config.yaml` file under the `Fabric` folder where you can set additional variables. Check the [flow variable table](/generated_doc/gds_variable.md) for available options.
 
 ## Full Automated Flow
 
@@ -158,6 +158,7 @@ This command performs the following steps automatically:
 
 4. **Fabric Stitching**: Assembles all tiles into the final fabric layout.
 
+(tile-size-optimization)=
 ## Tile Size Optimization
 
 The GDS flow includes an iterative optimization process to find the minimum viable tile dimensions. This is controlled by the `FABULOUS_OPT_MODE` variable.

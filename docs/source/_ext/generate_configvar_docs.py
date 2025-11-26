@@ -14,27 +14,53 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-
 """Sphinx extension to auto-generate FABulous configuration variable documentation."""
 
 import ast
-import traceback
+import logging
 from pathlib import Path
 
 import jinja2
 from sphinx.application import Sphinx
 from sphinx.config import Config
 
+logger = logging.getLogger(__name__)
 
-def setup(app: Sphinx):
+
+def setup(app: Sphinx) -> dict[str, str]:  # noqa: ARG001
+    """Set up the Sphinx extension.
+
+    Parameters
+    ----------
+    app : Sphinx
+        The Sphinx application object.
+
+    Returns
+    -------
+    dict[str, str]
+        Extension metadata.
+    """
     app.connect("config-inited", generate_module_docs)
     return {"version": "1.0"}
 
 
-def generate_module_docs(app: Sphinx, conf: Config) -> None:
-    """Generate FABulous configuration variable documentation."""
+def generate_module_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
+    """Generate FABulous configuration variable documentation.
+
+    Parameters
+    ----------
+    app : Sphinx
+        The Sphinx application object.
+    conf : Config
+        The Sphinx configuration object.
+
+    Raises
+    ------
+    SystemExit
+        If documentation generation fails.
+    """
     try:
-        conf_py_path: str = conf._raw_config["__file__"]
+        conf_py_path: str = conf._raw_config["__file__"]  # noqa: SLF001
         doc_root_dir: Path = Path(conf_py_path).parent
 
         template_relpath: str = conf.templates_path[0]
@@ -54,16 +80,16 @@ def generate_module_docs(app: Sphinx, conf: Config) -> None:
             cli_settables=cli_settables,
         )
 
-        # Write output to cli_doc folder
-        output_file = doc_root_dir / "user_guide" / "cli_doc" / "fabulous_variable.md"
+        # Write output to generated_doc folder (gitignored)
+        output_file = doc_root_dir / "generated_doc" / "fabulous_variable.md"
         output_file.parent.mkdir(parents=True, exist_ok=True)
         output_file.write_text(output)
 
-        print(f"Generated FABulous variable documentation: {output_file}")
+        logger.info("Generated FABulous variable documentation: %s", output_file)
 
-    except Exception:
-        print(traceback.format_exc())
-        exit(-1)
+    except (OSError, jinja2.TemplateError):
+        logger.exception("Failed to generate FABulous variable documentation")
+        raise SystemExit(-1) from None
 
 
 def extract_field_info_from_ast(item: ast.AnnAssign) -> dict | None:
@@ -153,9 +179,12 @@ def extract_field_info_from_ast(item: ast.AnnAssign) -> dict | None:
                         deprecated = True
 
                 # Check positional args for default
-                if not default and item.value.args:
-                    if isinstance(item.value.args[0], ast.Constant):
-                        default = str(item.value.args[0].value)
+                if (
+                    not default
+                    and item.value.args
+                    and isinstance(item.value.args[0], ast.Constant)
+                ):
+                    default = str(item.value.args[0].value)
             elif func_name == "Version":
                 # Handle Version() calls
                 if item.value.args and isinstance(item.value.args[0], ast.Constant):
@@ -164,10 +193,9 @@ def extract_field_info_from_ast(item: ast.AnnAssign) -> dict | None:
             # Handle enum values like HDLType.VERILOG
             if hasattr(ast, "unparse"):
                 default = ast.unparse(item.value)
-        elif isinstance(item.value, ast.Tuple):
+        elif isinstance(item.value, ast.Tuple) and hasattr(ast, "unparse"):
             # Handle tuple defaults
-            if hasattr(ast, "unparse"):
-                default = ast.unparse(item.value)
+            default = ast.unparse(item.value)
 
     # Clean up description - remove extra whitespace
     if description:
@@ -187,8 +215,13 @@ def extract_fabulous_settings() -> dict:
     """Extract configuration variables from FABulousSettings class using AST parsing.
 
     Returns a dictionary with categorized settings variables with descriptions.
-    Categories are determined by the 'title' field in Field() calls.
-    Variables without a title are placed in the 'Miscellaneous' category.
+    Categories are determined by the 'title' field in Field() calls. Variables without a
+    title are placed in the 'Miscellaneous' category.
+
+    Returns
+    -------
+    dict
+        Dictionary of settings by category.
     """
     # Parse the FABulousSettings file using AST (use absolute path)
     ext_file = Path(__file__).resolve()
@@ -233,7 +266,7 @@ def extract_fabulous_settings() -> dict:
         )
 
     # Sort categories to put Miscellaneous at the end
-    sorted_settings = {}
+    sorted_settings: dict = {}
     for key in sorted(settings.keys()):
         if key != "Miscellaneous":
             sorted_settings[key] = settings[key]
@@ -247,6 +280,11 @@ def extract_cli_settables() -> list:
     """Extract settable variables from FABulous_CLI using AST parsing.
 
     These are variables that can be set interactively using the `set` command.
+
+    Returns
+    -------
+    list
+        List of settable variable dictionaries.
     """
     ext_file = Path(__file__).resolve()
     cli_file = (
@@ -256,7 +294,7 @@ def extract_cli_settables() -> list:
         / "FABulous_CLI.py"
     )
 
-    settables = []
+    settables: list = []
 
     try:
         source = cli_file.read_text()
@@ -288,23 +326,25 @@ def extract_cli_settables() -> list:
 
                     # Also check keyword arguments
                     for keyword in node.keywords:
-                        if keyword.arg == "name":
-                            if isinstance(keyword.value, ast.Constant):
-                                settable_info["name"] = keyword.value.value
+                        if keyword.arg == "name" and isinstance(
+                            keyword.value, ast.Constant
+                        ):
+                            settable_info["name"] = keyword.value.value
                         elif keyword.arg == "settable_type":
                             if isinstance(keyword.value, ast.Attribute):
                                 settable_info["type"] = keyword.value.attr
                             elif isinstance(keyword.value, ast.Name):
                                 settable_info["type"] = keyword.value.id
-                        elif keyword.arg == "description":
-                            if isinstance(keyword.value, ast.Constant):
-                                settable_info["description"] = keyword.value.value
+                        elif keyword.arg == "description" and isinstance(
+                            keyword.value, ast.Constant
+                        ):
+                            settable_info["description"] = keyword.value.value
 
                     if settable_info["name"]:
                         settables.append(settable_info)
 
-    except Exception as e:
-        print(f"Warning: Could not parse CLI settables: {e}")
+    except (OSError, SyntaxError):
+        logger.warning("Could not parse CLI settables")
         # Fall back to hardcoded list
         settables = [
             {
