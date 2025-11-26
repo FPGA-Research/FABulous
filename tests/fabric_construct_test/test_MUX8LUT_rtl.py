@@ -6,8 +6,7 @@ from random import randint
 from typing import Protocol
 
 import cocotb
-from cocotb.binary import LogicArray
-from cocotb.handle import ModifiableObject
+from cocotb.handle import LogicObject
 from cocotb.triggers import Timer
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -17,23 +16,23 @@ class MUX8LUTProtocol(Protocol):
     """Protocol defining the MUX8LUT_frame_config_mux module interface."""
 
     # Inputs
-    A: ModifiableObject  # MUX input A (handle)
-    B: ModifiableObject  # MUX input B (handle)
-    C: ModifiableObject  # MUX input C (handle)
-    D: ModifiableObject  # MUX input D (handle)
-    E: ModifiableObject  # MUX input E (handle)
-    F: ModifiableObject  # MUX input F (handle)
-    G: ModifiableObject  # MUX input G (handle)
-    H: ModifiableObject  # MUX input H (handle)
-    S: ModifiableObject  # [3:0] Select signals (handle)
-    ConfigBits: ModifiableObject  # [NoConfigBits-1:0] Configuration bits (handle)
-    UserCLK: ModifiableObject  # Clock (for setup compatibility) (handle)
+    A: LogicObject  # MUX input A (handle)
+    B: LogicObject  # MUX input B (handle)
+    C: LogicObject  # MUX input C (handle)
+    D: LogicObject  # MUX input D (handle)
+    E: LogicObject  # MUX input E (handle)
+    F: LogicObject  # MUX input F (handle)
+    G: LogicObject  # MUX input G (handle)
+    H: LogicObject  # MUX input H (handle)
+    S: LogicObject  # [3:0] Select signals (handle)
+    ConfigBits: LogicObject  # [NoConfigBits-1:0] Configuration bits (handle)
+    UserCLK: LogicObject  # Clock (for setup compatibility) (handle)
 
     # Outputs
-    M_AB: ModifiableObject  # MUX output AB (handle)
-    M_AD: ModifiableObject  # MUX output AD (handle)
-    M_AH: ModifiableObject  # MUX output AH (handle)
-    M_EF: ModifiableObject  # MUX output EF (handle)
+    M_AB: LogicObject  # MUX output AB (handle)
+    M_AD: LogicObject  # MUX output AD (handle)
+    M_AH: LogicObject  # MUX output AH (handle)
+    M_EF: LogicObject  # MUX output EF (handle)
 
 
 def test_MUX8LUT_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -283,7 +282,7 @@ async def setup_dut(dut: MUX8LUTProtocol) -> None:
 
 
 @cocotb.test
-async def mux8lut_selection_test(dut: MUX8LUTProtocol) -> None:
+async def cocotb_test_mux8lut_selection(dut: MUX8LUTProtocol) -> None:
     """Test basic MUX selection functionality with proper CocoTB timing."""
     dut.A.value = 0
     dut.B.value = 1

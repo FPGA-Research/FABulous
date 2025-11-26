@@ -6,7 +6,7 @@ from typing import Protocol
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.handle import ModifiableObject
+from cocotb.handle import LogicObject
 from cocotb.triggers import RisingEdge, Timer
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -16,16 +16,16 @@ class LUT4cProtocol(Protocol):
     """Protocol defining the LUT4c_frame_config_dffesr module interface."""
 
     # Inputs
-    I: ModifiableObject  # [3:0] LUT inputs (handle)  # noqa: E741
-    Ci: ModifiableObject  # Carry input (handle)
-    SR: ModifiableObject  # Shared reset (handle)
-    EN: ModifiableObject  # Shared enable (handle)
-    UserCLK: ModifiableObject  # External clock (handle)
-    ConfigBits: ModifiableObject  # Configuration bits (handle)
+    I: LogicObject  # [3:0] LUT inputs (handle)  # noqa: E741
+    Ci: LogicObject  # Carry input (handle)
+    SR: LogicObject  # Shared reset (handle)
+    EN: LogicObject  # Shared enable (handle)
+    UserCLK: LogicObject  # External clock (handle)
+    ConfigBits: LogicObject  # Configuration bits (handle)
 
     # Outputs
-    O: ModifiableObject  # LUT output (can be combinational or registered based on config) (handle)  # noqa: E741
-    Co: ModifiableObject  # Carry output (handle)
+    O: LogicObject  # LUT output (can be combinational or registered based on config) (handle)  # noqa: E741
+    Co: LogicObject  # Carry output (handle)
 
 
 def test_LUT4c_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -67,7 +67,7 @@ class LUT4cModel:
     _lut_out: int = 0
     _lut_flop: int = 0
 
-    def __init__(self, clk: ModifiableObject) -> None:
+    def __init__(self, clk: LogicObject) -> None:
         self._clk_signal = clk
         cocotb.start_soon(self._clocked_process())
         cocotb.start_soon(self._combinational_process())
@@ -131,7 +131,7 @@ async def setup_dut(dut: LUT4cProtocol) -> None:
 
 
 @cocotb.test
-async def lut4c_basic_lut_functionality_test(dut: LUT4cProtocol) -> None:
+async def cocotb_test_lut4c_basic_lut_functionality(dut: LUT4cProtocol) -> None:
     """Basic LUT functionality (AND gate example)"""
     await setup_dut(dut)
     dut.ConfigBits.value = 0x8000  # Only bit 15 set
@@ -144,7 +144,7 @@ async def lut4c_basic_lut_functionality_test(dut: LUT4cProtocol) -> None:
 
 
 @cocotb.test
-async def lut4c_model_alignment_basic_test(dut: LUT4cProtocol) -> None:
+async def cocotb_test_lut4c_model_alignment_basic(dut: LUT4cProtocol) -> None:
     """Model-aligned basic behavior: verify O and Co match a cocotb-native model."""
     await setup_dut(dut)
 
@@ -170,7 +170,7 @@ async def lut4c_model_alignment_basic_test(dut: LUT4cProtocol) -> None:
 
 
 @cocotb.test
-async def or_gate_functionality_test(dut: LUT4cProtocol) -> None:
+async def cocotb_test_or_gate_functionality(dut: LUT4cProtocol) -> None:
     """Test LUT configured as OR gate."""
     await setup_dut(dut)
 
@@ -199,7 +199,7 @@ async def or_gate_functionality_test(dut: LUT4cProtocol) -> None:
 
 
 @cocotb.test
-async def _flip_flop_functionality_test(dut: LUT4cProtocol) -> None:
+async def cocotb_test_flip_flop_functionality(dut: LUT4cProtocol) -> None:
     """Test flip-flop functionality when ConfigBits[16] = 1."""
     await setup_dut(dut)
 
@@ -230,7 +230,7 @@ async def _flip_flop_functionality_test(dut: LUT4cProtocol) -> None:
 
 
 @cocotb.test
-async def lut4c_carry_chain_functionality_test(dut: LUT4cProtocol) -> None:
+async def cocotb_test_lut4c_carry_chain_functionality(dut: LUT4cProtocol) -> None:
     """Test carry chain functionality."""
     await setup_dut(dut)
 
@@ -258,7 +258,7 @@ async def lut4c_carry_chain_functionality_test(dut: LUT4cProtocol) -> None:
 
 
 @cocotb.test
-async def lut4c_set_reset_functionality_test(dut: LUT4cProtocol) -> None:
+async def cocotb_test_lut4c_set_reset_functionality(dut: LUT4cProtocol) -> None:
     """Test set/reset functionality of the flip-flop."""
     await setup_dut(dut)
 
@@ -293,7 +293,7 @@ async def lut4c_set_reset_functionality_test(dut: LUT4cProtocol) -> None:
 
 
 @cocotb.test
-async def lut4c_enable_functionality_test(dut: LUT4cProtocol) -> None:
+async def cocotb_test_lut4c_enable_functionality(dut: LUT4cProtocol) -> None:
     """Test enable functionality of the flip-flop."""
     await setup_dut(dut)
 

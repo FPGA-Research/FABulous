@@ -6,7 +6,7 @@ from typing import Protocol
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.handle import ModifiableObject
+from cocotb.handle import LogicObject
 from cocotb.triggers import FallingEdge, RisingEdge
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -16,15 +16,15 @@ class BitbangProtocol(Protocol):
     """Protocol defining the bitbang module interface."""
 
     # Inputs
-    s_clk: ModifiableObject  # Serial clock (handle)
-    s_data: ModifiableObject  # Serial data (handle)
-    clk: ModifiableObject  # System clock (handle)
-    resetn: ModifiableObject  # Reset (active low) (handle)
+    s_clk: LogicObject  # Serial clock (handle)
+    s_data: LogicObject  # Serial data (handle)
+    clk: LogicObject  # System clock (handle)
+    resetn: LogicObject  # Reset (active low) (handle)
 
     # Outputs
-    strobe: ModifiableObject  # Data strobe output (handle)
-    data: ModifiableObject  # [31:0] Parallel data output (handle)
-    active: ModifiableObject  # Module active flag (handle)
+    strobe: LogicObject  # Data strobe output (handle)
+    data: LogicObject  # [31:0] Parallel data output (handle)
+    active: LogicObject  # Module active flag (handle)
     # Note: some simulators expose internal shift reg 'serial_data'; tests use getattr to access when present.
 
 
@@ -53,8 +53,8 @@ class bitbangModel:
     data: int = 0
     active: int = 0
 
-    _clk_signal: ModifiableObject
-    _resetn: ModifiableObject
+    _clk_signal: LogicObject
+    _resetn: LogicObject
 
     _s_data_sample: int = 0
     _s_clk_sample: int = 0
@@ -64,7 +64,7 @@ class bitbangModel:
     _local_strobe: int = 0
     _old_local_strobe: int = 0
 
-    def __init__(self, clk: ModifiableObject, rst: ModifiableObject) -> None:
+    def __init__(self, clk: LogicObject, rst: LogicObject) -> None:
         self._clk_signal = clk
         self._resetn = rst
         # Start all the concurrent processes
@@ -147,7 +147,7 @@ class bitbangModel:
 
 
 @cocotb.test
-async def bitbang_basic_test(dut: BitbangProtocol) -> None:
+async def cocotb_test_bitbang_basic(dut: BitbangProtocol) -> None:
     """Test basic functionality of bitbang module (model vs RTL)."""
     # Start clock
     clock = Clock(dut.clk, 10, units="ns")
@@ -243,7 +243,9 @@ async def bitbang_basic_test(dut: BitbangProtocol) -> None:
 
 
 @cocotb.test
-async def bitbang_activation_deactivation_test(dut: BitbangProtocol) -> None:
+async def cocotb_test_bitbang_activation_deactivation(
+    dut: BitbangProtocol,
+) -> None:
     """Test bitbang activation and deactivation cycles."""
     # Start clock
     clock = Clock(dut.clk, 10, units="ns")
@@ -294,7 +296,7 @@ async def bitbang_activation_deactivation_test(dut: BitbangProtocol) -> None:
 
 
 @cocotb.test
-async def bitbang_reset_behavior_test(dut: BitbangProtocol) -> None:
+async def cocotb_test_bitbang_reset_behavior(dut: BitbangProtocol) -> None:
     """Test bitbang reset behavior."""
     # Start clock
     clock = Clock(dut.clk, 10, units="ns")
@@ -350,7 +352,7 @@ async def bitbang_reset_behavior_test(dut: BitbangProtocol) -> None:
 
 
 @cocotb.test
-async def bitbang_model_validation_test(dut: BitbangProtocol) -> None:
+async def cocotb_test_bitbang_model_validation(dut: BitbangProtocol) -> None:
     """Comprehensive test to validate that the model matches RTL behavior exactly."""
     # Start clock
     clock = Clock(dut.clk, 10, units="ns")

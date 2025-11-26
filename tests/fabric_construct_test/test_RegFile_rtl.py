@@ -6,7 +6,7 @@ from typing import Protocol
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.handle import ModifiableObject
+from cocotb.handle import LogicObject
 from cocotb.triggers import RisingEdge, Timer
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -16,21 +16,21 @@ class RegFileProtocol(Protocol):
     """Protocol defining the RegFile_32x4 module interface."""
 
     # Inputs
-    D: ModifiableObject  # [3:0] Register File write port data (handle)
-    W_ADR: ModifiableObject  # [4:0] Write address (handle)
-    W_en: ModifiableObject  # Write enable (handle)
-    A_ADR: ModifiableObject  # [4:0] Read port A address (handle)
-    B_ADR: ModifiableObject  # [4:0] Read port B address (handle)
-    UserCLK: ModifiableObject  # Clock (handle)
-    ConfigBits: ModifiableObject  # [NoConfigBits-1:0] (handle)
+    D: LogicObject  # [3:0] Register File write port data (handle)
+    W_ADR: LogicObject  # [4:0] Write address (handle)
+    W_en: LogicObject  # Write enable (handle)
+    A_ADR: LogicObject  # [4:0] Read port A address (handle)
+    B_ADR: LogicObject  # [4:0] Read port B address (handle)
+    UserCLK: LogicObject  # Clock (handle)
+    ConfigBits: LogicObject  # [NoConfigBits-1:0] (handle)
 
     # Outputs
-    AD: ModifiableObject  # [3:0] Register File read port A data (handle)
-    BD: ModifiableObject  # [3:0] Register File read port B data (handle)
+    AD: LogicObject  # [3:0] Register File read port A data (handle)
+    BD: LogicObject  # [3:0] Register File read port B data (handle)
 
     # Internal registers (accessible for testing)
-    AD_reg: ModifiableObject  # [3:0] Registered read port A (handle)
-    BD_reg: ModifiableObject  # [3:0] Registered read port B (handle)
+    AD_reg: LogicObject  # [3:0] Registered read port A (handle)
+    BD_reg: LogicObject  # [3:0] Registered read port B (handle)
 
 
 def test_RegFile_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -72,7 +72,7 @@ class RegFileModel:
     AD_reg: int = 0
     BD_reg: int = 0
 
-    def __init__(self, clk: ModifiableObject) -> None:
+    def __init__(self, clk: LogicObject) -> None:
         # 32x4 register file memory
         self._mem = [0] * 32
         self._clk_signal = clk
@@ -132,7 +132,7 @@ async def setup_dut(dut: RegFileProtocol) -> None:
 
 
 @cocotb.test
-async def regfile_basic_write_read_test(dut: RegFileProtocol) -> None:
+async def cocotb_test_regfile_basic_write_read(dut: RegFileProtocol) -> None:
     """Test basic write and read functionality."""
     await setup_dut(dut)
 
@@ -167,7 +167,7 @@ async def regfile_basic_write_read_test(dut: RegFileProtocol) -> None:
 
 
 @cocotb.test
-async def regfile_dual_port_read_test(dut: RegFileProtocol) -> None:
+async def cocotb_test_regfile_dual_port_read(dut: RegFileProtocol) -> None:
     """Test dual port read functionality."""
     await setup_dut(dut)
 
@@ -207,7 +207,7 @@ async def regfile_dual_port_read_test(dut: RegFileProtocol) -> None:
 
 
 @cocotb.test
-async def regfile_registered_output_port_a_test(dut: RegFileProtocol) -> None:
+async def cocotb_test_regfile_registered_output_port_a(dut: RegFileProtocol) -> None:
     """Test registered output functionality for port A."""
     await setup_dut(dut)
 
@@ -251,7 +251,9 @@ async def regfile_registered_output_port_a_test(dut: RegFileProtocol) -> None:
 
 
 @cocotb.test
-async def regfile_registered_output_port_b_test(dut: RegFileProtocol) -> None:
+async def cocotb_test_regfile_registered_output_port_b(
+    dut: RegFileProtocol,
+) -> None:
     """Test registered output functionality for port B."""
     await setup_dut(dut)
 
@@ -376,7 +378,7 @@ async def regfile_write_enable_control_test(dut: RegFileProtocol) -> None:
 
 
 @cocotb.test
-async def regfile_both_ports_registered_test(dut: RegFileProtocol) -> None:
+async def cocotb_test_regfile_both_ports_registered(dut: RegFileProtocol) -> None:
     """Test functionality with both ports in registered mode."""
     await setup_dut(dut)
 

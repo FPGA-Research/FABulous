@@ -19,7 +19,7 @@ import cocotb  # type: ignore
 from cocotb.clock import Clock  # type: ignore
 
 if TYPE_CHECKING:  # pragma: no cover
-    from cocotb.handle import ModifiableObject  # type: ignore
+    from cocotb.handle import LogicObject  # type: ignore
 from cocotb.triggers import RisingEdge  # type: ignore
 from cocotbext.uart import UartSource  # type: ignore
 
@@ -27,14 +27,14 @@ from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
 
 
 class ConfigUartProtocol(Protocol):  # pragma: no cover - interface typing only
-    CLK: ModifiableObject  # System clock (handle)
-    resetn: ModifiableObject  # Reset (active low) (handle)
-    Rx: ModifiableObject  # UART receive (handle)
-    WriteData: ModifiableObject  # [31:0] Write data output (handle)
-    ComActive: ModifiableObject  # Communication active flag (handle)
-    WriteStrobe: ModifiableObject  # Write strobe output (handle)
-    Command: ModifiableObject  # [7:0] Command output (handle)
-    ReceiveLED: ModifiableObject  # Receive LED indicator (handle)
+    CLK: LogicObject  # System clock (handle)
+    resetn: LogicObject  # Reset (active low) (handle)
+    Rx: LogicObject  # UART receive (handle)
+    WriteData: LogicObject  # [31:0] Write data output (handle)
+    ComActive: LogicObject  # Communication active flag (handle)
+    WriteStrobe: LogicObject  # Write strobe output (handle)
+    Command: LogicObject  # [7:0] Command output (handle)
+    ReceiveLED: LogicObject  # Receive LED indicator (handle)
 
 
 def test_config_uart_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -188,7 +188,7 @@ async def monitor_uart_protocol_compliance(
 
 # -------------- Cocotb Tests --------------
 @cocotb.test
-async def config_uart_protocol_compliance_basic(
+async def cocotb_test_config_uart_protocol_compliance_basic(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Test basic UART protocol compliance using cocotbext.uart."""
@@ -240,7 +240,7 @@ async def config_uart_protocol_compliance_basic(
 
 
 @cocotb.test
-async def config_uart_timing_validation(
+async def cocotb_test_config_uart_timing_validation(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Validate UART timing parameters match between cocotbext and RTL."""
@@ -277,7 +277,7 @@ async def config_uart_timing_validation(
 
 
 @cocotb.test
-async def config_uart_invalid_id_sequence(
+async def cocotb_test_config_uart_invalid_id_sequence(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Test rejection of invalid ID sequences."""
@@ -304,7 +304,7 @@ async def config_uart_invalid_id_sequence(
 
 
 @cocotb.test
-async def config_uart_start_stop_bit_validation(
+async def cocotb_test_config_uart_start_stop_bit_validation(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Validate UART start and stop bits are properly handled."""
@@ -350,7 +350,7 @@ async def config_uart_start_stop_bit_validation(
 
 
 @cocotb.test
-async def config_uart_binary_word(
+async def cocotb_test_config_uart_binary_word(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Enhanced binary word test with protocol validation."""
@@ -389,7 +389,7 @@ async def config_uart_binary_word(
 
 
 @cocotb.test
-async def config_uart_hex_mode_word(
+async def cocotb_test_config_uart_hex_mode_word(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Enhanced hex mode test with protocol validation."""
@@ -423,7 +423,7 @@ async def config_uart_hex_mode_word(
 
 
 @cocotb.test
-async def config_uart_invalid_command(
+async def cocotb_test_config_uart_invalid_command(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Test invalid command rejection with protocol validation."""
@@ -448,7 +448,7 @@ async def config_uart_invalid_command(
 
 
 @cocotb.test
-async def config_uart_partial_word(
+async def cocotb_test_config_uart_partial_word(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Test partial word handling with protocol validation."""
@@ -470,7 +470,7 @@ async def config_uart_partial_word(
 
 
 @cocotb.test
-async def config_uart_timeout(
+async def cocotb_test_config_uart_timeout(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Test timeout handling with protocol validation."""
@@ -491,7 +491,7 @@ async def config_uart_timeout(
 
 
 @cocotb.test
-async def config_uart_multi_word_stream(
+async def cocotb_test_config_uart_multi_word_stream(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Test streaming two consecutive 32-bit words with protocol validation."""
@@ -530,7 +530,7 @@ async def config_uart_multi_word_stream(
 
 
 @cocotb.test
-async def config_uart_receive_led_behavior(
+async def cocotb_test_config_uart_receive_led_behavior(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Test ReceiveLED behavior during and after transfer with protocol validation."""
@@ -594,7 +594,7 @@ async def config_uart_framing_error_detection(
 
 
 @cocotb.test
-async def config_uart_baud_rate_compliance(
+async def cocotb_test_config_uart_baud_rate_compliance(
     dut: ConfigUartProtocol,
 ) -> None:  # pragma: no cover
     """Test UART baud rate compliance between cocotbext and RTL."""
@@ -661,7 +661,9 @@ async def config_uart_baud_rate_compliance(
 
 # Minimal legacy wrapper - kept for backward compatibility
 @cocotb.test
-async def config_uart_legacy_basic(dut: ConfigUartProtocol) -> None:  # pragma: no cover
+async def cocotb_test_config_uart_legacy_basic(
+    dut: ConfigUartProtocol,
+) -> None:  # pragma: no cover
     """Simple sanity check for RTL elaboration."""
     cocotb.start_soon(Clock(dut.CLK, 20, units="ns").start())
     await reset_dut(dut)

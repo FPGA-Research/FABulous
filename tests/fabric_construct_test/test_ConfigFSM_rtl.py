@@ -6,7 +6,7 @@ from typing import Protocol
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.handle import ModifiableObject
+from cocotb.handle import LogicObject
 from cocotb.triggers import RisingEdge, Timer
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -25,18 +25,16 @@ class ConfigFSMProtocol(Protocol):
     """Protocol defining the ConfigFSM module interface."""
 
     # Inputs
-    CLK: ModifiableObject  # System clock
-    resetn: ModifiableObject  # Reset (active low)
-    WriteData: ModifiableObject  # [31:0] Configuration write data
-    WriteStrobe: ModifiableObject  # Configuration write strobe
-    FSM_Reset: ModifiableObject  # FSM reset signal
+    CLK: LogicObject  # System clock
+    resetn: LogicObject  # Reset (active low)
+    WriteData: LogicObject  # [31:0] Configuration write data
+    WriteStrobe: LogicObject  # Configuration write strobe
+    FSM_Reset: LogicObject  # FSM reset signal
 
     # Outputs
-    FrameAddressRegister: (
-        ModifiableObject  # [FrameBitsPerRow-1:0] Frame address register
-    )
-    LongFrameStrobe: ModifiableObject  # Long frame strobe
-    RowSelect: ModifiableObject  # [RowSelectWidth-1:0] Row select
+    FrameAddressRegister: LogicObject  # [FrameBitsPerRow-1:0] Frame address register
+    LongFrameStrobe: LogicObject  # Long frame strobe
+    RowSelect: LogicObject  # [RowSelectWidth-1:0] Row select
 
 
 def test_ConfigFSM_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -58,7 +56,7 @@ def test_ConfigFSM_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
 
 
 @cocotb.test
-async def configfsm_basic_test(dut: ConfigFSMProtocol) -> None:
+async def cocotb_test_configfsm_basic(dut: ConfigFSMProtocol) -> None:
     """Test basic functionality of ConfigFSM."""
     # Start clock
     clock = Clock(dut.CLK, 10, units="ns")
@@ -112,7 +110,8 @@ async def configfsm_basic_test(dut: ConfigFSMProtocol) -> None:
         return
 
     assert int(dut.FrameAddressRegister.value) == frame_address, (
-        f"Expected FrameAddressRegister = 0x{frame_address:08x}, got 0x{actual_value:08x}"
+        f"Expected FrameAddressRegister = 0x{frame_address:08x}, "
+        f"got 0x{actual_value:08x}"
     )
 
     # Test case 3: Send frame data (NumberOfRows times)
@@ -129,7 +128,8 @@ async def configfsm_basic_test(dut: ConfigFSMProtocol) -> None:
         # Check RowSelect progression
         expected_row = number_of_rows - i
         assert int(dut.RowSelect.value) == expected_row, (
-            f"Frame {i}: Expected RowSelect = {expected_row}, got {int(dut.RowSelect.value)}"
+            f"Frame {i}: Expected RowSelect = {expected_row}, "
+            f"got {int(dut.RowSelect.value)}"
         )
 
         # On the last frame, LongFrameStrobe should be asserted
@@ -151,7 +151,7 @@ async def configfsm_basic_test(dut: ConfigFSMProtocol) -> None:
 
 
 @cocotb.test
-async def configfsm_desync_test(dut: ConfigFSMProtocol) -> None:
+async def cocotb_test_configfsm_desync(dut: ConfigFSMProtocol) -> None:
     """Test desync functionality of ConfigFSM."""
     # Start clock
     clock = Clock(dut.CLK, 10, units="ns")
@@ -216,7 +216,7 @@ async def configfsm_desync_test(dut: ConfigFSMProtocol) -> None:
 
 
 @cocotb.test
-async def configfsm_row_select_invalid_test(dut: ConfigFSMProtocol) -> None:
+async def cocotb_test_configfsm_row_select_invalid(dut: ConfigFSMProtocol) -> None:
     """Test RowSelect behavior when WriteStrobe is inactive."""
     # Start clock
     clock = Clock(dut.CLK, 10, units="ns")

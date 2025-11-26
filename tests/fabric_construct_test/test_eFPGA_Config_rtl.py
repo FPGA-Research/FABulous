@@ -6,7 +6,7 @@ from typing import Protocol
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.handle import ModifiableObject
+from cocotb.handle import LogicObject
 from cocotb.triggers import RisingEdge, Timer
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -16,22 +16,22 @@ class eFPGAConfigProtocol(Protocol):
     """Protocol defining the eFPGA_Config module interface."""
 
     # Inputs
-    CLK: ModifiableObject  # System clock (handle)
-    resetn: ModifiableObject  # Reset (active low) (handle)
-    Rx: ModifiableObject  # UART receive (handle)
-    s_clk: ModifiableObject  # BitBang serial clock (handle)
-    s_data: ModifiableObject  # BitBang serial data (handle)
-    SelfWriteData: ModifiableObject  # [31:0] CPU configuration data write port (handle)
-    SelfWriteStrobe: ModifiableObject  # CPU write strobe (handle)
+    CLK: LogicObject  # System clock (handle)
+    resetn: LogicObject  # Reset (active low) (handle)
+    Rx: LogicObject  # UART receive (handle)
+    s_clk: LogicObject  # BitBang serial clock (handle)
+    s_data: LogicObject  # BitBang serial data (handle)
+    SelfWriteData: LogicObject  # [31:0] CPU configuration data write port (handle)
+    SelfWriteStrobe: LogicObject  # CPU write strobe (handle)
 
     # Outputs
-    ComActive: ModifiableObject  # Communication active flag (handle)
-    ReceiveLED: ModifiableObject  # Receive LED indicator (handle)
-    ConfigWriteData: ModifiableObject  # [31:0] Configuration write data (handle)
-    ConfigWriteStrobe: ModifiableObject  # Configuration write strobe (handle)
-    FrameAddressRegister: ModifiableObject  # [FrameBitsPerRow-1:0] (handle)
-    LongFrameStrobe: ModifiableObject  # Long frame strobe (handle)
-    RowSelect: ModifiableObject  # [RowSelectWidth-1:0] Row select (handle)
+    ComActive: LogicObject  # Communication active flag (handle)
+    ReceiveLED: LogicObject  # Receive LED indicator (handle)
+    ConfigWriteData: LogicObject  # [31:0] Configuration write data (handle)
+    ConfigWriteStrobe: LogicObject  # Configuration write strobe (handle)
+    FrameAddressRegister: LogicObject  # [FrameBitsPerRow-1:0] (handle)
+    LongFrameStrobe: LogicObject  # Long frame strobe (handle)
+    RowSelect: LogicObject  # [RowSelectWidth-1:0] Row select (handle)
 
 
 def test_eFPGA_Config_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -63,7 +63,7 @@ def test_eFPGA_Config_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
 
 
 @cocotb.test
-async def efpga_config_basic_test(dut: eFPGAConfigProtocol) -> None:
+async def cocotb_test_efpga_config_basic(dut: eFPGAConfigProtocol) -> None:
     """Test basic functionality of eFPGA_Config."""
     # Start clock
     clock = Clock(dut.CLK, 10, units="ns")
@@ -120,7 +120,7 @@ async def efpga_config_basic_test(dut: eFPGAConfigProtocol) -> None:
 
 
 @cocotb.test
-async def efpga_config_uart_interface_test(dut: eFPGAConfigProtocol) -> None:
+async def cocotb_test_efpga_config_uart_interface(dut: eFPGAConfigProtocol) -> None:
     """Test UART interface functionality."""
     # Start clock
     clock = Clock(dut.CLK, 10, units="ns")
@@ -156,7 +156,7 @@ async def efpga_config_uart_interface_test(dut: eFPGAConfigProtocol) -> None:
 
 
 @cocotb.test
-async def efpga_config_bitbang_interface_test(dut: eFPGAConfigProtocol) -> None:
+async def cocotb_test_efpga_config_bitbang_interface(dut: eFPGAConfigProtocol) -> None:
     """Test BitBang interface functionality."""
     # Start clock
     clock = Clock(dut.CLK, 10, units="ns")
@@ -189,7 +189,9 @@ async def efpga_config_bitbang_interface_test(dut: eFPGAConfigProtocol) -> None:
 
 
 @cocotb.test
-async def efpga_config_multiple_interfaces_test(dut: eFPGAConfigProtocol) -> None:
+async def cocotb_test_efpga_config_multiple_interfaces(
+    dut: eFPGAConfigProtocol,
+) -> None:
     """Test interaction between different configuration interfaces."""
     # Start clock
     clock = Clock(dut.CLK, 10, units="ns")
@@ -225,7 +227,9 @@ async def efpga_config_multiple_interfaces_test(dut: eFPGAConfigProtocol) -> Non
 
 
 @cocotb.test
-async def efpga_config_frame_strobe_generation_test(dut: eFPGAConfigProtocol) -> None:
+async def cocotb_test_efpga_config_frame_strobe_generation(
+    dut: eFPGAConfigProtocol,
+) -> None:
     """Test frame strobe generation from configuration FSM."""
     # Start clock
     clock = Clock(dut.CLK, 10, units="ns")

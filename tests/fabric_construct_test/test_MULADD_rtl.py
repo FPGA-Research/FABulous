@@ -6,7 +6,7 @@ from typing import Protocol
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.handle import ModifiableObject
+from cocotb.handle import LogicObject
 from cocotb.triggers import RisingEdge, Timer
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -16,21 +16,21 @@ class MULADDProtocol(Protocol):
     """Protocol defining the MULADD module interface."""
 
     # Inputs
-    A: ModifiableObject  # [7:0] operand A (handle)
-    B: ModifiableObject  # [7:0] operand B (handle)
-    C: ModifiableObject  # [19:0] operand C (handle)
-    clr: ModifiableObject  # Clear signal (handle)
-    UserCLK: ModifiableObject  # External clock (handle)
-    ConfigBits: ModifiableObject  # [NoConfigBits-1:0] Configuration bits (handle)
+    A: LogicObject  # [7:0] operand A (handle)
+    B: LogicObject  # [7:0] operand B (handle)
+    C: LogicObject  # [19:0] operand C (handle)
+    clr: LogicObject  # Clear signal (handle)
+    UserCLK: LogicObject  # External clock (handle)
+    ConfigBits: LogicObject  # [NoConfigBits-1:0] Configuration bits (handle)
 
     # Outputs
-    Q: ModifiableObject  # [19:0] result (handle)
+    Q: LogicObject  # [19:0] result (handle)
 
     # Internal registers (accessible for testing)
-    A_reg: ModifiableObject  # [7:0] (handle)
-    B_reg: ModifiableObject  # [7:0] (handle)
-    C_reg: ModifiableObject  # [19:0] (handle)
-    ACC: ModifiableObject  # [19:0] accumulator (handle)
+    A_reg: LogicObject  # [7:0] (handle)
+    B_reg: LogicObject  # [7:0] (handle)
+    C_reg: LogicObject  # [19:0] (handle)
+    ACC: LogicObject  # [19:0] accumulator (handle)
 
 
 def test_MULADD_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -76,7 +76,7 @@ class MULADDModel:
     Q: int = 0
     _sum: int = 0
 
-    def __init__(self, clk: ModifiableObject) -> None:
+    def __init__(self, clk: LogicObject) -> None:
         """Initialize the MULADD model with all registers at reset state."""
         self.A_reg = 0
         self.B_reg = 0
@@ -168,7 +168,7 @@ async def setup_dut(dut: MULADDProtocol) -> None:
 
 
 @cocotb.test
-async def muladd_configbit0_a_register_test(dut: MULADDProtocol) -> None:
+async def cocotb_test_muladd_configbit0_a_register(dut: MULADDProtocol) -> None:
     """Test ConfigBits[0] - A register functionality with proper cocotb timing."""
     await setup_dut(dut)
 
@@ -204,7 +204,7 @@ async def muladd_configbit0_a_register_test(dut: MULADDProtocol) -> None:
 
 
 @cocotb.test
-async def muladd_configbit1_b_register_test(dut: MULADDProtocol) -> None:
+async def cocotb_test_muladd_configbit1_b_register(dut: MULADDProtocol) -> None:
     """Test ConfigBits[1] - B register functionality with proper cocotb timing."""
     await setup_dut(dut)
 
@@ -240,7 +240,7 @@ async def muladd_configbit1_b_register_test(dut: MULADDProtocol) -> None:
 
 
 @cocotb.test
-async def muladd_configbit2_c_register_test(dut: MULADDProtocol) -> None:
+async def cocotb_test_muladd_configbit2_c_register(dut: MULADDProtocol) -> None:
     """Test ConfigBits[2] - C register functionality with proper cocotb timing."""
     await setup_dut(dut)
 
@@ -275,7 +275,9 @@ async def muladd_configbit2_c_register_test(dut: MULADDProtocol) -> None:
 
 
 @cocotb.test
-async def muladd_configbit3_accumulator_mode_test(dut: MULADDProtocol) -> None:
+async def cocotb_test_muladd_configbit3_accumulator_mode(
+    dut: MULADDProtocol,
+) -> None:
     """Test ConfigBits[3] - Accumulator mode functionality with proper cocotb timing."""
     await setup_dut(dut)
 
@@ -328,7 +330,7 @@ async def muladd_configbit3_accumulator_mode_test(dut: MULADDProtocol) -> None:
 
 
 @cocotb.test
-async def muladd_configbit4_sign_extension_test(dut: MULADDProtocol) -> None:
+async def cocotb_test_muladd_configbit4_sign_extension(dut: MULADDProtocol) -> None:
     """Test ConfigBits[4] - Sign extension functionality with proper cocotb timing."""
     await setup_dut(dut)
 
@@ -337,7 +339,9 @@ async def muladd_configbit4_sign_extension_test(dut: MULADDProtocol) -> None:
 
     # Test without sign extension (ConfigBits[4] = 0) - zero extension
     model.ConfigBits = 0b000000  # signExtension = 0
-    model.A = 200  # Large positive number that could be interpreted as negative in signed
+    model.A = (
+        200  # Large positive number that could be interpreted as negative in signed
+    )
     model.B = 200
     model.C = 0
     dut.A.value = 200
@@ -384,7 +388,7 @@ async def muladd_configbit4_sign_extension_test(dut: MULADDProtocol) -> None:
 
 
 @cocotb.test
-async def muladd_configbit5_output_select_test(dut: MULADDProtocol) -> None:
+async def cocotb_test_muladd_configbit5_output_select(dut: MULADDProtocol) -> None:
     """Test ConfigBits[5] - Output selection (ACC vs sum) with proper cocotb timing."""
     await setup_dut(dut)
 
@@ -437,7 +441,7 @@ async def muladd_configbit5_output_select_test(dut: MULADDProtocol) -> None:
 
 
 @cocotb.test
-async def muladd_clear_functionality_test(dut: MULADDProtocol) -> None:
+async def cocotb_test_muladd_clear_functionality(dut: MULADDProtocol) -> None:
     """Test clear functionality with proper cocotb timing."""
     await setup_dut(dut)
 

@@ -6,7 +6,7 @@ from typing import Protocol
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.handle import ModifiableObject
+from cocotb.handle import LogicObject
 from cocotb.triggers import RisingEdge, Timer
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -16,16 +16,16 @@ class IOProtocol(Protocol):
     """Protocol defining the IO_1_bidirectional_frame_config_pass module interface."""
 
     # Inputs
-    I: ModifiableObject  # from fabric to external pin (handle)  # noqa: E741
-    T: ModifiableObject  # tristate control (handle)
-    O_top: ModifiableObject  # from external pin to fabric (handle)
-    UserCLK: ModifiableObject  # Clock (handle)
+    I: LogicObject  # from fabric to external pin (handle)  # noqa: E741
+    T: LogicObject  # tristate control (handle)
+    O_top: LogicObject  # from external pin to fabric (handle)
+    UserCLK: LogicObject  # Clock (handle)
 
     # Outputs
-    O: ModifiableObject  # from external pin to fabric (handle)  # noqa: E741
-    Q: ModifiableObject  # from external pin to fabric (registered) (handle)
-    I_top: ModifiableObject  # to external pin (handle)
-    T_top: ModifiableObject  # tristate control to external pin (handle)
+    O: LogicObject  # from external pin to fabric (handle)  # noqa: E741
+    Q: LogicObject  # from external pin to fabric (registered) (handle)
+    I_top: LogicObject  # to external pin (handle)
+    T_top: LogicObject  # tristate control to external pin (handle)
 
 
 def test_IO_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -70,7 +70,7 @@ class IOModel:
     O_int: int = 0
     Q: int = 0
 
-    def __init__(self, clk: ModifiableObject) -> None:
+    def __init__(self, clk: LogicObject) -> None:
         self._clk_signal = clk
         cocotb.start_soon(self._clocked_process())
         cocotb.start_soon(self._combinational_process())
@@ -109,7 +109,7 @@ async def setup_dut(dut: IOProtocol) -> None:
 
 
 @cocotb.test
-async def io_output_mode_test(dut: IOProtocol) -> None:
+async def cocotb_test_io_output_mode(dut: IOProtocol) -> None:
     """Test IO in output mode (T=0)."""
     await setup_dut(dut)
 
@@ -146,7 +146,7 @@ async def io_output_mode_test(dut: IOProtocol) -> None:
 
 
 @cocotb.test
-async def io_input_mode_test(dut: IOProtocol) -> None:
+async def cocotb_test_io_input_mode(dut: IOProtocol) -> None:
     """Test IO in input mode (T=1)."""
     await setup_dut(dut)
 
@@ -182,7 +182,7 @@ async def io_input_mode_test(dut: IOProtocol) -> None:
 
 
 @cocotb.test
-async def io_registered_input_test(dut: IOProtocol) -> None:
+async def cocotb_test_io_registered_input(dut: IOProtocol) -> None:
     """Test registered input functionality (Q output)."""
     await setup_dut(dut)
 
@@ -263,7 +263,7 @@ async def io_bidirectional_switching_test(dut: IOProtocol) -> None:
 
 
 @cocotb.test
-async def io_simultaneous_signals_test(dut: IOProtocol) -> None:
+async def cocotb_test_io_simultaneous_signals(dut: IOProtocol) -> None:
     """Test behavior with various signal combinations."""
     await setup_dut(dut)
 
@@ -310,7 +310,7 @@ async def io_simultaneous_signals_test(dut: IOProtocol) -> None:
 
 
 @cocotb.test
-async def io_clock_independence_combinational_test(dut: IOProtocol) -> None:
+async def cocotb_test_io_clock_independence_combinational(dut: IOProtocol) -> None:
     """Test that combinational paths (I_top, T_top, O) are clock-independent."""
     await setup_dut(dut)
 

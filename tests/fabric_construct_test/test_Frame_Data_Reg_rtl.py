@@ -6,7 +6,7 @@ from typing import Protocol
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.handle import ModifiableObject
+from cocotb.handle import LogicObject
 from cocotb.triggers import RisingEdge, Timer
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -16,12 +16,12 @@ class FrameDataRegProtocol(Protocol):
     """Protocol defining the Frame_Data_Reg module interface."""
 
     # Inputs
-    FrameData_I: ModifiableObject  # [FrameBitsPerRow-1:0]
-    RowSelect: ModifiableObject  # [RowSelectWidth-1:0]
-    CLK: ModifiableObject
+    FrameData_I: LogicObject  # [FrameBitsPerRow-1:0]
+    RowSelect: LogicObject  # [RowSelectWidth-1:0]
+    CLK: LogicObject
 
     # Outputs
-    FrameData_O: ModifiableObject  # [FrameBitsPerRow-1:0]
+    FrameData_O: LogicObject  # [FrameBitsPerRow-1:0]
 
 
 def test_Frame_Data_Reg_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -42,7 +42,7 @@ def test_Frame_Data_Reg_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
 
 
 @cocotb.test
-async def frame_data_reg_basic_test(dut: FrameDataRegProtocol) -> None:
+async def cocotb_test_frame_data_reg_basic(dut: FrameDataRegProtocol) -> None:
     """Test basic functionality of Frame_Data_Reg."""
     # Start clock
     clock = Clock(dut.CLK, 10, units="ns")

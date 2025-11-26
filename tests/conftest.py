@@ -8,7 +8,7 @@ from typing import Protocol
 
 import pytest
 from _pytest.logging import LogCaptureFixture
-from cocotb.runner import get_runner
+from cocotb_tools.runner import get_runner
 from loguru import logger
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI

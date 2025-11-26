@@ -6,7 +6,7 @@ from typing import Protocol
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.handle import ModifiableObject
+from cocotb.handle import LogicObject
 from cocotb.triggers import RisingEdge, Timer
 
 from tests.conftest import VERILOG_SOURCE_PATH, VHDL_SOURCE_PATH, CocotbRunner
@@ -16,19 +16,19 @@ class BlockRAM1KBProtocol(Protocol):
     """Protocol defining the BlockRAM_1KB module interface."""
 
     # Inputs
-    clk: ModifiableObject
-    rd_addr: ModifiableObject  # [7:0]
-    wr_addr: ModifiableObject  # [7:0]
-    wr_data: ModifiableObject  # [31:0]
-    C0: ModifiableObject  # Configuration bits
-    C1: ModifiableObject
-    C2: ModifiableObject
-    C3: ModifiableObject
-    C4: ModifiableObject
-    C5: ModifiableObject
+    clk: LogicObject
+    rd_addr: LogicObject  # [7:0]
+    wr_addr: LogicObject  # [7:0]
+    wr_data: LogicObject  # [31:0]
+    C0: LogicObject  # Configuration bits
+    C1: LogicObject
+    C2: LogicObject
+    C3: LogicObject
+    C4: LogicObject
+    C5: LogicObject
 
     # Outputs
-    rd_data: ModifiableObject  # [31:0]
+    rd_data: LogicObject  # [31:0]
 
 
 def test_BlockRAM_1KB_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -50,7 +50,7 @@ def test_BlockRAM_1KB_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
 
 
 @cocotb.test
-async def blockram_basic_write_read_test(dut: BlockRAM1KBProtocol) -> None:
+async def cocotb_test_blockram_basic_write_read(dut: BlockRAM1KBProtocol) -> None:
     """Test basic write and read functionality of BlockRAM_1KB."""
     # Start clock
     clock = Clock(dut.clk, 10, units="ns")
@@ -119,7 +119,7 @@ async def blockram_basic_write_read_test(dut: BlockRAM1KBProtocol) -> None:
 
 
 @cocotb.test
-async def blockram_port_widths_test(dut: BlockRAM1KBProtocol) -> None:
+async def cocotb_test_blockram_port_widths(dut: BlockRAM1KBProtocol) -> None:
     """Test different port width configurations."""
     # Start clock
     clock = Clock(dut.clk, 10, units="ns")
@@ -161,7 +161,7 @@ async def blockram_port_widths_test(dut: BlockRAM1KBProtocol) -> None:
 
 
 @cocotb.test
-async def blockram_write_enable_control_test(dut: BlockRAM1KBProtocol) -> None:
+async def cocotb_test_blockram_write_enable_control(dut: BlockRAM1KBProtocol) -> None:
     """Test write enable control functionality."""
     # Start clock
     clock = Clock(dut.clk, 10, units="ns")
@@ -211,7 +211,7 @@ async def blockram_write_enable_control_test(dut: BlockRAM1KBProtocol) -> None:
 
 
 @cocotb.test
-async def blockram_register_bypass_test(dut: BlockRAM1KBProtocol) -> None:
+async def cocotb_test_blockram_register_bypass(dut: BlockRAM1KBProtocol) -> None:
     """Test optional register bypass functionality."""
     # Start clock
     clock = Clock(dut.clk, 10, units="ns")
@@ -266,7 +266,7 @@ async def blockram_register_bypass_test(dut: BlockRAM1KBProtocol) -> None:
 
 
 @cocotb.test
-async def blockram_address_mapping_test(dut: BlockRAM1KBProtocol) -> None:
+async def test_blockram_address_mapping(dut: BlockRAM1KBProtocol) -> None:
     """Test extended address mapping via data bits."""
     # Start clock
     clock = Clock(dut.clk, 10, units="ns")

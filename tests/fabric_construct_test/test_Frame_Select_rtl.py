@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Protocol
 
 import cocotb
-from cocotb.handle import ModifiableObject
+from cocotb.handle import LogicObject
 from cocotb.triggers import Timer
 
 # NOTE: cocotb-coverage integration prepared but not active due to environment dependency
@@ -16,12 +16,12 @@ class FrameSelectProtocol(Protocol):
     """Protocol defining the Frame_Select module interface."""
 
     # Inputs
-    FrameStrobe_I: ModifiableObject  # [MaxFramesPerCol-1:0]
-    FrameSelect: ModifiableObject  # [FrameSelectWidth-1:0]
-    FrameStrobe: ModifiableObject
+    FrameStrobe_I: LogicObject  # [MaxFramesPerCol-1:0]
+    FrameSelect: LogicObject  # [FrameSelectWidth-1:0]
+    FrameStrobe: LogicObject
 
     # Outputs
-    FrameStrobe_O: ModifiableObject  # [MaxFramesPerCol-1:0]
+    FrameStrobe_O: LogicObject  # [MaxFramesPerCol-1:0]
 
 
 def test_Frame_Select_verilog_rtl(cocotb_runner: CocotbRunner) -> None:
@@ -47,7 +47,7 @@ def test_Frame_Select_vhdl_rtl(cocotb_runner: CocotbRunner) -> None:
 # @CoverPoint("frame_select.frame_strobe", xf=lambda dut: dut.FrameStrobe, bins=[0, 1])
 # @CoverPoint("frame_select.strobe_input_pattern", xf=lambda dut: dut.FrameStrobe_I & 0xFF, bins=list(range(0, 256, 32)))
 @cocotb.test
-async def frame_select_basic_test(dut: FrameSelectProtocol) -> None:
+async def cocotb_test_frame_select_basic(dut: FrameSelectProtocol) -> None:
     """Test basic functionality of Frame_Select."""
     # Initialize inputs
     dut.FrameStrobe_I.value = 0
@@ -107,7 +107,7 @@ async def frame_select_basic_test(dut: FrameSelectProtocol) -> None:
 
 
 @cocotb.test
-async def frame_select_col_sweep_test(dut: FrameSelectProtocol) -> None:
+async def cocotb_test_frame_select_col_sweep(dut: FrameSelectProtocol) -> None:
     """Test Frame_Select with different FrameSelect values."""
     # Test pattern
     test_pattern = 0x12345
@@ -117,7 +117,9 @@ async def frame_select_col_sweep_test(dut: FrameSelectProtocol) -> None:
 
     # Test various FrameSelect values
     # Only FrameSelect = 18 (default Col) should pass through the pattern
-    for frame_select in range(32):  # Test wider range than FrameSelectWidth=5 (32 values)
+    for frame_select in range(
+        32
+    ):  # Test wider range than FrameSelectWidth=5 (32 values)
         dut.FrameSelect.value = frame_select
         await Timer(Decimal(10), units="ps")
 
@@ -129,7 +131,7 @@ async def frame_select_col_sweep_test(dut: FrameSelectProtocol) -> None:
 
 
 @cocotb.test
-async def frame_select_bit_patterns_test(dut: FrameSelectProtocol) -> None:
+async def cocotb_test_frame_select_bit_patterns(dut: FrameSelectProtocol) -> None:
     """Test Frame_Select with various bit patterns."""
     # Set up for matching condition
     dut.FrameSelect.value = 18  # Match default Col parameter
@@ -159,7 +161,7 @@ async def frame_select_bit_patterns_test(dut: FrameSelectProtocol) -> None:
 
 
 @cocotb.test
-async def frame_select_edge_cases_test(dut: FrameSelectProtocol) -> None:
+async def cocotb_test_frame_select_edge_cases(dut: FrameSelectProtocol) -> None:
     """Test Frame_Select edge cases."""
     # Test case 1: All zeros
     dut.FrameStrobe_I.value = 0
@@ -167,7 +169,9 @@ async def frame_select_edge_cases_test(dut: FrameSelectProtocol) -> None:
     dut.FrameStrobe.value = 1
     await Timer(Decimal(10), units="ps")
 
-    assert int(dut.FrameStrobe_O.value) == 0, "All zeros input should produce all zeros output"
+    assert int(dut.FrameStrobe_O.value) == 0, (
+        "All zeros input should produce all zeros output"
+    )
 
     # Test case 2: All ones (within MaxFramesPerCol)
     max_frames = 20  # Default MaxFramesPerCol
@@ -187,7 +191,9 @@ async def frame_select_edge_cases_test(dut: FrameSelectProtocol) -> None:
     # Toggle FrameStrobe and check response
     dut.FrameStrobe.value = 0
     await Timer(Decimal(5), units="ps")
-    assert int(dut.FrameStrobe_O.value) == 0, "Output should be 0 when FrameStrobe is low"
+    assert int(dut.FrameStrobe_O.value) == 0, (
+        "Output should be 0 when FrameStrobe is low"
+    )
 
     dut.FrameStrobe.value = 1
     await Timer(Decimal(5), units="ps")
@@ -197,4 +203,6 @@ async def frame_select_edge_cases_test(dut: FrameSelectProtocol) -> None:
 
     dut.FrameStrobe.value = 0
     await Timer(Decimal(5), units="ps")
-    assert int(dut.FrameStrobe_O.value) == 0, "Output should be 0 when FrameStrobe goes low again"
+    assert int(dut.FrameStrobe_O.value) == 0, (
+        "Output should be 0 when FrameStrobe goes low again"
+    )
