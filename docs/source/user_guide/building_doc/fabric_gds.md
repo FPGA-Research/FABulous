@@ -1,4 +1,4 @@
-# Covert your design into GDSII format
+# Convert your design into GDSII format
 
 Once you have compiled your design into Verilog using the [building fabric](./building_fabric.md) guide, you can then convert your design into a GDS file for fabrication. The harden process is a 2 stage process. We will first harden all the tiles, and then stitching them together. We chose to do this instead of compile the whole fabric as a flat net list is because in an FPGA there are a lot of repeated components, which means synthesis will be repeatably synthesis similar logic, and the subsequent place and route will also be doing the same. To speed up the hardening process, we deploy this two stage strategy with two key benefits:
 
@@ -31,7 +31,7 @@ ciel enable --pdk-family ihp-sg13g2 cb7daaa8901016cf7c5d272dfa322c41f024931f
 
 ## Changing PDK
 
-We support all PDK that is supported by librelane. As a result you can switch to targeting other process node such as the Sky130A and gf180mcu. To switch to those PDK, you will need to modify the `FAB_PDK_ROOT` and `FAB_PDK`, in `./<project>/.FABulous/.env` or set them in the shell as an environment variable . For `FAB_PDK` will be the PDK you are using, and the `FAB_PDK_ROOT` will be where the PDK is located. If you are installing the PDK from `ciel`, it will be located at `.ciel` under the user directory. An example of the `.ven` will be:
+We support all PDK that is supported by librelane. As a result you can switch to targeting other process node such as the Sky130A and gf180mcu. To switch to those PDK, you will need to modify the `FAB_PDK_ROOT` and `FAB_PDK`, in `./<project>/.FABulous/.env` or set them in the shell as an environment variable. For `FAB_PDK` will be the PDK you are using, and the `FAB_PDK_ROOT` will be where the PDK is located. If you are installing the PDK from `ciel`, it will be located at `.ciel` under the user directory. An example of the `.env` file will be:
 
 ```bash
 #... existing content
@@ -39,17 +39,35 @@ FAB_PDK='sky130A'
 FAB_PDK_ROOT='/home/<user>/.ciel/sky130A'
 ```
 
-For any other PDK, you will need to bring up the PDK to be supported by liberlane. You can follow this [guide](https://openroad-flow-scripts.readthedocs.io/en/latest/contrib/PlatformBringUp.html) and this [guide](https://openroad-flow-scripts.readthedocs.io/en/latest/contrib/PlatformBringUp.html) for more details. For more advance node there it is likely that you will need to further modify and add steps to the flow for getting a working and manufactureable design.
+For any other PDK, you will need to bring up the PDK to be supported by librelane. You can follow this [guide](https://openroad-flow-scripts.readthedocs.io/en/latest/contrib/PlatformBringUp.html) for more details. For more advanced nodes it is likely that you will need to further modify and add steps to the flow for getting a working and manufacturable design.
 
 ## Tile to GDS
 
-The covert a tile to into a GDSII file, run the following command:
+To convert a tile into a GDSII file, run the following command:
 
 ```bash
-fabulous> gen_tile_macro <tile name>
+fabulous> gen_tile_macro <tile_name>
 ```
 
-This will generate the tile GDS for you under the tile macro folder.
+This will generate the tile GDS for you under the tile macro folder (`<project>/Tile/<tile_name>/macro/`).
+
+### Command Options
+
+The `gen_tile_macro` command supports an optimization flag:
+
+```bash
+fabulous> gen_tile_macro <tile_name> --optimise [mode]
+```
+
+Where `[mode]` is one of the optimization modes described in the [Tile Size Optimization](#tile-size-optimization) section. If `--optimise` is provided without a mode, `balance` is used by default.
+
+To generate all tiles at once:
+
+```bash
+fabulous> gen_all_tile_macros
+fabulous> gen_all_tile_macros --parallel      # Run in parallel for faster compilation
+fabulous> gen_all_tile_macros --optimise      # With optimization (balance mode)
+```
 
 ### Tile Config
 
@@ -116,6 +134,107 @@ fabulous>gen_fabric_macro
 
 And the full fabric will be stitched together.
 
-```image>```
+We have a custom top level IO placement script which will align all the pins with the IO pins around the perimeter. You will notice there is a small halo ring around the fabric as we will need some extra space to get the clock leader routed. Same as tile implementation, there is a `gds_config.yaml` file under the `Fabric` folder where you can set additional variables. Check the [flow variable table](gds_variable.md) for available options.
 
-We have a custom top level IO placement script which will align all the pins with the IO pins around the parameter. You will notice there is a small halo ring around the fabric as we will need some extra space to get the clock leader routed. Same as tile implementation, there is a `gds_config.yaml` file under the `Fabric` folder there are some extra variables that you can set, and you can check what can be set from the [flow variable table](gds_variable.md)
+## Full Automated Flow
+
+For a fully automated flow that handles tile size optimization and fabric stitching, use:
+
+```bash
+fabulous> run_FABulous_eFPGA_macro
+```
+
+This command performs the following steps automatically:
+
+1. **Design Space Exploration**: Compiles all tiles with three optimization modes (`balance`, `find_min_width`, `find_min_height`) in parallel to explore possible tile dimensions.
+
+2. **NLP Optimization**: Uses Non-Linear Programming (via pymoo) to find optimal tile dimensions that minimize total fabric area while satisfying:
+   - Minimum area constraints for each tile
+   - Row height consistency (all tiles in a row must have the same height)
+   - Column width consistency (all tiles in a column must have the same width)
+   - SuperTile spanning constraints
+
+3. **Recompilation**: Recompiles all tiles with the optimal dimensions found by the NLP solver.
+
+4. **Fabric Stitching**: Assembles all tiles into the final fabric layout.
+
+## Tile Size Optimization
+
+The GDS flow includes an iterative optimization process to find the minimum viable tile dimensions. This is controlled by the `FABULOUS_OPT_MODE` variable.
+
+### Optimization Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `balance` | Alternates between increasing width and height to find minimal area | **Recommended** - Best for most tiles |
+| `find_min_width` | Increases width iteratively while keeping height fixed | When height is constrained |
+| `find_min_height` | Increases height iteratively while keeping width fixed | When width is constrained |
+| `large` | Increases both dimensions together | Quick compilation, larger area |
+| `no_opt` | No optimization, uses provided `DIE_AREA` directly | Manual control, requires `DIE_AREA` to be set |
+
+### How Optimization Works
+
+1. The flow starts with an initial die area (either provided or calculated from instance area)
+2. It runs through placement and routing
+3. If DRC errors or antenna violations occur, the die area is increased
+4. The process repeats until a clean design is achieved or max iterations reached
+5. The last successful state is used as the final result
+
+### Related Variables
+
+- `FABULOUS_OPTIMISATION_WIDTH_STEP_COUNT`: Sites to increase width per iteration (default: 4)
+- `FABULOUS_OPTIMISATION_HEIGHT_STEP_COUNT`: Sites to increase height per iteration (default: 1)
+- `IGNORE_ANTENNA_VIOLATIONS`: If `true`, antenna violations won't trigger size increases
+- `IGNORE_DEFAULT_DIE_AREA`: If `true`, ignores provided die area and starts from instance area
+
+## Output Structure
+
+After successful compilation, the output is organized as follows:
+
+```text
+<project>/
+├── Tile/
+│   └── <tile_name>/
+│       └── macro/
+│           ├── balance/          # Output from balance optimization
+│           ├── find_min_width/   # Output from width optimization
+│           ├── find_min_height/  # Output from height optimization
+│           └── final_views/      # Final compiled output
+│               ├── gds/          # GDSII files
+│               ├── lef/          # LEF macro files
+│               ├── spef/         # Parasitic extraction (per corner)
+│               ├── nl/           # Netlist files
+│               ├── pnl/          # Power netlist files
+│               ├── vh/           # Verilog header files
+│               └── metrics.json  # Compilation metrics
+└── Fabric/
+    └── macro/
+        └── <pdk_name>/           # Fabric output for specific PDK
+            └── final_views/
+                └── ...           # Same structure as tile
+```
+
+### Key Metrics
+
+The `metrics.json` file contains useful information:
+
+- `design__die__bbox`: Die bounding box (x0 y0 x1 y1)
+- `design__instance__area`: Total cell area
+- `design__instance__utilization`: Utilization percentage
+- `route__drc_errors`: Number of DRC violations
+- `antenna__violating__pins`: Pins with antenna violations
+
+### Viewing Results
+
+To view generated GDS/ODB files in a GUI:
+
+```bash
+# View in OpenROAD GUI (for ODB files)
+fabulous> start_openroad_gui --tile <tile_name>    # View specific tile
+fabulous> start_openroad_gui --fabric              # View fabric
+fabulous> start_openroad_gui --last-run --tile <tile_name>  # View latest run
+
+# View in KLayout GUI (for GDS files)
+fabulous> start_klayout_gui --tile <tile_name>
+fabulous> start_klayout_gui --fabric
+```
