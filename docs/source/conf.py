@@ -94,6 +94,7 @@ extensions = [
     # Custom FABulous extensions
     "generate_cli_docs",
     "generate_configvar_docs",
+    "generate_gds_variable_docs",
 ]
 
 myst_enable_extensions = [
