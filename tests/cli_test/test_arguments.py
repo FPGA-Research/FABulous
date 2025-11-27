@@ -480,7 +480,7 @@ def test_install_oss_cad_suite(
 
     # Ensure default-dir uses a clean temp user config directory
     tmp_user_dir = tmp_path / "user_config"
-    monkeypatch.setattr("FABulous.FABulous.FAB_USER_CONFIG_DIR", tmp_user_dir)
+    monkeypatch.setattr("fabulous.fabulous.FAB_USER_CONFIG_DIR", tmp_user_dir)
 
     monkeypatch.setattr(sys, "argv", test_argv)
     with pytest.raises(SystemExit) as exc_info:
@@ -623,7 +623,7 @@ def test_update_project_version_cases(
 ) -> None:
     test_argv = [s.replace("{project}", str(project)) for s in argv]
     monkeypatch.setattr(
-        "FABulous.FABulous.update_project_version", lambda _p: not bool(expected_code)
+        "fabulous.fabulous.update_project_version", lambda _p: not bool(expected_code)
     )
     monkeypatch.setattr(sys, "argv", test_argv)
     if chdir_flag:
@@ -708,7 +708,9 @@ def test_start(
     def mock_cmdloop(self: object) -> None:  # noqa: ARG001
         pass
 
-    monkeypatch.setattr("FABulous.FABulous_CLI.FABulous_CLI.cmdloop", mock_cmdloop)
+    monkeypatch.setattr(
+        "fabulous.fabulous_cli.fabulous_cli.FABulous_CLI.cmdloop", mock_cmdloop
+    )
 
     test_args = [s.replace("{project}", str(project)) for s in argv]
     monkeypatch.setattr(sys, "argv", test_args)
@@ -998,7 +1000,7 @@ def test_check_version_compatibility_cases(
     # Initialize context
     init_context(project_dir=project)
 
-    monkeypatch.setattr("FABulous.FABulous.version", lambda _: package_ver)
+    monkeypatch.setattr("fabulous.fabulous.version", lambda _: package_ver)
     monkeypatch.setattr("importlib.metadata.version", lambda _: package_ver)
     # Mock the package version
     if should_exit:
@@ -1074,7 +1076,7 @@ def test_main_function_exception_handling(monkeypatch: pytest.MonkeyPatch) -> No
 
     # Mock app to raise an unexpected exception
     mock_app = Mock(side_effect=RuntimeError("Unexpected error"))
-    monkeypatch.setattr("FABulous.FABulous.app", mock_app)
+    monkeypatch.setattr("fabulous.fabulous.app", mock_app)
     monkeypatch.setattr(sys, "argv", ["FABulous", "--help"])
 
     with pytest.raises(SystemExit) as exc_info:

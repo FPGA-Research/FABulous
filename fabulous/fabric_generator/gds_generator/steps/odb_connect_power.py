@@ -19,7 +19,7 @@ class FABulousPower(OdbpyStep):
     def get_script_path(self) -> str:
         """Get the path to the power connection script."""
         return str(
-            resources.files("FABulous.fabric_generator.gds_generator.script")
+            resources.files("fabulous.fabric_generator.gds_generator.script")
             / "odb_power.py"
         )
 

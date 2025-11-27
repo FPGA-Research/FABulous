@@ -20,7 +20,7 @@ class TestAddBuffers:
         mock_config = mock_config.copy(RSZ_CORNERS=["typical", "fast"])
 
         mock_run = mocker.patch(
-            "FABulous.fabric_generator.gds_generator.steps.add_buffer.OpenROADStep.run",
+            "fabulous.fabric_generator.gds_generator.steps.add_buffer.OpenROADStep.run",
             return_value=({}, {}),
         )
 
@@ -43,7 +43,7 @@ class TestAddBuffers:
         mock_config = mock_config.copy(STA_CORNERS=["typical"])
 
         mock_run = mocker.patch(
-            "FABulous.fabric_generator.gds_generator.steps.add_buffer.OpenROADStep.run",
+            "fabulous.fabric_generator.gds_generator.steps.add_buffer.OpenROADStep.run",
             return_value=({}, {}),
         )
 

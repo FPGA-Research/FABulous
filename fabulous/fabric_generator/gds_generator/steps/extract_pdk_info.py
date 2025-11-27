@@ -41,7 +41,7 @@ class ExtractPDKInfo(Floorplan):
     def get_script_path(self) -> str:
         """Return path to the ODB Python script."""
         return str(
-            resources.files("FABulous.fabric_generator.gds_generator.script")
+            resources.files("fabulous.fabric_generator.gds_generator.script")
             / "extract_site_info.tcl"
         )
 

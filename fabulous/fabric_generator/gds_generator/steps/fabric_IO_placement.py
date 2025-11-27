@@ -33,7 +33,7 @@ class FABulousFabricIOPlacement(OdbpyStep):
     def get_script_path(self) -> str:
         """Get the path to the I/O placement script."""
         return str(
-            resources.files("FABulous.fabric_generator.gds_generator.script")
+            resources.files("fabulous.fabric_generator.gds_generator.script")
             / "fabric_io_place.py"
         )
 

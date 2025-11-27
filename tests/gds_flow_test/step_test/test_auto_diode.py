@@ -103,7 +103,7 @@ class TestAutoEcoDiodeInsertion:
         # Mock CheckAntennas
         mock_instance = mocker.MagicMock()
         mock_check_antennas = mocker.patch(
-            "FABulous.fabric_generator.gds_generator.steps.auto_diode.OpenROAD.CheckAntennas",
+            "fabulous.fabric_generator.gds_generator.steps.auto_diode.OpenROAD.CheckAntennas",
             return_value=mock_instance,
         )
         step.config = mock_config
@@ -172,7 +172,7 @@ class TestAutoEcoDiodeInsertion:
         mock_config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="none")
 
         mock_run = mocker.patch(
-            "FABulous.fabric_generator.gds_generator.steps.while_step.WhileStep.run",
+            "fabulous.fabric_generator.gds_generator.steps.while_step.WhileStep.run",
             return_value=({}, {}),
         )
 
@@ -191,7 +191,7 @@ class TestAutoEcoDiodeInsertion:
         mock_config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="all")
 
         mock_run = mocker.patch(
-            "FABulous.fabric_generator.gds_generator.steps.auto_diode.WhileStep.run",
+            "fabulous.fabric_generator.gds_generator.steps.auto_diode.WhileStep.run",
             return_value=({}, {}),
         )
 

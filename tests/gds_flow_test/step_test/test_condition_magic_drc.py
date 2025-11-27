@@ -31,7 +31,7 @@ class test_ConditionalMagicDRC:
         step = ConditionalMagicDRC(mock_config)
 
         mock_run = mocker.patch(
-            "FABulous.fabric_generator.gds_generator.steps.condition_magic_drc.DRC.run",
+            "fabulous.fabric_generator.gds_generator.steps.condition_magic_drc.DRC.run",
             return_value=({"view": "data"}, {"metric": 1}),
         )
 

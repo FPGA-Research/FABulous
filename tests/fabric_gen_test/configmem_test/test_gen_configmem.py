@@ -269,7 +269,7 @@ class TestGeneratedConfigMemRTL:
 
         # Mock parseConfigMem to return our configmem_list fixture
         mock_parse = mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem"
+            "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem"
         )
         mock_parse.return_value = config_memlist_data
 
