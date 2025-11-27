@@ -11,14 +11,14 @@ import pytest
 from cocotb.triggers import Timer
 from pytest_mock import MockerFixture
 
-from FABulous.fabric_definition.ConfigMem import ConfigMem
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
-from FABulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
+from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 
 # Use parseConfigMem function to get accurate bit mapping
-from FABulous.fabric_generator.parser.parse_configmem import parseConfigMem
+from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
 
 
 class ConfigMemDUT(Protocol):
@@ -246,7 +246,7 @@ def test_configmem_rtl_with_custom_configmem_simulation(
 
     # Mock parseConfigMem to return our configmem_list fixture
     mock_parse = mocker.patch(
-        "FABulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem",
+        "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem",
         return_value=configmem_list,
     )
     mock_parse.return_value = configmem_list_data

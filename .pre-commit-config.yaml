@@ -1,4 +1,4 @@
-files: ^(FABulous)|(docs)/
+files: ^(fabulous)|(docs)/
 default_language_version:
   python: python3.12
 repos:
@@ -64,4 +64,4 @@ repos:
     hooks:
       - id: pydoclint
         args: [--style=numpy]
-        exclude: ^(tests/|FABulous/FABulous_CLI/FABulous_CLI\.py$)
+        exclude: ^(tests/|fabulous/fabulous_cli/fabulous_cli\.py$)
