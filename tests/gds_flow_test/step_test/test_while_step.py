@@ -1,6 +1,6 @@
 """Tests for WhileStep base class."""
 
-from FABulous.fabric_generator.gds_generator.steps.while_step import WhileStep
+from fabulous.fabric_generator.gds_generator.steps.while_step import WhileStep
 
 
 class TestWhileStep:
@@ -16,8 +16,12 @@ class TestWhileStep:
 
         # Verify default class attributes are set (tests actual behavior dependency)
         assert WhileStep.max_iterations == 10, "max_iterations should default to 10"
-        assert WhileStep.raise_on_failure is True, "raise_on_failure should default to True"
-        assert WhileStep.break_on_failure is True, "break_on_failure should default to True"
+        assert WhileStep.raise_on_failure is True, (
+            "raise_on_failure should default to True"
+        )
+        assert WhileStep.break_on_failure is True, (
+            "break_on_failure should default to True"
+        )
 
         # Test the actual condition behavior
         assert step.condition(mock_state) is True

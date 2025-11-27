@@ -13,21 +13,21 @@ from librelane.logging.logger import err, info
 from librelane.state.state import State
 from librelane.steps.step import Step
 
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_generator.gds_generator.flows.flow_define import (
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_generator.gds_generator.flows.flow_define import (
     check_steps,
     physical_steps,
     prep_steps,
     write_out_steps,
 )
-from FABulous.fabric_generator.gds_generator.helper import get_pitch
-from FABulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
+from fabulous.fabric_generator.gds_generator.helper import get_pitch
+from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
     FABulousFabricIOPlacement,
 )
-from FABulous.fabric_generator.gds_generator.steps.odb_connect_power import (
+from fabulous.fabric_generator.gds_generator.steps.odb_connect_power import (
     FABulousPower,
 )
-from FABulous.FABulous_settings import get_context
+from fabulous.fabulous_settings import get_context
 
 # Add namedtuple for tile sizes
 

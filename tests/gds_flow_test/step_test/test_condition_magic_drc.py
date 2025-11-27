@@ -1,6 +1,6 @@
 """Tests for ConditionalMagicDRC step."""
 
-from FABulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
+from fabulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
     ConditionalMagicDRC,
 )
 from librelane.config.config import Config

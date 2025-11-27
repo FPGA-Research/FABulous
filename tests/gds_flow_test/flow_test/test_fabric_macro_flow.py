@@ -19,7 +19,7 @@ from conftest import create_instance, create_macro
 from librelane.config.variable import Instance, Macro, Orientation
 from pytest_mock import MockerFixture
 
-from FABulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
+from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
     configs,
     subs,
@@ -321,9 +321,7 @@ class TestValidateTileSizes:
         pitch_y: Decimal = Decimal(100)
 
         with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(
-                flow, mock_fabric, tile_sizes, pitch_x, pitch_y
-            )
+            flow._validate_tile_sizes(flow, mock_fabric, tile_sizes, pitch_x, pitch_y)
 
     def test_invalid_tile_height_not_aligned(
         self, flow: MagicMock, mock_fabric: MagicMock
@@ -336,13 +334,9 @@ class TestValidateTileSizes:
         pitch_y: Decimal = Decimal(50)
 
         with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(
-                flow, mock_fabric, tile_sizes, pitch_x, pitch_y
-            )
+            flow._validate_tile_sizes(flow, mock_fabric, tile_sizes, pitch_x, pitch_y)
 
-    def test_zero_pitch_handling(
-        self, flow: MagicMock, mock_fabric: MagicMock
-    ) -> None:
+    def test_zero_pitch_handling(self, flow: MagicMock, mock_fabric: MagicMock) -> None:
         """Test validation handles zero pitch gracefully."""
         tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
             "tile1": (Decimal(100), Decimal(200)),
@@ -371,9 +365,7 @@ class TestValidateTileSizes:
         pitch_y: Decimal = Decimal(100)
 
         with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(
-                flow, mock_fabric, tile_sizes, pitch_x, pitch_y
-            )
+            flow._validate_tile_sizes(flow, mock_fabric, tile_sizes, pitch_x, pitch_y)
 
 
 class TestComputeRowAndColumnSizes:
@@ -515,7 +507,7 @@ class TestFlowConfiguration:
 
     def test_io_placement_substitution(self) -> None:
         """Test IO placement substitution."""
-        from FABulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
+        from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
             FABulousFabricIOPlacement,
         )
 
@@ -523,7 +515,7 @@ class TestFlowConfiguration:
 
     def test_pdn_substitution(self) -> None:
         """Test PDN substitution."""
-        from FABulous.fabric_generator.gds_generator.steps.odb_connect_power import (
+        from fabulous.fabric_generator.gds_generator.steps.odb_connect_power import (
             FABulousPower,
         )
 

@@ -1,8 +1,8 @@
 """Class for generating and managing the geometry of BELs."""
 
-from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.define import IO
-from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import IO
+from fabulous.geometry_generator.port_geometry import PortGeometry, PortType
 
 
 class BelGeometry:

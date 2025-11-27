@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from FABulous.FABulous_CLI.helper import create_project
-from FABulous.FABulous_settings import init_context, reset_context
+from fabulous.fabulous_cli.helper import create_project
+from fabulous.fabulous_settings import init_context, reset_context
 
 
 @pytest.fixture(autouse=True)

@@ -9,7 +9,7 @@ import odb  # type: ignore[import]
 from librelane.logging.logger import warn
 from librelane.scripts.odbpy.reader import click_odb
 
-from FABulous.fabric_generator.gds_generator.script.odb_protocol import (
+from fabulous.fabric_generator.gds_generator.script.odb_protocol import (
     OdbReaderLike,
     odbRectLike,
 )

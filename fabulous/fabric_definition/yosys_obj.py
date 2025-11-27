@@ -8,8 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from FABulous.custom_exception import InvalidFileType
-from FABulous.FABulous_settings import get_context
+from fabulous.custom_exception import InvalidFileType
+from fabulous.fabulous_settings import get_context
 
 """
 Type alias for Yosys bit vectors containing integers or logic values.

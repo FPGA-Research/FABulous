@@ -7,7 +7,7 @@ from librelane.config.config import Config
 from librelane.state.state import State
 from pytest_mock import MockerFixture
 
-from FABulous.fabric_generator.gds_generator.steps.odb_connect_power import (
+from fabulous.fabric_generator.gds_generator.steps.odb_connect_power import (
     FABulousPower,
 )
 
@@ -31,13 +31,17 @@ def test_get_command_includes_metal_layer_parameter(
     command = step.get_command()
 
     # Verify the command includes the metal layer parameter
-    assert "--metal-layer-name" in command, "Command should include --metal-layer-name flag"
+    assert "--metal-layer-name" in command, (
+        "Command should include --metal-layer-name flag"
+    )
 
     # Find the index of --metal-layer-name and verify its value
     metal_layer_index = command.index("--metal-layer-name")
     metal_layer_value = command[metal_layer_index + 1]
 
-    assert metal_layer_value == "met2", f"Expected 'met2' (from PDN_VERTICAL_LAYER), got '{metal_layer_value}'"
+    assert metal_layer_value == "met2", (
+        f"Expected 'met2' (from PDN_VERTICAL_LAYER), got '{metal_layer_value}'"
+    )
 
 
 def test_get_command_uses_custom_metal_layer(

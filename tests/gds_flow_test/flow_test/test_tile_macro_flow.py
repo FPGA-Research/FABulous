@@ -21,10 +21,10 @@ from unittest.mock import MagicMock
 import pytest
 from librelane.flows.flow import FlowException
 
-from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
+from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMarcoFlow,
 )
-from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
+from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 
 
 @pytest.mark.usefixtures("mock_config_load")
@@ -174,9 +174,7 @@ class TestFABulousTileVerilogMarcoFlowInit:
         # DIE_AREA is rounded to pitch multiples (0.28 for X, 0.56 for Y)
         # 150.0 / 0.28 = 535.71... -> 536 * 0.28 = 150.08
         # 150.0 / 0.56 = 267.85... -> 268 * 0.56 = 150.08
-        assert flow.config["DIE_AREA"] == (
-            0, 0, Decimal("150.08"), Decimal("150.08")
-        )
+        assert flow.config["DIE_AREA"] == (0, 0, Decimal("150.08"), Decimal("150.08"))
 
     def test_no_opt_mode_requires_die_area(
         self,
@@ -213,9 +211,7 @@ class TestFABulousTileVerilogMarcoFlowInit:
         # DIE_AREA is rounded to pitch multiples (0.28 for X, 0.56 for Y)
         # 200.0 / 0.28 = 714.28... -> 715 * 0.28 = 200.20
         # 200.0 / 0.56 = 357.14... -> 358 * 0.56 = 200.48
-        assert flow.config["DIE_AREA"] == (
-            0, 0, Decimal("200.20"), Decimal("200.48")
-        )
+        assert flow.config["DIE_AREA"] == (0, 0, Decimal("200.20"), Decimal("200.48"))
 
     def test_routing_obstructions_generated(
         self,

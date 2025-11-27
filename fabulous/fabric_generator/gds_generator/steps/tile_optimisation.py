@@ -13,17 +13,17 @@ from librelane.steps import odb as Odb
 from librelane.steps import openroad as OpenROAD
 from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
 
-from FABulous.fabric_generator.gds_generator.helper import (
+from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
     get_routing_obstructions,
     round_up_decimal,
 )
-from FABulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
-from FABulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
-from FABulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
+from fabulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
+from fabulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
+from fabulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
     FABulousTileIOPlacement,
 )
-from FABulous.fabric_generator.gds_generator.steps.while_step import WhileStep
+from fabulous.fabric_generator.gds_generator.steps.while_step import WhileStep
 
 
 class OptMode(StrEnum):

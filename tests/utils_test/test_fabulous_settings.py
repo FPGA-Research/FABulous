@@ -10,7 +10,7 @@ from packaging.version import Version
 from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
-from FABulous.FABulous_settings import (
+from fabulous.fabulous_settings import (
     FABulousSettings,
     get_context,
     init_context,
@@ -451,7 +451,7 @@ class TestContextMethods:
         reset_context()
 
         # Should raise error after reset
-        from FABulous.FABulous_settings import _context_instance
+        from fabulous.fabulous_settings import _context_instance
 
         assert _context_instance is None
 
@@ -701,6 +701,6 @@ class TestIntegration:
 
         # Test context reset
         reset_context()
-        from FABulous.FABulous_settings import _context_instance
+        from fabulous.fabulous_settings import _context_instance
 
         assert _context_instance is None

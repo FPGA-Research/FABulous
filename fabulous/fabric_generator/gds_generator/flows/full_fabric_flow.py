@@ -25,27 +25,27 @@ from librelane.state.state import State
 from librelane.steps.openroad import Floorplan
 from librelane.steps.step import Step
 
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
 )
-from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
+from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMarcoFlow,
 )
-from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
-from FABulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
+from fabulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
     ExtractPDKInfo,
 )
-from FABulous.fabric_generator.gds_generator.steps.global_tile_opitmisation import (
+from fabulous.fabric_generator.gds_generator.steps.global_tile_opitmisation import (
     GlobalTileSizeOptimization,
 )
-from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
-from FABulous.FABulous_settings import init_context
-from FABulous.processpool import DillProcessPoolExecutor
+from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
+from fabulous.fabulous_settings import init_context
+from fabulous.processpool import DillProcessPoolExecutor
 
 if TYPE_CHECKING:
     from concurrent.futures import Future
@@ -97,7 +97,7 @@ def _run_tile_flow_worker(
         (compiled_state, error_trace) for result processing
     """
     try:
-        from FABulous.FABulous_settings import FABulousSettings
+        from fabulous.fabulous_settings import FABulousSettings
 
         context: FABulousSettings = init_context(project_dir=proj_dir)
         # Reconstruct the flow in the worker process with serializable data

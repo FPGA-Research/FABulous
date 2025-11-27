@@ -16,11 +16,11 @@ import yaml
 from librelane.logging.logger import debug, err, info, warn
 from librelane.scripts.odbpy.reader import click_odb
 
-from FABulous.fabric_definition.define import PinSortMode, Side
-from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+from fabulous.fabric_definition.define import PinSortMode, Side
+from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     PinOrderConfig,
 )
-from FABulous.fabric_generator.gds_generator.script.odb_protocol import (
+from fabulous.fabric_generator.gds_generator.script.odb_protocol import (
     OdbReaderLike,
     odbBTermLike,
 )

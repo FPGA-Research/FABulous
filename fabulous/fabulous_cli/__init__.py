@@ -1,5 +1,5 @@
 """CLI module for FABulous."""
 
-from .FABulous_CLI import FABulous_CLI
+from .fabulous_cli import FABulous_CLI
 
-__all__ = ["FABulous_CLI"]
+__all__ = ["fabulous_cli"]

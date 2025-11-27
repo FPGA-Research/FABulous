@@ -11,48 +11,48 @@ from pathlib import Path
 import yaml
 from loguru import logger
 
-import FABulous.fabric_cad.gen_npnr_model as model_gen_npnr
-import FABulous.fabric_generator.parser.parse_csv as fileParser
-from FABulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
-from FABulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
+import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
+import fabulous.fabric_generator.parser.parse_csv as fileParser
+from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
+from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
 
 # Importing Modules from FABulous Framework.
-from FABulous.fabric_definition.bel import Bel
-from FABulous.fabric_definition.fabric import Fabric
-from FABulous.fabric_definition.supertile import SuperTile
-from FABulous.fabric_definition.tile import Tile
-from FABulous.fabric_generator.code_generator import CodeGenerator
-from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
-from FABulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
+from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
 )
-from FABulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
+from fabulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
     FABulousFabricMacroFullFlow,
 )
-from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
+from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMarcoFlow,
 )
-from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
-from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
-from FABulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
-from FABulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
-from FABulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
-from FABulous.fabric_generator.gen_fabric.gen_helper import (
+from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
+from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
+from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
+from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
+from fabulous.fabric_generator.gen_fabric.gen_helper import (
     bootstrapSwitchMatrix,
     list2CSV,
 )
-from FABulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
-from FABulous.fabric_generator.gen_fabric.gen_tile import (
+from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
+from fabulous.fabric_generator.gen_fabric.gen_tile import (
     generateSuperTile,
     generateTile,
 )
-from FABulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrapper
-from FABulous.FABulous_settings import get_context
-from FABulous.geometry_generator.geometry_gen import GeometryGenerator
+from fabulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrapper
+from fabulous.fabulous_settings import get_context
+from fabulous.geometry_generator.geometry_gen import GeometryGenerator
 
 
 class FABulous_API:

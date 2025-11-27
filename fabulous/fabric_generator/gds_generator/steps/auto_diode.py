@@ -10,7 +10,7 @@ from librelane.steps import odb as Odb
 from librelane.steps import openroad as OpenROAD
 from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
 
-from FABulous.fabric_generator.gds_generator.steps.while_step import WhileStep
+from fabulous.fabric_generator.gds_generator.steps.while_step import WhileStep
 
 
 @Step.factory.register()

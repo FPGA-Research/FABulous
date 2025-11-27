@@ -5,9 +5,9 @@ from pathlib import Path
 
 from loguru import logger
 
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.geometry_generator.geometry_obj import Border, Location
-from FABulous.geometry_generator.tile_geometry import TileGeometry
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.geometry_generator.geometry_obj import Border, Location
+from fabulous.geometry_generator.tile_geometry import TileGeometry
 
 GENERATOR_VERSION = "1.0.0"
 

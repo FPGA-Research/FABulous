@@ -20,7 +20,7 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
-from FABulous.fabric_definition.define import HDLType
+from fabulous.fabric_definition.define import HDLType
 
 # User configuration directory for FABulous
 FAB_USER_CONFIG_DIR = Path(typer.get_app_dir("FABulous", force_posix=True))

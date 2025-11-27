@@ -12,9 +12,9 @@ from pathlib import Path
 
 from loguru import logger
 
-from FABulous.fabric_definition.define import Direction
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_generator.parser.parse_switchmatrix import parseList
+from fabulous.fabric_definition.define import Direction
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 
 
 def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:

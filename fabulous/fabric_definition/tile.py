@@ -5,14 +5,14 @@ from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from FABulous.fabric_definition.bel import Bel
-from FABulous.fabric_definition.define import IO, Direction, PinSortMode, Side
-from FABulous.fabric_definition.gen_io import Gen_IO
-from FABulous.fabric_definition.port import Port
-from FABulous.fabric_definition.Wire import Wire
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import IO, Direction, PinSortMode, Side
+from fabulous.fabric_definition.gen_io import Gen_IO
+from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.wire import Wire
 
 if TYPE_CHECKING:
-    from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+    from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
         PinOrderConfig,
     )
 
@@ -104,7 +104,7 @@ class Tile:
         self.tileDir = tileDir
 
         if pinOrderConfig is None:
-            from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+            from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
                 PinOrderConfig,
             )
 

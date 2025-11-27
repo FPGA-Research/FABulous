@@ -11,10 +11,10 @@ from librelane.steps import pyosys as pyYosys
 from librelane.steps import verilator as Verilator
 from librelane.steps.step import Step
 
-from FABulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
+from fabulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
     ConditionalMagicDRC,
 )
-from FABulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
+from fabulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
     ExtractPDKInfo,
 )
 

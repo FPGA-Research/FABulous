@@ -13,17 +13,17 @@ from typing import TYPE_CHECKING
 from bitarray import bitarray
 from loguru import logger
 
-from FABulous.fabric_definition.define import IO
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
-from FABulous.fabric_generator.code_generator.code_generator_Verilog import (
+from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
-from FABulous.fabric_generator.parser.parse_configmem import parseConfigMem
+from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
 
 if TYPE_CHECKING:
-    from FABulous.fabric_definition.ConfigMem import ConfigMem
+    from fabulous.fabric_definition.configmem import ConfigMem
 
 
 def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) -> None:

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from FABulous.custom_exception import (
+from fabulous.custom_exception import (
     InvalidFabricDefinition,
     InvalidFabricParameter,
     InvalidFileType,
@@ -15,27 +15,27 @@ from FABulous.custom_exception import (
     InvalidSupertileDefinition,
     InvalidTileDefinition,
 )
-from FABulous.fabric_definition.define import IO, ConfigBitMode, MultiplexerStyle
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.Gen_IO import Gen_IO
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_generator.gen_fabric.fabric_automation import (
+from fabulous.fabric_definition.define import IO, ConfigBitMode, MultiplexerStyle
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.gen_io import Gen_IO
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     addBelsToPrim,
     generateCustomTileConfig,
     generateSwitchmatrixList,
 )
-from FABulous.fabric_generator.parser.parse_hdl import parseBelFile
-from FABulous.fabric_generator.parser.parse_switchmatrix import (
+from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
+from fabulous.fabric_generator.parser.parse_switchmatrix import (
     parseList,
     parseMatrix,
     parsePortLine,
 )
-from FABulous.FABulous_settings import get_context
+from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
-    from FABulous.fabric_definition.Bel import Bel
-    from FABulous.fabric_definition.Port import Port
+    from fabulous.fabric_definition.bel import Bel
+    from fabulous.fabric_definition.port import Port
 
 
 def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:

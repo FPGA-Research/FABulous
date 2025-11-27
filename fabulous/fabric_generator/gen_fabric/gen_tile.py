@@ -16,15 +16,15 @@ Key features:
 from collections import defaultdict
 from pathlib import Path
 
-from FABulous.fabric_definition.define import IO, ConfigBitMode, Direction
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
-from FABulous.fabric_generator.code_generator.code_generator_Verilog import (
+from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
-from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
+from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
 

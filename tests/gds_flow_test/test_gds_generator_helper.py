@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from FABulous.fabric_generator.gds_generator.helper import (
+from fabulous.fabric_generator.gds_generator.helper import (
     get_layer_info,
     get_pitch,
     round_die_area,
@@ -75,7 +75,9 @@ M2 X 0.14 0.56
         assert "M1" in result
         assert "M2" in result
 
-    def test_get_layer_info_preserves_decimal_precision(self, sample_tracks_file, mock_config):
+    def test_get_layer_info_preserves_decimal_precision(
+        self, sample_tracks_file, mock_config
+    ):
         """Test that Decimal precision is preserved."""
         mock_config.__getitem__.side_effect = lambda key: (
             str(sample_tracks_file) if key == "FP_TRACKS_INFO" else None
@@ -186,7 +188,10 @@ class TestRoundDieArea:
         mock_config.get.side_effect = lambda key: {
             "DIE_AREA": (0, 0, 100, 200),
         }.get(key)
-        mock_config.copy.side_effect = lambda **kwargs: {**mock_config.__dict__, **kwargs}
+        mock_config.copy.side_effect = lambda **kwargs: {
+            **mock_config.__dict__,
+            **kwargs,
+        }
 
         result = round_die_area(mock_config)
 
@@ -223,7 +228,10 @@ class TestRoundDieArea:
         mock_config.get.side_effect = lambda key: {
             "DIE_AREA": (0, 0, 100, 100),
         }.get(key)
-        mock_config.copy.side_effect = lambda **kwargs: {**mock_config.__dict__, **kwargs}
+        mock_config.copy.side_effect = lambda **kwargs: {
+            **mock_config.__dict__,
+            **kwargs,
+        }
 
         result = round_die_area(mock_config)
 
