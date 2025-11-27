@@ -55,8 +55,8 @@ release = version
 
 # -- General configuration
 
-# Ensure the repository root is importable so `import FABulous.*` works as a
-# proper package (and doesn't get shadowed by FABulous.py).
+# Ensure the repository root is importable so `import fabulous.*` works as a
+# proper package (and doesn't get shadowed by fabulous.py).
 _repo_root = Path(__file__).resolve().parents[2].as_posix()
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
@@ -227,7 +227,7 @@ ogp_social_cards = {
 
 # -- AutoAPI Configuration (Modern replacement for autosummary)
 autoapi_type = 'python'
-autoapi_dirs = ['../../FABulous']  # Path to source code
+autoapi_dirs = ['../../fabulous']  # Path to source code
 autoapi_root = 'generated_doc'  # Directory name for generated docs (consistent with existing setup)
 autoapi_keep_files = True  # Keep generated .rst files for debugging
 autoapi_generate_api_docs = True

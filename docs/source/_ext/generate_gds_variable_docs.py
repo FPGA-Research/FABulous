@@ -286,8 +286,8 @@ def extract_gds_variables() -> dict[str, list[dict[str, Any]]]:
     """Extract GDS flow configuration variables by auto-discovering all steps and flows.
 
     Auto-discovers all classes with config_vars from:
-    - FABulous.fabric_generator.gds_generator.steps
-    - FABulous.fabric_generator.gds_generator.flows
+    - fabulous.fabric_generator.gds_generator.steps
+    - fabulous.fabric_generator.gds_generator.flows
 
     Returns
     -------
@@ -298,7 +298,7 @@ def extract_gds_variables() -> dict[str, list[dict[str, Any]]]:
 
     # Auto-discover from steps package
     steps_classes = discover_classes_with_config_vars(
-        "FABulous.fabric_generator.gds_generator.steps"
+        "fabulous.fabric_generator.gds_generator.steps"
     )
     for class_name, cls in steps_classes:
         category = class_name_to_category(class_name)
@@ -309,7 +309,7 @@ def extract_gds_variables() -> dict[str, list[dict[str, Any]]]:
 
     # Auto-discover from flows package
     flows_classes = discover_classes_with_config_vars(
-        "FABulous.fabric_generator.gds_generator.flows"
+        "fabulous.fabric_generator.gds_generator.flows"
     )
     for class_name, cls in flows_classes:
         category = class_name_to_category(class_name)

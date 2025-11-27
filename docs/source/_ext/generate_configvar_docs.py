@@ -226,7 +226,7 @@ def extract_fabulous_settings() -> dict:
     # Parse the FABulousSettings file using AST (use absolute path)
     ext_file = Path(__file__).resolve()
     settings_file = (
-        ext_file.parent.parent.parent.parent / "FABulous" / "FABulous_settings.py"
+        ext_file.parent.parent.parent.parent / "fabulous" / "fabulous_settings.py"
     )
     source = settings_file.read_text()
     tree = ast.parse(source)

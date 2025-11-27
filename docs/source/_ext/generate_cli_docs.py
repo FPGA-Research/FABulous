@@ -57,8 +57,8 @@ def generate_cli_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
 
         # Extract command metadata using AST parsing (no imports needed)
         repo_root = doc_root_dir.parent.parent
-        cli_dir = repo_root / "FABulous" / "FABulous_CLI"
-        cli_file = cli_dir / "FABulous_CLI.py"
+        cli_dir = repo_root / "fabulous" / "fabulous_cli"
+        cli_file = cli_dir / "fabulous_cli.py"
         commands_by_category = extract_cli_commands_ast(cli_file)
 
         # Also extract commands from cmd_synthesis.py
