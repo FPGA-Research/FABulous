@@ -11,8 +11,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 
-from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.Port import Port
+from FABulous.fabric_definition.bel import Bel
+from FABulous.fabric_definition.port import Port
 from FABulous.fabric_definition.Tile import Tile
 
 

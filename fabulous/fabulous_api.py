@@ -17,10 +17,10 @@ from FABulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from FABulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
 
 # Importing Modules from FABulous Framework.
-from FABulous.fabric_definition.Bel import Bel
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.Tile import Tile
+from FABulous.fabric_definition.bel import Bel
+from FABulous.fabric_definition.fabric import Fabric
+from FABulous.fabric_definition.supertile import SuperTile
+from FABulous.fabric_definition.tile import Tile
 from FABulous.fabric_generator.code_generator import CodeGenerator
 from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,

@@ -17,8 +17,8 @@ from packaging.version import Version
 
 from FABulous.custom_exception import PipelineCommandError
 from FABulous.fabric_definition.define import HDLType
-from FABulous.FABulous_CLI import FABulous_CLI
-from FABulous.FABulous_CLI.helper import (
+from FABulous.fabulous_cli import FABulous_CLI
+from FABulous.fabulous_cli.helper import (
     CommandPipeline,
     create_project,
     install_fabulator,
@@ -26,7 +26,7 @@ from FABulous.FABulous_CLI.helper import (
     setup_logger,
     update_project_version,
 )
-from FABulous.FABulous_settings import (
+from FABulous.fabulous_settings import (
     FAB_USER_CONFIG_DIR,
     get_context,
     init_context,
@@ -568,7 +568,7 @@ def main() -> None:
             )
 
             if remember:
-                from FABulous.FABulous_settings import add_var_to_global_env
+                from FABulous.fabulous_settings import add_var_to_global_env
 
                 add_var_to_global_env("FAB_WINDOWS_WARNING_ACKNOWLEDGED", "true")
                 logger.info(

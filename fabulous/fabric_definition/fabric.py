@@ -9,7 +9,7 @@ from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from FABulous.fabric_definition.Bel import Bel
+from FABulous.fabric_definition.bel import Bel
 from FABulous.fabric_definition.define import (
     ConfigBitMode,
     Direction,
