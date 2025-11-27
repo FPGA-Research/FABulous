@@ -1,102 +1,156 @@
-{# Hierarchical AutoAPI module template with proper nesting #}
-
-{{ obj.name }}
-{{ '=' * (obj.name|length) }}
+{% if obj.display %}
+   {% if is_own_page %}
+{{ obj.short_name }}
+{{ "=" * obj.short_name|length }}
 
 .. py:module:: {{ obj.name }}
 
-{% if obj.docstring %}
+      {% if obj.docstring %}
 .. autoapi-nested-parse::
-   {{ obj.docstring | indent(3) }}
-{% endif %}
 
-{% set classes = obj.children | selectattr('type', 'equalto', 'class') | list %}
-{% set functions = obj.children | selectattr('type', 'equalto', 'function') | list %}
-{% set data = obj.children | selectattr('type', 'equalto', 'data') | list %}
+   {{ obj.docstring|indent(3) }}
 
-{% if classes %}
+      {% endif %}
+
+      {% block submodules %}
+         {% set visible_subpackages = obj.subpackages|selectattr("display")|list %}
+         {% set visible_submodules = obj.submodules|selectattr("display")|list %}
+         {% set visible_submodules = (visible_subpackages + visible_submodules)|sort %}
+         {% if visible_submodules %}
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+            {% for submodule in visible_submodules %}
+   {{ submodule.include_path }}
+            {% endfor %}
+
+
+         {% endif %}
+      {% endblock %}
+      {% block content %}
+         {% set visible_children = obj.children|selectattr("display")|list %}
+         {% if visible_children %}
+            {% set visible_attributes = visible_children|selectattr("type", "equalto", "data")|list %}
+            {% if visible_attributes %}
+               {% if "attribute" in own_page_types or "show-module-summary" in autoapi_options %}
+Attributes
+----------
+
+                  {% if "attribute" in own_page_types %}
+.. toctree::
+   :hidden:
+
+                     {% for attribute in visible_attributes %}
+   {{ attribute.include_path }}
+                     {% endfor %}
+
+                  {% endif %}
+.. autoapisummary::
+
+                  {% for attribute in visible_attributes %}
+   {{ attribute.id }}
+                  {% endfor %}
+               {% endif %}
+
+
+            {% endif %}
+            {% set visible_exceptions = visible_children|selectattr("type", "equalto", "exception")|list %}
+            {% if visible_exceptions %}
+               {% if "exception" in own_page_types or "show-module-summary" in autoapi_options %}
+Exceptions
+----------
+
+                  {% if "exception" in own_page_types %}
+.. toctree::
+   :hidden:
+
+                     {% for exception in visible_exceptions %}
+   {{ exception.include_path }}
+                     {% endfor %}
+
+                  {% endif %}
+.. autoapisummary::
+
+                  {% for exception in visible_exceptions %}
+   {{ exception.id }}
+                  {% endfor %}
+               {% endif %}
+
+
+            {% endif %}
+            {% set visible_classes = visible_children|selectattr("type", "equalto", "class")|list %}
+            {% if visible_classes %}
+               {% if "class" in own_page_types or "show-module-summary" in autoapi_options %}
 Classes
 -------
 
-{% for c in classes if c.display %}
-.. py:class:: {{ c.name }}({{ c.args }})
-{% if c.bases %}
-   {% set bases = c.bases | map(attribute='name') | list %}
-   {% if bases %}
+                  {% if "class" in own_page_types %}
+.. toctree::
+   :hidden:
 
-   **Bases:** {{ bases | join(', ') }}
-   {% endif %}
-{% endif %}
-{% if c.docstring %}
+                     {% for klass in visible_classes %}
+   {{ klass.include_path }}
+                     {% endfor %}
 
-   {{ c.docstring | indent(3) }}
-{% endif %}
+                  {% endif %}
+.. autoapisummary::
 
-   {% set attributes = c.children | selectattr('type', 'equalto', 'data') | list %}
-   {% set properties = c.children | selectattr('type', 'equalto', 'property') | list %}
-   {% set methods = c.children | selectattr('type', 'equalto', 'method') | list %}
-{% if attributes %}
+                  {% for klass in visible_classes %}
+   {{ klass.id }}
+                  {% endfor %}
+               {% endif %}
 
-   **Attributes:**
-{% for attr in attributes if attr.display %}
 
-   .. py:attribute:: {{ attr.name }}
-      :no-index:
-{% if attr.docstring %}
-
-      {{ attr.docstring | indent(6) }}
-{% endif %}
-{% endfor %}
-{% endif %}
-{% if properties %}
-
-   **Properties:**
-{% for prop in properties if prop.display %}
-
-   .. py:property:: {{ prop.name }}
-{% if prop.docstring %}
-
-      {{ prop.docstring | indent(6) }}
-{% endif %}
-{% endfor %}
-{% endif %}
-{% if methods %}
-
-   **Methods:**
-{% for method in methods if method.display %}
-
-   .. py:method:: {{ method.name }}({{ method.args }})
-{% if method.docstring %}
-
-      {{ method.docstring | indent(6) }}
-{% endif %}
-{% endfor %}
-{% endif %}
-
-{% endfor %}
-{% endif %}
-
-{% if functions %}
+            {% endif %}
+            {% set visible_functions = visible_children|selectattr("type", "equalto", "function")|list %}
+            {% if visible_functions %}
+               {% if "function" in own_page_types or "show-module-summary" in autoapi_options %}
 Functions
 ---------
 
-{% for f in functions if f.display %}
-.. py:function:: {{ f.name }}({{ f.args }})
+                  {% if "function" in own_page_types %}
+.. toctree::
+   :hidden:
 
-   {% if f.docstring %}{{ f.docstring | indent(3) }}{% endif %}
+                     {% for function in visible_functions %}
+   {{ function.include_path }}
+                     {% endfor %}
 
-{% endfor %}
-{% endif %}
+                  {% endif %}
+.. autoapisummary::
 
-{% if data %}
-Module Attributes
------------------
+                  {% for function in visible_functions %}
+   {{ function.id }}
+                  {% endfor %}
+               {% endif %}
 
-{% for d in data if d.display %}
-.. py:data:: {{ d.name }}
-   :no-index:
 
-   {% if d.docstring %}{{ d.docstring | indent(3) }}{% endif %}
+            {% endif %}
+            {% set this_page_children = visible_children|rejectattr("type", "in", own_page_types)|list %}
+            {% if this_page_children %}
+{{ obj.type|title }} Contents
+{{ "-" * obj.type|length }}---------
 
-{% endfor %}
+               {% for obj_item in this_page_children %}
+{{ obj_item.render()|indent(0) }}
+               {% endfor %}
+            {% endif %}
+         {% endif %}
+      {% endblock %}
+   {% else %}
+.. py:module:: {{ obj.name }}
+
+      {% if obj.docstring %}
+   .. autoapi-nested-parse::
+
+      {{ obj.docstring|indent(6) }}
+
+      {% endif %}
+      {% for obj_item in visible_children %}
+   {{ obj_item.render()|indent(3) }}
+      {% endfor %}
+   {% endif %}
 {% endif %}

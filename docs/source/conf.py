@@ -146,7 +146,7 @@ napoleon_include_special_with_doc = True
 napoleon_use_admonition_for_examples = False
 napoleon_use_admonition_for_notes = False
 napoleon_use_admonition_for_references = False
-napoleon_use_ivar = False
+napoleon_use_ivar = True  # Use :ivar: instead of .. attribute:: to avoid duplicate warnings
 napoleon_use_param = True
 napoleon_use_rtype = True
 napoleon_preprocess_types = False
@@ -233,7 +233,7 @@ autoapi_keep_files = True  # Keep generated .rst files for debugging
 autoapi_generate_api_docs = True
 autoapi_template_dir = '_templates/autoapi'
 autoapi_ignore = [
-    '**/fabric_files/**',  # Exclude fabric_files directory and all contents
+    '**/fabric_files/**',  # Exclude fabric_files directory (template files, not code)
 ]
 autoapi_add_toctree_entry = True  # Auto-insert AutoAPI index into our main toctree to reduce toc.not_included
 
@@ -261,7 +261,7 @@ autoapi_options = [
 # Custom AutoAPI configuration
 autoapi_python_class_content = 'both'  # Include both class and __init__ docs (scikit-learn style)
 autoapi_member_order = 'alphabetical'
-autoapi_own_page_level = 'module'  # Each module gets its own page
+autoapi_own_page_level = 'module'  # Each module gets its own page (avoid nested class toctree issues)
 
 # Additional configuration for better navigation integration
 # remove_from_toctrees = ["generated_doc/FABulous/*/index.rst"]  # Disabled to ensure content accessibility
@@ -286,10 +286,9 @@ suppress_warnings = [
     'docutils',
     'ref.doc',
 ]
-
-# Note: ~60 duplicate warnings are expected from AutoAPI's handling of dataclass attributes
-# These are cosmetic only - AutoAPI generates both class docstring attributes AND separate
-# attribute entries for dataclasses. The documentation content is complete and correct.
+# Note: ~10 "duplicate object description" warnings are expected from AutoAPI's handling
+# of dataclass attributes (like hide_name, bits, etc. that appear in multiple classes).
+# These are cosmetic only - the documentation content is complete and correct.
 
 
 # Exclude patterns to prevent conflicts
