@@ -119,6 +119,106 @@ class Cmd2TyperPlugin(Cmd):
                         specs[param.name] = item
         return specs
 
+    def _is_command_group(self, func: Callable[..., Any]) -> bool:
+        """Check if a do_* method returns a Typer instance (command group).
+
+        A command group is detected when:
+        1. The function has no parameters besides self
+        2. The return annotation is typer.Typer
+        """
+        sig = inspect.signature(func)
+
+        # Must have no parameters besides self
+        params = [p for p in sig.parameters.values() if p.name != "self"]
+        if params:
+            return False
+
+        # Check return annotation for typer.Typer
+        return_annotation = sig.return_annotation
+        if return_annotation is typer.Typer:
+            return True
+
+        # Handle Optional[typer.Typer] and similar union types
+        origin = getattr(return_annotation, "__origin__", None)
+        if origin is not None:
+            args = getattr(return_annotation, "__args__", ())
+            if typer.Typer in args:
+                return True
+
+        return False
+
+    def _register_command_group(
+        self,
+        group_name: str,
+        func: Callable[..., typer.Typer],
+    ) -> None:
+        """Register a command group and its subcommands.
+
+        This method calls the do_* method to get the Typer instance, then adds it to the
+        main app using add_typer().
+        """
+        # Get the Typer instance by calling the method
+        bound_method = func.__get__(self)
+        typer_app = bound_method()
+
+        if not isinstance(typer_app, typer.Typer):
+            logger.warning(
+                f"{func.__name__} detected as command group but didn't return Typer"
+            )
+            return
+
+        # Add to main app as subcommand group
+        self.__inner_app.add_typer(typer_app, name=group_name)
+
+        # Register completers for the group
+        self._register_group_completer(group_name, typer_app)
+
+        logger.debug(f"Registered command group: {group_name}")
+
+    def _register_group_completer(
+        self,
+        group_name: str,
+        typer_app: typer.Typer,
+    ) -> None:
+        """Register tab completion for command group and its subcommands.
+
+        The completer handles:
+        - "group <TAB>" → show subcommands
+        - Future enhancement: parameter completion for subcommands
+        """
+        click_group = typer.main.get_command(typer_app)
+
+        if not isinstance(click_group, click.Group):
+            return
+
+        def _group_completer(
+            text: str,
+            line: str,
+            begidx: int = 0,  # noqa: ARG001
+            endidx: int = -1,  # noqa: ARG001
+        ) -> list[str]:
+            """Complete group commands and their arguments."""
+            parts = line.split()
+
+            # Complete subcommand names
+            # "gui " → complete with all subcommands (parts=['gui'])
+            # "gui f" → complete with subcommands starting with 'f' (parts=['gui', 'f'])
+            if len(parts) <= 1:
+                # Just the command, show all subcommands
+                return list(click_group.commands.keys())
+            if len(parts) == 2 and not line.endswith(" "):
+                # Typing a subcommand name, filter by what's typed
+                subcommands = list(click_group.commands.keys())
+                return [sc for sc in subcommands if sc.startswith(text)]
+
+            # For subcommand arguments, could be enhanced later
+            # For now, return empty list (no completion)
+            return []
+
+        # Register the completer
+        setattr(self, f"complete_{group_name}", _group_completer)
+        logger.debug(f"Registered group completer for: {group_name}")
+
     def cmd_register(self) -> None:
         """Register all cmd2 do_* methods as Typer commands."""
         skip = set(self.standard_cmd2_commands)
@@ -136,6 +236,13 @@ class Cmd2TyperPlugin(Cmd):
                 continue
 
             cmd_name = attr[3:]
+
+            # Check if this is a command group (returns typer.Typer)
+            if self._is_command_group(func):
+                self._register_command_group(cmd_name, func)
+                continue  # Skip regular command registration
+
+            # Regular command registration
             bound_cb = cast("Callable[..., Any]", func.__get__(self))
             completer_specs = self._extract_completion_specs(func)
             self.__inner_app.command(name=cmd_name)(bound_cb)
@@ -257,10 +364,26 @@ class Cmd2TyperPlugin(Cmd):
         # Check if this is a Typer command
         cmds = typer.main.get_command(self.__inner_app)
         if isinstance(cmds, click.Group) and command_name in cmds.commands:
-            # Show Typer's help for this command
+            cmd_or_group = cmds.commands[command_name]
+
+            # Check if this is a command group and user wants help for a subcommand
+            # e.g., "help gui openroad"
+            if len(arg_list) >= 2 and isinstance(cmd_or_group, click.Group):
+                subcommand_name = arg_list[1]
+                if subcommand_name in cmd_or_group.commands:
+                    # Show help for the specific subcommand
+                    with contextlib.suppress(SystemExit):
+                        cmd_or_group.commands[subcommand_name].main(
+                            args=["--help"],
+                            prog_name=f"{command_name} {subcommand_name}",
+                            standalone_mode=False,
+                        )
+                    return None
+
+            # Show Typer's help for this command or group
             with contextlib.suppress(SystemExit):
                 # Typer/Click tries to exit after showing help, catch it
-                cmds.commands[command_name].main(
+                cmd_or_group.main(
                     args=["--help"],
                     prog_name=command_name,
                     standalone_mode=False,

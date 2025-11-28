@@ -314,7 +314,7 @@ class TestGetFilePath:
 
         args = argparse.Namespace(last_run=True, fabric=True, tile=None)
 
-        with pytest.raises(FileNotFoundError, match="No .odb files found"):
+        with pytest.raises(FileNotFoundError, match="cannot find relevant file"):
             mock_cli._get_file_path(args, "odb")
 
     def test_get_latest_from_project_root(
