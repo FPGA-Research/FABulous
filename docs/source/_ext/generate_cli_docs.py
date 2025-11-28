@@ -168,7 +168,7 @@ def extract_cli_commands_ast(cli_file: Path) -> dict:
                 ):
                     category_map[target.id] = node.value.value
 
-    # Find parser definitions
+    # Find parser definitions (legacy argparse)
     parsers = {}
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
@@ -209,9 +209,9 @@ def extract_cli_commands_ast(cli_file: Path) -> dict:
                             ):
                                 parser_name = decorator.args[0].id
 
-                    # Get arguments from parser
-                    arguments = []
-                    if parser_name and parser_name in parsers:
+                    # Try Typer annotations first, then fall back to parser
+                    arguments = extract_typer_arguments(item)
+                    if not arguments and parser_name and parser_name in parsers:
                         arguments = parsers[parser_name]
 
                     if category not in commands_by_category:
@@ -252,6 +252,72 @@ def extract_cli_commands_ast(cli_file: Path) -> dict:
             sorted_categories[cat] = commands_by_category[cat]
 
     return sorted_categories
+
+
+def extract_typer_arguments(func_node: ast.FunctionDef) -> list:
+    """Extract argument information from Typer function annotations.
+
+    Parameters
+    ----------
+    func_node : ast.FunctionDef
+        The function AST node to extract arguments from.
+
+    Returns
+    -------
+    list
+        List of argument dictionaries with name, type, help, required, etc.
+    """
+    arguments = []
+
+    for arg in func_node.args.args:
+        # Skip 'self' parameter
+        if arg.arg == "self":
+            continue
+
+        arg_info = {
+            "name": arg.arg,
+            "type": "Any",
+            "help": "",
+            "required": True,
+            "choices": "",
+            "default": "",
+        }
+
+        # Extract type and metadata from annotation
+        if arg.annotation:
+            # Handle Annotated[type, metadata...]
+            if isinstance(arg.annotation, ast.Subscript):
+                # Get the base type
+                if isinstance(arg.annotation.slice, ast.Tuple):
+                    elts = arg.annotation.slice.elts
+                    if elts:
+                        arg_info["type"] = ast.unparse(elts[0])
+
+                        # Extract help text from typer.Argument() or typer.Option()
+                        for metadata in elts[1:]:
+                            if isinstance(metadata, ast.Call):
+                                for keyword in metadata.keywords:
+                                    if keyword.arg == "help" and isinstance(
+                                        keyword.value, ast.Constant
+                                    ):
+                                        arg_info["help"] = keyword.value.value
+                else:
+                    arg_info["type"] = ast.unparse(arg.annotation.slice)
+            else:
+                arg_info["type"] = ast.unparse(arg.annotation)
+
+        # Check if parameter has a default value
+        defaults_offset = len(func_node.args.args) - len(func_node.args.defaults)
+        arg_idx = func_node.args.args.index(arg)
+        if arg_idx >= defaults_offset:
+            default_idx = arg_idx - defaults_offset
+            default_node = func_node.args.defaults[default_idx]
+            arg_info["required"] = False
+            arg_info["default"] = ast.unparse(default_node)
+
+        arguments.append(arg_info)
+
+    return arguments
 
 
 def extract_standalone_commands_ast(cmd_file: Path) -> dict:
@@ -322,9 +388,9 @@ def extract_standalone_commands_ast(cmd_file: Path) -> dict:
                     ):
                         parser_name = decorator.args[0].id
 
-            # Get arguments from parser
-            arguments = []
-            if parser_name and parser_name in parsers:
+            # Get arguments - try Typer annotations first, then fall back to parser
+            arguments = extract_typer_arguments(node)
+            if not arguments and parser_name and parser_name in parsers:
                 arguments = parsers[parser_name]
 
             if category not in commands_by_category:

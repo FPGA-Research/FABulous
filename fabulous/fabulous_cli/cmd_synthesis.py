@@ -9,19 +9,17 @@ final netlist generation, with options for LUT mapping, FSM optimization, carry 
 mapping, and memory inference.
 """
 
-import argparse
 import subprocess as sp
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Annotated, Literal
 
-from cmd2 import Cmd, Cmd2ArgumentParser, with_argparser, with_category
+import typer
+from cmd2 import Cmd, with_category
 from loguru import logger
 
 from fabulous.custom_exception import CommandError
+from fabulous.fabulous_cli.typer_cli_plugin import CompleterSpec
 from fabulous.fabulous_settings import get_context
-
-if TYPE_CHECKING:
-    from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 
 CMD_USER_DESIGN_FLOW = "User Design Flow"
 HELP = """
@@ -115,185 +113,189 @@ The following commands are executed by when executing the synthesis command:
         write_json <file-name>
 """
 
-synthesis_parser = Cmd2ArgumentParser(description=HELP)
-synthesis_parser.add_argument(
-    "files",
-    type=Path,
-    help="Path to the target files.",
-    completer=Cmd.path_complete,
-    nargs="+",
-)
-synthesis_parser.add_argument(
-    "-top",
-    type=str,
-    help="Use the specified module as the top module (default='top_wrapper').",
-    default="top_wrapper",
-)
-synthesis_parser.add_argument(
-    "-auto-top",
-    help="Automatically determine the top of the design hierarchy.",
-    action="store_true",
-)
-synthesis_parser.add_argument(
-    "-blif",
-    type=Path,
-    help="Write the design to the specified BLIF file. "
-    "Writing of an output file is omitted if this parameter is not specified.",
-    completer=Cmd.path_complete,
-)
-synthesis_parser.add_argument(
-    "-edif",
-    type=Path,
-    help="Write the design to the specified EDIF file. "
-    "Writing of an output file is omitted if this parameter is not specified.",
-    completer=Cmd.path_complete,
-)
-synthesis_parser.add_argument(
-    "-json",
-    type=Path,
-    help="Write the design to the specified JSON file. "
-    "If this parameter is not specified it will default to <first_file_stem>.json",
-    completer=Cmd.path_complete,
-)
-synthesis_parser.add_argument(
-    "-lut",
-    type=str,
-    default="4",
-    help="Perform synthesis for a k-LUT architecture (default 4).",
-)
-synthesis_parser.add_argument(
-    "-plib",
-    type=str,
-    help="Use the specified Verilog file as a primitive library.",
-    completer=Cmd.path_complete,
-)
-synthesis_parser.add_argument(
-    "-extra-plib",
-    type=Path,
-    help="Use the specified Verilog file for extra primitives "
-    "(can be specified multiple times).",
-    action="append",
-    completer=Cmd.path_complete,
-)
-synthesis_parser.add_argument(
-    "-extra-map",
-    type=Path,
-    help="Use the specified Verilog file for extra techmap rules "
-    "(can be specified multiple times).",
-    action="append",
-    completer=Cmd.path_complete,
-)
-synthesis_parser.add_argument(
-    "-encfile",
-    type=Path,
-    help="Passed to 'fsm_recode' via 'fsm'.",
-    completer=Cmd.path_complete,
-)
-synthesis_parser.add_argument(
-    "-nofsm",
-    help="Do not run FSM optimization.",
-    action="store_true",
-)
-synthesis_parser.add_argument(
-    "-noalumacc",
-    help="Do not run 'alumacc' pass. I.e., keep arithmetic operators in "
-    "their direct form ($add, $sub, etc.).",
-    action="store_true",
-)
-synthesis_parser.add_argument(
-    "-carry",
-    type=str,
-    required=False,
-    choices=["none", "ha"],
-    default="none",
-    help="Carry mapping style (none, half-adders, ...) default=none.",
-)
-synthesis_parser.add_argument(
-    "-noregfile",
-    help="Do not map register files.",
-    action="store_true",
-)
-synthesis_parser.add_argument(
-    "-iopad",
-    help="Enable automatic insertion of IO buffers (otherwise a wrapper with "
-    "manually inserted and constrained IO should be used.)",
-    action="store_true",
-)
-synthesis_parser.add_argument(
-    "-complex-dff",
-    help="Enable support for FFs with enable and synchronous SR "
-    "(must also be supported by the target fabric).",
-    action="store_true",
-)
-synthesis_parser.add_argument(
-    "-noflatten",
-    help="Do not flatten the design after elaboration.",
-    action="store_true",
-)
-synthesis_parser.add_argument(
-    "-nordff",
-    help="Passed to 'memory'. Prohibits merging of FFs into memory read ports.",
-    action="store_true",
-)
-synthesis_parser.add_argument(
-    "-noshare",
-    help="Do not run SAT-based resource sharing",
-    action="store_true",
-)
-synthesis_parser.add_argument(
-    "-run",
-    type=str,
-    help="Only run the commands between the labels (see above). An empty from label is "
-    "synonymous to 'begin',"
-    " and empty to label is synonymous to the end of the command list.",
-)
-synthesis_parser.add_argument(
-    "-no-rw-check",
-    help="Marks all recognized read ports as 'return don't-care value on read/write"
-    "collision' (same result as setting 'no_rw_check' attribute on all memories).",
-    action="store_true",
-)
-
 
 @with_category(CMD_USER_DESIGN_FLOW)
-@with_argparser(synthesis_parser)
-def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
+def do_synthesis(
+    self: Cmd,
+    files: Annotated[
+        list[Path],
+        typer.Argument(help="Path to the target files."),
+        CompleterSpec(Cmd.path_complete),
+    ],
+    top: Annotated[
+        str,
+        typer.Option(
+            "--top",
+            "-top",
+            help="Use the specified module as the top module (default='top_wrapper').",
+        ),
+    ] = "top_wrapper",
+    _auto_top: Annotated[
+        bool,
+        typer.Option(
+            "--auto-top",
+            "-auto-top",
+            help="Automatically determine the top of the design hierarchy.",
+        ),
+    ] = False,
+    blif: Annotated[
+        Path | None,
+        typer.Option(
+            "--blif", "-blif", help="Write the design to the specified BLIF file."
+        ),
+    ] = None,
+    edif: Annotated[
+        Path | None,
+        typer.Option(
+            "--edif", "-edif", help="Write the design to the specified EDIF file."
+        ),
+    ] = None,
+    json: Annotated[
+        Path | None,
+        typer.Option(
+            "--json",
+            "-json",
+            help=(
+                "Write the design to the specified JSON file. "
+                "If not specified, defaults to <first_file_stem>.json"
+            ),
+        ),
+    ] = None,
+    lut: Annotated[
+        str,
+        typer.Option(
+            "--lut",
+            "-lut",
+            help="Perform synthesis for a k-LUT architecture (default 4).",
+        ),
+    ] = "4",
+    plib: Annotated[
+        str | None,
+        typer.Option(
+            "--plib",
+            "-plib",
+            help="Use the specified Verilog file as a primitive library.",
+        ),
+    ] = None,
+    extra_plib: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--extra-plib",
+            "-extra-plib",
+            help=(
+                "Use the specified Verilog file for extra primitives "
+                "(can be specified multiple times)."
+            ),
+        ),
+    ] = None,
+    extra_map: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--extra-map",
+            "-extra-map",
+            help=(
+                "Use the specified Verilog file for extra techmap rules "
+                "(can be specified multiple times)."
+            ),
+        ),
+    ] = None,
+    encfile: Annotated[
+        Path | None,
+        typer.Option("--encfile", "-encfile", help="Passed to 'fsm_recode' via 'fsm'."),
+    ] = None,
+    nofsm: Annotated[
+        bool,
+        typer.Option("--nofsm", "-nofsm", help="Do not run FSM optimization."),
+    ] = False,
+    noalumacc: Annotated[
+        bool,
+        typer.Option(
+            "--noalumacc",
+            "-noalumacc",
+            help=(
+                "Do not run 'alumacc' pass. I.e., keep arithmetic operators "
+                "in their direct form ($add, $sub, etc.)."
+            ),
+        ),
+    ] = False,
+    carry: Annotated[
+        Literal["none", "ha"],
+        typer.Option(
+            "--carry",
+            "-carry",
+            help="Carry mapping style (none, half-adders, ...) default=none.",
+        ),
+    ] = "none",
+    noregfile: Annotated[
+        bool,
+        typer.Option("--noregfile", "-noregfile", help="Do not map register files."),
+    ] = False,
+    iopad: Annotated[
+        bool,
+        typer.Option(
+            "--iopad", "-iopad", help="Enable automatic insertion of IO buffers."
+        ),
+    ] = False,
+    complex_dff: Annotated[
+        bool,
+        typer.Option(
+            "--complex-dff",
+            "-complex-dff",
+            help="Enable support for FFs with enable and synchronous SR.",
+        ),
+    ] = False,
+    noflatten: Annotated[
+        bool,
+        typer.Option(
+            "--noflatten",
+            "-noflatten",
+            help="Do not flatten the design after elaboration.",
+        ),
+    ] = False,
+    _nordff: Annotated[
+        bool,
+        typer.Option(
+            "--nordff",
+            "-nordff",
+            help="Passed to 'memory'. Prohibits merging of FFs into memory read ports.",
+        ),
+    ] = False,
+    noshare: Annotated[
+        bool,
+        typer.Option(
+            "--noshare", "-noshare", help="Do not run SAT-based resource sharing"
+        ),
+    ] = False,
+    run: Annotated[
+        str | None,
+        typer.Option("--run", "-run", help="Only run the commands between the labels."),
+    ] = None,
+    no_rw_check: Annotated[
+        bool,
+        typer.Option(
+            "--no-rw-check",
+            "-no-rw-check",
+            help=(
+                "Marks all recognized read ports as "
+                "'return don't-care value on read/write collision'."
+            ),
+        ),
+    ] = False,
+) -> None:
     """Run Yosys synthesis for the specified Verilog files.
 
-    Performs FPGA synthesis using Yosys with the nextpnr JSON backend
-    to synthesize Verilog designs and generate nextpnr-compatible JSON files for
-    place and route. It supports various synthesis options including LUT architecture,
-    FSM optimization, carry mapping, and different output formats.
-
-    Parameters
-    ----------
-    self : FABulous_CLI
-        The CLI instance containing project and fabric information.
-    args : argparse.Namespace
-        Command arguments containing:
-        - files: List of Verilog files to synthesize
-        - top: Top module name (default: 'top_wrapper')
-        - auto_top: Whether to automatically determine top module
-        - json: Output JSON file path
-        - blif: Output BLIF file path (optional)
-        - edif: Output EDIF file path (optional)
-        - lut: LUT architecture size (default: 4)
-        - And various other synthesis options
-
-    Notes
-    -----
-    The synthesis process includes multiple stages: hierarchy checking,
-    flattening, coarse synthesis, RAM mapping, gate mapping, FF mapping,
-    LUT mapping, and final netlist generation. See the module docstring
-    for detailed synthesis flow information.
+    Performs FPGA synthesis using Yosys with the nextpnr JSON backend to synthesize
+    Verilog designs and generate nextpnr-compatible JSON files for place and route. It
+    supports various synthesis options including LUT architecture, FSM optimization,
+    carry mapping, and different output formats.
     """
     logger.info(
-        f"Running synthesis targeting Nextpnr with design{[str(i) for i in args.files]}"
+        f"Running synthesis targeting Nextpnr with design{[str(i) for i in files]}"
     )
 
     p: Path
     paths: list[Path] = []
-    for p in args.files:
+    for p in files:
         if not p.is_absolute():
             p = self.projectDir / p
         resolvePath: Path = p.absolute()
@@ -308,29 +310,25 @@ def do_synthesis(self: "FABulous_CLI", args: argparse.Namespace) -> None:
 
     cmd = [
         "synth_fabulous",
-        f"-top {args.top}",
-        f"-blif {args.blif}" if args.blif else "",
-        f"-edif {args.edif}" if args.edif else "",
-        f"-json {args.json}" if args.json else f"-json {json_file}",
-        f"-lut {args.lut}" if args.lut else "",
-        f"-plib {args.plib}" if args.plib else "",
-        (
-            " ".join([f"-extra-plib {i}" for i in args.extra_plib])
-            if args.extra_plib
-            else ""
-        ),
-        " ".join([f"-extra-map {i}" for i in args.extra_map]) if args.extra_map else "",
-        f"-encfile {args.encfile}" if args.encfile else "",
-        "-nofsm" if args.nofsm else "",
-        "-noalumacc" if args.noalumacc else "",
-        f"-carry {args.carry}" if args.carry else "",
-        "-noregfile" if args.noregfile else "",
-        "-iopad" if args.iopad else "",
-        "-complex-dff" if args.complex_dff else "",
-        "-noflatten" if args.noflatten else "",
-        "-noshare" if args.noshare else "",
-        f"-run {args.run}" if args.run else "",
-        "-no-rw-check" if args.no_rw_check else "",
+        f"-top {top}",
+        f"-blif {blif}" if blif else "",
+        f"-edif {edif}" if edif else "",
+        f"-json {json}" if json else f"-json {json_file}",
+        f"-lut {lut}" if lut else "",
+        f"-plib {plib}" if plib else "",
+        (" ".join([f"-extra-plib {i}" for i in extra_plib]) if extra_plib else ""),
+        " ".join([f"-extra-map {i}" for i in extra_map]) if extra_map else "",
+        f"-encfile {encfile}" if encfile else "",
+        "-nofsm" if nofsm else "",
+        "-noalumacc" if noalumacc else "",
+        f"-carry {carry}" if carry else "",
+        "-noregfile" if noregfile else "",
+        "-iopad" if iopad else "",
+        "-complex-dff" if complex_dff else "",
+        "-noflatten" if noflatten else "",
+        "-noshare" if noshare else "",
+        f"-run {run}" if run else "",
+        "-no-rw-check" if no_rw_check else "",
     ]
 
     cmd = " ".join([i for i in cmd if i != ""])

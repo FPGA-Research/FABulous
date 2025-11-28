@@ -31,16 +31,16 @@ import sys
 import tempfile
 import tkinter as tk
 import traceback
+from collections.abc import Callable
 from pathlib import Path
-from typing import cast
+from typing import Annotated, Literal, cast
 
+import typer
 from cmd2 import (
     Cmd,
-    Cmd2ArgumentParser,
     Settable,
     Statement,
     categorize,
-    with_argparser,
     with_category,
 )
 from FABulous_bit_gen import genBitstream
@@ -63,14 +63,13 @@ from fabulous.fabulous_api import FABulous_API
 from fabulous.fabulous_cli import cmd_synthesis
 from fabulous.fabulous_cli.helper import (
     CommandPipeline,
-    allow_blank,
     copy_verilog_files,
     install_fabulator,
     install_oss_cad_suite,
     make_hex,
     remove_dir,
-    wrap_with_except_handling,
 )
+from fabulous.fabulous_cli.typer_cli_plugin import Cmd2TyperPlugin, CompleterSpec
 from fabulous.fabulous_settings import get_context
 
 META_DATA_DIR = ".FABulous"
@@ -118,7 +117,7 @@ To run the complete FABulous flow with the default project, run the following co
 """
 
 
-class FABulous_CLI(Cmd):
+class FABulous_CLI(Cmd2TyperPlugin):
     """FABulous command-line interface for FPGA fabric generation and management.
 
     This class provides an interactive and non-interactive command-line interface
@@ -169,6 +168,9 @@ class FABulous_CLI(Cmd):
     and command history. It supports both interactive mode and batch script execution.
     """
 
+    # All commands have been migrated to Typer
+    typer_skip_commands: set[str] = set()
+
     intro: str = INTO_STRING
     prompt: str = "FABulous> "
     fabulousAPI: FABulous_API
@@ -181,6 +183,7 @@ class FABulous_CLI(Cmd):
     force: bool = False
     interactive: bool = True
     max_job: int = 4
+    fabricLoaded: bool = False
 
     def __init__(
         self,
@@ -191,6 +194,23 @@ class FABulous_CLI(Cmd):
         debug: bool = False,
         max_job: int = 8,
     ) -> None:
+        """Initialize the FABulous CLI instance.
+
+        Parameters
+        ----------
+        writerType : str | None
+            Type of writer to use for output generation.
+        force : bool
+            Force execution without confirmation prompts.
+        interactive : bool
+            Enable interactive mode for user input.
+        verbose : bool
+            Enable verbose logging output.
+        debug : bool
+            Enable debug mode for detailed logging.
+        max_job : int
+            Maximum number of parallel jobs (-1 for CPU count).
+        """
         super().__init__(
             persistent_history_file=f"{get_context().proj_dir}/{META_DATA_DIR}/.fabulous_history",
             allow_cli_args=False,
@@ -268,7 +288,52 @@ class FABulous_CLI(Cmd):
             f = getattr(self, fun)
             if fun.startswith("do_") and callable(f):
                 name = fun.strip("do_")
-                self.tcl.createcommand(name, wrap_with_except_handling(f))
+
+                # Create a wrapper that calls through onecmd
+                def create_tcl_wrapper(cmd_name: str) -> Callable[..., None]:
+                    """Create a TCL command wrapper for the given command name.
+
+                    Parameters
+                    ----------
+                    cmd_name : str
+                        Name of the command to wrap.
+
+                    Returns
+                    -------
+                    Callable[..., None]
+                        Wrapper function that routes TCL calls to cmd2's onecmd.
+                    """
+
+                    def tcl_wrapper(*args: object, **_kwargs: object) -> None:
+                        """Execute the command through cmd2's onecmd interface.
+
+                        Parameters
+                        ----------
+                        *args : object
+                            Positional arguments passed to the command.
+                        **_kwargs : object
+                            Keyword arguments (unused but required by TCL).
+                        """
+                        try:
+                            # Build the command string with arguments
+                            if args:
+                                cmd_str = f"{cmd_name} {' '.join(str(a) for a in args)}"
+                            else:
+                                cmd_str = cmd_name
+                            # Call through onecmd to use Typer's argument parsing
+                            self.onecmd(cmd_str)
+                        except Exception:  # noqa: BLE001 - Catching all exceptions is ok here
+                            import traceback
+
+                            traceback.print_exc()
+                            logger.error(
+                                "TCL command failed. Please check the logs for details."
+                            )
+                            raise
+
+                    return tcl_wrapper
+
+                self.tcl.createcommand(name, create_tcl_wrapper(name))
 
         self.disable_category(
             CMD_FABRIC_FLOW, "Fabric Flow commands are disabled until fabric is loaded"
@@ -298,6 +363,15 @@ class FABulous_CLI(Cmd):
                 return None
             return not self.force
 
+    # Completer methods for tab completion
+    def complete_tile_names(
+        self, _text: str, _line: str, _begidx: int, _endidx: int
+    ) -> list[str]:
+        """Complete tile names from the loaded fabric."""
+        if not self.fabricLoaded:
+            return []
+        return [tile.name for tile in self.fabulousAPI.getTiles()]
+
     def do_exit(self, *_ignored: str) -> bool:
         """Exit the FABulous shell and log info message."""
         logger.info("Exiting FABulous shell")
@@ -311,112 +385,62 @@ class FABulous_CLI(Cmd):
         """Exit the FABulous shell and log info message."""
         self.onecmd_plus_hooks("exit")
 
-    # Import do_synthesis from cmd_synthesis
-    def do_synthesis(self, args: argparse.Namespace) -> None:
-        """Run synthesis on the specified design."""
-        cmd_synthesis.do_synthesis(self, args)
+    # Create a proper method reference that preserves docstring and attributes
+    def do_synthesis(self, *args: object, **kwargs: object) -> None:
+        """Run Yosys synthesis for the specified Verilog files.
 
-    filePathOptionalParser = Cmd2ArgumentParser()
-    filePathOptionalParser.add_argument(
-        "file",
-        type=Path,
-        help="Path to the target file",
-        default="",
-        nargs=argparse.OPTIONAL,
-        completer=Cmd.path_complete,
-    )
+        Performs FPGA synthesis using Yosys with the nextpnr JSON backend to synthesize
+        Verilog designs and generate nextpnr-compatible JSON files for place-and-route
+        with nextpnr.
+        """
+        return cmd_synthesis.do_synthesis(self, *args, **kwargs)
 
-    filePathRequireParser = Cmd2ArgumentParser()
-    filePathRequireParser.add_argument(
-        "file", type=Path, help="Path to the target file", completer=Cmd.path_complete
-    )
-
-    userDesignRequireParser = Cmd2ArgumentParser()
-    userDesignRequireParser.add_argument(
-        "user_design",
-        type=Path,
-        help="Path to user design file",
-        completer=Cmd.path_complete,
-    )
-    userDesignRequireParser.add_argument(
-        "user_design_top_wrapper",
-        type=Path,
-        help="Output path for user design top wrapper",
-        completer=Cmd.path_complete,
-    )
-
-    tile_list_parser = Cmd2ArgumentParser()
-    tile_list_parser.add_argument(
-        "tiles",
-        type=str,
-        help="A list of tile",
-        nargs="+",
-        completer=lambda self: self.fab.getTiles(),
-    )
-
-    tile_single_parser = Cmd2ArgumentParser()
-    tile_single_parser.add_argument(
-        "tile",
-        type=str,
-        help="A tile",
-        completer=lambda self: self.fab.getTiles(),
-    )
-
-    install_oss_cad_suite_parser = Cmd2ArgumentParser()
-    install_oss_cad_suite_parser.add_argument(
-        "destination_folder",
-        type=Path,
-        help="Destination folder for the installation",
-        default="",
-        completer=Cmd.path_complete,
-        nargs=argparse.OPTIONAL,
-    )
-    install_oss_cad_suite_parser.add_argument(
-        "update",
-        type=bool,
-        help="Update/override existing installation, if exists",
-        default=False,
-        nargs=argparse.OPTIONAL,
-    )
+    # Copy over the original function's annotations and category decorator
+    do_synthesis.__annotations__ = cmd_synthesis.do_synthesis.__annotations__
+    do_synthesis.__wrapped__ = cmd_synthesis.do_synthesis
 
     @with_category(CMD_SETUP)
-    @allow_blank
-    @with_argparser(install_oss_cad_suite_parser)
-    def do_install_oss_cad_suite(self, args: argparse.Namespace) -> None:
+    def do_install_oss_cad_suite(
+        self,
+        destination_folder: Annotated[
+            Path | None,
+            typer.Argument(help="Destination folder for the installation"),
+            CompleterSpec(Cmd.path_complete),
+        ] = None,
+        update: Annotated[
+            bool,
+            typer.Option(help="Update/override existing installation, if exists"),
+        ] = False,
+    ) -> None:
         """Download and extract the latest OSS CAD suite.
 
         The installation will set the `FAB_OSS_CAD_SUITE` environment variable
         in the `.env` file.
         """
-        if args.destination_folder == "":
-            dest_dir = get_context().root
+        if destination_folder is None:
+            dest_dir = get_context().user_config_dir
         else:
-            dest_dir = args.destination_folder
+            dest_dir = destination_folder
 
-        install_oss_cad_suite(dest_dir, args.update_existing)
-
-    install_FABulator_parser = Cmd2ArgumentParser()
-    install_FABulator_parser.add_argument(
-        "destination_folder",
-        type=Path,
-        help="Destination folder for the installation",
-        default="",
-        completer=Cmd.path_complete,
-        nargs=argparse.OPTIONAL,
-    )
+        install_oss_cad_suite(dest_dir, update)
 
     @with_category(CMD_SETUP)
-    @allow_blank
-    @with_argparser(install_oss_cad_suite_parser)
-    def do_install_FABulator(self, args: argparse.Namespace) -> None:
+    def do_install_FABulator(
+        self,
+        destination_folder: Annotated[
+            Path | None,
+            typer.Argument(help="Destination folder for the installation"),
+            CompleterSpec(Cmd.path_complete),
+        ] = None,
+    ) -> None:
         """Download and install the latest version of FABulator.
 
         Sets the the FABULATOR_ROOT environment variable in the .env file.
         """
-        if args.destination_folder == "":
+        if destination_folder is None:
             dest_dir = get_context().root
         else:
-            dest_dir = args.destination_folder
+            dest_dir = destination_folder
 
         if not install_fabulator(dest_dir):
             raise RuntimeError("FABulator installation failed")
@@ -424,9 +448,14 @@ class FABulous_CLI(Cmd):
         logger.info("FABulator successfully installed")
 
     @with_category(CMD_SETUP)
-    @allow_blank
-    @with_argparser(filePathOptionalParser)
-    def do_load_fabric(self, args: argparse.Namespace) -> None:
+    def do_load_fabric(
+        self,
+        file: Annotated[
+            Path | None,
+            typer.Argument(help="Path to the target file"),
+            CompleterSpec(Cmd.path_complete),
+        ] = None,
+    ) -> None:
         """Load 'fabric.csv' file and generate an internal representation of the fabric.
 
         Parse input arguments and set a few internal variables to assist fabric
@@ -436,7 +465,8 @@ class FABulous_CLI(Cmd):
         # else use the argument
 
         logger.info("Loading fabric")
-        if args.file == Path():
+        # Handle empty string from TCL/cmd2 as None
+        if file is None or (isinstance(file, str | Path) and str(file) == ""):
             if self.csvFile.exists():
                 logger.info(
                     "Found fabric.csv in the project directory loading that file as "
@@ -449,8 +479,9 @@ class FABulous_CLI(Cmd):
                     "but the file does not exist"
                 )
         else:
-            self.fabulousAPI.loadFabric(args.file)
-            self.csvFile = args.file
+            file_path = Path(file) if isinstance(file, str) else file
+            self.fabulousAPI.loadFabric(file_path)
+            self.csvFile = file_path
 
         self.fabricLoaded = True
         tileByPath = [
@@ -469,46 +500,61 @@ class FABulous_CLI(Cmd):
         logger.info("Complete")
 
     @with_category(CMD_HELPER)
-    def do_print_bel(self, args: argparse.Namespace) -> None:
+    def do_print_bel(
+        self,
+        bel_name: Annotated[
+            str,
+            typer.Argument(help="Name of the BEL to print"),
+        ],
+    ) -> None:
         """Print a Bel object to the console."""
-        if len(args) != 1:
-            raise CommandError("Please provide a Bel name")
-
         if not self.fabricLoaded:
             raise CommandError("Need to load fabric first")
 
         bels = self.fabulousAPI.getBels()
         for i in bels:
-            if i.name == args[0]:
+            if i.name == bel_name:
                 logger.info(f"\n{pprint.pformat(i, width=200)}")
                 return
-        raise CommandError(f"Bel {args[0]} not found in fabric")
+        raise CommandError(f"Bel {bel_name} not found in fabric")
 
     @with_category(CMD_HELPER)
-    @with_argparser(tile_single_parser)
-    def do_print_tile(self, args: argparse.Namespace) -> None:
+    def do_print_tile(
+        self,
+        tile_name: Annotated[
+            str,
+            typer.Argument(help="Tile to print"),
+            CompleterSpec(complete_tile_names),
+        ],
+    ) -> None:
         """Print a tile object to the console."""
         if not self.fabricLoaded:
             raise CommandError("Need to load fabric first")
 
-        if (tile := self.fabulousAPI.getTile(args.tile)) or (
-            tile := self.fabulousAPI.getSuperTile(args[0])
+        if (tile := self.fabulousAPI.getTile(tile_name)) or (
+            tile := self.fabulousAPI.getSuperTile(tile_name)
         ):
             logger.info(f"\n{pprint.pformat(tile, width=200)}")
         else:
-            raise CommandError(f"Tile {args.tile} not found in fabric")
+            raise CommandError(f"Tile {tile_name} not found in fabric")
 
     @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(tile_list_parser)
-    def do_gen_config_mem(self, args: argparse.Namespace) -> None:
+    def do_gen_config_mem(
+        self,
+        tiles: Annotated[
+            list[str],
+            typer.Argument(help="A list of tile to generate configuration memory"),
+            CompleterSpec(complete_tile_names),
+        ],
+    ) -> None:
         """Generate configuration memory of the given tile.
 
         Parsing input arguments and calling `genConfigMem`.
 
         Logs generation processes for each specified tile.
         """
-        logger.info(f"Generating Config Memory for {' '.join(args.tiles)}")
-        for i in args.tiles:
+        logger.info(f"Generating Config Memory for {' '.join(tiles)}")
+        for i in tiles:
             logger.info(f"Generating configMem for {i}")
             self.fabulousAPI.setWriterOutputFile(
                 self.projectDir / f"Tile/{i}/{i}_ConfigMem.{self.extension}"
@@ -519,16 +565,22 @@ class FABulous_CLI(Cmd):
         logger.info("ConfigMem generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(tile_list_parser)
-    def do_gen_switch_matrix(self, args: argparse.Namespace) -> None:
+    def do_gen_switch_matrix(
+        self,
+        tiles: Annotated[
+            list[str],
+            typer.Argument(help="A list of tile to generate swtich matrix"),
+            CompleterSpec(complete_tile_names),
+        ],
+    ) -> None:
         """Generate switch matrix of given tile.
 
         Parsing input arguments and calling `genSwitchMatrix`.
 
         Also logs generation process for each specified tile.
         """
-        logger.info(f"Generating switch matrix for {' '.join(args.tiles)}")
-        for i in args.tiles:
+        logger.info(f"Generating switch matrix for {' '.join(tiles)}")
+        for i in tiles:
             logger.info(f"Generating switch matrix for {i}")
             self.fabulousAPI.setWriterOutputFile(
                 self.projectDir / f"Tile/{i}/{i}_switch_matrix.{self.extension}"
@@ -537,8 +589,14 @@ class FABulous_CLI(Cmd):
         logger.info("Switch matrix generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(tile_list_parser)
-    def do_gen_tile(self, args: argparse.Namespace) -> None:
+    def do_gen_tile(
+        self,
+        tiles: Annotated[
+            list[str],
+            typer.Argument(help="A list of tile name to generate tile"),
+            CompleterSpec(complete_tile_names),
+        ],
+    ) -> None:
         """Generate given tile with switch matrix and configuration memory.
 
         Parsing input arguments, call functions such as `genSwitchMatrix` and
@@ -546,8 +604,8 @@ class FABulous_CLI(Cmd):
 
         Also logs generation process for each specified tile and sub-tile.
         """
-        logger.info(f"Generating tile {' '.join(args.tiles)}")
-        for t in args.tiles:
+        logger.info(f"Generating tile {' '.join(tiles)}")
+        for t in tiles:
             if subTiles := [
                 f.stem
                 for f in (self.projectDir / f"Tile/{t}").iterdir()
@@ -597,10 +655,10 @@ class FABulous_CLI(Cmd):
                 continue
 
             # Gen switch matrix
-            self.do_gen_switch_matrix(t)
+            self.do_gen_switch_matrix([t])
 
             # Gen config mem
-            self.do_gen_config_mem(t)
+            self.do_gen_config_mem([t])
 
             logger.info(f"Generating tile {t}")
             # Gen tile
@@ -613,14 +671,14 @@ class FABulous_CLI(Cmd):
         logger.info("Tile generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_all_tile(self, *_ignored: str) -> None:
+    def do_gen_all_tile(self) -> None:
         """Generate all tiles by calling `do_gen_tile`."""
         logger.info("Generating all tiles")
-        self.do_gen_tile(" ".join(self.allTile))
+        self.do_gen_tile(self.allTile)
         logger.info("All tiles generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_fabric(self, *_ignored: str) -> None:
+    def do_gen_fabric(self) -> None:
         """Generate fabric based on the loaded fabric.
 
         Calling `gen_all_tile` and `genFabric`.
@@ -637,21 +695,16 @@ class FABulous_CLI(Cmd):
         self.fabulousAPI.genFabric()
         logger.info("Fabric generation complete")
 
-    geometryParser = Cmd2ArgumentParser()
-    geometryParser.add_argument(
-        "padding",
-        type=int,
-        help="Padding value for geometry generation",
-        choices=range(4, 33),
-        metavar="[4-32]",
-        nargs="?",
-        default=8,
-    )
-
     @with_category(CMD_FABRIC_FLOW)
-    @allow_blank
-    @with_argparser(geometryParser)
-    def do_gen_geometry(self, args: argparse.Namespace) -> None:
+    def do_gen_geometry(
+        self,
+        padding: Annotated[
+            int,
+            typer.Argument(
+                help="Padding value for geometry generation (4-32)", min=4, max=32
+            ),
+        ] = 8,
+    ) -> None:
         """Generate geometry of fabric for FABulator.
 
         Checking if fabric is loaded, and calling 'genGeometry' and passing on padding
@@ -665,12 +718,12 @@ class FABulous_CLI(Cmd):
         geomFile = f"{self.projectDir}/{self.fabulousAPI.fabric.name}_geometry.csv"
         self.fabulousAPI.setWriterOutputFile(geomFile)
 
-        self.fabulousAPI.genGeometry(args.padding)
+        self.fabulousAPI.genGeometry(padding)
         logger.info("Geometry generation complete")
         logger.info(f"{geomFile} can now be imported into FABulator")
 
     @with_category(CMD_GUI)
-    def do_start_FABulator(self, *_ignored: str) -> None:
+    def do_start_FABulator(self) -> None:
         """Start FABulator if an installation can be found.
 
         If no installation can be found, a warning is produced.
@@ -717,7 +770,7 @@ class FABulous_CLI(Cmd):
             ) from e
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_bitStream_spec(self, *_ignored: str) -> None:
+    def do_gen_bitStream_spec(self) -> None:
         """Generate bitstream specification of the fabric.
 
         By calling `genBitStreamSpec` and saving the specification to a binary and CSV
@@ -746,7 +799,7 @@ class FABulous_CLI(Cmd):
         logger.info("Bitstream specification generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_top_wrapper(self, *_ignored: str) -> None:
+    def do_gen_top_wrapper(self) -> None:
         """Generate top wrapper of the fabric by calling `genTopWrapper`."""
         logger.info("Generating top wrapper")
         self.fabulousAPI.setWriterOutputFile(
@@ -756,7 +809,7 @@ class FABulous_CLI(Cmd):
         logger.info("Top wrapper generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_run_FABulous_fabric(self, *_ignored: str) -> None:
+    def do_run_FABulous_fabric(self) -> None:
         """Generate the fabric based on the CSV file.
 
         Create bitstream specification of the fabric, top wrapper of the fabric, Nextpnr
@@ -779,7 +832,7 @@ class FABulous_CLI(Cmd):
             logger.info("FABulous fabric flow complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_model_npnr(self, *_ignored: str) -> None:
+    def do_gen_model_npnr(self) -> None:
         """Generate Nextpnr model of fabric.
 
         By parsing various required files for place and route such as `pips.txt`,
@@ -809,8 +862,14 @@ class FABulous_CLI(Cmd):
         logger.info("Generated npnr model")
 
     @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(filePathRequireParser)
-    def do_place_and_route(self, args: argparse.Namespace) -> None:
+    def do_place_and_route(
+        self,
+        file: Annotated[
+            Path,
+            typer.Argument(help="Path to the target file"),
+            CompleterSpec(Cmd.path_complete),
+        ],
+    ) -> None:
         """Run place and route with Nextpnr for a given JSON file.
 
         Generated by Yosys, which requires a Nextpnr model and JSON file first,
@@ -818,10 +877,8 @@ class FABulous_CLI(Cmd):
 
         Also logs place and route error, file not found error and type error.
         """
-        logger.info(
-            f"Running Placement and Routing with Nextpnr for design {args.file}"
-        )
-        path = Path(args.file)
+        logger.info(f"Running Placement and Routing with Nextpnr for design {file}")
+        path = Path(file)
         parent = path.parent
         json_file = path.name
         top_module_name = path.stem
@@ -890,8 +947,14 @@ class FABulous_CLI(Cmd):
             )
 
     @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(filePathRequireParser)
-    def do_gen_bitStream_binary(self, args: argparse.Namespace) -> None:
+    def do_gen_bitStream_binary(
+        self,
+        file: Annotated[
+            Path,
+            typer.Argument(help="Path to the target file"),
+            CompleterSpec(Cmd.path_complete),
+        ],
+    ) -> None:
         """Generate bitstream of a given design.
 
         Using FASM file and pre-generated bitstream specification file
@@ -902,11 +965,11 @@ class FABulous_CLI(Cmd):
         Also logs output file directory, Bitstream generation error and file not found
         error.
         """
-        parent = args.file.parent
-        fasm_file = args.file.name
-        top_module_name = args.file.stem
+        parent = file.parent
+        fasm_file = file.name
+        top_module_name = file.stem
 
-        if args.file.suffix != ".fasm":
+        if file.suffix != ".fasm":
             raise InvalidFileType(
                 "No fasm file provided. Usage: gen_bitStream_binary <fasm_file>"
             )
@@ -926,7 +989,7 @@ class FABulous_CLI(Cmd):
                 "Potentially Place and Route Failed."
             )
 
-        logger.info(f"Generating Bitstream for design {self.projectDir}/{args.file}")
+        logger.info(f"Generating Bitstream for design {self.projectDir}/{file}")
         logger.info(f"Outputting to {self.projectDir}/{parent}/{bitstream_file}")
 
         try:
@@ -945,23 +1008,19 @@ class FABulous_CLI(Cmd):
 
         logger.info("Bitstream generated")
 
-    simulation_parser = Cmd2ArgumentParser()
-    simulation_parser.add_argument(
-        "format",
-        choices=["vcd", "fst"],
-        default="fst",
-        help="Output format of the simulation",
-    )
-    simulation_parser.add_argument(
-        "file",
-        type=Path,
-        completer=Cmd.path_complete,
-        help="Path to the bitstream file",
-    )
-
     @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(simulation_parser)
-    def do_run_simulation(self, args: argparse.Namespace) -> None:
+    def do_run_simulation(
+        self,
+        trace_format: Annotated[
+            Literal["vcd", "fst"],
+            typer.Argument(help="Output format of the simulation"),
+        ] = "fst",
+        file: Annotated[
+            Path,
+            typer.Argument(help="Path to the bitstream file"),
+            CompleterSpec(Cmd.path_complete),
+        ] = Path(),
+    ) -> None:
         """Simulate given FPGA design using Icarus Verilog (iverilog).
 
         If <fst> is specified, waveform files in FST format will generate, <vcd> with
@@ -972,10 +1031,13 @@ class FABulous_CLI(Cmd):
 
         Also logs simulation error and file not found error and value error.
         """
-        if not args.file.is_relative_to(self.projectDir):
-            bitstreamPath = self.projectDir / Path(args.file)
+        # Convert string to Path if needed (for TCL compatibility)
+        file_path = Path(file) if isinstance(file, str) else file
+
+        if not file_path.is_relative_to(self.projectDir):
+            bitstreamPath = self.projectDir / file_path
         else:
-            bitstreamPath = args.file
+            bitstreamPath = file_path
         topModule = bitstreamPath.stem
         if bitstreamPath.suffix != ".bin":
             raise InvalidFileType(
@@ -989,7 +1051,7 @@ class FABulous_CLI(Cmd):
                 "gen_bitStream_binary. Potentially the bitstream generation failed."
             )
 
-        waveform_format = args.format
+        waveform_format = trace_format
         defined_option = f"CREATE_{waveform_format.upper()}"
 
         designFile = topModule + ".v"
@@ -1024,7 +1086,7 @@ class FABulous_CLI(Cmd):
             f"{testPath}/{testBench}",
         ]
         if self.verbose or self.debug:
-            logger.info(f"Running simulation with {args.format} format")
+            logger.info(f"Running simulation with {trace_format} format")
             logger.info(f"Running command: {' '.join(runCmd)}")
 
         result = sp.run(runCmd, check=True)
@@ -1066,8 +1128,14 @@ class FABulous_CLI(Cmd):
         logger.info("Simulation finished")
 
     @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(filePathRequireParser)
-    def do_run_FABulous_bitstream(self, args: argparse.Namespace) -> None:
+    def do_run_FABulous_bitstream(
+        self,
+        file: Annotated[
+            Path,
+            typer.Argument(help="Path to design file"),
+            CompleterSpec(Cmd.path_complete),
+        ],
+    ) -> None:
         """Run FABulous to generate bitstream on a given design.
 
         Does this by calling synthesis, place and route, bitstream generation functions.
@@ -1075,9 +1143,9 @@ class FABulous_CLI(Cmd):
 
         Also logs usage error and file not found error.
         """
-        file_path_no_suffix = args.file.parent / args.file.stem
+        file_path_no_suffix = file.parent / file.stem
 
-        if args.file.suffix != ".v":
+        if file.suffix != ".v":
             raise InvalidFileType(
                 "No verilog file provided. "
                 "Usage: run_FABulous_bitstream <top_module_file>"
@@ -1086,7 +1154,7 @@ class FABulous_CLI(Cmd):
         json_file_path = file_path_no_suffix.with_suffix(".json")
         fasm_file_path = file_path_no_suffix.with_suffix(".fasm")
 
-        do_synth_args = str(args.file)
+        do_synth_args = str(file)
 
         primsLib = f"{self.projectDir}/user_design/custom_prims.v"
         if Path(primsLib).exists():
@@ -1105,17 +1173,26 @@ class FABulous_CLI(Cmd):
             logger.info("FABulous bitstream generation complete")
 
     @with_category(CMD_SCRIPT)
-    @with_argparser(filePathRequireParser)
-    def do_run_tcl(self, args: argparse.Namespace) -> None:
+    def do_run_tcl(
+        self,
+        file: Annotated[
+            Path,
+            typer.Argument(help="Path to the tcl script file"),
+            CompleterSpec(Cmd.path_complete),
+        ],
+    ) -> None:
         """Execute TCL script relative to the project directory.
 
         Specified by <tcl_scripts>. Use the 'tk' module to create TCL commands.
 
         Also logs usage errors and file not found errors.
         """
-        if not args.file.exists():
+        # Convert to Path if needed (for script/command line compatibility)
+        file_path = Path(file) if not isinstance(file, Path) else file
+
+        if not file_path.exists():
             raise FileNotFoundError(
-                f"Cannot find {args.file} file, please check the path and try again."
+                f"Cannot find {file_path} file, please check the path and try again."
             )
 
         if self.force:
@@ -1123,26 +1200,35 @@ class FABulous_CLI(Cmd):
                 "TCL script does not work with force mode, TCL will stop on first error"
             )
 
-        logger.info(f"Execute TCL script {args.file}")
+        logger.info(f"Execute TCL script {file_path}")
 
-        with Path(args.file).open() as f:
+        with file_path.open() as f:
             script = f.read()
         self.tcl.eval(script)
 
         logger.info("TCL script executed")
 
     @with_category(CMD_SCRIPT)
-    @with_argparser(filePathRequireParser)
-    def do_run_script(self, args: argparse.Namespace) -> None:
+    def do_run_script(
+        self,
+        file: Annotated[
+            Path,
+            typer.Argument(help="Path to the fabulous script file"),
+            CompleterSpec(Cmd.path_complete),
+        ],
+    ) -> None:
         """Execute script."""
-        if not args.file.exists():
+        # Convert to Path if needed (for script/command line compatibility)
+        file_path = Path(file) if not isinstance(file, Path) else file
+
+        if not file_path.exists():
             raise FileNotFoundError(
-                f"Cannot find {args.file} file, please check the path and try again."
+                f"Cannot find {file_path} file, please check the path and try again."
             )
 
-        logger.info(f"Execute script {args.file}")
+        logger.info(f"Execute script {file_path}")
 
-        with Path(args.file).open() as f:
+        with file_path.open() as f:
             for i in f:
                 if i.startswith("#"):
                     continue
@@ -1160,8 +1246,19 @@ class FABulous_CLI(Cmd):
         logger.info("Script executed")
 
     @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(userDesignRequireParser)
-    def do_gen_user_design_wrapper(self, args: argparse.Namespace) -> None:
+    def do_gen_user_design_wrapper(
+        self,
+        user_design: Annotated[
+            Path,
+            typer.Argument(help="Path to user design file"),
+            CompleterSpec(Cmd.path_complete),
+        ],
+        user_design_top_wrapper: Annotated[
+            Path,
+            typer.Argument(help="Output path for user design top wrapper"),
+            CompleterSpec(Cmd.path_complete),
+        ],
+    ) -> None:
         """Generate a user design wrapper for the specified user design.
 
         This command creates a wrapper module that interfaces the user design
@@ -1169,10 +1266,10 @@ class FABulous_CLI(Cmd):
 
         Parameters
         ----------
-        args : argparse.Namespace
-            Command arguments containing:
-            - user_design: Path to the user design file
-            - user_design_top_wrapper: Path for the generated wrapper file
+        user_design : Path
+            Path to the user design file
+        user_design_top_wrapper : Path
+            Path for the generated wrapper file
 
         Raises
         ------
@@ -1183,28 +1280,33 @@ class FABulous_CLI(Cmd):
             raise CommandError("Need to load fabric first")
         project_dir = get_context().proj_dir
         self.fabulousAPI.generateUserDesignTopWrapper(
-            project_dir / Path(args.user_design),
-            project_dir / args.user_design_top_wrapper,
+            project_dir
+            / (Path(user_design) if isinstance(user_design, str) else user_design),
+            project_dir
+            / (
+                Path(user_design_top_wrapper)
+                if isinstance(user_design_top_wrapper, str)
+                else user_design_top_wrapper
+            ),
         )
 
-    gen_tile_parser = Cmd2ArgumentParser()
-    gen_tile_parser.add_argument(
-        "tile_path",
-        type=Path,
-        help="Path to the target tile directory",
-        completer=Cmd.path_complete,
-    )
-
-    gen_tile_parser.add_argument(
-        "--no-switch-matrix",
-        "-nosm",
-        help="Do not generate a Tile Switch Matrix",
-        action="store_true",
-    )
-
     @with_category(CMD_TOOLS)
-    @with_argparser(gen_tile_parser)
-    def do_generate_custom_tile_config(self, args: argparse.Namespace) -> None:
+    def do_generate_custom_tile_config(
+        self,
+        tile_path: Annotated[
+            Path,
+            typer.Argument(help="Path to the target tile directory"),
+            CompleterSpec(Cmd.path_complete),
+        ],
+        no_switch_matrix: Annotated[
+            bool,
+            typer.Option(
+                "--no-switch-matrix",
+                "-nosm",
+                help="Do not generate a Tile Switch Matrix",
+            ),
+        ] = False,
+    ) -> None:
         """Generate a custom tile configuration for a given tile folder.
 
         Or path to bel folder. A tile `.csv` file and a switch matrix `.list` file will
@@ -1213,18 +1315,27 @@ class FABulous_CLI(Cmd):
         The provided path may contain bel files, which will be included in the generated
         tile .csv file as well as the generated switch matrix .list file.
         """
-        if not args.tile_path.is_dir():
-            logger.error(f"{args.tile_path} is not a directory or does not exist")
+        # Convert string to Path if needed (for TCL compatibility)
+        tile_path_obj = Path(tile_path) if isinstance(tile_path, str) else tile_path
+
+        if not tile_path_obj.is_dir():
+            logger.error(f"{tile_path_obj} is not a directory or does not exist")
             return
 
-        tile_csv = generateCustomTileConfig(args.tile_path)
+        tile_csv = generateCustomTileConfig(tile_path_obj)
 
-        if not args.no_switch_matrix:
+        if not no_switch_matrix:
             parseTilesCSV(tile_csv)
 
     @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(tile_list_parser)
-    def do_gen_io_tiles(self, args: argparse.Namespace) -> None:
+    def do_gen_io_tiles(
+        self,
+        tiles: Annotated[
+            list[str],
+            typer.Argument(help="A list of tile"),
+            CompleterSpec(complete_tile_names),
+        ],
+    ) -> None:
         """Generate I/O BELs for specified tiles.
 
         This command generates Input/Output Basic Elements of Logic (BELs) for the
@@ -1232,17 +1343,15 @@ class FABulous_CLI(Cmd):
 
         Parameters
         ----------
-        args : argparse.Namespace
-            Command arguments containing:
-            - tiles: List of tile names to generate I/O BELs for
+        tiles : list[str]
+            List of tile names to generate I/O BELs for
         """
-        if args.tiles:
-            for tile in args.tiles:
+        if tiles:
+            for tile in tiles:
                 self.fabulousAPI.genIOBelForTile(tile)
 
     @with_category(CMD_FABRIC_FLOW)
-    @allow_blank
-    def do_gen_io_fabric(self, _args: str) -> None:
+    def do_gen_io_fabric(self) -> None:
         """Generate I/O BELs for the entire fabric.
 
         This command generates Input/Output Basic Elements of Logic (BELs) for all
@@ -1256,31 +1365,23 @@ class FABulous_CLI(Cmd):
         """
         self.fabulousAPI.genFabricIOBels()
 
-    gds_parser = Cmd2ArgumentParser()
-    gds_parser.add_argument(
-        "tile",
-        type=str,
-        help="A tile",
-        completer=lambda self: self.fab.getTiles(),
-    )
-    gds_parser.add_argument(
-        "--optimise",
-        "-opt",
-        help="Optimize the GDS layout",
-        default=OptMode.NO_OPT,
-        type=OptMode,
-        const=OptMode.BALANCE,
-        nargs="?",
-    )
-    gds_parser.add_argument(
-        "--override",
-        help="Optimize the GDS layout",
-        type=Path,
-    )
-
     @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(gds_parser)
-    def do_gen_tile_macro(self, args: argparse.Namespace) -> None:
+    def do_gen_tile_macro(
+        self,
+        tile: Annotated[
+            str,
+            typer.Argument(help="A tile"),
+            CompleterSpec(complete_tile_names),
+        ],
+        optimise: Annotated[
+            OptMode | None,
+            typer.Option("--optimise", "-opt", help="Optimize the GDS layout"),
+        ] = None,
+        override: Annotated[
+            Path | None,
+            typer.Option("--override", help="Override the GDS layout"),
+        ] = None,
+    ) -> None:
         """Generate GDSII files for a specific tile.
 
         This command generates GDSII files for the specified tile using the
@@ -1291,28 +1392,26 @@ class FABulous_CLI(Cmd):
 
         Parameters
         ----------
-        args : argparse.Namespace
-            Command arguments containing:
-            - tile: Name of the tile to generate GDSII files for
-            - optimise: Optimization mode for tile sizing
+        tile : str
+            Name of the tile to generate GDSII files for
+        optimise : OptMode
+            Optimization mode for tile sizing
+        override : Path
+            Override the GDS layout
         """
-        if not args.tile:
-            logger.error("Tile name must be specified")
-            return
-
-        tile_dir = self.projectDir / "Tile" / args.tile
-        pin_order_file = tile_dir / f"{args.tile}_io_pin_order.yaml"
+        tile_dir = self.projectDir / "Tile" / tile
+        pin_order_file = tile_dir / f"{tile}_io_pin_order.yaml"
 
         if not tile_dir.exists():
             logger.error(f"Tile directory {tile_dir} does not exist")
             return
 
-        if tile := self.fabulousAPI.getTile(args.tile):
-            self.fabulousAPI.gen_io_pin_order_config(tile, pin_order_file)
+        if tile_obj := self.fabulousAPI.getTile(tile):
+            self.fabulousAPI.gen_io_pin_order_config(tile_obj, pin_order_file)
         else:
-            super_tile = self.fabulousAPI.getSuperTile(args.tile)
+            super_tile = self.fabulousAPI.getSuperTile(tile)
             if super_tile is None:
-                logger.error(f"Tile {args.tile} not found in fabric definition")
+                logger.error(f"Tile {tile} not found in fabric definition")
                 return
             self.fabulousAPI.gen_io_pin_order_config(super_tile, pin_order_file)
 
@@ -1320,32 +1419,25 @@ class FABulous_CLI(Cmd):
             tile_dir,
             pin_order_file,
             tile_dir / "macro",
-            optimisation=args.optimise,
+            optimisation=optimise if optimise is not None else OptMode.NO_OPT,
             base_config_path=self.projectDir / "Tile" / "include" / "gds_config.yaml",
-            config_override_path=tile_dir / "gds_config.yaml",
+            config_override_path=override if override else tile_dir / "gds_config.yaml",
         )
 
-    gen_all_tile_parser = Cmd2ArgumentParser()
-    gen_all_tile_parser.add_argument(
-        "--parallel",
-        "-p",
-        help="Generate tile macros in parallel",
-        default=False,
-        action="store_true",
-    )
-    gen_all_tile_parser.add_argument(
-        "--optimise",
-        "-opt",
-        help="Optimize the GDS layout of all tiles",
-        default=OptMode.NO_OPT,
-        type=OptMode,
-        const=OptMode.BALANCE,
-        nargs="?",
-    )
-
-    @with_argparser(gen_all_tile_parser)
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_all_tile_macros(self, args: argparse.Namespace) -> None:
+    def do_gen_all_tile_macros(
+        self,
+        parallel: Annotated[
+            bool,
+            typer.Option("--parallel", "-p", help="Generate tile macros in parallel"),
+        ] = False,
+        optimise: Annotated[
+            OptMode | None,
+            typer.Option(
+                "--optimise", "-opt", help="Optimize the GDS layout of all tiles"
+            ),
+        ] = None,
+    ) -> None:
         """Generate GDSII files for all tiles in the fabric.
 
         Iterates through all unique tiles and generates GDSII for each. Use --parallel
@@ -1354,19 +1446,17 @@ class FABulous_CLI(Cmd):
         """
         commands = CommandPipeline(self)
         for i in sorted(self.allTile):
-            if args.optimise:
-                commands.add_step(
-                    f"gen_tile_macro {i} --optimise {args.optimise.value}"
-                )
+            if optimise:
+                commands.add_step(f"gen_tile_macro {i} --optimise {optimise.value}")
             else:
                 commands.add_step(f"gen_tile_macro {i}")
-        if not args.parallel:
+        if not parallel:
             commands.execute()
         else:
             commands.execute_parallel()
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_fabric_macro(self, *_args: str) -> None:
+    def do_gen_fabric_macro(self) -> None:
         """Generate GDSII files for the entire fabric by stitching tiles.
 
         Assembles all pre-compiled tile macros into a complete fabric layout. Requires
@@ -1399,7 +1489,7 @@ class FABulous_CLI(Cmd):
         )
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_run_FABulous_eFPGA_macro(self, *_arg: str) -> None:
+    def do_run_FABulous_eFPGA_macro(self) -> None:
         """Run the full automated FABulous eFPGA macro generation flow.
 
         This is the recommended approach for production. It automatically:
@@ -1418,34 +1508,30 @@ class FABulous_CLI(Cmd):
             base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
         )
 
-    gui_parser = Cmd2ArgumentParser()
-    gui_parser.add_argument("file", nargs="?", help="file to open", default=None)
-    gui_parser.add_argument(
-        "--tile",
-        help="launch GUI to view a specific tile",
-        default=None,
-        completer=lambda self: self.fab.getTiles(),
-    )
-    gui_parser.add_argument(
-        "--fabric",
-        help="launch GUI to view the entire fabric",
-        default=False,
-        action="store_true",
-    )
-    gui_parser.add_argument(
-        "--last-run", help="launch GUI to view last run", action="store_true"
-    )
-
-    gui_parser.add_argument(
-        "--head",
-        help="number of item to select from",
-        default=10,
-    )
-
     def _get_file_path(
-        self, args: argparse.Namespace, file_extension: str, show_count: int = 0
+        self,
+        file_extension_or_args: str | argparse.Namespace,
+        file_extension: str | None = None,
+        tile: str | None = None,
+        fabric: bool = False,
+        last_run: bool = False,
+        show_count: int = 10,
     ) -> str:
-        """Get the file path for the specified file extension."""
+        """Get the file path for the specified file extension.
+
+        Supports both old argparse.Namespace signature and new direct parameters.
+        """
+        # Handle old signature (args, file_extension)
+        if isinstance(file_extension_or_args, argparse.Namespace):
+            args = file_extension_or_args
+            actual_extension = file_extension if file_extension else ""
+            tile = args.tile if hasattr(args, "tile") else None
+            fabric = args.fabric if hasattr(args, "fabric") else False
+            last_run = args.last_run if hasattr(args, "last_run") else False
+            show_count = int(args.head) if hasattr(args, "head") else 10
+        else:
+            # New signature (file_extension, tile, fabric, last_run, show_count)
+            actual_extension = file_extension_or_args
 
         def get_latest(directory: Path, file_extension: str) -> str:
             """Get the latest modified file in a directory."""
@@ -1458,6 +1544,20 @@ class FABulous_CLI(Cmd):
             return str(latest_file)
 
         def get_option(f: Path, file_extension: str) -> str:
+            """Prompt user to select a file from a list of recent matches.
+
+            Parameters
+            ----------
+            f : Path
+                Directory path to search in.
+            file_extension : str
+                File extension to filter by.
+
+            Returns
+            -------
+            str
+                Path to the selected file as a string.
+            """
             title = "Select which file to view"
             files_list = sorted(
                 f.glob(f"**/*.{file_extension}"),
@@ -1471,31 +1571,52 @@ class FABulous_CLI(Cmd):
             return str(files_list[cast("int", idx)])
 
         file: str = ""
-        if args.last_run:
-            if args.fabric:
-                file = get_latest(self.projectDir / "Fabric", file_extension)
-            elif args.tile is not None:
-                file = get_latest(self.projectDir / "Tile" / args.tile, file_extension)
+        if last_run:
+            if fabric:
+                file = get_latest(self.projectDir / "Fabric", actual_extension)
+            elif tile is not None:
+                file = get_latest(self.projectDir / "Tile" / tile, actual_extension)
             else:
-                file = get_latest(self.projectDir, file_extension)
+                file = get_latest(self.projectDir, actual_extension)
         else:
-            if args.fabric:
-                file = get_option(self.projectDir / "Fabric", file_extension)
-            elif args.tile is not None:
-                file = get_option(self.projectDir / "Tile" / args.tile, file_extension)
-            elif args.tile is None and not args.fabric:
-                file = get_option(self.projectDir, file_extension)
+            if fabric:
+                file = get_option(self.projectDir / "Fabric", actual_extension)
+            elif tile is not None:
+                file = get_option(self.projectDir / "Tile" / tile, actual_extension)
+            elif tile is None and not fabric:
+                file = get_option(self.projectDir, actual_extension)
 
         if not file:
             raise FileNotFoundError(
-                f"No .{file_extension} files found in the specified directory."
+                f"No .{actual_extension} files found in the specified directory."
             )
 
         return file
 
-    @with_argparser(gui_parser)
     @with_category(CMD_TOOLS)
-    def do_start_openroad_gui(self, args: argparse.Namespace) -> None:
+    def do_start_openroad_gui(
+        self,
+        file: Annotated[
+            str | None,
+            typer.Argument(help="file to open"),
+        ] = None,
+        tile: Annotated[
+            str | None,
+            typer.Option("--tile", help="launch GUI to view a specific tile"),
+        ] = None,
+        fabric: Annotated[
+            bool,
+            typer.Option("--fabric", help="launch GUI to view the entire fabric"),
+        ] = False,
+        last_run: Annotated[
+            bool,
+            typer.Option("--last-run", help="launch GUI to view last run"),
+        ] = False,
+        head: Annotated[
+            int,
+            typer.Option("--head", help="number of item to select from"),
+        ] = 10,
+    ) -> None:
         """Start OpenROAD GUI if an installation can be found.
 
         If no installation can be found, a warning is produced.
@@ -1503,13 +1624,15 @@ class FABulous_CLI(Cmd):
         logger.info("Checking for OpenROAD installation")
         openroad = get_context().openroad_path
         file_name: str
-        if args.fabric and args.tile is not None:
+        if fabric and tile is not None:
             raise CommandError("Please specify either --fabric or --tile, not both")
 
-        if args.file is None:
-            db_file: str = self._get_file_path(args, "odb", show_count=int(args.head))
+        if file is None:
+            db_file: str = self._get_file_path(
+                "odb", tile=tile, fabric=fabric, last_run=last_run, show_count=head
+            )
         else:
-            db_file = args.file
+            db_file = file
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".tcl", delete=False
         ) as script_file:
@@ -1525,22 +1648,45 @@ class FABulous_CLI(Cmd):
             ]
         )
 
-    @with_argparser(gui_parser)
     @with_category(CMD_TOOLS)
-    def do_start_klayout_gui(self, args: argparse.Namespace) -> None:
-        """Start OpenROAD GUI if an installation can be found.
+    def do_start_klayout_gui(
+        self,
+        file: Annotated[
+            str | None,
+            typer.Argument(help="file to open"),
+        ] = None,
+        tile: Annotated[
+            str | None,
+            typer.Option("--tile", help="launch GUI to view a specific tile"),
+        ] = None,
+        fabric: Annotated[
+            bool,
+            typer.Option("--fabric", help="launch GUI to view the entire fabric"),
+        ] = False,
+        last_run: Annotated[
+            bool,
+            typer.Option("--last-run", help="launch GUI to view last run"),
+        ] = False,
+        head: Annotated[
+            int,
+            typer.Option("--head", help="number of item to select from"),
+        ] = 10,
+    ) -> None:
+        """Start klayout GUI if an installation can be found.
 
         If no installation can be found, a warning is produced.
         """
         logger.info("Checking for klayout installation")
         klayout = get_context().klayout_path
-        if args.fabric and args.tile is not None:
+        if fabric and tile is not None:
             raise CommandError("Please specify either --fabric or --tile, not both")
 
-        if args.file is None:
-            gds_file: str = self._get_file_path(args, "gds")
+        if file is None:
+            gds_file: str = self._get_file_path(
+                "gds", tile=tile, fabric=fabric, last_run=last_run, show_count=head
+            )
         else:
-            gds_file = args.file
+            gds_file = file
         if get_context().pdk == "ihp-sg13g2":
             layer_file = (
                 (get_context().pdk_root)
