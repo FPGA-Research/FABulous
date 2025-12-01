@@ -16,13 +16,24 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/fabulous
+  DOCKER_IMAGE: ghcr.io/${{ github.repository_owner }}/fabulous
 
 jobs:
   build-docker:
     name: Build Docker Image
     runs-on: ubuntu-latest
     steps:
+      - name: Free up disk space
+        run: |
+          # Remove unnecessary tools and libraries
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/lib/jvm
+          sudo rm -rf /usr/share/swift
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -37,17 +48,18 @@ jobs:
       - name: Build Docker image with Nix
         run: nix build -f nix/docker-image.nix -o docker-image
 
-      - name: clean tool cache to get more disk space
-        run: rm -rf /opt/hostedtoolcache
-
+      - name: Clean Nix store before loading image
+        run: |
+          nix store gc
       - name: Load Docker image
         run: docker load < docker-image
 
-      - name: Login to Docker Hub
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate Docker tags
         id: meta
@@ -72,4 +84,4 @@ jobs:
       - name: Test Docker image
         run: |
           echo "Testing FABulous version..."
-          docker run --rm "fabulous:latest" --version
+          docker run --rm "fabulous:latest" fabulous --version
