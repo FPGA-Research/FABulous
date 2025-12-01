@@ -76,7 +76,7 @@ class TileGeometry:
     width: int = 0
     height: int = 0
     border: Border = Border.NONE
-    wireConstraints: WireConstraints = WireConstraints()
+    wireConstraints: WireConstraints = field(default_factory=WireConstraints)
     neighbourConstraints: WireConstraints | None = None
     smGeometry: SmGeometry = field(default_factory=SmGeometry)
     belGeomList: list[BelGeometry] = field(default_factory=list)
