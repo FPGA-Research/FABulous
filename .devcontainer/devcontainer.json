@@ -1,0 +1,35 @@
+{
+    "name": "FABulous Development",
+    "image": "ghcr.io/fpga-research/fabulous:dev",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+    "workspaceFolder": "/workspace",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "charliermarsh.ruff",
+                "tamasfe.even-better-toml",
+                "redhat.vscode-yaml",
+                "mshr-h.veriloghdl"
+            ],
+            "settings": {
+                "python.defaultInterpreterPath": "python",
+                "python.analysis.typeCheckingMode": "basic",
+                "editor.formatOnSave": true,
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "editor.codeActionsOnSave": {
+                        "source.fixAll.ruff": "explicit",
+                        "source.organizeImports.ruff": "explicit"
+                    }
+                }
+            }
+        }
+    },
+    "containerEnv": {
+        "REPO_ROOT": "/workspace"
+    },
+    "postCreateCommand": "echo 'FABulous development environment ready!'",
+    "remoteUser": "root"
+}
