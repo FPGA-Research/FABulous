@@ -1,0 +1,75 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [nix-docker-image]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/fabulous
+
+jobs:
+  build-docker:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@v34
+        with:
+          nix_version: "2.31.2"
+          nix_conf: |
+            substituters = https://cache.nixos.org https://nix-cache.fossi-foundation.org
+            extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
+
+      - name: Build Docker image with Nix
+        run: nix build -f nix/docker-image.nix -o docker-image
+
+      - name: clean tool cache to get more disk space
+        run: rm -rf /opt/hostedtoolcache
+
+      - name: Load Docker image
+        run: docker load < docker-image
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Generate Docker tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+
+      - name: Tag and push Docker image
+        run: |
+          for tag in ${{ steps.meta.outputs.tags }}; do
+            echo "Tagging fabulous:latest as $tag"
+            docker tag "fabulous:latest" "$tag"
+            echo "Pushing $tag"
+            docker push "$tag"
+          done
+
+      - name: Test Docker image
+        run: |
+          echo "Testing FABulous version..."
+          docker run --rm "fabulous:latest" --version
