@@ -1,0 +1,47 @@
+{
+    "name": "Local",
+    "image": "ghcr.io/fpga-research/fabulous:dev",
+    "features": {
+        "ghcr.io/devcontainers/features/desktop-lite:1": {
+            "password": "fabulous",
+            "webPort": "6080",
+            "vncPort": "5901"
+        }
+    },
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+    // --- LOCAL LINUX SPECIFIC SETTINGS ---
+    "runArgs": [
+        "--net=host",
+        "--ipc=host",
+        "--env=DISPLAY",
+        "--security-opt=label=disable"
+    ],
+    "mounts": [
+        "source=/tmp/.X11-unix,target=/tmp/.host-X11-unix,type=bind"
+    ],
+    "containerEnv": {
+        "QT_QPA_PLATFORM": "xcb",
+        "DISPLAY": "${localEnv:DISPLAY}",
+        "QT_X11_NO_MITSHM": "1"
+    },
+    "postCreateCommand": "bash .devcontainer/post-create.sh",
+    "postAttachCommand": "bash .devcontainer/display-switch.sh",
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "python.defaultInterpreterPath": "/nix/var/nix/profiles/default/bin/python",
+                "python.analysis.typeCheckingMode": "basic",
+                "editor.formatOnSave": true,
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "editor.codeActionsOnSave": {
+                        "source.fixAll.ruff": "explicit",
+                        "source.organizeImports.ruff": "explicit"
+                    }
+                },
+                "terminal.integrated.cwd": "/workspaces/${localWorkspaceFolderBasename}"
+            }
+        }
+    },
+    "remoteUser": "root"
+}
