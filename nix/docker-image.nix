@@ -28,24 +28,66 @@ let
     !(pkgs.lib.hasPrefix "fish" name) && 
     !(pkgs.lib.hasPrefix "zsh" name)
   ) shellPackages;
+
+  # X11/Qt runtime dependencies for GUI applications (e.g., openroad -gui)
+  x11Deps = with pkgs; [
+    # Core X11 libraries
+    xorg.libX11
+    xorg.libxcb
+    xorg.libXext
+    xorg.libXrender
+    xorg.libXi
+    xorg.libXcursor
+    xorg.libXrandr
+    xorg.libXfixes
+    xorg.libXcomposite
+    xorg.libXdamage
+    xorg.libXtst
+    xorg.libxkbfile
+    xorg.libXinerama
+    xorg.libxshmfence
+    xorg.xcbutilwm
+    xorg.xcbutilimage
+    xorg.xcbutilkeysyms
+    xorg.xcbutilrenderutil
+    xorg.xcbutilcursor
+    
+    # Additional dependencies for Qt xcb platform
+    libxkbcommon
+    libGL
+    libGLU
+    mesa
+    fontconfig
+    freetype
+    dbus
+  ];
+
+  # Create fontconfig configuration
+  fontsConf = pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; };
   
 in
 pkgs.dockerTools.buildLayeredImage {
   name = "fabulous";
   tag = "latest";
   
-  contents = filteredPackages ++ [
+  contents = filteredPackages ++ x11Deps ++ [
     pkgs.dockerTools.caCertificates
     pkgs.dockerTools.usrBinEnv
     pkgs.dockerTools.binSh
+    pkgs.dockerTools.fakeNss
     pkgs.coreutils
     pkgs.bash
+    pkgs.dejavu_fonts
   ];
   
   config = {
     Env = [
       "PATH=/bin"
       "PYTHONWARNINGS=ignore:Importing fasm.parse_fasm:RuntimeWarning,ignore:Falling back on slower textX parser implementation:RuntimeWarning"
+      # Fontconfig configuration for Qt applications
+      "FONTCONFIG_FILE=${fontsConf}"
+      # Set XDG_RUNTIME_DIR to avoid Qt warnings
+      "XDG_RUNTIME_DIR=/tmp"
     ];
     WorkingDir = "/workspace";
     Cmd = [ "${fabulous-env}/bin/FABulous" ];
