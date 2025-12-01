@@ -1,0 +1,32 @@
+(fabulous-variables)=
+# FABulous Configuration Variables
+
+This is an auto-generated reference of all FABulous configuration variables.
+
+## Environment Variables
+
+FABulous settings can be configured via environment variables with the `FAB_` prefix. These can be set in your shell or in a `.env` file in your project's `.FABulous` directory.
+{% for category, variables in settings_vars.items() %}
+
+### {{ category }}
+
+| Variable | Environment Variable | Type | Default | Description |
+|----------|---------------------|------|---------|-------------|
+{% for var in variables %}| `{{ var.name }}` | `{{ var.env_var }}` | {{ var.type }} | {{ var.default if var.default else "-" }} | {{ var.description if var.description else "-" }} |
+{% endfor %}
+{% endfor %}
+
+## Interactive CLI Settables
+
+These variables can be set and get interactively in the FABulous CLI using the `set` and `get` commands.
+
+**Usage:**
+```bash
+FABulous> set <variable> <value>
+FABulous> get <variable>
+```
+
+| Variable | Type | Description |
+|----------|------|-------------|
+{% for var in cli_settables %}| `{{ var.name }}` | {{ var.type }} | {{ var.description }} |
+{% endfor %}

@@ -1,0 +1,18 @@
+(gds-variables)=
+# GDS Flow Configuration Variables
+
+This is an auto-generated reference of all GDS flow configuration variables used by the FABulous GDS generator.
+
+These variables can be configured in the `gds_config.yaml` file located in either:
+- `<project>/Tile/include/gds_config.yaml` - Base configuration for all tiles
+- `<project>/Tile/<tile_name>/gds_config.yaml` - Per-tile specific configuration
+- `<project>/Fabric/gds_config.yaml` - Fabric-level configuration
+
+{% for category, variables in gds_vars.items() %}
+## {{ category }}
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+{% for var in variables %}| `{{ var.name }}` | {{ var.type }} | {{ var.default if var.default else "-" }} | {{ var.description if var.description else "-" }} |
+{% endfor %}
+{% endfor %}

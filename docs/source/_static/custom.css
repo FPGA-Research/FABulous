@@ -1,3 +1,59 @@
+/* ========================================
+   Layout: Fixed sidebars, dynamic content
+   ======================================== */
+
+/* Override Furo's default content width to be dynamic on wide screens only */
+@media (min-width: 82em) {
+    :root {
+        /* Fixed sidebar widths */
+        --sidebar-width: 280px;
+        --toc-width: 250px;
+
+        /* Remove the max-width constraint on content */
+        --content-width: 100%;
+    }
+
+    /* Make the content area expand to fill available space */
+    .page {
+        max-width: none !important;
+    }
+
+    /* Fixed width for left sidebar */
+    .sidebar-drawer {
+        width: var(--sidebar-width) !important;
+        min-width: var(--sidebar-width) !important;
+        max-width: var(--sidebar-width) !important;
+    }
+
+    /* Fixed width for right sidebar (TOC) */
+    .toc-drawer {
+        width: var(--toc-width) !important;
+        min-width: var(--toc-width) !important;
+        max-width: var(--toc-width) !important;
+    }
+
+    /* Make the main content area fill the remaining space */
+    .main {
+        max-width: none !important;
+        flex: 1 1 auto !important;
+    }
+
+    /* Content should expand within main */
+    .content {
+        max-width: none !important;
+        width: 100% !important;
+    }
+
+    /* Article content should also be unrestricted */
+    article.bd-article {
+        max-width: none !important;
+    }
+}
+
+/* ========================================
+   Image backgrounds
+   ======================================== */
+
 /* Make transparent image backgrounds white */
 
 /* Apply white background to all images in the content area */
