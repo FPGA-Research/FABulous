@@ -11,6 +11,12 @@ This page covers all aspects of contributing to FABulous, including development 
 Contributors must use [uv](https://github.com/astral-sh/uv) for reproducible
 environment management and to ensure consistent dependency resolution with CI.
 
+:::{note} Recommended setup for full development (including ASIC backend)
+For end-to-end development, including the ASIC backend flow and EDA tooling, use the [Nix-based installation](#nix-install) provided in this repository. Nix ensures the full toolchain (GHDL, Yosys, NextPNR, OpenROAD, Librelane, etc.) is available and reproducible.
+
+Use `uv` alongside Nix for Python-related dependency management of the FABulous project itself (locking, editable installs, tasks), as documented below. The [Dev Container](#dev-container) is available as a fallback when Nix is not accessible, but Nix remains the preferred method whenever possible.
+:::
+
 ### Installing uv
 
 Linux/macOS:
@@ -83,6 +89,43 @@ uv add <package>             # add runtime dependency
 uv add --group dev <package> # add development dependency
 uv remove <package>          # remove dependency
 uv lock                      # refresh lock file after manual edits
+```
+
+(dev-container)=
+
+## Dev Container (Docker-based Development)
+
+For contributors who prefer a containerized development environment, FABulous provides a pre-configured [Dev Container](https://containers.dev/) setup. This option is intended as a fallback for contributors who cannot use Nix or do not have access to it; Nix remains the preferred method when it is available.
+
+### Working in the Container
+
+Once inside the container, the workspace is mounted at `/workspace`. You can run FABulous commands directly:
+
+```console
+FABulous -h                  # run CLI
+pytest                       # run test suite
+ruff check                   # lint code
+ruff format                  # format code
+```
+
+:::{note}
+The Dev Container uses an editable install, so any changes you make to the FABulous source code are immediately reflected without reinstalling.
+:::
+
+### Alternative: Running the Docker Image Directly
+
+If you prefer to use the Docker image without VS Code, you can run it directly:
+
+```console
+# Pull the development image
+docker pull ghcr.io/fpga-research/fabulous:dev
+
+# Run interactively with your local repo mounted
+docker run -it --rm -v $(pwd):/workspace ghcr.io/fpga-research/fabulous:dev
+
+# Or use the release image (non-editable install)
+docker pull ghcr.io/fpga-research/fabulous:latest
+docker run -it --rm ghcr.io/fpga-research/fabulous:latest FABulous -h
 ```
 
 (pre-commit)=
