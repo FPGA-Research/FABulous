@@ -849,16 +849,20 @@ def test_default_writer_is_verilog(
     ],
 )
 def test_run_variants(
-    project: Path, argv: list[str], use_cwd: bool, expected_code: int
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    argv: list[str],
+    use_cwd: bool,
+    expected_code: int,
 ) -> None:
     """Unified run command behavior tests (return code only)."""
     test_argv = [s.replace("{project}", str(project)) for s in argv]
     if use_cwd:
-        result = run(test_argv, capture_output=True, text=True, cwd=str(project))
-    else:
-        result = run(test_argv, capture_output=True, text=True)
-
-    assert result.returncode == expected_code
+        monkeypatch.chdir(project)
+    monkeypatch.setattr(sys, "argv", test_argv)
+    with pytest.raises(SystemExit) as exec_info:
+        main()
+    assert exec_info.value.code == expected_code
 
 
 @pytest.mark.parametrize(

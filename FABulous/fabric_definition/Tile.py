@@ -1,6 +1,7 @@
-"""Store information about a tile."""
+"""Tile class definition for FPGA fabric representation."""
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -309,3 +310,115 @@ class Tile:
             ret += b.configBit
 
         return ret
+
+    def get_min_die_area(
+        self,
+        x_pitch: Decimal,
+        y_pitch: Decimal,
+        x_pin_thickness_mult: Decimal,
+        y_pin_thickness_mult: Decimal,
+        x_spacing: Decimal,
+        y_spacing: Decimal,
+        frame_data_width: int = 32,
+        frame_stroble_width: int = 20,
+    ) -> tuple[Decimal, Decimal]:
+        """Calculate minimum tile dimensions based on IO pin density.
+
+        For this tile, calculates the minimum physical width and height
+        required to accommodate all IO pins at the PDK's track pitch.
+
+        Parameters
+        ----------
+        x_pitch : Decimal
+            Horizontal pitch between tracks (DBU)
+        y_pitch : Decimal
+            Vertical pitch between tracks (DBU)
+        x_pin_thickness_mult : Decimal
+            pin thickness multiplier in the horizontal direction
+        y_pin_thickness_mult : Decimal
+            pin thickness multiplier in the vertical direction
+        x_spacing : Decimal
+            pin spacing in the horizontal direction (DBU)
+        y_spacing : Decimal
+            pin spacing in the vertical direction (DBU)
+        frame_data_width : int, optional
+            frame data width in pins, by default 32
+        frame_stroble_width : int, optional
+            frame stroble width in pins, by default 20
+
+        Returns
+        -------
+        tuple[Decimal, Decimal]
+            (min_width, min_height) where:
+            - min_width: minimum width needed for north/south edge IO pins
+            - min_height: minimum height needed for west/east edge IO pins
+
+        Notes
+        -----
+        The minimum dimensions are calculated as:
+        - min_width = max(north_pins, south_pins) × x_pitch
+        - min_height = max(west_pins, east_pins) × y_pitch
+
+        These constraints prevent the LP solver from suggesting dimensions
+        that are physically impossible due to IO pin spacing requirements.
+        """
+        import itertools
+        from decimal import Decimal
+
+        # Count ports on each physical side
+        north_ports = len(
+            list(
+                itertools.chain.from_iterable(
+                    [
+                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
+                        for i in self.getNorthSidePorts()
+                    ]
+                )
+            )
+        )
+        south_ports = len(
+            list(
+                itertools.chain.from_iterable(
+                    [
+                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
+                        for i in self.getSouthSidePorts()
+                    ]
+                )
+            )
+        )
+        west_ports = len(
+            list(
+                itertools.chain.from_iterable(
+                    [
+                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
+                        for i in self.getWestSidePorts()
+                    ]
+                )
+            )
+        )
+        east_ports = len(
+            list(
+                itertools.chain.from_iterable(
+                    [
+                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
+                        for i in self.getEastSidePorts()
+                    ]
+                )
+            )
+        )
+
+        # Min width constrained by north/south edges
+        width_io_count = max(north_ports, south_ports) + frame_stroble_width
+        min_width_io = (
+            Decimal(width_io_count) * (x_pitch * x_pin_thickness_mult)
+            + x_spacing * width_io_count
+            + 2 * x_spacing
+        )
+        # Min height constrained by west/east edges
+        height_io_count = max(west_ports, east_ports) + frame_data_width
+        min_height_io = (
+            height_io_count * (y_pitch * y_pin_thickness_mult)
+            + y_spacing * height_io_count
+            + 2 * y_spacing
+        )
+        return min_width_io, min_height_io
