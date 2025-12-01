@@ -90,7 +90,7 @@ pkgs.dockerTools.buildLayeredImage {
       "XDG_RUNTIME_DIR=/tmp"
     ];
     WorkingDir = "/workspace";
-    Cmd = [ "${fabulous-env}/bin/FABulous" ];
+    Cmd = [ "/bin/bash" ];
   };
   
   maxLayers = 125;
