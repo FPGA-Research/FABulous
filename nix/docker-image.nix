@@ -84,6 +84,20 @@ let
     pkgs.coreutils
     pkgs.bash
     pkgs.dejavu_fonts
+    # Required for VS Code Dev Containers to work properly
+    pkgs.gnutar       # for extracting VS Code Server
+    pkgs.gzip         # for decompressing archives
+    pkgs.gnused       # for environment setup
+    pkgs.gnugrep      # for user lookup and config parsing
+    pkgs.findutils    # for find command
+    pkgs.procps       # for ps command (process listing)
+    pkgs.gawk         # for awk command
+    # Nice to have utilities for development
+    pkgs.curl         # for downloading files
+    pkgs.wget         # alternative downloader
+    pkgs.openssh      # for SSH connections
+    pkgs.less         # pager for viewing files
+    pkgs.gnupatch     # for applying patches
   ];
 
   # Common environment variables
