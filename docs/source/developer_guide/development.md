@@ -122,10 +122,6 @@ docker pull ghcr.io/fpga-research/fabulous:dev
 
 # Run interactively with your local repo mounted
 docker run -it --rm -v $(pwd):/workspace ghcr.io/fpga-research/fabulous:dev
-
-# Or use the release image (non-editable install)
-docker pull ghcr.io/fpga-research/fabulous:latest
-docker run -it --rm ghcr.io/fpga-research/fabulous:latest FABulous -h
 ```
 
 (pre-commit)=
