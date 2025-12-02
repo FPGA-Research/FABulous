@@ -1,7 +1,10 @@
 # Docker image builder for FABulous
-# This file builds a Docker image using the devShell packages from the flake
-# Usage: nix-build nix/docker-image.nix
-#    or: nix build -f nix/docker-image.nix
+# This file builds Docker images using the devShell packages from the flake
+#
+# Usage:
+#   nix-build nix/docker-image.nix                    # Builds dev image (editable install)
+#   nix-build nix/docker-image.nix -A dev             # Builds dev image (editable install)
+#   nix-build nix/docker-image.nix -A release         # Builds release image (non-editable)
 
 let
   # Lock to the flake's nixpkgs for consistency
@@ -11,16 +14,17 @@ let
   # Get nixpkgs with dockerTools
   pkgs = import flake.inputs.nixpkgs { inherit system; };
   
-  # Get the devShell to extract all packages from it
+  # Get the devShell to extract all packages from it (includes editable FABulous + EDA tools)
   devShell = flake.devShells.${system}.default;
   
-  # Get the default package (FABulous virtualenv)
+  # Get the default package (non-editable FABulous virtualenv)
   fabulous-env = flake.packages.${system}.default;
 
   # Extract packages from devshell config (numtide/devshell stores them in passthru.config.devshell.packages)
   shellPackages = devShell.passthru.config.devshell.packages or [];
   
   # Filter out packages that aren't needed in the Docker image (like menu, interactive shells)
+  # Also filter out the editable FABulous-env for release builds
   filteredPackages = builtins.filter (p: 
     let name = p.name or ""; in
     name != "menu" && 
@@ -28,6 +32,12 @@ let
     !(pkgs.lib.hasPrefix "fish" name) && 
     !(pkgs.lib.hasPrefix "zsh" name)
   ) shellPackages;
+
+  # For release: filter out the editable FABulous-env, we'll add non-editable one
+  releasePackages = builtins.filter (p: 
+    let name = p.name or ""; in
+    !(pkgs.lib.hasPrefix "FABulous-env" name)
+  ) filteredPackages;
 
   # X11/Qt runtime dependencies for GUI applications (e.g., openroad -gui)
   x11Deps = with pkgs; [
@@ -64,13 +74,9 @@ let
 
   # Create fontconfig configuration
   fontsConf = pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; };
-  
-in
-pkgs.dockerTools.buildLayeredImage {
-  name = "fabulous";
-  tag = "latest";
-  
-  contents = filteredPackages ++ x11Deps ++ [
+
+  # Common base packages
+  basePackages = x11Deps ++ [
     pkgs.dockerTools.caCertificates
     pkgs.dockerTools.usrBinEnv
     pkgs.dockerTools.binSh
@@ -79,19 +85,54 @@ pkgs.dockerTools.buildLayeredImage {
     pkgs.bash
     pkgs.dejavu_fonts
   ];
-  
-  config = {
-    Env = [
-      "PATH=/bin"
-      "PYTHONWARNINGS=ignore:Importing fasm.parse_fasm:RuntimeWarning,ignore:Falling back on slower textX parser implementation:RuntimeWarning"
-      # Fontconfig configuration for Qt applications
-      "FONTCONFIG_FILE=${fontsConf}"
-      # Set XDG_RUNTIME_DIR to avoid Qt warnings
-      "XDG_RUNTIME_DIR=/tmp"
-    ];
-    WorkingDir = "/workspace";
-    Cmd = [ "/bin/bash" ];
+
+  # Common environment variables
+  baseEnv = [
+    "PATH=/bin"
+    "PYTHONWARNINGS=ignore:Importing fasm.parse_fasm:RuntimeWarning,ignore:Falling back on slower textX parser implementation:RuntimeWarning"
+    "FONTCONFIG_FILE=${fontsConf}"
+    "XDG_RUNTIME_DIR=/tmp"
+  ];
+
+  # Dev image: editable install (for FABulous development)
+  devImage = pkgs.dockerTools.buildLayeredImage {
+    name = "fabulous";
+    tag = "dev";
+    
+    contents = filteredPackages ++ basePackages;
+    
+    config = {
+      Env = baseEnv ++ [
+        # Set REPO_ROOT for editable install - mount FABulous repo at /workspace
+        "REPO_ROOT=/workspace"
+      ];
+      WorkingDir = "/workspace";
+      Cmd = [ "/bin/bash" ];
+    };
+    
+    maxLayers = 125;
   };
-  
-  maxLayers = 125;
+
+  # Release image: non-editable install (for end users)
+  releaseImage = pkgs.dockerTools.buildLayeredImage {
+    name = "fabulous";
+    tag = "latest";
+    
+    contents = releasePackages ++ [ fabulous-env ] ++ basePackages;
+    
+    config = {
+      Env = baseEnv;
+      WorkingDir = "/workspace";
+      Cmd = [ "/bin/bash" ];
+    };
+    
+    maxLayers = 125;
+  };
+
+in
+{
+  # Default to dev image for backward compatibility with current CI
+  default = devImage;
+  dev = devImage;
+  release = releaseImage;
 }
