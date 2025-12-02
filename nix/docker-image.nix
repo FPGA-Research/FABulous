@@ -92,6 +92,9 @@ let
     pkgs.findutils    # for find command
     pkgs.procps       # for ps command (process listing)
     pkgs.gawk         # for awk command
+    # Required for VS Code Server runtime (libraries linked by node binary)
+    pkgs.glibc              # provides libc.so
+    pkgs.stdenv.cc.cc.lib   # provides libstdc++.so (GLIBCXX)
     # Nice to have utilities for development
     pkgs.curl         # for downloading files
     pkgs.wget         # alternative downloader
@@ -100,20 +103,43 @@ let
     pkgs.gnupatch     # for applying patches
   ];
 
+  # Build LD_LIBRARY_PATH for VS Code Server to find libraries
+  libPath = pkgs.lib.makeLibraryPath [
+    pkgs.glibc
+    pkgs.stdenv.cc.cc.lib
+  ];
+
   # Common environment variables
   baseEnv = [
     "PATH=/bin"
     "PYTHONWARNINGS=ignore:Importing fasm.parse_fasm:RuntimeWarning,ignore:Falling back on slower textX parser implementation:RuntimeWarning"
     "FONTCONFIG_FILE=${fontsConf}"
     "XDG_RUNTIME_DIR=/tmp"
+    "LD_LIBRARY_PATH=${libPath}"
   ];
+
+  # Create FHS compatibility layer for VS Code Dev Containers
+  # - Dynamic linker symlink is required for VS Code Server binaries to run
+  # - os-release identifies as NixOS so VS Code skips glibc version checks
+  fhsLibs = pkgs.runCommand "fhs-libs" {} ''
+    mkdir -p $out/lib64 $out/etc
+    # Create the dynamic linker symlink - required for VS Code Server binaries to run
+    ln -s ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 $out/lib64/ld-linux-x86-64.so.2
+    # Create os-release identifying as NixOS so VS Code skips glibc checks
+    cat > $out/etc/os-release << EOF
+ID=nixos
+NAME="NixOS"
+VERSION_ID="24.11"
+PRETTY_NAME="NixOS 24.11"
+EOF
+  '';
 
   # Dev image: editable install (for FABulous development)
   devImage = pkgs.dockerTools.buildLayeredImage {
     name = "fabulous";
     tag = "dev";
     
-    contents = filteredPackages ++ basePackages;
+    contents = filteredPackages ++ basePackages ++ [ fhsLibs ];
     
     config = {
       Env = baseEnv ++ [
@@ -132,7 +158,7 @@ let
     name = "fabulous";
     tag = "latest";
     
-    contents = releasePackages ++ [ fabulous-env ] ++ basePackages;
+    contents = releasePackages ++ [ fabulous-env ] ++ basePackages ++ [ fhsLibs ];
     
     config = {
       Env = baseEnv;
