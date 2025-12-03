@@ -25,7 +25,7 @@ docker pull ghcr.io/fpga-research/fabulous:dev
 ```
 
 ```{note}
-The Docker images are primarily designed for headless/CLI usage. While GUI applications can work with X11 forwarding, you may encounter display-related issues depending on your host configuration. If you need reliable GUI support, we recommend using the [Nix-based setup](nix-install) instead, which provides a more seamless experience with native display integration.
+The Docker images include full GUI support with X11 forwarding. GUI applications like `openroad -gui`, should work when X11 forwarding is properly configured (see the "With GUI Support" section below).
 ```
 
 ## Running the Docker Container
