@@ -40,6 +40,15 @@ def _gui_fabulator(self: "FABulous_CLI") -> None:
     ----------
     self : FABulous_CLI
         The CLI instance with access to settings and context.
+
+    Raises
+    ------
+    FileNotFoundError
+        If Maven (mvn) is not found in PATH.
+    EnvironmentNotSet
+        If FABULATOR_ROOT environment variable points to non-existent directory.
+    CommandError
+        If FABulator fails to start.
     """
     logger.info("Checking for FABulator installation")
     fabulatorRoot = get_context().fabulator_root
@@ -106,22 +115,28 @@ def _gui_openroad(
         typer.Option("--head", help="number of item to select from"),
     ] = 10,
 ) -> None:
+    # ruff: noqa: E501
     """Start OpenROAD GUI if an installation can be found.
 
     Parameters
     ----------
-    self : FABulous_CLI
+    self : "FABulous_CLI"
         The CLI instance with access to settings and context.
-    file : str | None
+    file : Annotated[str | None, typer.Argument(help="file to open")]
         Optional path to .odb file to open.
-    tile : str | None
+    tile : Annotated[str | None, typer.Option("--tile", help="launch GUI to view a specific tile")]
         Optional tile name to view.
-    fabric : bool
+    fabric : Annotated[bool, typer.Option("--fabric", help="launch GUI to view the entire fabric")]
         Whether to view the entire fabric.
-    last_run : bool
+    last_run : Annotated[bool, typer.Option("--last-run", help="launch GUI to view last run")]
         Whether to view the last run.
-    head : int
+    head : Annotated[int, typer.Option("--head", help="number of item to select from")]
         Number of items to select from.
+
+    Raises
+    ------
+    CommandError
+        If both --fabric and --tile are specified.
     """
     logger.info("Checking for OpenROAD installation")
     openroad = get_context().openroad_path
@@ -174,22 +189,28 @@ def _gui_klayout(
         typer.Option("--head", help="number of item to select from"),
     ] = 10,
 ) -> None:
+    # ruff: noqa: E501
     """Start klayout GUI if an installation can be found.
 
     Parameters
     ----------
-    self : FABulous_CLI
+    self : "FABulous_CLI"
         The CLI instance with access to settings and context.
-    file : str | None
+    file : Annotated[str | None, typer.Argument(help="file to open")]
         Optional path to .gds file to open.
-    tile : str | None
+    tile : Annotated[str | None, typer.Option("--tile", help="launch GUI to view a specific tile")]
         Optional tile name to view.
-    fabric : bool
+    fabric : Annotated[bool, typer.Option("--fabric", help="launch GUI to view the entire fabric")]
         Whether to view the entire fabric.
-    last_run : bool
+    last_run : Annotated[bool, typer.Option("--last-run", help="launch GUI to view last run")]
         Whether to view the last run.
-    head : int
+    head : Annotated[int, typer.Option("--head", help="number of item to select from")]
         Number of items to select from.
+
+    Raises
+    ------
+    CommandError
+        If both --fabric and --tile are specified.
     """
     logger.info("Checking for klayout installation")
     klayout = get_context().klayout_path
@@ -204,11 +225,7 @@ def _gui_klayout(
         gds_file = file
     if get_context().pdk == "ihp-sg13g2":
         layer_file = (
-            (get_context().pdk_root)
-            / "libs.tech"
-            / "klayout"
-            / "tech"
-            / "sg12g2.lyp"
+            (get_context().pdk_root) / "libs.tech" / "klayout" / "tech" / "sg12g2.lyp"
         )
     else:
         layer_file = (
@@ -234,12 +251,18 @@ def _gui_klayout(
 def do_gui(self: "FABulous_CLI") -> typer.Typer:
     """GUI tools for viewing and editing FABulous designs.
 
-    Available subcommands:
-        fabulator - Start FABulator GUI for visual fabric editing
-        openroad  - Start OpenROAD GUI to view .odb database files
-        klayout   - Start KLayout GUI to view .gds layout files
+    Parameters
+    ----------
+    self : FABulous_CLI
+        The CLI instance with access to settings and context.
 
-    Examples:
+    Returns
+    -------
+    typer.Typer
+        A Typer application instance with GUI subcommands registered.
+
+    Examples
+    --------
         gui fabulator
         gui openroad --last-run
         gui klayout --tile MyTile
@@ -255,20 +278,38 @@ def do_gui(self: "FABulous_CLI") -> typer.Typer:
 
     def openroad_wrapper(
         file: Annotated[str | None, typer.Argument(help="file to open")] = None,
-        tile: Annotated[str | None, typer.Option("--tile", help="launch GUI to view a specific tile")] = None,
-        fabric: Annotated[bool, typer.Option("--fabric", help="launch GUI to view the entire fabric")] = False,
-        last_run: Annotated[bool, typer.Option("--last-run", help="launch GUI to view last run")] = False,
-        head: Annotated[int, typer.Option("--head", help="number of item to select from")] = 10,
+        tile: Annotated[
+            str | None,
+            typer.Option("--tile", help="launch GUI to view a specific tile"),
+        ] = None,
+        fabric: Annotated[
+            bool, typer.Option("--fabric", help="launch GUI to view the entire fabric")
+        ] = False,
+        last_run: Annotated[
+            bool, typer.Option("--last-run", help="launch GUI to view last run")
+        ] = False,
+        head: Annotated[
+            int, typer.Option("--head", help="number of item to select from")
+        ] = 10,
     ) -> None:
         """Start OpenROAD GUI."""
         return _gui_openroad(self, file, tile, fabric, last_run, head)
 
     def klayout_wrapper(
         file: Annotated[str | None, typer.Argument(help="file to open")] = None,
-        tile: Annotated[str | None, typer.Option("--tile", help="launch GUI to view a specific tile")] = None,
-        fabric: Annotated[bool, typer.Option("--fabric", help="launch GUI to view the entire fabric")] = False,
-        last_run: Annotated[bool, typer.Option("--last-run", help="launch GUI to view last run")] = False,
-        head: Annotated[int, typer.Option("--head", help="number of item to select from")] = 10,
+        tile: Annotated[
+            str | None,
+            typer.Option("--tile", help="launch GUI to view a specific tile"),
+        ] = None,
+        fabric: Annotated[
+            bool, typer.Option("--fabric", help="launch GUI to view the entire fabric")
+        ] = False,
+        last_run: Annotated[
+            bool, typer.Option("--last-run", help="launch GUI to view last run")
+        ] = False,
+        head: Annotated[
+            int, typer.Option("--head", help="number of item to select from")
+        ] = 10,
     ) -> None:
         """Start KLayout GUI."""
         return _gui_klayout(self, file, tile, fabric, last_run, head)
