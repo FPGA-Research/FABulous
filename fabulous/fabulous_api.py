@@ -1,18 +1,22 @@
 """FABulous API module for fabric and geometry generation.
 
-This module provides the main API class for managing FPGA fabric generation, including
-parsing fabric definitions, generating HDL code, creating geometries, and handling
-various fabric-related operations.
+DEPRECATED: This module provides backward compatibility for existing code.
+New code should use the processing pipeline architecture:
+- Context for state management
+- Transform for fabric mutations
+- Direct imports for exporters
+
+See fabulous.core for the new architecture.
 """
 
+import warnings
 from collections.abc import Iterable
 from pathlib import Path
 
-import yaml
 from loguru import logger
 
 import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
-import fabulous.fabric_generator.parser.parse_csv as fileParser
+from fabulous.core import Context, Transform
 from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
 
@@ -25,20 +29,7 @@ from fabulous.fabric_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
-from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
-    FABulousFabricMacroFlow,
-)
-from fabulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
-    FABulousFabricMacroFullFlow,
-)
-from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
-    FABulousTileVerilogMarcoFlow,
-)
-from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
-    generate_IO_pin_order_config,
-)
 from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
-from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 from fabulous.fabric_generator.gen_fabric.gen_helper import (
@@ -56,16 +47,24 @@ from fabulous.geometry_generator.geometry_gen import GeometryGenerator
 
 
 class FABulous_API:
-    """Class for managing fabric and geometry generation.
+    """DEPRECATED: Use Context and Transform instead.
 
-    This class parses fabric data from 'fabric.csv', generates fabric layouts,
-    geometries, models for nextpnr, as well as
-    other fabric-related functions.
+    This class is maintained for backward compatibility.
+    New code should use the processing pipeline architecture:
+    - Context for state management
+    - Transform for fabric mutations
+    - Direct imports from fabulous package for exporters
 
-    If 'fabricCSV' is provided, parses fabric data and initialises
-    'fabricGenerator' and 'geometryGenerator' with parsed data.
+    Example migration::
 
-    If using VHDL, changes the extension from '.v' to'.vhdl'.
+        # Old way
+        api = FABulous_API(writer, "fabric.csv")
+        api.genFabric()
+
+        # New way
+        from fabulous import Context, generateFabric
+        context = Context(writer, "fabric.csv")
+        generateFabric(context.writer, context.fabric)
 
     Parameters
     ----------
@@ -89,12 +88,30 @@ class FABulous_API:
     fileExtension: str = ".v"
 
     def __init__(self, writer: CodeGenerator, fabricCSV: str = "") -> None:
-        self.writer = writer
-        if fabricCSV != "":
-            self.fabric = fileParser.parseFabricCSV(fabricCSV)
-            self.geometryGenerator = GeometryGenerator(self.fabric)
-        if isinstance(self.writer, VHDLCodeGenerator):
-            self.fileExtension = ".vhdl"
+        warnings.warn(
+            "FABulous_API is deprecated. Use Context and Transform from fabulous.core instead. "
+            "See https://github.com/FABulous/FABulous for migration guide.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        # Create new architecture components
+        self._context = Context(writer, fabricCSV if fabricCSV else None)
+        self._transform = Transform(self._context)
+
+        # Maintain backward compatibility for direct attribute access
+        self.writer = self._context.writer
+        self.fileExtension = ".vhdl" if isinstance(writer, VHDLCodeGenerator) else ".v"
+
+    @property
+    def fabric(self) -> Fabric:
+        """Get fabric from context."""
+        return self._context.fabric
+
+    @property
+    def geometryGenerator(self) -> GeometryGenerator:
+        """Get geometry generator from context."""
+        return self._context.geometryGenerator
 
     def setWriterOutputFile(self, outputDir: Path) -> None:
         """Set the output file directory for the write object.
@@ -105,32 +122,25 @@ class FABulous_API:
             Directory path where output files will be saved.
         """
         logger.info(f"Output file: {outputDir}")
-        self.writer.outFileName = outputDir
+        self._context.set_output(outputDir)
 
     def loadFabric(self, fabric_dir: Path) -> None:
-        """Load fabric data from 'fabric.csv'.
+        """Load fabric data from fabric definition file.
 
         Parameters
         ----------
         fabric_dir : Path
-            Path to CSV file containing fabric data.
+            Path to fabric definition file (CSV or YAML)
 
         Raises
         ------
         ValueError
-            If 'fabric_dir' does not end with '.csv'
+            If file format is not supported
         """
-        if fabric_dir.suffix == ".csv":
-            self.fabric = fileParser.parseFabricCSV(fabric_dir)
-            self.geometryGenerator = GeometryGenerator(self.fabric)
-        else:
-            logger.error("Only .csv files are supported for fabric loading")
-            raise ValueError
+        self._context.load_fabric(fabric_dir)
 
     def bootstrapSwitchMatrix(self, tileName: str, outputDir: Path) -> None:
         """Bootstrap the switch matrix for the specified tile.
-
-        Using 'bootstrapSwitchMatrix' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -144,15 +154,11 @@ class FABulous_API:
         ValueError
             If tile is not found in fabric.
         """
-        tile = self.fabric.getTileByName(tileName)
-        if not tile:
-            raise ValueError(f"Tile {tileName} not found in fabric.")
+        tile = self._context.get_tile(tileName, required=True)
         bootstrapSwitchMatrix(tile, outputDir)
 
     def addList2Matrix(self, listFile: Path, matrix: Path) -> None:
         """Convert list into CSV matrix and save it.
-
-        Using 'list2CSV' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -178,15 +184,13 @@ class FABulous_API:
         ValueError
             If tile is not found in fabric.
         """
-        if tile := self.fabric.getTileByName(tileName):
-            generateConfigMem(self.writer, self.fabric, tile, configMem)
-        else:
-            raise ValueError(f"Tile {tileName} not found")
+        tile = self._context.get_tile(tileName, required=True)
+        generateConfigMem(
+            self._context.writer, self._context.fabric, tile, configMem
+        )
 
     def genSwitchMatrix(self, tileName: str) -> None:
         """Generate switch matrix for specified tile.
-
-        Using 'genTileSwitchMatrix' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -198,21 +202,20 @@ class FABulous_API:
         ValueError
             If tile is not found in fabric.
         """
-        if tile := self.fabric.getTileByName(tileName):
-            switch_matrix_debug_signal = get_context().switch_matrix_debug_signal
-            logger.info(
-                f"Generate switch matrix debug signals: {switch_matrix_debug_signal}"
-            )
-            genTileSwitchMatrix(
-                self.writer, self.fabric, tile, switch_matrix_debug_signal
-            )
-        else:
-            raise ValueError(f"Tile {tileName} not found")
+        tile = self._context.get_tile(tileName, required=True)
+        switch_matrix_debug_signal = get_context().switch_matrix_debug_signal
+        logger.info(
+            f"Generate switch matrix debug signals: {switch_matrix_debug_signal}"
+        )
+        genTileSwitchMatrix(
+            self._context.writer,
+            self._context.fabric,
+            tile,
+            switch_matrix_debug_signal,
+        )
 
     def genTile(self, tileName: str) -> None:
         """Generate a tile based on its name.
-
-        Using 'generateTile' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -224,15 +227,11 @@ class FABulous_API:
         ValueError
             If tile is not found in fabric.
         """
-        if tile := self.fabric.getTileByName(tileName):
-            generateTile(self.writer, self.fabric, tile)
-        else:
-            raise ValueError(f"Tile {tileName} not found")
+        tile = self._context.get_tile(tileName, required=True)
+        generateTile(self._context.writer, self._context.fabric, tile)
 
     def genSuperTile(self, tileName: str) -> None:
         """Generate a super tile based on its name.
-
-        Using 'generateSuperTile' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -244,17 +243,12 @@ class FABulous_API:
         ValueError
             If super tile is not found in fabric.
         """
-        if tile := self.fabric.getSuperTileByName(tileName):
-            generateSuperTile(self.writer, self.fabric, tile)
-        else:
-            raise ValueError(f"SuperTile {tileName} not found")
+        tile = self._context.get_super_tile(tileName, required=True)
+        generateSuperTile(self._context.writer, self._context.fabric, tile)
 
     def genFabric(self) -> None:
-        """Generate the entire fabric layout.
-
-        Via 'generatreFabric' defined in 'fabric_gen.py'.
-        """
-        generateFabric(self.writer, self.fabric)
+        """Generate the entire fabric layout."""
+        generateFabric(self._context.writer, self._context.fabric)
 
     def genGeometry(self, geomPadding: int = 8) -> None:
         """Generate geometry based on the fabric data and save it to CSV.
@@ -264,15 +258,12 @@ class FABulous_API:
         geomPadding : int, optional
             Padding value for geometry generation, by default 8.
         """
-        self.geometryGenerator.generateGeometry(geomPadding)
-        self.geometryGenerator.saveToCSV(self.writer.outFileName)
+        self._context.geometryGenerator.generateGeometry(geomPadding)
+        self._context.geometryGenerator.saveToCSV(self._context.writer.outFileName)
 
     def genTopWrapper(self) -> None:
-        """Generate the top wrapper for the fabric.
-
-        Using 'generateTopWrapper' defined in 'fabric_gen.py'.
-        """
-        generateTopWrapper(self.writer, self.fabric)
+        """Generate the top wrapper for the fabric."""
+        generateTopWrapper(self._context.writer, self._context.fabric)
 
     def genBitStreamSpec(self) -> dict:
         """Generate the bitstream specification object.
@@ -280,9 +271,9 @@ class FABulous_API:
         Returns
         -------
         dict
-            Bitstream specification object generated by 'fabricGenerator'.
+            Bitstream specification object
         """
-        return generateBitstreamSpec(self.fabric)
+        return generateBitstreamSpec(self._context.fabric)
 
     def genRoutingModel(self) -> tuple[str, str, str, str]:
         """Generate model for Nextpnr based on fabric data.
@@ -290,9 +281,9 @@ class FABulous_API:
         Returns
         -------
         tuple[str, str, str, str]
-            Model generated by 'model_gen_npnr.genNextpnrModel'.
+            Model generated for Nextpnr
         """
-        return model_gen_npnr.genNextpnrModel(self.fabric)
+        return model_gen_npnr.genNextpnrModel(self._context.fabric)
 
     def getBels(self) -> list[Bel]:
         """Return all unique Bels within a fabric.
@@ -302,7 +293,7 @@ class FABulous_API:
         list[Bel]
             List of all unique Bel objects in the fabric.
         """
-        return self.fabric.getAllUniqueBels()
+        return self._context.fabric.getAllUniqueBels()
 
     def getTile(
         self, tileName: str, raises_on_miss: bool = False
@@ -326,12 +317,7 @@ class FABulous_API:
         KeyError
             If tile is not found and 'raises_on_miss' is True.
         """
-        try:
-            return self.fabric.getTileByName(tileName)
-        except KeyError as e:
-            if raises_on_miss:
-                raise KeyError from e
-            return None
+        return self._context.get_tile(tileName, required=raises_on_miss)
 
     def getTiles(self) -> Iterable[Tile]:
         """Return all Tiles within a fabric.
@@ -341,7 +327,7 @@ class FABulous_API:
         Iterable[Tile]
             Collection of all Tile objects in the fabric.
         """
-        return self.fabric.tileDic.values()
+        return self._context.get_tiles()
 
     def getSuperTile(
         self, tileName: str, raises_on_miss: bool = False
@@ -365,12 +351,7 @@ class FABulous_API:
         KeyError
             If tile is not found and 'raises_on_miss' is True.
         """
-        try:
-            return self.fabric.getSuperTileByName(tileName)
-        except KeyError as e:
-            if raises_on_miss:
-                raise KeyError from e
-            return None
+        return self._context.get_super_tile(tileName, required=raises_on_miss)
 
     def getSuperTiles(self) -> Iterable[SuperTile]:
         """Return all SuperTiles within a fabric.
@@ -380,7 +361,7 @@ class FABulous_API:
         Iterable[SuperTile]
             Collection of all SuperTile objects in the fabric.
         """
-        return self.fabric.superTileDic.values()
+        return self._context.get_super_tiles()
 
     def generateUserDesignTopWrapper(self, userDesign: Path, topWrapper: Path) -> None:
         """Generate the top wrapper for the user design.
@@ -392,10 +373,10 @@ class FABulous_API:
         topWrapper : Path
             Path to the output top wrapper file.
         """
-        generateUserDesignTopWrapper(self.fabric, userDesign, topWrapper)
+        generateUserDesignTopWrapper(self._context.fabric, userDesign, topWrapper)
 
     def genIOBelForTile(self, tile_name: str) -> list[Bel]:
-        """Generate the IO BELs for the generative IOs of a tile.
+        """Transform: Generate IO BELs for a tile and update fabric state.
 
         Config Access Generative IOs will be a separate Bel.
         Updates the tileDic with the generated IO BELs.
@@ -403,71 +384,23 @@ class FABulous_API:
         Parameters
         ----------
         tile_name : str
-            Name of the tile to generate IO Bels.
+            Name of the tile to generate IO Bels for
 
         Returns
         -------
         list[Bel]
-            The bel object representing the generative IOs.
+            The BEL objects representing the generative IOs
 
         Raises
         ------
         ValueError
-            If tile not found in fabric.
-            In case of an invalid IO type for generative IOs.
-            If the number of config access ports does not match the number of
-            config bits.
+            If tile not found, invalid IO type, or config mismatch
         """
-        tile = self.fabric.getTileByName(tile_name)
-        bels: list[Bel] = []
-        if not tile:
-            logger.error(f"Tile {tile_name} not found in fabric.")
-            raise ValueError
-
-        suffix = "vhdl" if isinstance(self.writer, VHDLCodeGenerator) else "v"
-
-        gios = [gio for gio in tile.gen_ios if not gio.configAccess]
-        gio_config_access = [gio for gio in tile.gen_ios if gio.configAccess]
-
-        if gios:
-            bel_path = tile.tileDir.parent / f"{tile.name}_GenIO.{suffix}"
-            bel = genIOBel(gios, bel_path, True)
-            if bel:
-                bels.append(bel)
-        if gio_config_access:
-            bel_path = tile.tileDir.parent / f"{tile.name}_ConfigAccess_GenIO.{suffix}"
-            bel = genIOBel(gio_config_access, bel_path, True)
-            if bel:
-                bels.append(bel)
-
-        # update fabric tileDic with generated IO BELs
-        if self.fabric.tileDic.get(tile_name):
-            self.fabric.tileDic[tile_name].bels += bels
-        elif not self.fabric.unusedTileDic[tile_name].bels:
-            logger.warning(
-                f"Tile {tile_name} is not used in fabric, but defined in fabric.csv."
-            )
-            self.fabric.unusedTileDic[tile_name].bels += bels
-        else:
-            logger.error(
-                f"Tile {tile_name} is not defined in fabric, please add to fabric.csv."
-            )
-            raise ValueError
-
-        # update bels on all tiles in fabric.tile
-        for row in self.fabric.tile:
-            for tile in row:
-                if tile and tile.name == tile_name:
-                    tile.bels += bels
-
-        return bels
+        return self._transform.generate_io_bels_for_tile(tile_name)
 
     def genFabricIOBels(self) -> None:
-        """Generate the IO BELs for the generative IOs of the fabric."""
-        for tile in self.fabric.tileDic.values():
-            if tile.gen_ios:
-                logger.info(f"Generating IO BELs for tile {tile.name}")
-                self.genIOBelForTile(tile.name)
+        """Transform: Generate IO BELs for all tiles with generative IOs."""
+        self._transform.generate_fabric_io_bels()
 
     def gen_io_pin_order_config(self, tile: Tile | SuperTile, outfile: Path) -> None:
         """Generate IO pin order configuration YAML for a tile or super tile.
@@ -475,11 +408,11 @@ class FABulous_API:
         Parameters
         ----------
         tile : Tile | SuperTile
-            The fabric element for which to generate the configuration.
+            The fabric element for which to generate the configuration
         outfile : Path
-            Output YAML path.
+            Output YAML path
         """
-        generate_IO_pin_order_config(self.fabric, tile, outfile)
+        self._transform.generate_io_pin_order_config(tile, outfile)
 
     def genTileMacro(
         self,
@@ -495,37 +428,19 @@ class FABulous_API:
         pdk_root: Path | None = None,
         pdk: str | None = None,
     ) -> None:
-        """Run the marco flow to generate the marco Verilog files."""
-        if pdk_root is None:
-            pdk_root = get_context().pdk_root.parent
-        if pdk is None:
-            pdk = get_context().pdk
-            if pdk is None:
-                raise ValueError("PDK must be specified either here or in settings.")
-
-        logger.info(f"PDK root: {pdk_root}")
-        logger.info(f"PDK: {pdk}")
-        logger.info(f"Output folder: {out_folder.resolve()}")
-        flow = FABulousTileVerilogMarcoFlow(
-            self.fabric.getTileByName(tile_dir.name),
+        """Transform: Run tile macro generation flow."""
+        self._transform.run_tile_macro_flow(
+            tile_dir,
             io_pin_config,
-            optimisation,
-            pdk=pdk,
-            pdk_root=pdk_root,
+            out_folder,
+            final_view=final_view,
+            optimisation=optimisation,
             base_config_path=base_config_path,
-            override_config_path=config_override_path,
-            **custom_config_overrides or {},
+            config_override_path=config_override_path,
+            custom_config_overrides=custom_config_overrides,
+            pdk_root=pdk_root,
+            pdk=pdk,
         )
-        result = flow.start()
-        if final_view:
-            logger.info(f"Saving final view to {final_view}")
-            result.save_snapshot(final_view)
-        else:
-            logger.info(
-                f"Saving final views for FABulous to {out_folder / 'final_views'}"
-            )
-            result.save_snapshot(out_folder / "final_views")
-        logger.info("Marco flow completed.")
 
     def fabric_stitching(
         self,
@@ -539,58 +454,42 @@ class FABulous_API:
         pdk: str | None = None,
         **custom_config_overrides: dict,
     ) -> None:
-        """Run the stitching flow to assemble tile macros into a fabric-level GDS.
+        """Transform: Run fabric stitching flow to assemble tile macros.
 
         Parameters
         ----------
         tile_marco_paths : dict[str, Path]
-            Dictionary mapping tile names to their macro output directories.
+            Dictionary mapping tile names to their macro output directories
         fabric_path : Path
-            Path to the fabric-level Verilog file.
+            Path to the fabric-level Verilog file
         out_folder : Path
-            Output directory for the stitched fabric.
-        base_config_path : Path | None
-            Path to base configuration YAML file.
+            Output directory for the stitched fabric
+        base_config_path : Path | None, optional
+            Path to base configuration YAML file
         config_override_path : Path | None, optional
-            Additional configuration overrides.
+            Additional configuration overrides
         pdk_root : Path | None, optional
-            Path to PDK root directory.
+            Path to PDK root directory
         pdk : str | None, optional
-            PDK name to use.
+            PDK name to use
         **custom_config_overrides : dict
-            software configuration overrides.
+            Software configuration overrides
 
         Raises
         ------
         ValueError
-            If PDK root or PDK is not specified.
+            If PDK root or PDK is not specified
         """
-        if pdk_root is None:
-            pdk_root = get_context().pdk_root
-        if pdk is None:
-            pdk = get_context().pdk
-            if pdk is None:
-                raise ValueError("PDK must be specified either here or in settings.")
-
-        logger.info(f"PDK root: {pdk_root}")
-        logger.info(f"PDK: {pdk}")
-        logger.info(f"Output folder: {out_folder.resolve()}")
-
-        flow = FABulousFabricMacroFlow(
-            fabric=self.fabric,
-            fabric_verilog_paths=[fabric_path],
-            tile_macro_dirs=tile_marco_paths,
+        self._transform.run_fabric_stitching(
+            tile_marco_paths,
+            fabric_path,
+            out_folder,
             base_config_path=base_config_path,
             config_override_path=config_override_path,
-            design_dir=out_folder,
             pdk_root=pdk_root,
             pdk=pdk,
             **custom_config_overrides,
         )
-        result = flow.start()
-        logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
-        result.save_snapshot(out_folder / "final_views")
-        logger.info("Stitching flow completed.")
 
     def get_most_frequent_tile(self) -> Tile:
         """Get the most frequently used tile in the fabric.
@@ -598,12 +497,12 @@ class FABulous_API:
         Returns
         -------
         Tile
-            The most frequently used tile in the fabric.
+            The most frequently used tile in the fabric
         """
         from collections import Counter
         from itertools import chain
 
-        counts = Counter(chain.from_iterable(row for row in self.fabric.tile))
+        counts = Counter(chain.from_iterable(row for row in self._context.fabric.tile))
         most_common_tile, _ = counts.most_common(1)[0]
         return most_common_tile
 
@@ -619,45 +518,14 @@ class FABulous_API:
         tile_opt_config: Path | None = None,
         **config_overrides: dict,
     ) -> None:
-        """Run the stitching flow to assemble tile macros into a fabric-level GDS."""
-        if pdk_root is None:
-            pdk_root = get_context().pdk_root
-            if pdk_root is None:
-                raise ValueError(
-                    "PDK root must be specified either here or in settings."
-                )
-        if pdk is None:
-            pdk = get_context().pdk
-            if pdk is None:
-                raise ValueError("PDK must be specified either here or in settings.")
-
-        logger.info(f"PDK root: {pdk_root}")
-        logger.info(f"PDK: {pdk}")
-        logger.info(f"Output folder: {out_folder.resolve()}")
-        final_config_args = {}
-        if base_config_path is not None:
-            final_config_args.update(
-                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
-            )
-        if config_override_path is not None:
-            final_config_args.update(
-                yaml.safe_load(config_override_path.read_text(encoding="utf-8"))
-            )
-        final_config_args["FABULOUS_PROJ_DIR"] = str(project_dir.resolve())
-        final_config_args["FABULOUS_FABRIC"] = self.fabric
-        final_config_args["DESIGN_NAME"] = self.fabric.name
-        if tile_opt_config is not None:
-            final_config_args["TILE_OPT_INFO"] = str(tile_opt_config)
-        if config_overrides:
-            final_config_args.update(config_overrides)
-        flow = FABulousFabricMacroFullFlow(
-            final_config_args,
-            name=self.fabric.name,
-            design_dir=str(out_folder.resolve()),
+        """Transform: Run complete automated eFPGA macro flow."""
+        self._transform.run_full_automation(
+            project_dir,
+            out_folder,
+            pdk_root=pdk_root,
             pdk=pdk,
-            pdk_root=str((pdk_root).resolve().parent),
+            base_config_path=base_config_path,
+            config_override_path=config_override_path,
+            tile_opt_config=tile_opt_config,
+            **config_overrides,
         )
-        result = flow.start()
-        logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
-        result.save_snapshot(out_folder / "final_views")
-        logger.info("Stitching flow completed.")
