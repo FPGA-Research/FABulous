@@ -57,3 +57,5 @@ jobs:
           nix develop --command bash -c "FABulous --version"
           nix develop --command bash -c "which openroad"
           nix develop --command bash -c "openroad -version"
+          nix develop --command bash -c "which yosys"
+          nix develop --command bash -c "yosys --version"
