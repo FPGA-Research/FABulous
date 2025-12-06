@@ -212,7 +212,6 @@ EOF
   devImage = pkgs.dockerTools.buildImage {
     name = "fabulous";
     tag = "dev";
-    contents = [ ];
     extraCommands = mkExtraCommands devProfile;
     config = mkDockerConfig { isDev = true; };
   };
@@ -221,7 +220,6 @@ EOF
   releaseImage = pkgs.dockerTools.buildImage {
     name = "fabulous";
     tag = "latest";
-    contents = [ ];
     extraCommands = mkExtraCommands releaseProfile;
     config = mkDockerConfig { isDev = false; };
   };
