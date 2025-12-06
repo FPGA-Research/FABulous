@@ -20,7 +20,6 @@ in
 {
   # Custom builds only for these tools
   nextpnr = buildTool "nextpnr";
-  fabulator = buildTool "fabulator";
   
   # GHDL: Build from source on Linux, use pre-built binaries on macOS
   ghdl = let

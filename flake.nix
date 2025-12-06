@@ -42,10 +42,7 @@
       url = "github:YosysHQ/nextpnr/nextpnr-0.9";
       flake = false;
     };
-    fabulator-src = {
-      url = "github:FPGA-Research/FABulator/beccd4e4c58b9fc92fafaf082883c20367dbe5ba";
-      flake = false;
-    };
+
   };
 
   nixConfig = {
@@ -65,7 +62,6 @@
       ghdl-src,
       ghdl-bin-aarch64-darwin,
       nextpnr-src,
-      fabulator-src,
       pyproject-nix,
       uv2nix,
       pyproject-build-systems,
@@ -143,7 +139,6 @@
               ghdl = ghdl-src;
               ghdl-darwin-bin = ghdl-bin-aarch64-darwin;
               nextpnr = nextpnr-src;
-              fabulator = fabulator-src;
             };
           };
 
@@ -171,7 +166,6 @@
               pkgs.zsh
               pkgs.gtkwave
               customPkgs.nextpnr
-              customPkgs.fabulator
             ]
             ++ (lib.optional (pkgs.stdenv.isLinux || system == "aarch64-darwin") customPkgs.ghdl)
             ++ (builtins.filter systemSupported librelane-pkg.includedTools);
