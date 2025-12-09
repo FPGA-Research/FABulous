@@ -25,8 +25,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # TODO: change to official librelane when available
-    librelane.url = "github:kelvinchung2000/librelane/my-dev";
+    librelane.url = "github:librelane/librelane/dev";
 
     # Tag-pinned sources for custom tools (locked in flake.lock)
     ghdl-src = {
