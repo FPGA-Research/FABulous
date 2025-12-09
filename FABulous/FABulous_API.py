@@ -32,7 +32,7 @@ from FABulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
     FABulousFabricMacroFullFlow,
 )
 from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
-    FABulousTileVerilogMarcoFlow,
+    FABulousTileVerilogMacroFlow,
 )
 from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
@@ -506,7 +506,7 @@ class FABulous_API:
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        flow = FABulousTileVerilogMarcoFlow(
+        flow = FABulousTileVerilogMacroFlow(
             self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
             optimisation,

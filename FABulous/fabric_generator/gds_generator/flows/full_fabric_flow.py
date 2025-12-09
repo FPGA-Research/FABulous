@@ -32,7 +32,7 @@ from FABulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
 )
 from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
-    FABulousTileVerilogMarcoFlow,
+    FABulousTileVerilogMacroFlow,
 )
 from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
@@ -101,7 +101,7 @@ def _run_tile_flow_worker(
 
         context: FABulousSettings = init_context(project_dir=proj_dir)
         # Reconstruct the flow in the worker process with serializable data
-        flow: FABulousTileVerilogMarcoFlow = FABulousTileVerilogMarcoFlow(
+        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
             tile_type,
             io_pin_config,
             optimisation,

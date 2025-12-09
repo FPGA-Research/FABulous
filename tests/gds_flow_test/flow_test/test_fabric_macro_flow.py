@@ -321,9 +321,7 @@ class TestValidateTileSizes:
         pitch_y: Decimal = Decimal(100)
 
         with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(
-                flow, mock_fabric, tile_sizes, pitch_x, pitch_y
-            )
+            flow._validate_tile_sizes(flow, mock_fabric, tile_sizes, pitch_x, pitch_y)
 
     def test_invalid_tile_height_not_aligned(
         self, flow: MagicMock, mock_fabric: MagicMock
@@ -336,13 +334,9 @@ class TestValidateTileSizes:
         pitch_y: Decimal = Decimal(50)
 
         with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(
-                flow, mock_fabric, tile_sizes, pitch_x, pitch_y
-            )
+            flow._validate_tile_sizes(flow, mock_fabric, tile_sizes, pitch_x, pitch_y)
 
-    def test_zero_pitch_handling(
-        self, flow: MagicMock, mock_fabric: MagicMock
-    ) -> None:
+    def test_zero_pitch_handling(self, flow: MagicMock, mock_fabric: MagicMock) -> None:
         """Test validation handles zero pitch gracefully."""
         tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
             "tile1": (Decimal(100), Decimal(200)),
@@ -371,9 +365,7 @@ class TestValidateTileSizes:
         pitch_y: Decimal = Decimal(100)
 
         with pytest.raises(ValueError, match="Tile size validation failed"):
-            flow._validate_tile_sizes(
-                flow, mock_fabric, tile_sizes, pitch_x, pitch_y
-            )
+            flow._validate_tile_sizes(flow, mock_fabric, tile_sizes, pitch_x, pitch_y)
 
 
 class TestComputeRowAndColumnSizes:
@@ -523,11 +515,11 @@ class TestFlowConfiguration:
 
     def test_pdn_substitution(self) -> None:
         """Test PDN substitution."""
-        from FABulous.fabric_generator.gds_generator.steps.odb_connect_power import (
-            FABulousPower,
+        from FABulous.fabric_generator.gds_generator.steps.odb_connect_pdn import (
+            FABulousPDN,
         )
 
-        assert subs["OpenROAD.GeneratePDN"] == FABulousPower
+        assert subs["OpenROAD.GeneratePDN"] == FABulousPDN
 
     def test_flow_steps_attribute(self) -> None:
         """Test that flow has Steps attribute."""

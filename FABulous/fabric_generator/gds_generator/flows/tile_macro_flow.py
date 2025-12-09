@@ -67,7 +67,7 @@ configs = Classic.config_vars + [
 
 
 @Flow.factory.register()
-class FABulousTileVerilogMarcoFlow(SequentialFlow):
+class FABulousTileVerilogMacroFlow(SequentialFlow):
     """A tile optimisation flow for FABulous fabric generation from Verilog."""
 
     Steps = (

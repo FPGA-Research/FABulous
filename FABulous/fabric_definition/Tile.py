@@ -320,7 +320,7 @@ class Tile:
         x_spacing: Decimal,
         y_spacing: Decimal,
         frame_data_width: int = 32,
-        frame_stroble_width: int = 20,
+        frame_strobe_width: int = 20,
     ) -> tuple[Decimal, Decimal]:
         """Calculate minimum tile dimensions based on IO pin density.
 
@@ -330,21 +330,21 @@ class Tile:
         Parameters
         ----------
         x_pitch : Decimal
-            Horizontal pitch between tracks (DBU)
+            Horizontal pitch between tracks (DBU).
         y_pitch : Decimal
-            Vertical pitch between tracks (DBU)
+            Vertical pitch between tracks (DBU).
         x_pin_thickness_mult : Decimal
-            pin thickness multiplier in the horizontal direction
+            Pin thickness multiplier in the horizontal direction.
         y_pin_thickness_mult : Decimal
-            pin thickness multiplier in the vertical direction
+            Pin thickness multiplier in the vertical direction.
         x_spacing : Decimal
-            pin spacing in the horizontal direction (DBU)
+            Pin spacing in the horizontal direction (DBU).
         y_spacing : Decimal
-            pin spacing in the vertical direction (DBU)
+            Pin spacing in the vertical direction (DBU).
         frame_data_width : int, optional
-            frame data width in pins, by default 32
-        frame_stroble_width : int, optional
-            frame stroble width in pins, by default 20
+            Frame data widths, by default 32
+        frame_strobe_width : int, optional
+            Frame strobe width, by default 20
 
         Returns
         -------
@@ -356,69 +356,57 @@ class Tile:
         Notes
         -----
         The minimum dimensions are calculated as:
-        - min_width = max(north_pins, south_pins) × x_pitch
-        - min_height = max(west_pins, east_pins) × y_pitch
+        - min_width = max(north_pins, south_pins) * x_pitch
+        - min_height = max(west_pins, east_pins) * y_pitch
 
-        These constraints prevent the LP solver from suggesting dimensions
+        These constraints prevent the NLP solver from suggesting dimensions
         that are physically impossible due to IO pin spacing requirements.
         """
         import itertools
         from decimal import Decimal
 
+        def get_port_count(ports: list[Port]) -> int:
+            """Count total number of expanded ports in a list of ports.
+
+            Parameters
+            ----------
+            ports : list[Port]
+                List of ports to count.
+
+            Returns
+            -------
+            int
+                Total number of expanded ports.
+            """
+            return len(
+                list(
+                    itertools.chain.from_iterable(
+                        [
+                            list(itertools.chain.from_iterable(p.expandPortInfo("all")))
+                            for p in ports
+                        ]
+                    )
+                )
+            )
+
         # Count ports on each physical side
-        north_ports = len(
-            list(
-                itertools.chain.from_iterable(
-                    [
-                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
-                        for i in self.getNorthSidePorts()
-                    ]
-                )
-            )
-        )
-        south_ports = len(
-            list(
-                itertools.chain.from_iterable(
-                    [
-                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
-                        for i in self.getSouthSidePorts()
-                    ]
-                )
-            )
-        )
-        west_ports = len(
-            list(
-                itertools.chain.from_iterable(
-                    [
-                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
-                        for i in self.getWestSidePorts()
-                    ]
-                )
-            )
-        )
-        east_ports = len(
-            list(
-                itertools.chain.from_iterable(
-                    [
-                        list(itertools.chain.from_iterable(i.expandPortInfo("all")))
-                        for i in self.getEastSidePorts()
-                    ]
-                )
-            )
-        )
+        north_ports = get_port_count(self.getNorthSidePorts())
+        south_ports = get_port_count(self.getSouthSidePorts())
+        west_ports = get_port_count(self.getWestSidePorts())
+        east_ports = get_port_count(self.getEastSidePorts())
 
         # Min width constrained by north/south edges
-        width_io_count = max(north_ports, south_ports) + frame_stroble_width
+        x_io_count = Decimal(max(north_ports, south_ports) + frame_strobe_width)
         min_width_io = (
-            Decimal(width_io_count) * (x_pitch * x_pin_thickness_mult)
-            + x_spacing * width_io_count
+            x_io_count * (x_pitch * x_pin_thickness_mult)
+            + x_spacing * x_io_count
             + 2 * x_spacing
         )
         # Min height constrained by west/east edges
-        height_io_count = max(west_ports, east_ports) + frame_data_width
+        y_io_count = Decimal(max(west_ports, east_ports) + frame_data_width)
         min_height_io = (
-            height_io_count * (y_pitch * y_pin_thickness_mult)
-            + y_spacing * height_io_count
+            y_io_count * (y_pitch * y_pin_thickness_mult)
+            + y_spacing * y_io_count
             + 2 * y_spacing
         )
         return min_width_io, min_height_io

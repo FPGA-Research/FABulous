@@ -20,17 +20,14 @@ from FABulous.fabric_generator.gds_generator.flows.flow_define import (
     prep_steps,
     write_out_steps,
 )
-from FABulous.fabric_generator.gds_generator.helper import get_pitch
+from FABulous.fabric_generator.gds_generator.helper import get_pitch, round_up_decimal
 from FABulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
     FABulousFabricIOPlacement,
 )
-from FABulous.fabric_generator.gds_generator.steps.odb_connect_power import (
-    FABulousPower,
+from FABulous.fabric_generator.gds_generator.steps.odb_connect_pdn import (
+    FABulousPDN,
 )
 from FABulous.FABulous_settings import get_context
-
-# Add namedtuple for tile sizes
-
 
 subs = {
     # Disable STA
@@ -40,7 +37,7 @@ subs = {
     # IO placement
     "Odb.CustomIOPlacement": FABulousFabricIOPlacement,
     # Power
-    "OpenROAD.GeneratePDN": FABulousPower,
+    "OpenROAD.GeneratePDN": FABulousPDN,
 }
 
 configs = Classic.config_vars + [
@@ -72,10 +69,10 @@ class FABulousFabricMacroFlow(Classic):
     """Flow for stitching together individual tile macros into a complete fabric.
 
     This flow handles the placement and interconnection of pre-generated tile macros to
-    create the final fabric layout, including power distribution and IO placement.
+    create the final fabric layout, including power distribution network and IO
+    placement.
     """
 
-    macros: dict[str, Macro]
     tile_sizes: dict[str, tuple[Decimal, Decimal]]
     fabric: Fabric
 
@@ -157,9 +154,9 @@ class FABulousFabricMacroFlow(Classic):
         if design_dir is not None:
             final_design_dir = str(design_dir.resolve())
         else:
-            p = self.fabric.fabric_dir.parent / "macro"
-            p.mkdir(parents=True, exist_ok=True)
-            final_design_dir = str(p)
+            macro_dir = self.fabric.fabric_dir.parent / "macro"
+            macro_dir.mkdir(parents=True, exist_ok=True)
+            final_design_dir = str(macro_dir)
         super().__init__(
             final_config,
             name=self.fabric.name,
@@ -343,7 +340,7 @@ class FABulousFabricMacroFlow(Classic):
         Returns
         -------
         bool
-            True if no overlaps detected, False otherwise.
+            True if no overlaps are detected, False otherwise.
 
         Raises
         ------
@@ -380,8 +377,8 @@ class FABulousFabricMacroFlow(Classic):
 
                 # Check if rectangles overlap
                 # Two rectangles overlap if they intersect in both X and Y dimensions
-                x_overlap = not (x2_a <= x1_b or x2_b <= x1_a)
-                y_overlap = not (y2_a <= y1_b or y2_b <= y1_a)
+                x_overlap = x2_a > x1_b and x1_a < x2_b
+                y_overlap = y2_a > y1_b and y2_b < y1_a
 
                 if x_overlap and y_overlap:
                     overlaps_found = True
@@ -433,70 +430,39 @@ class FABulousFabricMacroFlow(Classic):
             If any tile dimensions are not aligned to the pitch grid.
         """
         tile_size_errors: list[str] = []
-        # Collect decimals for further multiple-of checks
-        widths: list[Decimal] = []
-        heights: list[Decimal] = []
 
-        for tile_name, (width, height) in tile_sizes.items():
-            width_dec = Decimal(str(width))
-            height_dec = Decimal(str(height))
-
-            widths.append(width_dec)
-            heights.append(height_dec)
-
+        def check_multiple(tile_name: str, width: Decimal, height: Decimal) -> None:
             # Existing pitch alignment check (rounded division -> check fractional part)
             if pitch_x != 0:
-                width_remainder = str(round(width_dec / pitch_x, 2))[-2:]
+                width_remainder = str(round(width / pitch_x, 2))[-2:]
             else:
                 width_remainder = "00"
 
             if pitch_y != 0:
-                height_remainder = str(round(height_dec / pitch_y, 2))[-2:]
+                height_remainder = str(round(height / pitch_y, 2))[-2:]
             else:
                 height_remainder = "00"
 
             if width_remainder != "00":
                 tile_size_errors.append(
-                    f"{tile_name}: width {width_dec} not aligned to {pitch_x} "
+                    f"{tile_name}: width {width} not aligned to {pitch_x} "
                     f"(remainder: {width_remainder})"
                 )
             if height_remainder != "00":
                 tile_size_errors.append(
-                    f"{tile_name}: height {height_dec} not aligned to {pitch_y} "
+                    f"{tile_name}: height {height} not aligned to {pitch_y} "
                     f"(remainder: {height_remainder})"
                 )
+
+        for tile_name, (width, height) in tile_sizes.items():
+            check_multiple(tile_name, width, height)
 
         # Also validate supertiles
         for supertile_name, _ in fabric.superTileDic.items():
             if supertile_name not in tile_sizes:
                 continue
-
             width, height = tile_sizes[supertile_name]
-            width_dec = Decimal(str(width))
-            height_dec = Decimal(str(height))
-
-            if pitch_x != 0:
-                width_remainder = str(round(width_dec / pitch_x, 2))[-2:]
-            else:
-                width_remainder = "00"
-
-            if pitch_y != 0:
-                height_remainder = str(round(height_dec / pitch_y, 2))[-2:]
-            else:
-                height_remainder = "00"
-
-            if width_remainder != "00":
-                tile_size_errors.append(
-                    f"{supertile_name} (supertile): "
-                    f"width {width_dec} not aligned to {pitch_x} "
-                    f"(remainder: {width_remainder})"
-                )
-            if height_remainder != "00":
-                tile_size_errors.append(
-                    f"{supertile_name} (supertile): "
-                    f"height {height_dec} not aligned to {pitch_y} "
-                    f"(remainder: {height_remainder})"
-                )
+            check_multiple(supertile_name, width, height)
 
         if tile_size_errors:
             err("Tile sizes validation failed:")
@@ -523,9 +489,8 @@ class FABulousFabricMacroFlow(Classic):
         Returns
         -------
         tuple[State, list[Step]]
-            Tuple of final state and list of executed steps
+            Tuple of final state and list of executed steps.
         """
-        # Tile Placement
         tile_spacing: tuple[Decimal, Decimal] = self.config["FABULOUS_TILE_SPACING"]
         halo_spacing: tuple[Decimal, Decimal, Decimal, Decimal] = self.config[
             "FABULOUS_HALO_SPACING"
@@ -534,17 +499,9 @@ class FABulousFabricMacroFlow(Classic):
         # Get min_pitch_x/min_pitch_y from FP_TRACKS_INFO via helper.get_min_pitch
         pitch_x, pitch_y = get_pitch(self.config)
 
-        # Round up halo_left and halo_bottom to ensure placement origins are aligned
-        def round_up_to_pitch(val: Decimal, pitch: Decimal) -> Decimal:
-            if pitch == 0:
-                return val
-            remainder = val % pitch
-            increment = Decimal(1) if remainder > 0 else Decimal(0)
-            return (val // pitch + increment) * pitch
-
         halo_left, halo_bottom, halo_right, halo_top = halo_spacing
-        halo_left = round_up_to_pitch(halo_left, pitch_x)
-        halo_bottom = round_up_to_pitch(halo_bottom, pitch_y)
+        halo_left = round_up_decimal(halo_left, pitch_x)
+        halo_bottom = round_up_decimal(halo_bottom, pitch_y)
 
         info(
             f"Rounded placement origin halo: left={halo_left}, bottom={halo_bottom} "
@@ -562,14 +519,12 @@ class FABulousFabricMacroFlow(Classic):
         row_heights, column_widths = self._compute_row_and_column_sizes(
             self.fabric, self.tile_sizes
         )
-        info(f"row_heights: {row_heights}")
         if len(row_heights) != self.fabric.numberOfRows:
             err(
                 f"Expected {self.fabric.numberOfRows} row heights, "
                 f"got {len(row_heights)}"
             )
 
-        info(f"column_widths: {column_widths}")
         if len(column_widths) != self.fabric.numberOfColumns:
             err(
                 f"Expected {self.fabric.numberOfColumns} column widths, got "
@@ -587,8 +542,8 @@ class FABulousFabricMacroFlow(Classic):
         info(f"Computed FABRIC_HEIGHT (before rounding): {fabric_height}")
 
         # Round the total fabric dimensions UP to the next pitch multiple
-        fabric_width_rounded = round_up_to_pitch(fabric_width, pitch_x)
-        fabric_height_rounded = round_up_to_pitch(fabric_height, pitch_y)
+        fabric_width_rounded = round_up_decimal(fabric_width, pitch_x)
+        fabric_height_rounded = round_up_decimal(fabric_height, pitch_y)
 
         # Calculate the adjustment needed and distribute it to the halo
         # Add the extra space to the right and top halo (keeps origin at 0,0)
@@ -611,8 +566,8 @@ class FABulousFabricMacroFlow(Classic):
         )
 
         tile_spacing_x, tile_spacing_y = tile_spacing
-        tile_spacing_x = round_up_to_pitch(tile_spacing_x, pitch_x)
-        tile_spacing_y = round_up_to_pitch(tile_spacing_y, pitch_y)
+        tile_spacing_x = round_up_decimal(tile_spacing_x, pitch_x)
+        tile_spacing_y = round_up_decimal(tile_spacing_y, pitch_y)
 
         # Place macros
         cur_y = 0
@@ -643,7 +598,7 @@ class FABulousFabricMacroFlow(Classic):
                             tile_name = None
 
                 if tile_name is None:
-                    info(f"Skipping {tile_name}")
+                    info(f"Skipping Null tile at X{x}Y{flipped_y}")
                 else:
                     if tile_name not in self.macros:
                         err(f"Could not find {tile_name} in macros")

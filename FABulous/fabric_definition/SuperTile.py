@@ -23,11 +23,11 @@ class SuperTile:
     Attributes
     ----------
     name : str
-        The name of the super tile
+        The name of the super tile.
     tileDir : Path
-        Path to the tile directory
+        Path to the tile directory.
     tiles : list[Tile]
-        The list of tiles that make up the super tile
+        The list of tiles that make up the super tile.
     tileMap : list[list[Tile]]
         The map of the tiles that make up the super tile
     bels : list[Bel]
@@ -141,17 +141,17 @@ class SuperTile:
         Parameters
         ----------
         x_pitch : Decimal
-            Horizontal pitch between tracks (DBU)
+            Horizontal pitch between tracks (DBU).
         y_pitch : Decimal
-            Vertical pitch between tracks (DBU)
+            Vertical pitch between tracks (DBU).
         x_pin_thickness_mult : Decimal
-            pin thickness multiplier in the horizontal direction
+            Pin thickness multiplier in the horizontal direction.
         y_pin_thickness_mult : Decimal
-            pin thickness multiplier in the vertical direction
+            Pin thickness multiplier in the vertical direction.
         x_spacing : Decimal
-            pin spacing in the horizontal direction (DBU)
+            Pin spacing in the horizontal direction (DBU).
         y_spacing : Decimal
-            pin spacing in the vertical direction (DBU)
+            Pin spacing in the vertical direction (DBU).
 
         Returns
         -------
@@ -162,8 +162,8 @@ class SuperTile:
 
         Notes
         -----
-        For SuperTiles, we aggregate IO pins from all constituent tiles
-        that appear on the outer edges of the SuperTile to get conservative
+        For supertiles, we aggregate IO pins from all constituent tiles
+        that appear on the outer edges of the supertile to get conservative
         estimates for minimum dimensions.
         """
         import itertools
