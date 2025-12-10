@@ -25,8 +25,17 @@
                         "source.organizeImports.ruff": "explicit"
                     }
                 },
-                "terminal.integrated.cwd": "/workspaces/${localWorkspaceFolderBasename}"
-            }
+                "terminal.integrated.cwd": "/workspaces/${localWorkspaceFolderBasename}",
+                "dotfiles.repository": "",
+                "dotfiles.installCommand": ""
+            },
+            "extensions": [
+                "charliermarsh.ruff",
+                "ms-python.python"
+            ]
+        },
+        "codespaces": {
+            "openFiles": []
         }
     },
     "postCreateCommand": "bash .devcontainer/post-create.sh",
