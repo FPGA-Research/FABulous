@@ -6,6 +6,11 @@
 
 ## Prerequisites
 
+```{note}
+**Using GitHub Codespaces?** You can skip the local setup entirely!
+For instructions on using FABulous in GitHub Codespaces with full GUI support, see the [Codespaces Guide](#codespaces-guide).
+```
+
 The following packages need to be installed for generating fabric HDLs.
 If you have encounter problems during installation, please refer to the `Installation` section.
 
