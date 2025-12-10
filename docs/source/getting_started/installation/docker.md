@@ -103,7 +103,7 @@ cd FABulous
 code .
 ```
 
-3. When prompted, click "Reopen in Container" or use the command palette (F1) and select "Dev Containers: Reopen in Container"
+3. When prompted, click "Reopen in Container" or use the command palette (F1) and select "Dev Containers: Reopen in Container" then select the `Local` setup.
 
 4. VS Code will automatically:
    - Pull the FABulous Docker image
