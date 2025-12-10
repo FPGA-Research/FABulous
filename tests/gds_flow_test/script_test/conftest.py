@@ -375,7 +375,7 @@ def run_power_function(
     recorder: GeometryRecorder, reader: MockReaderPower, metal_layer: str = "metal1"
 ) -> None:
     """Execute the power connection logic (extracted from odb_power.py).
-    
+
     This helper function mimics the logic from odb_power.py power() function
     and is used by tests to validate geometry transformations.
     """

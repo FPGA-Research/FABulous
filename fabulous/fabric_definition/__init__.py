@@ -1,17 +1,33 @@
-"""FABulous fabric definition module.
+"""Deprecated: This module has been moved to fabulous.model.
 
-This module contains classes and enumerations for defining FPGA fabric structure
-and components. It provides the core data structures for representing tiles,
-BELs (Basic Elements of Logic), ports, wires, and fabric configuration.
+This module is deprecated and will be removed in a future version.
+Please update your imports to use fabulous.model instead.
 
-The fabric definition includes:
-- Bel: Basic elements of logic like LUTs, flip-flops, and any other custom components
-- ConfigMem: Configuration memory structures
-- Fabric: Top-level fabric representation with tiles and routing
-- Gen_IO: Generated I/O port definitions
-- Port: Routing port definitions between tiles
-- SuperTile: Multi-tile components for larger or more complex structures
-- Tile: Individual FPGA tiles containing BELs and switch matrices
-- Wire: Inter-tile wire connections
-- define: Common enumerations and constants
+Old import:
+    from fabulous.model import Fabric, Tile, Bel
+
+New import:
+    from fabulous.model import Fabric, Tile, Bel
 """
+
+import warnings
+
+warnings.warn(
+    "fabulous.fabric_definition is deprecated and will be removed in version 3.0. "
+    "Please use fabulous.model instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+# Re-export from new location for backward compatibility
+from fabulous.model import *  # noqa: F401, F403
+
+__all__ = [
+    "Bel",
+    "ConfigMem",
+    "Fabric",
+    "Port",
+    "SuperTile",
+    "Tile",
+    "Wire",
+]

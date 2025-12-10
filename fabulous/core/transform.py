@@ -10,27 +10,27 @@ from pathlib import Path
 import yaml
 from loguru import logger
 
-from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_definition.tile import Tile
-from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
-    VHDLCodeGenerator,
-)
-from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
+from fabulous.backend.gds.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
 )
-from fabulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
+from fabulous.backend.gds.flows.full_fabric_flow import (
     FABulousFabricMacroFullFlow,
 )
-from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
+from fabulous.backend.gds.flows.tile_macro_flow import (
     FABulousTileVerilogMarcoFlow,
 )
-from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+from fabulous.backend.gds.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
-from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
-from fabulous.fabulous_settings import get_context
+from fabulous.backend.gds.steps.tile_optimisation import OptMode
+from fabulous.backend.hdl.automation import genIOBel
+from fabulous.backend.hdl.vhdl_generator import (
+    VHDLCodeGenerator,
+)
+from fabulous.model.bel import Bel
+from fabulous.model.supertile import SuperTile
+from fabulous.model.tile import Tile
+from fabulous.utils.settings import get_context
 
 
 class Transform:
@@ -42,12 +42,12 @@ class Transform:
 
     Parameters
     ----------
-    context : Context
+    context : FabricContext
         The fabric processing context containing state
 
     Attributes
     ----------
-    context : Context
+    context : FabricContext
         Reference to the processing context
     """
 
@@ -81,9 +81,7 @@ class Transform:
             logger.error(f"Tile {tile_name} not found in fabric.")
             raise ValueError
 
-        suffix = (
-            "vhdl" if isinstance(self.context.writer, VHDLCodeGenerator) else "v"
-        )
+        suffix = "vhdl" if isinstance(self.context.writer, VHDLCodeGenerator) else "v"
 
         gios = [gio for gio in tile.gen_ios if not gio.configAccess]
         gio_config_access = [gio for gio in tile.gen_ios if gio.configAccess]
@@ -94,9 +92,7 @@ class Transform:
             if bel:
                 bels.append(bel)
         if gio_config_access:
-            bel_path = (
-                tile.tileDir.parent / f"{tile.name}_ConfigAccess_GenIO.{suffix}"
-            )
+            bel_path = tile.tileDir.parent / f"{tile.name}_ConfigAccess_GenIO.{suffix}"
             bel = genIOBel(gio_config_access, bel_path, True)
             if bel:
                 bels.append(bel)

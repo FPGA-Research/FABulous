@@ -2,7 +2,7 @@
 
 DEPRECATED: This module provides backward compatibility for existing code.
 New code should use the processing pipeline architecture:
-- Context for state management
+- FabricContext for state management
 - Transform for fabric mutations
 - Direct imports for exporters
 
@@ -15,43 +15,43 @@ from pathlib import Path
 
 from loguru import logger
 
-import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
-from fabulous.core import Context, Transform
-from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
-from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
+import fabulous.backend.pnr.npnr_model as model_gen_npnr
+from fabulous.core import FabricContext, Transform
+from fabulous.backend.pnr.bitstream_spec import generateBitstreamSpec
+from fabulous.backend.pnr.design_wrapper import generateUserDesignTopWrapper
 
 # Importing Modules from FABulous Framework.
-from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_definition.tile import Tile
-from fabulous.fabric_generator.code_generator import CodeGenerator
-from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
+from fabulous.model.bel import Bel
+from fabulous.model.fabric import Fabric
+from fabulous.model.supertile import SuperTile
+from fabulous.model.tile import Tile
+from fabulous.backend.hdl import CodeGenerator
+from fabulous.backend.hdl.vhdl_generator import (
     VHDLCodeGenerator,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
-from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
-from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
-from fabulous.fabric_generator.gen_fabric.gen_helper import (
+from fabulous.backend.gds.steps.tile_optimisation import OptMode
+from fabulous.backend.hdl.configmem import generateConfigMem
+from fabulous.backend.hdl.fabric import generateFabric
+from fabulous.backend.hdl.helpers import (
     bootstrapSwitchMatrix,
     list2CSV,
 )
-from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
-from fabulous.fabric_generator.gen_fabric.gen_tile import (
+from fabulous.backend.hdl.switchmatrix import genTileSwitchMatrix
+from fabulous.backend.hdl.tile import (
     generateSuperTile,
     generateTile,
 )
-from fabulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrapper
-from fabulous.fabulous_settings import get_context
-from fabulous.geometry_generator.geometry_gen import GeometryGenerator
+from fabulous.backend.hdl.top_wrapper import generateTopWrapper
+from fabulous.utils.settings import get_context
+from fabulous.backend.geometry.generator import GeometryGenerator
 
 
 class FABulous_API:
-    """DEPRECATED: Use Context and Transform instead.
+    """DEPRECATED: Use FabricContext and Transform instead.
 
     This class is maintained for backward compatibility.
     New code should use the processing pipeline architecture:
-    - Context for state management
+    - FabricContext for state management
     - Transform for fabric mutations
     - Direct imports from fabulous package for exporters
 
@@ -62,8 +62,8 @@ class FABulous_API:
         api.genFabric()
 
         # New way
-        from fabulous import Context, generateFabric
-        context = Context(writer, "fabric.csv")
+        from fabulous import FabricContext, generateFabric
+        context = FabricContext(writer, "fabric.csv")
         generateFabric(context.writer, context.fabric)
 
     Parameters
@@ -89,14 +89,14 @@ class FABulous_API:
 
     def __init__(self, writer: CodeGenerator, fabricCSV: str = "") -> None:
         warnings.warn(
-            "FABulous_API is deprecated. Use Context and Transform from fabulous.core instead. "
+            "FABulous_API is deprecated. Use FabricContext and Transform from fabulous.core instead. "
             "See https://github.com/FABulous/FABulous for migration guide.",
             DeprecationWarning,
             stacklevel=2,
         )
 
         # Create new architecture components
-        self._context = Context(writer, fabricCSV if fabricCSV else None)
+        self._context = FabricContext(writer, fabricCSV if fabricCSV else None)
         self._transform = Transform(self._context)
 
         # Maintain backward compatibility for direct attribute access
@@ -185,9 +185,7 @@ class FABulous_API:
             If tile is not found in fabric.
         """
         tile = self._context.get_tile(tileName, required=True)
-        generateConfigMem(
-            self._context.writer, self._context.fabric, tile, configMem
-        )
+        generateConfigMem(self._context.writer, self._context.fabric, tile, configMem)
 
     def genSwitchMatrix(self, tileName: str) -> None:
         """Generate switch matrix for specified tile.

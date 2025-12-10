@@ -19,7 +19,7 @@ from conftest import create_instance, create_macro
 from librelane.config.variable import Instance, Macro, Orientation
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
+from fabulous.backend.gds.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
     configs,
     subs,
@@ -507,7 +507,7 @@ class TestFlowConfiguration:
 
     def test_io_placement_substitution(self) -> None:
         """Test IO placement substitution."""
-        from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
+        from fabulous.backend.gds.steps.fabric_IO_placement import (
             FABulousFabricIOPlacement,
         )
 
@@ -515,7 +515,7 @@ class TestFlowConfiguration:
 
     def test_pdn_substitution(self) -> None:
         """Test PDN substitution."""
-        from fabulous.fabric_generator.gds_generator.steps.odb_connect_power import (
+        from fabulous.backend.gds.steps.odb_connect_power import (
             FABulousPower,
         )
 

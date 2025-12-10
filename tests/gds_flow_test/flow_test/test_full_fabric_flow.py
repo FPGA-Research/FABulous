@@ -16,11 +16,11 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
+from fabulous.backend.gds.flows.full_fabric_flow import (
     FABulousFabricMacroFullFlow,
     _run_tile_flow_worker,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
+from fabulous.backend.gds.steps.tile_optimisation import OptMode
 
 if TYPE_CHECKING:
     from librelane.state.state import State
@@ -175,13 +175,13 @@ class TestRunTileFlowWorker:
         mock_context.pdk = "test_pdk"
         mock_context.pdk_root = tmp_path
         mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
+            "fabulous.backend.gds.flows.full_fabric_flow.init_context",
             return_value=mock_context,
         )
 
         # Make flow raise an exception
         mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMarcoFlow",
+            "fabulous.backend.gds.flows.full_fabric_flow.FABulousTileVerilogMarcoFlow",
             side_effect=ValueError("Test error"),
         )
 
@@ -211,7 +211,7 @@ class TestRunTileFlowWorker:
         mock_context.pdk = "test_pdk"
         mock_context.pdk_root = tmp_path
         mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
+            "fabulous.backend.gds.flows.full_fabric_flow.init_context",
             return_value=mock_context,
         )
 
@@ -219,7 +219,7 @@ class TestRunTileFlowWorker:
         mock_flow: MagicMock = mocker.MagicMock()
         mock_flow.start.return_value = mock_state
         mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMarcoFlow",
+            "fabulous.backend.gds.flows.full_fabric_flow.FABulousTileVerilogMarcoFlow",
             return_value=mock_flow,
         )
 
@@ -251,7 +251,7 @@ class TestWorkerCustomOverrides:
         mock_context.pdk = "test_pdk"
         mock_context.pdk_root = tmp_path
         mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
+            "fabulous.backend.gds.flows.full_fabric_flow.init_context",
             return_value=mock_context,
         )
 
@@ -259,7 +259,7 @@ class TestWorkerCustomOverrides:
         mock_flow: MagicMock = mocker.MagicMock()
         mock_flow.start.return_value = mock_state
         mock_flow_class: MagicMock = mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMarcoFlow",
+            "fabulous.backend.gds.flows.full_fabric_flow.FABulousTileVerilogMarcoFlow",
             return_value=mock_flow,
         )
 

@@ -4,7 +4,7 @@ This step only customizes the default PDN_CFG path. The script path and other
 functionality are inherited from OpenROADStep and tested by librelane.
 """
 
-from fabulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
+from fabulous.backend.gds.steps.custom_pdn import CustomGeneratePDN
 
 
 class TestCustomGeneratePDN:

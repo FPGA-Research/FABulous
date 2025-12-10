@@ -9,7 +9,7 @@ from librelane.config.config import Config
 from librelane.state.state import State
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
+from fabulous.backend.gds.steps.extract_pdk_info import (
     ExtractPDKInfo,
 )
 
@@ -24,7 +24,7 @@ class TestExtractPDKInfo:
         step = ExtractPDKInfo(mock_config)
 
         mocker.patch(
-            "fabulous.fabric_generator.gds_generator.steps.extract_pdk_info.Floorplan.run",
+            "fabulous.backend.gds.steps.extract_pdk_info.Floorplan.run",
             return_value=(
                 {},
                 {"pdk__site_width": "0.46", "pdk__site_height": "2.72"},

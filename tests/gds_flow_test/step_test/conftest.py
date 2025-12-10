@@ -4,7 +4,7 @@ import pytest
 from librelane.config.config import Config
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
+from fabulous.backend.gds.steps.tile_optimisation import OptMode
 
 
 @pytest.fixture(autouse=True)

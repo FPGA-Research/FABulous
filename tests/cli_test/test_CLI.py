@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+from fabulous.cli.main import FABulous_CLI
 from tests.cli_test.conftest import TILE
 from tests.conftest import (
     normalize_and_check_for_errors,
@@ -207,7 +207,7 @@ def test_start_openroad_gui(
 
     m = mocker.patch("subprocess.run", return_value=MockCompletedProcess())
     m2 = mocker.patch(
-        "fabulous.fabulous_cli.fabulous_cli.FABulous_CLI._get_file_path",
+        "fabulous.cli.main.FABulous_CLI._get_file_path",
         return_value="dummy.odb",
     )
     run_cmd(cli, "start_openroad_gui")
@@ -226,7 +226,7 @@ def test_start_klayout_gui(
 
     m = mocker.patch("subprocess.run", return_value=MockCompletedProcess())
     m2 = mocker.patch(
-        "fabulous.fabulous_cli.fabulous_cli.FABulous_CLI._get_file_path",
+        "fabulous.cli.main.FABulous_CLI._get_file_path",
         return_value="dummy.gds",
     )
     run_cmd(cli, "start_klayout_gui")

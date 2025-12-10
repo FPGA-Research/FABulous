@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from fabulous.fabric_generator.gds_generator.helper import (
+from fabulous.backend.gds.helper import (
     get_layer_info,
     get_pitch,
     round_die_area,

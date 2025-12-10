@@ -1,6 +1,6 @@
 """Tests for WhileStep base class."""
 
-from fabulous.fabric_generator.gds_generator.steps.while_step import WhileStep
+from fabulous.backend.gds.steps.while_step import WhileStep
 
 
 class TestWhileStep:

@@ -11,8 +11,8 @@ import pytest
 import yaml
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.define import PinSortMode, Side
-from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+from fabulous.model.define import PinSortMode, Side
+from fabulous.backend.gds.gen_io_pin_config_yaml import (
     PinOrderConfig,
     _serialize_supertile_ports,
     _serialize_tile_ports,
@@ -425,7 +425,7 @@ class TestGenerateIOPinOrderConfig:
         self, mock_fabric, mocker: MockerFixture, tmp_path
     ):
         """Test generation for a SuperTile."""
-        from fabulous.fabric_definition.supertile import SuperTile
+        from fabulous.model.supertile import SuperTile
 
         # Create mock supertile
         mock_supertile = mocker.MagicMock(spec=SuperTile)
@@ -496,7 +496,7 @@ class TestGenerateIOPinOrderConfig:
         self, mock_fabric, mocker: MockerFixture, tmp_path
     ):
         """Test supertile with multiple positions uses top-left."""
-        from fabulous.fabric_definition.supertile import SuperTile
+        from fabulous.model.supertile import SuperTile
 
         mock_supertile = mocker.MagicMock(spec=SuperTile)
 

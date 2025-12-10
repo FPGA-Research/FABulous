@@ -7,7 +7,7 @@ from librelane.config.config import Config
 from librelane.state.state import State
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
+from fabulous.backend.gds.steps.add_buffer import AddBuffers
 
 
 class TestAddBuffers:
@@ -20,7 +20,7 @@ class TestAddBuffers:
         mock_config = mock_config.copy(RSZ_CORNERS=["typical", "fast"])
 
         mock_run = mocker.patch(
-            "fabulous.fabric_generator.gds_generator.steps.add_buffer.OpenROADStep.run",
+            "fabulous.backend.gds.steps.add_buffer.OpenROADStep.run",
             return_value=({}, {}),
         )
 
@@ -43,7 +43,7 @@ class TestAddBuffers:
         mock_config = mock_config.copy(STA_CORNERS=["typical"])
 
         mock_run = mocker.patch(
-            "fabulous.fabric_generator.gds_generator.steps.add_buffer.OpenROADStep.run",
+            "fabulous.backend.gds.steps.add_buffer.OpenROADStep.run",
             return_value=({}, {}),
         )
 

@@ -16,7 +16,7 @@ from dotenv import set_key
 from pytest_mock import MockerFixture
 
 from fabulous.fabulous import main
-from fabulous.fabulous_settings import init_context, reset_context
+from fabulous.utils.settings import init_context, reset_context
 
 
 @pytest.mark.parametrize(
@@ -709,7 +709,7 @@ def test_start(
         pass
 
     monkeypatch.setattr(
-        "fabulous.fabulous_cli.fabulous_cli.FABulous_CLI.cmdloop", mock_cmdloop
+        "fabulous.cli.main.FABulous_CLI.cmdloop", mock_cmdloop
     )
 
     test_args = [s.replace("{project}", str(project)) for s in argv]
@@ -988,7 +988,7 @@ def test_check_version_compatibility_cases(
     """Test version compatibility checking with different version scenarios"""
 
     from fabulous.fabulous import check_version_compatibility
-    from fabulous.fabulous_settings import init_context, reset_context
+    from fabulous.utils.settings import init_context, reset_context
 
     reset_context()
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.fabulous_cli.helper import clone_git_repo
+from fabulous.cli.helper import clone_git_repo
 from tests.reference_tests.reference_projects_test import load_reference_projects_config
 
 

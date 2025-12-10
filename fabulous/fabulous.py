@@ -15,10 +15,10 @@ import typer
 from loguru import logger
 from packaging.version import Version
 
-from fabulous.custom_exception import PipelineCommandError
-from fabulous.fabric_definition.define import HDLType
-from fabulous.fabulous_cli import FABulous_CLI
-from fabulous.fabulous_cli.helper import (
+from fabulous.utils.exceptions import PipelineCommandError
+from fabulous.model.define import HDLType
+from fabulous.cli import FABulous_CLI
+from fabulous.cli.helper import (
     CommandPipeline,
     create_project,
     install_fabulator,
@@ -26,7 +26,7 @@ from fabulous.fabulous_cli.helper import (
     setup_logger,
     update_project_version,
 )
-from fabulous.fabulous_settings import (
+from fabulous.utils.settings import (
     FAB_USER_CONFIG_DIR,
     get_context,
     init_context,
@@ -568,7 +568,7 @@ def main() -> None:
             )
 
             if remember:
-                from fabulous.fabulous_settings import add_var_to_global_env
+                from fabulous.utils.settings import add_var_to_global_env
 
                 add_var_to_global_env("FAB_WINDOWS_WARNING_ACKNOWLEDGED", "true")
                 logger.info(

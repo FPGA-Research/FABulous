@@ -7,19 +7,19 @@ Processing Pipeline
 -------------------
 The framework follows a pipeline architecture similar to web frameworks:
 
-1. **Reader**: Parse input formats (CSV, YAML, etc.) → Fabric object
-2. **Context**: Hold fabric state and writer configuration
-3. **Transform**: Mutate/process fabric (middleware-like operations)
-4. **Exporters**: Generate output files (HDL, bitstreams, models)
+1. **Reader/Parsers**: Parse input formats (CSV, YAML, etc.) → Fabric object
+2. **Core/Context**: Hold fabric state and coordinate pipeline
+3. **Core/Transform**: Mutate/process fabric (middleware-like operations)
+4. **Exporters**: Generate output files (HDL, bitstreams, geometry, GDS)
 
 Quick Start
 -----------
 ::
 
-    from fabulous import Context, Transform, VerilogCodeGenerator, generateFabric
+    from fabulous import FabricContext, Transform, VerilogCodeGenerator, generateFabric
 
     # Setup pipeline
-    context = Context(VerilogCodeGenerator())
+    context = FabricContext(VerilogCodeGenerator())
     context.load_fabric("fabric.csv")
     transform = Transform(context)
 
@@ -31,62 +31,58 @@ Quick Start
     generateFabric(context.writer, context.fabric)
 """
 
-# Core data structures
 # Core processing pipeline
-from fabulous.core import Context, CSVReader, Reader, Transform
+from fabulous.core import CSVReader, FabricContext, Reader, Transform
 
-# Exporter functions (pure generation functions)
-from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
-from fabulous.fabric_cad.gen_npnr_model import genNextpnrModel
-from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_definition.tile import Tile
+# Bitstream/CAD exporters
+from fabulous.backend.pnr import (
+    generateBitstreamSpec,
+    genNextpnrModel,
+)
 
-# Code generators
-from fabulous.fabric_generator.code_generator import CodeGenerator
-from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
+# Geometry exporter
+from fabulous.backend.geometry import GeometryGenerator
+
+# HDL exporters (code generators)
+from fabulous.backend.hdl import (
+    CodeGenerator,
     VerilogCodeGenerator,
-)
-from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
-)
-from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
-from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
-from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
-from fabulous.fabric_generator.gen_fabric.gen_tile import (
+    generateConfigMem,
+    generateFabric,
     generateSuperTile,
     generateTile,
+    generateTopWrapper,
+    genTileSwitchMatrix,
 )
-from fabulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrapper
 
-# Geometry
-from fabulous.geometry_generator.geometry_gen import GeometryGenerator
+# Data model
+from fabulous.model import Bel, Fabric, SuperTile, Tile
 
 __all__ = [
-    # Data structures
+    # Core pipeline
+    "FabricContext",
+    "Transform",
+    "Reader",
+    "CSVReader",
+    # Data model
     "Fabric",
     "Tile",
     "Bel",
     "SuperTile",
-    # Code generators
+    # HDL exporters
     "CodeGenerator",
     "VerilogCodeGenerator",
     "VHDLCodeGenerator",
-    # Exporters (pure generation functions)
     "generateFabric",
     "generateTile",
     "generateSuperTile",
     "genTileSwitchMatrix",
     "generateTopWrapper",
     "generateConfigMem",
+    # Bitstream/CAD
     "generateBitstreamSpec",
     "genNextpnrModel",
     # Geometry
     "GeometryGenerator",
-    # Processing pipeline
-    "Context",
-    "Transform",
-    "Reader",
-    "CSVReader",
 ]

@@ -7,7 +7,7 @@ multiple fabric definition formats (CSV, YAML, etc.).
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from fabulous.fabric_definition.fabric import Fabric
+from fabulous.model.fabric import Fabric
 
 
 class Reader(ABC):
@@ -31,7 +31,7 @@ class Reader(ABC):
         Fabric
             Parsed fabric object
         """
-        pass
+        ...
 
 
 class CSVReader(Reader):
@@ -50,7 +50,7 @@ class CSVReader(Reader):
         Fabric
             Parsed fabric object
         """
-        from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV
+        from fabulous.parsers.csv_parser import parseFabricCSV
 
         return parseFabricCSV(path)
 

@@ -21,10 +21,10 @@ from unittest.mock import MagicMock
 import pytest
 from librelane.flows.flow import FlowException
 
-from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
+from fabulous.backend.gds.flows.tile_macro_flow import (
     FABulousTileVerilogMarcoFlow,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
+from fabulous.backend.gds.steps.tile_optimisation import OptMode
 
 
 @pytest.mark.usefixtures("mock_config_load")

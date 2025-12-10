@@ -2,21 +2,21 @@
 
 This module provides the processing pipeline architecture for fabric generation:
 - Reader: Parses input formats (CSV, YAML, etc.) → Fabric
-- Context: Holds fabric state (like request context in web frameworks)
+- FabricContext: Holds fabric state (like request context in web frameworks)
 - Transform: Processes/mutates fabric (like middleware)
 
-Exporters (generateFabric, generateTile, etc.) read from Context
+Exporters (generateFabric, generateTile, etc.) read from FabricContext
 to produce output files.
 
 Example Pipeline
 ----------------
 ::
 
-    from fabulous.core import Context, Transform, CSVReader
+    from fabulous.core import FabricContext, Transform, CSVReader
     from fabulous import VerilogCodeGenerator, generateFabric
 
     # 1. Read: Parse input (auto-detects format from extension)
-    context = Context(VerilogCodeGenerator())
+    context = FabricContext(VerilogCodeGenerator())
     context.load_fabric("fabric.csv")  # Auto-uses CSVReader
 
     # Or explicit reader:
@@ -42,12 +42,12 @@ When switching from CSV to YAML::
     # 4. Rest of pipeline unchanged!
 """
 
-from fabulous.core.context import Context
+from fabulous.core.context import FabricContext
 from fabulous.core.reader import CSVReader, Reader, create_reader
 from fabulous.core.transform import Transform
 
 __all__ = [
-    "Context",
+    "FabricContext",
     "Transform",
     "Reader",
     "CSVReader",

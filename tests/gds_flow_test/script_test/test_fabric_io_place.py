@@ -32,7 +32,7 @@ def _io_place_setup(
 ) -> None:  # noqa: ANN001, ANN202
     """Setup io_place with mocked OdbReader and odb module."""
 
-    from fabulous.fabric_generator.gds_generator.script import fabric_io_place
+    from fabulous.backend.gds.script import fabric_io_place
 
     # Patch odb module using monkeypatch
     monkeypatch.setattr(fabric_io_place, "odb", mock_odb_io_place)
@@ -46,7 +46,7 @@ def _call_io_place(
     """Call the actual io_place function with mocked dependencies."""
     from librelane.scripts.odbpy.reader import OdbReader
 
-    from fabulous.fabric_generator.gds_generator.script import fabric_io_place
+    from fabulous.backend.gds.script import fabric_io_place
 
     # Mock OdbReader to return our mock reader
     def mock_odbreader_init(self: object, *_args: object, **_: object) -> None:

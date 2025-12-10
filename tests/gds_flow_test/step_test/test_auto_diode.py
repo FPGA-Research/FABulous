@@ -8,7 +8,7 @@ from librelane.state.state import State
 from pytest_mock import MockFixture
 from pytest_mock.plugin import MockerFixture
 
-from fabulous.fabric_generator.gds_generator.steps.auto_diode import (
+from fabulous.backend.gds.steps.auto_diode import (
     AutoEcoDiodeInsertion,
 )
 
@@ -103,7 +103,7 @@ class TestAutoEcoDiodeInsertion:
         # Mock CheckAntennas
         mock_instance = mocker.MagicMock()
         mock_check_antennas = mocker.patch(
-            "fabulous.fabric_generator.gds_generator.steps.auto_diode.OpenROAD.CheckAntennas",
+            "fabulous.backend.gds.steps.auto_diode.OpenROAD.CheckAntennas",
             return_value=mock_instance,
         )
         step.config = mock_config
@@ -172,7 +172,7 @@ class TestAutoEcoDiodeInsertion:
         mock_config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="none")
 
         mock_run = mocker.patch(
-            "fabulous.fabric_generator.gds_generator.steps.while_step.WhileStep.run",
+            "fabulous.backend.gds.steps.while_step.WhileStep.run",
             return_value=({}, {}),
         )
 
@@ -191,7 +191,7 @@ class TestAutoEcoDiodeInsertion:
         mock_config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="all")
 
         mock_run = mocker.patch(
-            "fabulous.fabric_generator.gds_generator.steps.auto_diode.WhileStep.run",
+            "fabulous.backend.gds.steps.auto_diode.WhileStep.run",
             return_value=({}, {}),
         )
 

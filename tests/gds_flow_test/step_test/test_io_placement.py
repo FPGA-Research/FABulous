@@ -4,10 +4,10 @@ from librelane.config.config import Config
 from librelane.state.state import State
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
+from fabulous.backend.gds.steps.fabric_IO_placement import (
     FABulousFabricIOPlacement,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
+from fabulous.backend.gds.steps.tile_IO_placement import (
     FABulousTileIOPlacement,
 )
 

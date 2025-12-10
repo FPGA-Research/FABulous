@@ -7,14 +7,14 @@ and writer configuration throughout the processing pipeline.
 from collections.abc import Iterable
 from pathlib import Path
 
-from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_definition.tile import Tile
-from fabulous.fabric_generator.code_generator import CodeGenerator
-from fabulous.geometry_generator.geometry_gen import GeometryGenerator
+from fabulous.backend.geometry.generator import GeometryGenerator
+from fabulous.backend.hdl.code_generator import CodeGenerator
+from fabulous.model.fabric import Fabric
+from fabulous.model.supertile import SuperTile
+from fabulous.model.tile import Tile
 
 
-class Context:
+class FabricContext:
     """Fabric processing context - holds state for the processing pipeline.
 
     Similar to request context in web frameworks, this holds the fabric
@@ -105,9 +105,7 @@ class Context:
         """
         return self.fabric.superTileDic if self.fabric else {}
 
-    def get_tile(
-        self, name: str, *, required: bool = False
-    ) -> Tile | SuperTile | None:
+    def get_tile(self, name: str, *, required: bool = False) -> Tile | SuperTile | None:
         """Get tile by name with optional validation.
 
         Parameters

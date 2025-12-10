@@ -240,10 +240,13 @@ def make_fake_odb_with_geometry(recorder: GeometryRecorder) -> SimpleNamespace:
     )
 
 
-def run_power_function(recorder: GeometryRecorder, reader: FakeReader, metal_layer: str = "metal1") -> None:
+def run_power_function(
+    recorder: GeometryRecorder, reader: FakeReader, metal_layer: str = "metal1"
+) -> None:
     """Execute the power connection logic (extracted from odb_power.py)."""
     # Import odb from sys.modules (where we've monkeypatched it)
     import sys
+
     odb = sys.modules["odb"]
 
     # This mimics the logic from odb_power.py power() function
@@ -337,7 +340,9 @@ def run_power_function(recorder: GeometryRecorder, reader: FakeReader, metal_lay
     vgnd_bpin.setPlacementStatus("FIRM")
 
 
-def test_power_transforms_coordinates_correctly(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_power_transforms_coordinates_correctly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test that power() correctly transforms geometry coordinates by instance location."""
     recorder = GeometryRecorder()
     fake_odb = make_fake_odb_with_geometry(recorder)
@@ -359,11 +364,15 @@ def test_power_transforms_coordinates_correctly(monkeypatch: pytest.MonkeyPatch)
     # Expected: (100 + 10, 200 + 20, 100 + 30, 200 + 40) = (110, 220, 130, 240)
     vpwr_sboxes = [box for box in recorder.sboxes if box[0] == "VPWR"]
     assert len(vpwr_sboxes) == 1, "Should create one SBox for VPWR"
-    assert vpwr_sboxes[0] == ("VPWR", 110, 220, 130, 240), "Incorrect coordinate transformation"
+    assert vpwr_sboxes[0] == ("VPWR", 110, 220, 130, 240), (
+        "Incorrect coordinate transformation"
+    )
 
     vpwr_bboxes = [box for box in recorder.bboxes if box[0] == "VPWR"]
     assert len(vpwr_bboxes) == 1, "Should create one BBox for VPWR"
-    assert vpwr_bboxes[0] == ("VPWR", 110, 220, 130, 240), "BBox should match SBox coordinates"
+    assert vpwr_bboxes[0] == ("VPWR", 110, 220, 130, 240), (
+        "BBox should match SBox coordinates"
+    )
 
 
 def test_power_handles_multiple_instances(monkeypatch: pytest.MonkeyPatch) -> None:
