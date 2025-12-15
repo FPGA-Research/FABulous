@@ -378,7 +378,7 @@ class FABulousFabricMacroFlow(Classic):
                 # Check if rectangles overlap
                 # Two rectangles overlap if they intersect in both X and Y dimensions
                 x_overlap = x2_a > x1_b and x1_a < x2_b
-                y_overlap = y2_a > y1_b and y2_b < y1_a
+                y_overlap = y2_a > y1_b and y1_a < y2_b
 
                 if x_overlap and y_overlap:
                     overlaps_found = True
