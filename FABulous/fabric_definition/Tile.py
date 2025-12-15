@@ -342,9 +342,9 @@ class Tile:
         y_spacing : Decimal
             Pin spacing in the vertical direction (DBU).
         frame_data_width : int, optional
-            Frame data widths, by default 32
+            Frame data width, by default 32.
         frame_strobe_width : int, optional
-            Frame strobe width, by default 20
+            Frame strobe width, by default 20.
 
         Returns
         -------

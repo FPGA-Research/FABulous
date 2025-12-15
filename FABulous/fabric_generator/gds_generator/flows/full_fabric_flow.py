@@ -1,6 +1,6 @@
 """Full automatic fabric flow with LP-based tile optimization.
 
-This flow uses Linear Programming to optimize tile dimensions:
+This flow uses non-Linear Programming (NLP) to optimize tile dimensions:
 1. Compiles all tiles with 3 modes (balance, min-width, min-height) in parallel
 2. Formulates LP problem to minimize total fabric perimeter as area proxy
 3. Solves for optimal tile dimensions with row/column grid constraints
@@ -77,24 +77,24 @@ def _run_tile_flow_worker(
     Parameters
     ----------
     tile_type : Tile | SuperTile
-        The tile to compile
+        The tile to compile.
     proj_dir : Path
-        The path to the project directory
+        The path to the project directory.
     io_pin_config : Path
-        Path to the IO pin configuration YAML file
+        Path to the IO pin configuration YAML file.
     optimisation : OptMode
-        The optimization mode for tile compilation
+        The optimization mode for tile compilation.
     base_config_path : Path
-        Base configuration file path for the flow
+        Base configuration file path for the flow.
     override_config_path : Path
-        Override configuration file path for the flow
+        Override configuration file path for the flow.
     **custom_config_overrides : dict
-        Any software overrides for the flow configuration
+        Any software overrides for the flow configuration.
 
     Returns
     -------
     tuple[State | None, str | None]
-        (compiled_state, error_trace) for result processing
+        (compiled_state, error_trace) for result processing.
     """
     try:
         from FABulous.FABulous_settings import FABulousSettings
@@ -154,8 +154,8 @@ class FABulousFabricMacroFullFlow(Flow):
         found_regular_tiles: int = 0
         found_supertiles: int = 0
 
-        # Build set of all sub-tile names that are part of SuperTiles
-        # Sub-tiles don't need their own directories
+        # Build set of all subtile names that are part of SuperTiles
+        # Subtiles don't need their own directories
         subtile_names: set[str] = set()
         for supertile in fabric.superTileDic.values():
             for subtile in supertile.tiles:
@@ -165,16 +165,16 @@ class FABulousFabricMacroFullFlow(Flow):
         # Skip tiles that are sub-components of SuperTiles
         for tile_name in fabric.tileDic:
             if tile_name in subtile_names:
-                # This tile is part of a SuperTile, skip directory check
+                # This tile is part of a supertile, skip directory check
                 continue
             tile_dir: Path = tile_dir_base / tile_name
             if not tile_dir.exists():
-                missing_tiles.append(f"{tile_name} (regular tile)")
+                missing_tiles.append(f"{tile_name} (regular Tile)")
             else:
                 found_regular_tiles += 1
 
         # Validate SuperTile directories
-        # Note: SuperTiles should have their own directories with compiled output
+        # Note: Supertiles should have their own directories with compiled output
         for supertile_name in fabric.superTileDic:
             supertile_dir: Path = tile_dir_base / supertile_name
             if not supertile_dir.exists():
@@ -192,13 +192,13 @@ class FABulousFabricMacroFullFlow(Flow):
         if subtile_names:
             info(
                 f"✓ Project structure validated: {total_types} tile types found "
-                f"({found_regular_tiles} regular tiles, {found_supertiles} SuperTiles, "
-                f"{len(subtile_names)} sub-tiles within SuperTiles)"
+                f"({found_regular_tiles} regular tiles, {found_supertiles} supertiles, "
+                f"{len(subtile_names)} subtiles within SuperTiles)"
             )
         else:
             info(
                 f"✓ Project structure validated: {total_types} tile types found "
-                f"({found_regular_tiles} regular tiles, {found_supertiles} SuperTiles)"
+                f"({found_regular_tiles} regular tiles, {found_supertiles} supertiles)"
             )
 
     def _init_compile(self, fabric: Fabric, proj_dir: Path) -> None:
@@ -217,7 +217,6 @@ class FABulousFabricMacroFullFlow(Flow):
             for opt_mode, tile_type in product(
                 opt_modes, fabric.get_all_unique_tiles()
             ):
-                # Extract serializable config (as dict to avoid Config lock issues)
                 io_config_path: Path = tile_type.tileDir.parent / "io_pin_order.yaml"
                 generate_IO_pin_order_config(fabric, tile_type, io_config_path)
                 base_config_path: Path = (
@@ -293,33 +292,32 @@ class FABulousFabricMacroFullFlow(Flow):
 
         Flow steps:
         1. Compile all tiles with optimization mode in parallel
-        2. Formulate NLP problem to minimize total fabric area
-        3. Solve for optimal tile dimensions with row/column grid constraints
-        4. Recompile tiles with optimal dimensions in parallel
-        5. Stitch all tiles into final fabric
+        2. Formulate Non-linear Programming (NLP) problem to minimize total fabric area
+        3. Recompile tiles with optimal dimensions in parallel
+        4. Stitch all tiles into final fabric
 
         Parameters
         ----------
         initial_state : State
-            Initial state
+            Initial state.
         **_kwargs : dict
-            Additional keyword arguments
+            Additional keyword arguments.
 
         Returns
         -------
         tuple[State, list[Step]]
-            Final state and list of executed steps
+            Final state and list of executed steps.
 
         Raises
         ------
         RuntimeError
-            If tile compilation or NLP optimization fails
+            If tile compilation or NLP optimization fails.
         FlowException
-            When NLP optimization step fails
+            When NLP optimization step fails.
         """
         fabric: Fabric = self.config["FABULOUS_FABRIC"]
         proj_dir: Path = Path(self.config["FABULOUS_PROJ_DIR"])
-        self.progress_bar.set_max_stage_count(3)
+        self.progress_bar.set_max_stage_count(4)
 
         self._validate_project_dir(proj_dir, fabric)
 
