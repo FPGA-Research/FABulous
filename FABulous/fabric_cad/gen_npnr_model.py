@@ -17,7 +17,7 @@ from FABulous.custom_exception import InvalidFileType, InvalidState
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
-from FABulous.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
+from FABulous.fabric_cad.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
 
 def genNextpnrModel(fabric: Fabric, delay_model: FABulousTimingModelInterface = None) -> tuple[str, str, str, str]:
     """Generate the fabric's nextpnr model.

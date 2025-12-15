@@ -6,11 +6,18 @@ from pathlib import Path
 import os
 import re
 
+from loguru import logger
+
 from .hdlnx.hdlnx_timing_model import HdlnxTimingModel
 
+from FABulous.fabric_definition.Fabric import Fabric
+from FABulous.fabric_definition.SuperTile import SuperTile
+from FABulous.fabric_definition.Tile import Tile
+
 class FABulousTileTimingModel:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, fabric: Fabric):
         self.config = config
+        self.fabric = fabric
         
         self._add_config_keys(new_keys={
             "project_dir": "required",            # Path
@@ -18,7 +25,6 @@ class FABulousTileTimingModel:
             "liberty_files": "required",          # list[Path] | Path
             "techmap_files": "required",          # list[Path] 
             "min_buf_cell_and_ports": "required", # str, e.g., "sg13g2_buf_1 A X"
-            "super_tile_type": None,              # str | None, optional, "top" | "bot" | None
             "mode": "physical",                   # str, "physical" | "structural"
             "sta_executable": "sta",              # str
             "sta_program": "opensta",             # str
@@ -30,77 +36,84 @@ class FABulousTileTimingModel:
             
         }, msg="FABulous Tile Timing Model")
         
-        exclude_dir_patterns = ["macro", "user_design", "Test"]
-        self.verilog_files = self.find_matching_files(self.config["project_dir"], r".*\.v$", exclude_dir_patterns)
+        self.is_in_which_super_tile: str | None = None
+        self.unique_tile_name: str = self.config["tile_name"]
+        
+        for unique_tiles in self.fabric.get_all_unique_tiles():
+            if isinstance(unique_tiles, SuperTile):
+                for composed_tile in unique_tiles.tiles:
+                    if composed_tile.name == self.config["tile_name"]:
+                        self.is_in_which_super_tile = unique_tiles.name
+                        self.unique_tile_name = unique_tiles.name
+                        break
+        
+        exclude_dir_patterns: list[str] = ["macro", "user_design", "Test"]
+        self.verilog_files: list[Path] = self.find_matching_files(self.config["project_dir"], r".*\.v$", exclude_dir_patterns)
         
         ### Init:
         
-        print("Initializing FABulous Timing Model for Tile:", self.config["tile_name"])
-        print("Tile type:", f"Super tile ({self.config['super_tile_type']})" 
-            if self.config["super_tile_type"] is not None else "Regular tile"
-        )
+        logger.info("Initializing FABulous Timing Model for Tile:", self.config["tile_name"])
+        logger.info("  SuperTile:", self.is_in_which_super_tile)
         self.config["hier_sep"] = None
         
-        print("Initializing Synthesis-level timing model...")
+        logger.info("Initializing Synthesis-level timing model...")
         self.config["flat"] = False
         self.config["is_gate_level"] = False
         self.config["spef_files"] = None
         self.config["verilog_files"] = self.verilog_files
-        self.config["top_name"] = self.config["tile_name"]
+        self.config["top_name"] = self.unique_tile_name
         
         self.hdlnx_tm_synth = HdlnxTimingModel(self.config)
         
-        print("Initializing Physical-level timing model...")
+        logger.info("Initializing Physical-level timing model...")
         self.config["is_gate_level"] = True
-        self.config["verilog_files"] = (Path(f"{self.config['project_dir']}/Tile/{self.config['tile_name']}"
-                                             f"/macro/final_views/nl/{self.config['tile_name']}.nl.v"))
+        self.config["verilog_files"] = (Path(f"{self.config['project_dir']}/Tile/{self.unique_tile_name}"
+                                             f"/macro/final_views/nl/{self.unique_tile_name}.nl.v"))
         if self.config["consider_wire_delay"]:
-            self.config["spef_files"] = (Path(f"{self.config['project_dir']}/Tile/{self.config['tile_name']}"
-                                              f"/macro/final_views/spef/nom/{self.config['tile_name']}.nom.spef"))
+            self.config["spef_files"] = (Path(f"{self.config['project_dir']}/Tile/{self.unique_tile_name}"
+                                              f"/macro/final_views/spef/nom/{self.unique_tile_name}.nom.spef"))
         
         self.hdlnx_tm_phys = HdlnxTimingModel(self.config)
         
         # Extract switch matrix information
         # Check super_tile_type in config to filter the correct switch matrix
         
-        print("Extracting switch matrix information...")
+        logger.info("Extracting switch matrix information...")
         self.switch_matrix_hier_path = self.hdlnx_tm_synth.find_instance_paths_by_regex(r".*_switch_matrix$")
         self.switch_matrix_module_name = self.hdlnx_tm_synth.find_verilog_modules_regex(r"^[^/]*_switch_matrix$")
         
-        if self.config["super_tile_type"] is not None and self.config["super_tile_type"] in ["top", "bot"]:
+        
+        if self.is_in_which_super_tile is None:
+            if len(self.switch_matrix_hier_path) == 0 or len(self.switch_matrix_module_name) == 0:
+                raise ValueError("No switch matrix instance or module found for regular Tile.")
+            if len(self.switch_matrix_hier_path) > 1 or len(self.switch_matrix_module_name) > 1:
+                raise ValueError("Multiple switch matrix instances or modules found for a non-SuperTile.")
+            self.switch_matrix_hier_path = self.switch_matrix_hier_path[0]
+            self.switch_matrix_module_name = self.switch_matrix_module_name[0]
+            logger.info(f"Using switch matrix instance: {self.switch_matrix_hier_path}, "
+                        f"module: {self.switch_matrix_module_name}")
+        else:
             self.switch_matrix_hier_path = [p for p in self.switch_matrix_hier_path 
-                if f"{self.config['tile_name']}_{self.config['super_tile_type']}_" in p
+                if self.config["tile_name"] in p
             ]
             self.switch_matrix_module_name = [m for m in self.switch_matrix_module_name 
-                if f"{self.config['tile_name']}_{self.config['super_tile_type']}_" in m
+                if self.config["tile_name"] in m
             ]
             if len(self.switch_matrix_hier_path) == 0 or len(self.switch_matrix_module_name) == 0:
-                raise ValueError(f"No switch matrix instance or module found for super_tile_type "
-                                 f"{self.config['super_tile_type']}")
+                raise ValueError(f"No switch matrix instance or module found for SuperTile "
+                                 f"{self.unique_tile_name}")
             if len(self.switch_matrix_hier_path) > 1 or len(self.switch_matrix_module_name) > 1:
-                raise ValueError(f"Multiple switch matrix instances or modules found for super_tile_type "
-                                 f"{self.config['super_tile_type']}")
-            
+                raise ValueError(f"Multiple switch matrix instances or modules found Tile "
+                                 f"{self.config['tile_name']} in SuperTile {self.unique_tile_name}.")
             self.switch_matrix_hier_path = self.switch_matrix_hier_path[0]
-            self.switch_matrix_module_name = self.switch_matrix_module_name[0]
-            
-            print(f"Using super_tile_type {self.config['super_tile_type']} from config.")
-            print(f"Using switch matrix instance: {self.switch_matrix_hier_path}, module: {self.switch_matrix_module_name}")
-        else:
-            if len(self.switch_matrix_hier_path) == 0 or len(self.switch_matrix_module_name) == 0:
-                raise ValueError("No switch matrix instance or module found.")
-            if len(self.switch_matrix_hier_path) > 1 or len(self.switch_matrix_module_name) > 1:
-                raise ValueError("Multiple switch matrix instances or modules found. Please specify super_tile_type in config.")
-            
-            self.switch_matrix_hier_path = self.switch_matrix_hier_path[0]
-            self.switch_matrix_module_name = self.switch_matrix_module_name[0]
-            
-            print(f"Using switch matrix instance: {self.switch_matrix_hier_path}, module: {self.switch_matrix_module_name}")
+            self.switch_matrix_module_name = self.switch_matrix_module_name[0]   
+            logger.info(f"Tile {self.config['tile_name']} is part of super tile {self.unique_tile_name}.")
         
-        print("Loading internal PIPs...")
+        
+        logger.info("Loading internal PIPs...")
         self.internal_pips_grouped_by_inst = self.hdlnx_tm_synth.get_module_instance_nets(self.switch_matrix_module_name)
         self.internal_pips = self.hdlnx_tm_synth.get_instance_pins(self.switch_matrix_hier_path)
-        print("FABulous Timing Model initialized.")
+        logger.info("FABulous Timing Model initialized.")
         
         ### Definitions:
         
@@ -218,7 +231,7 @@ class FABulousTileTimingModel:
         
         synth_model = self.hdlnx_tm_synth
         
-        print(f"Finding synthesis-level switch matrix mux for PIPs {pip_src} -> {pip_dst}")
+        logger.info(f"Finding synthesis-level switch matrix mux for PIPs {pip_src} -> {pip_dst}")
         swm_mux = synth_model.find_instances_paths_with_all_nets(
             self.switch_matrix_module_name, 
             [pip_src, pip_dst], 
@@ -230,30 +243,30 @@ class FABulousTileTimingModel:
                              f"Pip name might be incorrect. Or they appear in different swm multiplexers.")
         
         if len(swm_mux) > 1:
-            print(f"Warning: Multiple switch matrix mux instances found for PIPs {pip_src} -> {pip_dst}. "
-                  f"Using the first one: {swm_mux[0]}")
+            logger.warning(f"Multiple switch matrix mux instances found for PIPs {pip_src} -> {pip_dst}. "
+                           f"Using the first one: {swm_mux[0]}")
             
-        print(f"  Found switch matrix mux instance: {swm_mux[0]}")
+        logger.info(f"  Found switch matrix mux instance: {swm_mux[0]}")
         swm_mux_resolved = synth_model.net_to_pin_paths_for_instance_resolved(swm_mux[0])
-        print(f"Switch matrix mux resolved pins for src and dst:")
-        print(f"  {pip_src}: {swm_mux_resolved[pip_src]}")
-        print(f"  {pip_dst}: {swm_mux_resolved[pip_dst]}")
+        logger.info(f"Switch matrix mux resolved pins for src and dst:")
+        logger.info(f"  {pip_src}: {swm_mux_resolved[pip_src]}")
+        logger.info(f"  {pip_dst}: {swm_mux_resolved[pip_dst]}")
         
         if len(swm_mux_resolved[pip_src]) == 0:
             raise ValueError(f"No resolved pins found for PIP source {pip_src} in switch matrix mux instance {swm_mux[0]}.")
         if len(swm_mux_resolved[pip_dst]) == 0:
             raise ValueError(f"No resolved pins found for PIP destination {pip_dst} in switch matrix mux instance {swm_mux[0]}.")
         if len(swm_mux_resolved[pip_src]) > 1:
-            print(f"Warning: Multiple resolved pins found for PIP source {pip_src} in switch matrix mux instance {swm_mux[0]}. "
-                  f"Using the first one: {swm_mux_resolved[pip_src][0]}")
+            logger.warning(f"Multiple resolved pins found for PIP source {pip_src} in switch matrix mux instance {swm_mux[0]}. "
+                           f"Using the first one: {swm_mux_resolved[pip_src][0]}")
         if len(swm_mux_resolved[pip_dst]) > 1:
-            print(f"Warning: Multiple resolved pins found for PIP destination {pip_dst} in switch matrix mux instance {swm_mux[0]}. "
-                  f"Using the first one: {swm_mux_resolved[pip_dst][0]}")
+            logger.warning(f"Multiple resolved pins found for PIP destination {pip_dst} in switch matrix mux instance {swm_mux[0]}. "
+                           f"Using the first one: {swm_mux_resolved[pip_dst][0]}")
         
-        print(f"Calculating structural delay from {pip_src} to {pip_dst}")
+        logger.info(f"Calculating structural delay from {pip_src} to {pip_dst}")
         delay, path, info = synth_model.delay_path(swm_mux_resolved[pip_src][0], swm_mux_resolved[pip_dst][0])
         
-        print(f"Delay from {pip_src} to {pip_dst}: {delay} ns via path:")
+        logger.info(f"Delay from {pip_src} to {pip_dst}: {delay} ns via path:")
         print(info)
         
         return delay
@@ -285,7 +298,7 @@ class FABulousTileTimingModel:
         ###########################################################################
         
         # extract the swm mux for pips: pip_src, pip_dst
-        print(f"Finding synthesis-level switch matrix mux for PIPs {pip_src} -> {pip_dst}")
+        logger.info(f"Finding synthesis-level switch matrix mux for PIPs {pip_src} -> {pip_dst}")
         swm_mux_for_pips = synth_model.find_instances_paths_with_all_nets(
             self.switch_matrix_module_name, 
             [pip_src, pip_dst],
@@ -297,11 +310,11 @@ class FABulousTileTimingModel:
                              f"Pip name might be incorrect. Or they appear in different swm multiplexers.")
             
         if len(swm_mux_for_pips) > 1:
-            print(f"Warning: Multiple switch matrix mux instances found for PIPs {pip_src} -> {pip_dst}. "
-                  f"Using the first one: {swm_mux_for_pips[0]}")
+            logger.warning(f"Multiple switch matrix mux instances found for PIPs {pip_src} -> {pip_dst}. "
+                           f"Using the first one: {swm_mux_for_pips[0]}")
         
-        print(f"  Found switch matrix mux instance: {swm_mux_for_pips[0]}")
-        print("Finding synthesis-level top-level ports connected to the switch matrix mux nets...")
+        logger.info(f"  Found switch matrix mux instance: {swm_mux_for_pips[0]}")
+        logger.info("Finding synthesis-level top-level ports connected to the switch matrix mux nets...")
         
         # find the nearest top level ports connected to all the nets of the swm mux input pins
         # We reverse the timing graph to find the input ports (towards inputs).
@@ -331,18 +344,18 @@ class FABulousTileTimingModel:
         #############################################################################################
         
         # Find the converging node (the output pin of the swm mux)
-        print("Starting physical extraction of the switch matrix mux for pips")
+        logger.info("Starting physical extraction of the switch matrix mux for pips")
         if len(swm_nearest_ports_all) > 1:
             best_nodes, best_cost, dists = phys_model.earliest_common_nodes(swm_nearest_ports_all, 
                                                                             mode="max", consider_delay=False)
-            print(f"Converging nodes: {best_nodes} with hops: {best_cost}")
+            logger.info(f"Converging nodes: {best_nodes} with hops: {best_cost}")
             # !!check and follow output
             best_nodes.sort()
             swm_phys_output = best_nodes[0]
         else:
             # !!Probably just a buffer. But still we must check...
             swm_phys_output = phys_model.follow_first_fanout_from_pins(swm_nearest_ports_all[0], num_follow=2)
-            print(f"Only one input port found, follow its successor: {swm_phys_output}")
+            logger.info(f"Only one input port found, follow its successor: {swm_phys_output}")
         
         ######################################################################
         # Finally calculate the delay between the two PIPs at physical level
@@ -351,7 +364,7 @@ class FABulousTileTimingModel:
         # Calculate delay between pip_src and the converged output pin
         # We use the 0st nearest port found for pip_src beacuse the list is sorted
         # starting from the nearest port.
-        print(f"Calculating physical delay from {pip_src} to {pip_dst}")
+        logger.info(f"Calculating physical delay from {pip_src} to {pip_dst}")
         
         if f"{pip_src}" not in (swm_nearest_ports_for_each_swm_wire or 
                                 len(swm_nearest_ports_for_each_swm_wire[f"{pip_src}"]) == 0):
@@ -359,7 +372,7 @@ class FABulousTileTimingModel:
         
         delay, path, info = phys_model.delay_path(swm_nearest_ports_for_each_swm_wire[f"{pip_src}"][0], swm_phys_output)
         
-        print(f"Physical Delay from {pip_src} to {pip_dst}: {delay} ns via path:")
+        logger.info(f"Physical Delay from {pip_src} to {pip_dst}: {delay} ns via path:")
         print(info)
         
         return delay 

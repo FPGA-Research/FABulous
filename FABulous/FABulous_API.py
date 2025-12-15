@@ -54,7 +54,7 @@ from FABulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrap
 from FABulous.FABulous_settings import get_context
 from FABulous.geometry_generator.geometry_gen import GeometryGenerator
 
-from FABulous.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
+from FABulous.fabric_cad.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
 
 
 class FABulous_API:
@@ -690,19 +690,16 @@ class FABulous_API:
             raise ValueError(f"PDK {pdk} not supported for timing model interface.")
         
         ftmi = FABulousTimingModelInterface(config={
-        "project_dir": project_dir,
-        "liberty_files": liberty_files,
-        "techmap_files": techmap_files,
-        "min_buf_cell_and_ports": min_buf_cell_and_ports,
-        "mode": mode,
-        "debug": debug
+            "project_dir": project_dir,
+            "liberty_files": liberty_files,
+            "techmap_files": techmap_files,
+            "min_buf_cell_and_ports": min_buf_cell_and_ports,
+            "mode": mode,
+            "debug": debug
         }, fabric=self.fabric)
         
         model_gen_npnr.writeNextpnrPipFile(
             fabric=self.fabric,
             outputFile=output_file,
             delay_model=ftmi,
-        )
-        
-    
-      
+        )   
