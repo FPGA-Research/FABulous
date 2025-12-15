@@ -54,6 +54,8 @@ from FABulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrap
 from FABulous.FABulous_settings import get_context
 from FABulous.geometry_generator.geometry_gen import GeometryGenerator
 
+from FABulous.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
+
 
 class FABulous_API:
     """Class for managing fabric and geometry generation.
@@ -661,3 +663,46 @@ class FABulous_API:
         logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
         result.save_snapshot(out_folder / "final_views")
         logger.info("Stitching flow completed.")
+
+    def timing_model_interface(self, 
+        project_dir: Path, 
+        pdk_root: Path, 
+        pdk: str, 
+        mode: str,
+        output_file: Path,
+        debug: bool = False
+    ) -> None:
+        if pdk == "ihp-sg13g2":
+            liberty_files: Path = pdk_root / "libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib"
+            techmap_files: list[Path] = [
+                pdk_root / "libs.tech/librelane/sg13g2_stdcell/latch_map.v",
+                pdk_root / "libs.tech/librelane/sg13g2_stdcell/tribuff_map.v",
+            ]
+            min_buf_cell_and_ports: str = "sg13g2_buf_1 A X"
+        elif pdk == "sky130A" or pdk == "sky130B":
+            liberty_files: Path = pdk_root / "libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
+            techmap_files: list[Path] = [
+                pdk_root / "libs.tech/openlane/sky130_fd_sc_hd/latch_map.v",
+                pdk_root / "libs.tech/openlane/sky130_fd_sc_hd/tribuff_map.v",
+            ]
+            min_buf_cell_and_ports: str = "sky130_fd_sc_hd__buf_1 A X"
+        else:
+            raise ValueError(f"PDK {pdk} not supported for timing model interface.")
+        
+        ftmi = FABulousTimingModelInterface(config={
+        "project_dir": project_dir,
+        "liberty_files": liberty_files,
+        "techmap_files": techmap_files,
+        "min_buf_cell_and_ports": min_buf_cell_and_ports,
+        "mode": mode,
+        "debug": debug
+        }, fabric=self.fabric)
+        
+        model_gen_npnr.writeNextpnrPipFile(
+            fabric=self.fabric,
+            outputFile=output_file,
+            delay_model=ftmi,
+        )
+        
+    
+      
