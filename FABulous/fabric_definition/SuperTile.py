@@ -135,7 +135,7 @@ class SuperTile:
     ) -> tuple[Decimal, Decimal]:
         """Calculate minimum SuperTile dimensions based on IO pin density.
 
-        For this SuperTile, aggregates IO pins from all constituent tiles
+        For this supertile, aggregates IO pins from all constituent tiles
         that appear on the outer edges and calculates the minimum physical
         width and height required.
 
