@@ -290,20 +290,34 @@ class FABulous_API:
         """
         return self.fabric.getAllUniqueBels()
 
-    def getTile(self, tileName: str) -> Tile | None:
+    def getTile(
+        self, tileName: str, raises_on_miss: bool = False
+    ) -> Tile | SuperTile | None:
         """Return Tile object based on tile name.
 
         Parameters
         ----------
         tileName : str
             Name of the Tile.
+        raises_on_miss : bool, optional
+            Whether to raise an error if the tile is not found, by default False.
 
         Returns
         -------
-        Tile | None
+        Tile | SuperTile | None
             Tile object based on tile name, or None if not found.
+
+        Raises
+        ------
+        KeyError
+            If tile is not found and 'raises_on_miss' is True.
         """
-        return self.fabric.getTileByName(tileName)
+        try:
+            return self.fabric.getTileByName(tileName)
+        except KeyError as e:
+            if raises_on_miss:
+                raise KeyError from e
+            return None
 
     def getTiles(self) -> Iterable[Tile]:
         """Return all Tiles within a fabric.
@@ -315,20 +329,34 @@ class FABulous_API:
         """
         return self.fabric.tileDic.values()
 
-    def getSuperTile(self, tileName: str) -> SuperTile | None:
+    def getSuperTile(
+        self, tileName: str, raises_on_miss: bool = False
+    ) -> SuperTile | None:
         """Return SuperTile object based on tile name.
 
         Parameters
         ----------
         tileName : str
             Name of the SuperTile.
+        raises_on_miss : bool, optional
+            Whether to raise an error if the supertile is not found, by default False.
 
         Returns
         -------
         SuperTile | None
             SuperTile object based on tile name, or None if not found.
+
+        Raises
+        ------
+        KeyError
+            If tile is not found and 'raises_on_miss' is True.
         """
-        return self.fabric.getSuperTileByName(tileName)
+        try:
+            return self.fabric.getSuperTileByName(tileName)
+        except KeyError as e:
+            if raises_on_miss:
+                raise KeyError from e
+            return None
 
     def getSuperTiles(self) -> Iterable[SuperTile]:
         """Return all SuperTiles within a fabric.
