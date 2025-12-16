@@ -1,7 +1,7 @@
 """Shared fixtures for GDS flow tests.
 
 Provides mock PDK fixtures and common test utilities for testing
-FABulousTileVerilogMarcoFlow and FABulousFabricMacroFlow.
+FABulousTileVerilogMacroFlow and FABulousFabricMacroFlow.
 """
 
 from decimal import Decimal
