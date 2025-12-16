@@ -47,6 +47,22 @@ def get_pitch(config: Config) -> tuple[Decimal, Decimal]:
     return x_pitch, y_pitch
 
 
+def get_offset(config: Config) -> tuple[Decimal, Decimal]:
+    """Read the FP_TRACKS_INFO file and return min pitches for X and Y.
+
+    Returns a tuple (x_pitch, y_pitch) where x_pitch is the minimum pitch along X-axis
+    (FP_IO_VLAYER X direction) and y_pitch is minimum pitch along Y-axis (FP_IO_HLAYER Y
+    direction). The cardinal field in FP_TRACKS_INFO is expected to be 'X' or 'Y' (case-
+    insensitive).
+    """
+    layers = get_layer_info(config)
+
+    x_pitch = layers[config["FP_IO_VLAYER"]]["X"][0]
+    y_pitch = layers[config["FP_IO_HLAYER"]]["Y"][0]
+
+    return x_pitch, y_pitch
+
+
 def round_up_decimal(value: Decimal, pitch: Decimal) -> Decimal:
     """Round up value to the next multiple of pitch."""
     if pitch == 0:
@@ -100,10 +116,10 @@ def get_routing_obstructions(config: Config) -> list[tuple[int, int, int, int]]:
 
     parsed_obstructions = defaultdict(list)
     for obs in obstructions:
-        if len(obs) != 4:
+        if len(obs) != 5:
             raise ValueError(
                 f"Invalid obstruction {obs}. Each obstruction must be a tuple of "
-                "4 integers."
+                "metal layer flowed by 4 decimals"
             )
         met, *box = obs
         parsed_obstructions[met].append(box)
