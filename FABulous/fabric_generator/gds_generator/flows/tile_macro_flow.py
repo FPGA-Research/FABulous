@@ -204,7 +204,7 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
 
 
 @Flow.factory.register()
-class FABulousTileVHDLMarcoFlowClassic(SequentialFlow):
+class FABulousTileVHDLMacroFlowClassic(SequentialFlow):
     """Classic LibreLane flow for FABulous fabric generation from VHDL."""
 
     Steps = prep_steps + physical_steps + write_out_steps + check_steps

@@ -1,4 +1,4 @@
-"""Tests for FABulousTileVerilogMarcoFlow - Tile macro generation flow.
+"""Tests for FABulousTileVerilogMacroFlow - Tile macro generation flow.
 
 Tests focus on:
 - Flow initialization with various parameters
@@ -28,8 +28,8 @@ from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptM
 
 
 @pytest.mark.usefixtures("mock_config_load")
-class TestFABulousTileVerilogMarcoFlowInit:
-    """Tests for FABulousTileVerilogMarcoFlow initialization and configuration."""
+class TestFABulousTileVerilogMacroFlowInit:
+    """Tests for FABulousTileVerilogMacroFlow initialization and configuration."""
 
     def test_init_with_basic_tile(
         self,
