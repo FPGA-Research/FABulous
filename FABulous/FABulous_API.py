@@ -508,7 +508,7 @@ class FABulous_API:
         pdk_root: Path | None = None,
         pdk: str | None = None,
     ) -> None:
-        """Run the marco flow to generate the marco Verilog files."""
+        """Run the macro flow to generate the macro Verilog files."""
         if pdk_root is None:
             pdk_root = get_context().pdk_root.parent
         if pdk is None:
@@ -538,11 +538,11 @@ class FABulous_API:
                 f"Saving final views for FABulous to {out_folder / 'final_views'}"
             )
             result.save_snapshot(out_folder / "final_views")
-        logger.info("Marco flow completed.")
+        logger.info("Macro flow completed.")
 
     def fabric_stitching(
         self,
-        tile_marco_paths: dict[str, Path],
+        tile_macro_paths: dict[str, Path],
         fabric_path: Path,
         out_folder: Path,
         *,
@@ -556,7 +556,7 @@ class FABulous_API:
 
         Parameters
         ----------
-        tile_marco_paths : dict[str, Path]
+        tile_macro_paths : dict[str, Path]
             Dictionary mapping tile names to their macro output directories.
         fabric_path : Path
             Path to the fabric-level Verilog file.
@@ -592,7 +592,7 @@ class FABulous_API:
         flow = FABulousFabricMacroFlow(
             fabric=self.fabric,
             fabric_verilog_paths=[fabric_path],
-            tile_macro_dirs=tile_marco_paths,
+            tile_macro_dirs=tile_macro_paths,
             base_config_path=base_config_path,
             config_override_path=config_override_path,
             design_dir=out_folder,

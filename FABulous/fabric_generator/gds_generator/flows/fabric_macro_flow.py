@@ -104,9 +104,9 @@ class FABulousFabricMacroFlow(Classic):
             if pdk is None:
                 raise ValueError("PDK must be specified either here or in settings.")
 
-        for name, tile_marco_path in tile_macro_dirs.items():
+        for name, tile_macro_path in tile_macro_dirs.items():
             die_area = json.loads(
-                (tile_marco_path / "metrics.json").read_text(encoding="utf-8")
+                (tile_macro_path / "metrics.json").read_text(encoding="utf-8")
             ).get("design__die__bbox", None)
 
             if die_area is None:
@@ -114,24 +114,24 @@ class FABulousFabricMacroFlow(Classic):
             _, _, width, height = [Decimal(m) for m in die_area.split(" ")]
 
             spef_dict = {}
-            for i in (tile_marco_path / "spef").iterdir():
+            for i in (tile_macro_path / "spef").iterdir():
                 spef_dict[str(i.name)] = list(i.glob("*.spef"))
 
             self.macros[name] = Macro(
-                gds=cast("list", [i for i in (tile_marco_path / "gds").glob("*.gds")]),
+                gds=cast("list", [i for i in (tile_macro_path / "gds").glob("*.gds")]),
                 lef=cast(
                     "list",
-                    [str(i) for i in (tile_marco_path / "lef").glob("*.lef")],
+                    [str(i) for i in (tile_macro_path / "lef").glob("*.lef")],
                 ),
                 vh=cast(
-                    "list", [str(i) for i in (tile_marco_path / "vh").glob("*.vh")]
+                    "list", [str(i) for i in (tile_macro_path / "vh").glob("*.vh")]
                 ),
                 nl=cast(
-                    "list", [str(i) for i in (tile_marco_path / "nl").glob("*.nl.v")]
+                    "list", [str(i) for i in (tile_macro_path / "nl").glob("*.nl.v")]
                 ),
                 pnl=cast(
                     "list",
-                    [str(i) for i in (tile_marco_path / "pnl").glob("*.pnl.v")],
+                    [str(i) for i in (tile_macro_path / "pnl").glob("*.pnl.v")],
                 ),
                 spef=spef_dict,
             )
