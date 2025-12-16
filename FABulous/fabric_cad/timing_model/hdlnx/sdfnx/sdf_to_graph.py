@@ -104,3 +104,98 @@ class SDFTimingGraph(SDFTimingGraphBase):
                 break
             current_pin = successors
         return current_pin
+    
+
+    def path_to_nearest_target_sentinel(
+        self,
+        source: str,
+        targets: list[str],
+        weight: str | None = None,
+        sentinel_prefix: str = "_sentinel_",
+        reverse: bool = False
+    ) -> tuple[list[str], str, float]:
+        """
+        Find the shortest path from `source` to the nearest node in `targets`
+        in a (directed) NetworkX graph using the sentinel-node trick.
+        https://networkx.org/documentation/stable/reference/algorithms/shortest_paths.html
+
+        Parameters
+        ----------
+        source : str
+            Source node.
+        targets : list[str]
+            List of target nodes.
+        weight : str | None, optional
+            Edge attribute name to use as weight. If None, the graph is treated
+            as unweighted (hop count).
+        sentinel_prefix : str, optional
+            Base name for the temporary sentinel node (ensured to be unique).
+
+        Returns
+        -------
+        path : list[str] | None
+            List of nodes from `source` to the closest target (no sentinel),
+            or None if no target is reachable.
+        closest_target : str | None
+            The closest target node, or None if no target is reachable.
+        distance : int | float | None
+            Distance from `source` to `closest_target`. For unweighted graphs
+            this is hop count; for weighted graphs, sum of edge weights.
+            None if no target is reachable.
+            
+        Raises
+        ------
+        ValueError
+            If `targets` is empty.
+        """
+        
+        if reverse:
+            G = self.graph.reverse(copy=False)
+        else:
+            G = self.graph
+        
+        targets: set[str] = set(targets)
+        if not targets:
+            raise ValueError("targets must be a non-empty iterable of nodes")
+
+        # Pick a sentinel name that doesn't collide with existing nodes
+        sentinel: str = f"{sentinel_prefix}_i89f9j9g58f7g6e5d4c3b2a1"
+
+        G.add_node(sentinel)
+
+        # Add zero-cost edges from each target to the sentinel
+        if weight is None:
+            for t in targets:
+                #if G.has_node(t):
+                G.add_edge(t, sentinel)
+        else:
+            zero_attr = {weight: 0}
+            for t in targets:
+                #if G.has_node(t):
+                G.add_edge(t, sentinel, **zero_attr)
+
+        try:
+            # Shortest path (directed) source -> sentinel
+            path: list[str] = nx.shortest_path(G, source=source, target=sentinel, weight=weight)
+            dist: float = nx.shortest_path_length(G, source=source, target=sentinel, weight=weight)
+        except nx.NetworkXNoPath:
+            # Clean up and signal no reachable target
+            G.remove_node(sentinel)
+            G = self.graph.reverse(copy=False) if reverse else self.graph
+            return None, None, None
+        finally:
+            # If shortest_path raised, sentinel is still removed here.
+            if sentinel in G:
+                G.remove_node(sentinel)
+
+        # Remove sentinel from the path
+        # The real closest target is the node before the sentinel
+        closest_target: str = path[-2]
+        path_without_sentinel: list[str] = path[:-1]
+
+        # Adjust distance for unweighted graphs (we added one extra edge)
+        if weight is None:
+            dist = dist - 1
+
+        G = self.graph.reverse(copy=False) if reverse else self.graph
+        return path_without_sentinel, closest_target, dist

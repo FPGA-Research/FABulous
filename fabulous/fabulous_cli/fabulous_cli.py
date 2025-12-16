@@ -1521,7 +1521,7 @@ class FABulous_CLI(Cmd):
         "--outfile",
         help="Output file for the generated timing model",
         type=Path,
-        default=get_context().proj_dir / "fabulous_timing_model.pips.txt"
+        default=None
     )
     
     @with_argparser(timing_model_parser)
@@ -1543,8 +1543,11 @@ class FABulous_CLI(Cmd):
         This command only works if the full gds flow has been run
         for all tiles since physical information is required.
         """
-        
-        outfile: Path = args.outfile
+        if args.outfile is None:
+            outfile: Path = get_context().proj_dir / "fabulous_timing_model.pips.txt"
+        else:
+            outfile: Path = args.outfile
+            
         if args.replace_pips:
             pips_path = get_context().proj_dir / ".FABulous" / "pips.txt"
             if pips_path.exists():
@@ -1552,6 +1555,8 @@ class FABulous_CLI(Cmd):
                 logger.info(f"Backing up existing pips.txt to {backup_path}")
                 pips_path.rename(backup_path)
             outfile = pips_path
+        
+        logger.info(f"Output timing model file: {outfile}")
         
         self.fabulousAPI.timing_model_interface(
             project_dir=get_context().proj_dir,

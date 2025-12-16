@@ -93,10 +93,12 @@ class FABulousTileTimingModel:
             logger.info(f"Using switch matrix instance: {self.switch_matrix_hier_path}, "
                         f"module: {self.switch_matrix_module_name}")
         else:
-            self.switch_matrix_hier_path = [p for p in self.switch_matrix_hier_path 
+            self.switch_matrix_hier_path = [
+                p for p in self.switch_matrix_hier_path 
                 if self.config["tile_name"] in p
             ]
-            self.switch_matrix_module_name = [m for m in self.switch_matrix_module_name 
+            self.switch_matrix_module_name = [
+                m for m in self.switch_matrix_module_name 
                 if self.config["tile_name"] in m
             ]
             if len(self.switch_matrix_hier_path) == 0 or len(self.switch_matrix_module_name) == 0:
@@ -349,7 +351,7 @@ class FABulousTileTimingModel:
             best_nodes, best_cost, dists = phys_model.earliest_common_nodes(swm_nearest_ports_all, 
                                                                             mode="max", consider_delay=False)
             logger.info(f"Converging nodes: {best_nodes} with hops: {best_cost}")
-            # !!check and follow output
+            # !!check and follow output, sels common node to input ports then to output
             best_nodes.sort()
             swm_phys_output = best_nodes[0]
         else:
