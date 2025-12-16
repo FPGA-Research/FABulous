@@ -199,7 +199,6 @@ class SegmentInfo:
 
             anchored = f"^{pattern}$"
             matched_terms = [b for b in bterms if re.match(anchored, b.getName())]
-
             if not matched_terms:
                 unmatched_regexes.add(pattern)
                 continue
@@ -397,23 +396,22 @@ class PinPlacementPlan:
                 neighbor_exists = (x + dx, y + dy) in tiles
 
                 value = None
-                if side.value in tile_config:
-                    value = tile_config[side.value]
-
+                if side.name in tile_config:
+                    value = tile_config[side.name]
                 if value is None:
                     segments = []
                 else:
                     if not isinstance(value, list):
                         raise TypeError(
                             "Segments for tile X"
-                            f"{x}Y{y} side {side.value} must be provided as a list"
+                            f"{x}Y{y} side {side.name} must be provided as a list"
                         )  # Raise TypeError if segments are not a list
                     segments = value
 
                 if neighbor_exists:
                     if segments:
                         raise ValueError(
-                            f"Tile X{x}Y{y} side {side.value} is not on the boundary; "
+                            f"Tile X{x}Y{y} side {side.name} is not on the boundary; "
                             "remove its configuration."
                         )
                     continue
@@ -447,6 +445,7 @@ class PinPlacementPlan:
     def allocate_tracks(
         self,
         specs: dict[Side, tuple[int, float, float, float]],
+        offset: int = 2,
     ) -> None:
         """Allocate tracks for all segments based on physical tile-based allocation.
 
@@ -455,6 +454,8 @@ class PinPlacementPlan:
         specs : dict[Side, tuple[int, float, float, float]]
             Track specifications per side:
             side -> (total_track_count, track_step, origin, physical_dimension)
+        offset : int, optional
+            amount of offset tracks to reserve at start of each tile, by default 2
         """
         for side, segments in self.segments_by_side.items():
             if side not in specs:
@@ -462,7 +463,13 @@ class PinPlacementPlan:
                 continue
             count_total, step, origin, physical_dimension = specs[side]
             self.track_coordinates[side] = self._build_tracks_for_segments(
-                count_total, step, origin, physical_dimension, segments, side
+                count_total,
+                step,
+                origin,
+                physical_dimension,
+                segments,
+                side,
+                offset=offset,
             )
 
     def _build_tracks_for_segments(
@@ -473,6 +480,7 @@ class PinPlacementPlan:
         physical_dimension: float,
         segments_for_side: list[SegmentInfo],
         side: Side,
+        offset: int = 2,
     ) -> list[list[float]]:
         """Build track lists for segments using physical tile-based allocation.
 
@@ -485,12 +493,12 @@ class PinPlacementPlan:
             return []
 
         # Get fabric dimensions to calculate per-tile allocation
-        fabric_width, fabric_height = self.fabric_dimensions
+        logical_width, logical_height = self.fabric_dimensions
 
         # For North/South sides, width determines horizontal divisions
         # For East/West sides, height determines vertical divisions
         num_divisions = (
-            fabric_width if side in (Side.NORTH, Side.SOUTH) else fabric_height
+            logical_width if side in (Side.NORTH, Side.SOUTH) else logical_height
         )
         if num_divisions <= 0:
             return []
@@ -527,11 +535,13 @@ class PinPlacementPlan:
 
             # Calculate offset based on PHYSICAL position
             # Proportional positioning in the die area
-            physical_offset = int(physical_dimension * division_index / num_divisions)
+            physical_offset = math.ceil(
+                physical_dimension * division_index / num_divisions
+            )
             tile_origin = origin + physical_offset
 
             tile_tracks = self._allocate_tracks_for_tile(
-                tracks_per_tile, step, tile_origin, tile_segments
+                tracks_per_tile, step, tile_origin, tile_segments, offset=offset
             )
 
             # Assign tracks to correct segment positions
@@ -606,6 +616,7 @@ class PinPlacementPlan:
         step: float,
         origin: float,
         segments: list[SegmentInfo],
+        offset: int = 2,
     ) -> list[list[float]]:
         """Allocate tracks within a single tile for its segments."""
         tracks_container: list[list[float]] = []
@@ -613,12 +624,16 @@ class PinPlacementPlan:
         if num_segments == 0:
             return tracks_container
 
+        available_tracks = track_count - offset
+        if available_tracks < 0:
+            available_tracks = 0
+
         counts = [segment.actual_pin_count for segment in segments]
         total = sum(counts)
 
         if total == 0:
-            base = track_count // num_segments if num_segments else 0
-            remainder = track_count - base * num_segments
+            base = available_tracks // num_segments if num_segments else 0
+            remainder = available_tracks - base * num_segments
             slices = []
             start = 0
             for idx in range(num_segments):
@@ -626,9 +641,9 @@ class PinPlacementPlan:
                 slices.append((start, size))
                 start += size
         else:
-            fractional = [c / total * track_count for c in counts]
-            sizes = [max(1, int(round(fraction))) for fraction in fractional]
-            delta = track_count - sum(sizes)
+            fractional = [c / total * available_tracks for c in counts]
+            sizes = [max(1, int(math.ceil(fraction))) for fraction in fractional]
+            delta = available_tracks - sum(sizes)
 
             while delta > 0:
                 for idx in range(num_segments):
@@ -651,7 +666,7 @@ class PinPlacementPlan:
                 start += size
 
         for start_idx, size in slices:
-            start_coord = origin + start_idx * step
+            start_coord = origin + (start_idx + offset) * step
             tracks_container.append(grid_to_tracks(start_coord, size, step))
 
         return tracks_container
@@ -933,8 +948,12 @@ def io_place(
     }
 
     pin_tracks: dict[Side, list[list[float]]] = {side: [] for side in Side}
+    track_errors: list[dict] = []
 
     for side in Side:
+        # Get origin for this side to calculate global alignment
+        global_origin = origin_v if side in {Side.NORTH, Side.SOUTH} else origin_h
+
         for segment_index, segment in enumerate(plan.segments_by_side[side]):
             if segment.min_distance is None:
                 raise AssertionError("min_distance must be defined before placement")
@@ -947,40 +966,73 @@ def io_place(
             step = step_by_side[side]
 
             stride = max(1, math.ceil(min_distance / step))
-            filtered = [raw_tracks[i] for i in range(0, len(raw_tracks), stride)]
+
+            # Calculate which tracks align with global stride pattern
+            filtered = []
+            for track_coord in raw_tracks:
+                # Find this track's global index from origin
+                global_track_idx = round((track_coord - global_origin) / step)
+                # Check if it aligns with the stride pattern
+                if global_track_idx % stride == 0:
+                    filtered.append(track_coord)
 
             if max_distance is not None:
                 max_stride = max(1, math.floor(max_distance / step))
                 enforced = []
-                last_index = None
-                for idx, track in enumerate(raw_tracks):
-                    if idx % stride == 0:
-                        if last_index is None:
-                            enforced.append(track)
-                            last_index = idx
-                        else:
-                            if idx - last_index > max_stride:
-                                interim = last_index + max_stride
-                                while interim < idx:
-                                    enforced.append(raw_tracks[interim])
-                                    interim += max_stride
-                            enforced.append(track)
-                            last_index = idx
+                last_global_idx = None
+                for track_coord in filtered:
+                    global_track_idx = round((track_coord - global_origin) / step)
+                    if last_global_idx is None:
+                        enforced.append(track_coord)
+                        last_global_idx = global_track_idx
+                    else:
+                        if global_track_idx - last_global_idx > max_stride:
+                            # Need to add intermediate tracks
+                            interim_idx = last_global_idx + max_stride
+                            while interim_idx < global_track_idx:
+                                interim_coord = global_origin + interim_idx * step
+                                enforced.append(interim_coord)
+                                interim_idx += max_stride
+                        enforced.append(track_coord)
+                        last_global_idx = global_track_idx
                 filtered = enforced
 
             needed = segment.actual_pin_count
             if needed > len(filtered):
-                err(
-                    "Insufficient tracks: "
-                    f"min_distance={segment.min_distance:.3f} µm "
-                    f"side={side.value} seg={segment_index} pins={needed} "
-                    f"got {len(filtered)} slots "
-                    f"stride={stride} raw={len(raw_tracks)}"
+                track_errors.append(
+                    {
+                        "side": side,
+                        "shortage": needed - len(filtered),
+                        "step": step,
+                        "min_distance": min_distance,
+                    }
                 )
-                err("Hint: reduce min_distance, enlarge die, or redistribute pins.")
-                raise SystemExit(os.EX_DATAERR)
 
             pin_tracks[side].append(filtered)
+
+    if track_errors:
+        err("Insufficient tracks for pin allocation. Minimum die size increase needed:")
+        side_requirements = {}
+        for error in track_errors:
+            side = error["side"]
+            if side not in side_requirements:
+                side_requirements[side] = {
+                    "shortage": 0,
+                    "step": error["step"],
+                    "min_distance": error["min_distance"],
+                }
+            side_requirements[side]["shortage"] += error["shortage"]
+
+        for side, req in side_requirements.items():
+            additional_dimension = req["shortage"] * req["step"] / micron_in_units
+            dimension = "WIDTH" if side in {Side.NORTH, Side.SOUTH} else "HEIGHT"
+            err(
+                f"  {side.value}: +{additional_dimension:.3f} um ({dimension}) "
+                f"min_distance={req['min_distance'] / micron_in_units} um "
+                f"steps={req['step'] / micron_in_units} um"
+            )
+
+        raise SystemExit(os.EX_DATAERR)
 
     for side in Side:
         for segment in plan.segments_by_side[side]:
