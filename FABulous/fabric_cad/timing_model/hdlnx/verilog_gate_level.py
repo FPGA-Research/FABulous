@@ -807,6 +807,15 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             list(str): Hierarchical paths of the nearest top-level ports.
         """
         
+        # Experimental: Use existing path_to_nearest_target_sentinel method
+        #path_without_sentinel, closest_target, dist = self.path_to_nearest_target_sentinel(
+        #    hier_pin_path,
+        #    self.get_input_ports() if reverse else self.get_output_ports(),
+        #    reverse=reverse
+        #)
+        #
+        #return [closest_target] if closest_target is not None else []
+        
         # Use NetworkX shortest path to find nearest port
         # Depending on `reverse`, search towards inputs or outputs
         # If reverse=True, search towards inputs (for setup analysis)
@@ -824,8 +833,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         # already sorted by distance from NetworkX
         # leaf_dists.sort(key=lambda x: x[1])
         return [leaf_dists[i][0] for i in range(min(num_ports, len(leaf_dists)))]
-    
-    
+        
     def nearest_ports_from_instance_pin_nets(self, inst_path: str, 
                                              reverse: bool = False, 
                                              num_ports: int = 1) -> tuple[dict[str, list[str]], list[str]]:

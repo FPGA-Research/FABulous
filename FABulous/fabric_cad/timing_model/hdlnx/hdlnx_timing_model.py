@@ -295,7 +295,15 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
             raise RuntimeError("Failed to generate JSON netlist using Yosys. No JSON netlist file created.")
         os.remove(json_path)
         
-        return Path(path)
+        result_file: Path = Path(path)
+        
+        # Remove single-bit vector notation for compatibility 
+        # with OpenSTA SDF back-annotation
+        netl: str = result_file.read_text()
+        netl = netl.replace("[0:0]", " ")
+        result_file.write_text(netl)
+        
+        return result_file
     
     ### Public Methods ###
     
