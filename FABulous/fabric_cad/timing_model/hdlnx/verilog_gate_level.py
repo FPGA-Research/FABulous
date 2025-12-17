@@ -807,32 +807,34 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             list(str): Hierarchical paths of the nearest top-level ports.
         """
         
-        # Experimental: Use existing path_to_nearest_target_sentinel method
-        #path_without_sentinel, closest_target, dist = self.path_to_nearest_target_sentinel(
-        #    hier_pin_path,
-        #    self.get_input_ports() if reverse else self.get_output_ports(),
-        #    reverse=reverse
-        #)
-        #
-        #return [closest_target] if closest_target is not None else []
-        
         # Use NetworkX shortest path to find nearest port
         # Depending on `reverse`, search towards inputs or outputs
         # If reverse=True, search towards inputs (for setup analysis)
         # If reverse=False, search towards outputs (for hold analysis)
-        if reverse:
-            dist = nx.single_source_shortest_path_length(self.graph.reverse(copy=True), hier_pin_path)
-            leaf_dists = [(v, d) for v, d in dist.items() if v in self.get_input_ports()]
-        else:  
-            dist = nx.single_source_shortest_path_length(self.graph, hier_pin_path)
-            leaf_dists = [(v, d) for v, d in dist.items() if v in self.get_output_ports()]
-            
-        if len(leaf_dists) == 0:
-            return []
         
-        # already sorted by distance from NetworkX
-        # leaf_dists.sort(key=lambda x: x[1])
-        return [leaf_dists[i][0] for i in range(min(num_ports, len(leaf_dists)))]
+        if num_ports < 1:
+            raise ValueError("num_ports must be at least 1")
+        elif num_ports == 1:
+            path_without_sentinel, closest_target = self.path_to_nearest_target_sentinel(
+                hier_pin_path,
+                self.get_input_ports() if reverse else self.get_output_ports(),
+                reverse=reverse
+            )
+            return [closest_target] if closest_target is not None else []
+        else:
+            if reverse:
+                dist = nx.single_source_shortest_path_length(self.reverse_graph, hier_pin_path)
+                leaf_dists = [(v, d) for v, d in dist.items() if v in self.get_input_ports()]
+            else:  
+                dist = nx.single_source_shortest_path_length(self.graph, hier_pin_path)
+                leaf_dists = [(v, d) for v, d in dist.items() if v in self.get_output_ports()]
+
+            if len(leaf_dists) == 0:
+                return []
+
+            # already sorted by distance from NetworkX
+            # leaf_dists.sort(key=lambda x: x[1])
+            return [leaf_dists[i][0] for i in range(min(num_ports, len(leaf_dists)))]
         
     def nearest_ports_from_instance_pin_nets(self, inst_path: str, 
                                              reverse: bool = False, 

@@ -39,6 +39,7 @@ class SDFTimingGraphBase:
         self.hier_sep = self.header_info["divider"] if "divider" in self.header_info else "/"
         self.input_ports = list({n for n in self.graph.nodes if self.graph.in_degree(n) == 0 and self.hier_sep not in n})
         self.output_ports = list({n for n in self.graph.nodes if self.graph.out_degree(n) == 0 and self.hier_sep not in n})
+        self.reverse_graph = self.graph.reverse(copy=True)
         
     ### Public Methods ###
     
@@ -143,6 +144,16 @@ class SDFTimingGraphBase:
             nx.DiGraph: The directed graph with delay annotations.
         """
         return self.graph
+    
+    def get_reverse_nxgraph(self) -> nx.DiGraph:
+        """
+        Get the reversed NetworkX directed graph representing the timing information.
+        Note that the graph edges have a 'weight' attribute representing delay
+        and that each node is a string in the format "cell_instance_name/pin_name".
+        Returns:
+            nx.DiGraph: The reversed directed graph with delay annotations.
+        """
+        return self.reverse_graph
     
     def set_nxgraph(self, graph: nx.DiGraph):
         """
