@@ -52,8 +52,8 @@ class FABulousTileTimingModel:
         
         ### Init:
         
-        logger.info("Initializing FABulous Timing Model for Tile:", self.config["tile_name"])
-        logger.info("  SuperTile:", self.is_in_which_super_tile)
+        logger.info(f"Initializing FABulous Timing Model for Tile: {self.config['tile_name']}")
+        logger.info(f"  SuperTile: {self.is_in_which_super_tile}")
         self.config["hier_sep"] = None
         
         logger.info("Initializing Synthesis-level timing model...")
@@ -323,10 +323,11 @@ class FABulousTileTimingModel:
         # We do this ebcause the pysical design only presevers top-level port names,
         # and they are the same as in the synthesis-level netlist.
         # !! num_ports parameter sweep.
+        # Good default value is 4. Fastest is 1 (converging a bit worse then).
         swm_nearest_ports = synth_model.nearest_ports_from_instance_pin_nets(
                 swm_mux_for_pips[0], 
                 reverse=True, 
-                num_ports=4
+                num_ports=1
         )
         
         for swm_wire, ports in swm_nearest_ports[0].items():

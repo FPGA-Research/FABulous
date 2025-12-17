@@ -113,7 +113,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
         weight: str | None = None,
         sentinel_prefix: str = "_sentinel_",
         reverse: bool = False
-    ) -> tuple[list[str], str, float]:
+    ) -> tuple[list[str], str]:
         """
         Find the shortest path from `source` to the nearest node in `targets`
         in a (directed) NetworkX graph using the sentinel-node trick.
@@ -138,10 +138,6 @@ class SDFTimingGraph(SDFTimingGraphBase):
             or None if no target is reachable.
         closest_target : str | None
             The closest target node, or None if no target is reachable.
-        distance : int | float | None
-            Distance from `source` to `closest_target`. For unweighted graphs
-            this is hop count; for weighted graphs, sum of edge weights.
-            None if no target is reachable.
             
         Raises
         ------
@@ -150,7 +146,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
         """
         
         if reverse:
-            G = self.graph.reverse(copy=False)
+            G = self.reverse_graph
         else:
             G = self.graph
         
@@ -169,20 +165,17 @@ class SDFTimingGraph(SDFTimingGraphBase):
                 #if G.has_node(t):
                 G.add_edge(t, sentinel)
         else:
-            zero_attr = {weight: 0}
             for t in targets:
                 #if G.has_node(t):
-                G.add_edge(t, sentinel, **zero_attr)
-
+                G.add_edge(t, sentinel, weight=0)
         try:
             # Shortest path (directed) source -> sentinel
             path: list[str] = nx.shortest_path(G, source=source, target=sentinel, weight=weight)
-            dist: float = nx.shortest_path_length(G, source=source, target=sentinel, weight=weight)
+            #dist: float = nx.shortest_path_length(G, source=source, target=sentinel, weight=weight)
         except nx.NetworkXNoPath:
             # Clean up and signal no reachable target
             G.remove_node(sentinel)
-            G = self.graph.reverse(copy=False) if reverse else self.graph
-            return None, None, None
+            return None, None
         finally:
             # If shortest_path raised, sentinel is still removed here.
             if sentinel in G:
@@ -194,8 +187,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
         path_without_sentinel: list[str] = path[:-1]
 
         # Adjust distance for unweighted graphs (we added one extra edge)
-        if weight is None:
-            dist = dist - 1
+        #if weight is None:
+            #dist = dist - 1
 
-        G = self.graph.reverse(copy=False) if reverse else self.graph
-        return path_without_sentinel, closest_target, dist
+        return path_without_sentinel, closest_target #, dist
