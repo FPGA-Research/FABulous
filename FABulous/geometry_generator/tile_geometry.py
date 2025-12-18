@@ -52,6 +52,10 @@ class TileGeometry:
         List of the geometries of the tiles wires
     stairWiresList : list[StairWires]
         List of the stair-like wires of the tile
+    stairWireOffset : int
+        Offset for stair wires, relative to regular wires
+        Should be relatively small, to prevent generating stair wires overlapping with
+        regular wires.
     currPortGroupId : int
         Current port group ID being processed
     queuedAdjustmentBottom : int
@@ -82,6 +86,7 @@ class TileGeometry:
     belGeomList: list[BelGeometry] = field(default_factory=list)
     wireGeomList: list[WireGeometry] = field(default_factory=list)
     stairWiresList: list[StairWires] = field(default_factory=list)
+    stairWireOffset: int = 1
     currPortGroupId: int = 0
     queuedAdjustmentBottom: int = 0
     queuedAdjustmentLeft: int = 0
@@ -215,7 +220,7 @@ class TileGeometry:
         self.eastMiddleY = max(self.eastMiddleY, self.westMiddleY)
         self.westMiddleY = max(self.eastMiddleY, self.westMiddleY)
 
-        self.generateIndirectWires(padding)
+        self.generateIndirectWires()
 
     def generateBelWires(self) -> None:
         """Generate the wires between the switch matrix and its bels."""
@@ -361,17 +366,12 @@ class TileGeometry:
 
             self.wireGeomList.append(wireGeom)
 
-    def generateIndirectWires(self, padding: int) -> None:
+    def generateIndirectWires(self) -> None:
         """Generate wires to non-neighbouring tiles.
 
         These wires require staircase-like routing patterns to reach tiles
         that are not direct neighbors (offset >= 2). The routing varies
         by tile side and wire direction.
-
-        Parameters
-        ----------
-        padding : int
-            The padding space to add around wire routing
 
         Raises
         ------
@@ -383,11 +383,11 @@ class TileGeometry:
                 continue
 
             if portGeom.sideOfTile == Side.NORTH:
-                self.indirectNorthSideWire(portGeom, padding)
+                self.indirectNorthSideWire(portGeom)
             elif portGeom.sideOfTile == Side.SOUTH:
                 self.indirectSouthSideWire(portGeom)
             elif portGeom.sideOfTile == Side.EAST:
-                self.indirectEastSideWire(portGeom, padding)
+                self.indirectEastSideWire(portGeom)
             elif portGeom.sideOfTile == Side.WEST:
                 self.indirectWestSideWire(portGeom)
             else:
@@ -395,7 +395,7 @@ class TileGeometry:
                     f"Port with abs(offset) > 1 and no tile side! {portGeom}"
                 )
 
-    def indirectNorthSideWire(self, portGeom: PortGeometry, padding: int) -> None:
+    def indirectNorthSideWire(self, portGeom: PortGeometry) -> None:
         """Generate indirect wires with stair-like routing.
 
         Creates staircase-shaped wire routing for connections that span multiple tiles
@@ -406,8 +406,6 @@ class TileGeometry:
         ----------
         portGeom : PortGeometry
             The port geometry defining the wire characteristics
-        padding : int
-            The padding space around the wire routing
         """
         generateNorthSouthStairWire = (
             self.border != Border.NORTHSOUTH and self.border != Border.CORNER
@@ -433,7 +431,9 @@ class TileGeometry:
             stairWires = StairWires(stairWiresName)
             stairWires.generateGeometry(
                 self.northMiddleX - xOffset,
-                self.smGeometry.southPortsTopY + self.smGeometry.relY - padding,
+                self.smGeometry.southPortsTopY
+                + self.smGeometry.relY
+                - self.stairWireOffset,
                 portGeom.offset,
                 portGeom.wireDirection,
                 portGeom.groupWires,
@@ -505,7 +505,7 @@ class TileGeometry:
         self.wireConstraints.southPositions.append(self.southMiddleX)
         self.southMiddleX -= 1
 
-    def indirectEastSideWire(self, portGeom: PortGeometry, padding: int) -> None:
+    def indirectEastSideWire(self, portGeom: PortGeometry) -> None:
         """Generate indirect wires on the east side of the tile with stair-like routing.
 
         Creates staircase-shaped wire routing for connections that span multiple tiles
@@ -516,8 +516,6 @@ class TileGeometry:
         ----------
         portGeom : PortGeometry
             The port geometry defining the wire characteristics
-        padding : int
-            The padding space around the wire routing
         """
         generateEastWestStairWire = (
             self.border != Border.EASTWEST and self.border != Border.CORNER
@@ -542,7 +540,9 @@ class TileGeometry:
             stairWiresName = f"({portGeom.sourceName} ⟶ {portGeom.destName})"
             stairWires = StairWires(stairWiresName)
             stairWires.generateGeometry(
-                self.smGeometry.westPortsRightX + self.smGeometry.relX + padding,
+                self.smGeometry.westPortsRightX
+                + self.smGeometry.relX
+                + self.stairWireOffset,
                 self.eastMiddleY + yOffset,
                 portGeom.offset,
                 portGeom.wireDirection,
