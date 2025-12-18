@@ -43,11 +43,17 @@ def mock_config() -> Config:  # type: ignore[name-defined]
 @pytest.fixture
 def mock_state(mocker: MockerFixture) -> dict:  # type: ignore[name-defined]
     """Create a mock State object for testing."""
+    from decimal import Decimal
+
     state = mocker.MagicMock()
     state.metrics = {
         "klayout__drc_error__count": 0,
+        "route__drc_errors": 0,
         "antenna__violating__nets": 0,
         "antenna__violating__pins": 0,
+        "pdk__site_width": Decimal("0.46"),
+        "pdk__site_height": Decimal("2.72"),
+        "design__instance__area__stdcell": 5000,
     }
     return state
 
