@@ -300,17 +300,17 @@ class FABulous_API:
         tileName : str
             Name of the Tile.
         raises_on_miss : bool, optional
-            Whether to raise an error if the tile is not found, by default False.
+            Whether to raise an error if the tile is not found, by default 'False'.
 
         Returns
         -------
         Tile | SuperTile | None
-            Tile object based on tile name, or None if not found.
+            'Tile' or 'SuperTile' object based on tile name, or 'None' if not found.
 
         Raises
         ------
         KeyError
-            If tile is not found and 'raises_on_miss' is True.
+            If the tile specified by 'tileName' is not found and 'raises_on_miss' is 'True'.
         """
         try:
             return self.fabric.getTileByName(tileName)
@@ -332,14 +332,14 @@ class FABulous_API:
     def getSuperTile(
         self, tileName: str, raises_on_miss: bool = False
     ) -> SuperTile | None:
-        """Return SuperTile object based on tile name.
+        """Return 'SuperTile' object based on 'tileName'.
 
         Parameters
         ----------
         tileName : str
             Name of the SuperTile.
         raises_on_miss : bool, optional
-            Whether to raise an error if the supertile is not found, by default False.
+            Whether to raise an error if the supertile is not found, by default 'False'.
 
         Returns
         -------
@@ -349,7 +349,7 @@ class FABulous_API:
         Raises
         ------
         KeyError
-            If tile is not found and 'raises_on_miss' is True.
+            If the supertile specified by 'tileName' is not found and 'raises_on_miss' is 'True'.
         """
         try:
             return self.fabric.getSuperTileByName(tileName)
