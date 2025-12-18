@@ -43,6 +43,23 @@
         "type": "github"
       }
     },
+    "fabulator-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1754387121,
+        "narHash": "sha256-ASM3lgvdH+6t4rkTixATETVGcibPVWhsFFD2sWfRDCc=",
+        "owner": "FPGA-Research",
+        "repo": "FABulator",
+        "rev": "beccd4e4c58b9fc92fafaf082883c20367dbe5ba",
+        "type": "github"
+      },
+      "original": {
+        "owner": "FPGA-Research",
+        "repo": "FABulator",
+        "rev": "beccd4e4c58b9fc92fafaf082883c20367dbe5ba",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "locked": {
         "lastModified": 1733328505,
@@ -163,11 +180,11 @@
     },
     "nixpkgs-stable": {
       "locked": {
-        "lastModified": 1764560356,
-        "narHash": "sha256-M5aFEFPppI4UhdOxwdmceJ9bDJC4T6C6CzCK1E2FZyo=",
+        "lastModified": 1764836381,
+        "narHash": "sha256-8jemYbbW9EBttQKHep7Rj8kzXaxsrk/lACdXA2DN5Xk=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "6c8f0cca84510cc79e09ea99a299c9bc17d03cb6",
+        "rev": "ff06bd3398fb1bea6c937039ece7e7c8aa396ebf",
         "type": "github"
       },
       "original": {
@@ -179,11 +196,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1764517877,
-        "narHash": "sha256-pp3uT4hHijIC8JUK5MEqeAWmParJrgBVzHLNfJDZxg4=",
+        "lastModified": 1764667669,
+        "narHash": "sha256-7WUCZfmqLAssbDqwg9cUDAXrSoXN79eEEq17qhTNM/Y=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "2d293cbfa5a793b4c50d17c05ef9e385b90edf6c",
+        "rev": "418468ac9527e799809c900eda37cbff999199b6",
         "type": "github"
       },
       "original": {
@@ -241,6 +258,7 @@
     },
     "root": {
       "inputs": {
+        "fabulator-src": "fabulator-src",
         "ghdl-bin-aarch64-darwin": "ghdl-bin-aarch64-darwin",
         "ghdl-src": "ghdl-src",
         "librelane": "librelane",
