@@ -23,4 +23,17 @@ final: prev: {
         setuptools = [ ]; wheel = [ ];
         };
     });
+
+    # Fix file collision between alive-progress and about-time (both provide LICENSE files)
+    alive-progress = prev.alive-progress.overrideAttrs (old: {
+        postInstall = (old.postInstall or "") + ''
+            rm -f $out/LICENSE
+        '';
+    });
+
+    about-time = prev.about-time.overrideAttrs (old: {
+        postInstall = (old.postInstall or "") + ''
+            rm -f $out/LICENSE
+        '';
+    });
 }
