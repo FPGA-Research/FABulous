@@ -310,7 +310,8 @@ class FABulous_API:
         Raises
         ------
         KeyError
-            If the tile specified by 'tileName' is not found and 'raises_on_miss' is 'True'.
+            If the tile specified by 'tileName' is not found and 'raises_on_miss'
+            is 'True'.
         """
         try:
             return self.fabric.getTileByName(tileName)
@@ -349,7 +350,8 @@ class FABulous_API:
         Raises
         ------
         KeyError
-            If the supertile specified by 'tileName' is not found and 'raises_on_miss' is 'True'.
+            If the supertile specified by 'tileName' is not found and 'raises_on_miss'
+            is 'True'.
         """
         try:
             return self.fabric.getSuperTileByName(tileName)
