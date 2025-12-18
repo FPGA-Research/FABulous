@@ -10,19 +10,24 @@ placement and routing for user designs.
 """
 
 import string
+import os
+from pathlib import Path
 
 from FABulous.custom_exception import InvalidFileType, InvalidState
 from FABulous.fabric_definition.Fabric import Fabric
 from FABulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
+from FABulous.fabric_cad.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
 
-def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
+def genNextpnrModel(fabric: Fabric, delay_model: FABulousTimingModelInterface = None) -> tuple[str, str, str, str]:
     """Generate the fabric's nextpnr model.
 
     Parameters
     ----------
     fabric : Fabric
         Fabric object containing tile information.
+    delay_model : FABulousTimingModelInterface, optional
+        Timing model interface to provide delay information, by default None.
 
     Returns
     -------
@@ -61,14 +66,20 @@ def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
                 connection = parseMatrix(tile.matrixDir, tile.name)
                 for source, sinkList in connection.items():
                     for sink in sinkList:
+                        delay: float = 8
+                        if delay_model is not None:
+                            delay = delay_model.pip_delay(tile.name, f"{sink}.{source}", source, sink)
                         pipStr.append(
-                            f"X{x}Y{y},{sink},X{x}Y{y},{source},{8},{sink}.{source}"
+                            f"X{x}Y{y},{sink},X{x}Y{y},{source},{delay},{sink}.{source}"
                         )
             elif tile.matrixDir.suffix == ".list":
                 connection = parseList(tile.matrixDir)
                 for sink, source in connection:
+                    delay: float = 8
+                    if delay_model is not None:
+                        delay = delay_model.pip_delay(tile.name, f"{source}.{sink}", source, sink)
                     pipStr.append(
-                        f"X{x}Y{y},{source},X{x}Y{y},{sink},{8},{source}.{sink}"
+                        f"X{x}Y{y},{source},X{x}Y{y},{sink},{delay},{source}.{sink}"
                     )
             else:
                 raise InvalidFileType(
@@ -87,10 +98,19 @@ def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
                         f"X{xDst}Y{yDst}. "
                         "Please check your tile CSV file for unmatching wires/offsets!"
                     )
+                
+                delay: float = 8
+                if delay_model is not None:
+                    delay = delay_model.pip_delay(
+                        tile.name,
+                        f"{wire.destination}.{wire.source}",
+                        wire.source,
+                        wire.destination,
+                    )
                 pipStr.append(
                     f"X{x}Y{y},{wire.source},"
                     f"X{x + wire.xOffset}Y{y + wire.yOffset},{wire.destination},"
-                    f"{8},"
+                    f"{delay},"
                     f"{wire.source}.{wire.destination}"
                 )
 
@@ -150,3 +170,23 @@ def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
         "\n".join(belv2Str),
         "\n".join(constrainStr),
     )
+
+def writeNextpnrPipFile(
+    fabric: Fabric,
+    outputFile: Path,
+    delay_model: FABulousTimingModelInterface = None,
+) -> None:
+    """Write the nextpnr pip file for the given fabric.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        Fabric object containing tile information.
+    outputDir : Path
+        Directory to write the pip file to.
+    """
+    pipStr, belStr, belv2Str, constrainStr = genNextpnrModel(fabric, delay_model)
+
+    pipFilePath: Path = outputFile
+    with open(pipFilePath, "w") as pipFile:
+        pipFile.write(pipStr)

@@ -8,6 +8,7 @@ various fabric-related operations.
 from collections.abc import Iterable
 from pathlib import Path
 
+import yaml
 from loguru import logger
 
 import FABulous.fabric_cad.gen_npnr_model as model_gen_npnr
@@ -24,6 +25,19 @@ from FABulous.fabric_generator.code_generator import CodeGenerator
 from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
+from FABulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
+    FABulousFabricMacroFlow,
+)
+from FABulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
+    FABulousFabricMacroFullFlow,
+)
+from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
+    FABulousTileVerilogMacroFlow,
+)
+from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+    generate_IO_pin_order_config,
+)
+from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 from FABulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from FABulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from FABulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
@@ -39,6 +53,8 @@ from FABulous.fabric_generator.gen_fabric.gen_tile import (
 from FABulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrapper
 from FABulous.FABulous_settings import get_context
 from FABulous.geometry_generator.geometry_gen import GeometryGenerator
+
+from FABulous.fabric_cad.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
 
 
 class FABulous_API:
@@ -290,20 +306,34 @@ class FABulous_API:
         """
         return self.fabric.getAllUniqueBels()
 
-    def getTile(self, tileName: str) -> Tile | None:
+    def getTile(
+        self, tileName: str, raises_on_miss: bool = False
+    ) -> Tile | SuperTile | None:
         """Return Tile object based on tile name.
 
         Parameters
         ----------
         tileName : str
             Name of the Tile.
+        raises_on_miss : bool, optional
+            Whether to raise an error if the tile is not found, by default False.
 
         Returns
         -------
-        Tile | None
+        Tile | SuperTile | None
             Tile object based on tile name, or None if not found.
+
+        Raises
+        ------
+        KeyError
+            If tile is not found and 'raises_on_miss' is True.
         """
-        return self.fabric.getTileByName(tileName)
+        try:
+            return self.fabric.getTileByName(tileName)
+        except KeyError as e:
+            if raises_on_miss:
+                raise KeyError from e
+            return None
 
     def getTiles(self) -> Iterable[Tile]:
         """Return all Tiles within a fabric.
@@ -315,20 +345,34 @@ class FABulous_API:
         """
         return self.fabric.tileDic.values()
 
-    def getSuperTile(self, tileName: str) -> SuperTile | None:
+    def getSuperTile(
+        self, tileName: str, raises_on_miss: bool = False
+    ) -> SuperTile | None:
         """Return SuperTile object based on tile name.
 
         Parameters
         ----------
         tileName : str
             Name of the SuperTile.
+        raises_on_miss : bool, optional
+            Whether to raise an error if the supertile is not found, by default False.
 
         Returns
         -------
         SuperTile | None
             SuperTile object based on tile name, or None if not found.
+
+        Raises
+        ------
+        KeyError
+            If tile is not found and 'raises_on_miss' is True.
         """
-        return self.fabric.getSuperTileByName(tileName)
+        try:
+            return self.fabric.getSuperTileByName(tileName)
+        except KeyError as e:
+            if raises_on_miss:
+                raise KeyError from e
+            return None
 
     def getSuperTiles(self) -> Iterable[SuperTile]:
         """Return all SuperTiles within a fabric.
@@ -426,3 +470,236 @@ class FABulous_API:
             if tile.gen_ios:
                 logger.info(f"Generating IO BELs for tile {tile.name}")
                 self.genIOBelForTile(tile.name)
+
+    def gen_io_pin_order_config(self, tile: Tile | SuperTile, outfile: Path) -> None:
+        """Generate IO pin order configuration YAML for a tile or super tile.
+
+        Parameters
+        ----------
+        tile : Tile | SuperTile
+            The fabric element for which to generate the configuration.
+        outfile : Path
+            Output YAML path.
+        """
+        generate_IO_pin_order_config(self.fabric, tile, outfile)
+
+    def genTileMacro(
+        self,
+        tile_dir: Path,
+        io_pin_config: Path,
+        out_folder: Path,
+        *,
+        final_view: Path | None = None,
+        optimisation: OptMode = OptMode.BALANCE,
+        base_config_path: Path | None = None,
+        config_override_path: Path | None = None,
+        custom_config_overrides: dict | None = None,
+        pdk_root: Path | None = None,
+        pdk: str | None = None,
+    ) -> None:
+        """Run the marco flow to generate the marco Verilog files."""
+        if pdk_root is None:
+            pdk_root = get_context().pdk_root.parent
+        if pdk is None:
+            pdk = get_context().pdk
+            if pdk is None:
+                raise ValueError("PDK must be specified either here or in settings.")
+
+        logger.info(f"PDK root: {pdk_root}")
+        logger.info(f"PDK: {pdk}")
+        logger.info(f"Output folder: {out_folder.resolve()}")
+        flow = FABulousTileVerilogMacroFlow(
+            self.fabric.getTileByName(tile_dir.name),
+            io_pin_config,
+            optimisation,
+            pdk=pdk,
+            pdk_root=pdk_root,
+            base_config_path=base_config_path,
+            override_config_path=config_override_path,
+            **custom_config_overrides or {},
+        )
+        result = flow.start()
+        if final_view:
+            logger.info(f"Saving final view to {final_view}")
+            result.save_snapshot(final_view)
+        else:
+            logger.info(
+                f"Saving final views for FABulous to {out_folder / 'final_views'}"
+            )
+            result.save_snapshot(out_folder / "final_views")
+        logger.info("Marco flow completed.")
+
+    def fabric_stitching(
+        self,
+        tile_marco_paths: dict[str, Path],
+        fabric_path: Path,
+        out_folder: Path,
+        *,
+        base_config_path: Path | None = None,
+        config_override_path: Path | None = None,
+        pdk_root: Path | None = None,
+        pdk: str | None = None,
+        **custom_config_overrides: dict,
+    ) -> None:
+        """Run the stitching flow to assemble tile macros into a fabric-level GDS.
+
+        Parameters
+        ----------
+        tile_marco_paths : dict[str, Path]
+            Dictionary mapping tile names to their macro output directories.
+        fabric_path : Path
+            Path to the fabric-level Verilog file.
+        out_folder : Path
+            Output directory for the stitched fabric.
+        base_config_path : Path | None
+            Path to base configuration YAML file.
+        config_override_path : Path | None, optional
+            Additional configuration overrides.
+        pdk_root : Path | None, optional
+            Path to PDK root directory.
+        pdk : str | None, optional
+            PDK name to use.
+        **custom_config_overrides : dict
+            software configuration overrides.
+
+        Raises
+        ------
+        ValueError
+            If PDK root or PDK is not specified.
+        """
+        if pdk_root is None:
+            pdk_root = get_context().pdk_root
+        if pdk is None:
+            pdk = get_context().pdk
+            if pdk is None:
+                raise ValueError("PDK must be specified either here or in settings.")
+
+        logger.info(f"PDK root: {pdk_root}")
+        logger.info(f"PDK: {pdk}")
+        logger.info(f"Output folder: {out_folder.resolve()}")
+
+        flow = FABulousFabricMacroFlow(
+            fabric=self.fabric,
+            fabric_verilog_paths=[fabric_path],
+            tile_macro_dirs=tile_marco_paths,
+            base_config_path=base_config_path,
+            config_override_path=config_override_path,
+            design_dir=out_folder,
+            pdk_root=pdk_root,
+            pdk=pdk,
+            **custom_config_overrides,
+        )
+        result = flow.start()
+        logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
+        result.save_snapshot(out_folder / "final_views")
+        logger.info("Stitching flow completed.")
+
+    def get_most_frequent_tile(self) -> Tile:
+        """Get the most frequently used tile in the fabric.
+
+        Returns
+        -------
+        Tile
+            The most frequently used tile in the fabric.
+        """
+        from collections import Counter
+        from itertools import chain
+
+        counts = Counter(chain.from_iterable(row for row in self.fabric.tile))
+        most_common_tile, _ = counts.most_common(1)[0]
+        return most_common_tile
+
+    def full_fabric_automation(
+        self,
+        project_dir: Path,
+        out_folder: Path,
+        *,
+        pdk_root: Path | None = None,
+        pdk: str | None = None,
+        base_config_path: Path | None = None,
+        config_override_path: Path | None = None,
+        tile_opt_config: Path | None = None,
+        **config_overrides: dict,
+    ) -> None:
+        """Run the stitching flow to assemble tile macros into a fabric-level GDS."""
+        if pdk_root is None:
+            pdk_root = get_context().pdk_root
+            if pdk_root is None:
+                raise ValueError(
+                    "PDK root must be specified either here or in settings."
+                )
+        if pdk is None:
+            pdk = get_context().pdk
+            if pdk is None:
+                raise ValueError("PDK must be specified either here or in settings.")
+
+        logger.info(f"PDK root: {pdk_root}")
+        logger.info(f"PDK: {pdk}")
+        logger.info(f"Output folder: {out_folder.resolve()}")
+        final_config_args = {}
+        if base_config_path is not None:
+            final_config_args.update(
+                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
+            )
+        if config_override_path is not None:
+            final_config_args.update(
+                yaml.safe_load(config_override_path.read_text(encoding="utf-8"))
+            )
+        final_config_args["FABULOUS_PROJ_DIR"] = str(project_dir.resolve())
+        final_config_args["FABULOUS_FABRIC"] = self.fabric
+        final_config_args["DESIGN_NAME"] = self.fabric.name
+        if tile_opt_config is not None:
+            final_config_args["TILE_OPT_INFO"] = str(tile_opt_config)
+        if config_overrides:
+            final_config_args.update(config_overrides)
+        flow = FABulousFabricMacroFullFlow(
+            final_config_args,
+            name=self.fabric.name,
+            design_dir=str(out_folder.resolve()),
+            pdk=pdk,
+            pdk_root=str((pdk_root).resolve().parent),
+        )
+        result = flow.start()
+        logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
+        result.save_snapshot(out_folder / "final_views")
+        logger.info("Stitching flow completed.")
+
+    def timing_model_interface(self, 
+        project_dir: Path, 
+        pdk_root: Path, 
+        pdk: str, 
+        mode: str,
+        output_file: Path,
+        debug: bool = False
+    ) -> None:
+        if pdk == "ihp-sg13g2":
+            liberty_files: Path = pdk_root / "libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib"
+            techmap_files: list[Path] = [
+                pdk_root / "libs.tech/librelane/sg13g2_stdcell/latch_map.v",
+                pdk_root / "libs.tech/librelane/sg13g2_stdcell/tribuff_map.v",
+            ]
+            min_buf_cell_and_ports: str = "sg13g2_buf_1 A X"
+        elif pdk == "sky130A" or pdk == "sky130B":
+            liberty_files: Path = pdk_root / "libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
+            techmap_files: list[Path] = [
+                pdk_root / "libs.tech/openlane/sky130_fd_sc_hd/latch_map.v",
+                pdk_root / "libs.tech/openlane/sky130_fd_sc_hd/tribuff_map.v",
+            ]
+            min_buf_cell_and_ports: str = "sky130_fd_sc_hd__buf_1 A X"
+        else:
+            raise ValueError(f"PDK {pdk} not supported for timing model interface.")
+        
+        ftmi = FABulousTimingModelInterface(config={
+            "project_dir": project_dir,
+            "liberty_files": liberty_files,
+            "techmap_files": techmap_files,
+            "min_buf_cell_and_ports": min_buf_cell_and_ports,
+            "mode": mode,
+            "debug": debug
+        }, fabric=self.fabric)
+        
+        model_gen_npnr.writeNextpnrPipFile(
+            fabric=self.fabric,
+            outputFile=output_file,
+            delay_model=ftmi,
+        )   

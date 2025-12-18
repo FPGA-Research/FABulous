@@ -16,6 +16,7 @@ import sys
 import tarfile
 import tempfile
 from collections.abc import Callable, Sequence
+from concurrent import futures
 from importlib import resources
 from importlib.metadata import version
 from importlib.resources.abc import Traversable
@@ -218,6 +219,13 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
         "FAB_MODELS_PACK",
         str(Path(project_dir.name) / "Fabric" / f"models_pack.{new_suffix}"),
     )
+    set_key(env_file, "FAB_PDK", "ihp-sg13g2")
+    if (Path().home() / ".ciel").exists():
+        set_key(env_file, "FAB_PDK_ROOT", str(Path().home() / ".ciel" / "ihp-sg13g2"))
+    else:
+        logger.warning(
+            "Cannot find .ciel in $HOME. Please set FAB_PDK_ROOT in .env file."
+        )
 
     logger.info(
         f"New FABulous project created in {project_dir} with {lang!s} language."
@@ -591,6 +599,61 @@ class CommandPipeline:
                     raise PipelineCommandError(error_message)
 
         return self.final_exit_code == 0
+
+    def execute_parallel(self) -> bool:
+        """Execute all steps in the pipeline concurrently using threads.
+
+        If any command fails (raises or sets a non-zero exit code), a
+        PipelineCommandError is raised (unless `force` is True).
+        """
+        # Use ThreadPoolExecutor because the CLI instance cannot be pickled for
+        # ProcessPoolExecutor; thread-based concurrency is sufficient here since
+        # the heavy work (GDS generation) likely releases the GIL via I/O or
+        # underlying C extensions.
+        with futures.ThreadPoolExecutor(max_workers=self.cli.max_job) as executor:
+            future_map: dict[futures.Future, tuple[str, str]] = {
+                executor.submit(self._run_command_threadsafe, command): (
+                    command,
+                    error_message,
+                )
+                for command, error_message in self.steps
+            }
+
+            for future in futures.as_completed(future_map):
+                cmd, err_msg = future_map[future]
+                if future.exception() is not None:
+                    exc = future.exception()
+                    # try to extract exit_code when available,
+                    # otherwise set generic code
+                    self.final_exit_code = getattr(exc, "exit_code", 1)
+                    logger.error(
+                        f"Command '{cmd}' execution failed with exception: {exc}"
+                    )
+                    if not self.force:
+                        raise PipelineCommandError(err_msg)
+                else:
+                    # If the callable ran without raising, check the CLI exit code
+                    # that the command may have set.
+                    if self.cli.exit_code != 0:
+                        self.final_exit_code = self.cli.exit_code
+                        logger.error(
+                            f"Command '{cmd}' execution failed with exit code "
+                            f"{self.final_exit_code}"
+                        )
+                        if not self.force:
+                            raise PipelineCommandError(err_msg)
+
+        return self.final_exit_code == 0
+
+    def _run_command_threadsafe(self, command: str) -> None:
+        """Run a CLI command in a thread.
+
+        Run `onecmd_plus_hooks`; exceptions will be propagated to the Future so
+        the caller can handle them.
+        """
+        # Run the command on the CLI instance. onecmd_plus_hooks will set
+        # `self.cli.exit_code` appropriately.
+        self.cli.onecmd_plus_hooks(command)
 
     def get_exit_code(self) -> int:
         """Get the final exit code from pipeline execution."""

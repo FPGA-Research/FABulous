@@ -22,14 +22,17 @@ simulation, and project management.
 
 import argparse
 import csv
+import os
 import pickle
 import pprint
 import shutil
 import subprocess as sp
 import sys
+import tempfile
 import tkinter as tk
 import traceback
 from pathlib import Path
+from typing import cast
 
 from cmd2 import (
     Cmd,
@@ -42,6 +45,7 @@ from cmd2 import (
 )
 from FABulous_bit_gen import genBitstream
 from loguru import logger
+from pick import pick
 
 from FABulous.custom_exception import CommandError, EnvironmentNotSet, InvalidFileType
 from FABulous.fabric_generator.code_generator.code_generator_Verilog import (
@@ -50,6 +54,7 @@ from FABulous.fabric_generator.code_generator.code_generator_Verilog import (
 from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
+from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 from FABulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
 )
@@ -78,6 +83,7 @@ CMD_OTHER = "Other"
 CMD_GUI = "GUI"
 CMD_SCRIPT = "Script"
 CMD_TOOLS = "Tools"
+CMD_TIMING_MODEL = "Timing Characterization"
 
 
 INTO_STRING = rf"""
@@ -175,6 +181,7 @@ class FABulous_CLI(Cmd):
     script: str = ""
     force: bool = False
     interactive: bool = True
+    max_job: int = 4
 
     def __init__(
         self,
@@ -183,12 +190,23 @@ class FABulous_CLI(Cmd):
         interactive: bool = False,
         verbose: bool = False,
         debug: bool = False,
+        max_job: int = 8,
     ) -> None:
         super().__init__(
             persistent_history_file=f"{get_context().proj_dir}/{META_DATA_DIR}/.fabulous_history",
             allow_cli_args=False,
         )
+        self.self_in_py = True
         logger.info(f"Running at: {get_context().proj_dir}")
+
+        if max_job == -1:
+            if c := os.cpu_count():
+                self.max_job = c
+            else:
+                logger.warning("Unable to determine CPU count, defaulting to 4")
+                self.max_job = 4
+        else:
+            self.max_job = max_job
 
         if writerType == "verilog":
             self.fabulousAPI = FABulous_API(VerilogCodeGenerator())
@@ -278,7 +296,7 @@ class FABulous_CLI(Cmd):
             logger.opt(exception=e).error(str(e).replace("<", r"\<"))
             self.exit_code = 1
             if self.interactive:
-                return False
+                return None
             return not self.force
 
     def do_exit(self, *_ignored: str) -> bool:
@@ -532,7 +550,9 @@ class FABulous_CLI(Cmd):
         logger.info(f"Generating tile {' '.join(args.tiles)}")
         for t in args.tiles:
             if subTiles := [
-                f.stem for f in (self.projectDir / f"Tile/{t}").iterdir() if f.is_dir()
+                f.stem
+                for f in (self.projectDir / f"Tile/{t}").iterdir()
+                if f.is_dir() and f.name != "macro"
             ]:
                 logger.info(
                     f"{t} is a super tile, generating {t} with sub tiles "
@@ -1236,3 +1256,355 @@ class FABulous_CLI(Cmd):
             Command arguments (unused for this command).
         """
         self.fabulousAPI.genFabricIOBels()
+
+    gds_parser = Cmd2ArgumentParser()
+    gds_parser.add_argument(
+        "tile",
+        type=str,
+        help="A tile",
+        completer=lambda self: self.fab.getTiles(),
+    )
+    gds_parser.add_argument(
+        "--optimise",
+        "-opt",
+        help="Optimize the GDS layout",
+        default=OptMode.NO_OPT,
+        type=OptMode,
+        const=OptMode.BALANCE,
+        nargs="?",
+    )
+    gds_parser.add_argument(
+        "--override",
+        help="Optimize the GDS layout",
+        type=Path,
+    )
+
+    @with_category(CMD_FABRIC_FLOW)
+    @with_argparser(gds_parser)
+    def do_gen_tile_macro(self, args: argparse.Namespace) -> None:
+        """Generate GDSII files for a specific tile.
+
+        This command generates GDSII files for the specified tile, allowing for
+        the physical representation of the tile to be created.
+
+        Parameters
+        ----------
+        args : argparse.Namespace
+            Command arguments containing:
+            - tile: Name of the tile to generate GDSII files for
+        """
+        if not args.tile:
+            logger.error("Tile name must be specified")
+            return
+
+        tile_dir = self.projectDir / "Tile" / args.tile
+        pin_order_file = tile_dir / f"{args.tile}_io_pin_order.yaml"
+
+        if not tile_dir.exists():
+            logger.error(f"Tile directory {tile_dir} does not exist")
+            return
+
+        if tile := self.fabulousAPI.getTile(args.tile):
+            self.fabulousAPI.gen_io_pin_order_config(tile, pin_order_file)
+        else:
+            super_tile = self.fabulousAPI.getSuperTile(args.tile)
+            if super_tile is None:
+                logger.error(f"Tile {args.tile} not found in fabric definition")
+                return
+            self.fabulousAPI.gen_io_pin_order_config(super_tile, pin_order_file)
+
+        self.fabulousAPI.genTileMacro(
+            tile_dir,
+            pin_order_file,
+            tile_dir / "macro",
+            optimisation=args.optimise,
+            base_config_path=self.projectDir / "Tile" / "include" / "gds_config.yaml",
+            config_override_path=tile_dir / "gds_config.yaml",
+        )
+
+    gen_all_tile_parser = Cmd2ArgumentParser()
+    gen_all_tile_parser.add_argument(
+        "--parallel",
+        "-p",
+        help="Generate tile macros in parallel",
+        default=False,
+        action="store_true",
+    )
+    gen_all_tile_parser.add_argument(
+        "--optimise",
+        "-opt",
+        help="Optimize the GDS layout of all tiles",
+        default=OptMode.NO_OPT,
+        type=OptMode,
+        const=OptMode.BALANCE,
+        nargs="?",
+    )
+
+    @with_argparser(gen_all_tile_parser)
+    @with_category(CMD_FABRIC_FLOW)
+    def do_gen_all_tile_macros(self, args: argparse.Namespace) -> None:
+        """Generate GDSII files for all tiles in the fabric."""
+        commands = CommandPipeline(self)
+        for i in sorted(self.allTile):
+            if args.optimise:
+                commands.add_step(
+                    f"gen_tile_macro {i} --optimise {args.optimise.value}"
+                )
+            else:
+                commands.add_step(f"gen_tile_macro {i}")
+        if not args.parallel:
+            commands.execute()
+        else:
+            commands.execute_parallel()
+
+    @with_category(CMD_FABRIC_FLOW)
+    def do_gen_fabric_macro(self, *_args: str) -> None:
+        """Generate GDSII files for the entire fabric."""
+        tile_macro_root = self.projectDir / "Tile"
+        tile_macro_paths: dict[str, Path] = {}
+
+        for tile_dir in tile_macro_root.iterdir():
+            if not tile_dir.is_dir():
+                continue
+            macro_dir = tile_dir / "macro" / "final_views"
+            if macro_dir.exists():
+                tile_macro_paths[tile_dir.name] = macro_dir
+
+        if not tile_macro_paths:
+            logger.error(
+                "No tile macro directories found. Generate tile GDS results first."
+            )
+            return
+
+        (self.projectDir / "gds").mkdir(exist_ok=True)
+        (self.projectDir / "Fabric" / "macro").mkdir(exist_ok=True)
+        self.fabulousAPI.fabric_stitching(
+            tile_macro_paths,
+            self.projectDir / "Fabric" / f"{self.fabulousAPI.fabric.name}.v",
+            self.projectDir / "Fabric" / "macro",
+            base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
+        )
+
+    @with_category(CMD_FABRIC_FLOW)
+    def do_run_FABulous_eFPGA_macro(self, *_arg: str) -> None:
+        """Run the full FABulous eFPGA macro generation flow."""
+        (self.projectDir / "Fabric" / "macro").mkdir(exist_ok=True)
+        self.fabulousAPI.full_fabric_automation(
+            self.projectDir,
+            self.projectDir / "Fabric" / "macro",
+            base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
+        )
+
+    gui_parser = Cmd2ArgumentParser()
+    gui_parser.add_argument("file", nargs="?", help="file to open", default=None)
+    gui_parser.add_argument(
+        "--tile",
+        help="launch GUI to view a specific tile",
+        default=None,
+        completer=lambda self: self.fab.getTiles(),
+    )
+    gui_parser.add_argument(
+        "--fabric",
+        help="launch GUI to view the entire fabric",
+        default=False,
+        action="store_true",
+    )
+    gui_parser.add_argument(
+        "--last-run", help="launch GUI to view last run", action="store_true"
+    )
+
+    gui_parser.add_argument(
+        "--head",
+        help="number of item to select from",
+        default=10,
+    )
+
+    def _get_file_path(
+        self, args: argparse.Namespace, file_extension: str, show_count: int = 0
+    ) -> str:
+        """Get the file path for the specified file extension."""
+
+        def get_latest(directory: Path, file_extension: str) -> str:
+            """Get the latest modified file in a directory."""
+            files = list(directory.glob(f"**/*.{file_extension}"))
+            if not files:
+                raise FileNotFoundError(
+                    f"No .{file_extension} files found in the specified directory."
+                )
+            latest_file = max(files, key=lambda f: f.stat().st_mtime)
+            return str(latest_file)
+
+        def get_option(f: Path, file_extension: str) -> str:
+            title = "Select which file to view"
+            files_list = sorted(
+                f.glob(f"**/*.{file_extension}"),
+                key=lambda f: f.stat().st_mtime,
+                reverse=True,
+            )[:show_count]
+            _, idx = pick(
+                list(map(lambda x: str(x.relative_to(self.projectDir)), files_list)),
+                title,
+            )
+            return str(files_list[cast("int", idx)])
+
+        file: str = ""
+        if args.last_run:
+            if args.fabric:
+                file = get_latest(self.projectDir / "Fabric", file_extension)
+            elif args.tile is not None:
+                file = get_latest(self.projectDir / "Tile" / args.tile, file_extension)
+            else:
+                file = get_latest(self.projectDir, file_extension)
+        else:
+            if args.fabric:
+                file = get_option(self.projectDir / "Fabric", file_extension)
+            elif args.tile is not None:
+                file = get_option(self.projectDir / "Tile" / args.tile, file_extension)
+            elif args.tile is None and not args.fabric:
+                file = get_option(self.projectDir, file_extension)
+
+        if not file:
+            raise FileNotFoundError(
+                f"No .{file_extension} files found in the specified directory."
+            )
+
+        return file
+
+    @with_argparser(gui_parser)
+    @with_category(CMD_TOOLS)
+    def do_start_openroad_gui(self, args: argparse.Namespace) -> None:
+        """Start OpenROAD GUI if an installation can be found.
+
+        If no installation can be found, a warning is produced.
+        """
+        logger.info("Checking for OpenROAD installation")
+        openroad = get_context().openroad_path
+        file_name: str
+        if args.fabric and args.tile is not None:
+            raise CommandError("Please specify either --fabric or --tile, not both")
+
+        if args.file is None:
+            db_file: str = self._get_file_path(args, "odb", show_count=int(args.head))
+        else:
+            db_file = args.file
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".tcl", delete=False
+        ) as script_file:
+            # script_file.name contains the full filesystem path to the temp file
+            script_file.write(f"read_db {db_file}\n")
+            file_name = script_file.name
+        logger.info(f"Start OpenROAD GUI with odb: {db_file}")
+        sp.run(
+            [
+                str(openroad),
+                "-gui",
+                str(file_name),
+            ]
+        )
+
+    @with_argparser(gui_parser)
+    @with_category(CMD_TOOLS)
+    def do_start_klayout_gui(self, args: argparse.Namespace) -> None:
+        """Start OpenROAD GUI if an installation can be found.
+
+        If no installation can be found, a warning is produced.
+        """
+        logger.info("Checking for klayout installation")
+        klayout = get_context().klayout_path
+        if args.fabric and args.tile is not None:
+            raise CommandError("Please specify either --fabric or --tile, not both")
+
+        if args.file is None:
+            gds_file: str = self._get_file_path(args, "gds")
+        else:
+            gds_file = args.file
+        if get_context().pdk == "ihp-sg13g2":
+            layer_file = (
+                (get_context().pdk_root)
+                / "libs.tech"
+                / "klayout"
+                / "tech"
+                / "sg12g2.lyp"
+            )
+        else:
+            layer_file = (
+                (get_context().pdk_root)
+                / "libs.tech"
+                / "klayout"
+                / "tech"
+                / f"{get_context().pdk}.lyp"
+            )
+        logger.info(f"Start klayout GUI with gds: {gds_file}")
+        logger.info(f"Layer property file: {layer_file!s}")
+        sp.run(
+            [
+                str(klayout),
+                "-l",
+                str(layer_file),
+                gds_file,
+            ]
+        )
+    
+    timing_model_parser = Cmd2ArgumentParser()
+    timing_model_parser.add_argument(
+        "--mode",
+        help="Timing model generation mode (physical or structural)",
+        type=str,
+        choices=["physical", "structural"],
+        default="physical"
+    )
+    timing_model_parser.add_argument(
+        "--replace-pips",
+        help="Replace existing timing-model (pips characterization) in the .FABulous directory",
+        action="store_true",
+        default=False
+    )
+    timing_model_parser.add_argument(
+        "--outfile",
+        help="Output file for the generated timing model",
+        type=Path,
+        default=None
+    )
+    
+    @with_argparser(timing_model_parser)
+    @with_category(CMD_TIMING_MODEL)   
+    def do_timing_model(self, args: argparse.Namespace) -> None:
+        """
+        Generate timing model for the fabric.
+        Timing information is extracted from the GDS layout and
+        used to create a timing model compatible with Nextpnr
+        for timing-aware place and route.
+        
+        This command generates a timing model for the FPGA fabric based on the
+        specified mode (physical or structural) and outputs it to a file named
+        'fabulous_timing_model.pips.txt' in the .FABulous directory (default).
+        
+        Replace the pips.txt files in the .FABulous directory with the
+        ones generated by this command (if --replace-pips is specified).
+        
+        This command only works if the full gds flow has been run
+        for all tiles since physical information is required.
+        """
+        if args.outfile is None:
+            outfile: Path = get_context().proj_dir / ".FABulous" / "fabulous_timing_model.pips.txt"
+        else:
+            outfile: Path = args.outfile
+            
+        if args.replace_pips:
+            pips_path = get_context().proj_dir / ".FABulous" / "pips.txt"
+            if pips_path.exists():
+                backup_path = pips_path.with_suffix('.backup.txt')
+                logger.info(f"Backing up existing pips.txt to {backup_path}")
+                pips_path.rename(backup_path)
+            outfile = pips_path
+        
+        logger.info(f"Output timing model file: {outfile}")
+        
+        self.fabulousAPI.timing_model_interface(
+            project_dir=get_context().proj_dir,
+            pdk_root=get_context().pdk_root,
+            pdk=get_context().pdk,
+            mode=args.mode,
+            output_file=outfile,
+            debug=self.debug,
+        )
