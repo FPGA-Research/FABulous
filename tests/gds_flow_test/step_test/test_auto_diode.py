@@ -1,11 +1,11 @@
 """Tests for AutoEcoDiodeInsertion step."""
 
+from pathlib import Path
+
 import pytest
 from librelane.config.config import Config
 from librelane.state.state import State
 from pytest_mock import MockFixture
-from pathlib import Path
-
 from pytest_mock.plugin import MockerFixture
 
 from FABulous.fabric_generator.gds_generator.steps.auto_diode import (
@@ -39,21 +39,48 @@ class TestAutoEcoDiodeInsertion:
         diodes = step.parse_diodes(empty_report)
         assert len(diodes) == 0
 
-    def test_condition_done_enough(
+    def test_condition_stops_loop_when_done_enough(
         self, mock_config: Config, mock_state: State
     ) -> None:
-        """Test condition returns False when done_enough is True."""
-        step = AutoEcoDiodeInsertion(mock_config, mock_state)
-        step.done_enough = True
+        """Test that condition returns False to stop the loop when insertion is complete.
 
-        assert not step.condition(mock_state)
-
-    def test_condition_not_done(self, mock_config: Config, mock_state: State) -> None:
-        """Test condition returns True when not done."""
+        This validates the loop termination behavior - when done_enough is True,
+        the condition should return False to exit the WhileStep iteration loop.
+        This typically happens when all diodes have been successfully inserted.
+        """
         step = AutoEcoDiodeInsertion(mock_config, mock_state)
+
+        # Simulate the initial state - not done yet
         step.done_enough = False
+        assert step.condition(mock_state) is True, "Loop should continue when not done"
 
-        assert step.condition(mock_state)
+        # Simulate completion - all diodes inserted
+        step.done_enough = True
+        assert step.condition(mock_state) is False, "Loop should stop when done_enough"
+
+    def test_condition_continues_loop_while_inserting(
+        self, mock_config: Config, mock_state: State
+    ) -> None:
+        """Test that condition returns True to continue loop during insertion.
+
+        This validates that the WhileStep continues iterating while there are
+        still diodes to insert (done_enough = False).
+        """
+        step = AutoEcoDiodeInsertion(mock_config, mock_state)
+
+        # Default state should continue the loop
+        step.done_enough = False
+        result = step.condition(mock_state)
+
+        assert result is True, "Loop should continue while inserting diodes"
+
+        # Verify that the condition is based solely on done_enough, not metrics
+        # (metrics are checked in post_loop_callback, not condition)
+        mock_state.metrics["antenna__violating__nets"] = 100
+        mock_state.metrics["antenna__violating__pins"] = 100
+        result = step.condition(mock_state)
+
+        assert result is True, "Condition should ignore metrics, only check done_enough"
 
     def test_pre_iteration_callback_first_iteration(
         self,
@@ -90,14 +117,18 @@ class TestAutoEcoDiodeInsertion:
     ) -> None:
         """Test post_iteration_callback on successful iteration."""
         step = AutoEcoDiodeInsertion(mock_config, mock_state)
+
+        step_config = mock_config.copy(INSERT_ECO_DIODES=[1, 2, 3])
         step.current_iteration = 0
         step.previous_state = mock_state
+        step.config = step_config
 
         new_state = step.post_iteration_callback(mock_state, full_iteration=True)
 
         assert step.current_iteration == 1
         assert step.previous_state == mock_state
         assert new_state == mock_state
+        assert step.total_diodes_inserted == 3
 
     def test_post_iteration_callback_failure(
         self, mock_config: Config, mock_state: State
