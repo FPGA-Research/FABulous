@@ -293,7 +293,7 @@ class FABulous_API:
     def getTile(
         self, tileName: str, raises_on_miss: bool = False
     ) -> Tile | SuperTile | None:
-        """Return Tile object based on tile name.
+        """Return 'Tile' or 'SuperTile' object based on 'tileName'.
 
         Parameters
         ----------
