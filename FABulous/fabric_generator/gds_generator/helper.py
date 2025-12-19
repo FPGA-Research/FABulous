@@ -57,10 +57,10 @@ def get_offset(config: Config) -> tuple[Decimal, Decimal]:
     """
     layers = get_layer_info(config)
 
-    x_pitch = layers[config["FP_IO_VLAYER"]]["X"][0]
-    y_pitch = layers[config["FP_IO_HLAYER"]]["Y"][0]
+    x_offset = layers[config["FP_IO_VLAYER"]]["X"][0]
+    y_offset = layers[config["FP_IO_HLAYER"]]["Y"][0]
 
-    return x_pitch, y_pitch
+    return x_offset, y_offset
 
 
 def round_up_decimal(value: Decimal, pitch: Decimal) -> Decimal:
@@ -105,34 +105,54 @@ def round_die_area(config: Config) -> Config:
     return config.copy(DIE_AREA=(0, 0, width_rounded, height_rounded))
 
 
-def get_routing_obstructions(config: Config) -> list[tuple[int, int, int, int]]:
+def get_routing_obstructions(
+    config: Config,
+) -> list[tuple[str, Decimal, Decimal, Decimal, Decimal]]:
     """Get the routing obstructions from the config.
 
-    Returns a list of tuples (x1, y1, x2, y2) representing the obstructions in the
-    routing area.
+    Returns a list of tuples (layer, x1, y1, x2, y2) representing the obstructions in
+    the routing area.
+
+    Parameters
+    ----------
+    config : Config
+        The configuration object from liberlane.config.config
+
+    Returns
+    -------
+    list[tuple[str, Decimal | int, Decimal | int, Decimal | int, Decimal | int]]
+        A list of obstruction tuples.
     """
     obstructions = config.get("ROUTING_OBSTRUCTIONS") or []
     _, _, width, height = config["DIE_AREA"]
-
+    layers = get_layer_info(config)
     parsed_obstructions = defaultdict(list)
     for obs in obstructions:
         if len(obs) != 5:
             raise ValueError(
                 f"Invalid obstruction {obs}. Each obstruction must be a tuple of "
-                "metal layer flowed by 4 decimals"
+                "the metal layer followed by 4 decimals"
             )
         met, *box = obs
         parsed_obstructions[met].append(box)
 
-    if (layer := config["FP_IO_VLAYER"]) not in parsed_obstructions:
-        # Add thin horizontal obstructions just outside bottom and top edges
-        parsed_obstructions[layer].append((0, -1, width, 0))
-        parsed_obstructions[layer].append((0, height, width, height + 1))
+    zero = Decimal(0)
+    # Add thin obstructions at all the edges
+    for layer_name, layer_data in layers.items():
+        x_pitch = layer_data["X"][1]
+        y_pitch = layer_data["Y"][1]
 
-    if (layer := config["FP_IO_HLAYER"]) not in parsed_obstructions:
-        # Add thin vertical obstructions just outside left and right edges
-        parsed_obstructions[layer].append((-1, 0, 0, height))
-        parsed_obstructions[layer].append((width, 0, width + 1, height))
+        # horizontal obstructions
+        parsed_obstructions[layer_name].append((zero, -y_pitch / 2, width, zero))
+        parsed_obstructions[layer_name].append(
+            (zero, height, width, height + y_pitch / 2)
+        )
+
+        # vertical obstructions
+        parsed_obstructions[layer_name].append((-x_pitch / 2, zero, zero, height))
+        parsed_obstructions[layer_name].append(
+            (width, zero, width + x_pitch / 2, height)
+        )
 
     result = []
     for layer, boxes in parsed_obstructions.items():
