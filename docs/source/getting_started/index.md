@@ -5,5 +5,6 @@ This section contains quick start setup and installation instructions to get FAB
 ```{toctree}
 
 quickstart
+codespaces
 installation/index
 ```
