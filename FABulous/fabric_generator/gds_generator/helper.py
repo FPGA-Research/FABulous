@@ -116,12 +116,17 @@ def get_routing_obstructions(
     Parameters
     ----------
     config : Config
-        The configuration object from liberlane.config.config
+        The configuration object from liberlane.
 
     Returns
     -------
-    list[tuple[str, Decimal | int, Decimal | int, Decimal | int, Decimal | int]]
+    list[tuple[str, Decimal, Decimal, Decimal, Decimal]]
         A list of obstruction tuples.
+
+    Raises
+    ------
+    ValueError
+        If the entry is not a valid obstruction.
     """
     obstructions = config.get("ROUTING_OBSTRUCTIONS") or []
     _, _, width, height = config["DIE_AREA"]
