@@ -1,6 +1,7 @@
-"""Store information about a tile."""
+"""Tile class definition for FPGA fabric representation."""
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -309,3 +310,103 @@ class Tile:
             ret += b.configBit
 
         return ret
+
+    def get_min_die_area(
+        self,
+        x_pitch: Decimal,
+        y_pitch: Decimal,
+        x_pin_thickness_mult: Decimal,
+        y_pin_thickness_mult: Decimal,
+        x_spacing: Decimal,
+        y_spacing: Decimal,
+        frame_data_width: int = 32,
+        frame_strobe_width: int = 20,
+    ) -> tuple[Decimal, Decimal]:
+        """Calculate minimum tile dimensions based on IO pin density.
+
+        For this tile, calculates the minimum physical width and height
+        required to accommodate all IO pins at the PDK's track pitch.
+
+        Parameters
+        ----------
+        x_pitch : Decimal
+            Horizontal pitch between tracks (DBU).
+        y_pitch : Decimal
+            Vertical pitch between tracks (DBU).
+        x_pin_thickness_mult : Decimal
+            Pin thickness multiplier in the horizontal direction.
+        y_pin_thickness_mult : Decimal
+            Pin thickness multiplier in the vertical direction.
+        x_spacing : Decimal
+            Pin spacing in the horizontal direction (DBU).
+        y_spacing : Decimal
+            Pin spacing in the vertical direction (DBU).
+        frame_data_width : int, optional
+            Frame data width, by default 32.
+        frame_strobe_width : int, optional
+            Frame strobe width, by default 20.
+
+        Returns
+        -------
+        tuple[Decimal, Decimal]
+            (min_width, min_height) where:
+            - min_width: minimum width needed for north/south edge IO pins
+            - min_height: minimum height needed for west/east edge IO pins
+
+        Notes
+        -----
+        The minimum dimensions are calculated as:
+        - min_width = max(north_pins, south_pins) * x_pitch
+        - min_height = max(west_pins, east_pins) * y_pitch
+
+        These constraints prevent the NLP solver from suggesting dimensions
+        that are physically impossible due to IO pin spacing requirements.
+        """
+        import itertools
+        from decimal import Decimal
+
+        def get_port_count(ports: list[Port]) -> int:
+            """Count total number of expanded ports in a list of ports.
+
+            Parameters
+            ----------
+            ports : list[Port]
+                List of ports to count.
+
+            Returns
+            -------
+            int
+                Total number of expanded ports.
+            """
+            return len(
+                list(
+                    itertools.chain.from_iterable(
+                        [
+                            list(itertools.chain.from_iterable(p.expandPortInfo("all")))
+                            for p in ports
+                        ]
+                    )
+                )
+            )
+
+        # Count ports on each physical side
+        north_ports = get_port_count(self.getNorthSidePorts())
+        south_ports = get_port_count(self.getSouthSidePorts())
+        west_ports = get_port_count(self.getWestSidePorts())
+        east_ports = get_port_count(self.getEastSidePorts())
+
+        # Min width constrained by north/south edges
+        x_io_count = Decimal(max(north_ports, south_ports) + frame_strobe_width)
+        min_width_io = (
+            x_io_count * (x_pitch * x_pin_thickness_mult)
+            + x_spacing * x_io_count
+            + 2 * x_spacing
+        )
+        # Min height constrained by west/east edges
+        y_io_count = Decimal(max(west_ports, east_ports) + frame_data_width)
+        min_height_io = (
+            y_io_count * (y_pitch * y_pin_thickness_mult)
+            + y_spacing * y_io_count
+            + 2 * y_spacing
+        )
+        return min_width_io, min_height_io
