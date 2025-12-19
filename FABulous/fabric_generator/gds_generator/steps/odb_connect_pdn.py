@@ -8,11 +8,11 @@ from librelane.steps.step import Step
 
 
 @Step.factory.register()
-class FABulousPower(OdbpyStep):
+class FABulousPDN(OdbpyStep):
     """Connect power rails for the tiles using a custom script."""
 
-    id = "Odb.FABulousPower"
-    name = "FABulous Power connections for the tiles"
+    id = "Odb.FABulousPDN"
+    name = "FABulous PDN connections for the tiles"
 
     config_vars = pdn_variables
 

@@ -1,8 +1,7 @@
 """Custom IO placement step for FABulous tiles."""
 
-from decimal import Decimal
 from importlib import resources
-from typing import Literal, Optional
+from typing import Literal
 
 from librelane.common.types import Path
 from librelane.config.variable import Variable
@@ -35,32 +34,6 @@ class FABulousTileIOPlacement(OdbpyStep):
     long_name = "FABulous I/O Pin Placement Script"
 
     config_vars = io_layer_variables + [
-        Variable(
-            "IO_PIN_V_LENGTH",
-            Optional[Decimal],  # librelane limitation # noqa: UP045
-            """
-            The length of the pins with a north or south orientation. If unspecified by
-            a PDK, the script will use whichever is higher of the following two values:
-                * The pin width
-                * The minimum value satisfying the minimum area constraint given the
-                  pin width
-            """,
-            units="µm",
-            pdk=True,
-        ),
-        Variable(
-            "IO_PIN_H_LENGTH",
-            Optional[Decimal],  # librelane limitation # noqa: UP045
-            """
-            The length of the pins with an east or west orientation. If unspecified by
-            a PDK, the script will use whichever is higher of the following two values:
-                * The pin width
-                * The minimum value satisfying the minimum area constraint given the
-                  pin width
-            """,
-            units="µm",
-            pdk=True,
-        ),
         Variable(
             "FABULOUS_IO_PIN_ORDER_CFG",
             Path,
