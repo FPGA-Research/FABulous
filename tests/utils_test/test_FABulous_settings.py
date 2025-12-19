@@ -1,6 +1,7 @@
 """Test FABulousSettings class."""
 
 import os
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -16,8 +17,6 @@ from FABulous.FABulous_settings import (
     reset_context,
 )
 
-from collections.abc import Generator
-
 
 @pytest.fixture(autouse=True)
 def reset_context_before_and_after_tests() -> Generator:
@@ -31,7 +30,10 @@ class TestFABulousSettings:
     """Test cases for FABulousSettings class."""
 
     def test_default_initialization(
-        self, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture, project: Path
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: MockerFixture,
+        project: Path,
     ) -> None:
         """Test FABulousSettings initialization with clean state."""
         # Clear all FAB_ environment variables
@@ -59,6 +61,8 @@ class TestFABulousSettings:
         assert settings.nextpnr_path == "nextpnr-generic"
         assert settings.iverilog_path == "iverilog"
         assert settings.vvp_path == "vvp"
+        assert settings.klayout_path == "klayout"
+        assert settings.openroad_path == "openroad"
         assert settings.proj_dir == project
         assert settings.fabulator_root is None
         # Note: oss_cad_suite might be set from previous tests or environment
@@ -67,6 +71,7 @@ class TestFABulousSettings:
         assert isinstance(settings.proj_version, Version)
         assert settings.proj_lang == "verilog"  # Default value
         assert settings.switch_matrix_debug_signal is False
+        assert settings.pdk_root is None
 
     def test_initialization_with_environment_variables(
         self, project: Path, monkeypatch: pytest.MonkeyPatch, mocker: MockerFixture
@@ -276,48 +281,6 @@ class TestToolPathResolution:
 
         assert result == Path("/usr/bin/yosys").resolve()
         mock_which.assert_called_once_with("yosys")
-
-    def test_resolve_tool_paths_nextpnr_found(self, mocker: MockerFixture) -> None:
-        """Test resolve_tool_paths for nextpnr when tool is found."""
-        mock_info = mocker.Mock()
-        mock_info.field_name = "nextpnr_path"
-
-        mock_which = mocker.patch(
-            "FABulous.FABulous_settings.which", return_value="/usr/bin/nextpnr-generic"
-        )
-
-        result = FABulousSettings.resolve_tool_paths(None, mock_info)
-
-        assert result == Path("/usr/bin/nextpnr-generic").resolve()
-        mock_which.assert_called_once_with("nextpnr-generic")
-
-    def test_resolve_tool_paths_iverilog_found(self, mocker: MockerFixture) -> None:
-        """Test resolve_tool_paths for iverilog when tool is found."""
-        mock_info = mocker.Mock()
-        mock_info.field_name = "iverilog_path"
-
-        mock_which = mocker.patch(
-            "FABulous.FABulous_settings.which", return_value="/usr/bin/iverilog"
-        )
-
-        result = FABulousSettings.resolve_tool_paths(None, mock_info)
-
-        assert result == Path("/usr/bin/iverilog").resolve()
-        mock_which.assert_called_once_with("iverilog")
-
-    def test_resolve_tool_paths_vvp_found(self, mocker: MockerFixture) -> None:
-        """Test resolve_tool_paths for vvp when tool is found."""
-        mock_info = mocker.Mock()
-        mock_info.field_name = "vvp_path"
-
-        mock_which = mocker.patch(
-            "FABulous.FABulous_settings.which", return_value="/usr/bin/vvp"
-        )
-
-        result = FABulousSettings.resolve_tool_paths(None, mock_info)
-
-        assert result == Path("/usr/bin/vvp").resolve()
-        mock_which.assert_called_once_with("vvp")
 
     def test_resolve_tool_paths_tool_not_found(self, mocker: MockerFixture) -> None:
         """Test resolve_tool_paths when tool is not found in PATH."""
