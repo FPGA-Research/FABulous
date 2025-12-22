@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.0.0](https://github.com/FPGA-Research/FABulous/compare/v2.0.0...v3.0.0) (2025-12-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* Changing getTile to be more general ([#564](https://github.com/FPGA-Research/FABulous/issues/564))
+
+### Features
+
+* add fabulator to nix ([8cd1ce4](https://github.com/FPGA-Research/FABulous/commit/8cd1ce4bab001ebfa36f3bca91fbccde9599ae27))
+* add fabulator to nix ([#556](https://github.com/FPGA-Research/FABulous/issues/556)) ([76531e0](https://github.com/FPGA-Research/FABulous/commit/76531e0ab2b4b9329624e211900780a66c03696d))
+* Changing getTile to be more general ([#564](https://github.com/FPGA-Research/FABulous/issues/564)) ([aec7d93](https://github.com/FPGA-Research/FABulous/commit/aec7d930a9ab55403d1b7fd2997351bd270f6104))
+* nix based docker image ([#553](https://github.com/FPGA-Research/FABulous/issues/553)) ([834a2ca](https://github.com/FPGA-Research/FABulous/commit/834a2ca511b36f5ca8d68d99c999a302fcad3e0c))
+
+
+### Bug Fixes
+
+* fixes Nix env to include yosys ([#555](https://github.com/FPGA-Research/FABulous/issues/555)) ([2924b99](https://github.com/FPGA-Research/FABulous/commit/2924b99b7fd287f61d6fd7a49ee284f89b99d118))
+* hardcode user name to lower case ([834a2ca](https://github.com/FPGA-Research/FABulous/commit/834a2ca511b36f5ca8d68d99c999a302fcad3e0c))
+
 ## [1.3.1](https://github.com/FPGA-Research/FABulous/compare/v1.3.0...v1.3.1) (2025-09-04)
 
 
