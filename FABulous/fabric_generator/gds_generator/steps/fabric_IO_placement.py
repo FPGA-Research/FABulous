@@ -1,9 +1,7 @@
 """FABulous GDS Generator - FABulous I/O Placement Step."""
 
-from decimal import Decimal
 from importlib import resources
 
-from librelane.config.variable import Variable
 from librelane.state.state import State
 from librelane.steps.common_variables import (
     io_layer_variables,
@@ -30,34 +28,7 @@ class FABulousFabricIOPlacement(OdbpyStep):
     name = "FABulous fabric I/O Placement"
     long_name = "FABulous fabric I/O Pin Placement Script"
 
-    config_vars = io_layer_variables + [
-        Variable(
-            "IO_PIN_V_LENGTH",
-            Decimal | None,
-            """
-            The length of the pins with a north or south orientation. If unspecified by
-            a PDK, the script will use whichever is higher of the following two values:
-                * The pin width
-                * The minimum value satisfying the minimum area constraint given the
-                  pin width
-            """,
-            units="µm",
-            pdk=True,
-        ),
-        Variable(
-            "IO_PIN_H_LENGTH",
-            Decimal | None,
-            """
-            The length of the pins with an east or west orientation. If unspecified by
-            a PDK, the script will use whichever is higher of the following two values:
-                * The pin width
-                * The minimum value satisfying the minimum area constraint given the
-                  pin width
-            """,
-            units="µm",
-            pdk=True,
-        ),
-    ]
+    config_vars = io_layer_variables
 
     def get_script_path(self) -> str:
         """Get the path to the I/O placement script."""
