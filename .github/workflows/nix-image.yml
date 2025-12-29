@@ -1,0 +1,132 @@
+name: Build and Push Docker Image
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOCKER_IMAGE: ghcr.io/fpga-research/fabulous
+
+jobs:
+  build:
+    name: Build Images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free up disk space
+        run: |
+          # Remove unnecessary tools and libraries
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/lib/jvm
+          sudo rm -rf /usr/share/swift
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@v34
+        with:
+          nix_version: "2.31.2"
+          nix_conf: |
+            substituters = https://cache.nixos.org https://nix-cache.fossi-foundation.org
+            extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
+
+      - name: Build Docker images with Nix
+        run: |
+          # Always build dev image
+          nix build -f nix/docker-image.nix dev -o docker-image-dev
+          # Build release image only for release events
+          if [ "${{ github.event_name }}" == "release" ]; then
+            nix build -f nix/docker-image.nix release -o docker-image-release
+          fi
+
+      - name: Clean Nix store before loading images
+        run: |
+          nix store gc
+
+      - name: Load Docker images
+        run: |
+          docker load < docker-image-dev
+          if [ -f docker-image-release ]; then
+            docker load < docker-image-release
+          fi
+  push-dev:
+    name: Push Dev Image
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and push dev image
+        run: |
+          docker tag "fabulous:dev" "${{ env.DOCKER_IMAGE }}:dev"
+          docker push "${{ env.DOCKER_IMAGE }}:dev"
+          docker tag "fabulous:dev" "${{ env.DOCKER_IMAGE }}:dev-${GITHUB_SHA::7}"
+          docker push "${{ env.DOCKER_IMAGE }}:dev-${GITHUB_SHA::7}"
+
+      - name: Smoke test dev image
+        run: |
+          docker run --rm "fabulous:dev" bash -c "echo 'Dev image OK'"
+
+  push-release:
+    name: Push Release Images
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push pre-release images
+        if: github.event.release.prerelease == true
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Push release image with pre-release version tag
+          docker tag "fabulous:latest" "${{ env.DOCKER_IMAGE }}:pre-release"
+          docker push "${{ env.DOCKER_IMAGE }}:pre-release"
+          docker tag "fabulous:latest" "${{ env.DOCKER_IMAGE }}:${VERSION}"
+          docker push "${{ env.DOCKER_IMAGE }}:${VERSION}"
+
+      - name: Push stable release images
+        if: github.event.release.prerelease != true
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f1-2)
+          # Push release image with semver tags and latest
+          docker tag "fabulous:latest" "${{ env.DOCKER_IMAGE }}:${VERSION}"
+          docker push "${{ env.DOCKER_IMAGE }}:${VERSION}"
+          docker tag "fabulous:latest" "${{ env.DOCKER_IMAGE }}:${MINOR}"
+          docker push "${{ env.DOCKER_IMAGE }}:${MINOR}"
+          docker tag "fabulous:latest" "${{ env.DOCKER_IMAGE }}:${MAJOR}"
+          docker push "${{ env.DOCKER_IMAGE }}:${MAJOR}"
+          docker tag "fabulous:latest" "${{ env.DOCKER_IMAGE }}:latest"
+          docker push "${{ env.DOCKER_IMAGE }}:latest"
+
+      - name: Smoke Test release images
+        run: |
+          docker run --rm "fabulous:latest" FABulous --version

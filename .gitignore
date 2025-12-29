@@ -7,6 +7,7 @@ venv
 .vscode
 oss-cad-suite
 .ltex
+docker-image
 
 # Documentation build artifacts (auto-generated in CI)
 docs/build/

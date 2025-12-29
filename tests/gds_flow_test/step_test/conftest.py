@@ -1,5 +1,7 @@
 """Fixtures fceor gds_generator_test tests."""
 
+from decimal import Decimal
+
 import pytest
 from librelane.config.config import Config
 from pytest_mock import MockerFixture
@@ -43,7 +45,6 @@ def mock_config() -> Config:  # type: ignore[name-defined]
 @pytest.fixture
 def mock_state(mocker: MockerFixture) -> dict:  # type: ignore[name-defined]
     """Create a mock State object for testing."""
-    from decimal import Decimal
 
     state = mocker.MagicMock()
     state.metrics = {
