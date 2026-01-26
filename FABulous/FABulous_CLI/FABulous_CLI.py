@@ -1058,9 +1058,9 @@ class FABulous_CLI(Cmd):
         """
         file_path_no_suffix = args.file.parent / args.file.stem
 
-        if args.file.suffix != ".v":
+        if args.file.suffix not in [".v", ".sv"]:
             raise InvalidFileType(
-                "No verilog file provided. "
+                "No Verilog or SystemVerilog file provided. "
                 "Usage: run_FABulous_bitstream <top_module_file>"
             )
 

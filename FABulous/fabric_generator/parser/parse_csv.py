@@ -155,7 +155,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     bels.append(parseBelFile(belFilePath, bel_prefix))
                 else:
                     raise InvalidFileType(
-                        f"File {belFilePath} is not a .vhdl or .v file. "
+                        f"File {belFilePath} is not a .vhdl, .v, or .sv file. "
                         "Please check the BEL file."
                     )
 
@@ -286,7 +286,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                                 muxSize = len(v)
                                 if muxSize >= 2:
                                     configBit += (muxSize - 1).bit_length()
-                        case ".vhdl" | ".v":
+                        case ".vhdl" | ".v" | ".sv":
                             with matrixDir.open() as f:
                                 f = f.read()
                                 if configBit := re.search(

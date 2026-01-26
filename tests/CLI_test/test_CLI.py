@@ -10,6 +10,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
+from FABulous.FABulous_settings import init_context
 from tests.CLI_test.conftest import TILE
 from tests.conftest import (
     normalize_and_check_for_errors,
@@ -193,3 +194,50 @@ def test_multi_command_force(cli: FABulous_CLI, mocker: MockerFixture) -> None:
     run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
 
     assert m.call_count == 1
+
+
+def test_run_FABulous_fabric_sv_extension(
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test running FABulous fabric flow with .sv (SystemVerilog) extension files.
+
+    This test verifies that .sv files are correctly handled as Verilog files
+    throughout the fabric generation process, using the same code path as
+    run_FABulous_fabric but with BEL files using .sv extension.
+    """
+    monkeypatch.setenv("FAB_PROJ_DIR", str(project))
+
+    # Convert .v BEL files to .sv
+    for v_file in project.rglob("*.v"):
+        if "models_pack" not in v_file.name:
+            sv_file = v_file.with_suffix(".sv")
+            v_file.rename(sv_file)
+
+    # Update CSV files to reference .sv instead of .v
+    for csv_file in project.rglob("*.csv"):
+        content = csv_file.read_text()
+        content = content.replace(".v,", ".sv,")
+        content = content.replace(".v\n", ".sv\n")
+        csv_file.write_text(content)
+
+    init_context(project)
+    cli = FABulous_CLI(
+        "verilog",
+        force=False,
+        interactive=False,
+        verbose=False,
+        debug=True,
+    )
+    cli.debug = True
+    run_cmd(cli, "load_fabric")
+
+    # Clear caplog before running fabric flow to get clean assertions
+    caplog.clear()
+
+    # Run the fabric flow with .sv files
+    run_cmd(cli, "run_FABulous_fabric")
+    log = normalize_and_check_for_errors(caplog.text)
+    assert "Running FABulous" in log[0]
+    assert "FABulous fabric flow complete" in log[-1]
