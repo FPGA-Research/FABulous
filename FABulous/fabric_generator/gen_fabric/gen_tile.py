@@ -682,8 +682,13 @@ def generateSuperTile(
                     writer.addPortScalar(
                         f"Tile_X{x}Y{y}_UserCLKo", IO.OUTPUT, indentLevel=2
                     )
-                if y + 1 >= len(superTile.tileMap) or superTile.tileMap[y + 1][x] is None:
-                    writer.addPortScalar(f"Tile_X{x}Y{y}_UserCLK", IO.INPUT, indentLevel=2)
+                if (
+                    y + 1 >= len(superTile.tileMap)
+                    or superTile.tileMap[y + 1][x] is None
+                ):
+                    writer.addPortScalar(
+                        f"Tile_X{x}Y{y}_UserCLK", IO.INPUT, indentLevel=2
+                    )
     writer.addPortEnd()
     writer.addHeaderEnd(f"{superTile.name}")
     writer.addDesignDescriptionStart(f"{superTile.name}")

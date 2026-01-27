@@ -363,7 +363,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             if not fabric.disableUserCLK:
                 if not superTile:
                     # for userCLK
-                    if y + 1 < fabric.numberOfRows and fabric.tile[y + 1][x] is not None:
+                    if (
+                        y + 1 < fabric.numberOfRows
+                        and fabric.tile[y + 1][x] is not None
+                    ):
                         portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
                     else:
                         portsPairs.append(("UserCLK", "UserCLK"))
