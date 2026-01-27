@@ -265,6 +265,8 @@ class YosysJson:
         temp = temp / "my_package.vhd"
         temp.touch()
         temp.write_text("package my_package is\nend package;\n")
+        # VHDL files are converted to Verilog by GHDL, so use .v suffix for yosys
+        # Verilog/SystemVerilog files use their original suffix
         if self.srcPath.suffix in {".vhd", ".vhdl"}:
             runCmd = [
                 f"{ghdl!s}",
@@ -285,12 +287,15 @@ class YosysJson:
                     f"Failed to run GHDL on {self.srcPath}: {e.stderr.decode()} "
                     f"run cmd: {' '.join(runCmd)}"
                 ) from e
+            yosys_src = self.srcPath.with_suffix(".v")
+        else:
+            yosys_src = self.srcPath
         runCmd = [
             f"{yosys!s}",
             "-q",
             (
                 "-p "
-                f"read_verilog -sv {self.srcPath.with_suffix('.v')}; "
+                f"read_verilog -sv {yosys_src}; "
                 "hierarchy -auto-top; "
                 "proc -noopt; "
                 f"write_json -compat-int {json_file}"

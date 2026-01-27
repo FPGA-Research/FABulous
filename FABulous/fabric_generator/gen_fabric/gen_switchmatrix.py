@@ -84,7 +84,7 @@ def genTileSwitchMatrix(
         )
         tile.matrixDir = matrixDir
         connections = parseMatrix(tile.matrixDir, tile.name)
-    elif tile.matrixDir.suffix == ".v" or tile.matrixDir.suffix == ".vhdl":
+    elif tile.matrixDir.suffix in [".v", ".sv", ".vhdl"]:
         logger.info(
             f"A switch matrix file is provided in {tile.name}, "
             "will skip the matrix generation process"
