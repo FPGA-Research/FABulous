@@ -169,6 +169,10 @@ It is planned to remove these limitations in future versions of FABulous.
     We plan to extend the FABulous switch matrix compiler accordingly.
     :::
 
+  - `DisableUserCLK`, `FALSE`
+
+    Disable the generation of the UserCLK port, regardless the fabric uses them or not.
+
   - `Tile`, `path`
 
     Specify a path to a tile configuration file that will be loaded.
