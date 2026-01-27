@@ -76,7 +76,8 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
         )
         writer.addComment("CONFIG_PORT", onNewLine=False)
 
-    writer.addPortScalar("UserCLK", IO.INPUT, indentLevel=2)
+    if not fabric.disableUserCLK:
+        writer.addPortScalar("UserCLK", IO.INPUT, indentLevel=2)
 
     writer.addPortEnd()
     writer.addHeaderEnd(fabricName)
@@ -103,9 +104,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     # VHDL signal declarations
     writer.addComment("signal declarations", onNewLine=True, end="\n")
 
-    for y, row in enumerate(fabric.tile):
-        for x, _tile in enumerate(row):
-            writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo")
+    if not fabric.disableUserCLK:
+        for y, row in enumerate(fabric.tile):
+            for x, _tile in enumerate(row):
+                writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo")
 
     writer.addComment("configuration signal declarations", onNewLine=True, end="\n")
 
@@ -353,44 +355,46 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                     for p in b.externalOutput:
                         portsPairs.append((p, f"Tile_X{x + i}Y{y + j}_{p}"))
 
-                    for p in b.sharedPort:
-                        if "UserCLK" not in p[0]:
-                            portsPairs.append(("UserCLK", p[0]))
+                    if not fabric.disableUserCLK:
+                        for p in b.sharedPort:
+                            if "UserCLK" not in p[0]:
+                                portsPairs.append(("UserCLK", p[0]))
 
-            if not superTile:
-                # for userCLK
-                if y + 1 < fabric.numberOfRows and fabric.tile[y + 1][x] is not None:
-                    portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
+            if not fabric.disableUserCLK:
+                if not superTile:
+                    # for userCLK
+                    if y + 1 < fabric.numberOfRows and fabric.tile[y + 1][x] is not None:
+                        portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
+                    else:
+                        portsPairs.append(("UserCLK", "UserCLK"))
+
+                    # for userCLKo
+                    portsPairs.append(("UserCLKo", f"Tile_X{x}Y{y}_UserCLKo"))
                 else:
-                    portsPairs.append(("UserCLK", "UserCLK"))
+                    for i, j in tileLocationOffset:
+                        # prefix for super tile port
+                        pre = ""
+                        if superTile:
+                            pre = f"Tile_X{i}Y{j}_"
 
-                # for userCLKo
-                portsPairs.append(("UserCLKo", f"Tile_X{x}Y{y}_UserCLKo"))
-            else:
-                for i, j in tileLocationOffset:
-                    # prefix for super tile port
-                    pre = ""
-                    if superTile:
-                        pre = f"Tile_X{i}Y{j}_"
+                        # UserCLK signal
+                        if (
+                            y + 1 >= fabric.numberOfRows
+                            or y + 1 < fabric.numberOfRows
+                            and fabric.tile[y + 1][x] is None
+                        ):
+                            portsPairs.append((f"{pre}UserCLK", "UserCLK"))
 
-                    # UserCLK signal
-                    if (
-                        y + 1 >= fabric.numberOfRows
-                        or y + 1 < fabric.numberOfRows
-                        and fabric.tile[y + 1][x] is None
-                    ):
-                        portsPairs.append((f"{pre}UserCLK", "UserCLK"))
+                        elif (x + i, y + j + 1) not in superTileLoc:
+                            portsPairs.append(
+                                (f"{pre}UserCLK", f"Tile_X{x + i}Y{y + j + 1}_UserCLKo")
+                            )
 
-                    elif (x + i, y + j + 1) not in superTileLoc:
-                        portsPairs.append(
-                            (f"{pre}UserCLK", f"Tile_X{x + i}Y{y + j + 1}_UserCLKo")
-                        )
-
-                    # UserCLKo signal
-                    if (x + i, y + j - 1) not in superTileLoc:
-                        portsPairs.append(
-                            (f"{pre}UserCLKo", f"Tile_X{x + i}Y{y + j}_UserCLKo")
-                        )
+                        # UserCLKo signal
+                        if (x + i, y + j - 1) not in superTileLoc:
+                            portsPairs.append(
+                                (f"{pre}UserCLKo", f"Tile_X{x + i}Y{y + j}_UserCLKo")
+                            )
 
             if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
                 for i, j in tileLocationOffset:
