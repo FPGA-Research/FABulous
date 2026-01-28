@@ -169,7 +169,9 @@ class FABulous_API:
         else:
             raise ValueError(f"Tile {tileName} not found")
 
-    def genSwitchMatrix(self, tileName: str) -> None:
+    def genSwitchMatrix(
+        self, tileName: str, csv_output_dir: Path | None = None
+    ) -> None:
         """Generate switch matrix for specified tile.
 
         Using 'genTileSwitchMatrix' defined in 'fabric_gen.py'.
@@ -178,6 +180,11 @@ class FABulous_API:
         ----------
         tileName : str
             Name of the tile for which the switch matrix will be generated.
+        csv_output_dir : Path | None
+            Optional directory to write the generated CSV file when converting
+            from `.list` format. If None, the CSV is written to the same directory
+            as the source `.list` file. This parameter is ignored when the input
+            is already a `.csv` file.
 
         Raises
         ------
@@ -190,7 +197,11 @@ class FABulous_API:
                 f"Generate switch matrix debug signals: {switch_matrix_debug_signal}"
             )
             genTileSwitchMatrix(
-                self.writer, self.fabric, tile, switch_matrix_debug_signal
+                self.writer,
+                self.fabric,
+                tile,
+                switch_matrix_debug_signal,
+                csv_output_dir=csv_output_dir,
             )
         else:
             raise ValueError(f"Tile {tileName} not found")
