@@ -4,7 +4,6 @@ Tests the feature that allows users to redirect CSV output to a custom
 directory when converting .list files to .csv for switch matrix generation.
 """
 
-from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -31,7 +30,6 @@ class TestListFileCsvOutputDirectory:
         self,
         default_fabric: Fabric,
         default_tile: Tile,
-        connections_factory: Callable[..., dict[str, list[str]]],
         tmp_path: Path,
         mocker: MockerFixture,
     ) -> None:
@@ -51,10 +49,6 @@ class TestListFileCsvOutputDirectory:
         mocker.patch(
             "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
         )
-        mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.parseMatrix",
-            return_value=connections_factory(),
-        )
 
         with pytest.raises(AttributeError):
             genTileSwitchMatrix(
@@ -71,7 +65,6 @@ class TestListFileCsvOutputDirectory:
         self,
         default_fabric: Fabric,
         default_tile: Tile,
-        connections_factory: Callable[..., dict[str, list[str]]],
         tmp_path: Path,
         mocker: MockerFixture,
     ) -> None:
@@ -87,10 +80,6 @@ class TestListFileCsvOutputDirectory:
         mocker.patch(
             "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
         )
-        mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.parseMatrix",
-            return_value=connections_factory(),
-        )
 
         with pytest.raises(AttributeError):
             genTileSwitchMatrix(None, default_fabric, default_tile, False)
@@ -103,7 +92,6 @@ class TestListFileCsvOutputDirectory:
         self,
         default_fabric: Fabric,
         default_tile: Tile,
-        connections_factory: Callable[..., dict[str, list[str]]],
         tmp_path: Path,
         mocker: MockerFixture,
     ) -> None:
@@ -121,10 +109,6 @@ class TestListFileCsvOutputDirectory:
         )
         mocker.patch(
             "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
-        )
-        mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.parseMatrix",
-            return_value=connections_factory(),
         )
 
         with pytest.raises(AttributeError):

@@ -190,7 +190,7 @@ def create_switchmatrix_list(
 
     """
     connections = connections or [("N1BEG0", "E1END0")]
-    lines = [f"{src} -> {dst}" for src, dst in connections]
+    lines = [f"{src},{dst}" for src, dst in connections]
     file_path.write_text("\n".join(lines) + "\n")
 
 
