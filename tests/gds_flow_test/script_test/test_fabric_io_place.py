@@ -120,10 +120,23 @@ def test_io_place_north_side_placement(
     assert len(pin_placement_recorder.placements) == 1
     name, layer, x1, y1, x2, y2 = pin_placement_recorder.placements[0]
 
+    # Verify pin name and layer selection
     assert name == "north_pin"
     assert layer == "V", "NORTH side should use vertical layer"
-    assert y2 == 1000, "Pin should extend to die yMax"
-    assert x1 == 400, f"Pin X should be centered on iterm, got {x1}"
+
+    # Verify Y coordinates - pin should extend to die boundary
+    assert y2 == 1000, f"Pin should extend to die yMax (1000), got {y2}"
+
+    # Verify X coordinates - pin should be centered on iterm
+    # iterm_bbox is at (400, 400) with width 100, so center is at 450
+    # Pin width = layer_width (50) * width_mult (2.0) = 100
+    # So pin should span from center - width/2 to center + width/2
+    assert x1 == 400, f"Pin x1 should be 400 (iterm x), got {x1}"
+
+    # Verify pin width is correct (using width multiplier)
+    expected_width = v_layer.getWidth() * 2.0  # width_mult = 2.0
+    actual_width = x2 - x1
+    assert actual_width == expected_width, f"Pin width should be {expected_width}, got {actual_width}"
 
 
 @pytest.mark.usefixtures("_io_place_setup")
@@ -131,7 +144,7 @@ def test_io_place_all_four_sides(
     pin_placement_recorder: PinPlacementRecorder,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that pins can be placed on all four sides."""
+    """Test that pins can be placed on all four sides with correct coordinates."""
     h_layer = MockLayer(width=50, area=10000, name="H")
     v_layer = MockLayer(width=50, area=10000, name="V")
     tech = MockTechIoPlace(h_layer, v_layer)
@@ -177,7 +190,25 @@ def test_io_place_all_four_sides(
         for name, layer, x1, y1, x2, y2 in pin_placement_recorder.placements
     }
 
+    # Verify layer selection based on side
     assert placements_by_name["north_pin"][0] == "V", "North should use vertical layer"
     assert placements_by_name["south_pin"][0] == "V", "South should use vertical layer"
     assert placements_by_name["east_pin"][0] == "H", "East should use horizontal layer"
     assert placements_by_name["west_pin"][0] == "H", "West should use horizontal layer"
+
+    # Verify boundary coordinates for each side
+    # North pin should extend to y=1000 (die yMax)
+    north_y2 = placements_by_name["north_pin"][4]
+    assert north_y2 == 1000, f"North pin should extend to die yMax (1000), got {north_y2}"
+
+    # South pin should extend to y=0 (die yMin)
+    south_y1 = placements_by_name["south_pin"][2]
+    assert south_y1 == 0, f"South pin should extend to die yMin (0), got {south_y1}"
+
+    # East pin should extend to x=1000 (die xMax)
+    east_x2 = placements_by_name["east_pin"][3]
+    assert east_x2 == 1000, f"East pin should extend to die xMax (1000), got {east_x2}"
+
+    # West pin should extend to x=0 (die xMin)
+    west_x1 = placements_by_name["west_pin"][1]
+    assert west_x1 == 0, f"West pin should extend to die xMin (0), got {west_x1}"
