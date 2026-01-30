@@ -271,6 +271,7 @@ class FABulous_CLI(Cmd):
         self, statement: Statement | str, *, add_to_history: bool = True
     ) -> bool:
         """Override the onecmd method to handle exceptions."""
+        self.exit_code = 0
         try:
             return super().onecmd(statement, add_to_history=add_to_history)
         except Exception as e:  # noqa: BLE001 - Catching all exceptions is ok here

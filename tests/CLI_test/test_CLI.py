@@ -241,3 +241,19 @@ def test_run_FABulous_fabric_sv_extension(
     log = normalize_and_check_for_errors(caplog.text)
     assert "Running FABulous" in log[0]
     assert "FABulous fabric flow complete" in log[-1]
+
+
+def test_exit_code_reset_after_error(cli: FABulous_CLI) -> None:
+    """Test that exit code is reset between commands (regression test for issue #574).
+
+    After a command fails, subsequent successful commands should not be affected
+    by the stale exit code from the previous failure.
+    """
+    # Run a command that fails (invalid tile name)
+    run_cmd(cli, "gen_config_mem INVALID_TILE_NAME")
+    assert cli.exit_code != 0, "First command should fail"
+
+    # Run a command that succeeds
+    run_cmd(cli, "load_fabric")
+
+    assert cli.exit_code == 0, "Exit code should be reset after successful command"
