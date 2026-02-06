@@ -6,7 +6,6 @@ larger, complex and hierarchical structures within the FPGA fabric, combining di
 functionalities into a single, reusable block.
 """
 
-import itertools
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from decimal import Decimal
