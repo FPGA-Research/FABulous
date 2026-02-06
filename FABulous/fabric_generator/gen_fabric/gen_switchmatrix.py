@@ -13,6 +13,7 @@ Key features:
 """
 
 import math
+from pathlib import Path
 
 from loguru import logger
 
@@ -37,7 +38,11 @@ from FABulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
 
 
 def genTileSwitchMatrix(
-    writer: CodeGenerator, fabric: Fabric, tile: Tile, switch_matrix_debug_signal: bool
+    writer: CodeGenerator,
+    fabric: Fabric,
+    tile: Tile,
+    switch_matrix_debug_signal: bool,
+    csv_output_dir: Path | None = None,
 ) -> None:
     """Generate the RTL code for the tile switch matrix.
 
@@ -58,6 +63,11 @@ def genTileSwitchMatrix(
         The tile object containing BELs and port information
     switch_matrix_debug_signal : bool
         Whether to generate debug signals for the switch matrix.
+    csv_output_dir : Path | None
+        Optional directory to write the generated CSV file when converting from
+        `.list` format. If None, the CSV is written to the same directory as the
+        source `.list` file. This parameter is ignored when the input is already
+        a `.csv` file.
 
     Raises
     ------
@@ -76,7 +86,14 @@ def genTileSwitchMatrix(
             f"Bootstrapping {tile.name} to matrix form and adding the list file to the "
             "matrix"
         )
-        matrixDir = tile.matrixDir.with_suffix(".csv")
+
+        # Determine CSV output path
+        if csv_output_dir is not None:
+            csv_output_dir.mkdir(parents=True, exist_ok=True)
+            matrixDir = csv_output_dir / f"{tile.matrixDir.stem}.csv"
+        else:
+            matrixDir = tile.matrixDir.with_suffix(".csv")
+
         bootstrapSwitchMatrix(tile, matrixDir)
         list2CSV(tile.matrixDir, matrixDir)
         logger.info(

@@ -169,6 +169,100 @@ class ConfigMemConfig(NamedTuple):
     scenario: str
 
 
+# ---------------------------------------------------------------------------
+# Switch Matrix Testing Utilities
+# ---------------------------------------------------------------------------
+
+
+def create_switchmatrix_list(
+    file_path: Path,
+    connections: list[tuple[str, str]] | None = None,
+) -> None:
+    """Create a valid .list switch matrix file for testing.
+
+    Parameters
+    ----------
+    file_path : Path
+        The path where the .list file should be created
+    connections : list[tuple[str, str]] | None
+        List of (source, destination) connection pairs.
+        Defaults to [("N1BEG0", "E1END0")]
+
+    """
+    connections = connections or [("N1BEG0", "E1END0")]
+    lines = [f"{src},{dst}" for src, dst in connections]
+    file_path.write_text("\n".join(lines) + "\n")
+
+
+def create_switchmatrix_csv(
+    file_path: Path,
+    tile_name: str,
+    destinations: list[str] | None = None,
+    sources: list[str] | None = None,
+) -> None:
+    """Create a valid .csv switch matrix file for testing.
+
+    Parameters
+    ----------
+    file_path : Path
+        The path where the CSV file should be created
+    tile_name : str
+        The name of the tile (used as the top-left cell value)
+    destinations : list[str] | None
+        List of destination port names. Defaults to ["DEST0"]
+    sources : list[str] | None
+        List of source port names. Defaults to ["SRC0"]
+
+    """
+    destinations = destinations or ["DEST0"]
+    sources = sources or ["SRC0"]
+
+    lines = [f"{tile_name}," + ",".join(destinations)]
+    for src in sources:
+        lines.append(f"{src}," + ",".join(["1"] * len(destinations)))
+
+    file_path.write_text("\n".join(lines) + "\n")
+
+
+@pytest.fixture
+def connections_factory() -> Callable[..., dict[str, list[str]]]:
+    """Factory fixture for creating switch matrix connection dictionaries.
+
+    Returns a factory function that creates connection dictionaries with
+    configurable complexity.
+
+    Usage:
+        connections = connections_factory()  # minimal
+        connections = connections_factory(size="sample")  # typical config
+        connections = connections_factory(custom={"OUT": ["IN1", "IN2"]})
+    """
+
+    def _create(
+        size: str = "minimal",
+        custom: dict[str, list[str]] | None = None,
+    ) -> dict[str, list[str]]:
+        if custom is not None:
+            return custom
+
+        if size == "minimal":
+            return {"E1END0": ["N1BEG0"]}
+
+        if size == "sample":
+            return {
+                "E1END0": ["N1BEG0", "O_A"],
+                "E1END1": ["N1BEG1", "O_B", "VCC", "GND"],
+                "LUT_A": ["N1BEG0"],
+                "LUT_B": ["N1BEG1", "VCC"],
+                "O_A": ["FF_D"],
+                "GND": ["0"],
+                "VCC": ["1"],
+            }
+
+        return {"E1END0": ["N1BEG0"]}
+
+    return _create
+
+
 @pytest.fixture(params=[1, 2, 3, 4, 5], ids=lambda param: f"ConfigMemPattern{param}")
 def configmem_list(
     request: pytest.FixtureRequest,

@@ -39,6 +39,8 @@ dependencies = [
   'gnureadline>=8.2.0; sys_platform != "win32"',
   "librelane>=3.0.0.dev43",
   "dill>=0.4.0",
+  "pymoo>=0.6.1.5",
+  "numpy>=2.3.5",
 ]
 
 [project.urls]
