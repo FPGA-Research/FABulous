@@ -376,9 +376,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 else:
                     for i, j in tileLocationOffset:
                         # prefix for super tile port
-                        pre = ""
-                        if superTile:
-                            pre = f"Tile_X{i}Y{j}_"
+                        pre = f"Tile_X{i}Y{j}_"
 
                         # UserCLK signal
                         if (
