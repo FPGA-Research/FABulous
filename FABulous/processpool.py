@@ -2,6 +2,7 @@
 
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
+from multiprocessing.reduction import ForkingPickler
 from typing import Any
 
 import dill
@@ -9,8 +10,6 @@ import dill
 
 def _init_worker() -> None:
     """Initialize worker process to use dill for pickling."""
-    from multiprocessing.reduction import ForkingPickler
-
     # Override ForkingPickler with dill
     ForkingPickler.dumps = dill.dumps
     ForkingPickler.loads = dill.loads
@@ -30,9 +29,6 @@ class DillProcessPoolExecutor(ProcessPoolExecutor):
         initargs: tuple[Any, ...] = (),
         max_tasks_per_child: int | None = None,
     ) -> None:
-        # Patch the main process to use dill BEFORE calling parent init
-        from multiprocessing.reduction import ForkingPickler
-
         ForkingPickler.dumps = dill.dumps
         ForkingPickler.loads = dill.loads
         super().__init__(
