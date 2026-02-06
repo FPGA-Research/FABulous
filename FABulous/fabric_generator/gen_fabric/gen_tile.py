@@ -142,8 +142,9 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
 
     writer.addComment("Tile IO ports from BELs", onNewLine=True, indentLevel=1)
 
-    writer.addPortScalar("UserCLK", IO.INPUT, indentLevel=2)
-    writer.addPortScalar("UserCLKo", IO.OUTPUT, indentLevel=2)
+    if not fabric.disableUserCLK:
+        writer.addPortScalar("UserCLK", IO.INPUT, indentLevel=2)
+        writer.addPortScalar("UserCLKo", IO.OUTPUT, indentLevel=2)
 
     if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
         writer.addPortVector("FrameData", IO.INPUT, "FrameBitsPerRow-1", indentLevel=2)
@@ -354,11 +355,12 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
 
             added.add((port.sourceName, port.destinationName))
 
-    writer.addInstantiation(
-        "clk_buf",
-        "inst_clk_buf",
-        portsPairs=[("A", "UserCLK"), ("X", "UserCLKo")],
-    )
+    if not fabric.disableUserCLK:
+        writer.addInstantiation(
+            "clk_buf",
+            "inst_clk_buf",
+            portsPairs=[("A", "UserCLK"), ("X", "UserCLKo")],
+        )
 
     writer.addNewLine()
     # top configuration data daisy chaining
@@ -415,7 +417,8 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         # Shared ports
         for port in bel.sharedPort:
             if port[0] == "UserCLK":
-                userclk_pair = (port[0], port[0])
+                if not fabric.disableUserCLK:
+                    userclk_pair = (port[0], port[0])
             else:
                 portsPairs.append((port[0], port[0]))
 
@@ -672,14 +675,20 @@ def generateSuperTile(
                         indentLevel=2,
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
-    for y, row in enumerate(superTile.tileMap):
-        for x, _tile in enumerate(row):
-            if y - 1 < 0 or superTile.tileMap[y - 1][x] is None:
-                writer.addPortScalar(
-                    f"Tile_X{x}Y{y}_UserCLKo", IO.OUTPUT, indentLevel=2
-                )
-            if y + 1 >= len(superTile.tileMap) or superTile.tileMap[y + 1][x] is None:
-                writer.addPortScalar(f"Tile_X{x}Y{y}_UserCLK", IO.INPUT, indentLevel=2)
+    if not fabric.disableUserCLK:
+        for y, row in enumerate(superTile.tileMap):
+            for x, _tile in enumerate(row):
+                if y - 1 < 0 or superTile.tileMap[y - 1][x] is None:
+                    writer.addPortScalar(
+                        f"Tile_X{x}Y{y}_UserCLKo", IO.OUTPUT, indentLevel=2
+                    )
+                if (
+                    y + 1 >= len(superTile.tileMap)
+                    or superTile.tileMap[y + 1][x] is None
+                ):
+                    writer.addPortScalar(
+                        f"Tile_X{x}Y{y}_UserCLK", IO.INPUT, indentLevel=2
+                    )
     writer.addPortEnd()
     writer.addHeaderEnd(f"{superTile.name}")
     writer.addDesignDescriptionStart(f"{superTile.name}")
@@ -721,7 +730,8 @@ def generateSuperTile(
                     "MaxFramesPerCol-1",
                     indentLevel=1,
                 )
-                writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo", indentLevel=1)
+                if not fabric.disableUserCLK:
+                    writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo", indentLevel=1)
             if (
                 0 <= x - 1 < len(superTile.tileMap[y])
                 and superTile.tileMap[y][x - 1] is not None
@@ -816,21 +826,23 @@ def generateSuperTile(
                 for p in b.externalOutput:
                     portsPairs.append((p, p))
 
-                for p in b.sharedPort:
-                    if "UserCLK" not in p[0]:
-                        portsPairs.append(("UserCLK", p[0]))
+                if not fabric.disableUserCLK:
+                    for p in b.sharedPort:
+                        if "UserCLK" not in p[0]:
+                            portsPairs.append(("UserCLK", p[0]))
 
             # add clock to tile
-            if (
-                0 <= y + 1 < len(superTile.tileMap)
-                and superTile.tileMap[y + 1][x] is not None
-            ):
-                portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
-            else:
-                portsPairs.append(("UserCLK", f"Tile_X{x}Y{y}_UserCLK"))
-            portsPairs.append(("UserCLKo", f"Tile_X{x}Y{y}_UserCLKo"))
+            if not fabric.disableUserCLK:
+                if (
+                    0 <= y + 1 < len(superTile.tileMap)
+                    and superTile.tileMap[y + 1][x] is not None
+                ):
+                    portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
+                else:
+                    portsPairs.append(("UserCLK", f"Tile_X{x}Y{y}_UserCLK"))
+                portsPairs.append(("UserCLKo", f"Tile_X{x}Y{y}_UserCLKo"))
             if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
-                # add connection for frameData, frameStrobe and UserCLK
+                # add connection for frameData, frameStrobe
                 if (
                     0 <= x - 1 < len(superTile.tileMap[0])
                     and superTile.tileMap[y][x - 1] is not None
