@@ -433,7 +433,9 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
             tileMap.append(row)
 
         withUserCLK = any(bel.withUserCLK for bel in bels)
-        new_supertiles.append(SuperTile(name, tiles, tileMap, bels, withUserCLK))
+        new_supertiles.append(
+            SuperTile(name, fileName.absolute(), tiles, tileMap, bels, withUserCLK)
+        )
 
     return new_supertiles
 
@@ -636,6 +638,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     ]
 
     return Fabric(
+        fabric_dir=fName,
         tile=fabricTiles,
         numberOfColumns=width,
         numberOfRows=height,
