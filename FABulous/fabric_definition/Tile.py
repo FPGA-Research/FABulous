@@ -312,20 +312,20 @@ class Tile:
 
         return ret
 
-    @staticmethod
-    def get_port_count(ports: list[Port]) -> int:
-        """Count total number of expanded ports in a list of ports.
+    def get_port_count(self, side: Side) -> int:
+        """Count total number of expanded ports on a given side of the tile.
 
         Parameters
         ----------
-        ports : list[Port]
-            List of ports to count.
+        side : Side
+            The side of the tile to count ports for.
 
         Returns
         -------
         int
-            Total number of expanded ports.
+            Total number of expanded ports on the given side.
         """
+        ports = [p for p in self.portsInfo if p.sideOfTile == side and p.name != "NULL"]
         return len(
             list(
                 itertools.chain.from_iterable(
@@ -389,10 +389,10 @@ class Tile:
         that are physically impossible due to IO pin spacing requirements.
         """
         # Count ports on each physical side
-        north_ports = self.get_port_count(self.getNorthSidePorts())
-        south_ports = self.get_port_count(self.getSouthSidePorts())
-        west_ports = self.get_port_count(self.getWestSidePorts())
-        east_ports = self.get_port_count(self.getEastSidePorts())
+        north_ports = self.get_port_count(Side.NORTH)
+        south_ports = self.get_port_count(Side.SOUTH)
+        west_ports = self.get_port_count(Side.WEST)
+        east_ports = self.get_port_count(Side.EAST)
 
         # Min width constrained by north/south edges
         x_io_count = Decimal(max(north_ports, south_ports) + frame_strobe_width)

@@ -13,6 +13,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from FABulous.fabric_definition.Bel import Bel
+from FABulous.fabric_definition.define import Side
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Tile import Tile
 
@@ -173,10 +174,10 @@ class SuperTile:
         max_east = 0
 
         for subtile in self.tiles:
-            north_ports = subtile.get_port_count(subtile.getNorthSidePorts())
-            south_ports = subtile.get_port_count(subtile.getSouthSidePorts())
-            west_ports = subtile.get_port_count(subtile.getWestSidePorts())
-            east_ports = subtile.get_port_count(subtile.getEastSidePorts())
+            north_ports = subtile.get_port_count(Side.NORTH)
+            south_ports = subtile.get_port_count(Side.SOUTH)
+            west_ports = subtile.get_port_count(Side.WEST)
+            east_ports = subtile.get_port_count(Side.EAST)
 
             max_north = max(max_north, north_ports)
             max_south = max(max_south, south_ports)
