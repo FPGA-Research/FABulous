@@ -6,6 +6,7 @@ larger, complex and hierarchical structures within the FPGA fabric, combining di
 functionalities into a single, reusable block.
 """
 
+import itertools
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -166,43 +167,16 @@ class SuperTile:
         that appear on the outer edges of the supertile to get conservative
         estimates for minimum dimensions.
         """
-        import itertools
-        from decimal import Decimal
-
         max_north = 0
         max_south = 0
         max_west = 0
         max_east = 0
 
-        def get_port_count(ports: list[Port]) -> int:
-            """Count total number of expanded ports in a list of ports.
-
-            Parameters
-            ----------
-            ports : list[Port]
-                List of ports to count.
-
-            Returns
-            -------
-            int
-                Total number of expanded ports.
-            """
-            return len(
-                list(
-                    itertools.chain.from_iterable(
-                        [
-                            list(itertools.chain.from_iterable(p.expandPortInfo("all")))
-                            for p in ports
-                        ]
-                    )
-                )
-            )
-
         for subtile in self.tiles:
-            north_ports = get_port_count(subtile.getNorthSidePorts())
-            south_ports = get_port_count(subtile.getSouthSidePorts())
-            west_ports = get_port_count(subtile.getWestSidePorts())
-            east_ports = get_port_count(subtile.getEastSidePorts())
+            north_ports = subtile.get_port_count(subtile.getNorthSidePorts())
+            south_ports = subtile.get_port_count(subtile.getSouthSidePorts())
+            west_ports = subtile.get_port_count(subtile.getWestSidePorts())
+            east_ports = subtile.get_port_count(subtile.getEastSidePorts())
 
             max_north = max(max_north, north_ports)
             max_south = max(max_south, south_ports)

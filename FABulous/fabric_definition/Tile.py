@@ -1,5 +1,6 @@
 """Tile class definition for FPGA fabric representation."""
 
+import itertools
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -311,6 +312,31 @@ class Tile:
 
         return ret
 
+    @staticmethod
+    def get_port_count(ports: list[Port]) -> int:
+        """Count total number of expanded ports in a list of ports.
+
+        Parameters
+        ----------
+        ports : list[Port]
+            List of ports to count.
+
+        Returns
+        -------
+        int
+            Total number of expanded ports.
+        """
+        return len(
+            list(
+                itertools.chain.from_iterable(
+                    [
+                        list(itertools.chain.from_iterable(p.expandPortInfo("all")))
+                        for p in ports
+                    ]
+                )
+            )
+        )
+
     def get_min_die_area(
         self,
         x_pitch: Decimal,
@@ -362,38 +388,11 @@ class Tile:
         These constraints prevent the NLP solver from suggesting dimensions
         that are physically impossible due to IO pin spacing requirements.
         """
-        import itertools
-        from decimal import Decimal
-
-        def get_port_count(ports: list[Port]) -> int:
-            """Count total number of expanded ports in a list of ports.
-
-            Parameters
-            ----------
-            ports : list[Port]
-                List of ports to count.
-
-            Returns
-            -------
-            int
-                Total number of expanded ports.
-            """
-            return len(
-                list(
-                    itertools.chain.from_iterable(
-                        [
-                            list(itertools.chain.from_iterable(p.expandPortInfo("all")))
-                            for p in ports
-                        ]
-                    )
-                )
-            )
-
         # Count ports on each physical side
-        north_ports = get_port_count(self.getNorthSidePorts())
-        south_ports = get_port_count(self.getSouthSidePorts())
-        west_ports = get_port_count(self.getWestSidePorts())
-        east_ports = get_port_count(self.getEastSidePorts())
+        north_ports = self.get_port_count(self.getNorthSidePorts())
+        south_ports = self.get_port_count(self.getSouthSidePorts())
+        west_ports = self.get_port_count(self.getWestSidePorts())
+        east_ports = self.get_port_count(self.getEastSidePorts())
 
         # Min width constrained by north/south edges
         x_io_count = Decimal(max(north_ports, south_ports) + frame_strobe_width)
