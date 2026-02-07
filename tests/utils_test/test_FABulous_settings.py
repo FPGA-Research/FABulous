@@ -19,7 +19,9 @@ from FABulous.FABulous_settings import (
 
 
 @pytest.fixture(autouse=True)
-def reset_context_before_and_after_tests() -> Generator:
+def reset_context_before_and_after_tests(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Generator:
     """Reset context before and after each test to ensure isolation."""
     reset_context()
     yield
