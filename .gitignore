@@ -8,6 +8,8 @@ venv
 oss-cad-suite
 .ltex
 docker-image
+.claude
+CLAUDE.md
 
 # Documentation build artifacts (auto-generated in CI)
 docs/build/
