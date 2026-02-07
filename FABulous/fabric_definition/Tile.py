@@ -1,5 +1,6 @@
 """Tile class definition for FPGA fabric representation."""
 
+import itertools
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
@@ -311,6 +312,31 @@ class Tile:
 
         return ret
 
+    def get_port_count(self, side: Side) -> int:
+        """Count total number of expanded ports on a given side of the tile.
+
+        Parameters
+        ----------
+        side : Side
+            The side of the tile to count ports for.
+
+        Returns
+        -------
+        int
+            Total number of expanded ports on the given side.
+        """
+        ports = [p for p in self.portsInfo if p.sideOfTile == side and p.name != "NULL"]
+        return len(
+            list(
+                itertools.chain.from_iterable(
+                    [
+                        list(itertools.chain.from_iterable(p.expandPortInfo("all")))
+                        for p in ports
+                    ]
+                )
+            )
+        )
+
     def get_min_die_area(
         self,
         x_pitch: Decimal,
@@ -342,9 +368,9 @@ class Tile:
         y_spacing : Decimal
             Pin spacing in the vertical direction (DBU).
         frame_data_width : int, optional
-            Frame data widths, by default 32
+            Frame data width, by default 32.
         frame_strobe_width : int, optional
-            Frame strobe width, by default 20
+            Frame strobe width, by default 20.
 
         Returns
         -------
@@ -362,38 +388,11 @@ class Tile:
         These constraints prevent the NLP solver from suggesting dimensions
         that are physically impossible due to IO pin spacing requirements.
         """
-        import itertools
-        from decimal import Decimal
-
-        def get_port_count(ports: list[Port]) -> int:
-            """Count total number of expanded ports in a list of ports.
-
-            Parameters
-            ----------
-            ports : list[Port]
-                List of ports to count.
-
-            Returns
-            -------
-            int
-                Total number of expanded ports.
-            """
-            return len(
-                list(
-                    itertools.chain.from_iterable(
-                        [
-                            list(itertools.chain.from_iterable(p.expandPortInfo("all")))
-                            for p in ports
-                        ]
-                    )
-                )
-            )
-
         # Count ports on each physical side
-        north_ports = get_port_count(self.getNorthSidePorts())
-        south_ports = get_port_count(self.getSouthSidePorts())
-        west_ports = get_port_count(self.getWestSidePorts())
-        east_ports = get_port_count(self.getEastSidePorts())
+        north_ports = self.get_port_count(Side.NORTH)
+        south_ports = self.get_port_count(Side.SOUTH)
+        west_ports = self.get_port_count(Side.WEST)
+        east_ports = self.get_port_count(Side.EAST)
 
         # Min width constrained by north/south edges
         x_io_count = Decimal(max(north_ports, south_ports) + frame_strobe_width)

@@ -12,6 +12,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from FABulous.fabric_definition.Bel import Bel
+from FABulous.fabric_definition.define import Side
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Tile import Tile
 
@@ -166,55 +167,16 @@ class SuperTile:
         that appear on the outer edges of the supertile to get conservative
         estimates for minimum dimensions.
         """
-        import itertools
-        from decimal import Decimal
-
         max_north = 0
         max_south = 0
         max_west = 0
         max_east = 0
 
         for subtile in self.tiles:
-            north_ports = len(
-                list(
-                    itertools.chain.from_iterable(
-                        [
-                            list(itertools.chain.from_iterable(i.expandPortInfo()))
-                            for i in subtile.getNorthSidePorts()
-                        ]
-                    )
-                )
-            )
-            south_ports = len(
-                list(
-                    itertools.chain.from_iterable(
-                        [
-                            list(itertools.chain.from_iterable(i.expandPortInfo()))
-                            for i in subtile.getSouthSidePorts()
-                        ]
-                    )
-                )
-            )
-            west_ports = len(
-                list(
-                    itertools.chain.from_iterable(
-                        [
-                            list(itertools.chain.from_iterable(i.expandPortInfo()))
-                            for i in subtile.getWestSidePorts()
-                        ]
-                    )
-                )
-            )
-            east_ports = len(
-                list(
-                    itertools.chain.from_iterable(
-                        [
-                            list(itertools.chain.from_iterable(i.expandPortInfo()))
-                            for i in subtile.getEastSidePorts()
-                        ]
-                    )
-                )
-            )
+            north_ports = subtile.get_port_count(Side.NORTH)
+            south_ports = subtile.get_port_count(Side.SOUTH)
+            west_ports = subtile.get_port_count(Side.WEST)
+            east_ports = subtile.get_port_count(Side.EAST)
 
             max_north = max(max_north, north_ports)
             max_south = max(max_south, south_ports)

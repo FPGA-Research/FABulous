@@ -183,7 +183,9 @@ class FABulous_API:
         else:
             raise ValueError(f"Tile {tileName} not found")
 
-    def genSwitchMatrix(self, tileName: str) -> None:
+    def genSwitchMatrix(
+        self, tileName: str, csv_output_dir: Path | None = None
+    ) -> None:
         """Generate switch matrix for specified tile.
 
         Using 'genTileSwitchMatrix' defined in 'fabric_gen.py'.
@@ -192,6 +194,11 @@ class FABulous_API:
         ----------
         tileName : str
             Name of the tile for which the switch matrix will be generated.
+        csv_output_dir : Path | None
+            Optional directory to write the generated CSV file when converting
+            from `.list` format. If None, the CSV is written to the same directory
+            as the source `.list` file. This parameter is ignored when the input
+            is already a `.csv` file.
 
         Raises
         ------
@@ -204,7 +211,11 @@ class FABulous_API:
                 f"Generate switch matrix debug signals: {switch_matrix_debug_signal}"
             )
             genTileSwitchMatrix(
-                self.writer, self.fabric, tile, switch_matrix_debug_signal
+                self.writer,
+                self.fabric,
+                tile,
+                switch_matrix_debug_signal,
+                csv_output_dir=csv_output_dir,
             )
         else:
             raise ValueError(f"Tile {tileName} not found")
@@ -307,24 +318,25 @@ class FABulous_API:
     def getTile(
         self, tileName: str, raises_on_miss: bool = False
     ) -> Tile | SuperTile | None:
-        """Return Tile object based on tile name.
+        """Return 'Tile' or 'SuperTile' object based on 'tileName'.
 
         Parameters
         ----------
         tileName : str
             Name of the Tile.
         raises_on_miss : bool, optional
-            Whether to raise an error if the tile is not found, by default False.
+            Whether to raise an error if the tile is not found, by default 'False'.
 
         Returns
         -------
         Tile | SuperTile | None
-            Tile object based on tile name, or None if not found.
+            'Tile' or 'SuperTile' object based on tile name, or 'None' if not found.
 
         Raises
         ------
         KeyError
-            If tile is not found and 'raises_on_miss' is True.
+            If the tile specified by 'tileName' is not found and 'raises_on_miss'
+            is 'True'.
         """
         try:
             return self.fabric.getTileByName(tileName)
@@ -346,14 +358,14 @@ class FABulous_API:
     def getSuperTile(
         self, tileName: str, raises_on_miss: bool = False
     ) -> SuperTile | None:
-        """Return SuperTile object based on tile name.
+        """Return 'SuperTile' object based on 'tileName'.
 
         Parameters
         ----------
         tileName : str
             Name of the SuperTile.
         raises_on_miss : bool, optional
-            Whether to raise an error if the supertile is not found, by default False.
+            Whether to raise an error if the supertile is not found, by default 'False'.
 
         Returns
         -------
@@ -363,7 +375,8 @@ class FABulous_API:
         Raises
         ------
         KeyError
-            If tile is not found and 'raises_on_miss' is True.
+            If the supertile specified by 'tileName' is not found and 'raises_on_miss'
+            is 'True'.
         """
         try:
             return self.fabric.getSuperTileByName(tileName)

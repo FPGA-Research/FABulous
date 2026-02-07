@@ -41,11 +41,15 @@ jobs:
         continue-on-error: true
         run: |
           uv run pytest -v --runslow --tb=short 2>&1 | tee pytest_output.txt
+          # Capture the exit code of pytest
+          # We need to do this because continue-on-error makes the step outcome always 'success'
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
 
       - name: Check test results
         id: check_results
         run: |
-          if [ ${{ steps.pytest.outcome }} == 'failure' ]; then
+          # Check the actual pytest exit code to determine if tests failed
+          if [ "${{ steps.pytest.outputs.exit_code }}" != "0" ]; then
             echo "tests_failed=true" >> $GITHUB_OUTPUT
           else
             echo "tests_failed=false" >> $GITHUB_OUTPUT

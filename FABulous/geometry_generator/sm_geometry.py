@@ -8,7 +8,7 @@ from FABulous.fabric_definition.define import IO, Direction, Side
 from FABulous.fabric_definition.Port import Port
 from FABulous.fabric_definition.Tile import Tile
 from FABulous.geometry_generator.bel_geometry import BelGeometry
-from FABulous.geometry_generator.geometry_obj import Border
+from FABulous.geometry_generator.geometry_obj import Border, oppositeIO
 from FABulous.geometry_generator.port_geometry import PortGeometry, PortType
 
 
@@ -495,7 +495,7 @@ class SmGeometry:
                     belPortGeom.sourceName,
                     belPortGeom.destName,
                     PortType.SWITCH_MATRIX,
-                    belPortGeom.ioDirection,
+                    oppositeIO(belPortGeom.ioDirection),
                     portX,
                     portY,
                 )

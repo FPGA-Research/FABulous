@@ -42,8 +42,8 @@ def generateUserDesignTopWrapper(
     """
     top_wrapper: list[str] = [""]
 
-    if output.suffix != ".v":
-        raise InvalidFileType(f"{output} is not a Verilog file")
+    if output.suffix not in [".v", ".sv"]:
+        raise InvalidFileType(f"{output} is not a Verilog or SystemVerilog file")
     if not user_design_path.is_file():
         raise FileNotFoundError(f"{user_design_path} is not a file or does not exist")
 

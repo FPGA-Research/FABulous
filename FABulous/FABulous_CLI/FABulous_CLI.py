@@ -288,6 +288,7 @@ class FABulous_CLI(Cmd):
         self, statement: Statement | str, *, add_to_history: bool = True
     ) -> bool:
         """Override the onecmd method to handle exceptions."""
+        self.exit_code = 0
         try:
             return super().onecmd(statement, add_to_history=add_to_history)
         except Exception as e:  # noqa: BLE001 - Catching all exceptions is ok here
@@ -1077,9 +1078,9 @@ class FABulous_CLI(Cmd):
         """
         file_path_no_suffix = args.file.parent / args.file.stem
 
-        if args.file.suffix != ".v":
+        if args.file.suffix not in [".v", ".sv"]:
             raise InvalidFileType(
-                "No verilog file provided. "
+                "No Verilog or SystemVerilog file provided. "
                 "Usage: run_FABulous_bitstream <top_module_file>"
             )
 

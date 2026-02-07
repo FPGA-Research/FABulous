@@ -64,6 +64,8 @@ class Fabric:
         The number of BRAMs in the fabric.
     superTileEnable : bool
         Whether the fabric has super tile.
+    disableUserCLK : bool
+        Whether to disable UserCLK generation in the fabric.
     tileDic : dict[str, Tile]
         A dictionary of tiles used in the fabric. The key is the name of the tile and
         the value is the tile.
@@ -99,6 +101,7 @@ class Fabric:
     desync_flag: int = 20
     numberOfBRAMs: int = 10
     superTileEnable: bool = True
+    disableUserCLK: bool = False
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
     superTileDic: dict[str, SuperTile] = field(default_factory=dict)
@@ -277,6 +280,7 @@ class Fabric:
         fabric += f"generateDelayInSwitchMatrix: {self.generateDelayInSwitchMatrix}\n"
         fabric += f"multiplexerStyle: {self.multiplexerStyle}\n"
         fabric += f"superTileEnable: {self.superTileEnable}\n"
+        fabric += f"disableUserCLK: {self.disableUserCLK}\n"
         fabric += f"tileDic: {list(self.tileDic.keys())}\n"
         return fabric
 

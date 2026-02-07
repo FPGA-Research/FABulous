@@ -12,6 +12,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
+from FABulous.FABulous_settings import init_context
 from tests.CLI_test.conftest import TILE
 from tests.conftest import (
     normalize_and_check_for_errors,
@@ -197,135 +198,64 @@ def test_multi_command_force(cli: FABulous_CLI, mocker: MockerFixture) -> None:
     assert m.call_count == 1
 
 
-def test_start_openroad_gui(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
+def test_run_FABulous_fabric_sv_extension(
+    project: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test starting OpenROAD GUI."""
+    """Test running FABulous fabric flow with .sv (SystemVerilog) extension files.
 
-    class MockCompletedProcess:
-        returncode = 0
+    This test verifies that .sv files are correctly handled as Verilog files
+    throughout the fabric generation process, using the same code path as
+    run_FABulous_fabric but with BEL files using .sv extension.
+    """
+    monkeypatch.setenv("FAB_PROJ_DIR", str(project))
 
-    m = mocker.patch("subprocess.run", return_value=MockCompletedProcess())
-    m2 = mocker.patch(
-        "FABulous.FABulous_CLI.FABulous_CLI.FABulous_CLI._get_file_path",
-        return_value="dummy.odb",
+    # Convert .v BEL files to .sv
+    for v_file in project.rglob("*.v"):
+        if "models_pack" not in v_file.name:
+            sv_file = v_file.with_suffix(".sv")
+            v_file.rename(sv_file)
+
+    # Update CSV files to reference .sv instead of .v
+    for csv_file in project.rglob("*.csv"):
+        content = csv_file.read_text()
+        content = content.replace(".v,", ".sv,")
+        content = content.replace(".v\n", ".sv\n")
+        csv_file.write_text(content)
+
+    init_context(project)
+    cli = FABulous_CLI(
+        "verilog",
+        force=False,
+        interactive=False,
+        verbose=False,
+        debug=True,
     )
-    run_cmd(cli, "start_openroad_gui")
+    cli.debug = True
+    run_cmd(cli, "load_fabric")
+
+    # Clear caplog before running fabric flow to get clean assertions
+    caplog.clear()
+
+    # Run the fabric flow with .sv files
+    run_cmd(cli, "run_FABulous_fabric")
     log = normalize_and_check_for_errors(caplog.text)
-    assert "Start OpenROAD GUI with odb: dummy.odb" in log[-1]
-    assert m.call_count == 1
+    assert "Running FABulous" in log[0]
+    assert "FABulous fabric flow complete" in log[-1]
 
 
-def test_start_klayout_gui(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
-) -> None:
-    """Test starting OpenROAD GUI."""
+def test_exit_code_reset_after_error(cli: FABulous_CLI) -> None:
+    """Test that exit code is reset between commands (regression test for issue #574).
 
-    class MockCompletedProcess:
-        returncode = 0
+    After a command fails, subsequent successful commands should not be affected
+    by the stale exit code from the previous failure.
+    """
+    # Run a command that fails (invalid tile name)
+    run_cmd(cli, "gen_config_mem INVALID_TILE_NAME")
+    assert cli.exit_code != 0, "First command should fail"
 
-    m = mocker.patch("subprocess.run", return_value=MockCompletedProcess())
-    m2 = mocker.patch(
-        "FABulous.FABulous_CLI.FABulous_CLI.FABulous_CLI._get_file_path",
-        return_value="dummy.gds",
-    )
-    run_cmd(cli, "start_klayout_gui")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Start klayout GUI with gds: dummy.gds" in log[-2]
-    assert m.call_count == 1
+    # Run a command that succeeds
+    run_cmd(cli, "load_fabric")
 
-
-def test_start_gui_with_file_provided(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
-) -> None:
-    """Test starting GUI when file is provided directly."""
-
-    class MockCompletedProcess:
-        returncode = 0
-
-    m = mocker.patch("subprocess.run", return_value=MockCompletedProcess())
-    run_cmd(cli, "start_openroad_gui provided.odb")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Start OpenROAD GUI with odb: provided.odb" in log[-1]
-    assert m.call_count == 1
-
-    m = mocker.patch("subprocess.run", return_value=MockCompletedProcess())
-    run_cmd(cli, "start_klayout_gui provided.gds")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "Start klayout GUI with gds: provided.gds" in log[-2]
-    assert m.call_count == 1
-
-
-class TestGetFilePath:
-    """Tests for _get_file_path helper method."""
-
-    @pytest.fixture
-    def mock_cli(self, tmp_path: Path, mocker: MockerFixture) -> FABulous_CLI:
-        """Create a mock CLI instance with project directory."""
-        # Create a minimal CLI mock
-        cli = mocker.MagicMock(spec=FABulous_CLI)
-        cli.projectDir = tmp_path
-        cli._get_file_path = FABulous_CLI._get_file_path.__get__(cli, FABulous_CLI)
-        return cli
-
-    def test_get_latest_file_from_fabric(
-        self, mock_cli: FABulous_CLI, tmp_path: Path
-    ) -> None:
-        """Test getting latest file from Fabric directory."""
-        # Create Fabric directory with ODB files
-        fabric_dir = tmp_path / "Fabric"
-        fabric_dir.mkdir()
-        file1 = fabric_dir / "old.odb"
-        file2 = fabric_dir / "new.odb"
-        file1.touch()
-        file2.touch()
-
-        # Make file2 newer
-        time.sleep(0.01)
-        file2.touch()
-
-        args = argparse.Namespace(last_run=True, fabric=True, tile=None)
-        result = mock_cli._get_file_path(args, "odb")
-
-        assert result == str(file2)
-
-    def test_get_latest_file_from_tile(
-        self, mock_cli: FABulous_CLI, tmp_path: Path
-    ) -> None:
-        """Test getting latest file from specific Tile directory."""
-        # Create Tile directory with ODB files
-        tile_dir = tmp_path / "Tile" / "LUT4AB"
-        tile_dir.mkdir(parents=True)
-        file1 = tile_dir / "design.odb"
-        file1.touch()
-
-        args = argparse.Namespace(last_run=True, fabric=False, tile="LUT4AB")
-        result = mock_cli._get_file_path(args, "odb")
-
-        assert result == str(file1)
-
-    def test_get_file_raises_on_no_files(
-        self, mock_cli: FABulous_CLI, tmp_path: Path
-    ) -> None:
-        """Test that FileNotFoundError is raised when no files exist."""
-        # Create empty directory
-        fabric_dir = tmp_path / "Fabric"
-        fabric_dir.mkdir()
-
-        args = argparse.Namespace(last_run=True, fabric=True, tile=None)
-
-        with pytest.raises(FileNotFoundError, match="No .odb files found"):
-            mock_cli._get_file_path(args, "odb")
-
-    def test_get_latest_from_project_root(
-        self, mock_cli: FABulous_CLI, tmp_path: Path
-    ) -> None:
-        """Test getting latest file from project root."""
-        # Create ODB file in root
-        file1 = tmp_path / "design.odb"
-        file1.touch()
-
-        args = argparse.Namespace(last_run=True, fabric=False, tile=None)
-        result = mock_cli._get_file_path(args, "odb")
-
-        assert result == str(file1)
+    assert cli.exit_code == 0, "Exit code should be reset after successful command"

@@ -155,7 +155,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     bels.append(parseBelFile(belFilePath, bel_prefix))
                 else:
                     raise InvalidFileType(
-                        f"File {belFilePath} is not a .vhdl or .v file. "
+                        f"File {belFilePath} is not a .vhdl, .v, or .sv file. "
                         "Please check the BEL file."
                     )
 
@@ -286,7 +286,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                                 muxSize = len(v)
                                 if muxSize >= 2:
                                     configBit += (muxSize - 1).bit_length()
-                        case ".vhdl" | ".v":
+                        case ".vhdl" | ".v" | ".sv":
                             with matrixDir.open() as f:
                                 f = f.read()
                                 if configBit := re.search(
@@ -537,6 +537,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     generateDelayInSwitchMatrix = 80
     multiplexerStyle = MultiplexerStyle.CUSTOM
     superTileEnable = True
+    disableUserCLK = False
 
     for i in parameters:
         i = i.split(",")
@@ -588,6 +589,8 @@ def parseFabricCSV(fileName: str) -> Fabric:
                 )
         elif i[0].startswith("SuperTileEnable"):
             superTileEnable = i[1] == "TRUE"
+        elif i[0].startswith("DisableUserCLK"):
+            disableUserCLK = i[1] == "TRUE"
         else:
             raise InvalidFabricParameter(f"The following parameter is not valid: {i}")
 
@@ -650,6 +653,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         multiplexerStyle=multiplexerStyle,
         numberOfBRAMs=int(height / 2),
         superTileEnable=superTileEnable,
+        disableUserCLK=disableUserCLK,
         tileDic=tileDic,
         superTileDic=superTileDic,
         unusedTileDic=unusedTileDic,

@@ -43,6 +43,23 @@
         "type": "github"
       }
     },
+    "fabulator-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1754387121,
+        "narHash": "sha256-ASM3lgvdH+6t4rkTixATETVGcibPVWhsFFD2sWfRDCc=",
+        "owner": "FPGA-Research",
+        "repo": "FABulator",
+        "rev": "beccd4e4c58b9fc92fafaf082883c20367dbe5ba",
+        "type": "github"
+      },
+      "original": {
+        "owner": "FPGA-Research",
+        "repo": "FABulator",
+        "rev": "beccd4e4c58b9fc92fafaf082883c20367dbe5ba",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "locked": {
         "lastModified": 1733328505,
@@ -60,8 +77,8 @@
     "ghdl-bin-aarch64-darwin": {
       "flake": false,
       "locked": {
-        "lastModified": 1763550463,
-        "narHash": "sha256-jmNhz86I9x/iOkfkOyN374yjPt79d8CNR+miOkJWBAw=",
+        "lastModified": 1769557669,
+        "narHash": "sha256-9v4l/cZJ8daUUlKS50YDlaFFBRXqKIo1wJi2MSbHxgQ=",
         "type": "tarball",
         "url": "https://github.com/ghdl/ghdl/releases/download/nightly/ghdl-llvm-jit-6.0.0-dev-macos15-aarch64.tar.gz"
       },
@@ -163,11 +180,11 @@
     },
     "nixpkgs-stable": {
       "locked": {
-        "lastModified": 1763622513,
-        "narHash": "sha256-1jQnuyu82FpiSxowrF/iFK6Toh9BYprfDqfs4BB+19M=",
+        "lastModified": 1767313136,
+        "narHash": "sha256-16KkgfdYqjaeRGBaYsNrhPRRENs0qzkQVUooNHtoy2w=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "c58bc7f5459328e4afac201c5c4feb7c818d604b",
+        "rev": "ac62194c3917d5f474c1a844b6fd6da2db95077d",
         "type": "github"
       },
       "original": {
@@ -179,11 +196,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1763835633,
-        "narHash": "sha256-HzxeGVID5MChuCPESuC0dlQL1/scDKu+MmzoVBJxulM=",
+        "lastModified": 1769461804,
+        "narHash": "sha256-msG8SU5WsBUfVVa/9RPLaymvi5bI8edTavbIq3vRlhI=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "050e09e091117c3d7328c7b2b7b577492c43c134",
+        "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
         "type": "github"
       },
       "original": {
@@ -226,11 +243,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1763716960,
-        "narHash": "sha256-PUlomle4klGbnZr0wOn8z61Mbt7tXh6Yp3hZ9/CQkq0=",
+        "lastModified": 1769116518,
+        "narHash": "sha256-M+etHAj3oI9zr+Cpj5u2kMAddvxcJCmnWRtH/SklYlY=",
         "owner": "pyproject-nix",
         "repo": "pyproject.nix",
-        "rev": "d6c61dbe0be75e2f4cf0efcdc62428175be4cfb5",
+        "rev": "ab521eddafb936498f18c86d83e1774a53b1cb8a",
         "type": "github"
       },
       "original": {
@@ -241,6 +258,7 @@
     },
     "root": {
       "inputs": {
+        "fabulator-src": "fabulator-src",
         "ghdl-bin-aarch64-darwin": "ghdl-bin-aarch64-darwin",
         "ghdl-src": "ghdl-src",
         "librelane": "librelane",
@@ -262,11 +280,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1763962610,
-        "narHash": "sha256-UqEV7q+Op+jBysp5RLLApVkJB63V9quNx6mO6++XnqE=",
+        "lastModified": 1769103499,
+        "narHash": "sha256-6U2AQNC1Sa+d7gUDQ58sqF39YVi5AKT9uHZSr+WVWGo=",
         "owner": "pyproject-nix",
         "repo": "uv2nix",
-        "rev": "fa9fba1c36ef1acbd9291c7df281a6d71cfc47c0",
+        "rev": "9eeb39b8fdd8352bfc6f1af7eab79f88bd0a6eb3",
         "type": "github"
       },
       "original": {
