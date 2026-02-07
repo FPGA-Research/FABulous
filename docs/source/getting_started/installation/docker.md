@@ -24,10 +24,6 @@ docker pull ghcr.io/fpga-research/fabulous:latest
 docker pull ghcr.io/fpga-research/fabulous:dev
 ```
 
-```{note}
-The Docker images are primarily designed for headless/CLI usage. While GUI applications can work with X11 forwarding, you may encounter display-related issues depending on your host configuration. If you need reliable GUI support, we recommend using the [Nix-based setup](nix-install) instead, which provides a more seamless experience with native display integration.
-```
-
 ## Running the Docker Container
 
 ### Basic Usage
@@ -82,25 +78,42 @@ After you're done, you can revoke X11 access with:
 `xhost -local:docker`
 ```
 
-## Building the Docker Image Locally
+## Using Dev Containers (Local Development)
 
-If you prefer to build the Docker image yourself (e.g., for development or customization), you can use the Nix-based build:
+For a seamless development experience with VSCode, we provide Dev Container configurations that automatically set up the entire FABulous environment including GUI support.
 
 ### Prerequisites
 
-- [Nix](https://nixos.org/download.html) with flakes enabled
-- Docker
+- [Visual Studio Code](https://code.visualstudio.com/)
+- [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+- Docker installed and running
 
-### Building
+### Getting Started
 
-From the FABulous repository root:
+1. Clone the FABulous repository:
 
 ```bash
-nix-build nix/docker-image.nix
-docker load < result
+git clone https://github.com/FPGA-Research/FABulous.git
+cd FABulous
 ```
 
-This creates a `fabulous:latest` image locally.
+2. Open the repository in VS Code:
+
+```bash
+code .
+```
+
+3. When prompted, click "Reopen in Container" or use the command palette (F1) and select "Dev Containers: Reopen in Container" then select the `Local` setup.
+
+4. VS Code will automatically:
+   - Pull the FABulous Docker image
+   - Set up X11 forwarding for GUI applications
+   - Configure the Python environment
+   - Install recommended extensions (Ruff, Python)
+
+```{note}
+The dev container automatically runs `xhost +local:docker` on your host machine during initialization. GUI applications should work seamlessly.
+```
 
 ## Troubleshooting
 
