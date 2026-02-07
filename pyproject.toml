@@ -40,11 +40,8 @@ dependencies = [
   "librelane>=3.0.0.dev43",
   "pick>=2.4.0",
   "pymoo>=0.6.1.5",
-  "numpy>=2.3.5",
+  "numpy>=2.3.4",
   "dill>=0.4.0",
-  "dill>=0.4.0",
-  "pymoo>=0.6.1.5",
-  "numpy>=2.3.5",
 ]
 
 [project.urls]
