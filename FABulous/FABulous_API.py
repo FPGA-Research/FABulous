@@ -605,21 +605,6 @@ class FABulous_API:
         result.save_snapshot(out_folder / "final_views")
         logger.info("Stitching flow completed.")
 
-    def get_most_frequent_tile(self) -> Tile:
-        """Get the most frequently used tile in the fabric.
-
-        Returns
-        -------
-        Tile
-            The most frequently used tile in the fabric.
-        """
-        from collections import Counter
-        from itertools import chain
-
-        counts = Counter(chain.from_iterable(row for row in self.fabric.tile))
-        most_common_tile, _ = counts.most_common(1)[0]
-        return most_common_tile
-
     def full_fabric_automation(
         self,
         project_dir: Path,

@@ -32,7 +32,6 @@ import tempfile
 import tkinter as tk
 import traceback
 from pathlib import Path
-from typing import cast
 
 from cmd2 import (
     Cmd,
@@ -45,7 +44,6 @@ from cmd2 import (
 )
 from FABulous_bit_gen import genBitstream
 from loguru import logger
-from pick import pick
 
 from FABulous.custom_exception import CommandError, EnvironmentNotSet, InvalidFileType
 from FABulous.fabric_generator.code_generator.code_generator_Verilog import (
@@ -65,6 +63,7 @@ from FABulous.FABulous_CLI.helper import (
     CommandPipeline,
     allow_blank,
     copy_verilog_files,
+    get_file_path,
     install_fabulator,
     install_oss_cad_suite,
     make_hex,
@@ -189,7 +188,7 @@ class FABulous_CLI(Cmd):
         interactive: bool = False,
         verbose: bool = False,
         debug: bool = False,
-        max_job: int = 8,
+        max_job: int = 4,
     ) -> None:
         super().__init__(
             persistent_history_file=f"{get_context().proj_dir}/{META_DATA_DIR}/.fabulous_history",
@@ -296,7 +295,7 @@ class FABulous_CLI(Cmd):
             logger.opt(exception=e).error(str(e).replace("<", r"\<"))
             self.exit_code = 1
             if self.interactive:
-                return None
+                return False
             return not self.force
 
     def do_exit(self, *_ignored: str) -> bool:
@@ -1419,57 +1418,6 @@ class FABulous_CLI(Cmd):
         default=10,
     )
 
-    def _get_file_path(
-        self, args: argparse.Namespace, file_extension: str, show_count: int = 0
-    ) -> str:
-        """Get the file path for the specified file extension."""
-
-        def get_latest(directory: Path, file_extension: str) -> str:
-            """Get the latest modified file in a directory."""
-            files = list(directory.glob(f"**/*.{file_extension}"))
-            if not files:
-                raise FileNotFoundError(
-                    f"No .{file_extension} files found in the specified directory."
-                )
-            latest_file = max(files, key=lambda f: f.stat().st_mtime)
-            return str(latest_file)
-
-        def get_option(f: Path, file_extension: str) -> str:
-            title = "Select which file to view"
-            files_list = sorted(
-                f.glob(f"**/*.{file_extension}"),
-                key=lambda f: f.stat().st_mtime,
-                reverse=True,
-            )[:show_count]
-            _, idx = pick(
-                list(map(lambda x: str(x.relative_to(self.projectDir)), files_list)),
-                title,
-            )
-            return str(files_list[cast("int", idx)])
-
-        file: str = ""
-        if args.last_run:
-            if args.fabric:
-                file = get_latest(self.projectDir / "Fabric", file_extension)
-            elif args.tile is not None:
-                file = get_latest(self.projectDir / "Tile" / args.tile, file_extension)
-            else:
-                file = get_latest(self.projectDir, file_extension)
-        else:
-            if args.fabric:
-                file = get_option(self.projectDir / "Fabric", file_extension)
-            elif args.tile is not None:
-                file = get_option(self.projectDir / "Tile" / args.tile, file_extension)
-            elif args.tile is None and not args.fabric:
-                file = get_option(self.projectDir, file_extension)
-
-        if not file:
-            raise FileNotFoundError(
-                f"No .{file_extension} files found in the specified directory."
-            )
-
-        return file
-
     @with_argparser(gui_parser)
     @with_category(CMD_TOOLS)
     def do_start_openroad_gui(self, args: argparse.Namespace) -> None:
@@ -1484,7 +1432,9 @@ class FABulous_CLI(Cmd):
             raise CommandError("Please specify either --fabric or --tile, not both")
 
         if args.file is None:
-            db_file: str = self._get_file_path(args, "odb", show_count=int(args.head))
+            db_file: str = get_file_path(
+                self.projectDir, args, "odb", show_count=int(args.head)
+            )
         else:
             db_file = args.file
         with tempfile.NamedTemporaryFile(
@@ -1515,7 +1465,7 @@ class FABulous_CLI(Cmd):
             raise CommandError("Please specify either --fabric or --tile, not both")
 
         if args.file is None:
-            gds_file: str = self._get_file_path(args, "gds")
+            gds_file: str = get_file_path(self.projectDir, args, "gds")
         else:
             gds_file = args.file
         if get_context().pdk == "ihp-sg13g2":
