@@ -1,4 +1,5 @@
 (fabric-building)=
+
 # Building your eFPGA
 
 This contains a guide and information on building your custom eFPGA.
@@ -7,4 +8,6 @@ This contains a guide and information on building your custom eFPGA.
 fabric_definition
 building_fabric
 fabric_automation
+fabric_gds
+/generated_doc/gds_variable
 ```
