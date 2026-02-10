@@ -217,7 +217,7 @@ ogp_social_cards = {
 
 # -- AutoAPI Configuration (Modern replacement for autosummary)
 autoapi_type = 'python'
-autoapi_dirs = ['../../FABulous']  # Path to source code
+autoapi_dirs = ['../../fabulous']  # Path to source code
 autoapi_root = 'generated_doc'  # Directory name for generated docs (consistent with existing setup)
 autoapi_keep_files = True  # Keep generated .rst files for debugging
 autoapi_generate_api_docs = True
