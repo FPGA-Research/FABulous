@@ -65,7 +65,7 @@ def test_update_project_version_success(
     env_file.write_text("FAB_PROJ_VERSION=1.2.3\n")
 
     # Patch version() to return compatible version
-    monkeypatch.setattr("FABulous.FABulous_CLI.helper.version", lambda _: "1.2.4")
+    monkeypatch.setattr("fabulous.fabulous_cli.helper.version", lambda _: "1.2.4")
 
     assert update_project_version(tmp_path / "proj") is True
     assert "FAB_PROJ_VERSION='1.2.4'" in env_file.read_text()
@@ -91,6 +91,6 @@ def test_update_project_version_major_mismatch(
     env_file = env_dir / ".env"
     env_file.write_text("FAB_PROJ_VERSION=1.2.3\n")
 
-    monkeypatch.setattr("FABulous.FABulous_CLI.helper.version", lambda _: "2.0.0")
+    monkeypatch.setattr("fabulous.fabulous_cli.helper.version", lambda _: "2.0.0")
 
     assert update_project_version(tmp_path / "proj") is False

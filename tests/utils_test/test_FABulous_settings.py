@@ -52,7 +52,7 @@ class TestFABulousSettings:
         monkeypatch.setenv("PATH", "/bin:/usr/bin")
 
         # Mock which to return None (no tools found)
-        mocker.patch("FABulous.FABulous_settings.which", return_value=None)
+        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
 
         settings = init_context(project)
 
@@ -90,7 +90,7 @@ class TestFABulousSettings:
         monkeypatch.setenv("FAB_MODELS_PACK", str(project / "my_models_pack.vhdl"))
 
         # Mock which to return None (no tools found)
-        mocker.patch("FABulous.FABulous_settings.which", return_value=None)
+        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
 
         settings = init_context()
 
@@ -114,7 +114,7 @@ class TestFABulousSettings:
         # Set minimal PATH to avoid system tools
         monkeypatch.setenv("PATH", "/bin:/usr/bin")
 
-        mock_which = mocker.patch("FABulous.FABulous_settings.which")
+        mock_which = mocker.patch("fabulous.fabulous_settings.which")
         mock_which.side_effect = lambda tool: {
             "yosys": "/usr/bin/yosys",
             "nextpnr-generic": "/usr/bin/nextpnr-generic",
@@ -153,7 +153,7 @@ class TestFABulousSettings:
         monkeypatch.setenv("FAB_YOSYS_PATH", str(yosys_path))
         monkeypatch.setenv("FAB_NEXTPNR_PATH", str(nextpnr_path))
 
-        mocker.patch("FABulous.FABulous_settings.which", return_value=None)
+        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
         settings = init_context(project)
 
         assert settings.yosys_path == Path(yosys_path)
@@ -164,7 +164,7 @@ class TestFABulousSettings:
 
     def test_initialization_with_no_init_called(self, mocker: MockerFixture) -> None:
         """Test init context in api mode"""
-        mocker.patch("FABulous.FABulous_settings.which", return_value=None)
+        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
         settings = get_context()
         assert settings.yosys_path == "yosys"
         assert settings.nextpnr_path == "nextpnr-generic"
@@ -265,7 +265,7 @@ class TestToolPathResolution:
         mock_info = mocker.Mock()
         mock_info.field_name = "yosys_path"
 
-        mock_which = mocker.patch("FABulous.FABulous_settings.which")
+        mock_which = mocker.patch("fabulous.fabulous_settings.which")
         result = FABulousSettings.resolve_tool_paths(explicit_path, mock_info)
         assert result == explicit_path
         mock_which.assert_not_called()
@@ -276,7 +276,7 @@ class TestToolPathResolution:
         mock_info.field_name = "yosys_path"
 
         mock_which = mocker.patch(
-            "FABulous.FABulous_settings.which", return_value="/usr/bin/yosys"
+            "fabulous.fabulous_settings.which", return_value="/usr/bin/yosys"
         )
 
         result = FABulousSettings.resolve_tool_paths(None, mock_info)
@@ -289,7 +289,7 @@ class TestToolPathResolution:
         mock_info = mocker.Mock()
         mock_info.field_name = "yosys_path"
 
-        mock_which = mocker.patch("FABulous.FABulous_settings.which", return_value=None)
+        mock_which = mocker.patch("fabulous.fabulous_settings.which", return_value=None)
 
         result = FABulousSettings.resolve_tool_paths(None, mock_info)
 
@@ -685,7 +685,7 @@ class TestIntegration:
         # Set environment variables
         monkeypatch.setenv("FAB_PROJ_DIR", str(project))
 
-        mocker.patch("FABulous.FABulous_settings.which", return_value=None)
+        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
         mocker.patch("pathlib.Path.exists", return_value=True)
         # Initialize context
         settings = init_context(project_dir=project, global_dot_env=global_env)

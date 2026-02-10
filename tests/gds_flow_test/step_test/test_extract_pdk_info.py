@@ -24,7 +24,7 @@ class TestExtractPDKInfo:
         step = ExtractPDKInfo(mock_config)
 
         mocker.patch(
-            "FABulous.fabric_generator.gds_generator.steps.extract_pdk_info.Floorplan.run",
+            "fabulous.fabric_generator.gds_generator.steps.extract_pdk_info.Floorplan.run",
             return_value=(
                 {},
                 {"pdk__site_width": "0.46", "pdk__site_height": "2.72"},

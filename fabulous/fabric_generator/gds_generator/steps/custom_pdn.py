@@ -31,7 +31,7 @@ class CustomGeneratePDN(OpenROADStep):
                 "the default PDN config will be used. This default config is a custom "
                 "config that differ from the librelane default.",
                 default=str(
-                    resources.files("FABulous.fabric_generator.gds_generator.script")
+                    resources.files("fabulous.fabric_generator.gds_generator.script")
                     / "pdn_config.tcl"
                 ),
             )
@@ -41,6 +41,6 @@ class CustomGeneratePDN(OpenROADStep):
     def get_script_path(self) -> str:
         """Get the path to the PDN generation script."""
         return str(
-            resources.files("FABulous.fabric_generator.gds_generator.script")
+            resources.files("fabulous.fabric_generator.gds_generator.script")
             / "pdn.tcl"
         )

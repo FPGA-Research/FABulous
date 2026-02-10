@@ -43,11 +43,11 @@ class TestListFileCsvOutputDirectory:
         default_tile.matrixDir = list_file
 
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
             side_effect=lambda tile, path: create_switchmatrix_csv(path, tile.name),
         )
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
         )
 
         with pytest.raises(AttributeError):
@@ -77,11 +77,11 @@ class TestListFileCsvOutputDirectory:
         default_tile.matrixDir = list_file
 
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
             side_effect=lambda tile, path: create_switchmatrix_csv(path, tile.name),
         )
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
         )
 
         with pytest.raises(AttributeError):
@@ -107,11 +107,11 @@ class TestListFileCsvOutputDirectory:
         assert not custom_output_dir.exists()
 
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
             side_effect=lambda tile, path: create_switchmatrix_csv(path, tile.name),
         )
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
         )
 
         with pytest.raises(AttributeError):
@@ -143,7 +143,7 @@ class TestListFileCsvOutputDirectory:
         default_tile.matrixDir = csv_file
 
         mock_parse = mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.parseMatrix",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.parseMatrix",
             return_value={},
         )
 

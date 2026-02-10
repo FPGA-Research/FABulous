@@ -194,7 +194,7 @@ def generateSwitchmatrixList(
     projdir = get_context().proj_dir
 
     with resources.path(
-        "FABulous.fabric_files.dummy_files", "DUMMY_switch_matrix.list"
+        "fabulous.fabric_files.dummy_files", "DUMMY_switch_matrix.list"
     ) as dummy_file_path:
         CLBDummyFile = dummy_file_path
 

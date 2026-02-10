@@ -158,11 +158,11 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
     # Copy the project template using importlib.resources
     try:
         common_template_ref = (
-            resources.files("FABulous.fabric_files")
+            resources.files("fabulous.fabric_files")
             / "FABulous_project_template_common"
         )
         lang_template_ref = (
-            resources.files("FABulous.fabric_files")
+            resources.files("fabulous.fabric_files")
             / f"FABulous_project_template_{lang!s}"
         )
 

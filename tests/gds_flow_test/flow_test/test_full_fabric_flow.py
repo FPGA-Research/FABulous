@@ -175,13 +175,13 @@ class TestRunTileFlowWorker:
         mock_context.pdk = "test_pdk"
         mock_context.pdk_root = tmp_path
         mocker.patch(
-            "FABulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
+            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
             return_value=mock_context,
         )
 
         # Make flow raise an exception
         mocker.patch(
-            "FABulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMacroFlow",
+            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMacroFlow",
             side_effect=ValueError("Test error"),
         )
 
@@ -211,7 +211,7 @@ class TestRunTileFlowWorker:
         mock_context.pdk = "test_pdk"
         mock_context.pdk_root = tmp_path
         mocker.patch(
-            "FABulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
+            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
             return_value=mock_context,
         )
 
@@ -219,7 +219,7 @@ class TestRunTileFlowWorker:
         mock_flow: MagicMock = mocker.MagicMock()
         mock_flow.start.return_value = mock_state
         mocker.patch(
-            "FABulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMacroFlow",
+            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMacroFlow",
             return_value=mock_flow,
         )
 
@@ -251,7 +251,7 @@ class TestWorkerCustomOverrides:
         mock_context.pdk = "test_pdk"
         mock_context.pdk_root = tmp_path
         mocker.patch(
-            "FABulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
+            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
             return_value=mock_context,
         )
 
@@ -259,7 +259,7 @@ class TestWorkerCustomOverrides:
         mock_flow: MagicMock = mocker.MagicMock()
         mock_flow.start.return_value = mock_state
         mock_flow_class: MagicMock = mocker.patch(
-            "FABulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMacroFlow",
+            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMacroFlow",
             return_value=mock_flow,
         )
 

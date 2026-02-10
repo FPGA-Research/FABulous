@@ -53,9 +53,9 @@ Discussions = "https://github.com/FPGA-Research/FABulous/discussions"
 
 
 [project.scripts]
-FABulous = "FABulous.FABulous:main"
+FABulous = "fabulous.fabulous:main"
 #alias for better usability
-fabulous = "FABulous.FABulous:main"
+fabulous = "fabulous.fabulous:main"
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
@@ -70,7 +70,7 @@ exclude = [
 ] # exclude packages matching these glob patterns (empty by default)
 
 [tool.setuptools.package-data]
-FABulous = ["**/*"]
+fabulous = ["**/*"]
 
 [tool.interrogate]
 ignore-init-method = false
@@ -120,7 +120,7 @@ dev = [
 [tool.coverage.run]
 branch = true
 parallel = true
-source = ["FABulous"]
+source = ["fabulous"]
 
 [tool.coverage.report]
 omit = ["*/__init__.py", "*/__pycache__/*", "tests/*", "demo/*", "docs/*"]

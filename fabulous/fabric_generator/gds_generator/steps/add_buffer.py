@@ -71,6 +71,6 @@ class AddBuffers(OpenROADStep):
     def get_script_path(self) -> str:
         """Get the path to the add buffers script."""
         return str(
-            resources.files("FABulous.fabric_generator.gds_generator.script")
+            resources.files("fabulous.fabric_generator.gds_generator.script")
             / "add_buffers.tcl"
         )
