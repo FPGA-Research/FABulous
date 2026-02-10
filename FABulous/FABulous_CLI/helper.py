@@ -221,9 +221,17 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
         "FAB_MODELS_PACK",
         str(Path(project_dir.name) / "Fabric" / f"models_pack.{new_suffix}"),
     )
-    set_key(env_file, "FAB_PDK", "ihp-sg13g2")
     if (Path().home() / ".ciel").exists():
-        set_key(env_file, "FAB_PDK_ROOT", str(Path().home() / ".ciel" / "ihp-sg13g2"))
+        if (Path().home() / ".ciel" / "ihp-sg13g2").exists():
+            set_key(env_file, "FAB_PDK", "ihp-sg13g2")
+            set_key(
+                env_file, "FAB_PDK_ROOT", str(Path().home() / ".ciel" / "ihp-sg13g2")
+            )
+        else:
+            logger.warning(
+                "IHP SG13G2 PDK not found in ~/.ciel. ",
+                "Please ensure it is installed correctly.",
+            )
     else:
         logger.warning(
             "Cannot find .ciel in $HOME. Please set FAB_PDK_ROOT in .env file."
