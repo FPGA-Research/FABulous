@@ -12,7 +12,7 @@ import pytest
 import yaml
 from loguru import logger
 
-from tests.reference_tests.helpers import (
+from tests.reference_test.helpers import (
     compare_directories,
     format_file_differences_report,
     run_fabulous_commands_with_logging,
@@ -74,7 +74,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Generate test parameters dynamically based on config."""
     if "ref_project" in metafunc.fixturenames:
         # Need to import _session_config here to avoid uninialized/circular import
-        from tests.reference_tests.conftest import _session_config
+        from tests.reference_test.conftest import _session_config
 
         if _session_config.projects_conf is None:
             raise RuntimeError(
@@ -173,7 +173,7 @@ def test_reference_project_execution(
 
         if cmp_diff:
             # Need to import _session_config here to avoid uninialized/circular import
-            from tests.reference_tests.conftest import _session_config
+            from tests.reference_test.conftest import _session_config
 
             diff_report = format_file_differences_report(
                 cmp_diff,

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabulous_cli.helper import clone_git_repo
-from tests.reference_tests.reference_projects_test import load_reference_projects_config
+from tests.reference_test.reference_projects_test import load_reference_projects_config
 
 
 # Session-level configuration storage
