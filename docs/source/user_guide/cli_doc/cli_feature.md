@@ -1,10 +1,10 @@
 # FABulous CLI — Features and Usage
 
-In FABulous, we provides two primary method to drive the tool. First is the interactive REPL mode, which is good for performing design space exploration. Second is the batch mode, which is good for CI and automation. This document summarizes the key features of both modes and provides guidance on when to use each.
+In FABulous, we provides two primary methods to drive the tool. First is the interactive REPL mode, which is good for performing design space exploration. Second is the batch mode, which is good for CI and automation. This document summarizes the key features of both modes and provides guidance on when to use each.
 
 ## Interactive mode
 
-To start the REPL, simply run `FABulous start` and this will lunch the interactive shell in the current working directory.
+To start the REPL, simply run `FABulous start`, which will lunch the interactive shell in the current working directory.
 
 ```bash
 FABulous start
@@ -13,15 +13,17 @@ FABulous start
 FABulous>
 ```
 
-But some times you might want to start the REPL in for a sepecific project directory, and you can do this by providing the `--project-dir/-p` arguments to chooses which project directory to load.
+If you want to start the REPL in for a specific project directory, and you can do this by providing the `--project-dir/-p` arguments to chooses which project directory to load (`FABulous -p <my_project> start`).
 
-Once you are in the REPL there are many features that help you with the flow and we will list out a few useful ones below. For more details please refer to the [cmd2 documentation](https://cmd2.readthedocs.io/en/stable/) since FABulous CLI is built on top of cmd2.
+Once you are in the REPL, you will find many features that help you with the flow.
+You can type `help` or `?` in the REPL to see a list of all available commands and their descriptions.
+We will list out a few useful ones below. For more details cability of `cmd2` please refer to the [cmd2 documentation](https://cmd2.readthedocs.io/en/stable/) since FABulous CLI is built on top of `cmd2`.
 
-For more details about the available commands, please refer to the [Interactive CLI Commands Reference](/generated_doc/interactive_cli_commands.md).
+For more details about the available commands, please refer to the [Interactive CLI Commands Reference](#interactive-cli-commands-reference).
 
 ### Session variables
 
-- `set <name> <value>` / `get <name>` (cmd2 Settable integration).
+- `set <name> <value>` / `get <name>` (`cmd2` Settable integration).
 
 ```bash
 FABulous> set projectDir /path/to/project
@@ -41,6 +43,8 @@ Argument and filesystem completion are available — press Tab to complete filen
 
 You can open files from the REPL in your preferred editor and return to the CLI once the editor closes. The CLI chooses the editor from the following (in order): the environment variable `FABULOUS_EDITOR` (recommended), then `EDITOR` / `VISUAL`.
 The main use of the `FABULOUS_EDITOR` is to provide per-project editor settings, but without it will try resolving with the `$EDITOR` which is set for most terminal environments.
+
+For more details on FABulous environment variables, see [FABulous environment variables](#fabulous-variables).
 
 Examples:
 

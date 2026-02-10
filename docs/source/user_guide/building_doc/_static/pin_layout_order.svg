@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 400" width="500" height="400">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c" />
+    </marker>
+  </defs>
+
+  <!-- Tile rectangle -->
+  <rect x="100" y="80" width="300" height="240" fill="#f0f4f8" stroke="#2c3e50" stroke-width="2" rx="4" />
+  <text x="250" y="210" text-anchor="middle" font-family="sans-serif" font-size="16" fill="#7f8c8d" font-weight="bold">TILE</text>
+
+  <!-- NORTH side: left-to-right -->
+  <text x="250" y="30" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#2c3e50" font-weight="bold">NORTH</text>
+  <!-- Arrow left to right -->
+  <line x1="140" y1="50" x2="340" y2="50" stroke="#e74c3c" stroke-width="2" marker-end="url(#arrowhead)" />
+  <!-- Pin labels -->
+  <circle cx="160" cy="80" r="4" fill="#3498db" />
+  <text x="160" y="68" text-anchor="middle" font-family="monospace" font-size="10" fill="#3498db">pin0</text>
+  <circle cx="250" cy="80" r="4" fill="#3498db" />
+  <text x="250" y="68" text-anchor="middle" font-family="monospace" font-size="10" fill="#3498db">pin1</text>
+  <circle cx="340" cy="80" r="4" fill="#3498db" />
+  <text x="340" y="68" text-anchor="middle" font-family="monospace" font-size="10" fill="#3498db">pin2</text>
+
+  <!-- SOUTH side: left-to-right -->
+  <text x="250" y="375" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#2c3e50" font-weight="bold">SOUTH</text>
+  <!-- Arrow left to right -->
+  <line x1="140" y1="350" x2="340" y2="350" stroke="#e74c3c" stroke-width="2" marker-end="url(#arrowhead)" />
+  <!-- Pin labels -->
+  <circle cx="160" cy="320" r="4" fill="#3498db" />
+  <text x="160" y="340" text-anchor="middle" font-family="monospace" font-size="10" fill="#3498db">pin0</text>
+  <circle cx="250" cy="320" r="4" fill="#3498db" />
+  <text x="250" y="340" text-anchor="middle" font-family="monospace" font-size="10" fill="#3498db">pin1</text>
+  <circle cx="340" cy="320" r="4" fill="#3498db" />
+  <text x="340" y="340" text-anchor="middle" font-family="monospace" font-size="10" fill="#3498db">pin2</text>
+
+  <!-- WEST side: bottom-to-top -->
+  <text x="50" y="205" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#2c3e50" font-weight="bold">WEST</text>
+  <!-- Arrow bottom to top -->
+  <line x1="70" y1="290" x2="70" y2="110" stroke="#e74c3c" stroke-width="2" marker-end="url(#arrowhead)" />
+  <!-- Pin labels -->
+  <circle cx="100" cy="280" r="4" fill="#3498db" />
+  <text x="88" y="276" text-anchor="end" font-family="monospace" font-size="10" fill="#3498db">pin0</text>
+  <circle cx="100" cy="200" r="4" fill="#3498db" />
+  <text x="88" y="196" text-anchor="end" font-family="monospace" font-size="10" fill="#3498db">pin1</text>
+  <circle cx="100" cy="120" r="4" fill="#3498db" />
+  <text x="88" y="116" text-anchor="end" font-family="monospace" font-size="10" fill="#3498db">pin2</text>
+
+  <!-- EAST side: bottom-to-top -->
+  <text x="450" y="205" text-anchor="middle" font-family="sans-serif" font-size="14" fill="#2c3e50" font-weight="bold">EAST</text>
+  <!-- Arrow bottom to top -->
+  <line x1="430" y1="290" x2="430" y2="110" stroke="#e74c3c" stroke-width="2" marker-end="url(#arrowhead)" />
+  <!-- Pin labels -->
+  <circle cx="400" cy="280" r="4" fill="#3498db" />
+  <text x="412" y="276" text-anchor="start" font-family="monospace" font-size="10" fill="#3498db">pin0</text>
+  <circle cx="400" cy="200" r="4" fill="#3498db" />
+  <text x="412" y="196" text-anchor="start" font-family="monospace" font-size="10" fill="#3498db">pin1</text>
+  <circle cx="400" cy="120" r="4" fill="#3498db" />
+  <text x="412" y="116" text-anchor="start" font-family="monospace" font-size="10" fill="#3498db">pin2</text>
+</svg>

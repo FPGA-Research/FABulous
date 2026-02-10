@@ -9,5 +9,7 @@ The API is organized hierarchically - click on a package to see its submodules a
    :titlesonly:
 
    {% for page in pages|selectattr("is_top_level_object") %}
-   {{ page.include_path }}
+   {% for subpkg in page.children|selectattr("display") %}
+   {{ subpkg.include_path }}
+   {% endfor %}
    {% endfor %}

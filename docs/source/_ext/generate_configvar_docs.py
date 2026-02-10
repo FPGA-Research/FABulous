@@ -1,19 +1,3 @@
-#!/usr/bin/env python3
-# Copyright 2024 Efabless Corporation
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-# SPDX-License-Identifier: Apache-2.0
 """Sphinx extension to auto-generate FABulous configuration variable documentation."""
 
 import ast
@@ -25,6 +9,9 @@ from sphinx.application import Sphinx
 from sphinx.config import Config
 
 logger = logging.getLogger(__name__)
+
+# Base project directory resolved from this extension's location
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
 def setup(app: Sphinx) -> dict[str, str]:  # noqa: ARG001
@@ -123,15 +110,10 @@ def extract_field_info_from_ast(item: ast.AnnAssign) -> dict | None:
     if "Optional[" in field_type:
         field_type = field_type.replace("Optional[", "").rstrip("]")
 
-    # Simplify common type names
-    type_simplifications = {
-        "Path": "Path",
-        "Version": "Version",
-        "HDLType": "HDLType",
-    }
-    for key, val in type_simplifications.items():
-        if key in field_type:
-            field_type = val
+    # If the type contains a known domain type, simplify to just that type name
+    for known_type in ("Path", "Version", "HDLType"):
+        if known_type in field_type:
+            field_type = known_type
             break
 
     if "tuple" in field_type.lower():
@@ -150,11 +132,7 @@ def extract_field_info_from_ast(item: ast.AnnAssign) -> dict | None:
             # Check if it's a Field() call
             func_name = ""
             if isinstance(item.value.func, ast.Name):
-                func_name = (
-                    item.value.func.name
-                    if hasattr(item.value.func, "name")
-                    else item.value.func.id
-                )
+                func_name = item.value.func.id
             elif isinstance(item.value.func, ast.Attribute):
                 func_name = item.value.func.attr
 
@@ -211,6 +189,39 @@ def extract_field_info_from_ast(item: ast.AnnAssign) -> dict | None:
     }
 
 
+def get_user_value_example(field_type: str) -> str:
+    """Return an example user value string based on field type.
+
+    Parameters
+    ----------
+    field_type : str
+        The type of the field.
+
+    Returns
+    -------
+    str
+        An example value string for the User Value column.
+    """
+    type_lower = field_type.lower()
+
+    if "hdltype" in type_lower:
+        return "`verilog`, `vhdl`, `sv`"
+    if type_lower == "bool":
+        return "`true` / `false`"
+    if type_lower == "int":
+        return "`1`, `2`"
+    if "path" in type_lower:
+        return "`/path/to/file`"
+    if "version" in type_lower:
+        return "`1.2.3`"
+    if "tuple" in type_lower:
+        return "`[0, 0, 1000, 1000]`"
+    if type_lower == "str":
+        return "any string"
+
+    return "-"
+
+
 def extract_fabulous_settings() -> dict:
     """Extract configuration variables from FABulousSettings class using AST parsing.
 
@@ -223,11 +234,7 @@ def extract_fabulous_settings() -> dict:
     dict
         Dictionary of settings by category.
     """
-    # Parse the FABulousSettings file using AST (use absolute path)
-    ext_file = Path(__file__).resolve()
-    settings_file = (
-        ext_file.parent.parent.parent.parent / "FABulous" / "FABulous_settings.py"
-    )
+    settings_file = _PROJECT_ROOT / "FABulous" / "FABulous_settings.py"
     source = settings_file.read_text()
     tree = ast.parse(source)
 
@@ -246,32 +253,24 @@ def extract_fabulous_settings() -> dict:
     settings: dict[str, list] = {}
 
     for info in field_info_list:
-        # Use title as category, default to "Miscellaneous" if no title
         category = info["title"] if info["title"] else "Miscellaneous"
 
-        if category not in settings:
-            settings[category] = []
-
-        # Environment variable name (FAB_ prefix)
-        env_var = f"FAB_{info['name'].upper()}"
-
-        settings[category].append(
+        settings.setdefault(category, []).append(
             {
                 "name": info["name"],
-                "env_var": env_var,
+                "env_var": f"FAB_{info['name'].upper()}",
                 "type": info["type"],
                 "description": info["description"],
                 "default": info["default"],
+                "user_value": get_user_value_example(info["type"]),
             }
         )
 
-    # Sort categories to put Miscellaneous at the end
-    sorted_settings: dict = {}
-    for key in sorted(settings.keys()):
-        if key != "Miscellaneous":
-            sorted_settings[key] = settings[key]
-    if "Miscellaneous" in settings:
-        sorted_settings["Miscellaneous"] = settings["Miscellaneous"]
+    # Sort categories alphabetically, but keep "Miscellaneous" at the end
+    misc = settings.pop("Miscellaneous", None)
+    sorted_settings = dict(sorted(settings.items()))
+    if misc is not None:
+        sorted_settings["Miscellaneous"] = misc
 
     return sorted_settings
 
@@ -286,13 +285,7 @@ def extract_cli_settables() -> list:
     list
         List of settable variable dictionaries.
     """
-    ext_file = Path(__file__).resolve()
-    cli_file = (
-        ext_file.parent.parent.parent.parent
-        / "FABulous"
-        / "FABulous_CLI"
-        / "FABulous_CLI.py"
-    )
+    cli_file = _PROJECT_ROOT / "FABulous" / "FABulous_CLI" / "FABulous_CLI.py"
 
     settables: list = []
 

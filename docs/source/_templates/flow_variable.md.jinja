@@ -10,9 +10,9 @@ FABulous settings can be configured via environment variables with the `FAB_` pr
 
 ### {{ category }}
 
-| Variable | Environment Variable | Type | Default | Description |
-|----------|---------------------|------|---------|-------------|
-{% for var in variables %}| `{{ var.name }}` | `{{ var.env_var }}` | {{ var.type }} | {{ var.default if var.default else "-" }} | {{ var.description if var.description else "-" }} |
+| Variable | Environment Variable | Type | Default | User Value | Description |
+|----------|---------------------|------|---------|------------|-------------|
+{% for var in variables %}| `{{ var.name }}` | `{{ var.env_var }}` | {{ var.type }} | {{ var.default if var.default else "-" }} | {{ var.user_value if var.user_value else "-" }} | {{ var.description if var.description else "-" }} |
 {% endfor %}
 {% endfor %}
 
