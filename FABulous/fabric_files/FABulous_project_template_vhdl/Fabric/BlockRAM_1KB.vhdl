@@ -11,22 +11,22 @@ use ieee.numeric_std.all;
 --   WRITE_ENABLE_FROM_DATA = 20
 entity BlockRAM_1KB is
   generic (
-    READ_ADDRESS_MSB_FROM_DATALSB : integer := 24;
+    READ_ADDRESS_MSB_FROM_DATALSB  : integer := 24;
     WRITE_ADDRESS_MSB_FROM_DATALSB : integer := 16;
-    WRITE_ENABLE_FROM_DATA : integer := 20
+    WRITE_ENABLE_FROM_DATA         : integer := 20
   );
   port (
-    C0 : in std_logic;
-    C1 : in std_logic;
-    C2 : in std_logic;
-    C3 : in std_logic;
-    C4 : in std_logic;
-    C5 : in std_logic;
-    clk : in std_logic;
-    rd_addr : in STD_LOGIC_VECTOR(7 downto 0);
-    rd_data : out STD_LOGIC_VECTOR(31 downto 0);
-    wr_addr : in STD_LOGIC_VECTOR(7 downto 0);
-    wr_data : in STD_LOGIC_VECTOR(31 downto 0)
+    C0      : in std_logic;
+    C1      : in std_logic;
+    C2      : in std_logic;
+    C3      : in std_logic;
+    C4      : in std_logic;
+    C5      : in std_logic;
+    clk     : in std_logic;
+    rd_addr : in std_logic_vector(7 downto 0);
+    rd_data : out std_logic_vector(31 downto 0);
+    wr_addr : in std_logic_vector(7 downto 0);
+    wr_data : in std_logic_vector(31 downto 0)
   );
 end entity;
 
@@ -35,59 +35,63 @@ end entity;
 --   WRITE_ADDRESS_MSB_FROM_DATALSB = 16
 --   WRITE_ENABLE_FROM_DATA = 20
 architecture from_verilog of BlockRAM_1KB is
-  signal alwaysWriteEnable : std_logic;  -- Declared at BlockRAM_1KB.v:25
-  signal final_dout : std_logic_vector(31 downto 0);  -- Declared at BlockRAM_1KB.v:119
-  signal memWriteEnable : std_logic;  -- Declared at BlockRAM_1KB.v:31
-  signal mem_dout : std_logic_vector(31 downto 0);  -- Declared at BlockRAM_1KB.v:73
-  signal mem_wr_mask : std_logic_vector(3 downto 0);  -- Declared at BlockRAM_1KB.v:39
-  signal muxedDataIn : std_logic_vector(31 downto 0);  -- Declared at BlockRAM_1KB.v:40
-  signal optional_register_enabled_configuration : std_logic;  -- Declared at BlockRAM_1KB.v:24
-  signal rd_dout_additional_register : std_logic_vector(31 downto 0);  -- Declared at BlockRAM_1KB.v:115
-  signal rd_dout_muxed : std_logic_vector(31 downto 0);  -- Declared at BlockRAM_1KB.v:92
-  signal rd_dout_sel : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:88
-  signal rd_port_configuration : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:22
-  signal wr_addr_topbits : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:42
-  signal wr_port_configuration : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:23
+  signal alwaysWriteEnable                       : std_logic; -- Declared at BlockRAM_1KB.v:25
+  signal final_dout                              : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:119
+  signal memWriteEnable                          : std_logic; -- Declared at BlockRAM_1KB.v:31
+  signal mem_dout                                : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:73
+  signal mem_wr_mask                             : std_logic_vector(3 downto 0); -- Declared at BlockRAM_1KB.v:39
+  signal muxedDataIn                             : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:40
+  signal optional_register_enabled_configuration : std_logic; -- Declared at BlockRAM_1KB.v:24
+  signal rd_dout_additional_register             : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:115
+  signal rd_dout_muxed                           : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:92
+  signal rd_dout_sel                             : std_logic_vector(1 downto 0); -- Declared at BlockRAM_1KB.v:88
+  signal rd_port_configuration                   : std_logic_vector(1 downto 0); -- Declared at BlockRAM_1KB.v:22
+  signal wr_addr_topbits                         : std_logic_vector(1 downto 0); -- Declared at BlockRAM_1KB.v:42
+  signal wr_port_configuration                   : std_logic_vector(1 downto 0); -- Declared at BlockRAM_1KB.v:23
+  -- Added for type alignment with model_pack unsigned ports
+  signal mem_dout_u : unsigned(31 downto 0);
 
   component sram_1rw1r_32_256_8_sky130 is
     port (
-      addr0 : in std_logic_vector(7 downto 0);
-      addr1 : in std_logic_vector(7 downto 0);
-      clk0 : in std_logic;
-      clk1 : in std_logic;
-      csb0 : in std_logic;
-      csb1 : in std_logic;
-      din0 : in std_logic_vector(31 downto 0);
-      dout0 : out std_logic_vector(31 downto 0);
-      dout1 : out std_logic_vector(31 downto 0);
-      web0 : in std_logic;
-      wmask0 : in std_logic_vector(3 downto 0)
+      addr0  : in unsigned(7 downto 0);
+      addr1  : in unsigned(7 downto 0);
+      clk0   : in std_logic;
+      clk1   : in std_logic;
+      csb0   : in std_logic;
+      csb1   : in std_logic;
+      din0   : in unsigned(31 downto 0);
+      dout0  : out unsigned(31 downto 0);
+      dout1  : out unsigned(31 downto 0);
+      web0   : in std_logic;
+      wmask0 : in unsigned(3 downto 0)
     );
   end component;
 begin
-  alwaysWriteEnable <= C4;
+  alwaysWriteEnable                       <= C4;
   optional_register_enabled_configuration <= C5;
-  rd_data <= final_dout;
-  wr_port_configuration <= C0 & C1;
-  rd_port_configuration <= C2 & C3;
-  wr_addr_topbits <= wr_data(READ_ADDRESS_MSB_FROM_DATALSB + 1 downto READ_ADDRESS_MSB_FROM_DATALSB);
-
-
+  rd_data                                 <= final_dout;
+  wr_port_configuration                   <= C0 & C1;
+  rd_port_configuration                   <= C2 & C3;
+  wr_addr_topbits                         <= wr_data(READ_ADDRESS_MSB_FROM_DATALSB + 1 downto READ_ADDRESS_MSB_FROM_DATALSB);
 
   -- Generated from instantiation at BlockRAM_1KB.v:75
-  memory_cell: sram_1rw1r_32_256_8_sky130
-    port map (
-      addr0 => wr_addr,
-      addr1 => rd_addr,
-      clk0 => clk,
-      clk1 => clk,
-      csb0 => memWriteEnable,
-      csb1 => '0',
-      din0 => muxedDataIn,
-      dout1 => mem_dout,
-      web0 => memWriteEnable,
-      wmask0 => mem_wr_mask
-    );
+  memory_cell : sram_1rw1r_32_256_8_sky130
+  port map
+  (
+    addr0  => unsigned(wr_addr),
+    addr1  => unsigned(rd_addr),
+    clk0   => clk,
+    clk1   => clk,
+    csb0   => memWriteEnable,
+    csb1   => '0',
+    din0   => unsigned(muxedDataIn),
+    dout1  => mem_dout_u,
+    web0   => memWriteEnable,
+    wmask0 => unsigned(mem_wr_mask)
+  );
+
+  -- Convert unsigned memory output back to std_logic_vector
+  mem_dout <= std_logic_vector(mem_dout_u);
 
   -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:32)
   process (alwaysWriteEnable, wr_data) is
@@ -109,27 +113,27 @@ begin
     else
       if wr_port_configuration = "01" then
         if wr_addr_topbits = "00" then
-          mem_wr_mask <= X"3";
+          mem_wr_mask                  <= X"3";
           muxedDataIn(0 + 15 downto 0) <= wr_data(0 + 15 downto 0);
         else
-          mem_wr_mask <= X"c";
+          mem_wr_mask                    <= X"c";
           muxedDataIn(16 + 15 downto 16) <= wr_data(0 + 15 downto 0);
         end if;
       else
         if wr_port_configuration = "10" then
           if wr_addr_topbits = "00" then
-            mem_wr_mask <= X"1";
+            mem_wr_mask                 <= X"1";
             muxedDataIn(0 + 7 downto 0) <= wr_data(0 + 7 downto 0);
           else
             if wr_addr_topbits = "01" then
-              mem_wr_mask <= X"2";
+              mem_wr_mask                 <= X"2";
               muxedDataIn(8 + 7 downto 8) <= wr_data(0 + 7 downto 0);
             else
               if wr_addr_topbits = "10" then
-                mem_wr_mask <= X"4";
+                mem_wr_mask                   <= X"4";
                 muxedDataIn(16 + 7 downto 16) <= wr_data(0 + 7 downto 0);
               else
-                mem_wr_mask <= X"8";
+                mem_wr_mask                   <= X"8";
                 muxedDataIn(24 + 7 downto 24) <= wr_data(0 + 7 downto 0);
               end if;
             end if;
@@ -179,8 +183,6 @@ begin
       end if;
     end if;
   end process;
-
-
   -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:116)
   process (clk) is
   begin
@@ -198,42 +200,4 @@ begin
       final_dout <= rd_dout_muxed;
     end if;
   end process;
-end architecture;
-
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-
--- Generated from Verilog module sram_1rw1r_32_256_8_sky130 (BlockRAM_1KB.v:132)
---   ADDR_WIDTH = 8
---   DATA_WIDTH = 32
---   DELAY = 3
---   NUM_WMASKS = 4
---   RAM_DEPTH = 256
-entity sram_1rw1r_32_256_8_sky130 is
-  port (
-    addr0 : in std_logic_vector(7 downto 0);
-    addr1 : in std_logic_vector(7 downto 0);
-    clk0 : in std_logic;
-    clk1 : in std_logic;
-    csb0 : in std_logic;
-    csb1 : in std_logic;
-    din0 : in std_logic_vector(31 downto 0);
-    dout0 : out std_logic_vector(31 downto 0);
-    dout1 : out std_logic_vector(31 downto 0);
-    web0 : in std_logic;
-    wmask0 : in std_logic_vector(3 downto 0)
-  );
-end entity;
-
--- Generated from Verilog module sram_1rw1r_32_256_8_sky130 (BlockRAM_1KB.v:132)
---   ADDR_WIDTH = 8
---   DATA_WIDTH = 32
---   DELAY = 3
---   NUM_WMASKS = 4
---   RAM_DEPTH = 256
-architecture from_verilog of sram_1rw1r_32_256_8_sky130 is
-begin
-  dout0 <= (others => '0');
-  dout1 <= (others => '0');
 end architecture;
