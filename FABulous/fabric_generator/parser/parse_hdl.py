@@ -193,7 +193,8 @@ def parseBelFile(
         The BEL file contains invalid BEL definitions. Such as wrong attribute type on
         wrong port type. i.e SHARE_EN on output ports
     ValueError
-        Port naming is reused
+        - If CARRY port prefix is not a string
+        - Port naming is reused
     """
     internal: list[tuple[str, IO]] = []
     external: list[tuple[str, IO]] = []
@@ -279,6 +280,11 @@ def parseBelFile(
                 if carryPrefix == 1:
                     # Default carry prefix, yosys uses 1 if no value is specified
                     carryPrefix = "FABulous_default"
+                if type(carryPrefix) is not str:
+                    raise ValueError(
+                        f"CARRY prefix attribute value must be a string for port "
+                        f"{new_port_name} in BEL {filename}!"
+                    )
                 if direction is IO["INOUT"]:
                     raise ValueError(
                         f"CARRY can't be used with INOUT ports for port "
