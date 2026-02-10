@@ -16,11 +16,11 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from FABulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
+from fabulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
     FABulousFabricMacroFullFlow,
     _run_tile_flow_worker,
 )
-from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
+from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 
 if TYPE_CHECKING:
     from librelane.state.state import State

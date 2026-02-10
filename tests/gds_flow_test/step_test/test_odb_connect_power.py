@@ -7,7 +7,7 @@ from librelane.config.config import Config
 from librelane.state.state import State
 from pytest_mock import MockerFixture
 
-from FABulous.fabric_generator.gds_generator.steps.odb_connect_pdn import (
+from fabulous.fabric_generator.gds_generator.steps.odb_connect_pdn import (
     FABulousPDN,
 )
 

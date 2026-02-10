@@ -8,9 +8,9 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
 
-from FABulous.FABulous_CLI.FABulous_CLI import FABulous_CLI
-from FABulous.FABulous_CLI.helper import create_project, setup_logger
-from FABulous.FABulous_settings import init_context, reset_context
+from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+from fabulous.fabulous_cli.helper import create_project, setup_logger
+from fabulous.fabulous_settings import init_context, reset_context
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]

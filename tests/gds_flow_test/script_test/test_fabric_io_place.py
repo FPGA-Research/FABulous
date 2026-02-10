@@ -32,7 +32,7 @@ def _io_place_setup(
 ) -> None:  # noqa: ANN001, ANN202
     """Setup io_place with mocked OdbReader and odb module."""
 
-    from FABulous.fabric_generator.gds_generator.script import fabric_io_place
+    from fabulous.fabric_generator.gds_generator.script import fabric_io_place
 
     # Patch odb module using monkeypatch
     monkeypatch.setattr(fabric_io_place, "odb", mock_odb_io_place)
@@ -46,7 +46,7 @@ def _call_io_place(
     """Call the actual io_place function with mocked dependencies."""
     from librelane.scripts.odbpy.reader import OdbReader
 
-    from FABulous.fabric_generator.gds_generator.script import fabric_io_place
+    from fabulous.fabric_generator.gds_generator.script import fabric_io_place
 
     # Mock OdbReader to return our mock reader
     def mock_odbreader_init(self: object, *_args: object, **_: object) -> None:
@@ -136,7 +136,9 @@ def test_io_place_north_side_placement(
     # Verify pin width is correct (using width multiplier)
     expected_width = v_layer.getWidth() * 2.0  # width_mult = 2.0
     actual_width = x2 - x1
-    assert actual_width == expected_width, f"Pin width should be {expected_width}, got {actual_width}"
+    assert actual_width == expected_width, (
+        f"Pin width should be {expected_width}, got {actual_width}"
+    )
 
 
 @pytest.mark.usefixtures("_io_place_setup")
@@ -199,7 +201,9 @@ def test_io_place_all_four_sides(
     # Verify boundary coordinates for each side
     # North pin should extend to y=1000 (die yMax)
     north_y2 = placements_by_name["north_pin"][4]
-    assert north_y2 == 1000, f"North pin should extend to die yMax (1000), got {north_y2}"
+    assert north_y2 == 1000, (
+        f"North pin should extend to die yMax (1000), got {north_y2}"
+    )
 
     # South pin should extend to y=0 (die yMin)
     south_y1 = placements_by_name["south_pin"][2]

@@ -7,13 +7,12 @@ Tests focus on:
 - IO pin configuration generation
 """
 
-
 import pytest
 import yaml
 from pytest_mock import MockerFixture
 
-from FABulous.fabric_definition.define import PinSortMode, Side
-from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+from fabulous.fabric_definition.define import PinSortMode, Side
+from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     PinOrderConfig,
     _serialize_supertile_ports,
     _serialize_tile_ports,
@@ -426,7 +425,7 @@ class TestGenerateIOPinOrderConfig:
         self, mock_fabric, mocker: MockerFixture, tmp_path
     ):
         """Test generation for a SuperTile."""
-        from FABulous.fabric_definition.SuperTile import SuperTile
+        from fabulous.fabric_definition.supertile import SuperTile
 
         # Create mock supertile
         mock_supertile = mocker.MagicMock(spec=SuperTile)
@@ -497,7 +496,7 @@ class TestGenerateIOPinOrderConfig:
         self, mock_fabric, mocker: MockerFixture, tmp_path
     ):
         """Test supertile with multiple positions uses top-left."""
-        from FABulous.fabric_definition.SuperTile import SuperTile
+        from fabulous.fabric_definition.supertile import SuperTile
 
         mock_supertile = mocker.MagicMock(spec=SuperTile)
 

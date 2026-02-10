@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from dotenv import set_key
 
-from FABulous.FABulous_CLI.helper import create_project
+from fabulous.fabulous_cli.helper import create_project
 
 TILE = "LUT4AB"
 

@@ -8,7 +8,7 @@ from librelane.config.config import Config
 from librelane.state.state import State
 from pytest_mock import MockerFixture, MockFixture
 
-from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import (
+from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import (
     OptMode,
     TileOptimisation,
 )
@@ -133,7 +133,7 @@ class TestTileOptimisation:
         self, mock_config: Config, mock_state: State, mocker: MockFixture
     ) -> None:
         """Test mid_iteration_break returns True on DRC errors."""
-        from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import (
+        from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import (
             Checker,
         )
 

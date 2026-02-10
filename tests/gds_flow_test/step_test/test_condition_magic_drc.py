@@ -1,12 +1,12 @@
 """Tests for ConditionalMagicDRC step."""
 
-from FABulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
-    ConditionalMagicDRC,
-)
 from librelane.config.config import Config
 from librelane.state.state import State
-
 from pytest_mock import MockFixture
+
+from fabulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
+    ConditionalMagicDRC,
+)
 
 
 class test_ConditionalMagicDRC:

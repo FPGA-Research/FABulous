@@ -8,7 +8,7 @@ from librelane.state.state import State
 from pytest_mock import MockFixture
 from pytest_mock.plugin import MockerFixture
 
-from FABulous.fabric_generator.gds_generator.steps.auto_diode import (
+from fabulous.fabric_generator.gds_generator.steps.auto_diode import (
     AutoEcoDiodeInsertion,
 )
 
