@@ -8,6 +8,7 @@ various fabric-related operations.
 from collections.abc import Iterable
 from pathlib import Path
 
+import yaml
 from loguru import logger
 
 import FABulous.fabric_cad.gen_npnr_model as model_gen_npnr
@@ -24,6 +25,19 @@ from FABulous.fabric_generator.code_generator import CodeGenerator
 from FABulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
+from FABulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
+    FABulousFabricMacroFlow,
+)
+from FABulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
+    FABulousFabricMacroFullFlow,
+)
+from FABulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
+    FABulousTileVerilogMacroFlow,
+)
+from FABulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+    generate_IO_pin_order_config,
+)
+from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 from FABulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from FABulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from FABulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
@@ -467,3 +481,181 @@ class FABulous_API:
             if tile.gen_ios:
                 logger.info(f"Generating IO BELs for tile {tile.name}")
                 self.genIOBelForTile(tile.name)
+
+    def gen_io_pin_order_config(self, tile: Tile | SuperTile, outfile: Path) -> None:
+        """Generate IO pin order configuration YAML for a tile or super tile.
+
+        Parameters
+        ----------
+        tile : Tile | SuperTile
+            The fabric element for which to generate the configuration.
+        outfile : Path
+            Output YAML path.
+        """
+        generate_IO_pin_order_config(self.fabric, tile, outfile)
+
+    def genTileMacro(
+        self,
+        tile_dir: Path,
+        io_pin_config: Path,
+        out_folder: Path,
+        *,
+        final_view: Path | None = None,
+        optimisation: OptMode = OptMode.BALANCE,
+        base_config_path: Path | None = None,
+        config_override_path: Path | None = None,
+        custom_config_overrides: dict | None = None,
+        pdk_root: Path | None = None,
+        pdk: str | None = None,
+    ) -> None:
+        """Run the macro flow to generate the macro Verilog files."""
+        if pdk_root is None:
+            pdk_root = get_context().pdk_root.parent
+        if pdk is None:
+            pdk = get_context().pdk
+            if pdk is None:
+                raise ValueError("PDK must be specified either here or in settings.")
+
+        logger.info(f"PDK root: {pdk_root}")
+        logger.info(f"PDK: {pdk}")
+        logger.info(f"Output folder: {out_folder.resolve()}")
+        flow = FABulousTileVerilogMacroFlow(
+            self.fabric.getTileByName(tile_dir.name),
+            io_pin_config,
+            optimisation,
+            pdk=pdk,
+            pdk_root=pdk_root,
+            base_config_path=base_config_path,
+            override_config_path=config_override_path,
+            **custom_config_overrides or {},
+        )
+        result = flow.start()
+        if final_view:
+            logger.info(f"Saving final view to {final_view}")
+            result.save_snapshot(final_view)
+        else:
+            logger.info(
+                f"Saving final views for FABulous to {out_folder / 'final_views'}"
+            )
+            result.save_snapshot(out_folder / "final_views")
+        logger.info("Macro flow completed.")
+
+    def fabric_stitching(
+        self,
+        tile_macro_paths: dict[str, Path],
+        fabric_path: Path,
+        out_folder: Path,
+        *,
+        base_config_path: Path | None = None,
+        config_override_path: Path | None = None,
+        pdk_root: Path | None = None,
+        pdk: str | None = None,
+        **custom_config_overrides: dict,
+    ) -> None:
+        """Run the stitching flow to assemble tile macros into a fabric-level GDS.
+
+        Parameters
+        ----------
+        tile_macro_paths : dict[str, Path]
+            Dictionary mapping tile names to their macro output directories.
+        fabric_path : Path
+            Path to the fabric-level Verilog file.
+        out_folder : Path
+            Output directory for the stitched fabric.
+        base_config_path : Path | None
+            Path to base configuration YAML file.
+        config_override_path : Path | None, optional
+            Additional configuration overrides.
+        pdk_root : Path | None, optional
+            Path to PDK root directory.
+        pdk : str | None, optional
+            PDK name to use.
+        **custom_config_overrides : dict
+            software configuration overrides.
+
+        Raises
+        ------
+        ValueError
+            If PDK root or PDK is not specified.
+        """
+        if pdk_root is None:
+            pdk_root = get_context().pdk_root
+        if pdk is None:
+            pdk = get_context().pdk
+            if pdk is None:
+                raise ValueError("PDK must be specified either here or in settings.")
+
+        logger.info(f"PDK root: {pdk_root}")
+        logger.info(f"PDK: {pdk}")
+        logger.info(f"Output folder: {out_folder.resolve()}")
+
+        flow = FABulousFabricMacroFlow(
+            fabric=self.fabric,
+            fabric_verilog_paths=[fabric_path],
+            tile_macro_dirs=tile_macro_paths,
+            base_config_path=base_config_path,
+            config_override_path=config_override_path,
+            design_dir=out_folder,
+            pdk_root=pdk_root,
+            pdk=pdk,
+            **custom_config_overrides,
+        )
+        result = flow.start()
+        logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
+        result.save_snapshot(out_folder / "final_views")
+        logger.info("Stitching flow completed.")
+
+    def full_fabric_automation(
+        self,
+        project_dir: Path,
+        out_folder: Path,
+        *,
+        pdk_root: Path | None = None,
+        pdk: str | None = None,
+        base_config_path: Path | None = None,
+        config_override_path: Path | None = None,
+        tile_opt_config: Path | None = None,
+        **config_overrides: dict,
+    ) -> None:
+        """Run the stitching flow to assemble tile macros into a fabric-level GDS."""
+        if pdk_root is None:
+            pdk_root = get_context().pdk_root
+            if pdk_root is None:
+                raise ValueError(
+                    "PDK root must be specified either here or in settings."
+                )
+        if pdk is None:
+            pdk = get_context().pdk
+            if pdk is None:
+                raise ValueError("PDK must be specified either here or in settings.")
+
+        logger.info(f"PDK root: {pdk_root}")
+        logger.info(f"PDK: {pdk}")
+        logger.info(f"Output folder: {out_folder.resolve()}")
+        final_config_args = {}
+        if base_config_path is not None:
+            final_config_args.update(
+                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
+            )
+        if config_override_path is not None:
+            final_config_args.update(
+                yaml.safe_load(config_override_path.read_text(encoding="utf-8"))
+            )
+        final_config_args["FABULOUS_PROJ_DIR"] = str(project_dir.resolve())
+        final_config_args["FABULOUS_FABRIC"] = self.fabric
+        final_config_args["DESIGN_NAME"] = self.fabric.name
+        if tile_opt_config is not None:
+            final_config_args["TILE_OPT_INFO"] = str(tile_opt_config)
+        if config_overrides:
+            final_config_args.update(config_overrides)
+        flow = FABulousFabricMacroFullFlow(
+            final_config_args,
+            name=self.fabric.name,
+            design_dir=str(out_folder.resolve()),
+            pdk=pdk,
+            pdk_root=str((pdk_root).resolve().parent),
+        )
+        result = flow.start()
+        logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
+        result.save_snapshot(out_folder / "final_views")
+        logger.info("Stitching flow completed.")

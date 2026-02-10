@@ -6,6 +6,7 @@ management, and OSS CAD Suite installation. It serves as a collection of common
 functionalities used throughout the CLI components.
 """
 
+import argparse
 import functools
 import os
 import platform
@@ -21,12 +22,13 @@ from importlib import resources
 from importlib.metadata import version
 from importlib.resources.abc import Traversable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import requests
 from dotenv import get_key, set_key
 from loguru import logger
 from packaging.version import Version
+from pick import pick
 
 from FABulous.custom_exception import PipelineCommandError
 from FABulous.fabric_definition.define import HDLType
@@ -787,3 +789,58 @@ def install_fabulator(install_dir: Path) -> None:
         )
 
     add_var_to_global_env("FAB_FABULATOR_ROOT", str(fabulator_dir.absolute()))
+
+
+def get_file_path(
+    project_dir: Path,
+    args: argparse.Namespace,
+    file_extension: str,
+    show_count: int = 0,
+) -> str:
+    """Get the file path for the specified file extension."""
+
+    def get_latest(directory: Path, file_extension: str) -> str:
+        """Get the latest modified file in a directory."""
+        files = list(directory.glob(f"**/*.{file_extension}"))
+        if not files:
+            raise FileNotFoundError(
+                f"No .{file_extension} files found in the specified directory."
+            )
+        latest_file = max(files, key=lambda f: f.stat().st_mtime)
+        return str(latest_file)
+
+    def get_option(f: Path, file_extension: str) -> str:
+        title = "Select which file to view"
+        files_list = sorted(
+            f.glob(f"**/*.{file_extension}"),
+            key=lambda f: f.stat().st_mtime,
+            reverse=True,
+        )[:show_count]
+        _, idx = pick(
+            list(map(lambda x: str(x.relative_to(project_dir)), files_list)),
+            title,
+        )
+        return str(files_list[cast("int", idx)])
+
+    file: str = ""
+    if args.last_run:
+        if args.fabric:
+            file = get_latest(project_dir / "Fabric", file_extension)
+        elif args.tile is not None:
+            file = get_latest(project_dir / "Tile" / args.tile, file_extension)
+        else:
+            file = get_latest(project_dir, file_extension)
+    else:
+        if args.fabric:
+            file = get_option(project_dir / "Fabric", file_extension)
+        elif args.tile is not None:
+            file = get_option(project_dir / "Tile" / args.tile, file_extension)
+        elif args.tile is None and not args.fabric:
+            file = get_option(project_dir, file_extension)
+
+    if not file:
+        raise FileNotFoundError(
+            f"No .{file_extension} files found in the specified directory."
+        )
+
+    return file

@@ -1,9 +1,11 @@
 """Test module for FABulous CLI command functionality.
 
 This module contains tests for various CLI commands including fabric generation,
-tile generation, bitstream creation, and simulation execution.
+tile generation, bitstream creation, simulation execution, and GUI commands.
 """
 
+import argparse
+import time
 from pathlib import Path
 
 import pytest
