@@ -53,6 +53,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
 
     Raises
     ------
+    ValueError
+        If CARRY port prefix is not a string
     FileExistsError
         If the input does not exist.
     InvalidFileType
@@ -107,6 +109,17 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     # For prefix after carry
                     carryPrefix = re.search(r'CARRY="([^"]+)"', temp[6])
                     if not carryPrefix:
+                        if "=" in temp[6] and '"' not in temp[6]:
+                            # Crude check if its defined as string string notation
+                            logger.error(
+                                "CARRY port prefix has to be a string for ",
+                                f"{temp[6]}.",
+                            )
+                            raise ValueError
+                        logger.info(
+                            "CARRY port without prefix,"
+                            "using default prefix FABulous_default"
+                        )
                         carryPrefix = "FABulous_default"
                     else:
                         carryPrefix = carryPrefix.group(1)

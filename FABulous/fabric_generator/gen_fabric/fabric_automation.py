@@ -185,6 +185,7 @@ def generateSwitchmatrixList(
     Raises
     ------
     ValueError
+        - Carry port prefixes in tile config and bels do not match.
         - Bels have more than 32 Bel inputs.
         - Bels have more than 8 Bel outputs.
         - Invalid list formatting in file.
@@ -216,6 +217,15 @@ def generateSwitchmatrixList(
             belIns.remove(carrys[prefix][IO.INPUT])
             carryports[prefix][IO.OUTPUT].append(carrys[prefix][IO.OUTPUT])
             belOuts.remove(carrys[prefix][IO.OUTPUT])
+
+    # check if carry prefixes match
+    if set(carryportsTile.keys()) != set(carryports.keys()):
+        logger.error(
+            "Carry port prefixes in tile config and bels do not match! ",
+            f"Carry prefixes in tile config: {set(carryportsTile.keys())}, ",
+            f"carry prefixes in bels: {set(carryports.keys())}",
+        )
+        raise ValueError
 
     # Remove local shared ports from bel ports for further processing
     for bel in belLocalSharedPorts:
