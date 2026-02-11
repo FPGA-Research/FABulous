@@ -13,3 +13,10 @@ The API is organized hierarchically - click on a package to see its submodules a
    {{ subpkg.include_path }}
    {% endfor %}
    {% endfor %}
+
+.. toctree::
+   :hidden:
+
+   {% for page in pages|selectattr("is_top_level_object") %}
+   {{ page.include_path }}
+   {% endfor %}
