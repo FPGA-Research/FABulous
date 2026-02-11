@@ -1,10 +1,12 @@
 (fabric-automation)=
+
 # FABulous Fabric Automation
 
 The fabric automation offers a set of tools and commands to automate common tasks
 in FABulous and explains them with detailed examples.
 
 (generating-custom-tiles)=
+
 ## Generating Custom Tiles
 
 Defining a custom fabric, custom tiles or just add some custom functionality
@@ -704,7 +706,7 @@ But you can instantiate multiple carry chains in a tile, by using different pref
 
 Before we can generate our custom tile, we have to annotate our BEL ports first.
 We add the `CARRY` attribute to the carry input and output ports. Just for
-completion, we also define a carry prefix `CARRY=0`, which is only mandatory if we have
+completion, we also define a carry prefix `CARRY="C0"`, which is only mandatory if we have
 more than one carry bit. We also set the `SHARED_RESET` and `SHARED_ENABLE` attributes for
 our enable and reset ports. We will also rename our module to `LUT4c_test` to avoid
 conflicts with the original `LUT4c_frame_config_dffesr` module.
@@ -718,8 +720,8 @@ INIT_15=15, FF=16, IOmux=17, SET_NORESET=18 *)
 module LUT4c_test #(parameter NoConfigBits = 19)(
     input [3:0]  I,           // Vector for I0, I1, I2, I3
     output       O,           // Single output for LUT result
-    (* FABulous, CARRY=0 *)      input   Ci,          // Carry chain input
-    (* FABulous, CARRY=0 *)      output  Co,          // Carry chain output
+    (* FABulous, CARRY="C0" *)    input   Ci,          // Carry chain input
+    (* FABulous, CARRY="C0" *)    output  Co,          // Carry chain output
     (* FABulous, SHARED_RESET *)  input   SR,          // SHARED_RESET
     (* FABulous, SHARED_ENABLE *) input   EN,          // SHARED_ENABLE
     (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK, // External and shared clock
@@ -764,7 +766,7 @@ MATRIX,GENERATE
 EndTILE
 ```
 
-You can see the annotated information for our carry chain `CARRY="CO"` as well as our
+You can see the annotated information for our carry chain `CARRY="C0"` as well as our
 shared reset `SHARED_RESET` and `SHARED_ENABLE` ports.
 
 :::{note}
