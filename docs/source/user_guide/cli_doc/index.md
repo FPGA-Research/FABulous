@@ -7,5 +7,5 @@ The FABulous command-line interface (CLI) provides a set of tools for generating
 ```{toctree}
 cli_feature
 /generated_doc/interactive_cli_commands
-/generated_doc/fabulous_variable
+fabulous_variable
 ```

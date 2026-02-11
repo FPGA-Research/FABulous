@@ -13,6 +13,13 @@ logger = logging.getLogger(__name__)
 # Base project directory resolved from this extension's location
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
+# Scope labels used to categorize settings by their variable name prefix.
+_SCOPE_GLOBAL = "Global Environment Variables"
+_SCOPE_PROJECT = "Project Specific Environment Variables"
+
+# Display order for scopes (global before project-specific).
+_SCOPE_ORDER = [_SCOPE_GLOBAL, _SCOPE_PROJECT]
+
 
 def setup(app: Sphinx) -> dict[str, str]:  # noqa: ARG001
     """Set up the Sphinx extension.
@@ -234,17 +241,53 @@ def get_user_value_example(field_type: str) -> str:
     return "-"
 
 
-def extract_fabulous_settings() -> dict:
-    """Extract configuration variables from FABulousSettings class using AST parsing.
+def _sort_settings_by_scope(
+    settings: dict[str, dict[str, list]],
+) -> dict[str, dict[str, list]]:
+    """Return *settings* ordered by ``_SCOPE_ORDER`` with sorted subcategories.
 
-    Returns a dictionary with categorized settings variables with descriptions.
-    Categories are determined by the 'title' field in Field() calls. Variables without a
-    title are placed in the 'Miscellaneous' category.
+    Within each scope the subcategories are sorted alphabetically, except
+    "General" which is placed last (it acts as the catch-all bucket).
+
+    Parameters
+    ----------
+    settings : dict[str, dict[str, list]]
+        Unsorted settings produced by the categorization loop.
 
     Returns
     -------
-    dict
-        Dictionary of settings by category.
+    dict[str, dict[str, list]]
+        A new dictionary with deterministic ordering.
+    """
+    result: dict[str, dict[str, list]] = {}
+
+    for scope in _SCOPE_ORDER:
+        if scope not in settings:
+            continue
+        subcats = settings[scope]
+        sorted_subcats = dict(
+            sorted((k, v) for k, v in subcats.items() if k != "General")
+        )
+        general = subcats.get("General")
+        if general is not None:
+            sorted_subcats["General"] = general
+        result[scope] = sorted_subcats
+
+    return result
+
+
+def extract_fabulous_settings() -> dict[str, dict[str, list]]:
+    """Extract configuration variables from FABulousSettings class using AST parsing.
+
+    Returns a two-level nested dictionary: outer key is the scope
+    ("Global Environment Variables" / "Project Specific Environment Variables"),
+    inner key is the subcategory from the ``title`` field in ``Field()`` calls
+    (falling back to "General").
+
+    Returns
+    -------
+    dict[str, dict[str, list]]
+        Nested dictionary of settings by scope and subcategory.
     """
     settings_file = _PROJECT_ROOT / "fabulous" / "fabulous_settings.py"
     source = settings_file.read_text()
@@ -261,13 +304,14 @@ def extract_fabulous_settings() -> dict:
                     if field_info and not field_info["deprecated"]:
                         field_info_list.append(field_info)
 
-    # Dynamically categorize settings based on title field
-    settings: dict[str, list] = {}
+    # Two-level categorization: scope (by prefix) -> subcategory (by title)
+    settings: dict[str, dict[str, list]] = {}
 
     for info in field_info_list:
-        category = info["title"] or "Miscellaneous"
+        scope = _SCOPE_PROJECT if info["name"].startswith("proj_") else _SCOPE_GLOBAL
+        subcategory = info["title"] or "General"
 
-        settings.setdefault(category, []).append(
+        settings.setdefault(scope, {}).setdefault(subcategory, []).append(
             {
                 "name": info["name"],
                 "env_var": f"FAB_{info['name'].upper()}",
@@ -278,13 +322,7 @@ def extract_fabulous_settings() -> dict:
             }
         )
 
-    # Sort categories alphabetically, but keep "Miscellaneous" at the end
-    misc = settings.pop("Miscellaneous", None)
-    sorted_settings = dict(sorted(settings.items()))
-    if misc is not None:
-        sorted_settings["Miscellaneous"] = misc
-
-    return sorted_settings
+    return _sort_settings_by_scope(settings)
 
 
 def extract_cli_settables() -> list:

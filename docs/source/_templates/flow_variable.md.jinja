@@ -1,18 +1,15 @@
-(fabulous-variables)=
-# FABulous Configuration Variables
+{% for scope, subcategories in settings_vars.items() %}
+## {{ scope }}
 
-This is an auto-generated reference of all FABulous configuration variables.
+{% for subcategory, variables in subcategories.items() %}
+{% if subcategory != "General" %}
+### {{ subcategory }}
 
-## Environment Variables
-
-FABulous settings can be configured via environment variables with the `FAB_` prefix. These can be set in your shell or in a `.env` file in your project's `.FABulous` directory.
-{% for category, variables in settings_vars.items() %}
-
-### {{ category }}
-
+{% endif %}
 | Variable | Environment Variable | Type | Default | User Value | Description |
 |----------|---------------------|------|---------|------------|-------------|
-{% for var in variables %}| `{{ var.name }}` | `{{ var.env_var }}` | {{ var.type }} | {{ var.default if var.default else "-" }} | {{ var.user_value if var.user_value else "-" }} | {{ var.description if var.description else "-" }} |
+{% for var in variables %}| `{{ var.name }}` | `{{ var.env_var }}` | {{ var.type }} | {{ var.default | default("-", true) }} | {{ var.user_value | default("-", true) }} | {{ var.description | default("-", true) }} |
+{% endfor %}
 {% endfor %}
 {% endfor %}
 
