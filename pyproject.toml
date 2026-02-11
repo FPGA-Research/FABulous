@@ -53,9 +53,9 @@ Discussions = "https://github.com/FPGA-Research/FABulous/discussions"
 
 
 [project.scripts]
-FABulous = "FABulous.FABulous:main"
+FABulous = "fabulous.fabulous:main"
 #alias for better usability
-fabulous = "FABulous.FABulous:main"
+fabulous = "fabulous.fabulous:main"
 
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
@@ -70,7 +70,7 @@ exclude = [
 ] # exclude packages matching these glob patterns (empty by default)
 
 [tool.setuptools.package-data]
-FABulous = ["**/*"]
+fabulous = ["**/*"]
 
 [tool.interrogate]
 ignore-init-method = false
@@ -120,7 +120,7 @@ dev = [
 [tool.coverage.run]
 branch = true
 parallel = true
-source = ["FABulous"]
+source = ["fabulous"]
 
 [tool.coverage.report]
 omit = ["*/__init__.py", "*/__pycache__/*", "tests/*", "demo/*", "docs/*"]
@@ -182,7 +182,7 @@ project-upgrade = "uv lock --upgrade && nix flake update && task test"
 [tool.deptry]
 # Ignore platform-specific readline dependencies for DEP002 (defined but not used)
 # These are indirect requirements needed by cmd2 and other interactive CLI tools
-extend_exclude = ["FABulous/fabric_generator/gds_generator/script"]
+extend_exclude = ["fabulous/fabric_generator/gds_generator/script"]
 
 [tool.deptry.per_rule_ignores]
 DEP002 = ["pyreadline3", "gnureadline"]

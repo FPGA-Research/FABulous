@@ -10,11 +10,11 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from FABulous.fabric_definition.ConfigMem import ConfigMem
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_generator.code_generator.code_generator import CodeGenerator
-from FABulous.fabric_generator.gen_fabric.gen_configmem import (
+from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     generateConfigMem,
     generateConfigMemInit,
 )
@@ -269,7 +269,7 @@ class TestGeneratedConfigMemRTL:
 
         # Mock parseConfigMem to return our configmem_list fixture
         mock_parse = mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem"
+            "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem"
         )
         mock_parse.return_value = config_memlist_data
 

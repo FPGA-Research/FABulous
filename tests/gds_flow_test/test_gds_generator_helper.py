@@ -9,7 +9,7 @@ import pytest
 from librelane.config.config import Config
 from pytest_mock import MockerFixture
 
-from FABulous.fabric_generator.gds_generator.helper import (
+from fabulous.fabric_generator.gds_generator.helper import (
     get_layer_info,
     get_pitch,
     get_routing_obstructions,

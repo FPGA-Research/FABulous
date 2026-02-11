@@ -3,7 +3,7 @@ name: Test fabric generation against base branch
 on:
   pull_request:
     paths:
-      - 'FABulous/**'
+      - 'fabulous/**'
       - 'tests/**'
       - 'pyproject.toml'
       - '.github/workflows/backwards-compatibility.yml'

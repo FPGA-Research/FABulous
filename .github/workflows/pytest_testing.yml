@@ -3,14 +3,14 @@ name: Testing with pytest and cocotb
 on:
   push:
     paths:
-      - 'FABulous/**'
+      - 'fabulous/**'
       - 'tests/**'
       - 'pyproject.toml'
       - '.github/workflows/pytest_testing.yml'
       - '.github/actions/**'
   pull_request:
     paths:
-      - 'FABulous/**'
+      - 'fabulous/**'
       - 'tests/**'
       - 'pyproject.toml'
       - '.github/workflows/pytest_testing.yml'
@@ -110,7 +110,7 @@ jobs:
           uv run pytest \
             --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
             --store-durations --clean-durations -v -x --runslow \
-            --cov=FABulous --cov-branch --cov-config=pyproject.toml --cov-report= \
+            --cov=fabulous --cov-branch --cov-config=pyproject.toml --cov-report= \
             || {
             exit_code=$?
             if [ $exit_code -eq 5 ]; then

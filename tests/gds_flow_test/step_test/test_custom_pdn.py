@@ -4,7 +4,7 @@ This step only customizes the default PDN_CFG path. The script path and other
 functionality are inherited from OpenROADStep and tested by librelane.
 """
 
-from FABulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
+from fabulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
 
 
 class TestCustomGeneratePDN:
@@ -20,5 +20,9 @@ class TestCustomGeneratePDN:
             var for var in CustomGeneratePDN.config_vars if var.name == "PDN_CFG"
         )
         assert pdn_cfg_var.default is not None, "PDN_CFG must have a default value"
-        assert "pdn_config.tcl" in str(pdn_cfg_var.default), "Default should point to pdn_config.tcl"
-        assert "FABulous" in str(pdn_cfg_var.default), "Default should be in FABulous package"
+        assert "pdn_config.tcl" in str(pdn_cfg_var.default), (
+            "Default should point to pdn_config.tcl"
+        )
+        assert "FABulous" in str(pdn_cfg_var.default), (
+            "Default should be in FABulous package"
+        )

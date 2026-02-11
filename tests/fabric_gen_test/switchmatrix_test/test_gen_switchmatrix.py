@@ -9,9 +9,9 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.Tile import Tile
-from FABulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
 from tests.fabric_gen_test.conftest import (
     create_switchmatrix_csv,
     create_switchmatrix_list,
@@ -43,16 +43,19 @@ class TestListFileCsvOutputDirectory:
         default_tile.matrixDir = list_file
 
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
             side_effect=lambda tile, path: create_switchmatrix_csv(path, tile.name),
         )
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
         )
 
         with pytest.raises(AttributeError):
             genTileSwitchMatrix(
-                None, default_fabric, default_tile, False,
+                None,
+                default_fabric,
+                default_tile,
+                False,
                 csv_output_dir=custom_output_dir,
             )
 
@@ -74,11 +77,11 @@ class TestListFileCsvOutputDirectory:
         default_tile.matrixDir = list_file
 
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
             side_effect=lambda tile, path: create_switchmatrix_csv(path, tile.name),
         )
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
         )
 
         with pytest.raises(AttributeError):
@@ -104,16 +107,19 @@ class TestListFileCsvOutputDirectory:
         assert not custom_output_dir.exists()
 
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
             side_effect=lambda tile, path: create_switchmatrix_csv(path, tile.name),
         )
         mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
         )
 
         with pytest.raises(AttributeError):
             genTileSwitchMatrix(
-                None, default_fabric, default_tile, False,
+                None,
+                default_fabric,
+                default_tile,
+                False,
                 csv_output_dir=custom_output_dir,
             )
 
@@ -137,13 +143,16 @@ class TestListFileCsvOutputDirectory:
         default_tile.matrixDir = csv_file
 
         mock_parse = mocker.patch(
-            "FABulous.fabric_generator.gen_fabric.gen_switchmatrix.parseMatrix",
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.parseMatrix",
             return_value={},
         )
 
         with pytest.raises(AttributeError):
             genTileSwitchMatrix(
-                None, mocker.MagicMock(), default_tile, False,
+                None,
+                mocker.MagicMock(),
+                default_tile,
+                False,
                 csv_output_dir=custom_output_dir,
             )
 

@@ -15,8 +15,8 @@ from librelane.config.config import Config
 from librelane.config.variable import Instance, Macro, Orientation
 from pytest_mock import MockerFixture
 
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.Tile import Tile
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
 
 # PDK track info content for realistic routing grid
 TRACKS_INFO_CONTENT: str = """M1 X 0 0.28

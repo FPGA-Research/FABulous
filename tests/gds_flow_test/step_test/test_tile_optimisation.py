@@ -8,7 +8,7 @@ from librelane.config.config import Config
 from librelane.state.state import State
 from pytest_mock import MockerFixture, MockFixture
 
-from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import (
+from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import (
     OptMode,
     TileOptimisation,
 )
@@ -60,12 +60,12 @@ class TestTileOptimisation:
         """Test pre_iteration_callback in find_min_width mode."""
         # Mock get_pitch to return reasonable pitch values
         mocker.patch(
-            "FABulous.fabric_generator.gds_generator.steps.tile_optimisation.get_pitch",
+            "fabulous.fabric_generator.gds_generator.steps.tile_optimisation.get_pitch",
             return_value=(Decimal("0.46"), Decimal("2.72")),
         )
         # Mock get_routing_obstructions to avoid config key errors
         mocker.patch(
-            "FABulous.fabric_generator.gds_generator.steps.tile_optimisation.get_routing_obstructions",
+            "fabulous.fabric_generator.gds_generator.steps.tile_optimisation.get_routing_obstructions",
             return_value=[],
         )
 
@@ -120,7 +120,7 @@ class TestTileOptimisation:
         step = TileOptimisation(mock_config)
         step.config = mock_config
         mock_run = mocker.patch(
-            "FABulous.fabric_generator.gds_generator.steps.tile_optimisation.WhileStep.run",
+            "fabulous.fabric_generator.gds_generator.steps.tile_optimisation.WhileStep.run",
             return_value=({}, {}),
         )
 
@@ -133,7 +133,7 @@ class TestTileOptimisation:
         self, mock_config: Config, mock_state: State, mocker: MockFixture
     ) -> None:
         """Test mid_iteration_break returns True on DRC errors."""
-        from FABulous.fabric_generator.gds_generator.steps.tile_optimisation import (
+        from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import (
             Checker,
         )
 
