@@ -79,6 +79,28 @@ def generate_module_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
         raise SystemExit(-1) from None
 
 
+def _get_call_func_name(node: ast.Call) -> str:
+    """Return the simple function name from a Call node.
+
+    Handles both direct calls (``Name``) and attribute calls (``Attribute``).
+
+    Parameters
+    ----------
+    node : ast.Call
+        The call node to inspect.
+
+    Returns
+    -------
+    str
+        The function/attribute name, or empty string if unresolvable.
+    """
+    if isinstance(node.func, ast.Name):
+        return node.func.id
+    if isinstance(node.func, ast.Attribute):
+        return node.func.attr
+    return ""
+
+
 def extract_field_info_from_ast(item: ast.AnnAssign) -> dict | None:
     """Extract field information from an AST AnnAssign node.
 
@@ -98,11 +120,7 @@ def extract_field_info_from_ast(item: ast.AnnAssign) -> dict | None:
     field_name = item.target.id
 
     # Get type annotation as string
-    field_type = (
-        ast.unparse(item.annotation)
-        if hasattr(ast, "unparse")
-        else str(item.annotation)
-    )
+    field_type = ast.unparse(item.annotation)
 
     # Simplify complex types
     if " | None" in field_type:
@@ -129,12 +147,7 @@ def extract_field_info_from_ast(item: ast.AnnAssign) -> dict | None:
         if isinstance(item.value, ast.Constant):
             default = str(item.value.value)
         elif isinstance(item.value, ast.Call):
-            # Check if it's a Field() call
-            func_name = ""
-            if isinstance(item.value.func, ast.Name):
-                func_name = item.value.func.id
-            elif isinstance(item.value.func, ast.Attribute):
-                func_name = item.value.func.attr
+            func_name = _get_call_func_name(item.value)
 
             if func_name == "Field":
                 for keyword in item.value.keywords:
@@ -169,9 +182,8 @@ def extract_field_info_from_ast(item: ast.AnnAssign) -> dict | None:
                     default = item.value.args[0].value
         elif isinstance(item.value, ast.Attribute):
             # Handle enum values like HDLType.VERILOG
-            if hasattr(ast, "unparse"):
-                default = ast.unparse(item.value)
-        elif isinstance(item.value, ast.Tuple) and hasattr(ast, "unparse"):
+            default = ast.unparse(item.value)
+        elif isinstance(item.value, ast.Tuple):
             # Handle tuple defaults
             default = ast.unparse(item.value)
 
@@ -253,7 +265,7 @@ def extract_fabulous_settings() -> dict:
     settings: dict[str, list] = {}
 
     for info in field_info_list:
-        category = info["title"] if info["title"] else "Miscellaneous"
+        category = info["title"] or "Miscellaneous"
 
         settings.setdefault(category, []).append(
             {
@@ -295,46 +307,38 @@ def extract_cli_settables() -> list:
 
         # Look for self.add_settable(Settable(...)) calls
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                # Check if it's a Settable() call
-                func_name = ""
-                if isinstance(node.func, ast.Name):
-                    func_name = node.func.id
-                elif isinstance(node.func, ast.Attribute):
-                    func_name = node.func.attr
+            if isinstance(node, ast.Call) and _get_call_func_name(node) == "Settable":
+                settable_info = {"name": "", "type": "", "description": ""}
 
-                if func_name == "Settable":
-                    settable_info = {"name": "", "type": "", "description": ""}
+                # Settable positional args: name, type, description, ...
+                if len(node.args) >= 1 and isinstance(node.args[0], ast.Constant):
+                    settable_info["name"] = node.args[0].value
+                if len(node.args) >= 2:
+                    if isinstance(node.args[1], ast.Name):
+                        settable_info["type"] = node.args[1].id
+                    elif isinstance(node.args[1], ast.Attribute):
+                        settable_info["type"] = node.args[1].attr
+                if len(node.args) >= 3 and isinstance(node.args[2], ast.Constant):
+                    settable_info["description"] = node.args[2].value
 
-                    # Settable positional args: name, type, description, ...
-                    if len(node.args) >= 1 and isinstance(node.args[0], ast.Constant):
-                        settable_info["name"] = node.args[0].value
-                    if len(node.args) >= 2:
-                        if isinstance(node.args[1], ast.Name):
-                            settable_info["type"] = node.args[1].id
-                        elif isinstance(node.args[1], ast.Attribute):
-                            settable_info["type"] = node.args[1].attr
-                    if len(node.args) >= 3 and isinstance(node.args[2], ast.Constant):
-                        settable_info["description"] = node.args[2].value
+                # Also check keyword arguments
+                for keyword in node.keywords:
+                    if keyword.arg == "name" and isinstance(
+                        keyword.value, ast.Constant
+                    ):
+                        settable_info["name"] = keyword.value.value
+                    elif keyword.arg == "settable_type":
+                        if isinstance(keyword.value, ast.Attribute):
+                            settable_info["type"] = keyword.value.attr
+                        elif isinstance(keyword.value, ast.Name):
+                            settable_info["type"] = keyword.value.id
+                    elif keyword.arg == "description" and isinstance(
+                        keyword.value, ast.Constant
+                    ):
+                        settable_info["description"] = keyword.value.value
 
-                    # Also check keyword arguments
-                    for keyword in node.keywords:
-                        if keyword.arg == "name" and isinstance(
-                            keyword.value, ast.Constant
-                        ):
-                            settable_info["name"] = keyword.value.value
-                        elif keyword.arg == "settable_type":
-                            if isinstance(keyword.value, ast.Attribute):
-                                settable_info["type"] = keyword.value.attr
-                            elif isinstance(keyword.value, ast.Name):
-                                settable_info["type"] = keyword.value.id
-                        elif keyword.arg == "description" and isinstance(
-                            keyword.value, ast.Constant
-                        ):
-                            settable_info["description"] = keyword.value.value
-
-                    if settable_info["name"]:
-                        settables.append(settable_info)
+                if settable_info["name"]:
+                    settables.append(settable_info)
 
     except (OSError, SyntaxError):
         logger.warning("Could not parse CLI settables")
