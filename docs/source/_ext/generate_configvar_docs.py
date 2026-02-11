@@ -246,7 +246,7 @@ def extract_fabulous_settings() -> dict:
     dict
         Dictionary of settings by category.
     """
-    settings_file = _PROJECT_ROOT / "FABulous" / "FABulous_settings.py"
+    settings_file = _PROJECT_ROOT / "fabulous" / "fabulous_settings.py"
     source = settings_file.read_text()
     tree = ast.parse(source)
 
@@ -297,7 +297,7 @@ def extract_cli_settables() -> list:
     list
         List of settable variable dictionaries.
     """
-    cli_file = _PROJECT_ROOT / "FABulous" / "FABulous_CLI" / "FABulous_CLI.py"
+    cli_file = _PROJECT_ROOT / "fabulous" / "fabulous_cli" / "fabulous_cli.py"
 
     settables: list = []
 
