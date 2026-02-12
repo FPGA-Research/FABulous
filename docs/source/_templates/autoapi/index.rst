@@ -1,13 +1,22 @@
-{# Custom AutoAPI index with scikit-learn style navigation #}
 API Reference
 =============
 
 This section contains the complete software documentation for FABulous.
 
-.. toctree::
-   :maxdepth: 1
-   :titlesonly:
-   :glob:
+The API is organized hierarchically - click on a package to see its submodules and classes.
 
-   fabulous/index
-   fabulous/**/index
+.. toctree::
+   :titlesonly:
+
+   {% for page in pages|selectattr("is_top_level_object") %}
+   {% for subpkg in page.children|selectattr("display") %}
+   {{ subpkg.include_path }}
+   {% endfor %}
+   {% endfor %}
+
+.. toctree::
+   :hidden:
+
+   {% for page in pages|selectattr("is_top_level_object") %}
+   {{ page.include_path }}
+   {% endfor %}

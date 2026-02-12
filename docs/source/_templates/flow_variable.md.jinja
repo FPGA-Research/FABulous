@@ -1,0 +1,29 @@
+{% for scope, subcategories in settings_vars.items() %}
+## {{ scope }}
+
+{% for subcategory, variables in subcategories.items() %}
+{% if subcategory != "General" %}
+### {{ subcategory }}
+
+{% endif %}
+| Variable | Environment Variable | Type | Default | User Value | Description |
+|----------|---------------------|------|---------|------------|-------------|
+{% for var in variables %}| `{{ var.name }}` | `{{ var.env_var }}` | {{ var.type }} | {{ var.default | default("-", true) }} | {{ var.user_value | default("-", true) }} | {{ var.description | default("-", true) }} |
+{% endfor %}
+{% endfor %}
+{% endfor %}
+
+## Interactive CLI Settables
+
+These variables can be set and get interactively in the FABulous CLI using the `set` and `get` commands.
+
+**Usage:**
+```bash
+FABulous> set <variable> <value>
+FABulous> get <variable>
+```
+
+| Variable | Type | Description |
+|----------|------|-------------|
+{% for var in cli_settables %}| `{{ var.name }}` | {{ var.type }} | {{ var.description }} |
+{% endfor %}
