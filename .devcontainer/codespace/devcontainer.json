@@ -1,0 +1,48 @@
+{
+    "name": "Remote (codespace)",
+    "image": "ghcr.io/fpga-research/fabulous:dev",
+    "features": {
+        "ghcr.io/devcontainers/features/desktop-lite:1": {
+            "password": "fabulous",
+            "webPort": "6080",
+            "vncPort": "5901"
+        }
+    },
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+    "containerEnv": {
+        "QT_QPA_PLATFORM": "xcb"
+    },
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "python.defaultInterpreterPath": "/nix/var/nix/profiles/default/bin/python",
+                "python.analysis.typeCheckingMode": "basic",
+                "editor.formatOnSave": true,
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "editor.codeActionsOnSave": {
+                        "source.fixAll.ruff": "explicit",
+                        "source.organizeImports.ruff": "explicit"
+                    }
+                },
+                "terminal.integrated.cwd": "/workspaces/${localWorkspaceFolderBasename}",
+                "dotfiles.repository": "",
+                "dotfiles.installCommand": ""
+            },
+            "extensions": [
+                "charliermarsh.ruff",
+                "ms-python.python"
+            ]
+        },
+        "codespaces": {
+            "openFiles": []
+        }
+    },
+    "postCreateCommand": "bash .devcontainer/post-create.sh",
+    "postAttachCommand": "bash .devcontainer/display-switch.sh",
+    "initializeCommand": "xhost +local:docker 2>/dev/null || true",
+    "remoteUser": "root",
+    "hostRequirements": {
+        "cpus": 4
+    }
+}
