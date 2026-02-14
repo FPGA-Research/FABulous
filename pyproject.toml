@@ -166,6 +166,7 @@ pre-commit = "task format && task check"
 ci-check = "task check && task test && task docs-build"
 install-dev = "uv sync --group dev"
 clean-all = "find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && find . -name '*.pyc' -delete && rm -rf build/ dist/ *.egg-info/ .pytest_cache/ .ruff_cache/"
+sync-demo = "uv run scripts/sync_demo_tile_gds_config.py"
 
 # Unified test runner task (pytest-split + durations maintenance)
 # Usage examples:
