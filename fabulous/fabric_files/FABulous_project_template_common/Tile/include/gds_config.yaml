@@ -41,6 +41,8 @@ RIGHT_MARGIN_MULT: 6
 
 PDN_SKIPTRIM: True
 
+DIODE_ON_PORTS: "in"
+
 pdk::sky130A:
   #Floor planning
   FP_IO_HLAYER: "met3"

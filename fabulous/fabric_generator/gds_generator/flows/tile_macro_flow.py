@@ -80,7 +80,7 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
             OpenROAD.IRDropReport,
         ]
         + write_out_steps
-        # + check_steps
+        + check_steps
     )
 
     config_vars = configs
