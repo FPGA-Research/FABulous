@@ -113,7 +113,6 @@
           )
       );
 
-      nix_eda_overlays = import ./nix/overlay/nix-eda.nix;
       devshell-overlay = librelane.inputs.devshell;
       nix_eda_pkgs = nix-eda.forAllSystems (system:
         import nix-eda.inputs.nixpkgs {
@@ -122,7 +121,6 @@
             nix-eda.overlays.default
             devshell-overlay.overlays.default
             librelane.overlays.default
-            nix_eda_overlays
           ];
         }
       );
