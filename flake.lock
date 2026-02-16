@@ -109,7 +109,9 @@
         "ciel": "ciel",
         "devshell": "devshell",
         "flake-compat": "flake-compat",
-        "nix-eda": "nix-eda"
+        "nix-eda": [
+          "nix-eda"
+        ]
       },
       "locked": {
         "lastModified": 1770375911,
@@ -148,16 +150,16 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1768053828,
-        "narHash": "sha256-u45uYnM8W7NXq7hCVwxPuASDZY4tLwLIlk9y9PamvMU=",
+        "lastModified": 1771228699,
+        "narHash": "sha256-ksV1LpZ0G+crnwe7ksLl7msaO7Mk+pDdRDTWW+Yr/JE=",
         "owner": "fossi-foundation",
         "repo": "nix-eda",
-        "rev": "229ea0b01ac497ae4df3441f48533c2249db13df",
+        "rev": "0c1d8bbc1d2a5bd4ba7962a306e5870b88d0cb72",
         "type": "github"
       },
       "original": {
         "owner": "fossi-foundation",
-        "ref": "6.0.1",
+        "ref": "6.2.0",
         "repo": "nix-eda",
         "type": "github"
       }
@@ -263,6 +265,7 @@
         "ghdl-src": "ghdl-src",
         "librelane": "librelane",
         "nextpnr-src": "nextpnr-src",
+        "nix-eda": "nix-eda",
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-stable": "nixpkgs-stable",
         "pyproject-build-systems": "pyproject-build-systems",
