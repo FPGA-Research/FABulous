@@ -1,4 +1,4 @@
-DIE_AREA: [0, 0, 200, 250]
+DIE_AREA: [0, 0, 245, 245]
 
 SYNTH_STRATEGY: "AREA 2"
 
@@ -40,6 +40,8 @@ LEFT_MARGIN_MULT: 6
 RIGHT_MARGIN_MULT: 6
 
 PDN_SKIPTRIM: True
+
+DIODE_ON_PORTS: "in"
 
 pdk::sky130A:
   #Floor planning
