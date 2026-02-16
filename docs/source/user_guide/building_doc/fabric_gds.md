@@ -18,7 +18,9 @@ To take advantage of fabric stitching, there are two limitations to the tile phy
 
 ### Install tools
 
+:::{warning}
 We use [librelane](https://github.com/librelane/librelane) as our main flow. To access the full flow, you should use the [Nix based installation method](../../getting_started/installation/nix-env.md), which will provide the full environment with all the required tools.
+:::
 
 :::{note}
 As of writing, we are using custom build of librelane, as a result, the upstream version of librelane will not work. We are aiming to upstream all the changes.
