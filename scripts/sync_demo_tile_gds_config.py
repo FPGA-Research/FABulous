@@ -17,14 +17,6 @@ TEMPLATE_TILE_DIR = (
 )
 
 
-def read_config_text(config_path: Path) -> str:
-    return config_path.read_text(encoding="utf-8")
-
-
-def write_config_text(config_path: Path, content: str) -> None:
-    config_path.write_text(content, encoding="utf-8")
-
-
 def sync_tile_configs(dry_run: bool) -> int:
     demo_configs = sorted(DEMO_TILE_DIR.glob("*/gds_config.yaml"))
     if not demo_configs:
@@ -44,8 +36,8 @@ def sync_tile_configs(dry_run: bool) -> int:
                 f"Missing matching template config for tile '{tile_name}': {template_config}"
             )
 
-        demo_content = read_config_text(demo_config)
-        template_content = read_config_text(template_config)
+        demo_content = demo_config.read_text(encoding="utf-8")
+        template_content = template_config.read_text(encoding="utf-8")
 
         if demo_content == template_content:
             unchanged += 1
@@ -55,7 +47,7 @@ def sync_tile_configs(dry_run: bool) -> int:
         updated += 1
         print(f"UPDATE    {tile_name}")
         if not dry_run:
-            write_config_text(template_config, demo_content)
+            template_config.write_text(demo_content, encoding="utf-8")
 
     mode = "DRY-RUN" if dry_run else "APPLY"
     print(
