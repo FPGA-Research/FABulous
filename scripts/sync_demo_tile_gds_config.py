@@ -18,6 +18,7 @@ TEMPLATE_TILE_DIR = (
 
 
 def sync_tile_configs(dry_run: bool) -> int:
+    """Sync gds_config.yaml files from demo tiles to template tiles."""
     demo_configs = sorted(DEMO_TILE_DIR.glob("*/gds_config.yaml"))
     if not demo_configs:
         raise FileNotFoundError(
@@ -57,6 +58,7 @@ def sync_tile_configs(dry_run: bool) -> int:
 
 
 def main() -> None:
+    """Main entry point for the script."""
     parser = argparse.ArgumentParser(
         description="Sync full demo tile gds_config.yaml files into FABulous template tile configs."
     )
