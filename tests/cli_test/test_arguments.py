@@ -727,7 +727,7 @@ def test_start(
     [
         pytest.param(["FABulous", "--version"], 0, id="version"),
         pytest.param(["FABulous", "--help"], 0, id="help"),
-        pytest.param(["FABulous"], 0, id="no-args"),
+        pytest.param(["FABulous"], 2, id="no-args"),
         pytest.param(
             ["FABulous", "--version", "run", "/", "help"],
             0,
