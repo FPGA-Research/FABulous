@@ -31,7 +31,7 @@ As of writing, we are using custom build of librelane, as a result, the upstream
 To compile the design, we will also need to install the PDK. In the Nix installation method we have also packaged in a PDK version manager [ciel](https://github.com/fossi-foundation/ciel). By default, we have set up the project to target the `ihp-sg13g2` process (130nm). To install the PDK run the following command:
 
 ```bash
-ciel enable --pdk-family ihp-sg13g2 cb7daaa8901016cf7c5d272dfa322c41f024931f
+ciel enable --pdk-family ihp-sg13g2 c4b8b4e5e7a05f375cca3815d51b3a37721fbf5c
 ```
 
 ## Changing PDK

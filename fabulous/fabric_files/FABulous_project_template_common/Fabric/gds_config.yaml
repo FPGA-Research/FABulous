@@ -39,7 +39,6 @@ pdk::sky130A:
 
   RT_CLOCK_MAX_LAYER: "met4"
   RT_MAX_LAYER: "met4"
-  DRT_MAX_LAYER: "met4"
 
 pdk::ihp-sg13g2:
   PDN_VERTICAL_LAYER: TopMetal1
@@ -58,4 +57,3 @@ pdk::ihp-sg13g2:
   # Routing
   RT_CLOCK_MAX_LAYER: TopMetal1
   RT_MAX_LAYER: TopMetal1
-  DRT_MAX_LAYER: TopMetal1
