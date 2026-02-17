@@ -25,14 +25,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    nix-eda = {
-      url = "github:fossi-foundation/nix-eda/6.2.0";
-    };
-
-    librelane = {
-      url = "github:librelane/librelane/dev";
-      inputs.nix-eda.follows = "nix-eda";
-    };
+    librelane.url = "github:librelane/librelane/dev";
 
     # Tag-pinned sources for custom tools (locked in flake.lock)
     ghdl-src = {
@@ -67,7 +60,6 @@
     {
       nixpkgs,
       nixpkgs-stable,
-      nix-eda,
       librelane,
       ghdl-src,
       ghdl-bin-aarch64-darwin,
@@ -113,6 +105,8 @@
           )
       );
 
+      nix-eda = librelane.inputs.nix-eda;
+      nix_eda_overlays = import ./nix/overlay/nix-eda.nix;
       devshell-overlay = librelane.inputs.devshell;
       nix_eda_pkgs = nix-eda.forAllSystems (system:
         import nix-eda.inputs.nixpkgs {
@@ -121,6 +115,7 @@
             nix-eda.overlays.default
             devshell-overlay.overlays.default
             librelane.overlays.default
+            nix_eda_overlays
           ];
         }
       );

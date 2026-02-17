@@ -1,0 +1,14 @@
+diff --git a/src/drt/src/io/io_parser_helper.cpp b/src/drt/src/io/io_parser_helper.cpp
+index 30d33cd14c..9f380aa158 100644
+--- a/src/drt/src/io/io_parser_helper.cpp
++++ b/src/drt/src/io/io_parser_helper.cpp
+@@ -952,6 +952,9 @@ void io::Parser::initRPin()
+ void io::Parser::initRPin_rpin()
+ {
+   for (auto& net : getBlock()->getNets()) {
++    if (net->isConnectedByAbutment()) {
++      continue;
++    }
+     // instTerm
+     for (auto& instTerm : net->getInstTerms()) {
+       auto inst = instTerm->getInst();
