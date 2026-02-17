@@ -8,11 +8,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1759919060,
-        "narHash": "sha256-/B4s0X+/2rTkR81zK5fwFKmMAgfFYH2n/6etH7WYyik=",
+        "lastModified": 1764091696,
+        "narHash": "sha256-AWbkHL0zO3tD0mE3dZIcj8mVND7o3imTxOpEfOtlRDI=",
         "owner": "fossi-foundation",
         "repo": "ciel",
-        "rev": "9620877bdf6792affd7b7941b4a5cc4c1004c5ba",
+        "rev": "afcb23d368614ffa1e7e96584ed33f839c71c576",
         "type": "github"
       },
       "original": {
@@ -30,11 +30,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1741473158,
-        "narHash": "sha256-kWNaq6wQUbUMlPgw8Y+9/9wP0F8SHkjy24/mN3UAppg=",
+        "lastModified": 1764011051,
+        "narHash": "sha256-M7SZyPZiqZUR/EiiBJnmyUbOi5oE/03tCeFrTiUZchI=",
         "owner": "numtide",
         "repo": "devshell",
-        "rev": "7c9e793ebe66bcba8292989a68c0419b737a22a0",
+        "rev": "17ed8d9744ebe70424659b0ef74ad6d41fc87071",
         "type": "github"
       },
       "original": {
@@ -77,8 +77,8 @@
     "ghdl-bin-aarch64-darwin": {
       "flake": false,
       "locked": {
-        "lastModified": 1769557669,
-        "narHash": "sha256-9v4l/cZJ8daUUlKS50YDlaFFBRXqKIo1wJi2MSbHxgQ=",
+        "lastModified": 1770991299,
+        "narHash": "sha256-EqJw6W5+7qSyX92ED+r3D6m/9HXKWbPUEfbhw66FHuU=",
         "type": "tarball",
         "url": "https://github.com/ghdl/ghdl/releases/download/nightly/ghdl-llvm-jit-6.0.0-dev-macos15-aarch64.tar.gz"
       },
@@ -109,14 +109,16 @@
         "ciel": "ciel",
         "devshell": "devshell",
         "flake-compat": "flake-compat",
-        "nix-eda": "nix-eda"
+        "nix-eda": [
+          "nix-eda"
+        ]
       },
       "locked": {
-        "lastModified": 1764616758,
-        "narHash": "sha256-fb8XocwjTwMorN4oT6rrfTLUgZoCwVrdmje0OaWkGFU=",
+        "lastModified": 1770375911,
+        "narHash": "sha256-+LhLqR7EUn8dFMEGZaq6KS5rEVGjoEvJ4KdFSfinELc=",
         "owner": "librelane",
         "repo": "librelane",
-        "rev": "d8b98532399f6eaa230e44e4a505bd653c10dd71",
+        "rev": "a698ca9fbc18f81060769f155f82b45913f1180d",
         "type": "github"
       },
       "original": {
@@ -148,32 +150,32 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1756966633,
-        "narHash": "sha256-Gh+07iMmlV/HCLM3KlIGe12Oy7yM4Li0gSuvyEeoOuA=",
+        "lastModified": 1771228699,
+        "narHash": "sha256-ksV1LpZ0G+crnwe7ksLl7msaO7Mk+pDdRDTWW+Yr/JE=",
         "owner": "fossi-foundation",
         "repo": "nix-eda",
-        "rev": "396cbc9dba2b9746c43a33c2ff0636b098b1982f",
+        "rev": "0c1d8bbc1d2a5bd4ba7962a306e5870b88d0cb72",
         "type": "github"
       },
       "original": {
         "owner": "fossi-foundation",
-        "ref": "5.5.0",
+        "ref": "6.2.0",
         "repo": "nix-eda",
         "type": "github"
       }
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1750400657,
-        "narHash": "sha256-3vkjFnxCOP6vm5Pm13wC/Zy6/VYgei/I/2DWgW4RFeA=",
+        "lastModified": 1766201043,
+        "narHash": "sha256-eplAP+rorKKd0gNjV3rA6+0WMzb1X1i16F5m5pASnjA=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "b2485d56967598da068b5a6946dadda8bfcbcd37",
+        "rev": "b3aad468604d3e488d627c0b43984eb60e75e782",
         "type": "github"
       },
       "original": {
         "owner": "nixos",
-        "ref": "nixos-25.05",
+        "ref": "nixos-25.11",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -196,11 +198,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1769461804,
-        "narHash": "sha256-msG8SU5WsBUfVVa/9RPLaymvi5bI8edTavbIq3vRlhI=",
+        "lastModified": 1771008912,
+        "narHash": "sha256-gf2AmWVTs8lEq7z/3ZAsgnZDhWIckkb+ZnAo5RzSxJg=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "bfc1b8a4574108ceef22f02bafcf6611380c100d",
+        "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
         "type": "github"
       },
       "original": {
@@ -223,11 +225,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1763662255,
-        "narHash": "sha256-4bocaOyLa3AfiS8KrWjZQYu+IAta05u3gYZzZ6zXbT0=",
+        "lastModified": 1771039651,
+        "narHash": "sha256-WZOfX4APbc6vmL14ZWJXgBeRfEER8H+OIX0D0nSmv0M=",
         "owner": "pyproject-nix",
         "repo": "build-system-pkgs",
-        "rev": "042904167604c681a090c07eb6967b4dd4dae88c",
+        "rev": "69bc2b53b79cbd6ce9f66f506fc962b45b5e68b9",
         "type": "github"
       },
       "original": {
@@ -243,11 +245,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1769116518,
-        "narHash": "sha256-M+etHAj3oI9zr+Cpj5u2kMAddvxcJCmnWRtH/SklYlY=",
+        "lastModified": 1769936401,
+        "narHash": "sha256-kwCOegKLZJM9v/e/7cqwg1p/YjjTAukKPqmxKnAZRgA=",
         "owner": "pyproject-nix",
         "repo": "pyproject.nix",
-        "rev": "ab521eddafb936498f18c86d83e1774a53b1cb8a",
+        "rev": "b0d513eeeebed6d45b4f2e874f9afba2021f7812",
         "type": "github"
       },
       "original": {
@@ -263,6 +265,7 @@
         "ghdl-src": "ghdl-src",
         "librelane": "librelane",
         "nextpnr-src": "nextpnr-src",
+        "nix-eda": "nix-eda",
         "nixpkgs": "nixpkgs_2",
         "nixpkgs-stable": "nixpkgs-stable",
         "pyproject-build-systems": "pyproject-build-systems",
@@ -280,11 +283,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1769103499,
-        "narHash": "sha256-6U2AQNC1Sa+d7gUDQ58sqF39YVi5AKT9uHZSr+WVWGo=",
+        "lastModified": 1771259686,
+        "narHash": "sha256-O34HrN/xFBcKtp6zCxb6KTloF0N9oZe3Y7zf5DMtoik=",
         "owner": "pyproject-nix",
         "repo": "uv2nix",
-        "rev": "9eeb39b8fdd8352bfc6f1af7eab79f88bd0a6eb3",
+        "rev": "b28d091e5e14c5c1d9d4860558103defaca52284",
         "type": "github"
       },
       "original": {
