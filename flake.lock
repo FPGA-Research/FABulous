@@ -77,8 +77,8 @@
     "ghdl-bin-aarch64-darwin": {
       "flake": false,
       "locked": {
-        "lastModified": 1770991299,
-        "narHash": "sha256-EqJw6W5+7qSyX92ED+r3D6m/9HXKWbPUEfbhw66FHuU=",
+        "lastModified": 1771278188,
+        "narHash": "sha256-O6QOsoV6k9LJPar6VxZ1LMJjnPAADhTGzaj5RiS/zns=",
         "type": "tarball",
         "url": "https://github.com/ghdl/ghdl/releases/download/nightly/ghdl-llvm-jit-6.0.0-dev-macos15-aarch64.tar.gz"
       },
@@ -114,11 +114,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1770375911,
-        "narHash": "sha256-+LhLqR7EUn8dFMEGZaq6KS5rEVGjoEvJ4KdFSfinELc=",
+        "lastModified": 1771322915,
+        "narHash": "sha256-dacZ0QFaZF/P9Y8+ITbivELgjkSr6oA8bX0Cy50DA2w=",
         "owner": "librelane",
         "repo": "librelane",
-        "rev": "a698ca9fbc18f81060769f155f82b45913f1180d",
+        "rev": "c771c56466a9ee0895b7890068e5bfd414974f69",
         "type": "github"
       },
       "original": {
