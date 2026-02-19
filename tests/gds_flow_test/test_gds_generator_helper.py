@@ -100,8 +100,8 @@ class TestGetPitch:
         """Test basic pitch retrieval."""
         mock_config.__getitem__.side_effect = lambda key: {
             "FP_TRACKS_INFO": str(sample_tracks_file),
-            "FP_IO_VLAYER": "M1",
-            "FP_IO_HLAYER": "M2",
+            "IO_PIN_V_LAYER": "M1",
+            "IO_PIN_H_LAYER": "M2",
         }.get(key)
 
         x_pitch, y_pitch = get_pitch(mock_config)
@@ -115,8 +115,8 @@ class TestGetPitch:
         """Test that get_pitch returns Decimal objects."""
         mock_config.__getitem__.side_effect = lambda key: {
             "FP_TRACKS_INFO": str(sample_tracks_file),
-            "FP_IO_VLAYER": "M1",
-            "FP_IO_HLAYER": "M3",
+            "IO_PIN_V_LAYER": "M1",
+            "IO_PIN_H_LAYER": "M3",
         }.get(key)
 
         x_pitch, y_pitch = get_pitch(mock_config)
@@ -180,8 +180,8 @@ class TestRoundDieArea:
         """Test basic die area rounding."""
         mock_config.__getitem__.side_effect = lambda key: {
             "FP_TRACKS_INFO": str(sample_tracks_file),
-            "FP_IO_VLAYER": "M1",
-            "FP_IO_HLAYER": "M2",
+            "IO_PIN_V_LAYER": "M1",
+            "IO_PIN_H_LAYER": "M2",
             "DIE_AREA": (0, 0, 100, 200),
             "FABULOUS_TILE_LOGICAL_WIDTH": "10",
             "FABULOUS_TILE_LOGICAL_HEIGHT": "10",
@@ -208,8 +208,8 @@ class TestRoundDieArea:
         """Test that ValueError is raised when DIE_AREA is missing."""
         mock_config.__getitem__.side_effect = lambda key: {
             "FP_TRACKS_INFO": str(sample_tracks_file),
-            "FP_IO_VLAYER": "M1",
-            "FP_IO_HLAYER": "M2",
+            "IO_PIN_V_LAYER": "M1",
+            "IO_PIN_H_LAYER": "M2",
         }.get(key)
         mock_config.get.return_value = None
 
@@ -222,8 +222,8 @@ class TestRoundDieArea:
         """Test that rounded die area starts at (0, 0)."""
         mock_config.__getitem__.side_effect = lambda key: {
             "FP_TRACKS_INFO": str(sample_tracks_file),
-            "FP_IO_VLAYER": "M1",
-            "FP_IO_HLAYER": "M2",
+            "IO_PIN_V_LAYER": "M1",
+            "IO_PIN_H_LAYER": "M2",
             "DIE_AREA": (0, 0, 100, 100),
             "FABULOUS_TILE_LOGICAL_WIDTH": "1",
             "FABULOUS_TILE_LOGICAL_HEIGHT": "1",
@@ -305,8 +305,8 @@ class TestGetRoutingObstructions:
         mock_config.get.return_value = custom_obs
         mock_config.__getitem__.side_effect = lambda key: {
             "DIE_AREA": (0, 0, 100, 100),
-            "FP_IO_VLAYER": v_layer,
-            "FP_IO_HLAYER": h_layer,
+            "IO_PIN_V_LAYER": v_layer,
+            "IO_PIN_H_LAYER": h_layer,
             "FP_TRACKS_INFO": str(sample_tracks_file),
         }.get(key)
 
@@ -323,8 +323,8 @@ class TestGetRoutingObstructions:
         mock_config.get.return_value = [("M1", 10, 10)]  # Missing coords
         mock_config.__getitem__.side_effect = lambda key: {
             "DIE_AREA": (0, 0, 100, 100),
-            "FP_IO_VLAYER": "M1",
-            "FP_IO_HLAYER": "M2",
+            "IO_PIN_V_LAYER": "M1",
+            "IO_PIN_H_LAYER": "M2",
             "FP_TRACKS_INFO": str(sample_tracks_file),
         }.get(key)
 

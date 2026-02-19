@@ -24,8 +24,8 @@ class TestFABulousTileIOPlacement:
         # Add required config values for IO placement
         config = mock_config.copy(
             FABULOUS_IO_PIN_ORDER_CFG="/path/to/config.yaml",
-            FP_IO_HLAYER="met3",
-            FP_IO_VLAYER="met4",
+            IO_PIN_H_LAYER="met3",
+            IO_PIN_V_LAYER="met4",
             IO_PIN_V_THICKNESS_MULT=2.0,
             IO_PIN_H_THICKNESS_MULT=2.0,
             IO_PIN_H_EXTENSION=0.1,
@@ -75,8 +75,8 @@ class TestFABulousTileIOPlacement:
 
         config = mock_config.copy(
             FABULOUS_IO_PIN_ORDER_CFG="/path/to/config.yaml",
-            FP_IO_HLAYER="met3",
-            FP_IO_VLAYER="met4",
+            IO_PIN_H_LAYER="met3",
+            IO_PIN_V_LAYER="met4",
             IO_PIN_V_THICKNESS_MULT=2.0,
             IO_PIN_H_THICKNESS_MULT=2.0,
             IO_PIN_H_EXTENSION=0.1,

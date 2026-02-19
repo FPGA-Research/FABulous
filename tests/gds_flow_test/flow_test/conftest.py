@@ -54,8 +54,8 @@ def mock_pdk_root(tmp_path: Path) -> dict[str, Any]:
         "tracks_file": tracks_file,
         "config_vars": {
             "FP_TRACKS_INFO": str(tracks_file),
-            "FP_IO_VLAYER": "M1",
-            "FP_IO_HLAYER": "M2",
+            "IO_PIN_V_LAYER": "M1",
+            "IO_PIN_H_LAYER": "M2",
             "RT_MAX_LAYER": "M4",
         },
     }

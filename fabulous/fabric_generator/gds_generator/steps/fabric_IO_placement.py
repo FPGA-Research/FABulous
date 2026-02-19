@@ -21,7 +21,7 @@ class FABulousFabricIOPlacement(OdbpyStep):
     This step uses a custom Python script to place I/O pins according to the macro pin
     coordinates. This is intended for use in the stitching flow to place top level macro
     I/Os. This step will just line up to the master driver terminals and does not care
-    is the pin placement is pitch aligned.
+    if the pin placement is pitch aligned.
     """
 
     id = "Odb.FABulousFabricIOPlacement"
@@ -49,9 +49,9 @@ class FABulousFabricIOPlacement(OdbpyStep):
             super().get_command()
             + [
                 "--hor-layer",
-                self.config["FP_IO_HLAYER"],
+                self.config["IO_PIN_H_LAYER"],
                 "--ver-layer",
-                self.config["FP_IO_VLAYER"],
+                self.config["IO_PIN_V_LAYER"],
                 "--hor-width-mult",
                 str(self.config["IO_PIN_V_THICKNESS_MULT"]),
                 "--ver-width-mult",
