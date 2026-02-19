@@ -126,7 +126,6 @@ def expandListPorts(port: str, portList: list[str]) -> None:
         portMultiplier = sum([int(m) for m in multipliers])
         if portMultiplier != 0:
             port = re.sub(r"\{(\d+)\}", "", port)
-            logger.debug(f"Port {port} has {portMultiplier} multipliers")
             for _i in range(portMultiplier):
                 portList.append(port)
         else:
