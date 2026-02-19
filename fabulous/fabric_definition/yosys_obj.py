@@ -1,6 +1,7 @@
 """Object representation of the Yosys Json file."""
 
 import json
+import logging
 import re
 import subprocess
 import tempfile
@@ -385,7 +386,9 @@ class YosysJson:
     def getTopModule(self) -> tuple[str, YosysModule]:
         """Find and return the top-level module in the design.
 
-        The top module is identified by having a "top" attribute.
+        The top module is identified by having a "top" attribute. If no "top"
+        module is found, falls back to the first module with a "blackbox"
+        attribute (e.g. for BEL definitions that only contain a blackbox module).
 
         Returns
         -------
@@ -397,10 +400,16 @@ class YosysJson:
         Raises
         ------
         ValueError
-            If no top module is found in the design.
+            If no top or blackbox module is found in the design.
         """
         for name, module in self.modules.items():
             if "top" in module.attributes:
+                return name, module
+        for name, module in self.modules.items():
+            if "blackbox" in module.attributes:
+                logging.info(
+                    f"No top module found, using blackbox module '{name}'"
+                )
                 return name, module
         raise ValueError("No top module found in Yosys JSON")
 

@@ -222,6 +222,74 @@ def test_get_top_module_no_top(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         _ = yosys_json.getTopModule()
 
 
+def test_get_top_module_blackbox_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Test getTopModule falls back to blackbox module when no top module exists."""
+    json_data = {
+        "creator": "Yosys 0.33",
+        "modules": {
+            "blackbox_mod": {
+                "attributes": {"blackbox": 1},
+                "parameter_default_values": {},
+                "ports": {},
+                "cells": {},
+                "memories": {},
+                "netnames": {},
+            }
+        },
+        "models": {},
+    }
+
+    setup_mocks(monkeypatch, json_data)
+    fakePath = tmp_path / "test_file.v"
+    fakePath.touch()
+    fakePath.with_suffix(".json").touch()
+    yosys_json = YosysJson(fakePath)
+    module_name, module = yosys_json.getTopModule()
+
+    assert module_name == "blackbox_mod"
+    assert "blackbox" in module.attributes
+
+
+def test_get_top_module_prefers_top_over_blackbox(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Test getTopModule prefers a top module over a blackbox module."""
+    json_data = {
+        "creator": "Yosys 0.33",
+        "modules": {
+            "blackbox_mod": {
+                "attributes": {"blackbox": 1},
+                "parameter_default_values": {},
+                "ports": {},
+                "cells": {},
+                "memories": {},
+                "netnames": {},
+            },
+            "top_mod": {
+                "attributes": {"top": 1},
+                "parameter_default_values": {},
+                "ports": {},
+                "cells": {},
+                "memories": {},
+                "netnames": {},
+            },
+        },
+        "models": {},
+    }
+
+    setup_mocks(monkeypatch, json_data)
+    fakePath = tmp_path / "test_file.v"
+    fakePath.touch()
+    fakePath.with_suffix(".json").touch()
+    yosys_json = YosysJson(fakePath)
+    module_name, module = yosys_json.getTopModule()
+
+    assert module_name == "top_mod"
+    assert "top" in module.attributes
+
+
 def test_getNetPortSrcSinks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Test getNetPortSrcSinks method."""
     json_data = {
