@@ -346,29 +346,29 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                     "GEN_IO, MATRIX, and INCLUDE."
                 )
 
-            withUserCLK = any(bel.withUserCLK for bel in bels)
+        withUserCLK = any(bel.withUserCLK for bel in bels)
 
-            if genMatrixList:
-                generateSwitchmatrixList(
-                    tileName, bels, matrixDir, tileCarry, localSharedPorts
-                )
-                for _, v in parseList(matrixDir, "source").items():
-                    muxSize = len(v)
-                    if muxSize >= 2:
-                        configBit += (muxSize - 1).bit_length()
-
-            new_tiles.append(
-                Tile(
-                    name=tileName,
-                    ports=ports,
-                    bels=bels,
-                    tileDir=fileName,
-                    matrixDir=matrixDir,
-                    gen_ios=gen_ios,
-                    userCLK=withUserCLK,
-                    configBit=configBit,
-                )
+        if genMatrixList:
+            generateSwitchmatrixList(
+                tileName, bels, matrixDir, tileCarry, localSharedPorts
             )
+            for _, v in parseList(matrixDir, "source").items():
+                muxSize = len(v)
+                if muxSize >= 2:
+                    configBit += (muxSize - 1).bit_length()
+
+        new_tiles.append(
+            Tile(
+                name=tileName,
+                ports=ports,
+                bels=bels,
+                tileDir=fileName,
+                matrixDir=matrixDir,
+                gen_ios=gen_ios,
+                userCLK=withUserCLK,
+                configBit=configBit,
+            )
+        )
 
     return (new_tiles, commonWirePairs)
 
