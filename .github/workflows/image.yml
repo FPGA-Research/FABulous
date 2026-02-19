@@ -1,0 +1,84 @@
+name: Build and Push Docker Image
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOCKER_IMAGE: ghcr.io/fpga-research/fabulous
+
+jobs:
+  docker:
+    name: Build and Push Docker Image
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: useblacksmith/setup-docker-builder@v1
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Docker tags
+        id: tags
+        run: |
+          TAGS=""
+          if [[ "${{ github.event_name }}" == "schedule" ]] || [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Dev build (scheduled or manual)
+            TAGS="${{ env.DOCKER_IMAGE }}:dev"
+            TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:dev-${{ github.sha }}"
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            # Release build
+            VERSION="${GITHUB_REF_NAME#v}"
+            MAJOR=$(echo "$VERSION" | cut -d. -f1)
+            MINOR=$(echo "$VERSION" | cut -d. -f1-2)
+
+            if [[ "${{ github.event.release.prerelease }}" == "true" ]]; then
+              # Pre-release
+              TAGS="${{ env.DOCKER_IMAGE }}:pre-release"
+              TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:${VERSION}"
+            else
+              # Stable release
+              TAGS="${{ env.DOCKER_IMAGE }}:latest"
+              TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:${VERSION}"
+              TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:${MINOR}"
+              TAGS="${TAGS},${{ env.DOCKER_IMAGE }}:${MAJOR}"
+            fi
+          fi
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: useblacksmith/build-push-action@v2
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: ${{ steps.tags.outputs.tags }}
+          push: ${{ github.event_name != 'pull_request' }}
+
+      - name: Test Docker image
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          docker run --rm "${{ env.DOCKER_IMAGE }}:dev" bash -c "echo 'Dev image OK'"
+
+      - name: Test release image
+        if: github.event_name == 'release'
+        run: |
+          docker run --rm "${{ env.DOCKER_IMAGE }}:latest" FABulous --version
