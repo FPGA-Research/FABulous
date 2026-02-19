@@ -10,8 +10,12 @@ from pathlib import Path
 from shutil import which
 from typing import Self
 
+import ciel
 import typer
+from ciel.common import get_ciel_home
+from ciel.source import StaticWebDataSource
 from dotenv import set_key
+from librelane.common.misc import get_pdk_hash
 from loguru import logger
 from packaging.version import Version
 from pydantic import Field, ValidationInfo, field_validator, model_validator
@@ -67,6 +71,7 @@ class FABulousSettings(BaseSettings):
     # GDS variables
     pdk_root: Path | None = None
     pdk: str | None = None
+    pdk_hash: str | None = None
     fabric_die_area: tuple[int, int, int, int] = (0, 0, 1000, 1000)
 
     # Windows warning acknowledgement
@@ -310,7 +315,7 @@ class FABulousSettings(BaseSettings):
             "openroad_path": "openroad",
             "klayout_path": "klayout",
         }
-        tool = tool_map.get(info.field_name, None)  # type: ignore[attr-defined]
+        tool = tool_map.get(info.field_name)
         tool_path = which(tool)
         logger.info(f"Resolved {tool} path: {tool_path}")
         if tool_path is not None:
@@ -324,12 +329,96 @@ class FABulousSettings(BaseSettings):
 
     @model_validator(mode="after")
     def check_pdk(self) -> Self:
-        """Check if PDK_root and PDK are set correctly."""
-        if self.pdk_root is None or self.pdk is None:
+        """Check if PDK_root and PDK are set correctly.
+
+        When a supported PDK family is configured and ``pdk_hash`` has not been
+        provided, this validator resolves the recommended hash from librelane
+        and auto-installs/activates the PDK via ciel.
+
+        Validation rules
+        ----------------
+        1. Both ``pdk`` and ``pdk_root`` are None  -> warn, return (GDS unavailable)
+        2. ``pdk_root`` set but ``pdk`` is None    -> raise ValueError
+        3. ``pdk`` set, ``pdk_root`` None, ciel family   -> auto-resolve pdk_root
+        4. ``pdk`` set, ``pdk_root`` None, not ciel       -> raise ValueError
+        5. Both set, not ciel family               -> info log + return
+        6. Both set, ciel family                   -> hash resolution + enable
+        """
+        # Case 1: neither set
+        if self.pdk is None and self.pdk_root is None:
             logger.warning(
                 "PDK_root or PDK is not set. Back-end GDS features may be unavailable."
             )
             return self
+
+        # Case 2: pdk_root without pdk
+        if self.pdk is None:
+            raise ValueError(
+                "FAB_PDK_ROOT is set but FAB_PDK is not. "
+                "Please set FAB_PDK to the PDK name."
+            )
+
+        family_map = {}
+        for name, detail in ciel.families.Family.by_name.items():
+            family_map[name] = name
+            for variant in detail.variants:
+                family_map[variant] = name
+
+        pdk_family = family_map.get(self.pdk)
+        ciel_family: ciel.families.Family | None = (
+            ciel.families.Family.by_name[pdk_family] if pdk_family is not None else None
+        )
+
+        # Case 3 & 4: pdk set but pdk_root missing
+        if self.pdk_root is None:
+            if ciel_family is not None:
+                # Case 3: supported family -> auto-resolve root from ciel home
+                self.pdk_root = Path(get_ciel_home()) / ciel_family.name
+            else:
+                # Case 4: unsupported family without root -> error
+                raise ValueError(
+                    f"PDK '{self.pdk}' is not supported by ciel and "
+                    "FAB_PDK_ROOT is not set. "
+                    "Please set the FAB_PDK_ROOT environment variable to the "
+                    "PDK installation path."
+                )
+
+        # Case 5: both set, non-ciel family -> manual setup
+        if ciel_family is None:
+            logger.info(
+                f"PDK '{self.pdk}' is not recognised as a supported family by ciel. "
+                "Assume custom PDK with manual setup."
+            )
+            pdk_path = self.pdk_root.resolve()
+            if not pdk_path.exists():
+                raise ValueError(f"FAB_PDK_ROOT path {pdk_path} does not exist.")
+            return self
+
+        # Case 6: both set, ciel family -> hash resolution + enable
+        recommended_hash = get_pdk_hash(ciel_family.name)
+        if self.pdk_hash is None:
+            self.pdk_hash = recommended_hash
+
+        elif self.pdk_hash != recommended_hash:
+            logger.warning(
+                f"PDK hash mismatch: configured '{self.pdk_hash}' "
+                f"vs recommended '{recommended_hash}' for "
+                f"family '{ciel_family}'. "
+                "You may experience compatibility issues."
+            )
+
+        ciel.manage.enable(
+            pdk_root=str(self.pdk_root),
+            pdk=ciel_family.name,
+            version=self.pdk_hash,
+            data_source=StaticWebDataSource(
+                "https://fossi-foundation.github.io/ciel-releases"
+            ),
+        )
+        logger.info(
+            f"Auto-resolved PDK hash: {self.pdk_hash[:12]} for family '{ciel_family}'"
+        )
+
         pdk_path = self.pdk_root.resolve()
         if not pdk_path.exists():
             raise ValueError(f"PDK path {pdk_path} does not exist.")
@@ -468,3 +557,15 @@ def add_var_to_global_env(key: str, value: str) -> None:
     if not env_file.exists():
         env_file.touch()
     set_key(env_file, key, value)
+
+
+def is_pdk_config_set() -> bool:
+    """Check if PDK root and PDK name are configured in the global context.
+
+    Returns
+    -------
+    bool
+        True if both ``pdk`` and ``pdk_root`` are set in the global context,
+        False otherwise.
+    """
+    return get_context().pdk is not None and get_context().pdk_root is not None

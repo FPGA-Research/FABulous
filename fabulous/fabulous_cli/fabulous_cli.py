@@ -32,6 +32,7 @@ import tempfile
 import tkinter as tk
 import traceback
 from pathlib import Path
+from typing import cast
 
 from cmd2 import (
     Cmd,
@@ -70,7 +71,7 @@ from fabulous.fabulous_cli.helper import (
     remove_dir,
     wrap_with_except_handling,
 )
-from fabulous.fabulous_settings import get_context
+from fabulous.fabulous_settings import get_context, is_pdk_config_set
 
 META_DATA_DIR = ".FABulous"
 
@@ -1303,6 +1304,13 @@ class FABulous_CLI(Cmd):
             logger.error("Tile name must be specified")
             return
 
+        if not is_pdk_config_set():
+            logger.error(
+                "PDK configuration is not set. Please set the PDK configuration to "
+                "generate tile macros."
+            )
+            return
+
         tile_dir = self.projectDir / "Tile" / args.tile
         pin_order_file = tile_dir / f"{args.tile}_io_pin_order.yaml"
 
@@ -1323,6 +1331,8 @@ class FABulous_CLI(Cmd):
             tile_dir,
             pin_order_file,
             tile_dir / "macro",
+            cast("str", get_context().pdk),
+            cast("Path", get_context().pdk_root),
             optimisation=args.optimise,
             base_config_path=self.projectDir / "Tile" / "include" / "gds_config.yaml",
             config_override_path=tile_dir / "gds_config.yaml",
@@ -1366,6 +1376,13 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_fabric_macro(self, *_args: str) -> None:
         """Generate GDSII files for the entire fabric."""
+        if not is_pdk_config_set():
+            logger.error(
+                "PDK configuration is not set. Please set the PDK configuration to "
+                "generate fabric macros."
+            )
+            return
+
         tile_macro_root = self.projectDir / "Tile"
         tile_macro_paths: dict[str, Path] = {}
 
@@ -1388,16 +1405,27 @@ class FABulous_CLI(Cmd):
             tile_macro_paths,
             self.projectDir / "Fabric" / f"{self.fabulousAPI.fabric.name}.v",
             self.projectDir / "Fabric" / "macro",
+            cast("str", get_context().pdk),
+            cast("Path", get_context().pdk_root),
             base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
         )
 
     @with_category(CMD_FABRIC_FLOW)
     def do_run_FABulous_eFPGA_macro(self, *_arg: str) -> None:
         """Run the full FABulous eFPGA macro generation flow."""
+        if not is_pdk_config_set():
+            logger.error(
+                "PDK configuration is not set. Please set the PDK configuration to "
+                "run the full FABulous eFPGA macro generation flow."
+            )
+            return
+
         (self.projectDir / "Fabric" / "macro").mkdir(exist_ok=True)
         self.fabulousAPI.full_fabric_automation(
             self.projectDir,
             self.projectDir / "Fabric" / "macro",
+            cast("str", get_context().pdk),
+            cast("Path", get_context().pdk_root),
             base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
         )
 

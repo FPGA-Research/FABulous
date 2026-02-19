@@ -499,23 +499,16 @@ class FABulous_API:
         tile_dir: Path,
         io_pin_config: Path,
         out_folder: Path,
+        pdk: str,
+        pdk_root: Path,
         *,
         final_view: Path | None = None,
         optimisation: OptMode = OptMode.BALANCE,
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         custom_config_overrides: dict | None = None,
-        pdk_root: Path | None = None,
-        pdk: str | None = None,
     ) -> None:
         """Run the macro flow to generate the macro Verilog files."""
-        if pdk_root is None:
-            pdk_root = get_context().pdk_root.parent
-        if pdk is None:
-            pdk = get_context().pdk
-            if pdk is None:
-                raise ValueError("PDK must be specified either here or in settings.")
-
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
@@ -545,11 +538,11 @@ class FABulous_API:
         tile_macro_paths: dict[str, Path],
         fabric_path: Path,
         out_folder: Path,
+        pdk: str,
+        pdk_root: Path,
         *,
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
-        pdk_root: Path | None = None,
-        pdk: str | None = None,
         **custom_config_overrides: dict,
     ) -> None:
         """Run the stitching flow to assemble tile macros into a fabric-level GDS.
@@ -578,13 +571,6 @@ class FABulous_API:
         ValueError
             If PDK root or PDK is not specified.
         """
-        if pdk_root is None:
-            pdk_root = get_context().pdk_root
-        if pdk is None:
-            pdk = get_context().pdk
-            if pdk is None:
-                raise ValueError("PDK must be specified either here or in settings.")
-
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
@@ -609,26 +595,15 @@ class FABulous_API:
         self,
         project_dir: Path,
         out_folder: Path,
+        pdk: str,
+        pdk_root: Path,
         *,
-        pdk_root: Path | None = None,
-        pdk: str | None = None,
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         tile_opt_config: Path | None = None,
         **config_overrides: dict,
     ) -> None:
         """Run the stitching flow to assemble tile macros into a fabric-level GDS."""
-        if pdk_root is None:
-            pdk_root = get_context().pdk_root
-            if pdk_root is None:
-                raise ValueError(
-                    "PDK root must be specified either here or in settings."
-                )
-        if pdk is None:
-            pdk = get_context().pdk
-            if pdk is None:
-                raise ValueError("PDK must be specified either here or in settings.")
-
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")

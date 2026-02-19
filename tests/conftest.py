@@ -73,6 +73,7 @@ def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda _: tmp_path)
     (tmp_path / ".ciel" / "ihp-sg13g2").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".ciel" / "ciel").mkdir(parents=True, exist_ok=True)
     setup_logger(0, False)
 
     return
