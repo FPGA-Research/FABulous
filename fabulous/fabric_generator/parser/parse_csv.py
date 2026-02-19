@@ -88,6 +88,11 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
     for t in tilesData:
         t = t.split("\n")
         tileName = t[0].split(",")[1].strip()
+        if filePathParent.name != tileName:
+            logger.warning(
+                f"Tile name '{tileName}' does not match folder name "
+                f"'{filePathParent.name}' in {fileName}."
+            )
         ports: list[Port] = []
         bels: list[Bel] = []
         matrixDir: Path | None = None

@@ -460,6 +460,13 @@ class FABulous_CLI(Cmd):
         superTileByFabric = list(self.fabulousAPI.fabric.superTileDic.keys())
         self.allTile = list(set(tileByPath) & set(tileByFabric + superTileByFabric))
 
+        if not self.allTile:
+            logger.error(
+                "No tiles found in the project tiles directory that match the tiles "
+                "defined in the fabric.csv"
+            )
+            raise ValueError
+
         proj_dir = get_context().proj_dir
         if (proj_dir / "eFPGA_geometry.csv").exists():
             self.enable_category(CMD_GUI)
