@@ -1,4 +1,4 @@
-"""Fixtures fceor gds_generator_test tests."""
+"""Fixtures for gds_generator_test tests."""
 
 from decimal import Decimal
 
@@ -38,6 +38,8 @@ def mock_config() -> Config:  # type: ignore[name-defined]
             "FABULOUS_IO_MIN_WIDTH": 1,
             "FABULOUS_IO_MIN_HEIGHT": 1,
             "FABULOUS_OPT_MODE": OptMode.FIND_MIN_WIDTH,
+            "FABULOUS_PIN_MIN_WIDTH": Decimal(0),
+            "FABULOUS_PIN_MIN_HEIGHT": Decimal(0),
         }
     )
 

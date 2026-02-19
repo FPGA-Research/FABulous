@@ -1,10 +1,10 @@
 """FABulous GDS Generator - NLP Optimization Step using pymoo."""
 
 import json
-from collections import Counter, defaultdict
+from collections import defaultdict
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple, Optional
+from typing import Any, Optional
 
 import numpy as np
 from librelane.config.variable import Variable
@@ -16,299 +16,398 @@ from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
 from pymoo.algorithms.soo.nonconvex.isres import ISRES
 from pymoo.core.problem import ElementwiseProblem
 from pymoo.core.repair import Repair
-from pymoo.core.termination import TerminateIfAny
 from pymoo.optimize import minimize
-from pymoo.termination.ftol import SingleObjectiveSpaceTermination
 from pymoo.termination.max_gen import MaximumGenerationTermination
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_generator.gds_generator.helper import round_up_decimal
 from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 
-if TYPE_CHECKING:
-    from fabulous.fabric_definition.tile import Tile
-
 
 class NLPTileProblem(ElementwiseProblem):
-    """NLP problem class for tile size optimization using pymoo.
+    """NLP problem for tile size optimization using row/column variables.
 
-    This class defines the optimization problem with bilinear constraints for minimizing
-    total fabric area subject to minimum area requirements.
+    Variables are row heights h[r] and column widths w[c], so that uniformity
+    within each row and column is inherent in the formulation rather than
+    enforced through soft equality constraints.
 
-    Parameters
-    ----------
-    fabric : Fabric
-        the fabric object that contains the tile layout and structure
-    tile_metrics : dict[OptMode, dict]
-        Dictionary of tile metrics per optimization mode, containing die bounding boxes
+    Rows that share a tile type are linked into equivalence classes so they
+    get a single shared height variable. Columns are linked similarly.
     """
-
-    class PositionIndex(NamedTuple):
-        """Helper class for named values."""
-
-        width_idx: int
-        height_idx: int
 
     def __init__(
         self,
         fabric: Fabric,
-        tile_metrics: dict[
-            OptMode, dict
-        ],  # dict[tile_name, dict] OR dict[opt_mode, dict[tile_name, dict]]
+        tile_metrics: dict[OptMode, dict],
+        all_tile_metrics: dict[OptMode, dict] | None = None,
+        area_margin: float = 0.05,
     ) -> None:
         self.fabric = fabric
-        self.tile_metrics = (
-            tile_metrics  # Keep nested format: {opt_mode: {tile_name: {metrics}}}
-        )
+        self.tile_metrics = tile_metrics
+        self.area_margin = area_margin
+        # all_tile_metrics includes failed explorations for lower bounds
+        self._all_tile_metrics = all_tile_metrics or tile_metrics
 
-        self.tile_count = Counter(
-            [t.name for (_, _), t in self.fabric if t is not None]
-        )
-        # Get unique tile names to process
-        unique_tiles: list[Tile] = list(fabric.tileDic.values())
         self.tile_row_set: dict[str, set[int]] = defaultdict(set)
         self.tile_column_set: dict[str, set[int]] = defaultdict(set)
+        self.position_map: dict[tuple[int, int], str] = {}
 
         for (x, y), tile in fabric:
             if tile is None:
                 continue
             self.tile_row_set[tile.name].add(y)
             self.tile_column_set[tile.name].add(x)
+            self.position_map[(x, y)] = tile.name
 
-        indices: int = 0
-        self.tile_to_solution_index: dict[str, NLPTileProblem.PositionIndex] = {}
-        for t in unique_tiles:
-            self.tile_to_solution_index[t.name] = NLPTileProblem.PositionIndex(
-                width_idx=indices, height_idx=indices + 1
-            )
-            indices += 2
+        # Rows sharing a tile type must have the same height, and likewise
+        # for columns. Union-find groups enforce this.
+        self.row_groups: dict[int, int] = {}
+        self._compute_equivalence_classes(self.tile_row_set, self.row_groups)
+
+        self.col_groups: dict[int, int] = {}
+        self._compute_equivalence_classes(self.tile_column_set, self.col_groups)
+
+        unique_row_groups = sorted(set(self.row_groups.values()))
+        unique_col_groups = sorted(set(self.col_groups.values()))
+        self.row_group_to_var: dict[int, int] = {
+            g: i for i, g in enumerate(unique_row_groups)
+        }
+        n_row_vars = len(unique_row_groups)
+        self.col_group_to_var: dict[int, int] = {
+            g: n_row_vars + i for i, g in enumerate(unique_col_groups)
+        }
+        n_vars = n_row_vars + len(unique_col_groups)
+
+        info(
+            f"NLP variables: {n_row_vars} row groups, "
+            f"{len(unique_col_groups)} column groups = {n_vars} total"
+        )
 
         tile_min: dict[str, tuple[float, float]] = {}
-
-        for i in unique_tiles:
-            if i.partOfSuperTile:
-                # Skip component tiles of supertiles
+        for tile in fabric.tileDic.values():
+            if tile.partOfSuperTile:
                 continue
-            tmp_min_width: float = 1.0
-            tmp_min_height: float = 1.0
-            for j in self.tile_metrics.values():
-                if i.name not in j:
-                    continue
-                x0, y0, x1, y1 = j[i.name]["design__die__bbox"]
-                w = x1 - x0
-                h = y1 - y0
-                tmp_min_width = max(tmp_min_width, w)
-                tmp_min_height = max(tmp_min_height, h)
-            tile_min[i.name] = (tmp_min_width, tmp_min_height)
+            tile_min[tile.name] = self._pin_min_from_metrics(tile.name)
 
-        # For each supertile, compute min/max dimensions for its component tiles
+        # SuperTile components derive bounds from the SuperTile minimum
+        # and from row/column neighbors
         for supertile in fabric.superTileDic.values():
-            row_min_heights: dict[str, float] = {}
+            st_min_w, st_min_h = self._pin_min_from_metrics(supertile.name)
+            n_cols = sum(
+                1 for t in (supertile.tileMap[0] if supertile.tileMap else []) if t is not None
+            )
+            n_rows = sum(
+                1
+                for row in supertile.tileMap
+                if row and any(t is not None for t in row)
+            )
+            if n_cols == 0 or n_rows == 0:
+                continue
+
+            # Ensure all component tiles have an entry before updating
             for row in supertile.tileMap:
-                # Compute min_height for this row from max of component tile
-                # min_heights in that row
+                for component_tile in row:
+                    if component_tile is not None:
+                        tile_min.setdefault(component_tile.name, (1.0, 1.0))
+
+            # Update height bounds from row neighbors
+            for row in supertile.tileMap:
                 for component_tile in row:
                     if component_tile is None:
                         continue
-                    component_name = component_tile.name
-                    on_rows = self.tile_row_set[component_tile.name]
-                    target_tile: set[str] = set()
-                    for t, s in self.tile_row_set.items():
-                        if t == component_name:
-                            continue
-                        if len(on_rows & s) > 0:
-                            target_tile.add(t)
-
-                    row_min_heights[component_name] = max(
-                        [tile_min[i][1] for i in target_tile if i in tile_min]
+                    name = component_tile.name
+                    neighbors = self._find_sharing_tiles(name, self.tile_row_set)
+                    neighbor_h = max(
+                        (tile_min[n][1] for n in neighbors if n in tile_min),
+                        default=1.0,
                     )
+                    cur_w, _ = tile_min[name]
+                    tile_min[name] = (cur_w, max(neighbor_h, st_min_h / n_rows))
 
-            # Compute min_width for each column
-            col_min_widths: dict[str, float] = {}
+            # Update width bounds from column neighbors
             for col_idx in range(supertile.max_width):
                 for row in supertile.tileMap:
-                    if col_idx < len(row):
-                        component_tile = row[col_idx]
-                        if component_tile is None:
-                            continue
-                        component_name = component_tile.name
-                        on_cols = self.tile_column_set[component_tile.name]
-                        target_tile: set[str] = set()
-                        for t, s in self.tile_column_set.items():
-                            if t == component_name:
-                                continue
-                            if len(on_cols & s) > 0:
-                                target_tile.add(t)
+                    if col_idx >= len(row) or row[col_idx] is None:
+                        continue
+                    name = row[col_idx].name
+                    neighbors = self._find_sharing_tiles(name, self.tile_column_set)
+                    neighbor_w = max(
+                        (tile_min[n][0] for n in neighbors if n in tile_min),
+                        default=1.0,
+                    )
+                    _, cur_h = tile_min[name]
+                    tile_min[name] = (max(neighbor_w, st_min_w / n_cols), cur_h)
 
-                        col_min_widths[component_name] = max(
-                            [tile_min[i][0] for i in target_tile if i in tile_min]
-                        )
+        xl = np.zeros(n_vars)
 
-            # Update tile_min with computed column widths
-            for (_, _), sub_tile in supertile:
-                tile_min[sub_tile.name] = (
-                    col_min_widths[sub_tile.name],
-                    row_min_heights[sub_tile.name],
-                )
+        for tile_name, (min_w, min_h) in tile_min.items():
+            for row_idx in self.tile_row_set[tile_name]:
+                var_idx = self.row_group_to_var[self.row_groups[row_idx]]
+                xl[var_idx] = max(xl[var_idx], min_h)
+            for col_idx in self.tile_column_set[tile_name]:
+                var_idx = self.col_group_to_var[self.col_groups[col_idx]]
+                xl[var_idx] = max(xl[var_idx], min_w)
 
-        xl = np.zeros(len(self.tile_to_solution_index) * 2)
-        xu = np.zeros(len(self.tile_to_solution_index) * 2)
+        xu = xl * 4
 
-        for k, v in tile_min.items():
-            indices = self.tile_to_solution_index[k]
-            xl[indices.width_idx] = v[0]
-            xl[indices.height_idx] = v[1]
+        # Compute minimum compilable area per tile from exploration results
+        self.min_areas: dict[str, float] = {
+            t.name: self._compute_min_area(t.name)
+            for t in fabric.get_all_unique_tiles()
+        }
+        # Stdcell area per tile (for utilization reporting)
+        self.stdcell_areas: dict[str, float] = {
+            t.name: self._compute_stdcell_area(t.name)
+            for t in fabric.get_all_unique_tiles()
+        }
 
-        xu = xl.copy() * 4  # Arbitrary upper bound: 4x min size
+        # Verify every tile/supertile has at least one successful compilation.
+        self._verify_all_tiles_have_metrics()
 
-        # Count constraints by simulating what will be generated
-        x = np.zeros(len(self.tile_to_solution_index) * 2)
+        self._tile_constraints = self._build_tile_constraints()
+        self._supertile_constraints = self._build_supertile_constraints()
+        n_constr = len(self._tile_constraints) + len(self._supertile_constraints)
+
+        info(f"NLP constraints: {n_constr} area constraints")
 
         super().__init__(
-            n_var=len(self.tile_to_solution_index) * 2,
+            n_var=n_vars,
             n_obj=1,
-            n_ieq_constr=len(self._add_mode_constraints(x))
-            + len(self._add_equality_constraints(x)),
+            n_ieq_constr=n_constr,
             xl=xl,
             xu=xu,
         )
 
-    def _evaluate(self, x: np.ndarray, out: dict) -> None:
-        """Pymoo evaluation function for objective and constraints."""
-        # x shape: (n_var,) - single solution vector for ElementwiseProblem
-        out["F"] = self._compute_objective(x)
+    @staticmethod
+    def _compute_equivalence_classes(
+        tile_positions: dict[str, set[int]],
+        groups: dict[int, int],
+    ) -> None:
+        """Compute equivalence classes for rows or columns.
 
-        eq_constraints = self._add_equality_constraints(x)
-        mode_constraints = self._add_mode_constraints(x)
-
-        # Concatenate all constraints
-        all_constraints = eq_constraints + mode_constraints
-        out["G"] = np.array(all_constraints)
-
-    def _compute_objective(self, x: np.ndarray) -> float:
-        """Compute the total area objective for a single solution."""
-        total_area = 0.0
-        for tile_name, indices in self.tile_to_solution_index.items():
-            w = x[indices.width_idx]
-            h = x[indices.height_idx]
-            total_area += w * h * self.tile_count[tile_name]
-        return total_area
-
-    def _add_equality_constraints(self, x: np.ndarray) -> list:
-        """Add equality constraints on tile dimensions.
-
-        For pymoo: g(x) <= 0, so we use (h1 - h2)^2 - tolerance <= 0
-        This is better than abs(h1-h2) for differentiability.
+        Two indices must be in the same group if any tile type appears in both.
+        Uses union-find logic to compute transitive closure.
         """
-        result = []
-        tolerance = 0.5  # Allow tiles to differ by ~1 unit
+        parent: dict[int, int] = {}
 
-        # Height equality: tiles on same row
-        for tile_name in self.tile_row_set:
-            on_rows = self.tile_row_set[tile_name]
-            tile_idx = self.tile_to_solution_index[tile_name]
-            tile_h = x[tile_idx.height_idx]
+        def find(x: int) -> int:
+            while parent.get(x, x) != x:
+                parent[x] = parent.get(parent[x], parent[x])
+                x = parent[x]
+            return x
 
-            for other_name in self.tile_row_set:
-                if other_name == tile_name:  # Skip self-comparison only
-                    continue
-                other_tile = self.fabric.tileDic[other_name]
-                other_rows = self.tile_row_set[other_name]
-                if len(on_rows & other_rows) > 0:
-                    other_idx = self.tile_to_solution_index[other_name]
-                    other_h = x[other_idx.height_idx]
-                    # Use squared difference for differentiability
-                    result.append((tile_h - other_h) ** 2 - tolerance)
+        def union(a: int, b: int) -> None:
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[ra] = rb
 
-        # Width equality: tiles on same column
-        for tile_name in self.tile_column_set:
-            on_cols = self.tile_column_set[tile_name]
-            tile_idx = self.tile_to_solution_index[tile_name]
-            tile_w = x[tile_idx.width_idx]
+        all_indices: set[int] = set()
+        for indices in tile_positions.values():
+            all_indices |= indices
 
-            for other_name in self.tile_column_set:
-                if other_name == tile_name:  # Skip self-comparison only
-                    continue
-                other_tile = self.fabric.tileDic[other_name]
-                if other_tile.partOfSuperTile:
-                    continue
-                other_cols = self.tile_column_set[other_name]
-                if len(on_cols & other_cols) > 0:
-                    other_idx = self.tile_to_solution_index[other_name]
-                    other_w = x[other_idx.width_idx]
-                    result.append((tile_w - other_w) ** 2 - tolerance)
+        for idx in all_indices:
+            parent[idx] = idx
 
-        return result
+        for indices in tile_positions.values():
+            idx_list = sorted(indices)
+            for i in range(1, len(idx_list)):
+                union(idx_list[0], idx_list[i])
 
-    def _add_mode_constraints(self, x: np.ndarray) -> list:
-        """Add mode constraints on tile dimensions.
+        for idx in all_indices:
+            groups[idx] = find(idx)
 
-        For regular tiles: w * h >= mode_die_area for at least one mode
-        For supertiles: sum(component_widths) * sum(component_heights) >= mode_die_area
-                        for at least one mode
+    def _min_dimensions_from_metrics(self, name: str) -> tuple[float, float]:
+        """Return (min_width, min_height) across all compilation modes.
+
+        The minimum width and height may come from different modes. Falls back
+        to 1.0 if no metrics exist for the given tile.
         """
-        result = []
-        # Regular tiles
+        widths: list[float] = []
+        heights: list[float] = []
+        for mode_metrics in self._all_tile_metrics.values():
+            if name not in mode_metrics:
+                continue
+            x0, y0, x1, y1 = mode_metrics[name]["design__die__bbox"]
+            widths.append(x1 - x0)
+            heights.append(y1 - y0)
+        return (
+            min(widths) if widths else 1.0,
+            min(heights) if heights else 1.0,
+        )
+
+    def _pin_min_from_metrics(self, name: str) -> tuple[float, float]:
+        """Return (pin_min_width, pin_min_height) from any mode's metrics.
+
+        Pin minimums are IO-density-based dimension floors and are identical
+        across exploration modes. Falls back to exploration bbox minimums if
+        pin_min fields are absent (pre-patch JSON).
+        """
+        for mode_metrics in self._all_tile_metrics.values():
+            if name not in mode_metrics:
+                continue
+            m = mode_metrics[name]
+            w = m.get("fabulous__pin_min_width")
+            h = m.get("fabulous__pin_min_height")
+            if w is not None and h is not None:
+                return (w, h)
+        return self._min_dimensions_from_metrics(name)
+
+    def _compute_min_area(self, name: str) -> float:
+        """Return minimum die area across successful exploration modes."""
+        areas: list[float] = []
+        for mode_metrics in self.tile_metrics.values():
+            if name not in mode_metrics:
+                continue
+            x0, y0, x1, y1 = mode_metrics[name]["design__die__bbox"]
+            areas.append((x1 - x0) * (y1 - y0))
+        return min(areas) if areas else float("inf")
+
+    def _compute_stdcell_area(self, name: str) -> float:
+        """Return max standard-cell area across exploration modes.
+
+        The stdcell area is essentially fixed by the design but varies
+        slightly across modes due to buffer insertion. Using max gives
+        the most conservative (worst-case) estimate of what must fit.
+        """
+        areas: list[float] = []
+        for mode_metrics in self._all_tile_metrics.values():
+            if name not in mode_metrics:
+                continue
+            a = mode_metrics[name].get("design__instance__area__stdcell")
+            if a is not None:
+                areas.append(a)
+        return max(areas) if areas else 0.0
+
+    @staticmethod
+    def _find_sharing_tiles(
+        tile_name: str,
+        tile_positions: dict[str, set[int]],
+    ) -> set[str]:
+        """Find tiles sharing at least one row or column with the given tile."""
+        positions = tile_positions[tile_name]
+        return {
+            other
+            for other, other_pos in tile_positions.items()
+            if other != tile_name and positions & other_pos
+        }
+
+    def _verify_all_tiles_have_metrics(self) -> None:
+        """Verify every tile and supertile has at least one successful compilation.
+
+        Raises ``RuntimeError`` listing the names of any tiles that failed
+        all exploration modes.  This catches configuration or sizing issues
+        early rather than letting the NLP produce unconstrained results.
+        """
+        all_valid_names = {
+            name for mode_metrics in self.tile_metrics.values() for name in mode_metrics
+        }
+        missing: list[str] = [
+            t.name
+            for t in self.fabric.get_all_unique_tiles()
+            if t.name not in all_valid_names
+        ]
+
+        if missing:
+            raise RuntimeError(
+                f"Tile(s) {missing} failed all exploration modes and have no "
+                f"successful compilation. The NLP cannot determine feasible "
+                f"dimensions without at least one working compilation per tile."
+            )
+
+    def get_row_height(self, x: np.ndarray, row_idx: int) -> float:
+        """Get the height variable for a given row index."""
+        return x[self.row_group_to_var[self.row_groups[row_idx]]]
+
+    def get_col_width(self, x: np.ndarray, col_idx: int) -> float:
+        """Get the width variable for a given column index."""
+        return x[self.col_group_to_var[self.col_groups[col_idx]]]
+
+    def _build_tile_constraints(self) -> list[tuple[str, int, int]]:
+        """Build (tile_name, col, row) tuples for regular tile constraints.
+
+        One representative position per tile type suffices because all
+        positions in the same row/col group share identical dimensions.
+        """
+        constraints: list[tuple[str, int, int]] = []
         for tile in self.fabric.tileDic.values():
             if tile.partOfSuperTile:
                 continue
+            rows = self.tile_row_set[tile.name]
+            cols = self.tile_column_set[tile.name]
+            if rows and cols:
+                constraints.append((tile.name, min(cols), min(rows)))
+        return constraints
 
-            tile_idx = self.tile_to_solution_index[tile.name]
-            tile_w = x[tile_idx.width_idx]
-            tile_h = x[tile_idx.height_idx]
-
-            # Collect all modes for this tile
-            mode_constraints = []
-            for mode_metrics in self.tile_metrics.values():
-                if tile.name in mode_metrics:
-                    x0, y0, x1, y1 = mode_metrics[tile.name]["design__die__bbox"]
-                    mode_die_area = (x1 - x0) * (y1 - y0)
-                    # Constraint: mode_die_area - tile_w * tile_h <= 0  # noqa: ERA001
-                    mode_constraints.append(mode_die_area - tile_w * tile_h)
-            result.append(min(mode_constraints))
-
-        # Supertiles
+    def _build_supertile_constraints(
+        self,
+    ) -> list[tuple[str, list[int], list[int]]]:
+        """Build (st_name, col_indices, row_indices) for SuperTile constraints."""
+        constraints: list[tuple[str, list[int], list[int]]] = []
         for supertile in self.fabric.superTileDic.values():
-            # Sum component tile dimensions from first row (width) and
-            # first column (height)
-            # Width is sum of widths in the first row
-            total_w = 0.0
-            if supertile.tileMap and len(supertile.tileMap) > 0:
-                for tile in supertile.tileMap[0]:  # First row
-                    if tile is not None:
-                        sub_idx = self.tile_to_solution_index[tile.name]
-                        total_w += x[sub_idx.width_idx]
-
-            # Height is sum of heights in the first column
-            total_h = 0.0
+            st_cols: list[int] = [
+                min(self.tile_column_set[tile.name])
+                for tile in (supertile.tileMap[0] if supertile.tileMap else [])
+                if tile is not None
+            ]
+            st_rows: list[int] = []
             for row in supertile.tileMap:
-                if row and len(row) > 0 and row[0] is not None:  # First column
-                    sub_idx = self.tile_to_solution_index[row[0].name]
-                    total_h += x[sub_idx.height_idx]
+                first_tile = next((t for t in row if t is not None), None) if row else None
+                if first_tile is not None:
+                    st_rows.append(min(self.tile_row_set[first_tile.name]))
+            constraints.append((supertile.name, st_cols, st_rows))
+        return constraints
 
-            # Collect all modes for this supertile
-            mode_constraints = []
-            for mode_metrics in self.tile_metrics.values():
-                if supertile.name in mode_metrics:
-                    x0, y0, x1, y1 = mode_metrics[supertile.name]["design__die__bbox"]
-                    mode_die_area = (x1 - x0) * (y1 - y0)
-                    # Constraint: mode_die_area - total_w * total_h <= 0  # noqa: ERA001
-                    mode_constraints.append(mode_die_area - total_w * total_h)
-            result.append(min(mode_constraints))
+    def _evaluate(self, x: np.ndarray, out: dict) -> None:
+        """Pymoo evaluation: compute objective and constraints."""
+        out["F"] = self._compute_objective(x)
+        out["G"] = np.array(self._eval_constraints(x), dtype=float)
+
+    def _compute_objective(self, x: np.ndarray) -> float:
+        """Minimize total fabric area = sum over all grid positions of w*h."""
+        total_area = 0.0
+        for col, row in self.position_map:
+            total_area += self.get_col_width(x, col) * self.get_row_height(x, row)
+        return total_area
+
+    def _area_violation(self, name: str, alloc_w: float, alloc_h: float) -> float:
+        """Return area-based feasibility violation.
+
+        Non-positive means the allocated area meets or exceeds the minimum
+        compilable area (with margin) observed during exploration:
+          min_area * (1 + margin) - alloc_w * alloc_h <= 0
+        """
+        min_area = self.min_areas.get(name, float("inf"))
+        return min_area * (1.0 + self.area_margin) - alloc_w * alloc_h
+
+    def _eval_constraints(self, x: np.ndarray) -> list[float]:
+        """Evaluate area-based feasibility constraints.
+
+        For each tile/supertile the allocated area (w * h) must meet or
+        exceed the minimum compilable area (with margin) from exploration:
+          min_area * (1 + margin) - alloc_w * alloc_h <= 0
+        """
+        result: list[float] = []
+
+        for tile_name, col, row in self._tile_constraints:
+            alloc_w = self.get_col_width(x, col)
+            alloc_h = self.get_row_height(x, row)
+            result.append(self._area_violation(tile_name, alloc_w, alloc_h))
+
+        for st_name, st_cols, st_rows in self._supertile_constraints:
+            total_w = sum(self.get_col_width(x, c) for c in st_cols)
+            total_h = sum(self.get_row_height(x, r) for r in st_rows)
+            result.append(self._area_violation(st_name, total_w, total_h))
 
         return result
 
 
 @Step.factory.register()
 class GlobalTileSizeOptimization(Step):
-    """LibreLane step for solving NLP optimization to find optimal tile dimensions.
+    """LibreLane step for NLP optimization of tile dimensions.
 
-    This step formulates and solves a Non-Linear Program using pymoo to minimize total
-    fabric area subject to minimum area constraints (bilinear w*h >= A_min), row/column
-    grid constraints, and SuperTile boundary constraints.
-
-    After optimization, it automatically recompiles all tiles with the optimal
-    dimensions and stores the recompiled states in metrics for downstream processing.
+    Formulates and solves a Non-Linear Program using pymoo to minimize total
+    fabric area. Variables are row heights and column widths, ensuring
+    uniformity within each row/column by construction.
     """
 
     id = "FABulous.GlobalTileSizeOptimization"
@@ -331,13 +430,6 @@ class GlobalTileSizeOptimization(Step):
             Path,
             description="Path to the FABulous project directory",
         ),
-        Variable(
-            "FABULOUS_NLP_FTOL_TOLERANCE",
-            float,
-            description="Function tolerance for NLP optimizer - "
-            "stops when objective change is below this value",
-            default=1e-6,
-        ),
     ]
 
     inputs = []
@@ -348,111 +440,125 @@ class GlobalTileSizeOptimization(Step):
         DesignFormat.DEF,
     ]
 
-    def run(self, state_in: State, **_kwargs: str) -> tuple[ViewsUpdate, MetricsUpdate]:
-        """Solve NLP problem and recompile tiles with optimal dimensions.
+    @staticmethod
+    def _parse_tile_fields(data: dict) -> dict[str, Any]:
+        """Parse tile metric fields from JSON data.
 
-        The NLP formulation minimizes total fabric area sum(w_i*h_i) for all tiles,
-        subject to minimum area constraints w_i*h_i >= A_min,i (bilinear terms),
-        row/column grid consistency, and supertile spanning constraints.
-
-        Variables: row_heights[r], col_widths[c] for each row/col with tiles
-        Objective: Minimize sum over all positions: row_height[r] * col_width[c]
-        Constraints:
-        - Regular tiles: row_height[r] * col_width[c] >= A_min,i
-        - Supertiles: sum_spanned_row_h * sum_spanned_col_w >= A_min,i
-        - Bounds: from min tile dimensions to max available modes
-
-        After solving, recompiles all tiles with optimal dimensions.
-
-        Parameters
-        ----------
-        state_in : State
-            Input state with fabric structure and tile dimension options
-        **_kwargs: str
-            Additional keyword arguments (not used)
-
-        Returns
-        -------
-        tuple[ViewsUpdate, MetricsUpdate]
-            Updated views (design files) and metrics with optimal dimensions
-            and recompiled states
-
-
-        Raises
-        ------
-        FlowException
-            TILE_OPT_INFO not set in configuration
-        RuntimeError
-            No NLP solution found
+        Parses bbox strings into float lists and extracts optional scalar
+        fields (pin minimums) when present.
         """
+
+        def parse_bbox(key: str) -> list[float]:
+            return [float(v) for v in data[key].split()]
+
+        result: dict[str, Any] = {
+            "design__die__bbox": parse_bbox("design__die__bbox"),
+            "design__core__bbox": parse_bbox("design__core__bbox"),
+        }
+        for key in (
+            "fabulous__pin_min_width",
+            "fabulous__pin_min_height",
+            "design__instance__area__stdcell",
+        ):
+            if data.get(key) is not None:
+                result[key] = float(data[key])
+        return result
+
+    @classmethod
+    def _load_tile_metrics_from_json(
+        cls,
+        path: Path,
+    ) -> tuple[dict[OptMode, dict], dict[OptMode, dict]]:
+        """Load tile metrics from a JSON file.
+
+        Returns two dicts: (valid_metrics, all_metrics).
+        valid_metrics excludes tiles whose exploration never found a
+        working state (used for feasibility constraints).
+        all_metrics includes everything with a bbox (used for lower bounds).
+        """
+        tile_data_raw = json.loads(path.resolve().read_text())
+        valid_data: dict[OptMode, dict] = {}
+        all_data: dict[OptMode, dict] = {}
+
+        for mode, tile_info in tile_data_raw.items():
+            valid_dict: dict[str, dict[str, Any]] = {}
+            all_dict: dict[str, dict[str, Any]] = {}
+
+            for tile_name, data in tile_info.items():
+                if not data.get("design__die__bbox"):
+                    if "error" in data:
+                        warn(
+                            f"Tile {tile_name} in mode {mode} has error "
+                            f"and no bbox: {data['error']}"
+                        )
+                    continue
+
+                parsed = cls._parse_tile_fields(data)
+                all_dict[tile_name] = parsed
+
+                if "No working state found" in data.get("error_traceback", ""):
+                    warn(
+                        f"Tile {tile_name} in mode {mode} never compiled "
+                        f"successfully, excluding from constraints"
+                    )
+                else:
+                    valid_dict[tile_name] = parsed
+
+            valid_data[OptMode(mode)] = valid_dict
+            all_data[OptMode(mode)] = all_dict
+
+        return valid_data, all_data
+
+    def run(self, state_in: State, **_kwargs: str) -> tuple[ViewsUpdate, MetricsUpdate]:
+        """Solve NLP problem for optimal tile dimensions."""
         info("Formulating NLP problem using pymoo...")
         if self.config["TILE_OPT_INFO"] is None:
             raise FlowException(
                 "Values of TILE_OPT_INFO should have been set when calling this step."
             )
-        # Get fabric configuration
         fabric: Fabric = self.config["FABULOUS_FABRIC"]
-        tolerance = self.config.get("FABULOUS_NLP_FTOL_TOLERANCE", 10.0)
+
         if isinstance(self.config["TILE_OPT_INFO"], Path):
-            tile_data: dict[OptMode, dict] = {}
-            tile_data_raw = json.load(
-                Path(self.config["TILE_OPT_INFO"]).resolve().open()
+            valid_metrics, all_metrics = self._load_tile_metrics_from_json(
+                self.config["TILE_OPT_INFO"]
             )
-            for mode, tile_info in tile_data_raw.items():
-                tile_data[OptMode(mode)] = {}
-                for tile_name, data in tile_info.items():
-                    if "error" in data:
-                        continue
-                    tile_data[OptMode(mode)][tile_name] = {}
-                    tile_data[OptMode(mode)][tile_name]["design__die__bbox"] = [
-                        float(i) for i in data["design__die__bbox"].split()
-                    ]
-                    tile_data[OptMode(mode)][tile_name]["design__core__bbox"] = [
-                        float(i) for i in data["design__core__bbox"].split()
-                    ]
-            tile_opt_data = tile_data
         else:
-            tile_opt_data = self.config["TILE_OPT_INFO"]
-        # Create pymoo problem - constructor handles all the formatting
+            valid_metrics = self.config["TILE_OPT_INFO"]
+            all_metrics = valid_metrics
+
+        area_margin = self.config.get("FABULOUS_NLP_AREA_MARGIN", 0.05)
+        info(f"Using area margin: {area_margin:.1%}")
         problem = NLPTileProblem(
-            fabric,
-            tile_opt_data,
+            fabric, valid_metrics, all_metrics, area_margin=area_margin
         )
 
         x_pitch = Decimal(state_in.metrics.get("pdk__site_width", 0.5))
         y_pitch = Decimal(state_in.metrics.get("pdk__site_height", 0.5))
 
-        # Solve with ISRES - specifically designed for constrained optimization
+        n_row_vars = len(set(problem.row_groups.values()))
+
         class RoundRepair(Repair):
             def _do(self, _problem: Any, X: np.ndarray, **_kwargs: Any) -> np.ndarray:  # noqa: ANN401
-                """Solution repair to round to nearest grid pitch."""
+                """Round variables to nearest grid pitch."""
                 for j in range(X.shape[0]):
                     for i in range(X.shape[1]):
-                        if i % 2 == 0:
+                        if i < n_row_vars:  # row height variables
                             X[j][i] = float(round_up_decimal(Decimal(X[j][i]), y_pitch))
-                        else:
+                        else:  # column width variables
                             X[j][i] = float(round_up_decimal(Decimal(X[j][i]), x_pitch))
                 return X
 
         algorithm = ISRES(repair=RoundRepair())
 
-        info("Running optimization with function tolerance termination")
-
-        # Combine: stop when objective stops changing (ftol) OR feasible solution found
-        # OR max 50000 generations
-        ftol_termination = SingleObjectiveSpaceTermination(tol=tolerance)
-        max_gen_termination = MaximumGenerationTermination(50000)
-        termination = TerminateIfAny(ftol_termination, max_gen_termination)
+        n_gen = 500
+        info(f"Running optimization for {n_gen} generations")
+        termination = MaximumGenerationTermination(n_gen)
 
         res = minimize(problem, algorithm, termination, verbose=True)
 
-        # Check if we have a valid solution
-        # Try to get best solution even if infeasible
         if res.X is None:
-            # Check if there's a population with solutions
             if hasattr(res, "pop") and res.pop is not None and len(res.pop) > 0:
                 info("No single best solution found, using best from population")
-                # Sort population by constraint violation, then by objective
                 pop_sorted = sorted(
                     res.pop,
                     key=lambda ind: (
@@ -469,7 +575,6 @@ class GlobalTileSizeOptimization(Step):
             else:
                 raise RuntimeError("NLP optimization failed to find any solution")
 
-        # Check constraint violation
         if hasattr(res, "CV") and res.CV is not None:
             if res.CV[0] > 1e-6:
                 warn(f"Solution has constraint violation of {res.CV[0]}")
@@ -480,56 +585,50 @@ class GlobalTileSizeOptimization(Step):
 
         info(f"Optimization terminated with objective={res.F[0]}")
 
-        # Extract results
+        quant = Decimal(".01")
+        zero = Decimal(0)
+        result_dict: dict[str, tuple[Decimal, ...]] = {}
 
-        result_dict = {}
-        for tile_name, indices in problem.tile_to_solution_index.items():
-            w = res.X[indices.width_idx]
-            h = res.X[indices.height_idx]
-            if fabric.tileDic[tile_name].partOfSuperTile:
-                # Skip component tiles of supertiles
+        def quantized_width(tile_name: str) -> Decimal:
+            col = min(problem.tile_column_set[tile_name])
+            return Decimal(problem.get_col_width(res.X, col)).quantize(quant)
+
+        def quantized_height(tile_name: str) -> Decimal:
+            row = min(problem.tile_row_set[tile_name])
+            return Decimal(problem.get_row_height(res.X, row)).quantize(quant)
+
+        for tile in fabric.tileDic.values():
+            if tile.partOfSuperTile:
                 continue
-            result_dict[tile_name] = (
-                Decimal(0),
-                Decimal(0),
-                Decimal(w).quantize(Decimal(".01")),
-                Decimal(h).quantize(Decimal(".01")),
+            result_dict[tile.name] = (
+                zero,
+                zero,
+                quantized_width(tile.name),
+                quantized_height(tile.name),
             )
 
         for supertile in fabric.superTileDic.values():
-            # Sum component tile dimensions from first row (width) and
-            # first column (height) Width is sum of widths in the first row
-            total_w = 0.0
-            if supertile.tileMap and len(supertile.tileMap) > 0:
-                for tile in supertile.tileMap[0]:  # First row
+            total_w = zero
+            if supertile.tileMap:
+                for tile in supertile.tileMap[0]:
                     if tile is not None:
-                        sub_idx = problem.tile_to_solution_index[tile.name]
-                        total_w += res.X[sub_idx.width_idx]
+                        total_w += quantized_width(tile.name)
 
-            # Height is sum of heights in the first column
-            total_h = 0.0
-            for row in supertile.tileMap:
-                if row and len(row) > 0 and row[0] is not None:  # First column
-                    sub_idx = problem.tile_to_solution_index[row[0].name]
-                    total_h += res.X[sub_idx.height_idx]
+            total_h = zero
+            for row_tiles in supertile.tileMap:
+                first_tile = next((t for t in row_tiles if t is not None), None) if row_tiles else None
+                if first_tile is not None:
+                    total_h += quantized_height(first_tile.name)
 
-            result_dict[supertile.name] = (
-                Decimal(0),
-                Decimal(0),
-                Decimal(total_w).quantize(Decimal(".01")),
-                Decimal(total_h).quantize(Decimal(".01")),
-            )
+            result_dict[supertile.name] = (zero, zero, total_w, total_h)
 
-        # Calculate total area
         total_area = int(res.F[0])
-
-        # Report results
         info(f"  Total fabric area: {total_area}")
         info(f"  Optimal tile dimensions: {result_dict}")
 
-        metrics_updates = {
+        return {}, {
             "nlp__tile__area": result_dict,
             "nlp__total__area": total_area,
+            "nlp__tile__min_area": problem.min_areas,
+            "nlp__tile__stdcell_area": problem.stdcell_areas,
         }
-
-        return {}, metrics_updates

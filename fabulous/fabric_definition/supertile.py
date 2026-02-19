@@ -128,44 +128,34 @@ class SuperTile:
         self,
         x_pitch: Decimal,
         y_pitch: Decimal,
-        x_pin_thickness_mult: Decimal,
-        y_pin_thickness_mult: Decimal,
-        x_spacing: Decimal,
-        y_spacing: Decimal,
+        x_pin_thickness_mult: Decimal = Decimal(1),
+        y_pin_thickness_mult: Decimal = Decimal(1),
+        edge_offset: int = 2,
     ) -> tuple[Decimal, Decimal]:
-        """Calculate minimum SuperTile dimensions based on IO pin density.
+        """Calculate minimum SuperTile dimensions based on IO pin track requirements.
 
-        For this supertile, aggregates IO pins from all constituent tiles
-        that appear on the outer edges and calculates the minimum physical
-        width and height required.
+        Aggregates IO pins from all constituent tiles on the outer edges
+        and calculates the minimum physical width and height required.
+
+        See ``Tile.get_min_die_area`` for the track-based derivation.
 
         Parameters
         ----------
         x_pitch : Decimal
-            Horizontal pitch between tracks (DBU).
+            Vertical-layer track pitch (for north/south pins).
         y_pitch : Decimal
-            Vertical pitch between tracks (DBU).
+            Horizontal-layer track pitch (for east/west pins).
         x_pin_thickness_mult : Decimal
-            Pin thickness multiplier in the horizontal direction.
+            Number of tracks each north/south pin spans, by default 1.
         y_pin_thickness_mult : Decimal
-            Pin thickness multiplier in the vertical direction.
-        x_spacing : Decimal
-            Pin spacing in the horizontal direction (DBU).
-        y_spacing : Decimal
-            Pin spacing in the vertical direction (DBU).
+            Number of tracks each east/west pin spans, by default 1.
+        edge_offset : int, optional
+            Reserved tracks at tile edge, by default 2.
 
         Returns
         -------
         tuple[Decimal, Decimal]
-            (min_width, min_height) where:
-            - min_width: minimum width needed for north/south edge IO pins
-            - min_height: minimum height needed for west/east edge IO pins
-
-        Notes
-        -----
-        For supertiles, we aggregate IO pins from all constituent tiles
-        that appear on the outer edges of the supertile to get conservative
-        estimates for minimum dimensions.
+            (min_width, min_height)
         """
         max_north = 0
         max_south = 0
@@ -173,21 +163,15 @@ class SuperTile:
         max_east = 0
 
         for subtile in self.tiles:
-            north_ports = subtile.get_port_count(Side.NORTH)
-            south_ports = subtile.get_port_count(Side.SOUTH)
-            west_ports = subtile.get_port_count(Side.WEST)
-            east_ports = subtile.get_port_count(Side.EAST)
+            max_north = max(max_north, subtile.get_port_count(Side.NORTH))
+            max_south = max(max_south, subtile.get_port_count(Side.SOUTH))
+            max_west = max(max_west, subtile.get_port_count(Side.WEST))
+            max_east = max(max_east, subtile.get_port_count(Side.EAST))
 
-            max_north = max(max_north, north_ports)
-            max_south = max(max_south, south_ports)
-            max_west = max(max_west, west_ports)
-            max_east = max(max_east, east_ports)
+        x_io_count = Decimal(max(max_north, max_south))
+        min_width_io = (x_io_count * x_pin_thickness_mult + edge_offset) * x_pitch
 
-        min_width_io = Decimal(max(max_north, max_south)) * (
-            x_pitch * x_pin_thickness_mult + x_spacing
-        )
-        min_height_io = Decimal(max(max_west, max_east)) * (
-            y_pitch * y_pin_thickness_mult + y_spacing
-        )
+        y_io_count = Decimal(max(max_west, max_east))
+        min_height_io = (y_io_count * y_pin_thickness_mult + edge_offset) * y_pitch
 
         return min_width_io, min_height_io

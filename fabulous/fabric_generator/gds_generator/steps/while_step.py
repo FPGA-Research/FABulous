@@ -148,6 +148,10 @@ class WhileStep(Step):
             )
             progress_bar.end_stage()
         current_state = self.post_loop_callback(current_state)
+
+        # Persist final config — post_loop_callback may have updated it
+        (Path(self.step_dir) / "config.json").write_text(self.config.dumps())
+
         for key in current_state:
             if (
                 state_in.get(key) != current_state.get(key)

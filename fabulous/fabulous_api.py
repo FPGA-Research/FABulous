@@ -601,6 +601,8 @@ class FABulous_API:
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         tile_opt_config: Path | None = None,
+        nlp_only: bool = False,
+        nlp_area_margin: float = 0.05,
         **config_overrides: dict,
     ) -> None:
         """Run the stitching flow to assemble tile macros into a fabric-level GDS."""
@@ -621,6 +623,9 @@ class FABulous_API:
         final_config_args["DESIGN_NAME"] = self.fabric.name
         if tile_opt_config is not None:
             final_config_args["TILE_OPT_INFO"] = str(tile_opt_config)
+        if nlp_only:
+            final_config_args["FABULOUS_NLP_ONLY"] = True
+        final_config_args["FABULOUS_NLP_AREA_MARGIN"] = nlp_area_margin
         if config_overrides:
             final_config_args.update(config_overrides)
         flow = FABulousFabricMacroFullFlow(
