@@ -72,12 +72,16 @@ def test_create_project_pdk_hash_behavior(
     expect_hash: bool,
 ) -> None:
     """Test create_project FAB_PDK_HASH behavior for resolver outcomes."""
-    patch_kwargs = (
-        {"side_effect": resolver_behavior}
-        if isinstance(resolver_behavior, BaseException)
-        else {"return_value": resolver_behavior}
-    )
-    mocker.patch("fabulous.fabulous_cli.helper.get_pdk_hash", **patch_kwargs)
+    if isinstance(resolver_behavior, BaseException):
+        mocker.patch(
+            "fabulous.fabulous_cli.helper.get_pdk_hash",
+            side_effect=resolver_behavior,
+        )
+    else:
+        mocker.patch(
+            "fabulous.fabulous_cli.helper.get_pdk_hash",
+            return_value=resolver_behavior,
+        )
 
     project_dir = tmp_path / "test_project_pdk_hash_behavior"
     create_project(project_dir)
