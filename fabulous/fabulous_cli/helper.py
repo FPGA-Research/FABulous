@@ -25,7 +25,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import requests
+from ciel.common import get_ciel_home
 from dotenv import get_key, set_key
+from librelane.common.misc import get_pdk_hash
 from loguru import logger
 from packaging.version import Version
 from pick import pick
@@ -221,20 +223,27 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
         "FAB_MODELS_PACK",
         str(Path(project_dir.name) / "Fabric" / f"models_pack.{new_suffix}"),
     )
-    if (Path().home() / ".ciel").exists():
-        if (Path().home() / ".ciel" / "ihp-sg13g2").exists():
+    ciel_home = Path(get_ciel_home())
+
+    if ciel_home.exists():
+        if (ciel_home / "ihp-sg13g2").exists():
             set_key(env_file, "FAB_PDK", "ihp-sg13g2")
-            set_key(
-                env_file, "FAB_PDK_ROOT", str(Path().home() / ".ciel" / "ihp-sg13g2")
-            )
+            set_key(env_file, "FAB_PDK_ROOT", str(ciel_home / "ihp-sg13g2"))
+
+            try:
+                pdk_hash = get_pdk_hash("ihp-sg13g2")
+            except SystemExit:
+                pdk_hash = None
+            if pdk_hash:
+                set_key(env_file, "FAB_PDK_HASH", pdk_hash)
         else:
             logger.warning(
-                "IHP SG13G2 PDK not found in ~/.ciel. ",
+                "IHP SG13G2 PDK not found in ciel home. "
                 "Please ensure it is installed correctly.",
             )
     else:
         logger.warning(
-            "Cannot find .ciel in $HOME. Please set FAB_PDK_ROOT in .env file."
+            "Cannot find ciel home directory. Please set FAB_PDK_ROOT in .env file."
         )
 
     logger.info(

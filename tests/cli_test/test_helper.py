@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_cli.helper import create_project, update_project_version
@@ -53,6 +54,80 @@ def test_create_project_vhdl(tmp_path: Path) -> None:
     assert any(project_dir.glob("**/*.vhdl")), (
         "No VHDL files found in project directory"
     )
+
+
+@pytest.mark.parametrize(
+    ("resolver_behavior", "expect_hash"),
+    [
+        ("abc123def456resolved", True),
+        (None, False),
+        (SystemExit(1), False),
+    ],
+    ids=["resolver_returns_hash", "resolver_returns_none", "resolver_sysexit"],
+)
+def test_create_project_pdk_hash_behavior(
+    tmp_path: Path,
+    mocker: MockerFixture,
+    resolver_behavior: str | None | BaseException,
+    expect_hash: bool,
+) -> None:
+    """Test create_project FAB_PDK_HASH behavior for resolver outcomes."""
+    if isinstance(resolver_behavior, BaseException):
+        mocker.patch(
+            "fabulous.fabulous_cli.helper.get_pdk_hash",
+            side_effect=resolver_behavior,
+        )
+    else:
+        mocker.patch(
+            "fabulous.fabulous_cli.helper.get_pdk_hash",
+            return_value=resolver_behavior,
+        )
+
+    project_dir = tmp_path / "test_project_pdk_hash_behavior"
+    create_project(project_dir)
+
+    env_file = project_dir / ".FABulous" / ".env"
+    assert env_file.exists()
+    env_content = env_file.read_text()
+    if expect_hash:
+        assert "FAB_PDK_HASH='abc123def456resolved'" in env_content
+    else:
+        assert "FAB_PDK_HASH" not in env_content
+
+
+def test_create_project_warns_when_pdk_not_in_ciel(
+    tmp_path: Path, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test warning when ihp-sg13g2 dir is missing inside ciel home."""
+    # Make ciel home exist but without ihp-sg13g2 subdirectory
+    ciel_home = tmp_path / ".ciel_empty"
+    ciel_home.mkdir()
+    mocker.patch(
+        "fabulous.fabulous_cli.helper.get_ciel_home",
+        return_value=str(ciel_home),
+    )
+    project_dir = tmp_path / "test_project_no_pdk"
+    create_project(project_dir)
+
+    env_file = project_dir / ".FABulous" / ".env"
+    assert "FAB_PDK" not in env_file.read_text()
+    assert any("IHP SG13G2 PDK not found" in r.message for r in caplog.records)
+
+
+def test_create_project_warns_when_ciel_home_missing(
+    tmp_path: Path, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test warning when ciel home directory does not exist."""
+    mocker.patch(
+        "fabulous.fabulous_cli.helper.get_ciel_home",
+        return_value=str(tmp_path / "nonexistent_ciel"),
+    )
+    project_dir = tmp_path / "test_project_no_ciel"
+    create_project(project_dir)
+
+    env_file = project_dir / ".FABulous" / ".env"
+    assert "FAB_PDK" not in env_file.read_text()
+    assert any("Cannot find ciel home" in r.message for r in caplog.records)
 
 
 def test_update_project_version_success(
