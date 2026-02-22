@@ -381,10 +381,69 @@ class FABulousTileTimingModel:
         return delay 
     
     def external_pip_delay_structural(self, pip_src: str, pip_dst: str) -> float:
-        return 0.001
+        logger.info(f"Calculating structural delay for external PIP from {pip_src} to {pip_dst}")
+        
+        synth_model = self.hdlnx_tm_synth
+        
+        default_delay: float = 0.001
+        
+        # Must do for ports with indices, e.g., NN2BEG3 -> NN2BEG[3]
+        pip_src = re.sub(r'^(.*?)(\d+)$', r'\1[\2]', pip_src)
+        pip_dst = re.sub(r'^(.*?)(\d+)$', r'\1[\2]', pip_dst)
+        
+        # Tile interconnects, stitched fixed delay almost 0.
+        if pip_src in synth_model.get_output_ports():
+            logger.info(f"Tile output {pip_src} to next tile input {pip_dst} stitched delay: {default_delay} ns")
+            return default_delay
+        
+        # Tile input to nearest output (twist to the next tile input)
+        elif pip_src in synth_model.get_input_ports():
+            out_port_list, out_port = synth_model.path_to_nearest_target_sentinel(pip_src, synth_model.get_output_ports())
+            logger.info(f"Port twist detected for {pip_src} to {pip_dst}:")
+            if out_port is None:
+                logger.warning(f"No nearest port found for tile input {pip_src}. Using default delay {default_delay} ns")
+                return default_delay
+            delay, path, info = synth_model.delay_path(pip_src, out_port)
+            logger.info(f"Delay from tile input {pip_src} to tile output {out_port}--{pip_dst}: {delay} ns via path:")
+            print(info)
+            return delay
+        
+        # SWM output to the next SWM input
+        else:
+            logger.info(f"SWM output {pip_src} to next SWM input {pip_dst} directly connected delay: {default_delay} ns")
+            return default_delay
     
     def external_pip_delay_physical(self, pip_src: str, pip_dst: str) -> float:
-        return 0.001
+        logger.info(f"Calculating physical delay for external PIP from {pip_src} to {pip_dst}")
+        
+        phys_model = self.hdlnx_tm_phys
+        
+        default_delay: float = 0.001
+        
+        # Must do for ports with indices, e.g., NN2BEG3 -> NN2BEG[3]
+        pip_src = re.sub(r'^(.*?)(\d+)$', r'\1[\2]', pip_src)
+        pip_dst = re.sub(r'^(.*?)(\d+)$', r'\1[\2]', pip_dst)
+        
+        # Tile interconnects, stitched fixed delay almost 0.
+        if pip_src in phys_model.get_output_ports():
+            logger.info(f"Tile output {pip_src} to next tile input {pip_dst} stitched delay: {default_delay} ns")
+            return default_delay
+        
+        # Tile input to nearest output (twist to the next tile input)
+        elif pip_src in phys_model.get_input_ports():
+            out_port_list, out_port = phys_model.path_to_nearest_target_sentinel(pip_src, phys_model.get_output_ports())
+            logger.info(f"Port twist detected for {pip_src} to {pip_dst}:")
+            if out_port is None:
+                logger.warning(f"No nearest port found for tile input {pip_src}. Using default delay {default_delay} ns")
+                return default_delay
+            delay, path, info = phys_model.delay_path(pip_src, out_port)
+            logger.info(f"Delay from tile input {pip_src} to tile output {out_port}--{pip_dst}: {delay} ns via path:")
+            print(info)
+            return delay
+        # SWM output to the next SWM input
+        else:
+            logger.info(f"SWM output {pip_src} to next SWM input {pip_dst} directly connected delay: {default_delay} ns")
+            return default_delay
     
     def internal_pip_delay(self, pip_src: str, pip_dst: str) -> float:
         if self.mode == "physical":
