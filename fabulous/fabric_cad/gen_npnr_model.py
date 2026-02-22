@@ -17,7 +17,7 @@ from fabulous.custom_exception import InvalidFileType, InvalidState
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
-from FABulous.fabric_cad.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
+from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
 
 def genNextpnrModel(fabric: Fabric, delay_model: FABulousTimingModelInterface = None) -> tuple[str, str, str, str]:
     """Generate the fabric's nextpnr model.

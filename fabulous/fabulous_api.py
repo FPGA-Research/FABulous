@@ -54,7 +54,7 @@ from fabulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrap
 from fabulous.fabulous_settings import get_context
 from fabulous.geometry_generator.geometry_gen import GeometryGenerator
 
-from FABulous.fabric_cad.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
+from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
 
 
 class FABulous_API:

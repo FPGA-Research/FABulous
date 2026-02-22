@@ -10,9 +10,9 @@ from loguru import logger
 
 from .FABulous_timing_model import FABulousTileTimingModel
 
-from FABulous.fabric_definition.Fabric import Fabric
-from FABulous.fabric_definition.SuperTile import SuperTile
-from FABulous.fabric_definition.Tile import Tile
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
 
 class FABulousTimingModelInterface:
     def __init__(self, config: dict, fabric: Fabric):
