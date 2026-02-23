@@ -54,7 +54,9 @@ from fabulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrap
 from fabulous.fabulous_settings import get_context
 from fabulous.geometry_generator.geometry_gen import GeometryGenerator
 
-from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
+from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
+    FABulousTimingModelInterface,
+)
 
 
 class FABulous_API:
@@ -662,23 +664,30 @@ class FABulous_API:
         result.save_snapshot(out_folder / "final_views")
         logger.info("Stitching flow completed.")
 
-    def timing_model_interface(self, 
-        project_dir: Path, 
-        pdk_root: Path, 
-        pdk: str, 
+    def timing_model_interface(
+        self,
+        project_dir: Path,
+        pdk_root: Path,
+        pdk: str,
         mode: str,
         output_file: Path,
-        debug: bool = False
+        debug: bool = False,
     ) -> None:
         if pdk == "ihp-sg13g2":
-            liberty_files: Path = pdk_root / "libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib"
+            liberty_files: Path = (
+                pdk_root
+                / "libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib"
+            )
             techmap_files: list[Path] = [
                 pdk_root / "libs.tech/librelane/sg13g2_stdcell/latch_map.v",
                 pdk_root / "libs.tech/librelane/sg13g2_stdcell/tribuff_map.v",
             ]
             min_buf_cell_and_ports: str = "sg13g2_buf_1 A X"
         elif pdk == "sky130A" or pdk == "sky130B":
-            liberty_files: Path = pdk_root / "libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
+            liberty_files: Path = (
+                pdk_root
+                / "libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
+            )
             techmap_files: list[Path] = [
                 pdk_root / "libs.tech/openlane/sky130_fd_sc_hd/latch_map.v",
                 pdk_root / "libs.tech/openlane/sky130_fd_sc_hd/tribuff_map.v",
@@ -686,18 +695,21 @@ class FABulous_API:
             min_buf_cell_and_ports: str = "sky130_fd_sc_hd__buf_1 A X"
         else:
             raise ValueError(f"PDK {pdk} not supported for timing model interface.")
-        
-        ftmi = FABulousTimingModelInterface(config={
-            "project_dir": project_dir,
-            "liberty_files": liberty_files,
-            "techmap_files": techmap_files,
-            "min_buf_cell_and_ports": min_buf_cell_and_ports,
-            "mode": mode,
-            "debug": debug
-        }, fabric=self.fabric)
-        
+
+        ftmi = FABulousTimingModelInterface(
+            config={
+                "project_dir": project_dir,
+                "liberty_files": liberty_files,
+                "techmap_files": techmap_files,
+                "min_buf_cell_and_ports": min_buf_cell_and_ports,
+                "mode": mode,
+                "debug": debug,
+            },
+            fabric=self.fabric,
+        )
+
         model_gen_npnr.writeNextpnrPipFile(
             fabric=self.fabric,
             outputFile=output_file,
             delay_model=ftmi,
-        )   
+        )

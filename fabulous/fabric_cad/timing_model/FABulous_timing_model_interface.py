@@ -14,23 +14,27 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 
+
 class FABulousTimingModelInterface:
     def __init__(self, config: dict, fabric: Fabric):
         self.config = config
         self.fabric = fabric
         self.tile_delay_dict: dict[str, dict[str, float]] = {}
-       
+
         self.timing_models: dict[str, FABulousTileTimingModel] = {}
-        
-        logger.info(f"Initializing timing models for tiles, with mode: {self.config['mode']}")
-        
+
+        logger.info(
+            f"Initializing timing models for tiles, with mode: {self.config['mode']}"
+        )
+
         for tile_name, tile in fabric.tileDic.items():
             model_config = self.config.copy()
             model_config["tile_name"] = tile_name
-            timing_model = FABulousTileTimingModel(config=model_config, fabric=self.fabric)
+            timing_model = FABulousTileTimingModel(
+                config=model_config, fabric=self.fabric
+            )
             self.timing_models[tile_name] = timing_model
-            
-            
+
     def pip_delay(self, tile_name: str, key: str, src_pip: str, dst_pip: str) -> float:
         """
         Get the delay for a given pip in the timing model and save
@@ -48,15 +52,17 @@ class FABulousTimingModelInterface:
         """
         if tile_name not in self.timing_models:
             raise ValueError(f"Timing model for tile {tile_name!r} not found.")
-        
+
         if tile_name not in self.tile_delay_dict:
             self.tile_delay_dict[tile_name] = {}
-        
+
         if key in self.tile_delay_dict[tile_name]:
-            logger.info(f"Using cached delay for key {key!r} in tile {tile_name!r} "
-                        f"with delay {self.tile_delay_dict[tile_name][key]}")
+            logger.info(
+                f"Using cached delay for key {key!r} in tile {tile_name!r} "
+                f"with delay {self.tile_delay_dict[tile_name][key]}"
+            )
             return self.tile_delay_dict[tile_name][key]
-        
+
         timing_model = self.timing_models[tile_name]
         delay = timing_model.pip_delay(src_pip, dst_pip)
         self.tile_delay_dict[tile_name][key] = delay

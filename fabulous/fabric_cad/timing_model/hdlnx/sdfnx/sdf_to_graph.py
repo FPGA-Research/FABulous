@@ -14,6 +14,7 @@ import networkx as nx
 
 from .sdf_to_graph_base import SDFTimingGraphBase
 
+
 class SDFTimingGraph(SDFTimingGraphBase):
     """
     Class to represent a timing graph generated from an SDF file.
@@ -21,12 +22,16 @@ class SDFTimingGraph(SDFTimingGraphBase):
     specific to timing analysis.
     Inherits all attributes and methods from SDFTimingGraphBase.
     """
-    
+
     ### Public Methods ###
-    
-    def earliest_common_nodes(self, sources: list[str], mode: str = "max",
-                              consider_delay: bool = True, 
-                              stop: float | int = None) -> tuple[list[str], float, dict[str, dict[str, float]]]:
+
+    def earliest_common_nodes(
+        self,
+        sources: list[str],
+        mode: str = "max",
+        consider_delay: bool = True,
+        stop: float | int = None,
+    ) -> tuple[list[str], float, dict[str, dict[str, float]]]:
         """
         Find the earliest node(s) that are reachable from ALL given sources in a directed graph.
         Similar to betweenness_centrality_subset, but finds nodes that minimize the maximum (or sum) distance
@@ -36,7 +41,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
 
             cost(v) = max_i dist(s_i, v)      if mode == "max" (minimize worst distance)
             cost(v) = sum_i dist(s_i, v)      if mode == "sum" (minimize total distance)
-            
+
         Arguments:
             sources (list[str]): Iterable of source nodes.
             mode (str): "max" to minimize worst distance, "sum" to minimize total distance.
@@ -51,7 +56,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
             - best_cost (float): the minimal cost value (hop-count, or delay sum), or None if no common node
             - dists (dict[str, dict[str, float]]): dict: source -> dict(node -> distance)
         """
-        
+
         sources = list(sources)
         if not sources:
             return [], None, {}
@@ -59,8 +64,9 @@ class SDFTimingGraph(SDFTimingGraphBase):
         # BFS from each source (unweighted shortest path length)
         dists: dict[str, dict[str, float]] = {}
         for s in sources:
-            dists[s] = nx.single_source_dijkstra_path_length(self.graph, s, cutoff=stop, 
-                                                             weight="weight" if consider_delay else None)
+            dists[s] = nx.single_source_dijkstra_path_length(
+                self.graph, s, cutoff=stop, weight="weight" if consider_delay else None
+            )
 
         # Nodes reachable from ALL sources
         common = None
@@ -73,9 +79,11 @@ class SDFTimingGraph(SDFTimingGraphBase):
 
         # Cost function
         if mode == "sum":
+
             def cost(v):
                 return sum(dists[s][v] for s in sources)
         else:
+
             def cost(v):
                 return max(dists[s][v] for s in sources)
 
@@ -84,19 +92,21 @@ class SDFTimingGraph(SDFTimingGraphBase):
         best_nodes = [v for v in common if cost(v) == best_cost]
 
         return best_nodes, best_cost, dists
-    
-    def follow_first_fanout_from_pins(self, hier_pin_path: str, num_follow: int = 1) -> str:
+
+    def follow_first_fanout_from_pins(
+        self, hier_pin_path: str, num_follow: int = 1
+    ) -> str:
         """
         Follow the first fanout path from a given hierarchical pin path
         for a specified number of hops.
-        
+
         Args:
             hier_pin_path (str): Hierarchical pin path to start from.
             num_follow (int): Number of fanout hops to follow.
         Returns:
             str: The hierarchical pin path reached after following the fanout.
         """
-        
+
         current_pin: str = hier_pin_path
         for _ in range(num_follow):
             successors = next(self.graph.successors(current_pin), None)
@@ -104,7 +114,6 @@ class SDFTimingGraph(SDFTimingGraphBase):
                 break
             current_pin = successors
         return current_pin
-    
 
     def path_to_nearest_target_sentinel(
         self,
@@ -112,7 +121,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
         targets: list[str],
         weight: str | None = None,
         sentinel_prefix: str = "_sentinel_",
-        reverse: bool = False
+        reverse: bool = False,
     ) -> tuple[list[str], str]:
         """
         Find the shortest path from `source` to the nearest node in `targets`
@@ -138,18 +147,18 @@ class SDFTimingGraph(SDFTimingGraphBase):
             or None if no target is reachable.
         closest_target : str | None
             The closest target node, or None if no target is reachable.
-            
+
         Raises
         ------
         ValueError
             If `targets` is empty.
         """
-        
+
         if reverse:
             G = self.reverse_graph
         else:
             G = self.graph
-        
+
         targets: set[str] = set(targets)
         if not targets:
             raise ValueError("targets must be a non-empty iterable of nodes")
@@ -162,16 +171,18 @@ class SDFTimingGraph(SDFTimingGraphBase):
         # Add zero-cost edges from each target to the sentinel
         if weight is None:
             for t in targets:
-                #if G.has_node(t):
+                # if G.has_node(t):
                 G.add_edge(t, sentinel)
         else:
             for t in targets:
-                #if G.has_node(t):
+                # if G.has_node(t):
                 G.add_edge(t, sentinel, weight=0)
         try:
             # Shortest path (directed) source -> sentinel
-            path: list[str] = nx.shortest_path(G, source=source, target=sentinel, weight=weight)
-            #dist: float = nx.shortest_path_length(G, source=source, target=sentinel, weight=weight)
+            path: list[str] = nx.shortest_path(
+                G, source=source, target=sentinel, weight=weight
+            )
+            # dist: float = nx.shortest_path_length(G, source=source, target=sentinel, weight=weight)
         except nx.NetworkXNoPath:
             # Clean up and signal no reachable target
             G.remove_node(sentinel)
@@ -187,7 +198,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
         path_without_sentinel: list[str] = path[:-1]
 
         # Adjust distance for unweighted graphs (we added one extra edge)
-        #if weight is None:
-            #dist = dist - 1
+        # if weight is None:
+        # dist = dist - 1
 
-        return path_without_sentinel, closest_target #, dist
+        return path_without_sentinel, closest_target  # , dist

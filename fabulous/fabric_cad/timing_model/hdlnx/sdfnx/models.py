@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class Component:
     """
@@ -29,14 +30,14 @@ class Component:
         from_pin_edge (str): Edge type for the from pin, e.g., "posedge" or "negedge".
         to_pin_edge (str): Edge type for the to pin, e.g., "posedge" or "negedge".
     """
-    
-    c_type: str              
-    connection_string: str   
-    cell_name: str           
-    from_cell_instance: str  
-    to_cell_instance: str    
-    from_cell_pin: str       
-    to_cell_pin: str         
+
+    c_type: str
+    connection_string: str
+    cell_name: str
+    from_cell_instance: str
+    to_cell_instance: str
+    from_cell_pin: str
+    to_cell_pin: str
     delay: float
     delay_paths: dict
     is_one_cell_instance: bool

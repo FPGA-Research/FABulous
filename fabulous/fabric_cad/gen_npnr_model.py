@@ -17,9 +17,14 @@ from fabulous.custom_exception import InvalidFileType, InvalidState
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
-from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import FABulousTimingModelInterface
+from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
+    FABulousTimingModelInterface,
+)
 
-def genNextpnrModel(fabric: Fabric, delay_model: FABulousTimingModelInterface = None) -> tuple[str, str, str, str]:
+
+def genNextpnrModel(
+    fabric: Fabric, delay_model: FABulousTimingModelInterface = None
+) -> tuple[str, str, str, str]:
     """Generate the fabric's nextpnr model.
 
     Parameters
@@ -68,7 +73,9 @@ def genNextpnrModel(fabric: Fabric, delay_model: FABulousTimingModelInterface = 
                     for sink in sinkList:
                         delay: float = 8
                         if delay_model is not None:
-                            delay = delay_model.pip_delay(tile.name, f"{sink}.{source}", source, sink)
+                            delay = delay_model.pip_delay(
+                                tile.name, f"{sink}.{source}", source, sink
+                            )
                         pipStr.append(
                             f"X{x}Y{y},{sink},X{x}Y{y},{source},{delay},{sink}.{source}"
                         )
@@ -77,7 +84,9 @@ def genNextpnrModel(fabric: Fabric, delay_model: FABulousTimingModelInterface = 
                 for sink, source in connection:
                     delay: float = 8
                     if delay_model is not None:
-                        delay = delay_model.pip_delay(tile.name, f"{source}.{sink}", source, sink)
+                        delay = delay_model.pip_delay(
+                            tile.name, f"{source}.{sink}", source, sink
+                        )
                     pipStr.append(
                         f"X{x}Y{y},{source},X{x}Y{y},{sink},{delay},{source}.{sink}"
                     )
@@ -98,7 +107,7 @@ def genNextpnrModel(fabric: Fabric, delay_model: FABulousTimingModelInterface = 
                         f"X{xDst}Y{yDst}. "
                         "Please check your tile CSV file for unmatching wires/offsets!"
                     )
-                
+
                 delay: float = 8
                 if delay_model is not None:
                     delay = delay_model.pip_delay(
@@ -170,6 +179,7 @@ def genNextpnrModel(fabric: Fabric, delay_model: FABulousTimingModelInterface = 
         "\n".join(belv2Str),
         "\n".join(constrainStr),
     )
+
 
 def writeNextpnrPipFile(
     fabric: Fabric,
