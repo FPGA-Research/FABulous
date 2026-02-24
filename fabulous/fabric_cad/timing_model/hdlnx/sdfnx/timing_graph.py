@@ -2,9 +2,6 @@
 SDF Timing Graph Generation Module
 This module provides functionality to parse SDF files and generate
 timing directed graphs using NetworkX.
-SDF to dict is done using f4pga_sdf_timing.sdf_timing.sdfparse see also:
-  https://github.com/chipsalliance/f4pga-sdf-timing/tree/master
-  https://github.com/FPGA-Research/f4pga-sdf-timing/tree/master
 """
 
 from pathlib import Path
@@ -30,13 +27,19 @@ def delay_type(delay_dict: dict, type: str = "max_all") -> float:
 
     which will be in the SDF as: ((1.0::2.0) (3.0::4.0)) for fast and slow, and (2.0::3.0) for nominal.
 
-    Args:
-        delay_dict (dict): A dictionary containing delay information.
-        type (str): The type of delay to extract. Options include:
-            "min_all", "max_all", "avg_all", "avg_fast", "avg_slow",
-            "max_fast", "max_slow", "min_fast", "min_slow".
-    Returns:
-        float: The calculated delay value.
+    Parameters
+    ----------
+    delay_dict : dict
+        A dictionary containing delay information.
+    type : str
+        The type of delay to extract. Options include:
+        "min_all", "max_all", "avg_all", "avg_fast", "avg_slow",
+        "max_fast", "max_slow", "min_fast", "min_slow".
+
+    Returns
+    -------
+    float
+        The calculated delay value.
     """
 
     if (
@@ -109,11 +112,17 @@ def split_instance_pin(name: str, hier_sep: str) -> tuple[str, str]:
     Split a hierarchical name into instance and pin parts based on the separator.
     For example, given the name "_2988_/Q" and separator "/", it returns ("_2988_", "Q").
 
-    Args:
-        name (str): The hierarchical name to split.
-        hier_sep (str): The separator used in the hierarchical name.
-    Returns:
-        tuple (str, str): A tuple containing the instance and pin names.
+    Parameters
+    ----------
+    name : str
+        The hierarchical name to split.
+    hier_sep : str
+        The separator used in the hierarchical name.
+
+    Returns
+    -------
+    tuple[str, str]
+        A tuple containing the instance and pin names.
     """
 
     parts = name.rsplit(hier_sep, 1)
@@ -135,11 +144,17 @@ def get_sdf_INTERCONNECTs_and_IOPATHs(
     But IOPATHs and INTERCONNECTS are used to build the timing graph.
     Timing checks (hold, setup, reset, recover, width) and other components are stored in the instances dictionary.
 
-    Args:
-        sdf_file (Path): Path to the SDF file.
-        delay_type_str (str): The type of delay to extract (e.g., "max_all").
-    Returns:
-        tuple (list, list, dict, dict, list[str], dict[str, list[Component]]): A tuple containing two
+    Parameters
+    ----------
+    sdf_file : Path
+        Path to the SDF file.
+    delay_type_str : str
+        The type of delay to extract (e.g., "max_all").
+
+    Returns
+    -------
+    tuple[list[Component], list[Component], dict, dict, list[str], dict[str, list[Component]]
+        A tuple containing two
         lists - one for IOPATH components and one
         for INTERCONNECT components, a dictionary for the SDF header information and a
         dict containing the full parsed SDF data. A list of cell names and a dictionary mapping instance
@@ -273,11 +288,16 @@ def gen_timing_digraph(
     But IOPATHs and INTERCONNECTS are used to build the timing graph.
     Timing checks (hold, setup, reset, recover, width) and other components are stored in the instances dictionary.
 
-    Args:
-        sdf_file (Path): Path to the SDF file.
-        delay_type_str (str): The type of delay to extract (e.g., "max_all").
-    Returns:
-        tuple (nx.DiGraph, dict, dict, list[str], dict[str, list[Component]], list[Component], list[Component]):
+    Parameters
+    ----------
+    sdf_file : Path
+        Path to the SDF file.
+    delay_type_str : str
+        The type of delay to extract (e.g., "max_all").
+
+    Returns
+    -------
+    tuple[nx.DiGraph, dict, dict, list[str], dict[str, list[Component]], list[Component], list[Component]]
         A tuple containing a directed  graph representing the timing paths and a dictionary for the SDF header
         information. A dict containing the full parsed SDF data. A list of cell names and a dictionary mapping instance
         names to lists of components. Two lists - one for IOPATH components and one for INTERCONNECT components.

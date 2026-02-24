@@ -21,16 +21,27 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
     Class to represent a timing graph generated from a Verilog gate-level netlist.
     It extends SDFTimingGraph to include functionality for generating the SDF file
     using an external static timing analysis (STA) tool.
-    Attributes:
-        verilog_netlist (Path): Path to the Verilog gate-level netlist file.
-        liberty_files (list[Path] | Path): List of paths to Liberty files or a single Liberty file path.
-        top_name (str): Name of the top-level module in the Verilog netlist.
-        sta_executable (str): Path to the STA tool executable.
-        sta_program (str): Name of the STA tool program (e.g., "opensta").
-        spef_files (list[Path] | Path | None): List of paths to SPEF files or a single SPEF file path, or None.
-        delay_type_str (str): Type of delay to consider (e.g., "max_all").
-        hier_sep (str | None): Hierarchy separator used in the netlist, or None.
-        debug (bool): Flag to enable debug mode.
+
+    Attributes
+    ----------
+    verilog_netlist : Path
+        Path to the Verilog gate-level netlist file.
+    liberty_files : list[Path] | Path
+        List of paths to Liberty files or a single Liberty file path.
+    top_name : str
+        Name of the top-level module in the Verilog netlist.
+    sta_executable : str
+        Path to the STA tool executable.
+    sta_program : str
+        Name of the STA tool program (e.g., "opensta").
+    spef_files : list[Path] | Path | None
+        List of paths to SPEF files or a single SPEF file path, or None.
+    delay_type_str : str
+        Type of delay to consider (e.g., "max_all").
+    hier_sep : str | None
+        Hierarchy separator used in the netlist, or None.
+    debug : bool
+        Flag to enable debug mode.
     """
 
     def __init__(
@@ -50,7 +61,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         Verilog netlist using the specified STA tool, and then initializing the parent SDFTimingGraph
         with the generated SDF file.
         """
-        
+
         self.verilog_netlist: Path = verilog_netlist
         self.liberty_files: list[Path] | Path = liberty_files
         self.top_name: str = top_name
@@ -97,10 +108,15 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
     def _check_errors(self):
         """
         Checks for errors in the provided configuration parameters.
-        Raises:
-            TypeError: If any parameter is of incorrect type.
-            FileNotFoundError: If any specified file does not exist.
-            ValueError: If any specified file is empty.
+
+        Raises
+        ------
+        TypeError
+            If any parameter is of incorrect type.
+        FileNotFoundError
+            If any specified file does not exist.
+        ValueError
+            If any specified file is empty.
         """
 
         if not isinstance(self.verilog_netlist, Path):
@@ -176,14 +192,25 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         """
         Calls an external executable with given arguments and stdin data.
         Captures the output and checks for errors.
-        Args:
-            executable (str): The path to the executable to run.
-            args (list[str]): List of arguments to pass to the executable.
-            stdin_data (str): Data to send to the executable's stdin.
-        Returns:
-            subprocess.CompletedProcess: The result of the subprocess call.
-        Raises:
-            RuntimeError: If the external command fails.
+
+        Parameters
+        ----------
+        executable : str
+            The path to the executable to run.
+        args : list[str]
+            List of arguments to pass to the executable.
+        stdin_data : str
+            Data to send to the executable's stdin.
+
+        Returns
+        -------
+        subprocess.CompletedProcess
+            The result of the subprocess call.
+
+        Raises
+        ------
+        RuntimeError
+            If the external command fails.
         """
 
         if debug:
@@ -216,8 +243,11 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         """
         Generates an temporary SDF file from the Verilog gate-level netlist using OpenSTA.
         The SDF file is created in a temporary location and deleted after use.
-        Returns:
-            Path: The path to the generated SDF file.
+
+        Returns
+        -------
+        Path
+            The path to the generated SDF file.
         """
 
         sta_tcl_script: str = ""
@@ -269,8 +299,11 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
     def get_raw_verilog_netlist_data(self) -> str:
         """
         Returns the raw Verilog netlist content as a string.
-        Returns:
-            str: The content of the Verilog netlist file.
+
+        Returns
+        -------
+        str
+            The content of the Verilog netlist file.
         """
         return self.verilog_netlist_content
 
@@ -281,15 +314,22 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
 
         Returns a list of hierarchical pin paths (strings).
 
-        Limitations:
+        Limitations
+        -----------
         - Expects gate-level, structural Verilog: module/endmodule + simple instances
-          of the form: CellType inst_name ( .PIN(net), ... );
+            of the form: CellType inst_name ( .PIN(net), ... );
         - Ignores assign statements, generate blocks, functions, etc.
         - Assumes module port names are used as net names inside the module.
-        Args:
-            hier_pin_path (str): Hierarchical pin path in the format "inst1/inst2/pin".
-        Returns:
-            list[str]: List of resolved leaf pin paths.
+
+        Parameters
+        ----------
+        hier_pin_path : str
+            Hierarchical pin path in the format "inst1/inst2/pin".
+
+        Returns
+        -------
+        list[str]
+            List of resolved leaf pin paths.
         """
 
         sep = self.get_hier_sep()
@@ -495,11 +535,18 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
     def find_verilog_modules_regex(self, name_pattern: str) -> list[str]:
         """
         Parse a Verilog netlist and return all module names that match the given regex pattern.
-        Args:
-            verilog_src (str): The Verilog netlist content as a string.
-            name_pattern (str): Regular expression pattern to match module names.
-        Returns:
-            list[str]: List of module names matching the regex pattern.
+
+        Parameters
+        ----------
+        verilog_src : str
+            The Verilog netlist content as a string.
+        name_pattern : str
+            Regular expression pattern to match module names.
+
+        Returns
+        -------
+        list[str]
+            List of module names matching the regex pattern.
         """
 
         verilog_src: str = self.verilog_netlist_content
@@ -532,11 +579,18 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         Parse a structural Verilog netlist, walk the hierarchy from `top_module`,
         and return all hierarchical instance paths (without the top module name) whose
         path matches `inst_regex`.
-        Args:
-            inst_regex (str): Regular expression to match hierarchical instance paths.
-            filter_regex (str | None): Optional regular expression to filter the matched instance paths.
-        Returns:
-            list[str]: List of hierarchical instance paths matching the regex.
+
+        Parameters
+        ----------
+        inst_regex : str
+            Regular expression to match hierarchical instance paths.
+        filter_regex : str | None
+            Optional regular expression to filter the matched instance paths.
+
+        Returns
+        -------
+        list[str]
+            List of hierarchical instance paths matching the regex.
         """
 
         top_module = self.top_name
@@ -662,7 +716,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         that have *all* nets in `nets` connected to any of their pins.
 
         - Only looks at direct instances inside the given module (no hierarchy).
-        - Assumes gate-level style instantiations like:
+        - Assumes gate-level style instantiations like
 
             cell_type inst_name (
                 .A0(net1),
@@ -670,11 +724,16 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
                 ...
             );
 
-        Args:
-            module_name:  Name of the module to search in.
-            nets:         List of net names that must all appear on the instance.
+        Parameters
+        ----------
+        module_name : str
+            Name of the module to search in.
+        nets : list[str]
+            List of net names that must all appear on the instance.
 
-        Returns:
+        Returns
+        -------
+        list[str]
             List of instance names (strings).
         """
 
@@ -733,13 +792,20 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         Combines `find_instances_with_all_nets` and `find_instance_paths_by_regex` to return
         hierarchical instance paths (without top module name) for instances inside `module_name`
         that have *all* nets in `nets` connected to any of their pins.
-        Args:
-            module_name:  Name of the module to search in.
-            nets:         List of net names that must all appear on the instance.
-            filter_regex: Optional regular expression to filter the matched instance paths.
-        Returns:
-            List of hierarchical instance paths (strings).
 
+        Parameters
+        ----------
+        module_name : str
+            Name of the module to search in.
+        nets : list[str]
+            List of net names that must all appear on the instance.
+        filter_regex : str | None
+            Optional regular expression to filter the matched instance paths.
+
+        Returns
+        -------
+        list[str]
+            List of hierarchical instance paths (strings).
         """
         inst_hier_paths = []
         insts = self.find_instances_with_all_nets(module_name, nets)
@@ -767,12 +833,20 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             ...
             }
 
-        Args:
-            hier_inst_path (str): Hierarchical instance path.
-        Returns:
-            dict(str, str): Mapping from net names to pins keep hierarchy (no further hierarchy).
-        Raises:
-            ValueError: If the top module or instance is not found in the netlist.
+        Parameters
+        ----------
+        hier_inst_path : str
+            Hierarchical instance path.
+
+        Returns
+        -------
+        dict[str, str]
+            Mapping from net names to pins keep hierarchy (no further hierarchy).
+
+        Raises
+        ------
+        ValueError
+            If the top module or instance is not found in the netlist.
         """
 
         text = self.verilog_netlist_content
@@ -862,14 +936,20 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
     ) -> dict[str, list[str]]:
         """
         Given a hierarchical instance path like:
-            "Inst_LUT4AB_switch_matrix/inst_cus_mux161_buf_JE2BEG3"
+        "Inst_LUT4AB_switch_matrix/inst_cus_mux161_buf_JE2BEG3"
         and a gate-level Verilog netlist, return a mapping:
-            net_name -> [ "\\<full_hier_pin_path1\\>", "\\<full_hier_pin_path2\\>", ... ]
+        net_name -> [ "\\<full_hier_pin_path1\\>", "\\<full_hier_pin_path2\\>", ... ]
         where each full hierarchical pin path is resolved down to leaf std-cell pins.
-        Args:
-            hier_inst_path (str): Hierarchical instance path.
-        Returns:
-            dict(str, list[str]): Mapping from net names to lists of resolved leaf pin paths.
+
+        Parameters
+        ----------
+        hier_inst_path : str
+            Hierarchical instance path.
+
+        Returns
+        -------
+        dict[str, list[str]]
+            Mapping from net names to lists of resolved leaf pin paths.
         """
         resolved_paths: dict[str, list[str]] = {}
         net_to_pin = self.net_to_pin_paths_for_instance(hier_inst_path)
@@ -887,14 +967,20 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         Depending on `reverse`, the search is done towards input ports (reverse=True)
         or output ports (reverse=False).
 
-        Args:
-            hier_pin_path (str): Hierarchical pin path.
-            reverse (bool): If True, search towards input ports; if False, towards output ports.
-            num_ports (int): Number of nearest ports to return. if less ports are found, return all found,
-                which can be less than `num_ports`.
+        Parameters
+        ----------
+        hier_pin_path : str
+            Hierarchical pin path.
+        reverse : bool
+            If True, search towards input ports; if False, towards output ports.
+        num_ports : int
+            Number of nearest ports to return. if less ports are found, return all found,
+            which can be less than `num_ports`.
 
-        Returns:
-            list(str): Hierarchical paths of the nearest top-level ports.
+        Returns
+        -------
+        list[str]
+            Hierarchical paths of the nearest top-level ports.
         """
 
         # Use NetworkX shortest path to find nearest port
@@ -943,14 +1029,22 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         Depending on `reverse`, the search is done towards input ports (reverse=True)
         or output ports (reverse=False).
 
-        Args:
-            inst_path (str): Hierarchical instance path.
-            reverse (bool): If True, search towards input ports; if False, towards output ports.
-            num_ports (int): Number of nearest ports to return per pin. if less ports are found, return all found,
-                which can be less than `num_ports`.
-        Returns:
-            tuple([dict(str, list[str]), list[str]]): Mapping from instance net names to lists of 
-                nearest top-level port paths. The list is sorted starting from the nearest ports.
+        Parameters
+        ----------
+        inst_path : str
+            Hierarchical instance path.
+        reverse : bool
+            If True, search towards input ports; if False, towards output ports.
+        num_ports : int
+            Number of nearest ports to return per pin. if less ports are found, return all found,
+            which can be less than `num_ports`.
+
+        Returns
+        -------
+        tuple[dict[str, list[str]], list[str]]
+            Mapping from instance net names to lists of
+            nearest top-level port paths. The list is sorted
+            starting from the nearest ports.
         """
 
         net_to_pin: dict[str, list[str]] = self.net_to_pin_paths_for_instance_resolved(
@@ -974,15 +1068,24 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
     def get_instance_pins(self, hier_inst_path: str) -> list[str]:
         """
         Given a hierarchical instance path like:
-            "Inst_LUT4AB_switch_matrix/inst_cus_mux161_buf_JE2BEG3"
+        "Inst_LUT4AB_switch_matrix/inst_cus_mux161_buf_JE2BEG3"
         and a gate-level Verilog netlist, return a list of pin names
         connected to that instance, in the order they appear in the instantiation.
-        Args:
-            hier_inst_path (str): Hierarchical instance path.
-        Returns:
-            list[str]: List of pin names connected to the instance.
-        Raises:
-            ValueError: If the top module or instance is not found in the netlist.
+
+        Parameters
+        ----------
+        hier_inst_path : str
+            Hierarchical instance path.
+
+        Returns
+        -------
+        list[str]
+            List of pin names connected to the instance.
+
+        Raises
+        ------
+        ValueError
+            If the top module or instance is not found in the netlist.
         """
 
         verilog_src: str = self.verilog_netlist_content
@@ -1078,14 +1181,18 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         Parse a Verilog netlist given as text and extract, for a given module,
         all instance names and the nets connected to each instance.
 
-        Args:
-            module_name: Name of the module to inspect.
+        Parameters
+        ----------
+        module_name : str
+            Name of the module to inspect.
 
-        Returns:
-            Dict mapping:
-                instance_name -> [net1, net2, net3, ...]
-            where each list contains all nets connected to that instance
-            (order is the order of the pin connections in the instantiation).
+        Returns
+        -------
+        dict[str, list[str]]
+            Mapping:
+            instance_name -> [net1, net2, net3, ...]
+            where each list contains all nets connected to that instance,
+            order is the order of the pin connections in the instantiation.
         """
 
         verilog_src: str = self.verilog_netlist_content

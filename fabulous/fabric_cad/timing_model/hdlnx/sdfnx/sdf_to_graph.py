@@ -42,16 +42,22 @@ class SDFTimingGraph(SDFTimingGraphBase):
             cost(v) = max_i dist(s_i, v)      if mode == "max" (minimize worst distance)
             cost(v) = sum_i dist(s_i, v)      if mode == "sum" (minimize total distance)
 
-        Arguments:
-            sources (list[str]): Iterable of source nodes.
-            mode (str): "max" to minimize worst distance, "sum" to minimize total distance.
-            consider_delay (bool): Whether to consider edge weights (delay) in distance calculation.
-                                   Otherwise, use hop count.
-            stop (float | int): Optional cutoff for maximum path length to consider. If consider_delay is True,
-                                this is in units of delay; otherwise, in hops.
+        Parameters
+        ----------
+        sources : list[str]
+            Iterable of source nodes.
+        mode : str
+            "max" to minimize worst distance, "sum" to minimize total distance.
+        consider_delay : bool
+            Whether to consider edge weights (delay) in distance calculation.
+            Otherwise, use hop count.
+        stop : float | int
+            Optional cutoff for maximum path length to consider. If consider_delay is True,
+            this is in units of delay; otherwise, in hops.
 
-        Returns:
-            tuple (list[str], float, dict[str, dict[str, float]]):
+        Returns
+        -------
+        tuple[list[str], float, dict[str, dict[str, float]]]
             - best_nodes (list[str]): list of nodes with minimal cost (may be multiple)
             - best_cost (float): the minimal cost value (hop-count, or delay sum), or None if no common node
             - dists (dict[str, dict[str, float]]): dict: source -> dict(node -> distance)
@@ -102,11 +108,17 @@ class SDFTimingGraph(SDFTimingGraphBase):
         Follow the first fanout path from a given hierarchical pin path
         for a specified number of hops.
 
-        Args:
-            hier_pin_path (str): Hierarchical pin path to start from.
-            num_follow (int): Number of fanout hops to follow.
-        Returns:
-            str: The hierarchical pin path reached after following the fanout.
+        Parameters
+        ----------
+        hier_pin_path : str
+            Hierarchical pin path to start from.
+        num_follow : int
+            Number of fanout hops to follow.
+
+        Returns
+        -------
+        str
+            The hierarchical pin path reached after following the fanout.
         """
 
         current_pin: str = hier_pin_path

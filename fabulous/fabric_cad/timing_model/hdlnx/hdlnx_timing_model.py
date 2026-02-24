@@ -22,8 +22,9 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
     Supported static timing analysis (STA) tools:
     - OpenSTA, keyword: "opensta"
 
-    Attributes:
-        config (dict): Configuration dictionary containing the following keys:
+    Attributes
+    ----------
+    config (dict): Configuration dictionary containing the following keys:
     ```python
     {
         verilog_files: list[Path] | Path,     # List of Verilog RTL files or a single Verilog RTL file
@@ -41,33 +42,41 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
 
         # Additional keys for Yosys synthesis tool:
 
-        techmap_files: list[Path] | None,          # List of techmap files or None
-        tiehi_cell_and_port: str | None,           # Tie-high cell and port string or None
-        tielo_cell_and_port: str | None,           # Tie-low cell and port string or None
-        min_buf_cell_and_ports: str | None,        # Minimum buffer cell and ports string or None
-        flat: bool                                 # Flatten hierarchy flag (default: False)
+        techmap_files: list[Path] | None,     # List of techmap files or None
+        tiehi_cell_and_port: str | None,      # Tie-high cell and port string or None
+        tielo_cell_and_port: str | None,      # Tie-low cell and port string or None
+        min_buf_cell_and_ports: str | None,   # Minimum buffer cell and ports string or None
+        flat: bool                            # Flatten hierarchy flag (default: False)
     }
     ```
     """
 
     def __init__(self, config: dict):
         """
-        Initializes the HdlnxTimingModel with the given configuration, checks the configuration 
-        for required keys and valid values, and applies the configuration by synthesizing the Verilog RTL 
-        into a gate-level netlist and initializing the parent VerilogGateLevelTimingGraph class with 
+        Initializes the HdlnxTimingModel with the given configuration, checks the configuration
+        for required keys and valid values, and applies the configuration by synthesizing the Verilog RTL
+        into a gate-level netlist and initializing the parent VerilogGateLevelTimingGraph class with
         the generated gate-level netlist.
-        
-        Args:
-            config (dict): Configuration dictionary containing the necessary keys and values for synthesis and STA.
-        
-        Raises:
-            KeyError: If any required key is missing from the configuration dictionary.
-            TypeError: If any key has an incorrect type.
-            FileNotFoundError: If any specified file does not exist.
-            ValueError: If any specified file is empty or if there are invalid combinations of configuration values.
-            NotImplementedError: If the specified synthesis tool is not supported.
+
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary containing the necessary keys and values for synthesis and STA.
+
+        Raises
+        ------
+        KeyError
+            If any required key is missing from the configuration dictionary.
+        TypeError
+            If any key has an incorrect type.
+        FileNotFoundError
+            If any specified file does not exist.
+        ValueError
+            If any specified file is empty or if there are invalid combinations of configuration values.
+        NotImplementedError
+            If the specified synthesis tool is not supported.
         """
-        
+
         self.config: dict = config
         self.json_netlist: str | None = None
         self._check_config()
@@ -87,11 +96,18 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
         """
         Adds new configuration keys to the configuration dictionary if they are not already present.
         Use "required" as the value to indicate that a key is mandatory, otherwise a default value is assigned.
-        Args:
-            new_keys (dict): Dictionary of new configuration keys and their default values.
-            msg (str): Optional message to include in the KeyError if a required key is missing.
-        Raises:
-            KeyError: If any required key is missing from the configuration dictionary.
+
+        Parameters
+        ----------
+        new_keys : dict
+            Dictionary of new configuration keys and their default values.
+        msg : str
+            Optional message to include in the KeyError if a required key is missing.
+
+        Raises
+        ------
+        KeyError
+            If any required key is missing from the configuration dictionary.
         """
         for key, val in new_keys.items():
             if key not in self.config:
@@ -105,11 +121,17 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
     def _check_config(self):
         """
         Checks if the configuration dictionary contains all required global keys.
-        Raises:
-            KeyError: If any required key is missing from the configuration dictionary.
-            TypeError: If any key has an incorrect type.
-            FileNotFoundError: If any specified file does not exist.
-            ValueError: If any specified file is empty.
+
+        Raises
+        ------
+        KeyError
+            If any required key is missing from the configuration dictionary.
+        TypeError
+            If any key has an incorrect type.
+        FileNotFoundError
+            If any specified file does not exist.
+        ValueError
+            If any specified file is empty.
         """
 
         # Register required configuration keys and their default values
@@ -189,8 +211,11 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
         Applies the configuration by synthesizing the Verilog RTL into a gate-level netlist
         using the specified synthesis tool, and then initializing the parent VerilogGateLevelTimingGraph
         class with the generated gate-level netlist.
-        Raises:
-            NotImplementedError: If the specified synthesis tool is not supported.
+
+        Raises
+        ------
+        NotImplementedError
+            If the specified synthesis tool is not supported.
         """
 
         if self.config["is_gate_level"]:
@@ -238,8 +263,11 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
         """
         Generates a temporary gate-level netlist from the Verilog RTL files using Yosys.
         The gate-level netlist is created in a temporary location and deleted after use.
-        Returns:
-            Path: Path to the generated temporary gate-level netlist file.
+
+        Returns
+        -------
+        Path
+            Path to the generated temporary gate-level netlist file.
         """
 
         # Register required configuration keys and their default values
@@ -406,8 +434,11 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
     def get_netlist_as_json(self) -> str:
         """
         Returns the Verilog netlist as a JSON string.
-        Returns:
-            str: JSON representation of the Verilog netlist.
+
+        Returns
+        -------
+        str
+            JSON representation of the Verilog netlist.
         """
         if self.json_netlist is None:
             raise RuntimeError(

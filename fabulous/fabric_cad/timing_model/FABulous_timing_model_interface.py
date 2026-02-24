@@ -1,6 +1,6 @@
 """
 This module defines the FABulousTimingModelInterface class, which provides an interface to compute and cache
-timing delays for pips in a FABulous fabric. It uses the FABulousTileTimingModel to compute 
+timing delays for pips in a FABulous fabric. It uses the FABulousTileTimingModel to compute
 delays for individual tiles and caches the results for efficient retrieval.
 """
 
@@ -10,7 +10,9 @@ import re
 
 from loguru import logger
 
-from fabulous.fabric_cad.timing_model.FABulous_timing_model import FABulousTileTimingModel
+from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
+    FABulousTileTimingModel,
+)
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
@@ -20,17 +22,31 @@ from fabulous.fabric_definition.tile import Tile
 class FABulousTimingModelInterface:
     """
     Interface for computing and caching timing delays for pips in a FABulous fabric.
+
+    Attributes
+    ----------
+    config : dict
+        Configuration dictionary for the timing interface.
+    fabric : Fabric
+        The FABulous fabric object.
+    tile_delay_dict : dict[str, dict[str, float]]
+        Cache mapping tile_name -> key -> delay.
+    timing_models : dict[str, FABulousTileTimingModel]
+        Mapping of tile name to its timing model instance.
     """
-    
+
     def __init__(self, config: dict, fabric: Fabric):
         """
         Initialize the FABulousTimingModelInterface with the given configuration and fabric.
 
-        Args:
-            config (dict): Configuration dictionary for the timing model.
-            fabric (Fabric): The FABulous fabric object.
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary for the timing model.
+        fabric : Fabric
+            The FABulous fabric object.
         """
-        
+
         self.config = config
         self.fabric = fabric
         self.tile_delay_dict: dict[str, dict[str, float]] = {}
@@ -55,14 +71,21 @@ class FABulousTimingModelInterface:
         the result delay with key. If the delay for the key was already
         computed before, return the cached value.
 
-        Args:
-            key (str): The key to store/retrieve the delay.
-            src_pip (str): The source pip name.
-            dst_pip (str): The destination pip name.
-            tile_name (str): The name of the tile (with super tile type if applicable).
+        Parameters
+        ----------
+        key : str
+            The key to store/retrieve the delay.
+        src_pip : str
+            The source pip name.
+        dst_pip : str
+            The destination pip name.
+        tile_name : str
+            The name of the tile (with super tile type if applicable).
 
-        Returns:
-            float: The delay of the specified pip.
+        Returns
+        -------
+        float
+            The delay of the specified pip.
         """
         if tile_name not in self.timing_models:
             raise ValueError(f"Timing model for tile {tile_name!r} not found.")

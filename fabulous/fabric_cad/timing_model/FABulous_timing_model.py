@@ -1,9 +1,9 @@
 """
-This module defines the FABulousTileTimingModel class, which is responsible 
-for extracting timing information for a specific tile in the FABulous project. 
-It reads the project files, initializes synthesis-level and physical-level 
-timing models using the HdlnxTimingModel class, and provides methods to calculate delays 
-for internal and external PIPs (Programmable Interconnect Points) using 
+This module defines the FABulousTileTimingModel class, which is responsible
+for extracting timing information for a specific tile in the FABulous project.
+It reads the project files, initializes synthesis-level and physical-level
+timing models using the HdlnxTimingModel class, and provides methods to calculate delays
+for internal and external PIPs (Programmable Interconnect Points) using
 either structural or physical approaches.
 """
 
@@ -27,15 +27,16 @@ class FABulousTileTimingModel:
      - It provides methods to calculate delays for internal PIPs (within the switch matrix)
        and external PIPs (between the tile and the next tile) using either structural or physical approaches.
     """
+
     def __init__(self, config: dict, fabric: Fabric):
         """
         Initializes the FABulousTileTimingModel with the given configuration and fabric definition.
         The configuration dictionary must contain the following keys:
-            - project_dir: Path to the FABulous project directory.
-            - tile_name: Name of the tile for which to extract timing information (e.g., "LUT4AB").
-            - liberty_files: List of paths to liberty files or a single path to a liberty file.
-            - techmap_files: List of paths to technology mapping files.
-            - min_buf_cell_and_ports: String specifying the minimum buffer cell and its ports.
+         - project_dir: Path to the FABulous project directory.
+         - tile_name: Name of the tile for which to extract timing information (e.g., "LUT4AB").
+         - liberty_files: List of paths to liberty files or a single path to a liberty file.
+         - techmap_files: List of paths to technology mapping files.
+         - min_buf_cell_and_ports: String specifying the minimum buffer cell and its ports.
         """
         self.config = config
         self.fabric = fabric
@@ -186,11 +187,18 @@ class FABulousTileTimingModel:
         """
         Adds new configuration keys to the configuration dictionary if they are not already present.
         Use "required" as the value to indicate that a key is mandatory, otherwise a default value is assigned.
-        Args:
-            new_keys (dict): Dictionary of new configuration keys and their default values.
-            msg (str): Optional message to include in the KeyError if a required key is missing.
-        Raises:
-            KeyError: If any required key is missing from the configuration dictionary.
+
+        Parameters
+        ----------
+        new_keys : dict
+            Dictionary of new configuration keys and their default values.
+        msg : str
+            Optional message to include in the KeyError if a required key is missing.
+
+        Raises
+        ------
+        KeyError
+            If any required key is missing from the configuration dictionary.
         """
         for key, val in new_keys.items():
             if key not in self.config:
@@ -217,15 +225,26 @@ class FABulousTileTimingModel:
         - exclude_file_patterns: list of regex patterns; file names
         matching any of these will be skipped.
 
-        Args:
-            root_dir (Path): Root directory to start the search.
-            file_pattern (str): Regex pattern to match file names.
-            exclude_dir_patterns (list[str] | None): List of regex patterns to exclude directories.
-            exclude_file_patterns (list[str] | None): List of regex patterns to exclude files.
-        Returns:
-            list[Path]: List of Path objects for matched files.
-        Raises:
-            ValueError: If root_dir is not a Path object.
+        Parameters
+        ----------
+        root_dir : Path
+            Root directory to start the search.
+        file_pattern : str
+            Regex pattern to match file names.
+        exclude_dir_patterns : list[str] | None
+            List of regex patterns to exclude directories.
+        exclude_file_patterns : list[str] | None
+            List of regex patterns to exclude files.
+
+        Returns
+        -------
+        list[Path]
+            List of Path objects for matched files.
+
+        Raises
+        ------
+        ValueError
+            If root_dir is not a Path object.
         """
 
         if not isinstance(root_dir, Path):
@@ -262,11 +281,17 @@ class FABulousTileTimingModel:
         That means the path must be through a switch matrix multiplexer.
         Its not a wire delay.
 
-        Args:
-            pip_src (str): Source PIP port name (e.g., "LB_O")
-            pip_dst (str): Destination PIP port name (e.g., "JN2BEG3")
-        Returns:
-            bool: True if both PIPs are internal PIPs of the switch matrix, False otherwise.
+        Parameters
+        ----------
+        pip_src : str
+            Source PIP port name (e.g., "LB_O").
+        pip_dst : str
+            Destination PIP port name (e.g., "JN2BEG3").
+
+        Returns
+        -------
+        bool
+            True if both PIPs are internal PIPs of the switch matrix, False otherwise.
         """
         instance_to_nets = self.internal_pips_grouped_by_inst
         target = set([pip_src, pip_dst])
@@ -281,11 +306,17 @@ class FABulousTileTimingModel:
         It is the fast variant that does not need physical design
         information, but the results may be less accurate.
 
-        Args:
-            pip_src (str): Source PIP port name (e.g., "LB_O")
-            pip_dst (str): Destination PIP port name (e.g., "JN2BEG3")
-        Returns:
-            float: Delay in nanoseconds between the two PIPs.
+        Parameters
+        ----------
+        pip_src : str
+            Source PIP port name (e.g., "LB_O").
+        pip_dst : str
+            Destination PIP port name (e.g., "JN2BEG3").
+
+        Returns
+        -------
+        float
+            Delay in nanoseconds between the two PIPs.
         """
 
         if pip_src not in self.internal_pips or pip_dst not in self.internal_pips:
@@ -359,11 +390,17 @@ class FABulousTileTimingModel:
         This method uses the physical-level timing model to provide more accurate delay estimates
         by considering the actual physical implementation.
 
-        Args:
-            pip_src (str): Source PIP port name (e.g., "LB_O")
-            pip_dst (str): Destination PIP port name (e.g., "JN2BEG3")
-        Returns:
-            float: Delay in nanoseconds between the two PIPs.
+        Parameters
+        ----------
+        pip_src : str
+            Source PIP port name (e.g., "LB_O").
+        pip_dst : str
+            Destination PIP port name (e.g., "JN2BEG3").
+
+        Returns
+        -------
+        float
+            Delay in nanoseconds between the two PIPs.
         """
 
         if pip_src not in self.internal_pips or pip_dst not in self.internal_pips:
@@ -481,8 +518,20 @@ class FABulousTileTimingModel:
         """
         Calculate delay for external PIPs between the tile and the next tile using a structural approach.
         It is Tile to Tile, Tile port to SWM, SWM to SWM, SWM output to tile port.
+
+        Parameters
+        ----------
+        pip_src : str
+            Source PIP port name.
+        pip_dst : str
+            Destination PIP port name.
+
+        Returns
+        -------
+        float
+            Estimated delay in nanoseconds for the external PIP.
         """
-        
+
         logger.info(
             f"Calculating structural delay for external PIP from {pip_src} to {pip_dst}"
         )
@@ -534,8 +583,20 @@ class FABulousTileTimingModel:
         This method uses the physical-level timing model to provide more accurate delay estimates
         by considering the actual physical implementation.
         For tile interconnects, we assume a stitched connection with a fixed small delay.
+
+        Parameters
+        ----------
+        pip_src : str
+            Source PIP port name.
+        pip_dst : str
+            Destination PIP port name.
+
+        Returns
+        -------
+        float
+            Estimated delay in nanoseconds for the external PIP.
         """
-        
+
         logger.info(
             f"Calculating physical delay for external PIP from {pip_src} to {pip_dst}"
         )
@@ -582,8 +643,20 @@ class FABulousTileTimingModel:
     def internal_pip_delay(self, pip_src: str, pip_dst: str) -> float:
         """
         Choose the method to calculate internal PIP delay based on the mode (physical or structural).
+
+        Parameters
+        ----------
+        pip_src : str
+            Source PIP port name.
+        pip_dst : str
+            Destination PIP port name.
+
+        Returns
+        -------
+        float
+            Calculated delay in nanoseconds for the internal PIP.
         """
-        
+
         if self.mode == "physical":
             return self.internal_pip_delay_physical(pip_src, pip_dst)
         else:
@@ -592,8 +665,20 @@ class FABulousTileTimingModel:
     def external_pip_delay(self, pip_src: str, pip_dst: str) -> float:
         """
         Choose the method to calculate external PIP delay based on the mode (physical or structural).
+
+        Parameters
+        ----------
+        pip_src : str
+            Source PIP port name.
+        pip_dst : str
+            Destination PIP port name.
+
+        Returns
+        -------
+        float
+            Calculated delay in nanoseconds for the external PIP.
         """
-        
+
         if self.mode == "physical":
             return self.external_pip_delay_physical(pip_src, pip_dst)
         else:
@@ -602,8 +687,20 @@ class FABulousTileTimingModel:
     def pip_delay(self, pip_src: str, pip_dst: str) -> float:
         """
         Calculate the delay for a PIP, choosing between internal and external methods.
+
+        Parameters
+        ----------
+        pip_src : str
+            Source PIP port name.
+        pip_dst : str
+            Destination PIP port name.
+
+        Returns
+        -------
+        float
+            Calculated delay in nanoseconds for the PIP.
         """
-        
+
         if self.is_tile_internal_pip(pip_src, pip_dst):
             return self.internal_pip_delay(pip_src, pip_dst)
         else:
