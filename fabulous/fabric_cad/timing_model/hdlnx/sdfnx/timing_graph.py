@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# SDF Timing Graph Generation Module
-# This module provides functionality to parse SDF files and generate
-# timing directed graphs using NetworkX.
-# SDF to dict is done using f4pga_sdf_timing.sdf_timing.sdfparse see also:
-#   https://github.com/chipsalliance/f4pga-sdf-timing/tree/master
-#   https://github.com/FPGA-Research/f4pga-sdf-timing/tree/master
+"""
+SDF Timing Graph Generation Module
+This module provides functionality to parse SDF files and generate
+timing directed graphs using NetworkX.
+SDF to dict is done using f4pga_sdf_timing.sdf_timing.sdfparse see also:
+  https://github.com/chipsalliance/f4pga-sdf-timing/tree/master
+  https://github.com/FPGA-Research/f4pga-sdf-timing/tree/master
+"""
 
 from pathlib import Path
 

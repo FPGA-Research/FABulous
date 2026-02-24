@@ -1,6 +1,11 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# Tming model for FABulous designs
+"""
+This module defines the FABulousTileTimingModel class, which is responsible 
+for extracting timing information for a specific tile in the FABulous project. 
+It reads the project files, initializes synthesis-level and physical-level 
+timing models using the HdlnxTimingModel class, and provides methods to calculate delays 
+for internal and external PIPs (Programmable Interconnect Points) using 
+either structural or physical approaches.
+"""
 
 from pathlib import Path
 import os
@@ -16,7 +21,22 @@ from fabulous.fabric_definition.tile import Tile
 
 
 class FABulousTileTimingModel:
+    """
+    Reads the FABulous project files and extracts timing information for a specific tile, including its switch matrix.
+     - It initializes both synthesis-level and physical-level timing models using the HdlnxTimingModel class.
+     - It provides methods to calculate delays for internal PIPs (within the switch matrix)
+       and external PIPs (between the tile and the next tile) using either structural or physical approaches.
+    """
     def __init__(self, config: dict, fabric: Fabric):
+        """
+        Initializes the FABulousTileTimingModel with the given configuration and fabric definition.
+        The configuration dictionary must contain the following keys:
+            - project_dir: Path to the FABulous project directory.
+            - tile_name: Name of the tile for which to extract timing information (e.g., "LUT4AB").
+            - liberty_files: List of paths to liberty files or a single path to a liberty file.
+            - techmap_files: List of paths to technology mapping files.
+            - min_buf_cell_and_ports: String specifying the minimum buffer cell and its ports.
+        """
         self.config = config
         self.fabric = fabric
 
@@ -458,6 +478,11 @@ class FABulousTileTimingModel:
         return delay
 
     def external_pip_delay_structural(self, pip_src: str, pip_dst: str) -> float:
+        """
+        Calculate delay for external PIPs between the tile and the next tile using a structural approach.
+        It is Tile to Tile, Tile port to SWM, SWM to SWM, SWM output to tile port.
+        """
+        
         logger.info(
             f"Calculating structural delay for external PIP from {pip_src} to {pip_dst}"
         )
@@ -503,6 +528,14 @@ class FABulousTileTimingModel:
             return default_delay
 
     def external_pip_delay_physical(self, pip_src: str, pip_dst: str) -> float:
+        """
+        Calculate delay for external PIPs between the tile and the next tile using a physical approach.
+        It is Tile to Tile, Tile port to SWM, SWM to SWM, SWM output to tile port.
+        This method uses the physical-level timing model to provide more accurate delay estimates
+        by considering the actual physical implementation.
+        For tile interconnects, we assume a stitched connection with a fixed small delay.
+        """
+        
         logger.info(
             f"Calculating physical delay for external PIP from {pip_src} to {pip_dst}"
         )
@@ -547,18 +580,30 @@ class FABulousTileTimingModel:
             return default_delay
 
     def internal_pip_delay(self, pip_src: str, pip_dst: str) -> float:
+        """
+        Choose the method to calculate internal PIP delay based on the mode (physical or structural).
+        """
+        
         if self.mode == "physical":
             return self.internal_pip_delay_physical(pip_src, pip_dst)
         else:
             return self.internal_pip_delay_structural(pip_src, pip_dst)
 
     def external_pip_delay(self, pip_src: str, pip_dst: str) -> float:
+        """
+        Choose the method to calculate external PIP delay based on the mode (physical or structural).
+        """
+        
         if self.mode == "physical":
             return self.external_pip_delay_physical(pip_src, pip_dst)
         else:
             return self.external_pip_delay_structural(pip_src, pip_dst)
 
     def pip_delay(self, pip_src: str, pip_dst: str) -> float:
+        """
+        Calculate the delay for a PIP, choosing between internal and external methods.
+        """
+        
         if self.is_tile_internal_pip(pip_src, pip_dst):
             return self.internal_pip_delay(pip_src, pip_dst)
         else:

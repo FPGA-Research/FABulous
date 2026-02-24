@@ -673,6 +673,9 @@ class FABulous_API:
         output_file: Path,
         debug: bool = False,
     ) -> None:
+        """
+        Initialise the timing model interface and generate the nextpnr pip file for the fabric.
+        """
         if pdk == "ihp-sg13g2":
             liberty_files: Path = (
                 pdk_root

@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# SDF to Timing Graph Conversion Module
-# This module provides functionality to convert SDF files into timing graphs
-# represented as NetworkX directed graphs.
-# It is the main class used to create timing graphs from SDF files.
-# It is derived from SDFTimingGraphBase which provides basic functionality.
-# New algorithms can be added here.
+"""
+SDF to Timing Graph Conversion Module
+This module provides functionality to convert SDF files into timing graphs
+represented as NetworkX directed graphs.
+It is the main class used to create timing graphs from SDF files.
+It is derived from SDFTimingGraphBase which provides basic functionality.
+New algorithms can be added here.
+"""
 
 from pathlib import Path
 import math
@@ -81,10 +81,12 @@ class SDFTimingGraph(SDFTimingGraphBase):
         if mode == "sum":
 
             def cost(v):
+                """Cost is the sum of distances from all sources to v."""
                 return sum(dists[s][v] for s in sources)
         else:
 
             def cost(v):
+                """Cost is the maximum distance from any source to v."""
                 return max(dists[s][v] for s in sources)
 
         # Find minimal cost and all nodes achieving it

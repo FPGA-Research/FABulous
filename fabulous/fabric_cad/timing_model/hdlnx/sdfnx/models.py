@@ -1,6 +1,12 @@
-#!/usr/bin/env python3
-from dataclasses import dataclass
+"""
+Defines the Component class representing a component in the SDF timing model, 
+which can be an INTERCONNECT or an IOPATH for the timing graph, as well as other 
+types like REMOVAL, RECOVERY, SETUP, HOLD, WIDTH. The class includes attributes for 
+the component type, connection string, cell name, instance names, pin names, 
+delay information, and various flags indicating the nature of the component.
+"""
 
+from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Component:

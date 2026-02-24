@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# This module converts a Verilog gate-level netlist into a timing graph.
-# It uses the SDFTimingGraph class to parse the SDF file and generate
-# a NetworkX directed graph representing the timing relationships.
-# It will call an external STA tool to generate the SDF file from the Verilog netlist.
+"""
+This module converts a Verilog gate-level netlist into a timing graph.
+It uses the SDFTimingGraph class to parse the SDF file and generate
+a NetworkX directed graph representing the timing relationships.
+It will call an external STA tool to generate the SDF file from the Verilog netlist.
+"""
 
 from pathlib import Path
 import tempfile, os
@@ -45,6 +45,12 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         hier_sep: str = None,
         debug: bool = False,
     ):
+        """
+        Initializes the VerilogGateLevelTimingGraph by generating an SDF file from the provided
+        Verilog netlist using the specified STA tool, and then initializing the parent SDFTimingGraph
+        with the generated SDF file.
+        """
+        
         self.verilog_netlist: Path = verilog_netlist
         self.liberty_files: list[Path] | Path = liberty_files
         self.top_name: str = top_name

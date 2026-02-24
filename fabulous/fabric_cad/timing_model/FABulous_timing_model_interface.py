@@ -1,6 +1,8 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# This module serves as an interface for other cad tools to interact with the FABulous timing model.
+"""
+This module defines the FABulousTimingModelInterface class, which provides an interface to compute and cache
+timing delays for pips in a FABulous fabric. It uses the FABulousTileTimingModel to compute 
+delays for individual tiles and caches the results for efficient retrieval.
+"""
 
 from pathlib import Path
 import os
@@ -16,7 +18,19 @@ from fabulous.fabric_definition.tile import Tile
 
 
 class FABulousTimingModelInterface:
+    """
+    Interface for computing and caching timing delays for pips in a FABulous fabric.
+    """
+    
     def __init__(self, config: dict, fabric: Fabric):
+        """
+        Initialize the FABulousTimingModelInterface with the given configuration and fabric.
+
+        Args:
+            config (dict): Configuration dictionary for the timing model.
+            fabric (Fabric): The FABulous fabric object.
+        """
+        
         self.config = config
         self.fabric = fabric
         self.tile_delay_dict: dict[str, dict[str, float]] = {}

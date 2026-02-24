@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# SDF Timing Graph Class Module
-# This module provides a class to represent timing graphs generated from SDF files.
-# It also includes methods to analyze the timing graph using NetworkX.
-# SDF to dict is done using f4pga_sdf_timing.sdf_timing.sdfparse see also:
-#   https://github.com/chipsalliance/f4pga-sdf-timing/tree/master
+"""
+SDF Timing Graph Class Module
+This module provides a class to represent timing graphs generated from SDF files.
+It also includes methods to analyze the timing graph using NetworkX.
+SDF to dict is done using f4pga_sdf_timing.sdf_timing.sdfparse see also:
+  https://github.com/chipsalliance/f4pga-sdf-timing/tree/master
+"""
 
 from pathlib import Path
 
@@ -29,6 +29,18 @@ class SDFTimingGraphBase:
     """
 
     def __init__(self, sdf_file: Path, delay_type_str: str = "max_all"):
+        """
+        Initialize the SDFTimingGraphBase object by parsing the SDF file and generating the timing graph.
+        Args:
+            sdf_file (Path): Path to the SDF file.
+            delay_type_str (str): The type of delay to extract. Options include:
+                "min_all", "max_all", "avg_all", "avg_fast", "avg_slow",
+                "max_fast", "max_slow", "min_fast", "min_slow".
+        Examples:
+            ```python
+            sdf_graph = SDFTimingGraphBase(Path("path/to/sdf_file.sdf"), "max_all")   
+            ```
+        """
         self.sdf_file: Path = sdf_file
         self.sdf_file_content: str = sdf_file.read_text()
         self.delay_type_str: str = delay_type_str

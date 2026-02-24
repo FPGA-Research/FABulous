@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-# This module convertes verilog RTL into a verilog gate-level netlist using an external synthesis tool.
-# In this context a sysnthesis tool can be anything that can convert RTL verilog into gate-level verilog,
-# that means also tools that can do backend design steps like technology mapping and place&route.
-# It then uses the VerilogGateLevelTimingGraph class to generate a timing graph from the gate-level netlist.
+"""
+This module convertes verilog RTL into a verilog gate-level netlist using an external synthesis tool.
+In this context a sysnthesis tool can be anything that can convert RTL verilog into gate-level verilog,
+that means also tools that can do backend design steps like technology mapping and place&route.
+It then uses the VerilogGateLevelTimingGraph class to generate a timing graph from the gate-level netlist.
+"""
 
 from pathlib import Path
 import tempfile, os
@@ -51,6 +51,23 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
     """
 
     def __init__(self, config: dict):
+        """
+        Initializes the HdlnxTimingModel with the given configuration, checks the configuration 
+        for required keys and valid values, and applies the configuration by synthesizing the Verilog RTL 
+        into a gate-level netlist and initializing the parent VerilogGateLevelTimingGraph class with 
+        the generated gate-level netlist.
+        
+        Args:
+            config (dict): Configuration dictionary containing the necessary keys and values for synthesis and STA.
+        
+        Raises:
+            KeyError: If any required key is missing from the configuration dictionary.
+            TypeError: If any key has an incorrect type.
+            FileNotFoundError: If any specified file does not exist.
+            ValueError: If any specified file is empty or if there are invalid combinations of configuration values.
+            NotImplementedError: If the specified synthesis tool is not supported.
+        """
+        
         self.config: dict = config
         self.json_netlist: str | None = None
         self._check_config()
