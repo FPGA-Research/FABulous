@@ -10,7 +10,7 @@ import re
 
 from loguru import logger
 
-from .FABulous_timing_model import FABulousTileTimingModel
+from fabulous.fabric_cad.timing_model.FABulous_timing_model import FABulousTileTimingModel
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile

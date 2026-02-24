@@ -891,7 +891,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             hier_pin_path (str): Hierarchical pin path.
             reverse (bool): If True, search towards input ports; if False, towards output ports.
             num_ports (int): Number of nearest ports to return. if less ports are found, return all found,
-            which can be less than `num_ports`.
+                which can be less than `num_ports`.
 
         Returns:
             list(str): Hierarchical paths of the nearest top-level ports.
@@ -947,10 +947,10 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             inst_path (str): Hierarchical instance path.
             reverse (bool): If True, search towards input ports; if False, towards output ports.
             num_ports (int): Number of nearest ports to return per pin. if less ports are found, return all found,
-            which can be less than `num_ports`.
+                which can be less than `num_ports`.
         Returns:
-            tuple[dict(str, list[str]), list[str]]: Mapping from instance net names to lists of nearest top-level port paths.
-                                                    The list is sorted starting from the nearest ports.
+            tuple([dict(str, list[str]), list[str]]): Mapping from instance net names to lists of 
+                nearest top-level port paths. The list is sorted starting from the nearest ports.
         """
 
         net_to_pin: dict[str, list[str]] = self.net_to_pin_paths_for_instance_resolved(

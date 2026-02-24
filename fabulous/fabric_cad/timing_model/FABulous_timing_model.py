@@ -13,7 +13,7 @@ import re
 
 from loguru import logger
 
-from .hdlnx.hdlnx_timing_model import HdlnxTimingModel
+from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
