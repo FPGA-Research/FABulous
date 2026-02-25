@@ -235,7 +235,8 @@ async def cocotb_test_muladd_configbit1_b_register(dut: MULADDProtocol) -> None:
     await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
     # The output should use the registered value (9), not the new input (2)
     assert dut.B_reg.value == model.B_reg, (
-        f"Registered B mode failed: Expected B_reg = {model.B_reg}, got {dut.B_reg.value}"
+        f"Registered B mode failed: Expected B_reg = {model.B_reg}, "
+        f"got {dut.B_reg.value}"
     )
 
 
@@ -272,6 +273,91 @@ async def cocotb_test_muladd_configbit2_c_register(dut: MULADDProtocol) -> None:
     await Timer(Decimal(2), units="ps")  # Allow combinational logic to settle
     # The output should use the registered value (20), not the new input (5)
     assert dut.C_reg.value == model.C_reg
+
+
+@cocotb.test
+async def cocotb_test_muladd_c_upper_bits(dut: MULADDProtocol) -> None:
+    """Test addition with large C values exercises carry propagation through upper bits.
+
+    Uses non-zero A*B products combined with large C values so the adder must
+    propagate carries across the full 20-bit width. Also verifies 20-bit overflow
+    wrap and the C_reg path with large values.
+    """
+    await setup_dut(dut)
+
+    model = MULADDModel(dut.UserCLK)
+
+    # (A, B, C) tuples chosen to exercise carry propagation in upper bits:
+    #  - product sits in lower 16 bits, C in upper bits, addition must carry across
+    #  - includes cases where product + C overflows 20 bits (wraps)
+    test_vectors = [
+        # Carry from bit 15->16: product=0x9C40 + C=0x08000 = 0x11C40
+        (200, 200, 0x08000),
+        # Carry ripples through bits 16-19: product=0xFE01 + C=0xF0200
+        (255, 255, 0xF0200),
+        # 20-bit overflow wrap: product=0xFE01 + C=0xFFFFF
+        (255, 255, 0xFFFFF),
+        # C has only MSB set, small product: 0x0009 + 0x80000
+        (3, 3, 0x80000),
+        # Alternating bit pattern in C, product fills low bits
+        (15, 17, 0xAAAAA),
+        # Large C near boundary, small product causes carry into bit 19
+        (1, 1, 0x7FFFF),
+        # Walking one in bit 19 of C with medium product
+        (10, 10, 1 << 19),
+        # Walking one in bit 15 of C, product also touches bit 15
+        (200, 200, 1 << 15),
+    ]
+
+    for a_val, b_val, c_val in test_vectors:
+        model.A = a_val
+        model.B = b_val
+        model.C = c_val
+        dut.A.value = a_val
+        dut.B.value = b_val
+        dut.C.value = c_val
+        await RisingEdge(dut.UserCLK)
+        await Timer(Decimal(1), "ps")
+
+        expected = (a_val * b_val + c_val) & 0xFFFFF
+        assert int(dut.Q.value) == expected, (
+            f"A={a_val}, B={b_val}, C=0x{c_val:05X}: "
+            f"Expected Q=0x{expected:05X}, "
+            f"got Q=0x{int(dut.Q.value):05X}"
+        )
+        assert int(dut.Q.value) == model.Q
+
+    # Test C_reg path (ConfigBits[2]=1) with large values.
+    # With C_reg mode, OPC = C_reg (latched on clock), not the live C input.
+    model.ConfigBits = BIT_2
+    dut.ConfigBits.value = BIT_2
+    a_val, b_val = 100, 100
+    product = a_val * b_val
+    model.A = a_val
+    model.B = b_val
+    dut.A.value = a_val
+    dut.B.value = b_val
+
+    for c_val in [0xFFFFF, 0x80000, 0x7FFFF]:
+        model.C = c_val
+        dut.C.value = c_val
+        # Clock loads C_reg with c_val
+        await RisingEdge(dut.UserCLK)
+        await Timer(Decimal(1), "ps")
+        assert int(dut.C_reg.value) == c_val
+
+        # Change C input to 0 WITHOUT clocking -- C_reg retains c_val
+        model.C = 0
+        dut.C.value = 0
+        await Timer(Decimal(2), "ps")
+        # Output should reflect the latched C_reg, not the zeroed live C input
+        expected = (product + c_val) & 0xFFFFF
+        assert int(dut.Q.value) == expected, (
+            f"C_reg output for C_reg=0x{c_val:05X}: "
+            f"Expected Q=0x{expected:05X}, "
+            f"got Q=0x{int(dut.Q.value):05X}"
+        )
+        assert int(dut.Q.value) == model.Q
 
 
 @cocotb.test
@@ -338,10 +424,9 @@ async def cocotb_test_muladd_configbit4_sign_extension(dut: MULADDProtocol) -> N
     model = MULADDModel(dut.UserCLK)
 
     # Test without sign extension (ConfigBits[4] = 0) - zero extension
+    # 200 * 200 = 40000 = 0x9C40, bit 15 is set so sign extension fires later
     model.ConfigBits = 0b000000  # signExtension = 0
-    model.A = (
-        200  # Large positive number that could be interpreted as negative in signed
-    )
+    model.A = 200
     model.B = 200
     model.C = 0
     dut.A.value = 200
@@ -358,32 +443,22 @@ async def cocotb_test_muladd_configbit4_sign_extension(dut: MULADDProtocol) -> N
     )
 
     # Test with sign extension (ConfigBits[4] = 1)
+    # A=200, B=200 -> product = 40000 = 0x9C40, bit 15 is set, so sign extension fires
     model.ConfigBits = 0b010000  # signExtension = 1
-    model.A = 0xFF  # 255 in unsigned, -1 in signed 8-bit
-    model.B = 1
-    model.C = 0
-    dut.A.value = 0xFF
-    dut.B.value = 1
-    dut.C.value = 0
     dut.ConfigBits.value = 0b010000
 
     await RisingEdge(dut.UserCLK)
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
 
-    # Verify sign extension behavior
     assert dut.Q.value == model.Q, (
         f"Sign extension failed: Expected Q = {model.Q}, got {dut.Q.value}"
     )
 
-    # Additional verification: Check if sign extension occurred (top 4 bits should match bit 15 of product)
+    # Verify sign extension actually set the top 4 bits of the 20-bit result
     result = int(dut.Q.value)
-    product_16bit = 255 * 1  # 255
-    sign_bit = (product_16bit >> 15) & 1
-    expected_top_bits = sign_bit * 0xF
     actual_top_bits = (result >> 16) & 0xF
-
-    assert actual_top_bits == expected_top_bits, (
-        f"Sign extension verification failed: Expected top 4 bits = {expected_top_bits:04b}, "
+    assert actual_top_bits == 0xF, (
+        f"Sign extension verification failed: Expected top 4 bits = 1111, "
         f"got {actual_top_bits:04b}"
     )
 
@@ -396,48 +471,45 @@ async def cocotb_test_muladd_configbit5_output_select(dut: MULADDProtocol) -> No
     # Create cocotb-aware software model for comparison
     model = MULADDModel(dut.UserCLK)
 
-    # Setup accumulator mode to have meaningful ACC value
-    model.ConfigBits = 0b001000  # ACC = 1, ACCout = 0
+    # Enable accumulator mode (ConfigBits[3]=1) to build up ACC value
+    model.ConfigBits = BIT_3
     model.A = 3
     model.B = 4
     model.C = 0
     dut.A.value = 3
     dut.B.value = 4
     dut.C.value = 0
-    dut.ConfigBits.value = 0b001000
+    dut.ConfigBits.value = BIT_3
 
-    # Run a few cycles to build up ACC
+    # Run two cycles to build up ACC
     await RisingEdge(dut.UserCLK)  # First accumulation
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
 
     await RisingEdge(dut.UserCLK)  # Second accumulation
     await Timer(Decimal(1), "ps")  # Allow model's clocked process to update
 
-    # Test output sum (ConfigBits[5] = 0) - should output current sum calculation
-    current_sum = int(dut.Q.value)  # This is the current sum being calculated
+    # With ConfigBits[5]=0, Q outputs sum (product + ACC)
+    sum_output = int(dut.Q.value)
+    assert dut.Q.value == model.Q, (
+        f"Sum output mode mismatch: Expected {model.Q}, got {dut.Q.value}"
+    )
 
-    # Test output ACC (ConfigBits[5] = 1) - should output the accumulated value
-    model.ConfigBits = 0b101000  # ACC = 1, ACCout = 1
-    model.A = 0
-    model.B = 0
-    model.C = 0
-    dut.A.value = 0
-    dut.B.value = 0
-    dut.C.value = 0
-    dut.ConfigBits.value = 0b101000
+    # Toggle only ConfigBits[5] to 1, Q should now output ACC instead of sum
+    model.ConfigBits = BIT_3 | BIT_5
+    dut.ConfigBits.value = BIT_3 | BIT_5
 
-    # Allow enough time for combinational logic to settle
-    await Timer(Decimal(10), units="ps")  # Allow combinational logic to settle
+    # Allow combinational logic to settle (no clock edge needed for output mux)
+    await Timer(Decimal(10), units="ps")
 
     acc_output = int(dut.Q.value)
+    assert dut.Q.value == model.Q, (
+        f"ACC output mode mismatch: Expected {model.Q}, got {dut.Q.value}"
+    )
 
-    # Verify model consistency
-    assert dut.Q.value == model.Q, f"Model mismatch: Expected {model.Q}, got {dut.Q}"
-
-    # The ACC output should be the previously accumulated value
-    # while the sum output would be the new calculation
-    assert acc_output != current_sum or acc_output == model.Q, (
-        f"Output selection test: ACC output = {acc_output}, Sum output = {current_sum}, Expected ACC = {model.Q}"
+    # ACC and sum must differ: sum = product + ACC, so sum != ACC when product != 0
+    assert acc_output != sum_output, (
+        f"Output select has no effect: ACC output ({acc_output}) should differ "
+        f"from sum output ({sum_output}) when product is non-zero"
     )
 
 
