@@ -5,15 +5,15 @@ a NetworkX directed graph representing the timing relationships.
 It will call an external STA tool to generate the SDF file from the Verilog netlist.
 """
 
+
 from pathlib import Path
 import tempfile, os
 import subprocess
 import re
 
 import networkx as nx
-from concurrent.futures import ThreadPoolExecutor
-
-from .sdfnx.sdf_to_graph import SDFTimingGraph
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph import SDFTimingGraph
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import DelayType
 
 
 class VerilogGateLevelTimingGraph(SDFTimingGraph):
@@ -52,7 +52,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         sta_executable: str,
         sta_program: str,
         spef_files: list[Path] | Path = None,
-        delay_type_str: str = "max_all",
+        delay_type_str: DelayType = DelayType.MAX_ALL,
         hier_sep: str = None,
         debug: bool = False,
     ):
@@ -68,7 +68,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         self.sta_executable: str = sta_executable
         self.sta_program: str = sta_program
         self.spef_files: list[Path] | Path = spef_files
-        self.delay_type_str: str = delay_type_str
+        self.delay_type_str: DelayType = delay_type_str
         self.debug: bool = debug
 
         self._check_errors()
@@ -177,8 +177,8 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             if self.spef_files.stat().st_size == 0:
                 raise ValueError(f"SPEF file is empty: {self.spef_files}")
 
-        if not isinstance(self.delay_type_str, str):
-            raise TypeError("delay_type_str must be a string.")
+        if not isinstance(self.delay_type_str, DelayType):
+            raise TypeError("delay_type_str must be a DelayType.")
         if not isinstance(self.debug, bool):
             raise TypeError("debug must be a boolean.")
 

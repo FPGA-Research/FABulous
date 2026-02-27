@@ -7,12 +7,9 @@ It is derived from SDFTimingGraphBase which provides basic functionality.
 New algorithms can be added here.
 """
 
-from pathlib import Path
-import math
 
 import networkx as nx
-
-from .sdf_to_graph_base import SDFTimingGraphBase
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base import SDFTimingGraphBase
 
 
 class SDFTimingGraph(SDFTimingGraphBase):
@@ -30,8 +27,8 @@ class SDFTimingGraph(SDFTimingGraphBase):
         sources: list[str],
         mode: str = "max",
         consider_delay: bool = True,
-        stop: float | int = None,
-    ) -> tuple[list[str], float, dict[str, dict[str, float]]]:
+        stop: float | int | None = None,
+    ) -> tuple[list[str], float | None, dict[str, dict[str, float]]]:
         """
         Find the earliest node(s) that are reachable from ALL given sources in a directed graph.
         Similar to betweenness_centrality_subset, but finds nodes that minimize the maximum (or sum) distance

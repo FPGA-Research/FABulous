@@ -4,9 +4,6 @@ timing delays for pips in a FABulous fabric. It uses the FABulousTileTimingModel
 delays for individual tiles and caches the results for efficient retrieval.
 """
 
-from pathlib import Path
-import os
-import re
 
 from loguru import logger
 

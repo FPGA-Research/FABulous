@@ -4,12 +4,11 @@ This module provides a class to represent timing graphs generated from SDF files
 It also includes methods to analyze the timing graph using NetworkX.
 """
 
+
 from pathlib import Path
-
 import networkx as nx
-
-from .timing_graph import gen_timing_digraph
-from .models import Component
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.timing_graph import gen_timing_digraph
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import Component, DelayType
 
 
 class SDFTimingGraphBase:
@@ -33,7 +32,7 @@ class SDFTimingGraphBase:
         Dictionary containing header information from the SDF file.
     """
 
-    def __init__(self, sdf_file: Path, delay_type_str: str = "max_all"):
+    def __init__(self, sdf_file: Path, delay_type_str: DelayType = DelayType.MAX_ALL):
         """
         Initialize the SDFTimingGraphBase object by parsing the SDF file and generating the timing graph.
 
@@ -41,18 +40,18 @@ class SDFTimingGraphBase:
         ----------
         sdf_file : Path
             Path to the SDF file.
-        delay_type_str : str
+        delay_type_str : DelayType
             The type of delay to extract. Options include:
-            "min_all", "max_all", "avg_all", "avg_fast", "avg_slow",
-            "max_fast", "max_slow", "min_fast", "min_slow".
+            DelayType.MIN_ALL, DelayType.MAX_ALL, DelayType.AVG_ALL, DelayType.AVG_FAST, DelayType.AVG_SLOW,
+            DelayType.MAX_FAST, DelayType.MAX_SLOW, DelayType.MIN_FAST, DelayType.MIN_SLOW.
 
         Examples
         --------
-            sdf_graph = SDFTimingGraphBase(Path("path/to/sdf_file.sdf"), "max_all")
+            sdf_graph = SDFTimingGraphBase(Path("path/to/sdf_file.sdf"), DelayType.MAX_ALL)
         """
         self.sdf_file: Path = sdf_file
         self.sdf_file_content: str = sdf_file.read_text()
-        self.delay_type_str: str = delay_type_str
+        self.delay_type_str: DelayType = delay_type_str
 
         (
             self.graph,
@@ -397,8 +396,12 @@ class SDFTimingGraphBase:
         -------
         Component
             The matching component, or None if not found.
+            
+        Raises
+        ------
+        KeyError
+            If the instance name is not found in the SDF instances.
         """
-
         if instance_name not in self.instances:
             raise KeyError(f"Instance {instance_name} not found in SDF instances.")
 

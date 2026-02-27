@@ -4,16 +4,21 @@ This module provides functionality to parse SDF files and generate
 timing directed graphs using NetworkX.
 """
 
+
 from pathlib import Path
-
 import networkx as nx
-
 from sdf_timing import sdfparse
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import Component, DelayType
 
-from .models import Component
+
+def _as_float(value: float | None, default: float = 0.0) -> float:
+    """Convert `value` to float, treating None/missing as `default`."""
+    if value is None:
+        return default
+    return float(value)
 
 
-def delay_type(delay_dict: dict, type: str = "max_all") -> float:
+def delay_type(delay_paths: dict, kind: DelayType = DelayType.MAX_ALL) -> float:
     """
     Determine the delay value from a delay dictionary based on the specified type.
     In the SDF format, delays can be specified for different conditions (fast, slow, nominal).
@@ -29,82 +34,58 @@ def delay_type(delay_dict: dict, type: str = "max_all") -> float:
 
     Parameters
     ----------
-    delay_dict : dict
+    delay_paths : dict
         A dictionary containing delay information.
-    type : str
+    kind : DelayType
         The type of delay to extract. Options include:
-        "min_all", "max_all", "avg_all", "avg_fast", "avg_slow",
-        "max_fast", "max_slow", "min_fast", "min_slow".
+        DelayType.MIN_ALL, DelayType.MAX_ALL, DelayType.AVG_ALL, DelayType.AVG_FAST, DelayType.AVG_SLOW,
+        DelayType.MAX_FAST, DelayType.MAX_SLOW, DelayType.MIN_FAST, DelayType.MIN_SLOW.
 
     Returns
     -------
     float
         The calculated delay value.
+    
+    Raises
+    ------
+    ValueError
+        If an unknown delay type is specified.
     """
+    nominal = delay_paths.get("nominal")
+    if isinstance(nominal, dict) and ("min" in nominal or "max" in nominal):
+        nmin = _as_float(nominal.get("min"))
+        nmax = _as_float(nominal.get("max"))
+        return max(nmin, nmax)
 
-    if (
-        "nominal" in delay_dict
-        and "min" in delay_dict["nominal"]
-        and "max" in delay_dict["nominal"]
-    ):
-        nominal_min: float = (
-            0.0
-            if delay_dict["nominal"]["min"] is None
-            else delay_dict["nominal"]["min"]
-        )
-        nominal_max: float = (
-            0.0
-            if delay_dict["nominal"]["max"] is None
-            else delay_dict["nominal"]["max"]
-        )
-        return max(nominal_min, nominal_max)
+    fast = delay_paths.get("fast", {}) or {}
+    slow = delay_paths.get("slow", {}) or {}
 
-    fast_max: float = (
-        delay_dict["fast"]["max"]
-        if "fast" in delay_dict and "max" in delay_dict["fast"]
-        else 0.0
-    )
-    fast_min: float = (
-        delay_dict["fast"]["min"]
-        if "fast" in delay_dict and "min" in delay_dict["fast"]
-        else 0.0
-    )
-    slow_max: float = (
-        delay_dict["slow"]["max"]
-        if "slow" in delay_dict and "max" in delay_dict["slow"]
-        else 0.0
-    )
-    slow_min: float = (
-        delay_dict["slow"]["min"]
-        if "slow" in delay_dict and "min" in delay_dict["slow"]
-        else 0.0
-    )
+    fast_min = _as_float(fast.get("min"))
+    fast_max = _as_float(fast.get("max"))
+    slow_min = _as_float(slow.get("min"))
+    slow_max = _as_float(slow.get("max"))
 
-    fast_max = 0.0 if fast_max is None else fast_max
-    fast_min = 0.0 if fast_min is None else fast_min
-    slow_max = 0.0 if slow_max is None else slow_max
-    slow_min = 0.0 if slow_min is None else slow_min
-
-    if type == "min_all":
-        return min(fast_min, fast_max, slow_min, slow_max)
-    elif type == "max_all":
-        return max(fast_min, fast_max, slow_min, slow_max)
-    elif type == "avg_all":
-        return sum([fast_min, fast_max, slow_min, slow_max]) / 4.0
-    elif type == "avg_fast":
-        return (fast_min + fast_max) / 2.0
-    elif type == "avg_slow":
-        return (slow_min + slow_max) / 2.0
-    elif type == "max_fast":
-        return max(fast_min, fast_max)
-    elif type == "max_slow":
-        return max(slow_min, slow_max)
-    elif type == "min_fast":
-        return min(fast_min, fast_max)
-    elif type == "min_slow":
-        return min(slow_min, slow_max)
-    else:
-        raise ValueError(f"Unknown delay type: {type}")
+    match kind:
+        case DelayType.MIN_ALL:
+            return min(fast_min, fast_max, slow_min, slow_max)
+        case DelayType.MAX_ALL:
+            return max(fast_min, fast_max, slow_min, slow_max)
+        case DelayType.AVG_ALL:
+            return (fast_min + fast_max + slow_min + slow_max) / 4.0
+        case DelayType.AVG_FAST:
+            return (fast_min + fast_max) / 2.0
+        case DelayType.AVG_SLOW:
+            return (slow_min + slow_max) / 2.0
+        case DelayType.MAX_FAST:
+            return max(fast_min, fast_max)
+        case DelayType.MAX_SLOW:
+            return max(slow_min, slow_max)
+        case DelayType.MIN_FAST:
+            return min(fast_min, fast_max)
+        case DelayType.MIN_SLOW:
+            return min(slow_min, slow_max)
+        case _:
+            raise ValueError(f"Unknown delay type: {kind!r}")
 
 
 def split_instance_pin(name: str, hier_sep: str) -> tuple[str, str]:
@@ -134,7 +115,7 @@ def split_instance_pin(name: str, hier_sep: str) -> tuple[str, str]:
 
 
 def get_sdf_INTERCONNECTs_and_IOPATHs(
-    sdf_file: Path, delay_type_str: str
+    sdf_file: Path, delay_type_str: DelayType
 ) -> tuple[
     list[Component], list[Component], dict, dict, list[str], dict[str, list[Component]]
 ]:
@@ -148,8 +129,8 @@ def get_sdf_INTERCONNECTs_and_IOPATHs(
     ----------
     sdf_file : Path
         Path to the SDF file.
-    delay_type_str : str
-        The type of delay to extract (e.g., "max_all").
+    delay_type_str : DelayType
+        The type of delay to extract (e.g., DelayType.MAX_ALL).
 
     Returns
     -------
@@ -272,7 +253,7 @@ def get_sdf_INTERCONNECTs_and_IOPATHs(
 
 
 def gen_timing_digraph(
-    sdf_file: Path, delay_type_str: str
+    sdf_file: Path, delay_type_str: DelayType
 ) -> tuple[
     nx.DiGraph,
     dict,
@@ -292,8 +273,8 @@ def gen_timing_digraph(
     ----------
     sdf_file : Path
         Path to the SDF file.
-    delay_type_str : str
-        The type of delay to extract (e.g., "max_all").
+    delay_type_str : DelayType
+        The type of delay to extract (e.g., DelayType.MAX_ALL).
 
     Returns
     -------

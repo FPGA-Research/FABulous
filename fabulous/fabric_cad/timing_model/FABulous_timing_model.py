@@ -14,6 +14,7 @@ import re
 from loguru import logger
 
 from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import DelayType
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
@@ -43,19 +44,19 @@ class FABulousTileTimingModel:
 
         self._add_config_keys(
             new_keys={
-                "project_dir": "required",  # Path
-                "tile_name": "required",  # str, e.g., "LUT4AB"
-                "liberty_files": "required",  # list[Path] | Path
-                "techmap_files": "required",  # list[Path]
+                "project_dir":            "required",  # Path
+                "tile_name":              "required",  # str, e.g., "LUT4AB"
+                "liberty_files":          "required",  # list[Path] | Path
+                "techmap_files":          "required",  # list[Path]
                 "min_buf_cell_and_ports": "required",  # str, e.g., "sg13g2_buf_1 A X"
-                "mode": "physical",  # str, "physical" | "structural"
-                "sta_executable": "sta",  # str
-                "sta_program": "opensta",  # str
-                "synth_program": "yosys",  # str
-                "synth_executable": "yosys",  # str
-                "consider_wire_delay": True,  # bool
-                "delay_type_str": "max_all",  # str
-                "debug": False,  # bool
+                "mode":                   "physical",  # str, "physical" | "structural"
+                "sta_executable":         "sta",       # str
+                "sta_program":            "opensta",   # str
+                "synth_program":          "yosys",     # str
+                "synth_executable":       "yosys",     # str
+                "consider_wire_delay":    True,        # bool
+                "delay_type_str":         DelayType.MAX_ALL,  # DelayType
+                "debug":                  False,       # bool
             },
             msg="FABulous Tile Timing Model",
         )
@@ -246,7 +247,6 @@ class FABulousTileTimingModel:
         ValueError
             If root_dir is not a Path object.
         """
-
         if not isinstance(root_dir, Path):
             raise ValueError("root_dir must be a Path object.")
 
@@ -318,7 +318,6 @@ class FABulousTileTimingModel:
         float
             Delay in nanoseconds between the two PIPs.
         """
-
         if pip_src not in self.internal_pips or pip_dst not in self.internal_pips:
             raise ValueError(
                 f"One or both PIPs {pip_src}, {pip_dst} are not internal PIPs of the switch matrix."
@@ -389,6 +388,17 @@ class FABulousTileTimingModel:
         Calculate delay between two PIPs using physical design information.
         This method uses the physical-level timing model to provide more accurate delay estimates
         by considering the actual physical implementation.
+        
+        Synthesis-level resolution (extract the realted module ports that are
+        connected to the SMW mux to which the PIP belongs)
+        
+        Physical-level resolution map the synthesis-level top-level ports that are related to the
+        swm mux to physical-level swm mux pins to find the sm mux output pin (Then we can calc the
+        delay between pip_src and pip_dst). To find the swm mux output we will use a method that
+        we call earliest node convergence. That means for MUX the topology we know that all inputs
+        converge to the output pin (mostly), so we can find the earliest common node from all the input
+        ports found above. Similar to graph betweenness centrality subset, but here we want to find the node
+        that minimizes the maximum distance from all the input ports.
 
         Parameters
         ----------
@@ -402,7 +412,6 @@ class FABulousTileTimingModel:
         float
             Delay in nanoseconds between the two PIPs.
         """
-
         if pip_src not in self.internal_pips or pip_dst not in self.internal_pips:
             raise ValueError(
                 f"One or both PIPs {pip_src}, {pip_dst} are not internal PIPs of the switch matrix."
@@ -411,10 +420,9 @@ class FABulousTileTimingModel:
         synth_model = self.hdlnx_tm_synth
         phys_model = self.hdlnx_tm_phys
 
-        ###########################################################################
-        # Synthesis-level resolution (extract the realted module ports that are
-        # connected to the SMW mux to which the PIP belongs)
-        ###########################################################################
+        ##############################
+        # Synthesis-level resolution #
+        ##############################
 
         # extract the swm mux for pips: pip_src, pip_dst
         logger.info(
@@ -459,15 +467,9 @@ class FABulousTileTimingModel:
         swm_nearest_ports_for_each_swm_wire = swm_nearest_ports[0]
         swm_nearest_ports_all = swm_nearest_ports[1]
 
-        #############################################################################################
-        # Physical-level resolution map the synthesis-level top-level ports that are related to the
-        # swm mux to physical-level swm mux pins to find the sm mux output pin (Then we can calc the
-        # delay between pip_src and pip_dst). To find the swm mux output we will use a method that
-        # we call earliest node convergence. That means for MUX the topology we know that all inputs
-        # converge to the output pin (mostly), so we can find the earliest common node from all the input
-        # ports found above. Similar to graph betweenness centrality subset, but here we want to find the node
-        # that minimizes the maximum distance from all the input ports.
-        #############################################################################################
+        #############################
+        # Physical-level resolution #
+        #############################
 
         # Find the converging node (the output pin of the swm mux)
         logger.info("Starting physical extraction of the switch matrix mux for pips")
@@ -489,7 +491,7 @@ class FABulousTileTimingModel:
             )
 
         ######################################################################
-        # Finally calculate the delay between the two PIPs at physical level
+        # Finally calculate the delay between the two PIPs at physical level #
         ######################################################################
 
         # Calculate delay between pip_src and the converged output pin
@@ -531,7 +533,6 @@ class FABulousTileTimingModel:
         float
             Estimated delay in nanoseconds for the external PIP.
         """
-
         logger.info(
             f"Calculating structural delay for external PIP from {pip_src} to {pip_dst}"
         )
@@ -596,7 +597,6 @@ class FABulousTileTimingModel:
         float
             Estimated delay in nanoseconds for the external PIP.
         """
-
         logger.info(
             f"Calculating physical delay for external PIP from {pip_src} to {pip_dst}"
         )
@@ -656,7 +656,6 @@ class FABulousTileTimingModel:
         float
             Calculated delay in nanoseconds for the internal PIP.
         """
-
         if self.mode == "physical":
             return self.internal_pip_delay_physical(pip_src, pip_dst)
         else:
@@ -678,7 +677,6 @@ class FABulousTileTimingModel:
         float
             Calculated delay in nanoseconds for the external PIP.
         """
-
         if self.mode == "physical":
             return self.external_pip_delay_physical(pip_src, pip_dst)
         else:
@@ -700,7 +698,6 @@ class FABulousTileTimingModel:
         float
             Calculated delay in nanoseconds for the PIP.
         """
-
         if self.is_tile_internal_pip(pip_src, pip_dst):
             return self.internal_pip_delay(pip_src, pip_dst)
         else:

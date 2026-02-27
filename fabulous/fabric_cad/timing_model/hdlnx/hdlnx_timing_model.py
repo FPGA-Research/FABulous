@@ -5,10 +5,11 @@ that means also tools that can do backend design steps like technology mapping a
 It then uses the VerilogGateLevelTimingGraph class to generate a timing graph from the gate-level netlist.
 """
 
+
 from pathlib import Path
 import tempfile, os
-
-from .verilog_gate_level import VerilogGateLevelTimingGraph
+from fabulous.fabric_cad.timing_model.hdlnx.verilog_gate_level import VerilogGateLevelTimingGraph
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import DelayType
 
 
 class HdlnxTimingModel(VerilogGateLevelTimingGraph):
@@ -35,7 +36,7 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
         synth_program: str,                   # Synthesis tool program name
         synth_executable: str,                # Path to the synthesis tool executable
         spef_files: list[Path] | Path | None, # SPEF files for SDF (only for gate-level netlists)
-        delay_type_str: str,                  # Delay type string for STA (default: "max_all")
+        delay_type_str: DelayType,            # Delay type string for STA (default: DelayType.MAX_ALL)
         hier_sep: str | None,                 # Hierarchy separator (default: None)
         is_gate_level: bool,                  # Gate-level netlist flag (default: False)
         debug: bool                           # Debug mode flag (default: False)
@@ -137,18 +138,18 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
         # Register required configuration keys and their default values
         self._add_config_keys(
             new_keys={
-                "verilog_files": "required",  # list[Path] | Path
-                "liberty_files": "required",  # catched in parent class, list[Path] | Path
-                "top_name": "required",  # catched in parent class, str
-                "sta_executable": "required",  # catched in parent class, str
-                "sta_program": "required",  # catched in parent class, str
-                "synth_program": "required",  # str
+                "verilog_files":    "required",  # list[Path] | Path
+                "liberty_files":    "required",  # catched in parent class, list[Path] | Path
+                "top_name":         "required",  # catched in parent class, str
+                "sta_executable":   "required",  # catched in parent class, str
+                "sta_program":      "required",  # catched in parent class, str
+                "synth_program":    "required",  # str
                 "synth_executable": "required",  # str
-                "spef_files": None,  # catched in parent class, list[Path] | Path | None
-                "delay_type_str": "max_all",  # catched in parent class, str
-                "hier_sep": None,  # catched in parent class, str
-                "is_gate_level": False,  # bool
-                "debug": False,  # catched in parent class, bool
+                "spef_files":       None,  # catched in parent class, list[Path] | Path | None
+                "delay_type_str":   DelayType.MAX_ALL,  # catched in parent class, DelayType
+                "hier_sep":         None,  # catched in parent class, str
+                "is_gate_level":    False,  # bool
+                "debug":            False,  # catched in parent class, bool
             },
             msg="global",
         )
