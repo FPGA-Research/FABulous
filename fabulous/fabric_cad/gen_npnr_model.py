@@ -195,8 +195,5 @@ def writeNextpnrPipFile(
     outputDir : Path
         Directory to write the pip file to.
     """
-    pipStr, belStr, belv2Str, constrainStr = genNextpnrModel(fabric, delay_model)
-
-    pipFilePath: Path = outputFile
-    with open(pipFilePath, "w") as pipFile:
-        pipFile.write(pipStr)
+    pip_str, _, _, _ = genNextpnrModel(fabric, delay_model)
+    outputFile.write_text(pip_str, encoding="utf-8")

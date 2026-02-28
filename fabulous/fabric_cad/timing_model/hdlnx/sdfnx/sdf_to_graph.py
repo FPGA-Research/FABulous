@@ -10,6 +10,7 @@ New algorithms can be added here.
 
 import networkx as nx
 from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base import SDFTimingGraphBase
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
 
 
 class SDFTimingGraph(SDFTimingGraphBase):

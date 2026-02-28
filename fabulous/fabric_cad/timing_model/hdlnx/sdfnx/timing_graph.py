@@ -8,7 +8,7 @@ timing directed graphs using NetworkX.
 from pathlib import Path
 import networkx as nx
 from sdf_timing import sdfparse
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import Component, DelayType
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
 
 
 def _as_float(value: float | None, default: float = 0.0) -> float:
@@ -16,7 +16,6 @@ def _as_float(value: float | None, default: float = 0.0) -> float:
     if value is None:
         return default
     return float(value)
-
 
 def delay_type(delay_paths: dict, kind: DelayType = DelayType.MAX_ALL) -> float:
     """
@@ -60,10 +59,10 @@ def delay_type(delay_paths: dict, kind: DelayType = DelayType.MAX_ALL) -> float:
     fast = delay_paths.get("fast", {}) or {}
     slow = delay_paths.get("slow", {}) or {}
 
-    fast_min = _as_float(fast.get("min"))
-    fast_max = _as_float(fast.get("max"))
-    slow_min = _as_float(slow.get("min"))
-    slow_max = _as_float(slow.get("max"))
+    fast_min: float = _as_float(fast.get("min"))
+    fast_max: float = _as_float(fast.get("max"))
+    slow_min: float = _as_float(slow.get("min"))
+    slow_max: float = _as_float(slow.get("max"))
 
     match kind:
         case DelayType.MIN_ALL:
@@ -87,7 +86,6 @@ def delay_type(delay_paths: dict, kind: DelayType = DelayType.MAX_ALL) -> float:
         case _:
             raise ValueError(f"Unknown delay type: {kind!r}")
 
-
 def split_instance_pin(name: str, hier_sep: str) -> tuple[str, str]:
     """
     Split a hierarchical name into instance and pin parts based on the separator.
@@ -105,7 +103,6 @@ def split_instance_pin(name: str, hier_sep: str) -> tuple[str, str]:
     tuple[str, str]
         A tuple containing the instance and pin names.
     """
-
     parts = name.rsplit(hier_sep, 1)
     if len(parts) == 2:
         inst, pin = parts
@@ -113,17 +110,13 @@ def split_instance_pin(name: str, hier_sep: str) -> tuple[str, str]:
         inst, pin = "", name
     return inst, pin
 
-
-def get_sdf_INTERCONNECTs_and_IOPATHs(
-    sdf_file: Path, delay_type_str: DelayType
-) -> tuple[
-    list[Component], list[Component], dict, dict, list[str], dict[str, list[Component]]
-]:
+def parse_sdf(sdf_file: Path, delay_type_str: DelayType) -> SDFGobject:
     """
     Parse the SDF file to extract INTERCONNECT and IOPATH components with their delays.
     Also extracts header information, cell names, and instance-component mappings.
     But IOPATHs and INTERCONNECTS are used to build the timing graph.
-    Timing checks (hold, setup, reset, recover, width) and other components are stored in the instances dictionary.
+    Timing checks (hold, setup, reset, recover, width) and other components are stored 
+    in the instances dictionary.
 
     Parameters
     ----------
@@ -134,44 +127,45 @@ def get_sdf_INTERCONNECTs_and_IOPATHs(
 
     Returns
     -------
-    tuple[list[Component], list[Component], dict, dict, list[str], dict[str, list[Component]]
-        A tuple containing two
-        lists - one for IOPATH components and one
-        for INTERCONNECT components, a dictionary for the SDF header information and a
-        dict containing the full parsed SDF data. A list of cell names and a dictionary mapping instance
-        names to lists of components.
+    SDFGobject
+        An SDFGobject containing the parsed SDF data, including header information, 
+        cell names, instance-component mappings, and lists of IOPATH and INTERCONNECT components.
     """
-
-    with open(sdf_file, "r") as f:
-        sdf_data = sdfparse.parse(f.read())
-
-    header_info = sdf_data.get("header", {})
+    sdf_data: dict = sdfparse.parse(sdf_file.read_text())
+    header_info: dict = sdf_data.get("header", {})
     io_paths: list[Component] = []
     interconnects: list[Component] = []
     cells: list[str] = list(sdf_data.get("cells", {}).keys())
     instances: dict[str, list[Component]] = {}
-
-    # The hierarchical separator used in instance names.
-    hier_sep = header_info["divider"] if "divider" in header_info else "/"
+    hier_sep: str = header_info["divider"] if "divider" in header_info else "/"
 
     for cell_name, cell_data in sdf_data["cells"].items():
         for instance_name, instance_data in cell_data.items():
             if instance_name is not None:
                 instances[instance_name] = []
             for component, component_data in instance_data.items():
+                inst_pin_from: tuple[str, str] = split_instance_pin(
+                    component_data["from_pin"], hier_sep
+                )
+                inst_pin_to: tuple[str, str] = split_instance_pin(
+                    component_data["to_pin"], hier_sep
+                )
+                single_delay: float = delay_type(
+                    component_data["delay_paths"], delay_type_str
+                )
+                one_inst: bool = inst_pin_from[0] == inst_pin_to[0]
+                
                 if component_data["type"] == "iopath":
                     io_paths.append(
                         Component(
-                            c_type="IOPATH",
+                            c_type=SDFCellType.IOPATH,
                             cell_name=cell_name,
                             connection_string=component,
                             from_cell_instance=instance_name,
                             to_cell_instance=instance_name,
                             from_cell_pin=component_data["from_pin"],
                             to_cell_pin=component_data["to_pin"],
-                            delay=delay_type(
-                                component_data["delay_paths"], delay_type_str
-                            ),
+                            delay=single_delay,
                             delay_paths=component_data["delay_paths"],
                             is_one_cell_instance=True,
                             is_timing_check=component_data["is_timing_check"],
@@ -187,33 +181,16 @@ def get_sdf_INTERCONNECTs_and_IOPATHs(
                 if component_data["type"] == "interconnect":
                     interconnects.append(
                         Component(
-                            c_type="INTERCONNECT",
+                            c_type=SDFCellType.INTERCONNECT,
                             cell_name=cell_name,
                             connection_string=component,
-                            from_cell_instance=split_instance_pin(
-                                component_data["from_pin"], hier_sep
-                            )[0],
-                            to_cell_instance=split_instance_pin(
-                                component_data["to_pin"], hier_sep
-                            )[0],
-                            from_cell_pin=split_instance_pin(
-                                component_data["from_pin"], hier_sep
-                            )[1],
-                            to_cell_pin=split_instance_pin(
-                                component_data["to_pin"], hier_sep
-                            )[1],
-                            delay=delay_type(
-                                component_data["delay_paths"], delay_type_str
-                            ),
+                            from_cell_instance=inst_pin_from[0],
+                            to_cell_instance=inst_pin_to[0],
+                            from_cell_pin=inst_pin_from[1],
+                            to_cell_pin=inst_pin_to[1],
+                            delay=single_delay,
                             delay_paths=component_data["delay_paths"],
-                            is_one_cell_instance=(
-                                split_instance_pin(
-                                    component_data["from_pin"], hier_sep
-                                )[0]
-                                == split_instance_pin(
-                                    component_data["to_pin"], hier_sep
-                                )[0]
-                            ),
+                            is_one_cell_instance=one_inst,
                             is_timing_check=component_data["is_timing_check"],
                             is_timing_env=component_data["is_timing_env"],
                             is_absolute=component_data["is_absolute"],
@@ -227,16 +204,14 @@ def get_sdf_INTERCONNECTs_and_IOPATHs(
                 if component_data["type"] != "interconnect":
                     instances[instance_name].append(
                         Component(
-                            c_type=component_data["type"].upper(),
+                            c_type=SDFCellType(component_data["type"].upper()),
                             cell_name=cell_name,
                             connection_string=component,
                             from_cell_instance=instance_name,
                             to_cell_instance=instance_name,
                             from_cell_pin=component_data["from_pin"],
                             to_cell_pin=component_data["to_pin"],
-                            delay=delay_type(
-                                component_data["delay_paths"], delay_type_str
-                            ),
+                            delay=single_delay,
                             delay_paths=component_data["delay_paths"],
                             is_one_cell_instance=True,
                             is_timing_check=component_data["is_timing_check"],
@@ -249,25 +224,26 @@ def get_sdf_INTERCONNECTs_and_IOPATHs(
                             to_pin_edge=component_data["to_pin_edge"],
                         )
                     )
-    return io_paths, interconnects, header_info, sdf_data, cells, instances
+                    
+    # io_paths, interconnects, header_info, sdf_data, cells, instances
+    return SDFGobject(
+        nx_graph=nx.DiGraph(),
+        hier_sep=hier_sep,
+        header_info=header_info,
+        sdf_data=sdf_data,
+        cells=cells,
+        instances=instances,
+        io_paths=io_paths,
+        interconnects=interconnects,
+    )
 
-
-def gen_timing_digraph(
-    sdf_file: Path, delay_type_str: DelayType
-) -> tuple[
-    nx.DiGraph,
-    dict,
-    dict,
-    list[str],
-    dict[str, list[Component]],
-    list[Component],
-    list[Component],
-]:
+def gen_timing_digraph(sdf_file: Path, delay_type_str: DelayType) -> SDFGobject:
     """
     Generate a timing directed networkx graph (DiGraph) from the SDF file.
     Also extracts header information, cell names, and instance-component mappings.
     But IOPATHs and INTERCONNECTS are used to build the timing graph.
-    Timing checks (hold, setup, reset, recover, width) and other components are stored in the instances dictionary.
+    Timing checks (hold, setup, reset, recover, width) and other components are 
+    stored in the instances dictionary.
 
     Parameters
     ----------
@@ -278,38 +254,26 @@ def gen_timing_digraph(
 
     Returns
     -------
-    tuple[nx.DiGraph, dict, dict, list[str], dict[str, list[Component]], list[Component], list[Component]]
-        A tuple containing a directed  graph representing the timing paths and a dictionary for the SDF header
-        information. A dict containing the full parsed SDF data. A list of cell names and a dictionary mapping instance
-        names to lists of components. Two lists - one for IOPATH components and one for INTERCONNECT components.
+    SDFGobject
+        An SDFGobject containing the generated timing graph, header information, 
+        cell names, instance-component mappings, and lists of IOPATH and INTERCONNECT components.
     """
+    sdf_gobject: SDFGobject = parse_sdf(sdf_file, delay_type_str)
+    
+    def node(inst: str, pin: str) -> str:
+        """
+        Helper function to create a node name from instance and pin, 
+        using the hierarchical separator.
+        """
+        return f"{inst}{sdf_gobject.hier_sep}{pin}".removeprefix(sdf_gobject.hier_sep)
 
-    G = nx.DiGraph()
-    (io_paths, interconnects, header_info, sdf_data, cells, instances) = (
-        get_sdf_INTERCONNECTs_and_IOPATHs(sdf_file, delay_type_str)
-    )
-
-    # The hierarchical separator used in instance names.
-    hier_sep = header_info["divider"] if "divider" in header_info else "/"
-
-    components = io_paths + interconnects
+    # Includes both IOPATHs and INTERCONNECTS, but not timing checks or other components.
+    components: list[Component] = sdf_gobject.io_paths + sdf_gobject.interconnects
     for comp in components:
-        if comp.c_type == "INTERCONNECT":
-            src = f"{comp.from_cell_instance}{hier_sep}{comp.from_cell_pin}"
-            dst = f"{comp.to_cell_instance}{hier_sep}{comp.to_cell_pin}"
-            G.add_edge(
-                src.removeprefix(hier_sep),
-                dst.removeprefix(hier_sep),
-                weight=comp.delay,
-                component=comp,
-            )
-        elif comp.c_type == "IOPATH":
-            src = f"{comp.from_cell_instance}{hier_sep}{comp.from_cell_pin}"
-            dst = f"{comp.to_cell_instance}{hier_sep}{comp.to_cell_pin}"
-            G.add_edge(
-                src.removeprefix(hier_sep),
-                dst.removeprefix(hier_sep),
-                weight=comp.delay,
-                component=comp,
-            )
-    return G, header_info, sdf_data, cells, instances, io_paths, interconnects
+        sdf_gobject.nx_graph.add_edge(
+            node(comp.from_cell_instance, comp.from_cell_pin),
+            node(comp.to_cell_instance, comp.to_cell_pin),
+            weight=comp.delay,
+            component=comp,
+        )    
+    return sdf_gobject

@@ -7,6 +7,7 @@ delays for individual tiles and caches the results for efficient retrieval.
 
 from loguru import logger
 
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
 from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
     FABulousTileTimingModel,
 )
@@ -44,8 +45,8 @@ class FABulousTimingModelInterface:
             The FABulous fabric object.
         """
 
-        self.config = config
-        self.fabric = fabric
+        self.config: dict = config
+        self.fabric: Fabric = fabric
         self.tile_delay_dict: dict[str, dict[str, float]] = {}
 
         self.timing_models: dict[str, FABulousTileTimingModel] = {}
@@ -83,6 +84,11 @@ class FABulousTimingModelInterface:
         -------
         float
             The delay of the specified pip.
+            
+        Raises
+        ------
+        ValueError
+            If the timing model for the specified tile is not found.
         """
         if tile_name not in self.timing_models:
             raise ValueError(f"Timing model for tile {tile_name!r} not found.")

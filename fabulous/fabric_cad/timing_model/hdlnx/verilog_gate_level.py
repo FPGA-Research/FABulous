@@ -13,7 +13,7 @@ import re
 
 import networkx as nx
 from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph import SDFTimingGraph
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import DelayType
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
 
 
 class VerilogGateLevelTimingGraph(SDFTimingGraph):

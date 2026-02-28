@@ -8,7 +8,7 @@ It also includes methods to analyze the timing graph using NetworkX.
 from pathlib import Path
 import networkx as nx
 from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.timing_graph import gen_timing_digraph
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import Component, DelayType
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
 
 
 class SDFTimingGraphBase:
@@ -52,36 +52,30 @@ class SDFTimingGraphBase:
         self.sdf_file: Path = sdf_file
         self.sdf_file_content: str = sdf_file.read_text()
         self.delay_type_str: DelayType = delay_type_str
-
-        (
-            self.graph,
-            self.header_info,
-            self.sdf_data_dict,
-            self.cells,
-            self.instances,
-            self.io_paths,
-            self.interconnects,
-        ) = gen_timing_digraph(sdf_file, delay_type_str)
-
-        self.hier_sep = (
-            self.header_info["divider"] if "divider" in self.header_info else "/"
-        )
-        self.input_ports = list(
-            {
-                n
-                for n in self.graph.nodes
-                if self.graph.in_degree(n) == 0 and self.hier_sep not in n
-            }
-        )
-        self.output_ports = list(
-            {
-                n
-                for n in self.graph.nodes
-                if self.graph.out_degree(n) == 0 and self.hier_sep not in n
-            }
-        )
+        self.sdf_gobject: SDFGobject = gen_timing_digraph(sdf_file, delay_type_str)
+        
+        self.graph: nx.DiGraph = self.sdf_gobject.nx_graph
         self.reverse_graph = self.graph.reverse(copy=True)
-
+        
+        self.header_info: dict = self.sdf_gobject.header_info
+        self.sdf_data_dict: dict = self.sdf_gobject.sdf_data
+        self.cells: list[str] = self.sdf_gobject.cells
+        self.instances: dict[str, list[Component]] = self.sdf_gobject.instances
+        self.io_paths: list[Component] = self.sdf_gobject.io_paths
+        self.interconnects: list[Component] = self.sdf_gobject.interconnects
+        self.hier_sep = self.sdf_gobject.hier_sep
+        
+        self.input_ports = list({
+            n
+            for n in self.graph.nodes
+            if self.graph.in_degree(n) == 0 and self.hier_sep not in n
+        })
+        self.output_ports = list({
+            n
+            for n in self.graph.nodes
+            if self.graph.out_degree(n) == 0 and self.hier_sep not in n
+        })
+        
     ### Public Methods ###
 
     def get_input_and_output_ports(self) -> list[str]:
@@ -375,7 +369,7 @@ class SDFTimingGraphBase:
         return input_pins, output_pins
 
     def get_cell_instance_component_by_type(
-        self, instance_name: str, c_type: str, input_pin: str, output_pin: str
+        self, instance_name: str, c_type: SDFCellType, input_pin: str, output_pin: str
     ) -> Component:
         """
         Get a specific component of a cell instance by type and pin names.
@@ -384,7 +378,7 @@ class SDFTimingGraphBase:
         ----------
         instance_name : str
             The name of the cell instance.
-        c_type : str
+        c_type : SDFCellType
             The type of component: "IOPATH", "REMOVAL",
             "RECOVERY", "SETUP", "HOLD", "WIDTH".
         input_pin : str

@@ -14,7 +14,7 @@ import re
 from loguru import logger
 
 from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import DelayType
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
@@ -182,7 +182,7 @@ class FABulousTileTimingModel:
 
         ### Definitions:
 
-        self.mode = self.config["mode"]
+        self.mode: TimingModelMode = TimingModelMode(self.config["mode"])
 
     def _add_config_keys(self, new_keys: dict, msg: str = ""):
         """
@@ -656,7 +656,7 @@ class FABulousTileTimingModel:
         float
             Calculated delay in nanoseconds for the internal PIP.
         """
-        if self.mode == "physical":
+        if self.mode == TimingModelMode.PHYSICAL:
             return self.internal_pip_delay_physical(pip_src, pip_dst)
         else:
             return self.internal_pip_delay_structural(pip_src, pip_dst)
@@ -677,7 +677,7 @@ class FABulousTileTimingModel:
         float
             Calculated delay in nanoseconds for the external PIP.
         """
-        if self.mode == "physical":
+        if self.mode == TimingModelMode.PHYSICAL:
             return self.external_pip_delay_physical(pip_src, pip_dst)
         else:
             return self.external_pip_delay_structural(pip_src, pip_dst)
