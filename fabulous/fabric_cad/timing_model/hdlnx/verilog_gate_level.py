@@ -13,7 +13,7 @@ import re
 
 import networkx as nx
 from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph import SDFTimingGraph
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
+from fabulous.fabric_cad.timing_model.models import *
 
 
 class VerilogGateLevelTimingGraph(SDFTimingGraph):
@@ -332,7 +332,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             List of resolved leaf pin paths.
         """
 
-        sep = self.get_hier_sep()
+        sep = self.hier_sep
         hier_pin_path: str = f"{self.top_name}{sep}{hier_pin_path}"
         verilog_src: str = self.verilog_netlist_content
 
@@ -594,7 +594,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         """
 
         top_module = self.top_name
-        sep = self.get_hier_sep()
+        sep = self.hier_sep
         verilog_src: str = self.verilog_netlist_content
 
         # -------------------------------------------------------------
@@ -851,7 +851,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
 
         text = self.verilog_netlist_content
         top_module = self.top_name
-        sep = self.get_hier_sep()
+        sep = self.hier_sep
 
         # Collect all modules: name -> body text
         module_pattern = re.compile(
@@ -994,7 +994,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             path_without_sentinel, closest_target = (
                 self.path_to_nearest_target_sentinel(
                     hier_pin_path,
-                    self.get_input_ports() if reverse else self.get_output_ports(),
+                    self.input_ports if reverse else self.output_ports,
                     reverse=reverse,
                 )
             )
@@ -1005,12 +1005,12 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
                     self.reverse_graph, hier_pin_path
                 )
                 leaf_dists = [
-                    (v, d) for v, d in dist.items() if v in self.get_input_ports()
+                    (v, d) for v, d in dist.items() if v in self.input_ports
                 ]
             else:
                 dist = nx.single_source_shortest_path_length(self.graph, hier_pin_path)
                 leaf_dists = [
-                    (v, d) for v, d in dist.items() if v in self.get_output_ports()
+                    (v, d) for v, d in dist.items() if v in self.output_ports
                 ]
 
             if len(leaf_dists) == 0:
@@ -1090,7 +1090,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
 
         verilog_src: str = self.verilog_netlist_content
         top_module: str = self.top_name
-        sep: str = self.get_hier_sep()
+        sep: str = self.hier_sep
 
         # Strip comments to avoid bogus matches ---
         # Remove block comments /* ... */

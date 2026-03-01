@@ -7,7 +7,7 @@ delays for individual tiles and caches the results for efficient retrieval.
 
 from loguru import logger
 
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
+from fabulous.fabric_cad.timing_model.models import *
 from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
     FABulousTileTimingModel,
 )

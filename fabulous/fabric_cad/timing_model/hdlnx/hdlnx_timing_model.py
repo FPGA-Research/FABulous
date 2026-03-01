@@ -9,7 +9,7 @@ It then uses the VerilogGateLevelTimingGraph class to generate a timing graph fr
 from pathlib import Path
 import tempfile, os
 from fabulous.fabric_cad.timing_model.hdlnx.verilog_gate_level import VerilogGateLevelTimingGraph
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
+from fabulous.fabric_cad.timing_model.models import *
 
 
 class HdlnxTimingModel(VerilogGateLevelTimingGraph):

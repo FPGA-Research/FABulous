@@ -14,7 +14,7 @@ import re
 from loguru import logger
 
 from fabulous.fabric_cad.timing_model.hdlnx.hdlnx_timing_model import HdlnxTimingModel
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
+from fabulous.fabric_cad.timing_model.models import *
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
@@ -546,16 +546,16 @@ class FABulousTileTimingModel:
         pip_dst = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_dst)
 
         # Tile interconnects, stitched fixed delay almost 0.
-        if pip_src in synth_model.get_output_ports():
+        if pip_src in synth_model.output_ports:
             logger.info(
                 f"Tile output {pip_src} to next tile input {pip_dst} stitched delay: {default_delay} ns"
             )
             return default_delay
 
         # Tile input to nearest output (twist to the next tile input)
-        elif pip_src in synth_model.get_input_ports():
+        elif pip_src in synth_model.input_ports:
             out_port_list, out_port = synth_model.path_to_nearest_target_sentinel(
-                pip_src, synth_model.get_output_ports()
+                pip_src, synth_model.output_ports
             )
             logger.info(f"Port twist detected for {pip_src} to {pip_dst}:")
             if out_port is None:
@@ -610,16 +610,16 @@ class FABulousTileTimingModel:
         pip_dst = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_dst)
 
         # Tile interconnects, stitched fixed delay almost 0.
-        if pip_src in phys_model.get_output_ports():
+        if pip_src in phys_model.output_ports:
             logger.info(
                 f"Tile output {pip_src} to next tile input {pip_dst} stitched delay: {default_delay} ns"
             )
             return default_delay
 
         # Tile input to nearest output (twist to the next tile input)
-        elif pip_src in phys_model.get_input_ports():
+        elif pip_src in phys_model.input_ports:
             out_port_list, out_port = phys_model.path_to_nearest_target_sentinel(
-                pip_src, phys_model.get_output_ports()
+                pip_src, phys_model.output_ports
             )
             logger.info(f"Port twist detected for {pip_src} to {pip_dst}:")
             if out_port is None:

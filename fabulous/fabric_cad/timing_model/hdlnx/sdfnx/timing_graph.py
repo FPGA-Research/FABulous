@@ -8,7 +8,7 @@ timing directed graphs using NetworkX.
 from pathlib import Path
 import networkx as nx
 from sdf_timing import sdfparse
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
+from fabulous.fabric_cad.timing_model.models import *
 
 
 def _as_float(value: float | None, default: float = 0.0) -> float:

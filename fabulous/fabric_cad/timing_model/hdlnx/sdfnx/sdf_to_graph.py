@@ -4,24 +4,91 @@ This module provides functionality to convert SDF files into timing graphs
 represented as NetworkX directed graphs.
 It is the main class used to create timing graphs from SDF files.
 It is derived from SDFTimingGraphBase which provides basic functionality.
-New algorithms can be added here.
+
+New algorithms can be added here. Note that this is a low level module focused on graph 
+algorithms based on the SDF, and should not contain high-level algorithms based on
+verilog netlists.
 """
 
 
 import networkx as nx
 from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base import SDFTimingGraphBase
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.models import *
+from fabulous.fabric_cad.timing_model.models import *
 
 
 class SDFTimingGraph(SDFTimingGraphBase):
     """
     Class to represent a timing graph generated from an SDF file.
     It extends SDFTimingGraphBase to allow for additional algorithms
-    specific to timing analysis.
+    specific to timing analysis on the SDF timing graph.
     Inherits all attributes and methods from SDFTimingGraphBase.
     """
 
     ### Public Methods ###
+    
+    def has_path(self, source: str, target: str) -> bool:
+        """
+        Check if there is a path from source to target in the timing graph.
+
+        Parameters
+        ----------
+        source : str
+            The source node.
+        target : str
+
+            The target node.
+
+        Returns
+        -------
+        bool
+            True if a path exists, False otherwise.
+
+        Examples
+        --------
+            exists = sdf_graph.has_path("nodeA/pin", "nodeB/pin")
+        """
+        return nx.has_path(self.graph, source=source, target=target)
+
+    def delay_path(self, source: str, target: str) -> tuple[float, list[str], str]:
+        """
+        Find the path with the delay between source and target nodes in the timing graph.
+
+        Parameters
+        ----------
+        source : str
+
+            The source node.
+        target : str
+
+            The target node.
+
+        Returns
+        -------
+        tuple[float, list[str], str]
+            A tuple containing the total delay, the path as a list of nodes,
+            and a detailed info string about the path.
+
+        Examples
+        --------
+            length, path, info = sdf_graph.delay_path("nodeA/pin", "nodeB/pin")
+        """
+        length: float = nx.dijkstra_path_length(
+            self.graph, source=source, target=target, weight="weight"
+        )
+        path: list[str] = nx.dijkstra_path(
+            self.graph, source=source, target=target, weight="weight"
+        )
+        info: str = ""
+
+        for i in range(len(path) - 1):
+            u = path[i]
+            v = path[i + 1]
+            edge_data = self.graph.edges[u, v]
+            info += (
+                f"{u} -> {v} with delay {edge_data['weight']} ({edge_data['component'].cell_name},"
+                f"{edge_data['component'].c_type})\n"
+            )
+        return length, path, info
 
     def earliest_common_nodes(
         self,
@@ -60,7 +127,6 @@ class SDFTimingGraph(SDFTimingGraphBase):
             - best_cost (float): the minimal cost value (hop-count, or delay sum), or None if no common node
             - dists (dict[str, dict[str, float]]): dict: source -> dict(node -> distance)
         """
-
         sources = list(sources)
         if not sources:
             return [], None, {}
@@ -118,7 +184,6 @@ class SDFTimingGraph(SDFTimingGraphBase):
         str
             The hierarchical pin path reached after following the fanout.
         """
-
         current_pin: str = hier_pin_path
         for _ in range(num_follow):
             successors = next(self.graph.successors(current_pin), None)
@@ -165,7 +230,6 @@ class SDFTimingGraph(SDFTimingGraphBase):
         ValueError
             If `targets` is empty.
         """
-
         if reverse:
             G = self.reverse_graph
         else:
