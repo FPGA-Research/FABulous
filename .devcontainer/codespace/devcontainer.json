@@ -35,12 +35,22 @@
             ]
         },
         "codespaces": {
-            "openFiles": []
+            "portsAttributes": {
+                "6080": {
+                    "label": "Desktop (noVNC)",
+                    "onAutoForward": "ignore",
+                    "visibility": "private"
+                },
+                "5901": {
+                    "label": "VNC",
+                    "onAutoForward": "ignore",
+                    "visibility": "private"
+                }
+            }
         }
     },
     "postCreateCommand": "bash .devcontainer/post-create.sh",
     "postAttachCommand": "bash .devcontainer/display-switch.sh",
-    "initializeCommand": "xhost +local:docker 2>/dev/null || true",
     "remoteUser": "root",
     "hostRequirements": {
         "cpus": 4
