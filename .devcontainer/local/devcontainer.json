@@ -10,10 +10,11 @@
     },
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     // --- LOCAL LINUX SPECIFIC SETTINGS ---
+    // --net=host is required for X11: modern Linux uses abstract Unix sockets
+    // for X11, which live in the network namespace (not the filesystem).
+    // --security-opt needed for SELinux (Fedora/RHEL).
     "runArgs": [
         "--net=host",
-        "--ipc=host",
-        "--env=DISPLAY",
         "--security-opt=label=disable"
     ],
     "mounts": [
@@ -21,11 +22,11 @@
     ],
     "containerEnv": {
         "QT_QPA_PLATFORM": "xcb",
-        "DISPLAY": "${localEnv:DISPLAY}",
-        "QT_X11_NO_MITSHM": "1"
+        "DISPLAY": "${localEnv:DISPLAY}"
     },
     "postCreateCommand": "bash .devcontainer/post-create.sh",
     "postAttachCommand": "bash .devcontainer/display-switch.sh",
+    "initializeCommand": "xhost +local:docker 2>/dev/null || true",
     "customizations": {
         "vscode": {
             "settings": {

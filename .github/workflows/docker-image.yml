@@ -81,4 +81,5 @@ jobs:
       - name: Test release image
         if: github.event_name == 'release'
         run: |
-          docker run --rm "${{ env.DOCKER_IMAGE }}:latest" FABulous --version
+          VERSION="${GITHUB_REF_NAME#v}"
+          docker run --rm "${{ env.DOCKER_IMAGE }}:${VERSION}" FABulous --version
