@@ -3,6 +3,7 @@ FROM ubuntu:24.04
 # Install minimal dependencies and set up non-root user (UID 1000)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates xz-utils git sudo && \
+    rm -rf /var/lib/apt/lists/* && \
     userdel -r ubuntu 2>/dev/null || true && \
     useradd -m -s /bin/bash -u 1000 nixuser && \
     echo 'nixuser ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/nixuser && \
