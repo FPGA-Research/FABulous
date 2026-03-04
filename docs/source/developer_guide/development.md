@@ -99,7 +99,7 @@ For contributors who prefer a containerized development environment, FABulous pr
 
 ### Working in the Container
 
-Once inside the container, the workspace is mounted at `/workspace`. You can run FABulous commands directly:
+Once inside the container, the workspace is mounted at `/workspaces`. You can run FABulous commands directly:
 
 ```console
 FABulous -h                  # run CLI
@@ -121,7 +121,7 @@ If you prefer to use the Docker image without VS Code, you can run it directly:
 docker pull ghcr.io/fpga-research/fabulous:dev
 
 # Run interactively with your local repo mounted
-docker run -it --rm -v $(pwd):/workspace ghcr.io/fpga-research/fabulous:dev
+docker run -it --rm -v $(pwd):/workspaces ghcr.io/fpga-research/fabulous:dev
 
 # Or use the release image (non-editable install)
 docker pull ghcr.io/fpga-research/fabulous:latest

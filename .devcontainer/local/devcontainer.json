@@ -29,7 +29,7 @@
     "customizations": {
         "vscode": {
             "settings": {
-                "python.defaultInterpreterPath": "/nix/var/nix/profiles/default/bin/python",
+                "python.defaultInterpreterPath": "python",
                 "python.analysis.typeCheckingMode": "basic",
                 "editor.formatOnSave": true,
                 "[python]": {

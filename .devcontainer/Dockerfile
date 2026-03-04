@@ -38,15 +38,18 @@ RUN nix develop --profile /nix/var/nix/profiles/devshell --command true && \
 # Switch back to root for system-level setup
 USER root
 
-# Set up workspace, runtime dir, and devshell profile script
+# Set up workspace and runtime dir
 RUN mkdir -p /workspaces /run/user/1000 && \
     chown nixuser:nixuser /workspaces /run/user/1000 && \
-    chmod 700 /run/user/1000 && \
-    { echo '#!/bin/bash'; \
-    echo 'DEVSHELL_DIR=${DEVSHELL_DIR:-$(find /nix/store -maxdepth 1 -type d -name "*-devshell-dir" 2>/dev/null | head -1)}'; \
-    echo '[ -n "$DEVSHELL_DIR" ] && [ -f "$DEVSHELL_DIR/env.bash" ] && source "$DEVSHELL_DIR/env.bash"'; \
-    echo 'export PATH="/nix/var/nix/profiles/devshell/bin:/home/nixuser/.nix-profile/bin:$PATH"'; \
-    } > /etc/profile.d/devshell.sh && \
+    chmod 700 /run/user/1000
+
+# Install devshell profile script, resolving DEVSHELL_DIR at build time.
+# Sourced via BASH_ENV (non-interactive), /etc/bash.bashrc (system interactive),
+# and ~/.bashrc (user interactive) to cover all shell invocation modes.
+COPY .devcontainer/devshell.sh.tpl /tmp/devshell.sh.tpl
+RUN DEVSHELL_DIR=$(find /nix/store -maxdepth 1 -type d -name "*-devshell-dir" | head -1) && \
+    sed "s|@@DEVSHELL_DIR@@|$DEVSHELL_DIR|" /tmp/devshell.sh.tpl > /etc/profile.d/devshell.sh && \
+    rm /tmp/devshell.sh.tpl && \
     chmod +x /etc/profile.d/devshell.sh && \
     echo 'source /etc/profile.d/devshell.sh' >> /home/nixuser/.bashrc && \
     echo 'source /etc/profile.d/devshell.sh' >> /etc/bash.bashrc && \
@@ -59,14 +62,8 @@ RUN rm -f /etc/apt/apt.conf.d/docker-gzip-indexes && \
     rm -rf /var/lib/apt/lists/* && \
     apt-get update
 
-# Initialize git repo in workspace as nixuser
+# Run as nixuser by default and set environment variables
 USER nixuser
-RUN cd /workspaces && \
-    git init && \
-    git config user.email "devcontainer@fabulous.local" && \
-    git config user.name "Dev Container"
-
-# Set environment variables
 ENV BASH_ENV=/etc/profile.d/devshell.sh \
     XDG_RUNTIME_DIR=/run/user/1000 \
     QT_X11_NO_MITSHM=1 \
