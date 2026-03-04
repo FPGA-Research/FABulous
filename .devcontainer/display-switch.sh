@@ -7,15 +7,12 @@
 if [ "$CODESPACES" = "true" ]; then
     echo "Running in Codespaces (VNC on :1)"
     export DISPLAY=:1
-    if ! grep -q "export DISPLAY=:1" ~/.bashrc; then
-        echo "export DISPLAY=:1" >> ~/.bashrc
-    fi
 else
     echo "Running on Local Linux (X11 socket mount)"
 
     # Kill internal VNC to avoid conflicts with host X11
     pkill Xvfb 2>/dev/null || true
-    rm -f /tmp/.X11-unix/X1
+    rm -f /tmp/.X11-unix/X1 2>/dev/null || true
 
     # Link host X11 socket from mount point
     if [ -d "/tmp/.host-X11-unix" ]; then
@@ -23,16 +20,16 @@ else
     fi
 
     # Use the DISPLAY variable passed from the host
-    if [ -z "$DISPLAY" ]; then
-        export DISPLAY=:0
-    fi
+    export DISPLAY="${DISPLAY:-:0}"
     echo "Using display: $DISPLAY"
 
     # Disable auth (relies on xhost +local:docker on host)
     export XAUTHORITY=""
+fi
 
-    # Persist display settings to bashrc for new terminal sessions
-    sed -i '/export DISPLAY=/d; /export XAUTHORITY=/d' ~/.bashrc
-    echo "export DISPLAY=$DISPLAY" >> ~/.bashrc
-    echo "export XAUTHORITY=\"\"" >> ~/.bashrc
+# Persist display settings to bashrc for new terminal sessions
+sed -i '/export DISPLAY=/d; /export XAUTHORITY=/d' ~/.bashrc
+echo "export DISPLAY=$DISPLAY" >> ~/.bashrc
+if [ "$CODESPACES" != "true" ]; then
+    echo 'export XAUTHORITY=""' >> ~/.bashrc
 fi

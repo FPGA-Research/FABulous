@@ -51,7 +51,7 @@
     },
     "postCreateCommand": "bash .devcontainer/post-create.sh",
     "postAttachCommand": "bash .devcontainer/display-switch.sh",
-    "remoteUser": "root",
+    "remoteUser": "nixuser",
     "hostRequirements": {
         "cpus": 4
     }
