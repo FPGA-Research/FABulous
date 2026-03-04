@@ -24,7 +24,6 @@
         "QT_QPA_PLATFORM": "xcb",
         "DISPLAY": "${localEnv:DISPLAY}"
     },
-    "postCreateCommand": "bash .devcontainer/post-create.sh",
     "postAttachCommand": "bash .devcontainer/display-switch.sh",
     "initializeCommand": "xhost +local:docker 2>/dev/null || true",
     "customizations": {

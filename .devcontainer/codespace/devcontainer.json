@@ -49,7 +49,6 @@
             }
         }
     },
-    "postCreateCommand": "bash .devcontainer/post-create.sh",
     "postAttachCommand": "bash .devcontainer/display-switch.sh",
     "remoteUser": "nixuser",
     "hostRequirements": {
