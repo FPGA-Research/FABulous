@@ -2,7 +2,8 @@
   description = "FABulous EDA development environment with Nix - includes GHDL, Yosys, NextPNR, Librelane, and more";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
+    # Pinned to nix-eda 6.2.0's nixpkgs for binary cache hits from fossi-foundation
+    nixpkgs.url = "github:nixos/nixpkgs/b3aad468604d3e488d627c0b43984eb60e75e782";
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
       inputs.nixpkgs.follows = "nixpkgs";
