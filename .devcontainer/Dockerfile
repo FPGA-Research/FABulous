@@ -52,6 +52,13 @@ RUN mkdir -p /workspaces /run/user/1000 && \
     echo 'source /etc/profile.d/devshell.sh' >> /etc/bash.bashrc && \
     chown nixuser:nixuser /home/nixuser/.bashrc
 
+# Fix GPG "invalid signature" errors when devcontainer features run apt-get update
+# in Codespaces overlay builds. The base image enables gzip indexes (docker-gzip-indexes)
+# which causes file size mismatches across overlay2 layers during GPG verification.
+RUN rm -f /etc/apt/apt.conf.d/docker-gzip-indexes && \
+    rm -rf /var/lib/apt/lists/* && \
+    apt-get update
+
 # Initialize git repo in workspace as nixuser
 USER nixuser
 RUN cd /workspaces && \
