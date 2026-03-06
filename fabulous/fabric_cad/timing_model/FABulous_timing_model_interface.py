@@ -20,46 +20,36 @@ from fabulous.fabric_definition.tile import Tile
 class FABulousTimingModelInterface:
     """
     Interface for computing and caching timing delays for pips in a FABulous fabric.
-
-    Attributes
-    ----------
-    config : dict
-        Configuration dictionary for the timing interface.
-    fabric : Fabric
-        The FABulous fabric object.
-    tile_delay_dict : dict[str, dict[str, float]]
-        Cache mapping tile_name -> key -> delay.
-    timing_models : dict[str, FABulousTileTimingModel]
-        Mapping of tile name to its timing model instance.
+    Allows for efficient retrieval of pip delays by caching previously computed results, and supports
+    different timing models for different tile types or super tile types based on the configuration.
     """
 
-    def __init__(self, config: dict, fabric: Fabric):
+    def __init__(self, config: TimingModelConfig, fabric: Fabric):
         """
         Initialize the FABulousTimingModelInterface with the given configuration and fabric.
 
         Parameters
         ----------
-        config : dict
-            Configuration dictionary for the timing model.
+        config : TimingModelConfig
+            Configuration object for the timing model.
         fabric : Fabric
             The FABulous fabric object.
         """
-
-        self.config: dict = config
+        self.config: TimingModelConfig = config
         self.fabric: Fabric = fabric
         self.tile_delay_dict: dict[str, dict[str, float]] = {}
 
         self.timing_models: dict[str, FABulousTileTimingModel] = {}
 
         logger.info(
-            f"Initializing timing models for tiles, with mode: {self.config['mode']}"
+            f"Initializing timing models for tiles, with mode: {self.config.mode}"
         )
 
         for tile_name, tile in fabric.tileDic.items():
-            model_config = self.config.copy()
-            model_config["tile_name"] = tile_name
+            model_config = self.config.model_copy(deep=True)
             timing_model = FABulousTileTimingModel(
-                config=model_config, fabric=self.fabric
+                config=model_config, fabric=self.fabric, 
+                tile_name=tile_name
             )
             self.timing_models[tile_name] = timing_model
 

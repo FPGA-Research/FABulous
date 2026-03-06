@@ -6,13 +6,11 @@ It will call an external STA tool to generate the SDF file from the Verilog netl
 """
 
 
-from pathlib import Path
-import tempfile, os
-import subprocess
 import re
-
 import networkx as nx
+
 from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph import SDFTimingGraph
+from fabulous.fabric_cad.timing_model.tools.specification import StaTool
 from fabulous.fabric_cad.timing_model.models import *
 
 
@@ -21,279 +19,40 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
     Class to represent a timing graph generated from a Verilog gate-level netlist.
     It extends SDFTimingGraph to include functionality for generating the SDF file
     using an external static timing analysis (STA) tool.
-
-    Attributes
-    ----------
-    verilog_netlist : Path
-        Path to the Verilog gate-level netlist file.
-    liberty_files : list[Path] | Path
-        List of paths to Liberty files or a single Liberty file path.
-    top_name : str
-        Name of the top-level module in the Verilog netlist.
-    sta_executable : str
-        Path to the STA tool executable.
-    sta_program : str
-        Name of the STA tool program (e.g., "opensta").
-    spef_files : list[Path] | Path | None
-        List of paths to SPEF files or a single SPEF file path, or None.
-    delay_type_str : str
-        Type of delay to consider (e.g., "max_all").
-    hier_sep : str | None
-        Hierarchy separator used in the netlist, or None.
-    debug : bool
-        Flag to enable debug mode.
     """
 
     def __init__(
         self,
-        verilog_netlist: Path,
-        liberty_files: list[Path] | Path,
         top_name: str,
-        sta_executable: str,
-        sta_program: str,
-        spef_files: list[Path] | Path = None,
+        sta_tool: StaTool,
         delay_type_str: DelayType = DelayType.MAX_ALL,
-        hier_sep: str = None,
         debug: bool = False,
     ):
         """
         Initializes the VerilogGateLevelTimingGraph by generating an SDF file from the provided
         Verilog netlist using the specified STA tool, and then initializing the parent SDFTimingGraph
         with the generated SDF file.
-        """
-
-        self.verilog_netlist: Path = verilog_netlist
-        self.liberty_files: list[Path] | Path = liberty_files
-        self.top_name: str = top_name
-        self.sta_executable: str = sta_executable
-        self.sta_program: str = sta_program
-        self.spef_files: list[Path] | Path = spef_files
-        self.delay_type_str: DelayType = delay_type_str
-        self.debug: bool = debug
-
-        self._check_errors()
-
-        self.verilog_netlist_content: str = self.verilog_netlist.read_text()
-
-        # Register new STA tool here.
-        # The value must be a function that points to the respective sta function
-        # which always returns the (temp) path to the generated sdf netlist file.
-        self.registered_sta_tools: dict[str, Path] = {
-            "opensta": self._generate_sdf_opensta()
-        }
-
-        self._apply_settings()
-
-    ### Protected methods ###
-
-    def _apply_settings(self):
-        """
-        Applies the settings and generates the SDF file using the specified STA tool.
-        Initializes the parent SDFTimingGraph class with the generated SDF file.
-        """
-
-        if self.sta_program in self.registered_sta_tools:
-            sdf_path: Path = self.registered_sta_tools[self.sta_program]
-        else:
-            raise NotImplementedError(
-                f"STA tool '{self.sta_program}' is not supported."
-            )
-
-        # Initialize the parent SDFTimingGraph class
-        super().__init__(sdf_path, self.delay_type_str)
-
-        # Delete the temporary SDF file
-        os.remove(sdf_path)
-
-    def _check_errors(self):
-        """
-        Checks for errors in the provided configuration parameters.
-
-        Raises
-        ------
-        TypeError
-            If any parameter is of incorrect type.
-        FileNotFoundError
-            If any specified file does not exist.
-        ValueError
-            If any specified file is empty.
-        """
-
-        if not isinstance(self.verilog_netlist, Path):
-            raise TypeError("verilog_netlist must be a pathlib.Path object.")
-        if not self.verilog_netlist.exists():
-            raise FileNotFoundError(
-                f"Verilog netlist file not found: {self.verilog_netlist}"
-            )
-        if self.verilog_netlist.stat().st_size == 0:
-            raise ValueError(f"Verilog netlist file is empty: {self.verilog_netlist}")
-
-        if not isinstance(self.liberty_files, (list, Path)):
-            raise TypeError(
-                "liberty_files must be a list of pathlib.Path objects or a single pathlib.Path object."
-            )
-        if isinstance(self.liberty_files, list):
-            for lib in self.liberty_files:
-                if not isinstance(lib, Path):
-                    raise TypeError(
-                        "Each item in liberty_files list must be a pathlib.Path object."
-                    )
-                if not lib.exists():
-                    raise FileNotFoundError(f"Liberty file not found: {lib}")
-                if lib.stat().st_size == 0:
-                    raise ValueError(f"Liberty file is empty: {lib}")
-        else:
-            if not self.liberty_files.exists():
-                raise FileNotFoundError(f"Liberty file not found: {self.liberty_files}")
-            if self.liberty_files.stat().st_size == 0:
-                raise ValueError(f"Liberty file is empty: {self.liberty_files}")
-
-        if not isinstance(self.top_name, str):
-            raise TypeError("top_name must be a string.")
-        if not isinstance(self.sta_executable, str):
-            raise TypeError("sta_executable must be a string.")
-        if not isinstance(self.sta_program, str):
-            raise TypeError("sta_program must be a string.")
-
-        if self.spef_files is not None and not isinstance(
-            self.spef_files, (list, Path)
-        ):
-            raise TypeError(
-                "spef_files must be a list of pathlib.Path objects or a single pathlib.Path object or None."
-            )
-        if isinstance(self.spef_files, list):
-            for spef in self.spef_files:
-                if not isinstance(spef, Path):
-                    raise TypeError(
-                        "Each item in spef_files list must be a pathlib.Path object."
-                    )
-                if not spef.exists():
-                    raise FileNotFoundError(f"SPEF file not found: {spef}")
-                if spef.stat().st_size == 0:
-                    raise ValueError(f"SPEF file is empty: {spef}")
-        elif isinstance(self.spef_files, Path):
-            if not self.spef_files.exists():
-                raise FileNotFoundError(f"SPEF file not found: {self.spef_files}")
-            if self.spef_files.stat().st_size == 0:
-                raise ValueError(f"SPEF file is empty: {self.spef_files}")
-
-        if not isinstance(self.delay_type_str, DelayType):
-            raise TypeError("delay_type_str must be a DelayType.")
-        if not isinstance(self.debug, bool):
-            raise TypeError("debug must be a boolean.")
-
-    def _call_external(
-        self,
-        executable: str,
-        args: list[str] = [],
-        stdin_data: str = "",
-        debug: bool = False,
-    ) -> subprocess.CompletedProcess:
-        """
-        Calls an external executable with given arguments and stdin data.
-        Captures the output and checks for errors.
-
+        
         Parameters
         ----------
-        executable : str
-            The path to the executable to run.
-        args : list[str]
-            List of arguments to pass to the executable.
-        stdin_data : str
-            Data to send to the executable's stdin.
-
-        Returns
-        -------
-        subprocess.CompletedProcess
-            The result of the subprocess call.
-
-        Raises
-        ------
-        RuntimeError
-            If the external command fails.
-        """
-
-        if debug:
-            print("Debug mode enabled for external command.")
-            print(f"Calling external command: {executable} {' '.join(args)}")
-            print(f"With stdin data:\n{stdin_data}")
-            result = subprocess.run(
-                [executable, *args],
-                input=stdin_data,
-                text=True,
-            )
-        else:
-            result = subprocess.run(
-                [executable, *args],
-                input=stdin_data,
-                text=True,
-                capture_output=True,
-                check=False,
-            )
-
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"Command '{' '.join([executable, *args])}' failed with error: {result.stderr}"
-            )
-        return result
-
-    ### Protected methods (STA connection Interface) ###
-
-    def _generate_sdf_opensta(self) -> Path:
-        """
-        Generates an temporary SDF file from the Verilog gate-level netlist using OpenSTA.
-        The SDF file is created in a temporary location and deleted after use.
-
-        Returns
-        -------
-        Path
-            The path to the generated SDF file.
-        """
-
-        sta_tcl_script: str = ""
-        if isinstance(self.liberty_files, Path):
-            sta_tcl_script += f"read_liberty {self.liberty_files}\n"
-        else:
-            for lib in self.liberty_files:
-                sta_tcl_script += f"read_liberty {lib}\n"
-        sta_tcl_script += f"read_verilog {self.verilog_netlist}\n"
-        sta_tcl_script += f"link_design {self.top_name}\n"
-        if self.spef_files is not None:
-            if isinstance(self.spef_files, Path):
-                sta_tcl_script += f"read_spef {self.spef_files}\n"
-            elif isinstance(self.spef_files, list):
-                for spef in self.spef_files:
-                    sta_tcl_script += f"read_spef {spef}\n"
-        sta_tcl_script += "write_sdf {}\n".format("{sdf_path}")
-        sta_tcl_script += "exit\n"
-
-        fd, path = tempfile.mkstemp(prefix="sta_", suffix=".sdf")
-        os.close(fd)
-
-        if self.debug:
-            print(f"Generating SDF file at temporary path: {path}")
-
-        self._call_external(
-            self.sta_executable,
-            stdin_data=sta_tcl_script.format(sdf_path=path),
-            debug=self.debug,
-        )
-
-        with open(path, "r") as f:
-            content: str = f.read()
-            if len(content) == 0:
-                os.remove(path)
-                raise RuntimeError(
-                    "Failed to generate SDF file using OpenSTA. No content in SDF file."
-                )
-
-        if path is None:
-            raise RuntimeError(
-                "Failed to generate SDF file using OpenSTA. No SDF file created."
-            )
-
-        return Path(path)
-
+        top_name : str
+            Name of the top-level module in the Verilog netlist.
+        sta_tool : StaTool
+            Instance of the STA tool used for timing analysis.
+        delay_type_str : DelayType, optional
+            Type of delay to consider (e.g., DelayType.MAX_ALL). Default is DelayType.MAX_ALL.
+        debug : bool, optional
+            Flag to enable debug mode. Default is False.
+        """ 
+        self.top_name: str = top_name
+        self.delay_type_str: DelayType = delay_type_str
+        self.debug: bool = debug
+        self.sta_tool: StaTool = sta_tool
+        
+        self.sta_tool.analyze()
+        super().__init__(self.sta_tool.sdf_file, self.delay_type_str)
+        self.sta_tool.clean_up()
+    
     ### Public methods ###
 
     def get_raw_verilog_netlist_data(self) -> str:

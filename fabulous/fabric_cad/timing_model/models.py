@@ -8,26 +8,10 @@ delay information, and various flags indicating the nature of the component.
 
 
 from dataclasses import dataclass, field
+from pydantic import BaseModel, Field, ConfigDict
 from enum import StrEnum
 import networkx as nx
-
-class TimingModelMode(StrEnum):
-    """
-    Enumeration of timing model modes for the SDF timing model.
-    
-    Attributes
-    ----------
-    STRUCTURAL : str
-        Represents a structural timing model, which focuses on the interconnections and structure of the design.
-        This mode is based on the non routed netlist and can be used if no physical post-layout netlist is available.
-    PHYSICAL : str
-        Represents a physical timing model, which includes detailed information about the physical layout 
-        and routing of the design. This mode is based on the routed netlist and can be used if a physical 
-        post-layout netlist is available, providing more accurate timing information that accounts 
-        for the actual physical implementation of the design.
-    """
-    STRUCTURAL = "structural"
-    PHYSICAL = "physical"
+from pathlib import Path
 
 
 class SDFCellType(StrEnum):
@@ -205,3 +189,96 @@ class DelayType(StrEnum):
     MAX_SLOW = "max_slow"
     MIN_FAST = "min_fast"
     MIN_SLOW = "min_slow"
+    
+class TimingModelMode(StrEnum):
+    """
+    Enumeration of timing model modes for the SDF timing model.
+    
+    Attributes
+    ----------
+    STRUCTURAL : str
+        Represents a structural timing model, which focuses on the interconnections and structure of the design.
+        This mode is based on the non routed netlist and can be used if no physical post-layout netlist is available.
+    PHYSICAL : str
+        Represents a physical timing model, which includes detailed information about the physical layout 
+        and routing of the design. This mode is based on the routed netlist and can be used if a physical 
+        post-layout netlist is available, providing more accurate timing information that accounts 
+        for the actual physical implementation of the design.
+    """
+    STRUCTURAL = "structural"
+    PHYSICAL = "physical"
+
+class TimingModelSynthTools(StrEnum):
+    """
+    Enumeration of synthesis tools configured for the timing model.
+    
+    Attributes
+    ----------
+    YOSYS : str
+        Represents the Yosys synthesis tool, which is an open-source framework for RTL synthesis.
+    """
+    YOSYS = "yosys"
+
+class TimingModelStaTools(StrEnum):
+    """
+    Enumeration of static timing analysis (STA) tools configured for the timing model.
+    
+    Attributes
+    ----------
+    OPENSTA : str
+        Represents the OpenSTA tool, which is an open-source static timing analysis tool.
+    """
+    OPENSTA = "opensta"
+
+class TimingModelConfig(BaseModel):
+    """
+    Configuration class for the SDF timing model, containing all necessary parameters and settings
+    for generating the timing model from the SDF file.
+    
+    Attributes
+    ----------
+    project_dir : Path
+        The directory of the project, used for resolving relative paths.
+    liberty_files : list[Path] | Path
+        The list of liberty files or a single liberty file path used for timing analysis.
+    min_buf_cell_and_ports : str
+        The minimum buffer cell and its ports "cell_name input_port output_port".
+    synth_executable : str
+        The executable command for the synthesis tool.
+    sta_executable : str
+        The executable command for the static timing analysis tool.
+    techmap_files : list[Path] | Path | None
+        The list of technology mapping files or a single techmap file path or None if not applicable.
+    tiehi_cell_and_port : str | None
+        The cell and port used for tie-high connections "cell_name port_name", or None if not applicable.
+    tielo_cell_and_port : str | None
+        The cell and port used for tie-low connections "cell_name port_name", or None if not applicable.
+    sta_program : TimingModelStaTools
+        The static timing analysis tool to be used, specified as an instance of the TimingModelStaTools enumeration.
+    synth_program : TimingModelSynthTools
+        The synthesis tool to be used, specified as an instance of the TimingModelSynthTools enumeration.
+    mode : TimingModelMode
+        The timing model mode to be used, specified as an instance of the TimingModelMode enumeration.
+    consider_wire_delay : bool
+        Flag indicating whether to consider wire delay in the timing analysis.
+    delay_type_str : DelayType
+        The type of delay to be used in the timing analysis, specified as an instance of the DelayType enumeration.
+    debug : bool
+        Flag to enable or disable debug mode, which may provide additional logging.
+    """
+    model_config = ConfigDict(strict=False)
+    
+    project_dir: Path          
+    liberty_files: list[Path] | Path         
+    min_buf_cell_and_ports: str 
+    synth_executable: Path | str
+    sta_executable: Path | str
+    techmap_files: list[Path] | Path | None = None
+    tiehi_cell_and_port: str | None = None     
+    tielo_cell_and_port: str | None = None
+    sta_program: TimingModelStaTools = Field(default=TimingModelStaTools.OPENSTA)
+    synth_program: TimingModelSynthTools = Field(default=TimingModelSynthTools.YOSYS)
+    mode: TimingModelMode = Field(default=TimingModelMode.PHYSICAL)
+    consider_wire_delay: bool = Field(default=True)    
+    delay_type_str: DelayType = Field(default=DelayType.MAX_ALL)
+    debug: bool = Field(default=False)
