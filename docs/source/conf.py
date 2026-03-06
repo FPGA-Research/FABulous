@@ -5,7 +5,7 @@ from pathlib import Path
 
 # -- Project information
 
-project = "FABulous: an Embedded FPGA Framework and CAD Tools"
+project = "FABulous: An easy-to-use, silicon-proven (e)FPGA generator with an integrated CAD toolchain 🏗️"
 copyright = "2021, University of Manchester"
 author = "Jing, Nguyen, Bea, Bardia, Dirk"
 
@@ -90,6 +90,8 @@ extensions = [
     "sphinx_prompt",
     # Utility extensions
     "sphinxcontrib.bibtex",
+    "sphinx_llm.txt",
+    'sphinxcontrib.mermaid',
     # Custom FABulous extensions
     "generate_cli_docs",
     "generate_configvar_docs",
@@ -220,10 +222,36 @@ html_title = f"{project} v{version}"
 html_short_title = project
 
 # OpenGraph configuration for social media previews
-ogp_site_url = "https://fpga-research.github.io/FABulous/"
+ogp_site_url = "https://fabulous.readthedocs.io/en/latest/"
+ogp_site_name = "FABulous: Open-Source Embedded FPGA Framework"
 ogp_description_length = 200
 ogp_image = "_static/figs/FABulouslogo_wide_2.png"
 ogp_social_cards = {"enable": True, "image": "_static/figs/FABulouslogo_wide_2.png"}
+
+# JSON-LD structured data for search engines and LLM crawlers
+_jsonld = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "FABulous",
+    "description": "An open-source embedded FPGA (eFPGA) framework for generating silicon-proven FPGA fabrics, with a full-stack toolchain from CSV-based fabric definition to GDSII.",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Linux, macOS",
+    "license": "https://opensource.org/licenses/Apache-2.0",
+    "url": "https://github.com/FPGA-Research/FABulous",
+    "downloadUrl": "https://pypi.org/project/fabulous-fpga/",
+    "softwareRequirements": "Python >= 3.12",
+    "author": {
+        "@type": "Organization",
+        "name": "Novel Computing Technologies Group, University of Heidelberg",
+        "url": "https://github.com/FPGA-Research",
+    },
+}
+
+import json as _json
+
+html_context = {
+    "jsonld": _json.dumps(_jsonld),
+}
 
 # -- AutoAPI Configuration (Modern replacement for autosummary)
 autoapi_type = "python"

@@ -30,12 +30,22 @@ PyPI:
 pip install uv
 ```
 
-## Install and run FABulous
+## Install FABulous
 
-To install FABulous run:
+Install FABulous as a tool so the `FABulous` command is available globally:
 
 ```bash
-uv sync
+uv tool install fabulous-fpga
 ```
 
-After the installation you can use can simply replace anything you want to run and pre-pend it with `uv run`. For example `uv run FABulous`. If you want to avoid keep typing `uv run` you can do `source .venv/bin/activate` and this will activate the virtual environment, and everything will run under `uv`.
+Verify the installation:
+
+```bash
+FABulous --version
+```
+
+To upgrade later:
+
+```bash
+uv tool upgrade fabulous-fpga
+```

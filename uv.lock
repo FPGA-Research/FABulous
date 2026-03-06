@@ -607,6 +607,7 @@ name = "fabulous-fpga"
 source = { editable = "." }
 dependencies = [
     { name = "bitarray" },
+    { name = "ciel" },
     { name = "click" },
     { name = "cmd2" },
     { name = "dill" },
@@ -647,6 +648,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bitarray", specifier = ">=3.3.0" },
+    { name = "ciel", specifier = ">=2.4.0" },
     { name = "click", specifier = ">=8.0.0" },
     { name = "cmd2", specifier = ">=2" },
     { name = "dill", specifier = ">=0.4.0" },

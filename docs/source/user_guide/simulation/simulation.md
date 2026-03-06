@@ -1,6 +1,64 @@
 # Simulation setup
 
-FABulous provides a simulation environment to test the fabric and the bitstream generated for it.
+FABulous provides a simulation environment to validate that the generated
+FPGA fabric works correctly. The simulation loads a test bitstream, built from
+the user design, into the simulated FABulous fabric RTL and verifies that
+configuration, routing, and primitive behavior function as intended.
+
+```{mermaid}
+flowchart TB
+    subgraph design ["User Design Flow"]
+        A[User Design Verilog/VHDL] --> B[Yosys Synthesis]
+        B --> C[nextpnr Place & Route]
+        C --> D[Bitstream Generation]
+    end
+
+    subgraph fabric ["Fabric Generation"]
+        F[FABulous] --> G[Fabric RTL]
+    end
+
+    subgraph sim ["Simulation"]
+        direction LR
+        E[Test Bitstream] --> H[Icarus Testbench]
+        H --> I{Pass / Fail}
+    end
+
+    subgraph emu ["Emulation"]
+        direction LR
+        J[Hardwired Bitstream] --> K[Fabric RTL + Bitstream]
+        K --> L[Commercial FPGA Board]
+    end
+
+    D --> E
+    D --> J
+    G --> H
+    G --> K
+```
+
+:::{important}
+The purpose of FABulous simulation is to verify the **generated fabric
+implementation**, not to validate user designs mapped onto it. If you need to
+test your own design logic, use a standard HDL testbench for your design
+before mapping it to the fabric.
+:::
+
+The following diagram illustrates the simulation flow and how the different
+components interact.
+
+```{mermaid}
+flowchart LR
+    A[User Design Verilog/VHDL] --> B[Yosys Synthesis]
+    B --> C[nextpnr Place & Route]
+    C --> D[Bitstream Generation]
+    D --> E[Test Bitstream]
+
+    F[FABulous] --> G[Fabric RTL]
+
+    E --> H[Testbench Simulation]
+    G --> H
+    H --> I{Pass / Fail}
+```
+
 For simple use cases, there is the `run_simulation` command in the FABulous shell.
 For more complex use cases it can be useful to create an own flow, like the following example `make` based flow.
 

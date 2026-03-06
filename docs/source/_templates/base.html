@@ -1,0 +1,6 @@
+{% extends "furo/base.html" %}
+
+{% block extrahead %}
+{{ super() }}
+<script type="application/ld+json">{{ jsonld | safe }}</script>
+{% endblock %}

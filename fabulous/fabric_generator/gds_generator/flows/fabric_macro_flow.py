@@ -27,7 +27,6 @@ from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
 from fabulous.fabric_generator.gds_generator.steps.odb_connect_pdn import (
     FABulousPDN,
 )
-from fabulous.fabulous_settings import get_context
 
 subs = {
     # Disable STA
@@ -96,13 +95,6 @@ class FABulousFabricMacroFlow(Classic):
         self.macros: dict[str, Macro] = {}
         self.tile_sizes: dict[str, tuple[Decimal, Decimal]] = {}
         self.fabric = fabric
-
-        if pdk_root is None:
-            pdk_root = get_context().pdk_root
-        if pdk is None:
-            pdk = get_context().pdk
-            if pdk is None:
-                raise ValueError("PDK must be specified either here or in settings.")
 
         for name, tile_macro_path in tile_macro_dirs.items():
             die_area = json.loads(

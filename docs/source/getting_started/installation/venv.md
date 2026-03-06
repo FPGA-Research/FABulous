@@ -4,20 +4,11 @@
 
 ## Dependencies
 
-```bash
-sudo apt-get install python3-virtualenv
-```
-
-:::{note}
-If you get the warning `ModuleNotFoundError: No module named 'virtualenv'`
-or errors when installing the requirements, you have to install the
-dependencies for your specific python version. For Python 3.12 use
+Python >= 3.12 is required. The `venv` module is included with Python, but on some distributions you may need to install it separately:
 
 ```bash
-sudo apt-get install python3.12-virtualenv
+sudo apt-get install python3-venv
 ```
-
-:::
 
 :::{note}
 If you are using an older version than Ubuntu 24.04, you may need to install tkinter.
@@ -37,18 +28,23 @@ git clone https://github.com/FPGA-Research/FABulous
 
 ## Virtual environment
 
-We recommend using python virtual environments for the usage of FABulous.
-If you are not sure what this is and why you should use it, please read the
-[virtualenv documentation](https://virtualenv.pypa.io/en/latest/index.html).
+Create and activate a virtual environment using Python's built-in `venv` module:
 
 ```bash
 cd FABulous
-virtualenv venv
-source venv/bin/activate
-
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
-Now there is a `(venv)` at the beginning of your command prompt.
+Now there is a `(.venv)` at the beginning of your command prompt.
 You can deactivate the virtual environment with the `deactivate` command.
-Please note, that you always have to enable the virtual environment
-with `source venv/bin/activate` to use FABulous.
+Please note, that you always have to activate the virtual environment
+with `source .venv/bin/activate` to use FABulous.
+
+## Install FABulous
+
+With the virtual environment activated, install FABulous:
+
+```bash
+pip install -e .
+```

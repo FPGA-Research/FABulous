@@ -120,7 +120,7 @@ Afterward we place our BEL file `crc5.v` in the `CRC5` folder.
 
 FABulous requires a set of annotations in the BEL file to handle it correctly.
 The {ref}`primitives` section explains the basic FABulous annotations in detail.
-How to add and access bitstream bits in the BEL is described in the {ref}`BELmap` section.
+How to add and access bitstream bits in the BEL is described in the [Bel Map Attribute](#belmap-primitives) section.
 
 In our case, we just need to annotate the `clk` port of our BEL with the
 SHARED_PORT and EXTERNAL.

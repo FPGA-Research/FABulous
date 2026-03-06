@@ -28,10 +28,12 @@ As of writing, we are using custom build of librelane, as a result, the upstream
 
 ### Install PDK
 
-To compile the design, we will also need to install the PDK. In the Nix installation method we have also packaged in a PDK version manager [ciel](https://github.com/fossi-foundation/ciel). By default, we have set up the project to target the `ihp-sg13g2` process (130nm). To install the PDK run the following command:
+To compile the design, we will also need to install the PDK. FABulous automatically resolves the recommended PDK version from LibreLane and installs it via [ciel](https://github.com/fossi-foundation/ciel) on first use. By default, we have set up the project to target the `ihp-sg13g2` process (130nm).
+
+If you need to manually install a specific PDK version, you can use:
 
 ```bash
-ciel enable --pdk-family ihp-sg13g2 c4b8b4e5e7a05f375cca3815d51b3a37721fbf5c
+ciel enable --pdk-family ihp-sg13g2 <commit_hash>
 ```
 
 ## Changing PDK

@@ -1,4 +1,5 @@
 (fabric-definition)=
+
 # Fabric definition
 
 This section describes the process of modeling FABulous fabrics in a top-down manner.
@@ -106,6 +107,7 @@ The column selection could also be extended to the currently unused bits, but
 It is planned to remove these limitations in future versions of FABulous.
 
 (fabric-csv)=
+
 ## Fabric CSV description
 
 - For the section between `FabricBegin` and `FabricEnd`, refer to the [fabric layout](#fabric-layout) description.
@@ -186,6 +188,7 @@ It is planned to remove these limitations in future versions of FABulous.
     :::
 
 (fabric-layout)=
+
 ## Fabric layout
 
 FABulous models FPGA fabrics as simple CSV files that describe the fabric layout in terms of {ref}`tiles`.
@@ -230,6 +233,7 @@ FabricEnd
   `NULL` tiles are used for padding and no code will be generated for these. `NULL` tiles can be used to build non-rectangular shaped fabrics.
 
 (tiles)=
+
 ## Tiles
 
 :::{figure} figs/tile_CLB_example.*
@@ -249,6 +253,7 @@ A tile typically hosts primitives like a CLB with LUTs or an I/O block.
 Multiple smaller tiles can be combined into [supertiles](#supertiles) to accommodate complex blocks like DSPs.
 
 (tile-csv)=
+
 ## Tile CSV description
 
 Each tile that is referred to in the [fabric layout](#fabric-layout) requires specification of the corresponding tile description in a tile.csv file that has the following format:
@@ -304,6 +309,7 @@ The path of the `INCLUDE` will be relative to where the base file is. For exampl
 at `foo/bar/LUT4AB.csv` then the `INCLUDE` path will point to `foo/bar/../Base.csv`.
 
 (wires)=
+
 ### Wires
 
 Wires are defined by 5-tuples:
@@ -467,6 +473,7 @@ Because long distance wires contribute heavily to the cut number, it can be bene
 :::
 
 (switch-matrix)=
+
 ### Switch matrix
 
 FABulous usually implements all routing in a central switch matrix.
@@ -610,6 +617,7 @@ Moreover, downstripping the routing fabric is easily possible by removing wires 
 :::
 
 (primitives)=
+
 ### Primitives
 
 Primitives are used to manipulate, store and input/output data. Examples for primitives include LUTs, slices (a cluster of LUTs that share a clock and that can be cascaded for arithmetic), flip-flops, individual gates or multiplexers, and complex blocks like DSPs, ALUs or BRAMs. A tile may have no primitives (e.g., the north and south terminate tiles in our example fabric) or as many as needed.
@@ -779,7 +787,53 @@ FABulous defines the following coding rules for BELs:
     `EXTERNAL`. It is used to allow multiple BELs to use the same port, e.g.
     for exporting a clock signal to the top.
 
+    :::{note}
+    Currently, `SHARED_PORT` is limited to the `UserCLK` signal. Any port
+    marked with `SHARED_PORT` will be automatically connected to `UserCLK`
+    in the generated fabric. The general concept of shared ports for arbitrary
+    signals is not yet supported.
+    :::
+
+(belmap-primitives)=
+
+#### BelMap Attribute
+
+Each primitive that uses configuration bits must include a `BelMap` attribute to define how FASM feature names map to configuration bit positions. The `BelMap` maps each configurable feature to its bit index within the primitive's configuration bitstream. The number of entries in the mapping must match the `NoConfigBits` parameter, otherwise the tool will report an error.
+
+The `BelMap` is specified as a Verilog attribute on the module declaration:
+
+```verilog
+(*FABulous, BelMap,
+INIT=0,
+INIT[1]=1,
+INIT[2]=2,
+INIT[3]=3,
+INIT[4]=4,
+INIT[5]=5,
+INIT[6]=6,
+INIT[7]=7,
+INIT[8]=8,
+INIT[9]=9,
+INIT[10]=10,
+INIT[11]=11,
+INIT[12]=12,
+INIT[13]=13,
+INIT[14]=14,
+INIT[15]=15,
+FF=16,
+IOmux=17,
+SET_NORESET=18
+*)
+module LUT4c_frame_config (I0, I1, I2, I3, O, Ci, Co, SR, EN, UserCLK, ConfigBits);
+parameter NoConfigBits = 19 ;
+...
+endmodule
+```
+
+In this example, the LUT4 has 16 configuration bits for `INIT` values (mapping to indices 0-15), 1 bit for `FF` (the flip-flop bypass switch at index 16), 1 bit for `IOmux` (the carry input switch at index 17), and 1 bit for `SET_NORESET` (the SET or RESET switch at index 18), totaling 19 configuration bits.
+
 (bitstream)=
+
 ### Bitstream remapping
 
 FABulous will take care when implementing the configuration logic and bitstream encoding and the mapping of this into configuration bitstreams. This can be done automatically.

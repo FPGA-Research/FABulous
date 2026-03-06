@@ -4,10 +4,27 @@ from pathlib import Path
 
 import pytest
 from dotenv import set_key
+from pytest_mock import MockerFixture
 
 from fabulous.fabulous_cli.helper import create_project
 
 TILE = "LUT4AB"
+
+
+@pytest.fixture(autouse=True)
+def _mock_ciel_home(tmp_path: Path, mocker: MockerFixture) -> None:
+    """Provide a fake ciel home with ihp-sg13g2 for all CLI tests.
+
+    This ensures tests don't depend on a real ciel installation.
+    Tests that need specific ciel home states (missing, empty) can
+    override by calling mocker.patch again in the test body.
+    """
+    ciel_home = tmp_path / "ciel_home"
+    (ciel_home / "ihp-sg13g2").mkdir(parents=True)
+    mocker.patch(
+        "fabulous.fabulous_cli.helper.get_ciel_home",
+        return_value=str(ciel_home),
+    )
 
 
 @pytest.fixture

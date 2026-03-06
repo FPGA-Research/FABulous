@@ -11,6 +11,8 @@ from loguru import logger
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from fabulous.fabulous_cli.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
+import fabulous.fabulous_settings
+import fabulous.fabulous
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]
@@ -60,22 +62,30 @@ def normalize_and_check_for_errors(caplog_text: str) -> list[str]:
 
 
 @pytest.fixture(autouse=True)
-def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Generator[None]:
     """Set up global test environment for FABulous tests."""
     fabulous_root = str(Path(__file__).resolve().parent.parent / "FABulous")
 
     for i in os.environ:
         monkeypatch.delenv(i[0], raising=False)
 
+    fake_user_config_dir = tmp_path / ".fabulous"
+
     # Set test environment using monkeypatch for automatic cleanup
     monkeypatch.setenv("FAB_ROOT", fabulous_root)
     monkeypatch.setenv("FABULOUS_TESTING", "TRUE")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda _: tmp_path)
+    # FAB_USER_CONFIG_DIR is computed at module import time, so Path.home() patching
+    # above is too late. Patch the constant directly in both modules that hold a binding.
+    monkeypatch.setattr(fabulous.fabulous_settings, "FAB_USER_CONFIG_DIR", fake_user_config_dir)
+    monkeypatch.setattr(fabulous.fabulous, "FAB_USER_CONFIG_DIR", fake_user_config_dir)
     (tmp_path / ".ciel" / "ihp-sg13g2").mkdir(parents=True, exist_ok=True)
     setup_logger(0, False)
 
-    return
+    yield
+
+    reset_context()
 
 
 @pytest.fixture
