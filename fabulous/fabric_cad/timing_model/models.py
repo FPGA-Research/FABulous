@@ -266,7 +266,7 @@ class TimingModelConfig(BaseModel):
     debug : bool
         Flag to enable or disable debug mode, which may provide additional logging.
     """
-    model_config = ConfigDict(strict=False)
+    model_config = ConfigDict(strict=False, validate_assignment=True)
     
     project_dir: Path          
     liberty_files: list[Path] | Path         
