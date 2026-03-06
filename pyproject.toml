@@ -42,6 +42,8 @@ dependencies = [
   "pymoo>=0.6.1.5",
   "numpy>=2.3.4",
   "dill>=0.4.0",
+  "networkx>=3.6.1",
+  "sdf-timing",
   "ciel>=2.4.0",
 ]
 
@@ -192,3 +194,6 @@ DEP002 = ["pyreadline3", "gnureadline"]
 
 [tool.deptry.package_module_name_map]
 FABulous-bit-gen = "FABulous_bit_gen"
+
+[tool.uv.sources]
+sdf-timing = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" }
