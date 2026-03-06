@@ -117,6 +117,7 @@ dev = [
   "taskipy>=1.14.0",
   "pyyaml>=6.0.0",
   "interrogate>=1.7.0",
+  "cocotbext-uart>=0.1.4",
 ]
 
 [tool.coverage.run]
@@ -179,6 +180,8 @@ sync-demo = "uv run scripts/sync_demo_tile_gds_config.py"
 # Provide flags after first '--'.
 
 test = "uv run scripts/run_tests.py"
+
+hdl-coverage = "verilator_coverage --annotate coverage_hdl/ --annotate-min 1 coverage_hdl/*.dat"
 
 project-upgrade = "uv lock --upgrade && nix flake update && task test"
 
