@@ -69,9 +69,20 @@ class FABulousSettings(BaseSettings):
     debug: bool = False
 
     # GDS variables
-    pdk_root: Path | None = None
-    pdk: str | None = None
-    pdk_hash: str | None = None
+    pdk_root: Path | None = Field(
+        default=None,
+        description="Root directory of the PDK installation",
+    )
+    pdk: str | None = Field(
+        default=None,
+        description="PDK name (e.g. 'ihp-sg13g2')",
+    )
+    pdk_hash: str | None = Field(
+        default=None,
+        description="Specific PDK version hash; "
+        "auto-resolved from librelane when omitted "
+        "if the PDK is supported by ciel",
+    )
     fabric_die_area: tuple[int, int, int, int] = (0, 0, 1000, 1000)
 
     # Windows warning acknowledgement
