@@ -7,8 +7,8 @@ for internal and external PIPs (Programmable Interconnect Points) using
 either structural or physical approaches.
 """
 
+
 from pathlib import Path
-import os
 import re
 
 from loguru import logger
@@ -207,19 +207,19 @@ class FABulousTileTimingModel:
         logger.info("Initializing Physical-level timing model...")
         
         # For the physical-level model, we need to switch to the gate-level netlist.
-        synth_tool.rtl_files = Path(
+        synth_tool.synth_rtl_files = Path(
             f"{self.tm_config.project_dir}/Tile/{self.unique_tile_name}"
             f"/macro/final_views/nl/{self.unique_tile_name}.nl.v"
         )
         
         # Disable synthesis for the physical-level model since we already 
         # have the gate-level netlist.
-        synth_tool.passthrough = True
+        synth_tool.synth_passthrough = True
         
         # Optionally load RC files for wire delay if consider_wire_delay 
         # is True in the configuration.
         if self.tm_config.consider_wire_delay:
-            sta_tool.rc_files = Path(
+            sta_tool.sta_rc_files = Path(
                 f"{self.tm_config.project_dir}/Tile/{self.unique_tile_name}"
                 f"/macro/final_views/spef/nom/{self.unique_tile_name}.nom.spef"
             )
@@ -270,29 +270,23 @@ class FABulousTileTimingModel:
         if not isinstance(root_dir, Path):
             raise ValueError("root_dir must be a Path object.")
 
-        root_path = root_dir
-
         file_re = re.compile(file_pattern)
         exclude_dir_res = [re.compile(p) for p in (exclude_dir_patterns or [])]
         exclude_file_res = [re.compile(p) for p in (exclude_file_patterns or [])]
-
         matched_files: list[Path] = []
 
-        for dirpath, dirnames, filenames in os.walk(root_path):
-            # Filter out excluded directories in-place so os.walk doesn't descend into them
+        for dirpath, dirnames, filenames in root_dir.walk():
             dirnames[:] = [
-                d for d in dirnames if not any(r.search(d) for r in exclude_dir_res)
+                d for d in dirnames
+                if not any(r.search(d) for r in exclude_dir_res)
             ]
-
+            
             for fname in filenames:
-                # Skip excluded file names
                 if any(r.search(fname) for r in exclude_file_res):
                     continue
-
-                # Match main pattern on file name
                 if file_re.search(fname):
-                    matched_files.append(Path(dirpath) / fname)
-
+                    matched_files.append(dirpath / fname)
+        
         return matched_files
     
     def _extract_switch_matrix_info(self):
@@ -500,7 +494,7 @@ class FABulousTileTimingModel:
         )
 
         logger.info(f"Delay from {pip_src} to {pip_dst}: {delay} ns via path:")
-        print(info)
+        logger.info(info)
 
         return delay
 
@@ -582,7 +576,7 @@ class FABulousTileTimingModel:
 
         if self.tm_config.debug:
             for swm_wire, ports in swm_nearest_ports[0].items():
-                logger.debug(f"  SWM wire {swm_wire} nearest top-level ports: {ports}")
+                logger.info(f"  SWM wire {swm_wire} nearest top-level ports: {ports}")
 
         swm_nearest_ports_for_each_swm_wire = swm_nearest_ports[0]
         swm_nearest_ports_all = swm_nearest_ports[1]
@@ -633,7 +627,7 @@ class FABulousTileTimingModel:
         )
 
         logger.info(f"Physical Delay from {pip_src} to {pip_dst}: {delay} ns via path:")
-        print(info)
+        logger.info(info)
 
         return delay
 
@@ -688,7 +682,7 @@ class FABulousTileTimingModel:
             logger.info(
                 f"Delay from tile input {pip_src} to tile output {out_port}--{pip_dst}: {delay} ns via path:"
             )
-            print(info)
+            logger.info(info)
             return delay
 
         # SWM output to the next SWM input
@@ -752,7 +746,7 @@ class FABulousTileTimingModel:
             logger.info(
                 f"Delay from tile input {pip_src} to tile output {out_port}--{pip_dst}: {delay} ns via path:"
             )
-            print(info)
+            logger.info(info)
             return delay
         # SWM output to the next SWM input
         else:

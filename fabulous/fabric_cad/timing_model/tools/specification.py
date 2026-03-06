@@ -22,28 +22,28 @@ class SynthTool(ABC):
 
     Attributes
     ----------
-    design_name : str
+    synth_design_name : str
         Name of the design being synthesized.
-    rtl_files : list[pathlib.Path] | pathlib.Path
+    synth_rtl_files : list[pathlib.Path] | pathlib.Path
         Input RTL Verilog file(s) used for synthesis.
-    liberty_files : list[pathlib.Path] | pathlib.Path
+    synth_liberty_files : list[pathlib.Path] | pathlib.Path
         Liberty timing library file(s) used for technology mapping.
-    netlist_file : pathlib.Path
+    synth_netlist_file : pathlib.Path
         Path to the generated netlist after synthesis.
-    passthrough : bool
+    synth_passthrough : bool
         If True, do not run synthesis; instead forward the input RTL as the
         resulting netlist.
 
     Methods
     -------
-    synthesize()
-        Run synthesis using the configured inputs and produce netlist_file.
-    clean_up()
+    synth_synthesize()
+        Run synthesis using the configured inputs and produce synth_netlist_file.
+    synth_clean_up()
         Remove temporary files and directories created during synthesis.
     """
     
     @abstractmethod
-    def synthesize(self):
+    def synth_synthesize(self):
         """
         Synthesizes the given Verilog file.
         """
@@ -51,7 +51,7 @@ class SynthTool(ABC):
     
     @property
     @abstractmethod
-    def netlist_file(self) -> Path:
+    def synth_netlist_file(self) -> Path:
         """
         Returns the path to the synthesized netlist file.
         
@@ -63,7 +63,7 @@ class SynthTool(ABC):
         pass
     
     @abstractmethod
-    def clean_up(self):
+    def synth_clean_up(self):
         """
         Cleans up any temporary files generated during synthesis.
         """
@@ -71,7 +71,7 @@ class SynthTool(ABC):
     
     @property
     @abstractmethod
-    def design_name(self) -> str:
+    def synth_design_name(self) -> str:
         """
         Gets the name of the design being synthesized.
         
@@ -82,9 +82,9 @@ class SynthTool(ABC):
         """
         pass
     
-    @design_name.setter
+    @synth_design_name.setter
     @abstractmethod
-    def design_name(self, name: str):
+    def synth_design_name(self, name: str):
         """
         Sets the name of the design being synthesized.
         
@@ -97,7 +97,7 @@ class SynthTool(ABC):
     
     @property
     @abstractmethod
-    def liberty_files(self) -> list[Path] | Path:
+    def synth_liberty_files(self) -> list[Path] | Path:
         """
         Returns the list of Liberty files used for synthesis.
         
@@ -108,9 +108,9 @@ class SynthTool(ABC):
         """
         pass
     
-    @liberty_files.setter
+    @synth_liberty_files.setter
     @abstractmethod
-    def liberty_files(self, files: list[Path] | Path):
+    def synth_liberty_files(self, files: list[Path] | Path):
         """
         Sets the list of Liberty files used for synthesis.
         
@@ -123,7 +123,7 @@ class SynthTool(ABC):
     
     @property
     @abstractmethod
-    def rtl_files(self) -> list[Path] | Path:
+    def synth_rtl_files(self) -> list[Path] | Path:
         """
         Returns the list of RTL files used for synthesis.
         
@@ -134,9 +134,9 @@ class SynthTool(ABC):
         """
         pass
     
-    @rtl_files.setter
+    @synth_rtl_files.setter
     @abstractmethod
-    def rtl_files(self, files: list[Path] | Path):
+    def synth_rtl_files(self, files: list[Path] | Path):
         """
         Sets the list of RTL files used for synthesis.
         
@@ -149,7 +149,7 @@ class SynthTool(ABC):
     
     @property
     @abstractmethod
-    def passthrough(self) -> bool:
+    def synth_passthrough(self) -> bool:
         """
         Returns whether the synthesis tool is in passthrough mode (i.e., it does not perform 
         actual synthesis but simply passes through the input rtl files).
@@ -161,9 +161,9 @@ class SynthTool(ABC):
         """
         pass
     
-    @passthrough.setter
+    @synth_passthrough.setter
     @abstractmethod
-    def passthrough(self, value: bool):
+    def synth_passthrough(self, value: bool):
         """
         Sets whether the synthesis tool is in passthrough mode.
         
@@ -183,28 +183,28 @@ class StaTool(ABC):
 
     Attributes
     ----------
-    design_name : str
+    sta_design_name : str
         Name of the design being analyzed.
-    netlist_file : pathlib.Path
+    sta_netlist_file : pathlib.Path
         Path to the input netlist used for STA analysis.
-    liberty_files : list[pathlib.Path] | pathlib.Path
+    sta_liberty_files : list[pathlib.Path] | pathlib.Path
         Liberty timing model(s) used for STA.
-    rc_files : list[pathlib.Path] | pathlib.Path | None
+    sta_rc_files : list[pathlib.Path] | pathlib.Path | None
         Optional RC extraction file(s) used for interconnect/parasitic timing.
         If None, analysis is performed without external RC data.
-    sdf_file : pathlib.Path
+    sta_sdf_file : pathlib.Path
         Path to the generated SDF file after analysis.
 
     Methods
     -------
-    analyze()
+    sta_analyze()
         Run STA using the configured inputs and generate sdf_file.
-    clean_up()
+    sta_clean_up()
         Remove temporary files and directories created during analysis.
     """
     
     @abstractmethod
-    def analyze(self):
+    def sta_analyze(self):
         """
         Analyzes the given netlist file.
         """
@@ -212,7 +212,7 @@ class StaTool(ABC):
 
     @property
     @abstractmethod
-    def sdf_file(self) -> Path:
+    def sta_sdf_file(self) -> Path:
         """
         Returns the path to the generated SDF file.
         
@@ -224,7 +224,7 @@ class StaTool(ABC):
         pass
     
     @abstractmethod
-    def clean_up(self):
+    def sta_clean_up(self):
         """
         Cleans up any temporary files generated during STA analysis.
         """
@@ -232,7 +232,7 @@ class StaTool(ABC):
     
     @property
     @abstractmethod
-    def netlist_file(self) -> Path:
+    def sta_netlist_file(self) -> Path:
         """
         Returns the path to the netlist file used for STA analysis.
         
@@ -243,9 +243,9 @@ class StaTool(ABC):
         """
         pass
     
-    @netlist_file.setter
+    @sta_netlist_file.setter
     @abstractmethod
-    def netlist_file(self, netl: Path):
+    def sta_netlist_file(self, netl: Path):
         """
         Sets the path to the netlist file used for STA analysis.
         
@@ -258,7 +258,7 @@ class StaTool(ABC):
     
     @property
     @abstractmethod
-    def design_name(self) -> str:
+    def sta_design_name(self) -> str:
         """
         Returns the name of the design being analyzed.
         
@@ -269,9 +269,9 @@ class StaTool(ABC):
         """
         pass
     
-    @design_name.setter
+    @sta_design_name.setter
     @abstractmethod
-    def design_name(self, name: str):
+    def sta_design_name(self, name: str):
         """
         Sets the name of the design being analyzed.
         
@@ -284,7 +284,7 @@ class StaTool(ABC):
     
     @property
     @abstractmethod
-    def liberty_files(self) -> list[Path] | Path:
+    def sta_liberty_files(self) -> list[Path] | Path:
         """
         Returns the list of Liberty files used for STA analysis.
         
@@ -295,9 +295,9 @@ class StaTool(ABC):
         """
         pass
     
-    @liberty_files.setter
+    @sta_liberty_files.setter
     @abstractmethod
-    def liberty_files(self, files: list[Path] | Path):
+    def sta_liberty_files(self, files: list[Path] | Path):
         """
         Sets the list of Liberty files used for STA analysis.
         
@@ -310,7 +310,7 @@ class StaTool(ABC):
     
     @property
     @abstractmethod
-    def rc_files(self) -> list[Path] | Path | None:
+    def sta_rc_files(self) -> list[Path] | Path | None:
         """
         Returns the list of RC files used for STA analysis.
         
@@ -321,9 +321,9 @@ class StaTool(ABC):
         """
         pass
     
-    @rc_files.setter
+    @sta_rc_files.setter
     @abstractmethod
-    def rc_files(self, files: list[Path] | Path | None):
+    def sta_rc_files(self, files: list[Path] | Path | None):
         """
         Sets the list of RC files used for STA analysis.
         

@@ -42,35 +42,35 @@ class HdlnxTimingModel(VerilogGateLevelTimingGraph):
             If True, print debug warnings about overwriting STA tool configurations (default is False).
         """
         self.synth_tool: SynthTool = synth_tool
-        self.synth_tool.synthesize()
+        self.synth_tool.synth_synthesize()
         
         _sta_tool: StaTool = sta_tool
         
-        if _sta_tool.netlist_file is not None and debug:
+        if _sta_tool.sta_netlist_file is not None and debug:
             logger.warning(
                 f"STA tool already has a netlist file. This will be overwritten by HdlnxTimingModel."
             )
        
-        if _sta_tool.design_name is not None and debug:
+        if _sta_tool.sta_design_name is not None and debug:
             logger.warning(
                 f"STA tool already has a design name. This will be overwritten by HdlnxTimingModel."
             )
           
-        if _sta_tool.liberty_files is not None and debug:
+        if _sta_tool.sta_liberty_files is not None and debug:
             logger.warning(
                 f"STA tool already has liberty files. This will be overwritten by HdlnxTimingModel."
             )
         
-        _sta_tool.netlist_file = self.synth_tool.netlist_file
-        _sta_tool.design_name = self.synth_tool.design_name
-        _sta_tool.liberty_files = self.synth_tool.liberty_files
+        _sta_tool.sta_netlist_file = self.synth_tool.synth_netlist_file
+        _sta_tool.sta_design_name = self.synth_tool.synth_design_name
+        _sta_tool.sta_liberty_files = self.synth_tool.synth_liberty_files
         
         super().__init__(
-            top_name=self.synth_tool.design_name,
+            top_name=self.synth_tool.synth_design_name,
             sta_tool=_sta_tool,
             delay_type_str=delay_type_str,
             debug=debug,
         )
         
-        self.verilog_netlist_content: str = synth_tool.netlist_file.read_text()
-        synth_tool.clean_up()
+        self.verilog_netlist_content: str = synth_tool.synth_netlist_file.read_text()
+        synth_tool.synth_clean_up()

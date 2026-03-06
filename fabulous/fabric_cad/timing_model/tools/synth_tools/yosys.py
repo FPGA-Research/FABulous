@@ -79,7 +79,7 @@ class YosysTool(SynthTool):
         
         self.netlist_path: Path | None = None
          
-    def synthesize(self):
+    def synth_synthesize(self):
         """
         Generates a temporary gate-level netlist from the Verilog RTL files using Yosys.
         The gate-level netlist is created in a temporary location and deleted after use.
@@ -159,9 +159,14 @@ class YosysTool(SynthTool):
 
         fd, path = tempfile.mkstemp(prefix="synth_verilog_", suffix=".v")
         os.close(fd)
-
-        if self.debug:
-            logger.debug(f"Generating Synthesized Verilog file at temporary path: {path}")
+        path = Path(path)
+        
+        if not path.exists():
+            raise RuntimeError(
+                "Failed to generate gate-level netlist using Yosys. No netlist file created."
+            )
+ 
+        logger.debug(f"Generating Synthesized Verilog file at temporary path: {path}")
 
         self._call_external(
             self.synth_executable,
@@ -172,19 +177,14 @@ class YosysTool(SynthTool):
             args=["-C"],
         )
 
-        with open(path, "r") as f:
-            content: str = f.read()
-            if len(content) == 0:
-                os.remove(path)
-                raise RuntimeError(
-                    "Failed to generate gate-level netlist using Yosys. No content in netlist file."
-                )
-        if path is None:
+        content: str = path.read_text()
+        if not content:
+            path.unlink()
             raise RuntimeError(
-                "Failed to generate gate-level netlist using Yosys. No netlist file created."
+                "Failed to generate gate-level netlist using Yosys. No content in netlist file."
             )
-
-        result_file: Path = Path(path)
+        
+        result_file: Path = path
 
         # Remove single-bit vector notation for compatibility
         # with OpenSTA SDF back-annotation
@@ -195,7 +195,7 @@ class YosysTool(SynthTool):
         self.netlist_path = result_file
          
     @property
-    def netlist_file(self) -> Path:
+    def synth_netlist_file(self) -> Path:
         """
         Returns the path to the generated gate-level netlist file.
         
@@ -209,7 +209,7 @@ class YosysTool(SynthTool):
         return self.netlist_path
 
     @property
-    def design_name(self) -> str:
+    def synth_design_name(self) -> str:
         """
         Returns the name of the design being synthesized.
 
@@ -220,8 +220,8 @@ class YosysTool(SynthTool):
         """
         return self.top_name
 
-    @design_name.setter
-    def design_name(self, name: str):
+    @synth_design_name.setter
+    def synth_design_name(self, name: str):
         """
         Sets the name of the design being synthesized.
 
@@ -233,7 +233,7 @@ class YosysTool(SynthTool):
         self.top_name = name
     
     @property
-    def rtl_files(self) -> list[Path] | Path:
+    def synth_rtl_files(self) -> list[Path] | Path:
         """
         Returns the list of RTL Verilog files used for synthesis.
         
@@ -244,8 +244,8 @@ class YosysTool(SynthTool):
         """
         return self.verilog_files
 
-    @rtl_files.setter
-    def rtl_files(self, files: list[Path] | Path):
+    @synth_rtl_files.setter
+    def synth_rtl_files(self, files: list[Path] | Path):
         """
         Sets the list of RTL Verilog files used for synthesis.
 
@@ -257,7 +257,7 @@ class YosysTool(SynthTool):
         self.verilog_files = files
         
     @property
-    def liberty_files(self) -> list[Path] | Path:
+    def synth_liberty_files(self) -> list[Path] | Path:
         """
         Returns the list of Liberty files used for synthesis.
         
@@ -268,8 +268,8 @@ class YosysTool(SynthTool):
         """
         return self.lib_files
     
-    @liberty_files.setter
-    def liberty_files(self, files: list[Path] | Path):
+    @synth_liberty_files.setter
+    def synth_liberty_files(self, files: list[Path] | Path):
         """
         Sets the list of Liberty files used for synthesis.
 
@@ -281,7 +281,7 @@ class YosysTool(SynthTool):
         self.lib_files = files
         
     @property
-    def passthrough(self) -> bool:
+    def synth_passthrough(self) -> bool:
         """
         Returns whether the synthesis tool is in passthrough mode (i.e., it does not perform 
         actual synthesis but simply passes through the input rtl files).
@@ -293,8 +293,8 @@ class YosysTool(SynthTool):
         """
         return self.is_gate_level
     
-    @passthrough.setter
-    def passthrough(self, value: bool):
+    @synth_passthrough.setter
+    def synth_passthrough(self, value: bool):
         """
         Sets whether the synthesis tool is in passthrough mode.
 
@@ -305,14 +305,14 @@ class YosysTool(SynthTool):
         """
         self.is_gate_level = value
            
-    def clean_up(self):
+    def synth_clean_up(self):
         """
         Cleans up the temporary gate-level netlist file generated by Yosys, if it exists.
         """
-        if self.netlist_path is not None and self.netlist_path.exists():
-            if self.debug:
-                logger.debug(f"Cleaning up temporary netlist file at: {self.netlist_path}")
-            # Dont delete the netlist file if it was provided as input (i.e., gate-level netlist case)
+        if self.netlist_path is not None and self.netlist_path.exists():  
+            logger.debug(f"Cleaning up temporary netlist file at: {self.netlist_path}")
+            # Dont delete the netlist file if it was provided 
+            # as input (i.e., gate-level netlist case)
             if not self.is_gate_level:
                 self.netlist_path.unlink()
             self.netlist_path = None

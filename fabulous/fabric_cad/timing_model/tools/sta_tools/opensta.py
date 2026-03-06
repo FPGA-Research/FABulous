@@ -53,7 +53,7 @@ class OpenStaTool(StaTool):
         
         self.sdf_path: Path | None = None
         
-    def analyze(self): 
+    def sta_analyze(self): 
         """
         Generates an temporary SDF file from the Verilog gate-level netlist using OpenSTA.
         The SDF file is created in a temporary location and deleted after use.
@@ -89,9 +89,14 @@ class OpenStaTool(StaTool):
 
         fd, path = tempfile.mkstemp(prefix="sta_", suffix=".sdf")
         os.close(fd)
+        path = Path(path)
+        
+        if not path.exists():
+            raise RuntimeError(
+                "Failed to generate SDF file using OpenSTA. No SDF file created."
+            )
 
-        if self.debug:
-            logger.debug(f"Generating SDF file at temporary path: {path}")
+        logger.debug(f"Generating SDF file at temporary path: {path}")
 
         self._call_external(
             self.sta_executable,
@@ -99,23 +104,17 @@ class OpenStaTool(StaTool):
             debug=self.debug,
         )
 
-        with open(path, "r") as f:
-            content: str = f.read()
-            if len(content) == 0:
-                os.remove(path)
-                raise RuntimeError(
-                    "Failed to generate SDF file using OpenSTA. No content in SDF file."
-                )
-
-        if path is None:
+        content: str = path.read_text()
+        if not content:
+            path.unlink()
             raise RuntimeError(
-                "Failed to generate SDF file using OpenSTA. No SDF file created."
+                "Failed to generate SDF file using OpenSTA. No content in SDF file."
             )
-        
-        self.sdf_path = Path(path)
+            
+        self.sdf_path = path
 
     @property
-    def sdf_file(self) -> Path:
+    def sta_sdf_file(self) -> Path:
         """
         Returns the path to the generated SDF file after analysis.
 
@@ -134,7 +133,7 @@ class OpenStaTool(StaTool):
         return self.sdf_path
     
     @property
-    def netlist_file(self) -> Path:
+    def sta_netlist_file(self) -> Path:
         """
         Returns the path to the netlist file used for STA analysis.
 
@@ -145,8 +144,8 @@ class OpenStaTool(StaTool):
         """
         return self.verilog_netlist
     
-    @netlist_file.setter
-    def netlist_file(self, netl: Path):
+    @sta_netlist_file.setter
+    def sta_netlist_file(self, netl: Path):
         """
         Sets the path to the netlist file used for STA analysis.
 
@@ -158,7 +157,7 @@ class OpenStaTool(StaTool):
         self.verilog_netlist = netl
     
     @property
-    def design_name(self) -> str:
+    def sta_design_name(self) -> str:
         """
         Returns the name of the design being analyzed.
 
@@ -169,8 +168,8 @@ class OpenStaTool(StaTool):
         """
         return self.top_name
 
-    @design_name.setter
-    def design_name(self, name: str):
+    @sta_design_name.setter
+    def sta_design_name(self, name: str):
         """
         Sets the name of the design being analyzed.
         
@@ -182,7 +181,7 @@ class OpenStaTool(StaTool):
         self.top_name = name
         
     @property
-    def liberty_files(self) -> list[Path] | Path | None:
+    def sta_liberty_files(self) -> list[Path] | Path | None:
         """
         Returns the list of Liberty files used for STA analysis.
 
@@ -193,8 +192,8 @@ class OpenStaTool(StaTool):
         """
         return self.lib_files
 
-    @liberty_files.setter
-    def liberty_files(self, files: list[Path] | Path | None):
+    @sta_liberty_files.setter
+    def sta_liberty_files(self, files: list[Path] | Path | None):
         """
         Sets the list of Liberty files used for STA analysis.
 
@@ -206,7 +205,7 @@ class OpenStaTool(StaTool):
         self.lib_files = files
         
     @property
-    def rc_files(self) -> list[Path] | Path | None:
+    def sta_rc_files(self) -> list[Path] | Path | None:
         """
         Returns the list of RC files used for STA analysis.
 
@@ -217,8 +216,8 @@ class OpenStaTool(StaTool):
         """
         return self.spef_files
 
-    @rc_files.setter
-    def rc_files(self, files: list[Path] | Path | None):
+    @sta_rc_files.setter
+    def sta_rc_files(self, files: list[Path] | Path | None):
         """
         Sets the list of RC files used for STA analysis.
 
@@ -229,13 +228,12 @@ class OpenStaTool(StaTool):
         """
         self.spef_files = files
 
-    def clean_up(self):
+    def sta_clean_up(self):
         """
         Cleans up any temporary files generated during STA analysis, including the SDF file.
         """
         if self.sdf_path is not None and self.sdf_path.exists():
-            if self.debug:
-                logger.debug(f"Cleaning up temporary SDF file at: {self.sdf_path}")
+            logger.debug(f"Cleaning up temporary SDF file at: {self.sdf_path}")
             self.sdf_path.unlink()
             self.sdf_path = None
     
@@ -364,3 +362,4 @@ class OpenStaTool(StaTool):
 
         if not isinstance(self.debug, bool):
             raise TypeError("debug must be a boolean.")
+        

@@ -49,9 +49,9 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         self.debug: bool = debug
         self.sta_tool: StaTool = sta_tool
         
-        self.sta_tool.analyze()
-        super().__init__(self.sta_tool.sdf_file, self.delay_type_str)
-        self.sta_tool.clean_up()
+        self.sta_tool.sta_analyze()
+        super().__init__(self.sta_tool.sta_sdf_file, self.delay_type_str)
+        self.sta_tool.sta_clean_up()
     
     ### Public methods ###
 
