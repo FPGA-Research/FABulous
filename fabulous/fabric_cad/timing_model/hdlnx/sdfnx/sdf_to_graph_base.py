@@ -78,23 +78,6 @@ class SDFTimingGraphBase:
         return self.input_ports + self.output_ports
 
     @property
-    def get_cell_instance(self, instance_name: str) -> list[Component]:
-        """
-        Get the list of components associated with a given instance name.
-
-        Parameters
-        ----------
-        instance_name : str
-            The name of the cell instance.
-
-        Returns
-        -------
-        list[Component]
-            List of components associated with the instance.
-        """
-        return self.instances[instance_name]
-
-    @property
     def get_SDF_header_info(self) -> tuple[dict, str]:
         """
         Get the SDF header information as a dictionary and formatted string.
@@ -117,6 +100,22 @@ class SDFTimingGraphBase:
             print(
                 f"{u} --> {v} delay {data['weight']} ({data['component'].cell_name}, {data['component'].c_type})"
             )
+    
+    def get_cell_instance(self, instance_name: str) -> list[Component]:
+        """
+        Get the list of components associated with a given instance name.
+
+        Parameters
+        ----------
+        instance_name : str
+            The name of the cell instance.
+
+        Returns
+        -------
+        list[Component]
+            List of components associated with the instance.
+        """
+        return self.instances[instance_name]
 
     def get_cell_instance_inputs_to_outputs(
         self, instance_name: str
