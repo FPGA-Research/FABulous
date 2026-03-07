@@ -19,27 +19,6 @@ class SynthTool(ABC):
     gate-level netlist using a set of Liberty timing libraries. Implementations
     may optionally support a passthrough mode where the input RTL is forwarded
     without running synthesis.
-
-    Attributes
-    ----------
-    synth_design_name : str
-        Name of the design being synthesized.
-    synth_rtl_files : list[pathlib.Path] | pathlib.Path
-        Input RTL Verilog file(s) used for synthesis.
-    synth_liberty_files : list[pathlib.Path] | pathlib.Path
-        Liberty timing library file(s) used for technology mapping.
-    synth_netlist_file : pathlib.Path
-        Path to the generated netlist after synthesis.
-    synth_passthrough : bool
-        If True, do not run synthesis; instead forward the input RTL as the
-        resulting netlist.
-
-    Methods
-    -------
-    synth_synthesize()
-        Run synthesis using the configured inputs and produce synth_netlist_file.
-    synth_clean_up()
-        Remove temporary files and directories created during synthesis.
     """
     
     @abstractmethod
@@ -180,27 +159,6 @@ class StaTool(ABC):
 
     Concrete implementations run a timing analysis on a synthesized netlist and
     produce an SDF file for back-annotated simulation or further timing checks.
-
-    Attributes
-    ----------
-    sta_design_name : str
-        Name of the design being analyzed.
-    sta_netlist_file : pathlib.Path
-        Path to the input netlist used for STA analysis.
-    sta_liberty_files : list[pathlib.Path] | pathlib.Path
-        Liberty timing model(s) used for STA.
-    sta_rc_files : list[pathlib.Path] | pathlib.Path | None
-        Optional RC extraction file(s) used for interconnect/parasitic timing.
-        If None, analysis is performed without external RC data.
-    sta_sdf_file : pathlib.Path
-        Path to the generated SDF file after analysis.
-
-    Methods
-    -------
-    sta_analyze()
-        Run STA using the configured inputs and generate sdf_file.
-    sta_clean_up()
-        Remove temporary files and directories created during analysis.
     """
     
     @abstractmethod
