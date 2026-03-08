@@ -253,6 +253,10 @@ class TimingModelConfig(BaseModel):
         The cell and port used for tie-high connections "cell_name port_name", or None if not applicable.
     tielo_cell_and_port : str | None
         The cell and port used for tie-low connections "cell_name port_name", or None if not applicable.
+    custom_per_tile_netlist_files : dict[str, Path] | None
+        A dictionary mapping tile names to custom netlist file paths, or None if not applicable.
+    custom_per_tile_rc_files : dict[str, Path] | None
+        A dictionary mapping tile names to custom RC file paths, or None if not applicable.
     sta_program : TimingModelStaTools
         The static timing analysis tool to be used, specified as an instance of the TimingModelStaTools enumeration.
     synth_program : TimingModelSynthTools
@@ -276,6 +280,8 @@ class TimingModelConfig(BaseModel):
     techmap_files: list[Path] | Path | None = None
     tiehi_cell_and_port: str | None = None     
     tielo_cell_and_port: str | None = None
+    custom_per_tile_netlist_files: dict[str, Path] | None = None
+    custom_per_tile_rc_files: dict[str, Path] | None = None
     sta_program: TimingModelStaTools = Field(default=TimingModelStaTools.OPENSTA)
     synth_program: TimingModelSynthTools = Field(default=TimingModelSynthTools.YOSYS)
     mode: TimingModelMode = Field(default=TimingModelMode.PHYSICAL)

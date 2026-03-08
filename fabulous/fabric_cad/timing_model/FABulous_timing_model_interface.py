@@ -45,7 +45,7 @@ class FABulousTimingModelInterface:
             f"Initializing timing models for tiles, with mode: {self.config.mode}"
         )
 
-        for tile_name, tile in fabric.tileDic.items():
+        for tile_name, tile in self.fabric.tileDic.items():
             model_config = self.config.model_copy(deep=True)
             timing_model = FABulousTileTimingModel(
                 config=model_config, fabric=self.fabric, 

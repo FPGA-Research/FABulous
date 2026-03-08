@@ -1569,7 +1569,19 @@ class FABulous_CLI(Cmd):
         with Nextpnr for timing-aware place and route. This command generates 
         a timing model for the FPGA fabric based on the specified mode 
         (physical or structural) and outputs it to a file named
-        pips.txt in the .FABulous directory.
+        pips.txt in the .FABulous directory. if no config file is provided,
+        the automated flow must be run first to generate post-layout files. 
+        If a config file is provided, it will be used for timing model generation 
+        instead of CLI arguments. This allows for more complex configurations 
+        like different pdk support. If emit-config-template is specified, a config 
+        template will be outputted and no timing model will be generated.
+        
+        Raises
+        ------
+        FileNotFoundError
+            If required files for timing model generation are not found.
+        CommandError
+            If timing model generation fails.
         """
         outfile: Path | None = None
         manual_config: TimingModelConfig | None = None
@@ -1600,10 +1612,16 @@ class FABulous_CLI(Cmd):
             cfg_template: TimingModelConfig = TimingModelConfig(
                 project_dir=get_context().proj_dir,
                 liberty_files=Path("path/to/liberty/files: <required>"),
-                min_buf_cell_and_ports= "cell in out: <required>",
+                min_buf_cell_and_ports= "cell_name in_port out_port: <required>",
                 synth_executable=get_context().yosys_path,
                 sta_executable=get_context().opensta_path,
-                mode=TimingModelMode(args.mode)
+                mode=TimingModelMode(args.mode),
+                custom_per_tile_netlist_files=dict.fromkeys(
+                    self.allTile, "path/to/netlist/file: <required for physical mode>"
+                ),
+                custom_per_tile_rc_files=dict.fromkeys(
+                    self.allTile, "path/to/rc/file: <required for physical mode>"
+                )
             )
             
             outfile = get_context().proj_dir / ".FABulous" / "timing_model_config_template.json"

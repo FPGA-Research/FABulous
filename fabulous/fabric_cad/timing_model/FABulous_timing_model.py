@@ -178,13 +178,22 @@ class FABulousTileTimingModel:
           synthesis and STA tools.
         - The physical-level model is initialized with the gate-level netlist, and optionally 
           with SPEF files for wire delay if consider_wire_delay is True in the configuration.
+        
+        Raises
+        ------
+        ValueError
+            If the tile is not found in the configuration for custom netlist or RC files.
         """
         logger.info(
             f"Initializing FABulous Timing Model for Tile: {self.tile_name}"
         )
         logger.info(f"  SuperTile: {self.is_in_which_super_tile}")
+        
+        # Initialize the synthesis-level timing model first, as it is needed to extract the switch matrix
+        # information and to find the relevant Verilog files for the physical-level model.
         logger.info("Initializing Synthesis-level timing model...")
         
+        # Initialize the synthesis and STA tools based on the configuration.
         cad_tool = self._cad_tools()
         synth_tool: SynthTool = cad_tool["synth_tool"]
         sta_tool: StaTool = cad_tool["sta_tool"]
@@ -204,6 +213,7 @@ class FABulousTileTimingModel:
             )
             return
 
+        # For the physical-level model, we need to switch to the gate-level netlist.
         logger.info("Initializing Physical-level timing model...")
         
         # For the physical-level model, we need to switch to the gate-level netlist.
@@ -211,6 +221,23 @@ class FABulousTileTimingModel:
             f"{self.tm_config.project_dir}/Tile/{self.unique_tile_name}"
             f"/macro/final_views/nl/{self.unique_tile_name}.nl.v"
         )
+        
+        # Optionally override the default netlist file with a custom one specified in 
+        # the configuration for this tile.
+        if self.tm_config.custom_per_tile_netlist_files is not None:
+            if self.unique_tile_name in self.tm_config.custom_per_tile_netlist_files:
+                synth_tool.synth_rtl_files = self.tm_config.custom_per_tile_netlist_files[
+                    self.unique_tile_name
+                ]
+                logger.info(
+                    f"Using custom netlist file for tile {self.unique_tile_name}: "
+                    f"{synth_tool.synth_rtl_files}"
+                )
+            else:
+                raise ValueError(
+                    f"Tile {self.unique_tile_name} not found in the configuration "
+                    f"for custom netlist files."
+                )
         
         # Disable synthesis for the physical-level model since we already 
         # have the gate-level netlist.
@@ -223,6 +250,23 @@ class FABulousTileTimingModel:
                 f"{self.tm_config.project_dir}/Tile/{self.unique_tile_name}"
                 f"/macro/final_views/spef/nom/{self.unique_tile_name}.nom.spef"
             )
+            
+            # Optionally override the default RC file with a custom one specified in 
+            # the configuration for this tile.
+            if self.tm_config.custom_per_tile_rc_files is not None:
+                if self.unique_tile_name in self.tm_config.custom_per_tile_rc_files:
+                    sta_tool.sta_rc_files = self.tm_config.custom_per_tile_rc_files[
+                        self.unique_tile_name
+                    ]
+                    logger.info(
+                        f"Using custom RC file for tile {self.unique_tile_name}: "
+                        f"{sta_tool.sta_rc_files}"
+                    )
+                else:
+                    raise ValueError(
+                        f"Tile {self.unique_tile_name} not found in the configuration "
+                        f"for custom RC files."
+                    )
 
         # Initialize the physical-level timing model with the gate-level netlist.
         self.hdlnx_tm_phys = HdlnxTimingModel(
@@ -493,8 +537,8 @@ class FABulousTileTimingModel:
             swm_mux_resolved[pip_src][0], swm_mux_resolved[pip_dst][0]
         )
 
-        logger.info(f"Delay from {pip_src} to {pip_dst}: {delay} ns via path:")
-        logger.info(info)
+        logger.info(f"Delay from {pip_src} to {pip_dst}: {delay} ns.")
+        logger.debug(info)
 
         return delay
 
@@ -626,8 +670,8 @@ class FABulousTileTimingModel:
             swm_nearest_ports_for_each_swm_wire[f"{pip_src}"][0], swm_phys_output
         )
 
-        logger.info(f"Physical Delay from {pip_src} to {pip_dst}: {delay} ns via path:")
-        logger.info(info)
+        logger.info(f"Physical Delay from {pip_src} to {pip_dst}: {delay} ns.")
+        logger.debug(info)
 
         return delay
 
@@ -680,9 +724,9 @@ class FABulousTileTimingModel:
                 return default_delay
             delay, path, info = synth_model.delay_path(pip_src, out_port)
             logger.info(
-                f"Delay from tile input {pip_src} to tile output {out_port}--{pip_dst}: {delay} ns via path:"
+                f"Delay from tile input {pip_src} to tile output {out_port}--{pip_dst}: {delay} ns."
             )
-            logger.info(info)
+            logger.debug(info)
             return delay
 
         # SWM output to the next SWM input
@@ -744,9 +788,9 @@ class FABulousTileTimingModel:
                 return default_delay
             delay, path, info = phys_model.delay_path(pip_src, out_port)
             logger.info(
-                f"Delay from tile input {pip_src} to tile output {out_port}--{pip_dst}: {delay} ns via path:"
+                f"Delay from tile input {pip_src} to tile output {out_port}--{pip_dst}: {delay} ns."
             )
-            logger.info(info)
+            logger.debug(info)
             return delay
         # SWM output to the next SWM input
         else:

@@ -21,6 +21,8 @@ def make_config(
     debug=False,
     synth_program=TimingModelSynthTools.YOSYS,
     sta_program=TimingModelStaTools.OPENSTA,
+    custom_per_tile_netlist_files=None,
+    custom_per_tile_rc_files=None,
 ):
     return SimpleNamespace(
         project_dir=tmp_path,
@@ -37,6 +39,8 @@ def make_config(
         min_buf_cell_and_ports=("BUF", "A", "Y"),
         consider_wire_delay=consider_wire_delay,
         mode=mode,
+        custom_per_tile_netlist_files=custom_per_tile_netlist_files,
+        custom_per_tile_rc_files=custom_per_tile_rc_files,
     )
 
 
@@ -805,3 +809,114 @@ def test_external_pip_delay_physical_input_port_no_nearest_returns_default_real_
     bare_model.hdlnx_tm_phys = Phys()
 
     assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == 0.001
+
+def test_initialize_timing_models_physical_uses_custom_netlist(tmp_path, bare_model, monkeypatch):
+    synth_tool = DummySynthTool()
+    sta_tool = DummyStaTool()
+    created = []
+
+    custom_netlist = tmp_path / "custom_tile.nl.v"
+
+    def fake_cad_tools():
+        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+
+    class FakeHdlnxTimingModel:
+        def __init__(self, sta, synth, delay_type, debug):
+            created.append((sta, synth, delay_type, debug))
+
+    bare_model.unique_tile_name = "TILE_A"
+    bare_model.tm_config = make_config(
+        tmp_path,
+        mode=TimingModelMode.PHYSICAL,
+        consider_wire_delay=False,
+        custom_per_tile_netlist_files={"TILE_A": custom_netlist},
+    )
+    bare_model._cad_tools = fake_cad_tools
+    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
+
+    bare_model._initialize_timing_models()
+
+    assert len(created) == 2
+    assert synth_tool.synth_rtl_files == custom_netlist
+    assert synth_tool.synth_passthrough is True
+
+def test_initialize_timing_models_physical_missing_custom_netlist_entry_raises(
+    tmp_path, bare_model, monkeypatch
+):
+    synth_tool = DummySynthTool()
+    sta_tool = DummyStaTool()
+
+    def fake_cad_tools():
+        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+
+    class FakeHdlnxTimingModel:
+        def __init__(self, sta, synth, delay_type, debug):
+            pass
+
+    bare_model.unique_tile_name = "TILE_A"
+    bare_model.tm_config = make_config(
+        tmp_path,
+        mode=TimingModelMode.PHYSICAL,
+        consider_wire_delay=False,
+        custom_per_tile_netlist_files={"OTHER_TILE": tmp_path / "other.nl.v"},
+    )
+    bare_model._cad_tools = fake_cad_tools
+    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
+
+    with pytest.raises(ValueError, match="custom netlist files"):
+        bare_model._initialize_timing_models()
+
+def test_initialize_timing_models_physical_uses_custom_rc_file(tmp_path, bare_model, monkeypatch):
+    synth_tool = DummySynthTool()
+    sta_tool = DummyStaTool()
+    created = []
+
+    custom_rc = tmp_path / "custom_tile.nom.spef"
+
+    def fake_cad_tools():
+        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+
+    class FakeHdlnxTimingModel:
+        def __init__(self, sta, synth, delay_type, debug):
+            created.append((sta, synth, delay_type, debug))
+
+    bare_model.unique_tile_name = "TILE_A"
+    bare_model.tm_config = make_config(
+        tmp_path,
+        mode=TimingModelMode.PHYSICAL,
+        consider_wire_delay=True,
+        custom_per_tile_rc_files={"TILE_A": custom_rc},
+    )
+    bare_model._cad_tools = fake_cad_tools
+    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
+
+    bare_model._initialize_timing_models()
+
+    assert len(created) == 2
+    assert sta_tool.sta_rc_files == custom_rc
+
+def test_initialize_timing_models_physical_missing_custom_rc_entry_raises(
+    tmp_path, bare_model, monkeypatch
+):
+    synth_tool = DummySynthTool()
+    sta_tool = DummyStaTool()
+
+    def fake_cad_tools():
+        return {"synth_tool": synth_tool, "sta_tool": sta_tool}
+
+    class FakeHdlnxTimingModel:
+        def __init__(self, sta, synth, delay_type, debug):
+            pass
+
+    bare_model.unique_tile_name = "TILE_A"
+    bare_model.tm_config = make_config(
+        tmp_path,
+        mode=TimingModelMode.PHYSICAL,
+        consider_wire_delay=True,
+        custom_per_tile_rc_files={"OTHER_TILE": tmp_path / "other.nom.spef"},
+    )
+    bare_model._cad_tools = fake_cad_tools
+    monkeypatch.setattr(tm_mod, "HdlnxTimingModel", FakeHdlnxTimingModel)
+
+    with pytest.raises(ValueError, match="custom RC files"):
+        bare_model._initialize_timing_models()
