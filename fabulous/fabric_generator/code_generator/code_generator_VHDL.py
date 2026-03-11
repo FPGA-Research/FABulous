@@ -544,12 +544,12 @@ end process;
 ConfigBitsInput <= ConfigBits(ConfigBitsInput'high-1 downto 0) & CONFin;
 -- for k in 0 to Conf/2 generate
 L: for k in 0 to {int(math.ceil(configBitCounter / 2.0)) - 1} generate
-        inst_LHQD1a : LHQD1
+        inst_config_latcha : config_latch
         Port Map(
             D    => ConfigBitsInput(k*2),
             E    => CLK,
             Q    => ConfigBits(k*2) );
-        inst_LHQD1b : LHQD1
+        inst_config_latchb : config_latch
         Port Map(
             D    => ConfigBitsInput((k*2)+1),
             E    => MODE,

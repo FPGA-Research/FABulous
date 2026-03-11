@@ -252,7 +252,7 @@ def generateConfigMem(
             bit_value = i.usedBitMask[k] if k < len(i.usedBitMask) else "0"
             if bit_value == "1":
                 writer.addInstantiation(
-                    compName="LHQD1",
+                    compName="config_latch",
                     compInsName=(
                         f"Inst_{i.frameName}_bit{fabric.frameBitsPerRow - 1 - k}"
                     ),
