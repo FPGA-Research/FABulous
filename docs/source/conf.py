@@ -1,7 +1,11 @@
 # Configuration file for the Sphinx documentation builder.
 
+import re
 import sys
+from importlib import import_module
 from pathlib import Path
+
+from docs.source.conf_helper import get_display_version, get_version
 
 # -- Project information
 
@@ -9,52 +13,12 @@ project = "FABulous: An easy-to-use, silicon-proven (e)FPGA generator with an in
 copyright = "2021, University of Manchester"
 author = "Jing, Nguyen, Bea, Bardia, Dirk"
 
-
-# Automated version management from installed package
-def get_version():
-    """Get version from installed package, git tags, or commit ID."""
-    # Try to get version from the installed package
-    try:
-        from importlib.metadata import version
-
-        return version("fabulous-fpga")
-    except Exception:
-        pass
-
-    repo_root = Path(__file__).parent.parent.parent
-
-    # Fallback: read git data directly from .git directory
-    try:
-        git_dir = repo_root / ".git"
-
-        # Get current commit hash
-        head_file = git_dir / "HEAD"
-        if head_file.exists():
-            head_content = head_file.read_text().strip()
-
-            # HEAD usually contains "ref: refs/heads/branch_name"
-            if head_content.startswith("ref: "):
-                ref_path = head_content[5:]  # Remove "ref: " prefix
-                commit_file = git_dir / ref_path
-                if commit_file.exists():
-                    commit_hash = commit_file.read_text().strip()[:7]
-                else:
-                    commit_hash = "unknown"
-            else:
-                # Detached HEAD - contains the commit hash directly
-                commit_hash = head_content[:7]
-
-            # No tags found, return dev version with commit hash
-            return f"dev-{commit_hash}"
-    except Exception:
-        pass
-
-    # Fallback to unknown version
-    return "unknown"
-
-
 version = get_version()
 release = version
+display_version = get_display_version(version)
+project_name = "FABulous"
+project_tagline = "An easy-to-use, silicon-proven (e)FPGA generator with an integrated CAD toolchain 🏗️"
+
 
 # -- General configuration
 
@@ -68,6 +32,13 @@ if _repo_root not in sys.path:
 _ext_dir = Path(__file__).resolve().parent / "_ext"
 if _ext_dir.as_posix() not in sys.path:
     sys.path.insert(0, _ext_dir.as_posix())
+
+prepare_autoapi_jinja_env = import_module(
+    "docstring_renderer"
+).prepare_autoapi_jinja_env
+format_annotation_for_rst = import_module(
+    "docstring_renderer"
+).format_annotation_for_rst
 
 extensions = [
     # Core Sphinx extensions (scikit-learn style)
@@ -197,6 +168,7 @@ autodoc_member_order = "alphabetical"
 
 # Prevent duplicate object warnings from autosummary
 autodoc_typehints = "description"
+autodoc_typehints_description_target = "documented"
 autodoc_preserve_defaults = True
 autodoc_member_order = "alphabetical"
 autodoc_class_signature = "mixed"
@@ -204,10 +176,12 @@ autodoc_inherit_docstrings = True
 
 # Configuration for sphinx-autodoc-typehints extension
 typehints_fully_qualified = False  # Use short names when possible
-typehints_document_rtype = True  # Document return types
+typehints_document_rtype = False  # Keep return types in the signature only
 typehints_use_signature = True  # Show types in signature
-typehints_use_rtype = True  # Show return types in docstring
+typehints_use_signature_return = True  # Show return types in signature
+typehints_use_rtype = False  # Do not add return types to docstring bodies
 always_document_param_types = True  # Always show parameter types
+typehints_formatter = format_annotation_for_rst
 
 # Enhanced intersphinx mapping for better cross-references
 intersphinx_mapping.update(
@@ -219,7 +193,12 @@ intersphinx_mapping.update(
 
 # Modern Sphinx configuration
 html_title = f"{project} v{version}"
-html_short_title = project
+html_short_title = project_name
+html_context = {
+    "sidebar_project_name": project_name,
+    "sidebar_project_tagline": project_tagline,
+    "sidebar_version_tag": f"v{display_version}",
+}
 
 # OpenGraph configuration for social media previews
 ogp_site_url = "https://fabulous.readthedocs.io/en/latest/"
@@ -249,9 +228,7 @@ _jsonld = {
 
 import json as _json
 
-html_context = {
-    "jsonld": _json.dumps(_jsonld),
-}
+html_context["jsonld"] = _json.dumps(_jsonld)
 
 # -- AutoAPI Configuration (Modern replacement for autosummary)
 autoapi_type = "python"
@@ -290,6 +267,7 @@ autoapi_options = [
     "show-inheritance",
     "show-module-summary",
 ]
+autoapi_prepare_jinja_env = prepare_autoapi_jinja_env
 
 # Custom AutoAPI configuration
 autoapi_python_class_content = (
@@ -304,10 +282,29 @@ autoapi_own_page_level = (
 # remove_from_toctrees = ["generated_doc/FABulous/*/index.rst"]  # Disabled to ensure content accessibility
 
 
+def strip_redundant_rtype_fields(app, domain, objtype, contentnode) -> None:  # noqa: ARG001
+    """Remove redundant return-type field blocks for documented callables."""
+    if domain != "py" or objtype not in {"function", "method"}:
+        return
+
+    nodes = import_module("docutils.nodes")
+
+    for field_list in [
+        node for node in contentnode if isinstance(node, nodes.field_list)
+    ]:
+        for field in list(field_list):
+            if not isinstance(field, nodes.field):
+                continue
+            field_name = field[0].astext().strip().lower()
+            if field_name in {"rtype", "return type"}:
+                field_list.remove(field)
+
+
 def setup(app):
     """Custom Sphinx setup to ensure proper AutoAPI execution order."""
     # Connect AutoAPI skip member hook to avoid duplicates
     app.connect("autoapi-skip-member", autoapi_skip_member)
+    app.connect("object-description-transform", strip_redundant_rtype_fields)
     return {"version": "0.1", "parallel_read_safe": True}
 
 
@@ -377,6 +374,7 @@ html_theme_options = {
 # -- Over-riding theme options
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
+html_js_files = ["toc_sidebar.js"]
 
 # -- removing left side bar on pages that don't benefit
 html_sidebars = {

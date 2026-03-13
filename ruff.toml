@@ -26,7 +26,7 @@ exclude = [
   "node_modules",
   "site-packages",
   "venv",
-  "conf.py",
+  "docs",
 ]
 
 # Same as Black.

@@ -21,3 +21,176 @@ table img {
 [data-theme="dark"] table img {
     background-color: white !important;
 }
+
+.sidebar-brand {
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.sidebar-brand-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    width: 100%;
+    margin-top: 0.25rem;
+}
+
+.sidebar-brand-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--color-foreground-primary);
+}
+
+.sidebar-brand:hover .sidebar-brand-name,
+.sidebar-brand:visited .sidebar-brand-name,
+.sidebar-brand:focus .sidebar-brand-name,
+.sidebar-brand:active .sidebar-brand-name {
+    color: var(--color-foreground-primary);
+}
+
+.sidebar-brand-description {
+    font-size: 0.9rem;
+    line-height: 1.35;
+    color: var(--color-foreground-secondary);
+}
+
+.sidebar-brand-version {
+    font-size: 0.75rem;
+    line-height: 1.2;
+    color: var(--color-foreground-secondary);
+    margin-top: 0.15rem;
+}
+
+.sidebar-search-container {
+    margin-top: 0.35rem;
+}
+
+.main {
+    min-width: 0;
+}
+
+.article-container {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.content {
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    width: auto;
+    max-width: none;
+    min-width: 0;
+}
+
+article[role="main"] {
+    min-width: 0;
+}
+
+article[role="main"] .table-wrapper {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+}
+
+article[role="main"] .table-wrapper>table {
+    display: table;
+    max-width: none;
+    min-width: 100%;
+    table-layout: auto;
+    width: max-content !important;
+}
+
+/* Collapsible TOC sidebar -- works with toc_sidebar.js */
+body.toc-toggle-enabled .toc-drawer {
+    flex: 0 0 15rem;
+    width: 15rem;
+    transition: flex-basis 0.25s ease, width 0.25s ease, padding-right 0.25s ease;
+}
+
+body.toc-toggle-enabled .toc-title-container {
+    align-items: center;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-start;
+}
+
+.toc-collapse-toggle {
+    display: none;
+}
+
+body.toc-toggle-enabled .toc-collapse-toggle {
+    align-items: center;
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-background-border);
+    border-radius: 0.45rem;
+    color: var(--color-foreground-secondary);
+    cursor: pointer;
+    display: inline-flex;
+    flex: 0 0 auto;
+    height: 1.5rem;
+    justify-content: center;
+    padding: 0;
+    transition: color 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+    width: 1.5rem;
+}
+
+body.toc-toggle-enabled .toc-collapse-toggle:hover {
+    background: var(--color-background-hover);
+    border-color: var(--color-foreground-border);
+    color: var(--color-foreground-primary);
+}
+
+body.toc-toggle-enabled .toc-collapse-toggle__icon {
+    display: block;
+    font-size: 0.8rem;
+    line-height: 1;
+    transform: rotate(180deg);
+    transition: transform 0.25s ease;
+}
+
+body.toc-toggle-enabled.toc-collapsed .toc-drawer {
+    flex-basis: 2rem;
+    overflow: hidden;
+    padding-right: 0;
+    width: 2rem !important;
+}
+
+body.toc-toggle-enabled.toc-collapsed .toc-title {
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    width: 0;
+}
+
+body.toc-toggle-enabled.toc-collapsed .toc-tree-container {
+    display: none;
+}
+
+body.toc-toggle-enabled.toc-collapsed .toc-title-container {
+    justify-content: flex-start;
+}
+
+body.toc-toggle-enabled.toc-collapsed .toc-collapse-toggle__icon {
+    transform: rotate(0deg);
+}
+
+@media (max-width: 48em) {
+    .content {
+        overflow-x: auto;
+        width: 100%;
+    }
+}
+
+@media (max-width: 82em) {
+    .toc-drawer {
+        padding-right: 1rem;
+    }
+
+    body.toc-toggle-enabled .toc-collapse-toggle {
+        display: none !important;
+    }
+}
