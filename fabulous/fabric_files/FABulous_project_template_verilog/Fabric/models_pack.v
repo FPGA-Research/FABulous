@@ -23,7 +23,7 @@
 
 endmodule
 
-module LHQD1 (input D, E, output reg Q);
+module config_latch (input D, E, output reg Q);
     always @(*) begin
         if (E == 1'b1) begin
             Q = D;
@@ -31,7 +31,7 @@ module LHQD1 (input D, E, output reg Q);
     end
 endmodule
 
-module LHQD1_old (D, E, Q);
+module config_latch_old (D, E, Q);
     input D;// global signal 1: configuration, 0: operation
     input E;
     output Q;
@@ -51,7 +51,7 @@ module LHQD1_old (D, E, Q);
 
 endmodule */
 
-module LHQD1 (input D, E, output reg Q, QN);
+module config_latch (input D, E, output reg Q, QN);
     always @(*)
     begin
         if (E == 1'b1) begin

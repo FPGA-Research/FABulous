@@ -210,7 +210,7 @@ class TestGeneratedConfigMemRTL:
         tile_config: Tile,
         code_generator_factory: Callable[..., CodeGenerator],
     ) -> None:
-        """Test generateConfigMem creates RTL with right number of LHQD1."""
+        """Test generateConfigMem creates RTL with right number of config_latch."""
         # Create config CSV file path
         config_csv = tmp_path / f"{tile_config.name}_configMem.csv"
 
@@ -238,10 +238,10 @@ class TestGeneratedConfigMemRTL:
         # Read and verify the generated content
         content = output_file.read_text()
 
-        # Count actual LHQD1 instantiations in content
-        actual_instantiations = content.count("LHQD1")
+        # Count actual config_latch instantiations in content
+        actual_instantiations = content.count("config_latch")
         assert actual_instantiations == tile_config.globalConfigBits, (
-            f"Expected {tile_config.globalConfigBits} LHQD1 instantiations, found"
+            f"Expected {tile_config.globalConfigBits} config_latch instantiations, found"
             f" {actual_instantiations}"
         )
 
@@ -297,12 +297,12 @@ class TestGeneratedConfigMemRTL:
                     frame_strobe_bit = frame_idx
                     expected_config_bit = expected_config_bits[config_bit_counter]
 
-                    # Verify the LHQD1 instantiation exists with correct connections
+                    # Verify the config_latch instantiation exists with correct connections
                     expected_inst_name = (
                         f"Inst_{config_mem.frameName}_bit{frame_data_bit}"
                     )
                     assert expected_inst_name in rtl_content, (
-                        f"Missing LHQD1 instantiation: {expected_inst_name}"
+                        f"Missing config_latch instantiation: {expected_inst_name}"
                     )
 
                     # Verify the port connections
