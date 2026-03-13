@@ -408,7 +408,7 @@ def cocotb_runner(tmp_path: Path) -> Callable:
             raise ValueError(f"Unsupported HDL language: {hdl_toplevel_lang}")
 
         if hdl_toplevel_lang == ".v":
-            sim = "icarus"
+            sim = "verilator"
         elif hdl_toplevel_lang == ".vhd":
             sim = "ghdl"
         else:
