@@ -305,10 +305,7 @@ def genTileSwitchMatrix(
             # Pad mux size to the next power of 2
             paddedMuxSize = 2 ** (muxSize - 1).bit_length()
 
-            if paddedMuxSize == 2:
-                muxComponentName = f"cus_mux{paddedMuxSize}1"
-            else:
-                muxComponentName = f"cus_mux{paddedMuxSize}1_buf"
+            muxComponentName = f"cus_mux{paddedMuxSize}1"
 
             portsPairs = []
             start = 0
