@@ -1286,6 +1286,44 @@ class FABulous_CLI(Cmd):
         type=Path,
     )
 
+    io_pin_config_parser = Cmd2ArgumentParser()
+    io_pin_config_parser.add_argument(
+        "tile",
+        type=str,
+        help="A tile or supertile",
+        completer=lambda self: self.allTile,
+    )
+    io_pin_config_parser.add_argument(
+        "output",
+        type=Path,
+        help="Output path for the generated IO pin config YAML",
+        nargs=argparse.OPTIONAL,
+        completer=Cmd.path_complete,
+    )
+
+    @with_category(CMD_FABRIC_FLOW)
+    @with_argparser(io_pin_config_parser)
+    def do_gen_io_pin_config(self, args: argparse.Namespace) -> None:
+        """Generate an IO pin configuration YAML file for a tile or supertile."""
+        logger.info(f"Generating IO pin config for {args.tile}")
+
+        tile = self.fabulousAPI.getTile(args.tile)
+        if tile is None:
+            logger.error(f"Tile {args.tile} not found in fabric definition")
+            return
+
+        output_path = args.output
+        if output_path is None:
+            output_path = (
+                self.projectDir / "Tile" / args.tile / f"{args.tile}_io_pin_order.yaml"
+            )
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        self.fabulousAPI.gen_io_pin_order_config(tile, output_path)
+
+        logger.info(f"Generated IO pin config at {output_path}")
+        logger.info("IO pin config generation complete")
+
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(gds_parser)
     def do_gen_tile_macro(self, args: argparse.Namespace) -> None:

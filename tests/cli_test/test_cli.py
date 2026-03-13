@@ -108,6 +108,20 @@ def test_gen_model_npnr(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> 
     assert "Generated npnr model" in log[-1]
 
 
+def test_gen_io_pin_config(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+    """Test generating an IO pin configuration YAML file for a tile."""
+    output_file = cli.projectDir / "Tile" / TILE / f"{TILE}_io_pin_order.yaml"
+
+    assert not output_file.exists()
+
+    run_cmd(cli, f"gen_io_pin_config {TILE}")
+    log = normalize_and_check_for_errors(caplog.text)
+
+    assert f"Generating IO pin config for {TILE}" in log[0]
+    assert "IO pin config generation complete" in log[-1]
+    assert output_file.exists()
+
+
 def test_run_FABulous_bitstream(
     cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
 ) -> None:
