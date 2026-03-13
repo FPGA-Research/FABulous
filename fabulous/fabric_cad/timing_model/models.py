@@ -288,3 +288,33 @@ class TimingModelConfig(BaseModel):
     consider_wire_delay: bool = Field(default=True)    
     delay_type_str: DelayType = Field(default=DelayType.MAX_ALL)
     debug: bool = Field(default=False)
+
+@dataclass(frozen=True)
+class InternalPipCachePhysEntry:
+    """
+    Represents a cache entry for the physical-level internal pip delay calculation, 
+    containing all relevant information for the calculation, including the source pip, 
+    destination pip, the best path through the switch matrix, the nearest ports to the 
+    source and destination pips, the reference output port for convergence,
+    and the physical output of the switch matrix.
+    
+    Attributes
+    ----------
+    begin_pip : str
+        The begin pip for the internal pip delay calculation.
+    swm_mux_for_pips : list[str]
+        The list of switch matrix multiplexers that are relevant for the source and destination pips.
+    swm_nearest_ports : tuple[dict[str, list[str]], list[str]]
+        A tuple containing two elements:
+        - A dictionary mapping each pip (source and destination) to a list of its nearest ports in the switch matrix.
+        - A list of all nearest ports for both source and destination pips.
+    ref_output_port : str
+        The reference output port used for convergence in the physical-level delay calculation.
+    swm_phys_output : list[str]
+        The list of physical output ports of the switch matrix that are relevant for the delay calculation.
+    """
+    begin_pip: str
+    swm_mux_for_pips: list[str]
+    swm_nearest_ports: tuple[dict[str, list[str]], list[str]]
+    ref_output_port: str
+    swm_phys_output: list[str]

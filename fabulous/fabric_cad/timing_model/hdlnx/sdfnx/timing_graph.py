@@ -155,6 +155,8 @@ def parse_sdf(sdf_file: Path, delay_type_str: DelayType) -> SDFGobject:
                 )
                 one_inst: bool = inst_pin_from[0] == inst_pin_to[0]
                 
+                # IOPATH is a combinational path that can change the output 
+                # of a cell based on changes to the input.
                 if component_data["type"] == "iopath":
                     io_paths.append(
                         Component(
@@ -178,6 +180,37 @@ def parse_sdf(sdf_file: Path, delay_type_str: DelayType) -> SDFGobject:
                             to_pin_edge=component_data["to_pin_edge"],
                         )
                     )
+                
+                # Since SDF does not model for a FF a path from D -> Q as IOPATH
+                # only CLK -> Q is IOPATH, since the D -> Q path is not combinational
+                # but sequential. Swap pins and model D --(delay 0)--> CLK --> Q
+                # beacuse CLK always controls the output Q.
+                if component_data["type"] in ("setup", "hold"):
+                    io_paths.append(
+                        Component(
+                            c_type=SDFCellType.IOPATH,
+                            cell_name=cell_name,
+                            connection_string=str(component).split('_', 1)[-1],
+                            from_cell_instance=instance_name,
+                            to_cell_instance=instance_name,
+                            from_cell_pin=component_data["to_pin"],
+                            to_cell_pin=component_data["from_pin"],
+                            delay=0.0,
+                            delay_paths=None,
+                            is_one_cell_instance=True,
+                            is_timing_check=component_data["is_timing_check"],
+                            is_timing_env=component_data["is_timing_env"],
+                            is_absolute=component_data["is_absolute"],
+                            is_incremental=component_data["is_incremental"],
+                            is_cond=component_data["is_cond"],
+                            cond_equation=component_data["cond_equation"],
+                            from_pin_edge=None,
+                            to_pin_edge=None,
+                        )
+                    )
+                
+                # INTERCONNECT is a path that connects two different cell instances, 
+                # which can be combinational or sequential.
                 if component_data["type"] == "interconnect":
                     interconnects.append(
                         Component(
@@ -201,6 +234,9 @@ def parse_sdf(sdf_file: Path, delay_type_str: DelayType) -> SDFGobject:
                             to_pin_edge=component_data["to_pin_edge"],
                         )
                     )
+                    
+                # Other components include timing checks (hold, setup, reset, recover, width) 
+                # and other types of paths.
                 if component_data["type"] != "interconnect":
                     instances[instance_name].append(
                         Component(

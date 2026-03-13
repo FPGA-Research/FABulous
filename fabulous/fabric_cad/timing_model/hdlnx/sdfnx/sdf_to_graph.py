@@ -12,6 +12,8 @@ verilog netlists.
 
 
 import networkx as nx
+from math import isclose
+
 from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base import SDFTimingGraphBase
 from fabulous.fabric_cad.timing_model.models import *
 
@@ -95,75 +97,186 @@ class SDFTimingGraph(SDFTimingGraphBase):
         sources: list[str],
         mode: str = "max",
         consider_delay: bool = True,
+        sentinel: str | None = None,
+        prefer_sentinel_for_single_source: bool = False,
+        follow_steps_to_sentinel: int = 0,
         stop: float | int | None = None,
     ) -> tuple[list[str], float | None, dict[str, dict[str, float]]]:
         """
-        Find the earliest node(s) that are reachable from ALL given sources in a directed graph.
-        Similar to betweenness_centrality_subset, but finds nodes that minimize the maximum (or sum) distance
-        from all sources.
+        Find the structurally earliest node reachable from ALL given sources in a directed graph.
 
-        For each node v reachable from every s in `sources`, we define a cost:
+        The function first finds all nodes reachable from every source. It then restricts to the
+        structurally earliest common region(s), using SCCs of the common-reachable subgraph.
+        Among those candidates it minimizes:
 
-            cost(v) = max_i dist(s_i, v)      if mode == "max" (minimize worst distance)
-            cost(v) = sum_i dist(s_i, v)      if mode == "sum" (minimize total distance)
+            cost(v) = max_i dist(s_i, v)      if mode == "max"
+            cost(v) = sum_i dist(s_i, v)      if mode == "sum"
+
+        If several candidates still tie, it prefers the one that can still reach the largest
+        downstream common region. If there is still a tie, it prefers the one that can reach
+        more total downstream nodes. Final fallback is lexicographic node order.
+        
+        For a single source, the earliest common node is normally the source itself.
+        If `prefer_sentinel_for_single_source` is True and the source can reach the
+        sentinel, we follow the shortest path to the sentinel and return the node 
+        we walk follow_steps_to_sentinel edges along that path.
 
         Parameters
         ----------
         sources : list[str]
-            Iterable of source nodes.
+            Source nodes.
         mode : str
             "max" to minimize worst distance, "sum" to minimize total distance.
         consider_delay : bool
-            Whether to consider edge weights (delay) in distance calculation.
-            Otherwise, use hop count.
-        stop : float | int
-            Optional cutoff for maximum path length to consider. If consider_delay is True,
-            this is in units of delay; otherwise, in hops.
+            Whether to use edge weights ("weight") as distances. Otherwise hop count is used.
+        sentinel : str | None
+            Optional node that can be returned if only one source is given.
+        prefer_sentinel_for_single_source : bool
+            If True and exactly one source is given, return the sentinel instead of the
+            source when the source can reach the sentinel.
+        follow_steps_to_sentinel : int
+            Number of steps to follow along the path to the sentinel before returning the node.
+        stop : float | int | None
+            Optional cutoff for path length.
 
         Returns
         -------
-        tuple[list[str], float, dict[str, dict[str, float]]]
-            - best_nodes (list[str]): list of nodes with minimal cost (may be multiple)
-            - best_cost (float): the minimal cost value (hop-count, or delay sum), or None if no common node
-            - dists (dict[str, dict[str, float]]): dict: source -> dict(node -> distance)
+        tuple[list[str], float | None, dict[str, dict[str, float]]]
+            - best_nodes: a single-element list containing the chosen node, or [] if none exists
+            - best_cost: minimal cost of the chosen node, or None if no common node exists
+            - dists: source -> node -> distance
+
+        Raises
+        ------
+        ValueError
+            If `mode` is invalid or if a source node is not in the graph.
         """
-        sources = list(sources)
+        if mode not in {"max", "sum"}:
+            raise ValueError("mode must be 'max' or 'sum'")
+
+        sources = list(dict.fromkeys(sources))
         if not sources:
             return [], None, {}
 
-        # BFS from each source (unweighted shortest path length)
+        missing = [s for s in sources if s not in self.graph]
+        if missing:
+            raise ValueError(f"Source node(s) not in graph: {missing}")
+
+        # Compute distances from each source to all reachable nodes.
         dists: dict[str, dict[str, float]] = {}
         for s in sources:
-            dists[s] = nx.single_source_dijkstra_path_length(
-                self.graph, s, cutoff=stop, weight="weight" if consider_delay else None
-            )
+            # Compute shortest-path distances from each source.
+            if consider_delay:
+                dists[s] = nx.single_source_dijkstra_path_length(
+                    self.graph,
+                    s,
+                    cutoff=stop,
+                    weight="weight",
+                )
+            else:
+                dists[s] = nx.single_source_shortest_path_length(
+                    self.graph,
+                    s,
+                    cutoff=stop,
+                )
+        
+        # Fast path for single source: just return the source. 
+        # Or follow the path to the sentinel if requested and possible
+        # and return that follwed node as the earliest node instead.
+        if len(sources) == 1:
+            source = sources[0]
+            if (
+                prefer_sentinel_for_single_source
+                and sentinel is not None
+                and sentinel in self.graph
+                and sentinel in dists[source]
+            ):         
+                path = nx.shortest_path(
+                    self.graph,
+                    source=source,
+                    target=sentinel,
+                    weight="weight" if consider_delay else None,
+                )             
+                step_idx = min(max(follow_steps_to_sentinel, 0), len(path) - 1)
+                chosen = path[step_idx]
+                return [chosen], dists[source][chosen], dists
+            return [source], 0.0, dists
 
-        # Nodes reachable from ALL sources
-        common = None
-        for s in sources:
-            reachable = set(dists[s].keys())
-            common = reachable if common is None else (common & reachable)
+        # Keep only nodes reachable from every source.
+        common = set(dists[sources[0]].keys())
+        for s in sources[1:]:
+            common &= set(dists[s].keys())
 
         if not common:
-            return [], None, dists  # no common reachable node
+            return [], None, dists
 
-        # Cost function
-        if mode == "sum":
+        # Builds a new graph containing only the nodes that are reachable from all sources.
+        # So from now on, the code ignores nodes that are not common to all sources.
+        common_subgraph = self.graph.subgraph(common).copy()
 
-            def cost(v):
-                """Cost is the sum of distances from all sources to v."""
+        # Finds groups of nodes where every node can reach every other node in the same group.
+        # n a directed graph, that means they form a mutually reachable region.
+        # Example: if A -> B, B -> C, and C -> A, then {A, B, C} is one SCC
+        sccs = list(nx.strongly_connected_components(common_subgraph))
+        node_to_scc: dict[str, int] = {}
+        for idx, comp in enumerate(sccs):
+            for node in comp:
+                node_to_scc[node] = idx
+
+        # Creates a counter for each SCC
+        # This will count how many edges come into that SCC from a different SCC
+        scc_indegree = {i: 0 for i in range(len(sccs))}
+        for u, v in common_subgraph.edges():
+            su = node_to_scc[u]
+            sv = node_to_scc[v]
+            if su != sv:
+                scc_indegree[sv] += 1
+
+        # Earliest common regions are SCCs with no incoming edge from another common SCC.
+        earliest_scc_ids = {i for i, indeg in scc_indegree.items() if indeg == 0}
+        candidates = [node for node in common if node_to_scc[node] in earliest_scc_ids]
+
+        def cost(v: str) -> float:
+            """Compute the cost of a node based on the selected mode."""
+            if mode == "sum":
                 return sum(dists[s][v] for s in sources)
-        else:
+            return max(dists[s][v] for s in sources)
 
-            def cost(v):
-                """Cost is the maximum distance from any source to v."""
-                return max(dists[s][v] for s in sources)
+        candidate_costs = {v: cost(v) for v in candidates}
+        best_cost = min(candidate_costs.values())
 
-        # Find minimal cost and all nodes achieving it
-        best_cost = min(cost(v) for v in common)
-        best_nodes = [v for v in common if cost(v) == best_cost]
+        # First tie-break step: keep only nodes with minimal cost.
+        cost_tied = [
+            v
+            for v, c in candidate_costs.items()
+            if isclose(c, best_cost, rel_tol=1e-12, abs_tol=1e-12)
+        ]
 
-        return best_nodes, best_cost, dists
+        if len(cost_tied) == 1:
+            return [cost_tied[0]], best_cost, dists
+
+        def common_reach_score(v: str) -> int:
+            """Prefer nodes that still reach more of the common downstream region."""
+            return 1 + len(nx.descendants(common_subgraph, v))
+
+        common_scores = {v: common_reach_score(v) for v in cost_tied}
+        max_common_score = max(common_scores.values())
+        common_tied = [v for v in cost_tied if common_scores[v] == max_common_score]
+
+        if len(common_tied) == 1:
+            return [common_tied[0]], best_cost, dists
+
+        def total_reach_score(v: str) -> int:
+            """Second tie-break: prefer nodes that reach more of the full graph."""
+            return 1 + len(nx.descendants(self.graph, v))
+
+        total_scores = {v: total_reach_score(v) for v in common_tied}
+        max_total_score = max(total_scores.values())
+        total_tied = [v for v in common_tied if total_scores[v] == max_total_score]
+
+        # Final deterministic fallback.
+        chosen = sorted(total_tied)[0]
+        return [chosen], best_cost, dists
 
     def follow_first_fanout_from_pins(
         self, hier_pin_path: str, num_follow: int = 1

@@ -89,6 +89,8 @@ class FABulousTileTimingModel:
         self.internal_pips_grouped_by_inst : dict[str, list[str]] | None = None
         self.internal_pips : list[str] | None = None
         self._extract_switch_matrix_info()
+        
+        self.internal_pip_cache_phys: dict[str, InternalPipCachePhysEntry] = {}
   
         logger.info("FABulous Timing Model initialized.")
         
@@ -345,6 +347,12 @@ class FABulousTileTimingModel:
         switch matrix instance and module based on regex patterns. It also checks 
         if the tile is part of a SuperTile to filter the correct switch matrix information.
         Finally, it loads the internal PIPs of the switch matrix for later use in delay calculations.
+        
+        Raises
+        ------
+        ValueError
+            If no switch matrix instance or module is found, or if multiple 
+            instances/modules are found when not expected.
         """
         logger.info("Extracting switch matrix information...")
         
@@ -355,16 +363,18 @@ class FABulousTileTimingModel:
         self.switch_matrix_module_name = self.hdlnx_tm_synth.find_verilog_modules_regex(
             r"^[^/]*_switch_matrix$"
         )
+        
+        if (
+            len(self.switch_matrix_hier_path) == 0
+            or len(self.switch_matrix_module_name) == 0
+            ):
+            logger.warning(
+                f"No switch matrix instance or module found. "
+                f"All PIPs for {self.tile_name} will be considered external."
+            )
+            return
 
         if self.is_in_which_super_tile is None:
-            if (
-                len(self.switch_matrix_hier_path) == 0
-                or len(self.switch_matrix_module_name) == 0
-            ):
-                raise ValueError(
-                    "No switch matrix instance or module found for regular Tile."
-                )
-            
             if (
                 len(self.switch_matrix_hier_path) > 1
                 or len(self.switch_matrix_module_name) > 1
@@ -380,7 +390,7 @@ class FABulousTileTimingModel:
                 f"Using switch matrix instance: {self.switch_matrix_hier_path}, "
                 f"module: {self.switch_matrix_module_name}"
             )
-        
+                         
         else:
             self.switch_matrix_hier_path = [
                 p for p in self.switch_matrix_hier_path if self.tile_name in p
@@ -446,6 +456,10 @@ class FABulousTileTimingModel:
             True if both PIPs are internal PIPs of the switch matrix, False otherwise.
         """
         instance_to_nets = self.internal_pips_grouped_by_inst
+        
+        if instance_to_nets is None or pip_src == pip_dst:
+            return False
+        
         target = set([pip_src, pip_dst])
         for inst, net_list in instance_to_nets.items():
             if target.issubset(set(net_list)):
@@ -470,11 +484,6 @@ class FABulousTileTimingModel:
         float
             Delay in nanoseconds between the two PIPs.
         """
-        if pip_src not in self.internal_pips or pip_dst not in self.internal_pips:
-            raise ValueError(
-                f"One or both PIPs {pip_src}, {pip_dst} are not internal PIPs of the switch matrix."
-            )
-
         synth_model = self.hdlnx_tm_synth
 
         logger.info(
@@ -487,12 +496,6 @@ class FABulousTileTimingModel:
             [pip_src, pip_dst],
             filter_regex=self.switch_matrix_hier_path,
         )
-
-        if len(swm_mux) == 0:
-            raise ValueError(
-                f"No switch matrix mux instance found for PIPs {pip_src} -> {pip_dst}"
-                f"Pip name might be incorrect. Or they appear in different swm multiplexers."
-            )
 
         if len(swm_mux) > 1:
             logger.warning(
@@ -571,14 +574,16 @@ class FABulousTileTimingModel:
         float
             Delay in nanoseconds between the two PIPs.
         """
-        if pip_src not in self.internal_pips or pip_dst not in self.internal_pips:
-            raise ValueError(
-                f"One or both PIPs {pip_src}, {pip_dst} are not internal PIPs of the switch matrix."
+        synth_model: HdlnxTimingModel = self.hdlnx_tm_synth
+        phys_model: HdlnxTimingModel = self.hdlnx_tm_phys
+        
+        pip_cache: InternalPipCachePhysEntry = self.internal_pip_cache_phys.get(pip_dst, None)
+        
+        if pip_cache is not None:
+            logger.info(f"Cache hit for internal PIP {pip_src} -> {pip_dst}. "
+                        f"Using cached physical-level information."
             )
-
-        synth_model = self.hdlnx_tm_synth
-        phys_model = self.hdlnx_tm_phys
-
+        
         ##############################
         # Synthesis-level resolution #
         ##############################
@@ -587,18 +592,13 @@ class FABulousTileTimingModel:
             f"Finding synthesis-level switch matrix mux for PIPs {pip_src} -> {pip_dst}"
         )
         
-        # Are pip_src and pip_dst connected through the same switch matrix multiplexer?
+        # Algorithm_1: Are pip_src and pip_dst connected through the same 
+        # switch matrix multiplexer?
         swm_mux_for_pips = synth_model.find_instances_paths_with_all_nets(
             self.switch_matrix_module_name,
             [pip_src, pip_dst],
             filter_regex=self.switch_matrix_hier_path,
-        )
-
-        if len(swm_mux_for_pips) == 0:
-            raise ValueError(
-                f"No switch matrix mux instance found for PIPs {pip_src} -> {pip_dst}"
-                f"Pip name might be incorrect. Or they appear in different swm multiplexers."
-            )
+        ) if pip_cache is None else pip_cache.swm_mux_for_pips
 
         if len(swm_mux_for_pips) > 1:
             logger.warning(
@@ -611,19 +611,31 @@ class FABulousTileTimingModel:
             "Finding synthesis-level top-level ports connected to the switch matrix mux nets..."
         )
 
-        # find the nearest top level ports connected to all the nets of the swm mux input pins
-        # We reverse the timing graph to find the input ports (towards inputs).
-        # !! num_ports parameter sweep. Good default value is 4. Fastest is 1.
+        # Algorithm_2: Find the nearest top level ports connected to all the nets of the 
+        # swm mux input pins. We reverse the timing graph to find the input 
+        # ports (towards inputs). !! num_ports parameter sweep. 
+        # Good default value is 4. Fastest is 1.
         swm_nearest_ports = synth_model.nearest_ports_from_instance_pin_nets(
             swm_mux_for_pips[0], reverse=True, num_ports=1
-        )
+        ) if pip_cache is None else pip_cache.swm_nearest_ports 
+        
+        swm_nearest_ports_for_each_swm_wire = swm_nearest_ports[0]
+        swm_nearest_ports_all = swm_nearest_ports[1]
 
         if self.tm_config.debug:
             for swm_wire, ports in swm_nearest_ports[0].items():
-                logger.info(f"  SWM wire {swm_wire} nearest top-level ports: {ports}")
+                logger.debug(f"  SWM wire {swm_wire} nearest top-level ports: {ports}")
 
-        swm_nearest_ports_for_each_swm_wire = swm_nearest_ports[0]
-        swm_nearest_ports_all = swm_nearest_ports[1]
+        # Algorithm_3: Convergence nodes must have a path to the output port of the sw mux. 
+        # So we will use the output port as a sentinel to find the convergence node.
+        ref_output_port: str = None if pip_cache is None else pip_cache.ref_output_port
+        if len(swm_nearest_ports_all) == 1 and ref_output_port is None:
+            swm_nearest_ports_out = synth_model.nearest_ports_from_instance_pin_nets(
+                swm_mux_for_pips[0], reverse=False, num_ports=1
+            )
+            ref_output_port = swm_nearest_ports_out[0][f"{pip_dst}"][0]
+            
+            logger.info(f"Single input, enable buffer check...")
 
         #############################
         # Physical-level resolution #
@@ -631,39 +643,21 @@ class FABulousTileTimingModel:
 
         logger.info("Starting physical extraction of the switch matrix mux for pips")
         
-        if len(swm_nearest_ports_all) > 1:
-            # Find the converging node (the output pin of the swm mux)
-            best_nodes, best_cost, dists = phys_model.earliest_common_nodes(
-                swm_nearest_ports_all, mode="max", consider_delay=False
-            )
-            logger.info(f"Converging nodes with hops: {best_cost}")
-            # !!check and follow output, sels common node to input ports then to output
-            best_nodes.sort()
-            swm_phys_output = best_nodes[0]
-        else:
-            # !!Probably just a buffer. But still we must check...
-            swm_phys_output = phys_model.follow_first_fanout_from_pins(
-                swm_nearest_ports_all[0], num_follow=2
-            )
-            logger.info(
-                f"Only one input port found, follow its successor: {swm_phys_output}"
-            )
-
+        # Algorithm_4: Find the converging node (the output pin of the swm mux)
+        best_nodes, best_cost, dists = phys_model.earliest_common_nodes(
+            swm_nearest_ports_all, mode="max", consider_delay=False, sentinel=ref_output_port,
+            prefer_sentinel_for_single_source=True, follow_steps_to_sentinel=3
+        ) if pip_cache is None else (pip_cache.swm_phys_output, None, None)
+        
+        swm_phys_output = best_nodes[0]
+        
         ##############################################################
         # Calculate the delay between the two PIPs at physical level #
         ##############################################################
 
         logger.info(f"Calculating physical delay from {pip_src} to {pip_dst}")
 
-        if f"{pip_src}" not in (
-            swm_nearest_ports_for_each_swm_wire
-            or len(swm_nearest_ports_for_each_swm_wire[f"{pip_src}"]) == 0
-        ):
-            raise ValueError(
-                f"No nearest ports (end points) found for PIP source {pip_src} in physical model."
-            )
-
-        # Calculate delay between pip_src and the converged output pin
+        # Algorithm_5: Calculate delay between pip_src and the converged output pin
         # We use the 0st nearest port found for pip_src beacuse the list is sorted
         # starting from the nearest port.
         delay, path, info = phys_model.delay_path(
@@ -672,7 +666,16 @@ class FABulousTileTimingModel:
 
         logger.info(f"Physical Delay from {pip_src} to {pip_dst}: {delay} ns.")
         logger.debug(info)
-
+        
+        # Begin Ports of the SWM are unique so we can use pip_dst as the key for caching.
+        self.internal_pip_cache_phys[pip_dst] = InternalPipCachePhysEntry(
+            begin_pip=pip_dst,
+            swm_mux_for_pips=swm_mux_for_pips,
+            swm_nearest_ports=swm_nearest_ports,
+            ref_output_port=ref_output_port,
+            swm_phys_output=best_nodes
+        )
+        
         return delay
 
     def external_pip_delay_structural(self, pip_src: str, pip_dst: str) -> float:
