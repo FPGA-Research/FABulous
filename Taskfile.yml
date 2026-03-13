@@ -1,0 +1,71 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# https://taskfile.dev
+version: "3"
+
+tasks:
+  docs-build:
+    desc: Clean and build the documentation
+    dir: docs
+    cmds:
+      - uv sync
+      - make clean
+      - make html
+
+  docs-server:
+    desc: Run the documentation live-reload server
+    dir: docs
+    cmds:
+      - uv sync
+      - make clean
+      - uv run --directory . make livehtml
+
+  smoke-test:
+    desc: Create the demo project and run the simulation flow
+    cmds:
+      - rm -rf demo
+      - uv run FABulous c demo
+      - uv run FABulous -p demo run "run_FABulous_fabric"
+      - task --dir ./demo/Test fab-sim
+
+  smoke-test-vhdl:
+    desc: Create the demo project and run the simulation flow
+    cmds:
+      - rm -rf demo
+      - uv run FABulous c demo -w vhdl
+      - uv run FABulous -p demo run "run_FABulous_fabric"
+      - task --dir ./demo/Test fab-sim
+
+  ci:
+    desc: Run code checks, tests, and the docs build
+    cmds:
+      - uv run pre-commit run --all-files
+      - task: docs-build
+
+  clean-all:
+    desc: Remove common build artifacts and caches
+    cmds:
+      - find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+      - find . -name '*.pyc' -delete
+      - rm -rf build/ dist/ *.egg-info/ .pytest_cache/ .ruff_cache/
+
+  sync-demo:
+    desc: Synchronize demo tile GDS configuration
+    cmds:
+      - uv run scripts/sync_demo_tile_gds_config.py
+
+  # Usage examples:
+  #   task test -- -h
+  #   task test -- -p 8
+  #   task test -- -p auto -k foo -vv
+  #   task test -- --runslow --maxfail=1
+  test:
+    desc: Run the unified pytest wrapper with forwarded arguments
+    cmds:
+      - uv run scripts/run_tests.py {{.CLI_ARGS}}
+
+  upgrade:
+    desc: Refresh lockfiles, update the Nix flake, and run tests
+    cmds:
+      - uv lock --upgrade
+      - nix flake update
+      - task: test

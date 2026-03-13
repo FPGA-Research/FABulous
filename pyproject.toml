@@ -43,6 +43,7 @@ dependencies = [
   "numpy>=2.3.4",
   "dill>=0.4.0",
   "ciel>=2.4.0",
+  "go-task-bin>=3.40.0",
 ]
 
 [project.urls]
@@ -114,7 +115,6 @@ dev = [
   "pytest-mock>=3.14.1",
   "pytest-split>=0.10.0",
   "ruff>=0.12.7",
-  "taskipy>=1.14.0",
   "pyyaml>=6.0.0",
   "interrogate>=1.7.0",
 ]
@@ -140,55 +140,13 @@ testpaths = ["tests"]
 markers = ["slow: marks tests as slow (use --runslow to include)"]
 addopts = "-m 'not slow'"
 
-[tool.taskipy.tasks]
-# Development and quality tasks
-format = "ruff format ."
-lint = "ruff check . --fix && pre-commit run --all-files"
-check = "ruff check ."
-qa = "task format && task check"
-
-# Documentation tasks
-docs-setup = "cd docs && uv sync"
-docs-build = "cd docs && make clean && make html"
-docs-server = "cd docs && make clean && uv run --directory . make livehtml"
-docs-clean = "cd docs && make clean"
-
-fab-proj = "FABulous -c demo"
-
-# FABulous fabric generation tasks
-fab-build = "task fab-proj && FABulous demo -p 'run_FABulous_fabric'"
-fab-build-clean = "rm -r demo && task fab-proj && FABulous demo -p 'run_FABulous_fabric'"
-
-# Test and simulation tasks (using Make targets)
-fab-sim = "task fab-proj && cd ./demo/Test && make FAB_sim"
-fab-sim-clean = "rm -r demo && task fab-proj && cd ./demo/Test && make FAB_sim"
-
-# CI/Development helper tasks
-pre-commit = "task format && task check"
-ci-check = "task check && task test && task docs-build"
-install-dev = "uv sync --group dev"
-clean-all = "find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && find . -name '*.pyc' -delete && rm -rf build/ dist/ *.egg-info/ .pytest_cache/ .ruff_cache/"
-sync-demo = "uv run scripts/sync_demo_tile_gds_config.py"
-
-# Unified test runner task (pytest-split + durations maintenance)
-# Usage examples:
-#   task test -- --dry-run
-#   task test -- --refresh-durations
-#   task test -- --splits 8 --group 3 -k foo -vv
-#   task test -- --splits 8 --group 3 --maxfail=1
-# Provide flags after first '--'.
-
-test = "uv run scripts/run_tests.py"
-
-project-upgrade = "uv lock --upgrade && nix flake update && task test"
-
 [tool.deptry]
 # Ignore platform-specific readline dependencies for DEP002 (defined but not used)
 # These are indirect requirements needed by cmd2 and other interactive CLI tools
 extend_exclude = ["fabulous/fabric_generator/gds_generator/script", "docs"]
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["pyreadline3", "gnureadline"]
+DEP002 = ["pyreadline3", "gnureadline", "go-task-bin"]
 
 [tool.deptry.package_module_name_map]
 FABulous-bit-gen = "FABulous_bit_gen"

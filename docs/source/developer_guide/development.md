@@ -112,92 +112,51 @@ git commit --no-verify
 
 (task-automation)=
 
-## Task Automation with Taskipy
+## Task Automation with Taskfile
 
-FABulous includes pre-configured [taskipy](https://github.com/taskipy/taskipy) tasks to streamline common development and workflow tasks. After setting up the development environment, you can run these tasks using `task <task-name>`.
-
-### Development and Quality Tasks
+FABulous includes a root [Taskfile](https://taskfile.dev) to streamline common development and workflow tasks. After setting up the development environment, you can run these tasks using `task <task-name>`.
 
 ```console
-task format          # Format code with ruff
-task lint            # Lint and fix code issues + run pre-commit
-task check           # Check code without fixing
-task qa              # Run format and check in sequence
-task pre-commit      # Run format and check (for pre-commit hooks)
-task ci-check        # Full CI check (format, lint, test, docs)
-task install-dev     # Install development dependencies
-task clean-all       # Clean all build artifacts and cache files
+task test           # Run the pytest suite (supports forwarded args, see below)
+task ci             # Run pre-commit hooks and build docs
+task smoke-test     # Full end-to-end check: create demo, generate fabric, run simulation
+task docs-build     # Build the documentation
+task docs-server    # Serve docs with live-reload
+task clean-all      # Remove build artefacts and caches
+task sync-demo      # Synchronise demo tile GDS configuration
+task upgrade        # Upgrade lockfiles, update Nix flake, run tests
 ```
 
-### Documentation Tasks
+### Example Workflows
+
+**Before submitting a PR:**
 
 ```console
-task docs-setup      # Setup documentation environment
-task docs-apidoc     # Generate API documentation only
-task docs-build      # Generate API docs + build documentation
-task docs-server     # serve docs with live reload for development
-task docs-clean      # Clean documentation build artifacts
+task ci
 ```
 
-### Project Creation and Setup
+**Run tests with custom options:**
 
 ```console
-task fab-proj               # Create demo project
+task test -- -p 8             # 8 parallel groups
+task test -- -p auto -k foo   # filter by name
+task test -- --runslow        # include slow tests
 ```
 
-### FABulous Workflow Tasks
+**Full integration smoke test:**
 
 ```console
-# Fabric generation and simulation
-task fab-build              # Create demo project + run FABulous fabric generation
-task fab-build-clean        # Clean build + create project + run fabric generation
-task fab-sim                # Create demo project + run full simulation
-task fab-sim-clean          # Clean build + create project + run simulation
-```
-
-### Example Development Workflows
-
-**Standard development workflow:**
-
-```console
-# Format and check your code
-task qa
-
-# Run full CI validation before submitting PR
-task ci-check
-```
-
-**Quick FABulous testing:**
-
-```console
-# Create demo project and test fabric generation
-task fab-build
-
-# Run full simulation workflow
-task fab-sim
+task smoke-test
 ```
 
 **Documentation development:**
 
 ```console
-# Setup docs environment (first time)
-task docs-setup
-
-# Build and serve docs with auto-reload
 task docs-server
 ```
 
-**Clean development environment:**
-
-```console
-# Clean all build artifacts and caches
-$ task clean-all
-```
-
 :::{note}
-The taskipy tasks are defined in the `[tool.taskipy.tasks]` section of `pyproject.toml`.
-You can view all available tasks by running `task --list` or examine the configuration
-in the project's `pyproject.toml` file.
+All available tasks are listed with `task --list`. Full definitions are in the root `Taskfile.yml`.
 :::
 
 (code-standards)=
@@ -259,7 +218,7 @@ However, contributors must adhere to the following guidelines:
 
 - **Follow project conventions.** AI-generated code must conform to the
   project's coding standards, formatting rules, and architectural patterns.
-  Run the linting and formatting checks (`task qa`) before submitting.
+  Run `task ci` before submitting.
 
 (contribution-workflow)=
 

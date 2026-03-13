@@ -11,11 +11,13 @@ from pytest_mock import MockerFixture
 
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from fabulous.fabulous_settings import init_context
-from tests.cli_test.conftest import TILE
+from tests.cli_test.conftest import MOCK_COMPLETED_PROCESS, TILE, find_task_calls
 from tests.conftest import (
     normalize_and_check_for_errors,
     run_cmd,
 )
+
+SIM_CMD = "run_simulation fst ./user_design/sequential_16bit_en.bin"
 
 
 def test_load_fabric(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
@@ -112,40 +114,85 @@ def test_run_FABulous_bitstream(
     cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
 ) -> None:
     """Test the `run_FABulous_bitstream` command."""
-
-    class MockCompletedProcess:
-        returncode = 0
-
-    m = mocker.patch("subprocess.run", return_value=MockCompletedProcess())
+    m = mocker.patch("subprocess.run", return_value=MOCK_COMPLETED_PROCESS)
     run_cmd(cli, "run_FABulous_fabric")
-    Path(cli.projectDir / "user_design" / "sequential_16bit_en.json").touch()
-    Path(cli.projectDir / "user_design" / "sequential_16bit_en.fasm").touch()
+    (cli.projectDir / "user_design" / "sequential_16bit_en.json").touch()
+    (cli.projectDir / "user_design" / "sequential_16bit_en.fasm").touch()
     run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
     log = normalize_and_check_for_errors(caplog.text)
     assert "bitstream generation complete" in log[-1]
     assert m.call_count == 2
 
 
+@pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation(
     cli: FABulous_CLI,
     caplog: pytest.LogCaptureFixture,
-    mocker: MockerFixture,
 ) -> None:
-    """Test running simulation."""
-
-    class MockCompletedProcess:
-        returncode = 0
-
-    m = mocker.patch("subprocess.run", return_value=MockCompletedProcess())
-    run_cmd(cli, "run_FABulous_fabric")
-    Path(cli.projectDir / "user_design" / "sequential_16bit_en.json").touch()
-    Path(cli.projectDir / "user_design" / "sequential_16bit_en.fasm").touch()
-    Path(cli.projectDir / "user_design" / "sequential_16bit_en.bin").touch()
-    run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
-    run_cmd(cli, "run_simulation fst ./user_design/sequential_16bit_en.bin")
+    """Test running simulation via Taskfile."""
+    run_cmd(cli, SIM_CMD)
     log = normalize_and_check_for_errors(caplog.text)
     assert "Simulation finished" in log[-1]
-    assert m.call_count == 4
+
+
+@pytest.mark.usefixtures("simulation_mock")
+def test_run_simulation_makefile_fallback(
+    cli: FABulous_CLI,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test simulation falls back to Makefile with deprecation warning."""
+    # Remove Taskfile.yml so it falls back to Makefile
+    (cli.projectDir / "Test" / "Taskfile.yml").unlink()
+
+    caplog.clear()
+    run_cmd(cli, SIM_CMD)
+
+    assert any("deprecated" in r.message.lower() for r in caplog.records)
+    assert any("Simulation finished" in r.message for r in caplog.records)
+
+
+@pytest.mark.usefixtures("simulation_mock")
+def test_run_simulation_no_taskfile_no_makefile(
+    cli: FABulous_CLI,
+) -> None:
+    """Test simulation errors when neither Taskfile.yml nor Makefile exists."""
+    # Remove both Taskfile.yml and Makefile
+    test_dir = cli.projectDir / "Test"
+    (test_dir / "Taskfile.yml").unlink()
+    (test_dir / "Makefile").unlink(missing_ok=True)
+
+    run_cmd(cli, SIM_CMD)
+    assert cli.exit_code != 0
+
+
+@pytest.mark.usefixtures("simulation_mock")
+def test_run_simulation_with_extra_flags(
+    cli: FABulous_CLI,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test simulation passes extra iverilog flags to Taskfile."""
+    run_cmd(cli, f'{SIM_CMD} --extra-iverilog-flag="-DSOME_DEFINE"')
+    log = normalize_and_check_for_errors(caplog.text)
+    assert "Simulation finished" in log[-1]
+
+    task_cmds = find_task_calls()
+    assert len(task_cmds) >= 1
+    assert any("EXTRA_IVERILOG_FLAGS" in arg for arg in task_cmds[-1])
+
+
+@pytest.mark.usefixtures("simulation_mock")
+def test_run_simulation_with_design_flag(
+    cli: FABulous_CLI,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test simulation passes --design flag to Taskfile as DESIGN variable."""
+    run_cmd(cli, f"{SIM_CMD} -d my_custom_design")
+    log = normalize_and_check_for_errors(caplog.text)
+    assert "Simulation finished" in log[-1]
+
+    task_cmds = find_task_calls()
+    assert len(task_cmds) >= 1
+    assert any("DESIGN=my_custom_design" in arg for arg in task_cmds[-1])
 
 
 def test_run_tcl_with_tcl_command(

@@ -1,0 +1,142 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# https://taskfile.dev
+#
+# VHDL simulation and build tasks for FABulous projects.
+# Override any variable via CLI: task run-simulation DESIGN=my_design WAVEFORM_TYPE=vcd
+version: "3"
+
+dotenv: ["../.FABulous/.env"]
+
+vars:
+  MAX_BITBYTES: '{{.MAX_BITBYTES | default "16384"}}'
+  FAB_PROJ_ROOT: '{{.FAB_PROJ_ROOT | default ".."}}'
+  BUILD_DIR: '{{.BUILD_DIR | default "build"}}'
+  DESIGN: '{{.DESIGN | default "sequential_16bit_en"}}'
+  TESTBENCH: "{{.DESIGN}}_tb"
+  TOP_WRAPPER: '{{.TOP_WRAPPER | default "top_wrapper"}}'
+  USER_DESIGN_DIR: "{{.FAB_PROJ_ROOT}}/user_design"
+  WAVEFORM_TYPE: '{{.WAVEFORM_TYPE | default "fst"}}'
+  GHDL_FLAGS: '{{.GHDL_FLAGS | default "--std=08 -O2"}}'
+  EXTRA_GHDL_FLAGS: '{{.EXTRA_GHDL_FLAGS | default ""}}'
+  BITSTREAM_BIN: '{{.BITSTREAM_BIN | default "{{.BUILD_DIR}}/{{.DESIGN}}.bin"}}'
+
+tasks:
+  fab-sim:
+    aliases: ["default"]
+    desc: Build demo fabric, build test design, run simulation, then clean up
+    cmds:
+      - task: build-demo-fabric
+      - task: build-test-design
+      - task: run-simulation
+      - task: clean
+
+  full-sim:
+    desc: Run FABulous demo, build test design, run simulation, then clean up
+    cmds:
+      - task: run-fabulous-demo
+      - task: build-test-design
+      - task: run-simulation
+      - task: clean
+
+  build-test-design:
+    desc: Synthesize, place & route, and generate bitstream
+    cmds:
+      - task: run-yosys
+      - task: run-nextpnr
+      - task: run-bitgen
+
+  run-fabulous-demo:
+    desc: Run FABulous to generate the default fabric
+    cmds:
+      - FABulous {{.FAB_PROJ_ROOT}} -fs {{.FAB_PROJ_ROOT}}/FABulous.tcl
+
+  build-demo-fabric:
+    desc: Build the default fabric only (no simulation)
+    cmds:
+      - task: mkdir-build
+      - FABulous {{.FAB_PROJ_ROOT}} -ts ./build_fabulous_fabric.tcl
+
+  run-yosys:
+    desc: Run Yosys synthesis (GHDL plugin for VHDL, top_wrapper still Verilog)
+    deps: [mkdir-build]
+    cmds:
+      - >-
+        yosys -m ghdl -p
+        "ghdl {{.USER_DESIGN_DIR}}/{{.DESIGN}}.vhdl -e {{.DESIGN}};
+        read_verilog {{.USER_DESIGN_DIR}}/{{.TOP_WRAPPER}}.v;
+        synth_fabulous -top {{.TOP_WRAPPER}}
+        -json {{.BUILD_DIR}}/{{.DESIGN}}.json
+        {{.CUSTOM_PRIMS}};"
+    vars:
+      CUSTOM_PRIMS:
+        sh: '[ -f "{{.USER_DESIGN_DIR}}/custom_prims.v" ] && echo "-extra-plib {{.USER_DESIGN_DIR}}/custom_prims.v" || true'
+
+  run-nextpnr:
+    desc: Run nextpnr place and route
+    deps: [mkdir-build]
+    cmds:
+      - >-
+        FAB_ROOT={{.FAB_PROJ_ROOT}} nextpnr-generic
+        --uarch fabulous
+        --json {{.BUILD_DIR}}/{{.DESIGN}}.json
+        -o fasm={{.BUILD_DIR}}/{{.DESIGN}}.fasm
+
+  run-bitgen:
+    desc: Generate bitstream and hex file
+    deps: [mkdir-build]
+    cmds:
+      - >-
+        bit_gen -genBitstream
+        {{.BUILD_DIR}}/{{.DESIGN}}.fasm
+        {{.FAB_PROJ_ROOT}}/.FABulous/bitStreamSpec.bin
+        {{.BUILD_DIR}}/{{.DESIGN}}.bin
+      - >-
+        python3 makehex.py
+        {{.BUILD_DIR}}/{{.DESIGN}}.bin
+        {{.MAX_BITBYTES}}
+        {{.BUILD_DIR}}/{{.DESIGN}}.hex
+
+  run-simulation:
+    desc: Run simulation using GHDL (compiles in dependency order)
+    deps: [mkdir-build]
+    cmds:
+      # 1. Compile packages first (models_pack defines shared types)
+      - ghdl -a {{.GHDL_FLAGS}} {{.EXTRA_GHDL_FLAGS}} --workdir={{.BUILD_DIR}} {{.FAB_PROJ_ROOT}}/Fabric/models_pack.vhdl
+      # 2. Compile tile files (self-contained, depend only on packages)
+      - |
+        for f in $(find {{.FAB_PROJ_ROOT}}/Tile/ -name '*.vhdl' -type f); do
+          ghdl -a {{.GHDL_FLAGS}} {{.EXTRA_GHDL_FLAGS}} --workdir={{.BUILD_DIR}} "$f"
+        done
+      # 3. Compile fabric infrastructure (depends on tiles)
+      - |
+        for f in $(find {{.FAB_PROJ_ROOT}}/Fabric/ -name '*.vhdl' -type f ! -name 'models_pack.vhdl'); do
+          ghdl -a {{.GHDL_FLAGS}} {{.EXTRA_GHDL_FLAGS}} --workdir={{.BUILD_DIR}} "$f"
+        done
+      # 4. Compile user design and testbench (depends on fabric)
+      - ghdl -a {{.GHDL_FLAGS}} {{.EXTRA_GHDL_FLAGS}} --workdir={{.BUILD_DIR}} {{.USER_DESIGN_DIR}}/{{.DESIGN}}.vhdl {{.TESTBENCH}}.vhdl
+      # 5. Elaborate and run (ulimit needed for large designs)
+      - >-
+        sh -c 'ulimit -s unlimited &&
+        ghdl -e {{.GHDL_FLAGS}} {{.EXTRA_GHDL_FLAGS}} --workdir={{.BUILD_DIR}} -fexplicit {{.TESTBENCH}}'
+      - >-
+        sh -c 'ulimit -s unlimited &&
+        ghdl -r {{.GHDL_FLAGS}} {{.EXTRA_GHDL_FLAGS}} --workdir={{.BUILD_DIR}} {{.TESTBENCH}}
+        --stats --ieee-asserts=disable
+        --{{.WAVEFORM_TYPE}}={{.BUILD_DIR}}/{{.TESTBENCH}}.{{.WAVEFORM_TYPE}}'
+
+  gtkwave:
+    desc: Open waveform in GTKWave
+    cmds:
+      - gtkwave {{.BUILD_DIR}}/{{.TESTBENCH}}.{{.WAVEFORM_TYPE}}
+
+  mkdir-build:
+    internal: true
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+    status:
+      - test -d {{.BUILD_DIR}}
+
+  clean:
+    desc: Remove build directory
+    cmds:
+      - rm -rf {{.BUILD_DIR}}

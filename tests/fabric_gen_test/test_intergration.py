@@ -26,7 +26,7 @@ def test_run_verilog_simulation_makefile(tmp_path: Path) -> None:
     result = run(["FABulous", "-c", str(project_dir)])
     assert result.returncode == 0
 
-    result = run(["make", "FAB_sim"], cwd=project_dir / "Test")
+    result = run(["task"], cwd=project_dir / "Test")
     assert result.returncode == 0
 
 
@@ -37,5 +37,5 @@ def test_run_vhdl_simulation_makefile(tmp_path: Path) -> None:
     result = run(["FABulous", "-c", str(project_dir), "-w", "vhdl"])
     assert result.returncode == 0
 
-    result = run(["make", "FAB_sim"], cwd=project_dir / "Test")
+    result = run(["task"], cwd=project_dir / "Test")
     assert result.returncode == 0
