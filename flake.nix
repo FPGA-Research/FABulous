@@ -2,11 +2,8 @@
   description = "FABulous EDA development environment with Nix - includes GHDL, Yosys, NextPNR, Librelane, and more";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    nixpkgs-stable = {
-      url = "github:nixos/nixpkgs/nixos-25.05";
-    };
-
+    # Pinned to nix-eda 6.2.0's nixpkgs for binary cache hits from fossi-foundation
+    nixpkgs.url = "github:nixos/nixpkgs/b3aad468604d3e488d627c0b43984eb60e75e782";
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -27,6 +24,7 @@
 
     nix-eda = {
       url = "github:fossi-foundation/nix-eda/6.2.0";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
     librelane = {
@@ -65,7 +63,6 @@
   outputs =
     {
       nixpkgs,
-      nixpkgs-stable,
       nix-eda,
       librelane,
       ghdl-bin-x86_64-linux,
@@ -98,7 +95,7 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          python = nixpkgs-stable.legacyPackages.${system}.python312Full;
+          python = nixpkgs.legacyPackages.${system}.python312;
         in
         (pkgs.callPackage pyproject-nix.build.packages {
           inherit python;
@@ -157,6 +154,8 @@
           # want to include the full librelane-env in packages (would collide with virtualenv).
           # Instead, we'll add it to NIX_PYTHONPATH.
           librelane-python-path = "${librelane-pkg}/${pkgs.python3.sitePackages}";
+          tkinter-pkg = nixpkgs.legacyPackages.${system}.python312Packages.tkinter;
+          tkinter-python-path = "${tkinter-pkg}/${nixpkgs.legacyPackages.${system}.python312.sitePackages}";
 
           # Combine all packages: librelane tools (with patched OpenROAD) + our custom tools + uv2nix env
           # Note: We only include virtualenv for Python, not librelane-env, to avoid collisions
@@ -191,7 +190,7 @@
             env = [
               {
                 name = "NIX_PYTHONPATH";
-                value = "${librelane-python-path}";
+                value = "${librelane-python-path}:${tkinter-python-path}";
               }
               {
                 name = "PYTHONWARNINGS";
