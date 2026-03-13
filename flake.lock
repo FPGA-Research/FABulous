@@ -30,11 +30,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1764011051,
-        "narHash": "sha256-M7SZyPZiqZUR/EiiBJnmyUbOi5oE/03tCeFrTiUZchI=",
+        "lastModified": 1768818222,
+        "narHash": "sha256-460jc0+CZfyaO8+w8JNtlClB2n4ui1RbHfPTLkpwhU8=",
         "owner": "numtide",
         "repo": "devshell",
-        "rev": "17ed8d9744ebe70424659b0ef74ad6d41fc87071",
+        "rev": "255a2b1725a20d060f566e4755dbf571bbbb5f76",
         "type": "github"
       },
       "original": {
@@ -67,7 +67,7 @@
         "rev": "ff81ac966bb2cae68946d5ed5fc4994f96d0ffec",
         "revCount": 69,
         "type": "tarball",
-        "url": "https://api.flakehub.com/f/pinned/edolstra/flake-compat/1.1.0/01948eb7-9cba-704f-bbf3-3fa956735b52/source.tar.gz?rev=ff81ac966bb2cae68946d5ed5fc4994f96d0ffec&revCount=69"
+        "url": "https://api.flakehub.com/f/pinned/edolstra/flake-compat/1.1.0/01948eb7-9cba-704f-bbf3-3fa956735b52/source.tar.gz"
       },
       "original": {
         "type": "tarball",
@@ -77,31 +77,27 @@
     "ghdl-bin-aarch64-darwin": {
       "flake": false,
       "locked": {
-        "lastModified": 1771278188,
-        "narHash": "sha256-O6QOsoV6k9LJPar6VxZ1LMJjnPAADhTGzaj5RiS/zns=",
+        "lastModified": 1772908613,
+        "narHash": "sha256-2qfMjiGlOxRLoDuMNBwBefABuE61i9ZtPYw4tOhaDFI=",
         "type": "tarball",
-        "url": "https://github.com/ghdl/ghdl/releases/download/nightly/ghdl-llvm-jit-6.0.0-dev-macos15-aarch64.tar.gz"
+        "url": "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-llvm-jit-6.0.0-macos15-aarch64.tar.gz"
       },
       "original": {
         "type": "tarball",
-        "url": "https://github.com/ghdl/ghdl/releases/download/nightly/ghdl-llvm-jit-6.0.0-dev-macos15-aarch64.tar.gz"
+        "url": "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-llvm-jit-6.0.0-macos15-aarch64.tar.gz"
       }
     },
-    "ghdl-src": {
+    "ghdl-bin-x86_64-linux": {
       "flake": false,
       "locked": {
-        "lastModified": 1761160029,
-        "narHash": "sha256-aOxJ4Jmngo4ceVjVZy69kNP54MIU4EV8kghNidYOQ28=",
-        "owner": "ghdl",
-        "repo": "ghdl",
-        "rev": "c01020b2d3f2bf00d97c759e854b434181358c27",
-        "type": "github"
+        "lastModified": 1772908664,
+        "narHash": "sha256-KwP6SEPS4tssAJIW46GmJpWe41zEyRQFGWv6/0eFTwQ=",
+        "type": "tarball",
+        "url": "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-mcode-6.0.0-ubuntu24.04-x86_64.tar.gz"
       },
       "original": {
-        "owner": "ghdl",
-        "repo": "ghdl",
-        "rev": "c01020b2d3f2bf00d97c759e854b434181358c27",
-        "type": "github"
+        "type": "tarball",
+        "url": "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-mcode-6.0.0-ubuntu24.04-x86_64.tar.gz"
       }
     },
     "librelane": {
@@ -114,11 +110,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1771322915,
-        "narHash": "sha256-dacZ0QFaZF/P9Y8+ITbivELgjkSr6oA8bX0Cy50DA2w=",
+        "lastModified": 1773066120,
+        "narHash": "sha256-9oGg41Bp2T9YqGGZ0FsNboirAzagxjRk/vI+Gkfl4iU=",
         "owner": "librelane",
         "repo": "librelane",
-        "rev": "c771c56466a9ee0895b7890068e5bfd414974f69",
+        "rev": "9b88bc70924769b4590c3926373bd679b141e5fd",
         "type": "github"
       },
       "original": {
@@ -198,11 +194,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1771008912,
-        "narHash": "sha256-gf2AmWVTs8lEq7z/3ZAsgnZDhWIckkb+ZnAo5RzSxJg=",
+        "lastModified": 1772773019,
+        "narHash": "sha256-E1bxHxNKfDoQUuvriG71+f+s/NT0qWkImXsYZNFFfCs=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "a82ccc39b39b621151d6732718e3e250109076fa",
+        "rev": "aca4d95fce4914b3892661bcb80b8087293536c6",
         "type": "github"
       },
       "original": {
@@ -225,11 +221,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1771039651,
-        "narHash": "sha256-WZOfX4APbc6vmL14ZWJXgBeRfEER8H+OIX0D0nSmv0M=",
+        "lastModified": 1772555609,
+        "narHash": "sha256-3BA3HnUvJSbHJAlJj6XSy0Jmu7RyP2gyB/0fL7XuEDo=",
         "owner": "pyproject-nix",
         "repo": "build-system-pkgs",
-        "rev": "69bc2b53b79cbd6ce9f66f506fc962b45b5e68b9",
+        "rev": "c37f66a953535c394244888598947679af231863",
         "type": "github"
       },
       "original": {
@@ -245,11 +241,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1769936401,
-        "narHash": "sha256-kwCOegKLZJM9v/e/7cqwg1p/YjjTAukKPqmxKnAZRgA=",
+        "lastModified": 1772865871,
+        "narHash": "sha256-/ZTSg97aouL0SlPHaokA4r3iuH9QzHVuWPACD2CUCFY=",
         "owner": "pyproject-nix",
         "repo": "pyproject.nix",
-        "rev": "b0d513eeeebed6d45b4f2e874f9afba2021f7812",
+        "rev": "e537db02e72d553cea470976b9733581bcf5b3ed",
         "type": "github"
       },
       "original": {
@@ -262,7 +258,7 @@
       "inputs": {
         "fabulator-src": "fabulator-src",
         "ghdl-bin-aarch64-darwin": "ghdl-bin-aarch64-darwin",
-        "ghdl-src": "ghdl-src",
+        "ghdl-bin-x86_64-linux": "ghdl-bin-x86_64-linux",
         "librelane": "librelane",
         "nextpnr-src": "nextpnr-src",
         "nix-eda": "nix-eda",
@@ -283,11 +279,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1771259686,
-        "narHash": "sha256-O34HrN/xFBcKtp6zCxb6KTloF0N9oZe3Y7zf5DMtoik=",
+        "lastModified": 1773039484,
+        "narHash": "sha256-+boo33KYkJDw9KItpeEXXv8+65f7hHv/earxpcyzQ0I=",
         "owner": "pyproject-nix",
         "repo": "uv2nix",
-        "rev": "b28d091e5e14c5c1d9d4860558103defaca52284",
+        "rev": "b68be7cfeacbed9a3fa38a2b5adc0cfb81d9bb1f",
         "type": "github"
       },
       "original": {

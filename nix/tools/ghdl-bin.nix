@@ -1,53 +1,42 @@
-# GHDL binary distribution - for macOS only
-{ lib, stdenv, fetchurl, zlib
-  # Version control parameters (provided by default.nix)
-  , owner ? "ghdl", repo ? "ghdl", prefetchedTarball
+# GHDL binary distribution - Linux (mcode) and macOS (llvm-jit)
+{ lib, stdenv, autoPatchelfHook, zlib
+  # Linux-only deps (nullable so macOS callPackage works without them)
+, glibc ? null, gnat13 ? null, gcc ? null
+, prefetchedTarball
 }:
 
 let
-  # Hardcoded tag for binary logic (matches flake input)
-  originalRev = "nightly";
-  
-  # Determine if this is a release version or nightly/branch based on originalRev
-  isRelease = lib.hasPrefix "v" originalRev;
-  
-  # For version string
-  version = "unstable";
-  
-  # Platform-specific binary information - Apple Silicon only (llvm-jit backend)
-  sources = {
-    aarch64-darwin = {
-      url = if isRelease
-            then "https://github.com/${owner}/${repo}/releases/download/${originalRev}/ghdl-llvm-jit-${lib.removePrefix "v" originalRev}-macos15-aarch64.tar.gz"
-            else "https://github.com/${owner}/${repo}/releases/download/nightly/ghdl-llvm-jit-6.0.0-dev-macos15-aarch64.tar.gz";
-      sha256 = null;
-    };
-  };
+  isLinux = stdenv.isLinux;
 
-  platformInfo = sources.${stdenv.hostPlatform.system} or (throw "Unsupported platform for binary build: ${stdenv.hostPlatform.system}");
-
+  # The Ada runtime (libgnat-13.so) lives inside gnat's adalib directory.
+  # This path is specific to the x86_64 gnat13 package in nixpkgs.
+  gnatAdalib = lib.optionalString (gnat13 != null)
+    "${gnat13.cc}/lib/gcc/x86_64-unknown-linux-gnu/13.4.0/adalib";
 in
-stdenv.mkDerivation rec {
+stdenv.mkDerivation {
   pname = "ghdl-bin";
-  inherit version;
+  version = "6.0.0";
 
   src = prefetchedTarball;
 
-  buildInputs = [ zlib ];
+  nativeBuildInputs = lib.optionals isLinux [ autoPatchelfHook ];
 
-  # When using prefetchedTarball (flake input), Nix extracts to 'source'
+  buildInputs = [ zlib ] ++ lib.optionals isLinux [ glibc gcc.cc.lib ];
+
   sourceRoot = "source";
+
+  preFixup = lib.optionalString isLinux ''
+    addAutoPatchelfSearchPath ${gnatAdalib}
+  '';
 
   installPhase = ''
     runHook preInstall
 
     mkdir -p $out
-    
     cp -r ./* $out/
 
-    # Verify installation
     if [ ! -d "$out/bin" ] || [ ! -f "$out/bin/ghdl" ]; then
-      echo "Error: GHDL installation failed"
+      echo "Error: GHDL binary not found after install"
       exit 1
     fi
 
@@ -55,10 +44,10 @@ stdenv.mkDerivation rec {
   '';
 
   meta = with lib; {
-    description = "GHDL - VHDL simulator (binary distribution for macOS Apple Silicon)";
-    homepage = "https://github.com/${owner}/${repo}";
+    description = "GHDL - VHDL simulator (binary distribution)";
+    homepage = "https://github.com/ghdl/ghdl";
     license = licenses.gpl2Plus;
-    platforms = [ "aarch64-darwin" ];
+    platforms = [ "x86_64-linux" "aarch64-darwin" ];
     maintainers = [ ];
   };
 }

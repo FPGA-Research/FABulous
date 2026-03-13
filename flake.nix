@@ -34,14 +34,13 @@
       inputs.nix-eda.follows = "nix-eda";
     };
 
-    # Tag-pinned sources for custom tools (locked in flake.lock)
-    ghdl-src = {
-      url = "github:ghdl/ghdl/c01020b2d3f2bf00d97c759e854b434181358c27";
+    # Prebuilt GHDL v6.0.0 binary tarballs (locked in flake.lock)
+    ghdl-bin-x86_64-linux = {
+      url = "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-mcode-6.0.0-ubuntu24.04-x86_64.tar.gz";
       flake = false;
     };
-    # Prebuilt GHDL binary tarball for macOS Apple Silicon (locked in flake.lock)
     ghdl-bin-aarch64-darwin = {
-      url = "https://github.com/ghdl/ghdl/releases/download/nightly/ghdl-llvm-jit-6.0.0-dev-macos15-aarch64.tar.gz";
+      url = "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-llvm-jit-6.0.0-macos15-aarch64.tar.gz";
       flake = false;
     };
     nextpnr-src = {
@@ -69,7 +68,7 @@
       nixpkgs-stable,
       nix-eda,
       librelane,
-      ghdl-src,
+      ghdl-bin-x86_64-linux,
       ghdl-bin-aarch64-darwin,
       nextpnr-src,
       fabulator-src,
@@ -144,7 +143,7 @@
           customPkgs = import ./nix {
             inherit pkgs;
             srcs = {
-              ghdl = ghdl-src;
+              ghdl-linux-bin = ghdl-bin-x86_64-linux;
               ghdl-darwin-bin = ghdl-bin-aarch64-darwin;
               nextpnr = nextpnr-src;
               fabulator = fabulator-src;
@@ -176,8 +175,8 @@
               pkgs.gtkwave
               customPkgs.nextpnr
               customPkgs.fabulator
+              customPkgs.ghdl
             ]
-            ++ (lib.optional (pkgs.stdenv.isLinux || system == "aarch64-darwin") customPkgs.ghdl)
             ++ (builtins.filter systemSupported librelane-pkg.includedTools);
 
           prompt = ''\[\033[1;32m\][FABulous-nix:\w]\$\[\033[0m\] '';
