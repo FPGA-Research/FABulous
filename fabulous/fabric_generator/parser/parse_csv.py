@@ -556,6 +556,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     multiplexerStyle = MultiplexerStyle.CUSTOM
     superTileEnable = True
     disableUserCLK = False
+    disableConfigBitsN = False
 
     for i in parameters:
         i = i.split(",")
@@ -609,6 +610,8 @@ def parseFabricCSV(fileName: str) -> Fabric:
             superTileEnable = i[1] == "TRUE"
         elif i[0].startswith("DisableUserCLK"):
             disableUserCLK = i[1] == "TRUE"
+        elif i[0].startswith("DisableConfigBitsN"):
+            disableConfigBitsN = i[1] == "TRUE"
         else:
             raise InvalidFabricParameter(f"The following parameter is not valid: {i}")
 
@@ -672,6 +675,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         numberOfBRAMs=int(height / 2),
         superTileEnable=superTileEnable,
         disableUserCLK=disableUserCLK,
+        disableConfigBitsN=disableConfigBitsN,
         tileDic=tileDic,
         superTileDic=superTileDic,
         unusedTileDic=unusedTileDic,

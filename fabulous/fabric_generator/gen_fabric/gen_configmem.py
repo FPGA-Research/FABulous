@@ -217,7 +217,10 @@ def generateConfigMem(
     writer.addPortVector("FrameData", IO.INPUT, "FrameBitsPerRow - 1", indentLevel=2)
     writer.addPortVector("FrameStrobe", IO.INPUT, "MaxFramesPerCol - 1", indentLevel=2)
     writer.addPortVector("ConfigBits", IO.OUTPUT, "NoConfigBits - 1", indentLevel=2)
-    writer.addPortVector("ConfigBits_N", IO.OUTPUT, "NoConfigBits - 1", indentLevel=2)
+    if not fabric.disableConfigBitsN:
+        writer.addPortVector(
+            "ConfigBits_N", IO.OUTPUT, "NoConfigBits - 1", indentLevel=2
+        )
     writer.addPortEnd(indentLevel=1)
     writer.addHeaderEnd(f"{tile.name}_ConfigMem")
     writer.addNewLine()
@@ -251,17 +254,21 @@ def generateConfigMem(
             # Safely check if bit is set, treat missing bits as '0'
             bit_value = i.usedBitMask[k] if k < len(i.usedBitMask) else "0"
             if bit_value == "1":
+                latchPorts = [
+                    ("D", f"FrameData[{fabric.frameBitsPerRow - 1 - k}]"),
+                    ("E", f"FrameStrobe[{i.frameIndex}]"),
+                    ("Q", f"ConfigBits[{i.configBitRanges[counter]}]"),
+                ]
+                if not fabric.disableConfigBitsN:
+                    latchPorts.append(
+                        ("QN", f"ConfigBits_N[{i.configBitRanges[counter]}]")
+                    )
                 writer.addInstantiation(
                     compName="LHQD1",
                     compInsName=(
                         f"Inst_{i.frameName}_bit{fabric.frameBitsPerRow - 1 - k}"
                     ),
-                    portsPairs=[
-                        ("D", f"FrameData[{fabric.frameBitsPerRow - 1 - k}]"),
-                        ("E", f"FrameStrobe[{i.frameIndex}]"),
-                        ("Q", f"ConfigBits[{i.configBitRanges[counter]}]"),
-                        ("QN", f"ConfigBits_N[{i.configBitRanges[counter]}]"),
-                    ],
+                    portsPairs=latchPorts,
                 )
                 counter += 1
     if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog

@@ -255,7 +255,8 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
     # all the signal wire need to declare first for compatibility with VHDL
     if tile.globalConfigBits > 0:
         writer.addConnectionVector("ConfigBits", "NoConfigBits-1", 0)
-        writer.addConnectionVector("ConfigBits_N", "NoConfigBits-1", 0)
+        if not fabric.disableConfigBitsN:
+            writer.addConnectionVector("ConfigBits_N", "NoConfigBits-1", 0)
 
     writer.addNewLine()
     writer.addComment("Connection for outgoing wires", onNewLine=True)
@@ -373,15 +374,17 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
 
     if fabric.configBitMode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
         writer.addComment("configuration storage latches", onNewLine=True)
+        configMemPorts = [
+            ("FrameData", "FrameData"),
+            ("FrameStrobe", "FrameStrobe"),
+            ("ConfigBits", "ConfigBits"),
+        ]
+        if not fabric.disableConfigBitsN:
+            configMemPorts.append(("ConfigBits_N", "ConfigBits_N"))
         writer.addInstantiation(
             compName=f"{tile.name}_ConfigMem",
             compInsName=f"Inst_{tile.name}_ConfigMem",
-            portsPairs=[
-                ("FrameData", "FrameData"),
-                ("FrameStrobe", "FrameStrobe"),
-                ("ConfigBits", "ConfigBits"),
-                ("ConfigBits_N", "ConfigBits_N"),
-            ],
+            portsPairs=configMemPorts,
             emulateParamPairs=[("Emulate_Bitstream", "Emulate_Bitstream")],
         )
 
@@ -532,12 +535,13 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
                 f"ConfigBits[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
             )
         )
-        portsPairs.append(
-            (
-                "ConfigBits_N",
-                f"ConfigBits_N[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
+        if not fabric.disableConfigBitsN:
+            portsPairs.append(
+                (
+                    "ConfigBits_N",
+                    f"ConfigBits_N[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
+                )
             )
-        )
 
     writer.addInstantiation(
         compName=f"{tile.name}_switch_matrix",
