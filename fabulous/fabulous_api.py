@@ -263,7 +263,7 @@ class FABulous_API:
     def genFabric(self) -> None:
         """Generate the entire fabric layout.
 
-        Via 'generatreFabric' defined in 'fabric_gen.py'.
+        Via 'generateFabric' defined in 'fabric_gen.py'.
         """
         generateFabric(self.writer, self.fabric)
 
