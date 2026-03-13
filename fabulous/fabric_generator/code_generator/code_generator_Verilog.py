@@ -361,12 +361,12 @@ class VerilogCodeGenerator(CodeGenerator):
     assign ConfigBitsInput = {{ConfigBits[{cfgBit}-1-1:0], CONFin;}}
     // for k in 0 to Conf/2 generate
     for (k=0; k < {cfgBit - 1}; k = k + 1) begin: L
-        config_latch inst_config_latcha(
+        config_latch inst_config_latch_a(
             .D(ConfigBitsInput[k*2]),
             .E(CLK),
             .Q(ConfigBits[k*2])
         );
-        config_latch inst_config_latchb(
+        config_latch inst_config_latch_b(
             .D(ConfigBitsInput[(k*2)+1]),
             .E(MODE),
             .Q(ConfigBits[(k*2)+1])
