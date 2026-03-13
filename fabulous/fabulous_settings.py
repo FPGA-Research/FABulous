@@ -18,7 +18,13 @@ from dotenv import set_key
 from librelane.common.misc import get_pdk_hash
 from loguru import logger
 from packaging.version import Version
-from pydantic import Field, ValidationInfo, field_validator, model_validator
+from pydantic import (
+    Field,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
@@ -569,3 +575,28 @@ def is_pdk_config_set() -> bool:
         False otherwise.
     """
     return get_context().pdk is not None and get_context().pdk_root is not None
+
+
+def _log_settings_validation_error(error: ValidationError, project_dir: Path) -> None:
+    """Log a user-friendly message for a pydantic ValidationError."""
+    error_messages: list[str] = []
+
+    for err in error.errors():
+        field = ".".join(str(loc) for loc in err["loc"])
+        if field == "proj_dir":
+            error_messages.append(
+                f"'{project_dir}' is not a valid FABulous project "
+                "(missing .FABulous directory)."
+            )
+        elif field == "models_pack":
+            error_messages.append(
+                "Could not resolve the models pack because the project directory "
+                "is invalid."
+            )
+        else:
+            error_messages.append(f"{field}: {err['msg']}")
+
+    logger.error(
+        "Failed to initialize project settings:\n"
+        + "\n".join(f"  - {msg}" for msg in error_messages)
+    )

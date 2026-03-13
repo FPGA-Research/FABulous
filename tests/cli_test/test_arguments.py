@@ -967,6 +967,51 @@ def test_validate_project_directory_invalid(tmp_path: Path) -> None:
         validate_project_directory(str(invalid_dir))
 
 
+def test_non_project_cwd_without_p_flag_exits_with_code_1(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capfd: pytest.CaptureFixture[str],
+) -> None:
+    """Running FABulous in a non-project CWD without -p exits with code 1."""
+    reset_context()
+    non_project = tmp_path / "not_a_project"
+    non_project.mkdir()
+
+    monkeypatch.chdir(non_project)
+    monkeypatch.setattr(sys, "argv", ["FABulous", "start"])
+
+    with pytest.raises(SystemExit) as exc_info:
+        main()
+
+    assert exc_info.value.code == 1
+    captured = capfd.readouterr().out
+    assert "not a valid FABulous project" in captured
+
+
+def test_log_settings_validation_error_messages(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """_log_settings_validation_error produces user-friendly error messages."""
+    from pydantic import ValidationError
+
+    from fabulous.fabulous_settings import (
+        FABulousSettings,
+        _log_settings_validation_error,
+    )
+
+    invalid_dir = tmp_path / "not_a_project"
+    invalid_dir.mkdir()
+
+    with pytest.raises(ValidationError) as exc_info:
+        FABulousSettings(proj_dir=invalid_dir)
+
+    _log_settings_validation_error(exc_info.value, invalid_dir)
+
+    assert "Failed to initialize project settings" in caplog.text
+    assert "not a valid FABulous project" in caplog.text
+
+
 @pytest.mark.parametrize(
     ("package_ver", "project_ver", "should_exit"),
     [
