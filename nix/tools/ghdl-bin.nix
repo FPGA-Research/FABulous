@@ -1,8 +1,14 @@
 # GHDL binary distribution - Linux (mcode) and macOS (llvm-jit)
-{ lib, stdenv, autoPatchelfHook, zlib
+{
+  lib,
+  stdenv,
+  autoPatchelfHook,
+  zlib,
   # Linux-only deps (nullable so macOS callPackage works without them)
-, glibc ? null, gnat13 ? null, gcc ? null
-, prefetchedTarball
+  glibc ? null,
+  gnat13 ? null,
+  gcc ? null,
+  prefetchedTarball,
 }:
 
 let
@@ -10,8 +16,9 @@ let
 
   # The Ada runtime (libgnat-13.so) lives inside gnat's adalib directory.
   # This path is specific to the x86_64 gnat13 package in nixpkgs.
-  gnatAdalib = lib.optionalString (gnat13 != null)
-    "${gnat13.cc}/lib/gcc/x86_64-unknown-linux-gnu/13.4.0/adalib";
+  gnatAdalib = lib.optionalString (
+    gnat13 != null
+  ) "${gnat13.cc}/lib/gcc/x86_64-unknown-linux-gnu/13.4.0/adalib";
 in
 stdenv.mkDerivation {
   pname = "ghdl-bin";
@@ -21,7 +28,13 @@ stdenv.mkDerivation {
 
   nativeBuildInputs = lib.optionals isLinux [ autoPatchelfHook ];
 
-  buildInputs = [ zlib ] ++ lib.optionals isLinux [ glibc gcc.cc.lib ];
+  buildInputs = [
+    zlib
+  ]
+  ++ lib.optionals isLinux [
+    glibc
+    gcc.cc.lib
+  ];
 
   sourceRoot = "source";
 
@@ -47,7 +60,10 @@ stdenv.mkDerivation {
     description = "GHDL - VHDL simulator (binary distribution)";
     homepage = "https://github.com/ghdl/ghdl";
     license = licenses.gpl2Plus;
-    platforms = [ "x86_64-linux" "aarch64-darwin" ];
+    platforms = [
+      "x86_64-linux"
+      "aarch64-darwin"
+    ];
     maintainers = [ ];
   };
 }

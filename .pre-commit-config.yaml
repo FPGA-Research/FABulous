@@ -1,4 +1,4 @@
-files: ^(FABulous)|(docs)/
+files: ^(FABulous|docs|nix)/|\.nix$
 default_language_version:
   python: python3.12
 repos:
@@ -65,3 +65,8 @@ repos:
       - id: pydoclint
         args: [--style=numpy]
         exclude: ^(tests/|FABulous/FABulous_CLI/FABulous_CLI\.py$)
+
+  - repo: https://github.com/NixOS/nixfmt
+    rev: v1.2.0
+    hooks:
+      - id: nixfmt

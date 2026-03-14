@@ -192,10 +192,10 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
             )
         if not (basePath / "eFPGA_Config.vhdl").exists():
             raise FileExistsError("Config.vhdl not found in the 'Fabric' directory.")
-        if not (basePath / "eFPGA.vhdl").exists():
+        if not (basePath / f"{fabric.name}.vhdl").exists():
             raise FileExistsError(
-                "eFPGA.vhdl not found in the 'Fabric' directory, "
-                "need to generate the eFPGA first."
+                f"{fabric.name}.vhdl not found in the 'Fabric' directory, "
+                f"need to generate the {fabric.name} first."
             )
         if not (basePath / "BlockRAM_1KB.vhdl").exists():
             raise FileExistsError(
@@ -204,7 +204,7 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
         writer.addComponentDeclarationForFile(f"{basePath}/Frame_Data_Reg.vhdl")
         writer.addComponentDeclarationForFile(f"{basePath}/Frame_Select.vhdl")
         writer.addComponentDeclarationForFile(f"{basePath}/eFPGA_Config.vhdl")
-        writer.addComponentDeclarationForFile(f"{basePath}/eFPGA.vhdl")
+        writer.addComponentDeclarationForFile(f"{basePath}/{fabric.name}.vhdl")
         writer.addComponentDeclarationForFile(f"{basePath}/BlockRAM_1KB.vhdl")
 
     writer.addLogicStart()

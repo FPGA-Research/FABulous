@@ -10,32 +10,41 @@ let
   # Lock to the flake's nixpkgs for consistency
   flake = builtins.getFlake (toString ./..);
   system = "x86_64-linux";
-  
+
   # Get nixpkgs with dockerTools
   pkgs = import flake.inputs.nixpkgs { inherit system; };
-  
+
   # Get the devShell to extract all packages from it (includes editable FABulous + EDA tools)
   devShell = flake.devShells.${system}.default;
-  
+
   # Get the default package (non-editable FABulous virtualenv)
   fabulous-env = flake.packages.${system}.default;
 
   # Extract packages from devshell config (numtide/devshell stores them in passthru.config.devshell.packages)
-  shellPackages = devShell.passthru.config.devshell.packages or [];
-  
+  shellPackages = devShell.passthru.config.devshell.packages or [ ];
+
   # Filter out packages that aren't needed in the Docker image (like menu, interactive shells)
   # Also filter out the editable FABulous-env for release builds
-  filteredPackages = builtins.filter (p: 
-    let name = p.name or ""; in
-    name != "menu" && 
-    !builtins.elem name ["fish-4.0.2" "zsh-5.9"] &&
-    !(pkgs.lib.hasPrefix "fish" name) && 
-    !(pkgs.lib.hasPrefix "zsh" name)
+  filteredPackages = builtins.filter (
+    p:
+    let
+      name = p.name or "";
+    in
+    name != "menu"
+    && !builtins.elem name [
+      "fish-4.0.2"
+      "zsh-5.9"
+    ]
+    && !(pkgs.lib.hasPrefix "fish" name)
+    && !(pkgs.lib.hasPrefix "zsh" name)
   ) shellPackages;
 
   # For release: filter out the editable FABulous-env, we'll add non-editable one
-  releasePackages = builtins.filter (p: 
-    let name = p.name or ""; in
+  releasePackages = builtins.filter (
+    p:
+    let
+      name = p.name or "";
+    in
     !(pkgs.lib.hasPrefix "FABulous-env" name)
   ) filteredPackages;
 
@@ -61,7 +70,7 @@ let
     xorg.xcbutilkeysyms
     xorg.xcbutilrenderutil
     xorg.xcbutilcursor
-    
+
     # Additional dependencies for Qt xcb platform
     libxkbcommon
     libGL
@@ -98,9 +107,9 @@ let
   devImage = pkgs.dockerTools.buildLayeredImage {
     name = "fabulous";
     tag = "dev";
-    
+
     contents = filteredPackages ++ basePackages;
-    
+
     config = {
       Env = baseEnv ++ [
         # Set REPO_ROOT for editable install - mount FABulous repo at /workspace
@@ -109,7 +118,7 @@ let
       WorkingDir = "/workspace";
       Cmd = [ "/bin/bash" ];
     };
-    
+
     maxLayers = 125;
   };
 
@@ -117,15 +126,15 @@ let
   releaseImage = pkgs.dockerTools.buildLayeredImage {
     name = "fabulous";
     tag = "latest";
-    
+
     contents = releasePackages ++ [ fabulous-env ] ++ basePackages;
-    
+
     config = {
       Env = baseEnv;
       WorkingDir = "/workspace";
       Cmd = [ "/bin/bash" ];
     };
-    
+
     maxLayers = 125;
   };
 

@@ -1,38 +1,43 @@
 # FABulator - FPGA Fabric Visualization Tool
 # https://github.com/FPGA-Research/FABulator
-{ lib
-, stdenvNoCC
-, fetchFromGitHub
-, maven
-, jdk17
-, makeWrapper
-, gtk3
-, glib
-, cairo
-, pango
-, gdk-pixbuf
-, atk
-, at-spi2-atk
-, at-spi2-core
-, libepoxy
-, xorg
-, libGL
-, libGLU
-, mesa
-, fontconfig
-, freetype
-, dbus
-, prefetchedSrc ? null
+{
+  lib,
+  stdenvNoCC,
+  fetchFromGitHub,
+  maven,
+  jdk17,
+  makeWrapper,
+  gtk3,
+  glib,
+  cairo,
+  pango,
+  gdk-pixbuf,
+  atk,
+  at-spi2-atk,
+  at-spi2-core,
+  libepoxy,
+  xorg,
+  libGL,
+  libGLU,
+  mesa,
+  fontconfig,
+  freetype,
+  dbus,
+  prefetchedSrc ? null,
 }:
 
 let
   # Use prefetched source if available, otherwise fetch from GitHub
-  src = if prefetchedSrc != null then prefetchedSrc else fetchFromGitHub {
-    owner = "FPGA-Research";
-    repo = "FABulator";
-    rev = "develop";
-    hash = "sha256-ASM3lgvdH+6t4rkTixATETVGcibPVWhsFFD2sWfRDCc=";
-  };
+  src =
+    if prefetchedSrc != null then
+      prefetchedSrc
+    else
+      fetchFromGitHub {
+        owner = "FPGA-Research";
+        repo = "FABulator";
+        rev = "develop";
+        hash = "sha256-ASM3lgvdH+6t4rkTixATETVGcibPVWhsFFD2sWfRDCc=";
+      };
 
   # X11 and graphics libraries needed for JavaFX
   displayLibs = [
@@ -67,7 +72,8 @@ let
     dbus
   ];
 
-in stdenvNoCC.mkDerivation {
+in
+stdenvNoCC.mkDerivation {
   pname = "fabulator";
   version = "unstable";
   inherit src;
@@ -97,7 +103,7 @@ in stdenvNoCC.mkDerivation {
 
     runHook postInstall
   '';
-  
+
   meta = with lib; {
     description = "FABulator - FPGA Fabric Visualization Tool";
     homepage = "https://github.com/FPGA-Research/FABulator";
@@ -106,4 +112,3 @@ in stdenvNoCC.mkDerivation {
     mainProgram = "FABulator";
   };
 }
-

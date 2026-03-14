@@ -28,23 +28,20 @@ As of writing, we are using custom build of librelane, as a result, the upstream
 
 ### Install PDK
 
-To compile the design, we will also need to install the PDK. FABulous automatically resolves the recommended PDK version from LibreLane and installs it via [ciel](https://github.com/fossi-foundation/ciel) on first use. By default, we have set up the project to target the `ihp-sg13g2` process (130nm).
+To compile the design, we will also need to install the PDK. For ciel-supported PDKs (e.g. `ihp-sg13g2`, `sky130A`, `gf180mcu`), FABulous automatically resolves the recommended PDK version from LibreLane and installs it via [ciel](https://github.com/fossi-foundation/ciel) on first use. No manual installation is required. By default, we have set up the project to target the `ihp-sg13g2` process (130nm).
 
-If you need to manually install a specific PDK version, you can use:
-
-```bash
-ciel enable --pdk-family ihp-sg13g2 <commit_hash>
-```
+For details on how the PDK is resolved and when manual configuration is needed, see the [PDK Resolution Logic](#pdk-resolution-logic) section.
 
 ## Changing PDK
 
-We support all PDKs that are supported by librelane. As a result you can switch to targeting other process nodes such as the Sky130A and gf180mcu. To switch to those PDKs, you will need to modify the `FAB_PDK_ROOT` and `FAB_PDK`, in `./<project>/.FABulous/.env` or set them in the shell as an environment variable. `FAB_PDK` is the PDK you are using, and `FAB_PDK_ROOT` is where the PDK is located. If you are installing the PDK from `ciel`, it will be located at `~/.ciel/`. An example of the `.env` file will be:
+We support all PDKs that are supported by librelane. As a result you can switch to targeting other process nodes such as the Sky130A and gf180mcu. For ciel-supported PDKs, you only need to set `FAB_PDK` in `./<project>/.FABulous/.env` or as a shell environment variable. FABulous will automatically resolve `FAB_PDK_ROOT` and install the correct version. For example:
 
 ```bash
 #... existing content
 FAB_PDK='sky130A'
-FAB_PDK_ROOT='/home/<user>/.ciel/sky130A'
 ```
+
+For non-ciel PDKs, you will also need to set `FAB_PDK_ROOT` to point to your PDK installation directory. See the [PDK Resolution Logic](#pdk-resolution-logic) for the full set of rules on how these variables are resolved.
 
 For any other PDK, you will need to bring up the PDK to be supported by librelane. You can follow this [guide](https://openroad-flow-scripts.readthedocs.io/en/latest/contrib/PlatformBringUp.html) for more details. For more advanced nodes, it is likely that you will need to further modify and add steps to the flow for getting a working and manufacturable design.
 
@@ -190,6 +187,7 @@ This command performs the following steps automatically:
 4. **Fabric Stitching**: Assembles all tiles into the final fabric layout.
 
 (tile-size-optimization)=
+
 ## Tile Size Optimization
 
 The GDS flow includes an iterative optimization process to find the minimum viable tile dimensions. This is controlled by the `FABULOUS_OPT_MODE` variable.

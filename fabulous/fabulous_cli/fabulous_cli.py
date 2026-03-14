@@ -473,7 +473,7 @@ class FABulous_CLI(Cmd):
             raise ValueError
 
         proj_dir = get_context().proj_dir
-        if (proj_dir / "eFPGA_geometry.csv").exists():
+        if (proj_dir / f"{self.fabulousAPI.fabric.name}_geometry.csv").exists():
             self.enable_category(CMD_GUI)
 
         self.enable_category(CMD_FABRIC_FLOW)

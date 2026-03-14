@@ -1,14 +1,15 @@
 # NextPNR - Place and route tool
-{ lib
-, stdenv
-, cmake
-, pkg-config
-, python3
-, boost
-, eigen
-, python3Packages
-, darwin ? null
-, prefetchedSrc
+{
+  lib,
+  stdenv,
+  cmake,
+  pkg-config,
+  python3,
+  boost,
+  eigen,
+  python3Packages,
+  darwin ? null,
+  prefetchedSrc,
 }:
 
 stdenv.mkDerivation rec {
@@ -21,7 +22,8 @@ stdenv.mkDerivation rec {
     cmake
     pkg-config
     python3
-  ] ++ lib.optionals stdenv.isDarwin [
+  ]
+  ++ lib.optionals stdenv.isDarwin [
     darwin.cctools
   ];
 

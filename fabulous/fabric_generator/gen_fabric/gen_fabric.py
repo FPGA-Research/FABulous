@@ -34,7 +34,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     # we first scan all tiles if those have IOs that have to go to top
     # the order of this scan is later maintained when instantiating the actual tiles
     # header
-    fabricName = "eFPGA"
+    fabricName = fabric.name
     writer.addHeader(fabricName)
     writer.addParameterStart(indentLevel=1)
     writer.addParameter(
