@@ -198,6 +198,16 @@ def test_delay_path_raises_when_no_path_exists(sdf_graph):
         sdf_graph.delay_path("A", "H")
 
 
+def test_earliest_common_nodes_invalid_mode_raises(sdf_graph):
+    with pytest.raises(ValueError, match="mode must be 'max' or 'sum'"):
+        sdf_graph.earliest_common_nodes(["A", "B"], mode="bad")
+
+
+def test_earliest_common_nodes_missing_sources_raise(sdf_graph):
+    with pytest.raises(ValueError, match="Source node\\(s\\) not in graph"):
+        sdf_graph.earliest_common_nodes(["A", "NOPE"], mode="max")
+
+
 def test_earliest_common_nodes_empty_sources_returns_empty_result(sdf_graph):
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes([])
 
@@ -206,30 +216,135 @@ def test_earliest_common_nodes_empty_sources_returns_empty_result(sdf_graph):
     assert dists == {}
 
 
-def test_earliest_common_nodes_max_with_delay(sdf_graph):
+def test_earliest_common_nodes_single_source_returns_source(sdf_graph):
+    best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(["A"])
+
+    assert best_nodes == ["A"]
+    assert best_cost == 0.0
+    assert dists["A"]["A"] == 0
+
+
+def test_earliest_common_nodes_single_source_prefers_sentinel_and_follows_zero_steps(sdf_graph):
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
-        ["B", "C"], mode="max", consider_delay=True
+        ["A"],
+        sentinel="E",
+        prefer_sentinel_for_single_source=True,
+        follow_steps_to_sentinel=0,
+    )
+
+    assert best_nodes == ["A"]
+    assert best_cost == 0
+    assert dists["A"]["E"] == 3
+
+
+def test_earliest_common_nodes_single_source_prefers_sentinel_and_follows_steps(sdf_graph):
+    best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
+        ["A"],
+        sentinel="E",
+        prefer_sentinel_for_single_source=True,
+        follow_steps_to_sentinel=2,
     )
 
     assert best_nodes == ["D"]
-    assert best_cost == 3.0
-    assert dists["B"]["D"] == 3.0
-    assert dists["C"]["D"] == 1.0
-    assert dists["B"]["E"] == 7.0
-    assert dists["C"]["E"] == 5.0
+    assert best_cost == 2
+    assert dists["A"]["D"] == 2
 
 
-def test_earliest_common_nodes_sum_with_delay(sdf_graph):
+def test_earliest_common_nodes_single_source_follow_steps_are_clamped_to_path_end(sdf_graph):
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
-        ["B", "C"], mode="sum", consider_delay=True
+        ["A"],
+        sentinel="E",
+        prefer_sentinel_for_single_source=True,
+        follow_steps_to_sentinel=99,
+    )
+
+    assert best_nodes == ["E"]
+    assert best_cost == 3
+    assert dists["A"]["E"] == 3
+
+
+def test_earliest_common_nodes_single_source_negative_follow_steps_clamp_to_zero(sdf_graph):
+    best_nodes, best_cost, _ = sdf_graph.earliest_common_nodes(
+        ["A"],
+        sentinel="E",
+        prefer_sentinel_for_single_source=True,
+        follow_steps_to_sentinel=-5,
+    )
+
+    assert best_nodes == ["A"]
+    assert best_cost == 0
+
+
+def test_earliest_common_nodes_single_source_sentinel_not_reachable_returns_source(sdf_graph):
+    best_nodes, best_cost, _ = sdf_graph.earliest_common_nodes(
+        ["A"],
+        sentinel="H",
+        prefer_sentinel_for_single_source=True,
+        follow_steps_to_sentinel=2,
+    )
+
+    assert best_nodes == ["A"]
+    assert best_cost == 0.0
+
+
+def test_earliest_common_nodes_single_source_sentinel_not_in_graph_returns_source(sdf_graph):
+    best_nodes, best_cost, _ = sdf_graph.earliest_common_nodes(
+        ["A"],
+        sentinel="NOT_IN_GRAPH",
+        prefer_sentinel_for_single_source=True,
+        follow_steps_to_sentinel=2,
+    )
+
+    assert best_nodes == ["A"]
+    assert best_cost == 0.0
+
+
+def test_earliest_common_nodes_max_multi_source(sdf_graph):
+    best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
+        ["B", "C"], mode="max"
     )
 
     assert best_nodes == ["D"]
-    assert best_cost == 4.0
-    assert dists["B"]["D"] + dists["C"]["D"] == 4.0
+    assert best_cost == 1
+    assert dists["B"]["D"] == 1
+    assert dists["C"]["D"] == 1
+    assert dists["B"]["E"] == 2
+    assert dists["C"]["E"] == 2
 
 
-def test_earliest_common_nodes_can_return_multiple_best_nodes():
+def test_earliest_common_nodes_sum_multi_source(sdf_graph):
+    best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
+        ["B", "C"], mode="sum"
+    )
+
+    assert best_nodes == ["D"]
+    assert best_cost == 2
+    assert dists["B"]["D"] + dists["C"]["D"] == 2
+
+
+def test_earliest_common_nodes_with_cutoff_can_remove_common_nodes(sdf_graph):
+    best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
+        ["B", "C"], mode="max", stop=0
+    )
+
+    assert best_nodes == []
+    assert best_cost is None
+    assert dists["B"] == {"B": 0}
+    assert dists["C"] == {"C": 0}
+
+
+def test_earliest_common_nodes_no_common_reachable_node_returns_empty(sdf_graph):
+    best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
+        ["A", "F"], mode="max"
+    )
+
+    assert best_nodes == []
+    assert best_cost is None
+    assert "A" in dists
+    assert "F" in dists
+
+
+def test_earliest_common_nodes_can_return_multiple_scc_candidates_but_choose_one_by_cost():
     graph = nx.DiGraph()
     comp = make_component(
         c_type=SDFCellType.INTERCONNECT,
@@ -242,56 +357,81 @@ def test_earliest_common_nodes_can_return_multiple_best_nodes():
         delay=1.0,
     )
 
-    graph.add_edge("S1", "N1", weight=1.0, component=comp)
-    graph.add_edge("S2", "N1", weight=1.0, component=comp)
-    graph.add_edge("S1", "N2", weight=1.0, component=comp)
-    graph.add_edge("S2", "N2", weight=1.0, component=comp)
+    graph.add_edge("S1", "A", weight=1.0, component=comp)
+    graph.add_edge("S2", "B", weight=1.0, component=comp)
+    graph.add_edge("A", "X", weight=1.0, component=comp)
+    graph.add_edge("B", "X", weight=1.0, component=comp)
+    graph.add_edge("A", "Y", weight=1.0, component=comp)
+    graph.add_edge("B", "Y", weight=2.0, component=comp)
 
     obj = SDFTimingGraph.__new__(SDFTimingGraph)
     obj.graph = graph
     obj.reverse_graph = graph.reverse(copy=True)
 
-    best_nodes, best_cost, dists = obj.earliest_common_nodes(
-        ["S1", "S2"], mode="max", consider_delay=True
+    best_nodes, best_cost, dists = obj.earliest_common_nodes(["S1", "S2"], mode="max")
+
+    assert best_nodes == ["X"]
+    assert best_cost == 2
+    assert dists["S1"]["X"] == 2
+    assert dists["S2"]["X"] == 2
+
+
+def test_earliest_common_nodes_tie_break_by_common_reach_score():
+    graph = nx.DiGraph()
+    comp = make_component(
+        c_type=SDFCellType.INTERCONNECT,
+        cell_name="TOP",
+        connection_string="dummy",
+        from_cell_instance="",
+        to_cell_instance="",
+        from_cell_pin="X",
+        to_cell_pin="Y",
+        delay=1.0,
     )
 
-    assert set(best_nodes) == {"N1", "N2"}
-    assert best_cost == 1.0
-    assert dists["S1"]["N1"] == 1.0
-    assert dists["S2"]["N2"] == 1.0
+    graph.add_edge("S1", "A", weight=1.0, component=comp)
+    graph.add_edge("S2", "A", weight=1.0, component=comp)
+    graph.add_edge("S1", "B", weight=1.0, component=comp)
+    graph.add_edge("S2", "B", weight=1.0, component=comp)
+    graph.add_edge("A", "C", weight=1.0, component=comp)
+    graph.add_edge("C", "D", weight=1.0, component=comp)
 
+    obj = SDFTimingGraph.__new__(SDFTimingGraph)
+    obj.graph = graph
+    obj.reverse_graph = graph.reverse(copy=True)
 
-def test_earliest_common_nodes_with_hop_count(sdf_graph):
-    best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
-        ["B", "C"], mode="max", consider_delay=False
-    )
+    best_nodes, best_cost, _ = obj.earliest_common_nodes(["S1", "S2"], mode="max")
 
-    assert best_nodes == ["D"]
+    assert best_nodes == ["A"]
     assert best_cost == 1
-    assert dists["B"]["D"] == 1
-    assert dists["C"]["D"] == 1
-    assert dists["B"]["E"] == 2
-    assert dists["C"]["E"] == 2
 
 
-def test_earliest_common_nodes_with_cutoff_can_remove_common_nodes(sdf_graph):
-    best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
-        ["B", "C"], mode="max", consider_delay=True, stop=2.0
+def test_earliest_common_nodes_tie_break_by_total_reach_score_then_lexicographic():
+    graph = nx.DiGraph()
+    comp = make_component(
+        c_type=SDFCellType.INTERCONNECT,
+        cell_name="TOP",
+        connection_string="dummy",
+        from_cell_instance="",
+        to_cell_instance="",
+        from_cell_pin="X",
+        to_cell_pin="Y",
+        delay=1.0,
     )
 
-    assert best_nodes == []
-    assert best_cost is None
-    assert "D" not in dists["B"]
-    assert "D" in dists["C"]
+    graph.add_edge("S1", "A", weight=1.0, component=comp)
+    graph.add_edge("S2", "A", weight=1.0, component=comp)
+    graph.add_edge("S1", "B", weight=1.0, component=comp)
+    graph.add_edge("S2", "B", weight=1.0, component=comp)
 
+    obj = SDFTimingGraph.__new__(SDFTimingGraph)
+    obj.graph = graph
+    obj.reverse_graph = graph.reverse(copy=True)
 
-def test_earliest_common_nodes_unrecognized_mode_falls_back_to_max(sdf_graph):
-    best_nodes, best_cost, _ = sdf_graph.earliest_common_nodes(
-        ["B", "C"], mode="something_else", consider_delay=True
-    )
+    best_nodes, best_cost, _ = obj.earliest_common_nodes(["S1", "S2"], mode="max")
 
-    assert best_nodes == ["D"]
-    assert best_cost == 3.0
+    assert best_nodes == ["A"]
+    assert best_cost == 1
 
 
 def test_follow_first_fanout_from_pins_one_hop(sdf_graph):

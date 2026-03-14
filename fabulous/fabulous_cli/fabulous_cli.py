@@ -1564,7 +1564,7 @@ class FABulous_CLI(Cmd):
     @with_category(CMD_TIMING_MODEL)
     def do_timing_model(self, args: argparse.Namespace) -> None:
         """
-        Generate timing model for the fabric. Timing information is extracted 
+        Generate a timing model for the fabric. Timing information is extracted 
         from the GDS layout and used to create a timing model compatible 
         with Nextpnr for timing-aware place and route. This command generates 
         a timing model for the FPGA fabric based on the specified mode 
@@ -1632,11 +1632,17 @@ class FABulous_CLI(Cmd):
         
         logger.info(f"Output timing model file: {outfile}")
 
-        # If manual_config is provided, it will be used for timing model generation instead 
-        # of CLI arguments. This allows for more complex configurations like different pdk support.
-        self.fabulousAPI.timing_model_interface(
-            mode=args.mode,
-            output_file=outfile,
-            debug=self.debug,
-            manual_config=manual_config
+        # If manual_config is provided, it will be used for timing model generation instead of
+        # CLI arguments. This allows for more complex configurations like different pdk support.
+        tm_config_resolved: TimingModelConfig = (
+            self.fabulousAPI.timing_model_interface(
+                mode=args.mode,
+                output_file=outfile,
+                debug=self.debug,
+                manual_config=manual_config
+            )
         )
+        
+        resolved_path: Path = get_context().proj_dir / ".FABulous" / "timing_model_config_resolved.json"
+        resolved_path.write_text(tm_config_resolved.model_dump_json(indent=4))
+        logger.info(f"Timing model config resolved at {resolved_path}")

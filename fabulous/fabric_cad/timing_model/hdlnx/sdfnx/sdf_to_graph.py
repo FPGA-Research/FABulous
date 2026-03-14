@@ -96,7 +96,6 @@ class SDFTimingGraph(SDFTimingGraphBase):
         self,
         sources: list[str],
         mode: str = "max",
-        consider_delay: bool = True,
         sentinel: str | None = None,
         prefer_sentinel_for_single_source: bool = False,
         follow_steps_to_sentinel: int = 0,
@@ -127,8 +126,6 @@ class SDFTimingGraph(SDFTimingGraphBase):
             Source nodes.
         mode : str
             "max" to minimize worst distance, "sum" to minimize total distance.
-        consider_delay : bool
-            Whether to use edge weights ("weight") as distances. Otherwise hop count is used.
         sentinel : str | None
             Optional node that can be returned if only one source is given.
         prefer_sentinel_for_single_source : bool
@@ -166,19 +163,11 @@ class SDFTimingGraph(SDFTimingGraphBase):
         dists: dict[str, dict[str, float]] = {}
         for s in sources:
             # Compute shortest-path distances from each source.
-            if consider_delay:
-                dists[s] = nx.single_source_dijkstra_path_length(
-                    self.graph,
-                    s,
-                    cutoff=stop,
-                    weight="weight",
-                )
-            else:
-                dists[s] = nx.single_source_shortest_path_length(
-                    self.graph,
-                    s,
-                    cutoff=stop,
-                )
+            dists[s] = nx.single_source_shortest_path_length(
+                self.graph,
+                s,
+                cutoff=stop
+            )
         
         # Fast path for single source: just return the source. 
         # Or follow the path to the sentinel if requested and possible
@@ -194,8 +183,7 @@ class SDFTimingGraph(SDFTimingGraphBase):
                 path = nx.shortest_path(
                     self.graph,
                     source=source,
-                    target=sentinel,
-                    weight="weight" if consider_delay else None,
+                    target=sentinel
                 )             
                 step_idx = min(max(follow_steps_to_sentinel, 0), len(path) - 1)
                 chosen = path[step_idx]

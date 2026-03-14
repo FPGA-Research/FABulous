@@ -90,7 +90,7 @@ class FABulousTileTimingModel:
         self.internal_pips : list[str] | None = None
         self._extract_switch_matrix_info()
         
-        self.internal_pip_cache_phys: dict[str, InternalPipCachePhysEntry] = {}
+        self.internal_pip_cache: dict[str, InternalPipCacheEntry] = {}
   
         logger.info("FABulous Timing Model initialized.")
         
@@ -484,64 +484,78 @@ class FABulousTileTimingModel:
         float
             Delay in nanoseconds between the two PIPs.
         """
+        logger.info(
+            f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
+        )
+        
         synth_model = self.hdlnx_tm_synth
+        
+        pip_cache: InternalPipCacheEntry = self.internal_pip_cache.get(pip_dst, None)
+        
+        if pip_cache is not None:
+            logger.info(f"Cache hit for internal PIP {pip_src} -> {pip_dst}. "
+                        f"Using cached synthesis-level information."
+            )
 
         logger.info(
             f"Finding synthesis-level switch matrix mux for PIPs {pip_src} -> {pip_dst}"
         )
         
         # Are pip_src and pip_dst connected through the same switch matrix multiplexer?
-        swm_mux = synth_model.find_instances_paths_with_all_nets(
+        swm_mux_for_pips = synth_model.find_instances_paths_with_all_nets(
             self.switch_matrix_module_name,
             [pip_src, pip_dst],
             filter_regex=self.switch_matrix_hier_path,
-        )
+        ) if pip_cache is None else pip_cache.swm_mux_for_pips
 
-        if len(swm_mux) > 1:
+        if len(swm_mux_for_pips) > 1:
             logger.warning(
                 f"Multiple switch matrix mux instances found for PIPs {pip_src} -> {pip_dst}. "
-                f"Using the first one: {swm_mux[0]}"
+                f"Using the first one: {swm_mux_for_pips[0]}"
             )
 
-        logger.info(f"  Found switch matrix mux instance: {swm_mux[0]}")
+        logger.info(f"  Found switch matrix mux instance: {swm_mux_for_pips[0]}")
         
         # Get the resolved pins for the switch matrix mux instance.
         swm_mux_resolved = synth_model.net_to_pin_paths_for_instance_resolved(
-            swm_mux[0]
-        )
+            swm_mux_for_pips[0]
+        ) if pip_cache is None else pip_cache.swm_mux_resolved
         
         logger.info(f"Switch matrix mux resolved pins for src and dst:")
         logger.info(f"  {pip_src}: {swm_mux_resolved[pip_src]}")
         logger.info(f"  {pip_dst}: {swm_mux_resolved[pip_dst]}")
 
-        if len(swm_mux_resolved[pip_src]) == 0:
-            raise ValueError(
-                f"No resolved pins found for PIP source {pip_src} in switch matrix mux instance {swm_mux[0]}."
-            )
-        if len(swm_mux_resolved[pip_dst]) == 0:
-            raise ValueError(
-                f"No resolved pins found for PIP destination {pip_dst} in switch matrix mux instance {swm_mux[0]}."
-            )
         if len(swm_mux_resolved[pip_src]) > 1:
             logger.warning(
-                f"Multiple resolved pins found for PIP source {pip_src} in switch matrix mux instance {swm_mux[0]}. "
+                f"Multiple resolved pins found for PIP source {pip_src} "
+                f"in switch matrix mux instance {swm_mux_for_pips[0]}. "
                 f"Using the first one: {swm_mux_resolved[pip_src][0]}"
             )
         if len(swm_mux_resolved[pip_dst]) > 1:
             logger.warning(
-                f"Multiple resolved pins found for PIP destination {pip_dst} in switch matrix mux instance {swm_mux[0]}. "
+                f"Multiple resolved pins found for PIP destination {pip_dst} "
+                f"in switch matrix mux instance {swm_mux_for_pips[0]}. "
                 f"Using the first one: {swm_mux_resolved[pip_dst][0]}"
             )
 
         logger.info(f"Calculating structural delay from {pip_src} to {pip_dst}")
         
         # Calculate delay between pip_src and pip_dst using the synthesis-level timing model.
-        delay, path, info = synth_model.delay_path(
+        delay, _, _ = synth_model.delay_path(
             swm_mux_resolved[pip_src][0], swm_mux_resolved[pip_dst][0]
         )
 
         logger.info(f"Delay from {pip_src} to {pip_dst}: {delay} ns.")
-        logger.debug(info)
+        
+        # Begin ports of the swm mux are unique so we can use pip_dst as the key for caching.
+        self.internal_pip_cache[pip_dst] = InternalPipCacheEntry(
+            begin_pip=pip_dst,
+            swm_mux_for_pips=swm_mux_for_pips,
+            swm_nearest_ports_in=None,
+            swm_nearest_ports_out=None,
+            swm_output_pin=None,
+            swm_mux_resolved=swm_mux_resolved
+        )
 
         return delay
 
@@ -574,19 +588,28 @@ class FABulousTileTimingModel:
         float
             Delay in nanoseconds between the two PIPs.
         """
+        logger.info(
+            f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
+        )
+        
         synth_model: HdlnxTimingModel = self.hdlnx_tm_synth
-        phys_model: HdlnxTimingModel = self.hdlnx_tm_phys
+        phys_model: HdlnxTimingModel = self.hdlnx_tm_phys     
+        pip_cache: InternalPipCacheEntry = self.internal_pip_cache.get(pip_dst, None)
         
-        pip_cache: InternalPipCachePhysEntry = self.internal_pip_cache_phys.get(pip_dst, None)
+        # Reference output ports for convergence checks.
+        ref_output_port: str = None
+        swm_nearest_ports_out: tuple[dict[str, list[str]], list[str]] | None = None
         
+        # Skip algorithms if we have a cache hit for the internal PIP, which means 
+        # we have already resolved the switch matrix mux for a BEG pin.
         if pip_cache is not None:
             logger.info(f"Cache hit for internal PIP {pip_src} -> {pip_dst}. "
                         f"Using cached physical-level information."
             )
         
-        ##############################
+        #----------------------------#
         # Synthesis-level resolution #
-        ##############################
+        #----------------------------#
 
         logger.info(
             f"Finding synthesis-level switch matrix mux for PIPs {pip_src} -> {pip_dst}"
@@ -594,7 +617,7 @@ class FABulousTileTimingModel:
         
         # Algorithm_1: Are pip_src and pip_dst connected through the same 
         # switch matrix multiplexer?
-        swm_mux_for_pips = synth_model.find_instances_paths_with_all_nets(
+        swm_mux_for_pips: list[str] = synth_model.find_instances_paths_with_all_nets(
             self.switch_matrix_module_name,
             [pip_src, pip_dst],
             filter_regex=self.switch_matrix_hier_path,
@@ -612,76 +635,73 @@ class FABulousTileTimingModel:
         )
 
         # Algorithm_2: Find the nearest top level ports connected to all the nets of the 
-        # swm mux input pins. We reverse the timing graph to find the input 
-        # ports (towards inputs). !! num_ports parameter sweep. 
-        # Good default value is 4. Fastest is 1.
-        swm_nearest_ports = synth_model.nearest_ports_from_instance_pin_nets(
+        # swm mux input pins. We reverse the timing graph to find the input ports
+        # (towards inputs). Good default value is 4. Fastest is 1.
+        swm_nearest_ports_in = synth_model.nearest_ports_from_instance_pin_nets(
             swm_mux_for_pips[0], reverse=True, num_ports=1
-        ) if pip_cache is None else pip_cache.swm_nearest_ports 
+        ) if pip_cache is None else pip_cache.swm_nearest_ports_in 
         
-        swm_nearest_ports_for_each_swm_wire = swm_nearest_ports[0]
-        swm_nearest_ports_all = swm_nearest_ports[1]
-
-        if self.tm_config.debug:
-            for swm_wire, ports in swm_nearest_ports[0].items():
-                logger.debug(f"  SWM wire {swm_wire} nearest top-level ports: {ports}")
-
+        swm_nearest_in_ports_for_each_swm_wire = swm_nearest_ports_in[0]
+        swm_nearest_in_ports_all = swm_nearest_ports_in[1]
+        swm_in_buf = len(swm_nearest_in_ports_all) == 1
+        
         # Algorithm_3: Convergence nodes must have a path to the output port of the sw mux. 
-        # So we will use the output port as a sentinel to find the convergence node.
-        ref_output_port: str = None if pip_cache is None else pip_cache.ref_output_port
-        if len(swm_nearest_ports_all) == 1 and ref_output_port is None:
+        # So we will use the output port as a sentinel to find the convergence node. 
+        if swm_in_buf:
             swm_nearest_ports_out = synth_model.nearest_ports_from_instance_pin_nets(
                 swm_mux_for_pips[0], reverse=False, num_ports=1
-            )
-            ref_output_port = swm_nearest_ports_out[0][f"{pip_dst}"][0]
-            
-            logger.info(f"Single input, enable buffer check...")
+            ) if pip_cache is None else pip_cache.swm_nearest_ports_out
 
-        #############################
+            ref_output_port: str = swm_nearest_ports_out[0][f"{pip_dst}"][0]
+            logger.info("Single input Switch Matrix Mux detected.")
+
+        #---------------------------#
         # Physical-level resolution #
-        #############################
+        #---------------------------#
 
         logger.info("Starting physical extraction of the switch matrix mux for pips")
         
         # Algorithm_4: Find the converging node (the output pin of the swm mux)
         best_nodes, best_cost, dists = phys_model.earliest_common_nodes(
-            swm_nearest_ports_all, mode="max", consider_delay=False, sentinel=ref_output_port,
-            prefer_sentinel_for_single_source=True, follow_steps_to_sentinel=3
-        ) if pip_cache is None else (pip_cache.swm_phys_output, None, None)
+           sources=swm_nearest_in_ports_all, mode="max", 
+           sentinel=ref_output_port, prefer_sentinel_for_single_source=True, 
+           follow_steps_to_sentinel=3
+        ) if pip_cache is None else pip_cache.swm_output_pin
         
-        swm_phys_output = best_nodes[0]
+        swm_phys_output: str = best_nodes[0]
         
-        ##############################################################
+        #------------------------------------------------------------#
         # Calculate the delay between the two PIPs at physical level #
-        ##############################################################
+        #------------------------------------------------------------#
 
         logger.info(f"Calculating physical delay from {pip_src} to {pip_dst}")
 
         # Algorithm_5: Calculate delay between pip_src and the converged output pin
         # We use the 0st nearest port found for pip_src beacuse the list is sorted
         # starting from the nearest port.
-        delay, path, info = phys_model.delay_path(
-            swm_nearest_ports_for_each_swm_wire[f"{pip_src}"][0], swm_phys_output
+        delay, _, _ = phys_model.delay_path(
+            swm_nearest_in_ports_for_each_swm_wire[f"{pip_src}"][0], swm_phys_output
         )
 
         logger.info(f"Physical Delay from {pip_src} to {pip_dst}: {delay} ns.")
-        logger.debug(info)
         
-        # Begin Ports of the SWM are unique so we can use pip_dst as the key for caching.
-        self.internal_pip_cache_phys[pip_dst] = InternalPipCachePhysEntry(
+        # Begin ports of the swm mux are unique so we can use pip_dst as the key for caching.
+        self.internal_pip_cache[pip_dst] = InternalPipCacheEntry(
             begin_pip=pip_dst,
             swm_mux_for_pips=swm_mux_for_pips,
-            swm_nearest_ports=swm_nearest_ports,
-            ref_output_port=ref_output_port,
-            swm_phys_output=best_nodes
+            swm_nearest_ports_in=swm_nearest_ports_in,
+            swm_nearest_ports_out=swm_nearest_ports_out,
+            swm_output_pin=(best_nodes, best_cost, dists),
+            swm_mux_resolved=None
         )
         
         return delay
 
     def external_pip_delay_structural(self, pip_src: str, pip_dst: str) -> float:
         """
-        Calculate delay for external PIPs between the tile and the next tile using a structural approach.
-        It is Tile to Tile, Tile port to SWM, SWM to SWM, SWM output to tile port.
+        Calculate delay for external PIPs between the tile and the next 
+        tile using a structural approach. It is Tile to Tile, Tile port to 
+        SWM, SWM to SWM, SWM output to tile port.
 
         Parameters
         ----------
@@ -696,56 +716,92 @@ class FABulousTileTimingModel:
             Estimated delay in nanoseconds for the external PIP.
         """
         logger.info(
+            f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
+        )
+        
+        logger.info(
             f"Calculating structural delay for external PIP from {pip_src} to {pip_dst}"
         )
 
         synth_model = self.hdlnx_tm_synth
 
+        # In general try to avoid delay of 0.
         default_delay: float = 0.001
 
         # Must do for ports with indices, e.g., NN2BEG3 -> NN2BEG[3]
-        pip_src = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_src)
-        pip_dst = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_dst)
+        pip_src_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_src)
+        pip_dst_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_dst)
 
         # Tile interconnects, stitched fixed delay almost 0.
-        if pip_src in synth_model.output_ports:
+        if pip_src_port in synth_model.output_ports:
             logger.info(
-                f"Tile output {pip_src} to next tile input {pip_dst} stitched delay: {default_delay} ns"
+                f"Tile output {pip_src_port} to next tile input {pip_dst_port} "
+                f"stitched delay: {default_delay} ns"
             )
             return default_delay
 
         # Tile input to nearest output (twist to the next tile input)
-        elif pip_src in synth_model.input_ports:
+        elif pip_src_port in synth_model.input_ports:
             out_port_list, out_port = synth_model.path_to_nearest_target_sentinel(
-                pip_src, synth_model.output_ports
+                pip_src_port, synth_model.output_ports
             )
-            logger.info(f"Port twist detected for {pip_src} to {pip_dst}:")
+            
+            logger.info(f"Port twist detected for {pip_src_port} to {pip_dst_port}:")
+            
             if out_port is None:
                 logger.warning(
-                    f"No nearest port found for tile input {pip_src}. Using default delay {default_delay} ns"
+                    f"No nearest port found for tile input {pip_src_port}. "
+                    f"Using default delay {default_delay} ns"
                 )
                 return default_delay
-            delay, path, info = synth_model.delay_path(pip_src, out_port)
+            
+            delay, _, _ = synth_model.delay_path(pip_src_port, out_port)
             logger.info(
-                f"Delay from tile input {pip_src} to tile output {out_port}--{pip_dst}: {delay} ns."
+                f"Delay from tile input {pip_src_port} to tile output "
+                f"{out_port}--{pip_dst_port}: {delay} ns."
             )
-            logger.debug(info)
+    
             return delay
 
         # SWM output to the next SWM input
         else:
-            logger.info(
-                f"SWM output {pip_src} to next SWM input {pip_dst} directly connected delay: {default_delay} ns"
+            pip_cache: InternalPipCacheEntry = self.internal_pip_cache.get(
+                pip_src, None
             )
-            return default_delay
+            
+            if pip_cache is None:
+                logger.info(
+                    f"SWMy output {pip_src} to next SWMy input {pip_dst} directly "
+                    f"connected delay: {default_delay} ns"
+                )
+                return default_delay
+            
+            # We just follow the wire to next swm input pin, also to maybe catch
+            # a buffer in between.
+            swm_output_pin: str = pip_cache.swm_mux_resolved[pip_src][0]
+            swm_next_input_pin: str = synth_model.follow_first_fanout_from_pins(
+                hier_pin_path=swm_output_pin, num_follow=2
+            )
+            
+            delay, _, _ = synth_model.delay_path(swm_output_pin, swm_next_input_pin)
+            logger.info(
+                    f"SWMx output {pip_src} to next SWMx input {pip_dst} with "
+                    f"delay: {delay} ns"
+                )
+            
+            if delay < 1e-5:
+                return default_delay
+            
+            return delay
 
     def external_pip_delay_physical(self, pip_src: str, pip_dst: str) -> float:
         """
-        Calculate delay for external PIPs between the tile and the next tile using a physical approach.
-        It is Tile to Tile, Tile port to SWM, SWM to SWM, SWM output to tile port.
-        This method uses the physical-level timing model to provide more accurate delay estimates
-        by considering the actual physical implementation.
-        For tile interconnects, we assume a stitched connection with a fixed small delay.
+        Calculate delay for external PIPs between the tile and the next tile 
+        using a physical approach. It is Tile to Tile, Tile port to SWM, SWM to 
+        SWM, SWM output to tile port. This method uses the physical-level timing model 
+        to provide more accurate delay estimates by considering the actual physical 
+        implementation. For tile interconnects, we assume a stitched connection with 
+        a fixed small delay.
 
         Parameters
         ----------
@@ -759,6 +815,10 @@ class FABulousTileTimingModel:
         float
             Estimated delay in nanoseconds for the external PIP.
         """
+        logger.info(
+            f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
+        )
+        
         logger.info(
             f"Calculating physical delay for external PIP from {pip_src} to {pip_dst}"
         )
@@ -768,43 +828,75 @@ class FABulousTileTimingModel:
         default_delay: float = 0.001
 
         # Must do for ports with indices, e.g., NN2BEG3 -> NN2BEG[3]
-        pip_src = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_src)
-        pip_dst = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_dst)
+        pip_src_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_src)
+        pip_dst_port = re.sub(r"^(.*?)(\d+)$", r"\1[\2]", pip_dst)
 
         # Tile interconnects, stitched fixed delay almost 0.
-        if pip_src in phys_model.output_ports:
+        if pip_src_port in phys_model.output_ports:
             logger.info(
-                f"Tile output {pip_src} to next tile input {pip_dst} stitched delay: {default_delay} ns"
-            )
+                f"Tile output {pip_src_port} to next tile input {pip_dst_port} "
+                f"stitched delay: {default_delay} ns"
+            )   
             return default_delay
 
         # Tile input to nearest output (twist to the next tile input)
-        elif pip_src in phys_model.input_ports:
+        elif pip_src_port in phys_model.input_ports:
             out_port_list, out_port = phys_model.path_to_nearest_target_sentinel(
-                pip_src, phys_model.output_ports
+                pip_src_port, phys_model.output_ports
             )
-            logger.info(f"Port twist detected for {pip_src} to {pip_dst}:")
+            
+            logger.info(f"Port twist detected for {pip_src_port} to {pip_dst_port}:")
+            
             if out_port is None:
                 logger.warning(
-                    f"No nearest port found for tile input {pip_src}. Using default delay {default_delay} ns"
+                    f"No nearest port found for tile input {pip_src_port}. "
+                    f"Using default delay {default_delay} ns"
                 )
                 return default_delay
-            delay, path, info = phys_model.delay_path(pip_src, out_port)
+            
+            delay, _, _ = phys_model.delay_path(pip_src_port, out_port)
             logger.info(
-                f"Delay from tile input {pip_src} to tile output {out_port}--{pip_dst}: {delay} ns."
+                f"Delay from tile input {pip_src_port} to tile output "
+                f"{out_port}--{pip_dst_port}: {delay} ns."
             )
-            logger.debug(info)
+            
             return delay
+       
         # SWM output to the next SWM input
-        else:
-            logger.info(
-                f"SWM output {pip_src} to next SWM input {pip_dst} directly connected delay: {default_delay} ns"
+        else:      
+            pip_cache: InternalPipCacheEntry = self.internal_pip_cache.get(
+                pip_src, None
             )
-            return default_delay
+            
+            if pip_cache is None:
+                logger.info(
+                    f"SWMy output {pip_src} to next SWMy input {pip_dst} directly "
+                    f"connected delay: {default_delay} ns"
+                )
+                return default_delay
+            
+            # We just follow the wire to next swm input pin, also to maybe catch
+            # a buffer in between.
+            swm_output_pin: str = pip_cache.swm_output_pin[0][0]
+            swm_next_input_pin: str = phys_model.follow_first_fanout_from_pins(
+                hier_pin_path=swm_output_pin, num_follow=2
+            )
+            
+            delay, _, _ = phys_model.delay_path(swm_output_pin, swm_next_input_pin)
+            logger.info(
+                    f"SWMx output {pip_src} to next SWMx input {pip_dst} with "
+                    f"delay: {delay} ns"
+                )
+            
+            if delay < 1e-5:
+                return default_delay
+            
+            return delay
 
     def internal_pip_delay(self, pip_src: str, pip_dst: str) -> float:
         """
-        Choose the method to calculate internal PIP delay based on the mode (physical or structural).
+        Choose the method to calculate internal PIP delay based on the 
+        mode (physical or structural).
 
         Parameters
         ----------
@@ -825,7 +917,8 @@ class FABulousTileTimingModel:
 
     def external_pip_delay(self, pip_src: str, pip_dst: str) -> float:
         """
-        Choose the method to calculate external PIP delay based on the mode (physical or structural).
+        Choose the method to calculate external PIP delay based on the 
+        mode (physical or structural).
 
         Parameters
         ----------
@@ -846,7 +939,8 @@ class FABulousTileTimingModel:
 
     def pip_delay(self, pip_src: str, pip_dst: str) -> float:
         """
-        Calculate the delay for a PIP, choosing between internal and external methods.
+        Calculate the delay for a PIP, choosing between internal and 
+        external methods.
 
         Parameters
         ----------
@@ -860,7 +954,11 @@ class FABulousTileTimingModel:
         float
             Calculated delay in nanoseconds for the PIP.
         """
+        d_scale: float = self.tm_config.delay_scaling_factor
+        _round = lambda x: round(x * d_scale, 3)
+        
         if self.is_tile_internal_pip(pip_src, pip_dst):
-            return self.internal_pip_delay(pip_src, pip_dst)
+            return _round(self.internal_pip_delay(pip_src, pip_dst))
         else:
-            return self.external_pip_delay(pip_src, pip_dst)
+            return _round(self.external_pip_delay(pip_src, pip_dst))
+        

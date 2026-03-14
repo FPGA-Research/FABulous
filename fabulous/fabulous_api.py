@@ -647,7 +647,7 @@ class FABulous_API:
         output_file: Path,
         debug: bool,
         manual_config: TimingModelConfig | None = None
-    ) -> None:
+    ) -> TimingModelConfig:
         """
         Initialise the timing model interface and generate the nextpnr pip file for the fabric.
         
@@ -663,6 +663,12 @@ class FABulous_API:
         manual_config : TimingModelConfig | None
             Optional manual configuration for the timing model interface. If provided, this configuration 
             will be used instead of the default PDK-based configuration.
+        
+        Returns
+        -------
+        TimingModelConfig
+            The configuration used for the timing model interface, which may be the 
+            default PDK-based configuration or the provided manual configuration.
         
         Raises
         ------
@@ -713,6 +719,7 @@ class FABulous_API:
                 project_dir=get_context().proj_dir,
                 liberty_files=liberty_files,
                 techmap_files=techmap_files,
+                pdk_name=pdk,
                 min_buf_cell_and_ports=min_buf_cell_and_ports,
                 synth_executable=get_context().yosys_path,
                 synth_program=TimingModelSynthTools.YOSYS,
@@ -732,3 +739,5 @@ class FABulous_API:
             outputFile=output_file,
             delay_model=ftmi,
         )
+        
+        return iconfig

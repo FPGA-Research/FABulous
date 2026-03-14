@@ -247,6 +247,8 @@ class TimingModelConfig(BaseModel):
         The executable command for the synthesis tool.
     sta_executable : str
         The executable command for the static timing analysis tool.
+    pdk_name : str | None
+        The name of the PDK being used, Its just for informational purposes.
     techmap_files : list[Path] | Path | None
         The list of technology mapping files or a single techmap file path or None if not applicable.
     tiehi_cell_and_port : str | None
@@ -267,6 +269,10 @@ class TimingModelConfig(BaseModel):
         Flag indicating whether to consider wire delay in the timing analysis.
     delay_type_str : DelayType
         The type of delay to be used in the timing analysis, specified as an instance of the DelayType enumeration.
+    delay_scaling_factor : float
+        A scaling factor to be applied to the calculated delays, allowing for adjustments based on specific 
+        requirements or to account for any discrepancies in the delay calculations. But be careful when using this, 
+        as it can lead to inaccurate timing models if not used properly.
     debug : bool
         Flag to enable or disable debug mode, which may provide additional logging.
     """
@@ -277,6 +283,7 @@ class TimingModelConfig(BaseModel):
     min_buf_cell_and_ports: str 
     synth_executable: Path | str
     sta_executable: Path | str
+    pdk_name: str | None = None
     techmap_files: list[Path] | Path | None = None
     tiehi_cell_and_port: str | None = None     
     tielo_cell_and_port: str | None = None
@@ -287,10 +294,11 @@ class TimingModelConfig(BaseModel):
     mode: TimingModelMode = Field(default=TimingModelMode.PHYSICAL)
     consider_wire_delay: bool = Field(default=True)    
     delay_type_str: DelayType = Field(default=DelayType.MAX_ALL)
+    delay_scaling_factor: float = Field(default=1.0)
     debug: bool = Field(default=False)
 
 @dataclass(frozen=True)
-class InternalPipCachePhysEntry:
+class InternalPipCacheEntry:
     """
     Represents a cache entry for the physical-level internal pip delay calculation, 
     containing all relevant information for the calculation, including the source pip, 
@@ -303,18 +311,27 @@ class InternalPipCachePhysEntry:
     begin_pip : str
         The begin pip for the internal pip delay calculation.
     swm_mux_for_pips : list[str]
-        The list of switch matrix multiplexers that are relevant for the source and destination pips.
-    swm_nearest_ports : tuple[dict[str, list[str]], list[str]]
+        The list of switch matrix multiplexers (swm mux) that are relevant for the source and destination pips.
+    swm_nearest_ports_in : tuple[dict[str, list[str]], list[str]] | None
         A tuple containing two elements:
-        - A dictionary mapping each pip (source and destination) to a list of its nearest ports in the switch matrix.
-        - A list of all nearest ports for both source and destination pips.
-    ref_output_port : str
-        The reference output port used for convergence in the physical-level delay calculation.
-    swm_phys_output : list[str]
-        The list of physical output ports of the switch matrix that are relevant for the delay calculation.
+        - A dictionary mapping each pip of a swm mux (source and destination) to a list of its nearest input ports.
+        - A list of all nearest input ports for both source and destination pips of a swm mux.
+    swm_nearest_ports_out: tuple[dict[str, list[str]], list[str]] | None
+        A tuple containing two elements:
+        - A dictionary mapping each pip of a swm mux (source and destination) to a list of its nearest output ports.
+        - A list of all nearest output ports for both source and destination pips of a swm mux.
+    swm_output_pin : tuple[list[str], float | None, dict[str, dict[str, float]]] | None
+        A tuple containing three elements:
+        - A list of output pin(s) of the swm mux that were found during convergence detection.
+        - The best cost associated with the best convergence node.
+        - A dictionary mapping source -> node -> distance.
+    swm_mux_resolved : dict[str, list[str]] | None
+        A dictionary mapping each pip of a swm mux (source and destination) to a list of resolved 
+        pins for the swm mux instance to cell pins.
     """
     begin_pip: str
     swm_mux_for_pips: list[str]
-    swm_nearest_ports: tuple[dict[str, list[str]], list[str]]
-    ref_output_port: str
-    swm_phys_output: list[str]
+    swm_nearest_ports_in: tuple[dict[str, list[str]], list[str]] | None
+    swm_nearest_ports_out: tuple[dict[str, list[str]], list[str]] | None
+    swm_output_pin: tuple[list[str], float | None, dict[str, dict[str, float]]] | None
+    swm_mux_resolved: dict[str, list[str]] | None
