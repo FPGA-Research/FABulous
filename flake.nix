@@ -173,6 +173,8 @@
             pkgs.uv
             pkgs.which
             pkgs.git
+            pkgs.cabal-install
+            pkgs.ghc
             pkgs.fish
             pkgs.zsh
             pkgs.gtkwave

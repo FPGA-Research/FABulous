@@ -41,6 +41,17 @@ final: prev: {
     '';
   });
 
+  # Fix missing build dependencies for sdf-timing and set a fixed version for
+  # setuptools-scm to avoid build failures.
+  sdf-timing = prev.sdf-timing.overrideAttrs (oldAttrs: {
+    nativeBuildInputs = (oldAttrs.nativeBuildInputs or [ ]) ++ [
+      final.setuptools
+      final.setuptools-scm
+      final.wheel
+    ];
+    SETUPTOOLS_SCM_PRETEND_VERSION = "0.0.post134";
+  });
+
   about-time = prev.about-time.overrideAttrs (old: {
     postInstall = (old.postInstall or "") + ''
       rm -f $out/LICENSE

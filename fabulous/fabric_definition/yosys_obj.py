@@ -407,9 +407,7 @@ class YosysJson:
                 return name, module
         for name, module in self.modules.items():
             if "blackbox" in module.attributes:
-                logging.info(
-                    f"No top module found, using blackbox module '{name}'"
-                )
+                logging.info(f"No top module found, using blackbox module '{name}'")
                 return name, module
         raise ValueError("No top module found in Yosys JSON")
 
