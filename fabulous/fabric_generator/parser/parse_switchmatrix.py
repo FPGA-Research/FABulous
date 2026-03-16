@@ -219,67 +219,34 @@ def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
     tuple[list[Port], tuple[str, str] | None]
         A tuple containing a list of parsed ports and an optional common wire pair.
     """
-    ports = []
-    commonWirePair: tuple[str, str] | None
-    temp: list[str] = line.split(",")
-    if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST"]:
-        ports.append(
-            Port(
-                Direction[temp[0]],
-                temp[1],
-                int(temp[2]),
-                int(temp[3]),
-                temp[4],
-                int(temp[5]),
-                temp[1],
-                IO.OUTPUT,
-                Side[temp[0]],
-            )
-        )
+    kind, start, x, y, end, count = line.split(",")[:6]
+    x, y, count = int(x), int(y), int(count)
 
-        ports.append(
+    if kind in ("NORTH", "SOUTH", "EAST", "WEST"):
+        # Directional wire: OUTPUT port at start side, INPUT port at opposite side
+        direction = Direction[kind]
+        ports = [
+            Port(direction, start, x, y, end, count, start, IO.OUTPUT, Side[kind]),
             Port(
-                Direction[temp[0]],
-                temp[1],
-                int(temp[2]),
-                int(temp[3]),
-                temp[4],
-                int(temp[5]),
-                temp[4],
+                direction,
+                start,
+                x,
+                y,
+                end,
+                count,
+                end,
                 IO.INPUT,
-                Side[oppositeDic[temp[0]].upper()],
-            )
-        )
-        commonWirePair = (f"{temp[1]}", f"{temp[4]}")
+                Side[oppositeDic[kind].upper()],
+            ),
+        ]
+        return ports, (start, end)
 
-    elif temp[0] == "JUMP":
-        ports.append(
-            Port(
-                Direction.JUMP,
-                temp[1],
-                int(temp[2]),
-                int(temp[3]),
-                temp[4],
-                int(temp[5]),
-                temp[1],
-                IO.OUTPUT,
-                Side.ANY,
-            )
-        )
-        ports.append(
-            Port(
-                Direction.JUMP,
-                temp[1],
-                int(temp[2]),
-                int(temp[3]),
-                temp[4],
-                int(temp[5]),
-                temp[4],
-                IO.INPUT,
-                Side.ANY,
-            )
-        )
-        commonWirePair = None
-    else:
-        raise InvalidPortType(f"Unknown port type: {temp[0]}")
-    return (ports, commonWirePair)
+    if kind == "JUMP":
+        # Jump wire: connects within the same tile, no directional side
+        ports = [
+            Port(Direction.JUMP, start, x, y, end, count, start, IO.OUTPUT, Side.ANY),
+            Port(Direction.JUMP, start, x, y, end, count, end, IO.INPUT, Side.ANY),
+        ]
+        return ports, None
+
+    raise InvalidPortType(f"Unknown port type: {kind}")
