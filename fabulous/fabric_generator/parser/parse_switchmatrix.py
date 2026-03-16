@@ -9,8 +9,6 @@ import re
 from pathlib import Path
 from typing import Literal, overload
 
-from loguru import logger
-
 from fabulous.custom_exception import (
     InvalidListFileDefinition,
     InvalidPortType,
@@ -42,29 +40,28 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     dict[str, list[str]]
         Dictionary from destination to a list of sources.
     """
-    connectionsDic = {}
-    fileName = fileName.absolute()
-    with fileName.open() as f:
-        file = f.read()
-        file = re.sub(r"#.*", "", file)
-        file = file.split("\n")
+    path = fileName.absolute()
+    with path.open() as f:
+        lines = re.sub(r"#.*", "", f.read()).split("\n")
 
-    if file[0].split(",")[0] != tileName:
+    header = lines[0].split(",")
+    if header[0] != tileName:
         raise InvalidSwitchMatrixDefinition(
-            f"{fileName} {file[0].split(',')} {tileName}\n"
+            f"{path} {header} {tileName}\n"
             "Tile name (top left element) in csv file does not match tile name "
             "in tile object"
         )
-    destList = file[0].split(",")[1:]
+    dest_list = header[1:]
 
-    for i in file[1:]:
-        i = i.split(",")
-        portName, connections = i[0], i[1:]
-        if portName == "":
+    connections: dict[str, list[str]] = {}
+    for line in lines[1:]:
+        fields = line.split(",")
+        port_name, row = fields[0], fields[1:]
+        if not port_name:
             continue
-        indices = [k for k, v in enumerate(connections) if v == "1"]
-        connectionsDic[portName] = [destList[j] for j in indices]
-    return connectionsDic
+        # collect destinations where the connection bit is set
+        connections[port_name] = [dest_list[k] for k, v in enumerate(row) if v == "1"]
+    return connections
 
 
 def expandListPorts(port: str) -> list[str]:
