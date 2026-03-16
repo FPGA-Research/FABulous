@@ -94,6 +94,18 @@ cd demo && FABulous start
 
 Once installed, you can automatically install the recommended CAD tools by running `FABulous install-oss-cad-suite` in your terminal.
 
+### Codespaces and Dev Container (quick use)
+
+If you want a pre-configured environment without local dependency setup, you can use the provided container workflows:
+
+- **GitHub Codespaces**: open the repository in Codespaces and use the bundled dev container. GUI tools are exposed through a browser VNC session on port `6080`.
+- **Local Dev Container**: open this repository in VS Code and run **Dev Containers: Reopen in Container** with the `Local` profile. On Linux, the local profile configures X11 forwarding for GUI tools.
+
+For full step-by-step instructions, see the online docs:
+
+- Codespaces guide: <https://fabulous.readthedocs.io/en/latest/getting_started/codespaces.html>
+- Docker and local dev container guide: <https://fabulous.readthedocs.io/en/latest/getting_started/installation/docker.html>
+
 ## Using FABulous
 
 Interacting with FABulous is typically done via its interactive shell or through automated scripts. The outputs are systematically organised into a `Fabric` directory for generated RTL and a `Tile` directory for primitive definitions. Bitstreams and logs are stored within your `user_design` folder.
