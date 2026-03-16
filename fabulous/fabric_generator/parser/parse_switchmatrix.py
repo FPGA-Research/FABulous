@@ -67,20 +67,6 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     return connectionsDic
 
 
-@overload
-def parseList(
-    filePath: Path, collect: Literal["pair"] = "pair"
-) -> list[tuple[str, str]]:
-    pass
-
-
-@overload
-def parseList(
-    filePath: Path, collect: Literal["source", "sink"]
-) -> dict[str, list[str]]:
-    pass
-
-
 def expandListPorts(port: str) -> list[str]:
     """Expand the .list file entry into a list of port strings.
 
@@ -123,6 +109,20 @@ def expandListPorts(port: str) -> list[str]:
         port = re.sub(r"\{(\d+)\}", "", port)
         return [port] * portMultiplier
     return [port]
+
+
+@overload
+def parseList(
+    filePath: Path, collect: Literal["pair"] = "pair"
+) -> list[tuple[str, str]]:
+    pass
+
+
+@overload
+def parseList(
+    filePath: Path, collect: Literal["source", "sink"]
+) -> dict[str, list[str]]:
+    pass
 
 
 def parseList(
