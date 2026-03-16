@@ -1,0 +1,57 @@
+{
+    "name": "Remote (codespace)",
+    "image": "ghcr.io/fpga-research/fabulous:dev",
+    "features": {
+        "ghcr.io/devcontainers/features/desktop-lite:1": {
+            "password": "fabulous",
+            "webPort": "6080",
+            "vncPort": "5901"
+        }
+    },
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+    "containerEnv": {
+        "QT_QPA_PLATFORM": "xcb"
+    },
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "python.defaultInterpreterPath": "python",
+                "python.analysis.typeCheckingMode": "basic",
+                "editor.formatOnSave": true,
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "editor.codeActionsOnSave": {
+                        "source.fixAll.ruff": "explicit",
+                        "source.organizeImports.ruff": "explicit"
+                    }
+                },
+                "terminal.integrated.cwd": "/workspaces/${localWorkspaceFolderBasename}",
+                "dotfiles.repository": "",
+                "dotfiles.installCommand": ""
+            },
+            "extensions": [
+                "charliermarsh.ruff",
+                "ms-python.python"
+            ]
+        },
+        "codespaces": {
+            "portsAttributes": {
+                "6080": {
+                    "label": "Desktop (noVNC)",
+                    "onAutoForward": "ignore",
+                    "visibility": "private"
+                },
+                "5901": {
+                    "label": "VNC",
+                    "onAutoForward": "ignore",
+                    "visibility": "private"
+                }
+            }
+        }
+    },
+    "postAttachCommand": "bash .devcontainer/display-switch.sh",
+    "remoteUser": "nixuser",
+    "hostRequirements": {
+        "cpus": 4
+    }
+}

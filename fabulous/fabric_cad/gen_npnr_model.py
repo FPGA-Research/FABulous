@@ -74,21 +74,21 @@ def genNextpnrModel(
                         delay: float = 8
                         if delay_model is not None:
                             delay = delay_model.pip_delay(
-                                tile.name, f"{sink}.{source}", source, sink
+                                tile.name, f"{sink}.{source}", sink, source
                             )
                         pipStr.append(
                             f"X{x}Y{y},{sink},X{x}Y{y},{source},{delay},{sink}.{source}"
                         )
             elif tile.matrixDir.suffix == ".list":
                 connection = parseList(tile.matrixDir)
-                for sink, source in connection:
+                for source, sink in connection:
                     delay: float = 8
                     if delay_model is not None:
                         delay = delay_model.pip_delay(
-                            tile.name, f"{source}.{sink}", source, sink
+                            tile.name, f"{sink}.{source}", sink, source
                         )
                     pipStr.append(
-                        f"X{x}Y{y},{source},X{x}Y{y},{sink},{delay},{source}.{sink}"
+                        f"X{x}Y{y},{sink},X{x}Y{y},{source},{delay},{sink}.{source}"
                     )
             else:
                 raise InvalidFileType(

@@ -1,0 +1,47 @@
+{
+    "name": "Local",
+    "image": "ghcr.io/fpga-research/fabulous:dev",
+    "features": {
+        "ghcr.io/devcontainers/features/desktop-lite:1": {
+            "password": "fabulous",
+            "webPort": "6080",
+            "vncPort": "5901"
+        }
+    },
+    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+    // --- LOCAL LINUX SPECIFIC SETTINGS ---
+    // --net=host is required for X11: modern Linux uses abstract Unix sockets
+    // for X11, which live in the network namespace (not the filesystem).
+    // --security-opt needed for SELinux (Fedora/RHEL).
+    "runArgs": [
+        "--net=host",
+        "--security-opt=label=disable"
+    ],
+    "mounts": [
+        "source=/tmp/.X11-unix,target=/tmp/.host-X11-unix,type=bind"
+    ],
+    "containerEnv": {
+        "QT_QPA_PLATFORM": "xcb",
+        "DISPLAY": "${localEnv:DISPLAY}"
+    },
+    "postAttachCommand": "bash .devcontainer/display-switch.sh",
+    "initializeCommand": "xhost +local:docker 2>/dev/null || true",
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "python.defaultInterpreterPath": "python",
+                "python.analysis.typeCheckingMode": "basic",
+                "editor.formatOnSave": true,
+                "[python]": {
+                    "editor.defaultFormatter": "charliermarsh.ruff",
+                    "editor.codeActionsOnSave": {
+                        "source.fixAll.ruff": "explicit",
+                        "source.organizeImports.ruff": "explicit"
+                    }
+                },
+                "terminal.integrated.cwd": "/workspaces/${localWorkspaceFolderBasename}"
+            }
+        }
+    },
+    "remoteUser": "nixuser"
+}
