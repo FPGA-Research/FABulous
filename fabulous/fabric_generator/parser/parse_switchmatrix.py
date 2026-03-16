@@ -233,7 +233,7 @@ def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
                 count,
                 end,
                 IO.INPUT,
-                Side[oppositeDic[kind].upper()],
+                Side[oppositeDic[kind]],
             ),
         ]
         return ports, (start, end)
