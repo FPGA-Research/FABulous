@@ -149,12 +149,12 @@ def parseList(
         Return either a list of connection pairs or a dictionary of lists which is
         collected by the specified option, source or sink.
     """
-    filePath = filePath.absolute()
-    if not filePath.exists():
-        raise FileNotFoundError(f"The file {filePath} does not exist.")
+    path = filePath.absolute()
+    if not path.exists():
+        raise FileNotFoundError(f"The file {path} does not exist.")
 
     pairs: list[tuple[str, str]] = []
-    with filePath.open() as f:
+    with path.open() as f:
         content = re.sub(r"#.*", "", f.read())
     for line_num, raw_line in enumerate(content.split("\n")):
         fields = [
@@ -164,22 +164,22 @@ def parseList(
             continue
         if len(fields) != 2:
             raise InvalidListFileDefinition(
-                f"Invalid list formatting in file: {filePath} at line {line_num}: {fields}"
+                f"Invalid list formatting in file: {path} at line {line_num}: {fields}"
             )
         source_entry, sink_entry = fields[0], fields[1]
 
         if source_entry == "INCLUDE":
-            pairs.extend(parseList(filePath.parent / sink_entry, "pair"))
+            pairs.extend(parseList(path.parent / sink_entry, "pair"))
             continue
 
         expanded_sources = expandListPorts(source_entry)
         expanded_sinks = expandListPorts(sink_entry)
         if len(expanded_sources) != len(expanded_sinks):
             raise InvalidListFileDefinition(
-                f"List file {filePath} does not have the same number of source and "
+                f"List file {path} does not have the same number of source and "
                 f"sink ports at line {line_num}: {fields}"
             )
-        pairs.extend(zip(expanded_sources, expanded_sinks, strict=False))
+        pairs.extend(zip(expanded_sources, expanded_sinks, strict=True))
 
     unique_pairs = list(dict.fromkeys(pairs))
 
