@@ -73,9 +73,7 @@ def genNextpnrModel(
                     for sink in sinkList:
                         delay: float = 8
                         if delay_model is not None:
-                            delay = delay_model.pip_delay(
-                                tile.name, f"{sink}.{source}", sink, source
-                            )
+                            delay = delay_model.pip_delay(tile.name, sink, source)
                         pipStr.append(
                             f"X{x}Y{y},{sink},X{x}Y{y},{source},{delay},{sink}.{source}"
                         )
@@ -84,9 +82,7 @@ def genNextpnrModel(
                 for source, sink in connection:
                     delay: float = 8
                     if delay_model is not None:
-                        delay = delay_model.pip_delay(
-                            tile.name, f"{sink}.{source}", sink, source
-                        )
+                        delay = delay_model.pip_delay(tile.name, sink, source)
                     pipStr.append(
                         f"X{x}Y{y},{sink},X{x}Y{y},{source},{delay},{sink}.{source}"
                     )
@@ -112,7 +108,6 @@ def genNextpnrModel(
                 if delay_model is not None:
                     delay = delay_model.pip_delay(
                         tile.name,
-                        f"{wire.destination}.{wire.source}",
                         wire.source,
                         wire.destination,
                     )

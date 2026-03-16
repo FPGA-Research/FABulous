@@ -53,7 +53,7 @@ class FABulousTimingModelInterface:
             )
             self.timing_models[tile_name] = timing_model
 
-    def pip_delay(self, tile_name: str, key: str, src_pip: str, dst_pip: str) -> float:
+    def pip_delay(self, tile_name: str, src_pip: str, dst_pip: str) -> float:
         """
         Get the delay for a given pip in the timing model and save
         the result delay with key. If the delay for the key was already
@@ -61,14 +61,12 @@ class FABulousTimingModelInterface:
 
         Parameters
         ----------
-        key : str
-            The key to store/retrieve the delay.
+        tile_name : str
+            The name of the tile (with super tile type if applicable).
         src_pip : str
             The source pip name.
         dst_pip : str
             The destination pip name.
-        tile_name : str
-            The name of the tile (with super tile type if applicable).
 
         Returns
         -------
@@ -80,6 +78,11 @@ class FABulousTimingModelInterface:
         ValueError
             If the timing model for the specified tile is not found.
         """
+        
+        # The key to store/retrieve the delay, if the delay for the same src and 
+        # dst pip was already computed before, the delay will be retrieved from the cache.
+        key: str = f"{src_pip}.{dst_pip}"
+        
         if tile_name not in self.timing_models:
             raise ValueError(f"Timing model for tile {tile_name!r} not found.")
 
