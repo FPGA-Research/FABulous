@@ -66,9 +66,9 @@ def genNextpnrModel(fabric: Fabric) -> tuple[str, str, str, str]:
                         )
             elif tile.matrixDir.suffix == ".list":
                 connection = parseList(tile.matrixDir)
-                for sink, source in connection:
+                for source, sink in connection:
                     pipStr.append(
-                        f"X{x}Y{y},{source},X{x}Y{y},{sink},{8},{source}.{sink}"
+                        f"X{x}Y{y},{sink},X{x}Y{y},{source},{8},{sink}.{source}"
                     )
             else:
                 raise InvalidFileType(
