@@ -81,55 +81,48 @@ def parseList(
     pass
 
 
-def expandListPorts(port: str, portList: list[str]) -> None:
-    """Expand the .list file entry into a list of tuples.
+def expandListPorts(port: str) -> list[str]:
+    """Expand the .list file entry into a list of port strings.
 
     Parameters
     ----------
     port : str
         The port entry to expand. If it contains "[", it's split
         into multiple entries based on "|".
-    portList : list[str]
-        The list where expanded port entries are appended.
 
     Raises
     ------
     ValueError
         If the port entry contains "[" or "{" without matching closing
         bracket "]"/"}".
+
+    Returns
+    -------
+    list[str]
+        The expanded list of port strings.
     """
     if port.count("[") != port.count("]") and port.count("{") != port.count("}"):
         raise ValueError(f"Invalid port entry: {port}, mismatched brackets")
 
-    # a leading '[' tells us that we have to expand the list
+    # "[...]" splits the port into alternatives separated by "|", expanding each recursively
     if "[" in port:
-        # port.find gives us the first occurrence index in a string
         left_index = port.find("[")
         right_index = port.find("]")
-        before_left_index = port[0:left_index]
-        # right_index is the position of the ']' so we need everything after that
-        after_right_index = port[(right_index + 1) :]
-        ExpandList = []
-        ExpandList = re.split(r"\|", port[left_index + 1 : right_index])
-        for entry in ExpandList:
-            ExpandListItem = before_left_index + entry + after_right_index
-            expandListPorts(ExpandListItem, portList)
+        before = port[:left_index]
+        after = port[right_index + 1 :]
+        result = []
+        for entry in re.split(r"\|", port[left_index + 1 : right_index]):
+            result.extend(expandListPorts(before + entry + after))
+        return result
 
-    else:
-        # Multiply ports by the number of multipliers, given in the curly braces.
-        # We let all curly braces in the port Expansion to be expanded and
-        # calculate the total number of ports to be added afterward,
-        # based on the number of multipliers.
-        # Also remove the multipliers from port name, before adding it to the list.
-        port = port.replace(" ", "")  # remove spaces
-        multipliers = re.findall(r"\{(\d+)\}", port)
-        portMultiplier = sum([int(m) for m in multipliers])
-        if portMultiplier != 0:
-            port = re.sub(r"\{(\d+)\}", "", port)
-            for _i in range(portMultiplier):
-                portList.append(port)
-        else:
-            portList.append(port)
+    # "{N}" is a multiplier: repeat the port N times and strip the multiplier from the name
+    port = port.replace(" ", "")
+    multipliers = re.findall(r"\{(\d+)\}", port)
+    portMultiplier = sum(int(m) for m in multipliers)
+    if portMultiplier != 0:
+        port = re.sub(r"\{(\d+)\}", "", port)
+        return [port] * portMultiplier
+    return [port]
 
 
 def parseList(
@@ -182,10 +175,8 @@ def parseList(
             pairs.extend(parseList(filePath.parent / sink_entry, "pair"))
             continue
 
-        expanded_sources: list[str] = []
-        expanded_sinks: list[str] = []
-        expandListPorts(source_entry, expanded_sources)
-        expandListPorts(sink_entry, expanded_sinks)
+        expanded_sources = expandListPorts(source_entry)
+        expanded_sinks = expandListPorts(sink_entry)
         if len(expanded_sources) != len(expanded_sinks):
             raise InvalidListFileDefinition(
                 f"List file {filePath} does not have the same number of source and "
