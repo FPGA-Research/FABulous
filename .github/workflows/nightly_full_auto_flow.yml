@@ -1,0 +1,212 @@
+name: Nightly Full Auto Flow Test
+
+on:
+  schedule:
+    # Run every night at 02:00 UTC (offset from dependency test at 00:00)
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full_auto_flow:
+    name: Full auto GDS flow (end-to-end, ihp-sg13g2)
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@v34
+        with:
+          nix_version: "2.31.2"
+          nix_conf: |
+            substituters = https://cache.nixos.org https://nix-cache.fossi-foundation.org
+            extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/lib/jvm
+          sudo rm -rf /usr/share/swift
+
+      - name: Build Nix devshell
+        run: nix build
+
+      - name: Create demo project and run full auto flow
+        id: run_flow
+        continue-on-error: true
+        run: |
+          nix develop --command bash -c '
+            set -euo pipefail
+
+            echo "=== Tool versions ==="
+            FABulous --version
+            openroad -version
+            yosys --version
+
+            echo "=== Creating demo Verilog project ==="
+            FABulous -c /tmp/fab_demo -w verilog
+
+            echo "=== Running full auto flow (exploration → NLP → recompilation → stitching) ==="
+            cd /tmp/fab_demo
+            FABulous /tmp/fab_demo <<EOF
+            load_fabric
+            run_FABulous_fabric
+            run_FABulous_eFPGA_macro
+            exit
+            EOF
+          ' 2>&1 | tee /tmp/flow_output.txt
+
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+
+      - name: Check flow results
+        id: check_results
+        run: |
+          if [ "${{ steps.run_flow.outputs.exit_code }}" != "0" ]; then
+            echo "flow_failed=true" >> $GITHUB_OUTPUT
+          else
+            echo "flow_failed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify final output artifacts
+        id: check_artifacts
+        if: steps.check_results.outputs.flow_failed == 'false'
+        continue-on-error: true
+        run: |
+          echo "=== Checking output artifacts ==="
+          FINAL_VIEWS="/tmp/fab_demo/Fabric/macro/final_views"
+          if [ -d "$FINAL_VIEWS" ]; then
+            echo "final_views directory exists at $FINAL_VIEWS"
+            echo "Contents:"
+            ls -lR "$FINAL_VIEWS"
+          else
+            echo "ERROR: final_views directory not found"
+            ls -lR /tmp/fab_demo/Fabric/macro/ 2>/dev/null || true
+            exit 1
+          fi
+
+          # Check for GDS output
+          GDS_FILE=$(find "$FINAL_VIEWS" -name "*.gds" -print -quit 2>/dev/null)
+          if [ -n "$GDS_FILE" ]; then
+            echo "GDS output found: $GDS_FILE"
+          else
+            echo "ERROR: No GDS file found in final_views"
+            exit 1
+          fi
+
+          # Check for LEF output
+          LEF_FILE=$(find "$FINAL_VIEWS" -name "*.lef" -print -quit 2>/dev/null)
+          if [ -n "$LEF_FILE" ]; then
+            echo "LEF output found: $LEF_FILE"
+          else
+            echo "ERROR: No LEF file found in final_views"
+            exit 1
+          fi
+
+          # Copy tile optimisation summary if it exists
+          SUMMARY=$(find /tmp/fab_demo -name "tile_optimisation_summary.json" -print -quit 2>/dev/null)
+          if [ -n "$SUMMARY" ]; then
+            cp "$SUMMARY" /tmp/tile_optimisation_summary.json
+          fi
+
+      - name: Create issue on failure
+        if: steps.check_results.outputs.flow_failed == 'true' || steps.check_artifacts.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let flowOutput = '';
+            try {
+              const fullOutput = fs.readFileSync('/tmp/flow_output.txt', 'utf8');
+              flowOutput = fullOutput.slice(-5000);
+              if (fullOutput.length > 5000) {
+                flowOutput = '... (truncated)\n\n' + flowOutput;
+              }
+            } catch (error) {
+              flowOutput = 'Could not read flow output';
+            }
+
+            const date = new Date().toISOString().split('T')[0];
+            const title = `Nightly Full Auto Flow Failed - ${date}`;
+
+            const body = `## Nightly Full Auto GDS Flow Test Failed
+
+            The nightly end-to-end test of the full automatic eFPGA macro generation flow has failed.
+
+            **Mode:** Full (exploration → NLP optimization → recompilation → fabric stitching)
+            **PDK:** ihp-sg13g2 (auto-resolved via ciel)
+            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ### Flow Output (last 5000 characters)
+
+            <details>
+            <summary>Click to expand flow output</summary>
+
+            \`\`\`
+            ${flowOutput}
+            \`\`\`
+
+            </details>
+
+            ### Action Items
+
+            - [ ] Review the failing step in the flow output
+            - [ ] Determine if the failure is due to:
+              - PDK / ciel resolution issues
+              - OpenROAD / librelane breaking changes
+              - Tile compilation errors (exploration or recompilation)
+              - NLP solver convergence failure
+              - Fabric stitching failure
+              - FABulous code regression
+            - [ ] Fix the issue and verify locally with \`run_FABulous_eFPGA_macro\`
+            - [ ] Close this issue once resolved
+
+            ---
+            *This issue was automatically created by the nightly full auto flow test workflow.*`;
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: ['nightly-test-failure'],
+              per_page: 100
+            });
+
+            const todayIssue = issues.data.find(issue => issue.title === title);
+
+            if (!todayIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['nightly-test-failure', 'gds-flow', 'automated']
+              });
+              console.log('Created new issue for flow failure');
+            } else {
+              console.log('Issue already exists for today, skipping creation');
+            }
+
+      - name: Upload flow artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-auto-flow-results
+          path: |
+            /tmp/flow_output.txt
+            /tmp/tile_optimisation_summary.json
+          if-no-files-found: warn
