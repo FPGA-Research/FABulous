@@ -147,7 +147,7 @@ addopts = "-m 'not slow'"
 extend_exclude = ["fabulous/fabric_generator/gds_generator/script", "docs"]
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["pyreadline3", "gnureadline", "go-task-bin"]
+DEP002 = ["pyreadline3", "gnureadline", "go-task-bin", "FABulous-bit-gen"]
 
 [tool.deptry.package_module_name_map]
 FABulous-bit-gen = "FABulous_bit_gen"

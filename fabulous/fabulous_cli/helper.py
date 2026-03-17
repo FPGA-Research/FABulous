@@ -205,6 +205,14 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
     # Copy language-specific template (may overwrite some common files)
     _copy_template_safely(lang_template_ref, project_dir)
 
+    # Copy compile Taskfile into .FABulous/
+    compile_taskfile_ref = (
+        resources.files("fabulous.fabric_files") / "compile.Taskfile.yml"
+    )
+    compile_taskfile_dst = project_dir / ".FABulous" / "compile.Taskfile.yml"
+    with resources.as_file(compile_taskfile_ref) as src:
+        shutil.copy2(src, compile_taskfile_dst)
+
     # Replace {HDL_SUFFIX} placeholder in all tile csv files
     new_suffix = "v" if lang == HDLType.VERILOG else HDLType.VHDL
     for file_path in project_dir.rglob("*.csv"):
@@ -234,6 +242,7 @@ def run_task(
     task_dir: Path,
     task_vars: dict[str, str] | None = None,
     verbose: bool = False,
+    taskfile: str | None = None,
 ) -> None:
     """Run a Taskfile task using the ``task`` CLI.
 
@@ -242,11 +251,14 @@ def run_task(
     task_name : str
         Name of the task to run (e.g. ``"run-simulation"``).
     task_dir : Path
-        Directory containing the ``Taskfile.yml``.
+        Directory containing the Taskfile.
     task_vars : dict[str, str] | None
         Optional variables to pass to the task (``VAR=value``).
     verbose : bool
         If True, adds ``--verbose`` flag.
+    taskfile : str | None
+        Explicit Taskfile name (e.g. ``"compile.Taskfile.yml"``).
+        When None, ``task`` uses its default lookup (``Taskfile.yml``).
 
     Raises
     ------
@@ -261,6 +273,8 @@ def run_task(
         )
 
     cmd: list[str] = ["task", task_name]
+    if taskfile:
+        cmd.extend(["--taskfile", taskfile])
     if verbose:
         cmd.append("--verbose")
     if task_vars:
