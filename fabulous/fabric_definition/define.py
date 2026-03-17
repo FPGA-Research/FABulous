@@ -62,13 +62,7 @@ class Side(StrEnum):
 
     @property
     def opposite(self) -> "Side":
-        """Return the opposite side (e.g. NORTH → SOUTH).
-
-        Raises
-        ------
-        ValueError
-            If called on Side.ANY, which has no defined opposite.
-        """
+        """Return the opposite side (e.g. NORTH → SOUTH)."""
         match self:
             case Side.NORTH:
                 return Side.SOUTH
@@ -80,8 +74,6 @@ class Side(StrEnum):
                 return Side.EAST
             case Side.ANY:
                 return Side.ANY
-            case _:
-                raise ValueError(f"Side.{self.name} has no opposite")
 
 
 class MultiplexerStyle(Enum):
