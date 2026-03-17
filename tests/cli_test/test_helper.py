@@ -172,6 +172,34 @@ def test_run_task_propagates_subprocess_error(
         run_task("run-simulation", task_dir=tmp_path)
 
 
+def test_run_task_with_taskfile(tmp_path: Path, mocker: MockerFixture) -> None:
+    """Test run_task passes --taskfile when a custom taskfile name is given."""
+    mocker.patch("shutil.which", return_value="/usr/bin/task")
+    m = mocker.patch("subprocess.run")
+
+    run_task(
+        "compile-yosys",
+        task_dir=tmp_path,
+        taskfile="compile.Taskfile.yml",
+    )
+
+    call_args = m.call_args.args[0]
+    assert "--taskfile" in call_args
+    idx = call_args.index("--taskfile")
+    assert call_args[idx + 1] == "compile.Taskfile.yml"
+
+
+def test_run_task_without_taskfile(tmp_path: Path, mocker: MockerFixture) -> None:
+    """Test run_task omits --taskfile when taskfile is None (default)."""
+    mocker.patch("shutil.which", return_value="/usr/bin/task")
+    m = mocker.patch("subprocess.run")
+
+    run_task("run-simulation", task_dir=tmp_path)
+
+    call_args = m.call_args.args[0]
+    assert "--taskfile" not in call_args
+
+
 # --- Taskfile.yml creation tests ---
 
 
@@ -201,3 +229,17 @@ def test_create_project_vhdl_has_taskfile(tmp_path: Path) -> None:
     assert "ghdl" in content, "VHDL Taskfile should reference ghdl"
     assert "GHDL_FLAGS" in content, "VHDL Taskfile should have GHDL_FLAGS var"
     assert "EXTRA_GHDL_FLAGS" in content
+
+
+def test_create_project_has_compile_taskfile(tmp_path: Path) -> None:
+    """Test that project creation includes compile.Taskfile.yml."""
+    project_dir = tmp_path / "test_project_compile"
+    create_project(project_dir)
+
+    compile_taskfile = project_dir / ".FABulous" / "compile.Taskfile.yml"
+    assert compile_taskfile.exists(), "compile.Taskfile.yml not found in .FABulous/"
+
+    content = compile_taskfile.read_text()
+    assert "compile-yosys" in content
+    assert "compile-nextpnr" in content
+    assert "compile-bitgen" in content
