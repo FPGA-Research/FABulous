@@ -11,12 +11,8 @@ from typing import Literal, overload
 
 from fabulous.custom_exception import (
     InvalidListFileDefinition,
-    InvalidPortType,
     InvalidSwitchMatrixDefinition,
 )
-from fabulous.fabric_definition.define import IO, Direction, Side
-from fabulous.fabric_definition.port import Port
-
 
 def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     """Parse the matrix CSV into a dictionary from destination to source.
@@ -194,46 +190,3 @@ def parseList(
         return grouped
 
     return unique_pairs
-
-
-def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
-    """Parse a single line of the port configuration from the CSV file.
-
-    Parameters
-    ----------
-    line : str
-        CSV line containing port configuration data.
-
-    Raises
-    ------
-    InvalidPortType
-        If the port definition is invalid.
-
-    Returns
-    -------
-    tuple[list[Port], tuple[str, str] | None]
-        A tuple containing a list of parsed ports and an optional common wire pair.
-    """
-    kind, start, x, y, end, count = line.split(",")[:6]
-    x, y, count = int(x), int(y), int(count)
-
-    if kind in ("NORTH", "SOUTH", "EAST", "WEST"):
-        # Directional wire: OUTPUT port at start side, INPUT port at opposite side
-        direction = Direction[kind]
-        side = Side[kind]
-        opposite_side = side.opposite
-        ports = [
-            Port(direction, start, x, y, end, count, start, IO.OUTPUT, side),
-            Port(direction, start, x, y, end, count, end, IO.INPUT, opposite_side),
-        ]
-        return ports, (start, end)
-
-    if kind == "JUMP":
-        # Jump wire: connects within the same tile, no directional side
-        ports = [
-            Port(Direction.JUMP, start, x, y, end, count, start, IO.OUTPUT, Side.ANY),
-            Port(Direction.JUMP, start, x, y, end, count, end, IO.INPUT, Side.ANY),
-        ]
-        return ports, None
-
-    raise InvalidPortType(f"Unknown port type: {kind}")
