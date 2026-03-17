@@ -327,6 +327,7 @@ class FABulousFabricMacroFullFlow(Flow):
             result_summary[opt_mode.value][tile_name] = metrics_dict
 
         def custom_serializer(obj: object) -> float | object:
+            """Convert Decimal values to float for JSON serialisation."""
             if isinstance(obj, Decimal):
                 return float(obj)
             return obj
