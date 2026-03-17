@@ -14,6 +14,7 @@ from fabulous.custom_exception import (
     InvalidSwitchMatrixDefinition,
 )
 
+
 def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     """Parse the matrix CSV into a dictionary from destination to source.
 
