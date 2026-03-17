@@ -17,8 +17,6 @@ from fabulous.custom_exception import (
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.port import Port
 
-oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST"}
-
 
 def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     """Parse the matrix CSV into a dictionary from destination to source.
@@ -222,19 +220,11 @@ def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
     if kind in ("NORTH", "SOUTH", "EAST", "WEST"):
         # Directional wire: OUTPUT port at start side, INPUT port at opposite side
         direction = Direction[kind]
+        side = Side[kind]
+        opposite_side = side.opposite
         ports = [
-            Port(direction, start, x, y, end, count, start, IO.OUTPUT, Side[kind]),
-            Port(
-                direction,
-                start,
-                x,
-                y,
-                end,
-                count,
-                end,
-                IO.INPUT,
-                Side[oppositeDic[kind]],
-            ),
+            Port(direction, start, x, y, end, count, start, IO.OUTPUT, side),
+            Port(direction, start, x, y, end, count, end, IO.INPUT, opposite_side),
         ]
         return ports, (start, end)
 
