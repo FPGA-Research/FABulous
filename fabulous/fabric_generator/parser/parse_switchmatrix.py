@@ -6,6 +6,7 @@ validation of port configurations.
 """
 
 import re
+from collections import defaultdict
 from pathlib import Path
 from typing import Literal, overload
 
@@ -179,15 +180,15 @@ def parseList(
     unique_pairs = list(dict.fromkeys(pairs))
 
     if collect == "source":
-        grouped: dict[str, list[str]] = {}
+        grouped: defaultdict[str, list[str]] = defaultdict(list)
         for source, sink in unique_pairs:
-            grouped.setdefault(source, []).append(sink)
-        return grouped
+            grouped[source].append(sink)
+        return dict(grouped)
 
     if collect == "sink":
-        grouped = {}
+        grouped = defaultdict(list)
         for source, sink in unique_pairs:
-            grouped.setdefault(sink, []).append(source)
-        return grouped
+            grouped[sink].append(source)
+        return dict(grouped)
 
     return unique_pairs
