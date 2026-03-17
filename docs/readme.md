@@ -91,6 +91,40 @@ make clean
 
 This will remove the `build/` directory.
 
+## Customizations
+
+Custom modifications on top of the [Furo](https://pradyunsg.me/furo/) Sphinx
+theme and [sphinx-autoapi](https://sphinx-autoapi.readthedocs.io/).
+
+### Collapsible TOC sidebar
+
+The right-hand "Contents" sidebar has a toggle button for collapsing/expanding
+on desktop viewports (wider than 82 em). The collapse state persists via
+`localStorage`. If content overflows horizontally, the sidebar auto-collapses
+unless the user has explicitly expanded it.
+
+- `source/_static/toc_sidebar.js` -- toggle logic and state management
+- `source/_static/custom.css` -- toggle styles and collapse animations
+
+### Custom AutoAPI templates
+
+The API reference uses customized Jinja templates (`source/_templates/autoapi/`)
+instead of the sphinx-autoapi defaults:
+
+- **Docstring normalization** (`source/_ext/docstring_renderer.py`) -- converts
+  markdown-style code blocks, inline code, and lists into valid reST. Strips
+  redundant `:rtype:` fields.
+- **Class template** -- organizes members into Attributes, Properties, and
+  Methods subsections with cross-referenced inheritance.
+- **Index template** -- shows subpackages in a flat toctree for cleaner
+  navigation.
+
+### Custom sidebar brand
+
+`source/_templates/sidebar/brand.html` replaces Furo's default brand area with
+a layout showing the project name, tagline, and version tag, styled via
+`custom.css`.
+
 ## Contributing
 
 Thank you for considering contributing to FABulous!

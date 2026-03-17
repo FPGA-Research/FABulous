@@ -2,36 +2,35 @@
 {{ obj.name }}
 {{ "^" * (obj.name|length) }}
 
-.. py:class:: {{ obj.name }}{% if obj.args %}({{ obj.args }}){% endif %}
-   :module: {{ obj.module }}
+.. py:class:: {{ obj.name }}{{ "(" + obj.args + ")" if obj.args else "" }}
 
    {% if obj.bases %}
-   {% set bases = obj.bases | map(attribute='name') | list %}
-   {% if bases %}
+   {% set inheritance = obj.bases|format_inheritance_for_rst(obj.name) %}
+   {% if inheritance %}
 
-   **Inheritance:** {{ bases | join(' → ') }} → {{ obj.name }}
+   {{ inheritance }}
    {% endif %}
    {% endif %}
 
    {% if obj.docstring %}
-   {{ obj.docstring }}
+
+   .. autoapi-nested-parse::
+
+      {{ obj.docstring|normalize_docstring_for_rst|indent(6) }}
    {% endif %}
 
-   {% set attributes = obj.children | selectattr('type', 'equalto', 'data') | list %}
-   {% set properties = obj.children | selectattr('type', 'equalto', 'property') | list %}
-   {% set methods = obj.children | selectattr('type', 'equalto', 'method') | list %}
+   {% set attributes = obj.children | selectattr('type', 'equalto', 'data') | selectattr('display') | list %}
+   {% set properties = obj.children | selectattr('type', 'equalto', 'property') | selectattr('display') | list %}
+   {% set methods = obj.children | selectattr('type', 'equalto', 'method') | selectattr('display') | list %}
 
    {% if attributes %}
 
    Attributes
    ~~~~~~~~~~
 
-   {% for attr in attributes if attr.display %}
-   .. py:attribute:: {{ attr.name }}
-      :module: {{ obj.module }}
+   {% for attr in attributes %}
 
-      {% if attr.docstring %}{{ attr.docstring }}{% endif %}
-
+   {{ attr.render()|indent(3) }}
    {% endfor %}
    {% endif %}
 
@@ -40,12 +39,9 @@
    Properties
    ~~~~~~~~~~
 
-   {% for prop in properties if prop.display %}
-   .. py:property:: {{ prop.name }}
-      :module: {{ obj.module }}
+   {% for prop in properties %}
 
-      {% if prop.docstring %}{{ prop.docstring }}{% endif %}
-
+   {{ prop.render()|indent(3) }}
    {% endfor %}
    {% endif %}
 
@@ -54,11 +50,8 @@
    Methods
    ~~~~~~~
 
-   {% for method in methods if method.display %}
-   .. py:method:: {{ method.name }}{% if method.args %}{{ method.args }}{% endif %}
-      :module: {{ obj.module }}
+   {% for method in methods %}
 
-      {% if method.docstring %}{{ method.docstring }}{% endif %}
-
+   {{ method.render()|indent(3) }}
    {% endfor %}
    {% endif %}
