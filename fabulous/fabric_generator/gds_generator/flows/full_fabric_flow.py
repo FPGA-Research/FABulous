@@ -314,7 +314,11 @@ class FABulousFabricMacroFullFlow(Flow):
                     "design__instance__area__stdcell",
                     "design__instance__utilization__stdcell",
                 )
-                metrics_dict = {k: state.metrics.get(k) for k in metric_keys}
+                metrics_dict = {
+                    k: v
+                    for k in metric_keys
+                    if (v := state.metrics.get(k)) is not None
+                }
             if pin_min is not None:
                 metrics_dict |= pin_min
 
@@ -408,11 +412,18 @@ class FABulousFabricMacroFullFlow(Flow):
         self.progress_bar.start_stage("Tile Recompilation")
         info("\n=== Step 3: Recompiling tiles with optimal dimensions ===")
 
+        # Ensure IO pin order configs exist (they may be missing when Step 1
+        # was skipped via --tile-opt-info).
+        for tile_type in fabric.get_all_unique_tiles():
+            io_config_path: Path = tile_type.tileDir.parent / "io_pin_order.yaml"
+            if not io_config_path.exists():
+                generate_IO_pin_order_config(fabric, tile_type, io_config_path)
+
         # Compile tiles with optimal dimensions in parallel
         handlers: list[tuple[Future[WorkerResult], Tile | SuperTile]] = []
         with DillProcessPoolExecutor(max_workers=None) as executor:
             for tile_type in fabric.get_all_unique_tiles():
-                io_config_path: Path = tile_type.tileDir.parent / "io_pin_order.yaml"
+                io_config_path = tile_type.tileDir.parent / "io_pin_order.yaml"
                 base_config_path: Path = (
                     proj_dir / "Tile" / "include" / "gds_config.yaml"
                 )
