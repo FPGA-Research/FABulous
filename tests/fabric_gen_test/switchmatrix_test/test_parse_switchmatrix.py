@@ -12,166 +12,203 @@ from fabulous.fabric_generator.parser.parse_switchmatrix import (
 )
 
 
-class TestExpandListPorts:
-    """Tests for expandListPorts."""
-
-    def test_simple_port(self) -> None:
-        """Plain port name is returned as a single-element list."""
-        assert expandListPorts("N1BEG0") == ["N1BEG0"]
-
-    def test_alternatives_expansion(self) -> None:
-        """[A|B] syntax expands into two separate port names."""
-        assert expandListPorts("N[1|2]BEG0") == ["N1BEG0", "N2BEG0"]
-
-    def test_multiple_alternatives(self) -> None:
-        """[A|B|C] expands into three entries."""
-        assert expandListPorts("[E|N|S]1BEG0") == ["E1BEG0", "N1BEG0", "S1BEG0"]
-
-    def test_multiplier(self) -> None:
-        """'{N}' repeats the port N times and is stripped from the name."""
-        assert expandListPorts("CLK{3}") == ["CLK", "CLK", "CLK"]
-
-    def test_multiplier_stripped_from_name(self) -> None:
-        """The multiplier annotation is not included in the resulting port name."""
-        result = expandListPorts("PORT{2}")
-        assert all(r == "PORT" for r in result)
-
-    def test_spaces_stripped(self) -> None:
-        """Spaces are removed from port names."""
-        assert expandListPorts(" N1BEG0 ") == ["N1BEG0"]
-
-    def test_mismatched_square_bracket_raises(self) -> None:
-        """Unbalanced '[' raises ValueError."""
-        with pytest.raises(ValueError, match="mismatched brackets"):
-            expandListPorts("N[1BEG0")
-
-    def test_mismatched_curly_bracket_raises(self) -> None:
-        """Unbalanced '{' raises ValueError."""
-        with pytest.raises(ValueError, match="mismatched brackets"):
-            expandListPorts("N1BEG{3")
-
-    def test_no_multiplier_returns_single(self) -> None:
-        """Port without multiplier returns a single entry."""
-        assert expandListPorts("GND") == ["GND"]
-
-    def test_recursive_expansion(self) -> None:
-        """Nested alternatives expand correctly via recursion."""
-        result = expandListPorts("X[A|B]Y[0|1]")
-        # First '[' matched: XAY[0|1] and XBY[0|1], then each expands further
-        assert result == ["XAY0", "XAY1", "XBY0", "XBY1"]
+@pytest.mark.parametrize(
+    ("case", "expected_result", "expected_error"),
+    [
+        pytest.param("N1BEG0", ["N1BEG0"], None, id="simple_port"),
+        pytest.param("GND", ["GND"], None, id="no_multiplier"),
+        pytest.param(" N1BEG0 ", ["N1BEG0"], None, id="spaces_stripped"),
+        pytest.param("N[1|2]BEG0", ["N1BEG0", "N2BEG0"], None, id="two_alternatives"),
+        pytest.param("[E|N|S]1BEG0", ["E1BEG0", "N1BEG0", "S1BEG0"], None, id="three_alternatives"),
+        pytest.param("CLK{3}", ["CLK", "CLK", "CLK"], None, id="multiplier"),
+        pytest.param("PORT{2}", ["PORT", "PORT"], None, id="multiplier_stripped_from_name"),
+        pytest.param(
+            "X[A|B]Y[0|1]",
+            ["XAY0", "XAY1", "XBY0", "XBY1"],
+            None,
+            id="recursive_expansion",
+        ),
+        pytest.param("N[1BEG0", None, "mismatched brackets", id="mismatched_square_bracket"),
+        pytest.param("N1BEG{3", None, "mismatched brackets", id="mismatched_curly_bracket"),
+    ],
+)
+def test_expand_list_ports(
+    case: str, expected_result: list[str] | None, expected_error: str | None
+) -> None:
+    """Test expandListPorts for valid expansions and error conditions."""
+    if expected_error:
+        with pytest.raises(ValueError, match=expected_error):
+            expandListPorts(case)
+    else:
+        assert expandListPorts(case) == expected_result
 
 
-class TestParseMatrix:
-    """Tests for parseMatrix."""
+@pytest.mark.parametrize(
+    ("content", "tile_name", "expected_result", "expected_error"),
+    [
+        pytest.param(
+            "MyTile,DEST0,DEST1\nSRC0,1,0\nSRC1,0,1\n",
+            "MyTile",
+            {"SRC0": ["DEST0"], "SRC1": ["DEST1"]},
+            None,
+            id="basic_connections",
+        ),
+        pytest.param(
+            "T,D0,D1,D2\nSRC,1,0,1\n",
+            "T",
+            {"SRC": ["D0", "D2"]},
+            None,
+            id="multiple_destinations_per_source",
+        ),
+        pytest.param(
+            "T,D0,D1\nSRC,0,0\n",
+            "T",
+            {"SRC": []},
+            None,
+            id="no_connections",
+        ),
+        pytest.param(
+            "T,D0 # header comment\nSRC,1 # row comment\n",
+            "T",
+            None,
+            None,
+            id="comments_stripped",
+        ),
+        pytest.param(
+            "T,D0\n\nSRC,1\n\n",
+            "T",
+            None,
+            None,
+            id="blank_lines_skipped",
+        ),
+        pytest.param(
+            "WrongTile,D0\nSRC,1\n",
+            "MyTile",
+            None,
+            InvalidSwitchMatrixDefinition,
+            id="tile_name_mismatch",
+        ),
+    ],
+)
+def test_parse_matrix(
+    tmp_path: Path,
+    content: str,
+    tile_name: str,
+    expected_result: dict | None,
+    expected_error: type | None,
+) -> None:
+    """Test parseMatrix for valid connection parsing and error conditions."""
+    f = tmp_path / "tile_matrix.csv"
+    f.write_text(content)
 
-    def test_basic_connections(self, tmp_path: Path) -> None:
-        """Connections marked with '1' are returned as destination lists."""
-        f = tmp_path / "tile_matrix.csv"
-        f.write_text("MyTile,DEST0,DEST1\nSRC0,1,0\nSRC1,0,1\n")
-        result = parseMatrix(f, "MyTile")
-        assert result == {"SRC0": ["DEST0"], "SRC1": ["DEST1"]}
-
-    def test_multiple_connections_per_source(self, tmp_path: Path) -> None:
-        """A source connected to multiple destinations is collected correctly."""
-        f = tmp_path / "tile_matrix.csv"
-        f.write_text("T,D0,D1,D2\nSRC,1,0,1\n")
-        assert parseMatrix(f, "T") == {"SRC": ["D0", "D2"]}
-
-    def test_no_connections(self, tmp_path: Path) -> None:
-        """Source with no '1' bits maps to an empty list."""
-        f = tmp_path / "tile_matrix.csv"
-        f.write_text("T,D0,D1\nSRC,0,0\n")
-        assert parseMatrix(f, "T") == {"SRC": []}
-
-    def test_comments_stripped(self, tmp_path: Path) -> None:
-        """Lines with '#' comments are ignored."""
-        f = tmp_path / "tile_matrix.csv"
-        f.write_text("T,D0 # header comment\nSRC,1 # row comment\n")
-        result = parseMatrix(f, "T")
-        assert "SRC" in result
-
-    def test_empty_rows_skipped(self, tmp_path: Path) -> None:
-        """Blank lines do not produce entries in the result."""
-        f = tmp_path / "tile_matrix.csv"
-        f.write_text("T,D0\n\nSRC,1\n\n")
-        assert list(parseMatrix(f, "T").keys()) == ["SRC"]
-
-    def test_tile_name_mismatch_raises(self, tmp_path: Path) -> None:
-        """Mismatched tile name in CSV header raises InvalidSwitchMatrixDefinition."""
-        f = tmp_path / "tile_matrix.csv"
-        f.write_text("WrongTile,D0\nSRC,1\n")
-        with pytest.raises(InvalidSwitchMatrixDefinition):
-            parseMatrix(f, "MyTile")
+    if expected_error:
+        with pytest.raises(expected_error):
+            parseMatrix(f, tile_name)
+    else:
+        result = parseMatrix(f, tile_name)
+        if expected_result is not None:
+            assert result == expected_result
+        else:
+            assert isinstance(result, dict)
 
 
-class TestParseList:
-    """Tests for parseList."""
+@pytest.mark.parametrize(
+    ("files", "collect", "expected_result", "expected_error"),
+    [
+        pytest.param(
+            {"test.list": "N1BEG0,E1END0\n"},
+            "pair",
+            [("N1BEG0", "E1END0")],
+            None,
+            id="basic_pair",
+        ),
+        pytest.param(
+            {"test.list": "SRC,SINK0\nSRC,SINK1\n"},
+            "source",
+            {"SRC": ["SINK0", "SINK1"]},
+            None,
+            id="collect_source",
+        ),
+        pytest.param(
+            {"test.list": "SRC0,SINK\nSRC1,SINK\n"},
+            "sink",
+            {"SINK": ["SRC0", "SRC1"]},
+            None,
+            id="collect_sink",
+        ),
+        pytest.param(
+            {"test.list": "# comment\nA,B\n"},
+            "pair",
+            [("A", "B")],
+            None,
+            id="comments_stripped",
+        ),
+        pytest.param(
+            {"test.list": "\nA,B\n\nC,D\n"},
+            "pair",
+            [("A", "B"), ("C", "D")],
+            None,
+            id="blank_lines_skipped",
+        ),
+        pytest.param(
+            {"test.list": "A,B\nA,B\n"},
+            "pair",
+            [("A", "B")],
+            None,
+            id="duplicates_removed",
+        ),
+        pytest.param(
+            {"test.list": "[X|Y]BEG,[X|Y]END\n"},
+            "pair",
+            [("XBEG", "XEND"), ("YBEG", "YEND")],
+            None,
+            id="alternatives_expansion",
+        ),
+        pytest.param(
+            {"test.list": "INCLUDE,other.list\n", "other.list": "A,B\n"},
+            "pair",
+            [("A", "B")],
+            None,
+            id="include_directive",
+        ),
+        pytest.param(
+            {},
+            "pair",
+            None,
+            FileNotFoundError,
+            id="file_not_found",
+        ),
+        pytest.param(
+            {"test.list": "A,B,C\n"},
+            "pair",
+            None,
+            InvalidListFileDefinition,
+            id="invalid_format",
+        ),
+        pytest.param(
+            {"test.list": "[A|B|C]END,[X|Y]END\n"},
+            "pair",
+            None,
+            InvalidListFileDefinition,
+            id="mismatched_expansion_count",
+        ),
+    ],
+)
+def test_parse_list(
+    tmp_path: Path,
+    files: dict[str, str],
+    collect: str,
+    expected_result: list | dict | None,
+    expected_error: type | None,
+) -> None:
+    """Test parseList for valid pair parsing and error conditions."""
+    for name, content in files.items():
+        (tmp_path / name).write_text(content)
 
-    def test_basic_pair(self, tmp_path: Path) -> None:
-        """A simple source,sink line is returned as a tuple pair."""
-        f = tmp_path / "test.list"
-        f.write_text("N1BEG0,E1END0\n")
-        assert parseList(f) == [("N1BEG0", "E1END0")]
+    main_file = tmp_path / "test.list"
 
-    def test_collect_source(self, tmp_path: Path) -> None:
-        """collect='source' groups sinks by source."""
-        f = tmp_path / "test.list"
-        f.write_text("SRC,SINK0\nSRC,SINK1\n")
-        assert parseList(f, "source") == {"SRC": ["SINK0", "SINK1"]}
-
-    def test_collect_sink(self, tmp_path: Path) -> None:
-        """collect='sink' groups sources by sink."""
-        f = tmp_path / "test.list"
-        f.write_text("SRC0,SINK\nSRC1,SINK\n")
-        assert parseList(f, "sink") == {"SINK": ["SRC0", "SRC1"]}
-
-    def test_comments_stripped(self, tmp_path: Path) -> None:
-        """Lines starting with '#' are ignored."""
-        f = tmp_path / "test.list"
-        f.write_text("# comment\nA,B\n")
-        assert parseList(f) == [("A", "B")]
-
-    def test_blank_lines_skipped(self, tmp_path: Path) -> None:
-        """Blank lines do not produce entries."""
-        f = tmp_path / "test.list"
-        f.write_text("\nA,B\n\nC,D\n")
-        assert parseList(f) == [("A", "B"), ("C", "D")]
-
-    def test_duplicates_removed(self, tmp_path: Path) -> None:
-        """Duplicate pairs appear only once, first occurrence wins."""
-        f = tmp_path / "test.list"
-        f.write_text("A,B\nA,B\n")
-        assert parseList(f) == [("A", "B")]
-
-    def test_expansion_with_alternatives(self, tmp_path: Path) -> None:
-        """'[A|B]' syntax expands both source and sink into multiple pairs."""
-        f = tmp_path / "test.list"
-        f.write_text("[X|Y]BEG,[X|Y]END\n")
-        assert parseList(f) == [("XBEG", "XEND"), ("YBEG", "YEND")]
-
-    def test_include_directive(self, tmp_path: Path) -> None:
-        """INCLUDE loads pairs from a referenced file."""
-        included = tmp_path / "other.list"
-        included.write_text("A,B\n")
-        f = tmp_path / "test.list"
-        f.write_text("INCLUDE,other.list\n")
-        assert parseList(f) == [("A", "B")]
-
-    def test_file_not_found_raises(self, tmp_path: Path) -> None:
-        """Missing file raises FileNotFoundError."""
-        with pytest.raises(FileNotFoundError):
-            parseList(tmp_path / "nonexistent.list")
-
-    def test_invalid_format_raises(self, tmp_path: Path) -> None:
-        """Lines with more or fewer than two fields raise InvalidListFileDefinition."""
-        f = tmp_path / "test.list"
-        f.write_text("A,B,C\n")
-        with pytest.raises(InvalidListFileDefinition):
-            parseList(f)
-
-    def test_mismatched_expansion_count_raises(self, tmp_path: Path) -> None:
-        """Unequal source/sink expansion counts raise InvalidListFileDefinition."""
-        f = tmp_path / "test.list"
-        f.write_text("[A|B|C]END,[X|Y]END\n")
-        with pytest.raises(InvalidListFileDefinition):
-            parseList(f)
+    if expected_error:
+        with pytest.raises(expected_error):
+            parseList(main_file, collect)
+    else:
+        assert parseList(main_file, collect) == expected_result
