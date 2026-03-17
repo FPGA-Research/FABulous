@@ -42,6 +42,21 @@ class NLPTileProblem(ElementwiseProblem):
         all_tile_metrics: dict[OptMode, dict] | None = None,
         area_margin: float = 0.05,
     ) -> None:
+        """Initialise the NLP tile-sizing problem.
+
+        Parameters
+        ----------
+        fabric : Fabric
+            The fabric whose tiles are being sized.
+        tile_metrics : dict[OptMode, dict]
+            Per-mode compilation metrics for tiles that compiled successfully.
+        all_tile_metrics : dict[OptMode, dict] | None, optional
+            Metrics including failed explorations, used for lower-bound
+            estimates. Falls back to *tile_metrics* when ``None``.
+        area_margin : float, optional
+            Fractional margin added to standard-cell area constraints,
+            by default 0.05 (5 %).
+        """
         self.fabric = fabric
         self.tile_metrics = tile_metrics
         self.area_margin = area_margin
@@ -93,9 +108,8 @@ class NLPTileProblem(ElementwiseProblem):
         # and from row/column neighbors
         for supertile in fabric.superTileDic.values():
             st_min_w, st_min_h = self._pin_min_from_metrics(supertile.name)
-            n_cols = sum(
-                1 for t in (supertile.tileMap[0] if supertile.tileMap else []) if t is not None
-            )
+            first_row = supertile.tileMap[0] if supertile.tileMap else []
+            n_cols = sum(1 for t in first_row if t is not None)
             n_rows = sum(
                 1
                 for row in supertile.tileMap
@@ -191,12 +205,14 @@ class NLPTileProblem(ElementwiseProblem):
         parent: dict[int, int] = {}
 
         def find(x: int) -> int:
+            """Return the root representative of *x* with path compression."""
             while parent.get(x, x) != x:
                 parent[x] = parent.get(parent[x], parent[x])
                 x = parent[x]
             return x
 
         def union(a: int, b: int) -> None:
+            """Merge the sets containing *a* and *b*."""
             ra, rb = find(a), find(b)
             if ra != rb:
                 parent[ra] = rb
@@ -351,7 +367,9 @@ class NLPTileProblem(ElementwiseProblem):
             ]
             st_rows: list[int] = []
             for row in supertile.tileMap:
-                first_tile = next((t for t in row if t is not None), None) if row else None
+                first_tile = (
+                    next((t for t in row if t is not None), None) if row else None
+                )
                 if first_tile is not None:
                     st_rows.append(min(self.tile_row_set[first_tile.name]))
             constraints.append((supertile.name, st_cols, st_rows))
@@ -449,6 +467,7 @@ class GlobalTileSizeOptimization(Step):
         """
 
         def parse_bbox(key: str) -> list[float]:
+            """Parse a whitespace-separated bbox string into a list of floats."""
             return [float(v) for v in data[key].split()]
 
         result: dict[str, Any] = {
@@ -590,10 +609,12 @@ class GlobalTileSizeOptimization(Step):
         result_dict: dict[str, tuple[Decimal, ...]] = {}
 
         def quantized_width(tile_name: str) -> Decimal:
+            """Return the NLP-optimal width for *tile_name*, quantized to 0.01."""
             col = min(problem.tile_column_set[tile_name])
             return Decimal(problem.get_col_width(res.X, col)).quantize(quant)
 
         def quantized_height(tile_name: str) -> Decimal:
+            """Return the NLP-optimal height for *tile_name*, quantized to 0.01."""
             row = min(problem.tile_row_set[tile_name])
             return Decimal(problem.get_row_height(res.X, row)).quantize(quant)
 
@@ -616,7 +637,11 @@ class GlobalTileSizeOptimization(Step):
 
             total_h = zero
             for row_tiles in supertile.tileMap:
-                first_tile = next((t for t in row_tiles if t is not None), None) if row_tiles else None
+                first_tile = (
+                    next((t for t in row_tiles if t is not None), None)
+                    if row_tiles
+                    else None
+                )
                 if first_tile is not None:
                     total_h += quantized_height(first_tile.name)
 
