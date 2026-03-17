@@ -464,7 +464,22 @@ class GlobalTileSizeOptimization(Step):
 
         Parses bbox strings into float lists and extracts optional scalar
         fields (pin minimums) when present.
+
+        Raises
+        ------
+        KeyError
+            If required bbox fields are missing from *data*.
+        TypeError
+            If a required bbox field is not a string.
         """
+        for required in ("design__die__bbox", "design__core__bbox"):
+            val = data.get(required)
+            if val is None or not isinstance(val, str):
+                raise TypeError(
+                    f"Required metric '{required}' is missing or not "
+                    f"a string (got {val!r}). The tile may have "
+                    f"failed compilation."
+                )
 
         def parse_bbox(key: str) -> list[float]:
             """Parse a whitespace-separated bbox string into a list of floats."""
