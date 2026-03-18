@@ -12,7 +12,7 @@ The default reference projects are hosted in the
 
 ```bash
 # Run all reference tests
-pytest tests/reference_tests/
+pytest tests/reference_test/
 
 ```
 
@@ -60,7 +60,7 @@ This is an example configuration for a Verilog project:
 ```yaml
 reference_projects:
   - name: "my_verilog_project"
-    path: "./tests/reference_tests/projects/my_verilog_project"
+    path: "./tests/reference_test/projects/my_verilog_project"
     language: "verilog"
     test_mode: "diff" # or "run"
     description: "My custom FABulous project"
@@ -88,14 +88,14 @@ reference_projects:
 
 ```bash
 # Test specific project patterns (matches "verilog" in the project names)
-pytest tests/reference_tests/ -k "verilog"
+pytest tests/reference_test/ -k "verilog"
 
 # Run with custom repository
-pytest tests/reference_tests/ --repo-url "https://github.com/myuser/my-projects.git"
+pytest tests/reference_test/ --repo-url "https://github.com/myuser/my-projects.git"
 
 # Run with custom YAML config
-pytest tests/reference_tests/ ---reference-projects-config "./test/my_custom_config.yaml"
+pytest tests/reference_test/ ---reference-projects-config "./test/my_custom_config.yaml"
 
 # Generate pytest report
-pytest tests/reference_tests/ --html=report.html
+pytest tests/reference_test/ --html=report.html
 ```
