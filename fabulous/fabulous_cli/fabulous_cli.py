@@ -58,7 +58,7 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
 )
 from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_api import FABulous_API
-from fabulous.fabulous_cli import cmd_compile_design, cmd_synthesis
+from fabulous.fabulous_cli import cmd_compile_design
 from fabulous.fabulous_cli.helper import (
     CommandPipeline,
     allow_blank,
@@ -342,7 +342,96 @@ class FABulous_CLI(Cmd):
         """Exit the FABulous shell and log info message."""
         self.onecmd_plus_hooks("exit")
 
-    do_synthesis = cmd_synthesis.do_synthesis
+    # Legacy synthesis parser — kept for backwards compatibility with existing
+    # scripts that pass flags like -extra-plib, -nofsm, etc. directly.
+    _synthesis_parser = Cmd2ArgumentParser(
+        description="[DEPRECATED] Use 'compile_design --synth-only' instead."
+    )
+    _synthesis_parser.add_argument(
+        "files", type=Path, nargs="+", completer=Cmd.path_complete,
+    )
+    _synthesis_parser.add_argument("-top", type=str, default="top_wrapper")
+    _synthesis_parser.add_argument("-auto-top", action="store_true")
+    _synthesis_parser.add_argument("-blif", type=Path)
+    _synthesis_parser.add_argument("-edif", type=Path)
+    _synthesis_parser.add_argument("-json", type=Path)
+    _synthesis_parser.add_argument("-lut", type=str, default="4")
+    _synthesis_parser.add_argument("-plib", type=str)
+    _synthesis_parser.add_argument("-extra-plib", type=Path, action="append")
+    _synthesis_parser.add_argument("-extra-map", type=Path, action="append")
+    _synthesis_parser.add_argument("-encfile", type=Path)
+    _synthesis_parser.add_argument("-nofsm", action="store_true")
+    _synthesis_parser.add_argument("-noalumacc", action="store_true")
+    _synthesis_parser.add_argument("-carry", type=str, default="none", choices=["none", "ha"])
+    _synthesis_parser.add_argument("-noregfile", action="store_true")
+    _synthesis_parser.add_argument("-iopad", action="store_true")
+    _synthesis_parser.add_argument("-complex-dff", action="store_true")
+    _synthesis_parser.add_argument("-noflatten", action="store_true")
+    _synthesis_parser.add_argument("-nordff", action="store_true")
+    _synthesis_parser.add_argument("-noshare", action="store_true")
+    _synthesis_parser.add_argument("-run", type=str)
+    _synthesis_parser.add_argument("-no-rw-check", action="store_true")
+
+    @with_category(CMD_USER_DESIGN_FLOW)
+    @with_argparser(_synthesis_parser)
+    def do_synthesis(self, args: argparse.Namespace) -> None:
+        """Run Yosys synthesis for the specified Verilog files.
+
+        .. deprecated::
+            Use ``compile_design --synth-only`` instead.
+        """
+        logger.warning(
+            "The 'synthesis' command is deprecated. Use 'compile_design' instead."
+        )
+
+        # Translate legacy flags into --synth-extra-args for compile_design
+        extra = []
+        if args.blif:
+            extra.append(f"-blif {args.blif}")
+        if args.edif:
+            extra.append(f"-edif {args.edif}")
+        if args.lut:
+            extra.append(f"-lut {args.lut}")
+        if args.plib:
+            extra.append(f"-plib {args.plib}")
+        if args.extra_plib:
+            extra.extend(f"-extra-plib {p}" for p in args.extra_plib)
+        if args.extra_map:
+            extra.extend(f"-extra-map {m}" for m in args.extra_map)
+        if args.encfile:
+            extra.append(f"-encfile {args.encfile}")
+        if args.nofsm:
+            extra.append("-nofsm")
+        if args.noalumacc:
+            extra.append("-noalumacc")
+        if args.carry and args.carry != "none":
+            extra.append(f"-carry {args.carry}")
+        if args.noregfile:
+            extra.append("-noregfile")
+        if args.iopad:
+            extra.append("-iopad")
+        if args.complex_dff:
+            extra.append("-complex-dff")
+        if args.noflatten:
+            extra.append("-noflatten")
+        if args.nordff:
+            extra.append("-nordff")
+        if args.noshare:
+            extra.append("-noshare")
+        if args.run:
+            extra.append(f"-run {args.run}")
+        if args.no_rw_check:
+            extra.append("-no-rw-check")
+
+        cmd = f"compile_design {' '.join(str(f) for f in args.files)} --synth-only"
+        if args.top != "top_wrapper":
+            cmd += f" -top {args.top}"
+        if args.json:
+            cmd += f" -json {args.json}"
+        if extra:
+            cmd += f' --synth-extra-args "{" ".join(extra)}"'
+
+        self.onecmd_plus_hooks(cmd)
 
     @with_category(CMD_USER_DESIGN_FLOW)
     @with_argparser(cmd_compile_design.compile_design_parser)
