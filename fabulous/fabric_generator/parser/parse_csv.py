@@ -15,9 +15,16 @@ from fabulous.custom_exception import (
     InvalidSupertileDefinition,
     InvalidTileDefinition,
 )
-from fabulous.fabric_definition.define import IO, ConfigBitMode, MultiplexerStyle
+from fabulous.fabric_definition.define import (
+    IO,
+    ConfigBitMode,
+    Direction,
+    MultiplexerStyle,
+    Side,
+)
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.gen_io import Gen_IO
+from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
@@ -29,13 +36,54 @@ from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabric_generator.parser.parse_switchmatrix import (
     parseList,
     parseMatrix,
-    parsePortLine,
 )
 from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
     from fabulous.fabric_definition.bel import Bel
-    from fabulous.fabric_definition.port import Port
+
+
+def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
+    """Parse a single line of the port configuration from the CSV file.
+
+    Parameters
+    ----------
+    line : str
+        CSV line containing port configuration data.
+
+    Raises
+    ------
+    InvalidPortType
+        If the port definition is invalid.
+
+    Returns
+    -------
+    tuple[list[Port], tuple[str, str] | None]
+        A tuple containing a list of parsed ports and an optional common wire pair.
+    """
+    kind, start, x, y, end, count = line.split(",")[:6]
+    x, y, count = int(x), int(y), int(count)
+
+    if kind in ("NORTH", "SOUTH", "EAST", "WEST"):
+        # Directional wire: OUTPUT port at start side, INPUT port at opposite side
+        direction = Direction[kind]
+        side = Side[kind]
+        opposite_side = side.opposite
+        ports = [
+            Port(direction, start, x, y, end, count, start, IO.OUTPUT, side),
+            Port(direction, start, x, y, end, count, end, IO.INPUT, opposite_side),
+        ]
+        return ports, (start, end)
+
+    if kind == "JUMP":
+        # Jump wire: connects within the same tile, no directional side
+        ports = [
+            Port(Direction.JUMP, start, x, y, end, count, start, IO.OUTPUT, Side.ANY),
+            Port(Direction.JUMP, start, x, y, end, count, end, IO.INPUT, Side.ANY),
+        ]
+        return ports, None
+
+    raise InvalidPortType(f"Unknown port type: {kind}")
 
 
 def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:

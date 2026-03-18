@@ -60,6 +60,21 @@ class Side(StrEnum):
     WEST = "W"
     ANY = "ANY"
 
+    @property
+    def opposite(self) -> "Side":
+        """Return the opposite side (e.g. NORTH → SOUTH)."""
+        match self:
+            case Side.NORTH:
+                return Side.SOUTH
+            case Side.SOUTH:
+                return Side.NORTH
+            case Side.EAST:
+                return Side.WEST
+            case Side.WEST:
+                return Side.EAST
+            case Side.ANY:
+                return Side.ANY
+
 
 class MultiplexerStyle(Enum):
     """Enumeration for multiplexer implementation styles.

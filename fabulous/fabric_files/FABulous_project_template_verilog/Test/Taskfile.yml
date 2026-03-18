@@ -1,0 +1,166 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# https://taskfile.dev
+#
+# Verilog simulation and build tasks for FABulous projects.
+# Override any variable via CLI: task run-simulation DESIGN=my_design WAVEFORM_TYPE=vcd
+version: "3"
+
+dotenv: ["../.FABulous/.env"]
+
+vars:
+  MAX_BITBYTES: '{{.MAX_BITBYTES | default "16384"}}'
+  FAB_PROJ_ROOT: '{{.FAB_PROJ_ROOT | default ".."}}'
+  BUILD_DIR: '{{.BUILD_DIR | default "build"}}'
+  DESIGN: '{{.DESIGN | default "sequential_16bit_en"}}'
+  TESTBENCH: "{{.DESIGN}}_tb"
+  TOP_WRAPPER: '{{.TOP_WRAPPER | default "top_wrapper"}}'
+  USER_DESIGN_DIR: "{{.FAB_PROJ_ROOT}}/user_design"
+  WAVEFORM_TYPE: '{{.WAVEFORM_TYPE | default "fst"}}'
+  EXTRA_IVERILOG_FLAGS: '{{.EXTRA_IVERILOG_FLAGS | default ""}}'
+  BITSTREAM_BIN: '{{.BITSTREAM_BIN | default "{{.BUILD_DIR}}/{{.DESIGN}}.bin"}}'
+  FABRIC_FILES_DIR: "{{.BUILD_DIR}}/fabric_files"
+
+tasks:
+  fab-sim:
+    aliases: [default]
+    desc: Build demo fabric, build test design, run simulation, then clean up
+    cmds:
+      - task: build-demo-fabric
+      - task: build-test-design
+      - task: run-simulation
+      - task: clean
+
+  full-sim:
+    desc: Run FABulous demo, build test design, run simulation + emulation, then clean up
+    cmds:
+      - task: run-fabulous-demo
+      - task: build-test-design
+      - task: run-emulation
+      - task: run-simulation
+      - task: clean
+
+  build-test-design:
+    desc: Synthesize, place & route, generate bitstream, and copy fabric files
+    cmds:
+      - task: run-yosys
+      - task: run-nextpnr
+      - task: run-bitgen
+      - task: copy-files
+
+  run-fabulous-demo:
+    desc: Run FABulous to generate the default fabric
+    cmds:
+      - FABulous {{.FAB_PROJ_ROOT}} -fs {{.FAB_PROJ_ROOT}}/FABulous.tcl
+      # Re-create build dirs after FABulous (it removes them during simulation)
+      - mkdir -p {{.BUILD_DIR}} {{.FABRIC_FILES_DIR}}
+      - mv -f {{.DESIGN}}.hex {{.BUILD_DIR}}/
+      - mv -f {{.DESIGN}}.fst {{.BUILD_DIR}}/
+      - cp -fu {{.USER_DESIGN_DIR}}/* {{.BUILD_DIR}}
+
+  build-demo-fabric:
+    desc: Build the default fabric only (no simulation)
+    cmds:
+      - task: mkdir-build
+      - FABulous {{.FAB_PROJ_ROOT}} -ts ./build_fabulous_fabric.tcl
+
+  run-yosys:
+    desc: Run Yosys synthesis
+    deps: [mkdir-build]
+    cmds:
+      - >-
+        yosys -p "synth_fabulous -top {{.TOP_WRAPPER}}
+        -json {{.BUILD_DIR}}/{{.DESIGN}}.json
+        {{.CUSTOM_PRIMS}}"
+        {{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
+        {{.USER_DESIGN_DIR}}/{{.TOP_WRAPPER}}.v
+    vars:
+      CUSTOM_PRIMS:
+        sh: '[ -f "{{.USER_DESIGN_DIR}}/custom_prims.v" ] && echo "-extra-plib {{.USER_DESIGN_DIR}}/custom_prims.v" || true'
+
+  run-nextpnr:
+    desc: Run nextpnr place and route
+    deps: [mkdir-build]
+    cmds:
+      - >-
+        FAB_ROOT={{.FAB_PROJ_ROOT}} nextpnr-generic
+        --uarch fabulous
+        --json {{.BUILD_DIR}}/{{.DESIGN}}.json
+        -o fasm={{.BUILD_DIR}}/{{.DESIGN}}.fasm
+
+  run-bitgen:
+    desc: Generate bitstream and hex file
+    deps: [mkdir-build]
+    cmds:
+      - >-
+        bit_gen -genBitstream
+        {{.BUILD_DIR}}/{{.DESIGN}}.fasm
+        {{.FAB_PROJ_ROOT}}/.FABulous/bitStreamSpec.bin
+        {{.BUILD_DIR}}/{{.DESIGN}}.bin
+      - >-
+        python3 makehex.py
+        {{.BUILD_DIR}}/{{.DESIGN}}.bin
+        {{.MAX_BITBYTES}}
+        {{.BUILD_DIR}}/{{.DESIGN}}.hex
+
+  copy-files:
+    desc: Copy Verilog fabric files to build directory
+    deps: [mkdir-build]
+    cmds:
+      - find {{.FAB_PROJ_ROOT}}/Tile/ -name '*.v' -type f -exec cp -n {} {{.FABRIC_FILES_DIR}}/ \;
+      - find {{.FAB_PROJ_ROOT}}/Fabric/ -name '*.v' -type f -exec cp -n {} {{.FABRIC_FILES_DIR}}/ \;
+
+  run-simulation:
+    desc: Run simulation using Icarus Verilog (iverilog)
+    deps: [mkdir-build, copy-files]
+    cmds:
+      - >-
+        iverilog -g2012
+        {{.EXTRA_IVERILOG_FLAGS}}
+        -s {{.TESTBENCH}}
+        -o {{.BUILD_DIR}}/{{.DESIGN}}.vvp
+        {{.FABRIC_FILES_DIR}}/*
+        {{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
+        {{.TESTBENCH}}.v
+      - >-
+        vvp {{.BUILD_DIR}}/{{.DESIGN}}.vvp
+        +output_waveform={{.BUILD_DIR}}/{{.DESIGN}}.{{.WAVEFORM_TYPE}}
+        +bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
+        {{if eq .WAVEFORM_TYPE "fst"}}-fst{{end}}
+
+  run-emulation:
+    desc: Run emulation using Icarus Verilog (iverilog)
+    deps: [mkdir-build]
+    cmds:
+      - >-
+        iverilog -g2012 -D EMULATION
+        {{.EXTRA_IVERILOG_FLAGS}}
+        -s {{.TESTBENCH}}
+        -o {{.BUILD_DIR}}/{{.DESIGN}}.vvp
+        {{.BUILD_DIR}}/{{.DESIGN}}.vh
+        {{.FABRIC_FILES_DIR}}/*
+        {{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
+        {{.TESTBENCH}}.v
+      - >-
+        vvp {{.BUILD_DIR}}/{{.DESIGN}}.vvp
+        +output_waveform={{.BUILD_DIR}}/{{.DESIGN}}.{{.WAVEFORM_TYPE}}
+        +bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
+        {{if eq .WAVEFORM_TYPE "fst"}}-fst{{end}}
+
+  gtkwave:
+    desc: Open waveform in GTKWave
+    cmds:
+      - gtkwave {{.BUILD_DIR}}/{{.DESIGN}}.{{.WAVEFORM_TYPE}}
+
+  mkdir-build:
+    internal: true
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - mkdir -p {{.FABRIC_FILES_DIR}}
+    status:
+      - test -d {{.BUILD_DIR}}
+      - test -d {{.FABRIC_FILES_DIR}}
+
+  clean:
+    desc: Remove build directory
+    cmds:
+      - rm -rf {{.BUILD_DIR}}

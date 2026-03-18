@@ -41,8 +41,12 @@
       url = "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-llvm-jit-6.0.0-macos15-aarch64.tar.gz";
       flake = false;
     };
+    yosys-src = {
+      url = "git+https://github.com/YosysHQ/yosys?submodules=1";
+      flake = false;
+    };
     nextpnr-src = {
-      url = "github:YosysHQ/nextpnr/nextpnr-0.9";
+      url = "github:YosysHQ/nextpnr";
       flake = false;
     };
     fabulator-src = {
@@ -67,6 +71,7 @@
       librelane,
       ghdl-bin-x86_64-linux,
       ghdl-bin-aarch64-darwin,
+      yosys-src,
       nextpnr-src,
       fabulator-src,
       pyproject-nix,
@@ -143,6 +148,7 @@
             srcs = {
               ghdl-linux-bin = ghdl-bin-x86_64-linux;
               ghdl-darwin-bin = ghdl-bin-aarch64-darwin;
+              yosys = yosys-src;
               nextpnr = nextpnr-src;
               fabulator = fabulator-src;
             };
@@ -175,6 +181,7 @@
             pkgs.fish
             pkgs.zsh
             pkgs.gtkwave
+            customPkgs.yosys
             customPkgs.nextpnr
             customPkgs.fabulator
             customPkgs.ghdl
@@ -188,6 +195,10 @@
           baseShellConfig = {
             devshell.packages = allPackages;
             env = [
+              {
+                name = "FAB_YOSYS_PATH";
+                value = "fab-yosys";
+              }
               {
                 name = "NIX_PYTHONPATH";
                 value = "${librelane-python-path}:${tkinter-python-path}";
@@ -215,7 +226,6 @@
             ];
             devshell.startup.fabulous-setup = {
               text = ''
-
                 export REPO_ROOT=$(git rev-parse --show-toplevel)
                 ORIGINAL_PS1="$PS1"
 

@@ -1,6 +1,8 @@
 MAX_BITBYTES=16384
 FAB_PROJ_ROOT=..
 BUILD_DIR=build
+YOSYS?=$(or $(FAB_YOSYS_PATH),yosys)
+NEXTPNR?=$(or $(FAB_NEXTPNR_PATH),nextpnr-generic)
 DESIGN=sequential_16bit_en
 TESTBENCH=${DESIGN}_tb
 TOP_WRAPPER=top_wrapper
@@ -49,10 +51,10 @@ build_demo_fabric: mkdir_build
 	FABulous ${FAB_PROJ_ROOT} -ts ./build_fabulous_fabric.tcl
 
 run_yosys: mkdir_build
-	yosys -p "synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json ${CUSTOM_PRIMS}" ${USER_DESIGN_VERILOG} ${TOP_WRAPPER_VERILOG}
+	${YOSYS} -p "synth_fabulous -top ${TOP_WRAPPER} -json ${BUILD_DIR}/${DESIGN}.json ${CUSTOM_PRIMS}" ${USER_DESIGN_VERILOG} ${TOP_WRAPPER_VERILOG}
 
 run_nextpnr: mkdir_build
-	FAB_ROOT=${FAB_PROJ_ROOT} nextpnr-generic --uarch fabulous --json ${BUILD_DIR}/${DESIGN}.json -o fasm=${BUILD_DIR}/${DESIGN}.fasm
+	FAB_ROOT=${FAB_PROJ_ROOT} ${NEXTPNR} --uarch fabulous --json ${BUILD_DIR}/${DESIGN}.json -o fasm=${BUILD_DIR}/${DESIGN}.fasm
 
 run_bitgen: mkdir_build
 	bit_gen -genBitstream ${BUILD_DIR}/${DESIGN}.fasm ${FAB_PROJ_ROOT}/.FABulous/bitStreamSpec.bin ${BUILD_DIR}/${DESIGN}.bin

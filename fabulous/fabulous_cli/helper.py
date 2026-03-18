@@ -30,7 +30,7 @@ from loguru import logger
 from packaging.version import Version
 from pick import pick
 
-from fabulous.custom_exception import PipelineCommandError
+from fabulous.custom_exception import EnvironmentNotSet, PipelineCommandError
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_settings import add_var_to_global_env
 
@@ -227,6 +227,49 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
     logger.info(
         f"New FABulous project created in {project_dir} with {lang!s} language."
     )
+
+
+def run_task(
+    task_name: str,
+    task_dir: Path,
+    task_vars: dict[str, str] | None = None,
+    verbose: bool = False,
+) -> None:
+    """Run a Taskfile task using the ``task`` CLI.
+
+    Parameters
+    ----------
+    task_name : str
+        Name of the task to run (e.g. ``"run-simulation"``).
+    task_dir : Path
+        Directory containing the ``Taskfile.yml``.
+    task_vars : dict[str, str] | None
+        Optional variables to pass to the task (``VAR=value``).
+    verbose : bool
+        If True, adds ``--verbose`` flag.
+
+    Raises
+    ------
+    EnvironmentNotSet
+        If the ``task`` binary is not found on ``PATH``.
+    subprocess.CalledProcessError
+        If the task command exits with a non-zero return code.
+    """
+    if shutil.which("task") is None:
+        raise EnvironmentNotSet(
+            "The 'task' command (go-task) is not found on PATH. "
+            "It ships with FABulous; reinstall with "
+            "'uv tool install FABulous-FPGA'."
+        )
+
+    cmd: list[str] = ["task", task_name]
+    if verbose:
+        cmd.append("--verbose")
+    if task_vars:
+        cmd.extend(f"{key}={value}" for key, value in task_vars.items())
+
+    logger.info(f"Running: {' '.join(cmd)} (in {task_dir})")
+    subprocess.run(cmd, cwd=task_dir, check=True)
 
 
 def copy_verilog_files(src: Path, dst: Path) -> None:

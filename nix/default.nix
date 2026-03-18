@@ -25,6 +25,7 @@ let
 in
 {
   # Custom builds only for these tools
+  yosys = buildTool "yosys";
   nextpnr = buildTool "nextpnr";
   fabulator = buildTool "fabulator";
 

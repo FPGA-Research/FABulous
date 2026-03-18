@@ -4,20 +4,16 @@
 GitHub Codespaces provides a complete, cloud-based development environment for FABulous with full GUI support through a web browser. This eliminates the need for local installation and works on any platform.
 
 ## Quick Start
-
 1. Navigate to the [FABulous repository](https://github.com/FPGA-Research/FABulous) on GitHub
 2. Click the green **"Code"** button
 3. Select the **"Codespaces"** tab
-4. Click **"Create codespace on main"** (or your desired branch)
-
-GitHub will create and configure your development environment automatically.
-
-<!-- ## Selecting the Correct Configuration
 
 When creating a Codespace, make sure to select the correct dev container configuration:
 
-![Selecting Codespace Configuration](./figs/codespace-config-selection.png)
+![Selecting Codespace Configuration-1](../figs/dev-container/step1.png)
+![Selecting Codespace Configuration-2](../figs/dev-container/step2.png)
 
+GitHub will automatically create and configure your development environment. The setup process will take a while.
 ```{note}
 If you don't see the configuration options, you can change them after creation by rebuilding the container.
 ```
@@ -26,24 +22,20 @@ If you don't see the configuration options, you can change them after creation b
 
 FABulous includes tools like OpenROAD that have graphical interfaces. In Codespaces, these are accessible through a web-based VNC viewer.
 
-### Enabling Port Forwarding for GUI
-
-1. After your Codespace starts, look for the **"Ports"** tab in the bottom panel (next to Terminal)
-2. You should see port **6080** listed automatically
-3. If not, click **"Forward a Port"** and add port **6080**
-
-
-![Ports Tab with VNC](../../figs/codespace-ports-vnc.png)
-
 ### Opening the GUI
 
-1. In the **Ports** tab, find port **6080**
-2. Hover over it and click the **globe icon** (🌐) to open in browser
-3. When prompted for a password, enter: **`fabulous`**
+1. In the **Ports** tab, find port **6080**, if the port does not exist click **"Add Port"** and add port **6080**.
+![Open the port tab](../figs/dev-container/vnc-step-1.png)
+![Locate the port](../figs/dev-container/vnc-step-2.png)
+2. Click the port entry to open it in a browser tab and you should see the following screen, click connect and should bring you to a white window.
 
-You'll now see a desktop environment in your browser where GUI applications will appear.
+![Enter VNC password](../figs/dev-container/vnc-step-3.png)
 
-![VNC Desktop in Browser](../../figs/codespace-vnc-desktop.png)
+![VNC desktop loaded](../figs/dev-container/vnc-step-4.png)
+3. You should now see the desktop where FABulous GUI apps can open.
+![OpenROAD GUI in VNC desktop](../figs/dev-container/vnc-step-5.png)
+![Working GUI session in Codespaces](../figs/dev-container/vnc-step-6.png)
+
 
 ## Running FABulous
 
@@ -130,18 +122,14 @@ echo $DISPLAY  # Should show :1
 sudo systemctl restart x11vnc
 ```
 
-### Dotfiles Conflicts
-
-If your personal dotfiles are causing issues or using too much space, the FABulous Codespace configuration disables automatic dotfiles installation. If you still want to use your dotfiles, you can manually clone them after the Codespace starts.
-
 ## Advantages of Codespaces
 
-- ✅ **No Local Installation**: Everything runs in the cloud
-- ✅ **Cross-Platform**: Works on Windows, macOS, Linux, tablets
-- ✅ **Consistent Environment**: Same setup for all users
-- ✅ **Powerful Hardware**: Access to cloud computing resources
-- ✅ **GUI Support**: Full graphical tools via web browser
-- ✅ **Free Tier**: GitHub provides 60 hours/month free for personal accounts
+- **No Local Installation**: Everything runs in the cloud
+- **Cross-Platform**: Works on Windows, macOS, Linux, tablets
+- **Consistent Environment**: Same setup for all users
+- **Powerful Hardware**: Access to cloud computing resources
+- **GUI Support**: Full graphical tools via web browser
+- **Free Tier**: GitHub provides 60 hours/month free for personal accounts
 
 ## Differences from Local Setup
 
@@ -155,4 +143,4 @@ If your personal dotfiles are causing issues or using too much space, the FABulo
 
 ## Next Steps
 
-Once your Codespace is set up, continue with the [Quick Start Guide](../quickstart) to learn how to use FABulous to create FPGA fabrics. -->
+Once your Codespace is set up, continue with the [Quick Start Guide](#quick-start) to learn how to use FABulous to create FPGA fabrics.
