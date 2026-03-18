@@ -1616,11 +1616,14 @@ class FABulous_CLI(Cmd):
                 synth_executable=get_context().yosys_path,
                 sta_executable=get_context().opensta_path,
                 mode=TimingModelMode(args.mode),
-                custom_per_tile_netlist_files=dict.fromkeys(
-                    self.allTile, "path/to/netlist/file: <required for physical mode>"
-                ),
-                custom_per_tile_rc_files=dict.fromkeys(
-                    self.allTile, "path/to/rc/file: <required for physical mode>"
+                custom_per_tile_source_files=dict.fromkeys(
+                    self.allTile, TimingModelTileSourceFiles(
+                        netlist_file=Path("path/to/netlist/file: <optional, not use project dir files>"),
+                        rc_file=Path("path/to/rc file: <optional, not use project dir files>"),
+                        rtl_files=[
+                            Path("path/to/rtl/files: <optional, not use project dir files>")
+                        ]
+                    )
                 )
             )
             

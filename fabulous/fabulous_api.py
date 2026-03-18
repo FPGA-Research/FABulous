@@ -676,8 +676,12 @@ class FABulous_API:
             If no default timing model configuration is available for the current PDK and 
             no manual configuration is provided.
         """
-        pdk_root: Path = get_context().pdk_root
-        pdk: str = get_context().pdk
+        pdk: str | None = get_context().pdk
+        pdk_root: Path | None = get_context().pdk_root
+        
+        if pdk is not None and pdk_root is not None:
+            pdk_root = Path.resolve(pdk_root/pdk).absolute()
+            
         iconfig: TimingModelConfig | None = None
         
         match pdk:

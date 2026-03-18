@@ -67,14 +67,10 @@ class FABulousTileTimingModel:
         self.unique_tile_name: str = self.tile_name
         self._get_unique_tile_name()
         
-        # Find all the Verilog files for the tile, excluding certain 
-        # directories that are not relevant for synthesis.
-
-        exclude_dir_patterns: list[str] = ["macro", "user_design", "Test"]
-        self.verilog_files: list[Path] = self._find_matching_files(
-            self.tm_config.project_dir, r".*\.v$", exclude_dir_patterns
-        )
-
+        # Verilog files for the tile.
+        
+        self.verilog_files: list[Path] = None
+        
         # Init:
         
         self.hdlnx_tm_synth: HdlnxTimingModel | None = None
@@ -94,6 +90,39 @@ class FABulousTileTimingModel:
   
         logger.info("FABulous Timing Model initialized.")
         
+    def _get_project_rtl_files(self):
+        """
+        Find all the Verilog files for the tile in the project directory, excluding certain 
+        directories that are not relevant for synthesis. If custom source files are specified 
+        in the configuration for this tile, use those instead.
+        """
+        exclude_dir_patterns: list[str] = ["macro", "user_design", "Test"]
+        self.verilog_files: list[Path] = self._find_matching_files(
+            self.tm_config.project_dir, r".*\.v$", exclude_dir_patterns
+        )
+        
+        # Optionally override the default project Verilog files with custom ones specified 
+        # in the configuration for this tile. Only simple wildcard patterns are supported for 
+        # now, e.g., "TileA/*.v" to include all Verilog files in TileA directory.
+        if self.tm_config.custom_per_tile_source_files is not None:
+            if self.unique_tile_name in self.tm_config.custom_per_tile_source_files:
+                if rtl := self.tm_config.custom_per_tile_source_files[
+                    self.unique_tile_name
+                ].rtl_files:
+                    targets = rtl if isinstance(rtl, list) else [rtl]
+                    result: list[Path] = []
+                    for p in targets:
+                        if "*" in p.name:
+                            result.extend(p.parent.rglob(p.name))
+                        else:
+                            result.append(p)
+                    self.verilog_files = result 
+                
+                    logger.info(
+                        f"Using RTL Verilog files for tile {self.unique_tile_name}:"
+                        f"{'\n  '.join(map(str, [""] + self.verilog_files))}"
+                    )
+                
     def _get_unique_tile_name(self):
         """
         Determine if the tile is part of a SuperTile and set the unique_tile_name accordingly.
@@ -195,6 +224,9 @@ class FABulousTileTimingModel:
         # information and to find the relevant Verilog files for the physical-level model.
         logger.info("Initializing Synthesis-level timing model...")
         
+        # Get the Verilog files for the project.
+        self._get_project_rtl_files()
+        
         # Initialize the synthesis and STA tools based on the configuration.
         cad_tool = self._cad_tools()
         synth_tool: SynthTool = cad_tool["synth_tool"]
@@ -226,20 +258,17 @@ class FABulousTileTimingModel:
         
         # Optionally override the default netlist file with a custom one specified in 
         # the configuration for this tile.
-        if self.tm_config.custom_per_tile_netlist_files is not None:
-            if self.unique_tile_name in self.tm_config.custom_per_tile_netlist_files:
-                synth_tool.synth_rtl_files = self.tm_config.custom_per_tile_netlist_files[
+        if self.tm_config.custom_per_tile_source_files is not None:
+            if self.unique_tile_name in self.tm_config.custom_per_tile_source_files:
+                if netl := self.tm_config.custom_per_tile_source_files[
                     self.unique_tile_name
-                ]
-                logger.info(
-                    f"Using custom netlist file for tile {self.unique_tile_name}: "
-                    f"{synth_tool.synth_rtl_files}"
-                )
-            else:
-                raise ValueError(
-                    f"Tile {self.unique_tile_name} not found in the configuration "
-                    f"for custom netlist files."
-                )
+                ].netlist_file:
+                    synth_tool.synth_rtl_files = netl
+                
+                    logger.info(
+                        f"Using netlist file for tile {self.unique_tile_name}: "
+                        f"{synth_tool.synth_rtl_files}"
+                    )
         
         # Disable synthesis for the physical-level model since we already 
         # have the gate-level netlist.
@@ -255,21 +284,18 @@ class FABulousTileTimingModel:
             
             # Optionally override the default RC file with a custom one specified in 
             # the configuration for this tile.
-            if self.tm_config.custom_per_tile_rc_files is not None:
-                if self.unique_tile_name in self.tm_config.custom_per_tile_rc_files:
-                    sta_tool.sta_rc_files = self.tm_config.custom_per_tile_rc_files[
+            if self.tm_config.custom_per_tile_source_files is not None:
+                if self.unique_tile_name in self.tm_config.custom_per_tile_source_files: 
+                    if rc := self.tm_config.custom_per_tile_source_files[
                         self.unique_tile_name
-                    ]
-                    logger.info(
-                        f"Using custom RC file for tile {self.unique_tile_name}: "
-                        f"{sta_tool.sta_rc_files}"
-                    )
-                else:
-                    raise ValueError(
-                        f"Tile {self.unique_tile_name} not found in the configuration "
-                        f"for custom RC files."
-                    )
-
+                    ].rc_file:
+                        sta_tool.sta_rc_files = rc
+    
+                        logger.info(
+                            f"Using RC file for tile {self.unique_tile_name}: "
+                            f"{sta_tool.sta_rc_files}"
+                        )
+        
         # Initialize the physical-level timing model with the gate-level netlist.
         self.hdlnx_tm_phys = HdlnxTimingModel(
             sta_tool, synth_tool, 

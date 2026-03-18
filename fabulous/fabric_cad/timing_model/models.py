@@ -229,6 +229,26 @@ class TimingModelStaTools(StrEnum):
         Represents the OpenSTA tool, which is an open-source static timing analysis tool.
     """
     OPENSTA = "opensta"
+    
+class TimingModelTileSourceFiles(BaseModel):
+    """
+    Configuration class for the source files related to a specific tile in the timing model, 
+    containing paths to RTL files, netlist file, and RC file.
+    
+    Attributes
+    ----------
+    rtl_files : list[Path] | Path | None
+        The list of RTL files or a single RTL file path for the tile, or None if not applicable.
+    netlist_file : Path | None
+        The path to the netlist file for the tile, or None if not applicable.
+    rc_file : Path | None
+        The path to the RC file for the tile, or None if not applicable.
+    """
+    model_config = ConfigDict(strict=False, validate_assignment=True, extra="forbid")
+    
+    rtl_files: list[Path] | Path | None = None
+    netlist_file: Path | None = None
+    rc_file: Path | None = None
 
 class TimingModelConfig(BaseModel):
     """
@@ -255,10 +275,10 @@ class TimingModelConfig(BaseModel):
         The cell and port used for tie-high connections "cell_name port_name", or None if not applicable.
     tielo_cell_and_port : str | None
         The cell and port used for tie-low connections "cell_name port_name", or None if not applicable.
-    custom_per_tile_netlist_files : dict[str, Path] | None
-        A dictionary mapping tile names to custom netlist file paths, or None if not applicable.
-    custom_per_tile_rc_files : dict[str, Path] | None
-        A dictionary mapping tile names to custom RC file paths, or None if not applicable.
+    custom_per_tile_source_files : dict[str, TimingModelTileSourceFiles] | None
+        A dictionary mapping tile names to TimingModelTileSourceFiles instances containing custom 
+        source file paths, or None if not applicable. This will overwrite the default paths 
+        defined in the project directory for the specific tile.
     sta_program : TimingModelStaTools
         The static timing analysis tool to be used, specified as an instance of the TimingModelStaTools enumeration.
     synth_program : TimingModelSynthTools
@@ -276,7 +296,7 @@ class TimingModelConfig(BaseModel):
     debug : bool
         Flag to enable or disable debug mode, which may provide additional logging.
     """
-    model_config = ConfigDict(strict=False, validate_assignment=True)
+    model_config = ConfigDict(strict=False, validate_assignment=True, extra="forbid")
     
     project_dir: Path          
     liberty_files: list[Path] | Path         
@@ -287,8 +307,7 @@ class TimingModelConfig(BaseModel):
     techmap_files: list[Path] | Path | None = None
     tiehi_cell_and_port: str | None = None     
     tielo_cell_and_port: str | None = None
-    custom_per_tile_netlist_files: dict[str, Path] | None = None
-    custom_per_tile_rc_files: dict[str, Path] | None = None
+    custom_per_tile_source_files: dict[str, TimingModelTileSourceFiles] | None = None
     sta_program: TimingModelStaTools = Field(default=TimingModelStaTools.OPENSTA)
     synth_program: TimingModelSynthTools = Field(default=TimingModelSynthTools.YOSYS)
     mode: TimingModelMode = Field(default=TimingModelMode.PHYSICAL)
