@@ -102,43 +102,6 @@ compile_design_parser.add_argument(
 )
 
 
-def build_synth_command(
-    args: argparse.Namespace, json_file: Path, project_dir: Path
-) -> str:
-    """Build the synth_fabulous command string from parsed arguments.
-
-    Parameters
-    ----------
-    args : argparse.Namespace
-        Parsed command-line arguments containing synthesis options.
-    json_file : Path
-        Default JSON output file path (used when args.json is not set).
-    project_dir : Path
-        Project directory, used to locate ``custom_prims.v``.
-
-    Returns
-    -------
-    str
-        The assembled synth_fabulous command string.
-    """
-    parts = [
-        "synth_fabulous",
-        f"-top {args.top}",
-        f"-json {args.json}" if args.json else f"-json {json_file}",
-    ]
-
-    # Auto-include custom primitives library if present
-    custom_prims = project_dir / "user_design" / "custom_prims.v"
-    if custom_prims.exists():
-        parts.append(f"-extra-plib {custom_prims}")
-        logger.info(f"Including custom primitives: {custom_prims}")
-
-    if args.synth_extra_args:
-        parts.append(args.synth_extra_args)
-
-    return " ".join(parts)
-
-
 def _print_tool_help(tool_path: Path | str, args: list[str], tool_name: str) -> None:
     """Run a tool with the given arguments to print its help output.
 
@@ -199,9 +162,24 @@ def _compile_design(self: "FABulous_CLI", args: argparse.Namespace) -> None:
     log_file = json_file.parent / (json_file.with_suffix("").name + "_npnr_log.txt")
 
     # Build synth command (skip in pnr-only mode where it's unused)
-    synth_cmd = (
-        "" if args.pnr_only else build_synth_command(args, json_file, self.projectDir)
-    )
+    synth_cmd = ""
+    if not args.pnr_only:
+        synth_parts = [
+            "synth_fabulous",
+            f"-top {args.top}",
+            f"-json {args.json}" if args.json else f"-json {json_file}",
+        ]
+
+        # Auto-include custom primitives library if present
+        custom_prims = self.projectDir / "user_design" / "custom_prims.v"
+        if custom_prims.exists():
+            synth_parts.append(f"-extra-plib {custom_prims}")
+            logger.info(f"Including custom primitives: {custom_prims}")
+
+        if args.synth_extra_args:
+            synth_parts.append(args.synth_extra_args)
+
+        synth_cmd = " ".join(synth_parts)
 
     # Check that compile Taskfile exists
     task_dir = self.projectDir / ".FABulous"
@@ -246,7 +224,7 @@ def _compile_design(self: "FABulous_CLI", args: argparse.Namespace) -> None:
 @with_category(CMD_USER_DESIGN_FLOW)
 @with_argparser(compile_design_parser)
 def compile_design(self: "FABulous_CLI", args: argparse.Namespace) -> None:
-    """Compile a user design through synthesis, place-and-route, and bitstream generation.
+    """Compile a user design through synthesis, PnR, and bitstream generation.
 
     This function orchestrates the full compile flow by delegating to a compile
     Taskfile. It resolves input file paths, builds the synthesis command, and
