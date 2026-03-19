@@ -103,6 +103,7 @@ exclude = [
   ".vscode",
   "oss-cad-suite",
   "scripts",
+  ".claude",
 ]
 
 [dependency-groups]
