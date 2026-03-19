@@ -16,6 +16,7 @@ from tests.reference_test.helpers import (
     compare_directories,
     format_file_differences_report,
     run_fabulous_commands_with_logging,
+    run_shell_commands,
 )
 
 
@@ -31,6 +32,7 @@ class ReferenceProject(NamedTuple):
     include_patterns: list[str] | None = None
     exclude_patterns: list[str] | None = None
     commands: list[str] | None = None
+    shell_commands: list[dict[str, str]] | None = None
     skip_reason: str | None = None
 
 
@@ -59,6 +61,7 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
                 include_patterns=project_data.get("include_patterns"),
                 exclude_patterns=project_data.get("exclude_patterns"),
                 commands=project_data.get("commands"),
+                shell_commands=project_data.get("shell_commands"),
                 skip_reason=project_data.get("skip_reason"),
             )
             projects.append(project)
@@ -135,6 +138,18 @@ def test_reference_project_execution(
         f"Commands failed for {ref_project.name}: {execution_info['commands_failed']}"
         f"\nErrors: {execution_info['errors']}"
     )
+
+    # Run optional shell commands (synthesis, P&R, simulation, etc.)
+    if ref_project.shell_commands:
+        shell_failures = run_shell_commands(
+            test_project_path, ref_project.shell_commands
+        )
+        assert not shell_failures, (
+            f"Shell commands failed for {ref_project.name}: "
+            + "\n".join(
+                f"  {f['cmd']}: {f['error']}\n{f['output']}" for f in shell_failures
+            )
+        )
 
     # Verify expected outputs exist if specified
     if ref_project.expected_outputs:

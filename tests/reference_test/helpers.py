@@ -5,6 +5,8 @@ file comparison, and other testing helpers.
 """
 
 import difflib
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -317,3 +319,69 @@ def run_fabulous_commands_with_logging(
             break
 
     return cli, execution_info
+
+
+def run_shell_commands(
+    project_path: Path,
+    shell_commands: list[dict[str, str]],
+    stop_on_failure: bool = True,
+) -> list[dict[str, str]]:
+    """Run shell commands in the project directory.
+
+    Parameters
+    ----------
+    project_path : Path
+        Base path for the project.
+    shell_commands : list[dict[str, str]]
+        List of command dicts. Each dict has:
+          - cmd: str — the shell command to run
+          - cwd: str | None — subdirectory relative to project_path (default: project root)
+          - required_tools: list[str] | None — tools to check via PATH before running
+    stop_on_failure : bool
+        Stop executing further commands after the first failure (default: True).
+
+    Returns
+    -------
+    list[dict[str, str]]
+        List of failed command dicts with added "error" and "output" keys.
+    """
+    failures = []
+    for cmd_spec in shell_commands:
+        cmd = cmd_spec["cmd"]
+        cwd_rel = cmd_spec.get("cwd")
+        required_tools = cmd_spec.get("required_tools") or []
+
+        for tool in required_tools:
+            if not shutil.which(tool):
+                pytest.skip(f"{tool!r} not found on PATH, skipping shell commands")
+
+        cwd = project_path / cwd_rel if cwd_rel else project_path
+        logger.info(f"Running shell command: {cmd} (cwd={cwd})")
+
+        result = subprocess.run(
+            cmd,
+            shell=True,
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+        )
+
+        if result.stdout:
+            logger.opt(ansi=False).debug(f"stdout:\n{result.stdout}")
+        if result.stderr:
+            logger.opt(ansi=False).debug(f"stderr:\n{result.stderr}")
+
+        if result.returncode != 0:
+            logger.error(f"Shell command failed (rc={result.returncode}): {cmd}")
+            logger.opt(ansi=False).error(f"stderr: {result.stderr}")
+            failures.append(
+                {
+                    **cmd_spec,
+                    "error": f"returncode={result.returncode}",
+                    "output": result.stderr or result.stdout,
+                }
+            )
+            if stop_on_failure:
+                break
+
+    return failures
