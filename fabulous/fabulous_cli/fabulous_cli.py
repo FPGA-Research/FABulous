@@ -136,6 +136,8 @@ class FABulous_CLI(Cmd):
         If True, enable verbose logging, by default False
     debug : bool
         If True, enable debug logging, by default False
+    max_job : int
+        Maximum number of parallel jobs, -1 to use all CPU cores, by default 4
 
     Attributes
     ----------
@@ -145,13 +147,13 @@ class FABulous_CLI(Cmd):
         Command prompt string displayed to users
     fabulousAPI : FABulous_API
         Instance of the FABulous API for fabric operations
-    projectDir : pathlib.Path
+    projectDir : Path
         Current project directory path
     top : str
         Top-level module name for synthesis
     allTile : list[str]
         List of all tile names in the current fabric
-    csvFile : pathlib.Path
+    csvFile : Path
         Path to the fabric CSV definition file
     extension : str
         File extension for HDL files ("v" for Verilog, "vhd" for VHDL)
@@ -161,6 +163,36 @@ class FABulous_CLI(Cmd):
         If true, force operations without confirmation
     interactive : bool
         If true, run in interactive CLI mode
+    max_job : int
+        Maximum number of parallel jobs for tile generation
+    filePathOptionalParser : Cmd2ArgumentParser
+        Argument parser for commands with an optional file path argument
+    filePathRequireParser : Cmd2ArgumentParser
+        Argument parser for commands with a required file path argument
+    userDesignRequireParser : Cmd2ArgumentParser
+        Argument parser for commands requiring a user design file path
+    tile_list_parser : Cmd2ArgumentParser
+        Argument parser for commands accepting a list of tile names
+    tile_single_parser : Cmd2ArgumentParser
+        Argument parser for commands accepting a single tile name
+    install_oss_cad_suite_parser : Cmd2ArgumentParser
+        Argument parser for the install-oss-cad-suite command
+    install_FABulator_parser : Cmd2ArgumentParser
+        Argument parser for the install-FABulator command
+    geometryParser : Cmd2ArgumentParser
+        Argument parser for the gen_geometry command
+    simulation_parser : Cmd2ArgumentParser
+        Argument parser for the run_simulation command
+    gen_tile_parser : Cmd2ArgumentParser
+        Argument parser for the gen_tile command
+    gds_parser : Cmd2ArgumentParser
+        Argument parser for the run_gds command
+    io_pin_config_parser : Cmd2ArgumentParser
+        Argument parser for the gen_io_pin_config command
+    gen_all_tile_parser : Cmd2ArgumentParser
+        Argument parser for the gen_all_tile command
+    gui_parser : Cmd2ArgumentParser
+        Argument parser for the open_gui command
 
     Notes
     -----
@@ -316,7 +348,7 @@ class FABulous_CLI(Cmd):
         """Run synthesis on the specified design."""
         cmd_synthesis.do_synthesis(self, args)
 
-    filePathOptionalParser = Cmd2ArgumentParser()
+    filePathOptionalParser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     filePathOptionalParser.add_argument(
         "file",
         type=Path,
@@ -326,12 +358,12 @@ class FABulous_CLI(Cmd):
         completer=Cmd.path_complete,
     )
 
-    filePathRequireParser = Cmd2ArgumentParser()
+    filePathRequireParser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     filePathRequireParser.add_argument(
         "file", type=Path, help="Path to the target file", completer=Cmd.path_complete
     )
 
-    userDesignRequireParser = Cmd2ArgumentParser()
+    userDesignRequireParser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     userDesignRequireParser.add_argument(
         "user_design",
         type=Path,
@@ -345,7 +377,7 @@ class FABulous_CLI(Cmd):
         completer=Cmd.path_complete,
     )
 
-    tile_list_parser = Cmd2ArgumentParser()
+    tile_list_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     tile_list_parser.add_argument(
         "tiles",
         type=str,
@@ -354,7 +386,7 @@ class FABulous_CLI(Cmd):
         completer=lambda self: self.fab.getTiles(),
     )
 
-    tile_single_parser = Cmd2ArgumentParser()
+    tile_single_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     tile_single_parser.add_argument(
         "tile",
         type=str,
@@ -362,7 +394,7 @@ class FABulous_CLI(Cmd):
         completer=lambda self: self.fab.getTiles(),
     )
 
-    install_oss_cad_suite_parser = Cmd2ArgumentParser()
+    install_oss_cad_suite_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     install_oss_cad_suite_parser.add_argument(
         "destination_folder",
         type=Path,
@@ -395,7 +427,7 @@ class FABulous_CLI(Cmd):
 
         install_oss_cad_suite(dest_dir, args.update_existing)
 
-    install_FABulator_parser = Cmd2ArgumentParser()
+    install_FABulator_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     install_FABulator_parser.add_argument(
         "destination_folder",
         type=Path,
@@ -644,7 +676,7 @@ class FABulous_CLI(Cmd):
         self.fabulousAPI.genFabric()
         logger.info("Fabric generation complete")
 
-    geometryParser = Cmd2ArgumentParser()
+    geometryParser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     geometryParser.add_argument(
         "padding",
         type=int,
@@ -952,7 +984,7 @@ class FABulous_CLI(Cmd):
 
         logger.info("Bitstream generated")
 
-    simulation_parser = Cmd2ArgumentParser()
+    simulation_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     simulation_parser.add_argument(
         "format",
         choices=["vcd", "fst"],
@@ -1181,7 +1213,7 @@ class FABulous_CLI(Cmd):
             project_dir / args.user_design_top_wrapper,
         )
 
-    gen_tile_parser = Cmd2ArgumentParser()
+    gen_tile_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     gen_tile_parser.add_argument(
         "tile_path",
         type=Path,
@@ -1250,7 +1282,7 @@ class FABulous_CLI(Cmd):
         """
         self.fabulousAPI.genFabricIOBels()
 
-    gds_parser = Cmd2ArgumentParser()
+    gds_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     gds_parser.add_argument(
         "tile",
         type=str,
@@ -1272,7 +1304,7 @@ class FABulous_CLI(Cmd):
         type=Path,
     )
 
-    io_pin_config_parser = Cmd2ArgumentParser()
+    io_pin_config_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     io_pin_config_parser.add_argument(
         "tile",
         type=str,
@@ -1362,7 +1394,7 @@ class FABulous_CLI(Cmd):
             config_override_path=tile_dir / "gds_config.yaml",
         )
 
-    gen_all_tile_parser = Cmd2ArgumentParser()
+    gen_all_tile_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     gen_all_tile_parser.add_argument(
         "--parallel",
         "-p",
@@ -1453,7 +1485,7 @@ class FABulous_CLI(Cmd):
             base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
         )
 
-    gui_parser = Cmd2ArgumentParser()
+    gui_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     gui_parser.add_argument("file", nargs="?", help="file to open", default=None)
     gui_parser.add_argument(
         "--tile",
