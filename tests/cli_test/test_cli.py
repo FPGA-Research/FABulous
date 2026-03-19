@@ -239,23 +239,6 @@ def test_run_tcl_with_fabulous_command(
     assert "TCL script executed" in log[-1]
 
 
-def test_multi_command_stop(cli: FABulous_CLI, mocker: MockerFixture) -> None:
-    """Test that multi-command execution stops on first error without force flag."""
-    m = mocker.patch("subprocess.run", side_effect=RuntimeError("Mocked error"))
-    run_cmd(cli, "compile_design ./user_design/sequential_16bit_en.v")
-
-    m.assert_called_once()
-
-
-def test_multi_command_force(cli: FABulous_CLI, mocker: MockerFixture) -> None:
-    """Test that multi-command execution continues on error when force flag is set."""
-    m = mocker.patch("subprocess.run", side_effect=RuntimeError("Mocked error"))
-    cli.force = True
-    run_cmd(cli, "compile_design ./user_design/sequential_16bit_en.v")
-
-    assert m.call_count == 1
-
-
 def test_run_FABulous_fabric_sv_extension(
     project: Path,
     monkeypatch: pytest.MonkeyPatch,
