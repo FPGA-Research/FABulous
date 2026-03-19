@@ -252,8 +252,6 @@ def run_task(
     ------
     EnvironmentNotSet
         If the ``task`` binary is not found on ``PATH``.
-    subprocess.CalledProcessError
-        If the task command exits with a non-zero return code.
     """
     if shutil.which("task") is None:
         raise EnvironmentNotSet(
