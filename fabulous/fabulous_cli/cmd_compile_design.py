@@ -1,9 +1,9 @@
 """Compile design command implementation for the FABulous CLI.
 
 This module provides a unified compile flow (synthesis -> PnR -> bitgen) for the
-FABulous command-line interface. It delegates execution to a compile Taskfile,
-passing all necessary variables for Yosys synthesis, nextpnr place-and-route,
-and bitstream generation.
+FABulous command-line interface. It delegates execution to a compile Taskfile, passing
+all necessary variables for Yosys synthesis, nextpnr place-and-route, and bitstream
+generation.
 """
 
 import argparse
@@ -107,7 +107,7 @@ def _print_tool_help(tool_path: Path | str, args: list[str], tool_name: str) -> 
 
     Parameters
     ----------
-    tool_path : Path
+    tool_path : Path | str
         Path to the tool binary.
     args : list[str]
         Arguments to pass to the tool (e.g. ["-p", "help synth_fabulous"]).
@@ -126,8 +126,16 @@ def _print_tool_help(tool_path: Path | str, args: list[str], tool_name: str) -> 
         )
 
 
-def _compile_design(self: "FABulous_CLI", args: argparse.Namespace) -> None:
-    """Core compile logic, callable without cmd2 decorator dispatch."""
+@with_category(CMD_USER_DESIGN_FLOW)
+@with_argparser(compile_design_parser)
+def do_compile_design(self: "FABulous_CLI", args: argparse.Namespace) -> None:
+    """Compile a user design through synthesis, PnR, and bitstream generation.
+
+    This function orchestrates the full compile flow by delegating to a compile
+    Taskfile. It resolves input file paths, builds the synthesis command, and invokes
+    the appropriate task(s) depending on the selected mode (full compile, synth-only,
+    pnr-only, or no-bitgen).
+    """
     # Handle help flags
     if args.yosys_synth_help:
         ctx = get_context()
@@ -219,23 +227,3 @@ def _compile_design(self: "FABulous_CLI", args: argparse.Namespace) -> None:
         run_task("compile-design", task_dir, task_vars, taskfile=tf_name)
 
     logger.info("Compile flow completed successfully.")
-
-
-@with_category(CMD_USER_DESIGN_FLOW)
-@with_argparser(compile_design_parser)
-def compile_design(self: "FABulous_CLI", args: argparse.Namespace) -> None:
-    """Compile a user design through synthesis, PnR, and bitstream generation.
-
-    This function orchestrates the full compile flow by delegating to a compile
-    Taskfile. It resolves input file paths, builds the synthesis command, and
-    invokes the appropriate task(s) depending on the selected mode (full compile,
-    synth-only, pnr-only, or no-bitgen).
-
-    Parameters
-    ----------
-    self : FABulous_CLI
-        The CLI instance containing project and fabric information.
-    args : argparse.Namespace
-        Command arguments containing design files and all synthesis/compile options.
-    """
-    _compile_design(self, args)
