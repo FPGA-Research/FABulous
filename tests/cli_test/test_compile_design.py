@@ -69,7 +69,7 @@ def compile_cli(
 
 
 @pytest.mark.parametrize(
-    "cli_flags, expected_tasks",
+    ("cli_flags", "expected_tasks"),
     [
         ("", ["compile-design"]),
         ("--synth-only", ["compile-yosys"]),
@@ -89,7 +89,7 @@ def test_compile_design_task_dispatch(
     mock_run_task = mocker.patch("fabulous.fabulous_cli.cmd_compile_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file} {cli_flags}")
-
+    print(mock_run_task.call_args_list)
     assert mock_run_task.call_count == len(expected_tasks)
     actual_tasks = [c.args[0] for c in mock_run_task.call_args_list]
     assert actual_tasks == expected_tasks
@@ -266,11 +266,11 @@ def test_compile_design_no_taskfile(
     (compile_cli.projectDir / ".FABulous" / "compile.Taskfile.yml").unlink()
     mocker.patch("fabulous.fabulous_cli.cmd_compile_design.run_task")
 
-    with pytest.raises(FileNotFoundError, match="compile.Taskfile.yml"):
-        from fabulous.fabulous_cli.cmd_compile_design import compile_design
+    from fabulous.fabulous_cli.cmd_compile_design import do_compile_design
 
-        args = _make_default_args(files=[design_file])
-        compile_design.__wrapped__(compile_cli, args)
+    args = _make_default_args(files=[design_file])
+    with pytest.raises(FileNotFoundError, match="compile.Taskfile.yml"):
+        do_compile_design.__wrapped__(compile_cli, args)
 
 
 def test_compile_design_nonexistent_file(

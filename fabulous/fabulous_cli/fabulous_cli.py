@@ -31,6 +31,7 @@ import sys
 import tempfile
 import tkinter as tk
 import traceback
+from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
@@ -164,6 +165,8 @@ class FABulous_CLI(Cmd):
         If true, run in interactive CLI mode
     max_job : int
         Maximum number of parallel jobs for tile generation
+    do_compile_design : Callable
+        Method to compile user design through synthesis, PnR, and bitstream generation
     filePathOptionalParser : Cmd2ArgumentParser
         Argument parser for commands with an optional file path argument
     filePathRequireParser : Cmd2ArgumentParser
@@ -437,11 +440,7 @@ class FABulous_CLI(Cmd):
 
         self.onecmd_plus_hooks(cmd)
 
-    @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(cmd_compile_design.compile_design_parser)
-    def do_compile_design(self, args: argparse.Namespace) -> None:
-        """Compile design (synthesis + place & route + bitgen)."""
-        cmd_compile_design._compile_design(self, args)
+    do_compile_design: Callable = cmd_compile_design.do_compile_design
 
     filePathOptionalParser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     filePathOptionalParser.add_argument(
@@ -967,8 +966,7 @@ class FABulous_CLI(Cmd):
     def do_gen_bitStream_binary(self, args: argparse.Namespace) -> None:
         """Generate bitstream of a given design.
 
-        .. deprecated::
-            Use ``compile_design`` which includes bitstream generation.
+        deprecated: Use ``compile_design`` which includes bitstream generation.
         """
         logger.warning(
             "The 'gen_bitStream_binary' command is deprecated. "
