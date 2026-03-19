@@ -348,7 +348,10 @@ class FABulous_CLI(Cmd):
         description="[DEPRECATED] Use 'compile_design --synth-only' instead."
     )
     _synthesis_parser.add_argument(
-        "files", type=Path, nargs="+", completer=Cmd.path_complete,
+        "files",
+        type=Path,
+        nargs="+",
+        completer=Cmd.path_complete,
     )
     _synthesis_parser.add_argument("-top", type=str, default="top_wrapper")
     _synthesis_parser.add_argument("-auto-top", action="store_true")
@@ -362,7 +365,9 @@ class FABulous_CLI(Cmd):
     _synthesis_parser.add_argument("-encfile", type=Path)
     _synthesis_parser.add_argument("-nofsm", action="store_true")
     _synthesis_parser.add_argument("-noalumacc", action="store_true")
-    _synthesis_parser.add_argument("-carry", type=str, default="none", choices=["none", "ha"])
+    _synthesis_parser.add_argument(
+        "-carry", type=str, default="none", choices=["none", "ha"]
+    )
     _synthesis_parser.add_argument("-noregfile", action="store_true")
     _synthesis_parser.add_argument("-iopad", action="store_true")
     _synthesis_parser.add_argument("-complex-dff", action="store_true")
@@ -377,8 +382,7 @@ class FABulous_CLI(Cmd):
     def do_synthesis(self, args: argparse.Namespace) -> None:
         """Run Yosys synthesis for the specified Verilog files.
 
-        .. deprecated::
-            Use ``compile_design --synth-only`` instead.
+        deprecated: Use ``compile_design --synth-only`` instead.
         """
         logger.warning(
             "The 'synthesis' command is deprecated. Use 'compile_design' instead."
@@ -976,9 +980,7 @@ class FABulous_CLI(Cmd):
                 "No fasm file provided. Usage: gen_bitStream_binary <fasm_file>"
             )
 
-        self.onecmd_plus_hooks(
-            f"compile_design {args.file} --bitgen-only"
-        )
+        self.onecmd_plus_hooks(f"compile_design {args.file} --bitgen-only")
 
     simulation_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     simulation_parser.add_argument(
