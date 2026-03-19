@@ -34,10 +34,10 @@ def get_layer_info(config: Config) -> dict[str, dict[str, tuple[Decimal, Decimal
 def get_pitch(config: Config) -> tuple[Decimal, Decimal]:
     """Read the FP_TRACKS_INFO file and return min pitches for X and Y.
 
-    Returns a tuple (x_pitch, y_pitch) where x_pitch is the minimum pitch
-    along X-axis (IO_PIN_V_LAYER X direction) and y_pitch is minimum pitch
-    along Y-axis (IO_PIN_H_LAYER Y direction). The cardinal field in
-    FP_TRACKS_INFO is expected to be 'X' or 'Y' (case-insensitive).
+    Returns a tuple (x_pitch, y_pitch) where x_pitch is the minimum pitch along X-axis
+    (IO_PIN_V_LAYER X direction) and y_pitch is minimum pitch along Y-axis
+    (IO_PIN_H_LAYER Y direction). The cardinal field in FP_TRACKS_INFO is expected to be
+    'X' or 'Y' (case-insensitive).
     """
     layers = get_layer_info(config)
 
@@ -50,10 +50,10 @@ def get_pitch(config: Config) -> tuple[Decimal, Decimal]:
 def get_offset(config: Config) -> tuple[Decimal, Decimal]:
     """Read the FP_TRACKS_INFO file and return track offsets for X and Y.
 
-    Returns a tuple (x_offset, y_offset) where x_offset is the track offset
-    along X-axis (IO_PIN_V_LAYER X direction) and y_offset is the track
-    offset along Y-axis (IO_PIN_H_LAYER Y direction). The cardinal field
-    in FP_TRACKS_INFO is expected to be 'X' or 'Y' (case-insensitive).
+    Returns a tuple (x_offset, y_offset) where x_offset is the track offset along X-axis
+    (IO_PIN_V_LAYER X direction) and y_offset is the track offset along Y-axis
+    (IO_PIN_H_LAYER Y direction). The cardinal field in FP_TRACKS_INFO is expected to be
+    'X' or 'Y' (case-insensitive).
     """
     layers = get_layer_info(config)
 
