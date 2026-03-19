@@ -1,13 +1,14 @@
 """Object representation of the Yosys Json file."""
 
 import json
-import logging
 import re
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
+
+from loguru import logger
 
 from fabulous.custom_exception import InvalidFileType
 from fabulous.fabulous_settings import get_context
@@ -407,9 +408,7 @@ class YosysJson:
                 return name, module
         for name, module in self.modules.items():
             if "blackbox" in module.attributes:
-                logging.info(
-                    f"No top module found, using blackbox module '{name}'"
-                )
+                logger.info(f"No top module found, using blackbox module '{name}'")
                 return name, module
         raise ValueError("No top module found in Yosys JSON")
 
