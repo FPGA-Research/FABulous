@@ -555,21 +555,16 @@ class FABulous_API:
             Path to the fabric-level Verilog file.
         out_folder : Path
             Output directory for the stitched fabric.
+        pdk : str
+            PDK name to use.
+        pdk_root : Path
+            Path to PDK root directory.
         base_config_path : Path | None
             Path to base configuration YAML file.
         config_override_path : Path | None, optional
             Additional configuration overrides.
-        pdk_root : Path | None, optional
-            Path to PDK root directory.
-        pdk : str | None, optional
-            PDK name to use.
         **custom_config_overrides : dict
             software configuration overrides.
-
-        Raises
-        ------
-        ValueError
-            If PDK root or PDK is not specified.
         """
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
