@@ -33,7 +33,7 @@ dependencies = [
   "typer>=0.20.0",
   "FABulous-bit-gen>=0.1.0",
   'PyYAML>=6.0.0',
-  'click>=8.0.0',
+  "click>=8.0.0",
   # OS-aware readline dependencies
   'pyreadline3>=3.4.0; sys_platform == "win32"',
   'gnureadline>=8.2.0; sys_platform != "win32"',
@@ -44,6 +44,7 @@ dependencies = [
   "dill>=0.4.0",
   "ciel>=2.4.0",
   "go-task-bin>=3.40.0",
+  "pydevd>=3.4.1",
 ]
 
 [project.urls]

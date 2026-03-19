@@ -621,6 +621,7 @@ dependencies = [
     { name = "pick" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pydevd" },
     { name = "pymoo" },
     { name = "pyreadline3", marker = "sys_platform == 'win32'" },
     { name = "python-dotenv" },
@@ -660,6 +661,7 @@ requires-dist = [
     { name = "pick", specifier = ">=2.4.0" },
     { name = "pydantic", specifier = ">=2.12.1" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
+    { name = "pydevd", specifier = ">=3.4.1" },
     { name = "pymoo", specifier = ">=0.6.1.5" },
     { name = "pyreadline3", marker = "sys_platform == 'win32'", specifier = ">=3.4.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
@@ -1561,6 +1563,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/96/a1/ae859ffac5a3338a66b74c5e29e244fd3a3cc483c89feaf9f56c39898d75/pydantic_settings-2.13.0.tar.gz", hash = "sha256:95d875514610e8595672800a5c40b073e99e4aae467fa7c8f9c263061ea2e1fe", size = 222450, upload-time = "2026-02-15T12:11:23.476Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b0/1a/dd1b9d7e627486cf8e7523d09b70010e05a4bc41414f4ae6ce184cf0afb6/pydantic_settings-2.13.0-py3-none-any.whl", hash = "sha256:d67b576fff39cd086b595441bf9c75d4193ca9c0ed643b90360694d0f1240246", size = 58429, upload-time = "2026-02-15T12:11:22.133Z" },
+]
+
+[[package]]
+name = "pydevd"
+version = "3.4.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e2/59/891dba9826b6584b5dd747837a3a13d7aa727bd9258dcda1d4259c525df9/pydevd-3.4.1.tar.gz", hash = "sha256:b7dbebc64f37f96e60fcc15cf4ee600f51c9ff7701bfcf17c3ec4a8b5bd77073", size = 1348944, upload-time = "2025-09-20T17:13:21.548Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/86/9a/3f25102b138bdb1fddefa6f813695ca3f506b6a2e86af21b17a6d2c19cb6/pydevd-3.4.1-cp312-cp312-macosx_14_0_universal2.whl", hash = "sha256:cb3c5c62907593bf1fd0eb870cf21263e852f5eb7e20a05a5ee31c8148a97213", size = 2672958, upload-time = "2025-09-20T17:03:41.587Z" },
+    { url = "https://files.pythonhosted.org/packages/c3/6a/a5fb991a7d9c7bfb720355d5a689a109274bbc0f4d5b31d2f056d9c8027d/pydevd-3.4.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:24bd3e8efdcdc04e31cf1f0b5bfbbb7b6f08a392fb80d99e58694c171d4c15c7", size = 4287655, upload-time = "2025-09-20T17:21:54.175Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/e2/0906fa3ed4df6408b75d277c767b7bd6480f75d61cb296857bed2844b700/pydevd-3.4.1-cp312-cp312-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:462b256ecdaca1325fcc951032c2a703371f9ee82b497890ddbef82d8ae44871", size = 4140985, upload-time = "2025-09-20T17:21:56.673Z" },
+    { url = "https://files.pythonhosted.org/packages/be/23/94ed33afdbb33b629c414a9225924900e4b93bcdf21a1bc948a38b59e617/pydevd-3.4.1-cp312-cp312-musllinux_1_2_i686.whl", hash = "sha256:b69746499052ebd454134db404aa01efbaa2974c5cd4c32b7b7faf0c67ad2ec2", size = 5241300, upload-time = "2025-09-20T17:21:58.747Z" },
+    { url = "https://files.pythonhosted.org/packages/39/30/17c58719f006b94ece7024c95a644947c26a788ab58fd231f944a6e6bee9/pydevd-3.4.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:b40f5c996d617332fc266a5649411fad66af8d911805adc2b8d749ff1175f9d9", size = 5256215, upload-time = "2025-09-20T17:22:00.231Z" },
+    { url = "https://files.pythonhosted.org/packages/a8/3e/ffc03f11607da34dfb029e5e8a9b561e27ab145ce2f560c4efff098ea0a5/pydevd-3.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:f4fa2923deb5e0f15281bf27212c0594f71df1f1dd9aa6b99ef247e77b1202da", size = 2281010, upload-time = "2025-09-20T17:12:53.293Z" },
+    { url = "https://files.pythonhosted.org/packages/01/24/941b4fca21c46166845e4c140606e4060c50e1951133c4332b41a5c0d891/pydevd-3.4.1-cp313-cp313-macosx_14_0_universal2.whl", hash = "sha256:ae92967c9fe8bd82b85101276dee616feb677a7b721b6f39eb6b52f068ed655b", size = 2666533, upload-time = "2025-09-20T17:03:41.228Z" },
+    { url = "https://files.pythonhosted.org/packages/17/56/f8695c049d6b30ac738e35e13c4c29ebc4c77288fa2ac7d96d3f9d046e2c/pydevd-3.4.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f535694f16d784dab907ebd1f8cb84749e888817509a0282f678081f91f00bd6", size = 4276060, upload-time = "2025-09-20T17:22:02.015Z" },
+    { url = "https://files.pythonhosted.org/packages/11/ab/0c1783dd8c568b156f97610fdb7258d621da9eaaea1996731cfa580c4e71/pydevd-3.4.1-cp313-cp313-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:9726b53da1b47b5b65faa4b078c709a4ffdfe5510846d361817f2e48a4d7bb85", size = 4126288, upload-time = "2025-09-20T17:22:03.535Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/63/1b4af9ce99e46ccaab1561718908ce58e6dbbe9729f52338369e222fec85/pydevd-3.4.1-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:8a1aaf5cbf289edd159f294ad5e60f4ba0dea2c71f4fac69e84e40926382a983", size = 5240608, upload-time = "2025-09-20T17:22:04.835Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/44/750087e0d0c685badcbc50eca6b5f718d449e74dd40c8624a2dc6c7f07a0/pydevd-3.4.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:792974699dcb77effeab12166ab9a83017768b9747e79870b8d4ad150989b22c", size = 5241118, upload-time = "2025-09-20T17:22:06.956Z" },
+    { url = "https://files.pythonhosted.org/packages/13/b3/2d5cbae7ed4bb1030bffd68e97f78836d4a82924e12a9a9e877c42557bf6/pydevd-3.4.1-cp313-cp313-win_amd64.whl", hash = "sha256:6182e4b3d3874a3ad110dd7f3be923cd1efcf237af8733dad893eaa130112298", size = 2282325, upload-time = "2025-09-20T17:11:59.928Z" },
 ]
 
 [[package]]
