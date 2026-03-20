@@ -31,8 +31,10 @@ class ReferenceProject(NamedTuple):
     expected_outputs: list[str] | None = None
     include_patterns: list[str] | None = None
     exclude_patterns: list[str] | None = None
-    commands: list[str] | None = None
-    shell_commands: list[dict[str, str]] | None = None
+    fab_commands: list[str] | None = None
+    pre_fab_commands: list[dict[str, str]] | None = None
+    post_fab_commands: list[dict[str, str]] | None = None
+    cleanup_commands: list[dict[str, str]] | None = None
     skip_reason: str | None = None
 
 
@@ -60,8 +62,10 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
                 expected_outputs=project_data.get("expected_outputs"),
                 include_patterns=project_data.get("include_patterns"),
                 exclude_patterns=project_data.get("exclude_patterns"),
-                commands=project_data.get("commands"),
-                shell_commands=project_data.get("shell_commands"),
+                fab_commands=project_data.get("fab_commands"),
+                pre_fab_commands=project_data.get("pre_fab_commands"),
+                post_fab_commands=project_data.get("post_fab_commands"),
+                cleanup_commands=project_data.get("cleanup_commands"),
                 skip_reason=project_data.get("skip_reason"),
             )
             projects.append(project)
@@ -124,84 +128,108 @@ def test_reference_project_execution(
             f"Reference project path is not a directory: {ref_project.path}"
         )
 
-    # Run FABulous commands
-    _, execution_info = run_fabulous_commands_with_logging(
-        test_project_path,
-        ref_project.language,
-        caplog,
-        monkeypatch,
-        commands=ref_project.commands,
-    )
-
-    # Always check that basic commands succeeded
-    assert not execution_info["commands_failed"], (
-        f"Commands failed for {ref_project.name}: {execution_info['commands_failed']}"
-        f"\nErrors: {execution_info['errors']}"
-    )
-
-    # Run optional shell commands (synthesis, P&R, simulation, etc.)
-    if ref_project.shell_commands:
-        shell_failures = run_shell_commands(
-            test_project_path, ref_project.shell_commands
-        )
-        assert not shell_failures, (
-            f"Shell commands failed for {ref_project.name}: "
-            + "\n".join(
-                f"  {f['cmd']}: {f['error']}\n{f['output']}" for f in shell_failures
+    try:
+        # Run optional pre-fab shell commands
+        if ref_project.pre_fab_commands:
+            pre_failures = run_shell_commands(
+                test_project_path, ref_project.pre_fab_commands
             )
-        )
-
-    # Verify expected outputs exist if specified
-    if ref_project.expected_outputs:
-        for expected_file in ref_project.expected_outputs:
-            file_path = test_project_path / expected_file
-            assert file_path.exists(), f"Expected output file missing: {expected_file}"
-            assert file_path.stat().st_size > 0, (
-                f"Expected output file is empty: {expected_file}"
+            assert not pre_failures, (
+                f"pre_fab_commands failed for {ref_project.name}: "
+                + "\n".join(
+                    f"  {f['cmd']}: {f['error']}\n{f['output']}" for f in pre_failures
+                )
             )
 
-    # For "run" mode, just check for errors and expected outputs
-    if ref_project.test_mode == "run":
-        logger.info(f"✓ Project {ref_project.name} executed successfully in 'run' mode")
-
-    # For "diff" mode, perform simple comparison
-    if ref_project.test_mode == "diff":
-        # Compare files
-        # Determine file patterns based on project configuration or language
-        if ref_project.include_patterns:
-            logger.info("Using defined include patterns:")
-            include_patterns = ref_project.include_patterns
-        else:
-            logger.info("Using default include patterns for:")
-            include_patterns = ["*.v", "*.sv"]
-            if ref_project.language != "verilog":
-                include_patterns = ["*.vhd", "*.vhdl"]
-            include_patterns += ["*.csv", "*.list", "*txt", "*.bin"]
-        logger.info(f"  Patterns: {include_patterns}")
-
-        cmp_diff = compare_directories(
-            ref_project.path,
+        # Run FABulous commands
+        _, execution_info = run_fabulous_commands_with_logging(
             test_project_path,
-            include_patterns,
-            exclude_patterns=ref_project.exclude_patterns,
+            ref_project.language,
+            caplog,
+            monkeypatch,
+            commands=ref_project.fab_commands,
         )
 
-        if cmp_diff:
-            # Need to import _session_config here to avoid uninialized/circular import
-            from tests.reference_test.conftest import _session_config
-
-            diff_report = format_file_differences_report(
-                cmp_diff,
-                verbose=_session_config.verbose,
-                current_dir=test_project_path,
-                reference_dir=ref_project.path,
-            )
-            pytest.fail(
-                f"Compare project differences in {ref_project.name}:\n{diff_report}"
-            )
-
-        logger.info(
-            f"✓ Project {ref_project.name} passed regression testing in 'diff' mode"
+        # Always check that basic commands succeeded
+        assert not execution_info["commands_failed"], (
+            f"Commands failed for {ref_project.name}: {execution_info['commands_failed']}"
+            f"\nErrors: {execution_info['errors']}"
         )
 
-    return
+        # Verify expected outputs exist if specified
+        if ref_project.expected_outputs:
+            for expected_file in ref_project.expected_outputs:
+                file_path = test_project_path / expected_file
+                assert file_path.exists(), (
+                    f"Expected output file missing: {expected_file}"
+                )
+                assert file_path.stat().st_size > 0, (
+                    f"Expected output file is empty: {expected_file}"
+                )
+
+        # Run optional post-fab shell commands (synthesis, P&R, simulation, etc.)
+        if ref_project.post_fab_commands:
+            post_failures = run_shell_commands(
+                test_project_path, ref_project.post_fab_commands
+            )
+            assert not post_failures, (
+                f"post_fab_commands failed for {ref_project.name}: "
+                + "\n".join(
+                    f"  {f['cmd']}: {f['error']}\n{f['output']}" for f in post_failures
+                )
+            )
+
+        # For "run" mode, just check for errors and expected outputs
+        if ref_project.test_mode == "run":
+            logger.info(
+                f"✓ Project {ref_project.name} executed successfully in 'run' mode"
+            )
+
+        # For "diff" mode, perform simple comparison
+        if ref_project.test_mode == "diff":
+            # Compare files
+            # Determine file patterns based on project configuration or language
+            if ref_project.include_patterns:
+                logger.info("Using defined include patterns:")
+                include_patterns = ref_project.include_patterns
+            else:
+                logger.info("Using default include patterns for:")
+                include_patterns = ["*.v", "*.sv"]
+                if ref_project.language != "verilog":
+                    include_patterns = ["*.vhd", "*.vhdl"]
+                include_patterns += ["*.csv", "*.list", "*txt", "*.bin"]
+            logger.info(f"  Patterns: {include_patterns}")
+
+            cmp_diff = compare_directories(
+                ref_project.path,
+                test_project_path,
+                include_patterns,
+                exclude_patterns=ref_project.exclude_patterns,
+            )
+
+            if cmp_diff:
+                # Need to import _session_config here to avoid uninialized/circular import
+                from tests.reference_test.conftest import _session_config
+
+                diff_report = format_file_differences_report(
+                    cmp_diff,
+                    verbose=_session_config.verbose,
+                    current_dir=test_project_path,
+                    reference_dir=ref_project.path,
+                )
+                pytest.fail(
+                    f"Compare project differences in {ref_project.name}:\n{diff_report}"
+                )
+
+            logger.info(
+                f"✓ Project {ref_project.name} passed regression testing in 'diff' mode"
+            )
+
+    finally:
+        # Always run cleanup commands, even if earlier steps failed
+        if ref_project.cleanup_commands:
+            run_shell_commands(
+                test_project_path,
+                ref_project.cleanup_commands,
+                stop_on_failure=False,
+            )
