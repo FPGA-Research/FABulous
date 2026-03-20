@@ -9,6 +9,7 @@ import tarfile
 from collections.abc import Callable
 from pathlib import Path
 from subprocess import run
+from typing import Self
 
 import pytest
 import typer
@@ -456,7 +457,7 @@ def test_install_oss_cad_suite(
 
     # Mock tarfile
     class MockTarFile:
-        def __enter__(self) -> "MockTarFile":
+        def __enter__(self) -> Self:
             return self
 
         def __exit__(self, *_args: object) -> None:

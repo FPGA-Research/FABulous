@@ -60,7 +60,7 @@ def compare_files_with_diff(
     )
 
     diff_lines = list(diff)
-    return diff_lines if diff_lines else None
+    return diff_lines or None
 
 
 def compare_directories(

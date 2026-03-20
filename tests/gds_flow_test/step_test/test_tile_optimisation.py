@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from librelane.config.config import Config
 from librelane.state.state import State
-from pytest_mock import MockerFixture, MockFixture
+from pytest_mock import MockerFixture
 
 from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import (
     OptMode,
@@ -19,7 +19,7 @@ class TestTileOptimisation:
 
     def test_condition_returns_true_on_drc_errors(
         self, mock_config: Config, mock_state: State
-    ):
+    ) -> None:
         """Test condition returns True when DRC errors exist."""
         mock_state.metrics["route__drc_errors"] = 5
 
@@ -29,7 +29,7 @@ class TestTileOptimisation:
 
     def test_condition_returns_true_on_antenna_violations(
         self, mock_config: Config, mock_state: State
-    ):
+    ) -> None:
         """Test condition returns True when antenna violations exist."""
         mock_state.metrics["route__drc_errors"] = 0
         mock_state.metrics["antenna__violating__nets"] = 2
@@ -130,7 +130,7 @@ class TestTileOptimisation:
         assert step.config["ERROR_ON_TR_DRC"] is False
 
     def test_mid_iteration_break_on_drc_errors(
-        self, mock_config: Config, mock_state: State, mocker: MockFixture
+        self, mock_config: Config, mock_state: State
     ) -> None:
         """Test mid_iteration_break returns True on DRC errors."""
         from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import (

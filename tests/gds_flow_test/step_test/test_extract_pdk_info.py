@@ -19,7 +19,7 @@ class TestExtractPDKInfo:
 
     def test_run_converts_metrics_to_decimal(
         self, mocker: MockerFixture, mock_config: Config, mock_state: State
-    ):
+    ) -> None:
         """Test that run method converts site dimensions to Decimal."""
         step = ExtractPDKInfo(mock_config)
 

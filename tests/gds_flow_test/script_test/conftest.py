@@ -346,7 +346,7 @@ def make_mock_odb_power(recorder: GeometryRecorder) -> SimpleNamespace:
     def dbBox_create(
         bpin: MockBPin, _layer: object, x1: int, y1: int, x2: int, y2: int
     ) -> None:
-        bterm_name = bpin._bterm.getName() if bpin._bterm else "unknown"
+        bterm_name = bpin._bterm.getName() if bpin._bterm else "unknown"  # noqa: SLF001
         recorder.bboxes.append((bterm_name, x1, y1, x2, y2))
 
     return SimpleNamespace(
@@ -372,7 +372,7 @@ def mock_odb_power_geom(geometry_recorder: GeometryRecorder) -> SimpleNamespace:
 
 
 def run_power_function(
-    recorder: GeometryRecorder, reader: MockReaderPower, metal_layer: str = "metal1"
+    _recorder: GeometryRecorder, reader: MockReaderPower, metal_layer: str = "metal1"
 ) -> None:
     """Execute the power connection logic (extracted from odb_power.py).
 

@@ -5,8 +5,7 @@ from pathlib import Path
 import pytest
 from librelane.config.config import Config
 from librelane.state.state import State
-from pytest_mock import MockFixture
-from pytest_mock.plugin import MockerFixture
+from pytest_mock import MockerFixture
 
 from fabulous.fabric_generator.gds_generator.steps.auto_diode import (
     AutoEcoDiodeInsertion,
@@ -85,7 +84,7 @@ class TestAutoEcoDiodeInsertion:
 
     def test_pre_iteration_callback_first_iteration(
         self,
-        mocker: MockFixture,
+        mocker: MockerFixture,
         mock_config: Config,
         mock_state: State,
         tmp_path: Path,
@@ -133,7 +132,7 @@ class TestAutoEcoDiodeInsertion:
 
     def test_post_iteration_callback_failure(
         self, mock_config: Config, mock_state: State
-    ):
+    ) -> None:
         """Test post_iteration_callback raises error on failure."""
         step = AutoEcoDiodeInsertion(mock_config, mock_state)
 
@@ -141,7 +140,7 @@ class TestAutoEcoDiodeInsertion:
             step.post_iteration_callback(mock_state, full_iteration=False)
 
     def test_post_loop_callback_with_violations_all_mode(
-        self, mocker: MockerFixture, mock_config: Config, mock_state: State
+        self, mock_config: Config, mock_state: State
     ) -> None:
         """Test post_loop_callback raises error when violations remain in 'all' mode."""
         mock_config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="all")
@@ -154,7 +153,7 @@ class TestAutoEcoDiodeInsertion:
             step.post_loop_callback(mock_state)
 
     def test_post_loop_callback_no_violations(
-        self, mocker: MockerFixture, mock_config: Config, mock_state: State
+        self, mock_config: Config, mock_state: State
     ) -> None:
         """Test post_loop_callback succeeds when no violations remain."""
         mock_config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="all")
@@ -167,7 +166,7 @@ class TestAutoEcoDiodeInsertion:
         assert result == mock_state
 
     def test_run_skip_when_mode_none(
-        self, mocker: MockFixture, mock_config: Config, mock_state: State
+        self, mocker: MockerFixture, mock_config: Config, mock_state: State
     ) -> None:
         """Test run skips processing when mode is 'none'."""
         mock_config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="none")
@@ -186,7 +185,7 @@ class TestAutoEcoDiodeInsertion:
         mock_run.assert_not_called()
 
     def test_run_processes_when_mode_not_none(
-        self, mocker: MockFixture, mock_config: Config, mock_state: State
+        self, mocker: MockerFixture, mock_config: Config, mock_state: State
     ) -> None:
         """Test run processes when mode is not 'none'."""
         mock_config = mock_config.copy(AUTO_ECO_DIODE_INSERT_MODE="all")
