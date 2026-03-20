@@ -1210,7 +1210,7 @@ def test_install_nix(
     """Test install-nix on unsupported NixOS platform."""
     test_argv = ["FABulous", "install-nix"]
 
-    # Patch Path.home in the module under test so the FABulous code picks up the mocked home
+    # Patch Path.home so the FABulous code picks up the mocked home
     mocker.patch("pathlib.Path.home", return_value=tmp_path)
     mocker.patch("shutil.which", return_value=None)
     mocker.patch("subprocess.run", return_value=run(["true"]))
@@ -1248,7 +1248,7 @@ def test_install_nix_failure(
     """Test install-nix when Nix is not installed."""
     test_argv = ["FABulous", "install-nix"]
 
-    # Patch Path.home in the module under test so the FABulous code picks up the mocked home
+    # Patch Path.home so the FABulous code picks up the mocked home
     mocker.patch("pathlib.Path.home", return_value=tmp_path)
     mocker.patch("shutil.which", return_value=None)
     mocker.patch("subprocess.run", return_value=run(["true"]))

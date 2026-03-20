@@ -114,5 +114,5 @@ def find_task_calls() -> list[list[str]]:
     return [
         c.args[0]
         for c in mock.call_args_list
-        if c.args and isinstance(c.args[0], (list, tuple)) and c.args[0][0] == "task"
+        if c.args and isinstance(c.args[0], list | tuple) and c.args[0][0] == "task"
     ]

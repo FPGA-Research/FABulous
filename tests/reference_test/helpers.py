@@ -37,13 +37,13 @@ def compare_files_with_diff(
     try:
         with current_file.open("r", encoding="utf-8", errors="replace") as f:
             current_lines = f.readlines()
-    except Exception:
+    except Exception:  # noqa: BLE001
         current_lines = []
 
     try:
         with reference_file.open("r", encoding="utf-8", errors="replace") as f:
             reference_lines = f.readlines()
-    except Exception:
+    except Exception:  # noqa: BLE001
         reference_lines = []
 
     # Quick check for identical files

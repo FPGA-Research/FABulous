@@ -362,7 +362,7 @@ def test_power_transforms_coordinates_correctly(
     run_power_function(recorder, reader, "metal1")
 
     # Verify coordinate transformation: instance_loc + geometry_bbox
-    # Expected: (100 + 10, 200 + 20, 100 + 30, 200 + 40) = (110, 220, 130, 240)
+    # Expected coords: (100 + 10, 200 + 20, 100 + 30, 200 + 40) = (110, 220, 130, 240)
     vpwr_sboxes = [box for box in recorder.sboxes if box[0] == "VPWR"]
     assert len(vpwr_sboxes) == 1, "Should create one SBox for VPWR"
     assert vpwr_sboxes[0] == ("VPWR", 110, 220, 130, 240), (

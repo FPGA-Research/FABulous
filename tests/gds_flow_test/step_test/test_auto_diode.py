@@ -103,13 +103,13 @@ class TestAutoEcoDiodeInsertion:
 
         # Mock CheckAntennas
         mock_instance = mocker.MagicMock()
-        mock_check_antennas = mocker.patch(
+        _mock_check_antennas = mocker.patch(
             "fabulous.fabric_generator.gds_generator.steps.auto_diode.OpenROAD.CheckAntennas",
             return_value=mock_instance,
         )
         step.config = mock_config
         step.previous_state = mock_state
-        new_state = step.pre_iteration_callback(mock_state)
+        _new_state = step.pre_iteration_callback(mock_state)
 
         assert step.config["INSERT_ECO_DIODES"] != []
 

@@ -119,7 +119,7 @@ class TestTileOptimisation:
 
         step = TileOptimisation(mock_config)
         step.config = mock_config
-        mock_run = mocker.patch(
+        _mock_run = mocker.patch(
             "fabulous.fabric_generator.gds_generator.steps.tile_optimisation.WhileStep.run",
             return_value=({}, {}),
         )

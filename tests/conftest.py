@@ -19,7 +19,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-define
     """Add command line option to include slow tests explicitly.
 
     Usage: pytest --runslow
-    Without this flag, tests marked with @pytest.mark.slow are skipped via addopts filter.
+    Without this flag, tests marked with @pytest.mark.slow are skipped via
+    addopts filter.
     """
     parser.addoption(
         "--runslow",
@@ -78,8 +79,8 @@ def fabulous_test_environment(
     monkeypatch.setenv("FABULOUS_TESTING", "TRUE")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda _: tmp_path)
-    # FAB_USER_CONFIG_DIR is computed at module import time, so Path.home() patching
-    # above is too late. Patch the constant directly in both modules that hold a binding.
+    # FAB_USER_CONFIG_DIR is computed at module import time, so Path.home()
+    # patching above is too late. Patch the constant directly in both modules.
     monkeypatch.setattr(
         fabulous.fabulous_settings, "FAB_USER_CONFIG_DIR", fake_user_config_dir
     )
