@@ -375,9 +375,9 @@ def run_power_function(
     recorder: GeometryRecorder, reader: MockReaderPower, metal_layer: str = "metal1"
 ) -> None:
     """Execute the power connection logic (extracted from odb_power.py).
-    
-    This helper function mimics the logic from odb_power.py power() function
-    and is used by tests to validate geometry transformations.
+
+    This helper function mimics the logic from odb_power.py power() function and is used
+    by tests to validate geometry transformations.
     """
     # Import odb from sys.modules (where it's been monkeypatched)
     import sys
@@ -728,8 +728,8 @@ def mock_odb_io_place(
 ) -> SimpleNamespace:
     """Provide a fake ODB module for IO place tests.
 
-    This fixture creates a fake ODB that records both box creation
-    and pin placements for test verification.
+    This fixture creates a fake ODB that records both box creation and pin placements
+    for test verification.
     """
 
     def dbBPin_create(bterm: MockBTermIoPlace) -> MockBPinIoPlace:

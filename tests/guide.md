@@ -93,4 +93,3 @@ The default reference projects are hosted in the
 [FABulous-demo-projects repo](https://github.com/FPGA-Research/FABulous-demo-projects)
 
 For more information, please check the [reference_tests README](./reference_tests/README.md)
-

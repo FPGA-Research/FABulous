@@ -366,7 +366,7 @@ def test_force_flag(
     expected_count: int,
     search_text: str,
 ) -> None:
-    """Test force flag functionality with different scenarios"""
+    """Test force flag functionality with different scenarios."""
 
     # Replace project placeholder
     argv = [arg.replace("{project}", str(project)) for arg in argv_base]
@@ -937,7 +937,7 @@ def test_subcommand_help(
 
 
 def test_version_callback() -> None:
-    """Test version_callback function behavior"""
+    """Test version_callback function behavior."""
     from fabulous.fabulous import version_callback
 
     # Test that version_callback raises typer.Exit when value is True
@@ -949,7 +949,7 @@ def test_version_callback() -> None:
 
 
 def test_validate_project_directory_success(project: Path) -> None:
-    """Test validate_project_directory with valid project"""
+    """Test validate_project_directory with valid project."""
     from fabulous.fabulous import validate_project_directory
 
     result = validate_project_directory(str(project))
@@ -957,7 +957,7 @@ def test_validate_project_directory_success(project: Path) -> None:
 
 
 def test_validate_project_directory_invalid(tmp_path: Path) -> None:
-    """Test validate_project_directory with invalid project"""
+    """Test validate_project_directory with invalid project."""
     from fabulous.fabulous import validate_project_directory
 
     invalid_dir = tmp_path / "not_a_project"
@@ -1028,7 +1028,7 @@ def test_check_version_compatibility_cases(
     should_exit: bool,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test version compatibility checking with different version scenarios"""
+    """Test version compatibility checking with different version scenarios."""
 
     from fabulous.fabulous import check_version_compatibility
     from fabulous.fabulous_settings import init_context, reset_context
@@ -1069,7 +1069,7 @@ def test_script_execution_with_content(
     script_content: str,
     expected_code: int,
 ) -> None:
-    """Test script execution with different content types"""
+    """Test script execution with different content types."""
     script_file = tmp_path / "test.fab"
     script_file.write_text(script_content)
 
@@ -1098,7 +1098,7 @@ def test_script_type_detection(
     file_ext: str,
     expected_code: int,
 ) -> None:
-    """Test automatic script type detection based on file extension"""
+    """Test automatic script type detection based on file extension."""
     # Note: expected_type is used for documentation but not assertion since
     # we're only testing that the command succeeds with different extensions
     script_file = tmp_path / f"test{file_ext}"
@@ -1114,7 +1114,7 @@ def test_script_type_detection(
 
 
 def test_main_function_exception_handling(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test main function handles unexpected exceptions"""
+    """Test main function handles unexpected exceptions."""
     from unittest.mock import Mock
 
     # Mock app to raise an unexpected exception
@@ -1132,7 +1132,7 @@ def test_run_command_pipeline_error(
     project: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test run command with pipeline execution error"""
+    """Test run command with pipeline execution error."""
     test_args = [
         "FABulous",
         "-p",

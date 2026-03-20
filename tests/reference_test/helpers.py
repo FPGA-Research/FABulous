@@ -1,7 +1,7 @@
 """Helper functions for FABulous reference testing.
 
-This module contains utility functions for downloading reference projects,
-file comparison, and other testing helpers.
+This module contains utility functions for downloading reference projects, file
+comparison, and other testing helpers.
 """
 
 import difflib

@@ -91,8 +91,8 @@ def project_directories(tmp_path: Path) -> dict[str, Path]:
 def simulation_mock(cli: FABulous_CLI, mocker: MockerFixture) -> None:
     """Prepare a CLI instance for simulation tests.
 
-    Mocks subprocess.run, generates the fabric, creates the required design
-    artifacts (.json, .fasm, .bin), and runs bitstream generation.
+    Mocks subprocess.run, generates the fabric, creates the required design artifacts
+    (.json, .fasm, .bin), and runs bitstream generation.
     """
     mocker.patch("subprocess.run", return_value=MOCK_COMPLETED_PROCESS)
     run_cmd(cli, "run_FABulous_fabric")

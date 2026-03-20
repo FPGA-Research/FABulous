@@ -4,7 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.custom_exception import InvalidListFileDefinition, InvalidSwitchMatrixDefinition
+from fabulous.custom_exception import (
+    InvalidListFileDefinition,
+    InvalidSwitchMatrixDefinition,
+)
 from fabulous.fabric_generator.parser.parse_switchmatrix import (
     expandListPorts,
     parseList,
@@ -19,17 +22,28 @@ from fabulous.fabric_generator.parser.parse_switchmatrix import (
         pytest.param("GND", ["GND"], None, id="no_multiplier"),
         pytest.param(" N1BEG0 ", ["N1BEG0"], None, id="spaces_stripped"),
         pytest.param("N[1|2]BEG0", ["N1BEG0", "N2BEG0"], None, id="two_alternatives"),
-        pytest.param("[E|N|S]1BEG0", ["E1BEG0", "N1BEG0", "S1BEG0"], None, id="three_alternatives"),
+        pytest.param(
+            "[E|N|S]1BEG0",
+            ["E1BEG0", "N1BEG0", "S1BEG0"],
+            None,
+            id="three_alternatives",
+        ),
         pytest.param("CLK{3}", ["CLK", "CLK", "CLK"], None, id="multiplier"),
-        pytest.param("PORT{2}", ["PORT", "PORT"], None, id="multiplier_stripped_from_name"),
+        pytest.param(
+            "PORT{2}", ["PORT", "PORT"], None, id="multiplier_stripped_from_name"
+        ),
         pytest.param(
             "X[A|B]Y[0|1]",
             ["XAY0", "XAY1", "XBY0", "XBY1"],
             None,
             id="recursive_expansion",
         ),
-        pytest.param("N[1BEG0", None, "mismatched brackets", id="mismatched_square_bracket"),
-        pytest.param("N1BEG{3", None, "mismatched brackets", id="mismatched_curly_bracket"),
+        pytest.param(
+            "N[1BEG0", None, "mismatched brackets", id="mismatched_square_bracket"
+        ),
+        pytest.param(
+            "N1BEG{3", None, "mismatched brackets", id="mismatched_curly_bracket"
+        ),
     ],
 )
 def test_expand_list_ports(

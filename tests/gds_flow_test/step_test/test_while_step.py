@@ -9,8 +9,8 @@ class TestWhileStep:
     def test_condition_default(self, mock_config, mock_state):
         """Test that condition returns True by default.
 
-        Also validates that default class attributes are set correctly,
-        as they affect the condition behavior.
+        Also validates that default class attributes are set correctly, as they affect
+        the condition behavior.
         """
         step = WhileStep(mock_config)
 

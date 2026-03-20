@@ -164,7 +164,7 @@ class TestFABulousSettings:
         assert settings.vvp_path == "vvp"
 
     def test_initialization_with_no_init_called(self, mocker: MockerFixture) -> None:
-        """Test init context in api mode"""
+        """Test init context in api mode."""
         mocker.patch("fabulous.fabulous_settings.which", return_value=None)
         settings = get_context()
         assert settings.yosys_path == "yosys"

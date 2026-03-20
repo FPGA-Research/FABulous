@@ -1,7 +1,7 @@
 """Tests for genTileSwitchMatrix.
 
-Tests the feature that allows users to redirect CSV output to a custom
-directory when converting .list files to .csv for switch matrix generation.
+Tests the feature that allows users to redirect CSV output to a custom directory when
+converting .list files to .csv for switch matrix generation.
 """
 
 from pathlib import Path

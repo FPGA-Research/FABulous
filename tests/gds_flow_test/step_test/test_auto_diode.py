@@ -42,7 +42,8 @@ class TestAutoEcoDiodeInsertion:
     def test_condition_stops_loop_when_done_enough(
         self, mock_config: Config, mock_state: State
     ) -> None:
-        """Test that condition returns False to stop the loop when insertion is complete.
+        """Test that condition returns False to stop the loop when insertion is
+        complete.
 
         This validates the loop termination behavior - when done_enough is True,
         the condition should return False to exit the WhileStep iteration loop.
@@ -63,8 +64,8 @@ class TestAutoEcoDiodeInsertion:
     ) -> None:
         """Test that condition returns True to continue loop during insertion.
 
-        This validates that the WhileStep continues iterating while there are
-        still diodes to insert (done_enough = False).
+        This validates that the WhileStep continues iterating while there are still
+        diodes to insert (done_enough = False).
         """
         step = AutoEcoDiodeInsertion(mock_config, mock_state)
 

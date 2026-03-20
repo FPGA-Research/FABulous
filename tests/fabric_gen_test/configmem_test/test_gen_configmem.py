@@ -255,8 +255,7 @@ class TestGeneratedConfigMemRTL:
         mocker: MockerFixture,
     ) -> None:
         """Test that generated RTL correctly maps FrameData and FrameStrobe to
-        ConfigBits.
-        """
+        ConfigBits."""
         # Create code generator
         writer = code_generator_factory(".v", f"{default_tile.name}_ConfigMem")
         writer.outFileName = tmp_path / f"{default_tile.name}_ConfigMem.v"
