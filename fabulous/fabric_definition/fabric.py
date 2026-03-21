@@ -118,6 +118,65 @@ class Fabric:
         The wires are used during model generation to work with wire that going cross
         tile.
         """
+        # The FrameAddressRegister (frameBitsPerRow bits wide)
+        # is partitioned into three non-overlapping regions:
+        # upper bits for column select, a single desync bit,
+        # and lower bits for one-hot frame strobe.
+        # See docs/fabric_definition.md for the bit layout.
+        if self.desync_flag >= self.frameBitsPerRow:
+            raise ValueError(
+                f"desync_flag bit position "
+                f"({self.desync_flag}) exceeds "
+                f"FrameAddressRegister width "
+                f"({self.frameBitsPerRow}). "
+                f"Reduce desync_flag or increase "
+                f"frameBitsPerRow."
+            )
+
+        col_select_lo = self.frameBitsPerRow - self.frameSelectWidth
+        if self.maxFramesPerCol > col_select_lo:
+            raise ValueError(
+                f"FrameAddressRegister overflow: "
+                f"frame strobe bits [0:{self.maxFramesPerCol - 1}]"
+                f" overlap with column select bits "
+                f"[{col_select_lo}:"
+                f"{self.frameBitsPerRow - 1}]. "
+                f"Reduce maxFramesPerCol or increase "
+                f"frameBitsPerRow."
+            )
+
+        if self.desync_flag < self.maxFramesPerCol:
+            raise ValueError(
+                f"desync_flag bit position "
+                f"({self.desync_flag}) falls within the "
+                f"frame strobe region "
+                f"[0:{self.maxFramesPerCol - 1}]. "
+                f"Increase desync_flag or reduce "
+                f"maxFramesPerCol."
+            )
+
+        if self.desync_flag >= col_select_lo:
+            raise ValueError(
+                f"desync_flag bit position "
+                f"({self.desync_flag}) falls within the "
+                f"column select region "
+                f"[{col_select_lo}:"
+                f"{self.frameBitsPerRow - 1}]. "
+                f"Adjust desync_flag, frameSelectWidth, "
+                f"or frameBitsPerRow."
+            )
+
+        max_cols = 1 << self.frameSelectWidth
+        if self.numberOfColumns > max_cols:
+            raise ValueError(
+                f"Not enough column address bits: "
+                f"frameSelectWidth ({self.frameSelectWidth})"
+                f" can address {max_cols} columns, "
+                f"but fabric has {self.numberOfColumns} "
+                f"columns. Increase frameSelectWidth or "
+                f"frameBitsPerRow."
+            )
+
         for row in self.tile:
             for tile in row:
                 if tile is None:
