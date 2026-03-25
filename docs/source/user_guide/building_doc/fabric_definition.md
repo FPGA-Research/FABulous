@@ -652,6 +652,11 @@ to BRAMs and the Verilog multiply operator directly to our DSP blocks.
 
 The BEL statements in the previous example instantiate a LUT4 in VHDL:
 
+:::{note}
+This VHDL example uses the legacy inline comment style for port attributes.
+New BEL files should use [native VHDL attribute syntax](#vhdl-attributes) instead.
+:::
+
 ```VHDL
 entity LUT4 is
  Generic ( NoConfigBits : integer := 18 );   -- has to be adjusted manually
@@ -718,6 +723,11 @@ FABulous defines the following coding rules for BELs:
     BEL,              tristate_pin.vhdl,       A_
     BEL,              tristate_pin.vhdl,       B_
     ```
+
+    :::{note}
+    This VHDL example uses the legacy inline comment style for port attributes.
+    New BEL files should use [native VHDL attribute syntax](#vhdl-attributes) instead.
+    :::
 
     ```VHDL
     entity Out_Pad is
@@ -794,13 +804,117 @@ FABulous defines the following coding rules for BELs:
     signals is not yet supported.
     :::
 
+  - `SHARED_ENABLE`: This directive marks an input port as a locally shared
+    enable signal within a tile. Can only be used on input ports.
+    This only works for custom tile config generation.
+
+    In Verilog:
+
+    ```verilog
+    (* FABulous, SHARED_ENABLE *) input EN;
+    ```
+
+    In VHDL, use a signal-level attribute:
+
+    ```VHDL
+    attribute SHARED_ENABLE of EN : signal is "TRUE";
+    ```
+
+  - `SHARED_RESET`: This directive marks an input port as a locally shared
+    reset signal within a tile. Can only be used on input ports.
+     This only works for custom tile config generation.
+
+    In Verilog:
+
+    ```verilog
+    (* FABulous, SHARED_RESET *) input SR;
+    ```
+
+    In VHDL, use a signal-level attribute:
+
+    ```VHDL
+    attribute SHARED_RESET of SR : signal is "TRUE";
+    ```
+
+(vhdl-attributes)=
+
+#### VHDL attribute syntax
+
+In VHDL, FABulous attributes are specified using native VHDL attribute
+declarations and assignments. The BEL file needs:
+
+1. An **attribute package** declaring all FABulous attribute names (convention: `attr_pack_<TileName>_<ModuleName>`).
+2. **Entity-level attributes** for `FABulous`, `BelMap`, and each BelMap feature.
+3. **Signal-level attributes** for port directives (`EXTERNAL`, `SHARED_PORT`, `GLOBAL`, etc.).
+
+Comment-based annotations on port declarations (e.g., `-- (* FABulous, EXTERNAL *)`)
+are also supported but are not required when native VHDL attributes are present.
+
+The following example shows the attribute structure for a LUT4 BEL:
+
+```VHDL
+package attr_pack_LUT4AB_LUT4c_frame_config_dffesr is
+  attribute FABulous    : string;
+  attribute BelMap      : string;
+  attribute INIT        : integer;
+  attribute INIT_1      : integer;
+  -- ... one attribute per BelMap feature ...
+  attribute FAB_ATTR_FF : integer;
+  attribute IOmux       : integer;
+  attribute SET_NORESET : integer;
+  attribute EXTERNAL    : string;
+  attribute SHARED_PORT : string;
+  attribute GLOBAL      : string;
+end package;
+
+entity LUT4c_frame_config_dffesr is
+  generic (NoConfigBits : integer := 19);
+  port (
+    I  : in std_logic_vector(3 downto 0);
+    O  : out std_logic;
+    Ci : in std_logic;
+    Co : out std_logic;
+    SR : in std_logic;
+    EN : in std_logic;
+    UserCLK : in std_logic;
+    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0)
+  );
+
+  attribute FABulous of LUT4c_frame_config_dffesr    : entity is "TRUE";
+  attribute BelMap of LUT4c_frame_config_dffesr      : entity is "TRUE";
+  attribute INIT of LUT4c_frame_config_dffesr        : entity is 0;
+  attribute INIT_1 of LUT4c_frame_config_dffesr      : entity is 1;
+  -- ... remaining BelMap feature attributes ...
+  attribute FAB_ATTR_FF of LUT4c_frame_config_dffesr : entity is 16;
+  attribute IOmux of LUT4c_frame_config_dffesr       : entity is 17;
+  attribute SET_NORESET of LUT4c_frame_config_dffesr : entity is 18;
+  attribute EXTERNAL of UserCLK                      : signal is "TRUE";
+  attribute SHARED_PORT of UserCLK                   : signal is "TRUE";
+  attribute GLOBAL of ConfigBits                     : signal is "TRUE";
+end entity LUT4c_frame_config_dffesr;
+```
+
+:::{deprecated}
+The older plain comment style for port attributes is deprecated and should
+not be used in new BEL files:
+
+```VHDL
+-- Deprecated plain comment style:
+UserCLK : in std_logic; -- EXTERNAL -- SHARED_PORT
+```
+
+New BEL files should use native VHDL attribute assignments instead.
+:::
+
 (belmap-primitives)=
 
 #### BelMap Attribute
 
 Each primitive that uses configuration bits must include a `BelMap` attribute to define how FASM feature names map to configuration bit positions. The `BelMap` maps each configurable feature to its bit index within the primitive's configuration bitstream. The number of entries in the mapping must match the `NoConfigBits` parameter, otherwise the tool will report an error.
 
-The `BelMap` is specified as a Verilog attribute on the module declaration:
+##### Verilog BelMap
+
+In Verilog, the `BelMap` is specified as an inline attribute before the module declaration:
 
 ```verilog
 (*FABulous, BelMap,
@@ -831,6 +945,66 @@ endmodule
 ```
 
 In this example, the LUT4 has 16 configuration bits for `INIT` values (mapping to indices 0-15), 1 bit for `FF` (the flip-flop bypass switch at index 16), 1 bit for `IOmux` (the carry input switch at index 17), and 1 bit for `SET_NORESET` (the SET or RESET switch at index 18), totaling 19 configuration bits.
+
+##### VHDL BelMap
+
+In VHDL, the BelMap is specified using entity-level attributes, with each
+feature mapped to its bit position:
+
+```VHDL
+entity LUT4c_frame_config_dffesr is
+  generic (NoConfigBits : integer := 19);
+  ...
+  attribute FABulous of LUT4c_frame_config_dffesr    : entity is "TRUE";
+  attribute BelMap of LUT4c_frame_config_dffesr      : entity is "TRUE";
+  attribute INIT of LUT4c_frame_config_dffesr        : entity is 0;
+  attribute INIT_1 of LUT4c_frame_config_dffesr      : entity is 1;
+  -- ...
+  attribute FAB_ATTR_FF of LUT4c_frame_config_dffesr : entity is 16;
+  attribute IOmux of LUT4c_frame_config_dffesr       : entity is 17;
+  attribute SET_NORESET of LUT4c_frame_config_dffesr : entity is 18;
+end entity LUT4c_frame_config_dffesr;
+```
+
+:::{note}
+Older VHDL templates may include a BelMap comment before the entity declaration
+(e.g., `-- (* FABulous, BelMap, INIT=0, ... *)`). This is legacy support and
+is no longer required in new BEL files.
+:::
+
+Multi-bit features use underscore-suffixed index notation (e.g., `INIT_1`,
+`INIT_2`). FABulous automatically converts this to bracket notation (`INIT[1]`,
+`INIT[2]`) during parsing.
+
+(fab-attr-prefix)=
+
+##### The `FAB_ATTR_` prefix
+
+Certain BelMap feature names may conflict with VHDL reserved words or synthesis
+tool keywords. To avoid such conflicts, VHDL BEL files use the `FAB_ATTR_`
+prefix for these attributes.
+
+For example, the flip-flop bypass configuration bit is named `FF` in Verilog
+BELs, but in VHDL it becomes `FAB_ATTR_FF` to prevent potential conflicts:
+
+```VHDL
+-- In the attribute package:
+attribute FAB_ATTR_FF : integer;
+
+-- In the BelMap comment:
+-- (* FABulous, BelMap, ..., FAB_ATTR_FF=16, ... *)
+
+-- As an entity attribute:
+attribute FAB_ATTR_FF of LUT4c_frame_config_dffesr : entity is 16;
+```
+
+During parsing, FABulous automatically strips the `FAB_ATTR_` prefix, so
+`FAB_ATTR_FF` is treated identically to `FF` in the internal feature map and
+in the generated bitstream specification. The prefix is purely a VHDL-side
+naming convention and is transparent to the rest of the FABulous flow.
+
+The prefix removal is case-insensitive (`fab_attr_FF`, `FAB_ATTR_ff`, and
+`FAB_ATTR_FF` are all equivalent).
 
 (bitstream)=
 

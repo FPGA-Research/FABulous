@@ -83,7 +83,8 @@ def expandListPorts(port: str) -> list[str]:
     if port.count("[") != port.count("]") or port.count("{") != port.count("}"):
         raise ValueError(f"Invalid port entry: {port}, mismatched brackets")
 
-    # "[...]" splits the port into alternatives separated by "|", expanding each recursively
+    # "[...]" splits the port into alternatives separated by "|",
+    # expanding each recursively
     if "[" in port:
         left_index = port.find("[")
         right_index = port.find("]")
@@ -94,7 +95,8 @@ def expandListPorts(port: str) -> list[str]:
             result.extend(expandListPorts(before + entry + after))
         return result
 
-    # "{N}" is a multiplier: repeat the port N times and strip the multiplier from the name
+    # "{N}" is a multiplier: repeat the port N times and strip the
+    # multiplier from the name
     port = port.replace(" ", "")
     multipliers = re.findall(r"\{(\d+)\}", port)
     portMultiplier = sum(int(m) for m in multipliers)

@@ -14,6 +14,7 @@ import click
 import typer
 from loguru import logger
 from packaging.version import Version
+from pydantic import ValidationError
 
 from fabulous.custom_exception import PipelineCommandError
 from fabulous.fabric_definition.define import HDLType
@@ -28,6 +29,7 @@ from fabulous.fabulous_cli.helper import (
 )
 from fabulous.fabulous_settings import (
     FAB_USER_CONFIG_DIR,
+    _log_settings_validation_error,
     get_context,
     init_context,
 )
@@ -207,19 +209,25 @@ def common_options(
         log_file=log_file or Path(),
     )
 
-    if (s := ctx.invoked_subcommand) and (
-        s.startswith("install") or s == "create-project" or s == "c"
-    ):
-        return
-
     if "--help" in sys.argv:
         return
 
-    init_context(
-        project_dir=project_dir or Path().cwd(),
-        global_dot_env=global_dot_env,
-        project_dot_env=project_dot_env,
-    )
+    subcommand = ctx.invoked_subcommand
+    if subcommand and (
+        subcommand.startswith("install") or subcommand in {"create-project", "c"}
+    ):
+        return
+
+    resolved_dir = project_dir or Path.cwd()
+    try:
+        init_context(
+            project_dir=resolved_dir,
+            global_dot_env=global_dot_env,
+            project_dot_env=project_dot_env,
+        )
+    except ValidationError as e:
+        _log_settings_validation_error(e, resolved_dir)
+        raise typer.Exit(1) from None
 
 
 def check_version_compatibility(_: Path) -> None:

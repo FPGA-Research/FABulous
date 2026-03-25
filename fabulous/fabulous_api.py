@@ -7,7 +7,6 @@ various fabric-related operations.
 
 from collections.abc import Iterable
 from pathlib import Path
-from unittest import case
 
 import yaml
 from loguru import logger
@@ -16,6 +15,15 @@ import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
 import fabulous.fabric_generator.parser.parse_csv as fileParser
 from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
+from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
+    FABulousTimingModelInterface,
+)
+from fabulous.fabric_cad.timing_model.models import (
+    TimingModelConfig,
+    TimingModelMode,
+    TimingModelStaTools,
+    TimingModelSynthTools,
+)
 
 # Importing Modules from FABulous Framework.
 from fabulous.fabric_definition.bel import Bel
@@ -54,11 +62,6 @@ from fabulous.fabric_generator.gen_fabric.gen_tile import (
 from fabulous.fabric_generator.gen_fabric.gen_top_wrapper import generateTopWrapper
 from fabulous.fabulous_settings import get_context
 from fabulous.geometry_generator.geometry_gen import GeometryGenerator
-
-from fabulous.fabric_cad.timing_model.models import *
-from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
-    FABulousTimingModelInterface,
-)
 
 
 class FABulous_API:
@@ -561,21 +564,16 @@ class FABulous_API:
             Path to the fabric-level Verilog file.
         out_folder : Path
             Output directory for the stitched fabric.
+        pdk : str
+            PDK name to use.
+        pdk_root : Path
+            Path to PDK root directory.
         base_config_path : Path | None
             Path to base configuration YAML file.
         config_override_path : Path | None, optional
             Additional configuration overrides.
-        pdk_root : Path | None, optional
-            Path to PDK root directory.
-        pdk : str | None, optional
-            PDK name to use.
         **custom_config_overrides : dict
             software configuration overrides.
-
-        Raises
-        ------
-        ValueError
-            If PDK root or PDK is not specified.
         """
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
@@ -646,11 +644,10 @@ class FABulous_API:
         mode: str,
         output_file: Path,
         debug: bool,
-        manual_config: TimingModelConfig | None = None
+        manual_config: TimingModelConfig | None = None,
     ) -> TimingModelConfig:
-        """
-        Initialise the timing model interface and generate the nextpnr pip file for the fabric.
-        
+        """Initialise timing model interface, generate nextpnr pip file for the fabric.
+
         Parameters
         ----------
         mode : str
@@ -658,32 +655,33 @@ class FABulous_API:
         output_file : Path
             The path where the generated nextpnr pip file will be saved.
         debug : bool
-            Whether to enable debug mode for the timing model interface, 
-            which may provide more verbose logging. 
+            Whether to enable debug mode for the timing model interface,
+            which may provide more verbose logging.
         manual_config : TimingModelConfig | None
-            Optional manual configuration for the timing model interface. If provided, this configuration 
-            will be used instead of the default PDK-based configuration.
-        
+            Optional manual configuration for the timing model interface.
+            If provided, this configuration will be used instead of the default
+            PDK-based configuration.
+
         Returns
         -------
         TimingModelConfig
-            The configuration used for the timing model interface, which may be the 
+            The configuration used for the timing model interface, which may be the
             default PDK-based configuration or the provided manual configuration.
-        
+
         Raises
         ------
         ValueError
-            If no default timing model configuration is available for the current PDK and 
-            no manual configuration is provided.
+            If no default timing model configuration is available for the
+            current PDK and no manual configuration is provided.
         """
         pdk: str | None = get_context().pdk
         pdk_root: Path | None = get_context().pdk_root
-        
+
         if pdk is not None and pdk_root is not None:
-            pdk_root = Path.resolve(pdk_root/pdk).absolute()
-            
+            pdk_root = Path.resolve(pdk_root / pdk).absolute()
+
         iconfig: TimingModelConfig | None = None
-        
+
         match pdk:
             case "ihp-sg13g2":
                 liberty_files: Path = (
@@ -695,7 +693,7 @@ class FABulous_API:
                     pdk_root / "libs.tech/librelane/sg13g2_stdcell/tribuff_map.v",
                 ]
                 min_buf_cell_and_ports: str = "sg13g2_buf_1 A X"
-            
+
             case "sky130A" | "sky130B":
                 liberty_files: Path = (
                     pdk_root
@@ -706,18 +704,20 @@ class FABulous_API:
                     pdk_root / "libs.tech/openlane/sky130_fd_sc_hd/tribuff_map.v",
                 ]
                 min_buf_cell_and_ports: str = "sky130_fd_sc_hd__buf_1 A X"
-            
+
             case _:
                 if manual_config is None:
-                    raise ValueError(f"No default timing model configuration for PDK {pdk}. "
-                        f"Please provide a manual configuration or add defaults for this PDK."
+                    raise ValueError(
+                        f"No default timing model configuration for PDK {pdk}. "
+                        f"Please provide a manual configuration or add "
+                        f"defaults for this PDK."
                     )
-        
-        # Allow manual configuration to override defaults for flexibility, but default 
+
+        # Allow manual configuration to override defaults for flexibility, but default
         # to PDK-based configuration if not provided.
         if manual_config is not None:
             iconfig = manual_config
-            logger.info(f"Using manual timing model configuration.")
+            logger.info("Using manual timing model configuration.")
         else:
             iconfig = TimingModelConfig(
                 project_dir=get_context().proj_dir,
@@ -730,18 +730,15 @@ class FABulous_API:
                 sta_executable=get_context().opensta_path,
                 sta_program=TimingModelStaTools.OPENSTA,
                 mode=TimingModelMode(mode),
-                debug=debug
+                debug=debug,
             )
 
-        ftmi = FABulousTimingModelInterface(
-            config=iconfig,
-            fabric=self.fabric
-        )
+        ftmi = FABulousTimingModelInterface(config=iconfig, fabric=self.fabric)
 
         model_gen_npnr.writeNextpnrPipFile(
             fabric=self.fabric,
             outputFile=output_file,
             delay_model=ftmi,
         )
-        
+
         return iconfig

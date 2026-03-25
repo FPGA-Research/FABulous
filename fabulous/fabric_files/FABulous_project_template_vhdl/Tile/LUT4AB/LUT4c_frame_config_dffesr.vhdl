@@ -119,7 +119,7 @@ begin
   LUT_index_2N <= not LUT_index(2);
   LUT_index_3N <= not LUT_index(3);
 
-  inst_cus_mux161_buf : entity work.cus_mux161_buf
+  inst_cus_mux161 : entity work.cus_mux161
   port map
   (
     A0  => LUT_values(0),

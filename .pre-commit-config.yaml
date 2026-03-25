@@ -1,4 +1,4 @@
-files: ^(FABulous|docs|nix)/|\.nix$
+files: ^(fabulous|docs|nix)/|\.nix$
 default_language_version:
   python: python3.12
 repos:

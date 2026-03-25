@@ -1,4 +1,5 @@
 (bitstream-generation)=
+
 # FASM to Bitstream
 
 This section contains information on how to generate a bitstream from a FASM file.

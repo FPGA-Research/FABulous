@@ -97,7 +97,7 @@ module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
     .S4(LUT_index[3]),
     .O(LUT_out)
     );*/
-    cus_mux161_buf inst_cus_mux161_buf(
+    cus_mux161 inst_cus_mux161(
     .A0(LUT_values[0]),
     .A1(LUT_values[1]),
     .A2(LUT_values[2]),
