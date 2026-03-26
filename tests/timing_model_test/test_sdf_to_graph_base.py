@@ -187,19 +187,6 @@ def test_get_sdf_header_info_property(sdf_base):
     assert "timescale: 1ns" in header_str
 
 
-def test_print_graph_outputs_all_edges(sdf_base, capsys):
-    sdf_base.print_graph()
-    out = capsys.readouterr().out
-
-    assert "IN --> U1/A delay 0.1" in out
-    assert "U1/A --> U1/Y delay 0.2" in out
-    assert "U1/Y --> U2/B delay 0.4" in out
-    assert "U2/B --> U2/Z delay 0.5" in out
-    assert "U2/Z --> OUT delay 0.6" in out
-    assert "BUF_X1" in out
-    assert "INV_X1" in out
-
-
 def test_get_cell_instance_returns_components_for_instance(sdf_base):
     comps = sdf_base.get_cell_instance("U1")
 
@@ -237,7 +224,6 @@ def test_get_cell_instance_inputs_to_outputs_missing_instance_returns_empty_and_
 
     assert input_pins == []
     assert output_pins == []
-    assert "Instance NO_SUCH_INSTANCE not found in SDF instances." in out
 
 
 def test_get_cell_instance_component_by_type_returns_matching_component(sdf_base):

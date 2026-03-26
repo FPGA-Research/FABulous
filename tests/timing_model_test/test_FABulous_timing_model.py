@@ -601,7 +601,7 @@ def test_find_matching_files_filters_dirs_and_files(tmp_path, bare_model):
 
 
 def test_find_matching_files_invalid_root_raises(bare_model):
-    with pytest.raises(ValueError, match="root_dir must be a Path object"):
+    with pytest.raises(TypeError, match="root_dir must be a Path object"):
         bare_model._find_matching_files("not_a_path", r".*\.v$")
 
 

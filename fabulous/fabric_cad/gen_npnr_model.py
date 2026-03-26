@@ -10,16 +10,14 @@ placement and routing for user designs.
 """
 
 import string
-import os
 from pathlib import Path
 
 from fabulous.custom_exception import InvalidFileType, InvalidState
-from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
-
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
     FABulousTimingModelInterface,
 )
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
 
 def genNextpnrModel(
@@ -187,8 +185,10 @@ def writeNextpnrPipFile(
     ----------
     fabric : Fabric
         Fabric object containing tile information.
-    outputDir : Path
-        Directory to write the pip file to.
+    outputFile : Path
+        File to write the pip information to.
+    delay_model : FABulousTimingModelInterface
+        Timing model interface to provide delay information, by default None.
     """
     pip_str, _, _, _ = genNextpnrModel(fabric, delay_model)
     outputFile.write_text(pip_str, encoding="utf-8")
