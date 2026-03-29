@@ -805,3 +805,546 @@ class TestIntegration:
         assert len(segments[0].pin_entries) == 1  # clk
         assert len(segments[1].pin_entries) == 1  # rst
         assert len(segments[2].pin_entries) == 2  # data0, data1
+
+
+class TestNormalTileSupertilePinAlignment:
+    """Pin Y-coordinate alignment between stacked normal tiles and a 2-tall super tile.
+
+    Each super tile division must produce the same track coordinates as a
+    standalone normal tile of the same height.  With non-zero track origins
+    (sky130) the total track count is not 2x the single-tile count, so naive
+    integer division loses tracks per division.
+    """
+
+    @staticmethod
+    def _make_bterms(mocker: MockerFixture, names: list[str]) -> list:
+        bterms = []
+        for name in names:
+            bt = mocker.Mock()
+            bt.getName.return_value = name
+            bterms.append(bt)
+        return bterms
+
+    @pytest.mark.parametrize(
+        ("origin", "step", "tile_height", "normal_count", "super_count", "label"),
+        [
+            # normal_count = floor((tile_height - origin) / step) + 1
+            # super_count = floor((2*tile_height - origin) / step) + 1
+            # --- on-pitch (tile_height is a multiple of step, guaranteed by round_die_area) ---
+            (0.0, 42.0, 1008.0, 24, 48, "on-pitch-ihp-zero-offset"),
+            (34.0, 68.0, 1020.0, 15, 30, "on-pitch-sky130"),
+            (23.0, 46.0, 920.0, 20, 40, "on-pitch-arbitrary"),
+            # --- off-pitch (tile_height NOT a multiple of step) ---
+            # round_die_area should prevent this, but test resilience anyway
+            (34.0, 68.0, 1000.0, 15, 29, "off-pitch-sky130"),
+            (0.0, 42.0, 1000.0, 24, 48, "off-pitch-ihp"),
+            (23.0, 46.0, 1000.0, 22, 43, "off-pitch-arbitrary"),
+        ],
+    )
+    def test_pin_tracks_align(
+        self,
+        mocker: MockerFixture,
+        origin: float,
+        step: float,
+        tile_height: float,
+        normal_count: int,
+        super_count: int,
+        label: str,
+    ) -> None:
+        """Normal tile EAST tracks must match super tile WEST tracks per division."""
+        normal_config = {
+            "X0Y0": {"EAST": [{"pins": ["nA0", "nA1"], "sort_mode": "bus_major"}]},
+        }
+        super_config = {
+            "X0Y0": {"WEST": [{"pins": ["sA0", "sA1"], "sort_mode": "bus_major"}]},
+            "X0Y1": {"WEST": [{"pins": ["sB0", "sB1"], "sort_mode": "bus_major"}]},
+        }
+
+        plan_normal = PinPlacementPlan(
+            normal_config,
+            self._make_bterms(mocker, ["nA0", "nA1"]),
+            "none",
+        )
+        plan_super = PinPlacementPlan(
+            super_config,
+            self._make_bterms(mocker, ["sA0", "sA1", "sB0", "sB1"]),
+            "none",
+        )
+
+        plan_normal.allocate_tracks({Side.EAST: (normal_count, step, origin, tile_height)})
+        plan_super.allocate_tracks({Side.WEST: (super_count, step, origin, 2 * tile_height)})
+
+        normal_tracks = plan_normal.track_coordinates[Side.EAST]
+        super_tracks = plan_super.track_coordinates[Side.WEST]
+
+        assert len(normal_tracks) == 1
+        assert len(super_tracks) == 2
+
+        # Bottom division (super_tracks[1] = tile_y=1) must match normal tile exactly
+        assert normal_tracks[0] == super_tracks[1], (
+            f"[{label}] Bottom row tracks differ: "
+            f"normal={normal_tracks[0]} vs super={super_tracks[1]}"
+        )
+        # Top division must have the same track count
+        assert len(normal_tracks[0]) == len(super_tracks[0]), (
+            f"[{label}] Track count differs: "
+            f"normal={len(normal_tracks[0])} vs super_top={len(super_tracks[0])}"
+        )
+
+    @pytest.mark.parametrize(
+        ("origin", "step", "tile_height", "normal_count", "super_count", "label"),
+        [
+            # --- on-pitch ---
+            (34.0, 68.0, 1020.0, 15, 45, "3tall-on-pitch-sky130"),
+            (60.0, 68.0, 1020.0, 15, 45, "3tall-on-pitch-large-origin"),
+            (2.0, 68.0, 1020.0, 15, 45, "3tall-on-pitch-small-origin"),
+            # --- off-pitch ---
+            (34.0, 68.0, 1000.0, 15, 43, "3tall-off-pitch-sky130"),
+        ],
+    )
+    def test_3tall_supertile_pin_alignment(
+        self,
+        mocker: MockerFixture,
+        origin: float,
+        step: float,
+        tile_height: float,
+        normal_count: int,
+        super_count: int,
+        label: str,
+    ) -> None:
+        """3-tall super tile divisions must each match a standalone normal tile.
+
+        Checks both track count AND coordinate match for the bottom row.
+        """
+        normal_config = {
+            "X0Y0": {"EAST": [{"pins": ["n0", "n1"], "sort_mode": "bus_major"}]},
+        }
+        super_config = {
+            "X0Y0": {"WEST": [{"pins": ["s0", "s1"], "sort_mode": "bus_major"}]},
+            "X0Y1": {"WEST": [{"pins": ["s2", "s3"], "sort_mode": "bus_major"}]},
+            "X0Y2": {"WEST": [{"pins": ["s4", "s5"], "sort_mode": "bus_major"}]},
+        }
+
+        plan_normal = PinPlacementPlan(
+            normal_config,
+            self._make_bterms(mocker, ["n0", "n1"]),
+            "none",
+        )
+        plan_super = PinPlacementPlan(
+            super_config,
+            self._make_bterms(mocker, ["s0", "s1", "s2", "s3", "s4", "s5"]),
+            "none",
+        )
+
+        plan_normal.allocate_tracks({Side.EAST: (normal_count, step, origin, tile_height)})
+        plan_super.allocate_tracks({Side.WEST: (super_count, step, origin, 3 * tile_height)})
+
+        normal_tracks = plan_normal.track_coordinates[Side.EAST]
+        super_tracks = plan_super.track_coordinates[Side.WEST]
+
+        assert len(normal_tracks) == 1
+        assert len(super_tracks) == 3
+
+        # super_tracks sorted by tile_y: [Y0(top), Y1(mid), Y2(bottom)]
+        # Bottom division (Y2) must match normal tile coordinates exactly
+        assert normal_tracks[0] == super_tracks[2], (
+            f"[{label}] Bottom row coordinates differ: "
+            f"normal={normal_tracks[0]} vs super_bottom={super_tracks[2]}"
+        )
+        # All divisions must have the same track count
+        normal_track_count = len(normal_tracks[0])
+        for i, st in enumerate(super_tracks):
+            assert len(st) == normal_track_count, (
+                f"[{label}] Division {i} track count {len(st)} != "
+                f"normal tile {normal_track_count}"
+            )
+
+    @pytest.mark.parametrize(
+        ("origin", "step", "tile_width", "normal_count", "super_count", "label"),
+        [
+            # --- on-pitch ---
+            (0.0, 46.0, 920.0, 20, 40, "2wide-on-pitch-zero-offset"),
+            (34.0, 68.0, 1020.0, 15, 30, "2wide-on-pitch-sky130"),
+            # --- off-pitch ---
+            (34.0, 68.0, 1000.0, 15, 29, "2wide-off-pitch-sky130"),
+        ],
+    )
+    def test_2wide_supertile_north_south_alignment(
+        self,
+        mocker: MockerFixture,
+        origin: float,
+        step: float,
+        tile_width: float,
+        normal_count: int,
+        super_count: int,
+        label: str,
+    ) -> None:
+        """2-wide super tile SOUTH divisions must match stacked normal tiles NORTH."""
+        normal_config = {
+            "X0Y0": {"NORTH": [{"pins": ["n0", "n1"], "sort_mode": "bus_major"}]},
+        }
+        super_config = {
+            "X0Y0": {"SOUTH": [{"pins": ["s0", "s1"], "sort_mode": "bus_major"}]},
+            "X1Y0": {"SOUTH": [{"pins": ["s2", "s3"], "sort_mode": "bus_major"}]},
+        }
+
+        plan_normal = PinPlacementPlan(
+            normal_config,
+            self._make_bterms(mocker, ["n0", "n1"]),
+            "none",
+        )
+        plan_super = PinPlacementPlan(
+            super_config,
+            self._make_bterms(mocker, ["s0", "s1", "s2", "s3"]),
+            "none",
+        )
+
+        plan_normal.allocate_tracks({Side.NORTH: (normal_count, step, origin, tile_width)})
+        plan_super.allocate_tracks({Side.SOUTH: (super_count, step, origin, 2 * tile_width)})
+
+        normal_tracks = plan_normal.track_coordinates[Side.NORTH]
+        super_tracks = plan_super.track_coordinates[Side.SOUTH]
+
+        assert len(normal_tracks) == 1
+        assert len(super_tracks) == 2
+
+        # First division (X0) of super tile must match standalone normal tile
+        assert normal_tracks[0] == super_tracks[0], (
+            f"[{label}] X0 tracks differ: "
+            f"normal={normal_tracks[0]} vs super={super_tracks[0]}"
+        )
+        assert len(normal_tracks[0]) == len(super_tracks[1]), (
+            f"[{label}] X1 track count differs: "
+            f"normal={len(normal_tracks[0])} vs super_x1={len(super_tracks[1])}"
+        )
+
+    @pytest.mark.parametrize(
+        ("origin", "step", "tile_height", "normal_count", "super_count", "label"),
+        [
+            # --- on-pitch ---
+            (60.0, 68.0, 136.0, 2, 4, "tiny-on-pitch"),
+            (34.0, 68.0, 136.0, 2, 4, "small-on-pitch"),
+            (34.0, 68.0, 68.0, 1, 2, "one-track-on-pitch"),
+            # --- off-pitch ---
+            (60.0, 68.0, 100.0, 1, 1, "tiny-off-pitch"),
+            (34.0, 68.0, 102.0, 1, 2, "small-off-pitch"),
+        ],
+    )
+    def test_edge_case_minimal_tracks(
+        self,
+        mocker: MockerFixture,
+        origin: float,
+        step: float,
+        tile_height: float,
+        normal_count: int,
+        super_count: int,
+        label: str,
+    ) -> None:
+        """Extreme tile sizes must not crash and must stay consistent."""
+        normal_config = {
+            "X0Y0": {"EAST": [{"pins": ["n0"], "sort_mode": "bus_major"}]},
+        }
+        super_config = {
+            "X0Y0": {"WEST": [{"pins": ["s0"], "sort_mode": "bus_major"}]},
+            "X0Y1": {"WEST": [{"pins": ["s1"], "sort_mode": "bus_major"}]},
+        }
+
+        plan_normal = PinPlacementPlan(
+            normal_config,
+            self._make_bterms(mocker, ["n0"]),
+            "none",
+        )
+        plan_super = PinPlacementPlan(
+            super_config,
+            self._make_bterms(mocker, ["s0", "s1"]),
+            "none",
+        )
+
+        plan_normal.allocate_tracks({Side.EAST: (normal_count, step, origin, tile_height)})
+        plan_super.allocate_tracks({Side.WEST: (super_count, step, origin, 2 * tile_height)})
+
+        normal_tracks = plan_normal.track_coordinates[Side.EAST]
+        super_tracks = plan_super.track_coordinates[Side.WEST]
+
+        assert len(normal_tracks) == 1
+        assert len(super_tracks) == 2
+
+        # Track counts per division must match the normal tile
+        normal_track_count = len(normal_tracks[0])
+        for i, st in enumerate(super_tracks):
+            assert len(st) == normal_track_count, (
+                f"[{label}] Division {i} track count {len(st)} != "
+                f"normal tile {normal_track_count}"
+            )
+
+    def test_uneven_pin_counts_across_subtiles(self, mocker: MockerFixture) -> None:
+        """Sub-tiles with different pin counts must still get equal track allocation.
+
+        Real super tiles often have different port counts per row (e.g., DSP_top
+        has more ports than DSP_bot).  The track allocation per division must be
+        the same regardless of how many pins each sub-tile has.
+        """
+        # Normal tile with 4 pins
+        normal_config = {
+            "X0Y0": {"EAST": [{"pins": ["n0", "n1", "n2", "n3"], "sort_mode": "bus_major"}]},
+        }
+        # Super tile: Y0 has 5 pins, Y1 has 2 pins (uneven)
+        super_config = {
+            "X0Y0": {
+                "WEST": [{"pins": ["s0", "s1", "s2", "s3", "s4"], "sort_mode": "bus_major"}]
+            },
+            "X0Y1": {
+                "WEST": [{"pins": ["s5", "s6"], "sort_mode": "bus_major"}]
+            },
+        }
+
+        plan_normal = PinPlacementPlan(
+            normal_config,
+            self._make_bterms(mocker, ["n0", "n1", "n2", "n3"]),
+            "none",
+        )
+        plan_super = PinPlacementPlan(
+            super_config,
+            self._make_bterms(mocker, ["s0", "s1", "s2", "s3", "s4", "s5", "s6"]),
+            "none",
+        )
+
+        origin, step, tile_height = 34.0, 68.0, 1020.0
+        plan_normal.allocate_tracks({Side.EAST: (15, step, origin, tile_height)})
+        plan_super.allocate_tracks({Side.WEST: (30, step, origin, 2 * tile_height)})
+
+        normal_tracks = plan_normal.track_coordinates[Side.EAST]
+        super_tracks = plan_super.track_coordinates[Side.WEST]
+
+        # Both divisions must get the same number of tracks as the normal tile
+        normal_track_count = len(normal_tracks[0])
+        for i, st in enumerate(super_tracks):
+            assert len(st) == normal_track_count, (
+                f"Division {i} track count {len(st)} != normal tile {normal_track_count}"
+            )
+
+    def test_multiple_segments_per_subtile(self, mocker: MockerFixture) -> None:
+        """Sub-tiles with multiple segments on the same side must align.
+
+        Real tiles have routing ports AND frame signals on the same side,
+        represented as separate segments.
+        """
+        normal_config = {
+            "X0Y0": {
+                "EAST": [
+                    {"pins": ["route0", "route1"], "sort_mode": "bus_major"},
+                    {"pins": ["frame0"], "sort_mode": "bus_major"},
+                ]
+            },
+        }
+        super_config = {
+            "X0Y0": {
+                "WEST": [
+                    {"pins": ["sr0", "sr1"], "sort_mode": "bus_major"},
+                    {"pins": ["sf0"], "sort_mode": "bus_major"},
+                ]
+            },
+            "X0Y1": {
+                "WEST": [
+                    {"pins": ["sr2", "sr3"], "sort_mode": "bus_major"},
+                    {"pins": ["sf1"], "sort_mode": "bus_major"},
+                ]
+            },
+        }
+
+        plan_normal = PinPlacementPlan(
+            normal_config,
+            self._make_bterms(mocker, ["route0", "route1", "frame0"]),
+            "none",
+        )
+        plan_super = PinPlacementPlan(
+            super_config,
+            self._make_bterms(mocker, ["sr0", "sr1", "sf0", "sr2", "sr3", "sf1"]),
+            "none",
+        )
+
+        origin, step, tile_height = 34.0, 68.0, 1020.0
+        plan_normal.allocate_tracks({Side.EAST: (15, step, origin, tile_height)})
+        plan_super.allocate_tracks({Side.WEST: (30, step, origin, 2 * tile_height)})
+
+        normal_tracks = plan_normal.track_coordinates[Side.EAST]
+        super_tracks = plan_super.track_coordinates[Side.WEST]
+
+        # Normal: 2 segments, Super: 4 segments (2 per sub-tile)
+        assert len(normal_tracks) == 2
+        assert len(super_tracks) == 4
+
+        # Total tracks allocated to each division must match normal tile total
+        normal_total = sum(len(t) for t in normal_tracks)
+        # super_tracks[0:2] = Y0 (top), super_tracks[2:4] = Y1 (bottom)
+        super_bottom_total = sum(len(t) for t in super_tracks[2:4])
+        super_top_total = sum(len(t) for t in super_tracks[0:2])
+
+        assert super_bottom_total == normal_total, (
+            f"Bottom division total tracks {super_bottom_total} != "
+            f"normal tile total {normal_total}"
+        )
+        assert super_top_total == normal_total, (
+            f"Top division total tracks {super_top_total} != "
+            f"normal tile total {normal_total}"
+        )
+
+    @pytest.mark.parametrize(
+        ("origin", "step", "tile_height", "normal_count", "super_count", "label"),
+        [
+            # --- on-pitch ---
+            (100.0, 68.0, 1020.0, 14, 28, "origin-exceeds-step-on-pitch"),
+            (68.0, 68.0, 1020.0, 14, 28, "origin-equals-step-on-pitch"),
+            # --- off-pitch ---
+            (100.0, 68.0, 1000.0, 14, 27, "origin-exceeds-step-off-pitch"),
+            (68.0, 68.0, 1000.0, 14, 27, "origin-equals-step-off-pitch"),
+        ],
+    )
+    def test_origin_ge_step(
+        self,
+        mocker: MockerFixture,
+        origin: float,
+        step: float,
+        tile_height: float,
+        normal_count: int,
+        super_count: int,
+        label: str,
+    ) -> None:
+        """origin >= step must not crash and divisions must stay consistent."""
+        normal_config = {
+            "X0Y0": {"EAST": [{"pins": ["n0", "n1"], "sort_mode": "bus_major"}]},
+        }
+        super_config = {
+            "X0Y0": {"WEST": [{"pins": ["s0", "s1"], "sort_mode": "bus_major"}]},
+            "X0Y1": {"WEST": [{"pins": ["s2", "s3"], "sort_mode": "bus_major"}]},
+        }
+
+        plan_normal = PinPlacementPlan(
+            normal_config,
+            self._make_bterms(mocker, ["n0", "n1"]),
+            "none",
+        )
+        plan_super = PinPlacementPlan(
+            super_config,
+            self._make_bterms(mocker, ["s0", "s1", "s2", "s3"]),
+            "none",
+        )
+
+        plan_normal.allocate_tracks({Side.EAST: (normal_count, step, origin, tile_height)})
+        plan_super.allocate_tracks({Side.WEST: (super_count, step, origin, 2 * tile_height)})
+
+        normal_tracks = plan_normal.track_coordinates[Side.EAST]
+        super_tracks = plan_super.track_coordinates[Side.WEST]
+
+        normal_track_count = len(normal_tracks[0])
+        for i, st in enumerate(super_tracks):
+            assert len(st) == normal_track_count, (
+                f"[{label}] Division {i} track count {len(st)} != "
+                f"normal tile {normal_track_count}"
+            )
+
+    @pytest.mark.parametrize(
+        ("origin", "step", "tile_height", "stride", "label"),
+        [
+            # Real sky130: met3 origin=340, step=680, LUT4AB height=245480
+            # division_boundary / step = 361 (ODD) → stride=2 filter would
+            # skip the first track in the top division if using global indices
+            (340, 680, 245480, 2, "sky130-met3-stride2"),
+            # Same but with stride=3
+            (340, 680, 245480, 3, "sky130-met3-stride3"),
+            # Zero origin with odd division boundary
+            (0, 680, 245480, 2, "zero-origin-odd-boundary"),
+        ],
+    )
+    def test_stride_filter_does_not_shift_divisions(
+        self,
+        mocker: MockerFixture,
+        origin: int,
+        step: int,
+        tile_height: int,
+        stride: int,
+        label: str,
+    ) -> None:
+        """Stride filtering must not shift pins between divisions.
+
+        When the division boundary falls on an odd global track index and
+        stride=2, a global-index-based filter would skip the first track in
+        upper divisions, shifting all pins by 1 track.  The stride must be
+        relative to each division's start instead.
+        """
+        import math as m
+
+        origin_f = float(origin)
+        step_f = float(step)
+        tile_h = float(tile_height)
+        normal_count = m.floor((tile_h - origin_f) / step_f) + 1
+        super_count = m.floor((2 * tile_h - origin_f) / step_f) + 1
+
+        # Normal tile
+        normal_config = {
+            "X0Y0": {"EAST": [{"pins": ["n0", "n1"], "sort_mode": "bus_major"}]},
+        }
+        plan_normal = PinPlacementPlan(
+            normal_config, self._make_bterms(mocker, ["n0", "n1"]), "none",
+        )
+        plan_normal.allocate_tracks(
+            {Side.EAST: (normal_count, step_f, origin_f, tile_h)}
+        )
+        normal_raw = plan_normal.track_coordinates[Side.EAST][0]
+
+        # Super tile
+        super_config = {
+            "X0Y0": {"WEST": [{"pins": ["s0", "s1"], "sort_mode": "bus_major"}]},
+            "X0Y1": {"WEST": [{"pins": ["s2", "s3"], "sort_mode": "bus_major"}]},
+        }
+        plan_super = PinPlacementPlan(
+            super_config, self._make_bterms(mocker, ["s0", "s1", "s2", "s3"]), "none",
+        )
+        plan_super.allocate_tracks(
+            {Side.WEST: (super_count, step_f, origin_f, 2 * tile_h)}
+        )
+        super_raw_top = plan_super.track_coordinates[Side.WEST][0]  # Y0 = top
+        super_raw_bot = plan_super.track_coordinates[Side.WEST][1]  # Y1 = bottom
+
+        # Apply stride filter (same logic as io_place)
+        def stride_filter(tracks: list[float]) -> list[float]:
+            result = []
+            ref_idx = None
+            for t in tracks:
+                idx = round((t - origin_f) / step_f)
+                if ref_idx is None:
+                    ref_idx = idx
+                if (idx - ref_idx) % stride == 0:
+                    result.append(t)
+            return result
+
+        normal_filtered = stride_filter(normal_raw)
+        super_top_filtered = stride_filter(super_raw_top)
+        super_bot_filtered = stride_filter(super_raw_bot)
+
+        # Bottom division must match normal tile exactly
+        assert normal_filtered == super_bot_filtered, (
+            f"[{label}] Bottom division stride-filtered tracks differ from normal tile"
+        )
+        # Top division must have the same count
+        assert len(normal_filtered) == len(super_top_filtered), (
+            f"[{label}] Top division has {len(super_top_filtered)} tracks after "
+            f"stride filter, normal has {len(normal_filtered)}"
+        )
+
+    @pytest.mark.parametrize("num_divisions", [2, 3, 4])
+    def test_division_index_symmetry_east_west(self, num_divisions: int) -> None:
+        """EAST and WEST sides must produce the same division index for the same tile_y."""
+        for tile_y in range(num_divisions):
+            east_idx = PinPlacementPlan._get_division_index(
+                Side.EAST, tile_x=0, tile_y=tile_y, tile_idx=0,
+                num_divisions=num_divisions,
+            )
+            west_idx = PinPlacementPlan._get_division_index(
+                Side.WEST, tile_x=0, tile_y=tile_y, tile_idx=0,
+                num_divisions=num_divisions,
+            )
+            assert east_idx == west_idx, (
+                f"tile_y={tile_y}, num_divisions={num_divisions}: "
+                f"EAST={east_idx} != WEST={west_idx}"
+            )

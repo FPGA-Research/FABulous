@@ -461,9 +461,8 @@ class PinPlacementPlan:
             if side not in specs:
                 # Skip sides that don't have track specifications
                 continue
-            count_total, step, origin, physical_dimension = specs[side]
+            _count_total, step, origin, physical_dimension = specs[side]
             self.track_coordinates[side] = self._build_tracks_for_segments(
-                count_total,
                 step,
                 origin,
                 physical_dimension,
@@ -474,7 +473,6 @@ class PinPlacementPlan:
 
     def _build_tracks_for_segments(
         self,
-        count_total: int,
         step: float,
         origin: float,
         physical_dimension: float,
@@ -484,10 +482,11 @@ class PinPlacementPlan:
     ) -> list[list[float]]:
         """Build track lists for segments using physical tile-based allocation.
 
-        Matches the original librelane approach: uses DIE_AREA physical dimensions
-        to compute tile offsets, ensuring tiles align based on actual physical size.
-
-        Each tile gets tracks proportional to its position in the physical die area.
+        Each division gets tracks computed as if it were a standalone tile with
+        the same PDK origin and step.  The division boundary (division_size) is
+        guaranteed to be a multiple of ``step`` by the upstream
+        ``round_die_area`` step, so ``tile_origin`` always falls on the global
+        routing grid.
         """
         if not segments_for_side:
             return []
@@ -503,16 +502,17 @@ class PinPlacementPlan:
         if num_divisions <= 0:
             return []
 
-        # Check if tracks can be evenly divided
-        if count_total % num_divisions != 0:
-            warn(
-                f"Track count {count_total} not evenly divisible by "
-                f"{num_divisions} tiles on {side.value} side. "
-                f"This may cause alignment issues."
-            )
+        division_size = physical_dimension / num_divisions
 
-        # Each tile gets equal track count
-        tracks_per_tile = count_total // num_divisions
+        # Compute per-division track count as if each division were a standalone
+        # tile with the same PDK origin and step.  A standalone tile of height H
+        # with track origin O and step S contains floor((H - O) / S) + 1 tracks.
+        if step > 0 and division_size > origin:
+            tracks_per_tile = math.floor((division_size - origin) / step) + 1
+        elif step > 0 and division_size > 0:
+            tracks_per_tile = 1
+        else:
+            tracks_per_tile = 0
 
         # Group segments by their tile position
         segments_by_tile = self._group_segments_by_tile(segments_for_side)
@@ -533,8 +533,9 @@ class PinPlacementPlan:
                 side, tile_x, tile_y, tile_idx, num_divisions
             )
 
-            # Calculate offset based on PHYSICAL position
-            # Proportional positioning in the die area
+            # tile_origin = origin + division_size * division_index.
+            # Since division_size is a multiple of step (guaranteed by
+            # round_die_area), tile_origin stays on the global routing grid.
             physical_offset = math.ceil(
                 physical_dimension * division_index / num_divisions
             )
@@ -652,12 +653,16 @@ class PinPlacementPlan:
                     sizes[idx] += 1
                     delta -= 1
             while delta < 0:
+                reduced = False
                 for idx in range(num_segments):
                     if delta == 0:
                         break
                     if sizes[idx] > 1:
                         sizes[idx] -= 1
                         delta += 1
+                        reduced = True
+                if not reduced:
+                    break
 
             start = 0
             slices = []
@@ -967,13 +972,19 @@ def io_place(
 
             stride = max(1, math.ceil(min_distance / step))
 
-            # Calculate which tracks align with global stride pattern
+            # Filter tracks by stride.  Use the first raw track as the
+            # reference so the stride pattern restarts at each division
+            # boundary.  This ensures that super-tile divisions produce
+            # the same pin positions as a standalone tile, regardless of
+            # whether the division boundary falls on an even or odd
+            # global track index.
             filtered = []
+            ref_idx: int | None = None
             for track_coord in raw_tracks:
-                # Find this track's global index from origin
-                global_track_idx = round((track_coord - global_origin) / step)
-                # Check if it aligns with the stride pattern
-                if global_track_idx % stride == 0:
+                track_idx = round((track_coord - global_origin) / step)
+                if ref_idx is None:
+                    ref_idx = track_idx
+                if (track_idx - ref_idx) % stride == 0:
                     filtered.append(track_coord)
 
             if max_distance is not None:
