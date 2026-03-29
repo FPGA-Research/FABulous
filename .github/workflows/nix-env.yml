@@ -34,27 +34,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: nixbuild/nix-quick-install-action@v34
-        with:
-          nix_version: "2.31.2"
-          nix_conf: |
-            substituters = https://cache.nixos.org https://nix-cache.fossi-foundation.org
-            extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
-
-      - name: Free up disk space
-        run: |
-          # Remove unnecessary tools and libraries
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /opt/hostedtoolcache
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf /usr/lib/jvm
-          sudo rm -rf /usr/share/swift
-
-      - name: Build default package (smoke)
-        run: nix build
+      - uses: ./.github/actions/prepare_nix_environment
 
       - name: DevShell smoke test
         run: |
