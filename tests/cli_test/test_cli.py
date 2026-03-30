@@ -1,7 +1,7 @@
 """Test module for FABulous CLI command functionality.
 
-This module contains tests for various CLI commands including fabric generation,
-tile generation, bitstream creation, simulation execution, and GUI commands.
+This module contains tests for various CLI commands including fabric generation, tile
+generation, bitstream creation, simulation execution, and GUI commands.
 """
 
 from pathlib import Path
@@ -264,9 +264,9 @@ def test_run_FABulous_fabric_sv_extension(
 ) -> None:
     """Test running FABulous fabric flow with .sv (SystemVerilog) extension files.
 
-    This test verifies that .sv files are correctly handled as Verilog files
-    throughout the fabric generation process, using the same code path as
-    run_FABulous_fabric but with BEL files using .sv extension.
+    This test verifies that .sv files are correctly handled as Verilog files throughout
+    the fabric generation process, using the same code path as run_FABulous_fabric but
+    with BEL files using .sv extension.
     """
     monkeypatch.setenv("FAB_PROJ_DIR", str(project))
 
@@ -307,8 +307,8 @@ def test_run_FABulous_fabric_sv_extension(
 def test_exit_code_reset_after_error(cli: FABulous_CLI) -> None:
     """Test that exit code is reset between commands (regression test for issue #574).
 
-    After a command fails, subsequent successful commands should not be affected
-    by the stale exit code from the previous failure.
+    After a command fails, subsequent successful commands should not be affected by the
+    stale exit code from the previous failure.
     """
     # Run a command that fails (invalid tile name)
     run_cmd(cli, "gen_config_mem INVALID_TILE_NAME")

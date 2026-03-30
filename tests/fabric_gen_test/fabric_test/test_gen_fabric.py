@@ -1,6 +1,5 @@
 """Tests for fabric generation with custom fabric names."""
 
-import pytest
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import ConfigBitMode
@@ -10,7 +9,7 @@ from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 
 
 def test_generate_fabric_uses_fabric_name(mocker: MockerFixture) -> None:
-    """generateFabric should use fabric.name as the module name."""
+    """GenerateFabric should use fabric.name as the module name."""
     fabric = mocker.create_autospec(Fabric)
     fabric.name = "test_fabric"
     fabric.tile = []

@@ -544,9 +544,9 @@ class TestIntegration:
     ) -> None:
         """Test that min_distance filtering works correctly.
 
-        The allocate_tracks() method generates raw tracks based on the track grid.
-        The min_distance constraint is then enforced by filtering these tracks
-        with a stride, as done in the io_place() function.
+        The allocate_tracks() method generates raw tracks based on the track grid. The
+        min_distance constraint is then enforced by filtering these tracks with a
+        stride, as done in the io_place() function.
         """
         config = {
             "X0Y0": {

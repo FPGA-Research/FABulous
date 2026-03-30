@@ -7,11 +7,16 @@ Tests focus on:
 - IO pin configuration generation
 """
 
+from pathlib import Path
+
 import pytest
 import yaml
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import PinSortMode, Side
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     PinOrderConfig,
     _serialize_supertile_ports,
@@ -23,7 +28,7 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
 class TestPinOrderConfig:
     """Tests for PinOrderConfig dataclass."""
 
-    def test_default_initialization(self):
+    def test_default_initialization(self) -> None:
         """Test PinOrderConfig default values."""
         config = PinOrderConfig()
 
@@ -33,7 +38,7 @@ class TestPinOrderConfig:
         assert config.sort_mode == PinSortMode.BUS_MAJOR
         assert config.reverse_result is False
 
-    def test_custom_initialization(self):
+    def test_custom_initialization(self) -> None:
         """Test PinOrderConfig with custom values."""
         config = PinOrderConfig(
             min_distance=10,
@@ -49,7 +54,7 @@ class TestPinOrderConfig:
         assert config.sort_mode == PinSortMode.BIT_MINOR
         assert config.reverse_result is True
 
-    def test_call_binds_pins(self):
+    def test_call_binds_pins(self) -> None:
         """Test that __call__ binds pins to the config."""
         config = PinOrderConfig(min_distance=5)
         result = config(["a", "b", "c"])
@@ -57,14 +62,14 @@ class TestPinOrderConfig:
         assert result is config
         assert config.pins == ["a", "b", "c"]
 
-    def test_call_returns_self(self):
+    def test_call_returns_self(self) -> None:
         """Test that __call__ returns self for chaining."""
         config = PinOrderConfig()
         result = config(["pin"])
 
         assert result is config
 
-    def test_to_dict_basic(self):
+    def test_to_dict_basic(self) -> None:
         """Test to_dict serialization with basic values."""
         config = PinOrderConfig()
         config(["pin1", "pin2"])
@@ -77,7 +82,7 @@ class TestPinOrderConfig:
         assert result["sort_mode"] == str(PinSortMode.BUS_MAJOR)
         assert result["reverse_result"] is False
 
-    def test_to_dict_with_custom_values(self):
+    def test_to_dict_with_custom_values(self) -> None:
         """Test to_dict serialization with custom values."""
         config = PinOrderConfig(
             min_distance=5,
@@ -94,14 +99,14 @@ class TestPinOrderConfig:
         assert result["pins"] == ["a", "b"]
         assert result["reverse_result"] is True
 
-    def test_to_dict_empty_pins(self):
+    def test_to_dict_empty_pins(self) -> None:
         """Test to_dict with no pins bound."""
         config = PinOrderConfig()
         result = config.to_dict()
 
         assert result["pins"] == []
 
-    def test_to_dict_integer_pins(self):
+    def test_to_dict_integer_pins(self) -> None:
         """Test to_dict with integer pin values."""
         config = PinOrderConfig()
         config([1, 2, 3])
@@ -115,9 +120,9 @@ class TestSerializeTilePorts:
     """Tests for _serialize_tile_ports function."""
 
     @pytest.fixture
-    def mock_tile(self, mocker: MockerFixture):
+    def mock_tile(self, mocker: MockerFixture) -> Tile:
         """Create a mock tile for testing."""
-        tile = mocker.MagicMock()
+        tile = mocker.MagicMock(spec=Tile)
 
         # Mock ports
         north_port = mocker.MagicMock()
@@ -151,7 +156,7 @@ class TestSerializeTilePorts:
 
         return tile
 
-    def test_serialize_tile_ports_basic(self, mock_tile):
+    def test_serialize_tile_ports_basic(self, mock_tile: Tile) -> None:
         """Test basic tile port serialization."""
         result = _serialize_tile_ports(mock_tile)
 
@@ -161,7 +166,9 @@ class TestSerializeTilePorts:
         assert "SOUTH" in result
         assert "WEST" in result
 
-    def test_serialize_tile_ports_north_includes_clock_and_strobe(self, mock_tile):
+    def test_serialize_tile_ports_north_includes_clock_and_strobe(
+        self, mock_tile: Tile
+    ) -> None:
         """Test that north side includes UserCLKo and FrameStrobe_O."""
         result = _serialize_tile_ports(mock_tile)
 
@@ -174,7 +181,9 @@ class TestSerializeTilePorts:
 
         assert "UserCLKo" in all_pins or any("UserCLKo" in str(p) for p in all_pins)
 
-    def test_serialize_tile_ports_south_includes_clock_and_strobe(self, mock_tile):
+    def test_serialize_tile_ports_south_includes_clock_and_strobe(
+        self, mock_tile: Tile
+    ) -> None:
         """Test that south side includes UserCLK and FrameStrobe."""
         result = _serialize_tile_ports(mock_tile)
 
@@ -186,21 +195,25 @@ class TestSerializeTilePorts:
 
         assert "UserCLK" in all_pins or any("UserCLK" in str(p) for p in all_pins)
 
-    def test_serialize_tile_ports_east_includes_frame_data_o(self, mock_tile):
+    def test_serialize_tile_ports_east_includes_frame_data_o(
+        self, mock_tile: Tile
+    ) -> None:
         """Test that east side includes FrameData_O."""
         result = _serialize_tile_ports(mock_tile)
 
         # East should have port + FrameData_O
         assert len(result["EAST"]) >= 2
 
-    def test_serialize_tile_ports_west_includes_frame_data(self, mock_tile):
+    def test_serialize_tile_ports_west_includes_frame_data(
+        self, mock_tile: Tile
+    ) -> None:
         """Test that west side includes FrameData."""
         result = _serialize_tile_ports(mock_tile)
 
         # West should have port + FrameData
         assert len(result["WEST"]) >= 2
 
-    def test_serialize_tile_ports_with_prefix(self, mock_tile):
+    def test_serialize_tile_ports_with_prefix(self, mock_tile: Tile) -> None:
         """Test serialization with a prefix."""
         result = _serialize_tile_ports(mock_tile, prefix="Tile_X0Y0_")
 
@@ -210,7 +223,7 @@ class TestSerializeTilePorts:
 
         assert any("Tile_X0Y0_" in str(p) for p in all_pins)
 
-    def test_serialize_tile_ports_with_bels(self, mocker: MockerFixture):
+    def test_serialize_tile_ports_with_bels(self, mocker: MockerFixture) -> None:
         """Test serialization with BEL external ports."""
         tile = mocker.MagicMock()
 
@@ -243,7 +256,7 @@ class TestSerializeTilePorts:
         assert "ext_in" in all_pins
         assert "ext_out" in all_pins
 
-    def test_serialize_tile_ports_empty_port_regex(self, mock_tile):
+    def test_serialize_tile_ports_empty_port_regex(self, mock_tile: Tile) -> None:
         """Test handling of ports that return empty regex."""
         # Make one port return empty regex
         mock_tile.getNorthSidePorts.return_value[0].getPortRegex.return_value = ""
@@ -258,9 +271,9 @@ class TestSerializeSupertilePorts:
     """Tests for _serialize_supertile_ports function."""
 
     @pytest.fixture
-    def mock_supertile(self, mocker: MockerFixture):
+    def mock_supertile(self, mocker: MockerFixture) -> SuperTile:
         """Create a mock supertile for testing."""
-        supertile = mocker.MagicMock()
+        supertile = mocker.MagicMock(spec=SuperTile)
 
         # Create a mock tile for the tilemap
         mock_tile = mocker.MagicMock()
@@ -295,14 +308,16 @@ class TestSerializeSupertilePorts:
 
         return supertile
 
-    def test_serialize_supertile_ports_basic(self, mock_supertile):
+    def test_serialize_supertile_ports_basic(self, mock_supertile: SuperTile) -> None:
         """Test basic supertile port serialization."""
         result = _serialize_supertile_ports(mock_supertile)
 
         # Should have keys for tiles with ports
         assert "X0Y0" in result or "X1Y1" in result
 
-    def test_serialize_supertile_ports_empty_port_lists(self, mocker: MockerFixture):
+    def test_serialize_supertile_ports_empty_port_lists(
+        self, mocker: MockerFixture
+    ) -> None:
         """Test handling of empty port lists."""
         supertile = mocker.MagicMock()
         supertile.getPortsAroundTile.return_value = {}
@@ -311,14 +326,16 @@ class TestSerializeSupertilePorts:
 
         assert result == {}
 
-    def test_serialize_supertile_ports_with_prefix(self, mock_supertile):
+    def test_serialize_supertile_ports_with_prefix(
+        self, mock_supertile: SuperTile
+    ) -> None:
         """Test supertile serialization with prefix."""
         result = _serialize_supertile_ports(mock_supertile, prefix="Test_")
 
         # Result should contain tile coordinates
         assert isinstance(result, dict)
 
-    def test_serialize_supertile_ports_none_tile(self, mocker: MockerFixture):
+    def test_serialize_supertile_ports_none_tile(self, mocker: MockerFixture) -> None:
         """Test handling when tileMap has None entries."""
         supertile = mocker.MagicMock()
 
@@ -344,17 +361,17 @@ class TestGenerateIOPinOrderConfig:
     """Tests for generate_IO_pin_order_config function."""
 
     @pytest.fixture
-    def mock_fabric(self, mocker: MockerFixture):
+    def mock_fabric(self, mocker: MockerFixture) -> Fabric:
         """Create a mock fabric for testing."""
-        fabric = mocker.MagicMock()
+        fabric = mocker.MagicMock(spec=Fabric)
         fabric.find_tile_positions.return_value = [(0, 0)]
         fabric.determine_border_side.return_value = Side.SOUTH
         return fabric
 
     @pytest.fixture
-    def mock_tile(self, mocker: MockerFixture):
+    def mock_tile(self, mocker: MockerFixture) -> Tile:
         """Create a mock tile for testing."""
-        tile = mocker.MagicMock()
+        tile = mocker.MagicMock(spec=Tile)
 
         # Empty side ports for simplicity
         tile.getNorthSidePorts.return_value = []
@@ -374,8 +391,8 @@ class TestGenerateIOPinOrderConfig:
         return tile
 
     def test_generate_io_pin_order_config_writes_yaml(
-        self, mock_fabric, mock_tile, tmp_path
-    ):
+        self, mock_fabric: Fabric, mock_tile: Tile, tmp_path: Path
+    ) -> None:
         """Test that config is written to YAML file."""
         outfile = tmp_path / "test_config.yaml"
 
@@ -390,8 +407,8 @@ class TestGenerateIOPinOrderConfig:
         assert "X0Y0" in config
 
     def test_generate_io_pin_order_config_tile_structure(
-        self, mock_fabric, mock_tile, tmp_path
-    ):
+        self, mock_fabric: Fabric, mock_tile: Tile, tmp_path: Path
+    ) -> None:
         """Test structure of generated config for a tile."""
         outfile = tmp_path / "test_config.yaml"
 
@@ -407,8 +424,8 @@ class TestGenerateIOPinOrderConfig:
         assert "WEST" in config["X0Y0"]
 
     def test_generate_io_pin_order_config_with_prefix(
-        self, mock_fabric, mock_tile, tmp_path
-    ):
+        self, mock_fabric: Fabric, mock_tile: Tile, tmp_path: Path
+    ) -> None:
         """Test generation with prefix."""
         outfile = tmp_path / "test_config.yaml"
 
@@ -422,16 +439,14 @@ class TestGenerateIOPinOrderConfig:
         assert config is not None
 
     def test_generate_io_pin_order_config_supertile(
-        self, mock_fabric, mocker: MockerFixture, tmp_path
-    ):
+        self, mock_fabric: Fabric, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
         """Test generation for a SuperTile."""
-        from fabulous.fabric_definition.supertile import SuperTile
-
         # Create mock supertile
         mock_supertile = mocker.MagicMock(spec=SuperTile)
 
         # Simple tilemap
-        mock_tile = mocker.MagicMock()
+        mock_tile = mocker.MagicMock(spec=Tile)
         mock_tile.pinOrderConfig = {
             Side.NORTH: PinOrderConfig(),
             Side.EAST: PinOrderConfig(),
@@ -454,8 +469,8 @@ class TestGenerateIOPinOrderConfig:
         assert outfile.exists()
 
     def test_generate_io_pin_order_config_no_positions(
-        self, mock_fabric, mock_tile, tmp_path
-    ):
+        self, mock_fabric: Fabric, mock_tile: Tile, tmp_path: Path
+    ) -> None:
         """Test generation when fabric returns no positions."""
         mock_fabric.find_tile_positions.return_value = []
 
@@ -467,8 +482,12 @@ class TestGenerateIOPinOrderConfig:
         assert outfile.exists()
 
     def test_generate_io_pin_order_config_border_side_handling(
-        self, mock_fabric, mock_tile, mocker: MockerFixture, tmp_path
-    ):
+        self,
+        mock_fabric: Fabric,
+        mock_tile: Tile,
+        mocker: MockerFixture,
+        tmp_path: Path,
+    ) -> None:
         """Test that border side is used for external ports."""
         mock_fabric.determine_border_side.return_value = Side.EAST
 
@@ -493,14 +512,12 @@ class TestGenerateIOPinOrderConfig:
         assert "ext_in" in all_pins
 
     def test_generate_io_pin_order_config_supertile_multiple_positions(
-        self, mock_fabric, mocker: MockerFixture, tmp_path
-    ):
+        self, mock_fabric: Fabric, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
         """Test supertile with multiple positions uses top-left."""
-        from fabulous.fabric_definition.supertile import SuperTile
-
         mock_supertile = mocker.MagicMock(spec=SuperTile)
 
-        mock_tile = mocker.MagicMock()
+        mock_tile = mocker.MagicMock(spec=Tile)
         mock_tile.pinOrderConfig = {
             Side.NORTH: PinOrderConfig(),
             Side.EAST: PinOrderConfig(),
@@ -526,7 +543,7 @@ class TestGenerateIOPinOrderConfig:
 class TestPinOrderConfigIntegration:
     """Integration tests for PinOrderConfig with serialization."""
 
-    def test_config_serialization_round_trip(self):
+    def test_config_serialization_round_trip(self) -> None:
         """Test that config can be serialized and matches expected format."""
         config = PinOrderConfig(
             min_distance=10,
@@ -551,7 +568,7 @@ class TestPinOrderConfigIntegration:
 
         assert loaded == result
 
-    def test_multiple_configs_same_side(self):
+    def test_multiple_configs_same_side(self) -> None:
         """Test multiple configs can be created for the same side."""
         config1 = PinOrderConfig()([r"Signal1\[\d+\]"])
         config2 = PinOrderConfig()([r"Signal2\[\d+\]"])

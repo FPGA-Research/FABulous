@@ -1,7 +1,7 @@
 """Helper functions for FABulous reference testing.
 
-This module contains utility functions for downloading reference projects,
-file comparison, and other testing helpers.
+This module contains utility functions for downloading reference projects, file
+comparison, and other testing helpers.
 """
 
 import difflib
@@ -39,13 +39,13 @@ def compare_files_with_diff(
     try:
         with current_file.open("r", encoding="utf-8", errors="replace") as f:
             current_lines = f.readlines()
-    except Exception:
+    except Exception:  # noqa: BLE001
         current_lines = []
 
     try:
         with reference_file.open("r", encoding="utf-8", errors="replace") as f:
             reference_lines = f.readlines()
-    except Exception:
+    except Exception:  # noqa: BLE001
         reference_lines = []
 
     # Quick check for identical files
@@ -62,7 +62,7 @@ def compare_files_with_diff(
     )
 
     diff_lines = list(diff)
-    return diff_lines if diff_lines else None
+    return diff_lines or None
 
 
 def compare_directories(
