@@ -106,7 +106,7 @@ def _run_tile_flow_worker(
             io_pin_config,
             optimisation,
             pdk=context.pdk,
-            pdk_root=context.pdk_root.parent,
+            pdk_root=context.pdk_root,
             base_config_path=base_config_path,
             override_config_path=override_config_path,
             **custom_config_overrides or {},
