@@ -188,7 +188,7 @@ def test_get_sdf_header_info_property(sdf_base):
 
 
 def test_get_cell_instance_returns_components_for_instance(sdf_base):
-    comps = sdf_base.get_cell_instance("U1")
+    comps = sdf_base.get_cell_instance_components("U1")
 
     assert len(comps) == 2
     assert comps[0].c_type == SDFCellType.IOPATH
@@ -197,18 +197,18 @@ def test_get_cell_instance_returns_components_for_instance(sdf_base):
 
 def test_get_cell_instance_missing_instance_raises_keyerror(sdf_base):
     with pytest.raises(KeyError):
-        sdf_base.get_cell_instance("NO_SUCH_INSTANCE")
+        sdf_base.get_cell_instance_components("NO_SUCH_INSTANCE")
 
 
 def test_get_cell_instance_inputs_to_outputs_for_existing_instance(sdf_base):
-    input_pins, output_pins = sdf_base.get_cell_instance_inputs_to_outputs("U1")
+    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins("U1")
 
     assert input_pins == ["A"]
     assert output_pins == ["Y"]
 
 
 def test_get_cell_instance_inputs_to_outputs_ignores_non_iopath_components(sdf_base):
-    input_pins, output_pins = sdf_base.get_cell_instance_inputs_to_outputs("U1")
+    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins("U1")
 
     assert "A" in input_pins
     assert "Y" in output_pins
@@ -219,7 +219,7 @@ def test_get_cell_instance_inputs_to_outputs_ignores_non_iopath_components(sdf_b
 def test_get_cell_instance_inputs_to_outputs_missing_instance_returns_empty_and_prints(
     sdf_base, capsys
 ):
-    input_pins, output_pins = sdf_base.get_cell_instance_inputs_to_outputs("NO_SUCH_INSTANCE")
+    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins("NO_SUCH_INSTANCE")
     out = capsys.readouterr().out
 
     assert input_pins == []
