@@ -12,7 +12,7 @@ The default reference projects are hosted in the
 
 ```bash
 # Run all reference tests
-pytest tests/reference_tests/
+pytest tests/reference_test/
 
 ```
 
@@ -47,8 +47,23 @@ reference_projects: Header for all reference projects
     exclude_patterns: (Optional) Only for "diff" mode.
       A list of glob patterns, which files to exclude from diff
       Default exclude_patterns: [] # None excluded
-    commands: (optional) List of FABulous commands to run.
+    fab_commands: (optional) List of FABulous commands to run.
       Default commands: ["load_fabric", "run_FABulous_fabric"]
+    pre_fab_commands: (Optional) List of shell command dicts to run before FABulous commands.
+      Each dict supports:
+        - cmd: str — the shell command to execute
+        - cwd: str | None — subdirectory relative to the project root (default: project root)
+        - required_tools: list[str] | None — tools that must be on PATH; command is skipped if any are missing
+    post_fab_commands: (Optional) List of shell command dicts to run after FABulous commands.
+      Each dict supports:
+        - cmd: str — the shell command to execute
+        - cwd: str | None — subdirectory relative to the project root (default: project root)
+        - required_tools: list[str] | None — tools that must be on PATH; command is skipped if any are missing
+    cleanup_commands: (Optional) List of shell command dicts that always run last, even if earlier steps fail.
+      Each dict supports:
+        - cmd: str — the shell command to execute
+        - cwd: str | None — subdirectory relative to the project root (default: project root)
+        - required_tools: list[str] | None — tools that must be on PATH; command is skipped if any are missing
     skip_reason: (Optional) Reason to skip this project.
       If provided, the test will be skipped with this reason.
 ```
@@ -60,7 +75,7 @@ This is an example configuration for a Verilog project:
 ```yaml
 reference_projects:
   - name: "my_verilog_project"
-    path: "./tests/reference_tests/projects/my_verilog_project"
+    path: "./tests/reference_test/projects/my_verilog_project"
     language: "verilog"
     test_mode: "diff" # or "run"
     description: "My custom FABulous project"
@@ -70,12 +85,22 @@ reference_projects:
       - "Fabric/eFPGA_top.v"
       - "Fabric/eFPGA.v"
       - "Tile/LUT4AB/LUT4AB.v"
-    commands: #optional
+    fab_commands: #optional
       - "load_fabric"
       - "run_FABulous_fabric"
       - "gen_user_design_wrapper user_design/sequential_16bit_en.v user_design/top_wrapper.v"
       - "run_FABulous_bitstream ./user_design/sequential_16bit_en.v"
       - "run_simulation fst ./user_design/sequential_16bit_en.bin"
+    post_fab_commands: #optional
+      - cmd: "make sim"
+        cwd: "Test/"
+        required_tools:
+          - "yosys"
+          - "nextpnr-generic"
+          - "iverilog"
+    cleanup_commands: #optional, always runs even if earlier steps fail
+      - cmd: "make clean"
+        cwd: "Test/"
 ```
 
 ## Command Line Options
@@ -88,14 +113,14 @@ reference_projects:
 
 ```bash
 # Test specific project patterns (matches "verilog" in the project names)
-pytest tests/reference_tests/ -k "verilog"
+pytest tests/reference_test/ -k "verilog"
 
 # Run with custom repository
-pytest tests/reference_tests/ --repo-url "https://github.com/myuser/my-projects.git"
+pytest tests/reference_test/ --repo-url "https://github.com/myuser/my-projects.git"
 
 # Run with custom YAML config
-pytest tests/reference_tests/ ---reference-projects-config "./test/my_custom_config.yaml"
+pytest tests/reference_test/ ---reference-projects-config "./test/my_custom_config.yaml"
 
 # Generate pytest report
-pytest tests/reference_tests/ --html=report.html
+pytest tests/reference_test/ --html=report.html
 ```
