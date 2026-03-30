@@ -852,6 +852,8 @@ def get_file_path(
             key=lambda f: f.stat().st_mtime,
             reverse=True,
         )[:show_count]
+        if not files_list:
+            raise FileNotFoundError(f"No .{file_extension} files found in '{f}'.")
         _, idx = pick(
             list(map(lambda x: str(x.relative_to(project_dir)), files_list)),
             title,
@@ -878,5 +880,4 @@ def get_file_path(
         raise FileNotFoundError(
             f"No .{file_extension} files found in the specified directory."
         )
-
     return file

@@ -1554,9 +1554,10 @@ class FABulous_CLI(Cmd):
         klayout = get_context().klayout_path
         if args.fabric and args.tile is not None:
             raise CommandError("Please specify either --fabric or --tile, not both")
-
         if args.file is None:
-            gds_file: str = get_file_path(self.projectDir, args, "gds")
+            gds_file: str = get_file_path(
+                self.projectDir, args, "gds", show_count=int(args.head)
+            )
         else:
             gds_file = args.file
         if get_context().pdk == "ihp-sg13g2":
@@ -1570,6 +1571,7 @@ class FABulous_CLI(Cmd):
         else:
             layer_file = (
                 (get_context().pdk_root)
+                / get_context().pdk
                 / "libs.tech"
                 / "klayout"
                 / "tech"
