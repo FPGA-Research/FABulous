@@ -177,9 +177,10 @@ def genTileSwitchMatrix(
             writer.addPortVector(
                 "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
             )
-            writer.addPortVector(
-                "ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
+            if not fabric.disableConfigBitsN:
+                writer.addPortVector(
+                    "ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2
+                )
     writer.addPortEnd()
     writer.addHeaderEnd(f"{tile.name}_switch_matrix")
     writer.addDesignDescriptionStart(f"{tile.name}_switch_matrix")
@@ -323,12 +324,13 @@ def genTileSwitchMatrix(
                         portsPairs.append(
                             (f"S{i}", f"ConfigBits[{configBitstreamPosition}+{i}]")
                         )
-                        portsPairs.append(
-                            (
-                                f"S{i}N",
-                                f"ConfigBits_N[{configBitstreamPosition}+{i}]",
+                        if not fabric.disableConfigBitsN:
+                            portsPairs.append(
+                                (
+                                    f"S{i}N",
+                                    f"ConfigBits_N[{configBitstreamPosition}+{i}]",
+                                )
                             )
-                        )
 
             portsPairs.append(("X", f"{portName}"))
 

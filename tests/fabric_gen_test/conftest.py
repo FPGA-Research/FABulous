@@ -11,6 +11,7 @@ from cocotb_tools.runner import get_runner
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.configmem import ConfigMem
+from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -38,6 +39,7 @@ def default_fabric(mocker: MockerFixture) -> Fabric:
     fabric.frameBitsPerRow = 32
     fabric.maxFramesPerCol = 20
     fabric.name = "DefaultFabric"
+    fabric.disableConfigBitsN = False
     return fabric
 
 
@@ -81,6 +83,7 @@ def fabric_config(request: pytest.FixtureRequest, mocker: MockerFixture) -> Fabr
     fabric.frameBitsPerRow = config.frame_bits_per_row
     fabric.maxFramesPerCol = config.max_frames_per_col
     fabric.name = config.name
+    fabric.disableConfigBitsN = False
     return fabric
 
 
@@ -225,6 +228,35 @@ def create_switchmatrix_csv(
 
 
 @pytest.fixture
+def switchmatrix_tile(mocker: MockerFixture) -> Tile:
+    """Create a tile with empty portsInfo and bels for switch matrix tests."""
+    tile = mocker.create_autospec(Tile, spec_set=False)
+    tile.name = "TestTile"
+    tile.portsInfo = []
+    tile.bels = []
+    return tile
+
+
+@pytest.fixture
+def switchmatrix_fabric(mocker: MockerFixture) -> Fabric:
+    """Create a fabric configured for frame-based custom mux testing."""
+    fabric = mocker.create_autospec(Fabric, spec_set=False)
+    fabric.configBitMode = ConfigBitMode.FRAME_BASED
+    fabric.multiplexerStyle = MultiplexerStyle.CUSTOM
+    fabric.generateDelayInSwitchMatrix = 80
+    fabric.frameBitsPerRow = 32
+    fabric.maxFramesPerCol = 20
+    fabric.disableConfigBitsN = False
+    return fabric
+
+
+@pytest.fixture
+def mux4_connections() -> dict[str, list[str]]:
+    """Connections with mux size >= 4 to produce S*N ports."""
+    return {"OUT0": ["IN0", "IN1", "IN2", "IN3"]}
+
+
+@pytest.fixture
 def connections_factory() -> Callable[..., dict[str, list[str]]]:
     """Factory fixture for creating switch matrix connection dictionaries.
 
@@ -258,7 +290,7 @@ def connections_factory() -> Callable[..., dict[str, list[str]]]:
                 "VCC": ["1"],
             }
 
-        return {"E1END0": ["N1BEG0"]}
+        raise ValueError(f"Unknown connection size: {size!r}")
 
     return _create
 

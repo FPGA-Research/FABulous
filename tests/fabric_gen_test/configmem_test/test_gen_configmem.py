@@ -317,3 +317,44 @@ class TestGeneratedConfigMemRTL:
                     )
 
                     config_bit_counter += 1
+
+    @pytest.mark.parametrize(
+        ("disable_n", "expect_present"),
+        [(False, True), (True, False)],
+        ids=["configbits_n_enabled", "configbits_n_disabled"],
+    )
+    def test_configmem_rtl_configbits_n_presence(
+        self,
+        default_fabric: Fabric,
+        default_tile: Tile,
+        configmem_list: Callable[[Fabric, Tile], list[ConfigMem]],
+        tmp_path: Path,
+        code_generator_factory: Callable[[str, str], CodeGenerator],
+        mocker: MockerFixture,
+        disable_n: bool,
+        expect_present: bool,
+    ) -> None:
+        """Test ConfigBits_N port and QN presence based on disableConfigBitsN."""
+        default_fabric.disableConfigBitsN = disable_n
+        config_memlist_data = configmem_list(default_fabric, default_tile)
+
+        writer = code_generator_factory(".v", f"{default_tile.name}_ConfigMem")
+        writer.outFileName = tmp_path / f"{default_tile.name}_ConfigMem.v"
+        csv_path = tmp_path / f"{default_tile.name}_configMem.csv"
+        csv_path.touch()
+
+        mocker.patch(
+            "fabulous.fabric_generator.gen_fabric.gen_configmem.parseConfigMem",
+            return_value=config_memlist_data,
+        )
+        generateConfigMem(writer, default_fabric, default_tile, csv_path)
+        rtl_content = writer.outFileName.read_text()
+
+        if expect_present:
+            assert "ConfigBits_N" in rtl_content
+            has_used_bits = any(cm.bitsUsedInFrame > 0 for cm in config_memlist_data)
+            if has_used_bits:
+                assert ".QN(" in rtl_content
+        else:
+            assert "ConfigBits_N" not in rtl_content
+            assert ".QN(" not in rtl_content

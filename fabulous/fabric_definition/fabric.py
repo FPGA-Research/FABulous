@@ -66,6 +66,10 @@ class Fabric:
         Whether the fabric has super tile.
     disableUserCLK : bool
         Whether to disable UserCLK generation in the fabric.
+    disableConfigBitsN : bool
+        Whether to disable the generation of inverted configuration bit ports
+        (ConfigBits_N) and the corresponding N-ports (S0N, S1N, ...) on custom
+        multiplexers. When True, only ConfigBits and S ports are generated.
     tileDic : dict[str, Tile]
         A dictionary of tiles used in the fabric. The key is the name of the tile and
         the value is the tile.
@@ -102,6 +106,7 @@ class Fabric:
     numberOfBRAMs: int = 10
     superTileEnable: bool = True
     disableUserCLK: bool = False
+    disableConfigBitsN: bool = False
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
     superTileDic: dict[str, SuperTile] = field(default_factory=dict)
@@ -281,6 +286,7 @@ class Fabric:
         fabric += f"multiplexerStyle: {self.multiplexerStyle}\n"
         fabric += f"superTileEnable: {self.superTileEnable}\n"
         fabric += f"disableUserCLK: {self.disableUserCLK}\n"
+        fabric += f"disableConfigBitsN: {self.disableConfigBitsN}\n"
         fabric += f"tileDic: {list(self.tileDic.keys())}\n"
         return fabric
 
@@ -438,7 +444,7 @@ class Fabric:
                     if fabric_tile and fabric_tile.name == tile.name:
                         positions.append((x, y))
 
-        return positions if positions else None
+        return positions or None
 
     def determine_border_side(self, x: int, y: int) -> Side | None:
         """Determine which border side a tile position is on, if any.
