@@ -115,11 +115,7 @@ def split_instance_pin(name: str, hier_sep: str) -> tuple[str, str]:
     tuple[str, str]
         A tuple containing the instance and pin names.
     """
-    parts = name.rsplit(hier_sep, 1)
-    if len(parts) == 2:
-        inst, pin = parts
-    else:
-        inst, pin = "", name
+    inst, _sep, pin = name.rpartition(hier_sep)
     return inst, pin
 
 

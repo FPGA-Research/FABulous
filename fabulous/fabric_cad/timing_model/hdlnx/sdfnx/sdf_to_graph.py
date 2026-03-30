@@ -346,11 +346,9 @@ class SDFTimingGraph(SDFTimingGraphBase):
         # Add zero-cost edges from each target to the sentinel
         if weight is None:
             for t in targets:
-                # if G.has_node(t):
                 G.add_edge(t, sentinel)
         else:
             for t in targets:
-                # if G.has_node(t):
                 G.add_edge(t, sentinel, weight=0)
         try:
             # Shortest path (directed) source -> sentinel

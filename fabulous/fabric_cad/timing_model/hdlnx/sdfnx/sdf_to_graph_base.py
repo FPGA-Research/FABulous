@@ -117,7 +117,7 @@ class SDFTimingGraphBase:
                 f"{data['component'].c_type})"
             )
 
-    def get_cell_instance(self, instance_name: str) -> list[Component]:
+    def get_cell_instance_components(self, instance_name: str) -> list[Component]:
         """Get the list of components associated with a given instance name.
 
         Parameters
@@ -132,7 +132,7 @@ class SDFTimingGraphBase:
         """
         return self.instances[instance_name]
 
-    def get_cell_instance_inputs_to_outputs(
+    def get_cell_instance_input_and_output_pins(
         self, instance_name: str
     ) -> tuple[list[str], list[str]]:
         """Get the input and output pins of a given cell instance.

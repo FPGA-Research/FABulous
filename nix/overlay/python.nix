@@ -41,7 +41,7 @@ final: prev: {
     '';
   });
 
-  # Fix missing build dependencies for sdf-timing and set a fixed version for
+  # Build dependencies for sdf-timing and set a fixed version for
   # setuptools-scm to avoid build failures.
   sdf-timing = prev.sdf-timing.overrideAttrs (oldAttrs: {
     nativeBuildInputs = (oldAttrs.nativeBuildInputs or [ ]) ++ [

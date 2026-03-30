@@ -69,6 +69,7 @@ def genNextpnrModel(
                 connection = parseMatrix(tile.matrixDir, tile.name)
                 for source, sinkList in connection.items():
                     for sink in sinkList:
+                        # This delay is just arbitrary
                         delay: float = 8
                         if delay_model is not None:
                             delay = delay_model.pip_delay(tile.name, sink, source)
@@ -78,6 +79,7 @@ def genNextpnrModel(
             elif tile.matrixDir.suffix == ".list":
                 connection = parseList(tile.matrixDir)
                 for source, sink in connection:
+                    # This delay is just arbitrary
                     delay: float = 8
                     if delay_model is not None:
                         delay = delay_model.pip_delay(tile.name, sink, source)
@@ -102,6 +104,7 @@ def genNextpnrModel(
                         "Please check your tile CSV file for unmatching wires/offsets!"
                     )
 
+                # This delay is just arbitrary
                 delay: float = 8
                 if delay_model is not None:
                     delay = delay_model.pip_delay(
