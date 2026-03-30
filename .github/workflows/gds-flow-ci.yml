@@ -44,12 +44,14 @@ jobs:
 
       - name: Generate tile GDS
         run: |
+          set -o pipefail
           nix develop --command bash -c "
             FABulous --project-dir test_project run 'gen_all_tile_macros'
           " 2>&1 | tee tile_hardening_output.txt
 
       - name: Stitch fabric GDS
         run: |
+          set -o pipefail
           nix develop --command bash -c "
             FABulous --project-dir test_project run 'gen_fabric_macro'
           " 2>&1 | tee fabric_stitching_output.txt
@@ -75,12 +77,12 @@ jobs:
           # Read and truncate log files for the issue body
           TILE_OUTPUT="No output captured"
           if [ -f tile_hardening_output.txt ]; then
-            TILE_OUTPUT=$(tail -c 3000 tile_hardening_output.txt)
+            TILE_OUTPUT=$(tail -100 tile_hardening_output.txt)
           fi
 
           FABRIC_OUTPUT="No output captured"
           if [ -f fabric_stitching_output.txt ]; then
-            FABRIC_OUTPUT=$(tail -c 3000 fabric_stitching_output.txt)
+            FABRIC_OUTPUT=$(tail -100 fabric_stitching_output.txt)
           fi
 
           DATE=$(date -u +%Y-%m-%d)
@@ -97,7 +99,7 @@ jobs:
           **PDK:** \`${PDK}\`
           **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          ### Tile Hardening Output (last 3000 chars)
+          ### Tile Hardening Output (last 100 lines)
           <details><summary>Click to expand</summary>
 
           \`\`\`
@@ -105,7 +107,7 @@ jobs:
           \`\`\`
           </details>
 
-          ### Fabric Stitching Output (last 3000 chars)
+          ### Fabric Stitching Output (last 100 lines)
           <details><summary>Click to expand</summary>
 
           \`\`\`
