@@ -31,6 +31,7 @@ import sys
 import tempfile
 import tkinter as tk
 import traceback
+from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
@@ -43,7 +44,6 @@ from cmd2 import (
     with_argparser,
     with_category,
 )
-from FABulous_bit_gen import genBitstream
 from loguru import logger
 
 from fabulous.custom_exception import CommandError, EnvironmentNotSet, InvalidFileType
@@ -59,7 +59,7 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
 )
 from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_api import FABulous_API
-from fabulous.fabulous_cli import cmd_synthesis
+from fabulous.fabulous_cli import cmd_compile_design
 from fabulous.fabulous_cli.helper import (
     CommandPipeline,
     allow_blank,
@@ -112,7 +112,7 @@ The shell support tab completion for commands and files
 
 To run the complete FABulous flow with the default project, run the following command:
     run_FABulous_fabric
-    run_FABulous_bitstream ./user_design/sequential_16bit_en.v
+    compile_design ./user_design/sequential_16bit_en.v
     run_simulation fst ./user_design/sequential_16bit_en.bin
 """
 
@@ -165,6 +165,8 @@ class FABulous_CLI(Cmd):
         If true, run in interactive CLI mode
     max_job : int
         Maximum number of parallel jobs for tile generation
+    do_compile_design : Callable
+        Method to compile user design through synthesis, PnR, and bitstream generation
     filePathOptionalParser : Cmd2ArgumentParser
         Argument parser for commands with an optional file path argument
     filePathRequireParser : Cmd2ArgumentParser
@@ -343,10 +345,102 @@ class FABulous_CLI(Cmd):
         """Exit the FABulous shell and log info message."""
         self.onecmd_plus_hooks("exit")
 
-    # Import do_synthesis from cmd_synthesis
+    # Legacy synthesis parser — kept for backwards compatibility with existing
+    # scripts that pass flags like -extra-plib, -nofsm, etc. directly.
+    _synthesis_parser = Cmd2ArgumentParser(
+        description="[DEPRECATED] Use 'compile_design --synth-only' instead."
+    )
+    _synthesis_parser.add_argument(
+        "files",
+        type=Path,
+        nargs="+",
+        completer=Cmd.path_complete,
+    )
+    _synthesis_parser.add_argument("-top", type=str, default="top_wrapper")
+    _synthesis_parser.add_argument("-auto-top", action="store_true")
+    _synthesis_parser.add_argument("-blif", type=Path)
+    _synthesis_parser.add_argument("-edif", type=Path)
+    _synthesis_parser.add_argument("-json", type=Path)
+    _synthesis_parser.add_argument("-lut", type=str, default="4")
+    _synthesis_parser.add_argument("-plib", type=str)
+    _synthesis_parser.add_argument("-extra-plib", type=Path, action="append")
+    _synthesis_parser.add_argument("-extra-map", type=Path, action="append")
+    _synthesis_parser.add_argument("-encfile", type=Path)
+    _synthesis_parser.add_argument("-nofsm", action="store_true")
+    _synthesis_parser.add_argument("-noalumacc", action="store_true")
+    _synthesis_parser.add_argument(
+        "-carry", type=str, default="none", choices=["none", "ha"]
+    )
+    _synthesis_parser.add_argument("-noregfile", action="store_true")
+    _synthesis_parser.add_argument("-iopad", action="store_true")
+    _synthesis_parser.add_argument("-complex-dff", action="store_true")
+    _synthesis_parser.add_argument("-noflatten", action="store_true")
+    _synthesis_parser.add_argument("-nordff", action="store_true")
+    _synthesis_parser.add_argument("-noshare", action="store_true")
+    _synthesis_parser.add_argument("-run", type=str)
+    _synthesis_parser.add_argument("-no-rw-check", action="store_true")
+
+    @with_category(CMD_USER_DESIGN_FLOW)
+    @with_argparser(_synthesis_parser)
     def do_synthesis(self, args: argparse.Namespace) -> None:
-        """Run synthesis on the specified design."""
-        cmd_synthesis.do_synthesis(self, args)
+        """Run Yosys synthesis for the specified Verilog files.
+
+        deprecated: Use ``compile_design --synth-only`` instead.
+        """
+        logger.warning(
+            "The 'synthesis' command is deprecated. Use 'compile_design' instead."
+        )
+
+        # Translate legacy flags into --synth-extra-args for compile_design
+        extra = []
+        if args.blif:
+            extra.append(f"-blif {args.blif}")
+        if args.edif:
+            extra.append(f"-edif {args.edif}")
+        if args.lut:
+            extra.append(f"-lut {args.lut}")
+        if args.plib:
+            extra.append(f"-plib {args.plib}")
+        if args.extra_plib:
+            extra.extend(f"-extra-plib {p}" for p in args.extra_plib)
+        if args.extra_map:
+            extra.extend(f"-extra-map {m}" for m in args.extra_map)
+        if args.encfile:
+            extra.append(f"-encfile {args.encfile}")
+        if args.nofsm:
+            extra.append("-nofsm")
+        if args.noalumacc:
+            extra.append("-noalumacc")
+        if args.carry and args.carry != "none":
+            extra.append(f"-carry {args.carry}")
+        if args.noregfile:
+            extra.append("-noregfile")
+        if args.iopad:
+            extra.append("-iopad")
+        if args.complex_dff:
+            extra.append("-complex-dff")
+        if args.noflatten:
+            extra.append("-noflatten")
+        if args.nordff:
+            extra.append("-nordff")
+        if args.noshare:
+            extra.append("-noshare")
+        if args.run:
+            extra.append(f"-run {args.run}")
+        if args.no_rw_check:
+            extra.append("-no-rw-check")
+
+        cmd = f"compile_design {' '.join(str(f) for f in args.files)} --synth-only"
+        if args.top != "top_wrapper":
+            cmd += f" -top {args.top}"
+        if args.json:
+            cmd += f" -json {args.json}"
+        if extra:
+            cmd += f' --synth-extra-args "{" ".join(extra)}"'
+
+        self.onecmd_plus_hooks(cmd)
+
+    do_compile_design: Callable = cmd_compile_design.do_compile_design
 
     filePathOptionalParser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     filePathOptionalParser.add_argument(
@@ -852,137 +946,39 @@ class FABulous_CLI(Cmd):
     def do_place_and_route(self, args: argparse.Namespace) -> None:
         """Run place and route with Nextpnr for a given JSON file.
 
-        Generated by Yosys, which requires a Nextpnr model and JSON file first,
-        generated by `synthesis`.
-
-        Also logs place and route error, file not found error and type error.
+        deprecated: Use ``compile_design --pnr-only`` instead.
         """
-        logger.info(
-            f"Running Placement and Routing with Nextpnr for design {args.file}"
+        logger.warning(
+            "The 'place_and_route' command is deprecated. "
+            "Use 'compile_design --pnr-only' instead."
         )
-        path = Path(args.file)
-        parent = path.parent
-        json_file = path.name
-        top_module_name = path.stem
 
+        path = Path(args.file)
         if path.suffix != ".json":
             raise InvalidFileType(
                 "No json file provided. Usage: place_and_route <json_file>"
             )
 
-        fasm_file = top_module_name + ".fasm"
-        log_file = top_module_name + "_npnr_log.txt"
-
-        if parent == "":
-            parent = "."
-
-        if (
-            not Path(f"{self.projectDir}/.FABulous/pips.txt").exists()
-            or not Path(f"{self.projectDir}/.FABulous/bel.txt").exists()
-        ):
-            raise FileNotFoundError(
-                "Pips and Bel files are not found, please run model_gen_npnr first"
-            )
-
-        if Path(f"{self.projectDir}/{parent}").exists():
-            # TODO rewriting the fab_arch script so no need to copy file for work around
-            npnr = get_context().nextpnr_path
-            if f"{json_file}" in [
-                str(i.name) for i in Path(f"{self.projectDir}/{parent}").iterdir()
-            ]:
-                runCmd = [
-                    f"FAB_ROOT={self.projectDir}",
-                    f"{npnr!s}",
-                    "--uarch",
-                    "fabulous",
-                    "--json",
-                    f"{self.projectDir}/{parent}/{json_file}",
-                    "-o",
-                    f"fasm={self.projectDir}/{parent}/{fasm_file}",
-                    "--verbose",
-                    "--log",
-                    f"{self.projectDir}/{parent}/{log_file}",
-                ]
-                result = sp.run(
-                    " ".join(runCmd),
-                    stdout=sys.stdout,
-                    stderr=sp.STDOUT,
-                    check=True,
-                    shell=True,
-                )
-                if result.returncode != 0:
-                    raise CommandError("Nextpnr failed with non-zero exit code")
-
-            else:
-                raise FileNotFoundError(
-                    f'Cannot find file "{json_file}" in path '
-                    f'"{self.projectDir}/{parent}/". '
-                    "This file is generated by running Yosys with Nextpnr backend "
-                    "(e.g. synthesis)."
-                )
-
-            logger.info("Placement and Routing completed")
-        else:
-            raise FileNotFoundError(
-                f"Directory {self.projectDir}/{parent} does not exist. "
-                "Please check the path and try again."
-            )
+        self.onecmd_plus_hooks(f"compile_design {path} --pnr-only")
 
     @with_category(CMD_USER_DESIGN_FLOW)
     @with_argparser(filePathRequireParser)
     def do_gen_bitStream_binary(self, args: argparse.Namespace) -> None:
         """Generate bitstream of a given design.
 
-        Using FASM file and pre-generated bitstream specification file
-        `bitStreamSpec.bin`. Requires bitstream specification before use by running
-        `gen_bitStream_spec` and place and route file generated by running
-        `place_and_route`.
-
-        Also logs output file directory, Bitstream generation error and file not found
-        error.
+        deprecated: Use ``compile_design`` which includes bitstream generation.
         """
-        parent = args.file.parent
-        fasm_file = args.file.name
-        top_module_name = args.file.stem
+        logger.warning(
+            "The 'gen_bitStream_binary' command is deprecated. "
+            "Use 'compile_design' instead, which includes bitstream generation."
+        )
 
         if args.file.suffix != ".fasm":
             raise InvalidFileType(
                 "No fasm file provided. Usage: gen_bitStream_binary <fasm_file>"
             )
 
-        bitstream_file = top_module_name + ".bin"
-
-        if not (self.projectDir / ".FABulous/bitStreamSpec.bin").exists():
-            raise FileNotFoundError(
-                "Cannot find bitStreamSpec.bin file, which is generated by running "
-                "gen_bitStream_spec"
-            )
-
-        if not (self.projectDir / f"{parent}/{fasm_file}").exists():
-            raise FileNotFoundError(
-                f"Cannot find {self.projectDir}/{parent}/{fasm_file} file which is "
-                "generated by running place_and_route. "
-                "Potentially Place and Route Failed."
-            )
-
-        logger.info(f"Generating Bitstream for design {self.projectDir}/{args.file}")
-        logger.info(f"Outputting to {self.projectDir}/{parent}/{bitstream_file}")
-
-        try:
-            genBitstream(
-                f"{self.projectDir}/{parent}/{fasm_file}",
-                f"{self.projectDir}/.FABulous/bitStreamSpec.bin",
-                f"{self.projectDir}/{parent}/{bitstream_file}",
-            )
-
-        except Exception as e:  # noqa: BLE001
-            raise CommandError(
-                f"Bitstream generation failed for "
-                f"{self.projectDir}/{parent}/{fasm_file}. "
-                "Please check the logs for more details."
-            ) from e
-
-        logger.info("Bitstream generated")
+        self.onecmd_plus_hooks(f"compile_design {args.file} --bitgen-only")
 
     simulation_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     simulation_parser.add_argument(
@@ -1039,7 +1035,7 @@ class FABulous_CLI(Cmd):
         if not bitstreamPath.exists():
             raise FileNotFoundError(
                 f"Cannot find {bitstreamPath} file which is generated by running "
-                "gen_bitStream_binary. Potentially the bitstream generation failed."
+                "compile_design. Potentially the bitstream generation failed."
             )
 
         testPath = self.projectDir / "Test"
@@ -1096,12 +1092,12 @@ class FABulous_CLI(Cmd):
     def do_run_FABulous_bitstream(self, args: argparse.Namespace) -> None:
         """Run FABulous to generate bitstream on a given design.
 
-        Does this by calling synthesis, place and route, bitstream generation functions.
-        Requires Verilog file specified by <top_module_file>.
-
-        Also logs usage error and file not found error.
+        deprecated: Use ``compile_design`` instead.
         """
-        file_path_no_suffix = args.file.parent / args.file.stem
+        logger.warning(
+            "The 'run_FABulous_bitstream' command is deprecated. "
+            "Use 'compile_design' instead."
+        )
 
         if args.file.suffix not in [".v", ".sv"]:
             raise InvalidFileType(
@@ -1109,26 +1105,7 @@ class FABulous_CLI(Cmd):
                 "Usage: run_FABulous_bitstream <top_module_file>"
             )
 
-        json_file_path = file_path_no_suffix.with_suffix(".json")
-        fasm_file_path = file_path_no_suffix.with_suffix(".fasm")
-
-        do_synth_args = str(args.file)
-
-        primsLib = f"{self.projectDir}/user_design/custom_prims.v"
-        if Path(primsLib).exists():
-            do_synth_args += f" -extra-plib {primsLib}"
-        else:
-            logger.info("No external primsLib found.")
-
-        success = (
-            CommandPipeline(self)
-            .add_step(f"synthesis {do_synth_args}")
-            .add_step(f"place_and_route {json_file_path}")
-            .add_step(f"gen_bitStream_binary {fasm_file_path}")
-            .execute()
-        )
-        if success:
-            logger.info("FABulous bitstream generation complete")
+        self.onecmd_plus_hooks(f"compile_design {args.file}")
 
     @with_category(CMD_SCRIPT)
     @with_argparser(filePathRequireParser)

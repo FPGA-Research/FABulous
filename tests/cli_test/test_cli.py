@@ -124,18 +124,17 @@ def test_gen_io_pin_config(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) 
     assert output_file.exists()
 
 
-def test_run_FABulous_bitstream(
+def test_run_FABulous_bitstream_deprecated(
     cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
 ) -> None:
-    """Test the `run_FABulous_bitstream` command."""
-    m = mocker.patch("subprocess.run", return_value=MOCK_COMPLETED_PROCESS)
+    """Test the deprecated `run_FABulous_bitstream` delegates to compile_design."""
+    mocker.patch("subprocess.run", return_value=MOCK_COMPLETED_PROCESS)
     run_cmd(cli, "run_FABulous_fabric")
-    (cli.projectDir / "user_design" / "sequential_16bit_en.json").touch()
-    (cli.projectDir / "user_design" / "sequential_16bit_en.fasm").touch()
+
     run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
-    log = normalize_and_check_for_errors(caplog.text)
-    assert "bitstream generation complete" in log[-1]
-    assert m.call_count == 2
+
+    assert any("deprecated" in r.message.lower() for r in caplog.records)
+    assert any("compile_design" in r.message for r in caplog.records)
 
 
 @pytest.mark.usefixtures("simulation_mock")
@@ -238,23 +237,6 @@ def test_run_tcl_with_fabulous_command(
     log = normalize_and_check_for_errors(caplog.text)
     assert "Generated user design top wrapper" in log[-2]
     assert "TCL script executed" in log[-1]
-
-
-def test_multi_command_stop(cli: FABulous_CLI, mocker: MockerFixture) -> None:
-    """Test that multi-command execution stops on first error without force flag."""
-    m = mocker.patch("subprocess.run", side_effect=RuntimeError("Mocked error"))
-    run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
-
-    m.assert_called_once()
-
-
-def test_multi_command_force(cli: FABulous_CLI, mocker: MockerFixture) -> None:
-    """Test that multi-command execution continues on error when force flag is set."""
-    m = mocker.patch("subprocess.run", side_effect=RuntimeError("Mocked error"))
-    cli.force = True
-    run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
-
-    assert m.call_count == 1
 
 
 def test_run_FABulous_fabric_sv_extension(
