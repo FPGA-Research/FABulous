@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pdk: [ihp-sg13g2, sky130A, gf180mcu]
+        pdk: [ihp-sg13g2, sky130A, gf180mcuD]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
