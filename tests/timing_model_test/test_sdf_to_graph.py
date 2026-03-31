@@ -172,30 +172,19 @@ def test_has_path_true_and_false(sdf_graph):
     assert sdf_graph.has_path("A", "H") is False
 
 
-def test_delay_path_returns_shortest_weighted_path_and_info(sdf_graph):
-    length, path, info = sdf_graph.delay_path("A", "E")
+def test_single_delay_returns_shortest_weighted_path_and_info(sdf_graph):
+    length = sdf_graph.single_delay("A", "E")
 
     assert length == 7.0
-    assert path == ["A", "C", "D", "E"]
-    assert "A -> C with delay 2.0" in info
-    assert "C -> D with delay 1.0" in info
-    assert "D -> E with delay 4.0" in info
-    assert "BUF_X2" in info
-    assert "TOP" in info
 
 
-def test_delay_path_prefers_lower_total_delay_not_fewer_edges(sdf_graph):
-    length, path, info = sdf_graph.delay_path("A", "D")
-
+def test_single_delay_prefers_lower_total_delay_not_fewer_edges(sdf_graph):
+    length = sdf_graph.single_delay("A", "D")
     assert length == 3.0
-    assert path == ["A", "C", "D"]
-    assert "A -> C with delay 2.0" in info
-    assert "C -> D with delay 1.0" in info
 
-
-def test_delay_path_raises_when_no_path_exists(sdf_graph):
+def test_single_delay_raises_when_no_path_exists(sdf_graph):
     with pytest.raises(nx.NetworkXNoPath):
-        sdf_graph.delay_path("A", "H")
+        sdf_graph.single_delay("A", "H")
 
 
 def test_earliest_common_nodes_invalid_mode_raises(sdf_graph):

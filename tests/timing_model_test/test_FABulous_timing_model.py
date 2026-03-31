@@ -106,8 +106,8 @@ class DummyHdlnx:
     def net_to_pin_paths_for_instance_resolved(self, inst):
         return {}
 
-    def delay_path(self, src, dst):
-        return 0.0, [src, dst], "dummy"
+    def single_delay(self, src, dst):
+        return 0.0
 
     def nearest_ports_from_instance_pin_nets(self, inst_path, reverse=False, num_ports=1):
         return {}, []
@@ -748,8 +748,8 @@ def test_internal_pip_delay_structural_success_and_caches(bare_model):
                 "Y": ["mux0/Y0", "mux0/Y1"],
             }
 
-        def delay_path(self, src, dst):
-            return 0.123, [src, "n1", dst], "info"
+        def single_delay(self, src, dst):
+            return 0.123
 
     synth = Synth()
     bare_model.hdlnx_tm_synth = synth
@@ -786,8 +786,8 @@ def test_internal_pip_delay_structural_cache_hit_reuses_cached_values(bare_model
             self.resolve_calls += 1
             return {"bad": ["bad"]}
 
-        def delay_path(self, src, dst):
-            return 1.5, [src, dst], "info"
+        def single_delay(self, src, dst):
+            return 1.5
 
     synth = Synth()
     bare_model.hdlnx_tm_synth = synth
@@ -856,8 +856,8 @@ def test_internal_pip_delay_physical_cache_miss_multiple_ports(bare_model):
             assert follow_steps_to_sentinel == 3
             return ["OUT2", "OUT1"], 3, {"dummy": 1}
 
-        def delay_path(self, src, dst):
-            return 0.456, [src, dst], "physical-info"
+        def single_delay(self, src, dst):
+            return 0.456
 
     synth = Synth()
     phys = Phys()
@@ -924,8 +924,8 @@ def test_internal_pip_delay_physical_cache_miss_single_input_uses_output_referen
             assert follow_steps_to_sentinel == 3
             return ["PHYS_OUT"], 1, {}
 
-        def delay_path(self, src, dst):
-            return 0.789, [src, dst], "physical-info"
+        def single_delay(self, src, dst):
+            return 0.789
 
     synth = Synth()
     phys = Phys()
@@ -974,8 +974,8 @@ def test_internal_pip_delay_physical_cache_hit_reuses_cached_values(bare_model):
             self.earliest_calls += 1
             return ["should_not_be_used"], 0, {}
 
-        def delay_path(self, src, dst):
-            return 1.234, [src, dst], "cached-info"
+        def single_delay(self, src, dst):
+            return 1.234
 
     synth = Synth()
     phys = Phys()
@@ -1031,7 +1031,7 @@ def test_external_pip_delay_structural_input_port_no_nearest_returns_default_rea
     assert bare_model.external_pip_delay_structural("NN2BEG3", "X") == 0.001
 
 
-def test_external_pip_delay_structural_input_port_uses_delay_path(bare_model):
+def test_external_pip_delay_structural_input_port_uses_single_delay(bare_model):
     class Synth(DummyHdlnx):
         def __init__(self):
             super().__init__()
@@ -1041,8 +1041,8 @@ def test_external_pip_delay_structural_input_port_uses_delay_path(bare_model):
         def path_to_nearest_target_sentinel(self, src, targets):
             return ["NN2BEG[3]", "OUT0"], "OUT0"
 
-        def delay_path(self, src, dst):
-            return 0.222, [src, dst], "info"
+        def single_delay(self, src, dst):
+            return 0.222
 
     bare_model.hdlnx_tm_synth = Synth()
 
@@ -1066,10 +1066,10 @@ def test_external_pip_delay_structural_swm_to_swm_with_cache_uses_follow_and_del
             assert num_follow == 2
             return "NEXT_INPUT_PIN"
 
-        def delay_path(self, src, dst):
+        def single_delay(self, src, dst):
             assert src == "SWM_OUT_PIN"
             assert dst == "NEXT_INPUT_PIN"
-            return 0.444, [src, dst], "info"
+            return 0.444
 
     bare_model.hdlnx_tm_synth = Synth()
     bare_model.internal_pip_cache = {
@@ -1091,8 +1091,8 @@ def test_external_pip_delay_structural_swm_to_swm_with_tiny_delay_returns_defaul
         def follow_first_fanout_from_pins(self, hier_pin_path, num_follow=1):
             return "NEXT_INPUT_PIN"
 
-        def delay_path(self, src, dst):
-            return 0.0, [src, dst], "info"
+        def single_delay(self, src, dst):
+            return 0.0
 
     bare_model.hdlnx_tm_synth = Synth()
     bare_model.internal_pip_cache = {
@@ -1136,7 +1136,7 @@ def test_external_pip_delay_physical_input_port_no_nearest_returns_default_real_
     assert bare_model.external_pip_delay_physical("NN2BEG3", "X") == 0.001
 
 
-def test_external_pip_delay_physical_input_port_uses_delay_path(bare_model):
+def test_external_pip_delay_physical_input_port_uses_single_delay(bare_model):
     class Phys(DummyHdlnx):
         def __init__(self):
             super().__init__()
@@ -1146,8 +1146,8 @@ def test_external_pip_delay_physical_input_port_uses_delay_path(bare_model):
         def path_to_nearest_target_sentinel(self, src, targets):
             return ["NN2BEG[3]", "OUT0"], "OUT0"
 
-        def delay_path(self, src, dst):
-            return 0.333, [src, dst], "info"
+        def single_delay(self, src, dst):
+            return 0.333
 
     bare_model.hdlnx_tm_phys = Phys()
 
@@ -1171,10 +1171,10 @@ def test_external_pip_delay_physical_swm_to_swm_with_cache_uses_follow_and_delay
             assert num_follow == 2
             return "NEXT_PHYS_INPUT"
 
-        def delay_path(self, src, dst):
+        def single_delay(self, src, dst):
             assert src == "PHYS_OUT_PIN"
             assert dst == "NEXT_PHYS_INPUT"
-            return 0.555, [src, dst], "info"
+            return 0.555
 
     bare_model.hdlnx_tm_phys = Phys()
     bare_model.internal_pip_cache = {
@@ -1196,8 +1196,8 @@ def test_external_pip_delay_physical_swm_to_swm_with_tiny_delay_returns_default(
         def follow_first_fanout_from_pins(self, hier_pin_path, num_follow=1):
             return "NEXT_PHYS_INPUT"
 
-        def delay_path(self, src, dst):
-            return 0.0, [src, dst], "info"
+        def single_delay(self, src, dst):
+            return 0.0
 
     bare_model.hdlnx_tm_phys = Phys()
     bare_model.internal_pip_cache = {

@@ -602,7 +602,7 @@ class FABulousTileTimingModel:
 
         # Calculate delay between pip_src and pip_dst using the
         # synthesis-level timing model.
-        delay, _, _ = synth_model.delay_path(
+        delay = synth_model.single_delay(
             swm_mux_resolved[pip_src][0], swm_mux_resolved[pip_dst][0]
         )
 
@@ -764,7 +764,7 @@ class FABulousTileTimingModel:
         # Algorithm_5: Calculate delay between pip_src and the converged output pin
         # We use the 0st nearest port found for pip_src beacuse the list is sorted
         # starting from the nearest port.
-        delay, _, _ = phys_model.delay_path(
+        delay = phys_model.single_delay(
             swm_nearest_in_ports_for_each_swm_wire[f"{pip_src}"][0], swm_phys_output
         )
 
@@ -841,7 +841,7 @@ class FABulousTileTimingModel:
                 )
                 return default_delay
 
-            delay, _, _ = synth_model.delay_path(pip_src_port, out_port)
+            delay = synth_model.single_delay(pip_src_port, out_port)
             logger.info(
                 f"Delay from tile input {pip_src_port} to tile output "
                 f"{out_port}--{pip_dst_port}: {delay} ns."
@@ -866,7 +866,7 @@ class FABulousTileTimingModel:
             hier_pin_path=swm_output_pin, num_follow=2
         )
 
-        delay, _, _ = synth_model.delay_path(swm_output_pin, swm_next_input_pin)
+        delay = synth_model.single_delay(swm_output_pin, swm_next_input_pin)
         logger.info(
             f"SWMx output {pip_src} to next SWMx input {pip_dst} with delay: {delay} ns"
         )
@@ -935,7 +935,7 @@ class FABulousTileTimingModel:
                 )
                 return default_delay
 
-            delay, _, _ = phys_model.delay_path(pip_src_port, out_port)
+            delay = phys_model.single_delay(pip_src_port, out_port)
             logger.info(
                 f"Delay from tile input {pip_src_port} to tile output "
                 f"{out_port}--{pip_dst_port}: {delay} ns."
@@ -960,7 +960,7 @@ class FABulousTileTimingModel:
             hier_pin_path=swm_output_pin, num_follow=2
         )
 
-        delay, _, _ = phys_model.delay_path(swm_output_pin, swm_next_input_pin)
+        delay = phys_model.single_delay(swm_output_pin, swm_next_input_pin)
         logger.info(
             f"SWMx output {pip_src} to next SWMx input {pip_dst} with delay: {delay} ns"
         )

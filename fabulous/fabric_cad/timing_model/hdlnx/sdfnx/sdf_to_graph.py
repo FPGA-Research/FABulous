@@ -50,46 +50,36 @@ class SDFTimingGraph(SDFTimingGraphBase):
         """
         return nx.has_path(self.graph, source=source, target=target)
 
-    def delay_path(self, source: str, target: str) -> tuple[float, list[str], str]:
+    def single_delay(self, source: str, target: str) -> float:
         """Find path with delay between source and target nodes in the timing graph.
+
+        Note: The delay value depends on delay_type_str when creating the graph.
+        For example, if delay_type_str="max_all", then the delay represents the
+        maximum delay along the path. If delay_type_str="min_all", then the
+        delay represents the minimum delay along the path. Fastest way to obtain
+        only a single delay value along the path.
 
         Parameters
         ----------
         source : str
-
             The source node.
-        target : str
 
+        target : str
             The target node.
 
         Returns
         -------
-        tuple[float, list[str], str]
-            A tuple containing the total delay, the path as a list of nodes,
-            and a detailed info string about the path.
+        float
+            The total delay between the source and target nodes.
 
         Examples
         --------
-            length, path, info = sdf_graph.delay_path("nodeA/pin", "nodeB/pin")
+            length = sdf_graph.single_delay("nodeA/pin", "nodeB/pin")
         """
         length: float = nx.dijkstra_path_length(
             self.graph, source=source, target=target, weight="weight"
         )
-        path: list[str] = nx.dijkstra_path(
-            self.graph, source=source, target=target, weight="weight"
-        )
-        info: str = ""
-
-        for i in range(len(path) - 1):
-            u = path[i]
-            v = path[i + 1]
-            edge_data = self.graph.edges[u, v]
-            info += (
-                f"{u} -> {v} with delay {edge_data['weight']} "
-                f"({edge_data['component'].cell_name},"
-                f"{edge_data['component'].c_type})\n"
-            )
-        return length, path, info
+        return length
 
     def earliest_common_nodes(
         self,
