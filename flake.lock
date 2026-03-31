@@ -266,11 +266,11 @@
     "yosys-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1774888649,
-        "narHash": "sha256-qYmEk2s21uMVFsz7rm6DKO80Q3NuSCyhok7gAuKvFcQ=",
+        "lastModified": 1774954179,
+        "narHash": "sha256-4oJ8UlW9pzEFr/Y4QepzD/FZb7DEEKUjpXyKP/8oF58=",
         "ref": "refs/heads/main",
-        "rev": "240439bdb044490dfc77cd91068c32cc4b6a0c96",
-        "revCount": 16891,
+        "rev": "cede13a742854cd8f2eee6e4e836d51c15abd2c3",
+        "revCount": 16895,
         "submodules": true,
         "type": "git",
         "url": "https://github.com/YosysHQ/yosys"

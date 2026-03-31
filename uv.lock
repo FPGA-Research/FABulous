@@ -608,15 +608,27 @@ wheels = [
 
 [[package]]
 name = "fabulous-bit-gen"
-version = "0.1.0"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "fasm" },
+    { name = "fabulous-fasm" },
     { name = "loguru" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bc/63/a92c67e1342f03dca69f9ac52bac0247d3cfdb4ce8ca3fc892429efe7234/fabulous_bit_gen-0.1.0.tar.gz", hash = "sha256:17c3238f701da2933ce38b92a18a4d9247c70508344892951281d022c1ea2748", size = 23031, upload-time = "2025-11-05T19:42:13.271Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/ca/19363023782f73394c1b0100d678a6f67d762debe6f806115ecf4b31dc99/fabulous_bit_gen-0.2.0.tar.gz", hash = "sha256:278e3546dd67d2fbc591a7026a74329d2ee19970873f94f1ada315d1a3f3661e", size = 23167, upload-time = "2026-03-31T13:59:11.897Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1d/f2/f5135b97c088c206222416d8dea566226caa35d9cc4f01a6e37a495fc74c/fabulous_bit_gen-0.1.0-py3-none-any.whl", hash = "sha256:a0797e4ef2ec5266490763e64350d26bb402bf456d30e3e9404b31dc66642998", size = 10333, upload-time = "2025-11-05T19:42:11.952Z" },
+    { url = "https://files.pythonhosted.org/packages/89/c4/5c5f92c99c726d579484a48a429fa104252d4c315ab82d18da9d91232acc/fabulous_bit_gen-0.2.0-py3-none-any.whl", hash = "sha256:1d0f912a77207b2b57372273a3401983ce0b04716da81cb4eba987d44969ec3e", size = 10331, upload-time = "2026-03-31T13:59:10.51Z" },
+]
+
+[[package]]
+name = "fabulous-fasm"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "textx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/68/62/865565db82da4fc627aa96d67f99a923b25181838b24f0d04a80acb8b455/fabulous_fasm-0.2.0.tar.gz", hash = "sha256:082c883615b1aef99c17c73e6b52593c716e233fff3088d2e5e5ef0eb8a05929", size = 78903, upload-time = "2026-03-31T13:35:33.958Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/e2/7e0491c5c2b07cfe60f7bccc30e2f10342bd8371f72b08accba9709de94b/fabulous_fasm-0.2.0-py3-none-any.whl", hash = "sha256:d9f0f24fb1158dcd7b57da62ba2478cf3a8323dbae83fe5d7bf3e05fac74bbf4", size = 72160, upload-time = "2026-03-31T13:35:32.652Z" },
 ]
 
 [[package]]
@@ -667,7 +679,7 @@ requires-dist = [
     { name = "click", specifier = ">=8.0.0" },
     { name = "cmd2", specifier = ">=2" },
     { name = "dill", specifier = ">=0.4.0" },
-    { name = "fabulous-bit-gen", specifier = ">=0.1.0" },
+    { name = "fabulous-bit-gen", specifier = ">=0.2.0" },
     { name = "gnureadline", marker = "sys_platform != 'win32'", specifier = ">=8.2.0" },
     { name = "go-task-bin", specifier = ">=3.40.0" },
     { name = "librelane", specifier = ">=3.0.0" },
@@ -698,15 +710,6 @@ dev = [
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "ruff", specifier = ">=0.12.7" },
 ]
-
-[[package]]
-name = "fasm"
-version = "0.0.2.post88"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "textx" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/78/4c/94fb3bdb87bea21406c0e5da375f0b10d7b1e4b5103cea453a2de23b5d61/fasm-0.0.2.post88.tar.gz", hash = "sha256:049d79dd26f584083b222fad3866a2a3430f8c5bae0d42ae568e8227d8390c3c", size = 84597, upload-time = "2022-01-24T19:06:23.04Z" }
 
 [[package]]
 name = "filelock"
@@ -1881,7 +1884,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.33.0"
+version = "2.33.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -1889,9 +1892,9 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/34/64/8860370b167a9721e8956ae116825caff829224fbca0ca6e7bf8ddef8430/requests-2.33.0.tar.gz", hash = "sha256:c7ebc5e8b0f21837386ad0e1c8fe8b829fa5f544d8df3b2253bff14ef29d7652", size = 134232, upload-time = "2026-03-25T15:10:41.586Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5f/a4/98b9c7c6428a668bf7e42ebb7c79d576a1c3c1e3ae2d47e674b468388871/requests-2.33.1.tar.gz", hash = "sha256:18817f8c57c6263968bc123d237e3b8b08ac046f5456bd1e307ee8f4250d3517", size = 134120, upload-time = "2026-03-30T16:09:15.531Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/5d/c814546c2333ceea4ba42262d8c4d55763003e767fa169adc693bd524478/requests-2.33.0-py3-none-any.whl", hash = "sha256:3324635456fa185245e24865e810cecec7b4caf933d7eb133dcde67d48cee69b", size = 65017, upload-time = "2026-03-25T15:10:40.382Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/8e/7540e8a2036f79a125c1d2ebadf69ed7901608859186c856fa0388ef4197/requests-2.33.1-py3-none-any.whl", hash = "sha256:4e6d1ef462f3626a1f0a0a9c42dd93c63bad33f9f1c1937509b8c5c8718ab56a", size = 64947, upload-time = "2026-03-30T16:09:13.83Z" },
 ]
 
 [[package]]
@@ -2193,13 +2196,15 @@ wheels = [
 
 [[package]]
 name = "windows-curses"
-version = "2.4.1"
+version = "2.4.2"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f4/99/60f34e51514c82631aa5c6d21eab88ce1701562de9844608411e39462a46/windows_curses-2.4.1-cp312-cp312-win32.whl", hash = "sha256:bdbe7d58747408aef8a9128b2654acf6fbd11c821b91224b9a046faba8c6b6ca", size = 71489, upload-time = "2025-01-11T00:26:22.726Z" },
-    { url = "https://files.pythonhosted.org/packages/62/8f/d908bcab1954375b156a9300fa86ceccb110f39457cd6fd59c72777626ab/windows_curses-2.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:5c9c2635faf171a229caca80e1dd760ab00db078e2a285ba2f667bbfcc31777c", size = 81777, upload-time = "2025-01-11T00:26:25.273Z" },
-    { url = "https://files.pythonhosted.org/packages/25/a0/e8d074f013117633f6b502ca123ecfc377fe0bd36818fe65e8935c91ca9c/windows_curses-2.4.1-cp313-cp313-win32.whl", hash = "sha256:05d1ca01e5199a435ccb6c8c2978df4a169cdff1ec99ab15f11ded9de8e5be26", size = 71390, upload-time = "2025-01-11T00:26:27.66Z" },
-    { url = "https://files.pythonhosted.org/packages/2b/4b/2838a829b074a68c570d54ae0ae8539979657d3e619a4dc5a4b03eb69745/windows_curses-2.4.1-cp313-cp313-win_amd64.whl", hash = "sha256:8cf653f8928af19c103ae11cfed38124f418dcdd92643c4cd17239c0cec2f9da", size = 81636, upload-time = "2025-01-11T00:26:29.595Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/9c/b2a3706c8edadae8ae88b327ba072d6056ad1b492f9996214cff027e9f01/windows_curses-2.4.2-cp312-cp312-win32.whl", hash = "sha256:7ec4629685add716d494e8fbdd0b83485de726e9deeda57d30e742c77a32a156", size = 71547, upload-time = "2026-03-31T12:44:37.797Z" },
+    { url = "https://files.pythonhosted.org/packages/8b/ee/8c5da36191524856fb2c675f8cae99211ccf77bcd4e4a9010477e08000ac/windows_curses-2.4.2-cp312-cp312-win_amd64.whl", hash = "sha256:df782859176f9e8142618e4966d6cee7a53a8b1c819faeb6e606a60fa4f8972a", size = 82282, upload-time = "2026-03-31T12:44:39.106Z" },
+    { url = "https://files.pythonhosted.org/packages/b1/54/195f2c4d0258ced34a401c8e3c9eefa2aa2221a9f0179ae64ad3cb039e64/windows_curses-2.4.2-cp313-cp313-win32.whl", hash = "sha256:248bf3f1d973e92ca193b1ea8a626ec7f81a66be6f6d6c5e31ff82056453678d", size = 71458, upload-time = "2026-03-31T12:44:40.184Z" },
+    { url = "https://files.pythonhosted.org/packages/47/e8/38fd0fef95271280a77a4f3b65e0961d3c39716388b39c08b3040bfb4f2c/windows_curses-2.4.2-cp313-cp313-win_amd64.whl", hash = "sha256:1bf3d0c902374b6c430a954adcb686a5ecd7a31fc4195d31136385b5c1bea925", size = 82200, upload-time = "2026-03-31T12:44:41.503Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/22/f90c7d1d83464eb63345802f33e8de41bd732521d9a60a69ad985c8faa90/windows_curses-2.4.2-cp314-cp314-win32.whl", hash = "sha256:a970bf067b3126251423b4da051ef8c1c77acf6294ec96a7d6de7f6b9e5c27a0", size = 77028, upload-time = "2026-03-31T12:44:42.611Z" },
+    { url = "https://files.pythonhosted.org/packages/6f/6a/1f8754de746474a049a841e139b443b250a96908d6913ccf2db9a4303584/windows_curses-2.4.2-cp314-cp314-win_amd64.whl", hash = "sha256:6c22cb0310500dfbfe54c76354e37070e300d5473596d48ac4f9c65b2d578b6f", size = 86361, upload-time = "2026-03-31T12:44:43.893Z" },
 ]
 
 [[package]]
