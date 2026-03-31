@@ -320,7 +320,7 @@ class TimingModelConfig(BaseModel):
     sta_executable : Path | str
         The executable command for the static timing analysis tool.
     pdk_name : str | None
-        The name of the PDK being used, Its just for informational
+        The name of the PDK being used, It's just for informational
         purposes.
     techmap_files : list[Path] | Path | None
         The list of technology mapping files or a single techmap file path

@@ -4,9 +4,7 @@ Provides an interface to run OpenSTA for static timing analysis on a given Veril
 netlist.
 """
 
-import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 from loguru import logger
@@ -90,14 +88,9 @@ class OpenStaTool(StaTool):
         sta_tcl_script += "write_sdf {}\n".format("{sdf_path}")
         sta_tcl_script += "exit\n"
 
-        fd, path = tempfile.mkstemp(prefix="sta_", suffix=".sdf")
-        os.close(fd)
-        path = Path(path)
+        path: Path = Path.home() / ".fabulous" / "tmp" / f"sta_{self.top_name}_tmp.sdf"
 
-        if not path.exists():
-            raise RuntimeError(
-                "Failed to generate SDF file using OpenSTA. No SDF file created."
-            )
+        path.parent.mkdir(parents=True, exist_ok=True)
 
         logger.debug(f"Generating SDF file at temporary path: {path}")
 

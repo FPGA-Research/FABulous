@@ -8,9 +8,7 @@ module provides a high-level interface for performing synthesis and timing analy
 using Yosys.
 """
 
-import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 from loguru import logger
@@ -168,15 +166,9 @@ class YosysTool(SynthTool):
             "{synth_output_file}"
         )
 
-        fd, path = tempfile.mkstemp(prefix="synth_verilog_", suffix=".v")
-        os.close(fd)
-        path = Path(path)
+        path: Path = Path.home() / ".fabulous" / "tmp" / f"synth_{self.top_name}_tmp.v"
 
-        if not path.exists():
-            raise RuntimeError(
-                "Failed to generate gate-level netlist using Yosys. "
-                "No netlist file created."
-            )
+        path.parent.mkdir(parents=True, exist_ok=True)
 
         logger.debug(f"Generating Synthesized Verilog file at temporary path: {path}")
 

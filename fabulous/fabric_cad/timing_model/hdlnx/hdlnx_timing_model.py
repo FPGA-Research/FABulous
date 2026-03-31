@@ -4,8 +4,10 @@ Will use an external synthesis tool.
 
 In this context a sysnthesis tool can be anything that can convert RTL verilog into
 gate-level verilog, that means also tools that can do backend design steps like
-technology mapping and place&route. It then uses the VerilogGateLevelTimingGraph class
-to generate a timing graph from the gate-level netlist.
+technology mapping and place&route.
+
+It then uses the VerilogGateLevelTimingGraph class to generate a timing graph from the
+gate-level netlist.
 """
 
 from loguru import logger

@@ -25,8 +25,8 @@ class FABulousTimingModelInterface:
     fabric.
 
     Allows for efficient retrieval of pip delays by caching previously computed
-    results, and supports different timing models for different tile types or
-    super tile types based on the configuration.
+    results, and supports different timing models for different (super)
+    tile types based on the configuration.
 
     Parameters
     ----------
@@ -80,7 +80,7 @@ class FABulousTimingModelInterface:
         ValueError
             If the timing model for the specified tile is not found.
         """
-        # The key to store/retrieve the delay, if the delay for the
+        # The used key to store/retrieve the delay, if the delay for the
         # same src and dst pip was already computed before, the delay
         # will be retrieved from the cache.
         key: str = f"{src_pip}.{dst_pip}"

@@ -1627,21 +1627,21 @@ class FABulous_CLI(Cmd):
         """Generate a timing model for the fabric.
 
         Timing information is extracted from the GDS layout and used to create a timing
-        model compatible with Nextpnr for timing-aware place and route. This command
+        model compatible with nextpnr for timing-aware place and route. This command
         generates a timing model for the FPGA fabric based on the specified mode
         (physical or structural) and outputs it to a file named pips.txt in the
-        .FABulous directory. if no config file is provided, the automated flow must be
+        .FABulous directory. If no config file is provided, the automated flow must be
         run first to generate post-layout files. If a config file is provided, it will
         be used for timing model generation instead of CLI arguments. This allows for
-        more complex configurations like different pdk support. If emit-config-template
-        is specified, a config template will be outputted and no timing model will be
+        more complex configurations like different PDK support. If emit-config-template
+        is specified, a config template will be output and no timing model will be
         generated.
         """
         outfile: Path | None = None
         manual_config: TimingModelConfig | None = None
 
         # Custom output path for the timing model file, if not provided, defaults
-        # to .FABulous/pips.txt with backup of existing file if exists
+        # to .FABulous/pips.txt with backup of existing file if exists.
         if args.outfile is not None:
             outfile: Path = args.outfile
         else:
@@ -1654,7 +1654,7 @@ class FABulous_CLI(Cmd):
 
         # If a config file is provided, use it to generate the timing model
         # instead of CLI arguments This allows for more complex configurations
-        # like different pdk support.
+        # like supporting different PDKs.
         if args.with_config_file is not None:
             config_path = args.with_config_file
             if not config_path.exists():
@@ -1664,7 +1664,7 @@ class FABulous_CLI(Cmd):
             )
 
         # If emit-config-template is specified, output a config template
-        # and return without generating the timing model
+        # and return without generating the timing model.
         if args.emit_config_template:
             cfg_template: TimingModelConfig = TimingModelConfig(
                 project_dir=get_context().proj_dir,
@@ -1701,8 +1701,6 @@ class FABulous_CLI(Cmd):
 
         logger.info(f"Output timing model file: {outfile}")
 
-        # If manual_config, it will be used for timing model generation instead of CLI
-        # arguments. Allows more complex configurations like different pdk support.
         tm_config_resolved: TimingModelConfig = self.fabulousAPI.timing_model_interface(
             mode=args.mode,
             output_file=outfile,
