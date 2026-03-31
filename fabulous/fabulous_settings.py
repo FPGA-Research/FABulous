@@ -180,9 +180,8 @@ class FABulousSettings(BaseSettings):
             return None
 
         if not value.is_file():
-            # models_pack path is by default as a relative path starting from proj_dir
-            # This can cause errors if FABulous is called from a different working dir
-            # So we have to puzzle the models_pack path back together from there.
+            # models_pack path is stored as a relative path in .env.
+            # Resolve it relative to the .FABulous directory (where .env lives).
             if proj_dir := info.data.get("proj_dir"):
                 proj_dir = Path(proj_dir).absolute()
                 if not proj_dir.exists():
@@ -190,23 +189,29 @@ class FABulousSettings(BaseSettings):
             else:
                 raise ValueError("Project directory is not set.")
 
-            # Check if `project_dir` is not an absolute path and
-            # in the models_pack path, since in the default it is
-            # put there as folder.
-            if not value.is_absolute() and proj_dir.name in value.parts:
-                parts = list(value.parts)
-                index = parts.index(proj_dir.name)
-                value = proj_dir.joinpath(*parts[index + 1 :])
-                if not value.is_file():
-                    raise ValueError(
-                        f"Models pack file does not exist: {value}"
-                        " Check your FAB_MODELS_PACK env var setting."
-                    )
-            else:
+            fab_dir = proj_dir / ".FABulous"
+            resolved = None
+
+            if not value.is_absolute():
+                # New format: relative to .FABulous dir (e.g. "../Fabric/models_pack.v")
+                candidate = (fab_dir / value).resolve()
+                if candidate.is_file():
+                    resolved = candidate
+                elif proj_dir.name in value.parts:
+                    # Backward compat: old format had proj_dir name as prefix
+                    # (e.g. "my_project/Fabric/models_pack.v")
+                    parts = value.parts
+                    index = parts.index(proj_dir.name)
+                    candidate = proj_dir.joinpath(*parts[index + 1 :]).resolve()
+                    if candidate.is_file():
+                        resolved = candidate
+
+            if resolved is None:
                 raise ValueError(
                     f"Models pack file does not exist: {value}"
                     " Check your FAB_MODELS_PACK env var setting."
                 )
+            value = resolved
 
         # Retrieve previously validated proj_lang (falls back to default enum value)
         try:
