@@ -1,9 +1,14 @@
 {
-  description = "FABulous EDA development environment with Nix - includes GHDL, Yosys, NextPNR, Librelane, and more";
+  description = "FABulous EDA development environment with Nix - includes GHDL, Yosys, NextPNR, Librelane, and more.
+    nix-eda and nixpkgs follow librelane's pins for binary cache compatibility.";
 
   inputs = {
-    # Pinned to nix-eda 6.2.0's nixpkgs for binary cache hits from fossi-foundation
-    nixpkgs.url = "github:nixos/nixpkgs/b3aad468604d3e488d627c0b43984eb60e75e782";
+    librelane.url = "github:librelane/librelane";
+
+    # Follow librelane's nix-eda and nixpkgs for binary cache hits
+    nix-eda.follows = "librelane/nix-eda";
+    nixpkgs.follows = "librelane/nix-eda/nixpkgs";
+
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -20,16 +25,6 @@
       inputs.pyproject-nix.follows = "pyproject-nix";
       inputs.uv2nix.follows = "uv2nix";
       inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    nix-eda = {
-      url = "github:fossi-foundation/nix-eda/6.2.0";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    librelane = {
-      url = "github:librelane/librelane/dev";
-      inputs.nix-eda.follows = "nix-eda";
     };
 
     # Prebuilt GHDL v6.0.0 binary tarballs (locked in flake.lock)
