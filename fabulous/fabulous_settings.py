@@ -73,6 +73,8 @@ class FABulousSettings(BaseSettings):
     editor: str | None = None
     verbose: int = 0
     debug: bool = False
+    nix_shell: str | None = None
+    nix_no_check: bool = False
 
     # GDS variables
     pdk_root: Path | None = Field(
@@ -486,7 +488,9 @@ def init_context(
 
     if api_mode:
         logger.debug("API mode: skipping all validation")
-        return FABulousSettings.model_construct()
+        return FABulousSettings.model_construct(
+            nix_shell=os.environ.get("FAB_NIX_SHELL"),
+        )
 
     # 1. User config .env file (global)
     user_config_env = FAB_USER_CONFIG_DIR / ".env"
