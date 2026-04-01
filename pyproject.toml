@@ -64,12 +64,11 @@ version_scheme = "guess-next-dev"
 local_scheme = "node-and-date"
 
 [tool.setuptools.packages.find]
-include = ["fabulous*"]
 exclude = [
   "docs",
-  "nix",
   "tests",
   "scripts",
+  "nix",
 ] # exclude packages matching these glob patterns (empty by default)
 
 [tool.setuptools.cmdclass]
