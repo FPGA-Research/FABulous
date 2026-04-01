@@ -275,6 +275,100 @@
               };
             }
           );
+
+          # Dedicated shell for `fabulous nix-env`.
+          # Uses pkgs.mkShell so tools are in buildInputs (available to --command).
+          # The shellHook sources three scripts from the nix store:
+          #   1. setup  — env vars, virtualenv, PYTHONPATH
+          #   2. verify — checks EDA tools are from /nix/store
+          #   3. shell  — execs into the user's preferred shell (FAB_NIX_SHELL)
+          nix-env =
+            let
+              inherit (nixpkgs.legacyPackages.${system}) mkShell writeShellScript writeText;
+              nixBinPath = lib.makeBinPath allPackages;
+
+              setupScript = writeShellScript "fab-nix-setup.sh" ''
+                # Deactivate any active venv/conda to avoid PATH conflicts
+                if [ -n "''${VIRTUAL_ENV:-}" ] && type deactivate &>/dev/null; then
+                  deactivate
+                fi
+                unset VIRTUAL_ENV CONDA_PREFIX CONDA_DEFAULT_ENV
+
+                # FAB_YOSYS_PATH: tells FABulous the nix yosys binary is named fab-yosys
+                export FAB_YOSYS_PATH="fab-yosys"
+
+                export REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+                . ${virtualenv}/bin/activate
+
+                # Build PYTHONPATH so librelane + venv + repo root are importable
+                _nix_py="${librelane-python-path}:${tkinter-python-path}"
+                VENV_SITE=$(python -c 'import site; print(site.getsitepackages()[0])' 2>/dev/null || true)
+                if [ -n "$VENV_SITE" ]; then
+                  export PYTHONPATH="$_nix_py:$VENV_SITE:$REPO_ROOT"
+                else
+                  export PYTHONPATH="$_nix_py:$REPO_ROOT"
+                fi
+
+                # Prepend nix tool paths LAST so they take precedence
+                export PATH="${nixBinPath}:$PATH"
+                export PS1="\[\033[1;34m\][fab-nix]\[\033[0m\] ''${PS1:-\$ }"
+              '';
+
+              # Verify silently: exits with error if any tool is missing.
+              # Skipped when FAB_NIX_NO_CHECK=1 (--no-check flag).
+              verifyScript = writeShellScript "fab-nix-verify.sh" ''
+                if [ "''${FAB_NIX_NO_CHECK:-}" = "1" ]; then
+                  return 0 2>/dev/null || exit 0
+                fi
+
+                TOOLS="fab-yosys:yosys nextpnr-generic:nextpnr openroad:openroad"
+                MISSING=""
+                for entry in $TOOLS; do
+                  cmd="''${entry%%:*}"
+                  label="''${entry##*:}"
+                  path=$(which "$cmd" 2>/dev/null)
+                  if [ -z "$path" ] || ! echo "$path" | grep -q "^/nix/"; then
+                    MISSING="$MISSING $label"
+                  fi
+                done
+
+                if [ -n "$MISSING" ]; then
+                  echo >&2 "ERROR: The following EDA tools are not from the Nix store:$MISSING"
+                  echo >&2 "Please report this issue at https://github.com/FPGA-Research/FABulous/issues"
+                  return 1 2>/dev/null || exit 1
+                fi
+              '';
+
+              # Fish -C runs AFTER config files, re-prepending nix paths
+              # that fish's config may have reordered (nix-darwin#1607).
+              fishInitScript = writeText "fab-fish-init.fish" ''
+                for p in (string split ":" "$_FAB_NIX_BIN_PATH")
+                  test -n "$p"; and fish_add_path --prepend --move $p
+                end
+                set -e _FAB_NIX_BIN_PATH
+              '';
+
+              shellSwitchScript = writeShellScript "fab-nix-shell-switch.sh" ''
+                if [ -n "''${FAB_NIX_SHELL:-}" ]; then
+                  case "''${FAB_NIX_SHELL}" in
+                    fish)
+                      export _FAB_NIX_BIN_PATH="${nixBinPath}"
+                      exec fish -C "source ${fishInitScript}"
+                      ;;
+                    bash) ;;
+                    *) exec "''${FAB_NIX_SHELL}" ;;
+                  esac
+                fi
+              '';
+            in
+            mkShell {
+              buildInputs = allPackages;
+              shellHook = ''
+                . ${setupScript}
+                . ${verifyScript}
+                . ${shellSwitchScript}
+              '';
+            };
         }
       );
 
