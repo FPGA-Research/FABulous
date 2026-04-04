@@ -1,4 +1,5 @@
 demo*
+ttsim*
 **/__pycache__
 *.egg-info/
 .venv
@@ -9,6 +10,8 @@ oss-cad-suite
 .ltex
 docker-image
 .claude
+.codex
+.coverage*
 CLAUDE.md
 
 # Documentation build artifacts (auto-generated in CI)
