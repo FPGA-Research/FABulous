@@ -1,4 +1,6 @@
-# master-thesis
+# FABxplore
+
+## Master Thesis
 
 Design Space Exploration of the Logic- and Routing Architecture of FABulous eFPGAs
 
@@ -19,7 +21,7 @@ Design Space Exploration of the Logic- and Routing Architecture of FABulous eFPG
 
 | Step | What happens                                                                                    |
 | ---- | ----------------------------------------------------------------------------------------------- |
-| 1    | Define a **parameterized FPGA architecture template**                                           |
+| 1    | Define a parameterized FPGA architecture template                                               |
 | 2    | Expose knobs: LUTs, carry chains, routing, coarse blocks                                        |
 | 3    | Extend CAD flow so synthesis, packing, placement, and routing support these knobs               |
 | 4    | Generate architecture variants automatically                                                    |
@@ -43,5 +45,8 @@ Design Space Exploration of the Logic- and Routing Architecture of FABulous eFPG
 
 > Build an automated FPGA DSE flow that varies key coarse architectural blocks such as LUTs, carry chains, and routing structures, adds CAD support for them, and evaluates them across benchmark classes to find architectures that best satisfy user-defined constraints.
 
-A nice next step would be to turn this into a **3-layer framework**: **architecture generator, CAD adaptation layer, benchmark-driven evaluator**.
+A nice next step would be to turn this into a 3-layer framework: architecture generator, CAD adaptation layer, benchmark evaluator.
 
+## Overview of the DSE Process
+
+![](./figures/dse_overview.png)
