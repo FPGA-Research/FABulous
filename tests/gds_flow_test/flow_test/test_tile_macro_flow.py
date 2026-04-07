@@ -96,6 +96,12 @@ class TestFABulousTileVerilogMacroFlowInit:
         assert flow.config["OVERRIDE_VAR"] == "override_value"
         assert flow.config["OVERRIDE_ME"] == "custom"
         assert flow.config["CUSTOM_VAR"] == "custom_value"
+        assert flow.config["NESTED_CFG"] == {
+            "base_only": "keep",
+            "shared": "override",
+            "override_only": "new",
+        }
+        assert flow.config["LIST_CFG"] == ["override"]
 
     def test_opt_mode_string_conversion(
         self,
@@ -115,6 +121,31 @@ class TestFABulousTileVerilogMacroFlowInit:
 
         assert flow.config["FABULOUS_OPT_MODE"] == OptMode.FIND_MIN_HEIGHT
         assert isinstance(flow.config["FABULOUS_OPT_MODE"], OptMode)
+
+    def test_empty_config_files_do_not_raise(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        tmp_path: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """Test empty YAML config files are treated as empty mappings."""
+        base_config = tmp_path / "base_empty.yaml"
+        override_config = tmp_path / "override_empty.yaml"
+        base_config.write_text("", encoding="utf-8")
+        override_config.write_text("", encoding="utf-8")
+
+        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+            tile_type=mock_tile,
+            io_pin_config=io_pin_config,
+            opt_mode=OptMode.FIND_MIN_WIDTH,
+            pdk=mock_pdk_root["pdk"],
+            pdk_root=mock_pdk_root["pdk_root"],
+            base_config_path=base_config,
+            override_config_path=override_config,
+        )
+
+        assert flow.config["DESIGN_NAME"] == "TestTile"
 
     def test_die_area_set_with_ignore_default(
         self,

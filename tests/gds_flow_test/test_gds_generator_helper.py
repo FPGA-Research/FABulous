@@ -6,6 +6,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
 from librelane.config.config import Config
 from pytest_mock import MockerFixture
 
@@ -13,6 +14,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     get_layer_info,
     get_pitch,
     get_routing_obstructions,
+    merge_config_mappings,
     round_die_area,
     round_up_decimal,
 )
@@ -169,6 +171,115 @@ class TestRoundUpDecimal:
         pitch = Decimal(5)
         result = round_up_decimal(value, pitch)
         assert result == Decimal(-5)
+
+
+class TestMergeConfigMappings:
+    """Tests for merge_config_mappings function."""
+
+    def test_merge_nested_dict_one_level(self, tmp_path: Path) -> None:
+        """Test one-level nested mapping merge with override precedence."""
+        base_config = tmp_path / "base.yaml"
+        override_config = tmp_path / "override.yaml"
+        base_config.write_text(
+            yaml.dump(
+                {
+                    "NESTED": {"base_only": "keep", "shared": "base"},
+                    "SCALAR": "base",
+                }
+            ),
+            encoding="utf-8",
+        )
+        override_config.write_text(
+            yaml.dump(
+                {
+                    "NESTED": {"shared": "override", "override_only": "new"},
+                    "SCALAR": "override",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        merged = merge_config_mappings({}, base_config, override_config)
+
+        assert merged["NESTED"] == {
+            "base_only": "keep",
+            "shared": "override",
+            "override_only": "new",
+        }
+        assert merged["SCALAR"] == "override"
+
+    def test_merge_replaces_lists(self, tmp_path: Path) -> None:
+        """Test list values are replaced by override values."""
+        base_config = tmp_path / "base.yaml"
+        override_config = tmp_path / "override.yaml"
+        base_config.write_text(yaml.dump({"LIST_CFG": ["base"]}), encoding="utf-8")
+        override_config.write_text(
+            yaml.dump({"LIST_CFG": ["override"]}),
+            encoding="utf-8",
+        )
+
+        merged = merge_config_mappings({}, base_config, override_config)
+
+        assert merged["LIST_CFG"] == ["override"]
+
+    def test_merge_applies_kwargs_last(self, tmp_path: Path) -> None:
+        """Test keyword overrides are applied after file-based configs."""
+        base_config = tmp_path / "base.yaml"
+        base_config.write_text(
+            yaml.dump({"NESTED": {"a": 1, "shared": "base"}, "SCALAR": "base"}),
+            encoding="utf-8",
+        )
+
+        merged = merge_config_mappings(
+            {},
+            base_config,
+            NESTED={"shared": "kw", "b": 2},
+            SCALAR="kw",
+        )
+
+        assert merged["NESTED"] == {"a": 1, "shared": "kw", "b": 2}
+        assert merged["SCALAR"] == "kw"
+
+    def test_merge_empty_file_is_empty_mapping(self, tmp_path: Path) -> None:
+        """Test empty YAML file is treated as an empty mapping."""
+        empty_config = tmp_path / "empty.yaml"
+        empty_config.write_text("", encoding="utf-8")
+
+        merged = merge_config_mappings({}, empty_config, KEY="value")
+
+        assert merged["KEY"] == "value"
+
+    def test_merge_non_mapping_yaml_raises(self, tmp_path: Path) -> None:
+        """Test non-mapping YAML files raise TypeError."""
+        bad_config = tmp_path / "bad.yaml"
+        bad_config.write_text("- item1\n- item2\n", encoding="utf-8")
+
+        with pytest.raises(TypeError, match="must contain a mapping"):
+            merge_config_mappings({}, bad_config)
+
+    def test_merge_base_dict_with_files(self, tmp_path: Path) -> None:
+        """Test base dict is merged with file configs correctly."""
+        override = tmp_path / "override.yaml"
+        override.write_text(
+            yaml.dump({"KEY": "file", "FILE_ONLY": "yes"}), encoding="utf-8"
+        )
+
+        result = merge_config_mappings({"KEY": "base", "BASE_ONLY": "yes"}, override)
+
+        assert result["KEY"] == "file"
+        assert result["BASE_ONLY"] == "yes"
+        assert result["FILE_ONLY"] == "yes"
+
+    def test_merge_all_three_layers(self, tmp_path: Path) -> None:
+        """Test base < files < kwargs precedence."""
+        cfg = tmp_path / "cfg.yaml"
+        cfg.write_text(yaml.dump({"A": "file", "B": "file"}), encoding="utf-8")
+
+        result = merge_config_mappings({"A": "base", "C": "base"}, cfg, A="kwarg")
+
+        assert result["A"] == "kwarg"
+        assert result["B"] == "file"
+        assert result["C"] == "base"
 
 
 class TestRoundDieArea:

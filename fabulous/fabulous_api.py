@@ -7,8 +7,8 @@ various fabric-related operations.
 
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
-import yaml
 from loguru import logger
 
 import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
@@ -36,6 +36,9 @@ from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
 )
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
+)
+from fabulous.fabric_generator.gds_generator.helper import (
+    merge_config_mappings,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
@@ -602,22 +605,21 @@ class FABulous_API:
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        final_config_args = {}
+        config_paths: list[Path] = []
         if base_config_path is not None:
-            final_config_args.update(
-                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
-            )
+            config_paths.append(base_config_path)
         if config_override_path is not None:
-            final_config_args.update(
-                yaml.safe_load(config_override_path.read_text(encoding="utf-8"))
-            )
-        final_config_args["FABULOUS_PROJ_DIR"] = str(project_dir.resolve())
-        final_config_args["FABULOUS_FABRIC"] = self.fabric
-        final_config_args["DESIGN_NAME"] = self.fabric.name
+            config_paths.append(config_override_path)
+        base_args: dict[str, Any] = {
+            "FABULOUS_PROJ_DIR": str(project_dir.resolve()),
+            "FABULOUS_FABRIC": self.fabric,
+            "DESIGN_NAME": self.fabric.name,
+        }
         if tile_opt_config is not None:
-            final_config_args["TILE_OPT_INFO"] = str(tile_opt_config)
-        if config_overrides:
-            final_config_args.update(config_overrides)
+            base_args["TILE_OPT_INFO"] = str(tile_opt_config)
+        final_config_args = merge_config_mappings(
+            base_args, *config_paths, **config_overrides
+        )
         flow = FABulousFabricMacroFullFlow(
             final_config_args,
             name=self.fabric.name,

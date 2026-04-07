@@ -11,10 +11,12 @@ Tests focus on:
 # ruff: noqa: SLF001
 
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
 from conftest import create_instance, create_macro
 from librelane.config.variable import Instance, Macro, Orientation
 from pytest_mock import MockerFixture
@@ -24,6 +26,130 @@ from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     configs,
     subs,
 )
+
+
+@pytest.mark.usefixtures("mock_config_load")
+class TestFlowInitConfigMerging:
+    """Tests for flow initialization config merge behavior."""
+
+    def test_init_with_empty_config_files(
+        self,
+        tmp_path: Path,
+        mock_fabric: MagicMock,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """Test empty YAML files are treated as empty mappings."""
+        fabric_verilog = tmp_path / "fabric.v"
+        fabric_verilog.write_text("module TestFabric(); endmodule", encoding="utf-8")
+
+        tile_macro_dir = tmp_path / "macro" / "tile1"
+        tile_macro_dir.mkdir(parents=True)
+        (tile_macro_dir / "metrics.json").write_text(
+            '{"design__die__bbox": "0 0 100 100"}', encoding="utf-8"
+        )
+        for folder_name, file_name in (
+            ("gds", "tile1.gds"),
+            ("lef", "tile1.lef"),
+            ("vh", "tile1.vh"),
+            ("nl", "tile1.nl.v"),
+            ("pnl", "tile1.pnl.v"),
+        ):
+            folder = tile_macro_dir / folder_name
+            folder.mkdir()
+            (folder / file_name).write_text("", encoding="utf-8")
+        (tile_macro_dir / "spef").mkdir()
+
+        base_config = tmp_path / "base_empty.yaml"
+        override_config = tmp_path / "override_empty.yaml"
+        base_config.write_text("", encoding="utf-8")
+        override_config.write_text("", encoding="utf-8")
+
+        flow = FABulousFabricMacroFlow(
+            fabric=mock_fabric,
+            fabric_verilog_paths=[fabric_verilog],
+            tile_macro_dirs={"tile1": tile_macro_dir},
+            base_config_path=base_config,
+            config_override_path=override_config,
+            design_dir=tmp_path / "out",
+            pdk_root=mock_pdk_root["pdk_root"],
+            pdk=mock_pdk_root["pdk"],
+        )
+
+        assert flow.config["DESIGN_NAME"] == "TestFabric"
+
+    def test_init_merges_nested_dicts(
+        self,
+        tmp_path: Path,
+        mock_fabric: MagicMock,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """Test base and override mappings merge one level with precedence."""
+        fabric_verilog = tmp_path / "fabric.v"
+        fabric_verilog.write_text("module TestFabric(); endmodule", encoding="utf-8")
+
+        tile_macro_dir = tmp_path / "macro" / "tile1"
+        tile_macro_dir.mkdir(parents=True)
+        (tile_macro_dir / "metrics.json").write_text(
+            '{"design__die__bbox": "0 0 100 100"}', encoding="utf-8"
+        )
+        for folder_name, file_name in (
+            ("gds", "tile1.gds"),
+            ("lef", "tile1.lef"),
+            ("vh", "tile1.vh"),
+            ("nl", "tile1.nl.v"),
+            ("pnl", "tile1.pnl.v"),
+        ):
+            folder = tile_macro_dir / folder_name
+            folder.mkdir()
+            (folder / file_name).write_text("", encoding="utf-8")
+        (tile_macro_dir / "spef").mkdir()
+
+        base_config = tmp_path / "base.yaml"
+        base_config.write_text(
+            yaml.dump(
+                {
+                    "NESTED_CFG": {"base_only": "keep", "shared": "base"},
+                    "LIST_CFG": ["base"],
+                    "OVERRIDE_ME": "base",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        override_config = tmp_path / "override.yaml"
+        override_config.write_text(
+            yaml.dump(
+                {
+                    "NESTED_CFG": {
+                        "shared": "override",
+                        "override_only": "new",
+                    },
+                    "LIST_CFG": ["override"],
+                    "OVERRIDE_ME": "override",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        flow = FABulousFabricMacroFlow(
+            fabric=mock_fabric,
+            fabric_verilog_paths=[fabric_verilog],
+            tile_macro_dirs={"tile1": tile_macro_dir},
+            base_config_path=base_config,
+            config_override_path=override_config,
+            design_dir=tmp_path / "out",
+            pdk_root=mock_pdk_root["pdk_root"],
+            pdk=mock_pdk_root["pdk"],
+            OVERRIDE_ME="custom",
+        )
+
+        assert flow.config["NESTED_CFG"] == {
+            "base_only": "keep",
+            "shared": "override",
+            "override_only": "new",
+        }
+        assert flow.config["LIST_CFG"] == ["override"]
+        assert flow.config["OVERRIDE_ME"] == "custom"
 
 
 class TestComputeDieArea:

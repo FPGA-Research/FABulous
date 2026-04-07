@@ -171,7 +171,8 @@ def base_config_file(tmp_path: Path) -> Path:
             {
                 "BASE_VAR": "base_value",
                 "OVERRIDE_ME": "base",
-                "PDN_CONFIG": "base_pdn",
+                "NESTED_CFG": {"base_only": "keep", "shared": "base"},
+                "LIST_CFG": ["base"],
             }
         )
     )
@@ -183,7 +184,14 @@ def override_config_file(tmp_path: Path) -> Path:
     """Create an override config file for testing config merging."""
     config_path: Path = tmp_path / "override_config.yaml"
     config_path.write_text(
-        yaml.dump({"OVERRIDE_ME": "override", "OVERRIDE_VAR": "override_value"})
+        yaml.dump(
+            {
+                "OVERRIDE_ME": "override",
+                "OVERRIDE_VAR": "override_value",
+                "NESTED_CFG": {"shared": "override", "override_only": "new"},
+                "LIST_CFG": ["override"],
+            }
+        )
     )
     return config_path
 

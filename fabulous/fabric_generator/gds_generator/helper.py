@@ -6,7 +6,9 @@ This module exposes utilities used by the GDS generator flows.
 from collections import defaultdict
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
+import yaml
 from librelane.config.config import Config
 from librelane.logging.logger import info
 
@@ -73,6 +75,62 @@ def round_up_decimal(value: Decimal, pitch: Decimal) -> Decimal:
     if remainder > 0:
         quotient += 1
     return quotient * pitch
+
+
+def _merge_two_mappings(
+    base_config: dict[str, Any],
+    override_config: dict[str, Any],
+) -> dict[str, Any]:
+    """Merge two mappings with one-level nested dict merging semantics."""
+    merged_config = dict(base_config)
+    for key, override_value in override_config.items():
+        base_value = merged_config.get(key)
+        if isinstance(base_value, dict) and isinstance(override_value, dict):
+            merged_config[key] = {**base_value, **override_value}
+        else:
+            merged_config[key] = override_value
+    return merged_config
+
+
+def merge_config_mappings(
+    base_config: dict[str, Any], *configs: Path, **kwargs: dict
+) -> dict[str, Any]:
+    """Merge a base dict with YAML config files and keyword overrides.
+
+    Applies one-level nested dict merging: when both the base and override
+    values for a key are dicts, their entries are shallow-merged (override wins).
+    All other types are replaced outright.
+
+    Precedence (last wins): base_config < config files (in order) < kwargs.
+
+    Parameters
+    ----------
+    base_config : dict[str, Any]
+        Base configuration dictionary.
+    *configs : Path
+        YAML configuration file paths to merge in order on top of base.
+    **kwargs : dict
+        Final keyword overrides applied after all file-based configs.
+
+    Raises
+    ------
+    TypeError
+        If any of the config files contains a non-mapping at the top level.
+
+    Returns
+    -------
+    dict[str, Any]
+        The merged configuration dictionary.
+    """
+    merged_config = dict(base_config)
+    for config_path in configs:
+        loaded_config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        if loaded_config is None:
+            return {}
+        if not isinstance(loaded_config, dict):
+            raise TypeError(f"Config YAML at {config_path} must contain a mapping")
+        merged_config = _merge_two_mappings(merged_config, loaded_config)
+    return _merge_two_mappings(merged_config, kwargs)
 
 
 def round_die_area(config: Config) -> Config:
