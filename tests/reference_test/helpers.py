@@ -335,7 +335,8 @@ def run_shell_commands(
     shell_commands : list[dict[str, str]]
         List of command dicts. Each dict has:
           - cmd: str — the shell command to run
-          - cwd: str | None — subdirectory relative to project_path (default: project root)
+          - cwd: str | None — subdirectory relative to project_path
+            (default: project root)
           - required_tools: list[str] | None — tools to check via PATH before running
     stop_on_failure : bool
         Stop executing further commands after the first failure (default: True).
