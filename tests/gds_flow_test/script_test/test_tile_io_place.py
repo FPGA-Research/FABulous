@@ -810,10 +810,10 @@ class TestIntegration:
 class TestNormalTileSupertilePinAlignment:
     """Pin Y-coordinate alignment between stacked normal tiles and a 2-tall super tile.
 
-    Each super tile division must produce the same track coordinates as a
-    standalone normal tile of the same height.  With non-zero track origins
-    (sky130) the total track count is not 2x the single-tile count, so naive
-    integer division loses tracks per division.
+    Each super tile division must produce the same track coordinates as a standalone
+    normal tile of the same height.  With non-zero track origins (sky130) the total
+    track count is not 2x the single-tile count, so naive integer division loses tracks
+    per division.
     """
 
     @staticmethod
@@ -828,8 +828,6 @@ class TestNormalTileSupertilePinAlignment:
     @pytest.mark.parametrize(
         ("origin", "step", "tile_height", "normal_count", "super_count", "label"),
         [
-            # normal_count = floor((tile_height - origin) / step) + 1
-            # super_count = floor((2*tile_height - origin) / step) + 1
             # --- on-pitch (tile_height is a multiple of step, guaranteed by round_die_area) ---
             (0.0, 42.0, 1008.0, 24, 48, "on-pitch-ihp-zero-offset"),
             (34.0, 68.0, 1020.0, 15, 30, "on-pitch-sky130"),
@@ -871,8 +869,12 @@ class TestNormalTileSupertilePinAlignment:
             "none",
         )
 
-        plan_normal.allocate_tracks({Side.EAST: (normal_count, step, origin, tile_height)})
-        plan_super.allocate_tracks({Side.WEST: (super_count, step, origin, 2 * tile_height)})
+        plan_normal.allocate_tracks(
+            {Side.EAST: (normal_count, step, origin, tile_height)}
+        )
+        plan_super.allocate_tracks(
+            {Side.WEST: (super_count, step, origin, 2 * tile_height)}
+        )
 
         normal_tracks = plan_normal.track_coordinates[Side.EAST]
         super_tracks = plan_super.track_coordinates[Side.WEST]
@@ -936,8 +938,12 @@ class TestNormalTileSupertilePinAlignment:
             "none",
         )
 
-        plan_normal.allocate_tracks({Side.EAST: (normal_count, step, origin, tile_height)})
-        plan_super.allocate_tracks({Side.WEST: (super_count, step, origin, 3 * tile_height)})
+        plan_normal.allocate_tracks(
+            {Side.EAST: (normal_count, step, origin, tile_height)}
+        )
+        plan_super.allocate_tracks(
+            {Side.WEST: (super_count, step, origin, 3 * tile_height)}
+        )
 
         normal_tracks = plan_normal.track_coordinates[Side.EAST]
         super_tracks = plan_super.track_coordinates[Side.WEST]
@@ -999,8 +1005,12 @@ class TestNormalTileSupertilePinAlignment:
             "none",
         )
 
-        plan_normal.allocate_tracks({Side.NORTH: (normal_count, step, origin, tile_width)})
-        plan_super.allocate_tracks({Side.SOUTH: (super_count, step, origin, 2 * tile_width)})
+        plan_normal.allocate_tracks(
+            {Side.NORTH: (normal_count, step, origin, tile_width)}
+        )
+        plan_super.allocate_tracks(
+            {Side.SOUTH: (super_count, step, origin, 2 * tile_width)}
+        )
 
         normal_tracks = plan_normal.track_coordinates[Side.NORTH]
         super_tracks = plan_super.track_coordinates[Side.SOUTH]
@@ -1060,8 +1070,12 @@ class TestNormalTileSupertilePinAlignment:
             "none",
         )
 
-        plan_normal.allocate_tracks({Side.EAST: (normal_count, step, origin, tile_height)})
-        plan_super.allocate_tracks({Side.WEST: (super_count, step, origin, 2 * tile_height)})
+        plan_normal.allocate_tracks(
+            {Side.EAST: (normal_count, step, origin, tile_height)}
+        )
+        plan_super.allocate_tracks(
+            {Side.WEST: (super_count, step, origin, 2 * tile_height)}
+        )
 
         normal_tracks = plan_normal.track_coordinates[Side.EAST]
         super_tracks = plan_super.track_coordinates[Side.WEST]
@@ -1080,22 +1094,24 @@ class TestNormalTileSupertilePinAlignment:
     def test_uneven_pin_counts_across_subtiles(self, mocker: MockerFixture) -> None:
         """Sub-tiles with different pin counts must still get equal track allocation.
 
-        Real super tiles often have different port counts per row (e.g., DSP_top
-        has more ports than DSP_bot).  The track allocation per division must be
-        the same regardless of how many pins each sub-tile has.
+        Real super tiles often have different port counts per row (e.g., DSP_top has
+        more ports than DSP_bot).  The track allocation per division must be the same
+        regardless of how many pins each sub-tile has.
         """
         # Normal tile with 4 pins
         normal_config = {
-            "X0Y0": {"EAST": [{"pins": ["n0", "n1", "n2", "n3"], "sort_mode": "bus_major"}]},
+            "X0Y0": {
+                "EAST": [{"pins": ["n0", "n1", "n2", "n3"], "sort_mode": "bus_major"}]
+            },
         }
         # Super tile: Y0 has 5 pins, Y1 has 2 pins (uneven)
         super_config = {
             "X0Y0": {
-                "WEST": [{"pins": ["s0", "s1", "s2", "s3", "s4"], "sort_mode": "bus_major"}]
+                "WEST": [
+                    {"pins": ["s0", "s1", "s2", "s3", "s4"], "sort_mode": "bus_major"}
+                ]
             },
-            "X0Y1": {
-                "WEST": [{"pins": ["s5", "s6"], "sort_mode": "bus_major"}]
-            },
+            "X0Y1": {"WEST": [{"pins": ["s5", "s6"], "sort_mode": "bus_major"}]},
         }
 
         plan_normal = PinPlacementPlan(
@@ -1126,8 +1142,8 @@ class TestNormalTileSupertilePinAlignment:
     def test_multiple_segments_per_subtile(self, mocker: MockerFixture) -> None:
         """Sub-tiles with multiple segments on the same side must align.
 
-        Real tiles have routing ports AND frame signals on the same side,
-        represented as separate segments.
+        Real tiles have routing ports AND frame signals on the same side, represented as
+        separate segments.
         """
         normal_config = {
             "X0Y0": {
@@ -1210,7 +1226,7 @@ class TestNormalTileSupertilePinAlignment:
         super_count: int,
         label: str,
     ) -> None:
-        """origin >= step must not crash and divisions must stay consistent."""
+        """Origin >= step must not crash and divisions must stay consistent."""
         normal_config = {
             "X0Y0": {"EAST": [{"pins": ["n0", "n1"], "sort_mode": "bus_major"}]},
         }
@@ -1230,8 +1246,12 @@ class TestNormalTileSupertilePinAlignment:
             "none",
         )
 
-        plan_normal.allocate_tracks({Side.EAST: (normal_count, step, origin, tile_height)})
-        plan_super.allocate_tracks({Side.WEST: (super_count, step, origin, 2 * tile_height)})
+        plan_normal.allocate_tracks(
+            {Side.EAST: (normal_count, step, origin, tile_height)}
+        )
+        plan_super.allocate_tracks(
+            {Side.WEST: (super_count, step, origin, 2 * tile_height)}
+        )
 
         normal_tracks = plan_normal.track_coordinates[Side.EAST]
         super_tracks = plan_super.track_coordinates[Side.WEST]
@@ -1267,10 +1287,10 @@ class TestNormalTileSupertilePinAlignment:
     ) -> None:
         """Stride filtering must not shift pins between divisions.
 
-        When the division boundary falls on an odd global track index and
-        stride=2, a global-index-based filter would skip the first track in
-        upper divisions, shifting all pins by 1 track.  The stride must be
-        relative to each division's start instead.
+        When the division boundary falls on an odd global track index and stride=2, a
+        global-index-based filter would skip the first track in upper divisions,
+        shifting all pins by 1 track.  The stride must be relative to each division's
+        start instead.
         """
         import math as m
 
@@ -1285,7 +1305,9 @@ class TestNormalTileSupertilePinAlignment:
             "X0Y0": {"EAST": [{"pins": ["n0", "n1"], "sort_mode": "bus_major"}]},
         }
         plan_normal = PinPlacementPlan(
-            normal_config, self._make_bterms(mocker, ["n0", "n1"]), "none",
+            normal_config,
+            self._make_bterms(mocker, ["n0", "n1"]),
+            "none",
         )
         plan_normal.allocate_tracks(
             {Side.EAST: (normal_count, step_f, origin_f, tile_h)}
@@ -1298,7 +1320,9 @@ class TestNormalTileSupertilePinAlignment:
             "X0Y1": {"WEST": [{"pins": ["s2", "s3"], "sort_mode": "bus_major"}]},
         }
         plan_super = PinPlacementPlan(
-            super_config, self._make_bterms(mocker, ["s0", "s1", "s2", "s3"]), "none",
+            super_config,
+            self._make_bterms(mocker, ["s0", "s1", "s2", "s3"]),
+            "none",
         )
         plan_super.allocate_tracks(
             {Side.WEST: (super_count, step_f, origin_f, 2 * tile_h)}
@@ -1334,14 +1358,21 @@ class TestNormalTileSupertilePinAlignment:
 
     @pytest.mark.parametrize("num_divisions", [2, 3, 4])
     def test_division_index_symmetry_east_west(self, num_divisions: int) -> None:
-        """EAST and WEST sides must produce the same division index for the same tile_y."""
+        """EAST and WEST sides must produce the same division index for the same
+        tile_y."""
         for tile_y in range(num_divisions):
             east_idx = PinPlacementPlan._get_division_index(
-                Side.EAST, tile_x=0, tile_y=tile_y, tile_idx=0,
+                Side.EAST,
+                tile_x=0,
+                tile_y=tile_y,
+                tile_idx=0,
                 num_divisions=num_divisions,
             )
             west_idx = PinPlacementPlan._get_division_index(
-                Side.WEST, tile_x=0, tile_y=tile_y, tile_idx=0,
+                Side.WEST,
+                tile_x=0,
+                tile_y=tile_y,
+                tile_idx=0,
                 num_divisions=num_divisions,
             )
             assert east_idx == west_idx, (
