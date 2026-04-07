@@ -175,6 +175,12 @@ It is planned to remove these limitations in future versions of FABulous.
 
     Disable the generation of the UserCLK port, regardless the fabric uses them or not.
 
+  - `DisableConfigBitsN`, `[TRUE|FALSE]` (default: `FALSE`)
+
+    Disable the generation of inverted configuration bit ports (`ConfigBits_N`) and the corresponding negated select ports (`S0N`, `S1N`, ...) on custom multiplexers. When set to `TRUE`, only `ConfigBits` and `S` ports are generated in the config memory, switch matrix, and tile modules.
+
+    This is useful when the target technology does not require complementary configuration signals, reducing the port count and simplifying the generated HDL.
+
   - `Tile`, `path`
 
     Specify a path to a tile configuration file that will be loaded.
