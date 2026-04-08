@@ -115,7 +115,6 @@ def create_config_csv(file_path: Path, data: list[dict]) -> None:
         The path where the CSV file should be created
     data : list[dict]
         List of dictionaries containing the CSV row data
-
     """
     with file_path.open("w", newline="") as f:
         if data:
@@ -138,7 +137,6 @@ def verify_csv_content(file_path: Path, expected_rows: int | None = None) -> lis
     -------
     list[dict]
         The parsed CSV data as a list of dictionaries
-
     """
     assert file_path.exists(), f"CSV file {file_path} does not exist"
 
@@ -187,7 +185,6 @@ def create_switchmatrix_list(
     connections : list[tuple[str, str]] | None
         List of (source, destination) connection pairs.
         Defaults to [("N1BEG0", "E1END0")]
-
     """
     connections = connections or [("N1BEG0", "E1END0")]
     lines = [f"{src},{dst}" for src, dst in connections]
@@ -212,7 +209,6 @@ def create_switchmatrix_csv(
         List of destination port names. Defaults to ["DEST0"]
     sources : list[str] | None
         List of source port names. Defaults to ["SRC0"]
-
     """
     destinations = destinations or ["DEST0"]
     sources = sources or ["SRC0"]
@@ -300,7 +296,6 @@ def configmem_list(
             -------
             str
                 Random bit mask string with bits_used '1's and remaining '0's.
-
             """
             if bits_used == 0:
                 return "0" * total_bits

@@ -14,7 +14,7 @@ class TestFABulousTileIOPlacement:
 
     def test_get_command_includes_required_parameters(
         self, mock_config: Config, mock_state: State, mocker: MockerFixture
-    ):
+    ) -> None:
         """Test that get_command() includes all required IO placement parameters."""
         mocker.patch(
             "librelane.steps.odb.OdbpyStep.get_command",
@@ -66,7 +66,7 @@ class TestFABulousTileIOPlacement:
 
     def test_get_command_excludes_length_args_when_none(
         self, mock_config: Config, mock_state: State, mocker: MockerFixture
-    ):
+    ) -> None:
         """Test that get_command() excludes length arguments when not configured."""
         mocker.patch(
             "librelane.steps.odb.OdbpyStep.get_command",

@@ -67,8 +67,8 @@ def mock_config_load(
 ) -> None:
     """Mock Config.load to return a properly structured Config.
 
-    This fixture patches librelane.config.config.Config.load to avoid PDK
-    validation while providing realistic config values.
+    This fixture patches librelane.config.config.Config.load to avoid PDK validation
+    while providing realistic config values.
     """
 
     def _mock_load(

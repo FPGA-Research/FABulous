@@ -208,10 +208,10 @@ def make_fake_odb_with_geometry(recorder: GeometryRecorder) -> SimpleNamespace:
 
     def dbNet_create(block: FakeBlock, name: str) -> FakeNet:
         net = FakeNet(name)
-        block._add_net(net)
+        block._add_net(net)  # noqa: SLF001
         return net
 
-    def dbBTerm_create(net: FakeNet, name: str) -> FakeBTerm:
+    def dbBTerm_create(_net: FakeNet, name: str) -> FakeBTerm:
         return FakeBTerm(name)
 
     def dbBPin_create(bterm: FakeBTerm) -> FakeBPin:
@@ -221,14 +221,14 @@ def make_fake_odb_with_geometry(recorder: GeometryRecorder) -> SimpleNamespace:
         return Mock(net=net, mode=mode)
 
     def dbSBox_create(
-        wire: Mock, layer: object, x1: int, y1: int, x2: int, y2: int, stripe: str
+        wire: Mock, _layer: object, x1: int, y1: int, x2: int, y2: int, _stripe: str
     ) -> None:
         recorder.sboxes.append((wire.net.getName(), x1, y1, x2, y2))
 
     def dbBox_create(
-        bpin: FakeBPin, layer: object, x1: int, y1: int, x2: int, y2: int
+        bpin: FakeBPin, _layer: object, x1: int, y1: int, x2: int, y2: int
     ) -> None:
-        recorder.bboxes.append((bpin._bterm.getName(), x1, y1, x2, y2))
+        recorder.bboxes.append((bpin._bterm.getName(), x1, y1, x2, y2))  # noqa: SLF001
 
     return SimpleNamespace(
         dbNet=SimpleNamespace(create=dbNet_create),
@@ -240,10 +240,13 @@ def make_fake_odb_with_geometry(recorder: GeometryRecorder) -> SimpleNamespace:
     )
 
 
-def run_power_function(recorder: GeometryRecorder, reader: FakeReader, metal_layer: str = "metal1") -> None:
+def run_power_function(
+    _recorder: GeometryRecorder, reader: FakeReader, metal_layer: str = "metal1"
+) -> None:
     """Execute the power connection logic (extracted from odb_power.py)."""
     # Import odb from sys.modules (where we've monkeypatched it)
     import sys
+
     odb = sys.modules["odb"]
 
     # This mimics the logic from odb_power.py power() function
@@ -337,8 +340,11 @@ def run_power_function(recorder: GeometryRecorder, reader: FakeReader, metal_lay
     vgnd_bpin.setPlacementStatus("FIRM")
 
 
-def test_power_transforms_coordinates_correctly(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test that power() correctly transforms geometry coordinates by instance location."""
+def test_power_transforms_coordinates_correctly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that power() correctly transforms geometry coordinates by instance
+    location."""
     recorder = GeometryRecorder()
     fake_odb = make_fake_odb_with_geometry(recorder)
     monkeypatch.setitem(sys.modules, "odb", fake_odb)
@@ -356,14 +362,18 @@ def test_power_transforms_coordinates_correctly(monkeypatch: pytest.MonkeyPatch)
     run_power_function(recorder, reader, "metal1")
 
     # Verify coordinate transformation: instance_loc + geometry_bbox
-    # Expected: (100 + 10, 200 + 20, 100 + 30, 200 + 40) = (110, 220, 130, 240)
+    # Expected coords: (100 + 10, 200 + 20, 100 + 30, 200 + 40) = (110, 220, 130, 240)
     vpwr_sboxes = [box for box in recorder.sboxes if box[0] == "VPWR"]
     assert len(vpwr_sboxes) == 1, "Should create one SBox for VPWR"
-    assert vpwr_sboxes[0] == ("VPWR", 110, 220, 130, 240), "Incorrect coordinate transformation"
+    assert vpwr_sboxes[0] == ("VPWR", 110, 220, 130, 240), (
+        "Incorrect coordinate transformation"
+    )
 
     vpwr_bboxes = [box for box in recorder.bboxes if box[0] == "VPWR"]
     assert len(vpwr_bboxes) == 1, "Should create one BBox for VPWR"
-    assert vpwr_bboxes[0] == ("VPWR", 110, 220, 130, 240), "BBox should match SBox coordinates"
+    assert vpwr_bboxes[0] == ("VPWR", 110, 220, 130, 240), (
+        "BBox should match SBox coordinates"
+    )
 
 
 def test_power_handles_multiple_instances(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -486,10 +496,10 @@ def test_power_connects_iterms_to_nets(monkeypatch: pytest.MonkeyPatch) -> None:
     vpwr_iterm = next(it for it in iterms if it.getMTerm().getName() == "VPWR")
     vgnd_iterm = next(it for it in iterms if it.getMTerm().getName() == "VGND")
 
-    assert vpwr_iterm._net is not None, "VPWR iterm should be connected"
-    assert vgnd_iterm._net is not None, "VGND iterm should be connected"
-    assert vpwr_iterm._net.getName() == "VPWR"
-    assert vgnd_iterm._net.getName() == "VGND"
+    assert vpwr_iterm._net is not None, "VPWR iterm should be connected"  # noqa: SLF001
+    assert vgnd_iterm._net is not None, "VGND iterm should be connected"  # noqa: SLF001
+    assert vpwr_iterm._net.getName() == "VPWR"  # noqa: SLF001
+    assert vgnd_iterm._net.getName() == "VGND"  # noqa: SLF001
 
 
 def test_power_handles_empty_block(monkeypatch: pytest.MonkeyPatch) -> None:

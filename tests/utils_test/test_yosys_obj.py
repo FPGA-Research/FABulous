@@ -1,8 +1,7 @@
-"""
-Test module for YosysJson class and related components using pytest.
+"""Test module for YosysJson class and related components using pytest.
 
-This module provides comprehensive tests for the Yosys JSON parser,
-including parsing of different HDL formats and netlist analysis methods.
+This module provides comprehensive tests for the Yosys JSON parser, including parsing of
+different HDL formats and netlist analysis methods.
 """
 
 import tempfile

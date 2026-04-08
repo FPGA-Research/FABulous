@@ -8,18 +8,19 @@ import pytest
 from _pytest.logging import LogCaptureFixture
 from loguru import logger
 
+import fabulous.fabulous
+import fabulous.fabulous_settings
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from fabulous.fabulous_cli.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
-import fabulous.fabulous_settings
-import fabulous.fabulous
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]
     """Add command line option to include slow tests explicitly.
 
     Usage: pytest --runslow
-    Without this flag, tests marked with @pytest.mark.slow are skipped via addopts filter.
+    Without this flag, tests marked with @pytest.mark.slow are skipped via
+    addopts filter.
     """
     parser.addoption(
         "--runslow",
@@ -41,8 +42,8 @@ def pytest_configure(config: pytest.Config) -> None:  # type: ignore[name-define
 def normalize(block: str) -> list[str]:
     """Normalize a block of text to perform comparison.
 
-    Strip newlines from the very beginning and very end, then split into
-    separate lines and strip trailing whitespace from each line.
+    Strip newlines from the very beginning and very end, then split into separate lines
+    and strip trailing whitespace from each line.
     """
     assert isinstance(block, str)
     block = block.strip("\n")
@@ -62,7 +63,9 @@ def normalize_and_check_for_errors(caplog_text: str) -> list[str]:
 
 
 @pytest.fixture(autouse=True)
-def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Generator[None]:
+def fabulous_test_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> Generator[None]:
     """Set up global test environment for FABulous tests."""
     fabulous_root = str(Path(__file__).resolve().parent.parent / "FABulous")
 
@@ -76,9 +79,11 @@ def fabulous_test_environment(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     monkeypatch.setenv("FABULOUS_TESTING", "TRUE")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(Path, "home", lambda _: tmp_path)
-    # FAB_USER_CONFIG_DIR is computed at module import time, so Path.home() patching
-    # above is too late. Patch the constant directly in both modules that hold a binding.
-    monkeypatch.setattr(fabulous.fabulous_settings, "FAB_USER_CONFIG_DIR", fake_user_config_dir)
+    # FAB_USER_CONFIG_DIR is computed at module import time, so Path.home()
+    # patching above is too late. Patch the constant directly in both modules.
+    monkeypatch.setattr(
+        fabulous.fabulous_settings, "FAB_USER_CONFIG_DIR", fake_user_config_dir
+    )
     monkeypatch.setattr(fabulous.fabulous, "FAB_USER_CONFIG_DIR", fake_user_config_dir)
     (tmp_path / ".ciel" / "ihp-sg13g2").mkdir(parents=True, exist_ok=True)
     setup_logger(0, False)

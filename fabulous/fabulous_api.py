@@ -623,7 +623,7 @@ class FABulous_API:
             name=self.fabric.name,
             design_dir=str(out_folder.resolve()),
             pdk=pdk,
-            pdk_root=str((pdk_root).resolve().parent),
+            pdk_root=str(pdk_root.resolve()),
         )
         result = flow.start()
         logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")

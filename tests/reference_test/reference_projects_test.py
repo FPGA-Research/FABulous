@@ -80,7 +80,7 @@ def load_reference_projects_config(config_path: Path) -> list[ReferenceProject]:
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     """Generate test parameters dynamically based on config."""
     if "ref_project" in metafunc.fixturenames:
-        # Need to import _session_config here to avoid uninialized/circular import
+        # Need to import _session_config here to avoid uninitialized/circular import
         from tests.reference_test.conftest import _session_config
 
         if _session_config.projects_conf is None:
@@ -152,7 +152,8 @@ def test_reference_project_execution(
 
         # Always check that basic commands succeeded
         assert not execution_info["commands_failed"], (
-            f"Commands failed for {ref_project.name}: {execution_info['commands_failed']}"
+            f"Commands failed for {ref_project.name}: "
+            f"{execution_info['commands_failed']}"
             f"\nErrors: {execution_info['errors']}"
         )
 
@@ -208,7 +209,8 @@ def test_reference_project_execution(
             )
 
             if cmp_diff:
-                # Need to import _session_config here to avoid uninialized/circular import
+                # Need to import _session_config here to avoid
+                # uninialized/circular import
                 from tests.reference_test.conftest import _session_config
 
                 diff_report = format_file_differences_report(
