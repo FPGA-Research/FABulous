@@ -126,7 +126,7 @@ def merge_config_mappings(
     for config_path in configs:
         loaded_config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         if loaded_config is None:
-            return {}
+            continue
         if not isinstance(loaded_config, dict):
             raise TypeError(f"Config YAML at {config_path} must contain a mapping")
         merged_config = _merge_two_mappings(merged_config, loaded_config)
