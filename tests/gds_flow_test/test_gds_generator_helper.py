@@ -222,23 +222,31 @@ class TestMergeConfigMappings:
 
         assert merged["LIST_CFG"] == ["override"]
 
-    def test_merge_applies_kwargs_last(self, tmp_path: Path) -> None:
-        """Test keyword overrides are applied after file-based configs."""
-        base_config = tmp_path / "base.yaml"
-        base_config.write_text(
-            yaml.dump({"NESTED": {"a": 1, "shared": "base"}, "SCALAR": "base"}),
+    def test_merge_precedence_base_files_kwargs(self, tmp_path: Path) -> None:
+        """Test full three-layer precedence: base < files < kwargs."""
+        cfg = tmp_path / "cfg.yaml"
+        cfg.write_text(
+            yaml.dump(
+                {
+                    "NESTED": {"a": 1, "shared": "file"},
+                    "SCALAR": "file",
+                    "FILE_ONLY": "yes",
+                }
+            ),
             encoding="utf-8",
         )
 
-        merged = merge_config_mappings(
-            {},
-            base_config,
-            NESTED={"shared": "kw", "b": 2},
-            SCALAR="kw",
+        result = merge_config_mappings(
+            {"SCALAR": "base", "BASE_ONLY": "yes", "NESTED": {"shared": "base"}},
+            cfg,
+            SCALAR="kwarg",
+            NESTED={"shared": "kwarg", "b": 2},
         )
 
-        assert merged["NESTED"] == {"a": 1, "shared": "kw", "b": 2}
-        assert merged["SCALAR"] == "kw"
+        assert result["SCALAR"] == "kwarg"
+        assert result["NESTED"] == {"a": 1, "shared": "kwarg", "b": 2}
+        assert result["BASE_ONLY"] == "yes"
+        assert result["FILE_ONLY"] == "yes"
 
     def test_merge_empty_file_is_empty_mapping(self, tmp_path: Path) -> None:
         """Test empty YAML file is treated as an empty mapping."""
@@ -256,30 +264,6 @@ class TestMergeConfigMappings:
 
         with pytest.raises(TypeError, match="must contain a mapping"):
             merge_config_mappings({}, bad_config)
-
-    def test_merge_base_dict_with_files(self, tmp_path: Path) -> None:
-        """Test base dict is merged with file configs correctly."""
-        override = tmp_path / "override.yaml"
-        override.write_text(
-            yaml.dump({"KEY": "file", "FILE_ONLY": "yes"}), encoding="utf-8"
-        )
-
-        result = merge_config_mappings({"KEY": "base", "BASE_ONLY": "yes"}, override)
-
-        assert result["KEY"] == "file"
-        assert result["BASE_ONLY"] == "yes"
-        assert result["FILE_ONLY"] == "yes"
-
-    def test_merge_all_three_layers(self, tmp_path: Path) -> None:
-        """Test base < files < kwargs precedence."""
-        cfg = tmp_path / "cfg.yaml"
-        cfg.write_text(yaml.dump({"A": "file", "B": "file"}), encoding="utf-8")
-
-        result = merge_config_mappings({"A": "base", "C": "base"}, cfg, A="kwarg")
-
-        assert result["A"] == "kwarg"
-        assert result["B"] == "file"
-        assert result["C"] == "base"
 
 
 class TestRoundDieArea:

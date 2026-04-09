@@ -504,31 +504,41 @@ class FABulous_API:
         base_config_path: Path | None,
         config_override_path: Path | None,
         custom_config_overrides: dict | None,
-        flow: Flow,
-    ) -> None:
-        if base_config_path:
-            base_meta = Config.get_meta(base_config_path)
-            if base_meta and base_meta.flow != flow.name:
+        flow: type[Flow],
+    ) -> type[Flow]:
+        """Apply substituting_steps from config metadata to the given flow class.
+
+        Returns the (possibly substituted) flow class. ``Flow.Substitute`` returns
+        a new subclass rather than mutating the original, so the return value
+        must be used when instantiating the flow.
+        """
+        flow_name = flow.__name__
+
+        def _apply_meta(config_path: Path, label: str) -> None:
+            nonlocal flow
+            meta = Config.get_meta(str(config_path))
+            if meta.flow is not None and meta.flow != flow_name:
                 logger.warning(
-                    f"Base config flow '{base_meta.flow}' does not match expected "
-                    f"'FABulousTileVerilogMacroFlow', any flow-specific defaults "
-                    "in the base config will be ignored."
+                    f"{label} config flow '{meta.flow}' does not match expected "
+                    f"'{flow_name}', any flow-specific defaults in the "
+                    f"{label.lower()} config will be ignored."
                 )
-            else:
-                flow.Substitute(base_meta.substituting_steps)
+                return
+            if meta.substituting_steps:
+                flow = flow.Substitute(meta.substituting_steps)
+
+        if base_config_path:
+            _apply_meta(base_config_path, "Base")
 
         if config_override_path:
-            override_meta = Config.get_meta(config_override_path)
-            if override_meta and override_meta.flow != "FABulousTileVerilogMacroFlow":
-                logger.warning(
-                    f"Override config flow '{override_meta.flow}' does not match "
-                    f"expected 'FABulousTileVerilogMacroFlow', any flow-specific "
-                    "defaults in the override config will be ignored."
-                )
-            else:
-                flow.Substitute(override_meta.substituting_steps)
+            _apply_meta(config_override_path, "Override")
+
         if custom_config_overrides:
-            flow.Substitute(custom_config_overrides.get("substituting_steps", {}))
+            substituting_steps = custom_config_overrides.get("substituting_steps")
+            if substituting_steps:
+                flow = flow.Substitute(substituting_steps)
+
+        return flow
 
     def genTileMacro(
         self,
@@ -548,14 +558,14 @@ class FABulous_API:
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        self._flow_sub(
+        flow_cls = self._flow_sub(
             base_config_path,
             config_override_path,
             custom_config_overrides,
             FABulousTileVerilogMacroFlow,
         )
 
-        flow = FABulousTileVerilogMacroFlow(
+        flow = flow_cls(
             self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
             optimisation,
@@ -612,14 +622,14 @@ class FABulous_API:
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        self._flow_sub(
+        flow_cls = self._flow_sub(
             base_config_path,
             config_override_path,
             custom_config_overrides,
             FABulousFabricMacroFlow,
         )
 
-        flow = FABulousFabricMacroFlow(
+        flow = flow_cls(
             fabric=self.fabric,
             fabric_verilog_paths=[fabric_path],
             tile_macro_dirs=tile_macro_paths,
