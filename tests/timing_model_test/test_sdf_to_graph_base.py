@@ -4,7 +4,9 @@ import networkx as nx
 import pytest
 
 import fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base as base_mod
-from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base import SDFTimingGraphBase
+from fabulous.fabric_cad.timing_model.hdlnx.sdfnx.sdf_to_graph_base import (
+    SDFTimingGraphBase,
+)
 from fabulous.fabric_cad.timing_model.models import (
     Component,
     DelayType,
@@ -23,7 +25,7 @@ def make_component(
     from_cell_pin: str,
     to_cell_pin: str,
     delay: float,
-):
+) -> Component:
     return Component(
         c_type=c_type,
         cell_name=cell_name,
@@ -47,7 +49,7 @@ def make_component(
 
 
 @pytest.fixture
-def fake_sdf_graph_object():
+def fake_sdf_graph_object() -> SDFGobject:
     graph = nx.DiGraph()
 
     comp_in_u1 = make_component(
@@ -135,11 +137,15 @@ def fake_sdf_graph_object():
 
 
 @pytest.fixture
-def sdf_base(tmp_path, fake_sdf_graph_object, monkeypatch):
+def sdf_base(
+    tmp_path: Path,
+    fake_sdf_graph_object: SDFGobject,
+    monkeypatch: pytest.MonkeyPatch,
+) -> SDFTimingGraphBase:
     sdf_file = tmp_path / "dummy.sdf"
     sdf_file.write_text("dummy sdf file content")
 
-    def fake_gen_timing_digraph(path, delay_type):
+    def fake_gen_timing_digraph(path: Path, delay_type: DelayType) -> SDFGobject:
         assert path == sdf_file
         assert delay_type == DelayType.MAX_ALL
         return fake_sdf_graph_object
@@ -149,7 +155,9 @@ def sdf_base(tmp_path, fake_sdf_graph_object, monkeypatch):
     return SDFTimingGraphBase(sdf_file, DelayType.MAX_ALL)
 
 
-def test_init_populates_attributes_from_sdf_object(sdf_base, fake_sdf_graph_object):
+def test_init_populates_attributes_from_sdf_object(
+    sdf_base: SDFTimingGraphBase, fake_sdf_graph_object: SDFGobject
+) -> None:
     assert sdf_base.sdf_file.name == "dummy.sdf"
     assert sdf_base.sdf_file_content == "dummy sdf file content"
     assert sdf_base.delay_type_str == DelayType.MAX_ALL
@@ -161,7 +169,10 @@ def test_init_populates_attributes_from_sdf_object(sdf_base, fake_sdf_graph_obje
     assert sdf_base.reverse_graph.has_edge("U1/Y", "U1/A")
 
     assert sdf_base.header_info == {"divider": "/", "timescale": "1ns"}
-    assert sdf_base.sdf_data_dict == {"header": {"divider": "/"}, "cells": {"BUF_X1": {}, "INV_X1": {}}}
+    assert sdf_base.sdf_data_dict == {
+        "header": {"divider": "/"},
+        "cells": {"BUF_X1": {}, "INV_X1": {}},
+    }
     assert sdf_base.cells == ["BUF_X1", "INV_X1"]
     assert sdf_base.instances == fake_sdf_graph_object.instances
     assert sdf_base.io_paths == fake_sdf_graph_object.io_paths
@@ -169,17 +180,17 @@ def test_init_populates_attributes_from_sdf_object(sdf_base, fake_sdf_graph_obje
     assert sdf_base.hier_sep == "/"
 
 
-def test_init_detects_input_and_output_ports(sdf_base):
+def test_init_detects_input_and_output_ports(sdf_base: SDFTimingGraphBase) -> None:
     assert set(sdf_base.input_ports) == {"IN"}
     assert set(sdf_base.output_ports) == {"OUT"}
 
 
-def test_get_input_and_output_ports_property(sdf_base):
+def test_get_input_and_output_ports_property(sdf_base: SDFTimingGraphBase) -> None:
     ports = sdf_base.get_input_and_output_ports
     assert set(ports) == {"IN", "OUT"}
 
 
-def test_get_sdf_header_info_property(sdf_base):
+def test_get_sdf_header_info_property(sdf_base: SDFTimingGraphBase) -> None:
     header_dict, header_str = sdf_base.get_SDF_header_info
 
     assert header_dict == {"divider": "/", "timescale": "1ns"}
@@ -187,7 +198,9 @@ def test_get_sdf_header_info_property(sdf_base):
     assert "timescale: 1ns" in header_str
 
 
-def test_get_cell_instance_returns_components_for_instance(sdf_base):
+def test_get_cell_instance_returns_components_for_instance(
+    sdf_base: SDFTimingGraphBase,
+) -> None:
     comps = sdf_base.get_cell_instance_components("U1")
 
     assert len(comps) == 2
@@ -195,19 +208,25 @@ def test_get_cell_instance_returns_components_for_instance(sdf_base):
     assert comps[1].c_type == SDFCellType.HOLD
 
 
-def test_get_cell_instance_missing_instance_raises_keyerror(sdf_base):
-    with pytest.raises(KeyError):
+def test_get_cell_instance_missing_instance_raises_keyerror(
+    sdf_base: SDFTimingGraphBase,
+) -> None:
+    with pytest.raises(KeyError, match="NO_SUCH_INSTANCE"):
         sdf_base.get_cell_instance_components("NO_SUCH_INSTANCE")
 
 
-def test_get_cell_instance_inputs_to_outputs_for_existing_instance(sdf_base):
+def test_get_cell_instance_inputs_to_outputs_for_existing_instance(
+    sdf_base: SDFTimingGraphBase,
+) -> None:
     input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins("U1")
 
     assert input_pins == ["A"]
     assert output_pins == ["Y"]
 
 
-def test_get_cell_instance_inputs_to_outputs_ignores_non_iopath_components(sdf_base):
+def test_get_cell_instance_inputs_to_outputs_ignores_non_iopath_components(
+    sdf_base: SDFTimingGraphBase,
+) -> None:
     input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins("U1")
 
     assert "A" in input_pins
@@ -217,16 +236,21 @@ def test_get_cell_instance_inputs_to_outputs_ignores_non_iopath_components(sdf_b
 
 
 def test_get_cell_instance_inputs_to_outputs_missing_instance_returns_empty_and_prints(
-    sdf_base, capsys
-):
-    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins("NO_SUCH_INSTANCE")
-    out = capsys.readouterr().out
+    sdf_base: SDFTimingGraphBase,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    input_pins, output_pins = sdf_base.get_cell_instance_input_and_output_pins(
+        "NO_SUCH_INSTANCE"
+    )
+    capsys.readouterr()
 
     assert input_pins == []
     assert output_pins == []
 
 
-def test_get_cell_instance_component_by_type_returns_matching_component(sdf_base):
+def test_get_cell_instance_component_by_type_returns_matching_component(
+    sdf_base: SDFTimingGraphBase,
+) -> None:
     comp = sdf_base.get_cell_instance_component_by_type(
         "U1", SDFCellType.IOPATH, "A", "Y"
     )
@@ -239,7 +263,9 @@ def test_get_cell_instance_component_by_type_returns_matching_component(sdf_base
     assert comp.delay == 0.2
 
 
-def test_get_cell_instance_component_by_type_returns_none_if_no_match(sdf_base):
+def test_get_cell_instance_component_by_type_returns_none_if_no_match(
+    sdf_base: SDFTimingGraphBase,
+) -> None:
     comp = sdf_base.get_cell_instance_component_by_type(
         "U1", SDFCellType.SETUP, "A", "Y"
     )
@@ -247,7 +273,9 @@ def test_get_cell_instance_component_by_type_returns_none_if_no_match(sdf_base):
     assert comp is None
 
 
-def test_get_cell_instance_component_by_type_can_find_non_iopath_component(sdf_base):
+def test_get_cell_instance_component_by_type_can_find_non_iopath_component(
+    sdf_base: SDFTimingGraphBase,
+) -> None:
     comp = sdf_base.get_cell_instance_component_by_type(
         "U1", SDFCellType.HOLD, "A", "Y"
     )
@@ -257,14 +285,21 @@ def test_get_cell_instance_component_by_type_can_find_non_iopath_component(sdf_b
     assert comp.delay == 0.3
 
 
-def test_get_cell_instance_component_by_type_missing_instance_raises_keyerror(sdf_base):
-    with pytest.raises(KeyError, match="Instance NO_SUCH_INSTANCE not found in SDF instances."):
+def test_get_cell_instance_component_by_type_missing_instance_raises_keyerror(
+    sdf_base: SDFTimingGraphBase,
+) -> None:
+    with pytest.raises(
+        KeyError, match="Instance NO_SUCH_INSTANCE not found in SDF instances."
+    ):
         sdf_base.get_cell_instance_component_by_type(
             "NO_SUCH_INSTANCE", SDFCellType.IOPATH, "A", "Y"
         )
 
 
-def test_init_with_graph_having_only_hierarchical_nodes_has_no_top_level_ports(tmp_path, monkeypatch):
+def test_init_with_graph_having_only_hierarchical_nodes_has_no_top_level_ports(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     graph = nx.DiGraph()
 
     comp = make_component(
@@ -293,7 +328,12 @@ def test_init_with_graph_having_only_hierarchical_nodes_has_no_top_level_ports(t
     sdf_file = tmp_path / "only_hier.sdf"
     sdf_file.write_text("content")
 
-    monkeypatch.setattr(base_mod, "gen_timing_digraph", lambda path, delay: sdf_gobject)
+    def fake_gen_timing_digraph(path: Path, delay: DelayType) -> SDFGobject:
+        assert path == sdf_file
+        assert delay == DelayType.MAX_ALL
+        return sdf_gobject
+
+    monkeypatch.setattr(base_mod, "gen_timing_digraph", fake_gen_timing_digraph)
 
     obj = SDFTimingGraphBase(sdf_file, DelayType.MAX_ALL)
 

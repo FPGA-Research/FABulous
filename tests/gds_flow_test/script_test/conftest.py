@@ -346,7 +346,7 @@ def make_mock_odb_power(recorder: GeometryRecorder) -> SimpleNamespace:
     def dbBox_create(
         bpin: MockBPin, _layer: object, x1: int, y1: int, x2: int, y2: int
     ) -> None:
-        bterm_name = bpin._bterm.getName() if bpin._bterm else "unknown"
+        bterm_name = bpin._bterm.getName() if bpin._bterm else "unknown"  # noqa: SLF001
         recorder.bboxes.append((bterm_name, x1, y1, x2, y2))
 
     return SimpleNamespace(
@@ -372,12 +372,12 @@ def mock_odb_power_geom(geometry_recorder: GeometryRecorder) -> SimpleNamespace:
 
 
 def run_power_function(
-    recorder: GeometryRecorder, reader: MockReaderPower, metal_layer: str = "metal1"
+    _recorder: GeometryRecorder, reader: MockReaderPower, metal_layer: str = "metal1"
 ) -> None:
     """Execute the power connection logic (extracted from odb_power.py).
 
-    This helper function mimics the logic from odb_power.py power() function
-    and is used by tests to validate geometry transformations.
+    This helper function mimics the logic from odb_power.py power() function and is used
+    by tests to validate geometry transformations.
     """
     # Import odb from sys.modules (where it's been monkeypatched)
     import sys
@@ -728,8 +728,8 @@ def mock_odb_io_place(
 ) -> SimpleNamespace:
     """Provide a fake ODB module for IO place tests.
 
-    This fixture creates a fake ODB that records both box creation
-    and pin placements for test verification.
+    This fixture creates a fake ODB that records both box creation and pin placements
+    for test verification.
     """
 
     def dbBPin_create(bterm: MockBTermIoPlace) -> MockBPinIoPlace:

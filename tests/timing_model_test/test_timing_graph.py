@@ -11,7 +11,7 @@ def make_component_data(
     ctype: str,
     from_pin: str,
     to_pin: str,
-    delay_paths: dict,
+    delay_paths: dict[str, dict[str, float | None]],
     is_timing_check: bool = False,
     is_timing_env: bool = False,
     is_absolute: bool = True,
@@ -20,7 +20,7 @@ def make_component_data(
     cond_equation: str | None = None,
     from_pin_edge: str | None = None,
     to_pin_edge: str | None = None,
-):
+) -> dict[str, object]:
     return {
         "type": ctype,
         "from_pin": from_pin,
@@ -37,7 +37,7 @@ def make_component_data(
     }
 
 
-def fake_sdf_data_with_divider():
+def fake_sdf_data_with_divider() -> dict[str, object]:
     return {
         "header": {"divider": "/"},
         "cells": {
@@ -93,7 +93,7 @@ def fake_sdf_data_with_divider():
     }
 
 
-def fake_sdf_data_without_divider():
+def fake_sdf_data_without_divider() -> dict[str, object]:
     return {
         "header": {},
         "cells": {
@@ -114,14 +114,16 @@ def fake_sdf_data_without_divider():
     }
 
 
-def test_as_float_none_uses_default():
-    assert tg._as_float(None) == 0.0
-    assert tg._as_float(None, default=2.5) == 2.5
+def test_as_float_none_uses_default() -> None:
+    as_float = tg.__dict__["_as_float"]
+    assert as_float(None) == 0.0
+    assert as_float(None, default=2.5) == 2.5
 
 
-def test_as_float_converts_numeric_values():
-    assert tg._as_float(3) == 3.0
-    assert tg._as_float(4.25) == 4.25
+def test_as_float_converts_numeric_values() -> None:
+    as_float = tg.__dict__["_as_float"]
+    assert as_float(3) == 3.0
+    assert as_float(4.25) == 4.25
 
 
 @pytest.mark.parametrize(
@@ -138,7 +140,10 @@ def test_as_float_converts_numeric_values():
         (DelayType.MIN_SLOW, 3.0),
     ],
 )
-def test_delay_type_all_modes_without_nominal(kind, expected):
+def test_delay_type_all_modes_without_nominal(
+    kind: DelayType,
+    expected: float,
+) -> None:
     delay_paths = {
         "fast": {"min": 1.0, "max": 2.0},
         "slow": {"min": 3.0, "max": 4.0},
@@ -146,7 +151,7 @@ def test_delay_type_all_modes_without_nominal(kind, expected):
     assert tg.delay_type(delay_paths, kind) == expected
 
 
-def test_delay_type_nominal_shortcut_uses_max_of_nominal_min_and_max():
+def test_delay_type_nominal_shortcut_uses_max_of_nominal_min_and_max() -> None:
     delay_paths = {
         "nominal": {"min": 2.0, "max": 8.0},
         "fast": {"min": 100.0, "max": 200.0},
@@ -156,17 +161,19 @@ def test_delay_type_nominal_shortcut_uses_max_of_nominal_min_and_max():
     assert tg.delay_type(delay_paths, DelayType.MAX_ALL) == 8.0
 
 
-def test_delay_type_missing_values_are_treated_as_zero():
+def test_delay_type_missing_values_are_treated_as_zero() -> None:
     delay_paths = {
         "fast": {"min": None, "max": 1.5},
         "slow": {"min": 2.5, "max": None},
     }
     assert tg.delay_type(delay_paths, DelayType.MIN_ALL) == 0.0
     assert tg.delay_type(delay_paths, DelayType.MAX_ALL) == 2.5
-    assert tg.delay_type(delay_paths, DelayType.AVG_ALL) == (0.0 + 1.5 + 2.5 + 0.0) / 4.0
+    assert (
+        tg.delay_type(delay_paths, DelayType.AVG_ALL) == (0.0 + 1.5 + 2.5 + 0.0) / 4.0
+    )
 
 
-def test_delay_type_unknown_kind_raises_value_error():
+def test_delay_type_unknown_kind_raises_value_error() -> None:
     delay_paths = {
         "fast": {"min": 1.0, "max": 2.0},
         "slow": {"min": 3.0, "max": 4.0},
@@ -175,20 +182,27 @@ def test_delay_type_unknown_kind_raises_value_error():
         tg.delay_type(delay_paths, "not-a-delay-type")
 
 
-def test_split_instance_pin_with_hierarchy():
+def test_split_instance_pin_with_hierarchy() -> None:
     assert tg.split_instance_pin("_2988_/Q", "/") == ("_2988_", "Q")
     assert tg.split_instance_pin("top|u1|A", "|") == ("top|u1", "A")
 
 
-def test_split_instance_pin_without_hierarchy():
+def test_split_instance_pin_without_hierarchy() -> None:
     assert tg.split_instance_pin("CLK", "/") == ("", "CLK")
 
 
-def test_parse_sdf_extracts_header_cells_instances_and_components(tmp_path, monkeypatch):
+def test_parse_sdf_extracts_header_cells_instances_and_components(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     sdf_file = tmp_path / "test.sdf"
     sdf_file.write_text("dummy sdf content")
 
-    monkeypatch.setattr(tg.sdfparse, "parse", lambda text: fake_sdf_data_with_divider())
+    monkeypatch.setattr(
+        tg.sdfparse,
+        "parse",
+        lambda _text: fake_sdf_data_with_divider(),
+    )
 
     result = tg.parse_sdf(sdf_file, DelayType.MAX_ALL)
 
@@ -247,11 +261,16 @@ def test_parse_sdf_extracts_header_cells_instances_and_components(tmp_path, monk
     assert result.instances["U2"][0].delay == 7.5
 
 
-def test_parse_sdf_defaults_to_slash_when_header_has_no_divider(tmp_path, monkeypatch):
+def test_parse_sdf_defaults_to_slash_when_header_has_no_divider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     sdf_file = tmp_path / "test_no_divider.sdf"
     sdf_file.write_text("dummy sdf content")
 
-    monkeypatch.setattr(tg.sdfparse, "parse", lambda text: fake_sdf_data_without_divider())
+    monkeypatch.setattr(
+        tg.sdfparse, "parse", lambda _text: fake_sdf_data_without_divider()
+    )
 
     result = tg.parse_sdf(sdf_file, DelayType.MIN_FAST)
 
@@ -264,11 +283,18 @@ def test_parse_sdf_defaults_to_slash_when_header_has_no_divider(tmp_path, monkey
     assert result.io_paths[0].delay == 0.9
 
 
-def test_gen_timing_digraph_builds_expected_edges_and_attributes(tmp_path, monkeypatch):
+def test_gen_timing_digraph_builds_expected_edges_and_attributes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     sdf_file = tmp_path / "graph.sdf"
     sdf_file.write_text("dummy sdf content")
 
-    monkeypatch.setattr(tg.sdfparse, "parse", lambda text: fake_sdf_data_with_divider())
+    monkeypatch.setattr(
+        tg.sdfparse,
+        "parse",
+        lambda _text: fake_sdf_data_with_divider(),
+    )
 
     result = tg.gen_timing_digraph(sdf_file, DelayType.MAX_ALL)
 
@@ -301,7 +327,10 @@ def test_gen_timing_digraph_builds_expected_edges_and_attributes(tmp_path, monke
     assert edge_out["component"].to_cell_instance == ""
 
 
-def test_gen_timing_digraph_uses_header_separator_for_node_names(tmp_path, monkeypatch):
+def test_gen_timing_digraph_uses_header_separator_for_node_names(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     sdf_file = tmp_path / "graph_sep.sdf"
     sdf_file.write_text("dummy sdf content")
 
@@ -314,20 +343,26 @@ def test_gen_timing_digraph_uses_header_separator_for_node_names(tmp_path, monke
                         ctype="iopath",
                         from_pin="A",
                         to_pin="Y",
-                        delay_paths={"fast": {"min": 1.0, "max": 2.0}, "slow": {"min": 3.0, "max": 4.0}},
+                        delay_paths={
+                            "fast": {"min": 1.0, "max": 2.0},
+                            "slow": {"min": 3.0, "max": 4.0},
+                        },
                     ),
                     "INTERCONNECT U1|Y U2|A": make_component_data(
                         ctype="interconnect",
                         from_pin="U1|Y",
                         to_pin="U2|A",
-                        delay_paths={"fast": {"min": 0.1, "max": 0.2}, "slow": {"min": 0.3, "max": 0.4}},
+                        delay_paths={
+                            "fast": {"min": 0.1, "max": 0.2},
+                            "slow": {"min": 0.3, "max": 0.4},
+                        },
                     ),
                 }
             }
         },
     }
 
-    monkeypatch.setattr(tg.sdfparse, "parse", lambda text: data)
+    monkeypatch.setattr(tg.sdfparse, "parse", lambda _text: data)
 
     result = tg.gen_timing_digraph(sdf_file, DelayType.MAX_ALL)
 

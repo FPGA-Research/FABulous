@@ -23,7 +23,7 @@ def make_component(
     from_cell_pin: str,
     to_cell_pin: str,
     delay: float,
-):
+) -> Component:
     return Component(
         c_type=c_type,
         cell_name=cell_name,
@@ -47,7 +47,7 @@ def make_component(
 
 
 @pytest.fixture
-def fake_sdf_gobject():
+def fake_sdf_gobject() -> SDFGobject:
     graph = nx.DiGraph()
 
     comp_a_b = make_component(
@@ -142,20 +142,24 @@ def fake_sdf_gobject():
 
 
 @pytest.fixture
-def sdf_graph(tmp_path, fake_sdf_gobject, monkeypatch):
+def sdf_graph(
+    tmp_path: Path,
+    fake_sdf_gobject: SDFGobject,
+    monkeypatch: pytest.MonkeyPatch,
+) -> SDFTimingGraph:
     sdf_file = tmp_path / "dummy.sdf"
     sdf_file.write_text("dummy sdf content")
 
     monkeypatch.setattr(
         base_mod,
         "gen_timing_digraph",
-        lambda path, delay_type: fake_sdf_gobject,
+        lambda *_args: fake_sdf_gobject,
     )
 
     return SDFTimingGraph(sdf_file, DelayType.MAX_ALL)
 
 
-def test_inherits_base_initialization(sdf_graph):
+def test_inherits_base_initialization(sdf_graph: SDFTimingGraph) -> None:
     assert sdf_graph.sdf_file.name == "dummy.sdf"
     assert sdf_graph.sdf_file_content == "dummy sdf content"
     assert sdf_graph.delay_type_str == DelayType.MAX_ALL
@@ -165,39 +169,52 @@ def test_inherits_base_initialization(sdf_graph):
     assert sdf_graph.cells == ["BUF_X1", "BUF_X2"]
 
 
-def test_has_path_true_and_false(sdf_graph):
+def test_has_path_true_and_false(sdf_graph: SDFTimingGraph) -> None:
     assert sdf_graph.has_path("A", "E") is True
     assert sdf_graph.has_path("F", "H") is True
     assert sdf_graph.has_path("B", "C") is False
     assert sdf_graph.has_path("A", "H") is False
 
 
-def test_single_delay_returns_shortest_weighted_path_and_info(sdf_graph):
+def test_single_delay_returns_shortest_weighted_path_and_info(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     length = sdf_graph.single_delay("A", "E")
 
     assert length == 7.0
 
 
-def test_single_delay_prefers_lower_total_delay_not_fewer_edges(sdf_graph):
+def test_single_delay_prefers_lower_total_delay_not_fewer_edges(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     length = sdf_graph.single_delay("A", "D")
     assert length == 3.0
 
-def test_single_delay_raises_when_no_path_exists(sdf_graph):
+
+def test_single_delay_raises_when_no_path_exists(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     with pytest.raises(nx.NetworkXNoPath):
         sdf_graph.single_delay("A", "H")
 
 
-def test_earliest_common_nodes_invalid_mode_raises(sdf_graph):
+def test_earliest_common_nodes_invalid_mode_raises(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     with pytest.raises(ValueError, match="mode must be 'max' or 'sum'"):
         sdf_graph.earliest_common_nodes(["A", "B"], mode="bad")
 
 
-def test_earliest_common_nodes_missing_sources_raise(sdf_graph):
+def test_earliest_common_nodes_missing_sources_raise(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     with pytest.raises(ValueError, match="Source node\\(s\\) not in graph"):
         sdf_graph.earliest_common_nodes(["A", "NOPE"], mode="max")
 
 
-def test_earliest_common_nodes_empty_sources_returns_empty_result(sdf_graph):
+def test_earliest_common_nodes_empty_sources_returns_empty_result(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes([])
 
     assert best_nodes == []
@@ -205,7 +222,9 @@ def test_earliest_common_nodes_empty_sources_returns_empty_result(sdf_graph):
     assert dists == {}
 
 
-def test_earliest_common_nodes_single_source_returns_source(sdf_graph):
+def test_earliest_common_nodes_single_source_returns_source(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(["A"])
 
     assert best_nodes == ["A"]
@@ -213,7 +232,9 @@ def test_earliest_common_nodes_single_source_returns_source(sdf_graph):
     assert dists["A"]["A"] == 0
 
 
-def test_earliest_common_nodes_single_source_prefers_sentinel_and_follows_zero_steps(sdf_graph):
+def test_earliest_common_nodes_single_source_prefers_sentinel_and_follows_zero_steps(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
         ["A"],
         sentinel="E",
@@ -226,7 +247,9 @@ def test_earliest_common_nodes_single_source_prefers_sentinel_and_follows_zero_s
     assert dists["A"]["E"] == 3
 
 
-def test_earliest_common_nodes_single_source_prefers_sentinel_and_follows_steps(sdf_graph):
+def test_earliest_common_nodes_single_source_prefers_sentinel_and_follows_steps(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
         ["A"],
         sentinel="E",
@@ -239,7 +262,9 @@ def test_earliest_common_nodes_single_source_prefers_sentinel_and_follows_steps(
     assert dists["A"]["D"] == 2
 
 
-def test_earliest_common_nodes_single_source_follow_steps_are_clamped_to_path_end(sdf_graph):
+def test_earliest_common_nodes_single_source_follow_steps_are_clamped_to_path_end(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
         ["A"],
         sentinel="E",
@@ -252,7 +277,9 @@ def test_earliest_common_nodes_single_source_follow_steps_are_clamped_to_path_en
     assert dists["A"]["E"] == 3
 
 
-def test_earliest_common_nodes_single_source_negative_follow_steps_clamp_to_zero(sdf_graph):
+def test_earliest_common_nodes_single_source_negative_follow_steps_clamp_to_zero(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, _ = sdf_graph.earliest_common_nodes(
         ["A"],
         sentinel="E",
@@ -264,7 +291,9 @@ def test_earliest_common_nodes_single_source_negative_follow_steps_clamp_to_zero
     assert best_cost == 0
 
 
-def test_earliest_common_nodes_single_source_sentinel_not_reachable_returns_source(sdf_graph):
+def test_earliest_common_nodes_single_source_sentinel_not_reachable_returns_source(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, _ = sdf_graph.earliest_common_nodes(
         ["A"],
         sentinel="H",
@@ -276,7 +305,9 @@ def test_earliest_common_nodes_single_source_sentinel_not_reachable_returns_sour
     assert best_cost == 0.0
 
 
-def test_earliest_common_nodes_single_source_sentinel_not_in_graph_returns_source(sdf_graph):
+def test_earliest_common_nodes_single_source_sentinel_not_in_graph_returns_source(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, _ = sdf_graph.earliest_common_nodes(
         ["A"],
         sentinel="NOT_IN_GRAPH",
@@ -288,7 +319,9 @@ def test_earliest_common_nodes_single_source_sentinel_not_in_graph_returns_sourc
     assert best_cost == 0.0
 
 
-def test_earliest_common_nodes_max_multi_source(sdf_graph):
+def test_earliest_common_nodes_max_multi_source(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
         ["B", "C"], mode="max"
     )
@@ -301,7 +334,9 @@ def test_earliest_common_nodes_max_multi_source(sdf_graph):
     assert dists["C"]["E"] == 2
 
 
-def test_earliest_common_nodes_sum_multi_source(sdf_graph):
+def test_earliest_common_nodes_sum_multi_source(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
         ["B", "C"], mode="sum"
     )
@@ -311,7 +346,9 @@ def test_earliest_common_nodes_sum_multi_source(sdf_graph):
     assert dists["B"]["D"] + dists["C"]["D"] == 2
 
 
-def test_earliest_common_nodes_with_cutoff_can_remove_common_nodes(sdf_graph):
+def test_earliest_common_nodes_with_cutoff_can_remove_common_nodes(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
         ["B", "C"], mode="max", stop=0
     )
@@ -322,7 +359,9 @@ def test_earliest_common_nodes_with_cutoff_can_remove_common_nodes(sdf_graph):
     assert dists["C"] == {"C": 0}
 
 
-def test_earliest_common_nodes_no_common_reachable_node_returns_empty(sdf_graph):
+def test_earliest_common_nodes_no_common_reachable_node_returns_empty(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     best_nodes, best_cost, dists = sdf_graph.earliest_common_nodes(
         ["A", "F"], mode="max"
     )
@@ -333,7 +372,7 @@ def test_earliest_common_nodes_no_common_reachable_node_returns_empty(sdf_graph)
     assert "F" in dists
 
 
-def test_earliest_common_nodes_can_return_multiple_scc_candidates_but_choose_one_by_cost():
+def test_earliest_common_nodes_choose_one_by_cost() -> None:
     graph = nx.DiGraph()
     comp = make_component(
         c_type=SDFCellType.INTERCONNECT,
@@ -365,7 +404,7 @@ def test_earliest_common_nodes_can_return_multiple_scc_candidates_but_choose_one
     assert dists["S2"]["X"] == 2
 
 
-def test_earliest_common_nodes_tie_break_by_common_reach_score():
+def test_earliest_common_nodes_tie_break_by_common_reach_score() -> None:
     graph = nx.DiGraph()
     comp = make_component(
         c_type=SDFCellType.INTERCONNECT,
@@ -395,7 +434,7 @@ def test_earliest_common_nodes_tie_break_by_common_reach_score():
     assert best_cost == 1
 
 
-def test_earliest_common_nodes_tie_break_by_total_reach_score_then_lexicographic():
+def test_earliest_common_nodes_total_reach_score_tie_break() -> None:
     graph = nx.DiGraph()
     comp = make_component(
         c_type=SDFCellType.INTERCONNECT,
@@ -423,23 +462,33 @@ def test_earliest_common_nodes_tie_break_by_total_reach_score_then_lexicographic
     assert best_cost == 1
 
 
-def test_follow_first_fanout_from_pins_one_hop(sdf_graph):
+def test_follow_first_fanout_from_pins_one_hop(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     assert sdf_graph.follow_first_fanout_from_pins("A", num_follow=1) == "B"
 
 
-def test_follow_first_fanout_from_pins_multiple_hops(sdf_graph):
+def test_follow_first_fanout_from_pins_multiple_hops(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     assert sdf_graph.follow_first_fanout_from_pins("A", num_follow=3) == "E"
 
 
-def test_follow_first_fanout_from_pins_stops_when_no_successor(sdf_graph):
+def test_follow_first_fanout_from_pins_stops_when_no_successor(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     assert sdf_graph.follow_first_fanout_from_pins("E", num_follow=3) == "E"
 
 
-def test_follow_first_fanout_from_pins_zero_hops_returns_same_pin(sdf_graph):
+def test_follow_first_fanout_from_pins_zero_hops_returns_same_pin(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     assert sdf_graph.follow_first_fanout_from_pins("A", num_follow=0) == "A"
 
 
-def test_path_to_nearest_target_sentinel_unweighted_forward(sdf_graph):
+def test_path_to_nearest_target_sentinel_unweighted_forward(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     path, closest = sdf_graph.path_to_nearest_target_sentinel(
         "A", ["D", "E"], weight=None
     )
@@ -450,7 +499,9 @@ def test_path_to_nearest_target_sentinel_unweighted_forward(sdf_graph):
     assert not any("_sentinel_" in str(node) for node in sdf_graph.graph.nodes)
 
 
-def test_path_to_nearest_target_sentinel_weighted_forward(sdf_graph):
+def test_path_to_nearest_target_sentinel_weighted_forward(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     path, closest = sdf_graph.path_to_nearest_target_sentinel(
         "A", ["D", "E"], weight="weight"
     )
@@ -460,7 +511,9 @@ def test_path_to_nearest_target_sentinel_weighted_forward(sdf_graph):
     assert not any("_sentinel_" in str(node) for node in sdf_graph.graph.nodes)
 
 
-def test_path_to_nearest_target_sentinel_reverse_uses_reverse_graph(sdf_graph):
+def test_path_to_nearest_target_sentinel_reverse_uses_reverse_graph(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     path, closest = sdf_graph.path_to_nearest_target_sentinel(
         "E", ["A", "B"], weight="weight", reverse=True
     )
@@ -470,7 +523,9 @@ def test_path_to_nearest_target_sentinel_reverse_uses_reverse_graph(sdf_graph):
     assert not any("_sentinel_" in str(node) for node in sdf_graph.reverse_graph.nodes)
 
 
-def test_path_to_nearest_target_sentinel_no_reachable_target_returns_none(sdf_graph):
+def test_path_to_nearest_target_sentinel_no_reachable_target_returns_none(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     path, closest = sdf_graph.path_to_nearest_target_sentinel(
         "A", ["H"], weight="weight"
     )
@@ -480,12 +535,18 @@ def test_path_to_nearest_target_sentinel_no_reachable_target_returns_none(sdf_gr
     assert not any("_sentinel_" in str(node) for node in sdf_graph.graph.nodes)
 
 
-def test_path_to_nearest_target_sentinel_empty_targets_raises_valueerror(sdf_graph):
-    with pytest.raises(ValueError, match="targets must be a non-empty iterable of nodes"):
+def test_path_to_nearest_target_sentinel_empty_targets_raises_valueerror(
+    sdf_graph: SDFTimingGraph,
+) -> None:
+    with pytest.raises(
+        ValueError, match="targets must be a non-empty iterable of nodes"
+    ):
         sdf_graph.path_to_nearest_target_sentinel("A", [], weight="weight")
 
 
-def test_path_to_nearest_target_sentinel_custom_prefix_is_cleaned_up(sdf_graph):
+def test_path_to_nearest_target_sentinel_custom_prefix_is_cleaned_up(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     path, closest = sdf_graph.path_to_nearest_target_sentinel(
         "A", ["D"], sentinel_prefix="custom_prefix", weight=None
     )
@@ -495,7 +556,9 @@ def test_path_to_nearest_target_sentinel_custom_prefix_is_cleaned_up(sdf_graph):
     assert not any("custom_prefix" in str(node) for node in sdf_graph.graph.nodes)
 
 
-def test_path_to_nearest_target_sentinel_ignores_missing_target_nodes(sdf_graph):
+def test_path_to_nearest_target_sentinel_ignores_missing_target_nodes(
+    sdf_graph: SDFTimingGraph,
+) -> None:
     path, closest = sdf_graph.path_to_nearest_target_sentinel(
         "A", ["DOES_NOT_EXIST", "D"], weight="weight"
     )

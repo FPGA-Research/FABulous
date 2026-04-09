@@ -19,9 +19,7 @@ from fabulous.fabulous_settings import (
 
 
 @pytest.fixture(autouse=True)
-def reset_context_before_and_after_tests(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> Generator:
+def reset_context_before_and_after_tests() -> Generator:
     """Reset context before and after each test to ensure isolation."""
     reset_context()
     yield
@@ -164,7 +162,7 @@ class TestFABulousSettings:
         assert settings.vvp_path == "vvp"
 
     def test_initialization_with_no_init_called(self, mocker: MockerFixture) -> None:
-        """Test init context in api mode"""
+        """Test init context in api mode."""
         mocker.patch("fabulous.fabulous_settings.which", return_value=None)
         settings = get_context()
         assert settings.yosys_path == "yosys"
