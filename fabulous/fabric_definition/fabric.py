@@ -118,20 +118,38 @@ class Fabric:
         The wires are used during model generation to work with wire that going cross
         tile.
         """
-        if not self.numberOfRows <= 32:
+        if self.numberOfRows > 32:
             raise ValueError(
-                "Due to bistream limitations,"
+                "Due to bitstream limitations, "
                 "numberOfRows must be less than or equal to 32."
             )
 
-        if not self.numberOfColumns <= 32:
+        if self.numberOfColumns > 32:
             raise ValueError(
-                "Due to bistream limitations, "
+                "Due to bitstream limitations, "
                 "numberOfColumns must be less than or equal to 32."
             )
 
+        if self.frameBitsPerRow != 32:
+            raise ValueError(
+                "Due to bitstream limitations, frameBitsPerRow must be 32."
+            )
+
         if self.maxFramesPerCol != 20:
-            raise ValueError("Due to bistream limitations, maxFramesPerCol must be 20.")
+            raise ValueError(
+                "Due to bitstream limitations, maxFramesPerCol must be 20."
+            )
+
+        if self.frameSelectWidth != 5:
+            raise ValueError(
+                "Due to bitstream limitations, frameSelectWidth must be 5."
+            )
+
+        if self.rowSelectWidth != 5:
+            raise ValueError("Due to bitstream limitations, rowSelectWidth must be 5.")
+
+        if self.desync_flag != 20:
+            raise ValueError("Due to bitstream limitations, desync_flag must be 20.")
 
         for tile in self.tileDic.values():
             if len(tile.bels) > 26:

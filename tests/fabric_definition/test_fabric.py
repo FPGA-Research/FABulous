@@ -1,43 +1,26 @@
-"""Tests for FrameAddressRegister bit-field validation in Fabric.__post_init__."""
+"""Tests for hardcoded validation checks in Fabric.__post_init__."""
 
 from collections.abc import Callable
+from unittest.mock import MagicMock
 
 import pytest
 
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.tile import Tile
 
 
-class TestFrameAddressRegisterValidation:
-    """Validate that non-overlapping bit regions are enforced."""
+class TestFabricValidation:
+    """Validate hardcoded bitstream and naming constraints."""
 
     @pytest.mark.parametrize(
         "overrides",
         [
+            pytest.param({}, id="defaults"),
+            pytest.param({"numberOfRows": 32}, id="rows_at_boundary"),
+            pytest.param({"numberOfColumns": 32}, id="columns_at_boundary"),
             pytest.param(
-                {},
-                id="defaults",
-            ),
-            pytest.param(
-                {"maxFramesPerCol": 26, "desync_flag": 26},
-                id="frame_strobe_at_boundary",
-            ),
-            pytest.param(
-                {"desync_flag": 20, "maxFramesPerCol": 20},
-                id="desync_at_frame_strobe_boundary",
-            ),
-            pytest.param(
-                {"numberOfColumns": 16, "frameSelectWidth": 4},
-                id="column_bits_exact_fit",
-            ),
-            pytest.param(
-                {
-                    "frameBitsPerRow": 10,
-                    "maxFramesPerCol": 4,
-                    "desync_flag": 4,
-                    "frameSelectWidth": 3,
-                    "numberOfColumns": 8,
-                },
-                id="tight_valid_layout",
+                {"numberOfRows": 32, "numberOfColumns": 32},
+                id="both_at_boundary",
             ),
         ],
     )
@@ -54,44 +37,54 @@ class TestFrameAddressRegisterValidation:
         ("overrides", "error_match"),
         [
             pytest.param(
-                {"maxFramesPerCol": 28},
-                "FrameAddressRegister overflow",
-                id="frame_strobe_overlaps_column_select",
+                {"numberOfRows": 33},
+                "numberOfRows must be less than or equal to 32",
+                id="rows_exceed_32",
             ),
             pytest.param(
-                {"desync_flag": 10, "maxFramesPerCol": 20},
-                "frame strobe region",
-                id="desync_in_frame_strobe",
+                {"numberOfRows": 64},
+                "numberOfRows must be less than or equal to 32",
+                id="rows_far_exceed_32",
             ),
             pytest.param(
-                {"desync_flag": 28},
-                "column select region",
-                id="desync_in_column_select",
+                {"numberOfColumns": 33},
+                "numberOfColumns must be less than or equal to 32",
+                id="columns_exceed_32",
             ),
             pytest.param(
-                {"desync_flag": 27},
-                "column select region",
-                id="desync_at_column_select_boundary",
+                {"numberOfColumns": 64},
+                "numberOfColumns must be less than or equal to 32",
+                id="columns_far_exceed_32",
             ),
             pytest.param(
-                {"desync_flag": 32, "frameBitsPerRow": 32},
-                "exceeds FrameAddressRegister width",
-                id="desync_exceeds_register_width",
+                {"frameBitsPerRow": 16},
+                "frameBitsPerRow must be 32",
+                id="frame_bits_per_row_wrong",
             ),
             pytest.param(
-                {"frameSelectWidth": 3},
-                "Not enough column address bits",
-                id="insufficient_column_bits",
+                {"maxFramesPerCol": 19},
+                "maxFramesPerCol must be 20",
+                id="max_frames_below_20",
             ),
             pytest.param(
-                {"numberOfColumns": 17, "frameSelectWidth": 4},
-                "Not enough column address bits",
-                id="column_bits_one_over",
+                {"maxFramesPerCol": 21},
+                "maxFramesPerCol must be 20",
+                id="max_frames_above_20",
             ),
             pytest.param(
-                {"frameBitsPerRow": 4, "maxFramesPerCol": 20, "frameSelectWidth": 5},
-                "exceeds FrameAddressRegister width",
-                id="all_regions_overlap",
+                {"frameSelectWidth": 4},
+                "frameSelectWidth must be 5",
+                id="frame_select_width_wrong",
+            ),
+            pytest.param(
+                {"rowSelectWidth": 3},
+                "rowSelectWidth must be 5",
+                id="row_select_width_wrong",
+            ),
+            pytest.param(
+                {"desync_flag": 10},
+                "desync_flag must be 20",
+                id="desync_flag_wrong",
             ),
         ],
     )
@@ -103,3 +96,27 @@ class TestFrameAddressRegisterValidation:
     ) -> None:
         with pytest.raises(ValueError, match=error_match):
             make_fabric(**overrides)
+
+    @pytest.mark.parametrize(
+        ("num_bels", "should_raise"),
+        [
+            pytest.param(26, False, id="bels_at_boundary"),
+            pytest.param(27, True, id="bels_exceed_26"),
+            pytest.param(30, True, id="bels_far_exceed_26"),
+        ],
+    )
+    def test_tile_bel_count(
+        self,
+        make_fabric: Callable[..., Fabric],
+        num_bels: int,
+        should_raise: bool,
+    ) -> None:
+        tile = MagicMock(spec=Tile)
+        tile.name = "test_tile"
+        tile.bels = [MagicMock() for _ in range(num_bels)]
+        if should_raise:
+            with pytest.raises(ValueError, match="cannot have more than 26 BELs"):
+                make_fabric(tileDic={"test_tile": tile})
+        else:
+            fabric = make_fabric(tileDic={"test_tile": tile})
+            assert len(fabric.tileDic["test_tile"].bels) == num_bels
