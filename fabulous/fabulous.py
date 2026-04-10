@@ -6,9 +6,11 @@ interface. It handles argument parsing, project setup, and CLI initialization.
 
 import os
 import platform
+import shutil
 import sys
 from enum import StrEnum
 from importlib.metadata import version
+from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Annotated
 
@@ -408,9 +410,6 @@ def nix_env_cmd(
     Enters a Nix dev shell and verifies that yosys, nextpnr, and openroad are installed
     and sourced from the Nix store. Use --no-check to skip the verification step.
     """
-    import shutil
-    from importlib.resources import as_file, files
-
     # Check nix is installed
     if not shutil.which("nix"):
         logger.error("Nix is not installed. Run `FABulous install-nix` to install it.")
