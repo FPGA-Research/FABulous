@@ -1,0 +1,49 @@
+name: Prepare Nix environment
+description: Composite action to install Nix, cache the store, free disk space, and build the devshell
+
+inputs:
+  nix_version:
+    description: "Nix version to install"
+    required: false
+    default: "2.31.2"
+  free_disk_space:
+    description: "Remove large pre-installed tool directories to free disk space"
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Nix
+      uses: nixbuild/nix-quick-install-action@v34
+      with:
+        nix_version: ${{ inputs.nix_version }}
+        nix_conf: |
+          substituters = https://cache.nixos.org https://nix-cache.fossi-foundation.org
+          extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
+
+    - name: Free up disk space
+      if: ${{ inputs.free_disk_space == 'true' }}
+      shell: bash
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /opt/hostedtoolcache
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf /usr/lib/jvm
+        sudo rm -rf /usr/share/swift
+
+    - name: Cache Nix store
+      uses: actions/cache@v5
+      with:
+        path: |
+          /nix/store
+          ~/.cache/nix
+        key: nix-store-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+        restore-keys: |
+          nix-store-${{ runner.os }}-
+
+    - name: Build nix environment
+      shell: bash
+      run: nix develop --command true

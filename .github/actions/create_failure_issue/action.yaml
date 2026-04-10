@@ -1,0 +1,54 @@
+name: Create failure issue
+description: Create a GitHub issue on CI failure with deduplication
+
+inputs:
+  title:
+    description: "Issue title (used for deduplication)"
+    required: true
+  body:
+    description: "Issue body in markdown"
+    required: true
+  labels:
+    description: "Comma-separated labels (first label used for dedup search)"
+    required: true
+  github_token:
+    description: "GitHub token for API access"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Create issue on failure
+      uses: actions/github-script@v7
+      env:
+        ISSUE_TITLE: ${{ inputs.title }}
+        ISSUE_BODY: ${{ inputs.body }}
+        ISSUE_LABELS: ${{ inputs.labels }}
+      with:
+        github-token: ${{ inputs.github_token }}
+        script: |
+          const title = process.env.ISSUE_TITLE;
+          const body = process.env.ISSUE_BODY;
+          const labels = process.env.ISSUE_LABELS.split(',').map(l => l.trim());
+          const searchLabel = labels[0];
+
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: [searchLabel],
+            per_page: 100
+          });
+
+          if (!issues.data.find(i => i.title === title)) {
+            const created = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: labels
+            });
+            console.log(`Created issue #${created.data.number}: ${title}`);
+          } else {
+            console.log('Issue already exists, skipping creation');
+          }

@@ -3,7 +3,7 @@ name: Nightly Dependency Compatibility Test
 on:
   schedule:
     # Run every night at 00:00 UTC
-    - cron: '0 0 * * *'
+    - cron: "0 0 * * *"
   workflow_dispatch: # Allow manual triggering
 
 jobs:
@@ -15,7 +15,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -55,93 +55,71 @@ jobs:
             echo "tests_failed=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Prepare failure issue body
+        if: steps.check_results.outputs.tests_failed == 'true'
+        id: failure_body
+        run: |
+          DEP_VERSIONS="Could not read dependency versions"
+          if [ -f dependency_versions.txt ]; then
+            DEP_VERSIONS=$(cat dependency_versions.txt)
+          fi
+
+          PYTEST_OUTPUT="Could not read pytest output"
+          if [ -f pytest_output.txt ]; then
+            PYTEST_OUTPUT=$(tail -c 5000 pytest_output.txt)
+          fi
+
+          DATE=$(date -u +%Y-%m-%d)
+
+          echo "title=Nightly Dependency Test Failed - ${DATE}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo 'body<<ISSUE_BODY_EOF'
+            cat <<EOF
+          ## Nightly Dependency Compatibility Test Failed
+
+          The nightly test run with the latest compatible dependency versions has failed.
+
+          **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ${DEP_VERSIONS}
+
+          ### Test Output (last 5000 characters)
+
+          <details>
+          <summary>Click to expand pytest output</summary>
+
+          \`\`\`
+          ${PYTEST_OUTPUT}
+          \`\`\`
+
+          </details>
+
+          ### Action Items
+
+          - [ ] Review the failing tests
+          - [ ] Determine if the failure is due to:
+            - Breaking changes in dependencies
+            - Incompatibilities with new dependency versions
+            - Actual bugs in FABulous
+          - [ ] Update dependency constraints in \`pyproject.toml\` if needed
+          - [ ] Update lock file with \`uv lock\` after fixing
+          - [ ] Close this issue once resolved
+
+          ---
+          *This issue was automatically created by the nightly dependency test workflow.*
+          EOF
+            echo 'ISSUE_BODY_EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create issue on failure
         if: steps.check_results.outputs.tests_failed == 'true'
-        uses: actions/github-script@v7
+        uses: ./.github/actions/create_failure_issue
         with:
-          script: |
-            const fs = require('fs');
-
-            // Read dependency versions
-            let depVersions = '';
-            try {
-              depVersions = fs.readFileSync('dependency_versions.txt', 'utf8');
-            } catch (error) {
-              depVersions = 'Could not read dependency versions';
-            }
-
-            // Read pytest output (last 5000 chars to avoid hitting size limits)
-            let pytestOutput = '';
-            try {
-              const fullOutput = fs.readFileSync('pytest_output.txt', 'utf8');
-              pytestOutput = fullOutput.slice(-5000);
-              if (fullOutput.length > 5000) {
-                pytestOutput = '... (truncated)\n\n' + pytestOutput;
-              }
-            } catch (error) {
-              pytestOutput = 'Could not read pytest output';
-            }
-
-            const date = new Date().toISOString().split('T')[0];
-            const title = `Nightly Dependency Test Failed - ${date}`;
-
-            const body = `## Nightly Dependency Compatibility Test Failed
-
-            The nightly test run with the latest compatible dependency versions has failed.
-
-            **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            ${depVersions}
-
-            ### Test Output (last 5000 characters)
-
-            <details>
-            <summary>Click to expand pytest output</summary>
-
-            \`\`\`
-            ${pytestOutput}
-            \`\`\`
-
-            </details>
-
-            ### Action Items
-
-            - [ ] Review the failing tests
-            - [ ] Determine if the failure is due to:
-              - Breaking changes in dependencies
-              - Incompatibilities with new dependency versions
-              - Actual bugs in FABulous
-            - [ ] Update dependency constraints in \`pyproject.toml\` if needed
-            - [ ] Update lock file with \`uv lock\` after fixing
-            - [ ] Close this issue once resolved
-
-            ---
-            *This issue was automatically created by the nightly dependency test workflow.*`;
-
-            // Check if there's already an open issue for today
-            const issues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              labels: ['nightly-test-failure'],
-              per_page: 100
-            });
-
-            const todayIssue = issues.data.find(issue => issue.title === title);
-
-            if (!todayIssue) {
-              // Create new issue
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: title,
-                body: body,
-                labels: ['nightly-test-failure', 'dependencies', 'automated']
-              });
-              console.log('Created new issue for test failure');
-            } else {
-              console.log('Issue already exists for today, skipping creation');
-            }
+          title: ${{ steps.failure_body.outputs.title }}
+          body: ${{ steps.failure_body.outputs.body }}
+          labels: "nightly-test-failure, dependencies, automated"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload test artifacts
         if: always()
