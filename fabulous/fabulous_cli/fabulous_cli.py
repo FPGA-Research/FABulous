@@ -47,6 +47,11 @@ from FABulous_bit_gen import genBitstream
 from loguru import logger
 
 from fabulous.custom_exception import CommandError, EnvironmentNotSet, InvalidFileType
+from fabulous.fabric_cad.timing_model.models import (
+    TimingModelConfig,
+    TimingModelMode,
+    TimingModelTileSourceFiles,
+)
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
@@ -82,6 +87,7 @@ CMD_OTHER = "Other"
 CMD_GUI = "GUI"
 CMD_SCRIPT = "Script"
 CMD_TOOLS = "Tools"
+CMD_TIMING_MODEL = "Timing Characterization"
 
 
 INTO_STRING = rf"""
@@ -193,6 +199,8 @@ class FABulous_CLI(Cmd):
         Argument parser for the gen_all_tile command
     gui_parser : Cmd2ArgumentParser
         Argument parser for the open_gui command
+    timing_model_parser : Cmd2ArgumentParser
+        Argument parser for the timing_model command
 
     Notes
     -----
@@ -1589,3 +1597,123 @@ class FABulous_CLI(Cmd):
                 gds_file,
             ]
         )
+
+    timing_model_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
+    timing_model_parser.add_argument(
+        "--mode",
+        help="Timing model generation mode (physical or structural).",
+        type=str,
+        choices=["physical", "structural"],
+        default="physical",
+    )
+    timing_model_parser.add_argument(
+        "--outfile",
+        help="Output file for the generated timing model or config template.",
+        type=Path,
+        default=None,
+    )
+    timing_model_parser.add_argument(
+        "--emit-config-template",
+        help="Output file for the generated timing model config template.",
+        default=False,
+        action="store_true",
+    )
+    timing_model_parser.add_argument(
+        "--with-config-file",
+        help="Use a config file for timing model generation instead of CLI arguments.",
+        type=Path,
+        default=None,
+    )
+
+    @with_argparser(timing_model_parser)
+    @with_category(CMD_TIMING_MODEL)
+    def do_timing_model(self, args: argparse.Namespace) -> None:
+        """Generate a timing model for the fabric.
+
+        Timing information is extracted from the GDS layout and used to create a timing
+        model compatible with nextpnr for timing-aware place and route. This command
+        generates a timing model for the FPGA fabric based on the specified mode
+        (physical or structural) and outputs it to a file named pips.txt in the
+        .FABulous directory. If no config file is provided, the automated flow must be
+        run first to generate post-layout files. If a config file is provided, it will
+        be used for timing model generation instead of CLI arguments. This allows for
+        more complex configurations like different PDK support. If emit-config-template
+        is specified, a config template will be output and no timing model will be
+        generated.
+        """
+        outfile: Path | None = None
+        manual_config: TimingModelConfig | None = None
+
+        # Custom output path for the timing model file, if not provided, defaults
+        # to .FABulous/pips.txt with backup of existing file if exists.
+        if args.outfile is not None:
+            outfile: Path = args.outfile
+        else:
+            pips_path = get_context().proj_dir / ".FABulous" / "pips.txt"
+            if pips_path.exists():
+                backup_path = pips_path.with_suffix(".backup.txt")
+                logger.info(f"Backing up existing pips.txt to {backup_path}")
+                pips_path.rename(backup_path)
+            outfile = pips_path
+
+        # If a config file is provided, use it to generate the timing model
+        # instead of CLI arguments This allows for more complex configurations
+        # like supporting different PDKs.
+        if args.with_config_file is not None:
+            config_path = args.with_config_file
+            if not config_path.exists():
+                raise FileNotFoundError(f"Config file {config_path} not found")
+            manual_config = TimingModelConfig.model_validate_json(
+                config_path.read_text()
+            )
+
+        # If emit-config-template is specified, output a config template
+        # and return without generating the timing model.
+        if args.emit_config_template:
+            cfg_template: TimingModelConfig = TimingModelConfig(
+                project_dir=get_context().proj_dir,
+                liberty_files=Path("path/to/liberty/files: <required>"),
+                min_buf_cell_and_ports="cell_name in_port out_port: <required>",
+                synth_executable=get_context().yosys_path,
+                sta_executable=get_context().opensta_path,
+                mode=TimingModelMode(args.mode),
+                custom_per_tile_source_files=dict.fromkeys(
+                    self.allTile,
+                    TimingModelTileSourceFiles(
+                        netlist_file=Path(
+                            "path/to/netlist: <optional, not use project dir files>"
+                        ),
+                        rc_file=Path(
+                            "path/to/rc: <optional, not use project dir files>"
+                        ),
+                        rtl_files=[
+                            Path("path/to/rtl: <optional, not use project dir files>")
+                        ],
+                    ),
+                ),
+            )
+
+            outfile = (
+                get_context().proj_dir
+                / ".FABulous"
+                / "timing_model_config_template.json"
+            )
+            outfile = args.outfile if args.outfile is not None else outfile
+            outfile.write_text(cfg_template.model_dump_json(indent=4))
+            logger.info(f"Timing model config template generated at {outfile}")
+            return
+
+        logger.info(f"Output timing model file: {outfile}")
+
+        tm_config_resolved: TimingModelConfig = self.fabulousAPI.timing_model_interface(
+            mode=args.mode,
+            output_file=outfile,
+            debug=self.debug,
+            manual_config=manual_config,
+        )
+
+        resolved_path: Path = (
+            get_context().proj_dir / ".FABulous" / "timing_model_config_resolved.json"
+        )
+        resolved_path.write_text(tm_config_resolved.model_dump_json(indent=4))
+        logger.info(f"Timing model config resolved at {resolved_path}")

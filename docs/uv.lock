@@ -572,6 +572,7 @@ dependencies = [
     { name = "go-task-bin" },
     { name = "librelane" },
     { name = "loguru" },
+    { name = "networkx" },
     { name = "numpy" },
     { name = "packaging" },
     { name = "pick" },
@@ -582,6 +583,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "requests" },
+    { name = "sdf-timing" },
     { name = "typer" },
 ]
 
@@ -597,6 +599,7 @@ requires-dist = [
     { name = "go-task-bin", specifier = ">=3.40.0" },
     { name = "librelane", specifier = ">=3.0.0.dev43" },
     { name = "loguru", specifier = ">=0.7.0" },
+    { name = "networkx", specifier = ">=3.6.1" },
     { name = "numpy", specifier = ">=2.3.4" },
     { name = "packaging", specifier = ">=25.0" },
     { name = "pick", specifier = ">=2.4.0" },
@@ -607,6 +610,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "requests", specifier = ">=2.0.0" },
+    { name = "sdf-timing", git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" },
     { name = "typer", specifier = ">=0.20.0" },
 ]
 
@@ -1329,6 +1333,15 @@ wheels = [
 ]
 
 [[package]]
+name = "networkx"
+version = "3.6.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/51/63fe664f3908c97be9d2e4f1158eb633317598cfa6e1fc14af5383f17512/networkx-3.6.1.tar.gz", hash = "sha256:26b7c357accc0c8cde558ad486283728b65b6a95d85ee1cd66bafab4c8168509", size = 2517025, upload-time = "2025-12-08T17:02:39.908Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/c9/b2622292ea83fbb4ec318f5b9ab867d0a28ab43c5717bb85b0a5f6b3b0a4/networkx-3.6.1-py3-none-any.whl", hash = "sha256:d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762", size = 2068504, upload-time = "2025-12-08T17:02:38.159Z" },
+]
+
+[[package]]
 name = "numpy"
 version = "2.4.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1564,6 +1577,15 @@ wheels = [
 ]
 
 [[package]]
+name = "ply"
+version = "3.11"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e5/69/882ee5c9d017149285cab114ebeab373308ef0f874fcdac9beb90e0ac4da/ply-3.11.tar.gz", hash = "sha256:00c7c1aaa88358b9c765b6d3000c6eec0ba42abca5351b095321aef446081da3", size = 159130, upload-time = "2018-02-15T19:01:31.097Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/58/35da89ee790598a0700ea49b2a66594140f44dec458c07e8e3d4979137fc/ply-3.11-py2.py3-none-any.whl", hash = "sha256:096f9b8350b65ebd2fd1346b12452efe5b9607f7482813ffca50c22722a807ce", size = 49567, upload-time = "2018-02-15T19:01:27.172Z" },
+]
+
+[[package]]
 name = "psutil"
 version = "7.2.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1733,6 +1755,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b0/77/a5b8c569bf593b0140bde72ea885a803b82086995367bf2037de0159d924/pygments-2.19.2.tar.gz", hash = "sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887", size = 4968631, upload-time = "2025-06-21T13:39:12.283Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/21/705964c7812476f378728bdf590ca4b771ec72385c533964653c68e86bdc/pygments-2.19.2-py3-none-any.whl", hash = "sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b", size = 1225217, upload-time = "2025-06-21T13:39:07.939Z" },
+]
+
+[[package]]
+name = "pyjson"
+version = "1.4.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/77/6111496bbe0d1ff062c0dc6e4dbde591719ae02ec6d5e289c9c4d0c9540e/pyjson-1.4.1.tar.gz", hash = "sha256:79ebe55cccb6224302baca9f7119927c73dcb1c18c3fed193db80cfb320d0ca6", size = 3914, upload-time = "2023-09-21T23:44:06.939Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/54/f9/e06a583d0c6911f7aa0a9c0bb44f8537ef83100e91deab32e8364ddf56a0/pyjson-1.4.1-py3-none-any.whl", hash = "sha256:625ee332ca09056216595e232b562a8d42e1cba8b6695fc169b0a0c61587d56d", size = 4568, upload-time = "2023-09-21T23:44:04.96Z" },
 ]
 
 [[package]]
@@ -2063,6 +2094,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ef/5e/e565bd73991d42023eb82bb99e51c5b3d9e2c588ca9d4b3e2cc1d3ca62a6/scipy-1.17.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:f9eb55bb97d00f8b7ab95cb64f873eb0bf54d9446264d9f3609130381233483f", size = 37457743, upload-time = "2026-01-10T21:30:34.819Z" },
     { url = "https://files.pythonhosted.org/packages/58/a8/a66a75c3d8f1fb2b83f66007d6455a06a6f6cf5618c3dc35bc9b69dd096e/scipy-1.17.0-cp314-cp314t-win_amd64.whl", hash = "sha256:1ff269abf702f6c7e67a4b7aad981d42871a11b9dd83c58d2d2ea624efbd1088", size = 37098574, upload-time = "2026-01-10T21:30:40.782Z" },
     { url = "https://files.pythonhosted.org/packages/56/a5/df8f46ef7da168f1bc52cd86e09a9de5c6f19cc1da04454d51b7d4f43408/scipy-1.17.0-cp314-cp314t-win_arm64.whl", hash = "sha256:031121914e295d9791319a1875444d55079885bbae5bdc9c5e0f2ee5f09d34ff", size = 25246266, upload-time = "2026-01-10T21:30:45.923Z" },
+]
+
+[[package]]
+name = "sdf-timing"
+version = "0.0.post134"
+source = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git#fb83228866b4d635dcdb126502aeb9da707413a0" }
+dependencies = [
+    { name = "ply" },
+    { name = "pyjson" },
 ]
 
 [[package]]

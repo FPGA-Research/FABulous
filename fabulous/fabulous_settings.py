@@ -49,6 +49,7 @@ class FABulousSettings(BaseSettings):
 
     oss_cad_suite: Path | None = None
     yosys_path: Path | str = Field(default="yosys", validate_default=True)
+    opensta_path: Path | str = Field(default="sta", validate_default=True)
     nextpnr_path: Path | str = Field(default="nextpnr-generic", validate_default=True)
     iverilog_path: Path | str = Field(default="iverilog", validate_default=True)
     vvp_path: Path | str = Field(default="vvp", validate_default=True)
@@ -289,6 +290,7 @@ class FABulousSettings(BaseSettings):
     # Resolve external tool paths only after object creation (post env setup)
     @field_validator(
         "yosys_path",
+        "opensta_path",
         "nextpnr_path",
         "iverilog_path",
         "vvp_path",
@@ -330,6 +332,7 @@ class FABulousSettings(BaseSettings):
             return Path(value).resolve()
         tool_map = {
             "yosys_path": "yosys",
+            "opensta_path": "sta",
             "nextpnr_path": "nextpnr-generic",
             "iverilog_path": "iverilog",
             "vvp_path": "vvp",

@@ -15,6 +15,15 @@ import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
 import fabulous.fabric_generator.parser.parse_csv as fileParser
 from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
+from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
+    FABulousTimingModelInterface,
+)
+from fabulous.fabric_cad.timing_model.models import (
+    TimingModelConfig,
+    TimingModelMode,
+    TimingModelStaTools,
+    TimingModelSynthTools,
+)
 
 # Importing Modules from FABulous Framework.
 from fabulous.fabric_definition.bel import Bel
@@ -629,3 +638,107 @@ class FABulous_API:
         logger.info(f"Saving final views for FABulous to {out_folder / 'final_views'}")
         result.save_snapshot(out_folder / "final_views")
         logger.info("Stitching flow completed.")
+
+    def timing_model_interface(
+        self,
+        mode: str,
+        output_file: Path,
+        debug: bool,
+        manual_config: TimingModelConfig | None = None,
+    ) -> TimingModelConfig:
+        """Initialise timing model interface, generate nextpnr pip file for the fabric.
+
+        Parameters
+        ----------
+        mode : str
+            The mode in which to run the timing model interface.
+        output_file : Path
+            The path where the generated nextpnr pip file will be saved.
+        debug : bool
+            Whether to enable debug mode for the timing model interface,
+            which may provide more verbose logging.
+        manual_config : TimingModelConfig | None
+            Optional manual configuration for the timing model interface.
+            If provided, this configuration will be used instead of the default
+            PDK-based configuration.
+
+        Returns
+        -------
+        TimingModelConfig
+            The configuration used for the timing model interface, which may be the
+            default PDK-based configuration or the provided manual configuration.
+
+        Raises
+        ------
+        ValueError
+            If no default timing model configuration is available for the
+            current PDK and no manual configuration is provided.
+        """
+        pdk: str | None = get_context().pdk
+        pdk_root: Path | None = get_context().pdk_root
+
+        if pdk is not None and pdk_root is not None:
+            pdk_root = Path.resolve(pdk_root / pdk).absolute()
+
+        iconfig: TimingModelConfig | None = None
+
+        match pdk:
+            case "ihp-sg13g2":
+                liberty_files: Path = (
+                    pdk_root
+                    / "libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib"
+                )
+                techmap_files: list[Path] = [
+                    pdk_root / "libs.tech/librelane/sg13g2_stdcell/latch_map.v",
+                    pdk_root / "libs.tech/librelane/sg13g2_stdcell/tribuff_map.v",
+                ]
+                min_buf_cell_and_ports: str = "sg13g2_buf_1 A X"
+
+            case "sky130A" | "sky130B":
+                liberty_files: Path = (
+                    pdk_root
+                    / "libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib"
+                )
+                techmap_files: list[Path] = [
+                    pdk_root / "libs.tech/openlane/sky130_fd_sc_hd/latch_map.v",
+                    pdk_root / "libs.tech/openlane/sky130_fd_sc_hd/tribuff_map.v",
+                ]
+                min_buf_cell_and_ports: str = "sky130_fd_sc_hd__buf_1 A X"
+
+            case _:
+                if manual_config is None:
+                    raise ValueError(
+                        f"No default timing model configuration for PDK {pdk}. "
+                        f"Please provide a manual configuration or add "
+                        f"defaults for this PDK."
+                    )
+
+        # Allow manual configuration to override defaults for flexibility, but default
+        # to PDK-based configuration if not provided.
+        if manual_config is not None:
+            iconfig = manual_config
+            logger.info("Using manual timing model configuration.")
+        else:
+            iconfig = TimingModelConfig(
+                project_dir=get_context().proj_dir,
+                liberty_files=liberty_files,
+                techmap_files=techmap_files,
+                pdk_name=pdk,
+                min_buf_cell_and_ports=min_buf_cell_and_ports,
+                synth_executable=get_context().yosys_path,
+                synth_program=TimingModelSynthTools.YOSYS,
+                sta_executable=get_context().opensta_path,
+                sta_program=TimingModelStaTools.OPENSTA,
+                mode=TimingModelMode(mode),
+                debug=debug,
+            )
+
+        ftmi = FABulousTimingModelInterface(config=iconfig, fabric=self.fabric)
+
+        model_gen_npnr.writeNextpnrPipFile(
+            fabric=self.fabric,
+            outputFile=output_file,
+            delay_model=ftmi,
+        )
+
+        return iconfig

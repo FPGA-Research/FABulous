@@ -8,5 +8,6 @@ fabric_definition
 building_fabric
 fabric_automation
 fabric_gds
+timing_characterization
 /generated_doc/gds_variable
 ```
