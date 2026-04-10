@@ -7,6 +7,10 @@ version: "3"
 
 dotenv: ["../.FABulous/.env"]
 
+includes:
+  compile:
+    taskfile: "./compile.Taskfile.yml"
+
 vars:
   MAX_BITBYTES: '{{.MAX_BITBYTES | default "16384"}}'
   FAB_PROJ_ROOT: '{{.FAB_PROJ_ROOT | default ".."}}'
@@ -66,36 +70,38 @@ tasks:
   run-yosys:
     desc: Run Yosys synthesis
     deps: [mkdir-build]
-    cmds:
-      - >-
-        yosys -p "synth_fabulous -top {{.TOP_WRAPPER}}
-        -json {{.BUILD_DIR}}/{{.DESIGN}}.json
-        {{.CUSTOM_PRIMS}}"
-        {{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
-        {{.USER_DESIGN_DIR}}/{{.TOP_WRAPPER}}.v
     vars:
       CUSTOM_PRIMS:
         sh: '[ -f "{{.USER_DESIGN_DIR}}/custom_prims.v" ] && echo "-extra-plib {{.USER_DESIGN_DIR}}/custom_prims.v" || true'
+    cmds:
+      - task: compile:compile-yosys
+        vars:
+          YOSYS_PATH: '{{.FAB_YOSYS_PATH | default "yosys"}}'
+          SYNTH_CMD: "synth_fabulous -top {{.TOP_WRAPPER}} -json {{.BUILD_DIR}}/{{.DESIGN}}.json {{.CUSTOM_PRIMS}}"
+          DESIGN_FILES: "{{.USER_DESIGN_DIR}}/{{.DESIGN}}.v"
+          TOP_WRAPPER_FILE: "{{.USER_DESIGN_DIR}}/{{.TOP_WRAPPER}}.v"
 
   run-nextpnr:
     desc: Run nextpnr place and route
     deps: [mkdir-build]
     cmds:
-      - >-
-        FAB_ROOT={{.FAB_PROJ_ROOT}} nextpnr-generic
-        --uarch fabulous
-        --json {{.BUILD_DIR}}/{{.DESIGN}}.json
-        -o fasm={{.BUILD_DIR}}/{{.DESIGN}}.fasm
+      - task: compile:compile-nextpnr
+        vars:
+          FAB_PROJ_ROOT: "{{.FAB_PROJ_ROOT}}"
+          NEXTPNR_PATH: '{{.FAB_NEXTPNR_PATH | default "nextpnr-generic"}}'
+          JSON_FILE: "{{.BUILD_DIR}}/{{.DESIGN}}.json"
+          FASM_FILE: "{{.BUILD_DIR}}/{{.DESIGN}}.fasm"
+          LOG_FILE: ""
 
   run-bitgen:
     desc: Generate bitstream and hex file
     deps: [mkdir-build]
     cmds:
-      - >-
-        bit_gen -genBitstream
-        {{.BUILD_DIR}}/{{.DESIGN}}.fasm
-        {{.FAB_PROJ_ROOT}}/.FABulous/bitStreamSpec.bin
-        {{.BUILD_DIR}}/{{.DESIGN}}.bin
+      - task: compile:compile-bitgen
+        vars:
+          FAB_PROJ_ROOT: "{{.FAB_PROJ_ROOT}}"
+          FASM_FILE: "{{.BUILD_DIR}}/{{.DESIGN}}.fasm"
+          BIN_FILE: "{{.BUILD_DIR}}/{{.DESIGN}}.bin"
       - >-
         python3 makehex.py
         {{.BUILD_DIR}}/{{.DESIGN}}.bin

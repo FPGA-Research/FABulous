@@ -234,19 +234,23 @@ def run_task(
     task_dir: Path,
     task_vars: dict[str, str] | None = None,
     verbose: bool = False,
+    taskfile: str | None = None,
 ) -> None:
-    """Run a Taskfile task using the ``task`` CLI.
+    """Run a Taskfile task using the `task` CLI.
 
     Parameters
     ----------
     task_name : str
-        Name of the task to run (e.g. ``"run-simulation"``).
+        Name of the task to run (e.g. `"run-simulation"`).
     task_dir : Path
-        Directory containing the ``Taskfile.yml``.
+        Directory containing the Taskfile.
     task_vars : dict[str, str] | None
-        Optional variables to pass to the task (``VAR=value``).
+        Optional variables to pass to the task (`VAR=value`).
     verbose : bool
-        If True, adds ``--verbose`` flag.
+        If True, adds `--verbose` flag.
+    taskfile : str | None
+        Explicit Taskfile name (e.g. `"compile.Taskfile.yml"`).
+        When None, ``task`` uses its default lookup (``Taskfile.yml``).
 
     Raises
     ------
@@ -261,6 +265,8 @@ def run_task(
         )
 
     cmd: list[str] = ["task", task_name]
+    if taskfile:
+        cmd.extend(["--taskfile", taskfile])
     if verbose:
         cmd.append("--verbose")
     if task_vars:
