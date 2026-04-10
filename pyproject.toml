@@ -71,6 +71,10 @@ exclude = [
   "nix",
 ] # exclude packages matching these glob patterns (empty by default)
 
+[tool.setuptools.cmdclass]
+build_py = "build_hooks.BuildPyWithFabulousNix"
+
+
 [tool.setuptools.package-data]
 fabulous = ["**/*"]
 
@@ -126,7 +130,14 @@ parallel = true
 source = ["fabulous"]
 
 [tool.coverage.report]
-omit = ["*/__init__.py", "*/__pycache__/*", "tests/*", "demo/*", "docs/*"]
+omit = [
+  "*/__init__.py",
+  "*/__pycache__/*",
+  "tests/*",
+  "demo/*",
+  "docs/*",
+  "build_hooks.py",
+]
 show_missing = true
 skip_covered = true
 
@@ -144,7 +155,11 @@ addopts = "-m 'not slow'"
 [tool.deptry]
 # Ignore platform-specific readline dependencies for DEP002 (defined but not used)
 # These are indirect requirements needed by cmd2 and other interactive CLI tools
-extend_exclude = ["fabulous/fabric_generator/gds_generator/script", "docs"]
+extend_exclude = [
+  "fabulous/fabric_generator/gds_generator/script",
+  "docs",
+  "build_hooks.py",
+]
 
 [tool.deptry.per_rule_ignores]
 DEP002 = ["pyreadline3", "gnureadline", "go-task-bin"]

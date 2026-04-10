@@ -4,9 +4,13 @@ This module provides the main entry point for the FABulous FPGA framework comman
 interface. It handles argument parsing, project setup, and CLI initialization.
 """
 
+import os
 import platform
+import shutil
 import sys
+from enum import StrEnum
 from importlib.metadata import version
+from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Annotated
 
@@ -84,6 +88,21 @@ WriterType = Annotated[
 ]
 
 ForceType = Annotated[bool, typer.Option("--force", help="Enable force mode")]
+
+
+class NixShell(StrEnum):
+    """Shell types supported by the nix development environment."""
+
+    BASH = "bash"
+    FISH = "fish"
+    ZSH = "zsh"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "NixShell":
+        logger.warning(
+            f"Unsupported shell '{value}', falling back to '{cls.BASH.value}'."
+        )
+        return cls.BASH
 
 
 GLOBAL_FLAGS = {
@@ -214,7 +233,8 @@ def common_options(
 
     subcommand = ctx.invoked_subcommand
     if subcommand and (
-        subcommand.startswith("install") or subcommand in {"create-project", "c"}
+        subcommand.startswith("install")
+        or subcommand in {"create-project", "c", "nix-env"}
     ):
         return
 
@@ -353,6 +373,88 @@ def install_nix_cmd() -> None:
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to install Nix: {e}")
         raise typer.Exit(1) from None
+
+
+@app.command("nix-env")
+def nix_env_cmd(
+    flake_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--flake-dir",
+            "-f",
+            help="Directory containing flake.nix. Defaults to bundled nix files.",
+        ),
+    ] = None,
+    shell: Annotated[
+        NixShell | None,
+        typer.Option(
+            "--shell",
+            "-s",
+            help=(
+                "Shell to use (bash, fish, zsh). "
+                "Auto-detected from $SHELL if not specified."
+            ),
+            case_sensitive=False,
+        ),
+    ] = None,
+    no_check: Annotated[
+        bool,
+        typer.Option(
+            "--no-check",
+            help="Skip EDA tool verification on entry.",
+        ),
+    ] = False,
+) -> None:
+    """Drop into the Nix development environment with EDA tool verification.
+
+    Enters a Nix dev shell and verifies that yosys, nextpnr, and openroad are installed
+    and sourced from the Nix store. Use --no-check to skip the verification step.
+    """
+    # Check nix is installed
+    if not shutil.which("nix"):
+        logger.error("Nix is not installed. Run `FABulous install-nix` to install it.")
+        raise typer.Exit(1)
+
+    # Resolve flake directory
+    if flake_dir is not None:
+        resolved_flake_dir = flake_dir.resolve()
+    else:
+        with as_file(files("fabulous_nix").joinpath("flake.nix")) as flake_file:
+            resolved_flake_dir = flake_file.resolve().parent
+
+    if not (resolved_flake_dir / "flake.nix").exists():
+        logger.error(
+            f"flake.nix not found in {resolved_flake_dir}. "
+            "Use --flake-dir to specify the directory containing flake.nix."
+        )
+        raise typer.Exit(1)
+
+    # Detect shell (precedence: CLI option > FAB_NIX_SHELL setting > $SHELL)
+    if shell is None:
+        configured_shell = get_context().nix_shell
+        selected_shell = (
+            configured_shell or Path(os.environ.get("SHELL", "/bin/bash")).name
+        )
+        shell = NixShell(selected_shell)
+
+    # Tell the nix-env shellHook which shell to exec into after setup.
+    # The shellHook handles PATH setup, venv deactivation, and for fish
+    # uses -C to re-prepend nix paths after config (nix-darwin#1607).
+    logger.info(f"Entering Nix environment with {shell.value} shell...")
+
+    env = os.environ.copy()
+    env["FAB_NIX_SHELL"] = shell.value
+    env["FAB_NIX_NO_CHECK"] = str(int(no_check or get_context().nix_no_check))
+
+    os.execvpe(
+        "nix",
+        [
+            "nix",
+            "develop",
+            f"path:{resolved_flake_dir}#nix-env",
+        ],
+        env,
+    )
 
 
 @app.command("update-project-version")

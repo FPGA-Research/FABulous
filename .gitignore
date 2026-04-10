@@ -10,6 +10,8 @@ oss-cad-suite
 docker-image
 .claude
 CLAUDE.md
+fabulous_nix
+build
 
 # Documentation build artifacts (auto-generated in CI)
 docs/build/
