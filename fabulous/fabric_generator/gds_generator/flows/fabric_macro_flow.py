@@ -5,7 +5,6 @@ from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
-import yaml
 from librelane.config.variable import Instance, Macro, Orientation, Variable
 from librelane.flows.classic import Classic
 from librelane.flows.flow import Flow
@@ -20,7 +19,11 @@ from fabulous.fabric_generator.gds_generator.flows.flow_define import (
     prep_steps,
     write_out_steps,
 )
-from fabulous.fabric_generator.gds_generator.helper import get_pitch, round_up_decimal
+from fabulous.fabric_generator.gds_generator.helper import (
+    get_pitch,
+    merge_config_mappings,
+    round_up_decimal,
+)
 from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
     FABulousFabricIOPlacement,
 )
@@ -133,16 +136,15 @@ class FABulousFabricMacroFlow(Classic):
         final_config = {}
         final_config["VERILOG_FILES"] = [str(i) for i in fabric_verilog_paths]
         final_config["DESIGN_NAME"] = fabric.name
+        config_paths: list[Path] = []
         if base_config_path is not None:
-            final_config.update(
-                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
-            )
+            config_paths.append(base_config_path)
 
         if config_override_path is not None:
-            final_config.update(
-                yaml.safe_load(config_override_path.read_text(encoding="utf-8"))
-            )
-        final_config.update(**custom_config_overrides)
+            config_paths.append(config_override_path)
+        final_config = merge_config_mappings(
+            final_config, *config_paths, **custom_config_overrides
+        )
         if design_dir is not None:
             final_design_dir = str(design_dir.resolve())
         else:

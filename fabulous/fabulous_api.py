@@ -7,8 +7,10 @@ various fabric-related operations.
 
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
-import yaml
+from librelane.config import Config
+from librelane.flows import Flow
 from loguru import logger
 
 import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
@@ -36,6 +38,9 @@ from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
 )
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
+)
+from fabulous.fabric_generator.gds_generator.helper import (
+    merge_config_mappings,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
@@ -494,6 +499,47 @@ class FABulous_API:
         """
         generate_IO_pin_order_config(self.fabric, tile, outfile)
 
+    def _flow_sub(
+        self,
+        base_config_path: Path | None,
+        config_override_path: Path | None,
+        custom_config_overrides: dict | None,
+        flow: type[Flow],
+    ) -> type[Flow]:
+        """Apply substituting_steps from config metadata to the given flow class.
+
+        Returns the (possibly substituted) flow class. ``Flow.Substitute`` returns
+        a new subclass rather than mutating the original, so the return value
+        must be used when instantiating the flow.
+        """
+        flow_name = flow.__name__
+
+        def _apply_meta(config_path: Path, label: str) -> None:
+            nonlocal flow
+            meta = Config.get_meta(str(config_path))
+            if meta.flow is not None and meta.flow != flow_name:
+                logger.warning(
+                    f"{label} config flow '{meta.flow}' does not match expected "
+                    f"'{flow_name}', any flow-specific defaults in the "
+                    f"{label.lower()} config will be ignored."
+                )
+                return
+            if meta.substituting_steps:
+                flow = flow.Substitute(meta.substituting_steps)
+
+        if base_config_path:
+            _apply_meta(base_config_path, "Base")
+
+        if config_override_path:
+            _apply_meta(config_override_path, "Override")
+
+        if custom_config_overrides:
+            substituting_steps = custom_config_overrides.get("substituting_steps")
+            if substituting_steps:
+                flow = flow.Substitute(substituting_steps)
+
+        return flow
+
     def genTileMacro(
         self,
         tile_dir: Path,
@@ -512,7 +558,14 @@ class FABulous_API:
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        flow = FABulousTileVerilogMacroFlow(
+        flow_cls = self._flow_sub(
+            base_config_path,
+            config_override_path,
+            custom_config_overrides,
+            FABulousTileVerilogMacroFlow,
+        )
+
+        flow = flow_cls(
             self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
             optimisation,
@@ -569,8 +622,14 @@ class FABulous_API:
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
+        flow_cls = self._flow_sub(
+            base_config_path,
+            config_override_path,
+            custom_config_overrides,
+            FABulousFabricMacroFlow,
+        )
 
-        flow = FABulousFabricMacroFlow(
+        flow = flow_cls(
             fabric=self.fabric,
             fabric_verilog_paths=[fabric_path],
             tile_macro_dirs=tile_macro_paths,
@@ -602,22 +661,21 @@ class FABulous_API:
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        final_config_args = {}
+        config_paths: list[Path] = []
         if base_config_path is not None:
-            final_config_args.update(
-                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
-            )
+            config_paths.append(base_config_path)
         if config_override_path is not None:
-            final_config_args.update(
-                yaml.safe_load(config_override_path.read_text(encoding="utf-8"))
-            )
-        final_config_args["FABULOUS_PROJ_DIR"] = str(project_dir.resolve())
-        final_config_args["FABULOUS_FABRIC"] = self.fabric
-        final_config_args["DESIGN_NAME"] = self.fabric.name
+            config_paths.append(config_override_path)
+        base_args: dict[str, Any] = {
+            "FABULOUS_PROJ_DIR": str(project_dir.resolve()),
+            "FABULOUS_FABRIC": self.fabric,
+            "DESIGN_NAME": self.fabric.name,
+        }
         if tile_opt_config is not None:
-            final_config_args["TILE_OPT_INFO"] = str(tile_opt_config)
-        if config_overrides:
-            final_config_args.update(config_overrides)
+            base_args["TILE_OPT_INFO"] = str(tile_opt_config)
+        final_config_args = merge_config_mappings(
+            base_args, *config_paths, **config_overrides
+        )
         flow = FABulousFabricMacroFullFlow(
             final_config_args,
             name=self.fabric.name,
