@@ -359,7 +359,7 @@ class TestFABulousTileVerilogMacroFlowInit:
         io_pin_config: Path,
         mock_pdk_root: dict[str, Any],
     ) -> None:
-        """Test that nonexistent config files don't cause errors."""
+        """Test none handling for opt_mode results in NO_OPT."""
 
         flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
             tile_type=mock_tile,
