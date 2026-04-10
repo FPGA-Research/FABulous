@@ -352,3 +352,22 @@ class TestFABulousTileVerilogMacroFlowInit:
         )
 
         assert flow.config["DESIGN_NAME"] == "TestTile"
+
+    def test_none_cast_to_no_opt(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """Test that nonexistent config files don't cause errors."""
+
+        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+            tile_type=mock_tile,
+            io_pin_config=io_pin_config,
+            opt_mode=None,
+            pdk=mock_pdk_root["pdk"],
+            pdk_root=mock_pdk_root["pdk_root"],
+            DIE_AREA=(0, 0, Decimal("200.0"), Decimal("200.0")),
+        )
+
+        assert flow.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT
