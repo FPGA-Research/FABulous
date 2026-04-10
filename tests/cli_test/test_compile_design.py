@@ -9,7 +9,7 @@ from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from tests.conftest import run_cmd
 
 
-def _make_default_args(**overrides) -> argparse.Namespace:
+def _make_default_args(**overrides) -> argparse.Namespace:  # noqa: ANN003
     """Return a Namespace with all compile_design arguments set to defaults."""
     defaults = dict(
         files=[],
@@ -35,8 +35,8 @@ def compile_cli(
 ) -> FABulous_CLI:
     """Extend the standard cli fixture with compile-specific project files.
 
-    Creates Test/compile.Taskfile.yml, .FABulous/pips.txt, bel.txt and a design
-    file so that do_compile_design can find everything it needs.
+    Creates Test/compile.Taskfile.yml, .FABulous/pips.txt, bel.txt and a design file so
+    that do_compile_design can find everything it needs.
 
     run_task and get_context are patched on the module under test.
     """
@@ -91,7 +91,6 @@ def test_compile_design_task_dispatch(
     mock_run_task = mocker.patch("fabulous.fabulous_cli.cmd_compile_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file} {cli_flags}")
-    print(mock_run_task.call_args_list)
     assert mock_run_task.call_count == len(expected_tasks)
     actual_tasks = [c.args[0] for c in mock_run_task.call_args_list]
     assert actual_tasks == expected_tasks
@@ -194,7 +193,7 @@ def test_compile_design_extra_args(
 
 
 @pytest.mark.parametrize(
-    "verbose, debug, expected",
+    ("verbose", "debug", "expected"),
     [
         (False, False, ""),
         (True, False, "--verbose"),
@@ -228,7 +227,7 @@ def test_compile_design_nextpnr_verbose(
 
 
 @pytest.mark.parametrize(
-    "flag, expected_in_args",
+    ("flag", "expected_in_args"),
     [
         ("--yosys-synth-help", "help synth_fabulous"),
         ("--nextpnr-help", "--help"),
