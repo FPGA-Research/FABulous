@@ -1295,7 +1295,7 @@ class FABulous_CLI(Cmd):
         type=OptMode,
         nargs="?",
         const=OptMode.BALANCE,
-        default=None,
+        default=OptMode.NO_OPT,
         help="Optimize the GDS layout. Available modes: "
         + ", ".join(m.value for m in OptMode),
     )
