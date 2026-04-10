@@ -183,7 +183,9 @@ def test_nix_env_uses_settings_shell_when_not_explicit(
     monkeypatch.setenv("SHELL", "/bin/bash")
     mocker.patch("shutil.which", return_value="/nix/store/fake/bin/nix")
     mock_execvpe = mocker.patch("os.execvpe")
-    monkeypatch.setattr(sys, "argv", ["FABulous", "nix-env", "--flake-dir", str(flake_dir)])
+    monkeypatch.setattr(
+        sys, "argv", ["FABulous", "nix-env", "--flake-dir", str(flake_dir)]
+    )
 
     with pytest.raises(SystemExit):
         main()
