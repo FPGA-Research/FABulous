@@ -71,7 +71,7 @@ def test_flake_dir_auto_discovery(
     resource_dir = tmp_path / "site-packages" / "fabulous_nix"
     resource_dir.mkdir(parents=True)
     (resource_dir / "flake.nix").write_text("{ }")
-    mocker.patch("importlib.resources.files", return_value=resource_dir)
+    mocker.patch("fabulous.fabulous.files", return_value=resource_dir)
     expected_path = str(resource_dir)
 
     mocker.patch("shutil.which", return_value="/nix/store/fake/bin/nix")
