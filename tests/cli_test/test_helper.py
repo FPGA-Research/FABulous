@@ -236,8 +236,8 @@ def test_create_project_has_compile_taskfile(tmp_path: Path) -> None:
     project_dir = tmp_path / "test_project_compile"
     create_project(project_dir)
 
-    compile_taskfile = project_dir / ".FABulous" / "compile.Taskfile.yml"
-    assert compile_taskfile.exists(), "compile.Taskfile.yml not found in .FABulous/"
+    compile_taskfile = project_dir / "Test" / "compile.Taskfile.yml"
+    assert compile_taskfile.exists(), "compile.Taskfile.yml not found in Test/"
 
     content = compile_taskfile.read_text()
     assert "compile-yosys" in content

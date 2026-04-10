@@ -9,7 +9,7 @@ dotenv: ["../.FABulous/.env"]
 
 includes:
   compile:
-    taskfile: "../.FABulous/compile.Taskfile.yml"
+    taskfile: "./compile.Taskfile.yml"
 
 vars:
   MAX_BITBYTES: '{{.MAX_BITBYTES | default "16384"}}'

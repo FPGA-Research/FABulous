@@ -190,7 +190,7 @@ def do_compile_design(self: "FABulous_CLI", args: argparse.Namespace) -> None:
         synth_cmd = " ".join(synth_parts)
 
     # Check that compile Taskfile exists
-    task_dir = self.projectDir / ".FABulous"
+    task_dir = self.projectDir / "Test"
     tf_name = "compile.Taskfile.yml"
     compile_taskfile = task_dir / tf_name
     if not compile_taskfile.exists():

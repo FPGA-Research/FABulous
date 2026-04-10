@@ -205,14 +205,6 @@ def create_project(project_dir: Path, lang: HDLType = HDLType.VERILOG) -> None:
     # Copy language-specific template (may overwrite some common files)
     _copy_template_safely(lang_template_ref, project_dir)
 
-    # Copy compile Taskfile into .FABulous/
-    compile_taskfile_ref = (
-        resources.files("fabulous.fabric_files") / "compile.Taskfile.yml"
-    )
-    compile_taskfile_dst = project_dir / ".FABulous" / "compile.Taskfile.yml"
-    with resources.as_file(compile_taskfile_ref) as src:
-        shutil.copy2(src, compile_taskfile_dst)
-
     # Replace {HDL_SUFFIX} placeholder in all tile csv files
     new_suffix = "v" if lang == HDLType.VERILOG else HDLType.VHDL
     for file_path in project_dir.rglob("*.csv"):

@@ -35,13 +35,15 @@ def compile_cli(
 ) -> FABulous_CLI:
     """Extend the standard cli fixture with compile-specific project files.
 
-    Creates .FABulous/compile.Taskfile.yml, pips.txt, bel.txt and a design
+    Creates Test/compile.Taskfile.yml, .FABulous/pips.txt, bel.txt and a design
     file so that do_compile_design can find everything it needs.
 
     run_task and get_context are patched on the module under test.
     """
     fab_dir = cli.projectDir / ".FABulous"
-    (fab_dir / "compile.Taskfile.yml").write_text(
+    test_dir = cli.projectDir / "Test"
+    test_dir.mkdir(exist_ok=True)
+    (test_dir / "compile.Taskfile.yml").write_text(
         "tasks:\n  compile-yosys: {}\n  compile-nextpnr: {}\n  compile-bitgen: {}\n"
     )
     (fab_dir / "pips.txt").write_text("")
@@ -128,14 +130,14 @@ def test_compile_design_task_vars(
 def test_compile_design_task_dir(
     compile_cli: FABulous_CLI, mocker: MockerFixture
 ) -> None:
-    """Verify run_task is called with .FABulous as the task directory."""
+    """Verify run_task is called with Test as the task directory."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
     mock_run_task = mocker.patch("fabulous.fabulous_cli.cmd_compile_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file}")
 
     task_dir = mock_run_task.call_args.args[1]
-    assert task_dir == compile_cli.projectDir / ".FABulous"
+    assert task_dir == compile_cli.projectDir / "Test"
 
 
 def test_compile_design_auto_includes_custom_prims(
@@ -263,7 +265,7 @@ def test_compile_design_no_taskfile(
 ) -> None:
     """Verify FileNotFoundError when compile.Taskfile.yml is absent."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    (compile_cli.projectDir / ".FABulous" / "compile.Taskfile.yml").unlink()
+    (compile_cli.projectDir / "Test" / "compile.Taskfile.yml").unlink()
     mocker.patch("fabulous.fabulous_cli.cmd_compile_design.run_task")
 
     from fabulous.fabulous_cli.cmd_compile_design import do_compile_design
