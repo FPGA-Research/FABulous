@@ -241,8 +241,8 @@ class TestGeneratedConfigMemRTL:
         # Count actual config_latch instantiations in content
         actual_instantiations = content.count("config_latch")
         assert actual_instantiations == tile_config.globalConfigBits, (
-            f"Expected {tile_config.globalConfigBits} config_latch instantiations, found"
-            f" {actual_instantiations}"
+            f"Expected {tile_config.globalConfigBits} config_latch instantiations, "
+            f"found {actual_instantiations}"
         )
 
     def test_configmem_rtl_maps_frame_signals_to_config_bits_correctly(
@@ -296,7 +296,8 @@ class TestGeneratedConfigMemRTL:
                     frame_strobe_bit = frame_idx
                     expected_config_bit = expected_config_bits[config_bit_counter]
 
-                    # Verify the config_latch instantiation exists with correct connections
+                    # Verify the config_latch instantiation exists with correct
+                    # connections
                     expected_inst_name = (
                         f"Inst_{config_mem.frameName}_bit{frame_data_bit}"
                     )
