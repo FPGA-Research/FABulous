@@ -85,6 +85,13 @@ def fabulous_test_environment(
         fabulous.fabulous_settings, "FAB_USER_CONFIG_DIR", fake_user_config_dir
     )
     monkeypatch.setattr(fabulous.fabulous, "FAB_USER_CONFIG_DIR", fake_user_config_dir)
+    # Avoid network-dependent PDK download attempts in tests when settings
+    # validation triggers ciel activation.
+    monkeypatch.setattr(
+        fabulous.fabulous_settings.ciel.manage,
+        "enable",
+        lambda *_args, **_kwargs: None,
+    )
     (tmp_path / ".ciel" / "ihp-sg13g2").mkdir(parents=True, exist_ok=True)
     setup_logger(0, False)
 
