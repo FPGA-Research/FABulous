@@ -92,6 +92,11 @@ def fabulous_test_environment(
         "enable",
         lambda *_args, **_kwargs: None,
     )
+    monkeypatch.setattr(
+        fabulous.fabulous_settings,
+        "get_ciel_home",
+        lambda: str(tmp_path / ".ciel"),
+    )
     (tmp_path / ".ciel" / "ihp-sg13g2").mkdir(parents=True, exist_ok=True)
     setup_logger(0, False)
 
