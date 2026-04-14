@@ -528,7 +528,7 @@ Afterward, we just run our simulation with the FABulous CLI command `run_simulat
 (venv)$ FABulous demo
 FABulous> load_fabric
 FABulous> run_FABulous_fabric
-FABulous> run_FABulous_bitstream ./user_design/sequential_16bit_en.v
+FABulous> compile_design ./user_design/sequential_16bit_en.v
 FABulous> run_simulation fst ./user_design/sequential_16bit_en.bin
 FABulous> exit
 ```

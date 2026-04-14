@@ -19,9 +19,51 @@ The `FABulous install-nix` command will download and run the Nix installation sc
 
 If you already have Nix installed, you will need to add the binary cache yourself and enable the experimental feature, `flake`. For more details check the following [guide](https://github.com/fossi-foundation/nix-eda/blob/main/docs/installation.md#i-already-have-nix).
 
-## Activating the Nix Shell
+## Entering the Nix Environment
 
-Once the Nix environment is set up, you can activate the development shell by running:
+The recommended way to enter the Nix development environment is:
+
+```bash
+FABulous nix-env
+```
+
+This command will:
+
+1. Locate the `flake.nix` at the installed package data
+2. Deactivate any active virtual environment or conda environment that could conflict
+3. Set up the Nix development shell with all EDA tools (Yosys, NextPNR, OpenROAD, GHDL, etc.)
+4. Verify that the tools are correctly sourced from the Nix store
+5. Drop you into your preferred shell (auto-detected from `$SHELL`)
+
+On first start this will take a bit of time as Nix downloads and builds the required packages. Subsequent starts will be much faster thanks to the Nix binary cache.
+
+### Options
+
+You can customize the behavior with the following options:
+
+```bash
+# Use a specific shell (bash, fish, or zsh)
+FABulous nix-env --shell bash
+FABulous nix-env --shell fish
+
+# Skip the EDA tool verification check
+FABulous nix-env --no-check
+
+# Point to a specific directory containing flake.nix
+FABulous nix-env --flake-dir /path/to/fabulous
+```
+
+### Tool verification
+
+By default, `FABulous nix-env` silently smoke test that software are available and sourced from the Nix store (`/nix/store/...`). If any tool is missing or not from the Nix store, the command will print an error and exit. You can skip this check with `--no-check`.
+
+### Shell compatibility
+
+`FABulous nix-env` handles a known issue where fish shell re-orders PATH entries on startup, which can cause system-installed tools to shadow Nix tools. The command automatically re-prepends Nix paths after fish's configuration files have loaded.
+
+## Manual Nix Shell Activation
+
+You can also activate the development shell manually using `nix develop`:
 
 ```bash
 # with a bash shell
@@ -30,24 +72,23 @@ nix develop
 # if you use zsh or fish
 nix develop .#zsh
 nix develop .#fish
-
 ```
 
-On first start this will take a bit of time. Subsequent starts will be much faster. This command sets up the environment with the necessary dependencies and tools required for FABulous development and usage. After running it, your shell prompt should change, indicating that you are now in the Nix development environment.
+Note that when using `nix develop` directly, you may need to manually deactivate any active virtual environments first, and the automatic tool verification will not run.
 
-We recommend running a quick smoke test to ensure everything is working correctly. You can do this by running:
+## Verifying the Environment
+
+To verify the environment is set up correctly, you can run:
 
 ```bash
 which openroad
-which yosys
+which fab-yosys
 ```
 
-You should see the paths to the `openroad` and `yosys` executables printed, and they should point to the Nix store paths.
-
-For `openroad`, you might see something like:
+You should see paths pointing to the Nix store, for example:
 
 ```bash
 /nix/store/fkpj5szgsm7ydnykm7zcsvxqdmklf0m3-devshell-dir/bin/openroad
 ```
 
-This indicates that the `openroad` tool is correctly installed and available in your Nix development environment. You should see similar output for `yosys`. If the commands point back to your system's default installation paths, the Nix environment is not set up correctly. This can happen if another environment was active before you ran `nix develop`. In that case, open a new terminal and make sure to deactivate any active environment (for example, run `deactivate`) before running `nix develop`.
+If the commands point back to your system's default installation paths, the Nix environment is not set up correctly. This can happen if another environment was active before you entered the Nix shell. In that case, open a new terminal and use `FABulous nix-env` to enter a clean environment.

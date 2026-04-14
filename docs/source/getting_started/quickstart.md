@@ -61,13 +61,13 @@ Inside the FABulous shell:
 
 ```
 fabulous> run_FABulous_fabric
-fabulous> run_FABulous_bitstream user_design/sequential_16bit_en.v
+fabulous> compile_design user_design/sequential_16bit_en.v
 ```
 
 **Option B -- Command line (batch mode):**
 
 ```bash
-FABulous -p demo run "run_FABulous_fabric; run_FABulous_bitstream user_design/sequential_16bit_en.v"
+FABulous -p demo run "run_FABulous_fabric; compile_design user_design/sequential_16bit_en.v"
 ```
 
 ## 5. Check the outputs

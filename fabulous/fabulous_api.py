@@ -503,7 +503,7 @@ class FABulous_API:
         pdk_root: Path,
         *,
         final_view: Path | None = None,
-        optimisation: OptMode = OptMode.BALANCE,
+        optimisation: OptMode | None = OptMode.BALANCE,
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         custom_config_overrides: dict | None = None,
@@ -515,7 +515,7 @@ class FABulous_API:
         flow = FABulousTileVerilogMacroFlow(
             self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
-            optimisation,
+            OptMode(optimisation),
             pdk=pdk,
             pdk_root=pdk_root,
             base_config_path=base_config_path,

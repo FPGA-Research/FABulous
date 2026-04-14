@@ -3,8 +3,8 @@
 
 `timescale 1ps/1ps
 
-// LHQD1 Latch - used in configuration memory
-module LHQD1 (input D, E, output reg Q, QN);
+// config_latch Latch - used in configuration memory
+module config_latch (input D, E, output reg Q, QN);
     always @(*)
     begin
         if (E == 1'b1) begin

@@ -116,6 +116,9 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
             logical_width = 1
             logical_height = 1
 
+        # casting opt_mode
+        opt_mode = OptMode(opt_mode)
+
         # Build tile configuration
         tile_config_dict = {
             "DESIGN_NAME": tile_type.name,

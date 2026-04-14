@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+# https://taskfile.dev
+#
+# Central compile tasks for FABulous projects (synthesis + PnR + bitgen).
+# Called directly by the CLI `compile_design` command or included
+# from Test/Taskfile.yml for the demo flow.
+version: "3"
+
+vars:
+  FAB_PROJ_ROOT: '{{.FAB_PROJ_ROOT | default ".."}}'
+  YOSYS_PATH: '{{.YOSYS_PATH | default "yosys"}}'
+  NEXTPNR_PATH: '{{.NEXTPNR_PATH | default "nextpnr-generic"}}'
+  SYNTH_CMD: "{{.SYNTH_CMD}}"
+  DESIGN_FILES: "{{.DESIGN_FILES}}"
+  TOP_WRAPPER_FILE: '{{.TOP_WRAPPER_FILE | default ""}}'
+  JSON_FILE: "{{.JSON_FILE}}"
+  FASM_FILE: "{{.FASM_FILE}}"
+  LOG_FILE: '{{.LOG_FILE | default ""}}'
+  YOSYS_EXTRA_ARGS: '{{.YOSYS_EXTRA_ARGS | default ""}}'
+  NEXTPNR_EXTRA_ARGS: '{{.NEXTPNR_EXTRA_ARGS | default ""}}'
+  YOSYS_GHDL: '{{.YOSYS_GHDL | default ""}}'
+  NEXTPNR_VERBOSE: '{{.NEXTPNR_VERBOSE | default ""}}'
+
+tasks:
+  compile-design:
+    desc: Full compile flow (synthesis + PnR + bitgen)
+    cmds:
+      - task: compile-yosys
+      - task: compile-nextpnr
+      - task: compile-bitgen
+
+  compile-yosys:
+    desc: Run Yosys synthesis with full argument support
+    cmds:
+      - >-
+        {{.YOSYS_PATH}} {{.YOSYS_GHDL}} {{.YOSYS_EXTRA_ARGS}}
+        -p "{{.SYNTH_CMD}}"
+        {{.TOP_WRAPPER_FILE}}
+        {{.DESIGN_FILES}}
+
+  compile-nextpnr:
+    desc: Run nextpnr place and route
+    cmds:
+      - >-
+        FAB_ROOT={{.FAB_PROJ_ROOT}} {{.NEXTPNR_PATH}}
+        --uarch fabulous
+        --json {{.JSON_FILE}}
+        -o fasm={{.FASM_FILE}}
+        {{.NEXTPNR_VERBOSE}}
+        {{if .LOG_FILE}}--log {{.LOG_FILE}}{{end}}
+        {{.NEXTPNR_EXTRA_ARGS}}
+
+  compile-bitgen:
+    desc: Generate bitstream binary
+    cmds:
+      - >-
+        bit_gen -genBitstream
+        {{.FASM_FILE}}
+        {{.FAB_PROJ_ROOT}}/.FABulous/bitStreamSpec.bin
+        {{.BIN_FILE}}
+    vars:
+      BIN_FILE: '{{.BIN_FILE | default (printf "%s.bin" (trimSuffix ".fasm" .FASM_FILE))}}'

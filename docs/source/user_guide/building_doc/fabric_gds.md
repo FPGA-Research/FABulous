@@ -26,6 +26,17 @@ We use [librelane](https://github.com/librelane/librelane) as our main flow. To 
 As of writing, we are using custom build of librelane, as a result, the upstream version of librelane will not work. We are aiming to upstream all the changes.
 :::
 
+### Enter the Nix environment
+
+Before running any GDS commands, enter the Nix development environment:
+
+```bash
+FABulous nix-env
+```
+
+This sets up all EDA tools (Yosys, NextPNR, OpenROAD, GHDL, etc.) and verifies they are correctly sourced from the Nix store. Your shell prompt will indicate you are in the Nix environment. For more details and options, see the [Nix environment setup guide](../../getting_started/installation/nix-env.md).
+
+
 ### Install PDK
 
 To compile the design, we will also need to install the PDK. For ciel-supported PDKs (e.g. `ihp-sg13g2`, `sky130A`, `gf180mcu`), FABulous automatically resolves the recommended PDK version from LibreLane and installs it via [ciel](https://github.com/fossi-foundation/ciel) on first use. No manual installation is required. By default, we have set up the project to target the `ihp-sg13g2` process (130nm).

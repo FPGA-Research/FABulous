@@ -11,6 +11,8 @@ docker-image
 .claude
 .codex
 CLAUDE.md
+fabulous_nix
+build
 
 # Documentation build artifacts (auto-generated in CI)
 docs/build/

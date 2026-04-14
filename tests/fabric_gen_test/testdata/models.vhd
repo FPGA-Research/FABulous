@@ -4,7 +4,7 @@ use ieee.numeric_std.all;
 
 package my_package is
 
-component LHQD1 is
+component config_latch is
   port (
     D : in std_logic;
     E : in std_logic;
@@ -19,7 +19,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity LHQD1 is
+entity config_latch is
   port (
     D : in std_logic;
     E : in std_logic;
@@ -28,7 +28,7 @@ entity LHQD1 is
   );
 end entity;
 
-architecture from_verilog of LHQD1 is
+architecture from_verilog of config_latch is
 begin
   process (E, D) is
   begin
