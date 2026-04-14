@@ -11,6 +11,7 @@ docker-image
 .claude
 .codex
 CLAUDE.md
+AGENTS.md
 fabulous_nix
 build
 
