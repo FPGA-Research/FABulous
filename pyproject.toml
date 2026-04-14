@@ -44,6 +44,8 @@ dependencies = [
   "dill>=0.4.0",
   "ciel>=2.4.0",
   "go-task-bin>=3.40.0",
+  "pyosys>=0.64",
+  "networkx>=3.6.1",
 ]
 
 [project.urls]

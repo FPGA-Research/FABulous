@@ -645,12 +645,14 @@ dependencies = [
     { name = "go-task-bin" },
     { name = "librelane" },
     { name = "loguru" },
+    { name = "networkx" },
     { name = "numpy" },
     { name = "packaging" },
     { name = "pick" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pymoo" },
+    { name = "pyosys" },
     { name = "pyreadline3", marker = "sys_platform == 'win32'" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
@@ -684,12 +686,14 @@ requires-dist = [
     { name = "go-task-bin", specifier = ">=3.40.0" },
     { name = "librelane", specifier = ">=3.0.0" },
     { name = "loguru", specifier = ">=0.7.0" },
+    { name = "networkx", specifier = ">=3.6.1" },
     { name = "numpy", specifier = ">=2.3.4" },
     { name = "packaging", specifier = ">=25.0" },
     { name = "pick", specifier = ">=2.4.0" },
     { name = "pydantic", specifier = ">=2.12.1" },
     { name = "pydantic-settings", specifier = ">=2.10.1" },
     { name = "pymoo", specifier = ">=0.6.1.5" },
+    { name = "pyosys", specifier = ">=0.64" },
     { name = "pyreadline3", marker = "sys_platform == 'win32'", specifier = ">=3.4.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
@@ -1262,6 +1266,15 @@ wheels = [
 ]
 
 [[package]]
+name = "networkx"
+version = "3.6.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/51/63fe664f3908c97be9d2e4f1158eb633317598cfa6e1fc14af5383f17512/networkx-3.6.1.tar.gz", hash = "sha256:26b7c357accc0c8cde558ad486283728b65b6a95d85ee1cd66bafab4c8168509", size = 2517025, upload-time = "2025-12-08T17:02:39.908Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/c9/b2622292ea83fbb4ec318f5b9ab867d0a28ab43c5717bb85b0a5f6b3b0a4/networkx-3.6.1-py3-none-any.whl", hash = "sha256:d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762", size = 2068504, upload-time = "2025-12-08T17:02:38.159Z" },
+]
+
+[[package]]
 name = "nodeenv"
 version = "1.10.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1656,6 +1669,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/06/f1/115a03e18820d09107c1aae1029719bd5a42ed9712f8fcf5e6334f44fe8c/pymoo-0.6.1.6-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:f41b359d6de6c9d99ab7da94f115c5aea4d21e74a252bef7c8debec8f20f0b9f", size = 5985143, upload-time = "2025-11-25T03:18:23.937Z" },
     { url = "https://files.pythonhosted.org/packages/7d/33/ac62bb650197df717bde976b5edf6e46856714900106df0d541f99f5aa0b/pymoo-0.6.1.6-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:ecf1ce515e72d59b78c909aa142d2369cc3c6d771ac7c9162831c0b62a869c8f", size = 6188089, upload-time = "2025-11-25T03:18:27.163Z" },
     { url = "https://files.pythonhosted.org/packages/03/bd/76eecf37a469a2e19c82c85b20402cbeece261ef9d9286189502f39e3566/pymoo-0.6.1.6-cp314-cp314-win_amd64.whl", hash = "sha256:56ecb6f9f5ac0559829e183a23ea3672eae8c1eb9d745305bef98da8d1614d28", size = 1851874, upload-time = "2025-11-25T03:18:28.969Z" },
+]
+
+[[package]]
+name = "pyosys"
+version = "0.64"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/61/46/4b5ee7a6bb7f5caa10144fb55cfde260f03f3b1909927fa03b855d58c6ae/pyosys-0.64-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:10ef1557ee19fe0e9930313256be8458f57a809d9ae3a8b3e3a436ad9f42d799", size = 21249949, upload-time = "2026-04-09T06:23:56.609Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/32/9758db8dc4fe787bd5dd603bf5bf104a7fcc3071d341bf94737d06548448/pyosys-0.64-cp312-cp312-macosx_11_0_x86_64.whl", hash = "sha256:4f5f9ac6b84d131859739cf8a2b205d3382404f26e2385d2061f39698aea3871", size = 23034279, upload-time = "2026-04-09T06:23:59.183Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/11/17503ae8979fb074151cd57ef20b49e8db962a395a4fd6b0f30501ac5d64/pyosys-0.64-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:688cd3c588f300a8d8a1438e6b63809997e9cc6dacef75d85a945995b0ebf765", size = 23830412, upload-time = "2026-04-09T06:24:01.556Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/e7/5c5a118ff4c720e3ed0830e92d949402188334f862f924ba5864cfb2d764/pyosys-0.64-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:dc4d518e43609810d2724011cdf84348c03411824d5950542f6da99638f6002a", size = 25234188, upload-time = "2026-04-09T06:24:04.017Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/c4/ffcc1e130960ae6d0e8560c1986a0b3fcf0bea99e32ac8290c43362930aa/pyosys-0.64-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:723ea61efc072589e88ae1b21f3ee600ee5422ec33d908d23f83958f4ba422bc", size = 21251980, upload-time = "2026-04-09T06:24:06.763Z" },
+    { url = "https://files.pythonhosted.org/packages/36/70/22f054d35b473d75753a1b9ecc3a136fa6a30ad52981b840c6fafeafbd0b/pyosys-0.64-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:d47fafbcfe072b2562d6000dbcf7106d537a17e50e7304822efe6c34e4ecb78f", size = 23036679, upload-time = "2026-04-09T06:24:09.024Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/d5/069a123550363f3967bc186b8ebaacb5cbb637b0527f46a511d89e2510e7/pyosys-0.64-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:60d8c1f52c2c8bfc1c6026da490d8befbf15c30f8f1c7f9f42639ce160805a44", size = 23831719, upload-time = "2026-04-09T06:24:11.731Z" },
+    { url = "https://files.pythonhosted.org/packages/12/a4/2d035e1c5b41919ef013990869d61f8a416af528afa05ed3e0d8ef120dbe/pyosys-0.64-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7b82ace6b14137a82ff181243a24cca2800abb35e8789d5528a6a63777a56ea0", size = 25233981, upload-time = "2026-04-09T06:24:14.89Z" },
 ]
 
 [[package]]
