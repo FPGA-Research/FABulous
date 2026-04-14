@@ -27,12 +27,25 @@ from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptM
 class NLPTileProblem(ElementwiseProblem):
     """NLP problem for tile size optimization using row/column variables.
 
-    Variables are row heights h[r] and column widths w[c], so that uniformity
-    within each row and column is inherent in the formulation rather than
-    enforced through soft equality constraints.
+    Variables are row heights h[r] and column widths w[c], so that uniformity within
+    each row and column is inherent in the formulation rather than enforced through soft
+    equality constraints.
 
-    Rows that share a tile type are linked into equivalence classes so they
-    get a single shared height variable. Columns are linked similarly.
+    Rows that share a tile type are linked into equivalence classes so they get a single
+    shared height variable. Columns are linked similarly.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric whose tiles are being sized.
+    tile_metrics : dict[OptMode, dict]
+        Per-mode compilation metrics for tiles that compiled successfully.
+    all_tile_metrics : dict[OptMode, dict] | None, optional
+        Metrics including failed explorations, used for lower-bound
+        estimates. Falls back to *tile_metrics* when ``None``.
+    area_margin : float, optional
+        Fractional margin added to standard-cell area constraints,
+        by default 0.05 (5 %).
     """
 
     def __init__(
@@ -42,21 +55,6 @@ class NLPTileProblem(ElementwiseProblem):
         all_tile_metrics: dict[OptMode, dict] | None = None,
         area_margin: float = 0.05,
     ) -> None:
-        """Initialise the NLP tile-sizing problem.
-
-        Parameters
-        ----------
-        fabric : Fabric
-            The fabric whose tiles are being sized.
-        tile_metrics : dict[OptMode, dict]
-            Per-mode compilation metrics for tiles that compiled successfully.
-        all_tile_metrics : dict[OptMode, dict] | None, optional
-            Metrics including failed explorations, used for lower-bound
-            estimates. Falls back to *tile_metrics* when ``None``.
-        area_margin : float, optional
-            Fractional margin added to standard-cell area constraints,
-            by default 0.05 (5 %).
-        """
         self.fabric = fabric
         self.tile_metrics = tile_metrics
         self.area_margin = area_margin
@@ -199,8 +197,8 @@ class NLPTileProblem(ElementwiseProblem):
     ) -> None:
         """Compute equivalence classes for rows or columns.
 
-        Two indices must be in the same group if any tile type appears in both.
-        Uses union-find logic to compute transitive closure.
+        Two indices must be in the same group if any tile type appears in both. Uses
+        union-find logic to compute transitive closure.
         """
         parent: dict[int, int] = {}
 
@@ -235,8 +233,8 @@ class NLPTileProblem(ElementwiseProblem):
     def _min_dimensions_from_metrics(self, name: str) -> tuple[float, float]:
         """Return (min_width, min_height) across all compilation modes.
 
-        The minimum width and height may come from different modes. Falls back
-        to 1.0 if no metrics exist for the given tile.
+        The minimum width and height may come from different modes. Falls back to 1.0 if
+        no metrics exist for the given tile.
         """
         widths: list[float] = []
         heights: list[float] = []
@@ -254,9 +252,9 @@ class NLPTileProblem(ElementwiseProblem):
     def _pin_min_from_metrics(self, name: str) -> tuple[float, float]:
         """Return (pin_min_width, pin_min_height) from any mode's metrics.
 
-        Pin minimums are IO-density-based dimension floors and are identical
-        across exploration modes. Falls back to exploration bbox minimums if
-        pin_min fields are absent (pre-patch JSON).
+        Pin minimums are IO-density-based dimension floors and are identical across
+        exploration modes. Falls back to exploration bbox minimums if pin_min fields are
+        absent (pre-patch JSON).
         """
         for mode_metrics in self._all_tile_metrics.values():
             if name not in mode_metrics:
@@ -281,9 +279,9 @@ class NLPTileProblem(ElementwiseProblem):
     def _compute_stdcell_area(self, name: str) -> float:
         """Return max standard-cell area across exploration modes.
 
-        The stdcell area is essentially fixed by the design but varies
-        slightly across modes due to buffer insertion. Using max gives
-        the most conservative (worst-case) estimate of what must fit.
+        The stdcell area is essentially fixed by the design but varies slightly across
+        modes due to buffer insertion. Using max gives the most conservative (worst-
+        case) estimate of what must fit.
         """
         areas: list[float] = []
         for mode_metrics in self._all_tile_metrics.values():
@@ -341,8 +339,8 @@ class NLPTileProblem(ElementwiseProblem):
     def _build_tile_constraints(self) -> list[tuple[str, int, int]]:
         """Build (tile_name, col, row) tuples for regular tile constraints.
 
-        One representative position per tile type suffices because all
-        positions in the same row/col group share identical dimensions.
+        One representative position per tile type suffices because all positions in the
+        same row/col group share identical dimensions.
         """
         constraints: list[tuple[str, int, int]] = []
         for tile in self.fabric.tileDic.values():
@@ -423,9 +421,9 @@ class NLPTileProblem(ElementwiseProblem):
 class GlobalTileSizeOptimization(Step):
     """LibreLane step for NLP optimization of tile dimensions.
 
-    Formulates and solves a Non-Linear Program using pymoo to minimize total
-    fabric area. Variables are row heights and column widths, ensuring
-    uniformity within each row/column by construction.
+    Formulates and solves a Non-Linear Program using pymoo to minimize total fabric
+    area. Variables are row heights and column widths, ensuring uniformity within each
+    row/column by construction.
     """
 
     id = "FABulous.GlobalTileSizeOptimization"
@@ -465,10 +463,22 @@ class GlobalTileSizeOptimization(Step):
         Parses bbox strings into float lists and extracts optional scalar
         fields (pin minimums) when present.
 
+        Parameters
+        ----------
+        data : dict
+            Raw metric fields for a tile from the JSON file, including required
+            bbox fields and optional pin minimums.
+
+        Return
+        ------
+        dict[str, Any]
+             Parsed fields including:
+             - "design__die__bbox": [x0, y0, x1, y1]
+             - "design__core__bbox": [x0, y0, x1, y1]
+             - Optional scalar fields like "fabulous__pin_min_width"
+
         Raises
         ------
-        KeyError
-            If required bbox fields are missing from *data*.
         TypeError
             If a required bbox field is not a string.
         """

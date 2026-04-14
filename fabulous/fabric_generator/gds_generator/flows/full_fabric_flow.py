@@ -315,9 +315,7 @@ class FABulousFabricMacroFullFlow(Flow):
                     "design__instance__utilization__stdcell",
                 )
                 metrics_dict = {
-                    k: v
-                    for k in metric_keys
-                    if (v := state.metrics.get(k)) is not None
+                    k: v for k in metric_keys if (v := state.metrics.get(k)) is not None
                 }
             if pin_min is not None:
                 metrics_dict |= pin_min

@@ -193,6 +193,8 @@ class FABulous_CLI(Cmd):
         Argument parser for the gen_io_pin_config command
     gen_all_tile_parser : Cmd2ArgumentParser
         Argument parser for the gen_all_tile command
+    eFPGA_macro_parser: Cmd2ArgumentParser
+        Argument parser for the gen_eFPGA_macro command
     gui_parser : Cmd2ArgumentParser
         Argument parser for the open_gui command
 
@@ -1445,7 +1447,7 @@ class FABulous_CLI(Cmd):
             base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
         )
 
-    eFPGA_macro_parser = Cmd2ArgumentParser()
+    eFPGA_macro_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     eFPGA_macro_parser.add_argument(
         "--tile-opt-info",
         type=str,

@@ -203,8 +203,8 @@ class TileOptimisation(WhileStep):
         """Clear and recompute routing obstructions from current config.
 
         The two-step process is required because get_routing_obstructions reads
-        ROUTING_OBSTRUCTIONS from config and appends edge obstructions. Clearing
-        first prevents stale obstructions from accumulating across iterations.
+        ROUTING_OBSTRUCTIONS from config and appends edge obstructions. Clearing first
+        prevents stale obstructions from accumulating across iterations.
         """
         self.config = self.config.copy(ROUTING_OBSTRUCTIONS=None)
         self.config = self.config.copy(
@@ -295,13 +295,12 @@ class TileOptimisation(WhileStep):
     ) -> tuple[Decimal, Decimal]:
         """Compute the next tile dimensions based on the optimisation mode.
 
-        First ensures the die can accommodate the instance area by scaling
-        the non-optimised dimension (directional modes) or both dimensions
-        proportionally (balanced/large modes). Then applies the iterative
-        growth step. Finally, for directional modes, if the previous
-        iteration had DRC violations the non-optimised dimension is boosted
-        proportionally to the violation count so that extreme aspect ratios
-        self-correct without a hard cap.
+        First ensures the die can accommodate the instance area by scaling the non-
+        optimised dimension (directional modes) or both dimensions proportionally
+        (balanced/large modes). Then applies the iterative growth step. Finally, for
+        directional modes, if the previous iteration had DRC violations the non-
+        optimised dimension is boosted proportionally to the violation count so that
+        extreme aspect ratios self-correct without a hard cap.
         """
         opt_mode = self.config["FABULOUS_OPT_MODE"]
 
