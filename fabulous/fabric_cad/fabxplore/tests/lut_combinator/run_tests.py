@@ -10,7 +10,7 @@ from fabulous.fabric_cad.fabxplore.lut_combinator.core.combinator import (
     LutCombinatorConfig,
 )
 from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import MatchingMode
-from fabulous.fabric_cad.fabxplore.lut_combinator.tests.equiv_only import (
+from fabulous.fabric_cad.fabxplore.lut_combinator.utils.equiv_checker import (
     EquivalenceCheckConfig,
     LutEquivalenceChecker,
 )
@@ -18,7 +18,8 @@ from fabulous.fabulous_cli.helper import (
     setup_logger,
 )
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
+OUT_DIR = ROOT / "tests" / "lut_combinator" / "out"
 setup_logger(verbosity=0, debug=False)
 
 
@@ -27,7 +28,7 @@ def test_lut_32_mix_benchmark_eq(
 ) -> None:
     """Test mapping and equivalence checking of a LUT32-mixed benchmark."""
     benchmark_verilog = ROOT / "benchmarks" / "lut_mapped_simple" / "lut32_mixed.v"
-    out_dir = ROOT / "tests" / "out"
+    out_dir = OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Mapping a LUT32-mixed benchmark with FRAC_LUT5 architecture")
     frac_arch = FracLutArchitecture(
@@ -82,7 +83,7 @@ def test_two_lut_plus_bad_unknown_benchmark_eq(
     benchmark_verilog = (
         ROOT / "benchmarks" / "lut_mapped_simple" / "two_lut_plus_bad_unknown.v"
     )
-    out_dir = ROOT / "tests" / "out"
+    out_dir = OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     logger.info(
         "Mapping a two_lut_plus_bad_unknown benchmark with FRAC_LUT5 architecture"
@@ -139,7 +140,7 @@ def test_enet_benchmark(
 ) -> None:
     """Test mapping and equivalence checking of an ENET benchmark."""
     benchmark_verilog = ROOT / "benchmarks" / "lut_mapped_complex" / "enet" / "netl.v"
-    out_dir = ROOT / "tests" / "out"
+    out_dir = OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Mapping an ENET benchmark with FRAC_LUT5 architecture")
     frac_arch = FracLutArchitecture(
