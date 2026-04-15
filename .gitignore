@@ -9,6 +9,7 @@ oss-cad-suite
 .ltex
 docker-image
 .claude
+.codex
 CLAUDE.md
 fabulous_nix
 build
