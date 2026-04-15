@@ -27,8 +27,8 @@ from fabulous.fabric_cad.fabxplore.lut_combinator.core.packer import (
     MatchingMode,
     PairLutMapper,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.pyosys_bridge import PyosysBridge
 from fabulous.fabric_cad.fabxplore.lut_combinator.core.report import render_report
+from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 
 
 @dataclass(frozen=True)

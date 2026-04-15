@@ -123,6 +123,9 @@ class PyosysBridge:
         The function writes the dictionary to a temporary JSON file and reads
         it through pyosys to populate the active design.
 
+        Note the design will be cleared before loading the new design,
+        so any existing design will be lost.
+
         Parameters
         ----------
         model_json : dict
@@ -131,6 +134,8 @@ class PyosysBridge:
         path: Path = self.temp_dir / "lut_combinator_tmp_design.json"
         path.write_text(json.dumps(model_json), encoding="utf-8")
         try:
+            self.design = None
+            self.design = self._ys.Design()
             self.read_json_path(path)
         finally:
             if path.exists():
@@ -139,11 +144,15 @@ class PyosysBridge:
     def load_design(self, design: object) -> None:
         """Attach an existing pyosys design as the active design.
 
+        Note the design will be cleared before loading the new design,
+        so any existing design will be lost.
+
         Parameters
         ----------
         design : object
             Existing pyosys design instance.
         """
+        self.design = None
         self.design = design
 
     def run_pass(self, cmd: str) -> None:
