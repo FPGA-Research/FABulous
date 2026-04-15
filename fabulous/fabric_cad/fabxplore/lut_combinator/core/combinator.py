@@ -18,7 +18,10 @@ from fabulous.fabric_cad.fabxplore.lut_combinator.core.architecture import (
 from fabulous.fabric_cad.fabxplore.lut_combinator.core.json_transform import (
     apply_mapping_to_json,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import MappingResult
+from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import (
+    LutSpec,
+    MappingResult,
+)
 from fabulous.fabric_cad.fabxplore.lut_combinator.core.netlist import (
     parse_model_json,
 )
@@ -43,6 +46,8 @@ class LutCombinatorConfig:
         Target fractional LUT architecture model.
     top_name : str
         Top-level module name to parse and map.
+    lut_spec : LutSpec
+        LUT specification defining naming patterns and parameters for LUT cells.
     passthrough : bool
         If ``True``, map LUT(K+1) cells through architecture full-LUT mode.
     mode : MatchingMode
@@ -53,6 +58,7 @@ class LutCombinatorConfig:
 
     architecture: FracLutArchitecture
     top_name: str
+    lut_spec: LutSpec
     passthrough: bool = False
     mode: MatchingMode = MatchingMode.MAX_WEIGHT
     debug: bool = False
@@ -169,7 +175,11 @@ class LutCombinator:
         MappingResult
             Mapping result object with updated metadata.
         """
-        model = parse_model_json(src_json, top_name=self.config.top_name)
+        model = parse_model_json(
+            model_json=src_json,
+            top_name=self.config.top_name,
+            lut_spec=self.config.lut_spec,
+        )
 
         mapper: PairLutMapper = PairLutMapper(
             architecture=self.config.architecture,
@@ -180,7 +190,9 @@ class LutCombinator:
             list(model.lut_cells), top_name=model.top_name
         )
 
-        mapped_netlist_dict: dict = apply_mapping_to_json(src_json, result)
+        mapped_netlist_dict: dict = apply_mapping_to_json(
+            model_json=src_json, mapping=result
+        )
 
         self._mapped_result = result
         self._mapped_netlist_dict = mapped_netlist_dict

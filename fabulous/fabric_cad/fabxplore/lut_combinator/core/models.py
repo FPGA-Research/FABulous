@@ -6,10 +6,11 @@ mapper, transform, and report layers.
 
 import re
 from dataclasses import dataclass, field
-from enum import Enum, StrEnum
+from enum import StrEnum
 
 
-class LutSpec(Enum):
+@dataclass(frozen=True)
+class LutSpec:
     """Capture LUT-specific parsing patterns and conventions.
 
     This enum centralizes regular expressions and constants used to identify
@@ -17,20 +18,20 @@ class LutSpec(Enum):
 
     Attributes
     ----------
-    LUT_RE : re.Pattern
+    lut_re : re.Pattern
         Regular expression to match LUT cell types and extract their width.
-    INIT_NAME : str
+    init_name : str
         Parameter name used for LUT truth-table initialization.
-    INPUT_RE : re.Pattern
+    input_re : re.Pattern
         Regular expression to identify LUT input port names.
-    OUTPUT_PORTS : set[str]
+    output_ports : set[str]
         Set of valid output port names for LUT cells.
     """
 
-    LUT_RE: re.Pattern = re.compile(r"^LUT(\d+)$")
-    INIT_NAME: str = "INIT"
-    INPUT_RE: re.Pattern = re.compile(r"^I\d+$")
-    OUTPUT_PORTS: set[str] = frozenset({"O", "Q", "Y"})
+    lut_re: re.Pattern = re.compile(r"^LUT(\d+)$")
+    init_name: str = "INIT"
+    input_re: re.Pattern = re.compile(r"^I\d+$")
+    output_ports: set[str] = frozenset({"O", "Q", "Y"})
 
 
 class MatchingMode(StrEnum):

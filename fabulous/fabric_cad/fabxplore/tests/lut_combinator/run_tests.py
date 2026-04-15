@@ -9,7 +9,10 @@ from fabulous.fabric_cad.fabxplore.lut_combinator.core.combinator import (
     LutCombinator,
     LutCombinatorConfig,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import MatchingMode
+from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import (
+    LutSpec,
+    MatchingMode,
+)
 from fabulous.fabric_cad.fabxplore.lut_combinator.utils.equiv_checker import (
     EquivalenceCheckConfig,
     LutEquivalenceChecker,
@@ -40,6 +43,7 @@ def test_lut_32_mix_benchmark_eq(
     cfg = LutCombinatorConfig(
         architecture=frac_arch,
         top_name="lut32_mixed",
+        lut_spec=LutSpec(),
         passthrough=passthrough,
         mode=mode,
     )
@@ -97,6 +101,7 @@ def test_two_lut_plus_bad_unknown_benchmark_eq(
     cfg = LutCombinatorConfig(
         architecture=frac_arch,
         top_name="two_lut_plus_bad_unknown",
+        lut_spec=LutSpec(),
         passthrough=passthrough,
         mode=mode,
     )
@@ -152,6 +157,7 @@ def test_enet_benchmark(
     cfg = LutCombinatorConfig(
         architecture=frac_arch,
         top_name="enet",
+        lut_spec=LutSpec(),
         passthrough=passthrough,
         mode=mode,
         debug=False,
