@@ -1,59 +1,98 @@
-"""Provide thin pyosys helpers for JSON/Verilog design conversion.
+"""Provide thin pyosys helpers for design import/export and pass execution.
 
-This module isolates direct pyosys pass execution behind a small wrapper and utility
-functions. It keeps temporary file plumbing in one place so other modules can treat
-pyosys conversion as simple function calls.
+This module isolates direct pyosys pass execution behind a wrapper and utility
+functions. It keeps temporary-file handling in one place so other modules can treat
+pyosys design import/export as simple function calls.
 """
 
 import json
+import shlex
+import tempfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pyosys.libyosys as ys
 
 
 class PyosysBridge:
-    """Wrap a pyosys design object and common IO pass commands.
+    """Wrap a pyosys design object and common IO/pass commands.
 
-    The bridge keeps a single active design and provides helpers for reading/writing
-    JSON and Verilog without duplicating command strings.
+    The bridge keeps a single active design and provides helpers for reading,
+    writing, and serializing designs without duplicating pyosys command strings.
 
     Parameters
     ----------
-    debug : bool, optional
-        If True, pyosys pass commands are run without tee to preserve
-        output for debugging.
+    debug : bool
+        If True, pyosys pass commands are run without quiet tee wrapping so
+        command output remains visible for debugging.
     """
 
     def __init__(self, debug: bool = False) -> None:
         self._ys = ys
-        self.design: object = self._ys.Design()
-        self.temp_dir: Path = Path.home() / ".fabulous" / "tmp"
+        self.design: ys.Design = self._ys.Design()
         self.debug = debug
 
-        self.temp_dir.mkdir(parents=True, exist_ok=True)
-
-    def read_json_path(self, path: Path) -> None:
-        """Load a design from a JSON file path into the active design.
-
-        Parameters
-        ----------
-        path : Path
-            Path to Yosys JSON netlist file.
-        """
-        self._run(f"read_json {path}")
-
-    def read_verilog_path(self, path: Path) -> None:
-        """Load a design from a Verilog file path into the active design.
+    def read_verilog_paths(
+        self,
+        paths: list[Path],
+        replace_design: bool = False,
+    ) -> None:
+        """Read one or more Verilog files into the active design.
 
         Parameters
         ----------
-        path : Path
-            Path to Verilog netlist/source file.
+        paths : list[Path]
+            Verilog source or netlist paths to read.
+        replace_design : bool
+            If True, replace the current design before reading the files.
+            If False, add the files to the current design.
+
+        Raises
+        ------
+        ValueError
+            If `paths` is empty.
         """
-        self._run(f"read_verilog {path}")
+        if not paths:
+            raise ValueError("paths must not be empty")
+
+        if replace_design:
+            self.reset_design()
+
+        for path in paths:
+            self._run(f"read_verilog {self._quote_path(path)}")
+
+    def read_json_paths(
+        self,
+        paths: list[Path],
+        replace_design: bool = False,
+    ) -> None:
+        """Read one or more Yosys JSON files into the active design.
+
+        Parameters
+        ----------
+        paths : list[Path]
+            Yosys JSON netlist paths to read.
+        replace_design : bool
+            If True, replace the current design before reading the files.
+            If False, add the files to the current design.
+
+        Raises
+        ------
+        ValueError
+            If `paths` is empty.
+        """
+        if not paths:
+            raise ValueError("paths must not be empty")
+
+        if replace_design:
+            self.reset_design()
+
+        for path in paths:
+            self._run(f"read_json {self._quote_path(path)}")
 
     def write_json_path(self, path: Path) -> None:
-        """Write the active design to a JSON file path.
+        """Write the active design to a Yosys JSON file.
 
         Parent directories are created automatically before emission.
 
@@ -63,13 +102,13 @@ class PyosysBridge:
             Destination JSON file path.
         """
         path.parent.mkdir(parents=True, exist_ok=True)
-        self._run(f"write_json {path}")
+        self._run(f"write_json {self._quote_path(path)}")
 
     def write_verilog_path(self, path: Path) -> None:
-        """Write the active design to a Verilog file path.
+        """Write the active design to a Verilog file.
 
-        The emitted Verilog omits attributes and expression expansion to
-        match the project output conventions.
+        The emitted Verilog omits attributes and expression expansion to match
+        the project output conventions.
 
         Parameters
         ----------
@@ -77,86 +116,60 @@ class PyosysBridge:
             Destination Verilog file path.
         """
         path.parent.mkdir(parents=True, exist_ok=True)
-        self._run(f"write_verilog -noattr -noexpr {path}")
+        self._run(f"write_verilog -noattr -noexpr {self._quote_path(path)}")
 
-    @property
-    def get_netlist_dict(self) -> dict:
-        """Get the active design as a JSON dictionary.
-
-        The function writes the design to a temporary JSON file and parses
-        it back into a dictionary for return.
+    def to_netlist_dict(self) -> dict:
+        """Return the active design as a parsed Yosys JSON dictionary.
 
         Returns
         -------
         dict
             Parsed Yosys JSON dictionary for the active design.
         """
-        path: Path = self.temp_dir / "lut_combinator_tmp_design.json"
-        self.write_json_path(path)
-        try:
-            src: dict = json.loads(path.read_text(encoding="utf-8"))
-        finally:
-            if path.exists():
-                path.unlink()
-        return src
+        with self._temporary_path(".json") as path:
+            self.write_json_path(path)
+            return json.loads(path.read_text(encoding="utf-8"))
 
-    @property
-    def get_verilog_string(self) -> str:
-        """Get the active design emitted as a Verilog string.
+    def to_verilog_string(self) -> str:
+        """Return the active design emitted as Verilog text.
 
         Returns
         -------
         str
             Emitted Verilog netlist text.
         """
-        path: Path = self.temp_dir / "lut_combinator_tmp_design.v"
-        self.write_verilog_path(path)
-        try:
+        with self._temporary_path(".v") as path:
+            self.write_verilog_path(path)
             return path.read_text(encoding="utf-8")
-        finally:
-            if path.exists():
-                path.unlink()
 
     def load_netlist_dict(self, model_json: dict) -> None:
-        """Load a JSON design dictionary into the active design.
-
-        The function writes the dictionary to a temporary JSON file and reads
-        it through pyosys to populate the active design.
-
-        Note the design will be cleared before loading the new design,
-        so any existing design will be lost.
+        """Replace the active design with one loaded from a JSON dictionary.
 
         Parameters
         ----------
         model_json : dict
             Yosys JSON design dictionary.
         """
-        path: Path = self.temp_dir / "lut_combinator_tmp_design.json"
-        path.write_text(json.dumps(model_json), encoding="utf-8")
-        try:
-            self.design = None
-            self.design = self._ys.Design()
-            self.read_json_path(path)
-        finally:
-            if path.exists():
-                path.unlink()
+        with self._temporary_path(".json") as path:
+            path.write_text(json.dumps(model_json), encoding="utf-8")
+            self.read_json_paths([path], replace_design=True)
 
-    def load_design(self, design: object) -> None:
-        """Attach an existing pyosys design as the active design.
-
-        Note the design will be cleared before loading the new design,
-        so any existing design will be lost.
+    def load_design(self, design: ys.Design) -> None:
+        """Replace the active design with an existing pyosys design.
 
         Parameters
         ----------
-        design : object
+        design : ys.Design
             Existing pyosys design instance.
         """
-        self.design = None
         self.design = design
 
+    def reset_design(self) -> None:
+        """Replace the active design with a fresh empty pyosys design."""
+        self.design = self._ys.Design()
+
     def run_pass(self, cmd: str) -> None:
-        """Execute an arbitrary pyosys pass command on active design.
+        """Execute an arbitrary pyosys pass command on the active design.
 
         Parameters
         ----------
@@ -177,3 +190,39 @@ class PyosysBridge:
             self._ys.run_pass(cmd, self.design)
         else:
             self._ys.run_pass(f"tee -q {cmd}", self.design)
+
+    @staticmethod
+    def _quote_path(path: Path) -> str:
+        """Return a shell-escaped path string for use in pyosys commands."""
+        return shlex.quote(str(path))
+
+    @staticmethod
+    @contextmanager
+    def _temporary_path(suffix: str) -> Iterator[Path]:
+        """Yield a temporary file path in the system temp directory.
+
+        The file is created in the system temporary directory, yielded as a
+        `Path`, and removed automatically afterwards.
+
+        Parameters
+        ----------
+        suffix : str
+            File suffix, including the leading dot.
+
+        Yields
+        ------
+        Path
+            Temporary file path created for the context.
+        """
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=suffix,
+            delete=False,
+            encoding="utf-8",
+        ) as tmp:
+            path = Path(tmp.name)
+
+        try:
+            yield path
+        finally:
+            path.unlink(missing_ok=True)

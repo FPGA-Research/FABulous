@@ -14,6 +14,7 @@ from fabulous.fabric_cad.fabxplore.lut_combinator.utils.equiv_checker import (
     EquivalenceCheckConfig,
     LutEquivalenceChecker,
 )
+from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 from fabulous.fabulous_cli.helper import (
     setup_logger,
 )
@@ -42,17 +43,17 @@ def test_lut_32_mix_benchmark_eq(
         passthrough=passthrough,
         mode=mode,
     )
+
     comb = LutCombinator(cfg)
-    comb.map_from_verilog(benchmark_verilog)
-    mapped_path = out_dir / "lut32_mixed_mapped.v"
-    mapped_path.write_text(comb.mapped_verilog_string, encoding="utf-8")
-    (out_dir / "lut32_mixed_report.txt").write_text(
-        comb.build_report(), encoding="utf-8"
-    )
+    bridge: PyosysBridge = PyosysBridge(debug=False)
+    bridge.read_verilog_paths([benchmark_verilog])
+    comb.map_from_design(bridge, inplace=True)
+    bridge.write_verilog_path(out_dir / "lut32_mixed_mapped.v")
+    comb.write_report(out_dir / "lut32_mixed_report.txt")
 
     eq_cfg = EquivalenceCheckConfig(
         gold_verilog=benchmark_verilog,
-        gate_verilog=mapped_path,
+        gate_verilog=out_dir / "lut32_mixed_mapped.v",
         top_name="lut32_mixed",
         frac_cell_name=frac_arch.name,
         frac_lut_size=frac_arch.frac_lut_size,
@@ -99,17 +100,17 @@ def test_two_lut_plus_bad_unknown_benchmark_eq(
         passthrough=passthrough,
         mode=mode,
     )
+
     comb = LutCombinator(cfg)
-    comb.map_from_verilog(benchmark_verilog)
-    mapped_path = out_dir / "two_lut_plus_bad_unknown_mapped.v"
-    mapped_path.write_text(comb.mapped_verilog_string, encoding="utf-8")
-    (out_dir / "two_lut_plus_bad_unknown_report.txt").write_text(
-        comb.build_report(), encoding="utf-8"
-    )
+    bridge: PyosysBridge = PyosysBridge(debug=False)
+    bridge.read_verilog_paths([benchmark_verilog])
+    comb.map_from_design(bridge, inplace=True)
+    bridge.write_verilog_path(out_dir / "two_lut_plus_bad_unknown_mapped.v")
+    comb.write_report(out_dir / "two_lut_plus_bad_unknown_report.txt")
 
     eq_cfg = EquivalenceCheckConfig(
         gold_verilog=benchmark_verilog,
-        gate_verilog=mapped_path,
+        gate_verilog=out_dir / "two_lut_plus_bad_unknown_mapped.v",
         top_name="two_lut_plus_bad_unknown",
         frac_cell_name=frac_arch.name,
         frac_lut_size=frac_arch.frac_lut_size,
@@ -155,11 +156,13 @@ def test_enet_benchmark(
         mode=mode,
         debug=False,
     )
+
     comb = LutCombinator(cfg)
-    comb.map_from_verilog(benchmark_verilog)
-    mapped_path = out_dir / "enet_mapped.v"
-    mapped_path.write_text(comb.mapped_verilog_string, encoding="utf-8")
-    (out_dir / "enet_report.txt").write_text(comb.build_report(), encoding="utf-8")
+    bridge: PyosysBridge = PyosysBridge(debug=False)
+    bridge.read_verilog_paths([benchmark_verilog])
+    comb.map_from_design(bridge, inplace=True)
+    bridge.write_verilog_path(out_dir / "enet_mapped.v")
+    comb.write_report(out_dir / "enet_report.txt")
 
     logger.info(
         "Test passed: ENET benchmark mapped successfully with FRAC_LUT5 architecture."

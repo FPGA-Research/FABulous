@@ -5,9 +5,6 @@ selected top module. The parsed data is normalized into model objects used by pa
 and reporting stages.
 """
 
-import json
-from pathlib import Path
-
 from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import (
     LogicalLutCell,
     LutSpec,
@@ -16,37 +13,6 @@ from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import (
 from fabulous.fabric_cad.fabxplore.lut_combinator.core.truth_table import (
     parse_init_literal,
 )
-
-
-def load_json_dict(json_input: str | Path | dict) -> dict:
-    """Load a JSON dictionary from a path, text payload, or existing dict.
-
-    This helper accepts flexible caller input so CLI and API paths can share
-    the same parsing flow. If a string points to an existing file, that file is
-    read. Otherwise the string is interpreted as JSON text.
-
-    Parameters
-    ----------
-    json_input : str | Path | dict
-        JSON source provided as a dictionary, filesystem path, or JSON string.
-
-    Returns
-    -------
-    dict
-        Parsed JSON dictionary.
-    """
-    if isinstance(json_input, dict):
-        return json_input
-
-    if isinstance(json_input, Path):
-        return json.loads(json_input.read_text(encoding="utf-8"))
-
-    text: str = str(json_input)
-    path: Path = Path(text)
-    if path.exists() and path.is_file():
-        return json.loads(path.read_text(encoding="utf-8"))
-
-    return json.loads(text)
 
 
 def parse_model_json(model_json: dict, top_name: str) -> NetlistModel:
