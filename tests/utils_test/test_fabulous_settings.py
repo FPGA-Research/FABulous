@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
 from fabulous.fabulous_settings import (
+    MODELS_PACK_REQUIRED_MODULES,
     FABulousSettings,
     get_context,
     init_context,
@@ -305,6 +306,114 @@ class TestToolPathResolution:
 
         assert result == "yosys"
         mock_which.assert_called_once_with("yosys")
+
+
+class TestModelsPackValidation:
+    """Tests for models-pack definition presence checks."""
+
+    @staticmethod
+    def _clear_fab_env(monkeypatch: pytest.MonkeyPatch) -> None:
+        """Remove FAB_* env vars to avoid cross-test leakage."""
+        for key in list(os.environ.keys()):
+            if key.startswith("FAB_"):
+                monkeypatch.delenv(key, raising=False)
+
+    def test_models_pack_missing_required_definitions_warns_verilog(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: MockerFixture,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Warn when a Verilog models-pack misses required module definitions."""
+        self._clear_fab_env(monkeypatch)
+        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
+
+        models_pack = project / "Fabric" / "models_pack_incomplete.v"
+        models_pack.write_text(
+            "module config_latch(); endmodule\n"
+            "module my_buf(); endmodule\n"
+            "// module clk_buf(); endmodule\n"
+        )
+
+        monkeypatch.setenv("FAB_PROJ_DIR", str(project))
+        monkeypatch.setenv("FAB_PROJ_LANG", "verilog")
+        monkeypatch.setenv("FAB_MODELS_PACK", str(models_pack))
+
+        settings = init_context(project)
+
+        assert settings.models_pack == models_pack.resolve()
+        assert any(
+            "missing the following models-pack definitions" in r.message
+            and "clk_buf" in r.message
+            for r in caplog.records
+        )
+
+    def test_models_pack_missing_required_definitions_warns_vhdl(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: MockerFixture,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Warn when a VHDL models-pack misses required entity definitions."""
+        self._clear_fab_env(monkeypatch)
+        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
+
+        models_pack = project / "Fabric" / "my_lib_incomplete.vhdl"
+        models_pack.write_text(
+            "entity CONFIG_LATCH is\n"
+            "end entity CONFIG_LATCH;\n"
+            "entity MY_BUF is\n"
+            "end entity MY_BUF;\n"
+            "-- entity CLK_BUF is\n"
+            "-- end entity CLK_BUF;\n"
+        )
+
+        monkeypatch.setenv("FAB_PROJ_DIR", str(project))
+        monkeypatch.setenv("FAB_PROJ_LANG", "vhdl")
+        monkeypatch.setenv("FAB_MODELS_PACK", str(models_pack))
+
+        settings = init_context(project)
+
+        assert settings.models_pack == models_pack.resolve()
+        assert any(
+            "missing the following models-pack definitions" in r.message
+            and "clk_buf" in r.message
+            for r in caplog.records
+        )
+
+    def test_models_pack_with_all_required_definitions_has_no_missing_warning(
+        self,
+        project: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        mocker: MockerFixture,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Do not warn when all required Verilog definitions are present."""
+        self._clear_fab_env(monkeypatch)
+        mocker.patch("fabulous.fabulous_settings.which", return_value=None)
+
+        models_pack = project / "Fabric" / "models_pack_complete.v"
+        models_pack.write_text(
+            "\n".join(
+                f"module {module_name}(); endmodule"
+                for module_name in MODELS_PACK_REQUIRED_MODULES
+            )
+            + "\n"
+        )
+
+        monkeypatch.setenv("FAB_PROJ_DIR", str(project))
+        monkeypatch.setenv("FAB_PROJ_LANG", "verilog")
+        monkeypatch.setenv("FAB_MODELS_PACK", str(models_pack))
+
+        settings = init_context(project)
+
+        assert settings.models_pack == models_pack.resolve()
+        assert not any(
+            "missing the following models-pack definitions" in r.message
+            for r in caplog.records
+        )
 
 
 class TestContextMethods:
