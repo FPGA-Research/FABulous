@@ -116,6 +116,49 @@ class TestFABulousTileVerilogMacroFlowInit:
         assert flow.config["FABULOUS_OPT_MODE"] == OptMode.FIND_MIN_HEIGHT
         assert isinstance(flow.config["FABULOUS_OPT_MODE"], OptMode)
 
+    def test_min_die_area_uses_io_pin_thickness_multipliers(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """Test IO pin thickness multipliers are forwarded to min die area calc."""
+        FABulousTileVerilogMacroFlow(
+            tile_type=mock_tile,
+            io_pin_config=io_pin_config,
+            opt_mode=OptMode.FIND_MIN_WIDTH,
+            pdk=mock_pdk_root["pdk"],
+            pdk_root=mock_pdk_root["pdk_root"],
+            IO_PIN_V_THICKNESS_MULT=Decimal("2.0"),
+            IO_PIN_H_THICKNESS_MULT=Decimal("3.0"),
+        )
+
+        mock_tile.get_min_die_area.assert_called_once_with(
+            x_pitch=Decimal("0.28"),
+            y_pitch=Decimal("0.56"),
+            x_pin_thickness_mult=Decimal("2.0"),
+            y_pin_thickness_mult=Decimal("3.0"),
+        )
+
+    def test_init_ignores_invalid_pdk_pad_paths_for_tile_flow(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """Test tile flow is not blocked by stale PAD_* paths from PDK config."""
+        mock_pdk_root["config_vars"]["PAD_GDS"] = ["/definitely/missing/pad.gds"]
+
+        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+            tile_type=mock_tile,
+            io_pin_config=io_pin_config,
+            opt_mode=OptMode.FIND_MIN_WIDTH,
+            pdk=mock_pdk_root["pdk"],
+            pdk_root=mock_pdk_root["pdk_root"],
+        )
+
+        assert flow.config["PAD_GDS"] is None
+
     def test_die_area_set_with_ignore_default(
         self,
         mock_tile: MagicMock,

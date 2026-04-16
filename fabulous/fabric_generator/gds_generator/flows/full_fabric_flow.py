@@ -46,7 +46,7 @@ from fabulous.fabric_generator.gds_generator.steps.global_tile_opitmisation impo
     GlobalTileSizeOptimization,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
-from fabulous.fabulous_settings import init_context
+from fabulous.fabulous_settings import get_context
 from fabulous.processpool import DillProcessPoolExecutor
 
 if TYPE_CHECKING:
@@ -93,6 +93,9 @@ def _run_tile_flow_worker(
     optimisation: OptMode,
     base_config_path: Path,
     override_config_path: Path,
+    pdk: str,
+    pdk_root: Path,
+    models_pack: Path | None,
     **custom_config_overrides: dict,
 ) -> WorkerResult:
     """Worker function to run a tile flow in a separate process.
@@ -124,16 +127,14 @@ def _run_tile_flow_worker(
     """
     flow: FABulousTileVerilogMacroFlow | None = None
     try:
-        from fabulous.fabulous_settings import FABulousSettings
-
-        context: FABulousSettings = init_context(project_dir=proj_dir)
         # Reconstruct the flow in the worker process with serializable data
         flow = FABulousTileVerilogMacroFlow(
             tile_type,
             io_pin_config,
             optimisation,
-            pdk=context.pdk,
-            pdk_root=context.pdk_root,
+            pdk=pdk,
+            pdk_root=pdk_root,
+            models_pack_path=models_pack,
             base_config_path=base_config_path,
             override_config_path=override_config_path,
             **custom_config_overrides,
@@ -263,7 +264,7 @@ class FABulousFabricMacroFullFlow(Flow):
         ]
 
         handlers: list[tuple[Future[WorkerResult], OptMode, Tile | SuperTile]] = []
-        with DillProcessPoolExecutor(max_workers=None) as executor:
+        with DillProcessPoolExecutor(max_workers=2) as executor:
             for opt_mode, tile_type in product(
                 opt_modes, fabric.get_all_unique_tiles()
             ):
@@ -284,6 +285,9 @@ class FABulousFabricMacroFullFlow(Flow):
                     opt_mode,
                     base_config_path,
                     override_config_path,
+                    get_context().pdk,
+                    get_context().pdk_root,
+                    get_context().models_pack,
                     FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
                 )
                 handlers.append((result, opt_mode, tile_type))
@@ -441,6 +445,9 @@ class FABulousFabricMacroFullFlow(Flow):
                     OptMode.NO_OPT,
                     base_config_path,
                     override_config_path,
+                    get_context().pdk,
+                    get_context().pdk_root,
+                    get_context().models_pack,
                     DIE_AREA=die_area,
                 )
                 handlers.append((result, tile_type))
@@ -524,6 +531,8 @@ class FABulousFabricMacroFullFlow(Flow):
                 for k in fabric.get_all_unique_tiles()
             },
             base_config_path=proj_dir / "Fabric" / "gds_config.yaml",
+            pdk=get_context().pdk,
+            pdk_root=get_context().pdk_root,
         )
 
         final_state: State = stitching_flow.start()

@@ -150,12 +150,13 @@ class FABulousFabricMacroFlow(Classic):
             macro_dir = self.fabric.fabric_dir.parent / "macro"
             macro_dir.mkdir(parents=True, exist_ok=True)
             final_design_dir = str(macro_dir)
+
         super().__init__(
             final_config,
             name=self.fabric.name,
             design_dir=final_design_dir,
             pdk=pdk,
-            pdk_root=str(pdk_root.resolve()),
+            pdk_root=str(pdk_root),
         )
 
     def _compute_row_and_column_sizes(

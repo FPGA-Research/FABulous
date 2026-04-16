@@ -168,15 +168,6 @@ class TestRunTileFlowWorker:
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         """Test that worker catches exceptions and returns error trace."""
-        # Set up mocks
-        mock_context: MagicMock = mocker.MagicMock()
-        mock_context.pdk = "test_pdk"
-        mock_context.pdk_root = tmp_path
-        mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
-            return_value=mock_context,
-        )
-
         # Make flow raise an exception
         mocker.patch(
             "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMacroFlow",
@@ -191,6 +182,9 @@ class TestRunTileFlowWorker:
             OptMode.BALANCE,
             tmp_path / "base.yaml",
             tmp_path / "override.yaml",
+            "test_pdk",
+            tmp_path,
+            tmp_path / "models_pack.v",
         )
 
         state, error_trace, pin_min = result
@@ -203,14 +197,6 @@ class TestRunTileFlowWorker:
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         """Test that worker returns state on successful execution."""
-        mock_context: MagicMock = mocker.MagicMock()
-        mock_context.pdk = "test_pdk"
-        mock_context.pdk_root = tmp_path
-        mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
-            return_value=mock_context,
-        )
-
         mock_state: MagicMock = mocker.MagicMock()
         mock_flow: MagicMock = mocker.MagicMock()
         mock_flow.start.return_value = mock_state
@@ -231,6 +217,9 @@ class TestRunTileFlowWorker:
             OptMode.BALANCE,
             tmp_path / "base.yaml",
             tmp_path / "override.yaml",
+            "test_pdk",
+            tmp_path,
+            tmp_path / "models_pack.v",
         )
 
         state, error_trace, pin_min = result
@@ -246,14 +235,6 @@ class TestWorkerCustomOverrides:
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         """Test that worker passes custom config overrides to flow."""
-        mock_context: MagicMock = mocker.MagicMock()
-        mock_context.pdk = "test_pdk"
-        mock_context.pdk_root = tmp_path
-        mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
-            return_value=mock_context,
-        )
-
         mock_state: MagicMock = mocker.MagicMock()
         mock_flow: MagicMock = mocker.MagicMock()
         mock_flow.start.return_value = mock_state
@@ -274,6 +255,9 @@ class TestWorkerCustomOverrides:
             OptMode.BALANCE,
             tmp_path / "base.yaml",
             tmp_path / "override.yaml",
+            "test_pdk",
+            tmp_path,
+            tmp_path / "models_pack.v",
             CUSTOM_KEY="custom_value",
         )
 
