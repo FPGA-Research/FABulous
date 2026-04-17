@@ -283,7 +283,6 @@ class FABulousFabricMacroFullFlow(Flow):
                 result: Future[WorkerResult] = executor.submit(
                     _run_tile_flow_worker,
                     tile_type,
-                    proj_dir,
                     io_config_path,
                     opt_mode,
                     base_config_path,
@@ -443,7 +442,6 @@ class FABulousFabricMacroFullFlow(Flow):
                 result: Future[WorkerResult] = executor.submit(
                     _run_tile_flow_worker,
                     tile_type,
-                    proj_dir,
                     io_config_path,
                     OptMode.NO_OPT,
                     base_config_path,

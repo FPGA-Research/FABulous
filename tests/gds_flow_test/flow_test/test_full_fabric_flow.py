@@ -177,7 +177,6 @@ class TestRunTileFlowWorker:
         tile: MagicMock = mocker.MagicMock()
         result: WorkerResult = _run_tile_flow_worker(
             tile,
-            tmp_path,
             tmp_path / "io.yaml",
             OptMode.BALANCE,
             tmp_path / "base.yaml",
@@ -212,7 +211,6 @@ class TestRunTileFlowWorker:
         tile: MagicMock = mocker.MagicMock()
         result: WorkerResult = _run_tile_flow_worker(
             tile,
-            tmp_path,
             tmp_path / "io.yaml",
             OptMode.BALANCE,
             tmp_path / "base.yaml",
@@ -250,7 +248,6 @@ class TestWorkerCustomOverrides:
         tile: MagicMock = mocker.MagicMock()
         _run_tile_flow_worker(
             tile,
-            tmp_path,
             tmp_path / "io.yaml",
             OptMode.BALANCE,
             tmp_path / "base.yaml",
