@@ -937,7 +937,7 @@ class TestCheckPdkAutoResolution:
         )
 
         settings = init_context(project)
-        assert settings.pdk_root == ciel_home
+        assert settings.pdk_root == ciel_home / "ihp-sg13g2"
         assert settings.pdk_hash == "auto_hash"
 
     @pytest.mark.parametrize(
