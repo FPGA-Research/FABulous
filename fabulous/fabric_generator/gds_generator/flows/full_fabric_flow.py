@@ -88,7 +88,6 @@ def _extract_pin_min(flow: FABulousTileVerilogMacroFlow) -> dict[str, float]:
 
 def _run_tile_flow_worker(
     tile_type: Tile | SuperTile,
-    proj_dir: Path,
     io_pin_config: Path,
     optimisation: OptMode,
     base_config_path: Path,
@@ -107,8 +106,6 @@ def _run_tile_flow_worker(
     ----------
     tile_type : Tile | SuperTile
         The tile to compile.
-    proj_dir : Path
-        The path to the project directory.
     io_pin_config : Path
         Path to the IO pin configuration YAML file.
     optimisation : OptMode
@@ -117,6 +114,12 @@ def _run_tile_flow_worker(
         Base configuration file path for the flow.
     override_config_path : Path
         Override configuration file path for the flow.
+    pdk : str
+        The PDK name to use for the flow.
+    pdk_root : Path
+        The root directory of the PDK.
+    models_pack : Path | None
+        Optional path to the models pack file required for compilation.
     **custom_config_overrides : dict
         Any software overrides for the flow configuration.
 

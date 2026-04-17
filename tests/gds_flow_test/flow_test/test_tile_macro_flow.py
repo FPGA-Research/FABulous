@@ -31,6 +31,27 @@ from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptM
 class TestFABulousTileVerilogMacroFlowInit:
     """Tests for FABulousTileVerilogMacroFlow initialization and configuration."""
 
+    def _create_flow(
+        self,
+        *,
+        tile_type: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+        opt_mode: OptMode | None = OptMode.FIND_MIN_WIDTH,
+        **kwargs: dict,
+    ) -> FABulousTileVerilogMacroFlow:
+        """Create a flow with shared defaults used across tests."""
+        flow_kwargs: dict[str, Any] = {
+            "tile_type": tile_type,
+            "io_pin_config": io_pin_config,
+            "opt_mode": opt_mode,
+            "pdk": mock_pdk_root["pdk"],
+            "pdk_root": mock_pdk_root["pdk_root"],
+            "models_pack_path": Path("/fake/models/pack"),
+        }
+        flow_kwargs.update(kwargs)
+        return FABulousTileVerilogMacroFlow(**flow_kwargs)
+
     def test_init_with_basic_tile(
         self,
         mock_tile: MagicMock,
@@ -38,12 +59,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test initialization with a basic Tile."""
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
         )
 
         assert flow.config["DESIGN_NAME"] == "TestTile"
@@ -59,12 +78,11 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test initialization with a SuperTile sets correct logical dimensions."""
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_supertile,
             io_pin_config=io_pin_config,
             opt_mode=OptMode.FIND_MIN_HEIGHT,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
         )
 
         assert flow.config["DESIGN_NAME"] == "TestSuperTile"
@@ -80,12 +98,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test config merging follows correct precedence: custom > override > base."""
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
             base_config_path=base_config_file,
             override_config_path=override_config_file,
             OVERRIDE_ME="custom",
@@ -104,12 +120,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test that string FABULOUS_OPT_MODE is converted to OptMode enum."""
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
             FABULOUS_OPT_MODE="find_min_height",
         )
 
@@ -123,12 +137,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test IO pin thickness multipliers are forwarded to min die area calc."""
-        FABulousTileVerilogMacroFlow(
+        self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
             IO_PIN_V_THICKNESS_MULT=Decimal("2.0"),
             IO_PIN_H_THICKNESS_MULT=Decimal("3.0"),
         )
@@ -149,15 +161,14 @@ class TestFABulousTileVerilogMacroFlowInit:
         """Test tile flow is not blocked by stale PAD_* paths from PDK config."""
         mock_pdk_root["config_vars"]["PAD_GDS"] = ["/definitely/missing/pad.gds"]
 
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
+            models_pack_path=Path("/fake/models/pack.v"),
         )
 
-        assert flow.config["PAD_GDS"] is None
+        assert flow.config["PAD_GDS"] == ["/definitely/missing/pad.gds"]
 
     def test_die_area_set_with_ignore_default(
         self,
@@ -166,12 +177,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test DIE_AREA is set when FABULOUS_IGNORE_DEFAULT_DIE_AREA is True."""
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
             FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
         )
 
@@ -189,12 +198,10 @@ class TestFABulousTileVerilogMacroFlowInit:
     ) -> None:
         """Test that FlowException is raised when DIE_AREA is too small."""
         with pytest.raises(FlowException, match="DIE_AREA.*is smaller than"):
-            FABulousTileVerilogMacroFlow(
+            self._create_flow(
                 tile_type=mock_tile,
                 io_pin_config=io_pin_config,
-                opt_mode=OptMode.FIND_MIN_WIDTH,
-                pdk=mock_pdk_root["pdk"],
-                pdk_root=mock_pdk_root["pdk_root"],
+                mock_pdk_root=mock_pdk_root,
                 DIE_AREA=(0, 0, Decimal("50.0"), Decimal("50.0")),
             )
 
@@ -205,12 +212,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test that valid DIE_AREA is accepted."""
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
             DIE_AREA=(0, 0, Decimal("150.0"), Decimal("150.0")),
         )
 
@@ -227,12 +232,11 @@ class TestFABulousTileVerilogMacroFlowInit:
     ) -> None:
         """Test that NO_OPT mode requires DIE_AREA to be set."""
         with pytest.raises(FlowException, match="Invalid DIE_AREA configuration"):
-            FABulousTileVerilogMacroFlow(
+            self._create_flow(
                 tile_type=mock_tile,
                 io_pin_config=io_pin_config,
                 opt_mode=OptMode.NO_OPT,
-                pdk=mock_pdk_root["pdk"],
-                pdk_root=mock_pdk_root["pdk_root"],
+                mock_pdk_root=mock_pdk_root,
             )
 
     def test_no_opt_mode_with_die_area(
@@ -242,12 +246,11 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test that NO_OPT mode works when DIE_AREA is provided."""
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
             opt_mode=OptMode.NO_OPT,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
             DIE_AREA=(0, 0, Decimal("200.0"), Decimal("200.0")),
         )
 
@@ -263,12 +266,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test that routing obstructions are generated when not provided."""
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
         )
 
         # Routing obstructions should be generated (a list)
@@ -282,12 +283,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test that routing obstructions are not generated when explicitly False."""
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
             ROUTING_OBSTRUCTIONS=False,
         )
 
@@ -303,12 +302,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         custom_obstructions: list[tuple[str, int, int, int, int]] = [
             ("M1", 0, 0, 10, 10)
         ]
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
             ROUTING_OBSTRUCTIONS=custom_obstructions,
         )
 
@@ -321,12 +318,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test that design_dir defaults to tile macro directory."""
-        _flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        _flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
         )
 
         expected_dir: Path = mock_tile.tileDir.parent / "macro" / "find_min_width"
@@ -343,12 +338,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         custom_dir: Path = tmp_path / "custom_design_dir"
         custom_dir.mkdir()
 
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
             design_dir=custom_dir,
         )
 
@@ -361,12 +354,11 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test that VERILOG_FILES are collected from tile directory."""
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
+            models_pack_path=Path("/fake/models/pack.v"),
         )
 
         verilog_files: list[str] = flow.config["VERILOG_FILES"]
@@ -384,12 +376,10 @@ class TestFABulousTileVerilogMacroFlowInit:
         """Test that nonexistent config files don't cause errors."""
         nonexistent: Path = tmp_path / "nonexistent.yaml"
 
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
-            opt_mode=OptMode.FIND_MIN_WIDTH,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
+            mock_pdk_root=mock_pdk_root,
             base_config_path=nonexistent,
             override_config_path=nonexistent,
         )
@@ -404,12 +394,11 @@ class TestFABulousTileVerilogMacroFlowInit:
     ) -> None:
         """Test none handling for opt_mode results in NO_OPT."""
 
-        flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,
+            mock_pdk_root=mock_pdk_root,
             opt_mode=None,
-            pdk=mock_pdk_root["pdk"],
-            pdk_root=mock_pdk_root["pdk_root"],
             DIE_AREA=(0, 0, Decimal("200.0"), Decimal("200.0")),
         )
 
