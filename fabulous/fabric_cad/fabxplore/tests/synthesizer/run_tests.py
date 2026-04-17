@@ -8,7 +8,7 @@ from fabulous.fabric_cad.fabxplore.synthesizer.core.fabulous_architecture import
     FabulousArchitecture,
 )
 from fabulous.fabric_cad.fabxplore.synthesizer.core.models import (
-    FabulousArchitectureMapConfig,
+    FabulousArchitectureConfig,
 )
 from fabulous.fabulous_cli.helper import (
     setup_logger,
@@ -23,7 +23,7 @@ def test_basic_synth_flow() -> None:
     """Test the basic synthesis flow of the FABulousArchitecture."""
     logger.info("Testing basic synthesis flow of FABulousArchitecture")
     hdl_files = [ROOT / "benchmarks" / "verilog_rtl" / "ode" / "ode.v"]
-    config = FabulousArchitectureMapConfig(
+    config = FabulousArchitectureConfig(
         hdl_files=hdl_files,
         top_module="ode",
         allow_resource_sharing=True,

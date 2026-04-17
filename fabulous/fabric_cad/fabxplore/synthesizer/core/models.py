@@ -10,7 +10,7 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 
-class FabulousArchitectureMapConfig(BaseModel):
+class FabulousArchitectureConfig(BaseModel):
     """Configuration parameters for the FABulous architecture mapping process."""
 
     model_config = ConfigDict(strict=False, validate_assignment=True, extra="forbid")

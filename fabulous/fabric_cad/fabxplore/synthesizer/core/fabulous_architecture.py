@@ -12,6 +12,9 @@ mapping and optimization stages. This module serves as the central point for def
 the synthesis flow and architecture-specific transformations for FABulous.
 """
 
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass import (
+    LutCombinatorPass,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
     PyosysBridge,
 )
@@ -20,7 +23,7 @@ from fabulous.fabric_cad.fabxplore.synthesizer.core.architecture import (
 )
 from fabulous.fabric_cad.fabxplore.synthesizer.core.models import (
     ArchitectureMapResult,
-    FabulousArchitectureMapConfig,
+    FabulousArchitectureConfig,
 )
 
 
@@ -33,15 +36,13 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
     Parameters
     ----------
-    config : FabulousArchitectureMapConfig
+    config : FabulousArchitectureConfig
         Configuration parameters for the architecture mapping process.
     debug : bool, optional
         Enable debug mode for verbose logging and intermediate design dumps.
     """
 
-    def __init__(
-        self, config: FabulousArchitectureMapConfig, debug: bool = False
-    ) -> None:
+    def __init__(self, config: FabulousArchitectureConfig, debug: bool = False) -> None:
         self.config = config
         self.debug = debug
 
@@ -135,10 +136,12 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         """Run final cell-level mapping and legalization passes."""
         self.design.run_pass("techmap -D LUT_K=5 -map +/fabulous/cells_map.v")
         self.design.run_pass("clean")
+        LutCombinatorPass(top_name=self.config.top_module).run_on(self.design)
 
     def check(self) -> None:
         """Validate the mapped design and report structural issues."""
-        self.design.run_pass("hierarchy -check")
+        # TODO: fix -ckeck option
+        self.design.run_pass(f"hierarchy -top {self.config.top_module}")
         self.design.run_pass("stat")
 
     def synthesize(self) -> None:
