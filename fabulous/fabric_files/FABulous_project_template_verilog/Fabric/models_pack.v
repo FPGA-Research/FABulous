@@ -5,12 +5,14 @@ module config_latch (
     output reg Q,
     QN
 );
+  /* verilator lint_off LATCH */
   always @(*) begin
     if (E == 1'b1) begin
       Q  = D;
       QN = ~D;
     end
   end
+  /* verilator lint_on LATCH */
 endmodule
 
 module my_buf (

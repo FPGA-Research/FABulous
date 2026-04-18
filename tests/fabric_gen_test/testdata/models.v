@@ -10,6 +10,7 @@ module config_latch (
     output reg Q,
     QN
 );
+  /* verilator lint_off LATCH */
   always @(*) begin
     if (E == 1'b1) begin
       Q  = D;
@@ -17,4 +18,5 @@ module config_latch (
     end
     // When E=0, Q and QN hold their previous values (latch behavior)
   end
+  /* verilator lint_on LATCH */
 endmodule
