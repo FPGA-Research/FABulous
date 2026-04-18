@@ -10,6 +10,7 @@ reformat.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,7 @@ PROJECT_ROOTS = ("fabulous", "tests")
 
 
 def discover_vhdl(repo_root: Path) -> list[Path]:
+    """Return every ``.vhd`` / ``.vhdl`` source under the project roots."""
     found: list[Path] = []
     for root in PROJECT_ROOTS:
         found.extend((repo_root / root).rglob("*.vhd"))
@@ -28,32 +30,55 @@ def discover_vhdl(repo_root: Path) -> list[Path]:
     return sorted(set(found))
 
 
-def docker_run(repo_root: Path, workdir: Path, argv: list[str]) -> subprocess.CompletedProcess:
+def docker_run(
+    repo_root: Path, workdir: Path, argv: list[str]
+) -> subprocess.CompletedProcess:
+    """Run a GHDL command inside the pinned image with the repo + workdir mounted."""
     return subprocess.run(
         [
-            "docker", "run", "--rm",
-            "-v", f"{repo_root}:/work",
-            "-v", f"{workdir}:/ghdlwork",
-            "-w", "/work",
+            "docker",
+            "run",
+            "--rm",
+            "--user",
+            f"{os.getuid()}:{os.getgid()}",
+            "-v",
+            f"{repo_root}:/work",
+            "-v",
+            f"{workdir}:/ghdlwork",
+            "-w",
+            "/work",
             GHDL_IMAGE,
             *argv,
         ],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
 
 
 def analyse_project(repo_root: Path, workdir: Path, files: list[Path]) -> None:
+    """Analyse every project VHDL file into the shared work library.
+
+    Two passes so out-of-order dependencies resolve on the second sweep. Only
+    the last pass's stderr is surfaced so users see errors located at the
+    right file rather than transient first-pass noise.
+    """
     rel = [str(p.relative_to(repo_root)) for p in files]
-    # Two passes so out-of-order dependencies resolve on the second sweep.
     base = ["ghdl", "-a", "--workdir=/ghdlwork", f"--std={VHDL_STD}"]
+    last = None
     for _ in range(2):
-        docker_run(repo_root, workdir, base + rel)
+        last = docker_run(repo_root, workdir, base + rel)
+    if last is not None and last.returncode != 0:
+        sys.stderr.write(last.stderr)
+        raise SystemExit("ghdl -a failed during project analysis")
 
 
 def reprint(repo_root: Path, workdir: Path, path: Path) -> str:
+    """Return the ``ghdl --format`` reprint of ``path`` using the shared workdir."""
     rel = str(path.relative_to(repo_root))
     result = docker_run(
-        repo_root, workdir,
+        repo_root,
+        workdir,
         ["ghdl", "--format", "--workdir=/ghdlwork", f"--std={VHDL_STD}", rel],
     )
     if result.returncode != 0:
@@ -63,6 +88,7 @@ def reprint(repo_root: Path, workdir: Path, path: Path) -> str:
 
 
 def main() -> int:
+    """Reformat every VHDL target passed on argv; return 1 if any file changed."""
     targets = [Path(p).resolve() for p in sys.argv[1:]]
     if not targets:
         return 0
@@ -70,7 +96,6 @@ def main() -> int:
     project_files = discover_vhdl(repo_root)
     with tempfile.TemporaryDirectory() as tmp:
         workdir = Path(tmp)
-        workdir.chmod(0o777)
         analyse_project(repo_root, workdir, project_files)
         changed = 0
         for path in targets:

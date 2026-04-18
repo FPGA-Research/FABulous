@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Wrapper that downloads a pinned Verible release into a user cache on first
-call, then execs the requested Verible tool with the remaining arguments.
+"""Download-and-exec wrapper for a pinned Verible release.
+
+Downloads the pinned Verible tarball into a user cache on first call, then
+execs the requested Verible tool with the remaining arguments.
 """
 
 from __future__ import annotations
@@ -15,9 +17,12 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 VERIBLE_VERSION = "v0.0-4053-g89d4d98a"
 RELEASE_URL = (
@@ -40,11 +45,13 @@ TRANSIENT_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 
 def cache_dir() -> Path:
+    """Return the per-version cache directory for the pinned Verible release."""
     root = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
     return Path(root) / "fabulous-verible" / VERIBLE_VERSION
 
 
 def asset_name() -> str:
+    """Return the release asset filename for the current platform/arch."""
     key = (platform.system(), platform.machine())
     if key not in ASSETS:
         sys.exit(f"verible_wrapper: unsupported platform {key}")
@@ -67,9 +74,9 @@ def fetch_tarball(url: str, dest_dir: Path) -> Path:
     """Download ``url`` to a temp file under ``dest_dir``, retrying transient errors."""
     last_exc: Exception | None = None
     for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
-        sys.stderr.write(
-            f"verible_wrapper: downloading {url} (attempt {attempt}/{DOWNLOAD_ATTEMPTS})\n",
-        )
+        msg = f"verible_wrapper: downloading {url} "
+        msg += f"(attempt {attempt}/{DOWNLOAD_ATTEMPTS})\n"
+        sys.stderr.write(msg)
         try:
             with (
                 urllib.request.urlopen(url, timeout=60) as resp,
@@ -87,11 +94,13 @@ def fetch_tarball(url: str, dest_dir: Path) -> Path:
             last_exc = e
         time.sleep(DOWNLOAD_BACKOFF_SECONDS * (2 ** (attempt - 1)))
     raise RuntimeError(
-        f"verible_wrapper: download failed after {DOWNLOAD_ATTEMPTS} attempts: {last_exc}",
+        f"verible_wrapper: download failed after "
+        f"{DOWNLOAD_ATTEMPTS} attempts: {last_exc}",
     )
 
 
 def download(dest: Path) -> None:
+    """Fetch the Verible tarball and extract it into ``dest`` atomically."""
     url = RELEASE_URL.format(asset=asset_name())
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = fetch_tarball(url, dest.parent)
@@ -99,14 +108,20 @@ def download(dest: Path) -> None:
     try:
         with tarfile.open(tmp_path) as tar:
             tar.extractall(staging, filter="data")
-        tmp_path.unlink()
-        extracted = next(staging.glob(f"verible-{VERIBLE_VERSION}*"))
-        extracted.rename(dest)
+        matches = list(staging.glob(f"verible-{VERIBLE_VERSION}*"))
+        if not matches:
+            sys.exit(
+                f"verible_wrapper: extracted archive does not contain "
+                f"verible-{VERIBLE_VERSION}*",
+            )
+        matches[0].rename(dest)
     finally:
+        tmp_path.unlink(missing_ok=True)
         shutil.rmtree(staging, ignore_errors=True)
 
 
 def ensure_bin(tool: str) -> Path:
+    """Return the path to ``tool``, downloading and installing it if missing."""
     prefix = cache_dir() / "install"
     binary = prefix / "bin" / tool
     if binary.exists():
@@ -120,6 +135,7 @@ def ensure_bin(tool: str) -> Path:
 
 
 def main() -> None:
+    """Resolve the requested Verible tool then exec it with the remaining argv."""
     if len(sys.argv) < 2:
         sys.exit("verible_wrapper: expected tool name as first argument")
     tool, *rest = sys.argv[1:]
