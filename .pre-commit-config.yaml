@@ -68,17 +68,11 @@ repos:
 
   - repo: local
     hooks:
-      - id: ghdl-syntax
-        name: ghdl -s (VHDL syntax)
-        description: Run GHDL syntax check on each VHDL file
-        language: docker_image
-        entry: ghdl/ghdl:6.0.0-mcode-ubuntu-24.04 ghdl -s --std=08
-        # pre-commit's `types: [vhdl]` only covers `.vhd`; match `.vhdl` too.
-        files: \.vhdl?$
-
+      # ghdl --format analyses the whole project into a shared work library,
+      # so it also catches syntax errors - no separate ghdl-syntax hook needed.
       - id: ghdl-format
-        name: ghdl --format (VHDL reformat)
-        description: Reprint VHDL via GHDL and rewrite on diff
+        name: ghdl --format (VHDL reprint + syntax)
+        description: Reprint VHDL via GHDL against a project-wide work library; rewrite on diff
         language: script
         entry: scripts/ghdl_format.py
         files: \.vhdl?$
