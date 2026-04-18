@@ -87,9 +87,9 @@ begin
       dout1 => mem_dout,
       web0 => memWriteEnable,
       wmask0 => mem_wr_mask
-    );
+      );
 
-  -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:32)
+    -- Generated from always process in BlockRAM_1KB (BlockRAM_1KB.v:32)
   process (alwaysWriteEnable, wr_data) is
   begin
     if alwaysWriteEnable = '1' then

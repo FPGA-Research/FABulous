@@ -89,7 +89,7 @@ begin
       S1 => S1,
       S1N => S1N,
       X => cus_mux41_out0
-    );
+      );
 
   cus_mux41_inst1: cus_mux41
     port map (
@@ -102,7 +102,7 @@ begin
       S1 => S1,
       S1N => S1N,
       X => cus_mux41_out1
-    );
+      );
 
   cus_mux41_inst2: cus_mux41
     port map (
@@ -115,7 +115,7 @@ begin
       S1 => S1,
       S1N => S1N,
       X => cus_mux41_out2
-    );
+      );
 
   cus_mux41_inst3: cus_mux41
     port map (
@@ -128,7 +128,7 @@ begin
       S1 => S1,
       S1N => S1N,
       X => cus_mux41_out3
-    );
+      );
   X <= X_Readable;
 
   cus_mux41_inst4: cus_mux41
@@ -142,7 +142,7 @@ begin
       S1 => S3,
       S1N => S3N,
       X => X_Readable
-    );
+      );
 end architecture;
 
 library ieee;
@@ -238,7 +238,7 @@ begin
       S1 => S1,
       S1N => S1N,
       X => cus_mux41_out0
-    );
+      );
 
   cus_mux41_inst1: cus_mux41
     port map (
@@ -251,7 +251,7 @@ begin
       S1 => S1,
       S1N => S1N,
       X => cus_mux41_out1
-    );
+      );
   X <= X_Readable;
 
   cus_mux21_inst: cus_mux21
@@ -260,7 +260,7 @@ begin
       A1 => cus_mux41_out1,
       S => S2,
       X => X_Readable
-    );
+      );
 end architecture;
 
 library ieee;
@@ -279,8 +279,8 @@ end entity;
 architecture from_verilog of cus_mux21 is
 begin
   X <= A0 when S = '0' else
-       A1 when S = '1' else
-       'U';
+    A1 when S = '1' else
+    'U';
 
 end architecture;
 
@@ -325,101 +325,101 @@ use ieee.std_logic_1164.all;
 
 package my_package is
 
-component config_latch is
-  port (
-    D : in std_logic;
-    E : in std_logic;
-    Q : out std_logic;
-    QN : out std_logic
-  );
-end component;
+  component config_latch is
+    port (
+      D : in std_logic;
+      E : in std_logic;
+      Q : out std_logic;
+      QN : out std_logic
+    );
+  end component;
 
 
-component cus_mux161 is
-  port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A10 : in std_logic;
-    A11 : in std_logic;
-    A12 : in std_logic;
-    A13 : in std_logic;
-    A14 : in std_logic;
-    A15 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    A4 : in std_logic;
-    A5 : in std_logic;
-    A6 : in std_logic;
-    A7 : in std_logic;
-    A8 : in std_logic;
-    A9 : in std_logic;
-    S0 : in std_logic;
-    S0N : in std_logic;
-    S1 : in std_logic;
-    S1N : in std_logic;
-    S2 : in std_logic;
-    S2N : in std_logic;
-    S3 : in std_logic;
-    S3N : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component cus_mux161 is
+    port (
+      A0 : in std_logic;
+      A1 : in std_logic;
+      A10 : in std_logic;
+      A11 : in std_logic;
+      A12 : in std_logic;
+      A13 : in std_logic;
+      A14 : in std_logic;
+      A15 : in std_logic;
+      A2 : in std_logic;
+      A3 : in std_logic;
+      A4 : in std_logic;
+      A5 : in std_logic;
+      A6 : in std_logic;
+      A7 : in std_logic;
+      A8 : in std_logic;
+      A9 : in std_logic;
+      S0 : in std_logic;
+      S0N : in std_logic;
+      S1 : in std_logic;
+      S1N : in std_logic;
+      S2 : in std_logic;
+      S2N : in std_logic;
+      S3 : in std_logic;
+      S3N : in std_logic;
+      X : out std_logic
+    );
+  end component;
 
-component cus_mux41 is
-  port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    S0 : in std_logic;
-    S0N : in std_logic;
-    S1 : in std_logic;
-    S1N : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component cus_mux41 is
+    port (
+      A0 : in std_logic;
+      A1 : in std_logic;
+      A2 : in std_logic;
+      A3 : in std_logic;
+      S0 : in std_logic;
+      S0N : in std_logic;
+      S1 : in std_logic;
+      S1N : in std_logic;
+      X : out std_logic
+    );
+  end component;
 
-component cus_mux81 is
-  port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    A2 : in std_logic;
-    A3 : in std_logic;
-    A4 : in std_logic;
-    A5 : in std_logic;
-    A6 : in std_logic;
-    A7 : in std_logic;
-    S0 : in std_logic;
-    S0N : in std_logic;
-    S1 : in std_logic;
-    S1N : in std_logic;
-    S2 : in std_logic;
-    S2N : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component cus_mux81 is
+    port (
+      A0 : in std_logic;
+      A1 : in std_logic;
+      A2 : in std_logic;
+      A3 : in std_logic;
+      A4 : in std_logic;
+      A5 : in std_logic;
+      A6 : in std_logic;
+      A7 : in std_logic;
+      S0 : in std_logic;
+      S0N : in std_logic;
+      S1 : in std_logic;
+      S1N : in std_logic;
+      S2 : in std_logic;
+      S2N : in std_logic;
+      X : out std_logic
+    );
+  end component;
 
-component cus_mux21 is
-  port (
-    A0 : in std_logic;
-    A1 : in std_logic;
-    S : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component cus_mux21 is
+    port (
+      A0 : in std_logic;
+      A1 : in std_logic;
+      S : in std_logic;
+      X : out std_logic
+    );
+  end component;
 
-component my_buf is
-  port (
-    A : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component my_buf is
+    port (
+      A : in std_logic;
+      X : out std_logic
+    );
+  end component;
 
-component clk_buf is
-  port (
-    A : in std_logic;
-    X : out std_logic
-  );
-end component;
+  component clk_buf is
+    port (
+      A : in std_logic;
+      X : out std_logic
+    );
+  end component;
 
 end package my_package;

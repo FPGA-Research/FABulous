@@ -4,14 +4,14 @@ use ieee.numeric_std.all;
 
 package my_package is
 
-component config_latch is
-  port (
-    D : in std_logic;
-    E : in std_logic;
-    Q : out std_logic;
-    QN : out std_logic
-  );
-end component;
+  component config_latch is
+    port (
+      D : in std_logic;
+      E : in std_logic;
+      Q : out std_logic;
+      QN : out std_logic
+    );
+  end component;
 
 end package;
 

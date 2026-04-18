@@ -19,26 +19,26 @@ architecture Behavior of sequential_16bit_en_tb is
       desync_flag : integer := 20;
       include_eFPGA : integer := 1
     );
-      port (
-        I_top : out std_logic_vector( NumberOfRows * 2 - 1 downto 0);
-        T_top : out std_logic_vector(NumberOfRows * 2 - 1 downto 0);
-        O_top : in std_logic_vector( NumberOfRows * 2 - 1 downto 0);
-        A_config_C : out std_logic_vector( NumberOfRows * 4 - 1 downto 0);
-        B_config_C : out std_logic_vector( NumberOfRows * 4 - 1 downto 0);
-        Config_accessC : out std_logic_vector( 55 downto 0 );
+    port (
+      I_top : out std_logic_vector( NumberOfRows * 2 - 1 downto 0);
+      T_top : out std_logic_vector(NumberOfRows * 2 - 1 downto 0);
+      O_top : in std_logic_vector( NumberOfRows * 2 - 1 downto 0);
+      A_config_C : out std_logic_vector( NumberOfRows * 4 - 1 downto 0);
+      B_config_C : out std_logic_vector( NumberOfRows * 4 - 1 downto 0);
+      Config_accessC : out std_logic_vector( 55 downto 0 );
 
-        CLK : in std_logic;
-        resetn     : in std_logic;
-        ComActive : out std_logic;
-        ReceiveLED : out std_logic;
-        Rx : in std_logic;
-        s_clk : in std_logic;
-        s_data : in std_logic;
-        SelfWriteData : in std_logic_vector(31 downto 0);
-        SelfWriteStrobe : in std_logic
+      CLK : in std_logic;
+      resetn     : in std_logic;
+      ComActive : out std_logic;
+      ReceiveLED : out std_logic;
+      Rx : in std_logic;
+      s_clk : in std_logic;
+      s_data : in std_logic;
+      SelfWriteData : in std_logic_vector(31 downto 0);
+      SelfWriteStrobe : in std_logic
 
     );
-    end component;
+  end component;
 
   component sequential_16bit_en is
     port (
@@ -84,13 +84,13 @@ architecture Behavior of sequential_16bit_en_tb is
     variable L: LINE;
     variable temp: std_logic_vector(7 downto 0);
     variable good_v : boolean;
-    begin
-      while not endfile(read_file) loop
-        readline (read_file, L);
-        hread (L, temp, good_v);
-        bs(counter) := temp;
-        counter := counter + 1;
-      end loop;
+  begin
+    while not endfile(read_file) loop
+      readline (read_file, L);
+      hread (L, temp, good_v);
+      bs(counter) := temp;
+      counter := counter + 1;
+    end loop;
     return bs;
   end function;
 
@@ -106,7 +106,7 @@ begin
       RowSelectWidth => 5,
       desync_flag => 20,
       include_eFPGA => 1
-    )
+      )
     port map (
       I_top => I_top,
       T_top => T_top,
@@ -126,17 +126,17 @@ begin
       s_clk => s_clk,
       s_data => s_data
 
-    );
-
-    init_top: sequential_16bit_en
-      port map (
-        clk => CLK,
-        io_out => I_top_gold,
-        io_oeb => oeb_gold,
-        io_in => O_top
       );
 
-    T_top_gold <= not oeb_gold;
+  init_top: sequential_16bit_en
+    port map (
+      clk => CLK,
+      io_out => I_top_gold,
+      io_oeb => oeb_gold,
+      io_in => O_top
+      );
+
+  T_top_gold <= not oeb_gold;
 
 
   process is

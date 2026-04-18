@@ -64,39 +64,39 @@ begin
 
 
   cus_mux21_inst0 : entity work.cus_mux21
-  port map
-  (
-    A0 => I(0),
-    A1 => Q(0),
-    S  => ConfigBits(0),
-    X  => O(0)
-  );
+    port map
+      (
+      A0 => I(0),
+      A1 => Q(0),
+      S  => ConfigBits(0),
+      X  => O(0)
+      );
 
   cus_mux21_inst1 : entity work.cus_mux21
-  port map
-  (
-    A0 => I(1),
-    A1 => Q(1),
-    S  => ConfigBits(1),
-    X  => O(1)
-  );
+    port map
+      (
+      A0 => I(1),
+      A1 => Q(1),
+      S  => ConfigBits(1),
+      X  => O(1)
+      );
 
   cus_mux21_inst2 : entity work.cus_mux21
-  port map
-  (
-    A0 => I(2),
-    A1 => Q(2),
-    S  => ConfigBits(2),
-    X  => O(2)
-  );
+    port map
+      (
+      A0 => I(2),
+      A1 => Q(2),
+      S  => ConfigBits(2),
+      X  => O(2)
+      );
 
   cus_mux21_inst3 : entity work.cus_mux21
-  port map
-  (
-    A0 => I(3),
-    A1 => Q(3),
-    S  => ConfigBits(3),
-    X  => O(3)
-  );
+    port map
+      (
+      A0 => I(3),
+      A1 => Q(3),
+      S  => ConfigBits(3),
+      X  => O(3)
+      );
 
 end architecture Behavioral;

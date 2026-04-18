@@ -36,8 +36,8 @@ use ieee.numeric_std.all;
 --   Word3 = 3
 entity config_UART is
   generic(
-      ComRate : integer := 217;
-      Mode : integer := 0
+    ComRate : integer := 217;
+    Mode : integer := 0
   );
   port (
     CLK : in std_logic;
@@ -84,7 +84,7 @@ architecture from_verilog of config_UART is
   function ASCII2HEX (
     ASCII : unsigned(7 downto 0)
   )
-  return unsigned;
+    return unsigned;
 
   signal ReceiveLED_Reg : std_logic;
   signal WriteData_Reg : unsigned(31 downto 0);
@@ -131,7 +131,7 @@ architecture from_verilog of config_UART is
   function ASCII2HEX (
     ASCII : unsigned(7 downto 0)
   )
-  return unsigned is
+    return unsigned is
     variable ASCII2HEX_Result : unsigned(4 downto 0);
   begin
     case ASCII is

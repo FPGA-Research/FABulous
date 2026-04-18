@@ -126,9 +126,9 @@ begin
       WriteData => UART_WriteData_Mux,
       WriteStrobe => UART_WriteStrobe_Mux,
       resetn => resetn
-    );
+      );
 
-  -- Generated from instantiation at eFPGA_Config.v:42
+    -- Generated from instantiation at eFPGA_Config.v:42
   INST_config_UART: config_UART
     port map (
       CLK => CLK,
@@ -139,9 +139,9 @@ begin
       WriteData => UART_WriteData,
       WriteStrobe => UART_WriteStrobe,
       resetn => resetn
-    );
+      );
 
-  -- Generated from instantiation at eFPGA_Config.v:54
+    -- Generated from instantiation at eFPGA_Config.v:54
   Inst_bitbang: bitbang
     port map (
       active => BitBangActive,
@@ -151,5 +151,5 @@ begin
       s_clk => s_clk,
       s_data => s_data,
       strobe => BitBangWriteStrobe
-    );
+      );
 end architecture;
