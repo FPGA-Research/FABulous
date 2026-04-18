@@ -9,10 +9,10 @@ module Frame_Select #(
     input FrameStrobe
 );
 
-    //FrameStrobe_O = 0;
-    always @(*) begin
-        if (FrameStrobe && (FrameSelect == Col)) FrameStrobe_O = FrameStrobe_I;
-        else FrameStrobe_O = 'd0;
-    end
+  //FrameStrobe_O = 0;
+  always @(*) begin
+    if (FrameStrobe && (FrameSelect == Col)) FrameStrobe_O = FrameStrobe_I;
+    else FrameStrobe_O = 'd0;
+  end
 
 endmodule

@@ -9,8 +9,8 @@ module Frame_Data_Reg #(
     input CLK
 );
 
-    always @(posedge CLK) begin
-        if (RowSelect == Row) FrameData_O <= FrameData_I;
-    end  //CLK
+  always @(posedge CLK) begin
+    if (RowSelect == Row) FrameData_O <= FrameData_I;
+  end  //CLK
 
 endmodule
