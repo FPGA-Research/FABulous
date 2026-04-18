@@ -60,8 +60,8 @@ def parse_model_json(
         if match is None:
             continue
 
-        width: int = int(match.group(1))
-        conns: dict = cell.get("connections", {})
+        conns: dict = flatten_connections(cell.get("connections", {}))
+        width: int = len([p for p in conns if lut_spec.input_re.match(p)])
 
         in_ports: list[str] = [i for i in conns if lut_spec.input_re.match(i)]
 
@@ -92,3 +92,39 @@ def parse_model_json(
         )
 
     return NetlistModel(top_name=top_name, lut_cells=tuple(luts))
+
+
+def flatten_connections(
+    connections: dict[str, list[int]],
+    keep_single_entries: bool = True,
+) -> dict[str, list[int]]:
+    """Flatten Yosys connection lists into single-value entries.
+
+    Yosys represents multi-bit connections as lists of individual bits. This function
+    converts these into a flat dictionary where each bit is represented as a separate
+    entry with an indexed name (e.g., "A0", "A1", ...). Optionally, single-bit
+    connections can keep their original name.
+
+    Parameters
+    ----------
+    connections : dict[str, list[int]]
+        Original Yosys connection dictionary.
+    keep_single_entries : bool, optional
+        If ``True``, single-bit connections keep their original name. If ``False``,
+        they are also indexed (e.g., ``"Y0"``), by default ``True``.
+
+    Returns
+    -------
+    dict[str, list[int]]
+        Flattened connection dictionary with single-value entries.
+    """
+    result: dict[str, list[int]] = {}
+
+    for name, values in connections.items():
+        if keep_single_entries and len(values) == 1:
+            result[name] = [values[0]]
+        else:
+            for i, value in enumerate(values):
+                result[f"{name}{i}"] = [value]
+
+    return result

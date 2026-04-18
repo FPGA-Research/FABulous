@@ -164,12 +164,19 @@ def _build_model_library(
             continue
         if ctype == frac_cell_name:
             continue
+        if _is_yosys_builtin_cell(ctype):
+            continue
         lines.extend(
             _passthrough_model(ctype, shape.port_widths, shape.parameter_names)
         )
         lines.append("")
 
     return "\n".join(lines)
+
+
+def _is_yosys_builtin_cell(cell_type: str) -> bool:
+    """Return whether a cell type is a Yosys built-in internal `$` cell."""
+    return cell_type.startswith("$")
 
 
 def _lut_model(width: int) -> list[str]:

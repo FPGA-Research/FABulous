@@ -16,6 +16,11 @@ class LutSpec:
     This enum centralizes regular expressions and constants used to identify
     and manipulate LUT cells within the netlist parsing process.
 
+    Note that Bus patterns are converted to tuples of individual nets by the parser,
+    so the regexes should match the individual net names rather than the entire bus.
+    Like "A":[1,2,3] would be "A0":[1], "A1":[2], "A2":[3] in the JSON.
+    Single-bit like "A":[1] would be "A":[1] in the JSON.
+
     Attributes
     ----------
     lut_re : re.Pattern
@@ -28,9 +33,9 @@ class LutSpec:
         Set of valid output port names for LUT cells.
     """
 
-    lut_re: re.Pattern = re.compile(r"^LUT(\d+)$")
-    init_name: str = "INIT"
-    input_re: re.Pattern = re.compile(r"^I\d+$")
+    lut_re: re.Pattern = re.compile(r"^\$lut$")
+    init_name: str = "LUT"
+    input_re: re.Pattern = re.compile(r"^A\d+$")
     output_ports: set[str] = frozenset({"O", "Q", "Y"})
 
 

@@ -1,5 +1,6 @@
 """Ad-hoc tests."""
 
+import re
 from pathlib import Path
 
 from loguru import logger
@@ -43,7 +44,12 @@ def test_lut_32_mix_benchmark_eq(
     cfg = LutCombinatorConfig(
         architecture=frac_arch,
         top_name="lut32_mixed",
-        lut_spec=LutSpec(),
+        lut_spec=LutSpec(
+            lut_re=re.compile(r"^LUT(\d+)$"),
+            init_name="INIT",
+            input_re=re.compile(r"^I\d+$"),
+            output_ports=frozenset({"O", "Q", "Y"}),
+        ),
         passthrough=passthrough,
         mode=mode,
     )
@@ -101,7 +107,12 @@ def test_two_lut_plus_bad_unknown_benchmark_eq(
     cfg = LutCombinatorConfig(
         architecture=frac_arch,
         top_name="two_lut_plus_bad_unknown",
-        lut_spec=LutSpec(),
+        lut_spec=LutSpec(
+            lut_re=re.compile(r"^LUT(\d+)$"),
+            init_name="INIT",
+            input_re=re.compile(r"^I\d+$"),
+            output_ports=frozenset({"O", "Q", "Y"}),
+        ),
         passthrough=passthrough,
         mode=mode,
     )
@@ -157,7 +168,12 @@ def test_enet_benchmark(
     cfg = LutCombinatorConfig(
         architecture=frac_arch,
         top_name="enet",
-        lut_spec=LutSpec(),
+        lut_spec=LutSpec(
+            lut_re=re.compile(r"^LUT(\d+)$"),
+            init_name="INIT",
+            input_re=re.compile(r"^I\d+$"),
+            output_ports=frozenset({"O", "Q", "Y"}),
+        ),
         passthrough=passthrough,
         mode=mode,
         debug=False,
@@ -187,9 +203,70 @@ def test_enet_benchmark_manual() -> None:
     logger.info("ENET benchmark test passed.")
 
 
+def test_lut_32_mixed_yosys_lut_benchmark_eq(
+    fls: int, ns: int, passthrough: bool, mode: MatchingMode
+) -> None:
+    """Test mapping and equivalence checking of a LUT32-mixed benchmark."""
+    benchmark_verilog = (
+        ROOT / "benchmarks" / "lut_mapped_simple" / "lut32_mixed_yosys_lut.v"
+    )
+    out_dir = OUT_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Mapping a LUT32-mixed benchmark with FRAC_LUT5 architecture")
+    frac_arch = FracLutArchitecture(
+        frac_lut_size=fls,
+        num_shared_inputs=ns,
+        name="FRAC_LUT5",
+    )
+    cfg = LutCombinatorConfig(
+        architecture=frac_arch,
+        top_name="lut32_mixed",
+        lut_spec=LutSpec(
+            lut_re=re.compile(r"^\$lut$"),
+            init_name="LUT",
+            input_re=re.compile(r"^A\d+$"),
+            output_ports=frozenset({"O", "Q", "Y"}),
+        ),
+        passthrough=passthrough,
+        mode=mode,
+    )
+
+    comb = LutCombinator(cfg)
+    bridge: PyosysBridge = PyosysBridge(debug=True)
+    bridge.read_verilog_paths([benchmark_verilog])
+    comb.map_from_design(bridge, inplace=True)
+    bridge.write_verilog_path(out_dir / "lut32_mixed_mapped_yosys_lut.v")
+    comb.write_report(out_dir / "lut32_mixed_report_yosys_lut.txt")
+
+    eq_cfg = EquivalenceCheckConfig(
+        gold_verilog=benchmark_verilog,
+        gate_verilog=out_dir / "lut32_mixed_mapped_yosys_lut.v",
+        top_name="lut32_mixed",
+        frac_cell_name=frac_arch.name,
+        frac_lut_size=frac_arch.frac_lut_size,
+        num_shared_inputs=frac_arch.num_shared_inputs,
+    )
+    LutEquivalenceChecker(eq_cfg).run()
+
+    logger.info(
+        "Test passed: LUT32-mixed benchmark mapped successfully "
+        "with FRAC_LUT5 architecture."
+    )
+
+
+def test_lut_32_mixed_yosys_lut_benchmark_eq_iterative() -> None:
+    """Test mapping and equivalence checking of a LUT32-mixed benchmark iteratively."""
+    for fls in [4, 5, 6]:
+        for ns in [2, 3, 4]:
+            for passthrough in [False, True]:
+                for mode in [MatchingMode.MAX_WEIGHT, MatchingMode.MAXIMAL]:
+                    test_lut_32_mixed_yosys_lut_benchmark_eq(fls, ns, passthrough, mode)
+    logger.info("All LUT32-mixed benchmark tests passed.")
+
+
 def main() -> None:
     """Run all tests."""
-    sel_test: int = 2
+    sel_test: int = 0
 
     match sel_test:
         case 0:
@@ -198,6 +275,8 @@ def main() -> None:
             test_two_lut_plus_bad_unknown_benchmark_eq_iterative()
         case 2:
             test_enet_benchmark_manual()
+        case 3:
+            test_lut_32_mixed_yosys_lut_benchmark_eq_iterative()
 
 
 if __name__ == "__main__":
