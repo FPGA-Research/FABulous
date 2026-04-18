@@ -196,7 +196,7 @@ def test_enet_benchmark_manual() -> None:
     test_enet_benchmark(
         fls=4,
         ns=3,
-        passthrough=False,
+        passthrough=True,
         mode=MatchingMode.MAX_WEIGHT,
     )
 
@@ -266,7 +266,7 @@ def test_lut_32_mixed_yosys_lut_benchmark_eq_iterative() -> None:
 
 def main() -> None:
     """Run all tests."""
-    sel_test: int = 0
+    sel_test: int = 2
 
     match sel_test:
         case 0:

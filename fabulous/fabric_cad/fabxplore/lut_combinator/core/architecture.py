@@ -231,6 +231,114 @@ class FracLutArchitecture:
             parameters=params,
         )
 
+    def bind_single_lut(self, lut: LogicalLutCell) -> PackedCell | None:
+        """Map one LUT(K) or LUT(K+1) into one FRAC cell.
+
+        This path is used for both single LUTs and decomposed LUT(K+1) cells.
+        It emits the same FRAC-style parameter naming used
+        by pair mapping (``L0_*``/``L1_*``). For LUT(K+1), it decomposes by select
+        and maps both halves into L0/L1. For LUT(K), it maps the function into
+        L0 and leaves L1 as zero.
+
+        Parameters
+        ----------
+        lut : LogicalLutCell
+            Source LUT expected to have width ``<= frac_lut_size + 1``.
+
+        Returns
+        -------
+        PackedCell | None
+            Packed FRAC cell representation for the LUT, or ``None`` when
+            the LUT cannot fit architecture limits.
+        """
+        if lut.width > self.frac_lut_size + 1:
+            return None
+
+        if lut.width == self.frac_lut_size + 1:
+            data_inputs: tuple[str, ...] = tuple(lut.input_nets[: self.frac_lut_size])
+            select_input: str = lut.input_nets[self.frac_lut_size]
+            l0_raw, l1_raw = self._split_init_by_select(lut.init, self.frac_lut_size)
+        else:
+            data_inputs = tuple(lut.input_nets)
+            select_input = "0"
+            l0_raw = lut.init
+            l1_raw = 0
+
+        uniq: tuple[str, ...] = _ordered_unique(data_inputs)
+        if len(uniq) > self.frac_lut_size:
+            return None
+
+        shared_count: int = min(self.num_shared_inputs, len(uniq))
+        shared_nets: tuple[str, ...] = tuple(uniq[:shared_count])
+        shared_set: set[str] = set(shared_nets)
+        priv: tuple[str, ...] = tuple(n for n in uniq if n not in shared_set)
+
+        if len(priv) > self.private_inputs_per_lut:
+            return None
+
+        pin_map0, src_map0 = self._build_input_map(
+            data_inputs,
+            shared_nets,
+            priv,
+            prefix="A",
+        )
+        pin_map1, _ = self._build_input_map(
+            data_inputs,
+            shared_nets,
+            priv,
+            prefix="B",
+        )
+
+        init0: int = remap_init_to_slot(
+            init=l0_raw,
+            src_width=len(data_inputs),
+            input_to_slot_pin=pin_map0,
+            slot_width=self.frac_lut_size,
+        )
+        init1: int = remap_init_to_slot(
+            init=l1_raw,
+            src_width=len(data_inputs),
+            input_to_slot_pin=pin_map1,
+            slot_width=self.frac_lut_size,
+        )
+
+        ext_pins: dict[str, str] = {}
+        for idx, net in enumerate(shared_nets):
+            ext_pins[f"I{idx}"] = net
+        for idx, net in enumerate(priv):
+            ext_pins[f"A{idx}"] = net
+            ext_pins[f"B{idx}"] = net
+        ext_pins["S"] = select_input
+
+        placement: CellPlacement = CellPlacement(
+            cell=lut,
+            slot_name="L0",
+            input_to_slot_pin=pin_map0,
+            input_to_slot_source=src_map0,
+        )
+
+        params: dict[str, str] = {
+            "LUT_SIZE": str(self.frac_lut_size),
+            "NUM_SHARED_INPUTS": str(self.num_shared_inputs),
+            "L0_CELL_ID": lut.cell_id,
+            "L1_CELL_ID": (
+                f"{lut.cell_id}__S1"
+                if lut.width == self.frac_lut_size + 1
+                else f"{lut.cell_id}__UNUSED"
+            ),
+            "L0_INIT": format_bits(init0, 1 << self.frac_lut_size),
+            "L1_INIT": format_bits(init1, 1 << self.frac_lut_size),
+        }
+
+        return PackedCell(
+            packed_id=f"{self.name}_{lut.cell_id}",
+            architecture_name=self.name,
+            placements=(placement,),
+            external_pin_nets=dict(sorted(ext_pins.items())),
+            output_pin_nets={"O0": lut.output_net},
+            parameters=params,
+        )
+
     def build_mapped_cell(self, mapped_id: str, binding: PairBinding) -> PackedCell:
         """Build a packed macro cell from a validated pair binding.
 

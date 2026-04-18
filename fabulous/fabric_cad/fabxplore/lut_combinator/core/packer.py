@@ -394,7 +394,10 @@ class PairLutMapper:
         if self.passthrough:
             progress.begin_kp1_packing(total=len(single_kp1))
             for lut in single_kp1:
-                mapped_cell = self.arch.bind_full_lut(lut)
+                # Old behavior:
+
+                # New behavior: unify single-cell mapping via bind_single_lut.
+                mapped_cell = self.arch.bind_single_lut(lut)
                 if mapped_cell is None:
                     passthrough.append(lut)
                     progress.on_kp1_result(mapped=False)
@@ -466,9 +469,24 @@ class PairLutMapper:
         unmatched: list[LogicalLutCell] = [
             cell for idx, cell in enumerate(pair_candidates) if idx not in used
         ]
-        passthrough.extend(unmatched)
 
-        progress.on_unmatched_to_passthrough(count=len(unmatched))
+        unmatched_passthrough_count: int = 0
+        if self.passthrough:
+            # Old behavior:
+
+            # New behavior: map unmatched single LUTs into FRAC cells where possible.
+            for lut in unmatched:
+                mapped_cell = self.arch.bind_single_lut(lut)
+                if mapped_cell is None:
+                    passthrough.append(lut)
+                    unmatched_passthrough_count += 1
+                    continue
+                mapped.append(mapped_cell)
+        else:
+            passthrough.extend(unmatched)
+            unmatched_passthrough_count = len(unmatched)
+
+        progress.on_unmatched_to_passthrough(count=unmatched_passthrough_count)
 
         # Compile type counts for statistics.
         type_count: dict[str, int] = {}
