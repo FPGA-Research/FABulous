@@ -1,4 +1,5 @@
 -always-comb
 +line-length=length:88
 -explicit-function-lifetime
+-module-filename
 +parameter-name-style=localparam_style:ALL_CAPS;parameter_style:CamelCase
