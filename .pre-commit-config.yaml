@@ -73,13 +73,26 @@ repos:
         description: Run GHDL syntax check on each VHDL file
         language: docker_image
         entry: ghdl/ghdl:6.0.0-mcode-ubuntu-24.04 ghdl -s --std=08
-        types: [ vhdl ]
+        # pre-commit's `types: [vhdl]` only covers `.vhd`; match `.vhdl` too.
+        files: \.vhdl?$
+
+      - id: ghdl-format
+        name: ghdl --format (VHDL reformat)
+        description: Reprint VHDL via GHDL and rewrite on diff
+        language: script
+        entry: scripts/ghdl_format.py
+        files: \.vhdl?$
 
   # Verilog / SystemVerilog linting — upstream hook (Docker-backed)
   - repo: https://github.com/verilator/verilator
     rev: v5.046 # refreshed by `pre-commit autoupdate`
     hooks:
-      - id: verilator # runs `verilator --lint-only` in the official image
+      - id: verilator
+        # Waivers are inherent to pre-commit's per-file linting, not real design defects:
+        #   MODMISSING   - cross-file module refs (e.g. cus_mux21 lives in models_pack.v)
+        #   TIMESCALEMOD - only a subset of files carry `timescale; unified elsewhere
+        #   MULTITOP     - template files legitimately contain multiple top modules
+        args: [ --lint-only, -Wno-MODMISSING, -Wno-TIMESCALEMOD, -Wno-MULTITOP ]
 
   # Verilog / SystemVerilog formatting & linting — upstream Verible static binary.
   # scripts/verible_wrapper.py downloads and caches the pinned release on first
@@ -90,7 +103,8 @@ repos:
         name: verible-verilog-format
         description: Format (System)Verilog with upstream Verible
         language: script
-        entry: scripts/verible_wrapper.py verible-verilog-format --inplace
+        entry: scripts/verible_wrapper.py verible-verilog-format
+          --flagfile=.rules.verible_format
         types_or: [ verilog, system-verilog ]
 
       - id: verible-verilog-lint
@@ -98,4 +112,5 @@ repos:
         description: Style-lint (System)Verilog with upstream Verible
         language: script
         entry: scripts/verible_wrapper.py verible-verilog-lint
+          --rules_config=.rules.verible_lint
         types_or: [ verilog, system-verilog ]
