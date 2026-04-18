@@ -12,6 +12,8 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -30,6 +32,11 @@ ASSETS = {
     ("Darwin", "x86_64"): "macOS.tar.gz",
     ("Darwin", "arm64"): "macOS.tar.gz",
 }
+
+DOWNLOAD_ATTEMPTS = 5
+DOWNLOAD_BACKOFF_SECONDS = 2.0
+# HTTP status codes that indicate a transient failure worth retrying.
+TRANSIENT_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 
 def cache_dir() -> Path:
@@ -56,18 +63,38 @@ def file_lock(path: Path) -> Iterator[None]:
             fcntl.flock(f, fcntl.LOCK_UN)
 
 
+def fetch_tarball(url: str, dest_dir: Path) -> Path:
+    """Download ``url`` to a temp file under ``dest_dir``, retrying transient errors."""
+    last_exc: Exception | None = None
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        sys.stderr.write(
+            f"verible_wrapper: downloading {url} (attempt {attempt}/{DOWNLOAD_ATTEMPTS})\n",
+        )
+        try:
+            with (
+                urllib.request.urlopen(url, timeout=60) as resp,
+                tempfile.NamedTemporaryFile(
+                    delete=False, dir=dest_dir, suffix=".tar.gz"
+                ) as tmp,
+            ):
+                shutil.copyfileobj(resp, tmp)
+                return Path(tmp.name)
+        except urllib.error.HTTPError as e:
+            last_exc = e
+            if e.code not in TRANSIENT_STATUSES:
+                raise
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            last_exc = e
+        time.sleep(DOWNLOAD_BACKOFF_SECONDS * (2 ** (attempt - 1)))
+    raise RuntimeError(
+        f"verible_wrapper: download failed after {DOWNLOAD_ATTEMPTS} attempts: {last_exc}",
+    )
+
+
 def download(dest: Path) -> None:
     url = RELEASE_URL.format(asset=asset_name())
     dest.parent.mkdir(parents=True, exist_ok=True)
-    sys.stderr.write(f"verible_wrapper: downloading {url}\n")
-    with (
-        urllib.request.urlopen(url) as resp,
-        tempfile.NamedTemporaryFile(
-            delete=False, dir=dest.parent, suffix=".tar.gz"
-        ) as tmp,
-    ):
-        shutil.copyfileobj(resp, tmp)
-        tmp_path = Path(tmp.name)
+    tmp_path = fetch_tarball(url, dest.parent)
     staging = Path(tempfile.mkdtemp(dir=dest.parent, prefix=".staging-"))
     try:
         with tarfile.open(tmp_path) as tar:
