@@ -62,6 +62,45 @@ class PyosysBridge:
         for path in paths:
             self._run(f"read_verilog {self._quote_path(path)}")
 
+    def read_verilog_string(
+        self,
+        verilog_text: str,
+        replace_design: bool = False,
+        blackbox: bool = False,
+    ) -> None:
+        """Read Verilog source text into the active design.
+
+        Parameters
+        ----------
+        verilog_text : str
+            Verilog source text to read.
+        replace_design : bool
+            If True, replace the current design before reading the text.
+            If False, add the text to the current design.
+        blackbox : bool
+            If True, read the text with the -lib option to treat
+            all modules as blackboxes.
+            If False, read the text normally to include module
+            definitions in the design.
+
+        Raises
+        ------
+        ValueError
+            If `verilog_text` is empty.
+        """
+        if not verilog_text:
+            raise ValueError("verilog_text must not be empty")
+
+        if replace_design:
+            self.reset_design()
+
+        with self._temporary_path(".v") as path:
+            path.write_text(verilog_text, encoding="utf-8")
+            if blackbox:
+                self._run(f"read_verilog -lib {self._quote_path(path)}")
+            else:
+                self._run(f"read_verilog {self._quote_path(path)}")
+
     def read_json_paths(
         self,
         paths: list[Path],

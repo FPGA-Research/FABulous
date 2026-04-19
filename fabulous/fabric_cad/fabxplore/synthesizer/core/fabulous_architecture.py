@@ -131,20 +131,16 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         """Map combinational logic into LUT resources."""
         self.design.run_pass("abc -lut 5 -dress")
         self.design.run_pass("clean")
-
-        # TODO: make common interface passthrough and normal mapping.
-        # TODO: create an behavioral combinational cell and map to that.
         LutCombinatorPass(top_name=self.config.top_module).run_on(self.design)
 
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""
+        self.design.run_pass("read_verilog -lib +/fabulous/prims.v")
         self.design.run_pass("techmap -D LUT_K=5 -map +/fabulous/cells_map.v")
         self.design.run_pass("clean")
 
     def check(self) -> None:
         """Validate the mapped design and report structural issues."""
-        # TODO: fix -check option
-        self.design.run_pass("read_verilog -lib +/fabulous/prims.v")
         self.design.run_pass(f"hierarchy -top {self.config.top_module} -check")
         self.design.run_pass("stat")
 
