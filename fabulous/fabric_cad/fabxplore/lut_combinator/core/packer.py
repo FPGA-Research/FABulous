@@ -208,15 +208,23 @@ class PairMappingProgressTracker:
         """
         self._print(f"Matching complete: selected_pairs={selected_pairs}")
 
-    def on_unmatched_to_passthrough(self, count: int) -> None:
-        """Print count of unmatched candidates moved to passthrough.
+    def on_unmatched_to_passthrough(
+        self, mapped_to_frac: int, moved_to_passthrough: int
+    ) -> None:
+        """Print unmatched-candidate distribution after fallback handling.
 
         Parameters
         ----------
-        count : int
-            Number of unmatched pair-candidate LUTs.
+        mapped_to_frac : int
+            Number of unmatched pair-candidate LUTs mapped to FRAC cells.
+        moved_to_passthrough : int
+            Number of unmatched pair-candidate LUTs left as passthrough.
         """
-        self._print(f"Unmatched pair candidates moved to passthrough: {count}")
+        self._print(
+            "Unmatched pair candidates: "
+            f"mapped_to_frac={mapped_to_frac}, "
+            f"moved_to_passthrough={moved_to_passthrough}"
+        )
 
     def on_summary(self, stats: MappingStats) -> None:
         """Print final high-level mapping statistics for the run.
@@ -394,9 +402,6 @@ class PairLutMapper:
         if self.passthrough:
             progress.begin_kp1_packing(total=len(single_kp1))
             for lut in single_kp1:
-                # Old behavior:
-
-                # New behavior: unify single-cell mapping via bind_single_lut.
                 mapped_cell = self.arch.bind_single_lut(lut)
                 if mapped_cell is None:
                     passthrough.append(lut)
@@ -470,11 +475,11 @@ class PairLutMapper:
             cell for idx, cell in enumerate(pair_candidates) if idx not in used
         ]
 
+        # If we have passthrough enabled, attempt to map unmatched
+        # pair candidates to FRAC cells. So all LUTs are FRAC-cells then.
+        unmatched_mapped_to_frac_count: int = 0
         unmatched_passthrough_count: int = 0
         if self.passthrough:
-            # Old behavior:
-
-            # New behavior: map unmatched single LUTs into FRAC cells where possible.
             for lut in unmatched:
                 mapped_cell = self.arch.bind_single_lut(lut)
                 if mapped_cell is None:
@@ -482,11 +487,15 @@ class PairLutMapper:
                     unmatched_passthrough_count += 1
                     continue
                 mapped.append(mapped_cell)
+                unmatched_mapped_to_frac_count += 1
         else:
             passthrough.extend(unmatched)
             unmatched_passthrough_count = len(unmatched)
 
-        progress.on_unmatched_to_passthrough(count=unmatched_passthrough_count)
+        progress.on_unmatched_to_passthrough(
+            mapped_to_frac=unmatched_mapped_to_frac_count,
+            moved_to_passthrough=unmatched_passthrough_count,
+        )
 
         # Compile type counts for statistics.
         type_count: dict[str, int] = {}

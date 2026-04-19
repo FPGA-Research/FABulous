@@ -172,65 +172,6 @@ class FracLutArchitecture:
             output_pin_nets={"O0": lut0.output_net, "O1": lut1.output_net},
         )
 
-    def bind_full_lut(self, lut: LogicalLutCell) -> PackedCell | None:
-        """Map one LUT(K+1) into two LUT(K) halves plus select.
-
-        Decomposition uses the last source input as select:
-        - L0 computes f(data, S=0)
-        - L1 computes f(data, S=1)
-        - O0 is mux(S, L0, L1)
-
-        Parameters
-        ----------
-        lut : LogicalLutCell
-            Source LUT expected to have width ``frac_lut_size + 1``.
-
-        Returns
-        -------
-        PackedCell | None
-            Packed macro representation when width matches K+1,
-            otherwise ``None``.
-        """
-        if lut.width != self.frac_lut_size + 1:
-            return None
-
-        data_inputs: tuple[str, ...] = tuple(lut.input_nets[: self.frac_lut_size])
-        select_input: str = lut.input_nets[self.frac_lut_size]
-        l0_init, l1_init = self._split_init_by_select(lut.init, self.frac_lut_size)
-
-        ext_pins: dict[str, str] = {f"I{i}": net for i, net in enumerate(data_inputs)}
-        ext_pins["S"] = select_input
-
-        # Keep one placement owned by original cell so JSON replacement removes it.
-        placement: CellPlacement = CellPlacement(
-            cell=lut,
-            slot_name="LUT_KP1",
-            input_to_slot_pin=tuple(range(self.frac_lut_size)),
-            input_to_slot_source=tuple(f"I{i}" for i in range(self.frac_lut_size)),
-        )
-
-        # Build parameters with original cell IDs and remapped INIT values.
-        # For LUT(K+1) packing we can reuse the same cell ID for both halves since
-        # they are not used separately in the design and only serve as INIT carriers.
-        params: dict[str, str] = {
-            "LUT_SIZE": str(self.frac_lut_size),
-            "NUM_SHARED_INPUTS": str(self.num_shared_inputs),
-            "MAPPED_FROM": f"LUT{lut.width}",
-            "L0_CELL_ID": lut.cell_id,
-            "L1_CELL_ID": f"{lut.cell_id}__S1",
-            "L0_INIT": format_bits(l0_init, 1 << self.frac_lut_size),
-            "L1_INIT": format_bits(l1_init, 1 << self.frac_lut_size),
-        }
-
-        return PackedCell(
-            packed_id=f"{self.name}_{lut.cell_id}",
-            architecture_name=self.name,
-            placements=(placement,),
-            external_pin_nets=dict(sorted(ext_pins.items())),
-            output_pin_nets={"O0": lut.output_net},
-            parameters=params,
-        )
-
     def bind_single_lut(self, lut: LogicalLutCell) -> PackedCell | None:
         """Map one LUT(K) or LUT(K+1) into one FRAC cell.
 
@@ -239,6 +180,11 @@ class FracLutArchitecture:
         by pair mapping (``L0_*``/``L1_*``). For LUT(K+1), it decomposes by select
         and maps both halves into L0/L1. For LUT(K), it maps the function into
         L0 and leaves L1 as zero.
+
+        For LUT(K+1), decomposition uses the last source input as select:
+        - L0 computes f(data, S=0)
+        - L1 computes f(data, S=1)
+        - O0 is mux(S, L0, L1)
 
         Parameters
         ----------
