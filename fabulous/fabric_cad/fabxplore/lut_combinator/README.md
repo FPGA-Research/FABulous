@@ -690,3 +690,15 @@ LUT Combinator deliberately focuses on a strong, clear core:
 
 It is meant as a reliable base for exploring fracturable LUT packing quality,
 correctness, and tradeoffs across architectures and benchmarks.
+
+## 14. Comparison with Xilinx in yosys
+
+In yosys the Xilinx architecture has also a pass that can map
+to fracturable LUTs but this is very not optimized.
+
+The ony thing what is done is that they map to say LUT6
+and then just converting the LUT6 to fracturable LUT5 by
+just splitting the INIT function and adding a mux to the
+output in the techmap pass, advaned packing as we do is
+not considered also shared inputs and free inputs
+cannot be changed.
