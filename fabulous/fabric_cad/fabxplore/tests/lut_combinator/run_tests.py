@@ -266,7 +266,7 @@ def test_lut_32_mixed_yosys_lut_benchmark_eq_iterative() -> None:
 
 def main() -> None:
     """Run all tests."""
-    sel_test: int = 3
+    sel_test: int = 2
 
     match sel_test:
         case 0:

@@ -209,6 +209,10 @@ class MappingStats:
         Number of LUTs left ungrouped by mapper.
     source_type_count : dict[str, int]
         Source LUT type histogram based on the width of the LUTs.
+    passthrough_type_count : dict[str, int]
+        Resulting LUT type histogram for passthrough LUTs.
+    result_type_count : dict[str, int]
+        Resulting LUT type histogram for all LUTs.
     """
 
     total_luts_before: int = 0
@@ -217,6 +221,8 @@ class MappingStats:
     mapped_luts: int = 0
     passthrough_luts: int = 0
     source_type_count: dict[str, int] = field(default_factory=dict)
+    passthrough_type_count: dict[str, int] = field(default_factory=dict)
+    result_type_count: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -240,6 +246,8 @@ class MappingResult:
         Aggregate mapping counters.
     metadata : dict
         Additional execution metadata.
+    report_summary : str | None
+        Optional pre-formatted report summary for display.
     """
 
     architecture_name: str
@@ -248,109 +256,4 @@ class MappingResult:
     passthrough_luts: list[LogicalLutCell]
     stats: MappingStats
     metadata: dict = field(default_factory=dict)
-
-    def to_dict(self) -> dict:
-        """Convert the mapping result into a JSON-safe dictionary.
-
-        The output is stable and report-friendly, with sorted maps where
-        relevant and reduced objects for packed and passthrough cells.
-
-        Attributes
-        ----------
-        None
-
-        Returns
-        -------
-        dict
-            JSON-serializable representation of this mapping result.
-        """
-        return {
-            "architecture": self.architecture_name,
-            "top": self.top_name,
-            "stats": {
-                "total_luts_before": self.stats.total_luts_before,
-                "total_cells_after": self.stats.total_cells_after,
-                "mapped_groups": self.stats.mapped_groups,
-                "mapped_luts": self.stats.mapped_luts,
-                "passthrough_luts": self.stats.passthrough_luts,
-                "source_type_count": dict(sorted(self.stats.source_type_count.items())),
-            },
-            "metadata": _json_safe_dict(self.metadata),
-            "mapped_cells": [
-                {
-                    "packed_id": cell.packed_id,
-                    "architecture": cell.architecture_name,
-                    "external_pins": dict(sorted(cell.external_pin_nets.items())),
-                    "output_pins": dict(sorted(cell.output_pin_nets.items())),
-                    "parameters": dict(sorted(cell.parameters.items())),
-                    "placements": [
-                        {
-                            "cell_id": plc.cell.cell_id,
-                            "cell_type": plc.cell.cell_type,
-                            "slot_name": plc.slot_name,
-                            "input_nets": list(plc.cell.input_nets),
-                            "output_net": plc.cell.output_net,
-                            "input_to_slot_pin": list(plc.input_to_slot_pin),
-                            "input_to_slot_source": list(plc.input_to_slot_source),
-                        }
-                        for plc in cell.placements
-                    ],
-                }
-                for cell in self.mapped_cells
-            ],
-            "passthrough_luts": [
-                {
-                    "cell_id": lut.cell_id,
-                    "cell_type": lut.cell_type,
-                    "inputs": list(lut.input_nets),
-                    "output": lut.output_net,
-                    "init": hex(lut.init),
-                    "width": lut.width,
-                }
-                for lut in self.passthrough_luts
-            ],
-        }
-
-
-def _json_safe_dict(data: dict) -> dict:
-    """Convert a metadata dictionary to JSON-safe values.
-
-    Keys starting with ``"_"`` are omitted to avoid leaking internal-only
-    entries in exported result payloads.
-
-    Parameters
-    ----------
-    data : dict
-        Input metadata dictionary.
-
-    Returns
-    -------
-    dict
-        Filtered dictionary with recursively normalized values.
-    """
-    return {k: _json_safe(v) for k, v in data.items() if not k.startswith("_")}
-
-
-def _json_safe(value: object) -> object:
-    """Normalize arbitrary Python values into JSON-serializable form.
-
-    Primitive types pass through unchanged; containers are processed
-    recursively; unknown objects are converted via ``str(value)``.
-
-    Parameters
-    ----------
-    value : object
-        Value to normalize for JSON serialization.
-
-    Returns
-    -------
-    object
-        JSON-safe value or structure.
-    """
-    if isinstance(value, (str | int | float | bool)) or value is None:
-        return value
-    if isinstance(value, dict):
-        return {str(k): _json_safe(v) for k, v in value.items()}
-    if isinstance(value, (list | tuple | set)):
-        return [_json_safe(v) for v in value]
-    return str(value)
+    report_summary: str | None = None

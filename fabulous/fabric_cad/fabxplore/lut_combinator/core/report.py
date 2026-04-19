@@ -89,13 +89,7 @@ def _compute_after_counts(mapping: MappingResult) -> dict[str, int]:
     dict[str, int]
         Mapping from cell type name to count for the post-pack design.
     """
-    counts: dict[str, int] = {}
-
-    for lut in mapping.passthrough_luts:
-        counts[lut.cell_type] = counts.get(lut.cell_type, 0) + 1
-    if mapping.stats.mapped_groups > 0:
-        counts[mapping.architecture_name] = mapping.stats.mapped_groups
-    return counts
+    return mapping.stats.result_type_count
 
 
 def _format_lut_type_stats(

@@ -6,7 +6,6 @@ focused on feasibility and pairing, while this layer manages JSON loading, pyosy
 conversion, and report generation.
 """
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -194,12 +193,10 @@ class LutCombinator:
             model_json=src_json, mapping=result
         )
 
+        result.report_summary = render_report(result)
+
         self._mapped_result = result
         self._mapped_netlist_dict = mapped_netlist_dict
-
-        result.metadata["mapped_netlist_dict_size"] = len(
-            json.dumps(mapped_netlist_dict)
-        )
 
         logger.info(
             f"{self.print_name} "

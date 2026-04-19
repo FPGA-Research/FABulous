@@ -497,10 +497,19 @@ class PairLutMapper:
             moved_to_passthrough=unmatched_passthrough_count,
         )
 
-        # Compile type counts for statistics.
+        # STATS: Compile type counts for statistics.
         type_count: dict[str, int] = {}
         for c in cells:
             type_count[f"LUT{c.width}"] = type_count.get(f"LUT{c.width}", 0) + 1
+
+        type_count_passthrough: dict[str, int] = {}
+        for c in passthrough:
+            type_count_passthrough[f"LUT{c.width}"] = (
+                type_count_passthrough.get(f"LUT{c.width}", 0) + 1
+            )
+
+        type_count_result: dict[str, int] = type_count_passthrough.copy()
+        type_count_result[self.arch.name] = len(mapped)
 
         stats: MappingStats = MappingStats(
             total_luts_before=len(cells),
@@ -509,6 +518,8 @@ class PairLutMapper:
             mapped_luts=sum(len(x.placements) for x in mapped),
             passthrough_luts=len(passthrough),
             source_type_count=type_count,
+            passthrough_type_count=type_count_passthrough,
+            result_type_count=type_count_result,
         )
 
         progress.on_summary(stats)
