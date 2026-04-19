@@ -208,7 +208,7 @@ class MappingStats:
     passthrough_luts : int
         Number of LUTs left ungrouped by mapper.
     source_type_count : dict[str, int]
-        Source LUT type histogram.
+        Source LUT type histogram based on the width of the LUTs.
     """
 
     total_luts_before: int = 0

@@ -500,7 +500,7 @@ class PairLutMapper:
         # Compile type counts for statistics.
         type_count: dict[str, int] = {}
         for c in cells:
-            type_count[c.cell_type] = type_count.get(c.cell_type, 0) + 1
+            type_count[f"LUT{c.width}"] = type_count.get(f"LUT{c.width}", 0) + 1
 
         stats: MappingStats = MappingStats(
             total_luts_before=len(cells),
