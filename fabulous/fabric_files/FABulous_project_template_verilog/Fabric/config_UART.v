@@ -1,4 +1,3 @@
-`timescale 1ps / 1ps
 module config_UART #(
     parameter integer Mode = 0,
     // binary mode and takes a bit more logic,

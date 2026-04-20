@@ -1,4 +1,3 @@
-`timescale 1ps / 1ps
 module BlockRAM_1KB #(
     // Default 24 means bits wr_data[25:24] will become bits [9:8] of read address
     parameter integer READ_ADDRESS_MSB_FROM_DATA_LSB = 24,

@@ -1,8 +1,6 @@
 // Essential modules for ConfigMem RTL simulation
 // Extracted from FABulous fabric models
 
-`timescale 1ps / 1ps
-
 // config_latch Latch - used in configuration memory
 module config_latch (
     input D,
@@ -11,6 +9,7 @@ module config_latch (
     QN
 );
   /* verilator lint_off LATCH */
+  // verilog_lint: waive always-comb
   always @(*) begin
     if (E == 1'b1) begin
       Q  = D;

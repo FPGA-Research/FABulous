@@ -1,4 +1,3 @@
-`timescale 1ps / 1ps
 module bitbang (
     input s_clk,
     input s_data,

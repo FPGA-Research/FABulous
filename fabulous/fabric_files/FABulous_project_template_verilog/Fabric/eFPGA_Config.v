@@ -1,4 +1,3 @@
-`timescale 1ps / 1ps
 module eFPGA_Config #(
     parameter integer NumberOfRows = 16,
     parameter integer RowSelectWidth = 5,
