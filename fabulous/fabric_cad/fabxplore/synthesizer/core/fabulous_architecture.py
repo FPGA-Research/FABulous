@@ -12,6 +12,11 @@ mapping and optimization stages. This module serves as the central point for def
 the synthesis flow and architecture-specific transformations for FABulous.
 """
 
+from loguru import logger
+
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass import (
+    LutCombinatorPass,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
     PyosysBridge,
 )
@@ -85,6 +90,10 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             self.design.run_pass("share")
         self.design.run_pass("opt")
         self.design.run_pass("memory -nomap")
+
+        self.design.run_pass("simplemap")
+        self.design.run_pass("extract_reduce")
+
         self.design.run_pass("opt_clean")
 
     def map_ram(self) -> None:
@@ -128,6 +137,10 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         """Map combinational logic into LUT resources."""
         self.design.run_pass("abc -lut 5 -dress")
         self.design.run_pass("clean")
+
+        lcp = LutCombinatorPass(top_name=self.config.top_module)
+        lcp.run_on(self.design)
+        logger.info(lcp.report_summary)
 
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""

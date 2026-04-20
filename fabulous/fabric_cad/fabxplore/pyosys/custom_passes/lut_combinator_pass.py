@@ -18,10 +18,11 @@ from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import (
     MatchingMode,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
+from fabulous.fabric_cad.fabxplore.pyosys.synth_pass import SynthPass
 
 
-@dataclass(frozen=True)
-class LutCombinatorPass:
+@dataclass
+class LutCombinatorPass(SynthPass):
     """Pyosys pass to combine LUTs in a design using the LutCombinator.
 
     Attributes
@@ -47,18 +48,15 @@ class LutCombinatorPass:
     passthrough: bool = False
     mode: MatchingMode = MatchingMode.MAXIMAL
 
-    def run_on(self, design: PyosysBridge) -> MappingResult:
+    _result: MappingResult | None = None
+
+    def run_on(self, design: PyosysBridge) -> None:
         """Run the LutCombinator pass on the given design.
 
         Parameters
         ----------
         design : PyosysBridge
             The design to be processed by the LutCombinator.
-
-        Returns
-        -------
-        MappingResult
-            The result of the LUT combination process.
         """
         frac_arch = FracLutArchitecture(
             frac_lut_size=self.frac_lut_size,
@@ -77,13 +75,29 @@ class LutCombinatorPass:
         comb = LutCombinator(cfg)
         result: MappingResult = comb.map_from_design(design, inplace=True)
         design.read_verilog_string(
-            self.build_frac_behavioral_model(),
+            self._build_frac_behavioral_model(),
             blackbox=True,
         )
 
-        return result
+        self._result = result
 
-    def build_frac_behavioral_model(self) -> str:
+    @property
+    def report_summary(self) -> str:
+        """Return a summary report of the LUT combination results."""
+        return self._result.report_summary if self._result else "No result available."
+
+    @property
+    def result_data(self) -> MappingResult | None:
+        """Return the MappingResult data from the LUT combination pass.
+
+        Returns
+        -------
+        MappingResult | None
+            The result of the LUT combination, or None if not available.
+        """
+        return self._result
+
+    def _build_frac_behavioral_model(self) -> str:
         """Build a FRAC-cell behavioral Verilog model from combinator config.
 
         The emitted model follows the common FRAC LUT interface used by the

@@ -84,7 +84,7 @@ def test_lut32_mixed_benchmark() -> None:
 
 def main() -> None:
     """Run all tests."""
-    sel_test: int = 1
+    sel_test: int = 0
 
     match sel_test:
         case 0:
