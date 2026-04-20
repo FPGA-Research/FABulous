@@ -7,7 +7,7 @@ module config_UART #(
     // 1 is for hex mode, 0 for bin mode
     // [0:auto|1:hex|2:bin] auto selects between ASCII-Hex and binary mode and takes a bit more logic,
     // ComRate = f_CLK / Boud_rate (e.g., 25 MHz/115200 Boud = 217)
-    parameter logic [11:0] ComRate = 12'd217
+    parameter [11:0] ComRate = 12'd217  // verilog_lint: waive explicit-parameter-storage-type
 ) (
     input CLK,
     input resetn,
@@ -19,10 +19,12 @@ module config_UART #(
     output reg ReceiveLED
 );
 
+  // verilog_lint: waive-start explicit-parameter-storage-type
   // 25e6/1500 ~= 16666, original minus one
-  localparam logic [14:0] TIME_TO_SEND_VALUE = 15'd16776;
+  localparam [14:0] TIME_TO_SEND_VALUE = 15'd16776;
 
-  localparam logic [19:0] TEST_FILE_CHECKSUM = 20'h4FB00;
+  localparam [19:0] TEST_FILE_CHECKSUM = 20'h4FB00;
+  // verilog_lint: waive-stop explicit-parameter-storage-type
 
   function automatic [4:0] ASCII2HEX;
     input [7:0] ASCII;
@@ -57,7 +59,8 @@ module config_UART #(
     end
   endfunction
 
-  localparam logic HIGH_NIBBLE = 1'b1, LOW_NIBBLE = 1'b0;
+  // verilog_lint: waive explicit-parameter-storage-type
+  localparam HIGH_NIBBLE = 1'b1, LOW_NIBBLE = 1'b0;
   reg ReceiveState;
   reg [3:0] HighReg;
   wire [4:0] HexValue;  // a 1'b0 MSB indicates a valid value on [3..0]
@@ -66,8 +69,9 @@ module config_UART #(
 
   reg [11:0] ComCount;
   reg ComTick;
-  localparam logic [3:0] WAIT_FOR_START_BIT = 4'd0, DELAY_AFTER_START_BIT = 4'd1;
-  localparam logic [3:0] GET_BIT_0 = 4'd2,
+  // verilog_lint: waive-start explicit-parameter-storage-type
+  localparam [3:0] WAIT_FOR_START_BIT = 4'd0, DELAY_AFTER_START_BIT = 4'd1;
+  localparam [3:0] GET_BIT_0 = 4'd2,
                            GET_BIT_1 = 4'd3,
                            GET_BIT_2 = 4'd4,
                            GET_BIT_3 = 4'd5,
@@ -76,6 +80,7 @@ module config_UART #(
                            GET_BIT_6 = 4'd8,
                            GET_BIT_7 = 4'd9,
                            GET_STOP_BIT = 4'd10;
+  // verilog_lint: waive-stop explicit-parameter-storage-type
 
   reg [3:0] ComState;
   reg [7:0] ReceivedWord;

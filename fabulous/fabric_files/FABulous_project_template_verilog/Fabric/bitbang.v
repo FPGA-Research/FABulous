@@ -7,8 +7,10 @@ module bitbang (
     input clk,
     input resetn
 );
-  localparam logic [15:0] ON_PATTERN = 16'hFAB1;
-  localparam logic [15:0] OFF_PATTERN = 16'hFAB0;
+  // verilog_lint: waive-start explicit-parameter-storage-type
+  localparam [15:0] ON_PATTERN = 16'hFAB1;
+  localparam [15:0] OFF_PATTERN = 16'hFAB0;
+  // verilog_lint: waive-stop explicit-parameter-storage-type
 
   reg [3:0] s_data_sample;
   reg [3:0] s_clk_sample;
