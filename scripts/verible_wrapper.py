@@ -139,7 +139,8 @@ def main() -> None:
     if len(sys.argv) < 2:
         sys.exit("verible_wrapper: expected tool name as first argument")
     tool, *rest = sys.argv[1:]
-    binary = ensure_bin(tool)
+    system = shutil.which(tool)
+    binary = Path(system) if system else ensure_bin(tool)
     os.execv(str(binary), [str(binary), *rest])
 
 
