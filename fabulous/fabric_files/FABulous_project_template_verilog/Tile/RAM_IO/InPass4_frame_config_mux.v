@@ -39,42 +39,42 @@ module InPass4_frame_config_mux #(
     // I am instantiating an IOBUF primitive.
     // However, it is possible to connect corresponding pins all the way to top, just by adding an "-- EXTERNAL" comment (see PAD in the entity)
 );
-  reg [3:0] Q;  // FLOPs
+    reg [3:0] Q;  // FLOPs
 
-  always @(posedge UserCLK) begin
-    Q <= I;
-  end
-  // ConfigBits ( '0' combinatorial; '1' registered )
-  //assign O[0] = ConfigBits[0] ? Q[0] : I[0];
-  //assign O[1] = ConfigBits[1] ? Q[1] : I[1];
-  //assign O[2] = ConfigBits[2] ? Q[2] : I[2];
-  //assign O[3] = ConfigBits[3] ? Q[3] : I[3];
+    always @(posedge UserCLK) begin
+        Q <= I;
+    end
+    // ConfigBits ( '0' combinatorial; '1' registered )
+    //assign O[0] = ConfigBits[0] ? Q[0] : I[0];
+    //assign O[1] = ConfigBits[1] ? Q[1] : I[1];
+    //assign O[2] = ConfigBits[2] ? Q[2] : I[2];
+    //assign O[3] = ConfigBits[3] ? Q[3] : I[3];
 
-  cus_mux21 cus_mux21_inst0 (
-      .A0(I[0]),
-      .A1(Q[0]),
-      .S (ConfigBits[0]),
-      .X (O[0])
-  );
+    cus_mux21 cus_mux21_inst0 (
+        .A0(I[0]),
+        .A1(Q[0]),
+        .S (ConfigBits[0]),
+        .X (O[0])
+    );
 
-  cus_mux21 cus_mux21_inst1 (
-      .A0(I[1]),
-      .A1(Q[1]),
-      .S (ConfigBits[1]),
-      .X (O[1])
-  );
+    cus_mux21 cus_mux21_inst1 (
+        .A0(I[1]),
+        .A1(Q[1]),
+        .S (ConfigBits[1]),
+        .X (O[1])
+    );
 
-  cus_mux21 cus_mux21_inst2 (
-      .A0(I[2]),
-      .A1(Q[2]),
-      .S (ConfigBits[2]),
-      .X (O[2])
-  );
+    cus_mux21 cus_mux21_inst2 (
+        .A0(I[2]),
+        .A1(Q[2]),
+        .S (ConfigBits[2]),
+        .X (O[2])
+    );
 
-  cus_mux21 cus_mux21_inst3 (
-      .A0(I[3]),
-      .A1(Q[3]),
-      .S (ConfigBits[3]),
-      .X (O[3])
-  );
+    cus_mux21 cus_mux21_inst3 (
+        .A0(I[3]),
+        .A1(Q[3]),
+        .S (ConfigBits[3]),
+        .X (O[3])
+    );
 endmodule

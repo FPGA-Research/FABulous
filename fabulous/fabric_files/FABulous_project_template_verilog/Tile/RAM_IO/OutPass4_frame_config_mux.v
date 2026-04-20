@@ -36,51 +36,51 @@ module OutPass4_frame_config_mux #(
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
 
-  //              ______   ______
-  //    I////+//->|FLOP|-Q-|1 M |
-  //         |             |  U |//////-> O
-  //         +////////////-|0 X |
+    //              ______   ______
+    //    I////+//->|FLOP|-Q-|1 M |
+    //         |             |  U |//////-> O
+    //         +////////////-|0 X |
 
-  // I am instantiating an IOBUF primitive.
-  // However, it is possible to connect corresponding pins all the way to top, just by adding an "// EXTERNAL" comment (see PAD in the entity)
+    // I am instantiating an IOBUF primitive.
+    // However, it is possible to connect corresponding pins all the way to top, just by adding an "// EXTERNAL" comment (see PAD in the entity)
 
-  reg [3:0] Q;  // FLOPs
+    reg [3:0] Q;  // FLOPs
 
-  always @(posedge UserCLK) begin
-    Q <= I;
-  end
+    always @(posedge UserCLK) begin
+        Q <= I;
+    end
 
-  //assign O0 = ConfigBits[0] ? Q0 : I0;
-  //assign O1 = ConfigBits[1] ? Q1 : I1;
-  //assign O2 = ConfigBits[2] ? Q2 : I2;
-  //assign O3 = ConfigBits[3] ? Q3 : I3;
+    //assign O0 = ConfigBits[0] ? Q0 : I0;
+    //assign O1 = ConfigBits[1] ? Q1 : I1;
+    //assign O2 = ConfigBits[2] ? Q2 : I2;
+    //assign O3 = ConfigBits[3] ? Q3 : I3;
 
-  cus_mux21 cus_mux21_inst0 (
-      .A0(I[0]),
-      .A1(Q[0]),
-      .S (ConfigBits[0]),
-      .X (O[0])
-  );
+    cus_mux21 cus_mux21_inst0 (
+        .A0(I[0]),
+        .A1(Q[0]),
+        .S (ConfigBits[0]),
+        .X (O[0])
+    );
 
-  cus_mux21 cus_mux21_inst1 (
-      .A0(I[1]),
-      .A1(Q[1]),
-      .S (ConfigBits[1]),
-      .X (O[1])
-  );
+    cus_mux21 cus_mux21_inst1 (
+        .A0(I[1]),
+        .A1(Q[1]),
+        .S (ConfigBits[1]),
+        .X (O[1])
+    );
 
-  cus_mux21 cus_mux21_inst2 (
-      .A0(I[2]),
-      .A1(Q[2]),
-      .S (ConfigBits[2]),
-      .X (O[2])
-  );
+    cus_mux21 cus_mux21_inst2 (
+        .A0(I[2]),
+        .A1(Q[2]),
+        .S (ConfigBits[2]),
+        .X (O[2])
+    );
 
-  cus_mux21 cus_mux21_inst3 (
-      .A0(I[3]),
-      .A1(Q[3]),
-      .S (ConfigBits[3]),
-      .X (O[3])
-  );
+    cus_mux21 cus_mux21_inst3 (
+        .A0(I[3]),
+        .A1(Q[3]),
+        .S (ConfigBits[3]),
+        .X (O[3])
+    );
 
 endmodule

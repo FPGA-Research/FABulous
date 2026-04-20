@@ -8,14 +8,14 @@ module config_latch (
     output reg Q,
     QN
 );
-  /* verilator lint_off LATCH */
-  // verilog_lint: waive always-comb
-  always @(*) begin
-    if (E == 1'b1) begin
-      Q  = D;
-      QN = ~D;
+    /* verilator lint_off LATCH */
+    // verilog_lint: waive always-comb
+    always @(*) begin
+        if (E == 1'b1) begin
+            Q  = D;
+            QN = ~D;
+        end
+        // When E=0, Q and QN hold their previous values (latch behavior)
     end
-    // When E=0, Q and QN hold their previous values (latch behavior)
-  end
-  /* verilator lint_on LATCH */
+    /* verilator lint_on LATCH */
 endmodule
