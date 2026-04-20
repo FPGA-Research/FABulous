@@ -3,7 +3,7 @@ module ConfigFSM #(
     parameter integer NumberOfRows = 16,
     parameter integer RowSelectWidth = 5,
     parameter integer FrameBitsPerRow = 32,
-    parameter integer desync_flag = 20  // verilog_lint: waive parameter-name-style
+    parameter integer DESYNC_FLAG = 20
 ) (
     input CLK,
     input resetn,
@@ -15,84 +15,89 @@ module ConfigFSM #(
     output reg [RowSelectWidth-1:0] RowSelect
 );
 
-  reg FrameStrobe;
-  //signal FrameShiftState : integer range 0 to (NumberOfRows + 2);
-  reg [4:0] FrameShiftState;
+    reg FrameStrobe;
+    reg [4:0] row_index;
 
-  //FSM
-  reg [1:0] state;
-  reg old_reset;
-  always @(posedge CLK, negedge resetn) begin : P_FSM
-    if (!resetn) begin
-      old_reset <= 1'b0;
-      state <= 2'b00;
-      FrameShiftState <= 5'b00000;
-      FrameAddressRegister <= 0;
-      FrameStrobe <= 1'b0;
-    end else begin
-      old_reset   <= FSM_Reset;
-      FrameStrobe <= 1'b0;
-      // we only activate the configuration after detecting a 32-bit aligned pattern "x"FAB0_FAB1"
-      // this allows placing the com-port header into the file and we can use the same file for parallel or UART configuration
-      // this also allows us to place whatever metadata, the only point to remember is that the pattern/file needs to be 4-byte padded in the header
-      if ((old_reset == 1'b0) && (FSM_Reset == 1'b1)) begin  // reset all on ComActive posedge
-        state <= 0;
-        FrameShiftState <= 0;
-      end else begin
-        // verilog_lint: waive case-missing-default
-        case (state)
-          0: begin  // unsynched
-            if (WriteStrobe == 1'b1) begin  // if writing enabled
-              // fire only after seeing pattern 0xFAB0_FAB1
-              if (WriteData == 32'hFAB0_FAB1) begin
-                state <= 1;  //go to synched state
-              end
+    // FSM
+    // verilog_lint: waive-start explicit-parameter-storage-type
+    localparam [1:0] UNSYNCED = 2'd0, SYNC_HEADER = 2'd1, WRITE_FRAME_DATA = 2'd2;
+    // verilog_lint: waive-stop explicit-parameter-storage-type
+    reg [1:0] state;
+    reg old_reset;
+    always @(posedge CLK, negedge resetn) begin : P_FSM
+        if (!resetn) begin
+            old_reset <= 1'b0;
+            state <= UNSYNCED;
+            row_index <= 5'b00000;
+            FrameAddressRegister <= 0;
+            FrameStrobe <= 1'b0;
+        end else begin
+            old_reset   <= FSM_Reset;
+            FrameStrobe <= 1'b0;
+            // Configuration activates only after detecting the 32-bit sync pattern 0xFAB0_FAB1.
+            // This allows the same bitfile to be used for UART or parallel config, with arbitrary
+            // metadata in the header, provided the header is 4-byte padded.
+            if ((old_reset == 1'b0) && (FSM_Reset == 1'b1)) begin  // reset all on ComActive posedge
+                state <= UNSYNCED;
+                row_index <= 0;
+            end else begin
+                // verilog_lint: waive case-missing-default
+                case (state)
+                    UNSYNCED: begin
+                        if (WriteStrobe == 1'b1) begin
+                            // fire only after seeing pattern 0xFAB0_FAB1
+                            if (WriteData == 32'hFAB0_FAB1) begin
+                                state <= SYNC_HEADER;
+                            end
+                        end
+                    end
+                    SYNC_HEADER: begin
+                        if (WriteStrobe == 1'b1) begin
+                            if (WriteData[DESYNC_FLAG] == 1'b1) begin
+                                state <= UNSYNCED;
+                            end else begin
+                                FrameAddressRegister <= WriteData;
+                                // Width-cast to silence WIDTHTRUNC warning
+                                row_index <= 5'(NumberOfRows);
+                                state <= WRITE_FRAME_DATA;
+                            end
+                        end
+                    end
+                    WRITE_FRAME_DATA: begin
+                        if (WriteStrobe == 1'b1) begin
+                            row_index <= row_index - 1;
+                            if (row_index == 1) begin  // on last frame
+                                FrameStrobe <= 1'b1;
+                                state <= SYNC_HEADER;
+                            end
+                        end
+                    end
+                    default: begin
+                        state <= UNSYNCED;
+                    end
+                endcase
             end
-          end
-          1: begin  // SyncState read header
-            if (WriteStrobe == 1'b1) begin  // if writing enabled
-              if (WriteData[desync_flag] == 1'b1) begin  // desync
-                state <= 0;  //desynced
-              end else begin
-                FrameAddressRegister <= WriteData;
-                // Width-cast to silence WIDTHTRUNC warning
-                FrameShiftState <= 5'(NumberOfRows);
-                state <= 2;  //writing frame data
-              end
-            end
-          end
-          2: begin
-            if (WriteStrobe == 1'b1) begin  // if writing enabled
-              FrameShiftState <= FrameShiftState - 1;
-              if (FrameShiftState == 1) begin  // on last frame
-                FrameStrobe <= 1'b1;  //trigger FrameStrobe
-                state <= 1;  // we go to synched state waiting for next frame or desync
-              end
-            end
-          end
-        endcase
-      end
+        end
     end
-  end
 
-  // verilog_lint: waive always-comb
-  always @(*) begin
-    if (WriteStrobe) begin  // if writing active
-      RowSelect = FrameShiftState;  // we write the frame
-    end else begin
-      RowSelect = {RowSelectWidth{1'b1}};  //otherwise, we write an invalid frame
+    // verilog_lint: waive always-comb
+    always @(*) begin
+        if (WriteStrobe) begin
+            RowSelect = row_index;
+        end else begin
+            RowSelect = {RowSelectWidth{1'b1}};  // Invalidate the row selection when not writing
+        end
     end
-  end
 
-  reg oldFrameStrobe;
-  always @(posedge CLK, negedge resetn) begin : P_StrobeREG
-    if (!resetn) begin
-      oldFrameStrobe  <= 1'b0;
-      LongFrameStrobe <= 1'b0;
-    end else begin
-      oldFrameStrobe  <= FrameStrobe;
-      LongFrameStrobe <= (FrameStrobe || oldFrameStrobe);
+    reg oldFrameStrobe;
+    always @(posedge CLK, negedge resetn) begin : P_StrobeREG
+        if (!resetn) begin
+            oldFrameStrobe  <= 1'b0;
+            LongFrameStrobe <= 1'b0;
+        end else begin
+            oldFrameStrobe  <= FrameStrobe;
+            LongFrameStrobe <= (FrameStrobe || oldFrameStrobe);
+        end
     end
-  end  //CLK
 
 endmodule
