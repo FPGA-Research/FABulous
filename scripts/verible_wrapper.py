@@ -7,7 +7,6 @@ execs the requested Verible tool with the remaining arguments.
 
 from __future__ import annotations
 
-import fcntl
 import os
 import platform
 import shutil
@@ -23,6 +22,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+if platform.system() != "Windows":
+    import fcntl
+else:
+    fcntl = None  # type: ignore[assignment]
 
 VERIBLE_VERSION = "v0.0-4053-g89d4d98a"
 RELEASE_URL = (
@@ -62,6 +66,11 @@ def asset_name() -> str:
 def file_lock(path: Path) -> Iterator[None]:
     """Serialize concurrent callers (e.g. parallel pre-commit hooks)."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    if fcntl is None:
+        # Windows: skip locking. Concurrent first-run installs may race, but
+        # the atomic rename in download() keeps the installed tree consistent.
+        yield
+        return
     with path.open("w") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
         try:

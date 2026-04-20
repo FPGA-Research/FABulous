@@ -1,4 +1,3 @@
--always-comb
 # Kept in sync with --column_limit in .rules.verible_format so formatter and linter agree.
 +line-length=length:100
 -explicit-function-lifetime

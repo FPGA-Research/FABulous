@@ -6,6 +6,7 @@ module config_latch (
     QN
 );
   /* verilator lint_off LATCH */
+  // verilog_lint: waive always-comb
   always @(*) begin
     if (E == 1'b1) begin
       Q  = D;
@@ -16,11 +17,9 @@ module config_latch (
 endmodule
 
 module my_buf (
-    A,
-    X
+    input  A,
+    output X
 );
-  input A;
-  output X;
   assign X = A;
 endmodule
 
@@ -32,78 +31,47 @@ module clk_buf (
 endmodule
 
 module cus_mux41 (
-    A0,
-    A1,
-    A2,
-    A3,
-    S0,
-    S0N,
-    S1,
-    S1N,
-    X
+    input  A0,
+    input  A1,
+    input  A2,
+    input  A3,
+    input  S0,
+    input  S0N,
+    input  S1,
+    input  S1N,
+    output X
 );
-  input A0;
-  input A1;
-  input A2;
-  input A3;
-  input S0;
-  input S0N;
-  input S1;
-  input S1N;
-  output X;
-
   wire B0 = S0 ? A1 : A0;
   wire B1 = S0 ? A3 : A2;
   assign X = S1 ? B1 : B0;
 endmodule
 
 module cus_mux21 (
-    A0,
-    A1,
-    S,
-    X
+    input  A0,
+    input  A1,
+    input  S,
+    output X
 );
-  input A0;
-  input A1;
-  input S;
-  output X;
-
   assign X = S ? A1 : A0;
 endmodule
 
 module cus_mux81 (
-    A0,
-    A1,
-    A2,
-    A3,
-    A4,
-    A5,
-    A6,
-    A7,
-    S0,
-    S0N,
-    S1,
-    S1N,
-    S2,
-    S2N,
-    X
+    input  A0,
+    input  A1,
+    input  A2,
+    input  A3,
+    input  A4,
+    input  A5,
+    input  A6,
+    input  A7,
+    input  S0,
+    input  S0N,
+    input  S1,
+    input  S1N,
+    input  S2,
+    input  S2N,
+    output X
 );
-  input A0;
-  input A1;
-  input A2;
-  input A3;
-  input A4;
-  input A5;
-  input A6;
-  input A7;
-  input S0;
-  input S0N;
-  input S1;
-  input S1N;
-  input S2;
-  input S2N;
-  output X;
-
   wire cus_mux41_out0;
   wire cus_mux41_out1;
 
@@ -140,58 +108,32 @@ module cus_mux81 (
 endmodule
 
 module cus_mux161 (
-    A0,
-    A1,
-    A2,
-    A3,
-    A4,
-    A5,
-    A6,
-    A7,
-    A8,
-    A9,
-    A10,
-    A11,
-    A12,
-    A13,
-    A14,
-    A15,
-    S0,
-    S0N,
-    S1,
-    S1N,
-    S2,
-    S2N,
-    S3,
-    S3N,
-    X
+    input  A0,
+    input  A1,
+    input  A2,
+    input  A3,
+    input  A4,
+    input  A5,
+    input  A6,
+    input  A7,
+    input  A8,
+    input  A9,
+    input  A10,
+    input  A11,
+    input  A12,
+    input  A13,
+    input  A14,
+    input  A15,
+    input  S0,
+    input  S0N,
+    input  S1,
+    input  S1N,
+    input  S2,
+    input  S2N,
+    input  S3,
+    input  S3N,
+    output X
 );
-  input A0;
-  input A1;
-  input A2;
-  input A3;
-  input A4;
-  input A5;
-  input A6;
-  input A7;
-  input A8;
-  input A9;
-  input A10;
-  input A11;
-  input A12;
-  input A13;
-  input A14;
-  input A15;
-  input S0;
-  input S0N;
-  input S1;
-  input S1N;
-  input S2;
-  input S2N;
-  input S3;
-  input S3N;
-  output X;
-
   wire cus_mux41_out0;
   wire cus_mux41_out1;
   wire cus_mux41_out2;

@@ -17,34 +17,22 @@
 
 
 module IO_1_bidirectional_frame_config_pass (
-    I,
-    T,
-    O,
-    Q,
-    I_top,
-    T_top,
-    O_top,
-    UserCLK
-);  //, ConfigBits);
-    //parameter NoConfigBits = 0; // has to be adjusted manually (we don't use an arithmetic parser for the value)
     // Pin0
-  input I;  // from fabric to external pin
-  input T;  // tristate control
-  output O;  // from external pin to fabric
-  output Q;  // from external pin to fabric (registered)
-  (* FABulous, EXTERNAL *)
-  output I_top;  // EXTERNAL has to ge to top-level entity not the switch matrix
-  (* FABulous, EXTERNAL *)
-  output T_top;  // EXTERNAL has to ge to top-level entity not the switch matrix
-  (* FABulous, EXTERNAL *)
-  input O_top;  // EXTERNAL has to ge to top-level entity not the switch matrix
-  // Tile IO ports from BELs
-  // he EXTERNAL keyword will send this signal all the way to top and the
-  // SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
-  (* FABulous, EXTERNAL, SHARED_PORT *)
-  input UserCLK;
-  // GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-  (* FABulous, GLOBAL *)
+    input I,  // from fabric to external pin
+    input T,  // tristate control
+    output O,  // from external pin to fabric
+    output reg Q,  // from external pin to fabric (registered)
+    // EXTERNAL has to ge to top-level entity not the switch matrix
+    (* FABulous, EXTERNAL *) output I_top,
+    (* FABulous, EXTERNAL *) output T_top,
+    (* FABulous, EXTERNAL *) input O_top,
+    // Tile IO ports from BELs
+    // The EXTERNAL keyword will send this signal all the way to top and the
+    // SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
+    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK
+    // GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
+);  //, ConfigBits);
+  //parameter NoConfigBits = 0; // has to be adjusted manually (we don't use an arithmetic parser for the value)
   //                        _____
   //    I////-T_DRIVER////->|PAD|//+//////-> O
   //              |         ////-  |
@@ -52,7 +40,6 @@ module IO_1_bidirectional_frame_config_pass (
 
   // I am instantiating an IOBUF primitive.
   // However, it is possible to connect corresponding pins all the way to top, just by adding an "// EXTERNAL" comment (see PAD in the entity)
-  reg Q;
   // wire fromPad;
   // Slice outputs
   assign O = O_top;

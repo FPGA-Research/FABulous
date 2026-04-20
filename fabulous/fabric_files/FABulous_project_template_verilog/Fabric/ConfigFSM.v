@@ -1,29 +1,19 @@
 `timescale 1ps / 1ps
-module ConfigFSM (
-    CLK,
-    resetn,
-    WriteData,
-    WriteStrobe,
-    FSM_Reset,
-    FrameAddressRegister,
-    LongFrameStrobe,
-    RowSelect
+module ConfigFSM #(
+    parameter integer NumberOfRows = 16,
+    parameter integer RowSelectWidth = 5,
+    parameter integer FrameBitsPerRow = 32,
+    parameter integer desync_flag = 20  // verilog_lint: waive parameter-name-style
+) (
+    input CLK,
+    input resetn,
+    input [31:0] WriteData,
+    input WriteStrobe,
+    input FSM_Reset,
+    output reg [FrameBitsPerRow-1:0] FrameAddressRegister,
+    output reg LongFrameStrobe,
+    output reg [RowSelectWidth-1:0] RowSelect
 );
-  parameter integer NumberOfRows = 16;
-  parameter integer RowSelectWidth = 5;
-  parameter integer FrameBitsPerRow = 32;
-  parameter integer desync_flag = 20;  // verilog_lint: waive parameter-name-style
-
-  input CLK;
-  input resetn;
-
-  input [31:0] WriteData;
-  input WriteStrobe;
-  input FSM_Reset;
-
-  output reg [FrameBitsPerRow-1:0] FrameAddressRegister;
-  output reg LongFrameStrobe;
-  output reg [RowSelectWidth-1:0] RowSelect;
 
   reg FrameStrobe;
   //signal FrameShiftState : integer range 0 to (NumberOfRows + 2);
@@ -99,7 +89,8 @@ module ConfigFSM (
     end
   end
 
-  always_comb begin
+  // verilog_lint: waive always-comb
+  always @(*) begin
     if (WriteStrobe) begin  // if writing active
       RowSelect = FrameShiftState;  // we write the frame
     end else begin

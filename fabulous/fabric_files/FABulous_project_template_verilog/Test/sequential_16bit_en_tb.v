@@ -46,7 +46,7 @@ module sequential_16bit_en_tb;
   assign T_top_gold = ~oeb_gold;
 
   localparam integer MAX_BITBYTES = 16384;
-  reg [7:0] bitstream[MAX_BITBYTES-1];
+  reg [7:0] bitstream[MAX_BITBYTES];
 
   always #5000 CLK = (CLK === 1'b0);
 

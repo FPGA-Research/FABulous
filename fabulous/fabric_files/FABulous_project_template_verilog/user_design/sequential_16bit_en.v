@@ -2,7 +2,7 @@ module sequential_16bit_en (
     input wire clk,
     input wire [27:0] io_in,
     output wire [27:0] io_out,
-    io_oeb
+    output wire [27:0] io_oeb
 );
   wire rst = io_in[0];
   wire en = io_in[1];

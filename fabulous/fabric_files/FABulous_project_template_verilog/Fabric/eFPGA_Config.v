@@ -1,43 +1,28 @@
 `timescale 1ps / 1ps
-module eFPGA_Config (
-    CLK,
-    resetn,
-    Rx,
-    ComActive,
-    ReceiveLED,
-    s_clk,
-    s_data,
-    SelfWriteData,
-    SelfWriteStrobe,
-    ConfigWriteData,
-    ConfigWriteStrobe,
-    FrameAddressRegister,
-    LongFrameStrobe,
-    RowSelect
+module eFPGA_Config #(
+    parameter integer NumberOfRows = 16,
+    parameter integer RowSelectWidth = 5,
+    parameter integer FrameBitsPerRow = 32,
+    parameter integer desync_flag = 20  // verilog_lint: waive parameter-name-style
+) (
+    input CLK,
+    input resetn,
+    // UART configuration port
+    input Rx,
+    output ComActive,
+    output ReceiveLED,
+    // BitBang configuration port
+    input s_clk,
+    input s_data,
+    // CPU configuration port
+    input [32-1:0] SelfWriteData,  // configuration data write port
+    input SelfWriteStrobe,  // must decode address and write enable
+    output [32-1:0] ConfigWriteData,
+    output ConfigWriteStrobe,
+    output [FrameBitsPerRow-1:0] FrameAddressRegister,
+    output LongFrameStrobe,
+    output [RowSelectWidth-1:0] RowSelect
 );
-  parameter integer NumberOfRows = 16;
-  parameter integer RowSelectWidth = 5;
-  parameter integer FrameBitsPerRow = 32;
-  parameter integer desync_flag = 20;  // verilog_lint: waive parameter-name-style
-  input CLK;
-  input resetn;
-  // UART configuration port
-  input Rx;
-  output ComActive;
-  output ReceiveLED;
-  // BitBang configuration port
-  input s_clk;
-  input s_data;
-  // CPU configuration port
-  input [32-1:0] SelfWriteData;  // configuration data write port
-  input SelfWriteStrobe;  // must decode address and write enable
-
-  output [32-1:0] ConfigWriteData;
-  output ConfigWriteStrobe;
-
-  output [FrameBitsPerRow-1:0] FrameAddressRegister;
-  output LongFrameStrobe;
-  output [RowSelectWidth-1:0] RowSelect;
 
   wire [7:0] Command;
   wire [31:0] UART_WriteData;

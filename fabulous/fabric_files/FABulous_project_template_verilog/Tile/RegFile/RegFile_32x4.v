@@ -40,7 +40,7 @@ module RegFile_32x4 #(
 
   //type memtype is array (31 downto 0) of std_logic_vector(3 downto 0); // 32 entries of 4 bit
   //signal mem : memtype := (others => (others => '0'));
-  reg     [3:0] mem                                         [31];
+  reg     [3:0] mem                                         [32];
 
   wire    [3:0] AD_comb;  // port A read data, combinatorial
   wire    [3:0] BD_comb;  // port B read data, combinatorial
