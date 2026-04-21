@@ -4,7 +4,7 @@ module eFPGA_Config #(
     parameter integer NumberOfRows = 16,
     parameter integer RowSelectWidth = 5,
     parameter integer FrameBitsPerRow = 32,
-    parameter integer DESYNC_FLAG = 20  // verilog_lint: waive parameter-name-style
+    parameter integer desync_flag = 20  // verilog_lint: waive parameter-name-style
 ) (
     input CLK,
     input resetn,
@@ -83,7 +83,7 @@ module eFPGA_Config #(
         .NumberOfRows(NumberOfRows),
         .RowSelectWidth(RowSelectWidth),
         .FrameBitsPerRow(FrameBitsPerRow),
-        .DESYNC_FLAG(DESYNC_FLAG)
+        .desync_flag(desync_flag)
     ) ConfigFSM_inst (
         .CLK(CLK),
         .resetn(resetn),

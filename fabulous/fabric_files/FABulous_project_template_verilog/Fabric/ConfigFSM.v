@@ -4,7 +4,7 @@ module ConfigFSM #(
     parameter integer NumberOfRows = 16,
     parameter integer RowSelectWidth = 5,
     parameter integer FrameBitsPerRow = 32,
-    parameter integer DESYNC_FLAG = 20
+    parameter integer desync_flag = 20  // verilog_lint: waive parameter-name-style
 ) (
     input CLK,
     input resetn,
@@ -54,7 +54,7 @@ module ConfigFSM #(
                     end
                     SYNC_HEADER: begin
                         if (WriteStrobe == 1'b1) begin
-                            if (WriteData[DESYNC_FLAG] == 1'b1) begin
+                            if (WriteData[desync_flag] == 1'b1) begin
                                 state <= UNSYNCED;
                             end else begin
                                 FrameAddressRegister <= WriteData;
