@@ -56,7 +56,7 @@ module MULADD #(
     assign OPB = ConfigBits[1] ? B_reg : B;
     assign OPC = ConfigBits[2] ? C_reg : C;
 
-    assign sum_in = ConfigBits[3] ? ACC : OPC;  // we can
+    assign sum_in = ConfigBits[3] ? ACC : OPC;
 
     assign product = OPA * OPB;
 

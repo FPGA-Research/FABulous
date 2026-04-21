@@ -52,8 +52,8 @@ module eFPGA_Config #(
         .ReceiveLED(UART_LED)
     );
 
-    //bitbang
-    bitbang Inst_bitbang (
+    // BitBang
+    bit_bang inst_bit_bang (
         .s_clk(s_clk),
         .s_data(s_data),
         .strobe(BitBangWriteStrobe),

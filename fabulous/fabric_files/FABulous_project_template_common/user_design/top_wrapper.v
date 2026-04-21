@@ -1,6 +1,5 @@
 `default_nettype none
 
-// TODO: find a more fun test design
 
 module top_wrapper;
 

@@ -150,7 +150,7 @@ module sram_1rw1r_32_256_8_sky130 #(
     parameter integer DATA_WIDTH = 32,
     parameter integer ADDR_WIDTH = 8,
     parameter integer RAM_DEPTH = 1 << ADDR_WIDTH,
-    // FIXME: This delay is arbitrary.
+    // NOTE: This delay is arbitrary.
     parameter integer DELAY = 3
 ) (
     // Port 0: RW

@@ -28,8 +28,8 @@ module bitbang (
             s_data_sample <= 4'b0;
             s_clk_sample  <= 4'b0;
         end else begin
-            s_data_sample <= {s_data_sample[3-1:0], s_data};
-            s_clk_sample  <= {s_clk_sample[3-1:0], s_clk};
+            s_data_sample <= {s_data_sample[2:0], s_data};
+            s_clk_sample  <= {s_clk_sample[2:0], s_clk};
         end
     end
 

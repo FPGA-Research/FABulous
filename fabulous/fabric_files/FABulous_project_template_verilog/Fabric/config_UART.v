@@ -454,7 +454,7 @@ module config_UART #(
             rx_timeout <= 1'b0;
         end else begin
             if (PresentState == IDLE || ComState == GET_STOP_BIT) begin
-                //Init TimeOut
+                // Init timeout
                 rx_timeout_counter <= RX_TIMEOUT_VALUE;
                 rx_timeout <= 1'b0;
             end else if (rx_timeout_counter > 0) begin
