@@ -1,1 +1,2 @@
-DIE_AREA: [0, 0, 250, 490]
+DIE_AREA: [ 0, 0, 250, 490 ]
+DIODE_ON_PORTS: "none"
