@@ -46,6 +46,13 @@ class NLPTileProblem(ElementwiseProblem):
     area_margin : float, optional
         Fractional margin added to standard-cell area constraints,
         by default 0.05 (5 %).
+
+    Raises
+    ------
+    RuntimeError
+        If any tile/supertile failed all exploration modes and has no successful
+        compilation, since the NLP cannot determine feasible dimensions without at least
+        one working compilation per tile.
     """
 
     def __init__(
@@ -96,16 +103,24 @@ class NLPTileProblem(ElementwiseProblem):
             f"{len(unique_col_groups)} column groups = {n_vars} total"
         )
 
+        # Combine IO-pin floor with the smallest observed bbox across
+        # successful exploration modes.
+        def _combined_min(name: str) -> tuple[float, float]:
+            """Return (w, h) floor combining IO-pin and observed bbox minima."""
+            pin_w, pin_h = self._pin_min_from_metrics(name)
+            obs_w, obs_h = self._min_dimensions_from_metrics(name)
+            return (max(pin_w, obs_w), max(pin_h, obs_h))
+
         tile_min: dict[str, tuple[float, float]] = {}
         for tile in fabric.tileDic.values():
             if tile.partOfSuperTile:
                 continue
-            tile_min[tile.name] = self._pin_min_from_metrics(tile.name)
+            tile_min[tile.name] = _combined_min(tile.name)
 
         # SuperTile components derive bounds from the SuperTile minimum
         # and from row/column neighbors
         for supertile in fabric.superTileDic.values():
-            st_min_w, st_min_h = self._pin_min_from_metrics(supertile.name)
+            st_min_w, st_min_h = _combined_min(supertile.name)
             first_row = supertile.tileMap[0] if supertile.tileMap else []
             n_cols = sum(1 for t in first_row if t is not None)
             n_rows = sum(
@@ -160,27 +175,166 @@ class NLPTileProblem(ElementwiseProblem):
                 var_idx = self.col_group_to_var[self.col_groups[col_idx]]
                 xl[var_idx] = max(xl[var_idx], min_w)
 
-        xu = xl * 4
+        # Aggregate per-tile min compilable area, stdcell area (for util
+        # reporting), and DRC-clean (w, h) samples (for feasibility envelope).
+        self.min_areas: dict[str, float] = {}
+        self.stdcell_areas: dict[str, float] = {}
+        self.tile_samples: dict[str, list[tuple[float, float]]] = {}
+        for tile in fabric.get_all_unique_tiles():
+            name = tile.name
+            areas: list[float] = []
+            samples: list[tuple[float, float]] = []
+            for mode_metrics in self.tile_metrics.values():
+                if name not in mode_metrics:
+                    continue
+                x0, y0, x1, y1 = mode_metrics[name]["design__die__bbox"]
+                w, h = x1 - x0, y1 - y0
+                areas.append(w * h)
+                samples.append((w, h))
+            samples.sort(key=lambda wh: wh[1])
+            self.min_areas[name] = min(areas) if areas else float("inf")
+            self.tile_samples[name] = samples
 
-        # Compute minimum compilable area per tile from exploration results
-        self.min_areas: dict[str, float] = {
-            t.name: self._compute_min_area(t.name)
-            for t in fabric.get_all_unique_tiles()
+            stdcell_vals = [
+                a
+                for mode_metrics in self._all_tile_metrics.values()
+                if name in mode_metrics
+                for a in [mode_metrics[name].get("design__instance__area__stdcell")]
+                if a is not None
+            ]
+            self.stdcell_areas[name] = max(stdcell_vals) if stdcell_vals else 0.0
+
+        # Fail fast if any tile/supertile failed every exploration mode.
+        valid_names = {
+            n for mode_metrics in self.tile_metrics.values() for n in mode_metrics
         }
-        # Stdcell area per tile (for utilization reporting)
-        self.stdcell_areas: dict[str, float] = {
-            t.name: self._compute_stdcell_area(t.name)
-            for t in fabric.get_all_unique_tiles()
-        }
+        missing = [
+            t.name
+            for t in self.fabric.get_all_unique_tiles()
+            if t.name not in valid_names
+        ]
+        if missing:
+            raise RuntimeError(
+                f"Tile(s) {missing} failed all exploration modes and have no "
+                f"successful compilation. The NLP cannot determine feasible "
+                f"dimensions without at least one working compilation per tile."
+            )
 
-        # Verify every tile/supertile has at least one successful compilation.
-        self._verify_all_tiles_have_metrics()
+        xu = xl * 3.0  # upper bound safety floor
+        for tile in fabric.tileDic.values():
+            if tile.partOfSuperTile:
+                continue
+            required = self.min_areas.get(tile.name, 0.0) * (1.0 + self.area_margin)
+            if required <= 0:
+                continue
+            row_vars = {
+                self.row_group_to_var[self.row_groups[r]]
+                for r in self.tile_row_set[tile.name]
+            }
+            col_vars = {
+                self.col_group_to_var[self.col_groups[c]]
+                for c in self.tile_column_set[tile.name]
+            }
+            for rv in row_vars:
+                for cv in col_vars:
+                    if xl[cv] > 0:
+                        xu[rv] = max(xu[rv], required / xl[cv])
+                    if xl[rv] > 0:
+                        xu[cv] = max(xu[cv], required / xl[rv])
 
-        self._tile_constraints = self._build_tile_constraints()
-        self._supertile_constraints = self._build_supertile_constraints()
-        n_constr = len(self._tile_constraints) + len(self._supertile_constraints)
+        # Additional safety: allow each variable to reach at least 2x the
+        # largest bbox observed during exploration for any tile it serves.
+        for tile in fabric.get_all_unique_tiles():
+            max_w = 0.0
+            max_h = 0.0
+            for mode_metrics in self._all_tile_metrics.values():
+                if tile.name not in mode_metrics:
+                    continue
+                x0, y0, x1, y1 = mode_metrics[tile.name]["design__die__bbox"]
+                max_w = max(max_w, x1 - x0)
+                max_h = max(max_h, y1 - y0)
+            if max_w == 0.0 and max_h == 0.0:
+                continue
+            for r in self.tile_row_set[tile.name]:
+                var = self.row_group_to_var[self.row_groups[r]]
+                xu[var] = max(xu[var], 2.0 * max_h)
+            for c in self.tile_column_set[tile.name]:
+                var = self.col_group_to_var[self.col_groups[c]]
+                xu[var] = max(xu[var], 2.0 * max_w)
 
-        info(f"NLP constraints: {n_constr} area constraints")
+        # One representative (col, row) per tile type; all positions in the
+        # same row/col group share identical dimensions.
+        tile_constraints: list[tuple[str, int, int]] = []
+        for tile in fabric.tileDic.values():
+            if tile.partOfSuperTile:
+                continue
+            rows = self.tile_row_set[tile.name]
+            cols = self.tile_column_set[tile.name]
+            if rows and cols:
+                tile_constraints.append((tile.name, min(cols), min(rows)))
+
+        supertile_constraints: list[tuple[str, list[int], list[int]]] = []
+        for supertile in fabric.superTileDic.values():
+            st_cols = [
+                min(self.tile_column_set[tile.name])
+                for tile in (supertile.tileMap[0] if supertile.tileMap else [])
+                if tile is not None
+            ]
+            st_rows: list[int] = []
+            for row in supertile.tileMap:
+                first_tile = (
+                    next((t for t in row if t is not None), None) if row else None
+                )
+                if first_tile is not None:
+                    st_rows.append(min(self.tile_row_set[first_tile.name]))
+            supertile_constraints.append((supertile.name, st_cols, st_rows))
+
+        # Precompute resolved variable indices and required areas for the hot
+        # evaluation path.
+        margin = 1.0 + self.area_margin
+        self._tile_eval: list[tuple[int, int, float]] = [
+            (
+                self.col_group_to_var[self.col_groups[col]],
+                self.row_group_to_var[self.row_groups[row]],
+                self.min_areas.get(name, float("inf")) * margin,
+            )
+            for name, col, row in tile_constraints
+        ]
+        self._supertile_eval: list[tuple[list[int], list[int], float]] = [
+            (
+                [self.col_group_to_var[self.col_groups[c]] for c in st_cols],
+                [self.row_group_to_var[self.row_groups[r]] for r in st_rows],
+                self.min_areas.get(name, float("inf")) * margin,
+            )
+            for name, st_cols, st_rows in supertile_constraints
+        ]
+        # Envelope constraints need ≥2 DRC-clean samples to interpolate; with
+        # one sample the existing per-axis xl already encodes the same floor.
+        self._envelope_eval: list[tuple[int, int, list[tuple[float, float]]]] = [
+            (
+                self.col_group_to_var[self.col_groups[col]],
+                self.row_group_to_var[self.row_groups[row]],
+                self.tile_samples[name],
+            )
+            for name, col, row in tile_constraints
+            if len(self.tile_samples.get(name, [])) >= 2
+        ]
+        self._position_var_pairs: list[tuple[int, int]] = [
+            (
+                self.col_group_to_var[self.col_groups[col]],
+                self.row_group_to_var[self.row_groups[row]],
+            )
+            for col, row in self.position_map
+        ]
+        n_constr = (
+            len(self._tile_eval) + len(self._supertile_eval) + len(self._envelope_eval)
+        )
+
+        info(
+            f"NLP constraints: {len(self._tile_eval)} area + "
+            f"{len(self._supertile_eval)} supertile area + "
+            f"{len(self._envelope_eval)} envelope = {n_constr}"
+        )
 
         super().__init__(
             n_var=n_vars,
@@ -266,31 +420,30 @@ class NLPTileProblem(ElementwiseProblem):
                 return (w, h)
         return self._min_dimensions_from_metrics(name)
 
-    def _compute_min_area(self, name: str) -> float:
-        """Return minimum die area across successful exploration modes."""
-        areas: list[float] = []
-        for mode_metrics in self.tile_metrics.values():
-            if name not in mode_metrics:
-                continue
-            x0, y0, x1, y1 = mode_metrics[name]["design__die__bbox"]
-            areas.append((x1 - x0) * (y1 - y0))
-        return min(areas) if areas else float("inf")
+    @staticmethod
+    def _envelope_w_floor(h: float, samples: list[tuple[float, float]]) -> float:
+        """Piecewise-linear lower bound on w given h, from samples sorted by h.
 
-    def _compute_stdcell_area(self, name: str) -> float:
-        """Return max standard-cell area across exploration modes.
-
-        The stdcell area is essentially fixed by the design but varies slightly across
-        modes due to buffer insertion. Using max gives the most conservative (worst-
-        case) estimate of what must fit.
+        Outside the sampled h range the envelope clamps to the nearest sample's w (i.e.,
+        below the shortest sample, use its width; above the tallest, use its width).
+        Inside the range, linearly interpolate between adjacent samples. The Pareto
+        property (w decreases as h increases for feasible tiles) makes this a convex
+        lower bound.
         """
-        areas: list[float] = []
-        for mode_metrics in self._all_tile_metrics.values():
-            if name not in mode_metrics:
-                continue
-            a = mode_metrics[name].get("design__instance__area__stdcell")
-            if a is not None:
-                areas.append(a)
-        return max(areas) if areas else 0.0
+        if not samples:
+            return 0.0
+        if h <= samples[0][1]:
+            return samples[0][0]
+        if h >= samples[-1][1]:
+            return samples[-1][0]
+        for i in range(len(samples) - 1):
+            w1, h1 = samples[i]
+            w2, h2 = samples[i + 1]
+            if h1 <= h <= h2:
+                if h2 == h1:
+                    return max(w1, w2)
+                return w1 + (w2 - w1) * (h - h1) / (h2 - h1)
+        return samples[-1][0]
 
     @staticmethod
     def _find_sharing_tiles(
@@ -305,29 +458,6 @@ class NLPTileProblem(ElementwiseProblem):
             if other != tile_name and positions & other_pos
         }
 
-    def _verify_all_tiles_have_metrics(self) -> None:
-        """Verify every tile and supertile has at least one successful compilation.
-
-        Raises ``RuntimeError`` listing the names of any tiles that failed
-        all exploration modes.  This catches configuration or sizing issues
-        early rather than letting the NLP produce unconstrained results.
-        """
-        all_valid_names = {
-            name for mode_metrics in self.tile_metrics.values() for name in mode_metrics
-        }
-        missing: list[str] = [
-            t.name
-            for t in self.fabric.get_all_unique_tiles()
-            if t.name not in all_valid_names
-        ]
-
-        if missing:
-            raise RuntimeError(
-                f"Tile(s) {missing} failed all exploration modes and have no "
-                f"successful compilation. The NLP cannot determine feasible "
-                f"dimensions without at least one working compilation per tile."
-            )
-
     def get_row_height(self, x: np.ndarray, row_idx: int) -> float:
         """Get the height variable for a given row index."""
         return x[self.row_group_to_var[self.row_groups[row_idx]]]
@@ -336,85 +466,29 @@ class NLPTileProblem(ElementwiseProblem):
         """Get the width variable for a given column index."""
         return x[self.col_group_to_var[self.col_groups[col_idx]]]
 
-    def _build_tile_constraints(self) -> list[tuple[str, int, int]]:
-        """Build (tile_name, col, row) tuples for regular tile constraints.
-
-        One representative position per tile type suffices because all positions in the
-        same row/col group share identical dimensions.
-        """
-        constraints: list[tuple[str, int, int]] = []
-        for tile in self.fabric.tileDic.values():
-            if tile.partOfSuperTile:
-                continue
-            rows = self.tile_row_set[tile.name]
-            cols = self.tile_column_set[tile.name]
-            if rows and cols:
-                constraints.append((tile.name, min(cols), min(rows)))
-        return constraints
-
-    def _build_supertile_constraints(
-        self,
-    ) -> list[tuple[str, list[int], list[int]]]:
-        """Build (st_name, col_indices, row_indices) for SuperTile constraints."""
-        constraints: list[tuple[str, list[int], list[int]]] = []
-        for supertile in self.fabric.superTileDic.values():
-            st_cols: list[int] = [
-                min(self.tile_column_set[tile.name])
-                for tile in (supertile.tileMap[0] if supertile.tileMap else [])
-                if tile is not None
-            ]
-            st_rows: list[int] = []
-            for row in supertile.tileMap:
-                first_tile = (
-                    next((t for t in row if t is not None), None) if row else None
-                )
-                if first_tile is not None:
-                    st_rows.append(min(self.tile_row_set[first_tile.name]))
-            constraints.append((supertile.name, st_cols, st_rows))
-        return constraints
-
     def _evaluate(self, x: np.ndarray, out: dict) -> None:
-        """Pymoo evaluation: compute objective and constraints."""
-        out["F"] = self._compute_objective(x)
-        out["G"] = np.array(self._eval_constraints(x), dtype=float)
+        """Pymoo evaluation: compute objective (total fabric area) and constraints.
 
-    def _compute_objective(self, x: np.ndarray) -> float:
-        """Minimize total fabric area = sum over all grid positions of w*h."""
+        Constraints cover: per-tile and per-supertile minimum compilable area (with
+        margin), and the piecewise-linear Pareto envelope for tiles with ≥2 DRC-clean
+        samples, so the solver cannot pick an untested aspect ratio below the observed
+        width floor at its chosen row height.
+        """
         total_area = 0.0
-        for col, row in self.position_map:
-            total_area += self.get_col_width(x, col) * self.get_row_height(x, row)
-        return total_area
+        for cv, rv in self._position_var_pairs:
+            total_area += x[cv] * x[rv]
+        out["F"] = total_area
 
-    def _area_violation(self, name: str, alloc_w: float, alloc_h: float) -> float:
-        """Return area-based feasibility violation.
-
-        Non-positive means the allocated area meets or exceeds the minimum
-        compilable area (with margin) observed during exploration:
-          min_area * (1 + margin) - alloc_w * alloc_h <= 0
-        """
-        min_area = self.min_areas.get(name, float("inf"))
-        return min_area * (1.0 + self.area_margin) - alloc_w * alloc_h
-
-    def _eval_constraints(self, x: np.ndarray) -> list[float]:
-        """Evaluate area-based feasibility constraints.
-
-        For each tile/supertile the allocated area (w * h) must meet or
-        exceed the minimum compilable area (with margin) from exploration:
-          min_area * (1 + margin) - alloc_w * alloc_h <= 0
-        """
         result: list[float] = []
-
-        for tile_name, col, row in self._tile_constraints:
-            alloc_w = self.get_col_width(x, col)
-            alloc_h = self.get_row_height(x, row)
-            result.append(self._area_violation(tile_name, alloc_w, alloc_h))
-
-        for st_name, st_cols, st_rows in self._supertile_constraints:
-            total_w = sum(self.get_col_width(x, c) for c in st_cols)
-            total_h = sum(self.get_row_height(x, r) for r in st_rows)
-            result.append(self._area_violation(st_name, total_w, total_h))
-
-        return result
+        for cv, rv, required in self._tile_eval:
+            result.append(required - x[cv] * x[rv])
+        for cvs, rvs, required in self._supertile_eval:
+            total_w = sum(x[c] for c in cvs)
+            total_h = sum(x[r] for r in rvs)
+            result.append(required - total_w * total_h)
+        for cv, rv, samples in self._envelope_eval:
+            result.append(self._envelope_w_floor(x[rv], samples) - x[cv])
+        out["G"] = np.array(result, dtype=float)
 
 
 @Step.factory.register()
@@ -491,13 +565,11 @@ class GlobalTileSizeOptimization(Step):
                     f"failed compilation."
                 )
 
-        def parse_bbox(key: str) -> list[float]:
-            """Parse a whitespace-separated bbox string into a list of floats."""
-            return [float(v) for v in data[key].split()]
-
         result: dict[str, Any] = {
-            "design__die__bbox": parse_bbox("design__die__bbox"),
-            "design__core__bbox": parse_bbox("design__core__bbox"),
+            "design__die__bbox": [float(v) for v in data["design__die__bbox"].split()],
+            "design__core__bbox": [
+                float(v) for v in data["design__core__bbox"].split()
+            ],
         }
         for key in (
             "fabulous__pin_min_width",
@@ -570,7 +642,7 @@ class GlobalTileSizeOptimization(Step):
             valid_metrics = self.config["TILE_OPT_INFO"]
             all_metrics = valid_metrics
 
-        area_margin = self.config.get("FABULOUS_NLP_AREA_MARGIN", 0.05)
+        area_margin = self.config.get("FABULOUS_NLP_AREA_MARGIN", 0.0)
         info(f"Using area margin: {area_margin:.1%}")
         problem = NLPTileProblem(
             fabric, valid_metrics, all_metrics, area_margin=area_margin

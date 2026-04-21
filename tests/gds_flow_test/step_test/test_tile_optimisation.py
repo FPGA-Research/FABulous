@@ -46,6 +46,10 @@ class TestTileOptimisation:
         mock_state.metrics["antenna__violating__nets"] = 0
         mock_state.metrics["antenna__violating__pins"] = 0
 
+        # Non-directional modes terminate on clean DRC. Directional modes use a
+        # bracket-based termination and ignore DRC when no bracket is set, so
+        # pin the mode here.
+        mock_config = mock_config.copy(FABULOUS_OPT_MODE=OptMode.BALANCE)
         step = TileOptimisation(mock_config)
         step.config = mock_config
         assert step.condition(mock_state) is False

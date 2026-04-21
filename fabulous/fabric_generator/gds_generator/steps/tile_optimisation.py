@@ -162,10 +162,48 @@ class TileOptimisation(WhileStep):
 
     last_core_area: Decimal | None = None
 
-    last_drc_errors: int = 0
+    # Binary-search state for directional modes.
+    bracket_low: Decimal | None = None
+
+    bracket_high: Decimal | None = None
+
+    bracket_cap: Decimal | None = None
+
+    bracket_exhausted: bool = False
+
+    def _is_directional(self) -> bool:
+        """Return True when the current mode is FIND_MIN_WIDTH or FIND_MIN_HEIGHT."""
+        return self.config["FABULOUS_OPT_MODE"] in (
+            OptMode.FIND_MIN_WIDTH,
+            OptMode.FIND_MIN_HEIGHT,
+        )
+
+    def _directional_target(
+        self, die_area: tuple[Decimal, Decimal, Decimal, Decimal]
+    ) -> Decimal:
+        """Return the axis value being minimised in the current directional mode."""
+        _, _, w, h = die_area
+        if self.config["FABULOUS_OPT_MODE"] == OptMode.FIND_MIN_WIDTH:
+            return Decimal(w)
+        return Decimal(h)
 
     def condition(self, state: State) -> bool:
         """Loop condition."""
+        if self._is_directional():
+            if self.bracket_exhausted:
+                return False
+            if self.bracket_high is not None and self.bracket_low is not None:
+                # Converged when the gap between largest-fail and smallest-success
+                # is within one pitch on the target axis.
+                x_pitch, y_pitch = get_pitch(self.config)
+                if self.config["FABULOUS_OPT_MODE"] == OptMode.FIND_MIN_WIDTH:
+                    pitch = x_pitch
+                else:
+                    pitch = y_pitch
+                if self.bracket_high - self.bracket_low <= pitch:
+                    return False
+            return True
+
         if state.metrics.get("route__drc_errors") is None:
             return True
 
@@ -187,9 +225,20 @@ class TileOptimisation(WhileStep):
         if (ca := post_iteration.metrics.get("design__core__area")) is not None:
             self.last_core_area = Decimal(ca)
 
-        self.last_drc_errors = cast(
-            "int", post_iteration.metrics.get("route__drc_errors", 0)
-        )
+        if self._is_directional():
+            _, _, w, h = self.config["DIE_AREA"]
+            if self.config["FABULOUS_OPT_MODE"] == OptMode.FIND_MIN_WIDTH:
+                target = Decimal(w)
+            else:
+                target = Decimal(h)
+            if full_iter_completed:
+                # Smallest-so-far working target axis; keep the best working state.
+                if self.bracket_high is None or target < self.bracket_high:
+                    self.bracket_high = target
+                    self.last_working_state = post_iteration.copy()
+            elif self.bracket_low is None or target > self.bracket_low:
+                self.bracket_low = target
+            return post_iteration
 
         if full_iter_completed:
             self.last_working_state = post_iteration.copy()
@@ -253,19 +302,23 @@ class TileOptimisation(WhileStep):
             # First iteration: no actual core area yet. Estimate core area
             # from die area minus floorplan margins (site insets on each side)
             # so the overshoot scaling triggers when cells barely fit.
-            sites_per_side_x = 6
-            margin_x = Decimal(2) * site_width * sites_per_side_x
+            margin_x = Decimal(2) * site_width * 6
             margin_y = Decimal(2) * site_height
             core_area = (width - margin_x) * (height - margin_y)
 
-        new_width, new_height = self._compute_new_dimensions(
-            width,
-            height,
-            width_step,
-            height_step,
-            instance_area,
-            core_area,
-        )
+        if self._is_directional():
+            new_width, new_height = self._compute_binary_search_dimensions(
+                width, height
+            )
+        else:
+            new_width, new_height = self._compute_new_dimensions(
+                width,
+                height,
+                width_step,
+                height_step,
+                instance_area,
+                core_area,
+            )
 
         die_area = (
             Decimal(0),
@@ -293,32 +346,22 @@ class TileOptimisation(WhileStep):
         instance_area: Decimal,
         core_area: Decimal,
     ) -> tuple[Decimal, Decimal]:
-        """Compute the next tile dimensions based on the optimisation mode.
+        """Compute the next BALANCE / LARGE tile dimensions.
 
-        First ensures the die can accommodate the instance area by scaling the non-
-        optimised dimension (directional modes) or both dimensions proportionally
-        (balanced/large modes). Then applies the iterative growth step. Finally, for
-        directional modes, if the previous iteration had DRC violations the non-
-        optimised dimension is boosted proportionally to the violation count so that
-        extreme aspect ratios self-correct without a hard cap.
+        Scales both axes proportionally when the core cannot hold the instance area,
+        then applies the per-iteration step. Directional modes are handled separately
+        by ``_compute_binary_search_dimensions``.
         """
         opt_mode = self.config["FABULOUS_OPT_MODE"]
 
-        # Scale up proportionally if instance area exceeds the placeable
-        # core area.  Using sqrt on both dimensions keeps aspect ratios
-        # reasonable regardless of optimisation mode.  Directional
-        # exploration is handled by the iterative step below.
+        # Ensure the die can physically hold the instance area before the
+        # iterative step nudges it.
         if core_area > 0 and instance_area > core_area:
             scale = (instance_area / core_area).sqrt()
             width *= scale
             height *= scale
 
-        # Apply iterative step
         match opt_mode:
-            case OptMode.FIND_MIN_WIDTH:
-                width += width_step
-            case OptMode.FIND_MIN_HEIGHT:
-                height += height_step
             case OptMode.BALANCE:
                 if self.to_change_width:
                     width += width_step
@@ -330,20 +373,63 @@ class TileOptimisation(WhileStep):
             case _:
                 raise ValueError(f"Unknown FABULOUS_OPT_MODE: {opt_mode}")
 
-        # Adaptive scaling: if the previous iteration had DRC violations,
-        # also grow the non-optimised dimension. The boost is proportional
-        # to the violation count (violations / 1000), so a tile with 17k
-        # violations gets a ~17x step boost while a tile with 50 violations
-        # gets almost nothing. This lets extreme aspect ratios self-correct
-        # without imposing a hard cap.
-        if self.last_drc_errors > 0:
-            boost = Decimal(self.last_drc_errors) / Decimal(1000)
-            if opt_mode == OptMode.FIND_MIN_WIDTH:
-                height += height_step * boost
-            elif opt_mode == OptMode.FIND_MIN_HEIGHT:
-                width += width_step * boost
-
         return width, height
+
+    def _compute_binary_search_dimensions(
+        self,
+        width: Decimal,
+        height: Decimal,
+    ) -> tuple[Decimal, Decimal]:
+        """Compute the next DIE_AREA for FIND_MIN_WIDTH / FIND_MIN_HEIGHT.
+
+        Two-phase search on the target axis while holding the other axis at its
+        smart-init value:
+
+        - **Bracketing (exponential)**: while no working point has been seen, double
+          the target axis each iteration. If doubling would exceed ``bracket_cap``,
+          mark the search exhausted — the aspect is likely infeasible.
+        - **Bisecting**: once at least one working point has been seen, bisect
+          between ``bracket_low`` (largest failing) and ``bracket_high`` (smallest
+          working). When only ``bracket_high`` exists (very first iter worked),
+          bisect between the pin-floor and ``bracket_high`` to push even smaller.
+
+        The non-target axis is kept at its incoming value so the mode stays true to
+        "minimise this one axis".
+        """
+        target_is_width = self.config["FABULOUS_OPT_MODE"] == OptMode.FIND_MIN_WIDTH
+        current_target = width if target_is_width else height
+        non_target = height if target_is_width else width
+
+        if self.config["FABULOUS_OPT_MODE"] == OptMode.FIND_MIN_WIDTH:
+            pin_floor = Decimal(self.config.get("FABULOUS_PIN_MIN_WIDTH", 0))
+        else:
+            pin_floor = Decimal(self.config.get("FABULOUS_PIN_MIN_HEIGHT", 0))
+
+        x_pitch, y_pitch = get_pitch(self.config)
+        if self.config["FABULOUS_OPT_MODE"] == OptMode.FIND_MIN_WIDTH:
+            pitch = x_pitch
+        else:
+            pitch = y_pitch
+
+        if self.bracket_high is None:
+            next_target = current_target * Decimal(2)
+            if self.bracket_cap is not None and next_target > self.bracket_cap:
+                if current_target >= self.bracket_cap:
+                    self.bracket_exhausted = True
+                    next_target = current_target
+                else:
+                    next_target = self.bracket_cap
+        elif self.bracket_low is None:
+            next_target = (pin_floor + self.bracket_high) / Decimal(2)
+            if next_target <= pin_floor or self.bracket_high - pin_floor <= pitch:
+                next_target = self.bracket_high
+                self.bracket_low = pin_floor
+        else:
+            next_target = (self.bracket_low + self.bracket_high) / Decimal(2)
+
+        if target_is_width:
+            return next_target, non_target
+        return non_target, next_target
 
     def post_loop_callback(self, state: State) -> State:  # noqa: ARG002
         """Post loop callback."""
@@ -401,4 +487,77 @@ class TileOptimisation(WhileStep):
             self.config = self.config.copy(ERROR_ON_TR_DRC=False)
         if self.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT:
             self.max_iterations = 1
+            return super().run(state_in, **_kwargs)
+
+        opt_mode = self.config["FABULOUS_OPT_MODE"]
+        pin_w = Decimal(self.config.get("FABULOUS_PIN_MIN_WIDTH", 0))
+        pin_h = Decimal(self.config.get("FABULOUS_PIN_MIN_HEIGHT", 0))
+        instance_area = Decimal(state_in.metrics.get("design__instance__area", 0))
+
+        # Short-circuit directional modes whose pin floor already comfortably
+        # covers the instance area - iterating would only produce a tall/narrow
+        # bbox at the pin floor anyway.
+        if self._is_directional() and (
+            pin_w > 0 and pin_h > 0 and pin_w * pin_h >= instance_area * Decimal("1.3")
+        ):
+            info(
+                f"Pin-min area ({pin_w}x{pin_h}) already comfortably covers "
+                f"instance area ({instance_area}); short-circuiting "
+                f"{opt_mode.value} to 1 iter."
+            )
+            self.max_iterations = 1
+            return super().run(state_in, **_kwargs)
+
+        # Size the first iteration's die so it can hold the synth-reported
+        # stdcell area at 100% utilisation. Buffer/CTS/routing slack is earned
+        # by subsequent while-loop iterations. Per mode:
+        #   FIND_MIN_WIDTH:  keep h = pin_min_h, widen to fit the cells.
+        #   FIND_MIN_HEIGHT: keep w = pin_min_w, grow h to fit the cells.
+        #   BALANCE / LARGE: square bbox sized to hold the cells.
+        if instance_area > 0 and pin_w > 0 and pin_h > 0:
+            match opt_mode:
+                case OptMode.FIND_MIN_WIDTH:
+                    init_h = pin_h
+                    init_w = max(pin_w, instance_area / init_h)
+                case OptMode.FIND_MIN_HEIGHT:
+                    init_w = pin_w
+                    init_h = max(pin_h, instance_area / init_w)
+                case _:  # BALANCE, LARGE
+                    side = instance_area.sqrt()
+                    init_w = max(pin_w, side)
+                    init_h = max(pin_h, side)
+
+            x_pitch, y_pitch = get_pitch(self.config)
+            init_w = round_up_decimal(init_w, x_pitch)
+            init_h = round_up_decimal(init_h, y_pitch)
+
+            die_area = self.config.get("DIE_AREA")
+            current_w = Decimal(die_area[2]) if die_area else Decimal(0)
+            current_h = Decimal(die_area[3]) if die_area else Decimal(0)
+
+            # Grow per-axis only so a user-supplied DIE_AREA override on the
+            # non-target axis is preserved.
+            new_w = max(current_w, init_w)
+            new_h = max(current_h, init_h)
+            if new_w > current_w or new_h > current_h:
+                info(
+                    f"Smart init DIE_AREA for {opt_mode.value}: "
+                    f"{current_w}x{current_h} -> {new_w}x{new_h} "
+                    f"(instance_area={instance_area})"
+                )
+                self.config = self.config.copy(
+                    DIE_AREA=(Decimal(0), Decimal(0), new_w, new_h)
+                )
+
+        # Cap exponential growth at 4x the init target: beyond that the
+        # aspect is effectively infeasible at the pin floor on the other axis.
+        if self._is_directional():
+            die_area = self.config.get("DIE_AREA")
+            if die_area is not None:
+                _, _, w, h = die_area
+                if self.config["FABULOUS_OPT_MODE"] == OptMode.FIND_MIN_WIDTH:
+                    self.bracket_cap = Decimal(w) * Decimal(4)
+                else:
+                    self.bracket_cap = Decimal(h) * Decimal(4)
+
         return super().run(state_in, **_kwargs)

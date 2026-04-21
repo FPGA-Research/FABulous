@@ -70,7 +70,7 @@ configs = (
             "FABULOUS_NLP_AREA_MARGIN",
             float,
             description="Area margin for NLP constraint (0.05 = 5% slack)",
-            default=0.05,
+            default=0.0,
         ),
     ]
 )
