@@ -1,3 +1,5 @@
+`default_nettype none
+
 module bitbang (
     input s_clk,
     input s_data,
@@ -79,3 +81,4 @@ module bitbang (
     end
 
 endmodule
+`default_nettype wire

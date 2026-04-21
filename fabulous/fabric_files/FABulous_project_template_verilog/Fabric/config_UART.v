@@ -1,3 +1,5 @@
+`default_nettype none
+
 module config_UART #(
     parameter integer Mode = 0,
     // The default mode is "auto", which switches between "hex" and "binary" mode,
@@ -465,3 +467,4 @@ module config_UART #(
     end
 
 endmodule
+`default_nettype wire

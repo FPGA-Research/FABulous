@@ -1,3 +1,5 @@
+`default_nettype none
+
 // Essential modules for ConfigMem RTL simulation
 // Extracted from FABulous fabric models
 
@@ -19,3 +21,4 @@ module config_latch (
     end
     /* verilator lint_on LATCH */
 endmodule
+`default_nettype wire

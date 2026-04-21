@@ -1,3 +1,5 @@
+`default_nettype none
+
 // Copyright 2021 University of Manchester
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -84,3 +86,4 @@ module OutPass4_frame_config_mux #(
     );
 
 endmodule
+`default_nettype wire

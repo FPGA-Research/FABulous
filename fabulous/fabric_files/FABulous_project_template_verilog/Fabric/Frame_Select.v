@@ -1,3 +1,5 @@
+`default_nettype none
+
 module Frame_Select #(
     parameter integer MaxFramesPerCol = 20,
     parameter integer FrameSelectWidth = 5,
@@ -16,3 +18,4 @@ module Frame_Select #(
     end
 
 endmodule
+`default_nettype wire

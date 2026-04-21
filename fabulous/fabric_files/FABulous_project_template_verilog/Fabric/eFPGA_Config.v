@@ -1,3 +1,5 @@
+`default_nettype none
+
 module eFPGA_Config #(
     parameter integer NumberOfRows = 16,
     parameter integer RowSelectWidth = 5,
@@ -94,3 +96,4 @@ module eFPGA_Config #(
     );
 
 endmodule
+`default_nettype wire

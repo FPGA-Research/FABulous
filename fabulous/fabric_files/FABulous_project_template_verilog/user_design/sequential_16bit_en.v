@@ -1,3 +1,5 @@
+`default_nettype none
+
 module sequential_16bit_en (
     input wire clk,
     input wire [27:0] io_in,
@@ -17,3 +19,4 @@ module sequential_16bit_en (
     assign io_out = {12'b0, ctr};  // pass thru reset for debugging
     assign io_oeb = 28'b0000000000000000000000000001;
 endmodule
+`default_nettype wire

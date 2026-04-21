@@ -1,3 +1,5 @@
+`default_nettype none
+
 // Models for the embedded FPGA fabric
 module config_latch (
     input D,
@@ -15,6 +17,7 @@ module config_latch (
     end
     /* verilator lint_on LATCH */
 endmodule
+`default_nettype wire
 
 module my_buf (
     input  A,

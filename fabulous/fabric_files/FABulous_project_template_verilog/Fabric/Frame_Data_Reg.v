@@ -1,3 +1,5 @@
+`default_nettype none
+
 module Frame_Data_Reg #(
     parameter integer FrameBitsPerRow = 32,
     parameter integer RowSelectWidth = 5,
@@ -14,3 +16,4 @@ module Frame_Data_Reg #(
     end
 
 endmodule
+`default_nettype wire

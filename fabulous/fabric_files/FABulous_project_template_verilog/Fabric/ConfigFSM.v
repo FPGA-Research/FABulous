@@ -1,4 +1,5 @@
-`timescale 1ps / 1ps
+`default_nettype none
+
 module ConfigFSM #(
     parameter integer NumberOfRows = 16,
     parameter integer RowSelectWidth = 5,
@@ -101,3 +102,4 @@ module ConfigFSM #(
     end
 
 endmodule
+`default_nettype wire

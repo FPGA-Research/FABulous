@@ -1,3 +1,5 @@
+`default_nettype none
+
 // Copyright 2021 University of Manchester
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -75,3 +77,4 @@ module RegFile_32x4 #(
     assign BD = ConfigBits[1] ? BD_reg : BD_comb;
 
 endmodule
+`default_nettype wire

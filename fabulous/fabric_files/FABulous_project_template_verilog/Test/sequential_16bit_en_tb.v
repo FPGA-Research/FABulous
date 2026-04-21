@@ -1,5 +1,7 @@
 `ifndef VERILATOR
 `timescale 1ps / 1ps
+`default_nettype none
+
 module sequential_16bit_en_tb;
     wire [27:0] I_top;
     wire [27:0] T_top;
@@ -110,3 +112,4 @@ module sequential_16bit_en_tb;
 
 endmodule
 `endif  // !VERILATOR
+`default_nettype wire

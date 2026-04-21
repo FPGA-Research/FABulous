@@ -1,3 +1,5 @@
+`default_nettype none
+
 module BlockRAM_1KB #(
     // Default 24 means bits wr_data[25:24] will become bits [9:8] of read address
     parameter integer READ_ADDRESS_MSB_FROM_DATA_LSB = 24,
@@ -142,9 +144,7 @@ module BlockRAM_1KB #(
         end
     end
 endmodule
-
-
-(* blackbox *)
+`default_nettype wire (* blackbox *)
 module sram_1rw1r_32_256_8_sky130 #(
     parameter integer NUM_WMASKS = 4,
     parameter integer DATA_WIDTH = 32,

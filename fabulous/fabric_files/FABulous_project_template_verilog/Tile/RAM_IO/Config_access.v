@@ -1,4 +1,4 @@
-(* FABulous, BelMap,
+`default_nettype none (* FABulous, BelMap,
 C_bit0=0,
 C_bit1=1,
 C_bit2=2,
@@ -17,3 +17,4 @@ module Config_access #(
     assign C_bit = ConfigBits;
 
 endmodule
+`default_nettype wire

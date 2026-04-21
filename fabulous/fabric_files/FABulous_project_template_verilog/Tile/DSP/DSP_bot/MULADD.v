@@ -1,3 +1,5 @@
+`default_nettype none
+
 // Copyright 2021 University of Manchester
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -79,3 +81,4 @@ module MULADD #(
     end
 
 endmodule
+`default_nettype wire
