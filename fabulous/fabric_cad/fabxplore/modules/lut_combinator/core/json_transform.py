@@ -7,7 +7,9 @@ It also preserves Yosys bit encoding conventions.
 
 import copy
 
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import MappingResult
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
+    MappingResult,
+)
 
 
 def apply_mapping_to_json(model_json: dict, mapping: MappingResult) -> dict:

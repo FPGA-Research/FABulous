@@ -8,11 +8,11 @@ collections plus run statistics.
 import networkx as nx
 from loguru import logger
 
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.architecture import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.architecture import (
     FracLutArchitecture,
     PairBinding,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
     LogicalLutCell,
     MappingResult,
     MappingStats,

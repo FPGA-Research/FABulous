@@ -5,16 +5,16 @@ from pathlib import Path
 
 from loguru import logger
 
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.combinator import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.combinator import (
     FracLutArchitecture,
     LutCombinator,
     LutCombinatorConfig,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
     LutSpec,
     MatchingMode,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.utils.equiv_checker import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.utils.equiv_checker import (
     EquivalenceCheckConfig,
     LutEquivalenceChecker,
 )

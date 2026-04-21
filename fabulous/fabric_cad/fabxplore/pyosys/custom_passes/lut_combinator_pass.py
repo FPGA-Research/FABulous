@@ -7,12 +7,12 @@ passthrough options, and matching modes.
 
 from dataclasses import dataclass
 
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.combinator import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.combinator import (
     FracLutArchitecture,
     LutCombinator,
     LutCombinatorConfig,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
     LutSpec,
     MappingResult,
     MatchingMode,

@@ -11,24 +11,26 @@ from pathlib import Path
 
 from loguru import logger
 
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.architecture import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.architecture import (
     FracLutArchitecture,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.json_transform import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.json_transform import (
     apply_mapping_to_json,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
     LutSpec,
     MappingResult,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.netlist import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.netlist import (
     parse_model_json,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.packer import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.packer import (
     MatchingMode,
     PairLutMapper,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.report import render_report
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.report import (
+    render_report,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 
 

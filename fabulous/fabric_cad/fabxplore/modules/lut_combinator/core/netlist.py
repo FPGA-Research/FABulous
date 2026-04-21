@@ -5,12 +5,12 @@ selected top module. The parsed data is normalized into model objects used by pa
 and reporting stages.
 """
 
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
     LogicalLutCell,
     LutSpec,
     NetlistModel,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.truth_table import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.truth_table import (
     parse_init_literal,
 )
 

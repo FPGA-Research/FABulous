@@ -5,7 +5,9 @@ template. It also computes and formats LUT type distributions so users can
 compare source and mapped designs quickly.
 """
 
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import MappingResult
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
+    MappingResult,
+)
 
 REPORT_TEMPLATE = """
 LUT Combinator Mapping Report

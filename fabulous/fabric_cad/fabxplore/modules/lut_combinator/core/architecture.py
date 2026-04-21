@@ -9,13 +9,13 @@ needed for macro emission.
 
 from dataclasses import dataclass
 
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.models import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
     CellPlacement,
     LogicalLutCell,
     PackedCell,
     PairBinding,
 )
-from fabulous.fabric_cad.fabxplore.lut_combinator.core.truth_table import (
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.truth_table import (
     format_bits,
     remap_init_to_slot,
 )
