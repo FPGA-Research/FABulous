@@ -46,12 +46,8 @@ module InPass4_frame_config_mux #(
     always @(posedge UserCLK) begin
         Q <= I;
     end
-    // ConfigBits ( '0' combinatorial; '1' registered )
-    //assign O[0] = ConfigBits[0] ? Q[0] : I[0];
-    //assign O[1] = ConfigBits[1] ? Q[1] : I[1];
-    //assign O[2] = ConfigBits[2] ? Q[2] : I[2];
-    //assign O[3] = ConfigBits[3] ? Q[3] : I[3];
 
+    // ConfigBits ( '0' combinatorial; '1' registered )
     cus_mux21 cus_mux21_inst0 (
         .A0(I[0]),
         .A1(Q[0]),

@@ -40,8 +40,6 @@ module RegFile_32x4 #(
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
 
-    //type memtype is array (31 downto 0) of std_logic_vector(3 downto 0); // 32 entries of 4 bit
-    //signal mem : memtype := (others => (others => '0'));
     reg     [3:0] mem                                         [32];
 
     wire    [3:0] AD_comb;  // port A read data, combinatorial
@@ -58,7 +56,6 @@ module RegFile_32x4 #(
         end
     end
 
-    //P_write: process (UserCLK)
     always @(posedge UserCLK) begin : P_write
         if (W_en == 1'b1) begin
             mem[W_ADR] <= D;

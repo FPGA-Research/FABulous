@@ -44,7 +44,6 @@ architecture Behavioral of IO_1_bidirectional_frame_config_pass is
   -- I am instantiating an IOBUF primitive.
   -- However, it is possible to connect corresponding pins all the way to top, just by adding an "-- EXTERNAL" comment (see PAD in the entity)
 
-  -- signal fromPad : std_logic;
 
 begin
 

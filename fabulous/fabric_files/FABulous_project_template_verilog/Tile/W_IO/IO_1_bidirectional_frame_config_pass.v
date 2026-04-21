@@ -14,8 +14,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//Library UNISIM;
-//use UNISIM.vcomponents.all;
 
 
 module IO_1_bidirectional_frame_config_pass (
@@ -34,7 +32,6 @@ module IO_1_bidirectional_frame_config_pass (
     (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK
     // GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
 );  //, ConfigBits);
-    //parameter NoConfigBits = 0; // has to be adjusted manually (we don't use an arithmetic parser for the value)
     //                        _____
     //    I////-T_DRIVER////->|PAD|//+//////-> O
     //              |         ////-  |
@@ -42,8 +39,6 @@ module IO_1_bidirectional_frame_config_pass (
 
     // I am instantiating an IOBUF primitive.
     // However, it is possible to connect corresponding pins all the way to top, just by adding an "// EXTERNAL" comment (see PAD in the entity)
-    // wire fromPad;
-    // Slice outputs
     assign O = O_top;
 
     always @(posedge UserCLK) begin
@@ -53,12 +48,6 @@ module IO_1_bidirectional_frame_config_pass (
     assign I_top = I;
     assign T_top = ~T;
 
-    // IOBUF IOBUF_inst0(
-    // .O(fromPad), // 1-bit output: Buffer output
-    // .I(I), // 1-bit input: Buffer input
-    // .IO(PAD), // 1-bit inout: Buffer inout (connect directly to top-level port)
-    // .T(T) // 1-bit input: 3-state enable input
-    // );
 
 endmodule
 `default_nettype wire

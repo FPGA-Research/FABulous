@@ -96,7 +96,6 @@ begin
   c_I0mux       <= ConfigBits(17);
   c_reset_value <= ConfigBits(18);
 
-  --CONFout <= c_I0mux;
 
   -- I0mux <= I(0) when (c_I0mux = '0') else
   --   Ci;

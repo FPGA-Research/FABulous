@@ -52,11 +52,6 @@ module OutPass4_frame_config_mux #(
         Q <= I;
     end
 
-    //assign O0 = ConfigBits[0] ? Q0 : I0;
-    //assign O1 = ConfigBits[1] ? Q1 : I1;
-    //assign O2 = ConfigBits[2] ? Q2 : I2;
-    //assign O3 = ConfigBits[3] ? Q3 : I3;
-
     cus_mux21 cus_mux21_inst0 (
         .A0(I[0]),
         .A1(Q[0]),
