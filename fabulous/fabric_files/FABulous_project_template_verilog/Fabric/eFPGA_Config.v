@@ -53,7 +53,7 @@ module eFPGA_Config #(
     );
 
     // BitBang
-    bit_bang inst_bit_bang (
+    bitbang inst_bit_bang (
         .s_clk(s_clk),
         .s_data(s_data),
         .strobe(BitBangWriteStrobe),
