@@ -1,2 +1,2 @@
 DIE_AREA: [ 0, 0, 246, 245 ]
-DIODE_ON_PORTS: "none"
+DIODE_ON_PORTS: "in"
