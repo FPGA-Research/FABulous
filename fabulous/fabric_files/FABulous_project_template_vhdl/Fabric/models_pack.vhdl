@@ -26,87 +26,6 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity MUX16PTv2 is
-  port (
-    IN1 : in std_logic;
-    IN10 : in std_logic;
-    IN11 : in std_logic;
-    IN12 : in std_logic;
-    IN13 : in std_logic;
-    IN14 : in std_logic;
-    IN15 : in std_logic;
-    IN16 : in std_logic;
-    IN2 : in std_logic;
-    IN3 : in std_logic;
-    IN4 : in std_logic;
-    IN5 : in std_logic;
-    IN6 : in std_logic;
-    IN7 : in std_logic;
-    IN8 : in std_logic;
-    IN9 : in std_logic;
-    O : out std_logic;
-    S1 : in std_logic;
-    S2 : in std_logic;
-    S3 : in std_logic;
-    S4 : in std_logic
-  );
-end entity;
-
-architecture from_verilog of MUX16PTv2 is
-  signal a0 : std_logic_vector(7 downto 0);
-  signal a1 : std_logic_vector(3 downto 0);
-  signal a2 : std_logic_vector(1 downto 0);
-  -- As this MUX primitive is used for the LUT, we need accurate X/U behaviour
-  function f_mux2(a : in std_logic; b : in std_logic; s : in std_logic) return std_logic is
-    variable r : std_logic;
-  begin
-    r := a when s = '0' else
-         b when s = '1' else
-         a when a = b else -- case when S is undefined, but it's don't care because a and b are the same
-         'U';
-    return r;
-  end function;
-begin
-  a0 <= f_mux2(IN15, IN16, S1) & f_mux2(IN13, IN14, S1) & f_mux2(IN11, IN12, S1) & f_mux2(IN9, IN10, S1) & f_mux2(IN7, IN8, S1) & f_mux2(IN5, IN6, S1) & f_mux2(IN3, IN4, S1) & f_mux2(IN1, IN2, S1);
-  a1 <= f_mux2(a0(6), a0(7), S2) & f_mux2(a0(4), a0(5), S2) & f_mux2(a0(2), a0(3), S2) & f_mux2(a0(0), a0(1), S2);
-  a2 <= f_mux2(a1(2), a1(3), S3) & f_mux2(a1(0), a1(1), S3);
-  O <= f_mux2(a2(0), a2(1), S4) ;
-end architecture;
-
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-
-entity MUX4PTv4 is
-  port (
-    IN1 : in std_logic;
-    IN2 : in std_logic;
-    IN3 : in std_logic;
-    IN4 : in std_logic;
-    O : out std_logic;
-    S1 : in std_logic;
-    S2 : in std_logic
-  );
-end entity;
-
-architecture from_verilog of MUX4PTv4 is
-  signal SEL : unsigned(1 downto 0);
-begin
-  SEL <= S2 & S1;
-
-  with SEL select
-    O <= IN1  when "00",
-         IN2  when "01",
-         IN3  when "10",
-         IN4  when "11",
-         '0'  when others ;
-
-end architecture;
-
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-
 entity cus_mux161 is
   port (
     A0 : in std_logic;
@@ -415,43 +334,6 @@ component config_latch is
   );
 end component;
 
-component MUX16PTv2 is
-  port (
-    IN1 : in std_logic;
-    IN10 : in std_logic;
-    IN11 : in std_logic;
-    IN12 : in std_logic;
-    IN13 : in std_logic;
-    IN14 : in std_logic;
-    IN15 : in std_logic;
-    IN16 : in std_logic;
-    IN2 : in std_logic;
-    IN3 : in std_logic;
-    IN4 : in std_logic;
-    IN5 : in std_logic;
-    IN6 : in std_logic;
-    IN7 : in std_logic;
-    IN8 : in std_logic;
-    IN9 : in std_logic;
-    O : out std_logic;
-    S1 : in std_logic;
-    S2 : in std_logic;
-    S3 : in std_logic;
-    S4 : in std_logic
-  );
-end component;
-
-component MUX4PTv4 is
-  port (
-    IN1 : in std_logic;
-    IN2 : in std_logic;
-    IN3 : in std_logic;
-    IN4 : in std_logic;
-    O : out std_logic;
-    S1 : in std_logic;
-    S2 : in std_logic
-  );
-end component;
 
 component cus_mux161 is
   port (

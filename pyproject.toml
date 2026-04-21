@@ -42,6 +42,8 @@ dependencies = [
   "pymoo>=0.6.1.5",
   "numpy>=2.3.4",
   "dill>=0.4.0",
+  "networkx>=3.6.1",
+  "sdf-timing",
   "ciel>=2.4.0",
   "go-task-bin>=3.40.0",
   "pyosys>=0.64",
@@ -112,6 +114,8 @@ exclude = [
   ".claude",
   ".codex",
   "AGENTS.md",
+  "fabulous_nix",
+  "ttsim*",
 ]
 
 [dependency-groups]
@@ -141,6 +145,7 @@ omit = [
   "demo/*",
   "docs/*",
   "build_hooks.py",
+  "fabulous_nix",
 ]
 show_missing = true
 skip_covered = true
@@ -170,3 +175,6 @@ DEP002 = ["pyreadline3", "gnureadline", "go-task-bin", "FABulous-bit-gen"]
 
 [tool.deptry.package_module_name_map]
 FABulous-bit-gen = "FABulous_bit_gen"
+
+[tool.uv.sources]
+sdf-timing = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" }

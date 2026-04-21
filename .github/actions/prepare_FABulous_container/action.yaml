@@ -19,7 +19,8 @@ inputs:
     required: false
     default: ""
   install_ghdl_mcode:
-    description: "If false, ghdl mcode won't be installed and the oss-cad-suite llvm version is used"
+    description: "If false, ghdl mcode won't be installed and the oss-cad-suite llvm
+      version is used"
     required: false
     default: "true"
 
@@ -92,7 +93,7 @@ runs:
       uses: ghdl/setup-ghdl@v1
       if: ${{ inputs.install_ghdl_mcode != 'false' }}
       with:
-        version: nightly
+        version: 6.0.0
         backend: mcode
         investigate: true
     - name: Install additional ubuntu packages

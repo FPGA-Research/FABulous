@@ -5,6 +5,7 @@ tool paths, project settings, and environment variable management.
 """
 
 import os
+import re
 from importlib.metadata import version as meta_version
 from pathlib import Path
 from shutil import which
@@ -34,6 +35,15 @@ from fabulous.fabric_definition.define import HDLType
 
 # User configuration directory for FABulous
 FAB_USER_CONFIG_DIR = Path(typer.get_app_dir("FABulous", force_posix=True))
+MODELS_PACK_REQUIRED_MODULES: list[str] = [
+    "config_latch",
+    "my_buf",
+    "clk_buf",
+    "cus_mux41",
+    "cus_mux21",
+    "cus_mux81",
+    "cus_mux161",
+]
 
 
 class FABulousSettings(BaseSettings):
@@ -49,6 +59,7 @@ class FABulousSettings(BaseSettings):
 
     oss_cad_suite: Path | None = None
     yosys_path: Path | str = Field(default="yosys", validate_default=True)
+    opensta_path: Path | str = Field(default="sta", validate_default=True)
     nextpnr_path: Path | str = Field(default="nextpnr-generic", validate_default=True)
     iverilog_path: Path | str = Field(default="iverilog", validate_default=True)
     vvp_path: Path | str = Field(default="vvp", validate_default=True)
@@ -235,6 +246,39 @@ class FABulousSettings(BaseSettings):
         if proj_lang == HDLType.VHDL and value.suffix not in {".vhdl", ".vhd"}:
             raise ValueError("Models pack for VHDL must be a .vhdl or .vhd file")
 
+        # YosysJson cannot be used here (circular import + settings not yet
+        # fully initialised), so we do a lightweight regex scan instead.
+        if value.suffix in {".v", ".sv", ".vhd", ".vhdl"}:
+            content = value.read_text()
+
+            if value.suffix in {".v", ".sv"}:
+                # Strip comments before scanning so commented-out module
+                # declarations are not mistaken for real ones.
+                content = re.sub(r"/\*.*?\*/", "", content, flags=re.DOTALL)
+                content = re.sub(r"//[^\n]*", "", content)
+                found = set(re.findall(r"^\s*module\s+(\w+)", content, re.MULTILINE))
+            else:
+                # VHDL only has single-line comments ("--").
+                content = re.sub(r"--[^\n]*", "", content)
+                found = {
+                    match.lower()
+                    for match in re.findall(
+                        r"^\s*entity\s+(\w+)\s+is",
+                        content,
+                        re.MULTILINE | re.IGNORECASE,
+                    )
+                }
+
+            missing = [m for m in MODELS_PACK_REQUIRED_MODULES if m not in found]
+            if missing:
+                logger.warning(
+                    f"The models pack at '{value}' is missing the following "
+                    f"models-pack definitions: {missing}. "
+                    "The models pack may be outdated. Update it to a recent "
+                    "version from upstream FABulous, or use an older version "
+                    "of FABulous."
+                )
+
         logger.info(f"Using models pack at: {value.absolute()}")
         return value.absolute()
 
@@ -291,6 +335,7 @@ class FABulousSettings(BaseSettings):
     # Resolve external tool paths only after object creation (post env setup)
     @field_validator(
         "yosys_path",
+        "opensta_path",
         "nextpnr_path",
         "iverilog_path",
         "vvp_path",
@@ -332,6 +377,7 @@ class FABulousSettings(BaseSettings):
             return Path(value).resolve()
         tool_map = {
             "yosys_path": "yosys",
+            "opensta_path": "sta",
             "nextpnr_path": "nextpnr-generic",
             "iverilog_path": "iverilog",
             "vvp_path": "vvp",

@@ -69,8 +69,9 @@ def fabulous_test_environment(
     """Set up global test environment for FABulous tests."""
     fabulous_root = str(Path(__file__).resolve().parent.parent / "FABulous")
 
-    for i in os.environ:
-        monkeypatch.delenv(i[0], raising=False)
+    for key in list(os.environ.keys()):
+        if key.startswith("FAB_"):
+            monkeypatch.delenv(key, raising=False)
 
     fake_user_config_dir = tmp_path / ".fabulous"
 
@@ -85,6 +86,18 @@ def fabulous_test_environment(
         fabulous.fabulous_settings, "FAB_USER_CONFIG_DIR", fake_user_config_dir
     )
     monkeypatch.setattr(fabulous.fabulous, "FAB_USER_CONFIG_DIR", fake_user_config_dir)
+    # Avoid network-dependent PDK download attempts in tests when settings
+    # validation triggers ciel activation.
+    monkeypatch.setattr(
+        fabulous.fabulous_settings.ciel.manage,
+        "enable",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        fabulous.fabulous_settings,
+        "get_ciel_home",
+        lambda: str(tmp_path / ".ciel"),
+    )
     (tmp_path / ".ciel" / "ihp-sg13g2").mkdir(parents=True, exist_ok=True)
     setup_logger(0, False)
 
