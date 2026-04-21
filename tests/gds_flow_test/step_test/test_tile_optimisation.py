@@ -96,13 +96,22 @@ class TestTileOptimisation:
     def test_post_loop_callback_returns_working_state(
         self, mock_config: Config, mock_state: State
     ) -> None:
-        """Test post_loop_callback returns the last working state."""
+        """Test post_loop_callback returns a state derived from the last working one.
+
+        The result is a freshly constructed ``State`` so the ``fabulous__clean_probes``
+        metric can be added onto an immutable metrics dict — identity comparison
+        against ``mock_state`` no longer holds, but the original metrics must still be
+        visible on the returned state.
+        """
         step = TileOptimisation(mock_config)
-        step.last_working_state = mock_state
+        step.config = mock_config
+        step.last_working_state = State(metrics=mock_state.metrics)
+        step.clean_probes = []
 
         result = step.post_loop_callback(mock_state)
 
-        assert result == mock_state
+        assert result.metrics["route__drc_errors"] == 0
+        assert result.metrics["fabulous__clean_probes"] == []
 
     def test_post_loop_callback_raises_error_without_working_state(
         self, mock_config: Config, mock_state: State

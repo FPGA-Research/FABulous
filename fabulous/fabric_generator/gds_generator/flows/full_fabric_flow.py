@@ -319,6 +319,7 @@ class FABulousFabricMacroFullFlow(Flow):
                     "design__core__bbox",
                     "design__instance__area__stdcell",
                     "design__instance__utilization__stdcell",
+                    "fabulous__clean_probes",
                 )
                 metrics_dict = {
                     k: v for k in metric_keys if (v := state.metrics.get(k)) is not None

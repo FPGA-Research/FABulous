@@ -183,17 +183,29 @@ class NLPTileProblem(ElementwiseProblem):
         for tile in fabric.get_all_unique_tiles():
             name = tile.name
             areas: list[float] = []
-            samples: list[tuple[float, float]] = []
+            raw_samples: list[tuple[float, float]] = []
             for mode_metrics in self.tile_metrics.values():
-                if name not in mode_metrics:
+                m = mode_metrics.get(name)
+                if m is None:
                     continue
-                x0, y0, x1, y1 = mode_metrics[name]["design__die__bbox"]
-                w, h = x1 - x0, y1 - y0
-                areas.append(w * h)
-                samples.append((w, h))
-            samples.sort(key=lambda wh: wh[1])
+                # Terminal bbox plus every mid-run DRC-clean sample
+                bboxes = [m["design__die__bbox"], *m.get("fabulous__clean_probes", [])]
+                for x0, y0, x1, y1 in bboxes:
+                    w, h = x1 - x0, y1 - y0
+                    areas.append(w * h)
+                    raw_samples.append((w, h))
+
+            raw_samples.sort(key=lambda wh: (wh[1], wh[0]))
+            frontier: list[tuple[float, float]] = []
+            min_w_so_far = float("inf")
+            for w, h in reversed(raw_samples):
+                if w < min_w_so_far:
+                    frontier.append((w, h))
+                    min_w_so_far = w
+            frontier.reverse()
+
             self.min_areas[name] = min(areas) if areas else float("inf")
-            self.tile_samples[name] = samples
+            self.tile_samples[name] = frontier
 
             stdcell_vals = [
                 a
@@ -578,6 +590,11 @@ class GlobalTileSizeOptimization(Step):
         ):
             if data.get(key) is not None:
                 result[key] = float(data[key])
+        probes_raw = data.get("fabulous__clean_probes")
+        if probes_raw:
+            result["fabulous__clean_probes"] = [
+                [float(v) for v in bbox] for bbox in probes_raw
+            ]
         return result
 
     @classmethod

@@ -152,6 +152,8 @@ class TileOptimisation(WhileStep):
 
     last_working_state: State | None = None
 
+    clean_probes: list[list[float]] = []
+
     raise_on_failure: bool = False
 
     break_next_iteration: bool = False
@@ -224,6 +226,12 @@ class TileOptimisation(WhileStep):
         # on the instance to carry it across resets.
         if (ca := post_iteration.metrics.get("design__core__area")) is not None:
             self.last_core_area = Decimal(ca)
+
+        # DRC and antenna clean design as sample for the later optimisation.
+        if full_iter_completed:
+            die_bbox = post_iteration.metrics.get("design__die__bbox")
+            if die_bbox is not None:
+                self.clean_probes.append([float(v) for v in die_bbox.split()])
 
         if self._is_directional():
             _, _, w, h = self.config["DIE_AREA"]
@@ -302,7 +310,7 @@ class TileOptimisation(WhileStep):
             # First iteration: no actual core area yet. Estimate core area
             # from die area minus floorplan margins (site insets on each side)
             # so the overshoot scaling triggers when cells barely fit.
-            margin_x = Decimal(2) * site_width * 6
+            margin_x = Decimal(2) * site_width
             margin_y = Decimal(2) * site_height
             core_area = (width - margin_x) * (height - margin_y)
 
@@ -363,7 +371,7 @@ class TileOptimisation(WhileStep):
 
         match opt_mode:
             case OptMode.BALANCE:
-                if self.to_change_width:
+                if width <= height:
                     width += width_step
                 else:
                     height += height_step
@@ -440,7 +448,18 @@ class TileOptimisation(WhileStep):
                 )
             raise RuntimeError("No working state found after tile optimisation.")
 
-        result = self.last_working_state
+        # State.metrics is an immutable dict; rebuild the state with an added
+        # clean_probes entry rather than mutating in place.
+        from librelane.common import GenericImmutableDict
+
+        last = self.last_working_state
+        result = State(
+            last,
+            metrics=GenericImmutableDict(
+                last.metrics,
+                overrides={"fabulous__clean_probes": list(self.clean_probes)},
+            ),
+        )
 
         # Update config with actual die area so downstream steps
         # (e.g. Magic/KLayout stream-out) use the correct boundary.
@@ -482,6 +501,7 @@ class TileOptimisation(WhileStep):
         **_kwargs: dict,
     ) -> tuple[ViewsUpdate, MetricsUpdate]:
         """Run the tile optimisation step."""
+        self.clean_probes = []
         if self.config["IGNORE_ANTENNA_VIOLATIONS"]:
             info("Ignoring antenna violations during tile optimisation.")
             self.config = self.config.copy(ERROR_ON_TR_DRC=False)

@@ -312,7 +312,7 @@ class Tile:
         return ret
 
     def get_port_count(self, side: Side) -> int:
-        """Count total number of expanded ports on a given side of the tile.
+        """Count total number of expanded physical pins on a given side of the tile.
 
         Parameters
         ----------
@@ -324,8 +324,17 @@ class Tile:
         int
             Total number of expanded ports on the given side.
         """
-        ports = [p for p in self.portsInfo if p.sideOfTile == side and p.name != "NULL"]
-        return sum(len(group) for p in ports for group in p.expandPortInfo("all"))
+        total = 0
+        for p in self.portsInfo:
+            if p.sideOfTile != side or p.name == "NULL":
+                continue
+            inputs, outputs = p.expandPortInfo("all")
+            if p.name == p.sourceName:
+                total += len(inputs)
+            elif p.name == p.destinationName:
+                total += len(outputs)
+
+        return total
 
     def get_min_die_area(
         self,
