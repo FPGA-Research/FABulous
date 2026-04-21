@@ -20,12 +20,12 @@ from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass impo
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
     PyosysBridge,
 )
-from fabulous.fabric_cad.fabxplore.synthesizer.core.architecture import (
-    ArchitectureSynthesizer,
-)
-from fabulous.fabric_cad.fabxplore.synthesizer.core.models import (
+from fabulous.fabric_cad.fabxplore.synthesizer.fabr_v2.models import (
     ArchitectureMapResult,
     FabulousArchitectureConfig,
+)
+from fabulous.fabric_cad.fabxplore.synthesizer.synth_arch import (
+    ArchitectureSynthesizer,
 )
 
 

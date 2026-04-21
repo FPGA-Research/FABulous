@@ -4,10 +4,10 @@ from pathlib import Path
 
 from loguru import logger
 
-from fabulous.fabric_cad.fabxplore.synthesizer.core.fabulous_architecture import (
+from fabulous.fabric_cad.fabxplore.synthesizer.fabr_v2.fabulous_architecture import (
     FabulousArchitecture,
 )
-from fabulous.fabric_cad.fabxplore.synthesizer.core.models import (
+from fabulous.fabric_cad.fabxplore.synthesizer.fabr_v2.models import (
     FabulousArchitectureConfig,
 )
 from fabulous.fabulous_cli.helper import (
