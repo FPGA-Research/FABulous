@@ -217,8 +217,10 @@ class YosysJson:
 
     Parameters
     ----------
-    path : Path
+    path : Path | None
         Path to a HDL file.
+    yosys_dict : dict | None
+        Optional pre-parsed Yosys JSON dictionary. If provided, this will be used
 
     Attributes
     ----------
@@ -233,13 +235,8 @@ class YosysJson:
 
     Raises
     ------
-    FileNotFoundError
-        If the JSON file doesn't exist.
-    InvalidFileType
-        If the file type is not .vhd, .vhdl, .v, or .sv.
-    RuntimeError
-        If Yosys or GHDL fails to process the file.
     ValueError
+        If no path or yosys_dict is provided.
         If there is a miss match in the VHDL entity and the Yosys top module.
     """
 
@@ -248,70 +245,23 @@ class YosysJson:
     modules: dict[str, YosysModule]
     models: dict
 
-    def __init__(self, path: Path) -> None:
-        if not path.exists():
-            raise FileNotFoundError(f"File {path} does not exist")
-        if path.suffix not in {".vhd", ".vhdl", ".v", ".sv"}:
-            raise InvalidFileType(
-                f"Unsupported HDL file type: {path.suffix}. "
-                f"Supported types are .vhd, .vhdl, .v, .sv"
-            )
+    def __init__(
+        self,
+        path: Path | None = None,
+        yosys_dict: dict | None = None,
+    ) -> None:
+        _yosys_dict: dict = {}
 
-        self.srcPath = path.absolute()
-        yosys = get_context().yosys_path
-        ghdl = get_context().ghdl_path
-        json_file = self.srcPath.with_suffix(".json")
-
-        # FIXME: a fake file to ensure things working with 1.3
-        temp: Path = Path(tempfile.gettempdir())
-        temp = temp / "my_package.vhd"
-        temp.touch()
-        temp.write_text("package my_package is\nend package;\n")
-        # VHDL files are converted to Verilog by GHDL, so use .v suffix for yosys
-        # Verilog/SystemVerilog files use their original suffix
-        if self.srcPath.suffix in {".vhd", ".vhdl"}:
-            runCmd = [
-                f"{ghdl!s}",
-                "--synth",
-                "--std=08",
-                "--out=verilog",
-                str(temp),
-                f"{get_context().models_pack!s}",
-                f"{self.srcPath}",
-                "-e",
-                f"{self.srcPath.stem}",
-            ]
-            try:
-                r = subprocess.run(runCmd, check=True, capture_output=True)
-                self.srcPath.with_suffix(".v").write_text(r.stdout.decode())
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(
-                    f"Failed to run GHDL on {self.srcPath}: {e.stderr.decode()} "
-                    f"run cmd: {' '.join(runCmd)}"
-                ) from e
-            yosys_src = self.srcPath.with_suffix(".v")
+        if yosys_dict is not None:
+            self.srcPath = Path("<pre-parsed dict>")
+            _yosys_dict = yosys_dict
+        elif path is not None:
+            self.srcPath = path.absolute()
+            _yosys_dict = _manage_yosys_inputs(path)
         else:
-            yosys_src = self.srcPath
-        runCmd = [
-            f"{yosys!s}",
-            "-q",
-            (
-                "-p "
-                f"read_verilog -sv {yosys_src}; "
-                "hierarchy -auto-top; "
-                "proc -noopt; "
-                f"write_json -compat-int {json_file}"
-            ),
-        ]
-        try:
-            subprocess.run(runCmd, check=True, capture_output=True)
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(
-                f"Failed to run Yosys on {self.srcPath}: {e.stderr.decode()}"
-            ) from e
-        with json_file.open() as f:
-            o = json.load(f)
-        self.creator = o.get("creator", "")  # Use .get() for safety
+            raise ValueError("Either path or yosys_dict must be provided")
+
+        self.creator = _yosys_dict.get("creator", "")  # Use .get() for safety
         # Provide default empty dicts for potentially missing keys in module data
         self.modules = {
             k: YosysModule(
@@ -322,9 +272,9 @@ class YosysJson:
                 memories=v.get("memories", {}),  # Provide default for memories
                 netnames=v.get("netnames", {}),  # Provide default for netnames
             )
-            for k, v in o.get("modules", {}).items()  # Use .get() for safety
+            for k, v in _yosys_dict.get("modules", {}).items()  # Use .get() for safety
         }
-        self.models = o.get("models", {})  # Use .get() for safety
+        self.models = _yosys_dict.get("models", {})  # Use .get() for safety
 
         # Post-process VHDL file for now. Once VHDL is updated, we can remove this.
         if self.srcPath.suffix in [".vhd", ".vhdl"]:
@@ -514,3 +464,89 @@ def _update_dict_ignore_case(
         original[key] = value
 
     return original
+
+
+def _manage_yosys_inputs(path: Path) -> dict:
+    """Run Yosys to read a HDL file and produce a Yosys JSON dictionary.
+
+    Parameters
+    ----------
+    path : Path
+        Path to the input HDL file (.vhd, .vhdl, .v, .sv).
+
+    Returns
+    -------
+    dict
+        Parsed Yosys JSON dictionary representing the design.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the JSON file doesn't exist.
+    InvalidFileType
+        If the file type is not .vhd, .vhdl, .v, or .sv.
+    RuntimeError
+        If Yosys or GHDL fails to process the file.
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"File {path} does not exist")
+    if path.suffix not in {".vhd", ".vhdl", ".v", ".sv"}:
+        raise InvalidFileType(
+            f"Unsupported HDL file type: {path.suffix}. "
+            f"Supported types are .vhd, .vhdl, .v, .sv"
+        )
+
+    srcPath = path.absolute()
+    yosys = get_context().yosys_path
+    ghdl = get_context().ghdl_path
+    json_file = srcPath.with_suffix(".json")
+
+    # FIXME: a fake file to ensure things working with 1.3
+    temp: Path = Path(tempfile.gettempdir())
+    temp = temp / "my_package.vhd"
+    temp.touch()
+    temp.write_text("package my_package is\nend package;\n")
+    # VHDL files are converted to Verilog by GHDL, so use .v suffix for yosys
+    # Verilog/SystemVerilog files use their original suffix
+    if srcPath.suffix in {".vhd", ".vhdl"}:
+        runCmd = [
+            f"{ghdl!s}",
+            "--synth",
+            "--std=08",
+            "--out=verilog",
+            str(temp),
+            f"{get_context().models_pack!s}",
+            f"{srcPath}",
+            "-e",
+            f"{srcPath.stem}",
+        ]
+        try:
+            r = subprocess.run(runCmd, check=True, capture_output=True)
+            srcPath.with_suffix(".v").write_text(r.stdout.decode())
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(
+                f"Failed to run GHDL on {srcPath}: {e.stderr.decode()} "
+                f"run cmd: {' '.join(runCmd)}"
+            ) from e
+        yosys_src = srcPath.with_suffix(".v")
+    else:
+        yosys_src = srcPath
+    runCmd = [
+        f"{yosys!s}",
+        "-q",
+        (
+            "-p "
+            f"read_verilog -sv {yosys_src}; "
+            "hierarchy -auto-top; "
+            "proc -noopt; "
+            f"write_json -compat-int {json_file}"
+        ),
+    ]
+    try:
+        subprocess.run(runCmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(
+            f"Failed to run Yosys on {srcPath}: {e.stderr.decode()}"
+        ) from e
+    with json_file.open() as f:
+        return json.load(f)

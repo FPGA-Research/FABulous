@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pyosys.libyosys as ys
 
+from fabulous.fabric_definition.yosys_obj import YosysJson
+
 
 class PyosysBridge:
     """Wrap a pyosys design object and common IO/pass commands.
@@ -180,6 +182,20 @@ class PyosysBridge:
         with self._temporary_path(".v") as path:
             self.write_verilog_path(path)
             return path.read_text(encoding="utf-8")
+
+    def to_py_object(self) -> YosysJson:
+        """Return the active design as a YosysJson object.
+
+        This is a pure python class strcutured definition of the
+        Yosys JSON format, which is more convenient to work with in python code.
+
+        Returns
+        -------
+        YosysJson
+            YosysJson object parsed from the active design's JSON representation.
+        """
+        netlist_dict = self.to_netlist_dict()
+        return YosysJson(yosys_dict=netlist_dict)
 
     def load_netlist_dict(self, model_json: dict) -> None:
         """Replace the active design with one loaded from a JSON dictionary.
