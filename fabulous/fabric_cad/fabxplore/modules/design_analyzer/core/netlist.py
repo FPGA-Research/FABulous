@@ -1,7 +1,7 @@
-"""Parse Yosys JSON into design-analyzer internal netlist models.
+"""Parse Yosys Python objects into design-analyzer internal netlist models.
 
-The parser maps raw Yosys JSON to typed classes so downstream analysis logic can operate
-solely on stable internal structures rather than ad-hoc JSON dictionaries.
+The parser maps ``YosysJson`` objects to typed classes so downstream analysis logic can
+operate solely on stable internal structures.
 """
 
 from collections import Counter
@@ -11,20 +11,24 @@ from fabulous.fabric_cad.fabxplore.modules.design_analyzer.core.models import (
     ModulePort,
     TopModuleNetlist,
 )
-
-_CONSTANT_BITS = {"0", "1", "x", "z"}
+from fabulous.fabric_definition.yosys_obj import (
+    YosysCellDetails,
+    YosysJson,
+    YosysModule,
+    YosysPortDetails,
+)
 
 
 def parse_top_module_json(
-    model_json: dict,
+    yosys_obj: YosysJson,
     top_name: str | None = None,
 ) -> TopModuleNetlist:
-    """Parse Yosys JSON and return a typed top-module netlist model.
+    """Parse a Yosys object and return a typed top-module netlist model.
 
     Parameters
     ----------
-    model_json : dict
-        Full Yosys JSON dictionary emitted by ``write_json``.
+    yosys_obj : YosysJson
+        Full Yosys object emitted by ``PyosysBridge.to_py_object``.
     top_name : str | None
         Optional explicit top-module name. If ``None``, the parser picks the
         module with the largest cell count.
@@ -37,39 +41,35 @@ def parse_top_module_json(
     Raises
     ------
     RuntimeError
-        If the JSON does not contain a valid ``modules`` section or the
+        If the object does not contain modules or the
         requested module cannot be found.
     """
-    modules: dict = model_json.get("modules", {})
+    modules: dict[str, YosysModule] = yosys_obj.modules
     if not modules:
-        raise RuntimeError("No modules found in provided Yosys JSON dictionary.")
+        raise RuntimeError("No modules found in provided Yosys object.")
 
     selected_top: str = _select_top_module(modules, top_name)
-    module_raw: dict = modules[selected_top]
+    module_data: YosysModule = modules[selected_top]
 
-    ports: tuple[ModulePort, ...] = _parse_ports(module_raw.get("ports", {}))
-    cells: tuple[LogicalCell, ...] = _parse_cells(module_raw.get("cells", {}))
-    bit_to_netname: dict[str, str] = _parse_bit_to_netname(
-        module_raw.get("netnames", {})
-    )
+    ports: tuple[ModulePort, ...] = _parse_ports(module_data.ports)
+    cells: tuple[LogicalCell, ...] = _parse_cells(module_data.cells)
 
-    creator: str = str(model_json.get("creator", "unknown"))
+    creator: str = str(yosys_obj.creator or "unknown")
     return TopModuleNetlist(
         creator=creator,
-        top_name=selected_top,
+        top_name=_normalize_name(selected_top),
         ports=ports,
         cells=cells,
-        bit_to_netname=bit_to_netname,
     )
 
 
-def _select_top_module(modules: dict, top_name: str | None) -> str:
-    """Choose the module to analyze from a Yosys ``modules`` dictionary.
+def _select_top_module(modules: dict[str, YosysModule], top_name: str | None) -> str:
+    """Choose the module to analyze from a Yosys module mapping.
 
     Parameters
     ----------
-    modules : dict
-        Mapping of module name to module dictionary.
+    modules : dict[str, YosysModule]
+        Mapping of module names to module objects.
     top_name : str | None
         Optional explicit requested top-module name.
 
@@ -83,34 +83,38 @@ def _select_top_module(modules: dict, top_name: str | None) -> str:
     RuntimeError
         If an explicit top-module is requested but not present.
     """
+    normalized_to_raw: dict[str, str] = {
+        _normalize_name(name): name for name in modules
+    }
+
     if top_name is not None:
-        if top_name not in modules:
-            available: str = ", ".join(sorted(modules))
+        req_name = _normalize_name(top_name)
+        selected = normalized_to_raw.get(req_name)
+        if selected is None:
+            available: str = ", ".join(sorted(normalized_to_raw))
             raise RuntimeError(
                 f"Requested top module '{top_name}' not found. Available: {available}"
             )
-        return top_name
+        return selected
 
     if len(modules) == 1:
         return next(iter(modules))
 
     ranked: list[tuple[int, int, str]] = []
-    for name, module_raw in modules.items():
-        cells_raw: dict = module_raw.get("cells", {})
-        ports_raw: dict = module_raw.get("ports", {})
-        ranked.append((len(cells_raw), len(ports_raw), name))
+    for name, module_data in modules.items():
+        ranked.append((len(module_data.cells), len(module_data.ports), name))
 
     ranked.sort(reverse=True)
     return ranked[0][2]
 
 
-def _parse_ports(ports_raw: dict) -> tuple[ModulePort, ...]:
-    """Parse module ports from Yosys JSON format.
+def _parse_ports(ports_data: dict[str, YosysPortDetails]) -> tuple[ModulePort, ...]:
+    """Parse module ports from Yosys object format.
 
     Parameters
     ----------
-    ports_raw : dict
-        ``ports`` mapping from a Yosys module dictionary.
+    ports_data : dict[str, YosysPortDetails]
+        ``ports`` mapping from a Yosys module object.
 
     Returns
     -------
@@ -119,24 +123,28 @@ def _parse_ports(ports_raw: dict) -> tuple[ModulePort, ...]:
     """
     out: list[ModulePort] = []
 
-    for name, raw in ports_raw.items():
-        direction: str = str(raw.get("direction", "input")).lower()
-        bits: tuple[str, ...] = tuple(
-            _normalize_bit(bit) for bit in raw.get("bits", [])
-        )
+    for name, port in ports_data.items():
+        direction: str = str(port.direction).lower()
+        bits: tuple[str, ...] = tuple(_normalize_bit(bit) for bit in port.bits)
 
-        out.append(ModulePort(name=name, direction=direction, bits=bits))
+        out.append(
+            ModulePort(
+                name=_normalize_name(name),
+                direction=direction,
+                bits=bits,
+            )
+        )
 
     return tuple(out)
 
 
-def _parse_cells(cells_raw: dict) -> tuple[LogicalCell, ...]:
+def _parse_cells(cells_data: dict[str, YosysCellDetails]) -> tuple[LogicalCell, ...]:
     """Parse cell instances for one module.
 
     Parameters
     ----------
-    cells_raw : dict
-        ``cells`` mapping from a Yosys module dictionary.
+    cells_data : dict[str, YosysCellDetails]
+        ``cells`` mapping from a Yosys module object.
 
     Returns
     -------
@@ -145,24 +153,22 @@ def _parse_cells(cells_raw: dict) -> tuple[LogicalCell, ...]:
     """
     out: list[LogicalCell] = []
 
-    for cell_id, raw in cells_raw.items():
-        cell_type: str = str(raw.get("type", "")).lstrip("\\")
+    for cell_id, cell in cells_data.items():
+        cell_type: str = _normalize_name(cell.type)
 
         params: dict[str, str] = {
-            str(k): _stringify_json_value(v)
-            for k, v in raw.get("parameters", {}).items()
+            str(k): _stringify_json_value(v) for k, v in cell.parameters.items()
         }
         attrs: dict[str, str] = {
-            str(k): _stringify_json_value(v)
-            for k, v in raw.get("attributes", {}).items()
+            str(k): _stringify_json_value(v) for k, v in cell.attributes.items()
         }
 
         conn_dict: dict[str, tuple[str, ...]] = {}
-        for port_name, bits_raw in raw.get("connections", {}).items():
+        for port_name, bits_raw in cell.connections.items():
             conn_dict[str(port_name)] = tuple(_normalize_bit(bit) for bit in bits_raw)
 
         given_dirs: dict[str, str] = {
-            str(k): str(v).lower() for k, v in raw.get("port_directions", {}).items()
+            str(k): str(v).lower() for k, v in cell.port_directions.items()
         }
 
         inferred_dirs: dict[str, str] = {}
@@ -186,7 +192,7 @@ def _parse_cells(cells_raw: dict) -> tuple[LogicalCell, ...]:
 
         out.append(
             LogicalCell(
-                cell_id=str(cell_id),
+                cell_id=_normalize_name(cell_id),
                 cell_type=cell_type,
                 parameters=params,
                 attributes=attrs,
@@ -199,32 +205,6 @@ def _parse_cells(cells_raw: dict) -> tuple[LogicalCell, ...]:
         )
 
     return tuple(out)
-
-
-def _parse_bit_to_netname(netnames_raw: dict) -> dict[str, str]:
-    """Build best-effort mapping from bit identifiers to net names.
-
-    Parameters
-    ----------
-    netnames_raw : dict
-        ``netnames`` mapping from a Yosys module dictionary.
-
-    Returns
-    -------
-    dict[str, str]
-        Mapping from normalized bit identifiers to one readable net name.
-    """
-    out: dict[str, str] = {}
-
-    for net_name, raw in netnames_raw.items():
-        bits = raw.get("bits", [])
-        for bit in bits:
-            bit_key: str = _normalize_bit(bit)
-            if _is_constant_bit(bit_key):
-                continue
-            out.setdefault(bit_key, str(net_name))
-
-    return out
 
 
 def count_unique_signal_bits(netlist: TopModuleNetlist) -> int:
@@ -302,6 +282,11 @@ def _normalize_bit(bit: int | str) -> str:
     return text.removeprefix("\\")
 
 
+def _normalize_name(name: object) -> str:
+    """Normalize Yosys names by stripping optional leading backslashes."""
+    return str(name).strip().removeprefix("\\")
+
+
 def _stringify_json_value(value: object) -> str:
     """Convert an arbitrary JSON field value into a deterministic string.
 
@@ -333,7 +318,7 @@ def _is_constant_bit(bit: str) -> bool:
     bool
         ``True`` if the token is a constant, else ``False``.
     """
-    return bit.lower() in _CONSTANT_BITS
+    return bit.lower() in {"0", "1", "x", "z"}
 
 
 def _infer_port_direction(port_name: str, cell_type: str) -> str:

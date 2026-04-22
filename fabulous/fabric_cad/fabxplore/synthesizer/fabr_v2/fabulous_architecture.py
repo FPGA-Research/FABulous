@@ -102,7 +102,8 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         dap = DesignAnalyzerPass(top_name=self.config.top_module)
         dap.run_on(self.design)
         logger.info(dap.report_summary)
-        logger.log(self.design.to_py_object())
+        t = self.design.to_py_object()
+        logger.info(t.modules.keys())
 
     def map_ram(self) -> None:
         """Map inferred memory structures to RAM primitives."""

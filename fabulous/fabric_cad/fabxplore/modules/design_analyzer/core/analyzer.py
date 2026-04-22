@@ -226,20 +226,22 @@ class DesignAnalyzer:
         self._progress.on_start(self.config.top_name)
 
         try:
-            netlist_json: dict = design.to_netlist_dict()
+            yosys_obj = design.to_py_object()
         except Exception as exc:  # pragma: no cover - defensive boundary
-            logger.exception("Failed to export design as JSON through PyosysBridge.")
-            raise RuntimeError("Could not export design into Yosys JSON.") from exc
+            logger.exception("Failed to export design as Yosys object.")
+            raise RuntimeError("Could not export design into Yosys object.") from exc
 
         try:
             netlist: TopModuleNetlist = parse_top_module_json(
-                netlist_json,
+                yosys_obj,
                 top_name=self.config.top_name,
             )
         except Exception as exc:
-            logger.exception("Failed to parse Yosys JSON into internal netlist model.")
+            logger.exception(
+                "Failed to parse Yosys object into internal netlist model."
+            )
             raise RuntimeError(
-                "Could not parse Yosys JSON netlist for analysis."
+                "Could not parse Yosys object netlist for analysis."
             ) from exc
 
         self._progress.on_netlist_mapped(

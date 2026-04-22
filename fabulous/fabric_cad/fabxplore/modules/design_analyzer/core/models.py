@@ -109,15 +109,12 @@ class TopModuleNetlist:
         Top-level module ports.
     cells : tuple[LogicalCell, ...]
         All cells in the selected top module.
-    bit_to_netname : dict[str, str]
-        Best-effort mapping from bit ids to readable net names.
     """
 
     creator: str
     top_name: str
     ports: tuple[ModulePort, ...]
     cells: tuple[LogicalCell, ...]
-    bit_to_netname: dict[str, str]
 
 
 @dataclass(frozen=True)
