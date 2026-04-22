@@ -98,6 +98,20 @@ var = [
         "Minimum tile height based on pin requirements.",
         default=Decimal(0),
     ),
+    Variable(
+        "FABULOUS_TILE_LOGICAL_WIDTH",
+        int,
+        "Supertile logical column count; 1 for regular tiles. Used to lock the "
+        "balance-mode aspect ratio to logical_w:logical_h (square cells).",
+        default=1,
+    ),
+    Variable(
+        "FABULOUS_TILE_LOGICAL_HEIGHT",
+        int,
+        "Supertile logical row count; 1 for regular tiles. Paired with "
+        "FABULOUS_TILE_LOGICAL_WIDTH for aspect locking.",
+        default=1,
+    ),
 ]
 
 
@@ -369,9 +383,22 @@ class TileOptimisation(WhileStep):
             width *= scale
             height *= scale
 
+        logical_w = Decimal(self.config.get("FABULOUS_TILE_LOGICAL_WIDTH", 1))
+        logical_h = Decimal(self.config.get("FABULOUS_TILE_LOGICAL_HEIGHT", 1))
+        is_supertile = logical_w * logical_h > Decimal(1)
+
         match opt_mode:
             case OptMode.BALANCE:
-                if width <= height:
+                if is_supertile:
+                    # Keep total aspect = logical_w : logical_h (square cells).
+                    # Grow area by ~one step worth on each axis, then rebalance.
+                    new_area = (
+                        width * height + width * height_step + height * width_step
+                    )
+                    ratio = logical_w / logical_h
+                    width = (new_area * ratio).sqrt()
+                    height = width / ratio
+                elif width <= height:
                     width += width_step
                 else:
                     height += height_step
@@ -535,6 +562,8 @@ class TileOptimisation(WhileStep):
         #   FIND_MIN_HEIGHT: keep w = pin_min_w, grow h to fit the cells.
         #   BALANCE / LARGE: square bbox sized to hold the cells.
         if instance_area > 0 and pin_w > 0 and pin_h > 0:
+            logical_w = Decimal(self.config.get("FABULOUS_TILE_LOGICAL_WIDTH", 1))
+            logical_h = Decimal(self.config.get("FABULOUS_TILE_LOGICAL_HEIGHT", 1))
             match opt_mode:
                 case OptMode.FIND_MIN_WIDTH:
                     init_h = pin_h
@@ -542,10 +571,18 @@ class TileOptimisation(WhileStep):
                 case OptMode.FIND_MIN_HEIGHT:
                     init_w = pin_w
                     init_h = max(pin_h, instance_area / init_w)
-                case _:  # BALANCE, LARGE
-                    side = instance_area.sqrt()
-                    init_w = max(pin_w, side)
-                    init_h = max(pin_h, side)
+                case _:  # BALANCE, LARGE — target square cells, aspect = W:H.
+                    cell_side = (instance_area / (logical_w * logical_h)).sqrt()
+                    init_w = logical_w * cell_side
+                    init_h = logical_h * cell_side
+                    # Respect pin floor; if forced up on one axis, scale the
+                    # other to keep logical aspect.
+                    if pin_w > init_w:
+                        init_w = pin_w
+                        init_h = max(init_h, init_w * logical_h / logical_w)
+                    if pin_h > init_h:
+                        init_h = pin_h
+                        init_w = max(init_w, init_h * logical_w / logical_h)
 
             x_pitch, y_pitch = get_pitch(self.config)
             init_w = round_up_decimal(init_w, x_pitch)

@@ -216,6 +216,43 @@ class NLPTileProblem(ElementwiseProblem):
             ]
             self.stdcell_areas[name] = max(stdcell_vals) if stdcell_vals else 0.0
 
+        for tile in fabric.get_all_unique_tiles():
+            samples = self.tile_samples.get(tile.name, [])
+            if len(samples) != 1:
+                continue
+            sample_w, sample_h = samples[0]
+
+            if tile.name in self.fabric.superTileDic:
+                supertile = self.fabric.superTileDic[tile.name]
+                first_row = supertile.tileMap[0] if supertile.tileMap else []
+                n_cols = sum(1 for t in first_row if t is not None)
+                n_rows = sum(
+                    1
+                    for row in supertile.tileMap
+                    if row and any(t is not None for t in row)
+                )
+                if n_cols == 0 or n_rows == 0:
+                    continue
+                per_row_h = sample_h / n_rows
+                per_col_w = sample_w / n_cols
+                for row in supertile.tileMap:
+                    for component in row:
+                        if component is None:
+                            continue
+                        for row_idx in self.tile_row_set[component.name]:
+                            vi = self.row_group_to_var[self.row_groups[row_idx]]
+                            xl[vi] = max(xl[vi], per_row_h)
+                        for col_idx in self.tile_column_set[component.name]:
+                            vi = self.col_group_to_var[self.col_groups[col_idx]]
+                            xl[vi] = max(xl[vi], per_col_w)
+            else:
+                for row_idx in self.tile_row_set[tile.name]:
+                    var_idx = self.row_group_to_var[self.row_groups[row_idx]]
+                    xl[var_idx] = max(xl[var_idx], sample_h)
+                for col_idx in self.tile_column_set[tile.name]:
+                    var_idx = self.col_group_to_var[self.col_groups[col_idx]]
+                    xl[var_idx] = max(xl[var_idx], sample_w)
+
         # Fail fast if any tile/supertile failed every exploration mode.
         valid_names = {
             n for mode_metrics in self.tile_metrics.values() for n in mode_metrics
