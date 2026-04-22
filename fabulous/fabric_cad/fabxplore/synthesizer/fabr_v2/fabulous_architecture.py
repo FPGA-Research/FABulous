@@ -160,6 +160,10 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design.run_pass(f"hierarchy -top {self.config.top_module} -check")
         self.design.run_pass("stat")
 
+        dap = DesignAnalyzerPass(top_name=self.config.top_module)
+        dap.run_on(self.design)
+        logger.info(dap.report_summary)
+
     def synthesize(self) -> None:
         """Run the full synthesis pipeline for a user design."""
         self.begin()

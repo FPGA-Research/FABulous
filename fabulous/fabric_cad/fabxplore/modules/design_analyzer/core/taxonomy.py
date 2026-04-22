@@ -39,6 +39,15 @@ class DesignTag(StrEnum):
     MIXED_STRUCTURE = "mixed-structure"
 
 
+class ControlSignal(StrEnum):
+    """Canonical identifiers for control-signal categories."""
+
+    CLOCK = "clock"
+    RESET = "reset"
+    SET = "set"
+    ENABLE = "enable"
+
+
 @dataclass(frozen=True)
 class CharacterizationThresholds:
     """Threshold bundle used to derive design characterization tags.
@@ -93,6 +102,8 @@ class AnalyzerTaxonomy:
         Family order for report tables.
     chain_families : tuple[CellFamily, ...]
         Families used for chain/connectivity analysis.
+    control_port_prefixes : Mapping[ControlSignal, tuple[str, ...]]
+        Prefix rules used to classify control ports.
     thresholds : CharacterizationThresholds
         Threshold bundle for characterization logic.
     """
@@ -101,6 +112,7 @@ class AnalyzerTaxonomy:
     sequential_patterns: tuple[re.Pattern[str], ...]
     report_family_order: tuple[CellFamily, ...]
     chain_families: tuple[CellFamily, ...]
+    control_port_prefixes: Mapping[ControlSignal, tuple[str, ...]]
     thresholds: CharacterizationThresholds
 
 
@@ -239,11 +251,19 @@ def build_default_taxonomy() -> AnalyzerTaxonomy:
         CellFamily.ARITHMETIC,
     )
 
+    control_port_prefixes: dict[ControlSignal, tuple[str, ...]] = {
+        ControlSignal.CLOCK: ("C", "CLK", "CLOCK"),
+        ControlSignal.RESET: ("R", "RST", "RESET", "ARST", "SRST", "CLR"),
+        ControlSignal.SET: ("S", "SET", "PRE"),
+        ControlSignal.ENABLE: ("EN", "CE", "E"),
+    }
+
     return AnalyzerTaxonomy(
         family_patterns=family_patterns,
         sequential_patterns=sequential_patterns,
         report_family_order=report_family_order,
         chain_families=chain_families,
+        control_port_prefixes=control_port_prefixes,
         thresholds=CharacterizationThresholds(),
     )
 

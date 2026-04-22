@@ -76,6 +76,13 @@ def render_design_analysis_report(
     )
     lines.append("")
 
+    lines.append("Control Signals")
+    lines.append(f"- Clock-like port refs: {stats.clock_port_refs}")
+    lines.append(f"- Reset-like port refs: {stats.reset_port_refs}")
+    lines.append(f"- Set-like port refs: {stats.set_port_refs}")
+    lines.append(f"- Enable-like port refs: {stats.enable_port_refs}")
+    lines.append("")
+
     lines.append("Primitive Family Breakdown")
     for family in used_taxonomy.report_family_order:
         value = stats.family_counts.get(family, 0)

@@ -31,6 +31,7 @@ from fabulous.fabric_cad.fabxplore.modules.design_analyzer.core.taxonomy import 
     DEFAULT_TAXONOMY,
     AnalyzerTaxonomy,
     CellFamily,
+    ControlSignal,
     DesignTag,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
@@ -314,18 +315,22 @@ class DesignAnalyzer:
         for cell in cells:
             ctype = cell.cell_type
             families = self._classifier.families_for(ctype)
+            is_sequential = self._classifier.is_sequential(ctype)
 
             for fam in families:
                 family_counter[fam] += 1
 
             if CellFamily.MEMORY in families:
                 stats.memory_cells += 1
-            elif self._classifier.is_sequential(ctype):
+            elif is_sequential:
                 stats.sequential_cells += 1
             elif ctype.startswith(("$", "$_")) or families:
                 stats.combinational_cells += 1
             else:
                 stats.unknown_cells += 1
+
+            if is_sequential:
+                self._accumulate_control_port_refs(stats, cell)
 
         stats.family_counts = dict(family_counter)
 
@@ -463,6 +468,50 @@ class DesignAnalyzer:
             largest_component=largest_component,
             longest_path=longest_path,
         )
+
+    def _accumulate_control_port_refs(
+        self,
+        stats: DesignAnalysisStats,
+        cell: LogicalCell,
+    ) -> None:
+        """Count control-like port references on a sequential cell.
+
+        Parameters
+        ----------
+        stats : DesignAnalysisStats
+            Mutable aggregate stats.
+        cell : LogicalCell
+            Sequential cell to inspect.
+        """
+        for port_name in cell.connections:
+            control_signal = self._classify_control_port(port_name)
+            if control_signal is ControlSignal.CLOCK:
+                stats.clock_port_refs += 1
+            elif control_signal is ControlSignal.RESET:
+                stats.reset_port_refs += 1
+            elif control_signal is ControlSignal.SET:
+                stats.set_port_refs += 1
+            elif control_signal is ControlSignal.ENABLE:
+                stats.enable_port_refs += 1
+
+    def _classify_control_port(self, port_name: str) -> ControlSignal | None:
+        """Classify one port name into a control-signal category.
+
+        Parameters
+        ----------
+        port_name : str
+            Raw port name.
+
+        Returns
+        -------
+        ControlSignal | None
+            Matching control category, if any.
+        """
+        name_upper = port_name.upper()
+        for signal, prefixes in self._taxonomy.control_port_prefixes.items():
+            if name_upper.startswith(prefixes):
+                return signal
+        return None
 
     def _characterize(self, stats: DesignAnalysisStats) -> DesignCharacterization:
         """Derive user-friendly tags, observations, and recommendations.

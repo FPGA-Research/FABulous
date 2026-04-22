@@ -182,6 +182,14 @@ class DesignAnalysisStats:
         Maximum number of unique successor cells for one cell.
     avg_fanout : float
         Average unique successor count.
+    clock_port_refs : int
+        Number of sequential-cell port references classified as clock-like.
+    reset_port_refs : int
+        Number of sequential-cell port references classified as reset-like.
+    set_port_refs : int
+        Number of sequential-cell port references classified as set-like.
+    enable_port_refs : int
+        Number of sequential-cell port references classified as enable-like.
     """
 
     total_cells: int = 0
@@ -205,6 +213,10 @@ class DesignAnalysisStats:
     avg_fanin: float = 0.0
     max_fanout: int = 0
     avg_fanout: float = 0.0
+    clock_port_refs: int = 0
+    reset_port_refs: int = 0
+    set_port_refs: int = 0
+    enable_port_refs: int = 0
 
 
 @dataclass

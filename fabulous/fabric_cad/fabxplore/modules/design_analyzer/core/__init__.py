@@ -12,6 +12,7 @@ from fabulous.fabric_cad.fabxplore.modules.design_analyzer.core.taxonomy import 
     AnalyzerTaxonomy,
     CellFamily,
     CharacterizationThresholds,
+    ControlSignal,
     DesignTag,
 )
 
@@ -23,5 +24,6 @@ __all__ = [
     "CharacterizationThresholds",
     "DEFAULT_TAXONOMY",
     "CellFamily",
+    "ControlSignal",
     "DesignTag",
 ]
