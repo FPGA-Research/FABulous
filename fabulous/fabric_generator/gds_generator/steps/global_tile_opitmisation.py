@@ -216,13 +216,14 @@ class NLPTileProblem(ElementwiseProblem):
             ]
             self.stdcell_areas[name] = max(stdcell_vals) if stdcell_vals else 0.0
 
+        self._supertile_target_sample: dict[str, tuple[float, float]] = {}
         for tile in fabric.get_all_unique_tiles():
             samples = self.tile_samples.get(tile.name, [])
-            if len(samples) != 1:
+            if not samples:
                 continue
-            sample_w, sample_h = samples[0]
 
-            if tile.name in self.fabric.superTileDic:
+            is_supertile = tile.name in self.fabric.superTileDic
+            if is_supertile:
                 supertile = self.fabric.superTileDic[tile.name]
                 first_row = supertile.tileMap[0] if supertile.tileMap else []
                 n_cols = sum(1 for t in first_row if t is not None)
@@ -233,6 +234,22 @@ class NLPTileProblem(ElementwiseProblem):
                 )
                 if n_cols == 0 or n_rows == 0:
                     continue
+            else:
+                if len(samples) != 1:
+                    continue
+                n_cols, n_rows = 1, 1
+
+            target_aspect = n_cols / n_rows  # w/h for square cells
+            best = min(
+                samples,
+                key=lambda s: (
+                    abs((s[0] / s[1]) - target_aspect) if s[1] > 0 else float("inf")
+                ),
+            )
+            sample_w, sample_h = best
+
+            if is_supertile:
+                self._supertile_target_sample[tile.name] = (sample_w, sample_h)
                 per_row_h = sample_h / n_rows
                 per_col_w = sample_w / n_cols
                 for row in supertile.tileMap:

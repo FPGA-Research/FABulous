@@ -390,14 +390,9 @@ class TileOptimisation(WhileStep):
         match opt_mode:
             case OptMode.BALANCE:
                 if is_supertile:
-                    # Keep total aspect = logical_w : logical_h (square cells).
-                    # Grow area by ~one step worth on each axis, then rebalance.
-                    new_area = (
-                        width * height + width * height_step + height * width_step
-                    )
-                    ratio = logical_w / logical_h
-                    width = (new_area * ratio).sqrt()
-                    height = width / ratio
+                    cell_step = max(width_step / logical_w, height_step / logical_h)
+                    width += cell_step * logical_w
+                    height += cell_step * logical_h
                 elif width <= height:
                     width += width_step
                 else:
