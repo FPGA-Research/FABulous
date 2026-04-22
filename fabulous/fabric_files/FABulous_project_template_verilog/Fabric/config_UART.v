@@ -1,7 +1,7 @@
 `default_nettype none
 
 module config_UART #(
-    parameter integer Mode = 0,
+    parameter reg [1:0] Mode = 2'd0,
     // The default mode is "auto", which switches between "hex" and "binary" mode,
     // but takes a bit more logic.
     // Mode "bin" is the faster binary mode, but might not work on all machines/boards.
@@ -28,6 +28,10 @@ module config_UART #(
 
     localparam [19:0] TEST_FILE_CHECKSUM = 20'h4FB00;
     // verilog_lint: waive-stop explicit-parameter-storage-type
+
+    localparam reg [1:0] MODE_AUTO = 2'd0;
+    localparam reg [1:0] MODE_HEX = 2'd1;
+    localparam reg [1:0] MODE_BIN = 2'd2;
 
     function automatic [4:0] ASCII2HEX;
         input [7:0] ASCII;
@@ -295,7 +299,7 @@ module config_UART #(
     end
     assign Command = Command_Reg;
 
-    if (Mode == 0 || Mode == 1) begin : gen_L_hexmode
+    if (Mode == MODE_AUTO || Mode == MODE_HEX) begin : gen_L_hexmode
         assign HexValue = ASCII2HEX(ReceivedWord);
         always @(posedge CLK, negedge reset_n) begin
             if (!reset_n) begin
@@ -383,8 +387,7 @@ module config_UART #(
                 LocalWriteStrobe <= 1'b0;
             end
 
-            // Mode [0:auto|1:hex|2:bin]
-            if (Mode == 2 || (Mode == 0 && Command_Reg[7] == 1'b0)) begin
+            if (Mode == MODE_BIN || (Mode == MODE_AUTO && Command_Reg[7] == 1'b0)) begin
                 // "binary" mode or "auto" mode with detected binary mode in the
                 // command register
                 // Extra register stage ensures data is valid and prevents glitches on the strobe output
