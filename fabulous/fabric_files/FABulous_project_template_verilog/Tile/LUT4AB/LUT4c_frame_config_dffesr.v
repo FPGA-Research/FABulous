@@ -55,8 +55,8 @@ module LUT4c_frame_config_dffesr #(
     wire [LUT_SIZE-1 : 0] LUT_index;
     wire LUT_out;
     reg LUT_flop;
-    wire I0mux;  // normal input '0', or carry input '1'
-    wire c_out_mux, c_I0mux, c_reset_value;  // extra configuration bits
+    wire I0mux;  // '0': use the normal input, '1': use the carry input
+    wire c_out_mux, c_I0mux, c_reset_value;
 
     assign LUT_values = ConfigBits[15:0];
     assign c_out_mux = ConfigBits[16];

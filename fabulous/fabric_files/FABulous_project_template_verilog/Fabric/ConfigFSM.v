@@ -7,7 +7,7 @@ module ConfigFSM #(
     parameter integer desync_flag = 20  // verilog_lint: waive parameter-name-style
 ) (
     input CLK,
-    input resetn,
+    input reset_n,
     input [31:0] WriteData,
     input WriteStrobe,
     input FSM_Reset,
@@ -25,8 +25,8 @@ module ConfigFSM #(
     // verilog_lint: waive-stop explicit-parameter-storage-type
     reg [1:0] state;
     reg old_reset;
-    always @(posedge CLK, negedge resetn) begin : P_FSM
-        if (!resetn) begin
+    always @(posedge CLK, negedge reset_n) begin : P_FSM
+        if (!reset_n) begin
             old_reset <= 1'b0;
             state <= UNSYNCED;
             row_index <= 5'b00000;
@@ -91,8 +91,8 @@ module ConfigFSM #(
     end
 
     reg oldFrameStrobe;
-    always @(posedge CLK, negedge resetn) begin : P_StrobeREG
-        if (!resetn) begin
+    always @(posedge CLK, negedge reset_n) begin : P_StrobeREG
+        if (!reset_n) begin
             oldFrameStrobe  <= 1'b0;
             LongFrameStrobe <= 1'b0;
         end else begin

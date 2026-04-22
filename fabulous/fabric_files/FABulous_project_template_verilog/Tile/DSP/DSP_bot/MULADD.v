@@ -32,23 +32,23 @@ module MULADD #(
     input [19:0] C,  // operand C
     output [19:0] Q,  // result
     input clr,
-    //the EXTERNAL keyword will send this sisgnal all the way to top and the
-    //SHARED Allows multiple BELs using the same port
+    //The "EXTERNAL" keyword will send this signal all the way to top and the
+    //The "SHARED" Allows multiple BELs using the same port
     // (e.g. for exporting a clock to the top)
     (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,
-    // GLOBAL all primitive pins that are connected to the switch matrix have
+    // All primitive pins that are connected to the switch matrix have
     // to go before the GLOBAL label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
     reg  [ 7:0] A_reg;  // port A read data register
     reg  [ 7:0] B_reg;  // port B read data register
-    reg  [19:0] C_reg;  // port B read data register
-    wire [ 7:0] OPA;  // port A
-    wire [ 7:0] OPB;  // port B
-    wire [19:0] OPC;  // port B
+    reg  [19:0] C_reg;  // port C read data register
+    wire [ 7:0] OPA;
+    wire [ 7:0] OPB;
+    wire [19:0] OPC;
     reg  [19:0] ACC;  // accumulator register
-    wire [19:0] sum;  // port B read data register
-    wire [19:0] sum_in;  // port B read data register
+    wire [19:0] sum;
+    wire [19:0] sum_in;
     wire [15:0] product;
     wire [19:0] product_extended;
 
@@ -60,7 +60,7 @@ module MULADD #(
 
     assign product = OPA * OPB;
 
-    // The sign extension was not tested
+    // NOTE: The sign extension was not tested
     assign product_extended = ConfigBits[4] ?
                              {product[15],product[15],product[15],product[15],product} :
                              {4'b0000,product};

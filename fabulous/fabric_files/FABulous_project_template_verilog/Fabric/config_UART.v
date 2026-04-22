@@ -13,7 +13,7 @@ module config_UART #(
     parameter [11:0] ComRate = 12'd217  // verilog_lint: waive explicit-parameter-storage-type
 ) (
     input CLK,
-    input resetn,
+    input reset_n,
     input Rx,
     output reg [31:0] WriteData,
     output ComActive,
@@ -121,13 +121,13 @@ module config_UART #(
 
     reg [22:0] blink;
 
-    always @(posedge CLK, negedge resetn) begin : P_sync
-        if (!resetn) RxLocal <= 1'b1;
+    always @(posedge CLK, negedge reset_n) begin : P_sync
+        if (!reset_n) RxLocal <= 1'b1;
         else RxLocal <= Rx;
     end
 
-    always @(posedge CLK, negedge resetn) begin : P_com_en
-        if (!resetn) begin
+    always @(posedge CLK, negedge reset_n) begin : P_com_en
+        if (!reset_n) begin
             ComCount <= 0;
             ComTick  <= 0;
         end else begin
@@ -144,8 +144,8 @@ module config_UART #(
         end
     end
 
-    always @(posedge CLK, negedge resetn) begin : P_COM
-        if (!resetn) begin
+    always @(posedge CLK, negedge reset_n) begin : P_COM
+        if (!reset_n) begin
             ComState <= WAIT_FOR_START_BIT;
             ReceivedWord <= 8'b0;
             ID_Reg <= 24'b0;
@@ -236,8 +236,8 @@ module config_UART #(
         end
     end
 
-    always @(posedge CLK, negedge resetn) begin : P_FSM
-        if (!resetn) begin
+    always @(posedge CLK, negedge reset_n) begin : P_FSM
+        if (!reset_n) begin
             PresentState <= IDLE;
         end else begin
             case (PresentState)
@@ -297,8 +297,8 @@ module config_UART #(
 
     if (Mode == 0 || Mode == 1) begin : gen_L_hexmode
         assign HexValue = ASCII2HEX(ReceivedWord);
-        always @(posedge CLK, negedge resetn) begin
-            if (!resetn) begin
+        always @(posedge CLK, negedge reset_n) begin
+            if (!reset_n) begin
                 ReceiveState <= HIGH_NIBBLE;
                 HexData <= 8'b0;
                 HighReg <= 4'b0;
@@ -330,8 +330,8 @@ module config_UART #(
         end
     end
 
-    always @(posedge CLK, negedge resetn) begin : P_checksum
-        if (!resetn) begin
+    always @(posedge CLK, negedge reset_n) begin : P_checksum
+        if (!reset_n) begin
             CRCReg <= TEST_FILE_CHECKSUM;
             b_counter <= TEST_FILE_CHECKSUM;
             blink <= 23'b0;
@@ -368,8 +368,8 @@ module config_UART #(
         end
     end
 
-    always @(posedge CLK, negedge resetn) begin : P_bus
-        if (!resetn) begin
+    always @(posedge CLK, negedge reset_n) begin : P_bus
+        if (!reset_n) begin
             LocalWriteStrobe <= 1'b0;
             ByteWriteStrobe  <= 1'b0;
         end else begin
@@ -395,8 +395,8 @@ module config_UART #(
         end
     end
 
-    always @(posedge CLK, negedge resetn) begin : P_WordMode
-        if (!resetn) begin
+    always @(posedge CLK, negedge reset_n) begin : P_WordMode
+        if (!reset_n) begin
             GetWordState <= WORD_0;
             WriteData <= 32'b0;
             WriteStrobe <= 1'b0;
@@ -448,8 +448,8 @@ module config_UART #(
     // "binary" mode or "auto" mode with detected "binary" mode in the command register
     assign ComActive = (PresentState == GET_DATA) ? 1'b1 : 1'b0;
 
-    always @(posedge CLK, negedge resetn) begin : P_TimeOut
-        if (!resetn) begin
+    always @(posedge CLK, negedge reset_n) begin : P_TimeOut
+        if (!reset_n) begin
             rx_timeout_counter <= RX_TIMEOUT_VALUE;
             rx_timeout <= 1'b0;
         end else begin

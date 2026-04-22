@@ -7,7 +7,7 @@ module bitbang (
     output reg [31:0] data,
     output reg active,
     input clk,
-    input resetn
+    input reset_n
 );
     // verilog_lint: waive-start explicit-parameter-storage-type
     localparam [15:0] ON_PATTERN = 16'hFAB1;
@@ -23,8 +23,8 @@ module bitbang (
     reg local_strobe;
     reg old_local_strobe;
 
-    always @(posedge clk, negedge resetn) begin : p_input_sync
-        if (!resetn) begin
+    always @(posedge clk, negedge reset_n) begin : p_input_sync
+        if (!reset_n) begin
             s_data_sample <= 4'b0;
             s_clk_sample  <= 4'b0;
         end else begin
@@ -33,24 +33,24 @@ module bitbang (
         end
     end
 
-    always @(posedge clk, negedge resetn) begin : p_in_shift
-        if (!resetn) begin
+    always @(posedge clk, negedge reset_n) begin : p_in_shift
+        if (!reset_n) begin
             serial_data <= 32'b0;
             serial_control <= 16'b0;
         end else begin
             // On s_clk_sample rising edge, we sample in a serial_data bit
-            if ((s_clk_sample[3] == 1'b0) && (s_clk_sample[3-1] == 1'b1)) begin
-                serial_data <= {serial_data[31-1:0], s_data_sample[3]};
+            if ((s_clk_sample[3] == 1'b0) && (s_clk_sample[2] == 1'b1)) begin
+                serial_data <= {serial_data[30:0], s_data_sample[3]};
             end
             // On s_clk_sample falling edge, we sample in a serial_control bit
-            if ((s_clk_sample[3] == 1'b1) && (s_clk_sample[3-1] == 1'b0)) begin
-                serial_control <= {serial_control[15-1:0], s_data_sample[3]};
+            if ((s_clk_sample[3] == 1'b1) && (s_clk_sample[2] == 1'b0)) begin
+                serial_control <= {serial_control[14:0], s_data_sample[3]};
             end
         end
     end
 
-    always @(posedge clk, negedge resetn) begin : p_parallel_load
-        if (!resetn) begin
+    always @(posedge clk, negedge reset_n) begin : p_parallel_load
+        if (!reset_n) begin
             local_strobe <= 1'b0;
             data <= 32'b0;
             old_local_strobe <= 1'b0;
@@ -67,8 +67,8 @@ module bitbang (
         end
     end
 
-    always @(posedge clk, negedge resetn) begin : active_FSM
-        if (!resetn) begin
+    always @(posedge clk, negedge reset_n) begin : active_FSM
+        if (!reset_n) begin
             active <= 1'b0;
         end else begin
             if (serial_control == ON_PATTERN) begin

@@ -24,24 +24,21 @@ I3_reg=3
 module InPass4_frame_config_mux #(
     parameter integer NoConfigBits = 4
 ) (
-    // Pin0
     (* FABulous, EXTERNAL *) input [3:0] I,  //EXTERNAL
     output [3:0] O,  //EXTERNAL
     // Tile IO ports from BELs
-    //the EXTERNAL keyword will send this signal all the way to top and the
-    // SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
+    // The "EXTERNAL" keyword will send this signal all the way to top and the
+    // The "SHARED" keyword allows multiple BELs using the same port (e.g. for exporting a clock to the top)
     (* FABulous, EXTERNAL, SHARED_PORT *)
     input UserCLK,
-    // GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
+    // All primitive pins that are connected to the switch matrix have to go before the "GLOBAL" label
     (* FABulous, GLOBAL *) input [NoConfigBits - 1 : 0] ConfigBits
     //_____   ______
     //    I----+--->|FLOP|-Q-|1 M |
     //         |             |  U |-------> O
     //         +-------------|0 X |
-    // I am instantiating an IOBUF primitive.
-    // However, it is possible to connect corresponding pins all the way to top, just by adding an "-- EXTERNAL" comment (see PAD in the entity)
 );
-    reg [3:0] Q;  // FLOPs
+    reg [3:0] Q;
 
     always @(posedge UserCLK) begin
         Q <= I;

@@ -15,8 +15,8 @@ module BlockRAM_1KB #(
     input [31:0] wr_data,
     // Configuration bit inputs
     input C0,
-    input C1,  // C0,C1 select write port width
-    input C2,  // C2,C3 select read port width
+    input C1,  // C0 and C1 select write port width
+    input C2,  // C2 and C3 select read port width
     input C3,
     input C4,  // C4 selects the always_write_enable
     input C5  // C5 selects register bypass

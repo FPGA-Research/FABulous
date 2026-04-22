@@ -43,7 +43,7 @@ module eFPGA_Config #(
 
     config_UART INST_config_UART (
         .CLK(CLK),
-        .resetn(resetn),
+        .reset_n(resetn),
         .Rx(Rx),
         .WriteData(UART_WriteData),
         .ComActive(UART_ComActive),
@@ -60,7 +60,7 @@ module eFPGA_Config #(
         .data(BitBangWriteData),
         .active(BitBangActive),
         .clk(CLK),
-        .resetn(resetn)
+        .reset_n(resetn)
     );
 
     // Configuration port priority (highest to lowest): UART > BitBang > Parallel
@@ -86,7 +86,7 @@ module eFPGA_Config #(
         .desync_flag(desync_flag)
     ) ConfigFSM_inst (
         .CLK(CLK),
-        .resetn(resetn),
+        .reset_n(resetn),
         .WriteData(UART_WriteData_Mux),
         .WriteStrobe(UART_WriteStrobe_Mux),
         .FSM_Reset(FSM_Reset),
