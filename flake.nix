@@ -221,7 +221,7 @@
             ];
             devshell.startup.fabulous-setup = {
               text = ''
-                export REPO_ROOT=$(git rev-parse --show-toplevel)
+                export REPO_ROOT="${toString ./.}"
                 ORIGINAL_PS1="$PS1"
 
                 . ${virtualenv}/bin/activate
@@ -292,7 +292,7 @@
                 # FAB_YOSYS_PATH: tells FABulous the nix yosys binary is named fab-yosys
                 export FAB_YOSYS_PATH="fab-yosys"
 
-                export REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+                export REPO_ROOT="${toString ./.}"
                 . ${virtualenv}/bin/activate
 
                 # Build PYTHONPATH so librelane + venv + repo root are importable
