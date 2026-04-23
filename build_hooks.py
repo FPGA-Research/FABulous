@@ -21,6 +21,9 @@ this package walks every submodule under
 ``{_UPSTREAM_PKG}.{{steps,flows}}`` so their
 ``@Step.factory.register()`` / ``@Flow.factory.register()`` decorators fire.
 
+``FABulousTile`` and ``FABulousFabric`` are additionally re-exported at the
+package root as a drop-in replacement for ``mole99/librelane_plugin_fabulous``.
+
 Generated at build time by ``build_hooks.BuildPyWithFabulousNix`` — do not
 edit by hand. The source of truth for every Step and Flow lives in
 ``{_UPSTREAM_PKG}``.
@@ -34,7 +37,26 @@ for _sub in {subpkgs!s}:
     for _info in _pkgutil.iter_modules(_pkg.__path__):
         _importlib.import_module(f"{_UPSTREAM_PKG}.{{_sub}}.{{_info.name}}")
 
-del _importlib, _pkgutil
+__all__ = ["FABulousTile", "FABulousFabric"]
+
+_REEXPORTS = {{
+    "FABulousTile": ("{_UPSTREAM_PKG}.flows.plugin_tile_flow", "FABulousTile"),
+    "FABulousFabric": ("{_UPSTREAM_PKG}.flows.plugin_fabric_flow", "FABulousFabric"),
+}}
+
+
+def __getattr__(name):
+    """Lazy re-export.
+
+    Resolved on first access rather than at package-import time to avoid a
+    circular import when LibreLane's plugin discovery fires while this package's
+    own flow modules are still being initialised.
+    """
+    target = _REEXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {{__name__!r}} has no attribute {{name!r}}")
+    module_name, attr = target
+    return getattr(_importlib.import_module(module_name), attr)
 '''
 
 
