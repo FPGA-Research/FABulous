@@ -576,7 +576,7 @@ Please make sure to verify your custom BEL before you build a custom tile with i
 ### Working with multiple BELs
 
 In this example, we'll generate a custom LUT tile, based on our standard
-`LUT4c_frame_config_dffesr` implementation, to show how to work with multiple BELs.
+`LUT4c_frame_config_dffesr` (`FABULOUS_LC.v`) implementation, to show how to work with multiple BELs.
 The LUT4c_frame_config_dffesr implementation is a standard LUT4 with a flip-flop and
 a carry chain:
 
@@ -967,7 +967,7 @@ demo
 │   ├── ...
 │   └── W_IO      # W_IO Tile Configuration Files
 │       ├── Config_access.v
-│       ├── IO_1_bidirectional_frame_config_pass.v
+│       ├── IOBUF.v
 │       ├── W_IO.csv
 │       └── W_IO_switch_matrix.list
 └── user_design   # User Design Files
@@ -975,7 +975,7 @@ demo
 ```
 
 Currently, we need three files to implement the W_IOs, the tile definition (W_IO.csv),
-the switch matrix (W_IO_switch_matrix.list) and the Verilog/VHDL file (IO_1_bidirectional_frame_config_pass.v).
+the switch matrix (W_IO_switch_matrix.list) and the Verilog/VHDL file (IOBUF.v).
 
 The default W_IO.csv file looks like following:
 
@@ -994,8 +994,8 @@ WEST,NULL,-4,0,WW4END,4,,,,,,,,,,,,,
 WEST,NULL,-6,0,W6END,2,,,,,,,,,,,,,
 JUMP,NULL,0,0,GND,1,,,,,,,,,,,,,
 JUMP,NULL,0,0,VCC,1,,,,,,,,,,,,,
-BEL,./IO_1_bidirectional_frame_config_pass.v,A_,,,,,,,,,,,,,,,,
-BEL,./IO_1_bidirectional_frame_config_pass.v,B_,,,,,,,,,,,,,,,,
+BEL,./IOBUF.v,A_,,,,,,,,,,,,,,,,
+BEL,./IOBUF.v,B_,,,,,,,,,,,,,,,,
 BEL,./Config_access.v,A_config_,,,,,,,,,,,,,,,,
 BEL,./Config_access.v,B_config_,,,,,,,,,,,,,,,,
 MATRIX,./W_IO_switch_matrix.list,,,,,,,,,,,,,,,,,
@@ -1007,8 +1007,8 @@ We also define the JUMP wires for the GND and VCC connections.
 The BEL statements define the Verilog/VHDL files that are used to implement the IOs.
 The MATRIX statement defines the switch matrix that is used to connect the IOs to the switch matrix.
 
-For our W_IO Tile we have two IOs, A and B, which are implemented in the IO_1_bidirectional_frame_config_pass.v file.
-Our IO_1_bidirectional_frame_config_pass.v file looks like following:
+For our W_IO Tile we have two IOs, A and B, which are implemented in the `IOBUF.v` file.
+Our `IOBUF.v` file looks like following:
 
 ```Verilog
 module IO_1_bidirectional_frame_config_pass (I, T, O, Q, I_top, T_top, O_top, UserCLK);//, ConfigBits);
@@ -1071,7 +1071,7 @@ $(venv) cp -r demo/Tile/W_IO demo/Tile/GEN_W_IO
 $(venv) mv demo/Tile/GEN_W_IO/W_IO.csv demo/Tile/GEN_W_IO/GEN_W_IO.csv
 $(venv) mv demo/Tile/GEN_W_IO/W_IO_switch_matrix.list demo/Tile/GEN_W_IO/GEN_W_IO_switch_matrix.list
 
-$(venv) rm demo/Tile/GEN_W_IO/IO_1_bidirectional_frame_config_pass.v
+$(venv) rm demo/Tile/GEN_W_IO/IOBUF.v
 $(venv) rm demo/Tile/GEN_W_IO/Config_access.v
 ```
 

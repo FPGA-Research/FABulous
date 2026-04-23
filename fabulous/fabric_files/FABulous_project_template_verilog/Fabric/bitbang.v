@@ -46,7 +46,6 @@ module bitbang (s_clk, s_data, strobe, data, active, clk, resetn);
         end
     end
 
-// we could replicate the following
     always @ (posedge clk, negedge resetn)
     begin : p_parallel_load
         if (!resetn) begin
@@ -59,16 +58,12 @@ module bitbang (s_clk, s_data, strobe, data, active, clk, resetn);
             if (serial_control == on_pattern) begin// x"FAB1" then
                 data <= serial_data;
                 local_strobe <= 1'b1;
-            end //else begin
-            //  data <= data;
-            //  local_strobe <= 1'b0;
-            // end
+            end
             old_local_strobe <= local_strobe;
             strobe <= local_strobe & ~old_local_strobe; // activates strobe for one clock cycle after "FAB0" was detected
         end
     end
 
-// we could replicate the following
     always @ (posedge clk, negedge resetn)
     begin : active_FSM
         if (!resetn) begin
@@ -82,20 +77,5 @@ module bitbang (s_clk, s_data, strobe, data, active, clk, resetn);
             end
         end
     end
-
-// the following is just copy and past, in case we want use the bitbang interface to shift in other data (let's say to drive CPU port)
-// we can also read back the data by loading the parallel shift and shifting the content to an output pin
-//p_parallel_load2: process(clk)
-//begin
-//    if clk'event and clk=1'b1 then
-//        local_strobe <= 1'b0;       // will be overwritten if next conditional is true
-//        if serial_control = x"FAB1" then
-//            data2 <= serial_data;
-//            local_strobe2 <= 1'b1;
-//            old_local_strobe2 <= local_strobe;
-//        end if;
-//      strobe2 <= local_strobe2 and (not old_local_strobe2)   // activates strobe for one clock cycle after "FAB0" was detected
-//    end if;
-//end process;
 
 endmodule

@@ -23,7 +23,7 @@ Chapter 5.2). User should also define different types of DFF in the `ff_map.v` f
 
 We have made a comparison between synthesis with and without `ENABLE` and `SET/RESET DFF` on the `Murax core` benchmark, as shown below:
 
-| Name         | LUT1 | LUT2 | LUT3 | LUT4 | LUT_total | LUTFF | LUTFF_E | LUTFF_SR | LUTFF_SS | LUTFF_ESR | LUTFF_ESS | RegFile_32x4 |
+| Name         | LUT1 | LUT2 | LUT3 | LUT4 | LUT_total | LUTFF | LUTFF_E | LUTFF_SR | LUTFF_SS | LUTFF_ESR | LUTFF_ESS | RAM_32x4_2R_1W |
 | ------------ | ---- | ---- | ---- | ---- | --------- | ----- | ------- | -------- | -------- | --------- | --------- | ------------ |
 | Murax        | 4    | 335  | 1248 | 1195 | 2782      | 1361  |         |          |          |           |           | 12           |
 | Murax_dffesr | 128  | 380  | 637  | 785  | 1930      | 233   | 841     | 86       | 7        | 174       | 20        | 12           |

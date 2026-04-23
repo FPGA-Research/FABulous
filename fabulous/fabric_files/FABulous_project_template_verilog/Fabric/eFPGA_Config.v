@@ -77,10 +77,6 @@ module eFPGA_Config (CLK, resetn, Rx, ComActive, ReceiveLED, s_clk, s_data, Self
     assign ComActive = UART_ComActive;
     assign ReceiveLED = UART_LED^BitBangWriteStrobe;
 
-//  wire [FrameBitsPerRow-1:0] FrameAddressRegister;
-//  wire LongFrameStrobe;
-//  wire [RowSelectWidth-1:0] RowSelect;
-
     ConfigFSM #(
     .NumberOfRows(NumberOfRows),
     .RowSelectWidth(RowSelectWidth),

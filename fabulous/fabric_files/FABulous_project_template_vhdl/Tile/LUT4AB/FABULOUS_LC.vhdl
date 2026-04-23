@@ -1,3 +1,30 @@
+-- LUT4 with carry chain, flip-flop, enable, and synchronous reset
+--
+--                        ConfigBits[15:0]
+--                              |
+--                              v
+--                    +-----------------+
+--                    |                 |
+--        +-------+   |                 |                    +-------+
+--  I[0]--|0  MUX |-->| 16:1 MUX (LUT)  |--+-- LUT_out --+-->|0  MUX |---> O
+--  Ci  --|1      |   |                 |  |             |   |1      |
+--        +-------+   |                 |  |             |   +-------+
+--            ^       |                 |  | +------+    |       ^
+--         c_I0mux    |                 |  +-| D  Q |----+   c_out_mux
+--                    |                 |    |      |
+--  I[1] ------------>|                 |    | >clk |
+--  I[2] ------------>|                 |    | en   |
+--  I[3] ------------>|                 |    | sr   |
+--                    +-----------------+    +------+
+--                                            ^ ^ ^
+--  UserCLK ----------------------------------+ | |
+--  EN  (enable) -------------------------------+ |
+--  SR  (sync reset, value = c_reset_value) ------+
+--
+--  Carry chain (iCE40 style):
+--  Co = majority(Ci, I[1], I[2])
+--
+
 package attr_pack_LUT4AB_LUT4c_frame_config_dffesr is
   attribute FABulous    : string;
   attribute BelMap      : string;
@@ -46,30 +73,30 @@ entity LUT4c_frame_config_dffesr is
     ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0)
   );
 
-  attribute FABulous of LUT4c_frame_config_dffesr    : entity is "TRUE";
-  attribute BelMap of LUT4c_frame_config_dffesr      : entity is "TRUE";
-  attribute INIT of LUT4c_frame_config_dffesr        : entity is 0;
-  attribute INIT_1 of LUT4c_frame_config_dffesr      : entity is 1;
-  attribute INIT_2 of LUT4c_frame_config_dffesr      : entity is 2;
-  attribute INIT_3 of LUT4c_frame_config_dffesr      : entity is 3;
-  attribute INIT_4 of LUT4c_frame_config_dffesr      : entity is 4;
-  attribute INIT_5 of LUT4c_frame_config_dffesr      : entity is 5;
-  attribute INIT_6 of LUT4c_frame_config_dffesr      : entity is 6;
-  attribute INIT_7 of LUT4c_frame_config_dffesr      : entity is 7;
-  attribute INIT_8 of LUT4c_frame_config_dffesr      : entity is 8;
-  attribute INIT_9 of LUT4c_frame_config_dffesr      : entity is 9;
-  attribute INIT_10 of LUT4c_frame_config_dffesr     : entity is 10;
-  attribute INIT_11 of LUT4c_frame_config_dffesr     : entity is 11;
-  attribute INIT_12 of LUT4c_frame_config_dffesr     : entity is 12;
-  attribute INIT_13 of LUT4c_frame_config_dffesr     : entity is 13;
-  attribute INIT_14 of LUT4c_frame_config_dffesr     : entity is 14;
-  attribute INIT_15 of LUT4c_frame_config_dffesr     : entity is 15;
-  attribute FAB_ATTR_FF of LUT4c_frame_config_dffesr : entity is 16;
-  attribute IOmux of LUT4c_frame_config_dffesr       : entity is 17;
-  attribute SET_NORESET of LUT4c_frame_config_dffesr : entity is 18;
-  attribute EXTERNAL of UserCLK                      : signal is "TRUE";
-  attribute SHARED_PORT of UserCLK                   : signal is "TRUE";
-  attribute GLOBAL of ConfigBits                     : signal is "TRUE";
+  attribute FABulous of LUT4c_frame_config_dffesr      : entity is "TRUE";
+  attribute BelMap of LUT4c_frame_config_dffesr        : entity is "TRUE";
+  attribute INIT of LUT4c_frame_config_dffesr          : entity is 0;
+  attribute INIT_1 of LUT4c_frame_config_dffesr        : entity is 1;
+  attribute INIT_2 of LUT4c_frame_config_dffesr        : entity is 2;
+  attribute INIT_3 of LUT4c_frame_config_dffesr        : entity is 3;
+  attribute INIT_4 of LUT4c_frame_config_dffesr        : entity is 4;
+  attribute INIT_5 of LUT4c_frame_config_dffesr        : entity is 5;
+  attribute INIT_6 of LUT4c_frame_config_dffesr        : entity is 6;
+  attribute INIT_7 of LUT4c_frame_config_dffesr        : entity is 7;
+  attribute INIT_8 of LUT4c_frame_config_dffesr        : entity is 8;
+  attribute INIT_9 of LUT4c_frame_config_dffesr        : entity is 9;
+  attribute INIT_10 of LUT4c_frame_config_dffesr       : entity is 10;
+  attribute INIT_11 of LUT4c_frame_config_dffesr       : entity is 11;
+  attribute INIT_12 of LUT4c_frame_config_dffesr       : entity is 12;
+  attribute INIT_13 of LUT4c_frame_config_dffesr       : entity is 13;
+  attribute INIT_14 of LUT4c_frame_config_dffesr       : entity is 14;
+  attribute INIT_15 of LUT4c_frame_config_dffesr       : entity is 15;
+  attribute FAB_ATTR_FF of LUT4c_frame_config_dffesr   : entity is 16;
+  attribute IOmux of LUT4c_frame_config_dffesr         : entity is 17;
+  attribute SET_NORESET of LUT4c_frame_config_dffesr   : entity is 18;
+  attribute EXTERNAL of UserCLK       : signal is "TRUE";
+  attribute SHARED_PORT of UserCLK    : signal is "TRUE";
+  attribute GLOBAL of ConfigBits      : signal is "TRUE";
 end entity LUT4c_frame_config_dffesr;
 
 architecture Behavioral of LUT4c_frame_config_dffesr is
@@ -96,11 +123,6 @@ begin
   c_I0mux       <= ConfigBits(17);
   c_reset_value <= ConfigBits(18);
 
-  --CONFout <= c_I0mux;
-
-  -- I0mux <= I(0) when (c_I0mux = '0') else
-  --   Ci;
-
   inst_cus_mux21_I0mux : entity work.cus_mux21
   port map
   (
@@ -111,9 +133,6 @@ begin
   );
   LUT_index <= I(3) & I(2) & I(1) & I0mux;
 
-  -- The LUT is just a multiplexer
-  -- for a first shot, I am using a 16:1
-  -- LUT_out <= LUT_values(TO_INTEGER(LUT_index));
   LUT_index_0N <= not LUT_index(0);
   LUT_index_1N <= not LUT_index(1);
   LUT_index_2N <= not LUT_index(2);

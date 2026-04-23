@@ -3,6 +3,6 @@ TILE,DSP_bot,,,,,,,,,,,,,,,,,
 INCLUDE,../../include/Base.csv
 NORTH,bot2top,0,-1,NULL,10,,,,,,,,,,,,,
 SOUTH,NULL,0,1,top2bot,18,,,,,,,,,,,,,
-BEL,./MULADD.{HDL_SUFFIX},,,,,,,,,,,,,,,,,
+BEL,./MACC_8x8_20.{HDL_SUFFIX},,,,,,,,,,,,,,,,,
 MATRIX,./DSP_bot_switch_matrix.list,,,,,,,,,,,,,,,,,
 EndTILE,,,,,,,,,,,,,,,,,,

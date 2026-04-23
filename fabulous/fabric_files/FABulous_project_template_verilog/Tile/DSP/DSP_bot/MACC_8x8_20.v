@@ -12,6 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// 8x8 multiply-accumulate unit with optional input registers
+//
+//  A[7:0] -->[MUX c0]--> OPA --+
+//            (A/A_reg)         |   +------+   +--------+   +-----+
+//                              +-->| 8x8  |-->|  ext   |-->|     |
+//  B[7:0] -->[MUX c1]--> OPB --+-->| MUL  |   | [c4]   |   | ADD |----> sum
+//            (B/B_reg)             +------+   +--------+ +>|     |       |
+//                                                        | +-----+       |
+//  C[19:0] ->[MUX c2]--> OPC -->[MUX c3]--> sum_in ------+               |
+//            (C/C_reg)          (OPC/ACC)                                |
+//                                   ^          +-------+                 |
+//                                   +----------|  ACC  |<----------------+
+//                                              | D   Q |<-- clr
+//  Q[19:0] <-----[MUX c5]----------------------+-------+
+//                (sum/ACC)
+//
 (* FABulous, BelMap,
 A_reg=0,
 B_reg=1,
@@ -21,25 +37,24 @@ signExtension=4,
 ACCout=5
 *)
 module MULADD #(parameter NoConfigBits = 6)(
-    // ConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
-    input [7:0] A, // operand A
-    input [7:0] B, // operand B
-    input [19:0] C, // operand C
-    output [19:0] Q,// result
-    input clr,
-    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK, // EXTERNAL // SHARED_PORT // ## the EXTERNAL keyword will send this sisgnal all the way to top and the //SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
+    input [7:0] A,          // operand A
+    input [7:0] B,          // operand B
+    input [19:0] C,         // operand C (add input)
+    output [19:0] Q,        // result
+    input clr,              // accumulator clear
+    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,
     // GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
-    reg [7:0] A_reg;        // port A read data register
-    reg [7:0] B_reg;        // port B read data register
-    reg [19:0] C_reg;       // port B read data register
-    wire [7:0] OPA;     // port A
-    wire [7:0] OPB;     // port B
-    wire [19:0] OPC;        // port B
-    reg [19:0] ACC ;        // accumulator register
-    wire [19:0] sum;// port B read data register
-    wire [19:0] sum_in;// port B read data register
+    reg [7:0] A_reg;
+    reg [7:0] B_reg;
+    reg [19:0] C_reg;
+    wire [7:0] OPA;
+    wire [7:0] OPB;
+    wire [19:0] OPC;
+    reg [19:0] ACC;
+    wire [19:0] sum;
+    wire [19:0] sum_in;
     wire [15:0] product;
     wire [19:0] product_extended;
 
@@ -47,11 +62,10 @@ module MULADD #(parameter NoConfigBits = 6)(
     assign OPB = ConfigBits[1] ? B_reg : B;
     assign OPC = ConfigBits[2] ? C_reg : C;
 
-    assign sum_in = ConfigBits[3] ? ACC : OPC;// we can
+    assign sum_in = ConfigBits[3] ? ACC : OPC;
 
     assign product = OPA * OPB;
 
-// The sign extension was not tested
     assign product_extended = ConfigBits[4] ? {product[15],product[15],product[15],product[15],product} : {4'b0000,product};
 
     assign sum = product_extended + sum_in;
@@ -64,7 +78,7 @@ module MULADD #(parameter NoConfigBits = 6)(
         B_reg <= B;
         C_reg <= C;
         if (clr == 1'b1) begin
-            ACC <= 20'b00000000000000000000;
+            ACC <= 20'b0;
         end else begin
             ACC <= sum;
         end

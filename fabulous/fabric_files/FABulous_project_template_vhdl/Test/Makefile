@@ -64,21 +64,21 @@ run_simulation: mkdir_build
 	${GHDL} -a ${GHDL_FLAGS} \
 	              ${FAB_TILE_FOLDER}/LUT4AB/LUT4AB_switch_matrix.vhdl \
 	              ${FAB_TILE_FOLDER}/LUT4AB/LUT4AB_ConfigMem.vhdl \
-	              ${FAB_TILE_FOLDER}/LUT4AB/LUT4c_frame_config_dffesr.vhdl \
-	              ${FAB_TILE_FOLDER}/LUT4AB/MUX8LUT_frame_config_mux.vhdl \
+	              ${FAB_TILE_FOLDER}/LUT4AB/FABULOUS_LC.vhdl \
+	              ${FAB_TILE_FOLDER}/LUT4AB/MUX8.vhdl \
 	              ${FAB_TILE_FOLDER}/LUT4AB/LUT4AB.vhdl \
 	              ${FAB_TILE_FOLDER}/RAM_IO/RAM_IO_switch_matrix.vhdl \
 	              ${FAB_TILE_FOLDER}/RAM_IO/RAM_IO_ConfigMem.vhdl \
-	              ${FAB_TILE_FOLDER}/RAM_IO/InPass4_frame_config_mux.vhdl \
-	              ${FAB_TILE_FOLDER}/RAM_IO/OutPass4_frame_config_mux.vhdl \
+	              ${FAB_TILE_FOLDER}/RAM_IO/InPass4.vhdl \
+	              ${FAB_TILE_FOLDER}/RAM_IO/OutPass4.vhdl \
 	              ${FAB_TILE_FOLDER}/RAM_IO/RAM_IO.vhdl \
 	              ${FAB_TILE_FOLDER}/RegFile/RegFile_switch_matrix.vhdl \
 	              ${FAB_TILE_FOLDER}/RegFile/RegFile_ConfigMem.vhdl \
-	              ${FAB_TILE_FOLDER}/RegFile/RegFile_32x4.vhdl \
+	              ${FAB_TILE_FOLDER}/RegFile/RAM_32x4_2R_1W.vhdl \
 	              ${FAB_TILE_FOLDER}/RegFile/RegFile.vhdl \
 	              ${FAB_TILE_FOLDER}/W_IO/W_IO_switch_matrix.vhdl \
 	              ${FAB_TILE_FOLDER}/W_IO/W_IO_ConfigMem.vhdl \
-	              ${FAB_TILE_FOLDER}/W_IO/IO_1_bidirectional_frame_config_pass.vhdl \
+	              ${FAB_TILE_FOLDER}/W_IO/IOBUF.vhdl \
 	              ${FAB_TILE_FOLDER}/W_IO/Config_access.vhdl \
 	              ${FAB_TILE_FOLDER}/W_IO/W_IO.vhdl && \
 	${GHDL} -a ${GHDL_FLAGS} \
@@ -87,7 +87,7 @@ run_simulation: mkdir_build
 	              ${FAB_TILE_FOLDER}/DSP/DSP_top/DSP_top.vhdl \
 	              ${FAB_TILE_FOLDER}/DSP/DSP_bot/DSP_bot_switch_matrix.vhdl \
 	              ${FAB_TILE_FOLDER}/DSP/DSP_bot/DSP_bot_ConfigMem.vhdl \
-	              ${FAB_TILE_FOLDER}/DSP/DSP_bot/MULADD.vhdl \
+	              ${FAB_TILE_FOLDER}/DSP/DSP_bot/MACC_8x8_20.vhdl \
 	              ${FAB_TILE_FOLDER}/DSP/DSP_bot/DSP_bot.vhdl \
 	              ${FAB_TILE_FOLDER}/DSP/DSP.vhdl && \
 	${GHDL} -a ${GHDL_FLAGS} \

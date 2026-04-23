@@ -12,30 +12,43 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
+// 32-entry x 4-bit register file with dual read ports
+//
+//                +-------------------------------+
+//                |       32 x 4-bit RAM          |
+//  D[3:0] ------>| Write Data                    |
+//  W_ADR[4:0] -->| Write Address                 |
+//  W_en -------->| Write Enable                  |
+//                |                               |
+//  A_ADR[4:0] -->| Read Port A --> AD_comb --+---|---> [MUX c0] --> AD[3:0]
+//                |                    |      |   |     (comb/reg)
+//                |                  [REG]----+   |
+//                |                               |
+//  B_ADR[4:0] -->| Read Port B --> BD_comb --+---|---> [MUX c1] --> BD[3:0]
+//                |                    |      |   |     (comb/reg)
+//                |                  [REG]----+   |
+//                +-------------------------------+
+//
 (* FABulous, BelMap,
 AD_reg=0,
 BD_reg=1
 *)
 module RegFile_32x4 #(parameter NoConfigBits = 2)(
-    // ConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
-    input [3:0] D, // Register File write port
-    input [4:0] W_ADR,
-    input W_en,
+    input [3:0] D,          // write data
+    input [4:0] W_ADR,      // write address
+    input W_en,             // write enable
 
-    output [3:0] AD, // Register File read port A
-    input [4:0] A_ADR,
+    output [3:0] AD,        // read port A data
+    input [4:0] A_ADR,      // read port A address
 
-    output [3:0] BD, //Register File read port B
-    input [4:0] B_ADR,
+    output [3:0] BD,        // read port B data
+    input [4:0] B_ADR,      // read port B address
 
-    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK, // EXTERNAL // SHARED_PORT // ## the EXTERNAL keyword will send this sisgnal all the way to top and the //SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
+    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,
     // GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
 
-    //type memtype is array (31 downto 0) of std_logic_vector(3 downto 0); // 32 entries of 4 bit
-    //signal mem : memtype := (others => (others => '0'));
     reg [3:0] mem [31:0];
 
     wire [3:0] AD_comb;     // port A read data, combinatorial
@@ -52,7 +65,6 @@ module RegFile_32x4 #(parameter NoConfigBits = 2)(
         end
     end
 
-//P_write: process (UserCLK)
     always @ (posedge UserCLK) begin : P_write
         if (W_en == 1'b1) begin
             mem[W_ADR] <= D ;

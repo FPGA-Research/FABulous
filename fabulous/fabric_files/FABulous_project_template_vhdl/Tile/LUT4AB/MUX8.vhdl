@@ -1,3 +1,47 @@
+-- Configurable 8-input fracturable MUX tree for LUT composition
+--
+-- Depending on config bits c0 and c1, this module can operate as:
+--   c0=0, c1=0: Four independent 2:1 muxes (AB, CD, EF, GH)
+--   c0=1, c1=0: Two independent 4:1 muxes (AD, EH)
+--   c0=1, c1=1: One 8:1 mux (AH)
+--
+--                  Stage 1           Stage 2           Stage 3
+--
+--                 +------+          +------+          +------+
+--  A ------------>|0  AB |--------->|0  AD |--------->|0  AH |
+--  B ------------>|1     |    +---->|1     |    +---->|1     |
+--                 +------+    |     +------+    |     +------+
+--                   ^         |       ^         |       ^
+--                  S[0]       |      S[1]       |      S[3]
+--                 +------+    |                 |
+--  C ------------>|0  CD |----+                 |
+--  D ------------>|1     |                      |
+--                 +------+                      |
+--                   ^                           |
+--                  sCD                          |
+--                 +------+          +------+    |
+--  E ------------>|0  EF |--------->|0  EH |----+
+--  F ------------>|1     |    +---->|1     |
+--                 +------+    |     +------+
+--                   ^         |       ^
+--                  sEF        |      sEH
+--                 +------+    |
+--  G ------------>|0  GH |----+
+--  H ------------>|1     |
+--                 +------+
+--                   ^
+--                  sGH
+--
+-- Output muxes (controlled by config bits c0, c1):
+--   M_AB = AB (direct)
+--   M_AD = c0 ? AD : CD
+--   M_EF = EF (direct)
+--   M_AH = c1 ? AH : (c0 ? EH : GH)
+--
+-- Select signal generation (config-dependent):
+--   sCD = c0 ? S[0] : S[1]    sEF = c1 ? S[0] : S[2]
+--   sEH = c1 ? S[1] : S[3]    sGH = c0 ? sEF  : sEH
+--
 package attr_pack_LUT4AB_MUX8LUT_frame_config_mux is
   attribute FABulous    : string;
   attribute BelMap      : string;
@@ -39,7 +83,7 @@ entity MUX8LUT_frame_config_mux is
   attribute BelMap of MUX8LUT_frame_config_mux   : entity is "TRUE";
   attribute c0 of MUX8LUT_frame_config_mux       : entity is 0;
   attribute c1 of MUX8LUT_frame_config_mux       : entity is 1;
-  attribute GLOBAL of ConfigBits                 : signal is "TRUE";
+  attribute GLOBAL of ConfigBits      : signal is "TRUE";
 end entity MUX8LUT_frame_config_mux;
 
 architecture Behavioral of MUX8LUT_frame_config_mux is
