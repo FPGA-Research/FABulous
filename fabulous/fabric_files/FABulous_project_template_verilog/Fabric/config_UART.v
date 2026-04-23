@@ -22,12 +22,10 @@ module config_UART #(
     output reg ReceiveLED
 );
 
-    // verilog_lint: waive-start explicit-parameter-storage-type
     // 25e6/1500 ~= 16666, original minus one
-    localparam [14:0] RX_TIMEOUT_VALUE = 15'd16665;
+    localparam reg [14:0] RX_TIMEOUT_VALUE = 15'd16665;
 
-    localparam [19:0] TEST_FILE_CHECKSUM = 20'h4FB00;
-    // verilog_lint: waive-stop explicit-parameter-storage-type
+    localparam reg [19:0] TEST_FILE_CHECKSUM = 20'h4FB00;
 
     localparam reg [1:0] MODE_AUTO = 2'd0;
     localparam reg [1:0] MODE_HEX = 2'd1;

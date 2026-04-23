@@ -39,7 +39,7 @@ module eFPGA_Config #(
     wire BitBangWriteStrobe_Mux;
     wire BitBangActive;
 
-    wire FSM_Reset;
+    wire fsm_reset;
 
     config_UART INST_config_UART (
         .CLK(CLK),
@@ -74,7 +74,7 @@ module eFPGA_Config #(
     assign ConfigWriteData = UART_WriteData_Mux;
     assign ConfigWriteStrobe = UART_WriteStrobe_Mux;
 
-    assign FSM_Reset = UART_ComActive || BitBangActive;
+    assign fsm_reset = UART_ComActive || BitBangActive;
 
     assign ComActive = UART_ComActive;
     assign ReceiveLED = UART_LED ^ BitBangWriteStrobe;
@@ -87,12 +87,12 @@ module eFPGA_Config #(
     ) ConfigFSM_inst (
         .CLK(CLK),
         .reset_n(resetn),
-        .WriteData(UART_WriteData_Mux),
-        .WriteStrobe(UART_WriteStrobe_Mux),
-        .FSM_Reset(FSM_Reset),
-        .FrameAddressRegister(FrameAddressRegister),
-        .LongFrameStrobe(LongFrameStrobe),
-        .RowSelect(RowSelect)
+        .write_data(UART_WriteData_Mux),
+        .write_strobe(UART_WriteStrobe_Mux),
+        .fsm_reset(fsm_reset),
+        .frame_address_register(FrameAddressRegister),
+        .long_frame_strobe(LongFrameStrobe),
+        .row_select(RowSelect)
     );
 
 endmodule
