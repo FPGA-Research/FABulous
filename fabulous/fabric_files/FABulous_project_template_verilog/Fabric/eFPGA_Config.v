@@ -16,8 +16,8 @@ module eFPGA_Config #(
     input s_clk,
     input s_data,
     // Parallel configuration port
-    input [31:0] SelfWriteData,  // configuration data write port
-    input SelfWriteStrobe,  // must decode address and write enable
+    input [31:0] SelfWriteData,
+    input SelfWriteStrobe,
     output [31:0] ConfigWriteData,
     output ConfigWriteStrobe,
     output [FrameBitsPerRow-1:0] FrameAddressRegister,

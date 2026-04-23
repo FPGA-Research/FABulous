@@ -24,8 +24,8 @@ I3_reg=3
 module InPass4_frame_config_mux #(
     parameter integer NoConfigBits = 4
 ) (
-    (* FABulous, EXTERNAL *) input [3:0] I,  //EXTERNAL
-    output [3:0] O,  //EXTERNAL
+    (* FABulous, EXTERNAL *) input [3:0] I,
+    output [3:0] O,
     // Tile IO ports from BELs
     // The "EXTERNAL" keyword will send this signal all the way to top and the
     // The "SHARED" keyword allows multiple BELs using the same port (e.g. for exporting a clock to the top)

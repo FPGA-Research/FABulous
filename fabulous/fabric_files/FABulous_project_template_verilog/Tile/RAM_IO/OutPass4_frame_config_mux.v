@@ -21,12 +21,11 @@ I1_reg=1,
 I2_reg=2,
 I3_reg=3
 *)
-// InPassFlop2 and OutPassFlop2 are the same except for changing which side I0,I1 or O0,O1 gets connected to the top entity
+// InPass4 and OutPass4 are the same except for changing on which side I[3:0] or O[3:0] get connected to the top entity
 module OutPass4_frame_config_mux #(
     parameter integer NoConfigBits = 4
 ) (
     // NoConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
-    // Pin0
     input [3:0] I,
     (* FABulous, EXTERNAL *) output [3:0] O,  // EXTERNAL
     // Tile IO ports from BELs
@@ -43,7 +42,7 @@ module OutPass4_frame_config_mux #(
     //         |             |  U |//////-> O
     //         +////////////-|0 X |
 
-    reg [3:0] Q;  // FLOPs
+    reg [3:0] Q;  // Flops
 
     always @(posedge UserCLK) begin
         Q <= I;
