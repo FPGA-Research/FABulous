@@ -14,6 +14,7 @@ docker-image
 .coverage*
 CLAUDE.md
 fabulous_nix
+librelane_plugin_fabulous
 build
 
 # Documentation build artifacts (auto-generated in CI)

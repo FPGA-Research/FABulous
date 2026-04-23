@@ -1,0 +1,57 @@
+name: librelane-plugin smoke test
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "fabulous/fabric_generator/gds_generator/**"
+      - "build_hooks.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "flake.nix"
+      - ".github/workflows/librelane-plugin.yml"
+  pull_request:
+    paths:
+      - "fabulous/fabric_generator/gds_generator/**"
+      - "build_hooks.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "flake.nix"
+      - ".github/workflows/librelane-plugin.yml"
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install FABulous (triggers build_hooks side-packages)
+        # BuildPyWithFabulousNix in build_hooks.py generates both `fabulous_nix`
+        # and `librelane_plugin_fabulous` as side-packages during the FABulous
+        # wheel build. Installing FABulous-FPGA therefore gives us the plugin
+        # without any extra steps.
+        run: |
+          uv sync --locked
+
+      - name: Confirm LibreLane auto-discovers the plugin and flows register
+        run: |
+          uv run python - <<'PY'
+          import librelane_plugin_fabulous
+          from librelane.flows import Flow
+          expected = {
+              "FABulousTileVerilogMacroFlow",
+              "FABulousTileVHDLMacroFlowClassic",
+              "FABulousFabricMacroFlow",
+              "FABulousFabricMacroFullFlow",
+          }
+          registered = set(Flow.factory.list())
+          missing = expected - registered
+          assert not missing, f"Missing FABulous flows: {missing}"
+          print("plugin file:", librelane_plugin_fabulous.__file__)
+          print("flows OK:", sorted(expected))
+          PY
