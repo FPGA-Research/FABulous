@@ -27,5 +27,9 @@ class FABulousPDN(OdbpyStep):
         """Get the command to run the power connection script."""
         return super().get_command() + [
             "--metal-layer-name",
-            self.config["PDN_VERTICAL_LAYER"],
+            self.config["RT_MAX_LAYER"],
+            "--power-name",
+            self.config["VDD_PIN"],
+            "--ground-name",
+            self.config["GND_PIN"],
         ]

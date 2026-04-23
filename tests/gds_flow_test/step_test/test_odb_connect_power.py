@@ -54,7 +54,7 @@ def test_get_command_uses_custom_metal_layer(
     )
 
     # Use a different metal layer
-    custom_config = mock_config.copy(PDN_VERTICAL_LAYER="met4")
+    custom_config = mock_config.copy(RT_MAX_LAYER="met4")
 
     step = FABulousPDN(custom_config, mock_state)
     step.config = custom_config

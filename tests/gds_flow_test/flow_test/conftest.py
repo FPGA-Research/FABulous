@@ -79,16 +79,30 @@ def mock_config_load(
         # Config.load(config_in=..., design_dir=..., pdk=..., etc.)
         config: Any = kwargs.get("config_in", args[0] if args else {})
 
-        # It can be a dict or a Config object
-        config_dict: dict[str, Any]
-        if isinstance(config, dict):
-            config_dict = dict(config)
-        elif hasattr(config, "to_dict"):
-            config_dict = config.to_dict()
-        elif hasattr(config, "keys"):
-            config_dict = dict(config)
-        else:
-            config_dict = {}
+        # Mirror librelane.Config.load: config_in may be a single Mapping,
+        # a path-like, or a list mixing Mappings, Paths, and None entries.
+        def _to_dict(item: Any) -> dict[str, Any]:  # noqa: ANN401
+            if item is None:
+                return {}
+            if isinstance(item, dict):
+                return dict(item)
+            if hasattr(item, "to_dict"):
+                return item.to_dict()
+            if hasattr(item, "keys"):
+                return dict(item)
+            if isinstance(item, str | Path):
+                path = Path(item)
+                if not path.exists():
+                    return {}
+                return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            return {}
+
+        sources: list[Any]
+        sources = config if isinstance(config, list) else [config]
+
+        config_dict: dict[str, Any] = {}
+        for source in sources:
+            config_dict.update(_to_dict(source))
 
         design_dir: str = kwargs.get("design_dir", str(tmp_path / "design"))
 

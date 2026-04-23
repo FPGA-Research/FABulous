@@ -82,3 +82,12 @@ pdk::ihp-sg13g2:
   PDN_HSPACING: 4.0
   PDN_HPITCH: 75.6
   PDN_HOFFSET: 13.57
+
+pdk::gf180mcuD:
+  # Routing
+  RT_MAX_LAYER: Metal4
+
+  # PDN
+  PDN_VPITCH: 100
+
+  SYNTH_LATCH_MAP: "dir::../../../include/gf180mcuD_latchmap.v"

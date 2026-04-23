@@ -8,7 +8,6 @@ various fabric-related operations.
 from collections.abc import Iterable
 from pathlib import Path
 
-import yaml
 from loguru import logger
 
 import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
@@ -611,24 +610,25 @@ class FABulous_API:
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        final_config_args = {}
-        if base_config_path is not None:
-            final_config_args.update(
-                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
-            )
-        if config_override_path is not None:
-            final_config_args.update(
-                yaml.safe_load(config_override_path.read_text(encoding="utf-8"))
-            )
-        final_config_args["FABULOUS_PROJ_DIR"] = str(project_dir.resolve())
-        final_config_args["FABULOUS_FABRIC"] = self.fabric
-        final_config_args["DESIGN_NAME"] = self.fabric.name
+        config_args = {
+            "FABULOUS_PROJ_DIR": str(project_dir.resolve()),
+            "FABULOUS_FABRIC": self.fabric.name,
+            "DESIGN_NAME": self.fabric.name,
+        }
         if tile_opt_config is not None:
-            final_config_args["TILE_OPT_INFO"] = str(tile_opt_config)
-        if config_overrides:
-            final_config_args.update(config_overrides)
+            config_args["TILE_OPT_INFO"] = str(tile_opt_config)
+        configs = [
+            i
+            for i in [
+                config_args,
+                base_config_path,
+                config_override_path,
+                config_overrides,
+            ]
+            if i is not None
+        ]
         flow = FABulousFabricMacroFullFlow(
-            final_config_args,
+            configs,
             name=self.fabric.name,
             design_dir=str(out_folder.resolve()),
             pdk=pdk,
