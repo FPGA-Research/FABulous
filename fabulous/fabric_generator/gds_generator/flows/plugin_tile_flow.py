@@ -2,7 +2,7 @@
 
 Exposes :class:`FABulousTile`, a LibreLane-factory-compatible flow that accepts
 the same ``FABULOUS_TILE_DIR`` / ``FABULOUS_EXTERNAL_SIDE`` / ``FABULOUS_SUPERTILE``
-config variables as ``mole99/librelane_plugin_fabulous`` and drives the existing
+config variables as the standalone LibreLane FABulous plugin and drives the existing
 :class:`FABulousTileVerilogMacroFlow` pipeline.
 
 Unlike ``FABulousTileVerilogMacroFlow`` (which is instantiated programmatically
@@ -54,7 +54,7 @@ class FABulousTile(SequentialFlow):
 
     Reuses the step list, substitutions, config variables, and gating variables
     of :class:`FABulousTileVerilogMacroFlow`, and adds the three plugin-level
-    variables that ``mole99/librelane_plugin_fabulous`` exposes so a mole99-shaped
+    variables exposed by the standalone plugin so a plugin-style
     ``config.yaml`` validates against this flow.
     """
 
@@ -73,7 +73,7 @@ class FABulousTile(SequentialFlow):
             "FABULOUS_EXTERNAL_SIDE",
             Literal["N", "E", "S", "W"] | None,
             "The side of the macro at which the external pins are placed. "
-            "Mirrors the mole99 plugin variable; the pin-ordering YAML is "
+            "Mirrors the standalone plugin variable; the pin-ordering YAML is "
             "generated from the tile's position in the parent fabric, so "
             "this value is informational for tiles that sit on the fabric "
             "border.",

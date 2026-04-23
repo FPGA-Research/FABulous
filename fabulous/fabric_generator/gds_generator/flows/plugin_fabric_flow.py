@@ -2,7 +2,7 @@
 
 Exposes :class:`FABulousFabric`, a LibreLane-factory-compatible flow that
 accepts the same ``FABULOUS_FABRIC_CONFIG`` / ``FABULOUS_TILE_LIBRARY``
-config variables as ``mole99/librelane_plugin_fabulous`` and drives the existing
+config variables as the standalone LibreLane FABulous plugin and drives the existing
 :class:`FABulousFabricMacroFlow` pipeline.
 
 The underlying :class:`FABulousFabricMacroFlow` has a specialised ``__init__``
@@ -48,7 +48,7 @@ class FABulousFabric(FABulousFabricMacroFlow):
             Path | list[Path],
             "Path (or list of paths) to the tile library roots. Currently "
             "advisory: the fabric CSV is the authoritative source for tile "
-            "locations. Accepted for mole99 drop-in compatibility.",
+            "locations. Accepted for standalone-plugin compatibility.",
         ),
         Variable(
             "FABULOUS_TILE_MACROS",
