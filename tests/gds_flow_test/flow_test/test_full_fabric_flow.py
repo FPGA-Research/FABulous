@@ -9,8 +9,8 @@ Tests focus on:
 
 # ruff: noqa: SLF001
 
+from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,12 +18,10 @@ from pytest_mock import MockerFixture
 
 from fabulous.fabric_generator.gds_generator.flows.full_fabric_flow import (
     FABulousFabricMacroFullFlow,
+    WorkerResult,
     _run_tile_flow_worker,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
-
-if TYPE_CHECKING:
-    from librelane.state.state import State
 
 
 # Shared fixtures
@@ -170,15 +168,6 @@ class TestRunTileFlowWorker:
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         """Test that worker catches exceptions and returns error trace."""
-        # Set up mocks
-        mock_context: MagicMock = mocker.MagicMock()
-        mock_context.pdk = "test_pdk"
-        mock_context.pdk_root = tmp_path
-        mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
-            return_value=mock_context,
-        )
-
         # Make flow raise an exception
         mocker.patch(
             "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMacroFlow",
@@ -186,58 +175,55 @@ class TestRunTileFlowWorker:
         )
 
         tile: MagicMock = mocker.MagicMock()
-        result: tuple[State | None, str | None] = _run_tile_flow_worker(
+        result: WorkerResult = _run_tile_flow_worker(
             tile,
-            tmp_path,
             tmp_path / "io.yaml",
             OptMode.BALANCE,
             tmp_path / "base.yaml",
             tmp_path / "override.yaml",
+            "test_pdk",
+            tmp_path,
+            tmp_path / "models_pack.v",
         )
 
-        # Should return (None, error_trace)
-        state: State | None
-        error_trace: str | None
-        state, error_trace = result
+        state, error_trace, pin_min = result
         assert state is None
         assert error_trace is not None
         assert "Test error" in error_trace
+        assert pin_min is None
 
     def test_worker_returns_state_on_success(
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         """Test that worker returns state on successful execution."""
-        mock_context: MagicMock = mocker.MagicMock()
-        mock_context.pdk = "test_pdk"
-        mock_context.pdk_root = tmp_path
-        mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
-            return_value=mock_context,
-        )
-
         mock_state: MagicMock = mocker.MagicMock()
         mock_flow: MagicMock = mocker.MagicMock()
         mock_flow.start.return_value = mock_state
+        mock_flow.config = {
+            "FABULOUS_PIN_MIN_WIDTH": Decimal("10.0"),
+            "FABULOUS_PIN_MIN_HEIGHT": Decimal("10.0"),
+        }
         mocker.patch(
             "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMacroFlow",
             return_value=mock_flow,
         )
 
         tile: MagicMock = mocker.MagicMock()
-        result: tuple[State | None, str | None] = _run_tile_flow_worker(
+        result: WorkerResult = _run_tile_flow_worker(
             tile,
-            tmp_path,
             tmp_path / "io.yaml",
             OptMode.BALANCE,
             tmp_path / "base.yaml",
             tmp_path / "override.yaml",
+            "test_pdk",
+            tmp_path,
+            tmp_path / "models_pack.v",
         )
 
-        state: State | None
-        error_trace: str | None
-        state, error_trace = result
+        state, error_trace, pin_min = result
         assert state is mock_state
         assert error_trace is None
+        assert pin_min is not None
 
 
 class TestWorkerCustomOverrides:
@@ -247,17 +233,13 @@ class TestWorkerCustomOverrides:
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         """Test that worker passes custom config overrides to flow."""
-        mock_context: MagicMock = mocker.MagicMock()
-        mock_context.pdk = "test_pdk"
-        mock_context.pdk_root = tmp_path
-        mocker.patch(
-            "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.init_context",
-            return_value=mock_context,
-        )
-
         mock_state: MagicMock = mocker.MagicMock()
         mock_flow: MagicMock = mocker.MagicMock()
         mock_flow.start.return_value = mock_state
+        mock_flow.config = {
+            "FABULOUS_PIN_MIN_WIDTH": Decimal("10.0"),
+            "FABULOUS_PIN_MIN_HEIGHT": Decimal("10.0"),
+        }
         mock_flow_class: MagicMock = mocker.patch(
             "fabulous.fabric_generator.gds_generator.flows.full_fabric_flow.FABulousTileVerilogMacroFlow",
             return_value=mock_flow,
@@ -266,11 +248,13 @@ class TestWorkerCustomOverrides:
         tile: MagicMock = mocker.MagicMock()
         _run_tile_flow_worker(
             tile,
-            tmp_path,
             tmp_path / "io.yaml",
             OptMode.BALANCE,
             tmp_path / "base.yaml",
             tmp_path / "override.yaml",
+            "test_pdk",
+            tmp_path,
+            tmp_path / "models_pack.v",
             CUSTOM_KEY="custom_value",
         )
 

@@ -27,6 +27,7 @@ from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
 from fabulous.fabric_generator.gds_generator.steps.odb_connect_pdn import (
     FABulousPDN,
 )
+from fabulous.fabulous_settings import get_context
 
 subs = {
     # Disable STA
@@ -149,12 +150,13 @@ class FABulousFabricMacroFlow(Classic):
             macro_dir = self.fabric.fabric_dir.parent / "macro"
             macro_dir.mkdir(parents=True, exist_ok=True)
             final_design_dir = str(macro_dir)
+
         super().__init__(
             final_config,
             name=self.fabric.name,
             design_dir=final_design_dir,
             pdk=pdk,
-            pdk_root=str(pdk_root.resolve()),
+            pdk_root=str(pdk_root),
         )
 
     def _compute_row_and_column_sizes(
@@ -628,7 +630,9 @@ class FABulousFabricMacroFlow(Classic):
 
         (final_state, steps) = super().run(initial_state, **kwargs)
 
-        final_views_path = (Path() / "macro" / self.config["PDK"]).resolve()
+        final_views_path = (
+            get_context().proj_dir / "Fabric" / "macro" / "final_views"
+        ).resolve()
         info(f"Saving final views for FABulous to {final_views_path}")
         final_state.save_snapshot(final_views_path)
 

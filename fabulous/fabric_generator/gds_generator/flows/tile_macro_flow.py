@@ -25,7 +25,6 @@ from fabulous.fabric_generator.gds_generator.flows.flow_define import (
     write_out_steps,
 )
 from fabulous.fabric_generator.gds_generator.helper import (
-    get_offset,
     get_pitch,
     get_routing_obstructions,
     round_die_area,
@@ -94,6 +93,7 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
         opt_mode: OptMode,
         pdk: str,
         pdk_root: Path,
+        models_pack_path: Path | None = None,
         base_config_path: Path | None = None,
         override_config_path: Path | None = None,
         design_dir: Path | None = None,
@@ -105,8 +105,13 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
             for f in tile_type.tileDir.parent.glob("**/*.v")
             if "macro" not in f.parts
         ]
-        if models_pack := get_context().models_pack:
+        models_pack = models_pack_path or get_context().models_pack
+        if models_pack is not None:
             file_list.append(str(models_pack.resolve()))
+        else:
+            raise FlowException(
+                "models_pack is not set in the context, cannot proceed."
+            )
 
         # Determine logical dimensions
         if isinstance(tile_type, SuperTile):
@@ -151,26 +156,28 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
             final_dir = str(default_design_dir.resolve())
         else:
             final_dir = str(design_dir)
+
         super().__init__(
             tile_config_dict,
             name=tile_type.name,
             design_dir=final_dir,
             pdk=pdk,
-            pdk_root=str(pdk_root.resolve()),
+            pdk_root=str(pdk_root),
         )
         self.config = self.config.copy(
             FABULOUS_TILE_LOGICAL_WIDTH=logical_width,
             FABULOUS_TILE_LOGICAL_HEIGHT=logical_height,
         )
         x_pitch, y_pitch = get_pitch(self.config)
-        x_spacing, y_spacing = get_offset(self.config)
         min_x, min_y = tile_type.get_min_die_area(
-            x_pitch,
-            y_pitch,
-            self.config.get("IO_PIN_V_THINKNESS_MULT", Decimal(1)),
-            self.config.get("IO_PIN_H_THINKNESS_MULT", Decimal(1)),
-            x_pitch,
-            y_pitch,
+            x_pitch=x_pitch,
+            y_pitch=y_pitch,
+            x_pin_thickness_mult=self.config.get("IO_PIN_V_THICKNESS_MULT", Decimal(1)),
+            y_pin_thickness_mult=self.config.get("IO_PIN_H_THICKNESS_MULT", Decimal(1)),
+        )
+        self.config = self.config.copy(
+            FABULOUS_PIN_MIN_WIDTH=min_x,
+            FABULOUS_PIN_MIN_HEIGHT=min_y,
         )
         if opt_mode != OptMode.NO_OPT:
             if (
@@ -179,9 +186,8 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
             ):
                 self.config = self.config.copy(DIE_AREA=(0, 0, min_x, min_y))
             else:
-                die_area = self.config.get("DIE_AREA")
-                if die_area is None:
-                    raise ValueError("DIE_AREA metric not found in state.")
+                # DIE_AREA is guaranteed non-None here (checked in the if branch)
+                die_area = self.config["DIE_AREA"]
                 _, _, width, height = die_area
                 width = Decimal(width)
                 height = Decimal(height)
@@ -189,11 +195,11 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
                     raise FlowException(
                         f"DIE_AREA ({width}, {height}) is smaller than the "
                         f"minimum required area ({min_x}, {min_y}) for the "
-                        f"tile {tile_type.name}. Please update the DIE_AREA "
+                        f"tile {tile_type.name}. Please update the DIE_AREA."
                     )
         else:
             if not self.config.get("DIE_AREA"):
-                err("If not using any optimisatin, DIE_AREA must be set.")
+                err("If not using any optimisation, DIE_AREA must be set.")
                 raise FlowException("Invalid DIE_AREA configuration.")
 
         self.config = round_die_area(self.config)
