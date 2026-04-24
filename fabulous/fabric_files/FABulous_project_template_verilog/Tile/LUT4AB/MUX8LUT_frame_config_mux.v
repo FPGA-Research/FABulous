@@ -36,7 +36,7 @@ module MUX8LUT_frame_config_mux #(
     output M_AD,
     output M_AH,
     output M_EF,
-    // GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
+    // All primitive pins that are connected to the switch matrix have to go before the "GLOBAL" label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
 
