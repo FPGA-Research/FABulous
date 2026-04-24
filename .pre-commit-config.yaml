@@ -66,16 +66,10 @@ repos:
         args: [ --style=numpy ]
         exclude: ^(tests/|FABulous/FABulous_CLI/FABulous_CLI\.py$)
 
-  - repo: local
+  - repo: https://github.com/jeremiah-c-leary/vhdl-style-guide
+    rev: 3.35.0
     hooks:
-      # ghdl --format analyses the whole project into a shared work library,
-      # so it also catches syntax errors - no separate ghdl-syntax hook needed.
-      - id: ghdl-format
-        name: ghdl --format (VHDL reprint + syntax)
-        description: Reprint VHDL via GHDL against a project-wide work library; rewrite on diff
-        language: script
-        entry: scripts/ghdl_format.py
-        files: \.vhdl?$
+      - id: vsg
 
   # Verilog / SystemVerilog linting — upstream hook (Docker-backed)
   - repo: https://github.com/verilator/verilator
@@ -88,23 +82,14 @@ repos:
         #   MULTITOP     - template files legitimately contain multiple top modules
         args: [ --lint-only, -Wno-MODMISSING, -Wno-TIMESCALEMOD, -Wno-MULTITOP ]
 
-  # Verilog / SystemVerilog formatting & linting — upstream Verible static binary.
-  # scripts/verible_wrapper.py downloads and caches the pinned release on first
+  # Verilog / SystemVerilog linting — upstream svlint static binary.
+  # scripts/svlint_wrapper.py downloads and caches the pinned release on first
   # invocation, so no manual install is required.
   - repo: local
     hooks:
-      - id: verible-verilog-format
-        name: verible-verilog-format
-        description: Format (System)Verilog with upstream Verible
+      - id: svlint
+        name: svlint
+        description: Lint (System)Verilog with upstream svlint
         language: script
-        entry: scripts/verible_wrapper.py verible-verilog-format
-          --flagfile=.rules.verible_format
-        types_or: [ verilog, system-verilog ]
-
-      - id: verible-verilog-lint
-        name: verible-verilog-lint
-        description: Style-lint (System)Verilog with upstream Verible
-        language: script
-        entry: scripts/verible_wrapper.py verible-verilog-lint
-          --rules_config=.rules.verible_lint
+        entry: scripts/svlint_wrapper.py --config .svlint.toml
         types_or: [ verilog, system-verilog ]

@@ -1,6 +1,0 @@
-# Kept in sync with --column_limit in .rules.verible_format so formatter and linter agree.
-+line-length=length:100
--explicit-function-lifetime
--module-filename
-# SRAM/IP macros (e.g. BlockRAM_1KB) historically use ALL_CAPS parameters; allow both.
-+parameter-name-style=localparam_style:ALL_CAPS;parameter_style:ALL_CAPS|CamelCase
