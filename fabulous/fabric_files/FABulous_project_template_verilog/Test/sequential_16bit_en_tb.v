@@ -8,15 +8,15 @@ module sequential_16bit_en_tb ();
     reg  [27:0] O_top = 0;
     wire [55:0] A_cfg, B_cfg;
 
-    reg         CLK             = 1'b0 ;
-    reg         resetn          = 1'b1 ;
-    reg         SelfWriteStrobe = 1'b0 ;
-    reg  [31:0] SelfWriteData   = 32'b0;
-    reg         Rx              = 1'b1 ;
-    wire        ComActive              ;
-    wire        ReceiveLED             ;
-    reg         s_clk           = 1'b0 ;
-    reg         s_data          = 1'b0 ;
+    reg         CLK                 = 1'b0 ;
+    reg         resetn              = 1'b1 ;
+    reg         self_write_strobe   = 1'b0 ;
+    reg  [31:0] self_write_data     = 32'b0;
+    reg         rx                  = 1'b1 ;
+    wire        com_active                 ;
+    wire        receive_led                ;
+    reg         s_clk               = 1'b0 ;
+    reg         s_data              = 1'b0 ;
 
     // Instantiate both the fabric and the reference DUT
     eFPGA_top top_i (
@@ -27,11 +27,11 @@ module sequential_16bit_en_tb ();
         .B_config_C     (B_cfg          ),
         .CLK            (CLK            ),
         .resetn         (resetn         ),
-        .SelfWriteStrobe(SelfWriteStrobe),
-        .SelfWriteData  (SelfWriteData  ),
-        .Rx             (Rx             ),
-        .ComActive      (ComActive      ),
-        .ReceiveLED     (ReceiveLED     ),
+        .SelfWriteStrobe(self_write_strobe),
+        .SelfWriteData  (self_write_data  ),
+        .Rx             (rx             ),
+        .ComActive      (com_active      ),
+        .ReceiveLED     (receive_led     ),
         .s_clk          (s_clk          ),
         .s_data         (s_data         )
     );
@@ -84,11 +84,11 @@ module sequential_16bit_en_tb ();
         repeat (20) @(posedge CLK);
         #2500;
         for (i = 0; i < MAX_BITBYTES; i = i + 4) begin
-            SelfWriteData <= {bitstream[i], bitstream[i+1], bitstream[i+2], bitstream[i+3]};
+            self_write_data <= {bitstream[i], bitstream[i+1], bitstream[i+2], bitstream[i+3]};
             repeat (2) @(posedge CLK);
-            SelfWriteStrobe <= 1'b1;
+            self_write_strobe <= 1'b1;
             @(posedge CLK);
-            SelfWriteStrobe <= 1'b0;
+            self_write_strobe <= 1'b0;
             repeat (2) @(posedge CLK);
         end
 `endif
