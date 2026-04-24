@@ -27,29 +27,52 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.verilog_model imp
 
 @dataclass(frozen=True)
 class FracLutArchitecture:
-    """Paired fractional LUT architecture.
+    """Describe a two-half fractional LUT architecture.
 
     Attributes
     ----------
     frac_lut_size: int
         Input size ``K`` of each internal LUT.
     num_shared_inputs: int
-        Number of shared input pins configured in the architecture.
+        Number of nominal shared input pins ``I*`` configured in the architecture.
     name: str
         Emitted mapped cell type name.
     use_select_as_data_in_pair_mode: bool
-        Whether to use the select-as-data dual-LUT pairing mode that
-        repurposes one shared input as a private input to achieve more
-        flexible mappings.
+        Whether dual-LUT pair packing may use the otherwise fixed ``S`` pin as
+        a data input. When enabled, pair mapping behaves as if it had one fewer
+        shared input and one more private input per side, without increasing the
+        external pin count. This option only affects dual-LUT pair mode; full
+        LUT(K+1) mode still uses ``S`` as the output mux select.
 
     Notes
     -----
-    The architecture models two LUT(K) feeding a 2:1 mux:
+    The physical cell is modeled as two LUT(K) halves feeding a 2:1 mux:
+
     - ``O0`` = mux(``S``, ``L0``, ``L1``)
     - ``O1`` = direct ``L1``
 
-    For dual-LUT packing ``S`` is tied low to preserve independent outputs.
-    For full-LUT ``K+1`` packing ``S`` is driven by the LUT's extra input.
+    In normal dual-LUT pair mode, ``S`` is tied to ``0`` so ``O0`` is the
+    independent output of ``L0`` and ``O1`` is the independent output of ``L1``.
+    In full LUT(K+1) mode, ``S`` is driven by the source LUT's extra input and
+    selects between the two LUT(K) truth-table halves.
+
+    When ``use_select_as_data_in_pair_mode`` is enabled, dual-LUT pair mode can
+    repurpose ``S`` as one extra private data input for ``L0``. To keep the pin
+    count unchanged, the last nominal shared input is cut from ``L0`` and kept
+    as a private input for ``L1``. For example, with ``K=4`` and
+    ``num_shared_inputs=3``, normal pair mode has:
+
+    - ``L0(I0, I1, I2, A0)``
+    - ``L1(I0, I1, I2, B0)``
+
+    With select-as-data enabled, pair mapping behaves like an effective
+    ``num_shared_inputs=2`` architecture:
+
+    - ``L0(I0, I1, A0, S)``
+    - ``L1(I0, I1, B0, I2)``
+
+    The emitted INIT values are remapped to this internal pin order, and
+    metadata marks that select-as-data mode was used.
     """
 
     frac_lut_size: int

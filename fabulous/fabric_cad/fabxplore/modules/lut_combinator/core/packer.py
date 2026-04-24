@@ -35,12 +35,21 @@ class PairMappingProgressTracker:
         Matching strategy selected for pair mapping.
     passthrough : bool
         Whether LUT(K+1) passthrough mapping is enabled.
+    use_select_as_data_in_pair_mode : bool
+        Whether pair mapping may use the ``S`` pin as an extra data input.
     """
 
-    def __init__(self, enabled: bool, mode: MatchingMode, passthrough: bool) -> None:
+    def __init__(
+        self,
+        enabled: bool,
+        mode: MatchingMode,
+        passthrough: bool,
+        use_select_as_data_in_pair_mode: bool,
+    ) -> None:
         self.enabled = enabled
         self.mode = mode
         self.passthrough = passthrough
+        self.use_select_as_data_in_pair_mode = use_select_as_data_in_pair_mode
 
         self._kp1_total = 0
         self._kp1_done = 0
@@ -65,7 +74,9 @@ class PairMappingProgressTracker:
         """
         self._print(
             f"Start map_luts: total_cells={total_cells}, top={top_name}, "
-            f"mode={self.mode.value}, passthrough={self.passthrough}"
+            f"mode={self.mode.value}, passthrough={self.passthrough}, "
+            "select_as_data_pair_mode="
+            f"{self.use_select_as_data_in_pair_mode}"
         )
 
     def on_partitioned(
@@ -376,6 +387,7 @@ class PairLutMapper:
             enabled=self.progress,
             mode=self.mode,
             passthrough=self.passthrough,
+            use_select_as_data_in_pair_mode=(self.arch.use_select_as_data_in_pair_mode),
         )
         progress.on_start(total_cells=len(cells), top_name=top_name)
 
