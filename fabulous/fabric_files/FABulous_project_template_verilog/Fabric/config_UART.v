@@ -10,7 +10,7 @@ module config_UART #(
         // Below is shown how the modes can be selected:
         // [0:auto|1:hex|2:bin]
         // com_rate = f_CLK / Baudrate (e.g., 25 MHz/115200 Baud = 217)
-        parameter [11:0] ComRate = 12'd217  // verilog_lint: waive explicit-parameter-storage-type
+        parameter [11:0] ComRate = 12'd217
     ) (
         input CLK,
         input reset_n,
@@ -86,7 +86,7 @@ module config_UART #(
         end
     endfunction
 
-    // verilog_lint: waive explicit-parameter-storage-type
+
     localparam HIGH_NIBBLE = 1'b1, LOW_NIBBLE = 1'b0;
     reg ReceiveState;
     reg [3:0] HighReg;
@@ -96,7 +96,7 @@ module config_UART #(
 
     reg [11:0] ComCount;
     reg ComTick;
-    // verilog_lint: waive-start explicit-parameter-storage-type
+
     localparam [3:0] WAIT_FOR_START_BIT = 4'd0, DELAY_AFTER_START_BIT = 4'd1;
     localparam [3:0]
         GET_BIT_0 = 4'd2,
@@ -108,7 +108,7 @@ module config_UART #(
         GET_BIT_6 = 4'd8,
         GET_BIT_7 = 4'd9,
         GET_STOP_BIT = 4'd10;
-    // verilog_lint: waive-stop explicit-parameter-storage-type
+
 
     reg [3:0] ComState;
     reg [7:0] ReceivedWord;
