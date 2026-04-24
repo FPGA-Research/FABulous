@@ -49,10 +49,11 @@ architecture from_verilog of blockram_1kb is
   signal rd_dout_muxed                           : std_logic_vector(31 downto 0); -- Declared at BlockRAM_1KB.v:92
   signal rd_dout_sel                             : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:88
   signal rd_port_configuration                   : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:22
-  signal write_address_top_lsb                   : integer;
-  signal write_address_top_msb                   : integer;
   signal wr_addr_topbits                         : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:42
   signal wr_port_configuration                   : std_logic_vector(1 downto 0);  -- Declared at BlockRAM_1KB.v:23
+
+  constant write_address_top_lsb : integer := read_address_msb_from_datalsb;
+  constant write_address_top_msb : integer := read_address_msb_from_datalsb + 1;
 
   component sram_1rw1r_32_256_8_sky130 is
     port (
@@ -77,8 +78,6 @@ begin
   rd_data                                 <= final_dout;
   wr_port_configuration                   <= c0 & c1;
   rd_port_configuration                   <= c2 & c3;
-  write_address_top_lsb                   <= read_address_msb_from_datalsb;
-  write_address_top_msb                   <= read_address_msb_from_datalsb + 1;
   wr_addr_topbits                         <= wr_data(write_address_top_msb downto write_address_top_lsb);
 
   -- Generated from instantiation at BlockRAM_1KB.v:75
