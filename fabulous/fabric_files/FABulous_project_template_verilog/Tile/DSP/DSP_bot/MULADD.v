@@ -15,23 +15,21 @@
 // limitations under the License.
 
 (* FABulous, BelMap,
-A_reg=0,
-B_reg=1,
-C_reg=2,
-ACC=3,
-signExtension=4,
-ACCout=5
-*)
-module MULADD #(
-    parameter integer NoConfigBits = 6
-) (
+    A_reg=0,
+    B_reg=1,
+    C_reg=2,
+    ACC=3,
+    signExtension=4,
+    ACCout=5
+    *)
+module MULADD #(parameter integer NoConfigBits = 6) (
     // ConfigBits has to be adjusted manually
     //(we don't use an arithmetic parser for the value)
-    input [7:0] A,  // operand A
-    input [7:0] B,  // operand B
-    input [19:0] C,  // operand C
-    output [19:0] Q,  // result
-    input clr,
+    input  [ 7:0] A  , // operand A
+    input  [ 7:0] B  , // operand B
+    input  [19:0] C  , // operand C
+    output [19:0] Q  , // result
+    input         clr,
     //The "EXTERNAL" keyword will send this signal all the way to top and the
     //The "SHARED" Allows multiple BELs using the same port
     // (e.g. for exporting a clock to the top)
@@ -40,16 +38,16 @@ module MULADD #(
     // to go before the GLOBAL label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
-    reg  [ 7:0] A_reg;  // port A read data register
-    reg  [ 7:0] B_reg;  // port B read data register
-    reg  [19:0] C_reg;  // port C read data register
-    wire [ 7:0] OPA;
-    wire [ 7:0] OPB;
-    wire [19:0] OPC;
-    reg  [19:0] ACC;  // accumulator register
-    wire [19:0] sum;
-    wire [19:0] sum_in;
-    wire [15:0] product;
+    reg  [ 7:0] A_reg           ; // port A read data register
+    reg  [ 7:0] B_reg           ; // port B read data register
+    reg  [19:0] C_reg           ; // port C read data register
+    wire [ 7:0] OPA             ;
+    wire [ 7:0] OPB             ;
+    wire [19:0] OPC             ;
+    reg  [19:0] ACC             ; // accumulator register
+    wire [19:0] sum             ;
+    wire [19:0] sum_in          ;
+    wire [15:0] product         ;
     wire [19:0] product_extended;
 
     assign OPA = ConfigBits[0] ? A_reg : A;
@@ -62,23 +60,27 @@ module MULADD #(
 
     // NOTE: The sign extension was not tested
     assign product_extended = ConfigBits[4] ?
-                             {product[15],product[15],product[15],product[15],product} :
-                             {4'b0000,product};
+        {product[15],product[15],product[15],product[15],product} :
+        {4'b0000,product};
 
     assign sum = product_extended + sum_in;
 
     assign Q = ConfigBits[5] ? ACC : sum;
 
-    always @(posedge UserCLK) begin
-        A_reg <= A;
-        B_reg <= B;
-        C_reg <= C;
-        if (clr == 1'b1) begin
-            ACC <= 20'b00000000000000000000;
-        end else begin
-            ACC <= sum;
+    always @(posedge UserCLK)
+        begin
+            A_reg <= A;
+            B_reg <= B;
+            C_reg <= C;
+            if (clr == 1'b1)
+                begin
+                    ACC <= 20'b00000000000000000000;
+                end
+            else
+                begin
+                    ACC <= sum;
+                end
         end
-    end
 
 endmodule
 `default_nettype wire

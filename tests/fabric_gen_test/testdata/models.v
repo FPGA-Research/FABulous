@@ -11,7 +11,7 @@ module config_latch (
     QN
 );
     /* verilator lint_off LATCH */
-    // verilog_lint: waive always-comb
+
     always @(*) begin
         if (E == 1'b1) begin
             Q  = D;

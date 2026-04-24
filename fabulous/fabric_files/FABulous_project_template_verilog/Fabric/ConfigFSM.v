@@ -4,7 +4,7 @@ module ConfigFSM #(
     parameter integer NumberOfRows = 16,
     parameter integer RowSelectWidth = 5,
     parameter integer FrameBitsPerRow = 32,
-    parameter integer desync_flag = 20  // verilog_lint: waive parameter-name-style
+    parameter integer desync_flag = 20
 ) (
     input CLK,
     input reset_n,
@@ -20,9 +20,9 @@ module ConfigFSM #(
     reg [4:0] row_index;
 
     // FSM
-    // verilog_lint: waive-start explicit-parameter-storage-type
+
     localparam [1:0] UNSYNCED = 2'd0, SYNC_HEADER = 2'd1, WRITE_FRAME_DATA = 2'd2;
-    // verilog_lint: waive-stop explicit-parameter-storage-type
+
     reg [1:0] state;
     reg old_reset;
     always @(posedge CLK, negedge reset_n) begin : P_FSM
@@ -42,7 +42,7 @@ module ConfigFSM #(
                 state <= UNSYNCED;
                 row_index <= 0;
             end else begin
-                // verilog_lint: waive case-missing-default
+
                 case (state)
                     UNSYNCED: begin
                         if (write_strobe == 1'b1) begin
@@ -81,7 +81,7 @@ module ConfigFSM #(
         end
     end
 
-    // verilog_lint: waive always-comb
+
     always @(*) begin
         if (write_strobe) begin
             row_select = row_index;

@@ -11,7 +11,7 @@ module Frame_Select #(
     input FrameStrobe
 );
 
-    // verilog_lint: waive always-comb
+
     always @(*) begin
         if (FrameStrobe && (FrameSelect == Col)) FrameStrobe_O = FrameStrobe_I;
         else FrameStrobe_O = 'd0;
