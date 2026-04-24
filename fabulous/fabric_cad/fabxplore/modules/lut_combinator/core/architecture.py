@@ -332,7 +332,7 @@ class FracLutArchitecture:
             lut0_width=lut.width, lut1_width=0, shared_count=0
         )
 
-        params: dict[str, str] = FracLutCellParameters(
+        params: FracLutCellParameters = FracLutCellParameters(
             meta_data=(
                 f"lut_mapping=single;"
                 f"lut_width={lut.width};"
@@ -357,7 +357,7 @@ class FracLutArchitecture:
                 else -1
             ),
             mux_select_config=0,
-        ).as_dict()
+        )
 
         return PackedCell(
             packed_id=f"{self.name}_{lut.cell_id}",
@@ -365,7 +365,8 @@ class FracLutArchitecture:
             placements=(placement,),
             external_pin_nets=dict(sorted(ext_pins.items())),
             output_pin_nets={"O0": lut.output_net},
-            parameters=params,
+            parameters=params.as_dict(),
+            frac_lut_parameters=params,
             leftover_lut_width=leftover_lut_width,
         )
 
@@ -420,7 +421,7 @@ class FracLutArchitecture:
 
         # Build parameters with original cell IDs and remapped INIT values.
         # For dual-LUT packing we keep the same cell IDs since both halves are needed.
-        params: dict[str, str] = FracLutCellParameters(
+        params: FracLutCellParameters = FracLutCellParameters(
             meta_data=(
                 f"lut_mapping={self._pair_mapping_mode_name()};"
                 f"lut0_width={lut0_width};"
@@ -444,7 +445,7 @@ class FracLutArchitecture:
                 else -1
             ),
             mux_select_config=0,
-        ).as_dict()
+        )
 
         return PackedCell(
             packed_id=mapped_id,
@@ -452,7 +453,8 @@ class FracLutArchitecture:
             placements=(binding.placement0, binding.placement1),
             external_pin_nets=binding.external_pin_nets,
             output_pin_nets=binding.output_pin_nets,
-            parameters=params,
+            parameters=params.as_dict(),
+            frac_lut_parameters=params,
             leftover_lut_width=leftover_lut_width,
         )
 

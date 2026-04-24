@@ -139,43 +139,6 @@ class PairBinding:
 
 
 @dataclass(frozen=True)
-class PackedCell:
-    """Represent one emitted packed architecture macro instance.
-
-    This combines placement provenance, external connectivity, and emitted
-    parameter values needed for JSON and Verilog output generation.
-
-    Attributes
-    ----------
-    packed_id : str
-        Packed macro instance identifier.
-    architecture_name : str
-        Emitted cell type name (for example ``"FRAC_LUT5"``).
-    placements : tuple[CellPlacement, ...]
-        Source placement records consumed by this macro.
-    external_pin_nets : dict[str, str]
-        Input pin to net mapping for macro instance.
-    output_pin_nets : dict[str, str]
-        Output pin to net mapping for macro instance.
-    parameters : dict[str, str]
-        Parameter dictionary serialized to output netlist.
-    leftover_lut_width : int
-        Remaining LUT width after packing.
-        This is a measure of how much LUT resource is left
-        unused in the macro and can be used for report
-        generation and architecture efficiency analysis.
-    """
-
-    packed_id: str
-    architecture_name: str
-    placements: tuple[CellPlacement, ...]
-    external_pin_nets: dict[str, str]
-    output_pin_nets: dict[str, str]
-    parameters: dict[str, str]
-    leftover_lut_width: int
-
-
-@dataclass(frozen=True)
 class FracLutCellParameters:
     """Represent the stable parameter schema emitted for one FRAC LUT cell.
 
@@ -251,6 +214,48 @@ class FracLutCellParameters:
             "CUT_SHARED_INDEX": str(self.cut_shared_index),
             "MUX_SELECT_CONFIG": str(self.mux_select_config),
         }
+
+
+@dataclass(frozen=True)
+class PackedCell:
+    """Represent one emitted packed architecture macro instance.
+
+    This combines placement provenance, external connectivity, and emitted
+    parameter values needed for JSON and Verilog output generation.
+
+    Attributes
+    ----------
+    packed_id : str
+        Packed macro instance identifier.
+    architecture_name : str
+        Emitted cell type name (for example ``"FRAC_LUT5"``).
+    placements : tuple[CellPlacement, ...]
+        Source placement records consumed by this macro.
+    external_pin_nets : dict[str, str]
+        Input pin to net mapping for macro instance.
+    output_pin_nets : dict[str, str]
+        Output pin to net mapping for macro instance.
+    parameters : dict[str, str]
+        Parameter dictionary serialized to output netlist.
+    frac_lut_parameters : FracLutCellParameters
+        Strongly-typed parameter values for this cell instance, which can be
+        converted to the raw dict form in `parameters` for output but are more
+        convenient to work with in the mapper and report generation.
+    leftover_lut_width : int
+        Remaining LUT width after packing.
+        This is a measure of how much LUT resource is left
+        unused in the macro and can be used for report
+        generation and architecture efficiency analysis.
+    """
+
+    packed_id: str
+    architecture_name: str
+    placements: tuple[CellPlacement, ...]
+    external_pin_nets: dict[str, str]
+    output_pin_nets: dict[str, str]
+    parameters: dict[str, str]
+    frac_lut_parameters: FracLutCellParameters
+    leftover_lut_width: int
 
 
 @dataclass(frozen=True)
