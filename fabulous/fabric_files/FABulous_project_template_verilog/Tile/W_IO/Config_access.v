@@ -12,7 +12,7 @@ module Config_access #(
     ) (
         // ConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
         (* FABulous, EXTERNAL *) output [3:0] C_bit,
-        // All primitive pins that are connected to the switch matrix have to go before the GLOBAL label
+        // All primitive pins that are connected to the switch matrix have to go before the "GLOBAL" label
         (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
     );
     // Configuration bits are wired to the fabric top module so that fabric-external functionality

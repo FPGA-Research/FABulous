@@ -27,8 +27,7 @@ module OutPass4_frame_config_mux #(
 ) (
     // NoConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
     input [3:0] I,
-    (* FABulous, EXTERNAL *) output [3:0] O,  // EXTERNAL
-    // Tile IO ports from BELs
+    (* FABulous, EXTERNAL *) output [3:0] O,
     // The "EXTERNAL" keyword will send this signal all the way to top and the
     // The "SHARED" keyword allows multiple BELs using the same port (e.g. for exporting a clock to the top)
     (* FABulous, EXTERNAL, SHARED_PORT *)
