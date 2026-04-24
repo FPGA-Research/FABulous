@@ -1,12 +1,12 @@
 package attr_pack_regfile_regfile_32x4 is
 
-  attribute fabulous    : string;
-  attribute belmap      : string;
-  attribute ad_reg      : integer;
-  attribute bd_reg      : integer;
-  attribute external    : string;
-  attribute shared_port : string;
-  attribute global      : string;
+  attribute FABulous    : string;
+  attribute BelMap      : string;
+  attribute AD_reg      : integer;
+  attribute BD_reg      : integer;
+  attribute EXTERNAL    : string;
+  attribute SHARED_PORT : string;
+  attribute GLOBAL      : string;
 
 end package attr_pack_regfile_regfile_32x4;
 
@@ -19,30 +19,30 @@ library ieee;
 
 entity regfile_32x4 is
   generic (
-    noconfigbits : integer := 2 -- has to be adjusted manually (we don't use an arithmetic parser for the value)
+    NoConfigBits : integer := 2 -- has to be adjusted manually (we don't use an arithmetic parser for the value)
   );
   port (                                        -- IMPORTANT: this has to be in a dedicated line
-    d     : in    std_logic_vector(3 downto 0); -- Register File write port
-    w_adr : in    std_logic_vector(4 downto 0); -- Register File write address
-    w_en  : in    std_logic;
+    D     : in    std_logic_vector(3 downto 0); -- Register File write port
+    W_ADR : in    std_logic_vector(4 downto 0); -- Register File write address
+    W_en  : in    std_logic;
 
-    ad    : out   std_logic_vector(3 downto 0); -- Register File read port A
-    a_adr : in    std_logic_vector(4 downto 0); -- Register File read address A
-    bd    : out   std_logic_vector(3 downto 0); -- Register File read port B
-    b_adr : in    std_logic_vector(4 downto 0); -- Register File read address B
+    AD    : out   std_logic_vector(3 downto 0); -- Register File read port A
+    A_ADR : in    std_logic_vector(4 downto 0); -- Register File read address A
+    BD    : out   std_logic_vector(3 downto 0); -- Register File read port B
+    B_ADR : in    std_logic_vector(4 downto 0); -- Register File read address B
 
-    userclk : in    std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
+    UserCLK : in    std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    configbits : in    std_logic_vector(noconfigbits - 1 downto 0) -- (* FABulous, GLOBAL *)
+    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
   );
 
-  attribute fabulous of RegFile_32x4 : entity is "TRUE";
-  attribute belmap of RegFile_32x4   : entity is "TRUE";
-  attribute ad_reg of RegFile_32x4   : entity is 0;
-  attribute bd_reg of RegFile_32x4   : entity is 1;
-  attribute external of UserCLK      : signal is "TRUE";
-  attribute shared_port of UserCLK   : signal is "TRUE";
-  attribute global of ConfigBits     : signal is "TRUE";
+  attribute FABulous of RegFile_32x4 : entity is "TRUE";
+  attribute BelMap of RegFile_32x4   : entity is "TRUE";
+  attribute AD_reg of RegFile_32x4   : entity is 0;
+  attribute BD_reg of RegFile_32x4   : entity is 1;
+  attribute EXTERNAL of UserCLK      : signal is "TRUE";
+  attribute SHARED_PORT of UserCLK   : signal is "TRUE";
+  attribute GLOBAL of ConfigBits     : signal is "TRUE";
 end entity regfile_32x4;
 
 architecture behavioral of regfile_32x4 is
@@ -58,33 +58,33 @@ architecture behavioral of regfile_32x4 is
 
 begin
 
-  p_write : process (userclk) is
+  p_write : process (UserCLK) is
   begin
 
-    if (userclk'event and userclk = '1') then
-      if (w_en = '1') then
-        mem(TO_INTEGER(UNSIGNED(w_adr))) <= d;
+    if (UserCLK'event and UserCLK = '1') then
+      if (W_en = '1') then
+        mem(TO_INTEGER(UNSIGNED(W_ADR))) <= D;
       end if;
     end if;
 
   end process p_write;
 
-  ad_signal <= mem(TO_INTEGER(UNSIGNED(a_adr)));
-  bd_signal <= mem(TO_INTEGER(UNSIGNED(b_adr)));
+  ad_signal <= mem(TO_INTEGER(UNSIGNED(A_ADR)));
+  bd_signal <= mem(TO_INTEGER(UNSIGNED(B_ADR)));
 
-  process_001 : process (userclk) is
+  process_001 : process (UserCLK) is
   begin
 
-    if (userclk'event and userclk = '1') then
+    if (UserCLK'event and UserCLK = '1') then
       ad_reg <= ad_signal;
       bd_reg <= bd_signal;
     end if;
 
   end process process_001;
 
-  ad <= ad_signal when (configbits(0) = '0') else
+  AD <= ad_signal when (ConfigBits(0) = '0') else
         ad_reg;
-  bd <= bd_signal when (configbits(1) = '0') else
+  BD <= bd_signal when (ConfigBits(1) = '0') else
         bd_reg;
 
 end architecture behavioral;

@@ -1,14 +1,14 @@
 package attr_pack_ram_io_outpass4_frame_config_mux is
 
-  attribute fabulous    : string;
-  attribute belmap      : string;
-  attribute o0_reg      : integer;
-  attribute o1_reg      : integer;
-  attribute o2_reg      : integer;
-  attribute o3_reg      : integer;
-  attribute external    : string;
-  attribute shared_port : string;
-  attribute global      : string;
+  attribute FABulous    : string;
+  attribute BelMap      : string;
+  attribute O0_reg      : integer;
+  attribute O1_reg      : integer;
+  attribute O2_reg      : integer;
+  attribute O3_reg      : integer;
+  attribute EXTERNAL    : string;
+  attribute SHARED_PORT : string;
+  attribute GLOBAL      : string;
 
 end package attr_pack_ram_io_outpass4_frame_config_mux;
 
@@ -23,28 +23,28 @@ library ieee;
 
 entity outpass4_frame_config_mux is
   generic (
-    noconfigbits : integer := 4 -- has to be adjusted manually (we don't use an arithmetic parser for the value)
+    NoConfigBits : integer := 4 -- has to be adjusted manually (we don't use an arithmetic parser for the value)
   );
   port (
     -- Pin0
-    i : in    std_logic_vector(3 downto 0);
-    o : out   std_logic_vector(3 downto 0); -- (* FABulous, EXTERNAL *)
+    I : in    std_logic_vector(3 downto 0);
+    O : out   std_logic_vector(3 downto 0); -- (* FABulous, EXTERNAL *)
     -- Tile IO ports from BELs
-    userclk : in    std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
+    UserCLK : in    std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    configbits : in    std_logic_vector(noconfigbits - 1 downto 0) -- (* FABulous, GLOBAL *)
+    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
   );
 
-  attribute fabulous of OutPass4_frame_config_mux : entity is "TRUE";
-  attribute belmap of OutPass4_frame_config_mux   : entity is "TRUE";
-  attribute o0_reg of OutPass4_frame_config_mux   : entity is 0;
-  attribute o1_reg of OutPass4_frame_config_mux   : entity is 1;
-  attribute o2_reg of OutPass4_frame_config_mux   : entity is 2;
-  attribute o3_reg of OutPass4_frame_config_mux   : entity is 3;
-  attribute external of O                         : signal is "TRUE";
-  attribute external of UserCLK                   : signal is "TRUE";
-  attribute shared_port of UserCLK                : signal is "TRUE";
-  attribute global of ConfigBits                  : signal is "TRUE";
+  attribute FABulous of OutPass4_frame_config_mux : entity is "TRUE";
+  attribute BelMap of OutPass4_frame_config_mux   : entity is "TRUE";
+  attribute O0_reg of OutPass4_frame_config_mux   : entity is 0;
+  attribute O1_reg of OutPass4_frame_config_mux   : entity is 1;
+  attribute O2_reg of OutPass4_frame_config_mux   : entity is 2;
+  attribute O3_reg of OutPass4_frame_config_mux   : entity is 3;
+  attribute EXTERNAL of O                         : signal is "TRUE";
+  attribute EXTERNAL of UserCLK                   : signal is "TRUE";
+  attribute SHARED_PORT of UserCLK                : signal is "TRUE";
+  attribute GLOBAL of ConfigBits                  : signal is "TRUE";
 end entity outpass4_frame_config_mux;
 
 architecture behavioral of outpass4_frame_config_mux is
@@ -57,58 +57,58 @@ architecture behavioral of outpass4_frame_config_mux is
   -- Corresponding pins can connect all the way to top by adding
   -- an "-- EXTERNAL" comment (see PAD in the entity).
 
-  signal q : std_logic_vector(3 downto 0); -- FLOPs
+  signal Q : std_logic_vector(3 downto 0); -- FLOPs
 
   component cus_mux21 is
     port (
       a0 : in    std_logic;
       a1 : in    std_logic;
-      s  : in    std_logic;
+      S  : in    std_logic;
       x  : out   std_logic
     );
   end component cus_mux21;
 
 begin
 
-  process_001 : process (userclk) is
+  process_001 : process (UserCLK) is
   begin
 
-    if (userclk'event and userclk = '1') then
-      q <= i;
+    if (UserCLK'event and UserCLK = '1') then
+      Q <= I;
     end if;
 
   end process process_001;
 
   cus_mux21_inst : component cus_mux21
     port map (
-      a0 => i(0),
-      a1 => q(0),
-      s  => configbits(0),
-      x  => o(0)
+      a0 => I(0),
+      a1 => Q(0),
+      S  => ConfigBits(0),
+      x  => O(0)
     );
 
   cus_mux21_inst1 : component cus_mux21
     port map (
-      a0 => i(1),
-      a1 => q(1),
-      s  => configbits(1),
-      x  => o(1)
+      a0 => I(1),
+      a1 => Q(1),
+      S  => ConfigBits(1),
+      x  => O(1)
     );
 
   cus_mux21_2_inst2 : component cus_mux21
     port map (
-      a0 => i(2),
-      a1 => q(2),
-      s  => configbits(2),
-      x  => o(2)
+      a0 => I(2),
+      a1 => Q(2),
+      S  => ConfigBits(2),
+      x  => O(2)
     );
 
   cus_mux21_inst3 : component cus_mux21
     port map (
-      a0 => i(3),
-      a1 => q(3),
-      s  => configbits(3),
-      x  => o(3)
+      a0 => I(3),
+      a1 => Q(3),
+      S  => ConfigBits(3),
+      x  => O(3)
     );
 
 end architecture behavioral;

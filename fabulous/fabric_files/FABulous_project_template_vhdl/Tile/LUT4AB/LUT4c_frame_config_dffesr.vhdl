@@ -1,29 +1,29 @@
 package attr_pack_lut4ab_lut4c_frame_config_dffesr is
 
-  attribute fabulous    : string;
-  attribute belmap      : string;
-  attribute init        : integer;
-  attribute init_1      : integer;
-  attribute init_2      : integer;
-  attribute init_3      : integer;
-  attribute init_4      : integer;
-  attribute init_5      : integer;
-  attribute init_6      : integer;
-  attribute init_7      : integer;
-  attribute init_8      : integer;
-  attribute init_9      : integer;
-  attribute init_10     : integer;
-  attribute init_11     : integer;
-  attribute init_12     : integer;
-  attribute init_13     : integer;
-  attribute init_14     : integer;
-  attribute init_15     : integer;
-  attribute fab_attr_ff : integer;
-  attribute iomux       : integer;
-  attribute set_noreset : integer;
-  attribute external    : string;
-  attribute shared_port : string;
-  attribute global      : string;
+  attribute FABulous    : string;
+  attribute BelMap      : string;
+  attribute INIT        : integer;
+  attribute INIT_1      : integer;
+  attribute INIT_2      : integer;
+  attribute INIT_3      : integer;
+  attribute INIT_4      : integer;
+  attribute INIT_5      : integer;
+  attribute INIT_6      : integer;
+  attribute INIT_7      : integer;
+  attribute INIT_8      : integer;
+  attribute INIT_9      : integer;
+  attribute INIT_10     : integer;
+  attribute INIT_11     : integer;
+  attribute INIT_12     : integer;
+  attribute INIT_13     : integer;
+  attribute INIT_14     : integer;
+  attribute INIT_15     : integer;
+  attribute FAB_ATTR_FF : integer;
+  attribute IOmux       : integer;
+  attribute SET_NORESET : integer;
+  attribute EXTERNAL    : string;
+  attribute SHARED_PORT : string;
+  attribute GLOBAL      : string;
 
 end package attr_pack_lut4ab_lut4c_frame_config_dffesr;
 
@@ -39,45 +39,46 @@ library ieee;
 
 entity lut4c_frame_config_dffesr is
   generic (
-    noconfigbits : integer := 19 -- has to be adjusted manually (we don't use an arithmetic parser for the value)
+    NoConfigBits : integer := 19 -- has to be adjusted manually (we don't use an arithmetic parser for the value)
   );
   port (                                     -- IMPORTANT: this has to be in a dedicated line
-    i  : in    std_logic_vector(3 downto 0); -- LUT inputs
-    o  : out   std_logic;                    -- LUT output (combinatorial or FF)
-    ci : in    std_logic;                    -- carry chain input
-    co : out   std_logic;                    -- carry chain output
-    sr : in    std_logic;                    -- (* FABulous, SHARED_RESET *)
-    en : in    std_logic;                    -- (* FABulous, SHARED_ENABLE *)
+    I  : in    std_logic_vector(3 downto 0); -- LUT inputs
+    O  : out   std_logic;                    -- LUT output (combinatorial or FF)
+    Ci : in    std_logic;                    -- carry chain input
+    Co : out   std_logic;                    -- carry chain output
+    SR : in    std_logic;                    -- (* FABulous, SHARED_RESET *)
+    EN : in    std_logic;                    -- (* FABulous, SHARED_ENABLE *)
     -- EXTERNAL sends this signal all the way to top.
     -- SHARED allows multiple BELs to use the same port.
-    userclk : in    std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
+    UserCLK : in    std_logic; -- (* FABulous, EXTERNAL, SHARED_PORT *)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    configbits : in    std_logic_vector(noconfigbits - 1 downto 0)
+    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0)
   );
 
-  attribute fabulous of LUT4c_frame_config_dffesr    : entity is "TRUE";
-  attribute belmap of LUT4c_frame_config_dffesr      : entity is "TRUE";
-  attribute init of LUT4c_frame_config_dffesr        : entity is 0;
-
-  attribute init_3 of LUT4c_frame_config_dffesr      : entity is 3;
-  attribute init_4 of LUT4c_frame_config_dffesr      : entity is 4;
-  attribute init_5 of LUT4c_frame_config_dffesr      : entity is 5;
-  attribute init_6 of LUT4c_frame_config_dffesr      : entity is 6;
-  attribute init_7 of LUT4c_frame_config_dffesr      : entity is 7;
-  attribute init_8 of LUT4c_frame_config_dffesr      : entity is 8;
-  attribute init_9 of LUT4c_frame_config_dffesr      : entity is 9;
-  attribute init_10 of LUT4c_frame_config_dffesr     : entity is 10;
-  attribute init_11 of LUT4c_frame_config_dffesr     : entity is 11;
-  attribute init_12 of LUT4c_frame_config_dffesr     : entity is 12;
-  attribute init_13 of LUT4c_frame_config_dffesr     : entity is 13;
-  attribute init_14 of LUT4c_frame_config_dffesr     : entity is 14;
-  attribute init_15 of LUT4c_frame_config_dffesr     : entity is 15;
-  attribute fab_attr_ff of LUT4c_frame_config_dffesr : entity is 16;
-  attribute iomux of LUT4c_frame_config_dffesr       : entity is 17;
-  attribute set_noreset of LUT4c_frame_config_dffesr : entity is 18;
-  attribute external of UserCLK                      : signal is "TRUE";
-  attribute shared_port of UserCLK                   : signal is "TRUE";
-  attribute global of ConfigBits                     : signal is "TRUE";
+  attribute FABulous of LUT4c_frame_config_dffesr    : entity is "TRUE";
+  attribute BelMap of LUT4c_frame_config_dffesr      : entity is "TRUE";
+  attribute INIT of LUT4c_frame_config_dffesr        : entity is 0;
+  attribute INIT_1 of LUT4c_frame_config_dffesr      : entity is 1;
+  attribute INIT_2 of LUT4c_frame_config_dffesr      : entity is 2;
+  attribute INIT_3 of LUT4c_frame_config_dffesr      : entity is 3;
+  attribute INIT_4 of LUT4c_frame_config_dffesr      : entity is 4;
+  attribute INIT_5 of LUT4c_frame_config_dffesr      : entity is 5;
+  attribute INIT_6 of LUT4c_frame_config_dffesr      : entity is 6;
+  attribute INIT_7 of LUT4c_frame_config_dffesr      : entity is 7;
+  attribute INIT_8 of LUT4c_frame_config_dffesr      : entity is 8;
+  attribute INIT_9 of LUT4c_frame_config_dffesr      : entity is 9;
+  attribute INIT_10 of LUT4c_frame_config_dffesr     : entity is 10;
+  attribute INIT_11 of LUT4c_frame_config_dffesr     : entity is 11;
+  attribute INIT_12 of LUT4c_frame_config_dffesr     : entity is 12;
+  attribute INIT_13 of LUT4c_frame_config_dffesr     : entity is 13;
+  attribute INIT_14 of LUT4c_frame_config_dffesr     : entity is 14;
+  attribute INIT_15 of LUT4c_frame_config_dffesr     : entity is 15;
+  attribute FAB_ATTR_FF of LUT4c_frame_config_dffesr : entity is 16;
+  attribute IOmux of LUT4c_frame_config_dffesr       : entity is 17;
+  attribute SET_NORESET of LUT4c_frame_config_dffesr : entity is 18;
+  attribute EXTERNAL of UserCLK                      : signal is "TRUE";
+  attribute SHARED_PORT of UserCLK                   : signal is "TRUE";
+  attribute GLOBAL of ConfigBits                     : signal is "TRUE";
 end entity lut4c_frame_config_dffesr;
 
 architecture behavioral of lut4c_frame_config_dffesr is
@@ -103,7 +104,7 @@ architecture behavioral of lut4c_frame_config_dffesr is
     port (
       a0 : in    std_logic;
       a1 : in    std_logic;
-      s  : in    std_logic;
+      S  : in    std_logic;
       x  : out   std_logic
     );
   end component cus_mux21;
@@ -140,23 +141,23 @@ architecture behavioral of lut4c_frame_config_dffesr is
 
 begin
 
-  lut_values    <= configbits(15 downto 0);
-  c_out_mux     <= configbits(16);
-  c_i0mux       <= configbits(17);
-  c_reset_value <= configbits(18);
+  lut_values    <= ConfigBits(15 downto 0);
+  c_out_mux     <= ConfigBits(16);
+  c_i0mux       <= ConfigBits(17);
+  c_reset_value <= ConfigBits(18);
 
   -- I0mux <= I(0) when (c_I0mux = '0') else
   --   Ci;
 
   inst_cus_mux21_i0mux : component cus_mux21
     port map (
-      a0 => i(0),
-      a1 => ci,
-      s  => c_i0mux,
+      a0 => I(0),
+      a1 => Ci,
+      S  => c_i0mux,
       x  => i0mux
     );
 
-  lut_index <= i(3) & i(2) & i(1) & i0mux;
+  lut_index <= I(3) & I(2) & I(1) & i0mux;
 
   -- The LUT is just a multiplexer
   -- for a first shot, I am using a 16:1
@@ -199,19 +200,19 @@ begin
     port map (
       a0 => lut_out,
       a1 => lut_flop,
-      s  => c_out_mux,
-      x  => o
+      S  => c_out_mux,
+      x  => O
     );
 
   -- iCE40 like carry chain (as this is supported in Yosys; would normally go for fractured LUT
-  co <= (ci and i(1)) or (ci and i(2)) or (i(1) and i(2));
+  Co <= (Ci and I(1)) or (Ci and I(2)) or (I(1) and I(2));
 
-  process_001 : process (userclk) is
+  process_001 : process (UserCLK) is
   begin
 
-    if (userclk'event and userclk = '1') then
-      if (en = '1') then
-        if (sr = '1') then
+    if (UserCLK'event and UserCLK = '1') then
+      if (EN = '1') then
+        if (SR = '1') then
           lut_flop <= c_reset_value;
         else
           lut_flop <= lut_out;
