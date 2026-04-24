@@ -263,7 +263,17 @@ class FracLutArchitecture:
             input_to_slot_source=src_map0,
         )
 
+        # How much LUT space is left.
+        leftover_lut_width: int = self._leftover_lut_width(
+            lut0_width=lut.width, lut1_width=0, shared_count=0
+        )
+
         params: dict[str, str] = {
+            "META_DATA": (
+                f"lut_mapping=single;"
+                f"lut_width={lut.width};"
+                f"leftover_lut_width={leftover_lut_width}"
+            ),
             "LUT_SIZE": str(self.frac_lut_size),
             "NUM_SHARED_INPUTS": str(self.num_shared_inputs),
             "L0_CELL_ID": lut.cell_id,
@@ -283,6 +293,7 @@ class FracLutArchitecture:
             external_pin_nets=dict(sorted(ext_pins.items())),
             output_pin_nets={"O0": lut.output_net},
             parameters=params,
+            leftover_lut_width=leftover_lut_width,
         )
 
     def build_mapped_cell(self, mapped_id: str, binding: PairBinding) -> PackedCell:
@@ -317,9 +328,30 @@ class FracLutArchitecture:
             slot_width=self.frac_lut_size,
         )
 
+        # Count shared nets for reporting purposes.
+        # This gives insight into the packing quality.
+        u0: set[str] = set(_ordered_unique(binding.placement0.cell.input_nets))
+        u1: set[str] = set(_ordered_unique(binding.placement1.cell.input_nets))
+        shared_count: int = len(u0 & u1)
+
+        lut0_width: int = binding.placement0.cell.width
+        lut1_width: int = binding.placement1.cell.width
+
+        # How much LUT space is left.
+        leftover_lut_width: int = self._leftover_lut_width(
+            lut0_width=lut0_width, lut1_width=lut1_width, shared_count=shared_count
+        )
+
         # Build parameters with original cell IDs and remapped INIT values.
         # For dual-LUT packing we keep the same cell IDs since both halves are needed.
         params: dict[str, str] = {
+            "META_DATA": (
+                f"lut_mapping=dual;"
+                f"lut0_width={lut0_width};"
+                f"lut1_width={lut1_width};"
+                f"shared_inputs={shared_count};"
+                f"leftover_lut_width={leftover_lut_width}"
+            ),
             "LUT_SIZE": str(self.frac_lut_size),
             "NUM_SHARED_INPUTS": str(self.num_shared_inputs),
             "L0_CELL_ID": binding.placement0.cell.cell_id,
@@ -335,7 +367,41 @@ class FracLutArchitecture:
             external_pin_nets=binding.external_pin_nets,
             output_pin_nets=binding.output_pin_nets,
             parameters=params,
+            leftover_lut_width=leftover_lut_width,
         )
+
+    def _leftover_lut_width(
+        self, lut0_width: int, lut1_width: int, shared_count: int
+    ) -> int:
+        """Calculate the leftover LUT width after packing two LUTs.
+
+        The leftover LUT width tells us how much extra LUTs we could pack into
+        the same macro. This is also a measure of how efficiently we are using the
+        architecture's LUT slots.
+
+        Note: real packing extra luts in the same macro is only possible
+        when the second output of the macro is not used.
+
+        Parameters
+        ----------
+        lut0_width : int
+            The input width of the first LUT.
+        lut1_width : int
+            The input width of the second LUT.
+        shared_count : int
+            The number of shared inputs between the two LUTs.
+
+
+        Returns
+        -------
+        int
+            The leftover LUT width after packing.
+        """
+        N = self.frac_lut_size
+        P = self.num_shared_inputs
+        S = shared_count
+        T = 2 * N - P
+        return T - (lut0_width + lut1_width - min(S, P))
 
     def _build_input_map(
         self,

@@ -95,6 +95,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design.run_pass("memory -nomap")
 
         self.design.run_pass("simplemap")
+        self.design.run_pass("opt -full")  # opt
         self.design.run_pass("extract_reduce")
 
         self.design.run_pass("opt_clean")
@@ -147,7 +148,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design.run_pass("abc -lut 5 -dress")
         self.design.run_pass("clean")
 
-        lcp = LutCombinatorPass(top_name=self.config.top_module)
+        lcp = LutCombinatorPass(top_name=self.config.top_module, passthrough=True)
         lcp.run_on(self.design)
         logger.info(lcp.report_summary)
 
@@ -161,10 +162,6 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         """Validate the mapped design and report structural issues."""
         self.design.run_pass(f"hierarchy -top {self.config.top_module} -check")
         self.design.run_pass("stat")
-
-        dap = DesignAnalyzerPass(top_name=self.config.top_module)
-        dap.run_on(self.design)
-        logger.info(dap.report_summary)
 
     def synthesize(self) -> None:
         """Run the full synthesis pipeline for a user design."""

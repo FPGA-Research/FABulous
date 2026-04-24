@@ -135,6 +135,7 @@ class LutCombinatorPass(SynthPass):
             lines.append(f"  input {', '.join(b_ports)};")
         lines.append("  input S;")
         lines.append("  output O0, O1;")
+        lines.append('  parameter META_DATA = "";')
         lines.append('  parameter L0_CELL_ID = "";')
         lines.append('  parameter L1_CELL_ID = "";')
         lines.append(f"  parameter [{init_width - 1}:0] L0_INIT = {init_width}'b0;")

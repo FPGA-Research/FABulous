@@ -225,6 +225,7 @@ def _frac_model(name: str, lut_size: int, num_shared_inputs: int) -> list[str]:
         f"  input {', '.join(b_side)};",
         "  input S;",
         "  output O0, O1;",
+        '  parameter META_DATA = "";',
         '  parameter L0_CELL_ID = "";',
         '  parameter L1_CELL_ID = "";',
         '  parameter F0_CELL_ID = "";',

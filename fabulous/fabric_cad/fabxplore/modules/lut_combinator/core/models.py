@@ -159,6 +159,11 @@ class PackedCell:
         Output pin to net mapping for macro instance.
     parameters : dict[str, str]
         Parameter dictionary serialized to output netlist.
+    leftover_lut_width : int
+        Remaining LUT width after packing.
+        This is a measure of how much LUT resource is left
+        unused in the macro and can be used for report
+        generation and architecture efficiency analysis.
     """
 
     packed_id: str
@@ -167,6 +172,7 @@ class PackedCell:
     external_pin_nets: dict[str, str]
     output_pin_nets: dict[str, str]
     parameters: dict[str, str]
+    leftover_lut_width: int
 
 
 @dataclass(frozen=True)
