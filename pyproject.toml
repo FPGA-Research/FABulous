@@ -111,6 +111,7 @@ exclude = [
   "scripts",
   ".claude",
   "fabulous_nix",
+  "librelane_plugin_fabulous",
   ".codex",
   "ttsim*",
 ]
@@ -143,6 +144,7 @@ omit = [
   "docs/*",
   "build_hooks.py",
   "fabulous_nix",
+  "librelane_plugin_fabulous",
 ]
 show_missing = true
 skip_covered = true

@@ -27,6 +27,7 @@ from fabulous.fabric_cad.timing_model.models import (
 
 # Importing Modules from FABulous Framework.
 from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import ConfigBitMode, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -188,7 +189,13 @@ class FABulous_API:
             If tile is not found in fabric.
         """
         if tile := self.fabric.getTileByName(tileName):
-            generateConfigMem(self.writer, self.fabric, tile, configMem)
+            generateConfigMem(
+                self.writer,
+                tile,
+                configMem,
+                frame_bits_per_row=self.fabric.frameBitsPerRow,
+                max_frame_per_col=self.fabric.maxFramesPerCol,
+            )
         else:
             raise ValueError(f"Tile {tileName} not found")
 
@@ -221,15 +228,24 @@ class FABulous_API:
             )
             genTileSwitchMatrix(
                 self.writer,
-                self.fabric,
                 tile,
                 switch_matrix_debug_signal,
                 csv_output_dir=csv_output_dir,
+                config_bit_mode=self.fabric.configBitMode,
+                multiplexer_style=self.fabric.multiplexerStyle,
+                generate_delay_in_switch_matrix=self.fabric.generateDelayInSwitchMatrix,
             )
         else:
             raise ValueError(f"Tile {tileName} not found")
 
-    def genTile(self, tileName: str) -> None:
+    def genTile(
+        self,
+        tileName: str,
+        frame_bit_per_row: int | None = None,
+        max_frame_per_col: int | None = None,
+        disable_user_clk: bool | None = None,
+        config_bit_mode: ConfigBitMode | None = None,
+    ) -> None:
         """Generate a tile based on its name.
 
         Using 'generateTile' defined in 'fabric_gen.py'.
@@ -238,6 +254,18 @@ class FABulous_API:
         ----------
         tileName : str
             Name of the tile generated.
+        frame_bit_per_row : int | None
+            Override for the fabric's ``frameBitsPerRow``. If ``None``, the value
+            from ``self.fabric`` is used.
+        max_frame_per_col : int | None
+            Override for the fabric's ``maxFramesPerCol``. If ``None``, the value
+            from ``self.fabric`` is used.
+        disable_user_clk : bool | None
+            Override for the fabric's ``disableUserCLK``. If ``None``, the value
+            from ``self.fabric`` is used.
+        config_bit_mode : ConfigBitMode | None
+            Override for the fabric's ``configBitMode``. If ``None``, the value
+            from ``self.fabric`` is used.
 
         Raises
         ------
@@ -245,11 +273,25 @@ class FABulous_API:
             If tile is not found in fabric.
         """
         if tile := self.fabric.getTileByName(tileName):
-            generateTile(self.writer, self.fabric, tile)
+            generateTile(
+                self.writer,
+                tile,
+                frame_bit_per_row or self.fabric.frameBitsPerRow,
+                max_frame_per_col or self.fabric.maxFramesPerCol,
+                disable_user_clk or self.fabric.disableUserCLK,
+                config_bit_mode or self.fabric.configBitMode,
+            )
         else:
             raise ValueError(f"Tile {tileName} not found")
 
-    def genSuperTile(self, tileName: str) -> None:
+    def genSuperTile(
+        self,
+        tileName: str,
+        frame_bit_per_row: int | None = None,
+        max_frame_per_col: int | None = None,
+        disable_user_clk: bool | None = None,
+        config_bit_mode: ConfigBitMode | None = None,
+    ) -> None:
         """Generate a super tile based on its name.
 
         Using 'generateSuperTile' defined in 'fabric_gen.py'.
@@ -258,6 +300,18 @@ class FABulous_API:
         ----------
         tileName : str
             Name of the super tile generated.
+        frame_bit_per_row : int | None
+            Override for the fabric's ``frameBitsPerRow``. If ``None``, the value
+            from ``self.fabric`` is used.
+        max_frame_per_col : int | None
+            Override for the fabric's ``maxFramesPerCol``. If ``None``, the value
+            from ``self.fabric`` is used.
+        disable_user_clk : bool | None
+            Override for the fabric's ``disableUserCLK``. If ``None``, the value
+            from ``self.fabric`` is used.
+        config_bit_mode : ConfigBitMode | None
+            Override for the fabric's ``configBitMode``. If ``None``, the value
+            from ``self.fabric`` is used.
 
         Raises
         ------
@@ -265,7 +319,14 @@ class FABulous_API:
             If super tile is not found in fabric.
         """
         if tile := self.fabric.getSuperTileByName(tileName):
-            generateSuperTile(self.writer, self.fabric, tile)
+            generateSuperTile(
+                self.writer,
+                tile,
+                frame_bit_per_row or self.fabric.frameBitsPerRow,
+                max_frame_per_col or self.fabric.maxFramesPerCol,
+                disable_user_clk or self.fabric.disableUserCLK,
+                config_bit_mode or self.fabric.configBitMode,
+            )
         else:
             raise ValueError(f"SuperTile {tileName} not found")
 
@@ -491,7 +552,14 @@ class FABulous_API:
                 logger.info(f"Generating IO BELs for tile {tile.name}")
                 self.genIOBelForTile(tile.name)
 
-    def gen_io_pin_order_config(self, tile: Tile | SuperTile, outfile: Path) -> None:
+    def gen_io_pin_order_config(
+        self,
+        tile: Tile | SuperTile,
+        outfile: Path,
+        prefix: str = "",
+        *,
+        external_port_side: Side = Side.SOUTH,
+    ) -> None:
         """Generate IO pin order configuration YAML for a tile or super tile.
 
         Parameters
@@ -500,8 +568,19 @@ class FABulous_API:
             The fabric element for which to generate the configuration.
         outfile : Path
             Output YAML path.
+        prefix : str
+            Prefix to add to port names.
+        external_port_side : Side
+            Side used for BEL external ports when no fabric placement context
+            is available.
         """
-        generate_IO_pin_order_config(self.fabric, tile, outfile)
+        generate_IO_pin_order_config(
+            tile,
+            outfile,
+            fabric=self.fabric,
+            prefix=prefix,
+            external_port_side=external_port_side,
+        )
 
     def genTileMacro(
         self,

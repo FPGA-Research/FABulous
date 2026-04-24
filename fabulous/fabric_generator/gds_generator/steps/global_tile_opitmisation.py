@@ -22,8 +22,8 @@ from pymoo.termination.ftol import SingleObjectiveSpaceTermination
 from pymoo.termination.max_gen import MaximumGenerationTermination
 
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_generator.gds_generator.define import OptMode
 from fabulous.fabric_generator.gds_generator.helper import round_up_decimal
-from fabulous.fabric_generator.gds_generator.steps.tile_optimisation import OptMode
 
 if TYPE_CHECKING:
     from fabulous.fabric_definition.tile import Tile

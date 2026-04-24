@@ -8,7 +8,7 @@ from typing import cast
 import yaml
 from librelane.config.variable import Instance, Macro, Orientation, Variable
 from librelane.flows.classic import Classic
-from librelane.flows.flow import Flow
+from librelane.flows.flow import Flow, FlowException
 from librelane.logging.logger import err, info
 from librelane.state.state import State
 from librelane.steps.step import Step
@@ -92,43 +92,8 @@ class FABulousFabricMacroFlow(Classic):
         pdk: str | None = None,
         **custom_config_overrides: dict,
     ) -> None:
-        self.macros: dict[str, Macro] = {}
-        self.tile_sizes: dict[str, tuple[Decimal, Decimal]] = {}
         self.fabric = fabric
-
-        for name, tile_macro_path in tile_macro_dirs.items():
-            die_area = json.loads(
-                (tile_macro_path / "metrics.json").read_text(encoding="utf-8")
-            ).get("design__die__bbox", None)
-
-            if die_area is None:
-                raise ValueError(f"metrics.json for {name} missing die bbox")
-            _, _, width, height = [Decimal(m) for m in die_area.split(" ")]
-
-            spef_dict = {}
-            for i in (tile_macro_path / "spef").iterdir():
-                spef_dict[str(i.name)] = list(i.glob("*.spef"))
-
-            self.macros[name] = Macro(
-                gds=cast("list", [i for i in (tile_macro_path / "gds").glob("*.gds")]),
-                lef=cast(
-                    "list",
-                    [str(i) for i in (tile_macro_path / "lef").glob("*.lef")],
-                ),
-                vh=cast(
-                    "list", [str(i) for i in (tile_macro_path / "vh").glob("*.vh")]
-                ),
-                nl=cast(
-                    "list", [str(i) for i in (tile_macro_path / "nl").glob("*.nl.v")]
-                ),
-                pnl=cast(
-                    "list",
-                    [str(i) for i in (tile_macro_path / "pnl").glob("*.pnl.v")],
-                ),
-                spef=spef_dict,
-            )
-
-            self.tile_sizes[name] = (width, height)
+        self.macros, self.tile_sizes = _build_macros(tile_macro_dirs)
 
         final_config = {}
         final_config["VERILOG_FILES"] = [str(i) for i in fabric_verilog_paths]
@@ -635,3 +600,70 @@ class FABulousFabricMacroFlow(Classic):
         info("Copying FABulous related files.")
 
         return (final_state, steps)
+
+
+def _build_macros(
+    tile_macro_dirs: dict[str, Path],
+) -> tuple[dict[str, Macro], dict[str, tuple[Decimal, Decimal]]]:
+    """Build LibreLane macros and a size map from tile macro output directories."""
+    macros: dict[str, Macro] = {}
+    tile_sizes: dict[str, tuple[Decimal, Decimal]] = {}
+
+    for name, tile_macro_path in tile_macro_dirs.items():
+        metrics_path = tile_macro_path / "metrics.json"
+        if not metrics_path.is_file():
+            raise FlowException(
+                f"metrics.json not found under {tile_macro_path} for tile {name!r}"
+            )
+
+        die_area = json.loads(metrics_path.read_text(encoding="utf-8")).get(
+            "design__die__bbox"
+        )
+        if die_area is None:
+            raise FlowException(
+                f"metrics.json for {name!r} is missing design__die__bbox"
+            )
+        _, _, width, height = [Decimal(m) for m in die_area.split(" ")]
+
+        spef_dict: dict[str, list[Path]] = {}
+        spef_root = tile_macro_path / "spef"
+        if spef_root.is_dir():
+            for corner in spef_root.iterdir():
+                spef_dict[corner.name] = list(corner.glob("*.spef"))
+
+        macros[name] = Macro(
+            gds=cast("list", list((tile_macro_path / "gds").glob("*.gds"))),
+            lef=cast("list", [str(p) for p in (tile_macro_path / "lef").glob("*.lef")]),
+            vh=cast("list", [str(p) for p in (tile_macro_path / "vh").glob("*.vh")]),
+            nl=cast("list", [str(p) for p in (tile_macro_path / "nl").glob("*.nl.v")]),
+            pnl=cast(
+                "list", [str(p) for p in (tile_macro_path / "pnl").glob("*.pnl.v")]
+            ),
+            spef=spef_dict,
+        )
+        tile_sizes[name] = (width, height)
+
+    return macros, tile_sizes
+
+
+def _collect_fabric_verilog(fabric_dir: Path, fabric_name: str) -> list[Path]:
+    """Best-effort search for the fabric-level Verilog when config omits it."""
+    candidates = [
+        fabric_dir / f"{fabric_name}.v",
+        fabric_dir / "fabric.v",
+        *fabric_dir.glob("*.v"),
+    ]
+    seen: set[Path] = set()
+    result: list[Path] = []
+    for candidate in candidates:
+        path = candidate.resolve()
+        if path.is_file() and path not in seen:
+            seen.add(path)
+            result.append(path)
+    if not result:
+        raise FlowException(
+            f"No fabric Verilog found under {fabric_dir}. Either set "
+            "VERILOG_FILES in config.yaml or place the fabric Verilog "
+            f"(e.g. {fabric_name}.v) alongside fabric.csv."
+        )
+    return result
