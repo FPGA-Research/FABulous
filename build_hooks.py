@@ -31,11 +31,37 @@ edit by hand. The source of truth for every Step and Flow lives in
 
 import importlib as _importlib
 import pkgutil as _pkgutil
+import sys as _sys
 
-for _sub in {subpkgs!s}:
-    _pkg = _importlib.import_module(f"{_UPSTREAM_PKG}.{{_sub}}")
-    for _info in _pkgutil.iter_modules(_pkg.__path__):
-        _importlib.import_module(f"{_UPSTREAM_PKG}.{{_sub}}.{{_info.name}}")
+_DEFERRED_FLOWS = False
+
+
+def _tile_optimisation_is_initialising() -> bool:
+    module = _sys.modules.get(
+        "{_UPSTREAM_PKG}.steps.tile_optimisation"
+    )
+    return module is not None and not hasattr(module, "TileOptimisation")
+
+
+def _register_submodules(include_flows: bool = True) -> None:
+    global _DEFERRED_FLOWS
+    for _sub in {subpkgs!s}:
+        if _sub == "flows" and not include_flows:
+            _DEFERRED_FLOWS = True
+            continue
+        _pkg = _importlib.import_module(f"{_UPSTREAM_PKG}.{{_sub}}")
+        for _info in _pkgutil.iter_modules(_pkg.__path__):
+            _importlib.import_module(f"{_UPSTREAM_PKG}.{{_sub}}.{{_info.name}}")
+    if include_flows:
+        _DEFERRED_FLOWS = False
+
+
+def _finish_deferred_registration() -> None:
+    if _DEFERRED_FLOWS:
+        _register_submodules(include_flows=True)
+
+
+_register_submodules(include_flows=not _tile_optimisation_is_initialising())
 
 __all__ = ["FABulousTile", "FABulousFabric"]
 
@@ -45,7 +71,7 @@ _REEXPORTS = {{
 }}
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> object:
     """Lazy re-export.
 
     Resolved on first access rather than at package-import time to avoid a
@@ -55,13 +81,14 @@ def __getattr__(name):
     target = _REEXPORTS.get(name)
     if target is None:
         raise AttributeError(f"module {{__name__!r}} has no attribute {{name!r}}")
+    _finish_deferred_registration()
     module_name, attr = target
     return getattr(_importlib.import_module(module_name), attr)
 '''
 
 
 class BuildPyWithFabulousNix(build_py):
-    """Generate FABulous side-packages (`fabulous_nix` + `librelane_plugin_fabulous`)."""
+    """Generate FABulous side-packages."""
 
     _NIX_PACKAGE_NAME = "fabulous_nix"
     _LIBRELANE_PLUGIN_PACKAGE_NAME = "librelane_plugin_fabulous"
@@ -81,6 +108,7 @@ class BuildPyWithFabulousNix(build_py):
     )
 
     def run(self) -> None:
+        """Run package build and generate side packages."""
         super().run()
         self._build_fabulous_nix_package()
         self._build_librelane_plugin_fabulous_package()

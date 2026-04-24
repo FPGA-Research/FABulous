@@ -403,6 +403,7 @@ class TestFABulousTileRunAdapter:
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 2
 
 
+@pytest.mark.usefixtures("mock_config_load")
 class TestFABulousTileEndToEnd:
     """End-to-end exercise of ``FABulousTile.run()`` against a real demo tile.
 

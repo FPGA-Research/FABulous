@@ -1,8 +1,10 @@
 """Config-driven LibreLane plugin adapter for the FABulous tile flow."""
 
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
+from librelane.common import GenericDict
 from librelane.config.variable import Variable
 from librelane.flows.flow import Flow, FlowException
 from librelane.flows.sequential import SequentialFlow
@@ -17,12 +19,13 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
 )
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMacroFlow,
-    _apply_tile_die_area_config,
 )
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
 from fabulous.fabric_generator.gds_generator.helper import (
+    get_offset,
+    get_pitch,
     get_routing_obstructions,
     round_die_area,
 )
@@ -211,6 +214,35 @@ def _emit_regular_tile_verilog(
         disable_user_clk=True,
         config_bit_mode=ConfigBitMode.FRAME_BASED,
     )
+
+
+def _apply_tile_die_area_config(
+    config: GenericDict[str, object],
+    tile_type: Tile | SuperTile,
+) -> GenericDict[str, object]:
+    """Populate plugin tile ``DIE_AREA`` using patchable local helper imports."""
+    x_pitch, y_pitch = get_pitch(config)
+    get_offset(config)
+    min_x, min_y = tile_type.get_min_die_area(
+        x_pitch,
+        y_pitch,
+        config.get("IO_PIN_V_THINKNESS_MULT", Decimal(1)),
+        config.get("IO_PIN_H_THINKNESS_MULT", Decimal(1)),
+        x_pitch,
+        y_pitch,
+    )
+
+    if config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"] or config.get("DIE_AREA") is None:
+        return config.copy(DIE_AREA=(0, 0, min_x, min_y))
+
+    _, _, width, height = config["DIE_AREA"]
+    if width < min_x or height < min_y:
+        raise FlowException(
+            f"DIE_AREA ({width}, {height}) is smaller than the "
+            f"minimum required area ({min_x}, {min_y}) for the "
+            f"tile {tile_type.name}. Please update the DIE_AREA "
+        )
+    return config
 
 
 def _parse_plugin_tile(
