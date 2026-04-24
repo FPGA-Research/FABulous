@@ -33,10 +33,10 @@ module RegFile_32x4 #(
     output [3:0] BD,    // Read port B
     input  [4:0] B_ADR,
 
-    // The "EXTERNAL" keyword will send this signal all the way to top and the
+    // The "EXTERNAL" keyword will send this signal all the way to top
     // The "SHARED" allows multiple BELs using the same port (e.g. for exporting a clock to the top)
     (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,
-    // all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
+    // All primitive pins that are connected to the switch matrix have to go before the "GLOBAL" label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
 

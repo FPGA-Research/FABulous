@@ -17,7 +17,6 @@
 
 
 module IO_1_bidirectional_frame_config_pass (
-    // Pin0
     input I,  // from fabric to external pin
     input T,  // tristate control
     output O,  // from external pin to fabric
