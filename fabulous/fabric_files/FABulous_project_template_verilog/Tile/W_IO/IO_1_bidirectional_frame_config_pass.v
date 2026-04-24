@@ -35,8 +35,6 @@ These ports need to be available at the top-level, not the switch matrix
     //              |         ////-  |
     //    T////////-+                +//>FF//> Q
 
-    // I am instantiating an IOBUF primitive.
-    // However, it is possible to connect corresponding pins all the way to top, just by adding an "// EXTERNAL" comment (see PAD in the entity)
     assign O = O_top;
 
     always @(posedge UserCLK) begin
