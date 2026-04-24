@@ -180,8 +180,41 @@ class FracLutCellParameters:
     """Represent the stable parameter schema emitted for one FRAC LUT cell.
 
     Attributes map one-to-one to Verilog parameters on the generated
-    fractional LUT cell. Use :meth:`as_dict` when writing these values into a
-    :class:`PackedCell` or JSON netlist.
+    fractional LUT cell. Use `as_dict` when writing these values into a
+    `PackedCell` or JSON netlist.
+
+    Attributes
+    ----------
+    meta_data : str
+        Encoded metadata string for this cell instance.
+    lut_size : int
+        The size if the fractional LUT inside the macro.
+    num_shared_inputs : int
+        The number of shared inputs between the two LUTs in this macro.
+    l0_cell_id : str
+        The cell_id of the logical LUT placed in side L0.
+    l1_cell_id : str
+        The cell_id of the logical LUT placed in side L1.
+    l0_init : str
+        The INIT value for the LUT placed in side L0, encoded as a hex string.
+    l1_init : str
+        The INIT value for the LUT placed in side L1, encoded as a hex string.
+    select_as_data_capable : bool
+        Whether this cell can support the select-as-data dual-LUT pairing mode
+        based on its shared input configuration.
+    select_as_data_used : bool
+        Whether the select-as-data mode is actually used in this
+        cell's configuration.
+    effective_shared_inputs : int | None
+        The effective number of shared inputs used for this cell, which may
+        differ from the original num_shared_inputs in cases where select-as-data
+        mode is enabled and allows for more flexible pairing.
+    cut_shared_index : int
+        The index at which the shared inputs are cut between the two LUTs, used
+        for determining how inputs are distributed in the macro.
+    mux_select_config : int
+        An integer encoding the configuration of the internal multiplexer select
+        signals for this cell.
     """
 
     meta_data: str

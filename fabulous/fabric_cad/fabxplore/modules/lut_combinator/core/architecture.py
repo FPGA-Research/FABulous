@@ -20,6 +20,9 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.truth_table impor
     format_bits,
     remap_init_to_slot,
 )
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.verilog_model import (
+    FracLutBehavioralModel,
+)
 
 
 @dataclass(frozen=True)
@@ -736,6 +739,37 @@ class FracLutArchitecture:
             l0 |= b0 << data_idx
             l1 |= b1 << data_idx
         return l0, l1
+
+    def build_behavioral_model(
+        self,
+        interface_width: int | None = None,
+        include_equiv_compat_params: bool = False,
+    ) -> FracLutBehavioralModel:
+        """Build the behavioral Verilog model for this FRAC LUT architecture.
+
+        Parameters
+        ----------
+        interface_width : int | None
+            Optional number of shared/private side ports to expose in the
+            generated model. If ``None``, the model exposes only the nominal
+            architecture ports. Equivalence tests may pass a wider value to
+            tolerate named-port instances from different generated netlists.
+        include_equiv_compat_params : bool
+            Whether to include legacy/full-LUT compatibility parameters used
+            by the standalone equivalence checker.
+
+        Returns
+        -------
+        FracLutBehavioralModel
+            Behavioral Verilog model configured from this architecture.
+        """
+        return FracLutBehavioralModel(
+            name=self.name,
+            lut_size=self.frac_lut_size,
+            num_shared_inputs=self.num_shared_inputs,
+            interface_width=interface_width,
+            include_equiv_compat_params=include_equiv_compat_params,
+        )
 
 
 def _ordered_unique(values: tuple[str, ...]) -> tuple[str, ...]:

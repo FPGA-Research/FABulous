@@ -17,9 +17,6 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
     MappingResult,
     MatchingMode,
 )
-from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.verilog_model import (
-    FracLutBehavioralModel,
-)
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 from fabulous.fabric_cad.fabxplore.pyosys.synth_pass import SynthPass
 
@@ -82,11 +79,7 @@ class LutCombinatorPass(SynthPass):
 
         comb = LutCombinator(cfg)
         result: MappingResult = comb.map_from_design(design, inplace=True)
-        frac_model = FracLutBehavioralModel(
-            name=self.lut_name,
-            lut_size=self.frac_lut_size,
-            num_shared_inputs=self.num_shared_inputs,
-        )
+        frac_model = frac_arch.build_behavioral_model()
         design.read_verilog_string(frac_model.to_verilog(), blackbox=True)
 
         self._result = result
