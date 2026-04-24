@@ -1,4 +1,3 @@
-`default_nettype none
 
 // Copyright 2021 University of Manchester
 //
@@ -14,10 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+`default_nettype none
 
 (* FABulous, BelMap,
-AD_reg=0,
-BD_reg=1
+    AD_reg=0,
+    BD_reg=1
 *)
 module RegFile_32x4 #(
     parameter integer NoConfigBits = 2

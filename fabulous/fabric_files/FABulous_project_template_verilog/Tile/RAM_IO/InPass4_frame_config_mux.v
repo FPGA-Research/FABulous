@@ -1,4 +1,3 @@
-`default_nettype none
 
 // Copyright 2021 University of Manchester
 //
@@ -14,12 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+`default_nettype none
 
 (* FABulous, BelMap,
-I0_reg=0,
-I1_reg=1,
-I2_reg=2,
-I3_reg=3
+    I0_reg=0,
+    I1_reg=1,
+    I2_reg=2,
+    I3_reg=3
 *)
 module InPass4_frame_config_mux #(
     parameter integer NoConfigBits = 4

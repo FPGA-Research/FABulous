@@ -1,5 +1,3 @@
-`default_nettype none
-
 // Copyright 2021 University of Manchester
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,11 +13,13 @@
 // limitations under the License.
 
 
+`default_nettype none
+
 (* FABulous, BelMap,
-I0_reg=0,
-I1_reg=1,
-I2_reg=2,
-I3_reg=3
+    I0_reg=0,
+    I1_reg=1,
+    I2_reg=2,
+    I3_reg=3
 *)
 // InPass4 and OutPass4 are the same except for changing on which side I[3:0] or O[3:0] get connected to the top entity
 module OutPass4_frame_config_mux #(

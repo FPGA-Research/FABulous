@@ -1,8 +1,10 @@
-`default_nettype none (* FABulous, BelMap,
-C_bit0=0,
-C_bit1=1,
-C_bit2=2,
-C_bit3=3
+`default_nettype none
+
+(* FABulous, BelMap,
+    C_bit0=0,
+    C_bit1=1,
+    C_bit2=2,
+    C_bit3=3
 *)
 module Config_access #(
     parameter integer NoConfigBits = 4

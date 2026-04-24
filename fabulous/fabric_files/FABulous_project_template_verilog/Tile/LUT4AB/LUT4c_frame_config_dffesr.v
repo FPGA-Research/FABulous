@@ -1,4 +1,3 @@
-`default_nettype none
 
 // Copyright 2021 University of Manchester
 //
@@ -14,26 +13,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-(*FABulous, BelMap,
-INIT=0,
-INIT_1=1,
-INIT_2=2,
-INIT_3=3,
-INIT_4=4,
-INIT_5=5,
-INIT_6=6,
-INIT_7=7,
-INIT_8=8,
-INIT_9=9,
-INIT_10=10,
-INIT_11=11,
-INIT_12=12,
-INIT_13=13,
-INIT_14=14,
-INIT_15=15,
-FF=16,
-IOmux=17,
-SET_NORESET=18
+`default_nettype none
+
+(* FABulous, BelMap,
+    INIT=0,
+    INIT_1=1,
+    INIT_2=2,
+    INIT_3=3,
+    INIT_4=4,
+    INIT_5=5,
+    INIT_6=6,
+    INIT_7=7,
+    INIT_8=8,
+    INIT_9=9,
+    INIT_10=10,
+    INIT_11=11,
+    INIT_12=12,
+    INIT_13=13,
+    INIT_14=14,
+    INIT_15=15,
+    FF=16,
+    IOmux=17,
+    SET_NORESET=18
 *)
 module LUT4c_frame_config_dffesr #(
     parameter integer NoConfigBits = 19
