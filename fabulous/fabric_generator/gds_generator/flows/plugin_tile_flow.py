@@ -1,18 +1,5 @@
-"""Drop-in LibreLane plugin wrapper for the FABulous tile flow.
+"""Config-driven LibreLane plugin adapter for the FABulous tile flow."""
 
-Exposes :class:`FABulousTile`, a LibreLane-factory-compatible flow that accepts
-the same ``FABULOUS_TILE_DIR`` / ``FABULOUS_EXTERNAL_SIDE`` / ``FABULOUS_SUPERTILE``
-config variables as the standalone LibreLane FABulous plugin and drives the existing
-:class:`FABulousTileVerilogMacroFlow` pipeline.
-
-Unlike ``FABulousTileVerilogMacroFlow`` (which is instantiated programmatically
-from the FABulous CLI with a pre-parsed ``Tile`` object), this wrapper is
-config-driven: LibreLane constructs it from a ``config.yaml`` and the flow loads
-the tile CSV directly, emits the per-tile Verilog, and builds the pin-ordering
-YAML inside ``run()``.
-"""
-
-from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
@@ -30,10 +17,12 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
 )
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMacroFlow,
+    _apply_tile_die_area_config,
+)
+from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
+    generate_IO_pin_order_config,
 )
 from fabulous.fabric_generator.gds_generator.helper import (
-    get_offset,
-    get_pitch,
     get_routing_obstructions,
     round_die_area,
 )
@@ -44,19 +33,12 @@ from fabulous.fabric_generator.gen_fabric.gen_tile import (
     generateTile,
 )
 from fabulous.fabric_generator.parser.parse_csv import parseSupertilesCSV, parseTilesCSV
-from fabulous.fabulous_api import FABulous_API
 from fabulous.fabulous_settings import get_context, init_context
 
 
 @Flow.factory.register()
 class FABulousTile(SequentialFlow):
-    """Drop-in replacement for ``librelane_plugin_fabulous.FABulousTile``.
-
-    Reuses the step list, substitutions, config variables, and gating variables
-    of :class:`FABulousTileVerilogMacroFlow`, and adds the three plugin-level
-    variables exposed by the standalone plugin so a plugin-style
-    ``config.yaml`` validates against this flow.
-    """
+    """Drop-in replacement for ``librelane_plugin_fabulous.FABulousTile``."""
 
     Steps = FABulousTileVerilogMacroFlow.Steps
 
@@ -73,10 +55,9 @@ class FABulousTile(SequentialFlow):
             "FABULOUS_EXTERNAL_SIDE",
             Literal["N", "E", "S", "W"] | None,
             "The side of the macro at which the external pins are placed. "
-            "Mirrors the standalone plugin variable; the pin-ordering YAML is "
-            "generated from the tile's position in the parent fabric, so "
-            "this value is informational for tiles that sit on the fabric "
-            "border.",
+            "The pin-ordering YAML is generated from the tile's position in "
+            "the parent fabric when available, so this value is a fallback for "
+            "standalone plugin tile runs.",
         ),
         Variable(
             "FABULOUS_SUPERTILE",
@@ -103,9 +84,6 @@ class FABulousTile(SequentialFlow):
         if not tile_dir.is_dir():
             raise FlowException(f"FABULOUS_TILE_DIR={tile_dir} is not a directory")
 
-        # Bypass project-dir validation: this plugin targets a single tile
-        # (optionally from a tile library) and doesn't require a full
-        # FABulous project with a ``.FABulous/`` marker.
         init_context(api_mode=True)
 
         tile_name = self.config.get("DESIGN_NAME") or tile_dir.name
@@ -116,7 +94,6 @@ class FABulousTile(SequentialFlow):
         _emit_tile_verilog(writer, tile, tile_dir)
 
         pin_yaml = Path(self.run_dir) / f"{tile_name}_io_pin_order.yaml"
-        api = FABulous_API(writer=writer)
         external_side_value = self.config.get("FABULOUS_EXTERNAL_SIDE")
         try:
             external_port_side = (
@@ -126,7 +103,7 @@ class FABulousTile(SequentialFlow):
             raise FlowException(
                 f"Invalid FABULOUS_EXTERNAL_SIDE={external_side_value!r}"
             ) from exc
-        api.gen_io_pin_order_config(
+        generate_IO_pin_order_config(
             tile,
             pin_yaml,
             external_port_side=external_port_side,
@@ -172,7 +149,7 @@ class FABulousTile(SequentialFlow):
             FABULOUS_TILE_LOGICAL_HEIGHT=logical_height,
         )
 
-        self._resolve_die_area(tile)
+        self.config = _apply_tile_die_area_config(self.config, tile)
         self.config = round_die_area(self.config)
 
         if (
@@ -185,45 +162,13 @@ class FABulousTile(SequentialFlow):
 
         return super().run(initial_state, **kwargs)
 
-    def _resolve_die_area(self, tile: Tile | SuperTile) -> None:
-        """Populate ``DIE_AREA`` if unset, mirroring the macro flow."""
-        x_pitch, y_pitch = get_pitch(self.config)
-        get_offset(self.config)
-        min_x, min_y = tile.get_min_die_area(
-            x_pitch,
-            y_pitch,
-            self.config.get("IO_PIN_V_THINKNESS_MULT", Decimal(1)),
-            self.config.get("IO_PIN_H_THINKNESS_MULT", Decimal(1)),
-            x_pitch,
-            y_pitch,
-        )
-        ignore_default = bool(
-            self.config.get("FABULOUS_IGNORE_DEFAULT_DIE_AREA", False)
-        )
-        existing = self.config.get("DIE_AREA")
-        if ignore_default or existing is None:
-            self.config = self.config.copy(DIE_AREA=(0, 0, min_x, min_y))
-            return
-        _, _, width, height = existing
-        width, height = Decimal(width), Decimal(height)
-        if width < min_x or height < min_y:
-            raise FlowException(
-                f"DIE_AREA ({width}, {height}) is smaller than the minimum "
-                f"required area ({min_x}, {min_y}) for the tile."
-            )
-
 
 def _emit_tile_verilog(
     writer: VerilogCodeGenerator,
     tile: Tile | SuperTile,
     tile_dir: Path,
 ) -> None:
-    """Generate switch-matrix, config-mem, and tile Verilog into ``tile_dir``.
-
-    Mirrors the CLI's ``do_gen_tile`` orchestration so the output tree matches
-    what :class:`FABulousTileVerilogMacroFlow` expects to glob for
-    ``VERILOG_FILES``.
-    """
+    """Generate switch-matrix, config-mem, and tile Verilog into ``tile_dir``."""
     if isinstance(tile, SuperTile):
         for sub_tile in tile.tiles:
             sub_dir = sub_tile.tileDir.parent
@@ -288,7 +233,7 @@ def _parse_plugin_tile(
     tile_dic: dict[str, Tile] = {}
     subtile_names: list[str] = []
     with tile_csv.open("r", encoding="utf-8") as f:
-        f.readline()  # SuperTILE header
+        f.readline()
         for raw in f:
             line = raw.strip()
             if "EndSuperTILE" in line:

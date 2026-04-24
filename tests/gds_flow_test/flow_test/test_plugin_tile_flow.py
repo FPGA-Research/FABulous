@@ -8,6 +8,8 @@ exercise the real LibreLane pipeline (that is covered elsewhere).
 
 # ruff: noqa: SLF001
 
+import shutil
+from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -255,8 +257,9 @@ class TestFABulousTileRunAdapter:
             plugin_tile_flow, "_parse_plugin_tile", return_value=mock_tile
         )
         emit_verilog = mocker.patch.object(plugin_tile_flow, "_emit_tile_verilog")
-        mock_api = mocker.MagicMock()
-        mocker.patch.object(plugin_tile_flow, "FABulous_API", return_value=mock_api)
+        gen_pin_yaml = mocker.patch.object(
+            plugin_tile_flow, "generate_IO_pin_order_config"
+        )
         mocker.patch.object(
             plugin_tile_flow, "get_pitch", return_value=(Decimal(1), Decimal(1))
         )
@@ -299,8 +302,8 @@ class TestFABulousTileRunAdapter:
         parse_tile.assert_called_once_with(tile_dir, "LUT4AB", False)
         emit_verilog.assert_called_once()
         # Pin YAML should be generated below run_dir.
-        assert mock_api.gen_io_pin_order_config.call_count == 1
-        assert mock_api.gen_io_pin_order_config.call_args.args[:2] == (
+        assert gen_pin_yaml.call_count == 1
+        assert gen_pin_yaml.call_args.args[:2] == (
             mock_tile,
             Path(flow.run_dir) / "LUT4AB_io_pin_order.yaml",
         )
@@ -362,7 +365,7 @@ class TestFABulousTileRunAdapter:
             plugin_tile_flow, "_parse_plugin_tile", return_value=mock_tile
         )
         mocker.patch.object(plugin_tile_flow, "_emit_tile_verilog")
-        mocker.patch.object(plugin_tile_flow, "FABulous_API")
+        mocker.patch.object(plugin_tile_flow, "generate_IO_pin_order_config")
         mocker.patch.object(
             plugin_tile_flow, "get_pitch", return_value=(Decimal(1), Decimal(1))
         )
@@ -398,3 +401,96 @@ class TestFABulousTileRunAdapter:
         # Supertile logical dimensions must be taken from the tile itself.
         assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 4
         assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 2
+
+
+class TestFABulousTileEndToEnd:
+    """End-to-end exercise of ``FABulousTile.run()`` against a real demo tile.
+
+    Unlike :class:`TestFABulousTileRunAdapter`, this class does not mock the
+    plugin's prep work (CSV parsing, RTL emission, pin-YAML generation): it
+    runs the real generators on disk. Only the PDK-reading helpers and the
+    inherited ``SequentialFlow.run`` are stubbed, so we cover regressions in
+    the plugin's actual code path without needing a PDK install or EDA tools.
+    """
+
+    DEMO_TILE: Path = (
+        Path(__file__).resolve().parents[3] / "demo" / "Tile" / "N_term_single2"
+    )
+
+    @pytest.fixture
+    def tile_workspace(self, tmp_path: Path) -> Path:
+        """Copy the demo tile into ``tmp_path`` so the real generators can write
+        artifacts without touching the in-tree ``demo/`` directory."""
+        dst = tmp_path / "N_term_single2"
+        shutil.copytree(self.DEMO_TILE, dst)
+        # Strip pre-generated artifacts so we assert the plugin re-emits them.
+        for stale in (
+            "N_term_single2.v",
+            "N_term_single2_switch_matrix.v",
+            "N_term_single2_io_pin_order.yaml",
+            "N_term_single2_switch_matrix.csv",
+        ):
+            (dst / stale).unlink(missing_ok=True)
+        return dst
+
+    def test_run_emits_real_rtl_and_pin_yaml(
+        self,
+        tile_workspace: Path,
+        tmp_path: Path,
+        mocker: MockerFixture,
+    ) -> None:
+        """Run the plugin against a real demo tile and verify on-disk artifacts.
+
+        Only PDK-touching helpers are stubbed; the generators, parser, and
+        pin-YAML producer all execute. This is the test that would have
+        caught the ``FABulous_API.fabric`` AttributeError surfaced by the
+        librelane CLI smoke run.
+        """
+        # Stub PDK readers; plugin computes a fake DIE_AREA from these.
+        mocker.patch.object(
+            plugin_tile_flow, "get_pitch", return_value=(Decimal(1), Decimal(1))
+        )
+        mocker.patch.object(plugin_tile_flow, "get_offset")
+        mocker.patch.object(
+            plugin_tile_flow, "get_routing_obstructions", return_value=[]
+        )
+        mocker.patch.object(plugin_tile_flow, "round_die_area", side_effect=lambda c: c)
+        # Don't actually run the LibreLane SequentialFlow steps.
+        mocker.patch(
+            "fabulous.fabric_generator.gds_generator.flows.plugin_tile_flow.SequentialFlow.run",
+            return_value=(mocker.MagicMock(), []),
+        )
+
+        flow = FABulousTile(
+            config={
+                "DESIGN_NAME": "N_term_single2",
+                "FABULOUS_TILE_DIR": [str(tile_workspace)],
+                "VERILOG_FILES": [],
+                "DESIGN_DIR": str(tile_workspace),
+            },
+            design_dir=str(tile_workspace),
+            pdk="sky130A",
+            pdk_root=str(tmp_path / "pdk"),
+        )
+        flow.run_dir = str(tmp_path / "run")
+        Path(flow.run_dir).mkdir()
+
+        flow.run(initial_state=mocker.MagicMock())
+
+        # The plugin must have re-emitted the per-tile RTL artifacts...
+        assert (tile_workspace / "N_term_single2.v").exists()
+        assert (tile_workspace / "N_term_single2_switch_matrix.v").exists()
+        # ...bootstrapped the .list switch-matrix into a .csv...
+        assert (tile_workspace / "N_term_single2_switch_matrix.csv").exists()
+        # ...and produced the IO pin-order YAML in the run directory.
+        pin_yaml = Path(flow.run_dir) / "N_term_single2_io_pin_order.yaml"
+        assert pin_yaml.exists()
+        # And the downstream-facing config keys must be set.
+        assert flow.config["DESIGN_NAME"] == "N_term_single2"
+        assert flow.config["FABULOUS_IO_PIN_ORDER_CFG"] == str(pin_yaml)
+        assert flow.config["FABULOUS_TILE_LOGICAL_WIDTH"] == 1
+        assert flow.config["FABULOUS_TILE_LOGICAL_HEIGHT"] == 1
+        # Generated RTL must be in VERILOG_FILES so downstream synth picks it up.
+        verilog_files = [str(p) for p in flow.config["VERILOG_FILES"]]
+        assert any("N_term_single2.v" in p for p in verilog_files)
+        assert any("N_term_single2_switch_matrix.v" in p for p in verilog_files)

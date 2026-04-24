@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from librelane.common import GenericDict
 from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
 from librelane.flows.flow import Flow, FlowException
@@ -162,40 +163,7 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
             FABULOUS_TILE_LOGICAL_WIDTH=logical_width,
             FABULOUS_TILE_LOGICAL_HEIGHT=logical_height,
         )
-        x_pitch, y_pitch = get_pitch(self.config)
-        x_spacing, y_spacing = get_offset(self.config)
-        min_x, min_y = tile_type.get_min_die_area(
-            x_pitch,
-            y_pitch,
-            self.config.get("IO_PIN_V_THINKNESS_MULT", Decimal(1)),
-            self.config.get("IO_PIN_H_THINKNESS_MULT", Decimal(1)),
-            x_pitch,
-            y_pitch,
-        )
-        if opt_mode != OptMode.NO_OPT:
-            if (
-                self.config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"]
-                or self.config.get("DIE_AREA") is None
-            ):
-                self.config = self.config.copy(DIE_AREA=(0, 0, min_x, min_y))
-            else:
-                die_area = self.config.get("DIE_AREA")
-                if die_area is None:
-                    raise ValueError("DIE_AREA metric not found in state.")
-                _, _, width, height = die_area
-                width = Decimal(width)
-                height = Decimal(height)
-                if width < min_x or height < min_y:
-                    raise FlowException(
-                        f"DIE_AREA ({width}, {height}) is smaller than the "
-                        f"minimum required area ({min_x}, {min_y}) for the "
-                        f"tile {tile_type.name}. Please update the DIE_AREA "
-                    )
-        else:
-            if not self.config.get("DIE_AREA"):
-                err("If not using any optimisatin, DIE_AREA must be set.")
-                raise FlowException("Invalid DIE_AREA configuration.")
-
+        self.config = _apply_tile_die_area_config(self.config, tile_type, opt_mode)
         self.config = round_die_area(self.config)
         if (
             "ROUTING_OBSTRUCTIONS" not in self.config
@@ -204,6 +172,47 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
             self.config = self.config.copy(
                 ROUTING_OBSTRUCTIONS=get_routing_obstructions(self.config)
             )
+
+
+def _apply_tile_die_area_config(
+    config: GenericDict[str, object],
+    tile_type: Tile | SuperTile,
+    opt_mode: OptMode | None = None,
+) -> GenericDict[str, object]:
+    """Populate and validate tile ``DIE_AREA`` using the routing pitch."""
+    x_pitch, y_pitch = get_pitch(config)
+    get_offset(config)
+    min_x, min_y = tile_type.get_min_die_area(
+        x_pitch,
+        y_pitch,
+        config.get("IO_PIN_V_THINKNESS_MULT", Decimal(1)),
+        config.get("IO_PIN_H_THINKNESS_MULT", Decimal(1)),
+        x_pitch,
+        y_pitch,
+    )
+
+    if opt_mode == OptMode.NO_OPT:
+        if not config.get("DIE_AREA"):
+            err("If not using any optimisatin, DIE_AREA must be set.")
+            raise FlowException("Invalid DIE_AREA configuration.")
+        return config
+
+    if config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"] or config.get("DIE_AREA") is None:
+        return config.copy(DIE_AREA=(0, 0, min_x, min_y))
+
+    die_area = config.get("DIE_AREA")
+    if die_area is None:
+        raise ValueError("DIE_AREA metric not found in state.")
+    _, _, width, height = die_area
+    width = Decimal(width)
+    height = Decimal(height)
+    if width < min_x or height < min_y:
+        raise FlowException(
+            f"DIE_AREA ({width}, {height}) is smaller than the "
+            f"minimum required area ({min_x}, {min_y}) for the "
+            f"tile {tile_type.name}. Please update the DIE_AREA "
+        )
+    return config
 
 
 @Flow.factory.register()
