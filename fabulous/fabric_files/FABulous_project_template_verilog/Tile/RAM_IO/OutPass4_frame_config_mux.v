@@ -28,11 +28,11 @@ module OutPass4_frame_config_mux #(
     // NoConfigBits has to be adjusted manually (we don't use an arithmetic parser for the value)
     input [3:0] I,
     (* FABulous, EXTERNAL *) output [3:0] O,
-    // The "EXTERNAL" keyword will send this signal all the way to top and the
+    // The "EXTERNAL" keyword will send this signal all the way to top
     // The "SHARED" keyword allows multiple BELs using the same port (e.g. for exporting a clock to the top)
     (* FABulous, EXTERNAL, SHARED_PORT *)
     input UserCLK,
-    // GLOBAL all primitive pins that are connected to the switch matrix have to go before the "GLOBAL" label
+    // All primitive pins that are connected to the switch matrix have to go before the "GLOBAL" label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
 
