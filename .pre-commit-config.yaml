@@ -70,6 +70,7 @@ repos:
     rev: 3.35.0
     hooks:
       - id: vsg
+        args: [ --configuration=.vsg.yaml ]
 
   # Verilog / SystemVerilog linting — upstream hook (Docker-backed)
   - repo: https://github.com/verilator/verilator
