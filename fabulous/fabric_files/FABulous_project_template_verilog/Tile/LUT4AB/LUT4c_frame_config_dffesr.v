@@ -43,9 +43,9 @@ module LUT4c_frame_config_dffesr #(
     output O,  // Single output for LUT result
     input Ci,  // Carry chain input
     output Co,  // Carry chain output
-    input SR,  // SHARED_RESET
-    input EN,  // SHARED_ENABLE
-    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,  // External and shared clock
+    input SR,  // Shared reset
+    input EN,  // Shared enable
+    (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits  // Config bits as vector
 );
     localparam integer LUT_SIZE = 4;

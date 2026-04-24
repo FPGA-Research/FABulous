@@ -38,7 +38,7 @@ module ConfigFSM #(
             // Configuration activates only after detecting the 32-bit sync pattern 0xFAB0_FAB1.
             // This allows the same bitfile to be used for UART or parallel config, with arbitrary
             // metadata in the header, provided the header is 4-byte padded.
-            if ((old_reset == 1'b0) && (fsm_reset == 1'b1)) begin  // reset all on ComActive posedge
+            if ((old_reset == 1'b0) && (fsm_reset == 1'b1)) begin
                 state <= UNSYNCED;
                 row_index <= 0;
             end else begin

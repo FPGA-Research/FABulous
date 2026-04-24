@@ -24,18 +24,18 @@
     *)
 module MULADD #(parameter integer NoConfigBits = 6) (
     // ConfigBits has to be adjusted manually
-    //(we don't use an arithmetic parser for the value)
+    // (we don't use an arithmetic parser for the value)
     input  [ 7:0] A  , // operand A
     input  [ 7:0] B  , // operand B
     input  [19:0] C  , // operand C
     output [19:0] Q  , // result
     input         clr,
-    //The "EXTERNAL" keyword will send this signal all the way to top and the
-    //The "SHARED" Allows multiple BELs using the same port
+    //The "EXTERNAL" keyword will send this signal all the way to top
+    //The "SHARED" keyword allows multiple BELs using the same port
     // (e.g. for exporting a clock to the top)
     (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,
     // All primitive pins that are connected to the switch matrix have
-    // to go before the GLOBAL label
+    // to go before the "GLOBAL" label
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
     reg  [ 7:0] A_reg           ; // port A read data register
