@@ -2,43 +2,51 @@
 -- Icarus Verilog VHDL Code Generator 13.0 (devel) (s20221226-518-g94d9d1951)
 
 library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+  use ieee.std_logic_1164.all;
+  use ieee.numeric_std.all;
 
 -- Generated from Verilog module Frame_Data_Reg (Frame_Data_Reg.v:1)
 --   FrameBitsPerRow = 32
 --   Row = 1
 --   RowSelectWidth = 5
-entity Frame_Data_Reg is
+
+entity frame_data_reg is
   generic (
-    RowSelectWidth : integer := 5;
-    FrameBitsPerRow : integer := 32;
-    Row : integer := 1
+    rowselectwidth  : integer := 5;
+    framebitsperrow : integer := 32;
+    row             : integer := 1
   );
   port (
-    CLK : in std_logic;
-    FrameData_I : in std_logic_vector(FrameBitsPerRow-1 downto 0);
-    FrameData_O : out std_logic_vector(FrameBitsPerRow-1 downto 0);
-    RowSelect : in std_logic_vector(RowSelectWidth-1 downto 0)
+    clk         : in    std_logic;
+    framedata_i : in    std_logic_vector(framebitsperrow - 1 downto 0);
+    framedata_o : out   std_logic_vector(framebitsperrow - 1 downto 0);
+    rowselect   : in    std_logic_vector(rowselectwidth - 1 downto 0)
   );
-end entity;
+end entity frame_data_reg;
 
 -- Generated from Verilog module Frame_Data_Reg (Frame_Data_Reg.v:1)
 --   FrameBitsPerRow = 32
 --   Row = 1
 --   RowSelectWidth = 5
-architecture from_verilog of Frame_Data_Reg is
-  signal FrameData_O_Reg : std_logic_vector(31 downto 0);
+
+architecture from_verilog of frame_data_reg is
+
+  signal framedata_o_reg : std_logic_vector(31 downto 0);
+
 begin
-  FrameData_O <= FrameData_O_Reg;
+
+  framedata_o <= framedata_o_reg;
 
   -- Generated from always process in Frame_Data_Reg (Frame_Data_Reg.v:10)
-  process (CLK) is
+  process_001 : process (clk) is
   begin
-    if rising_edge(CLK) then
-      if to_integer(unsigned(RowSelect)) = Row then
-        FrameData_O_Reg <= FrameData_I;
+
+    if rising_edge(clk) then
+      if (to_integer(unsigned(rowselect)) = row) then
+        framedata_o_reg <= framedata_i;
       end if;
     end if;
-  end process;
-end architecture;
+
+  end process process_001;
+
+end architecture from_verilog;
