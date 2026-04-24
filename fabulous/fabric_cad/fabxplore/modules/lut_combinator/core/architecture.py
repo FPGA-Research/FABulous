@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
     CellPlacement,
+    FracLutCellParameters,
     LogicalLutCell,
     PackedCell,
     PairBinding,
@@ -328,24 +329,32 @@ class FracLutArchitecture:
             lut0_width=lut.width, lut1_width=0, shared_count=0
         )
 
-        params: dict[str, str] = {
-            "META_DATA": (
+        params: dict[str, str] = FracLutCellParameters(
+            meta_data=(
                 f"lut_mapping=single;"
                 f"lut_width={lut.width};"
                 f"leftover_lut_width={leftover_lut_width}"
             ),
-            "LUT_SIZE": str(self.frac_lut_size),
-            "NUM_SHARED_INPUTS": str(self.num_shared_inputs),
-            "L0_CELL_ID": lut.cell_id,
-            "L1_CELL_ID": (
+            lut_size=self.frac_lut_size,
+            num_shared_inputs=self.num_shared_inputs,
+            l0_cell_id=lut.cell_id,
+            l1_cell_id=(
                 f"{lut.cell_id}__S1"
                 if lut.width == self.frac_lut_size + 1
                 else f"{lut.cell_id}__UNUSED"
             ),
-            "L0_INIT": format_bits(init0, 1 << self.frac_lut_size),
-            "L1_INIT": format_bits(init1, 1 << self.frac_lut_size),
-        }
-        params.update(self._select_as_data_parameters(used=False))
+            l0_init=format_bits(init0, 1 << self.frac_lut_size),
+            l1_init=format_bits(init1, 1 << self.frac_lut_size),
+            select_as_data_capable=self.use_select_as_data_in_pair_mode,
+            select_as_data_used=False,
+            effective_shared_inputs=self.pair_shared_inputs,
+            cut_shared_index=(
+                self.num_shared_inputs - 1
+                if self.use_select_as_data_in_pair_mode
+                else -1
+            ),
+            mux_select_config=0,
+        ).as_dict()
 
         return PackedCell(
             packed_id=f"{self.name}_{lut.cell_id}",
@@ -408,8 +417,8 @@ class FracLutArchitecture:
 
         # Build parameters with original cell IDs and remapped INIT values.
         # For dual-LUT packing we keep the same cell IDs since both halves are needed.
-        params: dict[str, str] = {
-            "META_DATA": (
+        params: dict[str, str] = FracLutCellParameters(
+            meta_data=(
                 f"lut_mapping={self._pair_mapping_mode_name()};"
                 f"lut0_width={lut0_width};"
                 f"lut1_width={lut1_width};"
@@ -417,16 +426,22 @@ class FracLutArchitecture:
                 f"leftover_lut_width={leftover_lut_width}"
                 f"{self._select_as_data_meta_suffix()}"
             ),
-            "LUT_SIZE": str(self.frac_lut_size),
-            "NUM_SHARED_INPUTS": str(self.num_shared_inputs),
-            "L0_CELL_ID": binding.placement0.cell.cell_id,
-            "L1_CELL_ID": binding.placement1.cell.cell_id,
-            "L0_INIT": format_bits(init0, 1 << self.frac_lut_size),
-            "L1_INIT": format_bits(init1, 1 << self.frac_lut_size),
-        }
-        params.update(
-            self._select_as_data_parameters(used=self.use_select_as_data_in_pair_mode)
-        )
+            lut_size=self.frac_lut_size,
+            num_shared_inputs=self.num_shared_inputs,
+            l0_cell_id=binding.placement0.cell.cell_id,
+            l1_cell_id=binding.placement1.cell.cell_id,
+            l0_init=format_bits(init0, 1 << self.frac_lut_size),
+            l1_init=format_bits(init1, 1 << self.frac_lut_size),
+            select_as_data_capable=self.use_select_as_data_in_pair_mode,
+            select_as_data_used=self.use_select_as_data_in_pair_mode,
+            effective_shared_inputs=self.pair_shared_inputs,
+            cut_shared_index=(
+                self.num_shared_inputs - 1
+                if self.use_select_as_data_in_pair_mode
+                else -1
+            ),
+            mux_select_config=0,
+        ).as_dict()
 
         return PackedCell(
             packed_id=mapped_id,
@@ -692,33 +707,6 @@ class FracLutArchitecture:
             f";cut_shared_side=L1"
             f";mux_select_config=0"
         )
-
-    def _select_as_data_parameters(self, used: bool) -> dict[str, str]:
-        """Return structured select-as-data parameters for emitted cells.
-
-        Parameters
-        ----------
-        used : bool
-            Whether this packed cell actually uses select-as-data behavior.
-
-        Returns
-        -------
-        dict[str, str]
-            Stable select-as-data parameter schema for downstream tools.
-        """
-        return {
-            "SELECT_AS_DATA_CAPABLE": (
-                "1" if self.use_select_as_data_in_pair_mode else "0"
-            ),
-            "SELECT_AS_DATA_USED": "1" if used else "0",
-            "EFFECTIVE_SHARED_INPUTS": str(self.pair_shared_inputs),
-            "CUT_SHARED_INDEX": (
-                str(self.num_shared_inputs - 1)
-                if self.use_select_as_data_in_pair_mode
-                else "-1"
-            ),
-            "MUX_SELECT_CONFIG": "0",
-        }
 
     def _split_init_by_select(self, init: int, data_width: int) -> tuple[int, int]:
         """Split a LUT(K+1) INIT into two LUT(K) INIT images.

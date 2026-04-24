@@ -16,6 +16,10 @@ from pathlib import Path
 
 import pyosys.libyosys as ys
 
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.verilog_model import (
+    FracLutBehavioralModel,
+)
+
 _LUT_RE = re.compile(r"^LUT(\d+)$")
 
 
@@ -156,7 +160,14 @@ def _build_model_library(
         lines.append("")
 
     if frac_cell_name in shapes:
-        lines.extend(_frac_model(frac_cell_name, frac_lut_size, num_shared_inputs))
+        frac_model = FracLutBehavioralModel(
+            name=frac_cell_name,
+            lut_size=frac_lut_size,
+            num_shared_inputs=num_shared_inputs,
+            interface_width=max(frac_lut_size, 16),
+            include_equiv_compat_params=True,
+        )
+        lines.extend(frac_model.to_lines())
         lines.append("")
 
     for ctype, shape in sorted(shapes.items()):
@@ -191,103 +202,6 @@ def _lut_model(width: int) -> list[str]:
         f"  parameter [{init_width - 1}:0] INIT = {init_width}'b0;",
         f"  wire [{width - 1}:0] _idx = {{{idx_expr}}};",
         "  assign O = INIT[_idx];",
-        "endmodule",
-    ]
-
-
-def _idx_expr(bits: list[str]) -> str:
-    """Return a Verilog index concatenation expression for LUT input bits."""
-    return ", ".join(reversed(bits))
-
-
-def _frac_model(name: str, lut_size: int, num_shared_inputs: int) -> list[str]:
-    """Generate a Verilog model for a FRAC LUT of the given size and shared inputs."""
-    # Wide, stable interface so named-port instances continue to elaborate.
-    max_side = max(lut_size, 16)
-    shared = [f"I{i}" for i in range(max_side)]
-    a_side = [f"A{i}" for i in range(max_side)]
-    b_side = [f"B{i}" for i in range(max_side)]
-    ports = shared + a_side + b_side + ["S", "O0", "O1"]
-
-    p = lut_size - num_shared_inputs
-    l0_bits = [f"I{i}" for i in range(num_shared_inputs)] + [
-        f"A{i}" for i in range(max(0, p))
-    ]
-    l1_bits = [f"I{i}" for i in range(num_shared_inputs)] + [
-        f"B{i}" for i in range(max(0, p))
-    ]
-
-    idx0 = ", ".join(reversed(l0_bits))
-    idx1 = ", ".join(reversed(l1_bits))
-    if num_shared_inputs > 0:
-        l0_cut_bits = (
-            [f"I{i}" for i in range(num_shared_inputs - 1)]
-            + [f"A{i}" for i in range(max(0, p))]
-            + ["S"]
-        )
-        l1_cut_bits = (
-            [f"I{i}" for i in range(num_shared_inputs - 1)]
-            + [f"B{i}" for i in range(max(0, p))]
-            + [f"I{num_shared_inputs - 1}"]
-        )
-    else:
-        l0_cut_bits = l0_bits
-        l1_cut_bits = l1_bits
-    full_bits = [f"I{i}" for i in range(lut_size)]
-    idx_full = ", ".join(reversed(full_bits))
-    init_width = 1 << lut_size
-
-    return [
-        f"module {name}({', '.join(ports)});",
-        f"  input {', '.join(shared)};",
-        f"  input {', '.join(a_side)};",
-        f"  input {', '.join(b_side)};",
-        "  input S;",
-        "  output O0, O1;",
-        '  parameter META_DATA = "";',
-        '  parameter L0_CELL_ID = "";',
-        '  parameter L1_CELL_ID = "";',
-        '  parameter F0_CELL_ID = "";',
-        '  parameter F1_CELL_ID = "";',
-        "  parameter SELECT_AS_DATA_CAPABLE = 0;",
-        "  parameter SELECT_AS_DATA_USED = 0;",
-        f"  parameter EFFECTIVE_SHARED_INPUTS = {num_shared_inputs};",
-        f"  parameter CUT_SHARED_INDEX = {max(num_shared_inputs - 1, 0)};",
-        "  parameter MUX_SELECT_CONFIG = 0;",
-        "  parameter [255:0] MAPPED_FROM = 256'b0;",
-        f"  parameter [{init_width - 1}:0] L0_INIT = {init_width}'b0;",
-        f"  parameter [{init_width - 1}:0] L1_INIT = {init_width}'b0;",
-        f"  parameter [{init_width - 1}:0] F0_INIT = {init_width}'b0;",
-        f"  parameter [{init_width - 1}:0] F1_INIT = {init_width}'b0;",
-        f'  parameter LUT_SIZE = "{lut_size}";',
-        f'  parameter NUM_SHARED_INPUTS = "{num_shared_inputs}";',
-        f"  wire [{lut_size - 1}:0] _idx0 = {{{idx0}}};",
-        f"  wire [{lut_size - 1}:0] _idx1 = {{{idx1}}};",
-        f"  wire [{lut_size - 1}:0] _idxf = {{{idx_full}}};",
-        f"  wire [{lut_size - 1}:0] _idx0_cut = {{{_idx_expr(l0_cut_bits)}}};",
-        f"  wire [{lut_size - 1}:0] _idx1_cut = {{{_idx_expr(l1_cut_bits)}}};",
-        (
-            f"  wire [{lut_size - 1}:0] _idx0_pair = "
-            "SELECT_AS_DATA_USED ? _idx0_cut : _idx0;"
-        ),
-        (
-            f"  wire [{lut_size - 1}:0] _idx1_pair = "
-            "SELECT_AS_DATA_USED ? _idx1_cut : _idx1;"
-        ),
-        "  wire [" + str(init_width - 1) + ":0] _i0 = L0_INIT | F0_INIT;",
-        "  wire [" + str(init_width - 1) + ":0] _i1 = L1_INIT | F1_INIT;",
-        "  wire _l0_pair = _i0[_idx0_pair];",
-        "  wire _l1_pair = _i1[_idx1_pair];",
-        "  wire _l0_full = _i0[_idxf];",
-        "  wire _l1_full = _i1[_idxf];",
-        "  wire _use_full = |MAPPED_FROM;",
-        (
-            "  assign O0 = _use_full ? (S ? _l1_full : _l0_full) : "
-            "(SELECT_AS_DATA_USED ? "
-            "(MUX_SELECT_CONFIG ? _l1_pair : _l0_pair) : "
-            "(S ? _l1_pair : _l0_pair));"
-        ),
-        "  assign O1 = _use_full ? _l1_full : _l1_pair;",
         "endmodule",
     ]
 

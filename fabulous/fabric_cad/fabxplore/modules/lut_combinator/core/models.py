@@ -176,6 +176,51 @@ class PackedCell:
 
 
 @dataclass(frozen=True)
+class FracLutCellParameters:
+    """Represent the stable parameter schema emitted for one FRAC LUT cell.
+
+    Attributes map one-to-one to Verilog parameters on the generated
+    fractional LUT cell. Use :meth:`as_dict` when writing these values into a
+    :class:`PackedCell` or JSON netlist.
+    """
+
+    meta_data: str
+    lut_size: int
+    num_shared_inputs: int
+    l0_cell_id: str
+    l1_cell_id: str
+    l0_init: str
+    l1_init: str
+    select_as_data_capable: bool = False
+    select_as_data_used: bool = False
+    effective_shared_inputs: int | None = None
+    cut_shared_index: int = -1
+    mux_select_config: int = 0
+
+    def as_dict(self) -> dict[str, str]:
+        """Return parameters using the exact emitted Verilog parameter names."""
+        effective_shared_inputs = (
+            self.num_shared_inputs
+            if self.effective_shared_inputs is None
+            else self.effective_shared_inputs
+        )
+        return {
+            "META_DATA": self.meta_data,
+            "LUT_SIZE": str(self.lut_size),
+            "NUM_SHARED_INPUTS": str(self.num_shared_inputs),
+            "L0_CELL_ID": self.l0_cell_id,
+            "L1_CELL_ID": self.l1_cell_id,
+            "L0_INIT": self.l0_init,
+            "L1_INIT": self.l1_init,
+            "SELECT_AS_DATA_CAPABLE": ("1" if self.select_as_data_capable else "0"),
+            "SELECT_AS_DATA_USED": "1" if self.select_as_data_used else "0",
+            "EFFECTIVE_SHARED_INPUTS": str(effective_shared_inputs),
+            "CUT_SHARED_INDEX": str(self.cut_shared_index),
+            "MUX_SELECT_CONFIG": str(self.mux_select_config),
+        }
+
+
+@dataclass(frozen=True)
 class NetlistModel:
     """Hold parser output for LUT-focused netlist processing.
 
