@@ -148,7 +148,11 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design.run_pass("abc -lut 5 -dress")
         self.design.run_pass("clean")
 
-        lcp = LutCombinatorPass(top_name=self.config.top_module, passthrough=True)
+        lcp = LutCombinatorPass(
+            top_name=self.config.top_module,
+            passthrough=False,
+            use_select_as_data_in_pair_mode=True,
+        )
         lcp.run_on(self.design)
         logger.info(lcp.report_summary)
 

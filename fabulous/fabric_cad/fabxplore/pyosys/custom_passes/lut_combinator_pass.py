@@ -39,6 +39,9 @@ class LutCombinatorPass(SynthPass):
         Whether to allow passthrough of non-mapped full LUTs.
     mode : MatchingMode
         The matching mode to be used for combining LUTs.
+    use_select_as_data_in_pair_mode : bool
+        Whether to enable the select-as-data dual-LUT pairing mode for more
+        flexible mappings.
     """
 
     frac_lut_size: int = 4
@@ -47,6 +50,7 @@ class LutCombinatorPass(SynthPass):
     top_name: str = "top"
     passthrough: bool = False
     mode: MatchingMode = MatchingMode.MAXIMAL
+    use_select_as_data_in_pair_mode: bool = False
 
     _result: MappingResult | None = None
 
@@ -62,6 +66,7 @@ class LutCombinatorPass(SynthPass):
             frac_lut_size=self.frac_lut_size,
             num_shared_inputs=self.num_shared_inputs,
             name=self.lut_name,
+            use_select_as_data_in_pair_mode=self.use_select_as_data_in_pair_mode,
         )
 
         cfg = LutCombinatorConfig(
@@ -138,15 +143,43 @@ class LutCombinatorPass(SynthPass):
         lines.append('  parameter META_DATA = "";')
         lines.append('  parameter L0_CELL_ID = "";')
         lines.append('  parameter L1_CELL_ID = "";')
+        lines.append("  parameter SELECT_AS_DATA_CAPABLE = 0;")
+        lines.append("  parameter SELECT_AS_DATA_USED = 0;")
+        lines.append(f"  parameter EFFECTIVE_SHARED_INPUTS = {s};")
+        lines.append(f"  parameter CUT_SHARED_INDEX = {max(s - 1, 0)};")
+        lines.append("  parameter MUX_SELECT_CONFIG = 0;")
         lines.append(f"  parameter [{init_width - 1}:0] L0_INIT = {init_width}'b0;")
         lines.append(f"  parameter [{init_width - 1}:0] L1_INIT = {init_width}'b0;")
         lines.append(f'  parameter LUT_SIZE = "{k}";')
         lines.append(f'  parameter NUM_SHARED_INPUTS = "{s}";')
-        lines.append(f"  wire [{k - 1}:0] _idx0 = {{{idx0_expr}}};")
-        lines.append(f"  wire [{k - 1}:0] _idx1 = {{{idx1_expr}}};")
+        lines.append(f"  wire [{k - 1}:0] _idx0_normal = {{{idx0_expr}}};")
+        lines.append(f"  wire [{k - 1}:0] _idx1_normal = {{{idx1_expr}}};")
+
+        if s > 0:
+            idx0_cut_bits: list[str] = shared_ports[:-1] + a_ports + ["S"]
+            idx1_cut_bits: list[str] = shared_ports[:-1] + b_ports + [shared_ports[-1]]
+        else:
+            idx0_cut_bits = idx0_bits
+            idx1_cut_bits = idx1_bits
+
+        idx0_cut_expr: str = ", ".join(reversed(idx0_cut_bits))
+        idx1_cut_expr: str = ", ".join(reversed(idx1_cut_bits))
+        lines.append(f"  wire [{k - 1}:0] _idx0_cut = {{{idx0_cut_expr}}};")
+        lines.append(f"  wire [{k - 1}:0] _idx1_cut = {{{idx1_cut_expr}}};")
+        lines.append(
+            "  wire ["
+            f"{k - 1}:0] _idx0 = SELECT_AS_DATA_USED ? _idx0_cut : _idx0_normal;"
+        )
+        lines.append(
+            "  wire ["
+            f"{k - 1}:0] _idx1 = SELECT_AS_DATA_USED ? _idx1_cut : _idx1_normal;"
+        )
         lines.append("  wire _l0 = L0_INIT[_idx0];")
         lines.append("  wire _l1 = L1_INIT[_idx1];")
-        lines.append("  assign O0 = S ? _l1 : _l0;")
+        lines.append(
+            "  assign O0 = SELECT_AS_DATA_USED ? "
+            "(MUX_SELECT_CONFIG ? _l1 : _l0) : (S ? _l1 : _l0);"
+        )
         lines.append("  assign O1 = _l1;")
         lines.append("endmodule")
 

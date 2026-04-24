@@ -1,6 +1,7 @@
 """Ad-hoc tests."""
 
 import re
+import tempfile
 from pathlib import Path
 
 from loguru import logger
@@ -11,6 +12,7 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.combinator import
     LutCombinatorConfig,
 )
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
+    LogicalLutCell,
     LutSpec,
     MatchingMode,
 )
@@ -26,6 +28,16 @@ from fabulous.fabulous_cli.helper import (
 ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "tests" / "lut_combinator" / "out"
 setup_logger(verbosity=0, debug=False)
+
+
+def _named_lut_spec() -> LutSpec:
+    """Return the LUT spec used by simple named-LUT benchmarks."""
+    return LutSpec(
+        lut_re=re.compile(r"^LUT(\d+)$"),
+        init_name="INIT",
+        input_re=re.compile(r"^I\d+$"),
+        output_ports=frozenset({"O", "Q", "Y"}),
+    )
 
 
 def test_lut_32_mix_benchmark_eq(
@@ -44,12 +56,7 @@ def test_lut_32_mix_benchmark_eq(
     cfg = LutCombinatorConfig(
         architecture=frac_arch,
         top_name="lut32_mixed",
-        lut_spec=LutSpec(
-            lut_re=re.compile(r"^LUT(\d+)$"),
-            init_name="INIT",
-            input_re=re.compile(r"^I\d+$"),
-            output_ports=frozenset({"O", "Q", "Y"}),
-        ),
+        lut_spec=_named_lut_spec(),
         passthrough=passthrough,
         mode=mode,
     )
@@ -107,12 +114,7 @@ def test_two_lut_plus_bad_unknown_benchmark_eq(
     cfg = LutCombinatorConfig(
         architecture=frac_arch,
         top_name="two_lut_plus_bad_unknown",
-        lut_spec=LutSpec(
-            lut_re=re.compile(r"^LUT(\d+)$"),
-            init_name="INIT",
-            input_re=re.compile(r"^I\d+$"),
-            output_ports=frozenset({"O", "Q", "Y"}),
-        ),
+        lut_spec=_named_lut_spec(),
         passthrough=passthrough,
         mode=mode,
     )
@@ -168,12 +170,7 @@ def test_enet_benchmark(
     cfg = LutCombinatorConfig(
         architecture=frac_arch,
         top_name="enet",
-        lut_spec=LutSpec(
-            lut_re=re.compile(r"^LUT(\d+)$"),
-            init_name="INIT",
-            input_re=re.compile(r"^I\d+$"),
-            output_ports=frozenset({"O", "Q", "Y"}),
-        ),
+        lut_spec=_named_lut_spec(),
         passthrough=passthrough,
         mode=mode,
         debug=False,
@@ -217,6 +214,7 @@ def test_lut_32_mixed_yosys_lut_benchmark_eq(
         frac_lut_size=fls,
         num_shared_inputs=ns,
         name="FRAC_LUT5",
+        use_select_as_data_in_pair_mode=True,
     )
     cfg = LutCombinatorConfig(
         architecture=frac_arch,
@@ -264,6 +262,187 @@ def test_lut_32_mixed_yosys_lut_benchmark_eq_iterative() -> None:
     logger.info("All LUT32-mixed benchmark tests passed.")
 
 
+def test_select_as_data_pair_mapping_eq() -> None:
+    """Test that select-as-data mode packs a pair normal mode cannot pack."""
+    benchmark_text = """
+module select_as_data_pair(
+    input a, b, c, d, e, f,
+    output y0, y1
+);
+  LUT4 #(.INIT(16'h6996)) lut0 (
+    .I0(a), .I1(b), .I2(c), .I3(d), .O(y0)
+  );
+  LUT4 #(.INIT(16'he8e8)) lut1 (
+    .I0(a), .I1(b), .I2(e), .I3(f), .O(y1)
+  );
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_select_as_data_") as td:
+        tmp_dir = Path(td)
+        gold = tmp_dir / "select_as_data_pair.v"
+        gate = tmp_dir / "select_as_data_pair_mapped.v"
+        gold.write_text(benchmark_text, encoding="utf-8")
+
+        normal_arch = FracLutArchitecture(
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            name="FRAC_LUT5",
+        )
+        normal_cfg = LutCombinatorConfig(
+            architecture=normal_arch,
+            top_name="select_as_data_pair",
+            lut_spec=_named_lut_spec(),
+            passthrough=False,
+            mode=MatchingMode.MAX_WEIGHT,
+        )
+        normal_comb = LutCombinator(normal_cfg)
+        normal_bridge = PyosysBridge(debug=False)
+        normal_bridge.read_verilog_paths([gold])
+        normal_result = normal_comb.map_from_design(normal_bridge, inplace=False)
+        assert normal_result.stats.mapped_groups == 0
+
+        select_arch = FracLutArchitecture(
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            name="FRAC_LUT5",
+            use_select_as_data_in_pair_mode=True,
+        )
+        select_cfg = LutCombinatorConfig(
+            architecture=select_arch,
+            top_name="select_as_data_pair",
+            lut_spec=_named_lut_spec(),
+            passthrough=False,
+            mode=MatchingMode.MAX_WEIGHT,
+        )
+        select_comb = LutCombinator(select_cfg)
+        select_bridge = PyosysBridge(debug=False)
+        select_bridge.read_verilog_paths([gold])
+        select_result = select_comb.map_from_design(select_bridge, inplace=True)
+        assert select_result.stats.mapped_groups == 1
+        assert select_result.stats.passthrough_luts == 0
+
+        mapped_cell = select_result.mapped_cells[0]
+        assert mapped_cell.parameters["SELECT_AS_DATA_CAPABLE"] == "1"
+        assert mapped_cell.parameters["SELECT_AS_DATA_USED"] == "1"
+        assert mapped_cell.parameters["EFFECTIVE_SHARED_INPUTS"] == "2"
+        assert mapped_cell.parameters["CUT_SHARED_INDEX"] == "2"
+        assert "S" in mapped_cell.external_pin_nets
+        assert "I2" in mapped_cell.external_pin_nets
+        assert mapped_cell.placements[0].input_to_slot_source == (
+            "I0",
+            "I1",
+            "A0",
+            "S",
+        )
+        assert mapped_cell.placements[1].input_to_slot_source == (
+            "I0",
+            "I1",
+            "B0",
+            "I2",
+        )
+
+        select_bridge.write_verilog_path(gate)
+
+        eq_cfg = EquivalenceCheckConfig(
+            gold_verilog=gold,
+            gate_verilog=gate,
+            top_name="select_as_data_pair",
+            frac_cell_name=select_arch.name,
+            frac_lut_size=select_arch.frac_lut_size,
+            num_shared_inputs=select_arch.num_shared_inputs,
+        )
+        LutEquivalenceChecker(eq_cfg).run()
+
+
+def test_select_as_data_pair_mapping_edge_cases() -> None:
+    """Test select-as-data arithmetic for the smallest valid LUT sizes."""
+    try:
+        FracLutArchitecture(
+            frac_lut_size=1,
+            num_shared_inputs=0,
+            use_select_as_data_in_pair_mode=True,
+        )
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("select-as-data with zero shared inputs must fail")
+
+    lut0 = LogicalLutCell(
+        cell_id="lut0",
+        cell_type="LUT1",
+        input_nets=("a",),
+        output_net="y0",
+        init=0b10,
+        width=1,
+    )
+    lut1 = LogicalLutCell(
+        cell_id="lut1",
+        cell_type="LUT1",
+        input_nets=("b",),
+        output_net="y1",
+        init=0b01,
+        width=1,
+    )
+    arch = FracLutArchitecture(
+        frac_lut_size=1,
+        num_shared_inputs=1,
+        name="FRAC_LUT2",
+        use_select_as_data_in_pair_mode=True,
+    )
+    binding = arch.try_bind_pair(lut0, lut1)
+    assert binding is not None
+    assert binding.external_pin_nets == {"I0": "b", "S": "a"}
+    assert binding.placement0.input_to_slot_pin == (0,)
+    assert binding.placement1.input_to_slot_pin == (0,)
+
+
+def test_select_as_data_parameters_are_stable() -> None:
+    """Test FRAC cells always emit the same select-as-data parameter schema."""
+    lut0 = LogicalLutCell(
+        cell_id="lut0",
+        cell_type="LUT1",
+        input_nets=("a",),
+        output_net="y0",
+        init=0b10,
+        width=1,
+    )
+    lut1 = LogicalLutCell(
+        cell_id="lut1",
+        cell_type="LUT1",
+        input_nets=("a",),
+        output_net="y1",
+        init=0b01,
+        width=1,
+    )
+    arch = FracLutArchitecture(
+        frac_lut_size=4,
+        num_shared_inputs=3,
+        name="FRAC_LUT5",
+    )
+    binding = arch.try_bind_pair(lut0, lut1)
+    assert binding is not None
+    packed = arch.build_mapped_cell("packed", binding)
+    assert packed.parameters["SELECT_AS_DATA_CAPABLE"] == "0"
+    assert packed.parameters["SELECT_AS_DATA_USED"] == "0"
+    assert packed.parameters["EFFECTIVE_SHARED_INPUTS"] == "3"
+    assert packed.parameters["CUT_SHARED_INDEX"] == "-1"
+    assert packed.parameters["MUX_SELECT_CONFIG"] == "0"
+
+    select_arch = FracLutArchitecture(
+        frac_lut_size=4,
+        num_shared_inputs=3,
+        name="FRAC_LUT5",
+        use_select_as_data_in_pair_mode=True,
+    )
+    single = select_arch.bind_single_lut(lut0)
+    assert single is not None
+    assert single.parameters["SELECT_AS_DATA_CAPABLE"] == "1"
+    assert single.parameters["SELECT_AS_DATA_USED"] == "0"
+    assert single.parameters["EFFECTIVE_SHARED_INPUTS"] == "2"
+    assert single.parameters["CUT_SHARED_INDEX"] == "2"
+    assert single.parameters["MUX_SELECT_CONFIG"] == "0"
+
+
 def main() -> None:
     """Run all tests."""
     sel_test: int = 0
@@ -277,6 +456,10 @@ def main() -> None:
             test_enet_benchmark_manual()
         case 3:
             test_lut_32_mixed_yosys_lut_benchmark_eq_iterative()
+        case 4:
+            test_select_as_data_pair_mapping_eq()
+            test_select_as_data_pair_mapping_edge_cases()
+            test_select_as_data_parameters_are_stable()
 
 
 if __name__ == "__main__":

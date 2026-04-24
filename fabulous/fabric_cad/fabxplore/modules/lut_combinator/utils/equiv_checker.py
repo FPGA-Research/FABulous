@@ -195,6 +195,11 @@ def _lut_model(width: int) -> list[str]:
     ]
 
 
+def _idx_expr(bits: list[str]) -> str:
+    """Return a Verilog index concatenation expression for LUT input bits."""
+    return ", ".join(reversed(bits))
+
+
 def _frac_model(name: str, lut_size: int, num_shared_inputs: int) -> list[str]:
     """Generate a Verilog model for a FRAC LUT of the given size and shared inputs."""
     # Wide, stable interface so named-port instances continue to elaborate.
@@ -214,6 +219,20 @@ def _frac_model(name: str, lut_size: int, num_shared_inputs: int) -> list[str]:
 
     idx0 = ", ".join(reversed(l0_bits))
     idx1 = ", ".join(reversed(l1_bits))
+    if num_shared_inputs > 0:
+        l0_cut_bits = (
+            [f"I{i}" for i in range(num_shared_inputs - 1)]
+            + [f"A{i}" for i in range(max(0, p))]
+            + ["S"]
+        )
+        l1_cut_bits = (
+            [f"I{i}" for i in range(num_shared_inputs - 1)]
+            + [f"B{i}" for i in range(max(0, p))]
+            + [f"I{num_shared_inputs - 1}"]
+        )
+    else:
+        l0_cut_bits = l0_bits
+        l1_cut_bits = l1_bits
     full_bits = [f"I{i}" for i in range(lut_size)]
     idx_full = ", ".join(reversed(full_bits))
     init_width = 1 << lut_size
@@ -230,6 +249,11 @@ def _frac_model(name: str, lut_size: int, num_shared_inputs: int) -> list[str]:
         '  parameter L1_CELL_ID = "";',
         '  parameter F0_CELL_ID = "";',
         '  parameter F1_CELL_ID = "";',
+        "  parameter SELECT_AS_DATA_CAPABLE = 0;",
+        "  parameter SELECT_AS_DATA_USED = 0;",
+        f"  parameter EFFECTIVE_SHARED_INPUTS = {num_shared_inputs};",
+        f"  parameter CUT_SHARED_INDEX = {max(num_shared_inputs - 1, 0)};",
+        "  parameter MUX_SELECT_CONFIG = 0;",
         "  parameter [255:0] MAPPED_FROM = 256'b0;",
         f"  parameter [{init_width - 1}:0] L0_INIT = {init_width}'b0;",
         f"  parameter [{init_width - 1}:0] L1_INIT = {init_width}'b0;",
@@ -240,16 +264,28 @@ def _frac_model(name: str, lut_size: int, num_shared_inputs: int) -> list[str]:
         f"  wire [{lut_size - 1}:0] _idx0 = {{{idx0}}};",
         f"  wire [{lut_size - 1}:0] _idx1 = {{{idx1}}};",
         f"  wire [{lut_size - 1}:0] _idxf = {{{idx_full}}};",
+        f"  wire [{lut_size - 1}:0] _idx0_cut = {{{_idx_expr(l0_cut_bits)}}};",
+        f"  wire [{lut_size - 1}:0] _idx1_cut = {{{_idx_expr(l1_cut_bits)}}};",
+        (
+            f"  wire [{lut_size - 1}:0] _idx0_pair = "
+            "SELECT_AS_DATA_USED ? _idx0_cut : _idx0;"
+        ),
+        (
+            f"  wire [{lut_size - 1}:0] _idx1_pair = "
+            "SELECT_AS_DATA_USED ? _idx1_cut : _idx1;"
+        ),
         "  wire [" + str(init_width - 1) + ":0] _i0 = L0_INIT | F0_INIT;",
         "  wire [" + str(init_width - 1) + ":0] _i1 = L1_INIT | F1_INIT;",
-        "  wire _l0_pair = _i0[_idx0];",
-        "  wire _l1_pair = _i1[_idx1];",
+        "  wire _l0_pair = _i0[_idx0_pair];",
+        "  wire _l1_pair = _i1[_idx1_pair];",
         "  wire _l0_full = _i0[_idxf];",
         "  wire _l1_full = _i1[_idxf];",
         "  wire _use_full = |MAPPED_FROM;",
         (
             "  assign O0 = _use_full ? (S ? _l1_full : _l0_full) : "
-            "(S ? _l1_pair : _l0_pair);"
+            "(SELECT_AS_DATA_USED ? "
+            "(MUX_SELECT_CONFIG ? _l1_pair : _l0_pair) : "
+            "(S ? _l1_pair : _l0_pair));"
         ),
         "  assign O1 = _use_full ? _l1_full : _l1_pair;",
         "endmodule",
