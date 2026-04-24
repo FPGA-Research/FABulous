@@ -16,7 +16,7 @@ module sequential_16bit_en (
             else ctr <= ctr + 1'b1;
         else ctr <= ctr;
 
-    assign io_out = {12'b0, ctr};  // pass thru reset for debugging
+    assign io_out = {12'b0, ctr};
     assign io_oeb = 28'b0000000000000000000000000001;
 endmodule
 `default_nettype wire
