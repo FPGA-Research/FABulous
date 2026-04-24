@@ -21,11 +21,10 @@ module IO_1_bidirectional_frame_config_pass (
     input T,  // tristate control
     output O,  // from external pin to fabric
     output reg Q,  // from external pin to fabric (registered)
-    // EXTERNAL has to ge to top-level entity not the switch matrix
+These ports need to be available at the top-level, not the switch matrix
     (* FABulous, EXTERNAL *) output I_top,
     (* FABulous, EXTERNAL *) output T_top,
     (* FABulous, EXTERNAL *) input O_top,
-    // Tile IO ports from BELs
     // The EXTERNAL keyword will send this signal all the way to top and the
     // SHARED Allows multiple BELs using the same port (e.g. for exporting a clock to the top)
     (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK
