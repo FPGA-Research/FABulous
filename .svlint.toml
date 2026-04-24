@@ -1,0 +1,10 @@
+[option]
+indent = 4
+textwidth = 88
+
+[textrules]
+style_textwidth = false
+
+[syntaxrules]
+style_indent = true
+tab_character = false
