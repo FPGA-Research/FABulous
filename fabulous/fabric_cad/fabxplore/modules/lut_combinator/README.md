@@ -702,3 +702,350 @@ just splitting the INIT function and adding a mux to the
 output in the techmap pass, advaned packing as we do is
 not considered also shared inputs and free inputs
 cannot be changed.
+
+---
+
+## 15. Select-as-Data Pair Mode
+
+The newest architecture option is:
+
+```python
+use_select_as_data_in_pair_mode=True
+```
+
+This option only changes **dual pair mode**. It does not change full
+`LUT(K+1)` mode, because full mode still needs `S` as the final mux select.
+
+### Motivation
+
+In normal pair mode the mux select input `S` is fixed to `0`, because the two
+packed LUTs are independent:
+
+- `O0 = L0`
+- `O1 = L1`
+
+So in normal dual mode, `S` is not used as a data input. The select-as-data
+mode uses this fact to recover one more effective data input without adding a
+new external pin.
+
+The idea is:
+
+- cut one nominal shared input from one internal LUT side
+- keep that cut shared pin as a private input for the other side
+- route `S` as the matching private input for the first side
+- keep the final output mux configured to select `L0`
+
+So the physical pin count stays the same, but pair feasibility behaves as if
+the architecture had one fewer shared input and one more private input per
+internal LUT.
+
+### Effective architecture
+
+Let the nominal architecture be:
+
+- internal LUT size: $K$
+- nominal shared inputs: $S_n$
+- nominal private inputs per side:
+
+$$
+P_n = K - S_n
+$$
+
+When select-as-data is enabled for pair mode:
+
+$$
+S_e = S_n - 1
+$$
+
+and therefore:
+
+$$
+P_e = K - S_e = K - (S_n - 1) = P_n + 1
+$$
+
+So the mapper treats pair packing as:
+
+- effective shared inputs: $S_e$
+- effective private inputs per side: $P_e$
+
+This is exactly the same feasibility region as explicitly lowering
+`num_shared_inputs` by one, except that no extra package pin is needed because
+the otherwise-unused `S` pin supplies the extra data input on one side.
+
+The feasibility condition from section 5 becomes:
+
+$$
+\exists C,\ |C| = S_e,\ |A \setminus C| \le P_e,\ |B \setminus C| \le P_e
+$$
+
+or equivalently:
+
+$$
+|A \cup B| \le K + P_e
+$$
+
+Compared with the nominal pair mode, this allows one more effective private
+input per side.
+
+### Concrete `K=4`, `S_n=3` example
+
+Normal pair mode has:
+
+```text
+L0(I0, I1, I2, A0)
+L1(I0, I1, I2, B0)
+S = 0, so O0 = L0
+O1 = L1
+```
+
+Here:
+
+$$
+P_n = 4 - 3 = 1
+$$
+
+With select-as-data enabled:
+
+$$
+S_e = 3 - 1 = 2
+$$
+
+and:
+
+$$
+P_e = 4 - 2 = 2
+$$
+
+The effective internal pair mode becomes:
+
+```text
+L0(I0, I1, A0, S)
+L1(I0, I1, B0, I2)
+```
+
+The nominal shared pin `I2` is cut from `L0`. It remains externally available,
+but it is now used as the second private input of `L1`. The external `S` pin is
+used as the second private input of `L0`.
+
+So this logical situation:
+
+```text
+LUT4_0(I0, I1, I2, A0)
+LUT4_1(I0, I1, I2, B0)
+```
+
+can be interpreted in select-as-data mode as:
+
+```text
+LUT4_0(I0, I1, S,  A0)
+LUT4_1(I0, I1, I2, B0)
+```
+
+or, if we rename the cut side's `I2` usage as a private input:
+
+```text
+LUT4_0(I0, I1, A1, A0)   where A1 is physically driven by S
+LUT4_1(I0, I1, B1, B0)   where B1 is physically driven by I2
+```
+
+Mathematically, this is the same as a `K=4`, `S=2` pair-mode architecture,
+but implemented with the original `K=4`, `S_n=3` external pin interface.
+
+### Internal mux sketch
+
+The intended hardware interpretation is that there are small configuration
+muxes inside the primitive. In normal pair mode, all nominal shared pins go to
+both LUT halves and `S` is the output mux select. In select-as-data pair mode,
+one shared connection is broken on the `L0` side and `S` is routed into that
+data position instead.
+
+For `K=4`, `S_n=3`:
+
+```text
+Normal pair mode
+----------------
+
+             I0 --------+----------------> L0 input 0
+                        |
+                        +----------------> L1 input 0
+
+             I1 --------+----------------> L0 input 1
+                        |
+                        +----------------> L1 input 1
+
+             I2 --------+----------------> L0 input 2
+                        |
+                        +----------------> L1 input 2
+
+             A0 -------------------------> L0 input 3
+             B0 -------------------------> L1 input 3
+
+             L0 ------------------+
+                                   +---- output mux ----> O0
+             L1 ------------------+          ^
+                                             |
+                                             S = 0 in dual mode
+
+             O1 = L1
+```
+
+```text
+Select-as-data pair mode
+------------------------
+
+             I0 --------+----------------> L0 input 0
+                        |
+                        +----------------> L1 input 0
+
+             I1 --------+----------------> L0 input 1
+                        |
+                        +----------------> L1 input 1
+
+             A0 -------------------------> L0 input 2
+             B0 -------------------------> L1 input 2
+
+             S  ---- cfg mux ------------> L0 input 3
+                      ^
+                      |
+                      +-- select S-as-data instead of I2
+
+             I2 ---- cfg mux ------------> L1 input 3
+                      ^
+                      |
+                      +-- keep cut shared pin as L1 private input
+
+             L0 ------------------+
+                                   +---- output mux ----> O0
+             L1 ------------------+          ^
+                                             |
+                                      MUX_SELECT_CONFIG = 0
+
+             O1 = L1
+```
+
+A more pin-order-accurate view of the select-as-data `K=4`, `S_n=3` model is:
+
+```text
+L0 slot index bits, low to high:
+  I0, I1, A0, S
+
+L1 slot index bits, low to high:
+  I0, I1, B0, I2
+```
+
+The final output mux is not selected by the external `S` signal in this mode.
+Instead the emitted parameter `MUX_SELECT_CONFIG` is fixed to `0`, so:
+
+```text
+O0 = L0
+O1 = L1
+```
+
+This is why `S` can safely become data for `L0`.
+
+### INIT remapping with select-as-data
+
+The INIT calculation itself does not need a special truth-table algorithm.
+The existing `remap_init_to_slot(...)` operation is enough, because the mode is
+represented as a different source-to-slot pin assignment.
+
+For any logical source LUT of width $n$, the source input order is preserved.
+Let:
+
+- $x \in \{0,1\}^K$ be one assignment of the internal slot pins
+- $\pi(i)$ be the internal slot pin used by source input $i$
+
+Then:
+
+$$
+\mathrm{src\_index}(x) =
+\sum_{i=0}^{n-1} x_{\pi(i)} 2^i
+$$
+
+and:
+
+$$
+\mathrm{INIT}_{dst}(x) =
+\mathrm{INIT}_{src}[\mathrm{src\_index}(x)]
+$$
+
+In normal `K=4`, `S_n=3` pair mode, the internal index bits are:
+
+```text
+L0: I0, I1, I2, A0
+L1: I0, I1, I2, B0
+```
+
+With select-as-data enabled, the internal index bits become:
+
+```text
+L0: I0, I1, A0, S
+L1: I0, I1, B0, I2
+```
+
+So the same remap formula produces different `L0_INIT` and `L1_INIT` images
+because the physical coordinate system changed.
+
+This is also why smaller LUTs still work correctly. If a logical LUT does not
+use one of these internal slot dimensions, that bit never appears in
+$\mathrm{src\_index}(x)$, so the destination INIT is automatically duplicated
+over that don't-care dimension.
+
+### Emitted parameters and metadata
+
+Packed cells always emit the same stable parameter set. Select-as-data is
+communicated through parameter values and metadata, not by changing the shape
+of the emitted cell.
+
+Important parameters are:
+
+- `SELECT_AS_DATA_CAPABLE`
+  - `1` when the architecture was built with
+    `use_select_as_data_in_pair_mode=True`
+- `SELECT_AS_DATA_USED`
+  - `1` for dual pair cells that actually use this mode
+  - `0` for single/full mapped cells
+- `EFFECTIVE_SHARED_INPUTS`
+  - equals `S_n - 1` when select-as-data is enabled
+- `CUT_SHARED_INDEX`
+  - normally `-1`
+  - equals `S_n - 1` when the last nominal shared input is cut
+- `MUX_SELECT_CONFIG`
+  - fixed to `0` for the current select-as-data pair implementation
+  - this makes `O0` select `L0` while external `S` is used as data
+
+The metadata string also records values such as:
+
+```text
+lut_mapping=dual_select_as_data
+select_as_data_capable=1
+select_as_data_used=1
+nominal_shared_inputs=3
+effective_shared_inputs=2
+cut_shared_index=2
+s_data_side=L0
+cut_shared_side=L1
+mux_select_config=0
+```
+
+### Full LUT mode is unchanged
+
+For a single `LUT(K+1)`, the implementation still splits the truth table by
+the extra select input:
+
+$$
+\mathrm{INIT}_{L0}[t] = \mathrm{INIT}_{full}[t, s=0]
+$$
+
+$$
+\mathrm{INIT}_{L1}[t] = \mathrm{INIT}_{full}[t, s=1]
+$$
+
+and:
+
+```text
+O0 = S ? L1 : L0
+```
+
+So select-as-data is deliberately not used there. The `S` pin is already
+semantically required to reconstruct the original `K+1` input LUT.
