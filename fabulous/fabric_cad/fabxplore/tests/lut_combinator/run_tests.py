@@ -443,6 +443,126 @@ def test_select_as_data_parameters_are_stable() -> None:
     assert single.parameters["MUX_SELECT_CONFIG"] == "0"
 
 
+def test_packed_cascade_output_feeds_packed_input_eq() -> None:
+    """Test packing when one LUT output feeds the other packed LUT input."""
+    benchmark_text = """
+module packed_cascade(
+    input a, b, c,
+    output y_mid, y
+);
+  wire n;
+  LUT2 #(.INIT(4'h8)) producer (
+    .I0(a), .I1(b), .O(n)
+  );
+  LUT2 #(.INIT(4'h6)) consumer (
+    .I0(n), .I1(c), .O(y)
+  );
+  assign y_mid = n;
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_packed_cascade_") as td:
+        tmp_dir = Path(td)
+        gold = tmp_dir / "packed_cascade.v"
+        gate = tmp_dir / "packed_cascade_mapped.v"
+        gold.write_text(benchmark_text, encoding="utf-8")
+
+        arch = FracLutArchitecture(
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            name="FRAC_LUT5",
+        )
+        cfg = LutCombinatorConfig(
+            architecture=arch,
+            top_name="packed_cascade",
+            lut_spec=_named_lut_spec(),
+            passthrough=False,
+            mode=MatchingMode.MAX_WEIGHT,
+        )
+        comb = LutCombinator(cfg)
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([gold])
+        result = comb.map_from_design(bridge, inplace=True)
+
+        assert result.stats.mapped_groups == 1
+        mapped_cell = result.mapped_cells[0]
+        feedback_nets = set(mapped_cell.output_pin_nets.values()) & set(
+            mapped_cell.external_pin_nets.values()
+        )
+        assert feedback_nets
+
+        bridge.write_verilog_path(gate)
+        eq_cfg = EquivalenceCheckConfig(
+            gold_verilog=gold,
+            gate_verilog=gate,
+            top_name="packed_cascade",
+            frac_cell_name=arch.name,
+            frac_lut_size=arch.frac_lut_size,
+            num_shared_inputs=arch.num_shared_inputs,
+        )
+        LutEquivalenceChecker(eq_cfg).run()
+
+
+def test_select_as_data_packed_feedback_unused_input_eq() -> None:
+    """Test select-as-data packing with a feedback-looking unused LUT input."""
+    benchmark_text = """
+module select_as_data_feedback(
+    input a, b, c,
+    output y_mid, y
+);
+  wire n;
+  LUT3 #(.INIT(8'h88)) producer (
+    .I0(a), .I1(b), .I2(n), .O(n)
+  );
+  LUT2 #(.INIT(4'h6)) consumer (
+    .I0(n), .I1(c), .O(y)
+  );
+  assign y_mid = n;
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_select_feedback_") as td:
+        tmp_dir = Path(td)
+        gold = tmp_dir / "select_as_data_feedback.v"
+        gate = tmp_dir / "select_as_data_feedback_mapped.v"
+        gold.write_text(benchmark_text, encoding="utf-8")
+
+        arch = FracLutArchitecture(
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            name="FRAC_LUT5",
+            use_select_as_data_in_pair_mode=True,
+        )
+        cfg = LutCombinatorConfig(
+            architecture=arch,
+            top_name="select_as_data_feedback",
+            lut_spec=_named_lut_spec(),
+            passthrough=False,
+            mode=MatchingMode.MAX_WEIGHT,
+        )
+        comb = LutCombinator(cfg)
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([gold])
+        result = comb.map_from_design(bridge, inplace=True)
+
+        assert result.stats.mapped_groups == 1
+        mapped_cell = result.mapped_cells[0]
+        assert mapped_cell.parameters["SELECT_AS_DATA_USED"] == "1"
+        feedback_nets = set(mapped_cell.output_pin_nets.values()) & set(
+            mapped_cell.external_pin_nets.values()
+        )
+        assert feedback_nets
+
+        bridge.write_verilog_path(gate)
+        eq_cfg = EquivalenceCheckConfig(
+            gold_verilog=gold,
+            gate_verilog=gate,
+            top_name="select_as_data_feedback",
+            frac_cell_name=arch.name,
+            frac_lut_size=arch.frac_lut_size,
+            num_shared_inputs=arch.num_shared_inputs,
+        )
+        LutEquivalenceChecker(eq_cfg).run()
+
+
 def main() -> None:
     """Run all tests."""
     sel_test: int = 0
@@ -460,6 +580,8 @@ def main() -> None:
             test_select_as_data_pair_mapping_eq()
             test_select_as_data_pair_mapping_edge_cases()
             test_select_as_data_parameters_are_stable()
+            test_packed_cascade_output_feeds_packed_input_eq()
+            test_select_as_data_packed_feedback_unused_input_eq()
 
 
 if __name__ == "__main__":
