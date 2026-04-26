@@ -109,7 +109,7 @@ class FracLutArchitecture:
     frac_lut_size: int
     num_shared_inputs: int
     name: str = "FRAC_LUT"
-    use_select_as_data_in_pair_mode: bool = False
+    use_select_as_data_in_pair_mode: bool = True
     allow_duplicate_private_nets: bool = True
 
     def __post_init__(self) -> None:
