@@ -150,7 +150,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         lcp = LutCombinatorPass(
             top_name=self.config.top_module,
-            passthrough=False,
+            passthrough=True,
             use_select_as_data_in_pair_mode=True,
         )
         lcp.run_on(self.design)
