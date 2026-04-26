@@ -37,6 +37,9 @@ class PairMappingProgressTracker:
         Whether LUT(K+1) passthrough mapping is enabled.
     use_select_as_data_in_pair_mode : bool
         Whether pair mapping may use the ``S`` pin as an extra data input.
+    allow_duplicate_private_nets : bool
+        Whether pair mapping may assign the same net to private pins on both
+        LUT sides.
     """
 
     def __init__(
@@ -45,11 +48,13 @@ class PairMappingProgressTracker:
         mode: MatchingMode,
         passthrough: bool,
         use_select_as_data_in_pair_mode: bool,
+        allow_duplicate_private_nets: bool,
     ) -> None:
         self.enabled = enabled
         self.mode = mode
         self.passthrough = passthrough
         self.use_select_as_data_in_pair_mode = use_select_as_data_in_pair_mode
+        self.allow_duplicate_private_nets = allow_duplicate_private_nets
 
         self._kp1_total = 0
         self._kp1_done = 0
@@ -76,7 +81,8 @@ class PairMappingProgressTracker:
             f"Start map_luts: total_cells={total_cells}, top={top_name}, "
             f"mode={self.mode.value}, passthrough={self.passthrough}, "
             "select_as_data_pair_mode="
-            f"{self.use_select_as_data_in_pair_mode}"
+            f"{self.use_select_as_data_in_pair_mode}, "
+            f"allow_duplicate_private_nets={self.allow_duplicate_private_nets}"
         )
 
     def on_partitioned(
@@ -388,6 +394,7 @@ class PairLutMapper:
             mode=self.mode,
             passthrough=self.passthrough,
             use_select_as_data_in_pair_mode=(self.arch.use_select_as_data_in_pair_mode),
+            allow_duplicate_private_nets=self.arch.allow_duplicate_private_nets,
         )
         progress.on_start(total_cells=len(cells), top_name=top_name)
 
@@ -545,6 +552,7 @@ class PairLutMapper:
             metadata={
                 "frac_lut_size": self.arch.frac_lut_size,
                 "num_shared_inputs": self.arch.num_shared_inputs,
+                "allow_duplicate_private_nets": self.arch.allow_duplicate_private_nets,
                 "passthrough": self.passthrough,
                 "mode": self.mode.value,
             },

@@ -438,6 +438,98 @@ def test_select_as_data_uses_normal_binding_when_possible() -> None:
     assert packed.external_pin_nets["S"] == "0"
 
 
+def test_select_as_data_with_duplicate_private_nets_disabled() -> None:
+    """Test select-as-data still packs when effective private nets are distinct."""
+    lut0 = LogicalLutCell(
+        cell_id="lut0",
+        cell_type="LUT4",
+        input_nets=("a", "b", "c", "d"),
+        output_net="y0",
+        init=0x6996,
+        width=4,
+    )
+    lut1 = LogicalLutCell(
+        cell_id="lut1",
+        cell_type="LUT4",
+        input_nets=("a", "b", "e", "f"),
+        output_net="y1",
+        init=0xE8E8,
+        width=4,
+    )
+    arch = FracLutArchitecture(
+        frac_lut_size=4,
+        num_shared_inputs=3,
+        name="FRAC_LUT5",
+        use_select_as_data_in_pair_mode=True,
+        allow_duplicate_private_nets=False,
+    )
+
+    binding = arch.try_bind_pair(lut0, lut1)
+    assert binding is not None
+    assert binding.select_as_data_used is True
+    assert binding.effective_shared_inputs == 2
+    assert binding.cut_shared_index == 2
+    assert set(binding.placement0.input_to_slot_source) == {"I0", "I1", "A0", "S"}
+    assert set(binding.placement1.input_to_slot_source) == {"I0", "I1", "B0", "I2"}
+
+    packed = arch.build_mapped_cell("packed", binding)
+    assert packed.parameters["SELECT_AS_DATA_CAPABLE"] == "1"
+    assert packed.parameters["SELECT_AS_DATA_USED"] == "1"
+    assert packed.parameters["EFFECTIVE_SHARED_INPUTS"] == "2"
+    assert packed.parameters["CUT_SHARED_INDEX"] == "2"
+
+
+def test_allow_duplicate_private_nets_option() -> None:
+    """Test duplicate private-net sharing can be allowed or rejected globally."""
+    lut0 = LogicalLutCell(
+        cell_id="lut0",
+        cell_type="LUT4",
+        input_nets=("a", "b", "c", "d"),
+        output_net="y0",
+        init=0x6996,
+        width=4,
+    )
+    same_lut1 = LogicalLutCell(
+        cell_id="same_lut1",
+        cell_type="LUT4",
+        input_nets=("a", "b", "c", "d"),
+        output_net="y1",
+        init=0xE8E8,
+        width=4,
+    )
+    different_lut1 = LogicalLutCell(
+        cell_id="different_lut1",
+        cell_type="LUT4",
+        input_nets=("a", "b", "c", "e"),
+        output_net="y2",
+        init=0xE8E8,
+        width=4,
+    )
+
+    arch_allow = FracLutArchitecture(
+        frac_lut_size=4,
+        num_shared_inputs=3,
+        name="FRAC_LUT5",
+    )
+    allowed_binding = arch_allow.try_bind_pair(lut0, same_lut1)
+    assert allowed_binding is not None
+    assert allowed_binding.external_pin_nets["A0"] == "d"
+    assert allowed_binding.external_pin_nets["B0"] == "d"
+
+    arch_disallow = FracLutArchitecture(
+        frac_lut_size=4,
+        num_shared_inputs=3,
+        name="FRAC_LUT5",
+        allow_duplicate_private_nets=False,
+    )
+    assert arch_disallow.try_bind_pair(lut0, same_lut1) is None
+
+    non_duplicate_binding = arch_disallow.try_bind_pair(lut0, different_lut1)
+    assert non_duplicate_binding is not None
+    assert non_duplicate_binding.external_pin_nets["A0"] == "d"
+    assert non_duplicate_binding.external_pin_nets["B0"] == "e"
+
+
 def test_select_as_data_parameters_are_stable() -> None:
     """Test FRAC cells always emit the same select-as-data parameter schema."""
     lut0 = LogicalLutCell(
@@ -623,6 +715,8 @@ def main() -> None:
             test_select_as_data_pair_mapping_eq()
             test_select_as_data_pair_mapping_edge_cases()
             test_select_as_data_uses_normal_binding_when_possible()
+            test_select_as_data_with_duplicate_private_nets_disabled()
+            test_allow_duplicate_private_nets_option()
             test_select_as_data_parameters_are_stable()
             test_packed_cascade_output_feeds_packed_input_eq()
             test_select_as_data_packed_feedback_unused_input_eq()

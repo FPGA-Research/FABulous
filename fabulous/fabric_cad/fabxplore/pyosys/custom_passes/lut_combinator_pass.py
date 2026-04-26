@@ -42,6 +42,9 @@ class LutCombinatorPass(SynthPass):
     use_select_as_data_in_pair_mode : bool
         Whether to enable the select-as-data dual-LUT pairing mode for more
         flexible mappings.
+    allow_duplicate_private_nets : bool
+        Whether pair mapping may assign the same net to private pins on both
+        LUT sides.
     """
 
     frac_lut_size: int = 4
@@ -50,7 +53,8 @@ class LutCombinatorPass(SynthPass):
     top_name: str = "top"
     passthrough: bool = False
     mode: MatchingMode = MatchingMode.MAXIMAL
-    use_select_as_data_in_pair_mode: bool = False
+    use_select_as_data_in_pair_mode: bool = True
+    allow_duplicate_private_nets: bool = True
 
     _result: MappingResult | None = None
 
@@ -67,6 +71,7 @@ class LutCombinatorPass(SynthPass):
             num_shared_inputs=self.num_shared_inputs,
             name=self.lut_name,
             use_select_as_data_in_pair_mode=self.use_select_as_data_in_pair_mode,
+            allow_duplicate_private_nets=self.allow_duplicate_private_nets,
         )
 
         cfg = LutCombinatorConfig(

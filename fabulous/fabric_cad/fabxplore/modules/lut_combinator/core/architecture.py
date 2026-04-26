@@ -43,6 +43,10 @@ class FracLutArchitecture:
         shared input and one more private input per side, without increasing the
         external pin count. This option only affects dual-LUT pair mode; full
         LUT(K+1) mode still uses ``S`` as the output mux select.
+    allow_duplicate_private_nets : bool
+        Whether the same logical net may be assigned to private pins on both
+        LUT sides. If ``False``, a pair is rejected when it requires duplicate
+        private-side wiring such as ``A0`` and ``B0`` carrying the same net.
 
     Notes
     -----
@@ -106,6 +110,7 @@ class FracLutArchitecture:
     num_shared_inputs: int
     name: str = "FRAC_LUT"
     use_select_as_data_in_pair_mode: bool = False
+    allow_duplicate_private_nets: bool = True
 
     def __post_init__(self) -> None:
         """Validate architecture dimensions at construction time.
@@ -260,6 +265,9 @@ class FracLutArchitecture:
         shared_set: set[str] = set(shared_nets)
         priv0: list[str] = [n for n in uniq0 if n not in shared_set]
         priv1: list[str] = [n for n in uniq1 if n not in shared_set]
+
+        if not self.allow_duplicate_private_nets and set(priv0) & set(priv1):
+            return None
 
         if len(priv0) > private_input_count:
             return None
