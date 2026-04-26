@@ -74,6 +74,32 @@ class FracLutArchitecture:
 
     The emitted INIT values are remapped to this internal pin order, and
     metadata marks that select-as-data mode was used.
+
+    INIT bits are addressed with slot pin 0 as the least-significant address
+    bit. The internal LUT slot input order used for INIT remapping is:
+
+    - Normal pair mode:
+      - ``L0`` slot order: ``I0, I1, ..., I(S-1), A0, A1, ...``
+      - ``L1`` slot order: ``I0, I1, ..., I(S-1), B0, B1, ...``
+    - Select-as-data pair mode, when used:
+      - ``L0`` slot order: ``I0, I1, ..., I(S-2), A0, A1, ..., S``
+      - ``L1`` slot order: ``I0, I1, ..., I(S-2), B0, B1, ..., I(S-1)``
+    - Single LUT mode:
+      - the LUT is mapped into ``L0``
+      - ``L0`` slot order: ``I0, I1, ..., I(S-1), A0, A1, ...``
+      - ``L1`` is unused and has INIT zero
+    - Full LUT(K+1) mode:
+      - the last source LUT input is used as ``S``
+      - the remaining K data inputs are mapped into both ``L0`` and ``L1``
+        using the normal single-LUT slot order:
+        ``I0, I1, ..., I(S-1), A0, A1, ...``
+      - ``L0_INIT`` stores the source INIT slice for ``S=0``
+      - ``L1_INIT`` stores the source INIT slice for ``S=1``
+      - ``O0`` is selected as ``S ? L1 : L0``
+
+    The Verilog model reverses the slot order when building the address
+    concatenation. For example, slot order ``(I0, I1, I2, A0)`` becomes
+    ``{A0, I2, I1, I0}``.
     """
 
     frac_lut_size: int
