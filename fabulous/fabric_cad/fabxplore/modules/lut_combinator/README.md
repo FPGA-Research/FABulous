@@ -715,6 +715,9 @@ use_select_as_data_in_pair_mode=True
 
 This option only changes **dual pair mode**. It does not change full
 `LUT(K+1)` mode, because full mode still needs `S` as the final mux select.
+It is also adaptive: the mapper first tries normal shared-input wiring and
+only uses select-as-data wiring when the selected pair needs the extra private
+input capacity.
 
 ### Motivation
 
@@ -751,7 +754,7 @@ $$
 P_n = K - S_n
 $$
 
-When select-as-data is enabled for pair mode:
+When select-as-data is needed for a pair:
 
 $$
 S_e = S_n - 1
@@ -763,14 +766,16 @@ $$
 P_e = K - S_e = K - (S_n - 1) = P_n + 1
 $$
 
-So the mapper treats pair packing as:
+So that pair is treated as:
 
 - effective shared inputs: $S_e$
 - effective private inputs per side: $P_e$
 
-This is exactly the same feasibility region as explicitly lowering
-`num_shared_inputs` by one, except that no extra package pin is needed because
-the otherwise-unused `S` pin supplies the extra data input on one side.
+For candidate discovery, enabling this option makes the additional
+`S_n - 1` feasibility region available. For final emission, pairs that already
+fit the nominal `S_n` wiring still use normal dual mode and keep `S = 0`.
+Only pairs that need the extra private input are emitted with
+`SELECT_AS_DATA_USED = 1`.
 
 The feasibility condition from section 5 becomes:
 
@@ -804,7 +809,7 @@ $$
 P_n = 4 - 3 = 1
 $$
 
-With select-as-data enabled:
+When select-as-data is actually used:
 
 $$
 S_e = 3 - 1 = 2
@@ -816,7 +821,7 @@ $$
 P_e = 4 - 2 = 2
 $$
 
-The effective internal pair mode becomes:
+the effective internal pair mode becomes:
 
 ```text
 L0(I0, I1, A0, S)
@@ -976,7 +981,7 @@ L0: I0, I1, I2, A0
 L1: I0, I1, I2, B0
 ```
 
-With select-as-data enabled, the internal index bits become:
+When select-as-data is used, the internal index bits become:
 
 ```text
 L0: I0, I1, A0, S

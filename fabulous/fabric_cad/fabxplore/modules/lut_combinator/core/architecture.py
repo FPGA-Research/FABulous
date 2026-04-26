@@ -57,15 +57,16 @@ class FracLutArchitecture:
     selects between the two LUT(K) truth-table halves.
 
     When ``use_select_as_data_in_pair_mode`` is enabled, dual-LUT pair mode can
-    repurpose ``S`` as one extra private data input for ``L0``. To keep the pin
-    count unchanged, the last nominal shared input is cut from ``L0`` and kept
-    as a private input for ``L1``. For example, with ``K=4`` and
-    ``num_shared_inputs=3``, normal pair mode has:
+    repurpose ``S`` as one extra private data input for ``L0`` when normal
+    shared-input wiring is not sufficient. Normal pair binding is tried first.
+    If that fails, the last nominal shared input is cut from ``L0`` and kept as
+    a private input for ``L1``. For example, with ``K=4`` and
+    ``num_shared_inputs=3``, normal pair mode can still use:
 
     - ``L0(I0, I1, I2, A0)``
     - ``L1(I0, I1, I2, B0)``
 
-    With select-as-data enabled, pair mapping behaves like an effective
+    If a pair needs select-as-data, mapping behaves like an effective
     ``num_shared_inputs=2`` architecture:
 
     - ``L0(I0, I1, A0, S)``
@@ -167,18 +168,64 @@ class FracLutArchitecture:
         if lut1.width > self.frac_lut_size:
             return None
 
+        normal_binding = self._try_bind_pair_with_mode(
+            lut0=lut0,
+            lut1=lut1,
+            shared_input_count=self.num_shared_inputs,
+            private_input_count=self.private_inputs_per_lut,
+            select_as_data_used=False,
+        )
+        if normal_binding is not None:
+            return normal_binding
+
+        if not self.use_select_as_data_in_pair_mode:
+            return None
+
+        return self._try_bind_pair_with_mode(
+            lut0=lut0,
+            lut1=lut1,
+            shared_input_count=self.pair_shared_inputs,
+            private_input_count=self.pair_private_inputs_per_lut,
+            select_as_data_used=True,
+        )
+
+    def _try_bind_pair_with_mode(
+        self,
+        lut0: LogicalLutCell,
+        lut1: LogicalLutCell,
+        shared_input_count: int,
+        private_input_count: int,
+        select_as_data_used: bool,
+    ) -> PairBinding | None:
+        """Attempt pair placement with one explicit pair-mode wiring shape.
+
+        Parameters
+        ----------
+        lut0 : LogicalLutCell
+            First logical LUT candidate.
+        lut1 : LogicalLutCell
+            Second logical LUT candidate.
+        shared_input_count : int
+            Number of shared inputs available in this attempted mode.
+        private_input_count : int
+            Number of private inputs per side available in this attempted mode.
+        select_as_data_used : bool
+            Whether this attempt uses the select-as-data wiring pattern.
+
+        Returns
+        -------
+        PairBinding | None
+            Fully specified binding when this mode can implement the pair.
+        """
         # Remove duplicate nets while preserving order.
         uniq0: tuple[str, ...] = _ordered_unique(lut0.input_nets)
         uniq1: tuple[str, ...] = _ordered_unique(lut1.input_nets)
 
-        pair_shared_inputs: int = self.pair_shared_inputs
-        pair_private_inputs: int = self.pair_private_inputs_per_lut
-
         shared_nets: tuple[str, ...] | None = self._select_shared_nets(
             uniq0,
             uniq1,
-            shared_input_count=pair_shared_inputs,
-            private_input_count=pair_private_inputs,
+            shared_input_count=shared_input_count,
+            private_input_count=private_input_count,
         )
 
         if shared_nets is None:
@@ -188,20 +235,24 @@ class FracLutArchitecture:
         priv0: list[str] = [n for n in uniq0 if n not in shared_set]
         priv1: list[str] = [n for n in uniq1 if n not in shared_set]
 
-        if len(priv0) > pair_private_inputs:
+        if len(priv0) > private_input_count:
             return None
-        if len(priv1) > pair_private_inputs:
+        if len(priv1) > private_input_count:
             return None
 
-        private_sources0: tuple[str, ...] = self._pair_private_source_names("A", "L0")
-        private_sources1: tuple[str, ...] = self._pair_private_source_names("B", "L1")
+        private_sources0: tuple[str, ...] = self._pair_private_source_names(
+            "A", "L0", select_as_data_used=select_as_data_used
+        )
+        private_sources1: tuple[str, ...] = self._pair_private_source_names(
+            "B", "L1", select_as_data_used=select_as_data_used
+        )
 
         pin_map0, src_map0 = self._build_input_map(
             lut0.input_nets,
             shared_nets,
             tuple(priv0),
             prefix="A",
-            shared_input_count=pair_shared_inputs,
+            shared_input_count=shared_input_count,
             private_source_names=private_sources0,
         )
         pin_map1, src_map1 = self._build_input_map(
@@ -209,7 +260,7 @@ class FracLutArchitecture:
             shared_nets,
             tuple(priv1),
             prefix="B",
-            shared_input_count=pair_shared_inputs,
+            shared_input_count=shared_input_count,
             private_source_names=private_sources1,
         )
 
@@ -224,7 +275,7 @@ class FracLutArchitecture:
         for idx, net in enumerate(priv1):
             ext_pins[private_sources1[idx]] = net
 
-        if self.use_select_as_data_in_pair_mode:
+        if select_as_data_used:
             # The output mux select is configured internally in this mode.
             # Tie data-only replacement pins when a placement does not need
             # them, keeping generated cells deterministic for tiny LUT pairs.
@@ -255,6 +306,11 @@ class FracLutArchitecture:
             placement1=plc1,
             external_pin_nets=dict(sorted(ext_pins.items())),
             output_pin_nets={"O0": lut0.output_net, "O1": lut1.output_net},
+            select_as_data_used=select_as_data_used,
+            effective_shared_inputs=shared_input_count,
+            cut_shared_index=(
+                self.num_shared_inputs - 1 if select_as_data_used else -1
+            ),
         )
 
     def bind_single_lut(self, lut: LogicalLutCell) -> PackedCell | None:
@@ -439,19 +495,19 @@ class FracLutArchitecture:
             lut0_width=lut0_width,
             lut1_width=lut1_width,
             shared_count=shared_count,
-            architecture_shared_inputs=self.pair_shared_inputs,
+            architecture_shared_inputs=binding.effective_shared_inputs,
         )
 
         # Build parameters with original cell IDs and remapped INIT values.
         # For dual-LUT packing we keep the same cell IDs since both halves are needed.
         params: FracLutCellParameters = FracLutCellParameters(
             meta_data=(
-                f"lut_mapping={self._pair_mapping_mode_name()};"
+                f"lut_mapping={self._pair_mapping_mode_name(binding)};"
                 f"lut0_width={lut0_width};"
                 f"lut1_width={lut1_width};"
                 f"shared_inputs={shared_count};"
                 f"leftover_lut_width={leftover_lut_width}"
-                f"{self._select_as_data_meta_suffix()}"
+                f"{self._select_as_data_meta_suffix(binding)}"
             ),
             lut_size=self.frac_lut_size,
             num_shared_inputs=self.num_shared_inputs,
@@ -460,13 +516,9 @@ class FracLutArchitecture:
             l0_init=format_bits(init0, 1 << self.frac_lut_size),
             l1_init=format_bits(init1, 1 << self.frac_lut_size),
             select_as_data_capable=self.use_select_as_data_in_pair_mode,
-            select_as_data_used=self.use_select_as_data_in_pair_mode,
-            effective_shared_inputs=self.pair_shared_inputs,
-            cut_shared_index=(
-                self.num_shared_inputs - 1
-                if self.use_select_as_data_in_pair_mode
-                else -1
-            ),
+            select_as_data_used=binding.select_as_data_used,
+            effective_shared_inputs=binding.effective_shared_inputs,
+            cut_shared_index=binding.cut_shared_index,
             mux_select_config=0,
         )
 
@@ -670,6 +722,7 @@ class FracLutArchitecture:
         self,
         prefix: str,
         slot_name: str,
+        select_as_data_used: bool | None = None,
     ) -> tuple[str, ...]:
         """Return external source names for pair-mode private slot pins.
 
@@ -683,6 +736,10 @@ class FracLutArchitecture:
             Normal private pin prefix, usually ``"A"`` or ``"B"``.
         slot_name : str
             Internal slot name, either ``"L0"`` or ``"L1"``.
+        select_as_data_used : bool | None
+            Whether to use select-as-data private source names. If ``None``,
+            uses this architecture's global option for backward-compatible
+            internal calls.
 
         Returns
         -------
@@ -697,7 +754,10 @@ class FracLutArchitecture:
         normal_private_count: int = self.private_inputs_per_lut
         names: list[str] = [f"{prefix}{idx}" for idx in range(normal_private_count)]
 
-        if not self.use_select_as_data_in_pair_mode:
+        if select_as_data_used is None:
+            select_as_data_used = self.use_select_as_data_in_pair_mode
+
+        if not select_as_data_used:
             return tuple(names)
 
         if slot_name == "L0":
@@ -713,24 +773,33 @@ class FracLutArchitecture:
         """Return the nominal shared pin repurposed as private in cut mode."""
         return f"I{self.num_shared_inputs - 1}"
 
-    def _pair_mapping_mode_name(self) -> str:
+    def _pair_mapping_mode_name(self, binding: PairBinding) -> str:
         """Return the mapping-mode label used in packed-cell metadata."""
-        if self.use_select_as_data_in_pair_mode:
+        if binding.select_as_data_used:
             return "dual_select_as_data"
         return "dual"
 
-    def _select_as_data_meta_suffix(self) -> str:
+    def _select_as_data_meta_suffix(self, binding: PairBinding) -> str:
         """Return select-as-data metadata for pair cells."""
         if not self.use_select_as_data_in_pair_mode:
             return ""
 
-        cut_index: int = self.num_shared_inputs - 1
+        if not binding.select_as_data_used:
+            return (
+                f";select_as_data_capable=1"
+                f";select_as_data_used=0"
+                f";nominal_shared_inputs={self.num_shared_inputs}"
+                f";effective_shared_inputs={binding.effective_shared_inputs}"
+                f";cut_shared_index=-1"
+                f";mux_select_config=0"
+            )
+
         return (
             f";select_as_data_capable=1"
             f";select_as_data_used=1"
             f";nominal_shared_inputs={self.num_shared_inputs}"
-            f";effective_shared_inputs={self.pair_shared_inputs}"
-            f";cut_shared_index={cut_index}"
+            f";effective_shared_inputs={binding.effective_shared_inputs}"
+            f";cut_shared_index={binding.cut_shared_index}"
             f";s_data_side=L0"
             f";cut_shared_side=L1"
             f";mux_select_config=0"

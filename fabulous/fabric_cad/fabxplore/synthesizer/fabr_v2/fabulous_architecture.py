@@ -145,7 +145,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
     def map_luts(self) -> None:
         """Map combinational logic into LUT resources."""
-        self.design.run_pass("abc -lut 5 -dress")
+        self.design.run_pass("abc -lut 4 -dress")
         self.design.run_pass("clean")
 
         lcp = LutCombinatorPass(
@@ -159,7 +159,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""
         self.design.run_pass("read_verilog -lib +/fabulous/prims.v")
-        self.design.run_pass("techmap -D LUT_K=5 -map +/fabulous/cells_map.v")
+        self.design.run_pass("techmap -D LUT_K=4 -map +/fabulous/cells_map.v")
         self.design.run_pass("clean")
 
     def check(self) -> None:

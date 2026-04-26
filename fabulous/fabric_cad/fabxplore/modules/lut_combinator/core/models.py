@@ -130,12 +130,22 @@ class PairBinding:
         Macro input pin name to net mapping.
     output_pin_nets : dict[str, str]
         Macro output pin name to net mapping.
+    select_as_data_used : bool
+        Whether this binding uses select-as-data pair-mode wiring.
+    effective_shared_inputs : int
+        Shared input count used to build this binding's slot mapping.
+    cut_shared_index : int
+        Nominal shared input index cut for select-as-data mode, or ``-1`` when
+        normal pair-mode wiring is used.
     """
 
     placement0: CellPlacement
     placement1: CellPlacement
     external_pin_nets: dict[str, str]
     output_pin_nets: dict[str, str]
+    select_as_data_used: bool
+    effective_shared_inputs: int
+    cut_shared_index: int
 
 
 @dataclass(frozen=True)

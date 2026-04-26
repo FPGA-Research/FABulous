@@ -396,6 +396,48 @@ def test_select_as_data_pair_mapping_edge_cases() -> None:
     assert binding.placement1.input_to_slot_pin == (0,)
 
 
+def test_select_as_data_uses_normal_binding_when_possible() -> None:
+    """Test select-as-data capable architectures keep normal pair wiring if enough."""
+    lut0 = LogicalLutCell(
+        cell_id="lut0",
+        cell_type="LUT4",
+        input_nets=("a", "b", "c", "d"),
+        output_net="y0",
+        init=0x6996,
+        width=4,
+    )
+    lut1 = LogicalLutCell(
+        cell_id="lut1",
+        cell_type="LUT4",
+        input_nets=("a", "b", "c", "e"),
+        output_net="y1",
+        init=0xE8E8,
+        width=4,
+    )
+    arch = FracLutArchitecture(
+        frac_lut_size=4,
+        num_shared_inputs=3,
+        name="FRAC_LUT5",
+        use_select_as_data_in_pair_mode=True,
+    )
+
+    binding = arch.try_bind_pair(lut0, lut1)
+    assert binding is not None
+    assert binding.select_as_data_used is False
+    assert binding.effective_shared_inputs == 3
+    assert binding.cut_shared_index == -1
+    assert binding.external_pin_nets["S"] == "0"
+    assert binding.placement0.input_to_slot_source == ("I0", "I1", "I2", "A0")
+    assert binding.placement1.input_to_slot_source == ("I0", "I1", "I2", "B0")
+
+    packed = arch.build_mapped_cell("packed", binding)
+    assert packed.parameters["SELECT_AS_DATA_CAPABLE"] == "1"
+    assert packed.parameters["SELECT_AS_DATA_USED"] == "0"
+    assert packed.parameters["EFFECTIVE_SHARED_INPUTS"] == "3"
+    assert packed.parameters["CUT_SHARED_INDEX"] == "-1"
+    assert packed.external_pin_nets["S"] == "0"
+
+
 def test_select_as_data_parameters_are_stable() -> None:
     """Test FRAC cells always emit the same select-as-data parameter schema."""
     lut0 = LogicalLutCell(
@@ -545,7 +587,8 @@ endmodule
 
         assert result.stats.mapped_groups == 1
         mapped_cell = result.mapped_cells[0]
-        assert mapped_cell.parameters["SELECT_AS_DATA_USED"] == "1"
+        assert mapped_cell.parameters["SELECT_AS_DATA_CAPABLE"] == "1"
+        assert mapped_cell.parameters["SELECT_AS_DATA_USED"] == "0"
         feedback_nets = set(mapped_cell.output_pin_nets.values()) & set(
             mapped_cell.external_pin_nets.values()
         )
@@ -579,6 +622,7 @@ def main() -> None:
         case 4:
             test_select_as_data_pair_mapping_eq()
             test_select_as_data_pair_mapping_edge_cases()
+            test_select_as_data_uses_normal_binding_when_possible()
             test_select_as_data_parameters_are_stable()
             test_packed_cascade_output_feeds_packed_input_eq()
             test_select_as_data_packed_feedback_unused_input_eq()
