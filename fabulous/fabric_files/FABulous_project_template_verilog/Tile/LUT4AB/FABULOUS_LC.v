@@ -12,6 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// LUT4 with carry chain, flip-flop, enable, and synchronous reset
+//
+//                        ConfigBits[15:0]
+//                              |
+//                              v
+//                    +-----------------+
+//                    |                 |
+//        +-------+   |                 |                    +-------+
+//  I[0]--|0  MUX |-->| 16:1 MUX (LUT)  |--+-- LUT_out --+-->|0  MUX |---> O
+//  Ci  --|1      |   |                 |  |             |   |1      |
+//        +-------+   |                 |  |             |   +-------+
+//            ^       |                 |  | +------+    |       ^
+//         c_I0mux    |                 |  +-| D  Q |----+   c_out_mux
+//                    |                 |    |      |
+//  I[1] ------------>|                 |    | >clk |
+//  I[2] ------------>|                 |    | en   |
+//  I[3] ------------>|                 |    | sr   |
+//                    +-----------------+    +------+
+//                                            ^ ^ ^
+//  UserCLK ----------------------------------+ | |
+//  EN  (enable) -------------------------------+ |
+//  SR  (sync reset, value = c_reset_value) ------+
+//
+//  Carry chain (iCE40 style):
+//  Co = majority(Ci, I[1], I[2])
+//
 (*FABulous, BelMap,
 INIT=0,
 INIT_1=1,
@@ -59,9 +85,6 @@ module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
     assign c_I0mux = ConfigBits[17];
     assign c_reset_value = ConfigBits[18];
 
-//CONFout <= c_I0mux;
-
-    //assign I0mux = c_I0mux ? Ci : I0;
     cus_mux21 cus_mux21_I0mux(
     .A0(I[0]),
     .A1(Ci),
@@ -71,32 +94,6 @@ module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
 
     assign LUT_index = {I[3],I[2],I[1],I0mux};
 
-// The LUT is just a multiplexer
-// for a first shot, I am using a 16:1
-// LUT_out <= LUT_values(TO_INTEGER(LUT_index));
-    /*MUX16PTv2 inst_MUX16PTv2_E6BEG1(
-    .IN1(LUT_values[0]),
-    .IN2(LUT_values[1]),
-    .IN3(LUT_values[2]),
-    .IN4(LUT_values[3]),
-    .IN5(LUT_values[4]),
-    .IN6(LUT_values[5]),
-    .IN7(LUT_values[6]),
-    .IN8(LUT_values[7]),
-    .IN9(LUT_values[8]),
-    .IN10(LUT_values[9]),
-    .IN11(LUT_values[10]),
-    .IN12(LUT_values[11]),
-    .IN13(LUT_values[12]),
-    .IN14(LUT_values[13]),
-    .IN15(LUT_values[14]),
-    .IN16(LUT_values[15]),
-    .S1(LUT_index[0]),
-    .S2(LUT_index[1]),
-    .S3(LUT_index[2]),
-    .S4(LUT_index[3]),
-    .O(LUT_out)
-    );*/
     cus_mux161 inst_cus_mux161(
     .A0(LUT_values[0]),
     .A1(LUT_values[1]),
@@ -125,7 +122,6 @@ module LUT4c_frame_config_dffesr #(parameter NoConfigBits = 19)(
     .X  (LUT_out)
     );
 
-    //assign O = c_out_mux ? LUT_flop : LUT_out;
     cus_mux21 cus_mux21_O(
     .A0(LUT_out),
     .A1(LUT_flop),

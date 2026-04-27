@@ -15,9 +15,7 @@ module config_UART #(
     output reg ReceiveLED
 );
 
-    //constant TimeToSendValue : integer := 16777216-1; //200000000;
-    localparam TimeToSendValue = 16777-1; //200000000;
-    //localparam CRC_InitValue = 16'b1111111111111111;
+    localparam TimeToSendValue = 16777-1;
     localparam TestFileChecksum = 20'h4FB00;
 
     function [4:0] ASCII2HEX;
@@ -51,9 +49,7 @@ module config_UART #(
     end
     endfunction
 
-    //typedef enum{HighNibble, LowNibble} ReceiveStateType; //systemverilog
     localparam HighNibble = 1, LowNibble = 0;
-    //ReceiveStateType ReceiveState;
     reg ReceiveState;
     reg [3:0] HighReg;
     wire [4:0] HexValue; // a 1'b0 MSB indicates a valid value on [3..0]
@@ -62,14 +58,10 @@ module config_UART #(
 
     reg [11:0] ComCount;
     reg ComTick;
-    //typedef enum{WaitForStartBit, DelayAfterStartBit, GetBit0, GetBit1, GetBit2, GetBit3, GetBit4, GetBit5, GetBit6, GetBit7, GetStopBit} ComStateType;
-    //ComStateType ComState;
     localparam WaitForStartBit=0, DelayAfterStartBit=1, GetBit0=2, GetBit1=3, GetBit2=4, GetBit3=5, GetBit4=6, GetBit5=7, GetBit6=8, GetBit7=9, GetStopBit=10;
     reg [3:0] ComState;
     reg [7:0] ReceivedWord;
     reg RxLocal;
-
-    //signal W0, W1, W2, W3, W4, W5, W6, W7 : std_logic_vector(7 downto 0);
 
     reg [23:0] ID_Reg;
     reg [31:0] Start_Reg;
@@ -83,13 +75,9 @@ module config_UART #(
     reg TimeToSend;
     reg [14:0] TimeToSendCounter;
 
-    //typedef enum{Idle, GetID_00, GetID_AA, GetID_FF, GetCommand, EvalCommand, GetData} PresentType;
-    //PresentType PresentState;
     localparam Idle=0, GetID_00=1, GetID_AA=2, GetID_FF=3, GetCommand=4, EvalCommand=5, GetData=6;
     reg [2:0] PresentState;
 
-    //typedef enum{Word0, Word1, Word2, Word3} GetWordType;
-    //GetWordType GetWordState;
     localparam Word0=0, Word1=1, Word2=2, Word3=3;
     reg [1:0] GetWordState;
 
@@ -97,12 +85,7 @@ module config_UART #(
 
     reg ByteWriteStrobe;
 
-    //wire [31:0] Data_Reg32;
-
-    //wire [15:0] Word_Count;
-
     reg [19:0] CRCReg,b_counter;
-    //wire [7:0] ReceivedWordDebug;
     reg [22:0] blink;
 
     always @ (posedge CLK, negedge resetn)
@@ -215,10 +198,6 @@ module config_UART #(
                     GetID_00: ID_Reg[23:16] <= ReceivedWord;
                     GetID_AA: ID_Reg[15:8] <= ReceivedWord;
                     GetID_FF: ID_Reg[7:0] <= ReceivedWord;
-    //         when GetSize0 => Size_Reg(15 downto 8) <= ReceivedWord;
-    //         when GetSize1 => Size_Reg(7 downto 0) <= ReceivedWord;
-    //         when GetCRC_H => CRC_Reg(15 downto 8) <= ReceivedWord;
-    //         when GetCRC_L => CRC_Reg(7 downto 0) <= ReceivedWord;
                     GetCommand: Command_Reg <= ReceivedWord;
                     GetData: Data_Reg <= ReceivedWord;
                 endcase
@@ -258,12 +237,6 @@ module config_UART #(
                     PresentState <= GetCommand;
                 end
             end
-    //      GetSize1:
-    //        if TimeToSend=1'b1 begin PresentState<=Idle;
-    //        elsif ComState=GetStopBit && ComTick=1'b1 begin PresentState <= GetSize0; end if;
-    //      GetSize0:
-    //        if TimeToSend=1'b1 begin PresentState<=Idle;
-    //        elsif ComState=GetStopBit && ComTick=1'b1 begin PresentState <= GetCommand; end if;
             GetCommand: begin
                 if (TimeToSend==1'b1) begin
                     PresentState<=Idle;
@@ -307,7 +280,6 @@ module config_UART #(
                 end else begin
                   ReceiveState <= HighNibble;
                 end
-            //end// CLK
                 if (ComState==GetStopBit && ComTick==1'b1 && HexValue[4]==1'b0) begin
                     if(ReceiveState==HighNibble) begin
                         HighReg <= HexValue[3:0];
@@ -430,10 +402,7 @@ module config_UART #(
         end
     end// CLK
 
-    //ComLoaderActive <= 1'b0;
-    assign ReceivedByte = (Mode==2 || (Mode==0 && Command_Reg[7]==1'b0)) ? Data_Reg : HexData; // mode [0:auto|1:hex|2:bin]
-    // if binary mode or if auto mode with detected binary mode in the command register
-    // ReceivedWordDebug <= Data_Reg when (Mode="bin" OR (Mode="auto" && Command_Reg(7)=1'b0)) else HexData;
+    assign ReceivedByte = (Mode==2 || (Mode==0 && Command_Reg[7]==1'b0)) ? Data_Reg : HexData;
     assign ComActive = (PresentState==GetData) ? 1'b1 : 1'b0;
 
     always @(posedge CLK, negedge resetn)

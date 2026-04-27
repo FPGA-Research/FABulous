@@ -1207,7 +1207,7 @@ SOUTH,      S1BEG,   0,        -1,      S1END,      4
 SOUTH,      NULL,    0,        -1,      top2bot,    18 # no route to south
 WEST,       W1BEG,   -1,       0,       W1END,      4
 JUMP,       J_BEG,   0,        0,       J_END,      8
-BEL,        MULADD.vhdl                 # this is the actual functionality
+BEL,        MACC_8x8_20.vhdl                 # this is the actual functionality
 MATRIX,     DSP_bot_switch_matrix.vhdl
 EndTILE
 ```
@@ -1260,6 +1260,6 @@ EndTILE
 SuperTILE   DSP     # declare supertile DSP
 DSP_top
 DSP_bot
-BEL,        MULADD.vhdl
+BEL,        MACC_8x8_20.vhdl
 EndTILE
 ```

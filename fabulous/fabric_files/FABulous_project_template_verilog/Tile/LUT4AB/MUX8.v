@@ -12,7 +12,50 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
+// Configurable 8-input fracturable MUX tree for LUT composition
+//
+// Depending on config bits c0 and c1, this module can operate as:
+//   c0=0, c1=0: Four independent 2:1 muxes (AB, CD, EF, GH)
+//   c0=1, c1=0: Two independent 4:1 muxes (AD, EH)
+//   c0=1, c1=1: One 8:1 mux (AH)
+//
+//                  Stage 1           Stage 2           Stage 3
+//
+//                 +------+          +------+          +------+
+//  A ------------>|0  AB |--------->|0  AD |--------->|0  AH |
+//  B ------------>|1     |    +---->|1     |    +---->|1     |
+//                 +------+    |     +------+    |     +------+
+//                   ^         |       ^         |       ^
+//                  S[0]       |      S[1]       |      S[3]
+//                 +------+    |                 |
+//  C ------------>|0  CD |----+                 |
+//  D ------------>|1     |                      |
+//                 +------+                      |
+//                   ^                           |
+//                  sCD                          |
+//                 +------+          +------+    |
+//  E ------------>|0  EF |--------->|0  EH |----+
+//  F ------------>|1     |    +---->|1     |
+//                 +------+    |     +------+
+//                   ^         |       ^
+//                  sEF        |      sEH
+//                 +------+    |
+//  G ------------>|0  GH |----+
+//  H ------------>|1     |
+//                 +------+
+//                   ^
+//                  sGH
+//
+// Output muxes (controlled by config bits c0, c1):
+//   M_AB = AB (direct)
+//   M_AD = c0 ? AD : CD
+//   M_EF = EF (direct)
+//   M_AH = c1 ? AH : (c0 ? EH : GH)
+//
+// Select signal generation (config-dependent):
+//   sCD = c0 ? S[0] : S[1]    sEF = c1 ? S[0] : S[2]
+//   sEH = c1 ? S[1] : S[3]    sGH = c0 ? sEF  : sEH
+//
 (* FABulous, BelMap,
 c0=0,
 c1=1
@@ -46,29 +89,24 @@ module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
     assign c0 = ConfigBits[0];
     assign c1 = ConfigBits[1];
 
-// see figure (column-wise left-to-right)
-    //assign AB = S[0] ? B : A;
     cus_mux21 cus_mux21_AB(
     .A0(A),
     .A1(B),
     .S(S[0]),
     .X(AB)
     );
-    //assign CD = sCD ? D : C;
     cus_mux21 cus_mux21_CD(
     .A0(C),
     .A1(D),
     .S(sCD),
     .X(CD)
     );
-    //assign EF = sEF ? F : E;
     cus_mux21 cus_mux21_EF(
     .A0(E),
     .A1(F),
     .S(sEF),
     .X(EF)
     );
-    //assign GH = sGH ? H : G;
     cus_mux21 cus_mux21_GH(
     .A0(G),
     .A1(H),
@@ -76,28 +114,24 @@ module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
     .X(GH)
     );
 
-    //assign sCD = c0 ? S[0] : S[1];
     cus_mux21 cus_mux21_sCD(
     .A0(S[1]),
     .A1(S[0]),
     .S(c0),
     .X(sCD)
     );
-    //assign sEF = c1 ? S[0] : S[2];
     cus_mux21 cus_mux21_sEF(
     .A0(S[2]),
     .A1(S[0]),
     .S(c1),
     .X(sEF)
     );
-    //assign sGH = c0 ? sEF : sEH;
     cus_mux21 cus_mux21_sGH(
     .A0(sEH),
     .A1(sEF),
     .S(c0),
     .X(sGH)
     );
-    //assign sEH = c1 ? S[1] : S[3];
     cus_mux21 cus_mux21_sEH(
     .A0(S[3]),
     .A1(S[1]),
@@ -105,14 +139,12 @@ module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
     .X(sEH)
     );
 
-    //assign AD = S[1] ? CD : AB;
     cus_mux21 cus_mux21_AD(
     .A0(AB),
     .A1(CD),
     .S(S[1]),
     .X(AD)
     );
-    //assign EH = sEH ? GH : EF;
     cus_mux21 cus_mux21_EH(
     .A0(EF),
     .A1(GH),
@@ -120,7 +152,6 @@ module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
     .X(EH)
     );
 
-    //assign AH = S[3] ? EH : AD;
     cus_mux21 cus_mux21_AH(
     .A0(AD),
     .A1(EH),
@@ -128,7 +159,6 @@ module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
     .X(AH)
     );
 
-    //assign EH_GH = c0 ? EH : GH;
     cus_mux21 cus_mux21_EH_GH(
     .A0(GH),
     .A1(EH),
@@ -137,14 +167,12 @@ module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
     );
 
     assign M_AB = AB;
-    //assign M_AD = c0 ? AD : CD;
     cus_mux21 cus_mux21_M_AD(
     .A0(CD),
     .A1(AD),
     .S(c0),
     .X(M_AD)
     );
-    //assign M_AH = c1 ? AH : EH_GH;
     cus_mux21 cus_mux21_M_AH(
     .A0(EH_GH),
     .A1(AH),

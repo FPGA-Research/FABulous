@@ -1,3 +1,19 @@
+-- 8x8 multiply-accumulate unit with optional input registers
+--
+--  A[7:0] -->[MUX c0]--> OPA --+
+--            (A/A_reg)         |   +------+   +--------+   +-----+
+--                              +-->| 8x8  |-->|  ext   |-->|     |
+--  B[7:0] -->[MUX c1]--> OPB --+-->| MUL  |   | [c4]   |   | ADD |----> sum
+--            (B/B_reg)             +------+   +--------+ +>|     |       |
+--                                                        | +-----+       |
+--  C[19:0] ->[MUX c2]--> OPC -->[MUX c3]--> sum_in ------+               |
+--            (C/C_reg)          (OPC/ACC)                                |
+--                                   ^          +-------+                 |
+--                                   +----------|  ACC  |<----------------+
+--                                              | D   Q |<-- clr
+--  Q[19:0] <-----[MUX c5]----------------------+-------+
+--                (sum/ACC)
+--
 package attr_pack_DSP_MULADD is
   attribute FABulous      : string;
   attribute BelMap        : string;
@@ -43,17 +59,17 @@ end entity MULADD;
 
 architecture Behavioral of MULADD is
 
-  signal A_reg : std_logic_vector(7 downto 0);  -- port A read data register
-  signal B_reg : std_logic_vector(7 downto 0);  -- port B read data register
-  signal C_reg : std_logic_vector(19 downto 0); -- port B read data register
+  signal A_reg : std_logic_vector(7 downto 0);
+  signal B_reg : std_logic_vector(7 downto 0);
+  signal C_reg : std_logic_vector(19 downto 0);
 
-  signal OPA : std_logic_vector(7 downto 0);    -- port A
-  signal OPB : std_logic_vector(7 downto 0);    -- port B
-  signal OPC : std_logic_vector(19 downto 0);   -- port B
+  signal OPA : std_logic_vector(7 downto 0);
+  signal OPB : std_logic_vector(7 downto 0);
+  signal OPC : std_logic_vector(19 downto 0);
 
-  signal ACC    : std_logic_vector(19 downto 0); -- accumulator register
-  signal sum    : unsigned(19 downto 0);         -- port B read data register
-  signal sum_in : std_logic_vector(19 downto 0); -- port B read data register
+  signal ACC    : std_logic_vector(19 downto 0);
+  signal sum    : unsigned(19 downto 0);
+  signal sum_in : std_logic_vector(19 downto 0);
 
   signal product          : unsigned(15 downto 0);
   signal product_extended : unsigned(19 downto 0);
