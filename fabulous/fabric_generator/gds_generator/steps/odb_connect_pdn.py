@@ -46,10 +46,6 @@ class FABulousPDN(OdbpyStep):
                 gnd_pins.append("--ground-names")
                 gnd_pins.append(power_net)
 
-        #[
-        #    "--metal-layer-name",
-        #    self.config["RT_MAX_LAYER"],
-        #] +
 
         return super().get_command() + vdd_pins + gnd_pins
 
