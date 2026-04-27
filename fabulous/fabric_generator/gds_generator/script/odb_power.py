@@ -37,7 +37,7 @@ from librelane.scripts.odbpy.reader import click_odb
 @click_odb
 def power(
     reader: Any,  # noqa: ANN401
-    power_names: Tuple[str],
+    power_names: tuple[str],
     ground_names: Tuple[str],
 ) -> None:
 
