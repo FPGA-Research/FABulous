@@ -11,7 +11,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-from typing import Any, Tuple
+from typing import Any
 
 import click
 import odb
