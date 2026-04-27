@@ -6,9 +6,7 @@ from typing import Tuple
 from librelane.config.flow import option_variables
 from librelane.steps.common_variables import pdn_variables
 from librelane.steps.odb import OdbpyStep
-from librelane.steps.step import Step, ViewsUpdate, MetricsUpdate
-from librelane.state.state import DesignFormat, State
-
+from librelane.steps.step import Step
 
 
 @Step.factory.register()
@@ -27,18 +25,31 @@ class FABulousPDN(OdbpyStep):
             / "odb_power.py"
         )
 
-    def run(self, state_in: State, **kwargs) -> Tuple[ViewsUpdate, MetricsUpdate]:
-        kwargs, env = self.extract_env(kwargs)
+    def get_command(self) -> list[str]:
+        """Get the command to run the power connection script."""
 
-        # default values for FABulousPDN
+        vdd_pins = []
         if self.config["VDD_NETS"] == None:
-            env["VDD_NETS"] = "VPWR"
+            vdd_pins.append("--power-names")
+            vdd_pins.append("VPWR")
         else:
-            env["VDD_NETS"] = ''.join(self.config["VDD_NETS"])
+            for power_net in self.config["VDD_NETS"]:
+                vdd_pins.append("--power-names")
+                vdd_pins.append(power_net)
 
+        gnd_pins = []
         if self.config["GND_NETS"] == None:
-            env["GND_NETS"] = "VGND"
+            gnd_pins.append("--ground-names")
+            gnd_pins.append("VGND")
         else:
-            env["GND_NETS"] = ''.join(self.config["GND_NETS"])
+            for power_net in self.config["GND_NETS"]:
+                gnd_pins.append("--ground-names")
+                gnd_pins.append(power_net)
 
-        return super().run(state_in, env=env, **kwargs)
+        #[
+        #    "--metal-layer-name",
+        #    self.config["RT_MAX_LAYER"],
+        #] +
+
+        return super().get_command() + vdd_pins + gnd_pins
+
