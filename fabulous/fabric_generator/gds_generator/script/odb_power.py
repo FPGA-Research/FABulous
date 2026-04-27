@@ -40,7 +40,6 @@ def power(
     power_names: tuple[str],
     ground_names: tuple[str],
 ) -> None:
-
     info(f"propagated VDD_NETS are {power_names}")
     info(f"propagated GND_NETS are {ground_names}")
 
@@ -52,10 +51,14 @@ def power(
         draw_supply_net(reader, ground_name, "GROUND")
 
 
-def draw_supply_net(reader, supply_name, supply_type) -> None:
+def draw_supply_net(
+    reader: Any,  # noqa: ANN401
+    supply_name: str,
+    supply_type: str,
+) -> None:
     """Connect power rails for the tiles using a custom script."""
-
-    # todo: review: is this part needed? Or error if these nets don't exist at this stage?
+    # todo: review: is this part needed? Or is this an error if
+    #        these nets don't exist at this stage?
     # Create nets, if they don't exist yet
     net = reader.block.findNet(supply_name)
     if net is None:
@@ -77,12 +80,6 @@ def draw_supply_net(reader, supply_name, supply_type) -> None:
     supply_bterm.setSpecial()
     supply_bpin = odb.dbBPin_create(supply_bterm)
 
-    # until odb.dbSigType.POWER/GROUND are exposed
-    #todo: review this, or fallback to name only
-    #POWER  = vpwr_net.getSigType()
-    #GROUND = vgnd_net.getSigType()
-
-
     # Connect instance-iterms to power nets,
     # draw the wires and pins
     for blk_inst in reader.block.getInsts():
@@ -103,7 +100,6 @@ def draw_supply_net(reader, supply_name, supply_type) -> None:
             if master_mterm.getName() == supply_name:
                 for mterm_mpins in master_mterm.getMPins():
                     for mpins_dbox in mterm_mpins.getGeometry():
-
                         metal_layer = mpins_dbox.getTechLayer()
 
                         if master_mterm.getName() == supply_name:

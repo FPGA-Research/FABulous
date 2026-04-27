@@ -1,7 +1,6 @@
 """FABulous GDS Generator - ODB Power Connection Step."""
 
 from importlib import resources
-from typing import Tuple
 
 from librelane.config.flow import option_variables
 from librelane.steps.common_variables import pdn_variables
@@ -27,9 +26,8 @@ class FABulousPDN(OdbpyStep):
 
     def get_command(self) -> list[str]:
         """Get the command to run the power connection script."""
-
         vdd_pins = []
-        if self.config["VDD_NETS"] == None:
+        if self.config["VDD_NETS"] is None:
             vdd_pins.append("--power-names")
             vdd_pins.append("VPWR")
         else:
@@ -38,7 +36,7 @@ class FABulousPDN(OdbpyStep):
                 vdd_pins.append(power_net)
 
         gnd_pins = []
-        if self.config["GND_NETS"] == None:
+        if self.config["GND_NETS"] is None:
             gnd_pins.append("--ground-names")
             gnd_pins.append("VGND")
         else:
@@ -46,6 +44,4 @@ class FABulousPDN(OdbpyStep):
                 gnd_pins.append("--ground-names")
                 gnd_pins.append(power_net)
 
-
         return super().get_command() + vdd_pins + gnd_pins
-
