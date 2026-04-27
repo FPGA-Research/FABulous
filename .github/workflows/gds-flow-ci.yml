@@ -1,0 +1,295 @@
+name: Nightly GDS Flow CI
+
+on:
+  schedule:
+    # Run every night at 2 AM UTC (offset from dependency test at midnight)
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tile-hardening:
+    name: Tile Hardening (${{ matrix.pdk }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        pdk: [ ihp-sg13g2, sky130A, gf180mcuD ]
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/prepare_nix_environment
+
+      - name: Run tile hardening
+        run: |
+          nix develop --command bash -c "
+            set -e
+            FABulous create-project test_project
+            sed -i \"s/FAB_PDK=.*/FAB_PDK='${{ matrix.pdk }}'/\" test_project/.FABulous/.env
+            echo 'PDK set to: ${{ matrix.pdk }}'
+            cat test_project/.FABulous/.env
+            FABulous --project-dir test_project run 'run_FABulous_fabric'
+            FABulous --project-dir test_project run 'gen_all_tile_macros' > tile_hardening_output.txt 2>&1
+          "
+
+      - name: Verify tile manufacturability
+        if: always()
+        run: |
+          if [ ! -f tile_hardening_output.txt ]; then
+            echo "FAIL: tile_hardening_output.txt not found"
+            exit 1
+          fi
+
+          sed -n '/Report Manufacturability/,$p' tile_hardening_output.txt > tile_report.txt
+          echo "=== tile hardening manufacturability report ==="
+          tail -300 tile_report.txt
+
+          fail=0
+          for check in "Antenna" "LVS" "DRC"; do
+            # Extract the line immediately following each "* <check>" header
+            results=$(awk -v c="$check" '
+              prev == "* " c { print }
+              { prev = $0 }
+            ' tile_report.txt)
+
+            total=$(printf "%s\n" "$results" | grep -c .)
+            passed=$(printf "%s\n" "$results" | grep -c "^Passed")
+
+            if [ "$total" -eq 0 ]; then
+              echo "FAIL: no ${check} results found (did any tile reach manufacturability?)"
+              fail=1
+            elif [ "$total" -ne "$passed" ]; then
+              echo "FAIL: ${check} ${passed}/${total} tiles passed"
+              fail=1
+            else
+              echo "OK: ${check} ${passed}/${total} tiles passed"
+            fi
+          done
+
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+          echo "All tiles passed manufacturability checks"
+
+      - name: Package tile project
+        if: always()
+        run: |
+          tar --zstd -cf tile-project.tar.zst \
+            test_project \
+            tile_hardening_output.txt \
+            tile_report.txt
+
+      - name: Upload tile project
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tile-project-${{ matrix.pdk }}
+          path: tile-project.tar.zst
+          if-no-files-found: error
+          retention-days: 2
+
+      - name: Prepare failure issue body
+        if: failure()
+        id: failure_body
+        shell: bash
+        run: |
+          TILE_OUTPUT="No output captured"
+          if [ -f tile_report.txt ] && [ -s tile_report.txt ]; then
+            TILE_OUTPUT=$(cat tile_report.txt)
+          elif [ -f tile_hardening_output.txt ]; then
+            TILE_OUTPUT=$(tail -100 tile_hardening_output.txt)
+          fi
+
+          DATE=$(date -u +%Y-%m-%d)
+          PDK="${{ matrix.pdk }}"
+
+          echo "title=Tile Hardening CI Failed - ${PDK} - ${DATE}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo 'body<<ISSUE_BODY_EOF'
+            cat <<EOF
+          ## Tile Hardening CI Failed
+
+          **PDK:** \`${PDK}\`
+          **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ### Tile Hardening Manufacturability Report
+          <details><summary>Click to expand</summary>
+
+          \`\`\`
+          ${TILE_OUTPUT}
+          \`\`\`
+          </details>
+
+          ### Action Items
+          - [ ] Review EDA tool logs for DRC/timing violations
+          - [ ] Check if PDK or librelane updates caused regression
+
+          ---
+          *Automatically created by GDS Flow CI*
+          EOF
+            echo 'ISSUE_BODY_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create issue on failure
+        if: false
+        uses: ./.github/actions/create_failure_issue
+        with:
+          title: ${{ steps.failure_body.outputs.title }}
+          body: ${{ steps.failure_body.outputs.body }}
+          labels: "gds-flow-failure, tile-hardening, automated"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  fabric-stitching:
+    name: Fabric Stitching (${{ matrix.pdk }})
+    runs-on: ubuntu-latest
+    needs: tile-hardening
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+
+      # skipping sky130A for now since it will get kill by github
+      matrix:
+        pdk: [ ihp-sg13g2, gf180mcuD ]
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - uses: ./.github/actions/prepare_nix_environment
+
+      - name: Download tile project
+        uses: actions/download-artifact@v4
+        with:
+          name: tile-project-${{ matrix.pdk }}
+
+      - name: Unpack tile project
+        run: tar --zstd -xf tile-project.tar.zst
+
+      - name: Run fabric stitching
+        run: |
+          nix develop --command bash -c "
+            set -e
+            FABulous --project-dir test_project run 'gen_fabric_macro' > fabric_stitching_output.txt 2>&1
+          "
+
+      - name: Verify fabric manufacturability
+        if: always()
+        run: |
+          if [ ! -f fabric_stitching_output.txt ]; then
+            echo "FAIL: fabric_stitching_output.txt not found"
+            exit 1
+          fi
+
+          sed -n '/Report Manufacturability/,$p' fabric_stitching_output.txt > fabric_report.txt
+          echo "=== fabric stitching manufacturability report ==="
+          tail -300 fabric_report.txt
+
+          fail=0
+          for check in "Antenna" "LVS" "DRC"; do
+            results=$(awk -v c="$check" '
+              prev == "* " c { print }
+              { prev = $0 }
+            ' fabric_report.txt)
+
+            total=$(printf "%s\n" "$results" | grep -c .)
+            passed=$(printf "%s\n" "$results" | grep -c "^Passed")
+
+            if [ "$total" -eq 0 ]; then
+              echo "FAIL: no ${check} results found"
+              fail=1
+            elif [ "$total" -ne "$passed" ]; then
+              echo "FAIL: ${check} ${passed}/${total} passed"
+              fail=1
+            else
+              echo "OK: ${check} ${passed}/${total} passed"
+            fi
+          done
+
+          if [ "$fail" -ne 0 ]; then
+            exit 1
+          fi
+          echo "Fabric passed all manufacturability checks"
+
+      - name: Package fabric output
+        if: always()
+        run: |
+          tar --zstd -cf fabric-output.tar.zst \
+            --ignore-failed-read \
+            test_project/Fabric \
+            test_project/.FABulous \
+            fabric_stitching_output.txt \
+            fabric_report.txt
+
+      - name: Upload fabric artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabric-output-${{ matrix.pdk }}
+          path: fabric-output.tar.zst
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Prepare failure issue body
+        if: failure()
+        id: failure_body
+        shell: bash
+        run: |
+          FABRIC_OUTPUT="No output captured"
+          if [ -f fabric_report.txt ] && [ -s fabric_report.txt ]; then
+            FABRIC_OUTPUT=$(cat fabric_report.txt)
+          elif [ -f fabric_stitching_output.txt ]; then
+            FABRIC_OUTPUT=$(tail -100 fabric_stitching_output.txt)
+          fi
+
+          DATE=$(date -u +%Y-%m-%d)
+          PDK="${{ matrix.pdk }}"
+
+          echo "title=Fabric Stitching CI Failed - ${PDK} - ${DATE}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo 'body<<ISSUE_BODY_EOF'
+            cat <<EOF
+          ## Fabric Stitching CI Failed
+
+          **PDK:** \`${PDK}\`
+          **Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          ### Fabric Stitching Manufacturability Report
+          <details><summary>Click to expand</summary>
+
+          \`\`\`
+          ${FABRIC_OUTPUT}
+          \`\`\`
+          </details>
+
+          ### Action Items
+          - [ ] Review EDA tool logs for DRC/timing violations
+          - [ ] Check if PDK or librelane updates caused regression
+
+          ---
+          *Automatically created by GDS Flow CI*
+          EOF
+            echo 'ISSUE_BODY_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create issue on failure
+        if: false
+        uses: ./.github/actions/create_failure_issue
+        with:
+          title: ${{ steps.failure_body.outputs.title }}
+          body: ${{ steps.failure_body.outputs.body }}
+          labels: "gds-flow-failure, fabric-stitching, automated"
+          github_token: ${{ secrets.GITHUB_TOKEN }}

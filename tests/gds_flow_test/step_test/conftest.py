@@ -38,6 +38,9 @@ def mock_config() -> Config:  # type: ignore[name-defined]
             "FABULOUS_IO_MIN_WIDTH": 1,
             "FABULOUS_IO_MIN_HEIGHT": 1,
             "FABULOUS_OPT_MODE": OptMode.FIND_MIN_WIDTH,
+            "RT_MAX_LAYER": "met2",
+            "VDD_PIN": "VDD",
+            "GND_PIN": "GND",
         }
     )
 

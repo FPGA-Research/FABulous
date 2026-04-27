@@ -4,7 +4,6 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-import yaml
 from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
 from librelane.flows.flow import Flow, FlowException
@@ -124,24 +123,12 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
             "DESIGN_NAME": tile_type.name,
             "FABULOUS_IO_PIN_ORDER_CFG": str(io_pin_config),
             "VERILOG_FILES": file_list,
-            "FABULOUS_OPT_MODE": opt_mode,
+            "FABULOUS_OPT_MODE": OptMode(opt_mode),
         }
 
-        # Load base config
-        if base_config_path is not None and base_config_path.exists():
-            tile_config_dict.update(
-                yaml.safe_load(base_config_path.read_text(encoding="utf-8"))
-            )
-
-        if override_config_path is not None and override_config_path.exists():
-            tile_config_dict.update(
-                yaml.safe_load(override_config_path.read_text(encoding="utf-8"))
-            )
-
-        tile_config_dict.update(**custom_config_overrides)
-        if "FABULOUS_OPT_MODE" in tile_config_dict:
-            tile_config_dict["FABULOUS_OPT_MODE"] = OptMode(
-                tile_config_dict["FABULOUS_OPT_MODE"]
+        if "FABULOUS_OPT_MODE" in custom_config_overrides:
+            custom_config_overrides["FABULOUS_OPT_MODE"] = OptMode(
+                custom_config_overrides["FABULOUS_OPT_MODE"]
             )
 
         default_design_dir = tile_type.tileDir.parent / "macro" / opt_mode.value
@@ -151,8 +138,19 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
             final_dir = str(default_design_dir.resolve())
         else:
             final_dir = str(design_dir)
+
+        configs = [
+            i
+            for i in [
+                tile_config_dict,
+                base_config_path,
+                override_config_path,
+                custom_config_overrides,
+            ]
+            if i is not None
+        ]
         super().__init__(
-            tile_config_dict,
+            configs,
             name=tile_type.name,
             design_dir=final_dir,
             pdk=pdk,
