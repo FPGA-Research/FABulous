@@ -62,7 +62,20 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
         for x, tile in enumerate(row):
             if tile is None:
                 continue
-            if "fabric.csv" in str(tile.tileDir):
+
+            # Use the standard path that matches where gen_configmem.py generates
+            # the ConfigMem CSV file (via FABulous_CLI: proj_dir/Tile/{name}/{name}_ConfigMem.csv)
+            standardConfigMemPath = (
+                get_context().proj_dir
+                / "Tile"
+                / tile.name
+                / f"{tile.name}_ConfigMem.csv"
+            )
+
+            # Check standard path first (matches CLI generation path)
+            if standardConfigMemPath.exists() and standardConfigMemPath.is_file():
+                configMemPath = standardConfigMemPath
+            elif "fabric.csv" in str(tile.tileDir):
                 # backward compatibility for old project structure
                 # We need to take the matrixDir from the tile, since there
                 # is the actual path to the tile defined in the fabric.csv
@@ -71,20 +84,19 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                 elif tile.matrixDir.is_dir():
                     configMemPath = tile.matrixDir / f"{tile.name}_ConfigMem.csv"
                 else:
-                    configMemPath = (
-                        get_context().proj_dir
-                        / "Tile"
-                        / tile.name
-                        / f"{tile.name}_ConfigMem.csv"
-                    )
+                    configMemPath = standardConfigMemPath
                     logger.warning(
                         f"MatrixDir for {tile.name} is not a valid file or directory. "
                         f"Assuming default path: {configMemPath}"
                     )
             else:
+                # Legacy fallback: derive from tile.tileDir
                 configMemPath = tile.tileDir.parent.joinpath(
                     f"{tile.name}_ConfigMem.csv"
                 )
+                # If legacy path doesn't exist, try standard path
+                if not configMemPath.exists():
+                    configMemPath = standardConfigMemPath
             logger.info(f"ConfigMemPath: {configMemPath}")
 
             if configMemPath.exists() and configMemPath.is_file():
@@ -97,7 +109,9 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             elif tile.globalConfigBits > 0:
                 logger.critical(
                     f"No ConfigMem csv file found for {tile.name} which "
-                    "have config bits"
+                    f"has {tile.globalConfigBits} config bits. "
+                    f"Tried path: {configMemPath}. "
+                    "Bitstream specification will be incorrect!"
                 )
                 configMemList = []
             else:
@@ -135,12 +149,20 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                     for entry in keyDict:
                         if isinstance(entry, int):
                             for v in keyDict[entry]:
+                                configBitIdx = curBitOffset + v
+                                framePos = encodeDict[configBitIdx]
+                                if framePos == -1:
+                                    logger.error(
+                                        f"Invalid encodeDict mapping for ConfigBit[{configBitIdx}] "
+                                        f"in tile {tile.name} for BEL feature {featureKey}. "
+                                        "ConfigMem CSV may be missing or incomplete."
+                                    )
                                 curTileMap[
                                     f"{string.ascii_uppercase[i]}.{featureKey}"
-                                ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
+                                ] = {framePos: keyDict[entry][v]}
                                 curTileMapNoMask[
                                     f"{string.ascii_uppercase[i]}.{featureKey}"
-                                ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
+                                ] = {framePos: keyDict[entry][v]}
                             curBitOffset += len(keyDict[entry])
 
             # All the generation will be working on the tile level with the tileDic
@@ -166,8 +188,16 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                             curTileMap[pip] = {}
                             curTileMapNoMask[pip] = {}
 
-                        curTileMap[pip][encodeDict[curBitOffset + c]] = curChar
-                        curTileMapNoMask[pip][encodeDict[curBitOffset + c]] = curChar
+                        configBitIdx = curBitOffset + c
+                        framePos = encodeDict[configBitIdx]
+                        if framePos == -1:
+                            logger.error(
+                                f"Invalid encodeDict mapping for ConfigBit[{configBitIdx}] "
+                                f"in tile {tile.name} for PIP {pip}. "
+                                "ConfigMem CSV may be missing or incomplete."
+                            )
+                        curTileMap[pip][framePos] = curChar
+                        curTileMapNoMask[pip][framePos] = curChar
 
                 curBitOffset += controlWidth
 
