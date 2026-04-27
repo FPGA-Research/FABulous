@@ -91,7 +91,7 @@ def draw_supply_net(reader, supply_name, supply_type) -> None:
             iterm_name = iterm.getMTerm().getName()
             iterm_sigtype = iterm.getMTerm().getSigType()
 
-            if iterm_name == supply_name:# and iterm_sigtype == POWER:
+            if iterm_name == supply_name:
                 info(f"Connecting {iterm_name} of type {iterm_sigtype}")
                 iterm.connect(supply_net)
 
