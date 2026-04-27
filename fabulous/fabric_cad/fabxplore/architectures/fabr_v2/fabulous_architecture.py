@@ -12,10 +12,10 @@ mapping and optimization stages. This module serves as the central point for def
 the synthesis flow and architecture-specific transformations for FABulous.
 """
 
-from fabulous.fabric_cad.fabxplore.synthesizer.fabr_v2.models import (
+from fabulous.fabric_cad.fabxplore.architectures.fabr_v2.models import (
     FabulousArchitectureConfig,
 )
-from fabulous.fabric_cad.fabxplore.synthesizer.synth_models import (
+from fabulous.fabric_cad.fabxplore.pyosys.synthesizer import (
     ArchitectureSynthesizer,
 )
 
@@ -85,11 +85,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         self.design.run_pass("opt_clean")
 
-        dap = self.design_analyzer_pass(top_name=self.config.top_module)
-        dap.run_on(self.design)
-        self.log_info(dap.report_summary)
-        t = self.design.to_py_object()
-        self.log_info(t.modules.keys())
+        self.design_analyzer_pass()
 
     def map_ram(self) -> None:
         """Map inferred memory structures to RAM primitives."""
@@ -134,13 +130,10 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design.run_pass("opt_lut")
         self.design.run_pass("clean")
 
-        lcp = self.lut_combinator_pass(
-            top_name=self.config.top_module,
+        self.design_lut_combinator_pass(
             passthrough=True,
             use_select_as_data_in_pair_mode=True,
         )
-        lcp.run_on(self.design)
-        self.log_info(lcp.report_summary)
 
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""

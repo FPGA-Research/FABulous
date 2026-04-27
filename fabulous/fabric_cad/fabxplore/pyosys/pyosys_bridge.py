@@ -35,6 +35,16 @@ class PyosysBridge:
         self.design: ys.Design = self._ys.Design()
         self.debug = debug
 
+    def top_name(self) -> str:
+        """Return the name of the top module in the active design.
+
+        Returns
+        -------
+        str
+            Name of the top module in the active design.
+        """
+        return str(self.design.top_module().name).replace("\\", "")
+
     def read_verilog_paths(
         self,
         paths: list[Path],

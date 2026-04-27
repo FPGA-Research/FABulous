@@ -1,0 +1,164 @@
+"""Defines the base class for architecture synthesizers.
+
+This module defines the `ArchitectureSynthesizer` abstract base class, which
+serves as a blueprint for synthesizers that generate FPGA architectures.
+"""
+
+from abc import ABC, abstractmethod
+
+from loguru import logger
+
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
+    MatchingMode,
+)
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.design_analyzer_pass import (
+    DesignAnalyzerPass,
+)
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass import (
+    LutCombinatorPass,
+)
+from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
+    PyosysBridge,
+)
+
+
+class ArchitectureSynthesizer(ABC):
+    """Interface for architecture-specific synthesis pipelines.
+
+    Parameters
+    ----------
+    debug : bool
+        Enable debug mode for verbose logging and intermediate design dumps.
+    """
+
+    def __init__(self, debug: bool = False) -> None:
+        self.debug = debug
+        self.design: PyosysBridge = PyosysBridge(debug=self.debug)
+
+    def log_info(self, message: str) -> None:
+        """Log an informational message.
+
+        Parameters
+        ----------
+        message : str
+            The message to log.
+        """
+        logger.info(message)
+
+    def design_analyzer_pass(
+        self,
+        log_report: bool = True,
+        top_name: str | None = None,
+        include_chain_metrics: bool = True,
+        max_type_rows: int = 24,
+        progress: bool = True,
+    ) -> DesignAnalyzerPass:
+        """Run the DesignAnalyzerPass on the current design.
+
+        Parameters
+        ----------
+        log_report : bool
+            If ``True``, log a summary report of the design analysis results.
+        top_name : str | None
+            The name of the top module in the design to be processed.
+            If None, use the top module of the current design.
+        include_chain_metrics : bool
+            Whether to include chain metrics in the analysis.
+        max_type_rows : int
+            The maximum number of type rows to consider in the analysis.
+        progress : bool
+            Whether to display progress during the analysis.
+
+        Returns
+        -------
+        DesignAnalyzerPass
+            The instance of the DesignAnalyzerPass after execution,
+            containing the results.
+        """
+        result = DesignAnalyzerPass(
+            top_name=top_name or self.design.top_name(),
+            include_chain_metrics=include_chain_metrics,
+            max_type_rows=max_type_rows,
+            progress=progress,
+        )
+
+        result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        return result
+
+    def design_lut_combinator_pass(
+        self,
+        log_report: bool = True,
+        frac_lut_size: int = 4,
+        num_shared_inputs: int = 3,
+        lut_name: str = "__frac_lut",
+        top_name: str | None = None,
+        passthrough: bool = False,
+        mode: MatchingMode = MatchingMode.MAXIMAL,
+        use_select_as_data_in_pair_mode: bool = False,
+        allow_duplicate_private_nets: bool = True,
+    ) -> LutCombinatorPass:
+        """Run the LutCombinatorPass on the current design.
+
+        Parameters
+        ----------
+        log_report : bool
+            If ``True``, log a summary report of the LUT combinator results.
+        frac_lut_size : int
+            The size of the fractional LUTs to be used in the architecture.
+        num_shared_inputs : int
+            The number of shared inputs allowed in the LUT architecture.
+        lut_name : str
+            The name to be used for the generated LUT cells.
+        top_name : str | None
+            The name of the top module in the design to be processed.
+            If None, use the top module of the current design.
+        passthrough : bool
+            Whether to allow passthrough of non-mapped full LUTs.
+        mode : MatchingMode
+            The matching mode to be used for combining LUTs.
+        use_select_as_data_in_pair_mode : bool
+            Whether to enable the select-as-data dual-LUT pairing mode for more
+            flexible mappings.
+        allow_duplicate_private_nets : bool
+            Whether pair mapping may assign the same net to private pins on both
+            LUT sides.
+
+        Returns
+        -------
+        LutCombinatorPass
+            The instance of the LutCombinatorPass after execution,
+            containing the results.
+        """
+        result = LutCombinatorPass(
+            frac_lut_size=frac_lut_size,
+            num_shared_inputs=num_shared_inputs,
+            lut_name=lut_name,
+            top_name=top_name or self.design.top_name(),
+            passthrough=passthrough,
+            mode=mode,
+            use_select_as_data_in_pair_mode=use_select_as_data_in_pair_mode,
+            allow_duplicate_private_nets=allow_duplicate_private_nets,
+        )
+
+        result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        return result
+
+    @abstractmethod
+    def synthesize(self) -> None:
+        """Run the full synthesis pipeline for a user design."""
+
+    @abstractmethod
+    def generate_primitives(self) -> None:
+        """Generate primitive definitions required by this architecture."""
+
+    @abstractmethod
+    def generate_switch_matrix(self) -> None:
+        """Generate switch-matrix resources for routing integration."""
