@@ -4,7 +4,6 @@ This module centralizes enums, dataclasses, and JSON helper utilities used by pa
 mapper, transform, and report layers.
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
@@ -25,8 +24,3 @@ class FabulousArchitectureConfig(BaseModel):
     map_carry_chains: bool
     tile_output_dir: Path | None = None
     user_design_out_dir: Path | None = None
-
-
-@dataclass(frozen=True)
-class ArchitectureMapResult:
-    """Data class to hold the results of the architecture mapping process."""

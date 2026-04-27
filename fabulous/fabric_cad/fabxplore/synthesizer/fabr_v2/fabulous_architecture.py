@@ -12,22 +12,10 @@ mapping and optimization stages. This module serves as the central point for def
 the synthesis flow and architecture-specific transformations for FABulous.
 """
 
-from loguru import logger
-
-from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.design_analyzer_pass import (
-    DesignAnalyzerPass,
-)
-from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass import (
-    LutCombinatorPass,
-)
-from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
-    PyosysBridge,
-)
 from fabulous.fabric_cad.fabxplore.synthesizer.fabr_v2.models import (
-    ArchitectureMapResult,
     FabulousArchitectureConfig,
 )
-from fabulous.fabric_cad.fabxplore.synthesizer.synth_arch import (
+from fabulous.fabric_cad.fabxplore.synthesizer.synth_models import (
     ArchitectureSynthesizer,
 )
 
@@ -48,13 +36,10 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     """
 
     def __init__(self, config: FabulousArchitectureConfig, debug: bool = False) -> None:
-        self.config = config
+        super().__init__(debug=debug)
         self.debug = debug
 
-        self.map_result: ArchitectureMapResult | None = None
-
-        self.design: PyosysBridge = PyosysBridge(debug=self.debug)
-
+        self.config = config
         self._read_hdl()
 
     def _read_hdl(self) -> None:
@@ -100,11 +85,11 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         self.design.run_pass("opt_clean")
 
-        dap = DesignAnalyzerPass(top_name=self.config.top_module)
+        dap = self.design_analyzer_pass(top_name=self.config.top_module)
         dap.run_on(self.design)
-        logger.info(dap.report_summary)
+        self.log_info(dap.report_summary)
         t = self.design.to_py_object()
-        logger.info(t.modules.keys())
+        self.log_info(t.modules.keys())
 
     def map_ram(self) -> None:
         """Map inferred memory structures to RAM primitives."""
@@ -145,16 +130,17 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
     def map_luts(self) -> None:
         """Map combinational logic into LUT resources."""
-        self.design.run_pass("abc -lut 5 -dress")
+        self.design.run_pass("abc -luts 100,100,100,100,150,320,450,550 -dress")
+        self.design.run_pass("opt_lut")
         self.design.run_pass("clean")
 
-        lcp = LutCombinatorPass(
+        lcp = self.lut_combinator_pass(
             top_name=self.config.top_module,
             passthrough=True,
             use_select_as_data_in_pair_mode=True,
         )
         lcp.run_on(self.design)
-        logger.info(lcp.report_summary)
+        self.log_info(lcp.report_summary)
 
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""
@@ -199,6 +185,16 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
     def generate_primitives(self) -> None:
         """Generate primitive definitions required by this architecture."""
+
+        # TODO: Implement MUX8
+        # TODO: Implement Carry chain, HA, FA, OR, AND
+        # TODO: Implement Architecture-specific extensions, sat solver
+        # TODO: Implement Reordering of leftover lut space
+        # TODO: Implement Multilyer synthesis, 2nd user design replace LUTS
+        # TODO: Implement timing driven optimizations (weight match) subgraph
+        # matching for critical path optimization
+        # TODO: Explain Morph-Tiles
+        # TODO: Implement sweeping of LUT ditribution with flow map
 
     def generate_switch_matrix(self) -> None:
         """Generate switch-matrix resources for routing integration."""
