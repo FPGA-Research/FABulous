@@ -40,6 +40,7 @@ def power(
     power_names: tuple[str],
     ground_names: tuple[str],
 ) -> None:
+    """Cycle through VDD_NETS and GND_NETS for the tiles using a custom script."""
     info(f"propagated VDD_NETS are {power_names}")
     info(f"propagated GND_NETS are {ground_names}")
 
@@ -56,7 +57,7 @@ def draw_supply_net(
     supply_name: str,
     supply_type: str,
 ) -> None:
-    """Connect power rails for the tiles using a custom script."""
+    """Connect single  power rail for the tiles using a custom script."""
     # todo: review: is this part needed? Or is this an error if
     #        these nets don't exist at this stage?
     # Create nets, if they don't exist yet
