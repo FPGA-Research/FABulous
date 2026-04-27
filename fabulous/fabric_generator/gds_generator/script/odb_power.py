@@ -38,7 +38,7 @@ from librelane.scripts.odbpy.reader import click_odb
 def power(
     reader: Any,  # noqa: ANN401
     power_names: tuple[str],
-    ground_names: Tuple[str],
+    ground_names: tuple[str],
 ) -> None:
 
     info(f"propagated VDD_NETS are {power_names}")
