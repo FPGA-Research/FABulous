@@ -604,6 +604,8 @@ class FABulous_API:
         base_config_path: Path | None = None,
         config_override_path: Path | None = None,
         tile_opt_config: Path | None = None,
+        nlp_only: bool = False,
+        nlp_area_margin: float = 0.05,
         **config_overrides: dict,
     ) -> None:
         """Run the stitching flow to assemble tile macros into a fabric-level GDS."""
@@ -612,8 +614,10 @@ class FABulous_API:
         logger.info(f"Output folder: {out_folder.resolve()}")
         config_args = {
             "FABULOUS_PROJ_DIR": str(project_dir.resolve()),
-            "FABULOUS_FABRIC": self.fabric.name,
+            "FABULOUS_FABRIC": self.fabric,
             "DESIGN_NAME": self.fabric.name,
+            "FABULOUS_NLP_ONLY": nlp_only,
+            "FABULOUS_NLP_AREA_MARGIN": nlp_area_margin,
         }
         if tile_opt_config is not None:
             config_args["TILE_OPT_INFO"] = str(tile_opt_config)

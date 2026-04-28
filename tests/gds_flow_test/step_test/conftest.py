@@ -1,4 +1,4 @@
-"""Fixtures fceor gds_generator_test tests."""
+"""Fixtures for gds_generator_test tests."""
 
 from decimal import Decimal
 

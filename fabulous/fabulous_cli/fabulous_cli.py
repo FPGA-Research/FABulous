@@ -199,6 +199,8 @@ class FABulous_CLI(Cmd):
         Argument parser for the gen_io_pin_config command
     gen_all_tile_parser : Cmd2ArgumentParser
         Argument parser for the gen_all_tile command
+    eFPGA_macro_parser: Cmd2ArgumentParser
+        Argument parser for the gen_eFPGA_macro command
     gui_parser : Cmd2ArgumentParser
         Argument parser for the open_gui command
     timing_model_parser : Cmd2ArgumentParser
@@ -1453,8 +1455,28 @@ class FABulous_CLI(Cmd):
             base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
         )
 
+    eFPGA_macro_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
+    eFPGA_macro_parser.add_argument(
+        "--tile-opt-info",
+        type=str,
+        default=None,
+        help="Path to tile optimisation summary JSON to skip Step 1",
+    )
+    eFPGA_macro_parser.add_argument(
+        "--nlp-only",
+        action="store_true",
+        help="Run exploration and NLP only, skip recompilation",
+    )
+    eFPGA_macro_parser.add_argument(
+        "--nlp-area-margin",
+        type=float,
+        default=0.05,
+        help="Area margin for NLP constraint (default: 0.05 = 5%%)",
+    )
+
+    @with_argparser(eFPGA_macro_parser)
     @with_category(CMD_FABRIC_FLOW)
-    def do_run_FABulous_eFPGA_macro(self, *_arg: str) -> None:
+    def do_run_FABulous_eFPGA_macro(self, args: argparse.Namespace) -> None:
         """Run the full FABulous eFPGA macro generation flow."""
         if not is_pdk_config_set():
             logger.error(
@@ -1464,12 +1486,16 @@ class FABulous_CLI(Cmd):
             return
 
         (self.projectDir / "Fabric" / "macro").mkdir(exist_ok=True)
+        tile_opt_config = Path(args.tile_opt_info) if args.tile_opt_info else None
         self.fabulousAPI.full_fabric_automation(
             self.projectDir,
             self.projectDir / "Fabric" / "macro",
             cast("str", get_context().pdk),
             cast("Path", get_context().pdk_root),
             base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
+            tile_opt_config=tile_opt_config,
+            nlp_only=args.nlp_only,
+            nlp_area_margin=args.nlp_area_margin,
         )
 
     gui_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
