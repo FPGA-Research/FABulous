@@ -11,11 +11,17 @@ from loguru import logger
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
     MatchingMode,
 )
+from fabulous.fabric_cad.fabxplore.modules.lut_mapper.core.models import (
+    LutMapperBackend,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.design_analyzer_pass import (
     DesignAnalyzerPass,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass import (
     LutCombinatorPass,
+)
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_mapper_pass import (
+    LutMapperPass,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
     PyosysBridge,
@@ -142,6 +148,109 @@ class ArchitectureSynthesizer(ABC):
             mode=mode,
             use_select_as_data_in_pair_mode=use_select_as_data_in_pair_mode,
             allow_duplicate_private_nets=allow_duplicate_private_nets,
+        )
+
+        result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        return result
+
+    def design_lut_mapper_pass(
+        self,
+        log_report: bool = True,
+        base_lut_size: int = 4,
+        num_shared_inputs: int = 3,
+        use_select_as_data_in_pair_mode: bool = False,
+        max_lut_size: int = 8,
+        backend: LutMapperBackend | str = LutMapperBackend.ABC9,
+        sharing_penalty_factor: float = 1.0,
+        size_penalty_factor: float = 1.0,
+        pair_discount_strength: float = 0.5,
+        larger_lut_base_multiplier: float = 2.0,
+        larger_lut_discount_factor: float = 0.9,
+        cost_scale: int = 100,
+        min_cost: int = 1,
+        max_cost: int | None = None,
+        raw_cost_vector: tuple[int | float, ...] | None = None,
+        run_opt_lut: bool = True,
+        run_clean: bool = True,
+        top_name: str | None = None,
+    ) -> LutMapperPass:
+        """Run architecture-aware ABC LUT mapping on the current design.
+
+        Parameters
+        ----------
+        log_report : bool
+            If ``True``, log the LUT mapper report after execution.
+        base_lut_size : int
+            Size ``K`` of the internal LUT fragments in the target fractional
+            LUT architecture.
+        num_shared_inputs : int
+            Nominal number of shared inputs between the two internal LUT
+            fragments.
+        use_select_as_data_in_pair_mode : bool
+            Whether pairability estimation should account for select-as-data
+            mode as one additional effective private input.
+        max_lut_size : int
+            Largest LUT width ABC may generate.
+        backend : LutMapperBackend | str
+            Yosys backend used for LUT mapping. Supported values are ``"abc"``
+            and ``"abc9"``.
+        sharing_penalty_factor : float
+            Multiplier for the required-shared-input pair table.
+        size_penalty_factor : float
+            Multiplier for the unused-capacity pair table.
+        pair_discount_strength : float
+            Maximum analytical cost discount for widths that pair well.
+        larger_lut_base_multiplier : float
+            Multiplicative growth factor for composed LUTs wider than
+            ``base_lut_size``.
+        larger_lut_discount_factor : float
+            Per-extra-input discount for wider composed LUTs.
+        cost_scale : int
+            Base integer cost scale for analytical ABC costs.
+        min_cost : int
+            Minimum emitted ABC cost.
+        max_cost : int | None
+            Optional maximum emitted ABC cost.
+        raw_cost_vector : tuple[int | float, ...] | None
+            Optional direct ABC cost vector. If provided, analytical costs are
+            ignored. A one-entry vector is broadcast to ``max_lut_size``.
+        run_opt_lut : bool
+            Whether to run ``opt_lut`` after the selected backend.
+        run_clean : bool
+            Whether to run ``clean`` after the selected backend.
+        top_name : str | None
+            Optional top module name for reporting. If ``None``, use the
+            current design top.
+
+        Returns
+        -------
+        LutMapperPass
+            The pass instance after execution, containing the cost-vector
+            result and rendered report.
+        """
+        result = LutMapperPass(
+            base_lut_size=base_lut_size,
+            num_shared_inputs=num_shared_inputs,
+            use_select_as_data_in_pair_mode=use_select_as_data_in_pair_mode,
+            max_lut_size=max_lut_size,
+            backend=backend,
+            sharing_penalty_factor=sharing_penalty_factor,
+            size_penalty_factor=size_penalty_factor,
+            pair_discount_strength=pair_discount_strength,
+            larger_lut_base_multiplier=larger_lut_base_multiplier,
+            larger_lut_discount_factor=larger_lut_discount_factor,
+            cost_scale=cost_scale,
+            min_cost=min_cost,
+            max_cost=max_cost,
+            raw_cost_vector=raw_cost_vector,
+            run_opt_lut=run_opt_lut,
+            run_clean=run_clean,
+            top_name=top_name or self.design.top_name(),
+            debug=self.debug,
         )
 
         result.run_on(self.design)

@@ -126,9 +126,14 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
     def map_luts(self) -> None:
         """Map combinational logic into LUT resources."""
-        self.design.run_pass("abc -luts 100,100,100,100,150,320,450,550 -dress")
-        self.design.run_pass("opt_lut")
-        self.design.run_pass("clean")
+        self.design_lut_mapper_pass(
+            max_lut_size=5,
+            use_select_as_data_in_pair_mode=True,
+            sharing_penalty_factor=3,
+            size_penalty_factor=0.7,
+            larger_lut_discount_factor=0.84,
+            backend="abc9",
+        )
 
         self.design_lut_combinator_pass(
             passthrough=True,
@@ -145,6 +150,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         """Validate the mapped design and report structural issues."""
         self.design.run_pass(f"hierarchy -top {self.config.top_module} -check")
         self.design.run_pass("stat")
+        self.design_analyzer_pass()
 
     def synthesize(self) -> None:
         """Run the full synthesis pipeline for a user design."""
@@ -187,7 +193,6 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         # TODO: Implement timing driven optimizations (weight match) subgraph
         # matching for critical path optimization
         # TODO: Explain Morph-Tiles
-        # TODO: Implement sweeping of LUT ditribution with flow map
 
     def generate_switch_matrix(self) -> None:
         """Generate switch-matrix resources for routing integration."""
