@@ -82,9 +82,32 @@ def test_lut32_mixed_benchmark() -> None:
     arch.write_json_path()
 
 
+def test_aes_like_sboxes_benchmark() -> None:
+    """Test AES-like S-box benchmark FABulousArchitecture."""
+    logger.info("Testing AES-like S-box benchmark FABulousArchitecture")
+    hdl_files = [
+        ROOT / "benchmarks" / "verilog_rtl" / "aes_like_sboxes" / "aes_like_sboxes.v"
+    ]
+    config = FabulousArchitectureConfig(
+        hdl_files=hdl_files,
+        top_module="aes_like_sboxes",
+        allow_resource_sharing=True,
+        map_alu_macc_cells=True,
+        map_ram_cells=True,
+        optimize_fsm=True,
+        map_io_pads=True,
+        map_carry_chains=True,
+        user_design_out_dir=OUT_DIR,
+    )
+    arch = FabulousArchitecture(config, debug=True)
+    arch.synthesize()
+    arch.write_verilog_path()
+    arch.write_json_path()
+
+
 def main() -> None:
     """Run all tests."""
-    sel_test: int = 0
+    sel_test: int = 3
 
     match sel_test:
         case 0:
@@ -93,6 +116,8 @@ def main() -> None:
             test_basic_large_or_benchmark()
         case 2:
             test_lut32_mixed_benchmark()
+        case 3:
+            test_aes_like_sboxes_benchmark()
 
 
 if __name__ == "__main__":
