@@ -107,7 +107,7 @@ def test_aes_like_sboxes_benchmark() -> None:
 
 def main() -> None:
     """Run all tests."""
-    sel_test: int = 3
+    sel_test: int = 0
 
     match sel_test:
         case 0:

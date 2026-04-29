@@ -127,7 +127,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     def map_luts(self) -> None:
         """Map combinational logic into LUT resources."""
         self.design_lut_mapper_pass(
-            max_lut_size=8,
+            max_lut_size=6,
             use_select_as_data_in_pair_mode=True,
             sharing_penalty_factor=3,
             size_penalty_factor=0.7,
@@ -187,12 +187,13 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         # TODO: Implement MUX8
         # TODO: Implement Carry chain, HA, FA, OR, AND
-        # TODO: Implement Architecture-specific extensions, sat solver
+        # TODO: Implement Architecture-specific extensions, sat solver, ordered solver.
         # TODO: Implement Reordering of leftover lut space
         # TODO: Implement Multilyer synthesis, 2nd user design replace LUTS
         # TODO: Implement timing driven optimizations (weight match) subgraph
         # matching for critical path optimization
         # TODO: Explain Morph-Tiles
+        # TODO: Explain Techmap
 
     def generate_switch_matrix(self) -> None:
         """Generate switch-matrix resources for routing integration."""
