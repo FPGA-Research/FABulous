@@ -8,6 +8,7 @@
 #
 # Copyright (c) 2023 Sylvain Munaut <tnt@246tNt.com>
 # Copyright (c) 2025 Leo Moser <leo.moser@pm.me>
+# Copyright (c) 2026 FABulous Contributors
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -46,20 +47,18 @@ def power(
 
     # todo: run on multi-power test case
     for power_name in power_names:
-        draw_supply_net(reader, power_name, "POWER")
+        propagate_supply_net(reader, power_name, "POWER")
 
     for ground_name in ground_names:
-        draw_supply_net(reader, ground_name, "GROUND")
+        propagate_supply_net(reader, ground_name, "GROUND")
 
 
-def draw_supply_net(
+def propagate_supply_net(
     reader: Any,  # noqa: ANN401
     supply_name: str,
     supply_type: str,
 ) -> None:
     """Connect single  power rail for the tiles using a custom script."""
-    # todo: review: is this part needed? Or is this an error if
-    #        these nets don't exist at this stage?
     # Create nets, if they don't exist yet
     net = reader.block.findNet(supply_name)
     if net is None:
