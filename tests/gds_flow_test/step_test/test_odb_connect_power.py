@@ -30,18 +30,9 @@ def test_get_command_includes_metal_layer_parameter(
     step.config = mock_config
     command = step.get_command()
 
-    # Verify the command includes the metal layer parameter
-    assert "--metal-layer-name" in command, (
-        "Command should include --metal-layer-name flag"
-    )
-
-    # Find the index of --metal-layer-name and verify its value
-    metal_layer_index = command.index("--metal-layer-name")
-    metal_layer_value = command[metal_layer_index + 1]
-
-    assert metal_layer_value == "met2", (
-        f"Expected 'met2' (from PDN_VERTICAL_LAYER), got '{metal_layer_value}'"
-    )
+    # Verify the command includes the power and ground name parameters
+    assert "--power-names" in command, "Command should include --power-names flag"
+    assert "--ground-names" in command, "Command should include --ground-names flag"
 
 
 def test_get_command_uses_custom_metal_layer(

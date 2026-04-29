@@ -8,6 +8,7 @@
 #
 # Copyright (c) 2023 Sylvain Munaut <tnt@246tNt.com>
 # Copyright (c) 2025 Leo Moser <leo.moser@pm.me>
+# Copyright (c) 2026 FABulous Contributors
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -20,67 +21,64 @@ from librelane.scripts.odbpy.reader import click_odb
 
 
 @click.option(
-    "--metal-layer-name",
+    "--power-names",
     default=None,
     type=str,
-    help="Metal layer for the power/ground straps.",
+    multiple=True,
+    help="The name(s) of the power port(s). Repeat the option for multiple ports.",
 )
 @click.option(
-    "--power-name",
+    "--ground-names",
     default=None,
     type=str,
-    help="The name of the power port.",
-)
-@click.option(
-    "--ground-name",
-    default=None,
-    type=str,
-    help="The name of the ground port.",
+    multiple=True,
+    help="The name(s) of the ground port(s). Repeat the option for multiple ports.",
 )
 @click.command()
 @click_odb
 def power(
     reader: Any,  # noqa: ANN401
-    metal_layer_name: str,
-    power_name: str,
-    ground_name: str,
+    power_names: tuple[str],
+    ground_names: tuple[str],
 ) -> None:
-    """Connect power rails for the tiles using a custom script."""
-    # Create ground / power nets
-    tech = reader.db.getTech()
+    """Cycle through VDD_NETS and GND_NETS for the tiles using a custom script."""
+    info(f"propagated VDD_NETS are {power_names}")
+    info(f"propagated GND_NETS are {ground_names}")
 
-    info(f"metal_layer_name: {metal_layer_name}")
-    metal_layer = tech.findLayer(metal_layer_name)
+    # todo: run on multi-power test case
+    for power_name in power_names:
+        propagate_supply_net(reader, power_name, "POWER")
 
+    for ground_name in ground_names:
+        propagate_supply_net(reader, ground_name, "GROUND")
+
+
+def propagate_supply_net(
+    reader: Any,  # noqa: ANN401
+    supply_name: str,
+    supply_type: str,
+) -> None:
+    """Connect single  power rail for the tiles using a custom script."""
     # Create nets, if they don't exist yet
-    # TODO make this generic using VDD_NETS, GND_NETS
-    for net_name, net_type in [(power_name, "POWER"), (ground_name, "GROUND")]:
-        net = reader.block.findNet(net_name)
-        if net is None:
-            # Create net
-            net = odb.dbNet.create(reader.block, net_name)
-            net.setSpecial()
-            net.setSigType(net_type)
+    net = reader.block.findNet(supply_name)
+    if net is None:
+        # Create net
+        net = odb.dbNet.create(reader.block, supply_name)
+        net.setSpecial()
+        net.setSigType(supply_type)
+        info(f"Created {supply_name} with type {supply_type}")
 
-    vpwr_net = reader.block.findNet(power_name)
-    vgnd_net = reader.block.findNet(ground_name)
+    supply_net = reader.block.findNet(supply_name)
 
     # Create wires
-    vpwr_wire = odb.dbSWire.create(vpwr_net, "ROUTED")
-    vgnd_wire = odb.dbSWire.create(vgnd_net, "ROUTED")
+    supply_wire = odb.dbSWire.create(supply_net, "ROUTED")
 
     # Create bterms (top-level)
-    vpwr_bterm = odb.dbBTerm.create(vpwr_net, power_name)
-    vpwr_bterm.setIoType("INOUT")
-    vpwr_bterm.setSigType(vpwr_net.getSigType())
-    vpwr_bterm.setSpecial()
-    vpwr_bpin = odb.dbBPin_create(vpwr_bterm)
-
-    vgnd_bterm = odb.dbBTerm.create(vgnd_net, ground_name)
-    vgnd_bterm.setIoType("INOUT")
-    vgnd_bterm.setSigType(vgnd_net.getSigType())
-    vgnd_bterm.setSpecial()
-    vgnd_bpin = odb.dbBPin_create(vgnd_bterm)
+    supply_bterm = odb.dbBTerm.create(supply_net, supply_name)
+    supply_bterm.setIoType("INOUT")
+    supply_bterm.setSigType(supply_net.getSigType())
+    supply_bterm.setSpecial()
+    supply_bpin = odb.dbBPin_create(supply_bterm)
 
     # Connect instance-iterms to power nets,
     # draw the wires and pins
@@ -88,68 +86,42 @@ def power(
         info(f"Instance: {blk_inst.getName()}")
         for iterm in blk_inst.getITerms():
             iterm_name = iterm.getMTerm().getName()
+            iterm_sigtype = iterm.getMTerm().getSigType()
 
-            if iterm_name == power_name:
-                info("Connecting VPWR")
-                iterm.connect(vpwr_net)
-
-            if iterm_name == ground_name:
-                info("Connecting VGND")
-                iterm.connect(vgnd_net)
+            if iterm_name == supply_name:
+                info(f"Connecting {iterm_name} of type {iterm_sigtype}")
+                iterm.connect(supply_net)
 
         inst_master = blk_inst.getMaster()
 
-        # Now, for each power/ground mterm (TODO: check signal type instead of name)
+        # Now, for each power/ground mterm
         # Copy the geomtry of the pins to wires and top-level pins
         for master_mterm in inst_master.getMTerms():
-            if (
-                master_mterm.getName() == power_name
-                or master_mterm.getName() == ground_name
-            ):
+            if master_mterm.getName() == supply_name:
                 for mterm_mpins in master_mterm.getMPins():
                     for mpins_dbox in mterm_mpins.getGeometry():
-                        # Check that the metal layer matches
-                        if mpins_dbox.getTechLayer().getName() == metal_layer_name:
-                            if master_mterm.getName() == power_name:
-                                odb.dbSBox_create(
-                                    vpwr_wire,
-                                    metal_layer,
-                                    blk_inst.getLocation()[0] + mpins_dbox.xMin(),
-                                    blk_inst.getLocation()[1] + mpins_dbox.yMin(),
-                                    blk_inst.getLocation()[0] + mpins_dbox.xMax(),
-                                    blk_inst.getLocation()[1] + mpins_dbox.yMax(),
-                                    "STRIPE",
-                                )
-                                odb.dbBox_create(
-                                    vpwr_bpin,
-                                    metal_layer,
-                                    blk_inst.getLocation()[0] + mpins_dbox.xMin(),
-                                    blk_inst.getLocation()[1] + mpins_dbox.yMin(),
-                                    blk_inst.getLocation()[0] + mpins_dbox.xMax(),
-                                    blk_inst.getLocation()[1] + mpins_dbox.yMax(),
-                                )
+                        metal_layer = mpins_dbox.getTechLayer()
 
-                            if master_mterm.getName() == ground_name:
-                                odb.dbSBox_create(
-                                    vgnd_wire,
-                                    metal_layer,
-                                    blk_inst.getLocation()[0] + mpins_dbox.xMin(),
-                                    blk_inst.getLocation()[1] + mpins_dbox.yMin(),
-                                    blk_inst.getLocation()[0] + mpins_dbox.xMax(),
-                                    blk_inst.getLocation()[1] + mpins_dbox.yMax(),
-                                    "STRIPE",
-                                )
-                                odb.dbBox_create(
-                                    vgnd_bpin,
-                                    metal_layer,
-                                    blk_inst.getLocation()[0] + mpins_dbox.xMin(),
-                                    blk_inst.getLocation()[1] + mpins_dbox.yMin(),
-                                    blk_inst.getLocation()[0] + mpins_dbox.xMax(),
-                                    blk_inst.getLocation()[1] + mpins_dbox.yMax(),
-                                )
+                        if master_mterm.getName() == supply_name:
+                            odb.dbSBox_create(
+                                supply_wire,
+                                metal_layer,
+                                blk_inst.getLocation()[0] + mpins_dbox.xMin(),
+                                blk_inst.getLocation()[1] + mpins_dbox.yMin(),
+                                blk_inst.getLocation()[0] + mpins_dbox.xMax(),
+                                blk_inst.getLocation()[1] + mpins_dbox.yMax(),
+                                "STRIPE",
+                            )
+                            odb.dbBox_create(
+                                supply_bpin,
+                                metal_layer,
+                                blk_inst.getLocation()[0] + mpins_dbox.xMin(),
+                                blk_inst.getLocation()[1] + mpins_dbox.yMin(),
+                                blk_inst.getLocation()[0] + mpins_dbox.xMax(),
+                                blk_inst.getLocation()[1] + mpins_dbox.yMax(),
+                            )
 
-    vpwr_bpin.setPlacementStatus("FIRM")
-    vgnd_bpin.setPlacementStatus("FIRM")
+    supply_bpin.setPlacementStatus("FIRM")
 
 
 if __name__ == "__main__":
