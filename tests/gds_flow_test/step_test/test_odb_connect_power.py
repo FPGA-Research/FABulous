@@ -30,14 +30,9 @@ def test_get_command_includes_metal_layer_parameter(
     step.config = mock_config
     command = step.get_command()
 
-    # Verify the command includes the metal layer parameter
-    assert "--power-names" in command, (
-        "Command should include --power-names flag"
-    )
-    assert "--ground-names" in command, (
-        "Command should include --ground-names flag"
-    )
-
+    # Verify the command includes the power and ground name parameters
+    assert "--power-names" in command, "Command should include --power-names flag"
+    assert "--ground-names" in command, "Command should include --ground-names flag"
 
 
 def test_get_command_uses_custom_metal_layer(
