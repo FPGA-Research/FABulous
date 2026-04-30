@@ -89,13 +89,13 @@ module config_UART #(
 
     localparam HIGH_NIBBLE = 1'b1, LOW_NIBBLE = 1'b0;
     reg ReceiveState;
-    reg [3:0] HighReg;
-    wire [4:0] HexValue;  // A 0 at the MSB indicates a valid value on bits [3..0]
-    reg [7:0] HexData;  // The received byte in "hex" mode
-    reg HexWriteStrobe;  // We received two hex nibbles and have a result byte
+    reg [3:0] high_reg;
+    wire [4:0] hex_value;  // A 0 at the MSB indicates a valid value on bits [3..0]
+    reg [7:0] hex_data;  // The received byte in "hex" mode
+    reg hex_write_strobe;  // We received two hex nibbles and have a result byte
 
-    reg [11:0] ComCount;
-    reg ComTick;
+    reg [11:0] com_count;
+    reg com_tick;
 
     localparam [3:0] WAIT_FOR_START_BIT = 4'd0, DELAY_AFTER_START_BIT = 4'd1;
     localparam [3:0]
@@ -110,18 +110,18 @@ module config_UART #(
         GET_STOP_BIT = 4'd10;
 
 
-    reg [3:0] ComState;
-    reg [7:0] ReceivedWord;
-    reg RxLocal;
+    reg [3:0] com_state;
+    reg [7:0] received_word;
+    reg rx_local;
 
     reg [23:0] ID_Reg;
-    reg [31:0] Start_Reg;
-    reg [15:0] Size_Reg;
-    reg [15:0] CRC_Reg;
-    reg [7:0] Command_Reg;
-    reg [7:0] Data_Reg;
+    reg [31:0] start_reg;
+    reg [15:0] size_reg;
+    reg [15:0] CRC_reg;
+    reg [7:0] command_reg;
+    reg [7:0] data_reg;
 
-    wire [7:0] ReceivedByte;
+    wire [7:0] received_byte;
 
     reg rx_timeout;
     reg [14:0] rx_timeout_counter;
@@ -135,14 +135,14 @@ module config_UART #(
         EVAL_COMMAND=3'd5,
         GET_DATA=3'd6;
 
-    reg [2:0] PresentState;
+    reg [2:0] present_state;
 
     localparam reg [1:0] WORD_0 = 2'd0, WORD_1 = 2'd1, WORD_2 = 2'd2, WORD_3 = 2'd3;
-    reg [1:0] GetWordState;
+    reg [1:0] get_word_state;
 
-    reg LocalWriteStrobe;
+    reg local_write_strobe;
 
-    reg ByteWriteStrobe;
+    reg byte_write_strobe;
 
     reg [19:0] CRCReg, b_counter;
 
@@ -151,34 +151,34 @@ module config_UART #(
     always @(posedge CLK, negedge reset_n)
     begin : P_sync
         if (!reset_n)
-            RxLocal <= 1'b1;
+            rx_local <= 1'b1;
         else
-            RxLocal <= Rx;
+            rx_local <= Rx;
     end
 
     always @(posedge CLK, negedge reset_n)
     begin : P_com_en
         if (!reset_n)
         begin
-            ComCount <= 0;
-            ComTick  <= 0;
+            com_count <= 0;
+            com_tick  <= 0;
         end
         else
         begin
-            if (ComState == WAIT_FOR_START_BIT)
+            if (com_state == WAIT_FOR_START_BIT)
             begin
-                ComCount <= ComRate / 2;
-                ComTick  <= 1'b0;
+                com_count <= ComRate / 2;
+                com_tick  <= 1'b0;
             end
-            else if (ComCount == 0)
+            else if (com_count == 0)
             begin
-                ComCount <= ComRate;
-                ComTick  <= 1'b1;
+                com_count <= ComRate;
+                com_tick  <= 1'b1;
             end
             else
             begin
-                ComCount <= ComCount - 1;
-                ComTick  <= 1'b0;
+                com_count <= com_count - 1;
+                com_tick  <= 1'b0;
             end
         end
     end
@@ -187,119 +187,119 @@ module config_UART #(
     begin : P_COM
         if (!reset_n)
         begin
-            ComState <= WAIT_FOR_START_BIT;
-            ReceivedWord <= 8'b0;
+            com_state <= WAIT_FOR_START_BIT;
+            received_word <= 8'b0;
             ID_Reg <= 24'b0;
-            Start_Reg <= 32'b0;
-            Command_Reg <= 8'b0;
+            start_reg <= 32'b0;
+            command_reg <= 8'b0;
         end
         else
         begin
-            case (ComState)
+            case (com_state)
                 WAIT_FOR_START_BIT:
                 begin
-                    if (RxLocal == 1'b0)
+                    if (rx_local == 1'b0)
                     begin
-                        ComState <= DELAY_AFTER_START_BIT;
-                        ReceivedWord <= 0;
+                        com_state <= DELAY_AFTER_START_BIT;
+                        received_word <= 0;
                     end
                 end
                 DELAY_AFTER_START_BIT:
                 begin
-                    if (ComTick == 1'b1)
+                    if (com_tick == 1'b1)
                     begin
-                        ComState <= GET_BIT_0;
+                        com_state <= GET_BIT_0;
                     end
                 end
                 GET_BIT_0:
                 begin
-                    if (ComTick == 1'b1)
+                    if (com_tick == 1'b1)
                     begin
-                        ComState <= GET_BIT_1;
-                        ReceivedWord[0] <= RxLocal;
+                        com_state <= GET_BIT_1;
+                        received_word[0] <= rx_local;
                     end
                 end
                 GET_BIT_1:
                 begin
-                    if (ComTick == 1'b1)
+                    if (com_tick == 1'b1)
                     begin
-                        ComState <= GET_BIT_2;
-                        ReceivedWord[1] <= RxLocal;
+                        com_state <= GET_BIT_2;
+                        received_word[1] <= rx_local;
                     end
                 end
                 GET_BIT_2:
                 begin
-                    if (ComTick == 1'b1)
+                    if (com_tick == 1'b1)
                     begin
-                        ComState <= GET_BIT_3;
-                        ReceivedWord[2] <= RxLocal;
+                        com_state <= GET_BIT_3;
+                        received_word[2] <= rx_local;
                     end
                 end
                 GET_BIT_3:
                 begin
-                    if (ComTick == 1'b1)
+                    if (com_tick == 1'b1)
                     begin
-                        ComState <= GET_BIT_4;
-                        ReceivedWord[3] <= RxLocal;
+                        com_state <= GET_BIT_4;
+                        received_word[3] <= rx_local;
                     end
                 end
                 GET_BIT_4:
                 begin
-                    if (ComTick == 1'b1)
+                    if (com_tick == 1'b1)
                     begin
-                        ComState <= GET_BIT_5;
-                        ReceivedWord[4] <= RxLocal;
+                        com_state <= GET_BIT_5;
+                        received_word[4] <= rx_local;
                     end
                 end
                 GET_BIT_5:
                 begin
-                    if (ComTick == 1'b1)
+                    if (com_tick == 1'b1)
                     begin
-                        ComState <= GET_BIT_6;
-                        ReceivedWord[5] <= RxLocal;
+                        com_state <= GET_BIT_6;
+                        received_word[5] <= rx_local;
                     end
                 end
                 GET_BIT_6:
                 begin
-                    if (ComTick == 1'b1)
+                    if (com_tick == 1'b1)
                     begin
-                        ComState <= GET_BIT_7;
-                        ReceivedWord[6] <= RxLocal;
+                        com_state <= GET_BIT_7;
+                        received_word[6] <= rx_local;
                     end
                 end
                 GET_BIT_7:
                 begin
-                    if (ComTick == 1'b1)
+                    if (com_tick == 1'b1)
                     begin
-                        ComState <= GET_STOP_BIT;
-                        ReceivedWord[7] <= RxLocal;
+                        com_state <= GET_STOP_BIT;
+                        received_word[7] <= rx_local;
                     end
                 end
                 GET_STOP_BIT:
                 begin
-                    if (ComTick == 1'b1)
+                    if (com_tick == 1'b1)
                     begin
-                        ComState <= WAIT_FOR_START_BIT;
+                        com_state <= WAIT_FOR_START_BIT;
                     end
                 end
                 default:
                 begin
-                    ComState <= WAIT_FOR_START_BIT;
+                    com_state <= WAIT_FOR_START_BIT;
                 end
             endcase
-            if (ComState == GET_STOP_BIT && ComTick == 1'b1)
+            if (com_state == GET_STOP_BIT && com_tick == 1'b1)
             begin
-                case (PresentState)
+                case (present_state)
                     GET_ID_00:
-                        ID_Reg[23:16] <= ReceivedWord;
+                        ID_Reg[23:16] <= received_word;
                     GET_ID_AA:
-                        ID_Reg[15:8] <= ReceivedWord;
+                        ID_Reg[15:8] <= received_word;
                     GET_ID_FF:
-                        ID_Reg[7:0] <= ReceivedWord;
+                        ID_Reg[7:0] <= received_word;
                     GET_COMMAND:
-                        Command_Reg <= ReceivedWord;
+                        command_reg <= received_word;
                     GET_DATA:
-                        Data_Reg <= ReceivedWord;
+                        data_reg <= received_word;
                     default:
                     begin
                         // do nothing
@@ -313,110 +313,110 @@ module config_UART #(
     begin : P_FSM
         if (!reset_n)
         begin
-            PresentState <= IDLE;
+            present_state <= IDLE;
         end
         else
         begin
-            case (PresentState)
+            case (present_state)
                 IDLE:
                 begin
-                    if (ComState == WAIT_FOR_START_BIT && RxLocal == 1'b0)
+                    if (com_state == WAIT_FOR_START_BIT && rx_local == 1'b0)
                     begin
-                        PresentState <= GET_ID_00;
+                        present_state <= GET_ID_00;
                     end
                 end
                 GET_ID_00:
                 begin
                     if (rx_timeout == 1'b1)
                     begin
-                        PresentState <= IDLE;
+                        present_state <= IDLE;
                     end
-                    else if (ComState == GET_STOP_BIT && ComTick == 1'b1)
+                    else if (com_state == GET_STOP_BIT && com_tick == 1'b1)
                     begin
-                        PresentState <= GET_ID_AA;
+                        present_state <= GET_ID_AA;
                     end
                 end
                 GET_ID_AA:
                 begin
                     if (rx_timeout == 1'b1)
                     begin
-                        PresentState <= IDLE;
+                        present_state <= IDLE;
                     end
-                    else if (ComState == GET_STOP_BIT && ComTick == 1'b1)
+                    else if (com_state == GET_STOP_BIT && com_tick == 1'b1)
                     begin
-                        PresentState <= GET_ID_FF;
+                        present_state <= GET_ID_FF;
                     end
                 end
                 GET_ID_FF:
                 begin
                     if (rx_timeout == 1'b1)
                     begin
-                        PresentState <= IDLE;
+                        present_state <= IDLE;
                     end
-                    else if (ComState == GET_STOP_BIT && ComTick == 1'b1)
+                    else if (com_state == GET_STOP_BIT && com_tick == 1'b1)
                     begin
-                        PresentState <= GET_COMMAND;
+                        present_state <= GET_COMMAND;
                     end
                 end
                 GET_COMMAND:
                 begin
                     if (rx_timeout == 1'b1)
                     begin
-                        PresentState <= IDLE;
+                        present_state <= IDLE;
                     end
-                    else if (ComState == GET_STOP_BIT && ComTick == 1'b1)
+                    else if (com_state == GET_STOP_BIT && com_tick == 1'b1)
                     begin
-                        PresentState <= EVAL_COMMAND;
+                        present_state <= EVAL_COMMAND;
                     end
                 end
                 EVAL_COMMAND:
                 begin
                     if (ID_Reg==24'h00AAFF &&
-                        (Command_Reg[6:0]=={3'b000,4'h1} ||
-                        Command_Reg[6:0]=={3'b000,4'h2}))
+                        (command_reg[6:0]=={3'b000,4'h1} ||
+                        command_reg[6:0]=={3'b000,4'h2}))
                     begin
-                        PresentState <= GET_DATA;
+                        present_state <= GET_DATA;
                     end
                     else
                     begin
-                        PresentState <= IDLE;
+                        present_state <= IDLE;
                     end
                 end
                 GET_DATA:
                 begin
                     if (rx_timeout == 1'b1)
                     begin
-                        PresentState <= IDLE;
+                        present_state <= IDLE;
                     end
                 end
                 default:
                 begin
-                    PresentState <= IDLE;
+                    present_state <= IDLE;
                 end
             endcase
         end
     end
-    assign Command = Command_Reg;
+    assign Command = command_reg;
 
     if (Mode == MODE_AUTO || Mode == MODE_HEX)
     begin : gen_L_hexmode
-        assign HexValue = ASCII2HEX(ReceivedWord);
+        assign hex_value = ASCII2HEX(received_word);
         always @(posedge CLK, negedge reset_n)
         begin
             if (!reset_n)
             begin
                 ReceiveState <= HIGH_NIBBLE;
-                HexData <= 8'b0;
-                HighReg <= 4'b0;
-                HexWriteStrobe <= 1'b0;
+                hex_data <= 8'b0;
+                high_reg <= 4'b0;
+                hex_write_strobe <= 1'b0;
             end
             else
             begin
-                if (PresentState != GET_DATA)
+                if (present_state != GET_DATA)
                 begin
                     ReceiveState <= HIGH_NIBBLE;
                 end
-                else if (ComState == GET_STOP_BIT && ComTick == 1'b1 && HexValue[4] == 1'b0)
+                else if (com_state == GET_STOP_BIT && com_tick == 1'b1 && hex_value[4] == 1'b0)
                 begin
                     if (ReceiveState == HIGH_NIBBLE)
                     begin
@@ -427,22 +427,22 @@ module config_UART #(
                 begin
                     ReceiveState <= HIGH_NIBBLE;
                 end
-                if (ComState == GET_STOP_BIT && ComTick == 1'b1 && HexValue[4] == 1'b0)
+                if (com_state == GET_STOP_BIT && com_tick == 1'b1 && hex_value[4] == 1'b0)
                 begin
                     if (ReceiveState == HIGH_NIBBLE)
                     begin
-                        HighReg <= HexValue[3:0];
-                        HexWriteStrobe <= 1'b0;
+                        high_reg <= hex_value[3:0];
+                        hex_write_strobe <= 1'b0;
                     end
                     else
                     begin  // LOW_NIBBLE
-                        HexData <= {HighReg, HexValue[3:0]};
-                        HexWriteStrobe <= 1'b1;
+                        hex_data <= {high_reg, hex_value[3:0]};
+                        hex_write_strobe <= 1'b1;
                     end
                 end
                 else
                 begin
-                    HexWriteStrobe <= 1'b0;
+                    hex_write_strobe <= 1'b0;
                 end
             end
         end
@@ -458,38 +458,38 @@ module config_UART #(
         end
         else
         begin
-            if (PresentState == GET_COMMAND)
+            if (present_state == GET_COMMAND)
             begin  // Init before data arrives
                 CRCReg <= 0;
                 b_counter <= 0;
             end
-            else if (Mode == 1 || (Mode == 0 && Command_Reg[7] == 1'b1))
+            else if (Mode == 1 || (Mode == 0 && command_reg[7] == 1'b1))
             begin
                 // "hex" mode or "auto" mode with detected "hex" mode in the command
                 // register
                 // checksum computation
-                if (ComState==GET_STOP_BIT && ComTick==1'b1 && HexValue[4]==1'b0
-                        && PresentState==GET_DATA && ReceiveState==LOW_NIBBLE)
+                if (com_state==GET_STOP_BIT && com_tick==1'b1 && hex_value[4]==1'b0
+                        && present_state==GET_DATA && ReceiveState==LOW_NIBBLE)
                 begin
-                    CRCReg <= CRCReg + {{12{1'b0}}, HighReg, HexValue[3:0]};
+                    CRCReg <= CRCReg + {{12{1'b0}}, high_reg, hex_value[3:0]};
                     b_counter <= b_counter + 1;
                 end
             end
             else
             begin  // "binary" mode
                 // checksum computation
-                if (ComState == GET_STOP_BIT && ComTick == 1'b1 && (PresentState == GET_DATA))
+                if (com_state == GET_STOP_BIT && com_tick == 1'b1 && (present_state == GET_DATA))
                 begin
-                    CRCReg <= CRCReg + {{12{1'b0}}, ReceivedWord};
+                    CRCReg <= CRCReg + {{12{1'b0}}, received_word};
                     b_counter <= b_counter + 1;
                 end
             end
 
-            if (PresentState == GET_DATA)
+            if (present_state == GET_DATA)
             begin
                 ReceiveLED <= 1'b1;  // Receive process in progress
             end
-            else if ((PresentState == IDLE) && (CRCReg != TEST_FILE_CHECKSUM))
+            else if ((present_state == IDLE) && (CRCReg != TEST_FILE_CHECKSUM))
             begin
                 ReceiveLED <= blink[22];
             end
@@ -506,34 +506,34 @@ module config_UART #(
     begin : P_bus
         if (!reset_n)
         begin
-            LocalWriteStrobe <= 1'b0;
-            ByteWriteStrobe  <= 1'b0;
+            local_write_strobe <= 1'b0;
+            byte_write_strobe  <= 1'b0;
         end
         else
         begin
-            if (PresentState == EVAL_COMMAND)
+            if (present_state == EVAL_COMMAND)
             begin
-                LocalWriteStrobe <= 1'b0;
+                local_write_strobe <= 1'b0;
             end
-            else if (PresentState == GET_DATA && ComState == GET_STOP_BIT && ComTick == 1'b1)
+            else if (present_state == GET_DATA && com_state == GET_STOP_BIT && com_tick == 1'b1)
             begin
-                LocalWriteStrobe <= 1'b1;
+                local_write_strobe <= 1'b1;
             end
             else
             begin
-                LocalWriteStrobe <= 1'b0;
+                local_write_strobe <= 1'b0;
             end
 
-            if (Mode == MODE_BIN || (Mode == MODE_AUTO && Command_Reg[7] == 1'b0))
+            if (Mode == MODE_BIN || (Mode == MODE_AUTO && command_reg[7] == 1'b0))
             begin
                 // "binary" mode or "auto" mode with detected binary mode in the
                 // command register
                 // Extra register stage ensures data is valid and prevents glitches on the strobe output
-                ByteWriteStrobe <= LocalWriteStrobe;
+                byte_write_strobe <= local_write_strobe;
             end
             else
             begin
-                ByteWriteStrobe <= HexWriteStrobe;
+                byte_write_strobe <= hex_write_strobe;
             end
         end
     end
@@ -542,60 +542,60 @@ module config_UART #(
     begin : P_WordMode
         if (!reset_n)
         begin
-            GetWordState <= WORD_0;
+            get_word_state <= WORD_0;
             WriteData <= 32'b0;
             WriteStrobe <= 1'b0;
         end
         else
         begin
-            if (PresentState == EVAL_COMMAND)
+            if (present_state == EVAL_COMMAND)
             begin
-                GetWordState <= WORD_0;
+                get_word_state <= WORD_0;
                 WriteData <= 0;
             end
             else
             begin
-                case (GetWordState)
+                case (get_word_state)
                     WORD_0:
                     begin
-                        if (ByteWriteStrobe == 1'b1)
+                        if (byte_write_strobe == 1'b1)
                         begin
-                            WriteData[31:24] <= ReceivedByte;
-                            GetWordState <= WORD_1;
+                            WriteData[31:24] <= received_byte;
+                            get_word_state <= WORD_1;
                         end
                     end
                     WORD_1:
                     begin
-                        if (ByteWriteStrobe == 1'b1)
+                        if (byte_write_strobe == 1'b1)
                         begin
-                            WriteData[23:16] <= ReceivedByte;
-                            GetWordState <= WORD_2;
+                            WriteData[23:16] <= received_byte;
+                            get_word_state <= WORD_2;
                         end
                     end
                     WORD_2:
                     begin
-                        if (ByteWriteStrobe == 1'b1)
+                        if (byte_write_strobe == 1'b1)
                         begin
-                            WriteData[15:8] <= ReceivedByte;
-                            GetWordState <= WORD_3;
+                            WriteData[15:8] <= received_byte;
+                            get_word_state <= WORD_3;
                         end
                     end
                     WORD_3:
                     begin
-                        if (ByteWriteStrobe == 1'b1)
+                        if (byte_write_strobe == 1'b1)
                         begin
-                            WriteData[7:0] <= ReceivedByte;
-                            GetWordState   <= WORD_0;
+                            WriteData[7:0] <= received_byte;
+                            get_word_state   <= WORD_0;
                         end
                     end
                     default:
                     begin
-                        GetWordState <= WORD_0;
+                        get_word_state <= WORD_0;
                     end
                 endcase
             end
 
-            if (ByteWriteStrobe == 1'b1 && GetWordState == WORD_3)
+            if (byte_write_strobe == 1'b1 && get_word_state == WORD_3)
             begin
                 WriteStrobe <= 1'b1;
             end
@@ -606,9 +606,9 @@ module config_UART #(
         end
     end
 
-    assign ReceivedByte = (Mode == 2 || (Mode == 0 && Command_Reg[7] == 1'b0)) ? Data_Reg : HexData;
+    assign received_byte = (Mode == 2 || (Mode == 0 && command_reg[7] == 1'b0)) ? data_reg : hex_data;
     // "binary" mode or "auto" mode with detected "binary" mode in the command register
-    assign ComActive = (PresentState == GET_DATA) ? 1'b1 : 1'b0;
+    assign ComActive = (present_state == GET_DATA) ? 1'b1 : 1'b0;
 
     always @(posedge CLK, negedge reset_n)
     begin : P_TimeOut
@@ -619,7 +619,7 @@ module config_UART #(
         end
         else
         begin
-            if (PresentState == IDLE || ComState == GET_STOP_BIT)
+            if (present_state == IDLE || com_state == GET_STOP_BIT)
             begin
                 // Init timeout
                 rx_timeout_counter <= RX_TIMEOUT_VALUE;
