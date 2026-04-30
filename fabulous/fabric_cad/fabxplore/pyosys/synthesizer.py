@@ -8,11 +8,18 @@ from abc import ABC, abstractmethod
 
 from loguru import logger
 
+from fabulous.fabric_cad.fabxplore.modules.chain_mapper.core.models import (
+    AluInitMode,
+    ChainOp,
+)
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
     MatchingMode,
 )
 from fabulous.fabric_cad.fabxplore.modules.lut_mapper.core.models import (
     LutMapperBackend,
+)
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.chain_mapper_pass import (
+    ChainMapperPass,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.design_analyzer_pass import (
     DesignAnalyzerPass,
@@ -148,6 +155,98 @@ class ArchitectureSynthesizer(ABC):
             mode=mode,
             use_select_as_data_in_pair_mode=use_select_as_data_in_pair_mode,
             allow_duplicate_private_nets=allow_duplicate_private_nets,
+        )
+
+        result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        return result
+
+    def design_chain_mapper_pass(
+        self,
+        log_report: bool = True,
+        chain_name: str = "__chain",
+        ops: tuple[ChainOp, ...] = (
+            ChainOp.ALU,
+            ChainOp.REDUCE_AND,
+            ChainOp.REDUCE_OR,
+            ChainOp.REDUCE_XOR,
+            ChainOp.REDUCE_BOOL,
+        ),
+        chunk_size: int = 4,
+        min_chain_prims: int = 2,
+        max_chain_prims: int | None = None,
+        and_to_or: bool = False,
+        or_to_and: bool = False,
+        leave_short: bool = True,
+        normalize_extract_reduce: bool = True,
+        normalize_alumacc: bool = True,
+        alu_init_mode: AluInitMode = AluInitMode.XOR,
+        read_chain_blackbox: bool = True,
+        run_clean: bool = True,
+        debug_keep_techmap: bool = False,
+        top_name: str | None = None,
+    ) -> ChainMapperPass:
+        """Run generated techmap chain mapping on the current design.
+
+        Parameters
+        ----------
+        log_report : bool
+            If ``True``, log the chain mapper report after execution.
+        chain_name : str
+            Target-independent primitive emitted by the generated techmap.
+        ops : tuple[ChainOp, ...]
+            Operation families to map.
+        chunk_size : int
+            Number of reduction input bits absorbed by one chain primitive.
+        min_chain_prims : int
+            Minimum number of emitted chain primitives before mapping.
+        max_chain_prims : int | None
+            Optional maximum number of primitives allowed for one mapped cell.
+        and_to_or : bool
+            Map AND reductions through OR chains using inversion.
+        or_to_and : bool
+            Map OR/BOOL reductions through AND chains using inversion.
+        leave_short : bool
+            Leave candidates shorter than ``min_chain_prims`` untouched.
+        normalize_extract_reduce : bool
+            Run ``extract_reduce`` before generated techmap.
+        normalize_alumacc : bool
+            Run ``alumacc`` before generated techmap.
+        alu_init_mode : AluInitMode
+            INIT encoding mode for ``$alu`` chain primitive instances.
+        read_chain_blackbox : bool
+            Read a blackbox declaration for ``chain_name`` before techmap.
+        run_clean : bool
+            Run ``clean`` after generated techmap.
+        debug_keep_techmap : bool
+            Keep the generated temporary techmap file for inspection.
+        top_name : str | None
+            Optional top module name. If ``None``, use current design top.
+
+        Returns
+        -------
+        ChainMapperPass
+            Pass instance containing the latest result and report.
+        """
+        result = ChainMapperPass(
+            top_name=top_name or self.design.top_name(),
+            chain_name=chain_name,
+            ops=ops,
+            chunk_size=chunk_size,
+            min_chain_prims=min_chain_prims,
+            max_chain_prims=max_chain_prims,
+            and_to_or=and_to_or,
+            or_to_and=or_to_and,
+            leave_short=leave_short,
+            normalize_extract_reduce=normalize_extract_reduce,
+            normalize_alumacc=normalize_alumacc,
+            alu_init_mode=alu_init_mode,
+            read_chain_blackbox=read_chain_blackbox,
+            run_clean=run_clean,
+            debug_keep_techmap=debug_keep_techmap,
         )
 
         result.run_on(self.design)

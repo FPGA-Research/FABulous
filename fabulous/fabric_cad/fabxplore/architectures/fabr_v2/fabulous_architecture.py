@@ -81,11 +81,9 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         self.design.run_pass("simplemap")
         self.design.run_pass("opt -full")  # opt
-        self.design.run_pass("extract_reduce")
-
-        self.design.run_pass("opt_clean")
 
         self.design_analyzer_pass()
+        self.design_chain_mapper_pass()
 
     def map_ram(self) -> None:
         """Map inferred memory structures to RAM primitives."""
@@ -101,9 +99,10 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     def map_gates(self) -> None:
         """Map generic logic into technology-specific gate primitives."""
         self.design.run_pass("opt -full")
-        self.design.run_pass("techmap -map +/techmap.v")
         if self.config.map_carry_chains:
-            self.design.run_pass("techmap -map +/fabulous/arith_map.v -D ARITH_ha")
+            self.design.run_pass(
+                "techmap -map +/techmap.v -map +/fabulous/arith_map.v -D ARITH_ha"
+            )
         self.design.run_pass("opt -fast")
 
     def map_iopad(self) -> None:
@@ -127,11 +126,11 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     def map_luts(self) -> None:
         """Map combinational logic into LUT resources."""
         self.design_lut_mapper_pass(
-            max_lut_size=6,
+            max_lut_size=5,
             use_select_as_data_in_pair_mode=True,
             sharing_penalty_factor=3,
             size_penalty_factor=0.7,
-            larger_lut_discount_factor=0.6,
+            larger_lut_discount_factor=0.8,
             backend="abc9",
         )
 
