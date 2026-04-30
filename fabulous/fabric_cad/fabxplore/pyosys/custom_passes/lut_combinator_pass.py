@@ -56,6 +56,7 @@ class LutCombinatorPass(SynthPass):
     use_select_as_data_in_pair_mode: bool = True
     allow_duplicate_private_nets: bool = True
 
+    _verilog_model: str = ""
     _result: MappingResult | None = None
 
     def run_on(self, design: PyosysBridge) -> None:
@@ -88,6 +89,7 @@ class LutCombinatorPass(SynthPass):
         design.read_verilog_string(frac_model.to_verilog(), blackbox=True)
 
         self._result = result
+        self._verilog_model = frac_model.to_verilog()
 
     @property
     def report_summary(self) -> str:
@@ -104,3 +106,15 @@ class LutCombinatorPass(SynthPass):
             The result of the LUT combination, or None if not available.
         """
         return self._result
+
+    @property
+    def verilog_model(self) -> str:
+        """Return the generated Verilog model of the fractional LUT.
+
+        Returns
+        -------
+        str
+            The Verilog code representing the fractional LUT
+            architecture used in the mapping.
+        """
+        return self._verilog_model

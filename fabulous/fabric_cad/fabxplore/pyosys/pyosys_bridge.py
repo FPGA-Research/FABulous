@@ -109,9 +109,9 @@ class PyosysBridge:
         with self._temporary_path(".v") as path:
             path.write_text(verilog_text, encoding="utf-8")
             if blackbox:
-                self._run(f"read_verilog -lib {self._quote_path(path)}")
+                self._run(f"read_verilog -lib -overwrite {self._quote_path(path)}")
             else:
-                self._run(f"read_verilog {self._quote_path(path)}")
+                self._run(f"read_verilog -overwrite {self._quote_path(path)}")
 
     def read_json_paths(
         self,

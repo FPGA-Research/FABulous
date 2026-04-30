@@ -106,6 +106,7 @@ class ChainMapper:
                     generated_modules=self._generated_modules(),
                 ),
                 techmap_verilog=techmap_verilog,
+                verilog_behavioral=self.render_chain_blackbox(),
                 techmap_path=str(techmap_paths[0])
                 if self.config.debug_keep_techmap and len(techmap_paths) == 1
                 else None,

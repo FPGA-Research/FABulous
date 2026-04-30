@@ -193,6 +193,8 @@ class ChainMapperResult:
         Before/after cell counts, command log, and generated module names.
     techmap_verilog : str
         Concatenated generated techmap Verilog for inspection.
+    verilog_behavioral : str
+        Optional behavioral Verilog emitted by the techmap for debugging.
     techmap_path : str | None
         Single generated map path when exactly one file is kept for debugging.
     techmap_paths : tuple[str, ...]
@@ -206,6 +208,7 @@ class ChainMapperResult:
     config: ChainMapperConfig
     stats: ChainMapperStats
     techmap_verilog: str
+    verilog_behavioral: str = ""
     techmap_path: str | None = None
     techmap_paths: tuple[str, ...] = ()
     report_summary: str = ""

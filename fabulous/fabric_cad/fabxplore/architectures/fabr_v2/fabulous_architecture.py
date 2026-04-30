@@ -78,12 +78,9 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             self.design.run_pass("share")
         self.design.run_pass("opt")
         self.design.run_pass("memory -nomap")
-
-        self.design.run_pass("simplemap")
-        self.design.run_pass("opt -full")  # opt
+        self.design.run_pass("opt_clean")
 
         self.design_analyzer_pass()
-        self.design_chain_mapper_pass()
 
     def map_ram(self) -> None:
         """Map inferred memory structures to RAM primitives."""
@@ -99,10 +96,12 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     def map_gates(self) -> None:
         """Map generic logic into technology-specific gate primitives."""
         self.design.run_pass("opt -full")
+
         if self.config.map_carry_chains:
-            self.design.run_pass(
-                "techmap -map +/techmap.v -map +/fabulous/arith_map.v -D ARITH_ha"
-            )
+            self.design.run_pass("simplemap")
+            self.design_chain_mapper_pass(chunk_size=5, chain_name="FABCARRY5")
+            self.design.run_pass("techmap -map +/techmap.v")
+
         self.design.run_pass("opt -fast")
 
     def map_iopad(self) -> None:
@@ -141,7 +140,6 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""
-        self.design.run_pass("read_verilog -lib +/fabulous/prims.v")
         self.design.run_pass("techmap -D LUT_K=5 -map +/fabulous/cells_map.v")
         self.design.run_pass("clean")
 

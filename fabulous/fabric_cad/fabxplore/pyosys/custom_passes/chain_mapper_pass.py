@@ -75,6 +75,7 @@ class ChainMapperPass(SynthPass):
     run_clean: bool = True
     debug_keep_techmap: bool = False
 
+    _verilog_model: str = ""
     _result: ChainMapperResult | None = None
 
     def run_on(self, design: PyosysBridge) -> None:
@@ -105,6 +106,7 @@ class ChainMapperPass(SynthPass):
             )
         )
         self._result = mapper.map_from_design(design)
+        self._verilog_model = self._result.verilog_behavioral
 
     @property
     def report_summary(self) -> str:
@@ -127,3 +129,14 @@ class ChainMapperPass(SynthPass):
             Latest result if the pass has run.
         """
         return self._result
+
+    @property
+    def verilog_model(self) -> str:
+        """Return the generated Verilog model from the latest run.
+
+        Returns
+        -------
+        str
+            Generated Verilog code if available, otherwise an empty string.
+        """
+        return self._verilog_model

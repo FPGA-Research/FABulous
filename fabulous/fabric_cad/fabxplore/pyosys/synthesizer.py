@@ -5,6 +5,7 @@ serves as a blueprint for synthesizers that generate FPGA architectures.
 """
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 from loguru import logger
 
@@ -47,6 +48,25 @@ class ArchitectureSynthesizer(ABC):
     def __init__(self, debug: bool = False) -> None:
         self.debug = debug
         self.design: PyosysBridge = PyosysBridge(debug=self.debug)
+        self.primitives: set[str] = set()
+
+    def add_primitive(self, primitive: str | Path) -> None:
+        """Add a primitive to the set of primitives.
+
+        Parameters
+        ----------
+        primitive : str | Path
+            The Verilog source code or file path of the primitive to add.
+            Internally verilog files are stored as verilog code strings.
+        """
+        self.design.run_pass("read_verilog -lib -overwrite +/fabulous/prims.v")
+
+        if isinstance(primitive, Path):
+            primitive = primitive.read_text()
+        self.primitives.add(primitive)
+
+        for prim in self.primitives:
+            self.design.read_verilog_string(prim, blackbox=True)
 
     def log_info(self, message: str) -> None:
         """Log an informational message.
@@ -162,6 +182,8 @@ class ArchitectureSynthesizer(ABC):
         if log_report:
             self.log_info(result.report_summary)
 
+        self.add_primitive(result.verilog_model)
+
         return result
 
     def design_chain_mapper_pass(
@@ -253,6 +275,8 @@ class ArchitectureSynthesizer(ABC):
 
         if log_report:
             self.log_info(result.report_summary)
+
+        self.add_primitive(result.verilog_model)
 
         return result
 
