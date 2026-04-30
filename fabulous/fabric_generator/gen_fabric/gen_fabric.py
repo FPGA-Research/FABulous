@@ -246,7 +246,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 # (NORTH-direction wires entering this tile from south fabric neighbour)
                 south_neighbor_internal = (x + i, y + j + 1) in superTileLoc
                 if not south_neighbor_internal:
-                    northPorts = _local_names(here.getNorthPorts(IO.INPUT), in_super)
+                    northPorts = _local_names(here.getNorthPorts(IO.INPUT))
                     if (
                         0 <= y + 1 < len(fabric.tile)
                         and fabric.tile[y + j + 1][x + i] is not None
@@ -264,7 +264,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 # input connection from east side of the west tile
                 west_neighbor_internal = (x + i - 1, y + j) in superTileLoc
                 if not west_neighbor_internal:
-                    eastPorts = _local_names(here.getEastPorts(IO.INPUT), in_super)
+                    eastPorts = _local_names(here.getEastPorts(IO.INPUT))
                     if (
                         0 <= x - 1 < len(fabric.tile[0])
                         and fabric.tile[y + j][x + i - 1] is not None
@@ -282,7 +282,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 # input connection from south side of the north tile
                 north_neighbor_internal = (x + i, y + j - 1) in superTileLoc
                 if not north_neighbor_internal:
-                    southPorts = _local_names(here.getSouthPorts(IO.INPUT), in_super)
+                    southPorts = _local_names(here.getSouthPorts(IO.INPUT))
                     if (
                         0 <= y - 1 < len(fabric.tile)
                         and fabric.tile[y + j - 1][x + i] is not None
@@ -300,7 +300,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 # input connection from west side of the east tile
                 east_neighbor_internal = (x + i + 1, y + j) in superTileLoc
                 if not east_neighbor_internal:
-                    westPorts = _local_names(here.getWestPorts(IO.INPUT), in_super)
+                    westPorts = _local_names(here.getWestPorts(IO.INPUT))
                     if (
                         0 <= x + 1 < len(fabric.tile[0])
                         and fabric.tile[y + j][x + i + 1] is not None
