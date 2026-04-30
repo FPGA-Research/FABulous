@@ -159,7 +159,13 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     csv_path = tmp_path / f"{tile_config.name}_configMem.csv"
 
     # Generate the ConfigMem RTL
-    generateConfigMem(writer, fabric_config, tile_config, csv_path)
+    generateConfigMem(
+        writer,
+        tile_config,
+        csv_path,
+        frame_bits_per_row=fabric_config.frameBitsPerRow,
+        max_frame_per_col=fabric_config.maxFramesPerCol,
+    )
 
     # Check if RTL file was created - skip if no config bits were generated
     if tile_config.globalConfigBits != 0:
@@ -252,7 +258,13 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     mock_parse.return_value = configmem_list_data
 
     # Generate the ConfigMem RTL
-    generateConfigMem(writer, default_fabric, default_tile, csv_path)
+    generateConfigMem(
+        writer,
+        default_tile,
+        csv_path,
+        frame_bits_per_row=default_fabric.frameBitsPerRow,
+        max_frame_per_col=default_fabric.maxFramesPerCol,
+    )
 
     bit_mapping = {}  # Key: "frame,framedata_bit", Value: config_bit_index
 
