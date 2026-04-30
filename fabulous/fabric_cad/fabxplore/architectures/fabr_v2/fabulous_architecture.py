@@ -184,15 +184,13 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     def generate_primitives(self) -> None:
         """Generate primitive definitions required by this architecture."""
 
-        # TODO: Implement MUX8
-        # TODO: Implement Carry chain, HA, FA, OR, AND
         # TODO: Implement Architecture-specific extensions, sat solver, ordered solver.
         # TODO: Implement Reordering of leftover lut space
         # TODO: Implement Multilyer synthesis, 2nd user design replace LUTS
         # TODO: Implement timing driven optimizations (weight match) subgraph
         # matching for critical path optimization
         # TODO: Explain Morph-Tiles
-        # TODO: Explain Techmap
+        # TODO: Explain Techmap (LUTs, chains)
 
     def generate_switch_matrix(self) -> None:
         """Generate switch-matrix resources for routing integration."""
