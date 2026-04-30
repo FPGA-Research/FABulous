@@ -3,9 +3,6 @@
 from importlib import resources
 
 from librelane.state.state import State
-from librelane.steps.common_variables import (
-    io_layer_variables,
-)
 from librelane.steps.odb import OdbpyStep
 from librelane.steps.step import (
     MetricsUpdate,
@@ -16,19 +13,11 @@ from librelane.steps.step import (
 
 @Step.factory.register()
 class FABulousFabricIOPlacement(OdbpyStep):
-    """Place I/O pins using a custom script. This is the fabric-level version.
-
-    This step uses a custom Python script to place I/O pins according to the macro pin
-    coordinates. This is intended for use in the stitching flow to place top level macro
-    I/Os. This step will just line up to the master driver terminals and does not care
-    if the pin placement is pitch aligned.
-    """
+    """Stamp fabric-level signal BPins onto their driving/sinking macro pins."""
 
     id = "Odb.FABulousFabricIOPlacement"
     name = "FABulous fabric I/O Placement"
     long_name = "FABulous fabric I/O Pin Placement Script"
-
-    config_vars = io_layer_variables
 
     def get_script_path(self) -> str:
         """Get the path to the I/O placement script."""
@@ -37,36 +26,6 @@ class FABulousFabricIOPlacement(OdbpyStep):
             / "fabric_io_place.py"
         )
 
-    def get_command(self) -> list[str]:
-        """Get the command to run the I/O placement script."""
-        length_args = []
-        if self.config["IO_PIN_V_LENGTH"] is not None:
-            length_args += ["--ver-length", self.config["IO_PIN_V_LENGTH"]]
-        if self.config["IO_PIN_H_LENGTH"] is not None:
-            length_args += ["--hor-length", self.config["IO_PIN_H_LENGTH"]]
-
-        return (
-            super().get_command()
-            + [
-                "--hor-layer",
-                self.config["IO_PIN_H_LAYER"],
-                "--ver-layer",
-                self.config["IO_PIN_V_LAYER"],
-                "--hor-width-mult",
-                str(self.config["IO_PIN_H_THICKNESS_MULT"]),
-                "--ver-width-mult",
-                str(self.config["IO_PIN_V_THICKNESS_MULT"]),
-                "--hor-extension",
-                str(self.config["IO_PIN_H_EXTENSION"]),
-                "--ver-extension",
-                str(self.config["IO_PIN_V_EXTENSION"]),
-            ]
-            + length_args
-        )
-
     def run(self, state_in: State, **kwargs: dict) -> tuple[ViewsUpdate, MetricsUpdate]:
-        """Place I/O pins using a custom script.
-
-        This is the fabric-level version.
-        """
+        """Place I/O pins using the upstream-compatible stamping strategy."""
         return super().run(state_in, **kwargs)
