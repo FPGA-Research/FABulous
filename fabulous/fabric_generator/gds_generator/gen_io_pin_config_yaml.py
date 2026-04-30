@@ -188,30 +188,38 @@ def _serialize_supertile_ports(
 
 
 def generate_IO_pin_order_config(
-    fabric: Fabric,
     tile_or_super_tile: Tile | SuperTile,
     outfile: Path,
+    *,
+    fabric: Fabric | None = None,
     prefix: str = "",
+    external_port_side: Side = Side.SOUTH,
 ) -> None:
-    """Generate IO pin order configuration for a tile or supertile.
+    """Generate IO pin order configuration YAML for a tile or super tile.
+
+    When `fabric` is provided, external-port sides are resolved from each
+    (sub)tile's placement within the fabric; otherwise `external_port_side`
+    is used as the fallback for every concrete (sub)tile.
 
     Parameters
     ----------
-    fabric : Fabric
-        The fabric containing the tile or supertile
     tile_or_super_tile : Tile | SuperTile
-        The tile or super tile to generate configuration for
+        The tile or super tile to generate configuration for.
     outfile : Path
-        Output YAML file path
+        Output YAML file path.
+    fabric : Fabric | None
+        Optional fabric used to derive border-aware external-port sides.
     prefix : str
-        Prefix to add to port names
+        Prefix to add to port names.
+    external_port_side : Side
+        Fallback side used for BEL external ports when no fabric placement
+        context applies.
     """
-    positions = fabric.find_tile_positions(tile_or_super_tile)
-
     if isinstance(tile_or_super_tile, SuperTile):
-        external_port_sides: dict[tuple[int, int], Side] = {}
-        if positions:
-            # For multi-entry config, find top-left position (min x, min y)
+        sides: dict[tuple[int, int], Side] = {}
+        if (fabric is not None) and (
+            positions := fabric.find_tile_positions(tile_or_super_tile)
+        ):
             if len(positions) == 1:
                 base_x, base_y = positions[0]
             else:
@@ -222,27 +230,31 @@ def generate_IO_pin_order_config(
                 for st_x, st_tile in enumerate(row):
                     if st_tile is None:
                         continue
-                    fabric_x = base_x + st_x
-                    fabric_y = base_y + st_y
-                    border_side = fabric.determine_border_side(fabric_x, fabric_y)
-                    if border_side:
-                        external_port_sides[(st_x, st_y)] = border_side
+                    if border_side := fabric.determine_border_side(
+                        base_x + st_x, base_y + st_y
+                    ):
+                        sides[(st_x, st_y)] = border_side
+        else:
+            sides = {
+                (x, y): external_port_side
+                for y, row in enumerate(tile_or_super_tile.tileMap)
+                for x, subtile in enumerate(row)
+                if subtile is not None
+            }
 
-        config_payload = _serialize_supertile_ports(
-            tile_or_super_tile, prefix, external_port_sides
-        )
+        payload = _serialize_supertile_ports(tile_or_super_tile, prefix, sides)
     else:
-        external_port_side = Side.SOUTH
-        if positions:
+        if fabric is not None and (
+            positions := fabric.find_tile_positions(tile_or_super_tile)
+        ):
             x, y = positions[0]
-            if border_side := fabric.determine_border_side(x, y):
-                external_port_side = border_side
+            side = fabric.determine_border_side(x, y) or external_port_side
+        else:
+            side = external_port_side
 
-        config_payload = {
-            "X0Y0": _serialize_tile_ports(
-                tile_or_super_tile, prefix, external_port_side
-            )
+        payload = {
+            "X0Y0": _serialize_tile_ports(tile_or_super_tile, prefix, side),
         }
 
     with outfile.open("w") as file_descriptor:
-        yaml.dump(config_payload, file_descriptor)
+        yaml.dump(payload, file_descriptor)

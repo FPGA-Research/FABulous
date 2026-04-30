@@ -14,7 +14,6 @@ from bitarray import bitarray
 from loguru import logger
 
 from fabulous.fabric_definition.define import IO
-from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
@@ -26,33 +25,40 @@ if TYPE_CHECKING:
     from fabulous.fabric_definition.configmem import ConfigMem
 
 
-def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) -> None:
+def generateConfigMemInit(
+    file: Path,
+    tileConfigBitsCount: int,
+    frame_bits_per_row: int = 32,
+    max_frame_per_col: int = 20,
+) -> None:
     """Generate the config memory initialization file.
 
     The amount of configuration bits is determined
-    by the `frameBitsPerRow` attribute of the fabric. The function will pack the
-    configuration bit from the highest to the lowest bit in the config memory. I. e. if
-    there are 100 configuration bits, with 32 frame bits per row, the function will pack
-    from bit 99 starting from bit 31 of frame 0 to bit 28 of frame 3.
+    by `frame_bits_per_row`. The function will pack the configuration bit from
+    the highest to the lowest bit in the config memory. I. e. if there are 100
+    configuration bits, with 32 frame bits per row, the function will pack from
+    bit 99 starting from bit 31 of frame 0 to bit 28 of frame 3.
 
     Parameters
     ----------
-    fabric : Fabric
-        The fabric object containing fabric configuration
     file : Path
         The output file of the config memory initialization file.
     tileConfigBitsCount : int
         The number of tile config bits of the tile.
+    frame_bits_per_row : int
+        The number of configuration bits per frame row.
+    max_frame_per_col : int
+        The number of frames stored per tile column.
 
     Raises
     ------
     ValueError
         If the tile config bits exceed the fabric capacity.
     """
-    if tileConfigBitsCount > fabric.frameBitsPerRow * fabric.maxFramesPerCol:
+    if tileConfigBitsCount > frame_bits_per_row * max_frame_per_col:
         raise ValueError(
             f"Tile config bits ({tileConfigBitsCount}) exceed fabric capacity "
-            f"({fabric.frameBitsPerRow * fabric.maxFramesPerCol} bits). "
+            f"({frame_bits_per_row * max_frame_per_col} bits). "
             f"Please adjust the tile configuration."
         )
 
@@ -67,20 +73,20 @@ def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) 
     with file.open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(fieldName)
-        bits = bitarray(fabric.frameBitsPerRow * fabric.maxFramesPerCol)
+        bits = bitarray(frame_bits_per_row * max_frame_per_col)
         bits[:tileConfigBitsCount] = 1
 
         # adjust for zero-based indexing in subsequent calculations
         tileConfigBitsCount -= 1
 
         count = 0
-        for k in range(fabric.maxFramesPerCol):
+        for k in range(max_frame_per_col):
             entry = {}
             # frame0, frame1, ...
             entry["frame_name"] = f"frame{k}"
             # and the index (0, 1, 2, ...), in case we need
             entry["frame_index"] = str(k)
-            bitSlice = bits[count : count + fabric.frameBitsPerRow]
+            bitSlice = bits[count : count + frame_bits_per_row]
             entry["bits_used_in_frame"] = bitSlice.count(1)
             entry["used_bits_mask"] = bitSlice.to01(group=4, sep="_")
             if bitSlice.count(1) == 0:
@@ -88,16 +94,20 @@ def generateConfigMemInit(fabric: Fabric, file: Path, tileConfigBitsCount: int) 
             else:
                 entry["ConfigBits_ranges"] = (
                     f"{tileConfigBitsCount}:"
-                    f"{max(tileConfigBitsCount - fabric.frameBitsPerRow + 1, 0)}"
+                    f"{max(tileConfigBitsCount - frame_bits_per_row + 1, 0)}"
                 )
-            count += fabric.frameBitsPerRow
-            tileConfigBitsCount -= fabric.frameBitsPerRow
+            count += frame_bits_per_row
+            tileConfigBitsCount -= frame_bits_per_row
 
             writer.writerow([entry[field] for field in fieldName])
 
 
 def generateConfigMem(
-    writer: CodeGenerator, fabric: Fabric, tile: Tile, configMemCsv: Path
+    writer: CodeGenerator,
+    tile: Tile,
+    configMemCsv: Path,
+    frame_bits_per_row: int = 32,
+    max_frame_per_col: int = 20,
 ) -> None:
     """Generate the RTL code for configuration memory.
 
@@ -114,12 +124,14 @@ def generateConfigMem(
     ----------
     writer : CodeGenerator
         The code generator instance for RTL output
-    fabric : Fabric
-        The fabric object containing fabric configuration
     tile : Tile
         A tile object.
     configMemCsv : Path
         The directory of the config memory CSV file.
+    frame_bits_per_row : int
+        The number of configuration bits per frame row.
+    max_frame_per_col : int
+        The number of frames stored per tile column.
 
     Raises
     ------
@@ -130,11 +142,11 @@ def generateConfigMem(
     """
     # test if we have a bitstream mapping file
     # if not, we will take the default, which was passed on from  GenerateConfigMemInit
-    if tile.globalConfigBits > fabric.frameBitsPerRow * fabric.maxFramesPerCol:
+    if tile.globalConfigBits > frame_bits_per_row * max_frame_per_col:
         raise ValueError(
             f"Tile {tile.name} has {tile.globalConfigBits} global config bits, "
             " which exceeds fabric capacity "
-            f"({fabric.frameBitsPerRow * fabric.maxFramesPerCol} bits). "
+            f"({frame_bits_per_row * max_frame_per_col} bits). "
             "Please adjust the tile configuration."
         )
 
@@ -153,19 +165,24 @@ def generateConfigMem(
         logger.info(f"Parsing {tile.name}_configMem.csv")
         configMemList = parseConfigMem(
             configMemCsv,
-            fabric.maxFramesPerCol,
-            fabric.frameBitsPerRow,
+            max_frame_per_col,
+            frame_bits_per_row,
             tile.globalConfigBits,
         )
     elif tile.globalConfigBits > 0:
         logger.info(f"{tile.name}_configMem.csv does not exist")
         logger.info(f"Generating a default configMem for {tile.name}")
-        generateConfigMemInit(fabric, configMemCsv, tile.globalConfigBits)
+        generateConfigMemInit(
+            configMemCsv,
+            tile.globalConfigBits,
+            frame_bits_per_row=frame_bits_per_row,
+            max_frame_per_col=max_frame_per_col,
+        )
         logger.info(f"Parsing {tile.name}_configMem.csv")
         configMemList = parseConfigMem(
             configMemCsv,
-            fabric.maxFramesPerCol,
-            fabric.frameBitsPerRow,
+            max_frame_per_col,
+            frame_bits_per_row,
             tile.globalConfigBits,
         )
     else:
@@ -193,7 +210,7 @@ def generateConfigMem(
     writer.addHeader(f"{tile.name}_ConfigMem")
     writer.addParameterStart(indentLevel=1)
     if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
-        maxBits = fabric.frameBitsPerRow * fabric.maxFramesPerCol
+        maxBits = frame_bits_per_row * max_frame_per_col
         writer.addPreprocIfDef("EMULATION")
         writer.addParameter(
             "Emulate_Bitstream",
@@ -202,13 +219,13 @@ def generateConfigMem(
             indentLevel=2,
         )
         writer.addPreprocEndif()
-    if fabric.maxFramesPerCol != 0:
+    if max_frame_per_col != 0:
         writer.addParameter(
-            "MaxFramesPerCol", "integer", fabric.maxFramesPerCol, indentLevel=2
+            "MaxFramesPerCol", "integer", max_frame_per_col, indentLevel=2
         )
-    if fabric.frameBitsPerRow != 0:
+    if frame_bits_per_row != 0:
         writer.addParameter(
-            "FrameBitsPerRow", "integer", fabric.frameBitsPerRow, indentLevel=2
+            "FrameBitsPerRow", "integer", frame_bits_per_row, indentLevel=2
         )
     writer.addParameter("NoConfigBits", "integer", tile.globalConfigBits, indentLevel=2)
     writer.addParameterEnd(indentLevel=1)
@@ -228,12 +245,12 @@ def generateConfigMem(
         writer.addPreprocIfDef("EMULATION")
         for i in configMemList:
             counter = 0
-            for k in range(fabric.frameBitsPerRow):
+            for k in range(frame_bits_per_row):
                 # Safely check if bit is set, treat missing bits as '0'
                 bit_value = i.usedBitMask[k] if k < len(i.usedBitMask) else "0"
                 if bit_value == "1":
-                    index = i.frameIndex * fabric.frameBitsPerRow + (
-                        fabric.frameBitsPerRow - 1 - k
+                    index = i.frameIndex * frame_bits_per_row + (
+                        frame_bits_per_row - 1 - k
                     )
                     writer.addAssignScalar(
                         f"ConfigBits[{i.configBitRanges[counter]}]",
@@ -247,17 +264,15 @@ def generateConfigMem(
     writer.addComment("instantiate frame latches", end="")
     for i in configMemList:
         counter = 0
-        for k in range(fabric.frameBitsPerRow):
+        for k in range(frame_bits_per_row):
             # Safely check if bit is set, treat missing bits as '0'
             bit_value = i.usedBitMask[k] if k < len(i.usedBitMask) else "0"
             if bit_value == "1":
                 writer.addInstantiation(
                     compName="config_latch",
-                    compInsName=(
-                        f"Inst_{i.frameName}_bit{fabric.frameBitsPerRow - 1 - k}"
-                    ),
+                    compInsName=(f"Inst_{i.frameName}_bit{frame_bits_per_row - 1 - k}"),
                     portsPairs=[
-                        ("D", f"FrameData[{fabric.frameBitsPerRow - 1 - k}]"),
+                        ("D", f"FrameData[{frame_bits_per_row - 1 - k}]"),
                         ("E", f"FrameStrobe[{i.frameIndex}]"),
                         ("Q", f"ConfigBits[{i.configBitRanges[counter]}]"),
                         ("QN", f"ConfigBits_N[{i.configBitRanges[counter]}]"),
