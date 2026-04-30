@@ -505,6 +505,87 @@ class TestFlowConfiguration:
         config_names: list[str] = [var.name for var in configs]
         assert "FABULOUS_SPEF_CORNERS" in config_names
 
+
+class TestSpacingVariableTypes:
+    """Type-system checks for the Union-typed spacing variables.
+
+    The spacing variables accept either a scalar (applied to both axes) or a
+    tuple (per-axis). Real example projects use *both* shapes:
+    - ``tt-fabulous-ihp-26a/fabrics/tiny_fabric_9x5/config.yaml`` uses
+      ``FABULOUS_TILE_SPACING: 0`` (scalar).
+    - ``tests/assets/librelane_plugin/.../config.yaml`` uses ``[0, 0]`` (tuple).
+
+    YAML-loaded values reach LibreLane as bare ``int``/``str``/``list``, so
+    ``Variable.compile`` is invoked with ``permissive_typing=True``. These
+    tests assert both shapes survive that pipeline and produce the
+    Decimal-typed shapes that ``run()``'s normalization expects.
+    """
+
+    @staticmethod
+    def _compile_var(name: str, value: object) -> object:
+        """Compile a config var the same way LibreLane does for YAML inputs."""
+        from librelane.common import GenericDict
+
+        var = next(v for v in configs if v.name == name)
+        _, compiled = var.compile(
+            GenericDict({name: value}),
+            warning_list_ref=[],
+            permissive_typing=True,
+        )
+        return compiled
+
+    def test_tile_spacing_accepts_scalar(self) -> None:
+        v = self._compile_var("FABULOUS_TILE_SPACING", 5)
+        assert v == Decimal(5)
+        assert isinstance(v, Decimal)
+
+    def test_tile_spacing_accepts_2_tuple(self) -> None:
+        v = self._compile_var("FABULOUS_TILE_SPACING", [3, 7])
+        assert v == (Decimal(3), Decimal(7))
+        assert isinstance(v, tuple)
+        assert all(isinstance(x, Decimal) for x in v)
+
+    def test_tile_spacing_default_compiles(self) -> None:
+        """Default ``(0, 0)`` must satisfy its own type."""
+        from librelane.common import GenericDict
+
+        var = next(v for v in configs if v.name == "FABULOUS_TILE_SPACING")
+        # Empty input → falls back to default; compile must not raise.
+        _, v = var.compile(GenericDict({}), warning_list_ref=[], permissive_typing=True)
+        assert v == (Decimal(0), Decimal(0))
+
+    def test_halo_spacing_accepts_scalar(self) -> None:
+        v = self._compile_var("FABULOUS_HALO_SPACING", 4)
+        assert v == Decimal(4)
+        assert isinstance(v, Decimal)
+
+    def test_halo_spacing_accepts_4_tuple(self) -> None:
+        v = self._compile_var("FABULOUS_HALO_SPACING", [1, 2, 3, 4])
+        assert v == (Decimal(1), Decimal(2), Decimal(3), Decimal(4))
+        assert isinstance(v, tuple)
+        assert all(isinstance(x, Decimal) for x in v)
+
+    def test_halo_spacing_default_compiles(self) -> None:
+        from librelane.common import GenericDict
+
+        var = next(v for v in configs if v.name == "FABULOUS_HALO_SPACING")
+        _, v = var.compile(GenericDict({}), warning_list_ref=[], permissive_typing=True)
+        assert v == (Decimal(0), Decimal(0), Decimal(0), Decimal(0))
+
+    def test_tile_spacing_rejects_wrong_arity_tuple(self) -> None:
+        """A 3-tuple must be rejected — only scalar or 2-tuple are valid."""
+        with pytest.raises(ValueError, match="FABULOUS_TILE_SPACING"):
+            self._compile_var("FABULOUS_TILE_SPACING", [1, 2, 3])
+
+    def test_halo_spacing_rejects_wrong_arity_tuple(self) -> None:
+        """A 2-tuple must be rejected for halo — only scalar or 4-tuple."""
+        with pytest.raises(ValueError, match="FABULOUS_HALO_SPACING"):
+            self._compile_var("FABULOUS_HALO_SPACING", [1, 2])
+
+
+class TestFlowSubstitutionsAndAttributes:
+    """Tests for flow substitutions and class-level attributes."""
+
     def test_io_placement_substitution(self) -> None:
         """Test IO placement substitution."""
         from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (

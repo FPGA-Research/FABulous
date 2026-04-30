@@ -1,7 +1,6 @@
 """Tile size optimisation step for FABulous fabric generator."""
 
 from decimal import Decimal
-from enum import StrEnum
 from typing import cast
 
 from librelane.config.variable import Variable
@@ -13,6 +12,7 @@ from librelane.steps import odb as Odb
 from librelane.steps import openroad as OpenROAD
 from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
 
+from fabulous.fabric_generator.gds_generator.define import OptMode
 from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
     get_routing_obstructions,
@@ -24,31 +24,6 @@ from fabulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
     FABulousTileIOPlacement,
 )
 from fabulous.fabric_generator.gds_generator.steps.while_step import WhileStep
-
-
-class OptMode(StrEnum):
-    """Optimisation modes for tile size finding."""
-
-    FIND_MIN_WIDTH = "find_min_width"
-    FIND_MIN_HEIGHT = "find_min_height"
-    BALANCE = "balance"
-    LARGE = "large"
-    NO_OPT = "no_opt"
-
-    @classmethod
-    def _missing_(cls, value: object) -> "OptMode":
-        """Look up an OptMode member case-insensitively."""
-        if isinstance(value, str):
-            value_lower = value.lower()
-            for member in cls:
-                if member.value == value_lower:
-                    return member
-
-        if value is None:
-            return cls.NO_OPT
-
-        raise ValueError(f"{value!r} is not a valid {cls.__name__}")
-
 
 var = [
     Variable(
@@ -182,6 +157,10 @@ class TileOptimisation(WhileStep):
         """Pre iteration callback."""
         if self.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT:
             self.config = self.config.copy(DRT_OPT_ITERS=64)
+            self.config = self.config.copy(ROUTING_OBSTRUCTIONS=None)
+            self.config = self.config.copy(
+                ROUTING_OBSTRUCTIONS=get_routing_obstructions(self.config)
+            )
             return pre_iteration
         die_area_raw: tuple[Decimal, Decimal, Decimal, Decimal] = self.config.get(
             "DIE_AREA", None

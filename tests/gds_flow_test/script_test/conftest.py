@@ -608,12 +608,60 @@ class MockMaster:
         return self._h
 
 
+class MockGeom:
+    """Mock ODB geometry box (mPin shape)."""
+
+    def __init__(self, layer: object, x1: int, y1: int, x2: int, y2: int) -> None:
+        self._layer, self._x1, self._y1, self._x2, self._y2 = layer, x1, y1, x2, y2
+
+    def getTechLayer(self) -> object:  # noqa: D401, N802
+        return self._layer
+
+    def xMin(self) -> int:  # noqa: D401, N802
+        return self._x1
+
+    def yMin(self) -> int:  # noqa: D401, N802
+        return self._y1
+
+    def xMax(self) -> int:  # noqa: D401, N802
+        return self._x2
+
+    def yMax(self) -> int:  # noqa: D401, N802
+        return self._y2
+
+
+class MockMPin:
+    """Mock ODB master pin (geometry container)."""
+
+    def __init__(self, geometry: list[MockGeom]) -> None:
+        self._g = geometry
+
+    def getGeometry(self) -> list[MockGeom]:  # noqa: D401, N802
+        return self._g
+
+
+class MockInst:
+    """Mock ODB instance with a placement location."""
+
+    def __init__(self, x: int = 0, y: int = 0) -> None:
+        self._x, self._y = x, y
+
+    def getLocation(self) -> tuple[int, int]:  # noqa: D401, N802
+        return (self._x, self._y)
+
+
 class MockMTerm:
     """Mock ODB master terminal object."""
 
-    def __init__(self, bbox: MockRect, master: MockMaster) -> None:
+    def __init__(
+        self,
+        bbox: MockRect,
+        master: MockMaster,
+        mpins: list[MockMPin] | None = None,
+    ) -> None:
         self._bbox = bbox
         self._master = master
+        self._mpins = mpins or []
 
     def getBBox(self) -> MockRect:  # noqa: D401
         return self._bbox
@@ -621,19 +669,31 @@ class MockMTerm:
     def getMaster(self) -> MockMaster:  # noqa: D401
         return self._master
 
+    def getMPins(self) -> list[MockMPin]:  # noqa: D401, N802
+        return self._mpins
+
 
 class MockITerm:
     """Mock ODB instance terminal object."""
 
-    def __init__(self, bbox: MockRect, mterm: MockMTerm) -> None:
+    def __init__(
+        self,
+        bbox: MockRect,
+        mterm: MockMTerm,
+        inst: MockInst | None = None,
+    ) -> None:
         self._bbox = bbox
         self._mterm = mterm
+        self._inst = inst or MockInst(0, 0)
 
     def getBBox(self) -> MockRect:  # noqa: D401
         return self._bbox
 
     def getMTerm(self) -> MockMTerm:  # noqa: D401
         return self._mterm
+
+    def getInst(self) -> MockInst:  # noqa: D401, N802
+        return self._inst
 
 
 class MockNetIoPlace:
@@ -642,6 +702,7 @@ class MockNetIoPlace:
     def __init__(self, name: str, iterms: list[MockITerm]) -> None:
         self._name = name
         self._iterms = iterms
+        self._bterms: list[MockBTermIoPlace] = []
 
     def getName(self) -> str:  # noqa: D401
         return self._name
@@ -649,25 +710,34 @@ class MockNetIoPlace:
     def getITerms(self) -> list[MockITerm]:  # noqa: D401
         return self._iterms
 
+    def getBTerms(self) -> list["MockBTermIoPlace"]:  # noqa: D401, N802
+        return self._bterms
+
 
 class MockBTermIoPlace:
     """Mock ODB boundary term for IO place tests."""
 
-    def __init__(self, name: str, net: MockNetIoPlace) -> None:
+    def __init__(
+        self,
+        name: str,
+        net: MockNetIoPlace | None,
+        sig_type: str = "SIGNAL",
+    ) -> None:
         self._name = name
         self._net = net
+        self._sig_type = sig_type
         self._bpins: list[MockBPinIoPlace] = []
 
     def getName(self) -> str:  # noqa: D401
         return self._name
 
     def getSigType(self) -> str:  # noqa: D401
-        return "SIGNAL"
+        return self._sig_type
 
     def getBPins(self) -> list[MockBPinIoPlace]:  # noqa: D401
-        return self._bpins
+        return list(self._bpins)
 
-    def getNet(self) -> MockNetIoPlace:  # noqa: D401
+    def getNet(self) -> MockNetIoPlace | None:  # noqa: D401
         return self._net
 
     def _add_bpin(self, bpin: MockBPinIoPlace) -> None:
@@ -738,19 +808,41 @@ def mock_odb_io_place(
         return bpin
 
     def dbBox_create(
-        bpin: MockBPinIoPlace, layer: MockLayer, x1: int, y1: int, x2: int, y2: int
+        bpin: MockBPinIoPlace,
+        layer: object,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
     ) -> None:
         # Record for box_recorder (infrastructure tests)
         box_recorder(bpin, layer, x1, y1, x2, y2)
         # Record for pin_placement_recorder (behavior tests)
+        layer_name = layer.getName() if hasattr(layer, "getName") else str(layer)
         if isinstance(bpin, MockBPinIoPlace) and bpin.bterm_name:
-            layer_name = layer.getName()
             pin_placement_recorder.placements.append(
                 (bpin.bterm_name, layer_name, x1, y1, x2, y2)
             )
+
+    destroyed_bterms: list[MockBTermIoPlace] = []
+    destroyed_nets: list[MockNetIoPlace] = []
+
+    class _DbBTerm:
+        @staticmethod
+        def destroy(b: MockBTermIoPlace) -> None:
+            destroyed_bterms.append(b)
+
+    class _DbNet:
+        @staticmethod
+        def destroy(n: MockNetIoPlace) -> None:
+            destroyed_nets.append(n)
 
     return SimpleNamespace(
         Rect=MockRect,
         dbBPin_create=dbBPin_create,
         dbBox_create=dbBox_create,
+        dbBTerm=_DbBTerm,
+        dbNet=_DbNet,
+        destroyed_bterms=destroyed_bterms,
+        destroyed_nets=destroyed_nets,
     )

@@ -1,7 +1,7 @@
 """Custom IO placement step for FABulous tiles."""
 
 from importlib import resources
-from typing import Literal
+from typing import Literal, Optional
 
 from librelane.common.types import Path
 from librelane.config.variable import Variable
@@ -36,8 +36,9 @@ class FABulousTileIOPlacement(OdbpyStep):
     config_vars = io_layer_variables + [
         Variable(
             "FABULOUS_IO_PIN_ORDER_CFG",
-            Path,
+            Optional[Path],  # noqa: UP045 librelane issue
             "Path to a custom pin configuration file.",
+            default=None,
         ),
         Variable(
             "ERRORS_ON_UNMATCHED_IO",
@@ -69,11 +70,17 @@ class FABulousTileIOPlacement(OdbpyStep):
         if self.config["IO_PIN_H_LENGTH"] is not None:
             length_args += ["--hor-length", self.config["IO_PIN_H_LENGTH"]]
 
+        io_pin_order_cfg = self.config["FABULOUS_IO_PIN_ORDER_CFG"]
+        if io_pin_order_cfg is None:
+            raise ValueError(
+                "FABULOUS_IO_PIN_ORDER_CFG must be set before IO placement"
+            )
+
         return (
             super().get_command()
             + [
                 "--config",
-                self.config["FABULOUS_IO_PIN_ORDER_CFG"],
+                io_pin_order_cfg,
                 "--hor-layer",
                 self.config["IO_PIN_H_LAYER"],
                 "--ver-layer",

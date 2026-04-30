@@ -1,0 +1,20 @@
+TILE,LUT4x8_ha,,,,,#carry out
+#direction,source_name,X-offset,Y-offset,destination_name,wires,
+NORTH,N_GBUF_BEG,0,-1,N_GBUF_END,4,# global buffers
+INCLUDE,../common/Base.csv,,,,,
+JUMP,GCLK_BEG,0,0,GCLK_END,1,
+JUMP,GSR_BEG,0,0,GSR_END,1,
+JUMP,GEN_BEG,0,0,GEN_END,1,
+NORTH,CO,0,-1,CI,1,# carry
+JUMP,J_SR_BEG,0,0,J_SR_END,1,
+JUMP,J_EN_BEG,0,0,J_EN_END,1,
+BEL,../../../primitives/FABULOUS_LC/fabulous/FABULOUS_LC.v,LA_,,,,
+BEL,../../../primitives/FABULOUS_LC/fabulous/FABULOUS_LC.v,LB_,,,,
+BEL,../../../primitives/FABULOUS_LC/fabulous/FABULOUS_LC.v,LC_,,,,
+BEL,../../../primitives/FABULOUS_LC/fabulous/FABULOUS_LC.v,LD_,,,,
+BEL,../../../primitives/FABULOUS_LC/fabulous/FABULOUS_LC.v,LE_,,,,
+BEL,../../../primitives/FABULOUS_LC/fabulous/FABULOUS_LC.v,LF_,,,,
+BEL,../../../primitives/FABULOUS_LC/fabulous/FABULOUS_LC.v,LG_,,,,
+BEL,../../../primitives/FABULOUS_LC/fabulous/FABULOUS_LC.v,LH_,,,,
+MATRIX,./LUT4x8_ha_switch_matrix.list,,,,,
+EndTILE,,,,,,

@@ -1,0 +1,24 @@
+meta:
+  version: 2
+  flow: FABulousTile
+
+FABULOUS_TILE_DIR: dir::.
+
+# Basics
+DESIGN_NAME: LUT4x8_ha
+VERILOG_FILES:
+  - dir::../../../models_pack.v
+
+DIE_AREA: [ 0, 0, 250, 250 ]
+
+# Disable timing driven placement
+# as it would resize the buffers
+PL_TIMING_DRIVEN: false
+
+# "AREA 0" "AREA 1" "AREA 2" "AREA 3"
+SYNTH_STRATEGY: "AREA 2"
+
+# Clock
+CLOCK_PERIOD: 20
+
+#CLOCK_PORT: N_GBUF_END[0]

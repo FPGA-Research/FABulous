@@ -1,0 +1,33 @@
+meta:
+  version: 2
+  flow: FABulousFabric
+
+GRT_ANTENNA_REPAIR_ITERS: 0
+DRT_ANTENNA_REPAIR_ITERS: 0
+
+DESIGN_NAME: synthetic_lut4x8_ha_10x10
+VERILOG_FILES: []
+
+MAGIC_EXT_UNIQUE: notopports
+
+GRT_ALLOW_CONGESTION: true
+
+# Boundary tile instances are emitted with `.PORT()` empty connections for
+# inputs that point off-fabric (no neighbour to drive them). Tell the
+# disconnected-pins checker this is intentional for the LUT4x8_ha module.
+IGNORE_DISCONNECTED_MODULES:
+  - LUT4x8_ha
+
+FABULOUS_FABRIC_CONFIG: dir::synthetic_lut4x8_ha_10x10.csv
+FABULOUS_TILE_LIBRARY: dir::../../tiles/classic/
+
+FABULOUS_TILE_SPACING: [ 0, 0 ]
+FABULOUS_HALO_SPACING: [ 0, 0, 0, 0 ]
+
+IO_PIN_H_LENGTH: null
+IO_PIN_V_LENGTH: null
+
+PRIMARY_GDSII_STREAMOUT_TOOL: klayout
+
+pdk::ihp-sg13*:
+  RT_MAX_LAYER: TopMetal1

@@ -24,7 +24,6 @@ from fabulous.fabric_definition.define import (
     Direction,
     MultiplexerStyle,
 )
-from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
@@ -39,10 +38,12 @@ from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
 
 def genTileSwitchMatrix(
     writer: CodeGenerator,
-    fabric: Fabric,
     tile: Tile,
     switch_matrix_debug_signal: bool,
     csv_output_dir: Path | None = None,
+    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
+    multiplexer_style: MultiplexerStyle = MultiplexerStyle.CUSTOM,
+    generate_delay_in_switch_matrix: int = 80,
 ) -> None:
     """Generate the RTL code for the tile switch matrix.
 
@@ -57,8 +58,6 @@ def genTileSwitchMatrix(
     ----------
     writer : CodeGenerator
         The code generator instance for RTL output
-    fabric : Fabric
-        The fabric object containing global configuration
     tile : Tile
         The tile object containing BELs and port information
     switch_matrix_debug_signal : bool
@@ -68,6 +67,12 @@ def genTileSwitchMatrix(
         `.list` format. If None, the CSV is written to the same directory as the
         source `.list` file. This parameter is ignored when the input is already
         a `.csv` file.
+    config_bit_mode : ConfigBitMode
+        The configuration-bit mode for the tile (frame-based or flip-flop chain).
+    multiplexer_style : MultiplexerStyle
+        The multiplexer style used to implement switch-matrix muxes.
+    generate_delay_in_switch_matrix : int
+        Per-mux delay (ps) emitted on assign statements in the switch matrix.
 
     Raises
     ------
@@ -167,13 +172,13 @@ def genTileSwitchMatrix(
 
     writer.addComment("global", onNewLine=True)
     if noConfigBits > 0:
-        if fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+        if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
             writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
             writer.addComment("global signal 1: configuration, 0: operation")
             writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
             writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
             writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
-        if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
+        if config_bit_mode == ConfigBitMode.FRAME_BASED:
             writer.addPortVector(
                 "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
             )
@@ -238,9 +243,9 @@ def genTileSwitchMatrix(
     # for example in terminating switch matrices at the fabric borders,
     # we may just change direction without any switching
     if noConfigBits > 0:
-        if fabric.configBitMode == "ff_chain":
+        if config_bit_mode == "ff_chain":
             writer.addConnectionVector("ConfigBits", noConfigBits)
-        if fabric.configBitMode == "FlipFlopChain":
+        if config_bit_mode == "FlipFlopChain":
             # we pad to an even number of bits: (int(math.ceil(ConfigBitCounter/2.0))*2)
             writer.addConnectionVector(
                 "ConfigBits", int(math.ceil(noConfigBits / 2.0)) * 2
@@ -256,11 +261,11 @@ def genTileSwitchMatrix(
     # again, we add this only if needed
     # TODO Should ff_chain be the same as FlipFlopChain?
     if noConfigBits > 0:
-        if fabric.configBitMode == "ff_chain":
+        if config_bit_mode == "ff_chain":
             writer.addShiftRegister(noConfigBits)
-        elif fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+        elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
             writer.addFlipFlopChain(noConfigBits)
-        elif fabric.configBitMode == ConfigBitMode.FRAME_BASED:
+        elif config_bit_mode == ConfigBitMode.FRAME_BASED:
             pass
 
     # the switch matrix implementation
@@ -295,7 +300,7 @@ def genTileSwitchMatrix(
                 writer.addAssignScalar(
                     portName,
                     connections[portName][0],
-                    delay=fabric.generateDelayInSwitchMatrix,
+                    delay=generate_delay_in_switch_matrix,
                 )
             writer.addNewLine()
         elif muxSize >= 2:
@@ -315,7 +320,7 @@ def genTileSwitchMatrix(
             for end in range(start + 1, paddedMuxSize):
                 portsPairs.append((f"A{end}", "GND0"))
 
-            if fabric.multiplexerStyle == MultiplexerStyle.CUSTOM:
+            if multiplexer_style == MultiplexerStyle.CUSTOM:
                 if paddedMuxSize == 2:
                     portsPairs.append(("S", f"ConfigBits[{configBitstreamPosition}+0]"))
                 else:
@@ -332,7 +337,7 @@ def genTileSwitchMatrix(
 
             portsPairs.append(("X", f"{portName}"))
 
-            if fabric.multiplexerStyle == MultiplexerStyle.CUSTOM:
+            if multiplexer_style == MultiplexerStyle.CUSTOM:
                 # we add the input signal in reversed order
                 # Changed it such that the left-most entry is located at the end of the
                 # concatenated vector for the multiplexing
@@ -341,7 +346,7 @@ def genTileSwitchMatrix(
                 writer.addAssignScalar(
                     f"{portName}_input",
                     connections[portName][::-1],
-                    delay=fabric.generateDelayInSwitchMatrix,
+                    delay=generate_delay_in_switch_matrix,
                 )
                 writer.addInstantiation(
                     compName=muxComponentName,
