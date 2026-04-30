@@ -1,0 +1,4 @@
+rule:
+  group:
+    case::name:
+      disable: true

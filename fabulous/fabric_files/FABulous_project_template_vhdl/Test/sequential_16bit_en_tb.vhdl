@@ -1,219 +1,268 @@
 library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-use std.env.finish;
+  use ieee.std_logic_1164.all;
+  use ieee.numeric_std.all;
+  use std.env.finish;
+  use std.textio.all;
 
 entity sequential_16bit_en_tb is
-end sequential_16bit_en_tb;
+end entity sequential_16bit_en_tb;
 
-architecture Behavior of sequential_16bit_en_tb is
+architecture behavior of sequential_16bit_en_tb is
 
-  component eFPGA_top is
+  component efpga_top is
     generic (
-      FrameBitsPerRow : integer := 32;
-      FrameSelectWidth : integer := 5;
-      MaxFramesPerCol : integer := 20;
-      NumberOfCols : integer := 10;
-      NumberOfRows : integer := 14;
-      RowSelectWidth : integer := 5;
-      desync_flag : integer := 20;
-      include_eFPGA : integer := 1
+      framebitsperrow  : integer := 32;
+      frameselectwidth : integer := 5;
+      maxframespercol  : integer := 20;
+      numberofcols     : integer := 10;
+      numberofrows     : integer := 14;
+      rowselectwidth   : integer := 5;
+      desync_flag      : integer := 20;
+      include_efpga    : integer := 1
     );
-      port (
-        I_top : out std_logic_vector( NumberOfRows * 2 - 1 downto 0);
-        T_top : out std_logic_vector(NumberOfRows * 2 - 1 downto 0);
-        O_top : in std_logic_vector( NumberOfRows * 2 - 1 downto 0);
-        A_config_C : out std_logic_vector( NumberOfRows * 4 - 1 downto 0);
-        B_config_C : out std_logic_vector( NumberOfRows * 4 - 1 downto 0);
-        Config_accessC : out std_logic_vector( 55 downto 0 );
+    port (
+      i_top          : out   std_logic_vector(NumberOfRows * 2 - 1 downto 0);
+      t_top          : out   std_logic_vector(NumberOfRows * 2 - 1 downto 0);
+      o_top          : in    std_logic_vector(NumberOfRows * 2 - 1 downto 0);
+      a_config_c     : out   std_logic_vector(NumberOfRows * 4 - 1 downto 0);
+      b_config_c     : out   std_logic_vector(NumberOfRows * 4 - 1 downto 0);
+      config_accessc : out   std_logic_vector( 55 downto 0);
 
-        CLK : in std_logic;
-        resetn     : in std_logic;
-        ComActive : out std_logic;
-        ReceiveLED : out std_logic;
-        Rx : in std_logic;
-        s_clk : in std_logic;
-        s_data : in std_logic;
-        SelfWriteData : in std_logic_vector(31 downto 0);
-        SelfWriteStrobe : in std_logic
-
+      clk             : in    std_logic;
+      resetn          : in    std_logic;
+      comactive       : out   std_logic;
+      receiveled      : out   std_logic;
+      rx              : in    std_logic;
+      s_clk           : in    std_logic;
+      s_data          : in    std_logic;
+      selfwritedata   : in    std_logic_vector(31 downto 0);
+      selfwritestrobe : in    std_logic
     );
-    end component;
+  end component efpga_top;
 
   component sequential_16bit_en is
     port (
-      clk : in std_logic;
-      io_out: out std_logic_vector(27 downto 0);
-      io_oeb: out std_logic_vector(27 downto 0);
-      io_in: in std_logic_vector(27 downto 0)
+      clk    : in    std_logic;
+      io_out : out   std_logic_vector(27 downto 0);
+      io_oeb : out   std_logic_vector(27 downto 0);
+      io_in  : in    std_logic_vector(27 downto 0)
     );
-  end component;
+  end component sequential_16bit_en;
 
-  constant MAX_BITBYTES:integer := 16384;
+  constant max_bitbytes : integer := 16384;
 
+  signal i_top         : std_logic_vector( 27 downto 0);
+  signal t_top         : std_logic_vector(27 downto 0);
+  signal o_top         : std_logic_vector( 27 downto 0);
+  signal a_cfg         : std_logic_vector(55 downto 0);
+  signal b_cfg         : std_logic_vector(55 downto 0);
+  signal config_access : std_logic_vector(55 downto 0);
 
-  signal I_top : std_logic_vector( 27 downto 0);
-  signal T_top : std_logic_vector(27 downto 0);
-  signal O_top : std_logic_vector( 27 downto 0) := X"0000000";
-  signal A_cfg: std_logic_vector(55 downto 0);
-  signal B_cfg: std_logic_vector(55 downto 0);
-  signal Config_access : std_logic_vector(55 downto 0);
+  signal i_top_gold : std_logic_vector(27 downto 0);
+  signal t_top_gold : std_logic_vector(27 downto 0);
+  signal oeb_gold   : std_logic_vector(27 downto 0);
 
-  signal I_top_gold : std_logic_vector(27 downto 0);
-  signal T_top_gold : std_logic_vector(27 downto 0);
-  signal oeb_gold : std_logic_vector(27 downto 0);
+  signal clk             : std_logic;
+  signal resetn          : std_logic;
+  signal selfwritestrobe : std_logic;
+  signal selfwritedata   : std_logic_vector(31 downto 0);
+  signal comactive       : std_logic;
+  signal rx              : std_logic;
+  signal s_clk           : std_logic;
+  signal s_data          : std_logic;
+  signal receiveled      : std_logic;
 
-  signal CLK : std_logic := '0';
-  signal resetn : std_logic := '0';
-  signal SelfWriteStrobe : std_logic := '0';
-  signal SelfWriteData : std_logic_vector(31 downto 0) := X"00000000";
-  signal ComActive : std_logic;
-  signal Rx : std_logic := '1';
-  signal s_clk : std_logic := '0';
-  signal s_data : std_logic := '0';
-  signal ReceiveLED : std_logic;
+  type bitstream_type is array (max_bitbytes downto 0) of std_logic_vector(7 downto 0);
 
-  type bitstream_Type is array (MAX_BITBYTES downto 0) of std_logic_vector(7 downto 0);
-  signal bitstream : bitstream_Type;
+  signal bitstream : bitstream_type;
 
-  impure function readmemh(filename : string) return bitstream_Type is
-    use std.textio.all;
-    variable bs : bitstream_Type;
-    file read_file: text open READ_MODE is "build/sequential_16bit_en.hex";
-    variable counter : integer := 0;
-    variable L: LINE;
-    variable temp: std_logic_vector(7 downto 0);
-    variable good_v : boolean;
-    begin
-      while not endfile(read_file) loop
-        readline (read_file, L);
-        hread (L, temp, good_v);
-        bs(counter) := temp;
-        counter := counter + 1;
-      end loop;
+  impure function readmemh (
+    filename : string
+  ) return bitstream_type is
+
+    variable bs        : bitstream_type;
+    file     read_file : text open read_mode is "build/sequential_16bit_en.hex";
+    variable counter   : integer;
+    variable l         : line;
+    variable temp      : std_logic_vector(7 downto 0);
+    variable good_v    : boolean;
+
+  begin
+
+    counter := 0;
+
+    while not endfile(read_file) loop
+
+      readline (read_file, l);
+      hread (l, temp, good_v);
+      bs(counter) := temp;
+      counter     := counter + 1;
+
+    end loop;
+
     return bs;
-  end function;
+
+  end function readmemh;
 
 begin
 
-  init_eFPGA: eFPGA_top
+  init_efpga : component efpga_top
     generic map (
-      FrameBitsPerRow => 32,
-      FrameSelectWidth => 5,
-      MaxFramesPerCol => 20,
-      NumberOfCols => 10,
-      NumberOfRows => 14,
-      RowSelectWidth => 5,
-      desync_flag => 20,
-      include_eFPGA => 1
+      framebitsperrow  => 32,
+      frameselectwidth => 5,
+      maxframespercol  => 20,
+      numberofcols     => 10,
+      numberofrows     => 14,
+      rowselectwidth   => 5,
+      desync_flag      => 20,
+      include_efpga    => 1
     )
     port map (
-      I_top => I_top,
-      T_top => T_top,
-      O_top => O_top,
-      A_config_C => A_cfg,
-      B_config_C => B_cfg,
-      Config_accessC => Config_access,
+      i_top          => i_top,
+      t_top          => t_top,
+      o_top          => o_top,
+      a_config_c     => a_cfg,
+      b_config_c     => b_cfg,
+      config_accessc => config_access,
 
-      CLK => CLK,
-      resetn => resetn,
-      SelfWriteStrobe => SelfWriteStrobe,
-      SelfWriteData => SelfWriteData,
+      clk             => clk,
+      resetn          => resetn,
+      selfwritestrobe => selfwritestrobe,
+      selfwritedata   => selfwritedata,
 
-      Rx => Rx,
-      ComActive => ComActive,
-      ReceiveLED => ReceiveLED,
-      s_clk => s_clk,
-      s_data => s_data
+      rx         => rx,
+      comactive  => comactive,
+      receiveled => receiveled,
+      s_clk      => s_clk,
+      s_data     => s_data
 
     );
 
-    init_top: sequential_16bit_en
-      port map (
-        clk => CLK,
-        io_out => I_top_gold,
-        io_oeb => oeb_gold,
-        io_in => O_top
-      );
+  init_top : component sequential_16bit_en
+    port map (
+      clk    => clk,
+      io_out => i_top_gold,
+      io_oeb => oeb_gold,
+      io_in  => o_top
+    );
 
-    T_top_gold <= not oeb_gold;
+  t_top_gold <= not oeb_gold;
 
-
-  process is
+  process_001 : process is
   begin
+
+    clk <= '0';
     wait for 5000 ps;
-    CLK <= not CLK;
-  end process;
 
-  process is
-    variable i : integer := 0;
-  begin
-    while i < MAX_BITBYTES loop
-      bitstream(i) <= X"00";
-      i := i + 1;
+    loop
+
+      clk <= not clk;
+      wait for 5000 ps;
+
     end loop;
 
-    i := 0;
+  end process process_001;
+
+  process_002 : process is
+
+    variable i : integer;
+
+  begin
+
+    o_top           <= x"0000000";
+    resetn          <= '0';
+    selfwritestrobe <= '0';
+    selfwritedata   <= x"00000000";
+    rx              <= '1';
+    s_clk           <= '0';
+    s_data          <= '0';
+    i               := 0;
+
+    while i < max_bitbytes loop
+
+      bitstream(i) <= x"00";
+      i            := i + 1;
+
+    end loop;
+
+    i         := 0;
     bitstream <= readmemh("bitstream.hex");
     wait for 100 ps;
     report "Bitstream loaded into memory array";
-    resetn <= '0';
+    resetn    <= '0';
     wait for 10000 ps;
-    resetn <= '1';
+    resetn    <= '1';
     wait for 10000 ps;
 
-    for Verilog_Repeat in 1 to 20 loop
-      wait until rising_edge(CLK);
+    for verilog_repeat in 1 to 20 loop
+
+      wait until rising_edge(clk);
+
     end loop;
 
     wait for 2500 ps;
 
-    while i < MAX_BITBYTES loop
-      SelfWriteData <= bitstream(i) & bitstream(i+1) &  bitstream(i+2) & bitstream(i+3);
+    while i < max_bitbytes loop
+
+      selfwritedata <= bitstream(i) & bitstream(i + 1) & bitstream(i + 2) & bitstream(i + 3);
       -- wait 2 clock cycles
-      wait until rising_edge(CLK);
-      wait until rising_edge(CLK);
+      wait until rising_edge(clk);
+      wait until rising_edge(clk);
 
       -- report integer'image(i) & " " & to_hstring(SelfWriteData);
-      SelfWriteStrobe <= '1';
-      wait until rising_edge(CLK);
-      SelfWriteStrobe <= '0';
+      selfwritestrobe <= '1';
+      wait until rising_edge(clk);
+      selfwritestrobe <= '0';
 
       -- wait another 2 clock cycles
-      wait until rising_edge(CLK);
-      wait until rising_edge(CLK);
+      wait until rising_edge(clk);
+      wait until rising_edge(clk);
 
       i := i + 4;
+
     end loop;
 
     -- wait 100 clock cycles
-    for Verilog_Repeat in 1 to 100 loop
-      wait until rising_edge(CLK);
+    for verilog_repeat in 1 to 100 loop
+
+      wait until rising_edge(clk);
+
     end loop;
+
     report "Configuration completed";
 
     -- reset user design
-    O_top <= B"0000_0000_0000_0000_0000_0000_0011";
+    o_top <= b"0000_0000_0000_0000_0000_0000_0011";
 
     -- wait 5 clock cycles
-    for Verilog_Repeat in 1 to 5 loop
-      wait until rising_edge(CLK);
+    for verilog_repeat in 1 to 5 loop
+
+      wait until rising_edge(clk);
+
     end loop;
 
     -- start user design
-    O_top <= B"0000_0000_0000_0000_0000_0000_0010";
-    wait until rising_edge(CLK);
+    o_top <= b"0000_0000_0000_0000_0000_0000_0010";
+    wait until rising_edge(clk);
 
-    for Verilog_Repeat in 0 to 100 loop
-      wait until falling_edge(CLK);
-      report "fabric = " & integer'image(To_Integer(unsigned(I_top))) & " gold = " & integer'image(To_Integer(unsigned(I_top_gold)));
-      if To_integer(unsigned(I_top)) /= To_integer(unsigned(I_top_gold)) then
-        report "Error: Miss match between fabric output and golden " severity error;
+    for verilog_repeat in 0 to 100 loop
+
+      wait until falling_edge(clk);
+      report "fabric = " & integer'image(To_Integer(unsigned(i_top))) &
+             " gold = " & integer'image(To_Integer(unsigned(i_top_gold)));
+
+      if (To_integer(unsigned(i_top)) /= To_integer(unsigned(i_top_gold))) then
+        report "Error: Miss match between fabric output and golden "
+          severity error;
       end if;
+
     end loop;
+
     report "SIMULATION FINISHED";
 
     wait for 5000 ps;
     finish;
-  end process;
-end architecture;
+
+  end process process_002;
+
+end architecture behavior;
