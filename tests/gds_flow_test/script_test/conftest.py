@@ -611,9 +611,7 @@ class MockMaster:
 class MockGeom:
     """Mock ODB geometry box (mPin shape)."""
 
-    def __init__(
-        self, layer: object, x1: int, y1: int, x2: int, y2: int
-    ) -> None:
+    def __init__(self, layer: object, x1: int, y1: int, x2: int, y2: int) -> None:
         self._layer, self._x1, self._y1, self._x2, self._y2 = layer, x1, y1, x2, y2
 
     def getTechLayer(self) -> object:  # noqa: D401, N802
@@ -704,7 +702,7 @@ class MockNetIoPlace:
     def __init__(self, name: str, iterms: list[MockITerm]) -> None:
         self._name = name
         self._iterms = iterms
-        self._bterms: list["MockBTermIoPlace"] = []
+        self._bterms: list[MockBTermIoPlace] = []
 
     def getName(self) -> str:  # noqa: D401
         return self._name

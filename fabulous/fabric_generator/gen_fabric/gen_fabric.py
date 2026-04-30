@@ -232,10 +232,10 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 here = fabric.tile[y + j][x + i]
                 in_super = here.partOfSuperTile
 
-                def _local_names(ports: list, _i: int = i, _j: int = j) -> list[str]:
-                    # Inside a supertile, subtile ports are name-prefixed with their
-                    # local offset (so the supertile module exposes Tile_X{i}Y{j}_*).
-                    # Otherwise the port name is used as-is.
+                def _local_names(
+                    ports: list, _i: int = i, _j: int = j, in_super: bool = in_super
+                ) -> list[str]:
+                    """Return local port names."""
                     return (
                         [f"Tile_X{_i}Y{_j}_{p.name}" for p in ports]
                         if in_super
@@ -246,7 +246,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 # (NORTH-direction wires entering this tile from south fabric neighbour)
                 south_neighbor_internal = (x + i, y + j + 1) in superTileLoc
                 if not south_neighbor_internal:
-                    northPorts = _local_names(here.getNorthPorts(IO.INPUT))
+                    northPorts = _local_names(here.getNorthPorts(IO.INPUT), in_super)
                     if (
                         0 <= y + 1 < len(fabric.tile)
                         and fabric.tile[y + j + 1][x + i] is not None
@@ -257,16 +257,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                                 IO.OUTPUT
                             )
                         ]
-                        portsPairs += list(
-                            zip(northPorts, northInput, strict=False)
-                        )
+                        portsPairs += list(zip(northPorts, northInput, strict=False))
                     else:
                         portsPairs += [(p, "") for p in northPorts]
 
                 # input connection from east side of the west tile
                 west_neighbor_internal = (x + i - 1, y + j) in superTileLoc
                 if not west_neighbor_internal:
-                    eastPorts = _local_names(here.getEastPorts(IO.INPUT))
+                    eastPorts = _local_names(here.getEastPorts(IO.INPUT), in_super)
                     if (
                         0 <= x - 1 < len(fabric.tile[0])
                         and fabric.tile[y + j][x + i - 1] is not None
@@ -284,7 +282,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 # input connection from south side of the north tile
                 north_neighbor_internal = (x + i, y + j - 1) in superTileLoc
                 if not north_neighbor_internal:
-                    southPorts = _local_names(here.getSouthPorts(IO.INPUT))
+                    southPorts = _local_names(here.getSouthPorts(IO.INPUT), in_super)
                     if (
                         0 <= y - 1 < len(fabric.tile)
                         and fabric.tile[y + j - 1][x + i] is not None
@@ -295,16 +293,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                                 IO.OUTPUT
                             )
                         ]
-                        portsPairs += list(
-                            zip(southPorts, southInput, strict=False)
-                        )
+                        portsPairs += list(zip(southPorts, southInput, strict=False))
                     else:
                         portsPairs += [(p, "") for p in southPorts]
 
                 # input connection from west side of the east tile
                 east_neighbor_internal = (x + i + 1, y + j) in superTileLoc
                 if not east_neighbor_internal:
-                    westPorts = _local_names(here.getWestPorts(IO.INPUT))
+                    westPorts = _local_names(here.getWestPorts(IO.INPUT), in_super)
                     if (
                         0 <= x + 1 < len(fabric.tile[0])
                         and fabric.tile[y + j][x + i + 1] is not None
