@@ -432,7 +432,7 @@ end process;
         portsPairs: list[tuple[str, str]],
         paramPairs: list[tuple[str, str]] | None = None,
         emulateParamPairs: list[tuple[str, str]] | None = None,
-        _add_keep: bool = False,
+        add_keep: bool = False,  # noqa: ARG002 — accepted for API parity; VHDL has no keep attr
         indentLevel: int = 0,
     ) -> None:
         """Add a component instantiation.
@@ -449,8 +449,8 @@ end process;
             List of (parameter, value) pairs for generic mapping
         emulateParamPairs : list[tuple[str, str]] | None
             Additional parameters (unused)
-        _add_keep : bool
-            Whether to add a FABulous "keep" attribute to the instance
+        add_keep : bool
+            Accepted for API parity with the Verilog generator (no-op in VHDL)
         indentLevel : int
             The indentation level
         """
@@ -486,7 +486,8 @@ end process;
                 )
             split = signal.split(",")
             if len(split) == 1:
-                connectPair.append(f"{port} => {signal}")
+                rhs = signal or "open"
+                connectPair.append(f"{port} => {rhs}")
             else:
                 for idx, sn in zip(reversed(range(len(split))), split, strict=False):
                     connectPair.append(
