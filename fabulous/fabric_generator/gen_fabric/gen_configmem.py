@@ -34,7 +34,7 @@ def generateConfigMemInit(
     """Generate the config memory initialization file.
 
     The amount of configuration bits is determined
-    by ``frame_bits_per_row``. The function will pack the configuration bit from
+    by `frame_bits_per_row`. The function will pack the configuration bit from
     the highest to the lowest bit in the config memory. I. e. if there are 100
     configuration bits, with 32 frame bits per row, the function will pack from
     bit 99 starting from bit 31 of frame 0 to bit 28 of frame 3.

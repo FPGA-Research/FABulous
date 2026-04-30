@@ -197,8 +197,8 @@ def generate_IO_pin_order_config(
 ) -> None:
     """Generate IO pin order configuration YAML for a tile or super tile.
 
-    When ``fabric`` is provided, external-port sides are resolved from each
-    (sub)tile's placement within the fabric; otherwise ``external_port_side``
+    When `fabric` is provided, external-port sides are resolved from each
+    (sub)tile's placement within the fabric; otherwise `external_port_side`
     is used as the fallback for every concrete (sub)tile.
 
     Parameters
@@ -216,74 +216,45 @@ def generate_IO_pin_order_config(
         context applies.
     """
     if isinstance(tile_or_super_tile, SuperTile):
-        sides = _resolve_supertile_external_port_sides(
-            tile_or_super_tile, fabric, external_port_side
-        )
+        sides: dict[tuple[int, int], Side] = {}
+        if (fabric is not None) and (
+            positions := fabric.find_tile_positions(tile_or_super_tile)
+        ):
+            if len(positions) == 1:
+                base_x, base_y = positions[0]
+            else:
+                base_x = min(pos[0] for pos in positions)
+                base_y = min(pos[1] for pos in positions)
+
+            for st_y, row in enumerate(tile_or_super_tile.tileMap):
+                for st_x, st_tile in enumerate(row):
+                    if st_tile is None:
+                        continue
+                    if border_side := fabric.determine_border_side(
+                        base_x + st_x, base_y + st_y
+                    ):
+                        sides[(st_x, st_y)] = border_side
+        else:
+            sides = {
+                (x, y): external_port_side
+                for y, row in enumerate(tile_or_super_tile.tileMap)
+                for x, subtile in enumerate(row)
+                if subtile is not None
+            }
+
         payload = _serialize_supertile_ports(tile_or_super_tile, prefix, sides)
     else:
-        side = _resolve_tile_external_port_side(
-            tile_or_super_tile, fabric, external_port_side
-        )
+        if fabric is not None and (
+            positions := fabric.find_tile_positions(tile_or_super_tile)
+        ):
+            x, y = positions[0]
+            side = fabric.determine_border_side(x, y) or external_port_side
+        else:
+            side = external_port_side
+
         payload = {
             "X0Y0": _serialize_tile_ports(tile_or_super_tile, prefix, side),
         }
 
     with outfile.open("w") as file_descriptor:
         yaml.dump(payload, file_descriptor)
-
-
-def _resolve_tile_external_port_side(
-    tile: Tile,
-    fabric: Fabric | None,
-    default_side: Side,
-) -> Side:
-    """Resolve a tile's external side from fabric placement when possible."""
-    if fabric is None:
-        return default_side
-    positions = fabric.find_tile_positions(tile)
-    if not positions:
-        return default_side
-    x, y = positions[0]
-    return fabric.determine_border_side(x, y) or default_side
-
-
-def _resolve_supertile_external_port_sides(
-    super_tile: SuperTile,
-    fabric: Fabric | None,
-    default_side: Side,
-) -> dict[tuple[int, int], Side]:
-    """Resolve SuperTile external sides from fabric placement when possible.
-
-    Without a fabric, every concrete subtile maps to ``default_side``. With a
-    fabric, only subtiles that land on a fabric border get an entry; interior
-    subtiles are omitted so the serializer's perimeter-side heuristic applies.
-    """
-    if fabric is None:
-        return {
-            (x, y): default_side
-            for y, row in enumerate(super_tile.tileMap)
-            for x, subtile in enumerate(row)
-            if subtile is not None
-        }
-
-    sides: dict[tuple[int, int], Side] = {}
-    positions = fabric.find_tile_positions(super_tile)
-    if not positions:
-        return sides
-
-    if len(positions) == 1:
-        base_x, base_y = positions[0]
-    else:
-        base_x = min(pos[0] for pos in positions)
-        base_y = min(pos[1] for pos in positions)
-
-    for st_y, row in enumerate(super_tile.tileMap):
-        for st_x, st_tile in enumerate(row):
-            if st_tile is None:
-                continue
-            if border_side := fabric.determine_border_side(
-                base_x + st_x, base_y + st_y
-            ):
-                sides[(st_x, st_y)] = border_side
-
-    return sides
