@@ -22,7 +22,7 @@ module ConfigFSM #(
     // FSM
 
     localparam [1:0] UNSYNCED = 2'd0, SYNC_HEADER = 2'd1, WRITE_FRAME_DATA = 2'd2;
-    localparam [31:0] SYNC_HEADER = 32'hFAB0_FAB1;
+    localparam [31:0] SYNC_HEADER_PATTERN = 32'hFAB0_FAB1;
 
     reg [1:0] state;
     reg old_reset;
@@ -48,7 +48,7 @@ module ConfigFSM #(
                     UNSYNCED: begin
                         if (write_strobe == 1'b1) begin
                             // fire only after seeing pattern 0xFAB0_FAB1
-                            if (write_data == SYNC_HEADER) begin
+                            if (write_data == SYNC_HEADER_PATTERN) begin
                                 state <= SYNC_HEADER;
                             end
                         end

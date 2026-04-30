@@ -88,7 +88,7 @@ module config_UART #(
 
 
     localparam HIGH_NIBBLE = 1'b1, LOW_NIBBLE = 1'b0;
-    reg ReceiveState;
+    reg received_state;
     reg [3:0] high_reg;
     wire [4:0] hex_value;  // A 0 at the MSB indicates a valid value on bits [3..0]
     reg [7:0] hex_data;  // The received byte in "hex" mode
@@ -405,7 +405,7 @@ module config_UART #(
         begin
             if (!reset_n)
             begin
-                ReceiveState <= HIGH_NIBBLE;
+                received_state <= HIGH_NIBBLE;
                 hex_data <= 8'b0;
                 high_reg <= 4'b0;
                 hex_write_strobe <= 1'b0;
@@ -414,22 +414,22 @@ module config_UART #(
             begin
                 if (present_state != GET_DATA)
                 begin
-                    ReceiveState <= HIGH_NIBBLE;
+                    received_state <= HIGH_NIBBLE;
                 end
                 else if (com_state == GET_STOP_BIT && com_tick == 1'b1 && hex_value[4] == 1'b0)
                 begin
-                    if (ReceiveState == HIGH_NIBBLE)
+                    if (received_state == HIGH_NIBBLE)
                     begin
-                        ReceiveState <= LOW_NIBBLE;
+                        received_state <= LOW_NIBBLE;
                     end
                 end
                 else
                 begin
-                    ReceiveState <= HIGH_NIBBLE;
+                    received_state <= HIGH_NIBBLE;
                 end
                 if (com_state == GET_STOP_BIT && com_tick == 1'b1 && hex_value[4] == 1'b0)
                 begin
-                    if (ReceiveState == HIGH_NIBBLE)
+                    if (received_state == HIGH_NIBBLE)
                     begin
                         high_reg <= hex_value[3:0];
                         hex_write_strobe <= 1'b0;
@@ -469,7 +469,7 @@ module config_UART #(
                 // register
                 // checksum computation
                 if (com_state==GET_STOP_BIT && com_tick==1'b1 && hex_value[4]==1'b0
-                        && present_state==GET_DATA && ReceiveState==LOW_NIBBLE)
+                        && present_state==GET_DATA && received_state==LOW_NIBBLE)
                 begin
                     CRCReg <= CRCReg + {{12{1'b0}}, high_reg, hex_value[3:0]};
                     b_counter <= b_counter + 1;
