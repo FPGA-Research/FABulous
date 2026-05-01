@@ -102,6 +102,7 @@ class Fabric:
     numberOfBRAMs: int = 10
     superTileEnable: bool = True
     disableUserCLK: bool = False
+    preserveListOrder: bool = False
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
     superTileDic: dict[str, SuperTile] = field(default_factory=dict)

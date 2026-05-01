@@ -55,8 +55,19 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
         port_name, row = fields[0], fields[1:]
         if not port_name:
             continue
-        # collect destinations where the connection bit is set
-        connections[port_name] = [dest_list[k] for k, v in enumerate(row) if v == "1"]
+        # B1: any non-zero integer is a connection; the integer encodes the
+        # mux input position (lower = earlier). Sort by (value, column) so
+        # legacy all-1 rows degrade to CSV-column order via the secondary key.
+        items: list[tuple[int, int, str]] = []
+        for k, v in enumerate(row):
+            try:
+                value = int(v)
+            except ValueError:
+                continue
+            if value != 0 and k < len(dest_list):
+                items.append((value, k, dest_list[k]))
+        items.sort(key=lambda x: (x[0], x[1]))
+        connections[port_name] = [d for _, _, d in items]
     return connections
 
 

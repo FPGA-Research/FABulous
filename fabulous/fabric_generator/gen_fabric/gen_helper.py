@@ -68,7 +68,9 @@ def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
             writer.writerow([p] + [0] * len(destName))
 
 
-def list2CSV(InFileName: Path, OutFileName: Path) -> None:
+def list2CSV(
+    InFileName: Path, OutFileName: Path, preserveListOrder: bool = False
+) -> None:
     """Export a list file into its equivalent CSV switch matrix representation.
 
     A comment will be appended to the end of the column and
@@ -80,6 +82,12 @@ def list2CSV(InFileName: Path, OutFileName: Path) -> None:
         The input file name of the list file
     OutFileName : Path
         The directory of the CSV file to be written
+    preserveListOrder : bool, optional
+        When True, every connection is written as its 1-based position in
+        the .list file for that row (1, 2, 3, ...) so parseMatrix can
+        recover the user-specified mux input order. When False (default),
+        every connection is written as `1` and order is determined by
+        CSV-column position when read back, matching legacy behaviour.
     """
     logger.info(f"Adding {InFileName} to {OutFileName}")
 
@@ -108,7 +116,14 @@ def list2CSV(InFileName: Path, OutFileName: Path) -> None:
     destination = file[0].strip("\n").split(",")[1:]
     source = [file[i].split(",")[0] for i in range(1, len(file))]
 
-    # set the matrix value with the provided connection pair
+    # When `preserveListOrder` is on, give each new connection a unique
+    # 1-based per-row index so the order can be recovered later. Otherwise
+    # all connections are marked with 1 (legacy behaviour). The per-row
+    # counter starts past any existing non-zero values that the bootstrap
+    # CSV may already contain.
+    row_seq = [
+        max((v for v in matrix[i]), default=0) for i in range(len(source))
+    ]
     for s, d in connectionPair:
         try:
             s_index = source.index(s)
@@ -126,25 +141,31 @@ def list2CSV(InFileName: Path, OutFileName: Path) -> None:
             logger.warning(
                 f"Connection ({s}, {d}) already exists in the original matrix"
             )
-        matrix[s_index][d_index] = 1
+            continue
+        if preserveListOrder:
+            row_seq[s_index] += 1
+            matrix[s_index][d_index] = row_seq[s_index]
+        else:
+            matrix[s_index][d_index] = 1
 
     # writing the matrix back to the given out file
     with Path(OutFileName).open("w") as f:
         f.write(file[0] + "\n")
         for i in range(len(source)):
             f.write(f"{source[i]},")
+            row_nonzero = sum(1 for v in matrix[i] if v != 0)
             for j in range(len(destination)):
                 f.write(str(matrix[i][j]))
                 if j != len(destination) - 1:
                     f.write(",")
                 else:
-                    f.write(f",#,{matrix[i].count(1)}")
+                    f.write(f",#,{row_nonzero}")
             f.write("\n")
         colCount = []
         for j in range(col):
             count = 0
             for i in range(rows):
-                if matrix[i][j] == 1:
+                if matrix[i][j] != 0:
                     count += 1
             colCount.append(str(count))
         f.write(f"#,{','.join(colCount)}")
