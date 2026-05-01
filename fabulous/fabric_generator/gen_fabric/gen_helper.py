@@ -76,6 +76,11 @@ def list2CSV(
     A comment will be appended to the end of the column and
     row of the matrix, which will indicate the number of signals in a given row.
 
+    When `preserveListOrder` is on, give each new connection a unique 1-based
+    per-row index so the order can be recovered later. Otherwise all
+    connections are marked with `1`. The per-row counter starts past any
+    existing non-zero values that the bootstrap CSV may already contain.
+
     Parameters
     ----------
     InFileName : Path
@@ -83,11 +88,11 @@ def list2CSV(
     OutFileName : Path
         The directory of the CSV file to be written
     preserveListOrder : bool, optional
-        When True, every connection is written as its 1-based position in
-        the .list file for that row (1, 2, 3, ...) so parseMatrix can
-        recover the user-specified mux input order. When False (default),
-        every connection is written as `1` and order is determined by
-        CSV-column position when read back, matching legacy behaviour.
+        By default, every connection is written as `1`, and order is
+        determined by CSV-column position when read back. When it is set to
+        `True`, every connection is written as its 1-based position in the
+        .list file for that row (1, 2, 3, ...), so `parseMatrix` can recover
+        the user-specified mux input order.
     """
     logger.info(f"Adding {InFileName} to {OutFileName}")
 
@@ -116,14 +121,7 @@ def list2CSV(
     destination = file[0].strip("\n").split(",")[1:]
     source = [file[i].split(",")[0] for i in range(1, len(file))]
 
-    # When `preserveListOrder` is on, give each new connection a unique
-    # 1-based per-row index so the order can be recovered later. Otherwise
-    # all connections are marked with 1 (legacy behaviour). The per-row
-    # counter starts past any existing non-zero values that the bootstrap
-    # CSV may already contain.
-    row_seq = [
-        max((v for v in matrix[i]), default=0) for i in range(len(source))
-    ]
+    row_seq = [max((v for v in matrix[i]), default=0) for i in range(len(source))]
     for s, d in connectionPair:
         try:
             s_index = source.index(s)

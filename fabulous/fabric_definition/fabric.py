@@ -66,6 +66,11 @@ class Fabric:
         Whether the fabric has super tile.
     disableUserCLK : bool
         Whether to disable UserCLK generation in the fabric.
+    preserveListOrder : bool
+        Whether to preserve the mux input order from each tile's `.list`
+        file in the generated switch matrix CSV. When `False` (default),
+        every connection is written as `1` and order is determined by
+        CSV-column position when read back.
     tileDic : dict[str, Tile]
         A dictionary of tiles used in the fabric. The key is the name of the tile and
         the value is the tile.
