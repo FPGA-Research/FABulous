@@ -95,7 +95,7 @@ def genTileSwitchMatrix(
             matrixDir = tile.matrixDir.with_suffix(".csv")
 
         bootstrapSwitchMatrix(tile, matrixDir)
-        list2CSV(tile.matrixDir, matrixDir)
+        list2CSV(tile.matrixDir, matrixDir, fabric.preserveListOrder)
         logger.info(
             f"Update matrix directory to {matrixDir} for Fabric Tile Dictionary"
         )

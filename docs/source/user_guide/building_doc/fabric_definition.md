@@ -175,6 +175,12 @@ It is planned to remove these limitations in future versions of FABulous.
 
     Disable the generation of the UserCLK port, regardless the fabric uses them or not.
 
+  - `PreserveListOrder`, `[TRUE|FALSE]` (default `FALSE`)
+
+    When `TRUE`, FABulous preserves the mux input order from each tile's `.list` file: the first listed input becomes `A0`, the second `A1`, and so on. The default `FALSE` keeps the legacy behaviour, where mux input order is determined by column order in the bootstrapped switch matrix CSV.
+
+    This is useful when a specific input must occupy a known mux position.
+
   - `Tile`, `path`
 
     Specify a path to a tile configuration file that will be loaded.
@@ -583,8 +589,9 @@ The following figure shows a list file and the corresponding adjacency matrix:
 
 The adjacency matrix states the tile identifier name in the top left cell.
 The columns denote the input ports to the switch matrix and the rows denote the output ports.
-A `1` in the matrix denotes a configurable connection (i.e. a multiplexer input connection) and each `1` corresponds to a `<output_port>,<input_port>` tuple defined in the adjacency list.
-Therefore, each row corresponds to one switch matrix multiplexer.
+A non-zero entry in the matrix denotes a configurable connection, i.e. a multiplexer input connection. Each non-zero entry corresponds to one `<output_port>,<input_port>` tuple defined in the adjacency list.
+
+When `PreserveListOrder` is `FALSE` (by default), all configurable connections are written as `1`. When `PreserveListOrder` is `TRUE`, each non-zero entry stores the position of that input in the corresponding `.list` entry, preserving the mux input order.
 
 When generating the adjacency matrix, FABulous will annotate for each row and column the number of connections set.
 For the rows, this denotes the size of the multiplexers (e.g., MUX4) and by checking the column summary, we can inspect how well the wire usage is balanced.

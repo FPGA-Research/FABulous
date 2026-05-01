@@ -19,6 +19,11 @@ from fabulous.custom_exception import (
 def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     """Parse the matrix CSV into a dictionary from destination to source.
 
+    Any non-zero integer denotes a configurable connection; the integer
+    encodes the mux input position (lower = earlier). Sort by
+    (value, column) so all-`1` rows fall back to CSV-column order via the
+    column-index secondary key.
+
     Parameters
     ----------
     fileName : Path
@@ -29,7 +34,8 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     Raises
     ------
     InvalidSwitchMatrixDefinition
-        Non matching matrix file content and tile name
+        Non matching matrix file content and tile name, or a non-integer
+        cell value in a row.
 
     Returns
     -------
@@ -55,8 +61,22 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
         port_name, row = fields[0], fields[1:]
         if not port_name:
             continue
-        # collect destinations where the connection bit is set
-        connections[port_name] = [dest_list[k] for k, v in enumerate(row) if v == "1"]
+        items: list[tuple[int, int, str]] = []
+        for k, v in enumerate(row):
+            stripped = v.strip()
+            if stripped == "":
+                continue
+            try:
+                value = int(stripped)
+            except ValueError as exc:
+                raise InvalidSwitchMatrixDefinition(
+                    f"{path}: row {port_name!r} column {k} has non-integer "
+                    f"cell value {stripped!r}"
+                ) from exc
+            if value != 0 and k < len(dest_list):
+                items.append((value, k, dest_list[k]))
+        items.sort(key=lambda x: (x[0], x[1]))
+        connections[port_name] = [d for _, _, d in items]
     return connections
 
 

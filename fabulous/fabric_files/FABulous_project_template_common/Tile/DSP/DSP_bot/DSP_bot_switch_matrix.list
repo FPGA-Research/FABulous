@@ -28,7 +28,7 @@ C[8|8|8|8],J[N|E|S|W]2END6
 C[9|9|9|9],J[N|E|S|W]2END7
 
 # accumulator clear input
-[clr|clr|clr|clr],[E2MID6|N2MID6|VCC0|GND0]
+[clr|clr|clr|clr],[GND0|VCC0|E2MID6|N2MID6]
 [clr|clr|clr|clr],J[N|E|S|W]2END3
 [clr|clr|clr|clr],J[N|E|S|W]2END2
 [clr|clr|clr|clr],[E2MID0|JW2END5|S2MID0|W2MID0]
