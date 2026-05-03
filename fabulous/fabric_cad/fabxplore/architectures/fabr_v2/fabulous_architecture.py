@@ -189,6 +189,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         # matching for critical path optimization
         # TODO: Explain Morph-Tiles
         # TODO: Explain Techmap (LUTs, chains)
+        # TODO: Explain how to do simulation and verification.
 
     def generate_switch_matrix(self) -> None:
         """Generate switch-matrix resources for routing integration."""
