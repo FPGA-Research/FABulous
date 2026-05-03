@@ -16,10 +16,7 @@ def test_get_command_includes_power_ground_flags(
     mock_config: Config, mock_state: State, mocker: MockerFixture
 ) -> None:
     """Test that get_command() includes the --power-names and
-     --ground-names parameter at least once.
-
-    This is the key customization of FABulousPower - it adds the metal layer
-    parameter from PDN_VERTICAL_LAYER config.
+    --ground-names parameter at least once each.
     """
     # Mock the parent class get_command to return a base command
     mocker.patch(
@@ -39,12 +36,7 @@ def test_get_command_includes_power_ground_flags(
 def test_get_command_includes_config_nets(
     mock_config: Config, mock_state: State, mocker: MockerFixture
 ) -> None:
-    """Test that get_command() includes the --power-names and
-     --ground-names parameter at least once.
-
-    This is the key customization of FABulousPower - it adds the metal layer
-    parameter from PDN_VERTICAL_LAYER config.
-    """
+    """Test that get_command() includes the power nets from the configuration nets."""
     # Mock the parent class get_command to return a base command
     mocker.patch(
         "librelane.steps.odb.OdbpyStep.get_command",
@@ -67,12 +59,8 @@ def test_get_command_includes_config_nets(
 def test_get_command_reverts_to_default_nets(
     mock_config: Config, mock_state: State, mocker: MockerFixture
 ) -> None:
-    """Test that get_command() includes the --power-names and
-     --ground-names parameter at least once.
-
-    This is the key customization of FABulousPower - it adds the metal layer
-    parameter from PDN_VERTICAL_LAYER config.
-    """
+    """Test that get_command() includes default values for power nets if absent (None)
+    from the configuration."""
     # Mock the parent class get_command to return a base command
     mocker.patch(
         "librelane.steps.odb.OdbpyStep.get_command",
@@ -98,12 +86,8 @@ def test_get_command_reverts_to_default_nets(
 def test_get_command_supports_multple_power_nets(
     mock_config: Config, mock_state: State, mocker: MockerFixture
 ) -> None:
-    """Test that get_command() includes the --power-names and
-     --ground-names parameter at least once.
-
-    This is the key customization of FABulousPower - it adds the metal layer
-    parameter from PDN_VERTICAL_LAYER config.
-    """
+    """Test that get_command() includes multiple power nets when more than 1 value is
+    specified in the configuration."""
     # Mock the parent class get_command to return a base command
     mocker.patch(
         "librelane.steps.odb.OdbpyStep.get_command",
