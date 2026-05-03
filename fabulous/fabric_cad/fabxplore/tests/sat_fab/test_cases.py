@@ -33,6 +33,9 @@ def run_all_tests() -> None:
     test_map_inputs_custom_ports()
     test_route_inputs_lut_with_extra_input()
     test_route_inputs_injective_mapping()
+    test_route_outputs_single_target()
+    test_route_outputs_multi_target_no_reuse()
+    test_route_inputs_and_outputs_together()
     test_route_inputs_lut6_mux4_to_two_lut5_hard_mux()
     test_blif_flut6_implements_mux4_lut6()
     test_routed_lut_network_mux4()
@@ -44,6 +47,7 @@ def run_all_tests() -> None:
     test_blif_subckt_flattening()
     test_blif_same_names_are_circuit_local()
     test_blif_input_mapping()
+    test_blif_output_mapping()
 
 
 def test_fast_lut_vs_configurable_lut2() -> None:
@@ -326,6 +330,95 @@ def test_route_inputs_injective_mapping() -> None:
         raise AssertionError("expected impossible injective route_inputs to fail")
 
 
+def test_route_outputs_single_target() -> None:
+    """Check one target output can select among several candidate outputs."""
+    target = Circuit.truth_table(
+        name="xor_target",
+        inputs=["A", "B"],
+        outputs={"Y": Func.xor("A", "B")},
+    )
+    cand = Circuit("multi_output")
+    a, b = cand.inputs("A", "B")
+    cand.output("O0", cand.and_(a, b, name="wrong_and"))
+    cand.output("O1", cand.xor(a, b, name="right_xor"))
+    cand.output("O2", cand.or_(a, b, name="wrong_or"))
+
+    result = (
+        Equiv.check(target, cand)
+        .match_inputs_by_name()
+        .route_outputs(cand, {"Y": ["O0", "O1", "O2"]})
+        .solve()
+    )
+
+    assert result.sat
+    assert result.output_mapping(cand) == {"Y": "O1"}
+    assert result.output_mapping(cand, scoped=True) == {"c1/Y": "c2/O1"}
+
+
+def test_route_outputs_multi_target_no_reuse() -> None:
+    """Check several target outputs can select distinct candidate outputs."""
+    target = _full_adder_target()
+    cand = Circuit("multi_output_fa")
+    a, b, cin = cand.inputs("A", "B", "Cin")
+    sum_ = cand.reduce_xor([a, b, cin], name="sum")
+    ab = cand.and_(a, b, name="ab")
+    ac = cand.and_(a, cin, name="ac")
+    bc = cand.and_(b, cin, name="bc")
+    cout = cand.reduce_or([ab, ac, bc], name="cout")
+    cand.output("O0", cout)
+    cand.output("O1", sum_)
+    cand.output("O2", cand.or_(a, b, name="junk"))
+
+    result = (
+        Equiv.check(target, cand)
+        .match_inputs_by_name()
+        .route_outputs(
+            cand,
+            {
+                "SUM": ["O0", "O1", "O2"],
+                "COUT": ["O0", "O1", "O2"],
+            },
+            allow_reuse=False,
+        )
+        .solve()
+    )
+
+    assert result.sat
+    assert result.output_mapping(cand) == {"SUM": "O1", "COUT": "O0"}
+
+
+def test_route_inputs_and_outputs_together() -> None:
+    """Check virtual input and output routing in one equivalence solve."""
+    target = Circuit.truth_table(
+        name="and_not_spec",
+        inputs=["A", "B"],
+        outputs={"Y": Func.expr(lambda A, B: A and not B)},
+    )
+    cand = Circuit("routed_in_and_out")
+    i, j, k = cand.inputs("I", "J", "K")
+    cand.output("O0", cand.and_(i, j, name="wrong_and"))
+    cand.output("O1", cand.and_(i, cand.not_(j, name="not_j"), name="right"))
+    cand.output("O2", cand.xor(i, k, name="wrong_xor"))
+
+    result = (
+        Equiv.check(target, cand)
+        .route_inputs(
+            cand,
+            pool=["A", "B"],
+            inputs=["I", "J", "K"],
+            allow_reuse=True,
+            allow_constants=False,
+        )
+        .route_outputs(cand, {"Y": ["O0", "O1", "O2"]})
+        .solve()
+    )
+
+    assert result.sat
+    assert result.input_mapping(cand)["I"] == "A"
+    assert result.input_mapping(cand)["J"] == "B"
+    assert result.output_mapping(cand) == {"Y": "O1"}
+
+
 def test_route_inputs_lut6_mux4_to_two_lut5_hard_mux() -> None:
     """Check a LUT6 MUX4 mapped onto two LUT5s with a hard mux."""
     c1 = Circuit.truth_table(
@@ -381,7 +474,7 @@ def test_blif_flut6_implements_mux4_lut6() -> None:
         name="mux4_lut6_spec",
         inputs=["D0", "D1", "D2", "D3", "S0", "S1"],
         outputs={
-            "O6": Func.mux_indexed(
+            "X": Func.mux_indexed(
                 data=["D0", "D1", "D2", "D3"],
                 select=["S0", "S1"],
             )
@@ -405,6 +498,11 @@ def test_blif_flut6_implements_mux4_lut6() -> None:
             allow_reuse=True,
             allow_constants=False,
         )
+        .route_outputs(
+            c2,
+            {"X": ["O5_0", "O5_1", "O6"]},
+            allow_reuse=False,
+        )
         .solve()
     )
 
@@ -424,6 +522,10 @@ def test_blif_flut6_implements_mux4_lut6() -> None:
 
     print("C2 input mapping")  # noqa: T201
     for dst, src in result.input_mapping(c2, scoped=True).items():
+        print(f"  {dst} <- {src}")  # noqa: T201
+
+    print("C2 output mapping")  # noqa: T201
+    for dst, src in result.output_mapping(c2, scoped=True).items():
         print(f"  {dst} <- {src}")  # noqa: T201
 
     print("C2 top config ports")  # noqa: T201
@@ -694,6 +796,41 @@ def test_blif_input_mapping() -> None:
         mapping = result.input_mapping(imported)
         assert set(mapping) == {"X", "Y"}
         assert set(mapping.values()) == {"A", "B"}
+
+
+def test_blif_output_mapping() -> None:
+    """Check virtual output mapping in front of an imported BLIF circuit."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "multi_out.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs X",
+                    ".outputs Z0 Z1",
+                    ".names X Z0",
+                    "0 1",
+                    ".names X Z1",
+                    "1 1",
+                    ".end",
+                ]
+            )
+        )
+        imported = Circuit.from_blif(path, inputs=["X"], outputs=["Z0", "Z1"])
+        target = Circuit.truth_table(
+            name="identity",
+            inputs=["A"],
+            outputs={"Y": Func.var("A")},
+        )
+        result = (
+            Equiv.check(target, imported)
+            .map_inputs(imported, {"X": "A"})
+            .route_outputs(imported, {"Y": ["Z0", "Z1"]})
+            .solve()
+        )
+
+        assert result.sat
+        assert result.output_mapping(imported) == {"Y": "Z1"}
 
 
 def _mux4_init() -> int:

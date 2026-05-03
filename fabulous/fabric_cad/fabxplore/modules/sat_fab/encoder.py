@@ -28,6 +28,8 @@ from fabulous.fabric_cad.fabxplore.modules.sat_fab.input_mapping import (
     InputRouteSpec,
     InputSource,
     InputSourceKind,
+    OutputRoute,
+    OutputRouteSpec,
 )
 
 if TYPE_CHECKING:
@@ -339,6 +341,38 @@ class Encoder:
             )
         if not spec.allow_reuse:
             self._add_no_reuse_constraints(cnf, spec, role)
+        return cnf
+
+    def output_route_config_constraints(
+        self,
+        spec: OutputRouteSpec,
+        role: str,
+    ) -> CNF:
+        """Return global validity constraints for virtual output routes.
+
+        Parameters
+        ----------
+        spec : OutputRouteSpec
+            Output-routing specification.
+        role : str
+            Circuit role used to scope keys.
+
+        Returns
+        -------
+        CNF
+            Clauses constraining output-route selectors.
+        """
+        cnf = CNF()
+        for route in spec.routes:
+            add_exactly_one(
+                cnf,
+                [
+                    self.config_var(ConfigKey(role, ConfigKind.ROUTE, route.inst, idx))
+                    for idx in range(len(route.sources))
+                ],
+            )
+        if not spec.allow_reuse:
+            self._add_output_no_reuse_constraints(cnf, spec, role)
         return cnf
 
     def const_var(self, cnf: CNF, value: bool) -> int:
@@ -677,6 +711,54 @@ class Encoder:
             acc = nxt
         add_eq(cnf, out_var, acc)
 
+    def encode_output_route(
+        self,
+        cnf: CNF,
+        role: str,
+        scope: tuple,
+        route: OutputRoute,
+        output_vars: dict[str, int],
+    ) -> int:
+        """Encode one virtual output-route mux.
+
+        Parameters
+        ----------
+        cnf : CNF
+            Formula that receives clauses.
+        role : str
+            Routed circuit role.
+        scope : tuple
+            Encoding scope.
+        route : OutputRoute
+            Output route to encode.
+        output_vars : dict[str, int]
+            Candidate source output variables.
+
+        Returns
+        -------
+        int
+            SAT variable for the selected output value.
+        """
+        out = self.vpool.id((scope, role, "output_route", route.target))
+        input_vars = [output_vars[source] for source in route.sources]
+        selectors = [
+            self.config_var(ConfigKey(role, ConfigKind.ROUTE, route.inst, index))
+            for index in range(len(input_vars))
+        ]
+        add_exactly_one(cnf, selectors)
+        terms: list[int] = []
+        for index, (sel, data) in enumerate(zip(selectors, input_vars, strict=True)):
+            term = self.vpool.id(("output_route_term", scope, role, route.inst, index))
+            add_and(cnf, sel, data, term)
+            terms.append(term)
+        acc = terms[0]
+        for index, term in enumerate(terms[1:], start=1):
+            nxt = self.vpool.id(("output_route_or", scope, role, route.inst, index))
+            add_or(cnf, acc, term, nxt)
+            acc = nxt
+        add_eq(cnf, out, acc)
+        return out
+
     def _add_no_reuse_constraints(
         self,
         cnf: CNF,
@@ -691,6 +773,49 @@ class Encoder:
             Formula that receives clauses.
         spec : InputRouteSpec
             Input-routing specification.
+        role : str
+            Circuit role used to scope keys.
+        """
+        for left_index, left_route in enumerate(spec.routes):
+            for right_route in spec.routes[left_index + 1 :]:
+                for left_source_index, left_source in enumerate(left_route.sources):
+                    for right_source_index, right_source in enumerate(
+                        right_route.sources
+                    ):
+                        if left_source != right_source:
+                            continue
+                        left_var = self.config_var(
+                            ConfigKey(
+                                role,
+                                ConfigKind.ROUTE,
+                                left_route.inst,
+                                left_source_index,
+                            )
+                        )
+                        right_var = self.config_var(
+                            ConfigKey(
+                                role,
+                                ConfigKind.ROUTE,
+                                right_route.inst,
+                                right_source_index,
+                            )
+                        )
+                        cnf.append([-left_var, -right_var])
+
+    def _add_output_no_reuse_constraints(
+        self,
+        cnf: CNF,
+        spec: OutputRouteSpec,
+        role: str,
+    ) -> None:
+        """Prevent two target outputs from selecting the same source output.
+
+        Parameters
+        ----------
+        cnf : CNF
+            Formula that receives clauses.
+        spec : OutputRouteSpec
+            Output-routing specification.
         role : str
             Circuit role used to scope keys.
         """

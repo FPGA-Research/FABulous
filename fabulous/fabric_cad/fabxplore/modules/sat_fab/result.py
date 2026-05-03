@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from fabulous.fabric_cad.fabxplore.modules.sat_fab.input_mapping import (
         InputRouteSpec,
         InputSource,
+        OutputRouteSpec,
     )
 
 
@@ -131,6 +132,8 @@ class EquivResult:
         Fixed input connections by role.
     input_routes : dict[str, InputRouteSpec]
         Virtual input-route specifications by role.
+    output_routes : dict[str, OutputRouteSpec]
+        Virtual output-route specifications by role.
     """
 
     sat: bool
@@ -141,6 +144,7 @@ class EquivResult:
     circuits: dict[str, Circuit] = field(default_factory=dict)
     input_connections: dict[str, dict[str, InputSource]] = field(default_factory=dict)
     input_routes: dict[str, InputRouteSpec] = field(default_factory=dict)
+    output_routes: dict[str, OutputRouteSpec] = field(default_factory=dict)
 
     def config_for(self, circuit: Circuit) -> CircuitConfig:
         """Return decoded config for a circuit object.
@@ -293,6 +297,71 @@ class EquivResult:
             )
         return mapping
 
+    def output_mapping(
+        self,
+        circuit: Circuit,
+        scoped: bool = False,
+        separator: str = "/",
+    ) -> dict[str, str]:
+        """Return solved virtual output mapping for a circuit.
+
+        Parameters
+        ----------
+        circuit : Circuit
+            Circuit whose routed output ports should be decoded.
+        scoped : bool
+            Whether to include circuit roles in target and source names.
+        separator : str
+            Separator between role and local output name when ``scoped`` is true.
+
+        Returns
+        -------
+        dict[str, str]
+            Mapping from opposite-side target output to selected circuit output.
+        """
+        role = self.circuit_roles[id(circuit)]
+        return self._output_mapping_for_role(
+            role,
+            scoped=scoped,
+            separator=separator,
+        )
+
+    def _output_mapping_for_role(
+        self,
+        role: str,
+        scoped: bool = False,
+        separator: str = "/",
+    ) -> dict[str, str]:
+        """Return solved virtual output mapping for one role.
+
+        Parameters
+        ----------
+        role : str
+            Circuit role.
+        scoped : bool
+            Whether to include circuit roles in target and source names.
+        separator : str
+            Separator between role and local output name when ``scoped`` is true.
+
+        Returns
+        -------
+        dict[str, str]
+            Mapping from target output to selected source output.
+        """
+        mapping: dict[str, str] = {}
+        spec = self.output_routes.get(role)
+        if spec is None or role not in self.configs:
+            return mapping
+        config = self.configs[role]
+        for route in spec.routes:
+            selected = config.route_index(route.inst)
+            if selected is None:
+                continue
+            target = _display_port(route.target_role, route.target, scoped, separator)
+            source = _display_port(role, route.sources[selected], scoped, separator)
+            mapping[target] = source
+        return mapping
+
     def print(self, verbose: bool = False) -> None:
         """Print a readable result report.
 
@@ -338,6 +407,10 @@ class EquivResult:
             "input_mappings": {
                 role: self._input_mapping_for_role(role)
                 for role in set(self.input_routes) | set(self.input_connections)
+            },
+            "output_mappings": {
+                role: self._output_mapping_for_role(role)
+                for role in set(self.output_routes)
             },
         }
         out_path.write_text(json.dumps(data, indent=2))
@@ -396,6 +469,7 @@ class EquivResult:
                     for key in config.bits
                     if key.kind == ConfigKind.ROUTE
                     and not _is_input_route(self.input_routes.get(role), key.inst)
+                    and not _is_output_route(self.output_routes.get(role), key.inst)
                 }
             )
             for inst in route_names:
@@ -404,6 +478,10 @@ class EquivResult:
                 mapping = self._input_mapping_for_role(role)
                 if mapping:
                     lines.append(f"  input mapping: {mapping}")
+            if role in self.output_routes:
+                mapping = self._output_mapping_for_role(role)
+                if mapping:
+                    lines.append(f"  output mapping: {mapping}")
             input_names = sorted(
                 {key.inst for key in config.bits if key.kind == ConfigKind.INPUT}
             )
@@ -473,5 +551,23 @@ def _is_input_route(spec: InputRouteSpec | None, inst: str) -> bool:
     -------
     bool
         True when the instance is a virtual input route.
+    """
+    return spec is not None and inst in set(spec.config_instances())
+
+
+def _is_output_route(spec: OutputRouteSpec | None, inst: str) -> bool:
+    """Check whether an instance name belongs to a virtual output route.
+
+    Parameters
+    ----------
+    spec : OutputRouteSpec | None
+        Optional output-route specification.
+    inst : str
+        Route configuration instance name.
+
+    Returns
+    -------
+    bool
+        True when the instance is a virtual output route.
     """
     return spec is not None and inst in set(spec.config_instances())

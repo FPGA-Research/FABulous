@@ -79,6 +79,8 @@ Use `.route_inputs(...)` when SAT should discover the mapping.
 - Explicit input relations with `.match_inputs_by_name()`, `.map_inputs(...)`,
   and `.route_inputs(...)`, including port permutation, optional input sharing,
   constants, and decoded input mappings.
+- Optional output routing with `.route_outputs(...)`, so a target output can be
+  matched against one of several implementation outputs chosen by SAT.
 - CEGIS using PySAT with a persistent outer solver.
 - Brute-force verification for small input spaces and SAT miter verification for
   larger cases.
@@ -91,6 +93,7 @@ Use `.route_inputs(...)` when SAT should discover the mapping.
   - `result.route(...)`
   - `result.pinmap(...)`
   - `result.input_mapping(...)`
+  - `result.output_mapping(...)`
   - `result.summary(...)`
   - `result.print(...)`
   - `result.emit_verilog_config()`
@@ -383,6 +386,57 @@ Options:
 - `allow_reuse=False`: source choices must be injective.
 - `allow_constants=True`: add constant `0` and `1` sources to the pool.
 - `name`: prefix for generated route config names.
+
+## Virtual Output Routing
+
+Without output routing, outputs are matched by name. If `c1` has outputs
+`SUM` and `COUT`, then `c2` must also expose `SUM` and `COUT`, and the solver
+checks both pairs:
+
+```text
+c1.SUM == c2.SUM
+c1.COUT == c2.COUT
+```
+
+Use `.route_outputs(...)` when one side has several possible output ports and
+SAT should choose which one implements a target output.
+
+```python
+result = (
+    Equiv.check(c1, c2)
+    .route_outputs(
+        c2,
+        {"Y": ["O5_0", "O5_1", "O6"]},
+    )
+    .solve()
+)
+
+print(result.output_mapping(c2))
+```
+
+This means `c1.Y` may be matched against one of `c2.O5_0`, `c2.O5_1`, or
+`c2.O6`. The selected output is controlled by one-hot route config bits, just
+like input routes.
+
+For several target outputs:
+
+```python
+result = (
+    Equiv.check(c1, c2)
+    .route_outputs(
+        c2,
+        {
+            "SUM": ["O0", "O1", "O2"],
+            "COUT": ["O0", "O1", "O2"],
+        },
+        allow_reuse=False,
+    )
+    .solve()
+)
+```
+
+With `allow_reuse=False`, two target outputs cannot select the same candidate
+output.
 
 ## BLIF Import
 
@@ -915,6 +969,152 @@ This means both LUT5s use `S0` internally and the hard MUX2 uses `S1`. If a
 different architecture permits a non-shared solution, `allow_reuse=True` also
 allows that; the decoded input mapping tells you which structure SAT selected.
 
+### Example 11: Single Target Output Routed To One Candidate Output
+
+This example has a one-output target `Y`, but the implementation exposes three
+candidate outputs. Only `O1` is XOR, so SAT must select `O1`.
+
+```python
+from fabulous.fabric_cad.fabxplore.modules.sat_fab import Circuit, Equiv, Func
+
+c1 = Circuit.truth_table(
+    name="xor_spec",
+    inputs=["A", "B"],
+    outputs={"Y": Func.xor("A", "B")},
+)
+
+c2 = Circuit("candidate_outputs")
+A, B = c2.inputs("A", "B")
+
+c2.output("O0", c2.and_(A, B, name="wrong_and"))
+c2.output("O1", c2.xor(A, B, name="right_xor"))
+c2.output("O2", c2.or_(A, B, name="wrong_or"))
+
+result = (
+    Equiv.check(c1, c2)
+    .match_inputs_by_name()
+    .route_outputs(c2, {"Y": ["O0", "O1", "O2"]})
+    .solve()
+)
+
+assert result.sat
+print(result.output_mapping(c2))
+```
+
+Expected mapping:
+
+```python
+{"Y": "O1"}
+```
+
+Without `.route_outputs(...)`, this example would fail because `c2` has no
+same-named output `Y`.
+
+### Example 12: Multi-Output Target Routed To Multi-Output Candidate
+
+Here the target is a full adder with outputs `SUM` and `COUT`. The candidate
+has three possible outputs, and SAT chooses which two implement the target
+outputs. `allow_reuse=False` prevents both target outputs from selecting the
+same candidate output.
+
+```python
+from fabulous.fabric_cad.fabxplore.modules.sat_fab import Circuit, Equiv, Func
+
+c1 = Circuit.truth_table(
+    name="full_adder_spec",
+    inputs=["A", "B", "Cin"],
+    outputs={
+        "SUM": Func.expr(lambda A, B, Cin: A ^ B ^ Cin),
+        "COUT": Func.expr(lambda A, B, Cin: (A & B) | (A & Cin) | (B & Cin)),
+    },
+)
+
+c2 = Circuit("multi_output_fa")
+A, B, Cin = c2.inputs("A", "B", "Cin")
+
+sum_ = c2.reduce_xor([A, B, Cin], name="sum")
+ab = c2.and_(A, B, name="ab")
+ac = c2.and_(A, Cin, name="ac")
+bc = c2.and_(B, Cin, name="bc")
+cout = c2.reduce_or([ab, ac, bc], name="cout")
+
+c2.output("O0", cout)
+c2.output("O1", sum_)
+c2.output("O2", c2.or_(A, B, name="junk"))
+
+result = (
+    Equiv.check(c1, c2)
+    .match_inputs_by_name()
+    .route_outputs(
+        c2,
+        {
+            "SUM": ["O0", "O1", "O2"],
+            "COUT": ["O0", "O1", "O2"],
+        },
+        allow_reuse=False,
+    )
+    .solve()
+)
+
+assert result.sat
+print(result.output_mapping(c2))
+```
+
+Expected mapping:
+
+```python
+{"SUM": "O1", "COUT": "O0"}
+```
+
+### Example 13: Input And Output Routing Together
+
+Input and output routing can be active in the same solve. This is useful when
+the implementation has different top-level input names and also exposes several
+possible output ports.
+
+```python
+from fabulous.fabric_cad.fabxplore.modules.sat_fab import Circuit, Equiv, Func
+
+c1 = Circuit.truth_table(
+    name="and_not_spec",
+    inputs=["A", "B"],
+    outputs={"Y": Func.expr(lambda A, B: A and not B)},
+)
+
+c2 = Circuit("routed_in_and_out")
+I, J, K = c2.inputs("I", "J", "K")
+
+c2.output("O0", c2.and_(I, J, name="wrong_and"))
+c2.output("O1", c2.and_(I, c2.not_(J, name="not_j"), name="right"))
+c2.output("O2", c2.xor(I, K, name="wrong_xor"))
+
+result = (
+    Equiv.check(c1, c2)
+    .route_inputs(
+        c2,
+        pool=["A", "B"],
+        inputs=["I", "J", "K"],
+        allow_reuse=True,
+        allow_constants=False,
+    )
+    .route_outputs(c2, {"Y": ["O0", "O1", "O2"]})
+    .solve()
+)
+
+assert result.sat
+print(result.input_mapping(c2))
+print(result.output_mapping(c2))
+```
+
+One valid result is:
+
+```python
+{"I": "A", "J": "B", "K": "A"}
+{"Y": "O1"}
+```
+
+Here `K` is a don't-care input because the selected output `O1` does not use it.
+
 ### Input Relation Cases
 
 Same port names are local by default. This intentionally returns UNSAT for an
@@ -997,6 +1197,14 @@ be all fixed configuration constraints, and let $s$ be the remaining symbolic
 configuration variables. Then the framework solves $\exists s . \forall x . F \land \left(C_1(\text{cfg}_1, x) = C_2(\text{cfg}_2, x)\right)$.
 
 For multiple outputs, equality means all corresponding outputs match: $C_1(\text{cfg}_1, x) = C_2(\text{cfg}_2, x) \iff \bigwedge_i C_{1,i}(\text{cfg}_1, x) = C_{2,i}(\text{cfg}_2, x)$.
+
+By default, corresponding outputs are matched by name. If output routing is
+enabled, the framework introduces an output mapping $\rho$. For a target output
+$y_i$, $\rho(y_i)$ is one of the candidate outputs on the routed circuit. The
+comparison becomes $C_{1,i}(x) = C_{2,\rho(y_i)}(\text{cfg}_2, x)$.
+
+The routed-output synthesis question is
+$\exists \text{cfg}_2,\rho . \forall x . \bigwedge_i C_{1,i}(x) = C_{2,\rho(y_i)}(\text{cfg}_2, x)$.
 
 Equivalently, define a miter: $M(\text{cfg}_1, \text{cfg}_2, x) = \bigvee_i \left(C_{1,i}(\text{cfg}_1, x) \oplus C_{2,i}(\text{cfg}_2, x)\right)$.
 
@@ -1100,6 +1308,28 @@ The full routed-input synthesis question is $\exists \text{cfg}_2,\mu . \forall 
 Constants are just extra pool entries, so allowing constants changes the source
 set from $S$ to $S \cup \{0,1\}$.
 
+### Output Mapping
+
+Output mapping adds a relation between comparison outputs and candidate outputs.
+A virtual output route makes this relation existential and lets SAT choose it.
+
+If target output $y_i$ may be implemented by candidate outputs
+$o_0, o_1, \dots, o_{m-1}$, the solver creates one-hot selector bits
+$q_{i,0}, q_{i,1}, \dots, q_{i,m-1}$. The validity constraint is
+$\sum_j q_{i,j} = 1$.
+
+The selected value is $z_i = \bigvee_j (q_{i,j} \land o_j)$, and the miter
+compares $C_{1,i}(x)$ against $z_i$ instead of comparing against a same-named
+output.
+
+With output reuse enabled, two target outputs may choose the same candidate
+output. With reuse disabled, the encoding adds clauses
+$\neg q_{i,j} \lor \neg q_{k,j}$ so two target outputs cannot select the same
+source output $o_j$.
+
+This is opt-in. If `.route_outputs(...)` is not used, output comparison remains
+same-name matching and no extra selector bits or mux clauses are added.
+
 ### C2 To Pool Formulation
 
 The notation `C2 -- [pool]` means that every selected input port of circuit 2 is
@@ -1202,10 +1432,11 @@ counterexample strongly constrains the search. Fast truth-table targets avoid
 building large target circuits when the target is already known as an INIT
 table, and BLIF import prunes to the requested output cone before encoding.
 
-Input routing uses the same CEGIS machinery. If `route_inputs(...)` is active,
-the candidate also contains a mapping $\mu$. The outer solver proposes both
-$c^*$ and $\mu^*$, and the checker verifies
-$\forall x . C_1(x) = C_2(c^*, \mu^*(x))$.
+Input and output routing use the same CEGIS machinery. If `route_inputs(...)`
+is active, the candidate also contains an input mapping $\mu$. If
+`route_outputs(...)` is active, the candidate also contains an output mapping
+$\rho$. The outer solver proposes these mappings together with $c^*$, and the
+checker verifies them against all inputs.
 
 ## Misc Notes
 
@@ -1232,6 +1463,26 @@ c2/I0 <- c1/S1
 c2/I1 <- c1/D3
 c2/P0 <- c1/D0
 c2/S  <- c1/S0
+```
+
+To print the solved output mapping for a circuit whose output ports were
+selected from a candidate set:
+
+```python
+mapping = result.output_mapping(c2)
+print(mapping)
+
+scoped = result.output_mapping(c2, scoped=True)
+for target, source in scoped.items():
+    print(f"{target} <- {source}")
+```
+
+For example:
+
+```text
+c1/Y <- c2/O6
+c1/SUM <- c2/O1
+c1/COUT <- c2/O0
 ```
 
 To print every external config port of a BLIF-style module, use
@@ -1267,5 +1518,5 @@ The distinction is:
 - `external_value(...)` is for top-level config ports, often from BLIF.
 - `lut_init(...)` and `lut_bits(...)` are for symbolic LUT nodes built by the
   sat_fab API.
-- `route(...)`, `pinmap(...)`, and `input_mapping(...)` decode one-hot routing
-  choices.
+- `route(...)`, `pinmap(...)`, `input_mapping(...)`, and
+  `output_mapping(...)` decode one-hot routing choices.

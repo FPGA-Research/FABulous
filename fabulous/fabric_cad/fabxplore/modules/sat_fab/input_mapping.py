@@ -1,7 +1,7 @@
-"""Input-routing specifications.
+"""Input and output routing specifications.
 
-This module describes virtual input crossbars that Equiv can place in front of a circuit
-without mutating the circuit graph itself.
+This module describes virtual crossbars that Equiv can place around a circuit without
+mutating the circuit graph itself.
 """
 
 from __future__ import annotations
@@ -179,6 +179,74 @@ class InputRouteSpec:
             Routed input port names.
         """
         return {route.port for route in self.routes}
+
+    def config_instances(self) -> list[str]:
+        """Return route configuration instance names.
+
+        Returns
+        -------
+        list[str]
+            Route instance names.
+        """
+        return [route.inst for route in self.routes]
+
+
+@dataclass(frozen=True)
+class OutputRoute:
+    """One virtual route that selects a circuit output.
+
+    Attributes
+    ----------
+    target : str
+        Opposite-side output name being matched.
+    target_role : str
+        Role that owns the target output.
+    inst : str
+        Configuration instance name for the route selector.
+    sources : tuple[str, ...]
+        Candidate output names from the routed circuit.
+    """
+
+    target: str
+    target_role: str
+    inst: str
+    sources: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class OutputRouteSpec:
+    """Virtual output-routing specification for one circuit.
+
+    Attributes
+    ----------
+    routes : tuple[OutputRoute, ...]
+        Routes that select output ports for comparison.
+    allow_reuse : bool
+        Whether multiple target outputs may select the same source output.
+    """
+
+    routes: tuple[OutputRoute, ...]
+    allow_reuse: bool = True
+
+    def target_outputs(self) -> set[str]:
+        """Return opposite-side output names driven by virtual routes.
+
+        Returns
+        -------
+        set[str]
+            Target output names.
+        """
+        return {route.target for route in self.routes}
+
+    def source_outputs(self) -> set[str]:
+        """Return candidate source output names needed from the routed circuit.
+
+        Returns
+        -------
+        set[str]
+            Source output names.
+        """
+        return {source for route in self.routes for source in route.sources}
 
     def config_instances(self) -> list[str]:
         """Return route configuration instance names.

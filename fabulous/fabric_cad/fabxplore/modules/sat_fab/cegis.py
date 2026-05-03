@@ -33,6 +33,8 @@ from fabulous.fabric_cad.fabxplore.modules.sat_fab.input_mapping import (
     InputRouteSpec,
     InputSource,
     InputSourceKind,
+    OutputRoute,
+    OutputRouteSpec,
 )
 from fabulous.fabric_cad.fabxplore.modules.sat_fab.result import (
     CircuitConfig,
@@ -97,6 +99,7 @@ class Equiv:
         }
         self._input_connections: dict[str, dict[str, InputSource]] = {}
         self._input_routes: dict[str, InputRouteSpec] = {}
+        self._output_routes: dict[str, OutputRouteSpec] = {}
         self.options_data = EquivOptions()
 
     @classmethod
@@ -518,6 +521,86 @@ class Equiv:
         self._input_connections[role] = connections
         return self
 
+    def route_outputs(
+        self,
+        circuit: CircuitLike,
+        mapping: dict[str, list[str] | tuple[str, ...]],
+        allow_reuse: bool = True,
+        name: str = "output_map",
+    ) -> Equiv:
+        """Add a virtual configurable output crossbar for one circuit.
+
+        Parameters
+        ----------
+        circuit : CircuitLike
+            Circuit whose output ports should be selectable.
+        mapping : dict[str, list[str] | tuple[str, ...]]
+            Mapping from opposite-side output name to candidate output names
+            on ``circuit``.
+        allow_reuse : bool
+            Whether multiple target outputs may select the same source output.
+        name : str
+            Prefix used for generated route configuration instance names.
+
+        Returns
+        -------
+        Equiv
+            This problem object.
+
+        Raises
+        ------
+        TypeError
+            If ``circuit`` is not a Circuit side.
+        ValueError
+            If a target or candidate output name is invalid.
+        """
+        if not isinstance(circuit, Circuit):
+            raise TypeError("route_outputs requires a Circuit side")
+        role = self._role(circuit)
+        target_side = self._other_side(circuit)
+        target_role = self._role(target_side)
+        target_names = set(self._output_names(target_side))
+        source_names = set(circuit.output_names())
+        missing_targets = [target for target in mapping if target not in target_names]
+        if missing_targets:
+            raise ValueError(
+                f"route_outputs targets are not opposite outputs: {missing_targets}"
+            )
+        routes: list[OutputRoute] = []
+        for target, candidates in mapping.items():
+            candidate_list = list(candidates)
+            missing_sources = [
+                candidate
+                for candidate in candidate_list
+                if candidate not in source_names
+            ]
+            if missing_sources:
+                raise ValueError(
+                    "route_outputs candidates are not circuit outputs: "
+                    f"{missing_sources}"
+                )
+            if not candidate_list:
+                raise ValueError("route_outputs requires at least one candidate output")
+            routes.append(
+                OutputRoute(
+                    target=target,
+                    target_role=target_role,
+                    inst=f"{name}.{target}",
+                    sources=tuple(candidate_list),
+                )
+            )
+        if not allow_reuse:
+            unique_sources = {source for route in routes for source in route.sources}
+            if len(routes) > len(unique_sources):
+                raise ValueError(
+                    "route_outputs cannot be injective with fewer sources than targets"
+                )
+        self._output_routes[role] = OutputRouteSpec(
+            routes=tuple(routes),
+            allow_reuse=allow_reuse,
+        )
+        return self
+
     def solve(self) -> EquivResult:
         """Run SAT-based CEGIS equivalence synthesis.
 
@@ -558,6 +641,7 @@ class Equiv:
                         sat=False,
                         input_connections=dict(self._input_connections),
                         input_routes=dict(self._input_routes),
+                        output_routes=dict(self._output_routes),
                         iterations=iteration,
                         examples=self._display_examples(examples),
                     )
@@ -580,6 +664,7 @@ class Equiv:
                         circuits=self._result_circuits(),
                         input_connections=dict(self._input_connections),
                         input_routes=dict(self._input_routes),
+                        output_routes=dict(self._output_routes),
                         iterations=iteration,
                         examples=self._display_examples(examples),
                     )
@@ -722,7 +807,24 @@ class Equiv:
         """
         left = self._output_names(self.c1)
         right = set(self._output_names(self.c2))
-        missing = [name for name in left if name not in right]
+        routed_right = self._output_routes.get(Role.C2.value)
+        routed_left = self._output_routes.get(Role.C1.value)
+        routed_right_targets = (
+            routed_right.target_outputs() if routed_right is not None else set()
+        )
+        routed_left_targets = (
+            routed_left.target_outputs() if routed_left is not None else set()
+        )
+        missing = [
+            name
+            for name in left
+            if name not in right and name not in routed_right_targets
+        ]
+        unmapped_left = [name for name in routed_left_targets if name not in right]
+        if unmapped_left:
+            raise ValueError(
+                f"right side is missing outputs for routed left side: {unmapped_left}"
+            )
         if missing:
             raise ValueError(f"right side is missing outputs: {missing}")
         return left
@@ -821,6 +923,12 @@ class Equiv:
                         key = ConfigKey(role, ConfigKind.ROUTE, route.inst, index)
                         if key not in spec.fixed:
                             symbolic.add(key)
+            if role in self._output_routes:
+                for route in self._output_routes[role].routes:
+                    for index in range(len(route.sources)):
+                        key = ConfigKey(role, ConfigKind.ROUTE, route.inst, index)
+                        if key not in spec.fixed:
+                            symbolic.add(key)
         symbolic.difference_update(fixed)
         return fixed, sorted(symbolic)
 
@@ -860,6 +968,13 @@ class Equiv:
                 )
                 for clause in constraints.clauses:
                     outer.add_clause(clause)
+            if role in self._output_routes:
+                constraints = enc.output_route_config_constraints(
+                    self._output_routes[role],
+                    role,
+                )
+                for clause in constraints.clauses:
+                    outer.add_clause(clause)
 
     def _example_constraints(
         self,
@@ -894,8 +1009,10 @@ class Equiv:
         right = self._encode_side(enc, self.c2, "c2", scope, outputs)
         cnf.extend(left.cnf.clauses)
         cnf.extend(right.cnf.clauses)
+        left_outputs = self._comparison_outputs(enc, "c1", left, cnf, scope, outputs)
+        right_outputs = self._comparison_outputs(enc, "c2", right, cnf, scope, outputs)
         for name in outputs:
-            add_eq(cnf, left.outputs[name], right.outputs[name])
+            add_eq(cnf, left_outputs[name], right_outputs[name])
         return cnf
 
     def _find_counterexample(
@@ -957,7 +1074,11 @@ class Equiv:
             values = dict(zip(input_names, bits, strict=True))
             left = self._eval_side(self.c1, "c1", values, candidate)
             right = self._eval_side(self.c2, "c2", values, candidate)
-            if any(left[name] != right[name] for name in outputs):
+            if any(
+                self._comparison_value("c1", left, name, candidate)
+                != self._comparison_value("c2", right, name, candidate)
+                for name in outputs
+            ):
                 return values
         return None
 
@@ -992,10 +1113,12 @@ class Equiv:
         right = self._encode_side(enc, self.c2, "c2", scope, outputs)
         cnf.extend(left.cnf.clauses)
         cnf.extend(right.cnf.clauses)
+        left_outputs = self._comparison_outputs(enc, "c1", left, cnf, scope, outputs)
+        right_outputs = self._comparison_outputs(enc, "c2", right, cnf, scope, outputs)
         xors: list[int] = []
         for name in outputs:
             xor = enc.vpool.id((scope, "diff", name))
-            add_xor(cnf, left.outputs[name], right.outputs[name], xor)
+            add_xor(cnf, left_outputs[name], right_outputs[name], xor)
             xors.append(xor)
         diff = xors[0]
         for index, xor in enumerate(xors[1:], start=1):
@@ -1048,15 +1171,90 @@ class Equiv:
             Encoded outputs and clauses.
         """
         if isinstance(side, Circuit):
+            selected_outputs = self._outputs_to_encode(role, outputs)
             return enc.encode_circuit(
                 side,
                 role,
                 scope,
-                outputs,
+                selected_outputs,
                 input_connections=self._input_connections.get(role),
                 input_routes=self._input_routes.get(role),
             )
         return enc.encode_truth_table(side, role, scope, outputs)
+
+    def _outputs_to_encode(self, role: str, outputs: list[str]) -> list[str]:
+        """Return side output names needed for one comparison.
+
+        Parameters
+        ----------
+        role : str
+            Circuit role.
+        outputs : list[str]
+            Comparison target output names.
+
+        Returns
+        -------
+        list[str]
+            Output names to encode from this side.
+        """
+        spec = self._output_routes.get(role)
+        if spec is None:
+            return outputs
+        target_outputs = spec.target_outputs()
+        selected = [name for name in outputs if name not in target_outputs]
+        for source in spec.source_outputs():
+            if source not in selected:
+                selected.append(source)
+        return selected
+
+    def _comparison_outputs(
+        self,
+        enc: Encoder,
+        role: str,
+        encoded: EncodedOutputs,
+        cnf: CNF,
+        scope: tuple,
+        outputs: list[str],
+    ) -> dict[str, int]:
+        """Return output variables aligned to comparison output names.
+
+        Parameters
+        ----------
+        enc : Encoder
+            Shared encoder.
+        role : str
+            Circuit role.
+        encoded : EncodedOutputs
+            Encoded side outputs.
+        cnf : CNF
+            Formula that receives output-route mux clauses.
+        scope : tuple
+            Encoding scope.
+        outputs : list[str]
+            Comparison target output names.
+
+        Returns
+        -------
+        dict[str, int]
+            Output variables keyed by comparison output name.
+        """
+        result = {
+            name: encoded.outputs[name] for name in outputs if name in encoded.outputs
+        }
+        spec = self._output_routes.get(role)
+        if spec is None:
+            return result
+        for route in spec.routes:
+            if route.target not in outputs:
+                continue
+            result[route.target] = enc.encode_output_route(
+                cnf,
+                role,
+                scope,
+                route,
+                encoded.outputs,
+            )
+        return result
 
     def _eval_side(
         self,
@@ -1090,6 +1288,41 @@ class Equiv:
             name: bool(inputs[InputHandle(role, name)]) for name in side.input_names()
         }
         return side.eval_concrete(truth_inputs)
+
+    def _comparison_value(
+        self,
+        role: str,
+        outputs: dict[str, bool],
+        target: str,
+        config: dict[ConfigKey, bool],
+    ) -> bool:
+        """Return one concrete output value for comparison.
+
+        Parameters
+        ----------
+        role : str
+            Circuit role.
+        outputs : dict[str, bool]
+            Concrete outputs from the side.
+        target : str
+            Comparison output name.
+        config : dict[ConfigKey, bool]
+            Concrete configuration assignment.
+
+        Returns
+        -------
+        bool
+            Output value after any virtual output route.
+        """
+        spec = self._output_routes.get(role)
+        if spec is None:
+            return outputs[target]
+        for route in spec.routes:
+            if route.target != target:
+                continue
+            selected = _selected_output_route_source(config, role, route)
+            return outputs[selected]
+        return outputs[target]
 
     def _adapt_inputs_for_side(
         self,
@@ -1324,6 +1557,39 @@ def _selected_input_route_source(
         if config[key]:
             return source
     raise ValueError(f"no selected source for input route {route.inst}")
+
+
+def _selected_output_route_source(
+    config: dict[ConfigKey, bool],
+    role: str,
+    route: OutputRoute,
+) -> str:
+    """Return the selected source output for a virtual output route.
+
+    Parameters
+    ----------
+    config : dict[ConfigKey, bool]
+        Concrete configuration assignment.
+    role : str
+        Circuit role.
+    route : OutputRoute
+        Output route to inspect.
+
+    Returns
+    -------
+    str
+        Selected output source name.
+
+    Raises
+    ------
+    ValueError
+        If no source is selected.
+    """
+    for index, source in enumerate(route.sources):
+        key = ConfigKey(role, ConfigKind.ROUTE, route.inst, index)
+        if config[key]:
+            return source
+    raise ValueError(f"no selected source for output route {route.inst}")
 
 
 def _eval_input_source(source: InputSource, inputs: dict[InputHandle, bool]) -> bool:
