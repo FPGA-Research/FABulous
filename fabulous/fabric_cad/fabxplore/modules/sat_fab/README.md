@@ -1164,3 +1164,108 @@ The result object decodes $\text{cfg}^*$ back into user-facing artifacts:
 - routed-LUT pin maps,
 - external BLIF config input values,
 - JSON or Verilog-style config summaries.
+
+## Notes About CEGIS
+
+CEGIS means counterexample-guided inductive synthesis. The direct problem is
+usually of the form $\exists c . \forall x . C_1(x) = C_2(c, x)$, where $c$
+contains LUT INIT bits, route selector bits, external BLIF config ports, and
+possibly input-mapping selector bits.
+
+Solving the full quantified problem directly is expensive. Instead, sat_fab
+keeps a finite example set $E = \{x_0, x_1, \dots, x_k\}$ and asks the outer SAT
+solver for a candidate configuration $c^*$ that works on those examples:
+$\exists c . \bigwedge_{x_i \in E} C_1(x_i) = C_2(c, x_i)$.
+
+Then a checker asks whether the candidate is wrong for any input:
+$\exists x . C_1(x) \ne C_2(c^*, x)$. If the checker finds such an input, that
+input is a counterexample and is added to $E$. The outer solver is run again
+with the stronger example set.
+
+The loop is:
+
+```text
+start with a few examples
+solve for candidate config
+check candidate on all inputs
+if counterexample exists, add it
+otherwise the candidate is valid
+```
+
+For small input counts, the checker can brute-force all $2^n$ input rows. For
+larger cases, the checker builds a SAT miter and asks for one mismatching row.
+
+This is fast in practice because the outer solver does not start with the full
+truth table. It only sees the examples needed to eliminate bad candidates. LUT
+and route configuration bits are shared across all examples, so every
+counterexample strongly constrains the search. Fast truth-table targets avoid
+building large target circuits when the target is already known as an INIT
+table, and BLIF import prunes to the requested output cone before encoding.
+
+Input routing uses the same CEGIS machinery. If `route_inputs(...)` is active,
+the candidate also contains a mapping $\mu$. The outer solver proposes both
+$c^*$ and $\mu^*$, and the checker verifies
+$\forall x . C_1(x) = C_2(c^*, \mu^*(x))$.
+
+## Misc Notes
+
+When SAT finds a solution, the result contains one valid configuration. There
+may be many other valid configurations; sat_fab reports one model because that
+answers the existence question.
+
+To print the solved input mapping for a circuit whose top-level ports were
+routed from a source pool:
+
+```python
+mapping = result.input_mapping(c2)
+print(mapping)
+
+scoped = result.input_mapping(c2, scoped=True)
+for dst, src in scoped.items():
+    print(f"{dst} <- {src}")
+```
+
+For example, a mapped BLIF or hand-built candidate may report:
+
+```text
+c2/I0 <- c1/S1
+c2/I1 <- c1/D3
+c2/P0 <- c1/D0
+c2/S  <- c1/S0
+```
+
+To print every external config port of a BLIF-style module, use
+`result.config_for(circuit).external_value(name)`:
+
+```python
+cfg = result.config_for(c2)
+
+for name in c2.config_names():
+    value = cfg.external_value(name)
+    print(f"c2/{name} = {int(bool(value))}")
+```
+
+For a module with config inputs like `INIT0[0]`, `INIT0[1]`, and so on, this
+prints the top-level port values that should be applied to the module.
+
+For configurable LUT nodes created with `Circuit.lut(...)`, use the LUT helpers:
+
+```python
+print(hex(result.lut_init(c2, "LUT5_LO")))
+print(result.config_for(c2).lut_bits("LUT5_LO"))
+```
+
+For routed LUTs and explicit route muxes, use:
+
+```python
+print(result.pinmap(c2, "LUT0"))
+print(result.route(c2, "LUT0.a0"))
+```
+
+The distinction is:
+
+- `external_value(...)` is for top-level config ports, often from BLIF.
+- `lut_init(...)` and `lut_bits(...)` are for symbolic LUT nodes built by the
+  sat_fab API.
+- `route(...)`, `pinmap(...)`, and `input_mapping(...)` decode one-hot routing
+  choices.
