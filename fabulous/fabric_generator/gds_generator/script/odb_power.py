@@ -66,7 +66,7 @@ def propagate_supply_net(
         net = odb.dbNet.create(reader.block, supply_name)
         net.setSpecial()
         net.setSigType(supply_type)
-        info(f"Created {supply_name} with type {supply_type}")
+        info(f"Created {net.getName()} with type {net.getSigType()}")
 
     supply_net = reader.block.findNet(supply_name)
 
