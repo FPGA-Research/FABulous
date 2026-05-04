@@ -15,7 +15,7 @@
 from typing import Any
 
 import click
-import odb
+import odb as design_odb
 from librelane.logging.logger import info
 from librelane.scripts.odbpy.reader import click_odb
 
@@ -46,14 +46,16 @@ def power(
     info(f"propagated GND_NETS are {ground_names}")
 
     # todo: run on multi-power test case
+    # odb argument here enables pytest with monkeypatch
     for power_name in power_names:
-        propagate_supply_net(reader, power_name, "POWER")
+        propagate_supply_net(design_odb, reader, power_name, "POWER")
 
     for ground_name in ground_names:
-        propagate_supply_net(reader, ground_name, "GROUND")
+        propagate_supply_net(design_odb, reader, ground_name, "GROUND")
 
 
 def propagate_supply_net(
+    odb: Any,  # noqa: ANN401
     reader: Any,  # noqa: ANN401
     supply_name: str,
     supply_type: str,
