@@ -1,6 +1,7 @@
 """Tests for odb_power module - validates coordinate transformation and geometry."""
 
 import sys
+from enum import Enum
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -11,19 +12,34 @@ from fabulous.fabric_generator.gds_generator.script.odb_power import (
 )
 
 
+class FakeMetalLayersEnum(Enum):
+    METAL1 = 1
+    METAL2 = 2
+    METAL3 = 3
+
+
 class GeometryRecorder:
     """Records ODB box creation with actual coordinates for validation."""
 
     def __init__(self) -> None:
-        self.sboxes: list[tuple[str, int, int, int, int]] = []  # net, x1, y1, x2, y2
-        self.bboxes: list[tuple[str, int, int, int, int]] = []  # bterm, x1, y1, x2, y2
+        self.sboxes: list[
+            tuple[str, FakeMetalLayersEnum, int, int, int, int]
+        ] = []  # net, layer, x1, y1, x2, y2
+        self.bboxes: list[
+            tuple[str, FakeMetalLayersEnum, int, int, int, int]
+        ] = []  # bterm, layer, x1, y1, x2, y2
 
 
 class FakeGeometry:
     """Mock geometry box with actual dimensions."""
 
     def __init__(
-        self, xmin: int, ymin: int, xmax: int, ymax: int, techLayer: int = 1
+        self,
+        xmin: int,
+        ymin: int,
+        xmax: int,
+        ymax: int,
+        techLayer: FakeMetalLayersEnum = FakeMetalLayersEnum.METAL1,
     ) -> None:
         self._xmin = xmin
         self._ymin = ymin
@@ -43,7 +59,7 @@ class FakeGeometry:
     def yMax(self) -> int:  # noqa: N802
         return self._ymax
 
-    def getTechLayer(self) -> int:
+    def getTechLayer(self) -> FakeMetalLayersEnum:
         return self._techLayer
 
 
@@ -196,29 +212,11 @@ class FakeBlock:
         self._nets[net.getName()] = net
 
 
-class FakeTech:
-    """Mock technology."""
-
-    def findLayer(self, name: str) -> object:
-        return Mock(name=name)
-
-
-class FakeDb:
-    """Mock database."""
-
-    def __init__(self) -> None:
-        self._tech = FakeTech()
-
-    def getTech(self) -> FakeTech:
-        return self._tech
-
-
 class FakeReader:
     """Mock ODB reader."""
 
     def __init__(self, instances: list[FakeInst]) -> None:
         self.block = FakeBlock(instances)
-        self.db = FakeDb()
 
 
 def make_fake_odb_with_geometry(recorder: GeometryRecorder) -> SimpleNamespace:
@@ -239,14 +237,20 @@ def make_fake_odb_with_geometry(recorder: GeometryRecorder) -> SimpleNamespace:
         return Mock(net=net, mode=mode)
 
     def dbSBox_create(
-        wire: Mock, _layer: object, x1: int, y1: int, x2: int, y2: int, _stripe: str
+        wire: Mock,
+        _layer: FakeMetalLayersEnum,
+        x1: int,
+        y1: int,
+        x2: int,
+        y2: int,
+        _stripe: str,
     ) -> None:
-        recorder.sboxes.append((wire.net.getName(), x1, y1, x2, y2))
+        recorder.sboxes.append((wire.net.getName(), _layer, x1, y1, x2, y2))
 
     def dbBox_create(
-        bpin: FakeBPin, _layer: object, x1: int, y1: int, x2: int, y2: int
+        bpin: FakeBPin, _layer: FakeMetalLayersEnum, x1: int, y1: int, x2: int, y2: int
     ) -> None:
-        recorder.bboxes.append((bpin._bterm.getName(), x1, y1, x2, y2))  # noqa: SLF001
+        recorder.bboxes.append((bpin._bterm.getName(), _layer, x1, y1, x2, y2))  # noqa: SLF001
 
     return SimpleNamespace(
         dbNet=SimpleNamespace(create=dbNet_create),
@@ -283,13 +287,13 @@ def test_power_transforms_coordinates_correctly(
     # Expected coords: (100 + 10, 200 + 20, 100 + 30, 200 + 40) = (110, 220, 130, 240)
     vpwr_sboxes = [box for box in recorder.sboxes if box[0] == "VPWR"]
     assert len(vpwr_sboxes) == 1, "Should create one SBox for VPWR"
-    assert vpwr_sboxes[0] == ("VPWR", 110, 220, 130, 240), (
+    assert vpwr_sboxes[0] == ("VPWR", FakeMetalLayersEnum.METAL1, 110, 220, 130, 240), (
         "Incorrect coordinate transformation"
     )
 
     vpwr_bboxes = [box for box in recorder.bboxes if box[0] == "VPWR"]
     assert len(vpwr_bboxes) == 1, "Should create one BBox for VPWR"
-    assert vpwr_bboxes[0] == ("VPWR", 110, 220, 130, 240), (
+    assert vpwr_bboxes[0] == ("VPWR", FakeMetalLayersEnum.METAL1, 110, 220, 130, 240), (
         "BBox should match SBox coordinates"
     )
 
@@ -325,9 +329,13 @@ def test_power_handles_multiple_instances(monkeypatch: pytest.MonkeyPatch) -> No
     assert len(vgnd_sboxes) == 2, "Should create SBox for each instance's VGND"
 
     # Verify first instance (at origin)
-    assert (0, 0, 50, 50) in [box[1:] for box in vpwr_sboxes]
+    assert (FakeMetalLayersEnum.METAL1, 0, 0, 50, 50) in [
+        box[1:] for box in vpwr_sboxes
+    ]
     # Verify second instance (offset by 100, 100)
-    assert (100, 100, 150, 150) in [box[1:] for box in vpwr_sboxes]
+    assert (FakeMetalLayersEnum.METAL1, 100, 100, 150, 150) in [
+        box[1:] for box in vpwr_sboxes
+    ]
 
 
 def test_power_handles_multiple_geometries_per_pin(
@@ -356,9 +364,9 @@ def test_power_handles_multiple_geometries_per_pin(
 
     # Verify all three geometries are present
     coords = [box[1:] for box in vpwr_sboxes]
-    assert (0, 0, 10, 10) in coords
-    assert (20, 20, 30, 30) in coords
-    assert (40, 40, 50, 50) in coords
+    assert (FakeMetalLayersEnum.METAL1, 0, 0, 10, 10) in coords
+    assert (FakeMetalLayersEnum.METAL1, 20, 20, 30, 30) in coords
+    assert (FakeMetalLayersEnum.METAL1, 40, 40, 50, 50) in coords
 
 
 def test_power_creates_nets_and_bterms_correctly(
@@ -438,3 +446,34 @@ def test_power_handles_empty_block(monkeypatch: pytest.MonkeyPatch) -> None:
     assert reader.block.findNet("VGND") is not None
     assert len(recorder.sboxes) == 0, "No SBoxes should be created for empty block"
     assert len(recorder.bboxes) == 0, "No BBoxes should be created for empty block"
+
+
+def test_power_handles_multiple_metal_layers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that power() creates boxes for all geometries in a pin."""
+    recorder = GeometryRecorder()
+    fake_odb = make_fake_odb_with_geometry(recorder)
+    monkeypatch.setitem(sys.modules, "odb", fake_odb)
+
+    # Create pin with multiple geometry shapes
+    geom1 = FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL1)
+    geom2 = FakeGeometry(20, 20, 30, 30, techLayer=FakeMetalLayersEnum.METAL2)
+    geom3 = FakeGeometry(40, 40, 50, 50, techLayer=FakeMetalLayersEnum.METAL3)
+
+    vpwr_mpin = FakeMPin([geom1, geom2, geom3])
+    vpwr_mterm = FakeMTerm("VPWR", [vpwr_mpin], "POWER")
+    master = FakeMaster([vpwr_mterm])
+    inst = FakeInst("tile_0", (0, 0), master)
+
+    reader = FakeReader([inst])
+    propagate_supply_net(fake_odb, reader, supply_name="VPWR", supply_type="POWER")
+
+    vpwr_sboxes = [box for box in recorder.sboxes if box[0] == "VPWR"]
+    assert len(vpwr_sboxes) == 3, "Should create SBox for each geometry"
+
+    # Verify all three geometries are present
+    coords = [box[1:] for box in vpwr_sboxes]
+    assert (FakeMetalLayersEnum.METAL1, 0, 0, 10, 10) in coords
+    assert (FakeMetalLayersEnum.METAL2, 20, 20, 30, 30) in coords
+    assert (FakeMetalLayersEnum.METAL3, 40, 40, 50, 50) in coords
