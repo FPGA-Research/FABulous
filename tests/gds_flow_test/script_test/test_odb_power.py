@@ -477,3 +477,34 @@ def test_power_handles_multiple_metal_layers(
     assert (FakeMetalLayersEnum.METAL1, 0, 0, 10, 10) in coords
     assert (FakeMetalLayersEnum.METAL2, 20, 20, 30, 30) in coords
     assert (FakeMetalLayersEnum.METAL3, 40, 40, 50, 50) in coords
+
+
+def test_power_handles_stacked_metal_layers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that power() creates boxes for all geometries in a pin."""
+    recorder = GeometryRecorder()
+    fake_odb = make_fake_odb_with_geometry(recorder)
+    monkeypatch.setitem(sys.modules, "odb", fake_odb)
+
+    # Create pin with multiple geometry shapes
+    geom1 = FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL1)
+    geom2 = FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL2)
+    geom3 = FakeGeometry(0, 0, 10, 10, techLayer=FakeMetalLayersEnum.METAL3)
+
+    vpwr_mpin = FakeMPin([geom1, geom2, geom3])
+    vpwr_mterm = FakeMTerm("VPWR", [vpwr_mpin], "POWER")
+    master = FakeMaster([vpwr_mterm])
+    inst = FakeInst("tile_0", (0, 0), master)
+
+    reader = FakeReader([inst])
+    propagate_supply_net(fake_odb, reader, supply_name="VPWR", supply_type="POWER")
+
+    vpwr_sboxes = [box for box in recorder.sboxes if box[0] == "VPWR"]
+    assert len(vpwr_sboxes) == 3, "Should create SBox for each geometry"
+
+    # Verify all three geometries are present
+    coords = [box[1:] for box in vpwr_sboxes]
+    assert (FakeMetalLayersEnum.METAL1, 0, 0, 10, 10) in coords
+    assert (FakeMetalLayersEnum.METAL2, 0, 0, 10, 10) in coords
+    assert (FakeMetalLayersEnum.METAL3, 0, 0, 10, 10) in coords
