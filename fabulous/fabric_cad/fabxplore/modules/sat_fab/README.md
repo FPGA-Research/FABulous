@@ -175,6 +175,69 @@ c.output("COUT", cout)
 
 `truth_block(...)` creates fixed truth-table nodes, not symbolic LUT config.
 
+## Fixed Truth Tables vs Configurable LUTs
+
+Use `ttable(...)` when a LUT-like block has fixed contents inside the circuit.
+The INIT value is part of the circuit structure, so SAT does not choose it and
+`result.lut_init(...)` will not report it as solved configuration.
+
+```python
+from fabulous.fabric_cad.fabxplore.modules.sat_fab import Circuit
+
+c = Circuit("fixed_lut_logic")
+A, B = c.inputs("A", "B")
+
+# Fixed XOR2 truth table for input order [A, B].
+Y = c.ttable(inputs=[A, B], init=0x6, name="XOR2_FIXED")
+c.output("Y", Y)
+```
+
+Use `lut(...)` when the LUT contents are configurable. By default, unfixed LUT
+INIT bits are symbolic, so SAT may choose them during `solve()`.
+
+```python
+from fabulous.fabric_cad.fabxplore.modules.sat_fab import Circuit
+
+c = Circuit("symbolic_lut_logic")
+A, B = c.inputs("A", "B")
+
+Y = c.lut([A, B], name="LUT2")
+c.output("Y", Y)
+```
+
+If the LUT is configurable in the circuit but should be fixed for one
+equivalence problem, keep it as `lut(...)` and fix the INIT on the `Equiv`
+object:
+
+```python
+from fabulous.fabric_cad.fabxplore.modules.sat_fab import Circuit, Equiv, Func
+
+target = Circuit.truth_table(
+    name="xor_spec",
+    inputs=["A", "B"],
+    outputs={"Y": Func.xor("A", "B")},
+)
+
+c = Circuit("fixed_for_this_solve")
+A, B = c.inputs("A", "B")
+Y = c.lut([A, B], name="LUT2")
+c.output("Y", Y)
+
+result = (
+    Equiv.check(target, c)
+    .match_inputs_by_name()
+    .fix(c, lut={"LUT2": 0x6})
+    .solve()
+)
+```
+
+So the rule of thumb is:
+
+- `ttable(...)`: fixed truth table, no symbolic config.
+- `lut(...)`: configurable LUT, SAT chooses INIT bits unless fixed.
+- `lut(...)` plus `.fix(..., lut={...})`: configurable circuit element forced
+  to a known INIT for this solve.
+
 ## Builder Helpers
 
 Basic gates:
