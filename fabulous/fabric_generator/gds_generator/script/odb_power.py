@@ -55,7 +55,7 @@ def power(
 
 
 def propagate_supply_net(
-    odb: Any,  # noqa: ANN401
+    layoutDb: Any,  # noqa: ANN401
     reader: Any,  # noqa: ANN401
     supply_name: str,
     supply_type: str,
@@ -65,7 +65,7 @@ def propagate_supply_net(
     net = reader.block.findNet(supply_name)
     if net is None:
         # Create net
-        net = odb.dbNet.create(reader.block, supply_name)
+        net = layoutDb.dbNet.create(reader.block, supply_name)
         net.setSpecial()
         net.setSigType(supply_type)
         info(f"Created {net.getName()} with type {net.getSigType()}")
@@ -73,14 +73,14 @@ def propagate_supply_net(
     supply_net = reader.block.findNet(supply_name)
 
     # Create wires
-    supply_wire = odb.dbSWire.create(supply_net, "ROUTED")
+    supply_wire = layoutDb.dbSWire.create(supply_net, "ROUTED")
 
     # Create bterms (top-level)
-    supply_bterm = odb.dbBTerm.create(supply_net, supply_name)
+    supply_bterm = layoutDb.dbBTerm.create(supply_net, supply_name)
     supply_bterm.setIoType("INOUT")
     supply_bterm.setSigType(supply_net.getSigType())
     supply_bterm.setSpecial()
-    supply_bpin = odb.dbBPin_create(supply_bterm)
+    supply_bpin = layoutDb.dbBPin_create(supply_bterm)
 
     # Connect instance-iterms to power nets,
     # draw the wires and pins
@@ -105,7 +105,7 @@ def propagate_supply_net(
                         metal_layer = mpins_dbox.getTechLayer()
 
                         if master_mterm.getName() == supply_name:
-                            odb.dbSBox_create(
+                            layoutDb.dbSBox_create(
                                 supply_wire,
                                 metal_layer,
                                 blk_inst.getLocation()[0] + mpins_dbox.xMin(),
@@ -114,7 +114,7 @@ def propagate_supply_net(
                                 blk_inst.getLocation()[1] + mpins_dbox.yMax(),
                                 "STRIPE",
                             )
-                            odb.dbBox_create(
+                            layoutDb.dbBox_create(
                                 supply_bpin,
                                 metal_layer,
                                 blk_inst.getLocation()[0] + mpins_dbox.xMin(),
