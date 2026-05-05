@@ -1,9 +1,14 @@
 """Reorder packed LUT-combinator cells to improve reusable leftover space.
 
-The reorderer is deliberately a second-stage optimizer. It does not create new logical
-LUTs and does not change the number of mapped FRAC cells. Instead, it moves a small LUT
-out of an already paired cell into a compatible single-cell host, then rebuilds the
-donor as a single cell with larger reusable leftover capacity.
+The reorderer is deliberately a second-stage optimizer. It does not create new
+logical LUTs and does not change the number of mapped FRAC cells. Instead, it
+moves a small LUT out of an already paired cell into a compatible single-cell
+host, then rebuilds the donor as a single cell with larger reusable leftover
+capacity.
+
+All legality and INIT remapping is delegated back to
+``FracLutArchitecture``. This keeps the reordering pass independent from the
+architecture's pin order, select-as-data mode, and future binding details.
 """
 
 from dataclasses import dataclass, replace
@@ -30,7 +35,21 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.reordering.report impo
 
 @dataclass(frozen=True)
 class _CandidateMove:
-    """Internal move candidate with rebuilt cells attached."""
+    """Internal move candidate with rebuilt cells attached.
+
+    Attributes
+    ----------
+    host_index : int
+        Index of the single-cell host in the mapped-cell list.
+    donor_index : int
+        Index of the pair-cell donor in the mapped-cell list.
+    new_host : PackedCell
+        Rebuilt host cell after accepting the moved LUT.
+    new_donor : PackedCell
+        Rebuilt donor cell after leaving one LUT behind.
+    move : ReorderingMove
+        Public move description used for reporting.
+    """
 
     host_index: int
     donor_index: int
@@ -41,6 +60,21 @@ class _CandidateMove:
 
 class LeftoverReorderer:
     """Improve reusable leftover LUT capacity without increasing FRAC count.
+
+    The normal LUT combinator minimizes or chooses packed FRAC cells first.
+    This class operates afterward on the resulting ``MappingResult``. It looks
+    for cases where a paired cell ``A+B`` can be split, one side can be moved
+    into the free half of a single-cell host ``H``, and the donor can then become
+    a single cell with more reusable leftover capacity:
+
+    ``H`` plus ``A+B`` becomes ``H+A`` plus ``B``.
+
+    Only non-full single cells are used as hosts. Full LUT(K+1) cells are
+    ignored because both internal LUT halves are already part of one logical
+    function. Candidate moves are checked with simple leftover-capacity math
+    first, then validated and rebuilt through the architecture binder. The final
+    selection is deterministic and greedy: all legal profitable moves are sorted
+    by gain, and each host/donor cell can be used at most once.
 
     Parameters
     ----------
@@ -142,7 +176,23 @@ class LeftoverReorderer:
         host_indices: list[int],
         donor_indices: list[int],
     ) -> list[_CandidateMove]:
-        """Build all legal profitable move candidates."""
+        """Build all legal profitable move candidates.
+
+        Parameters
+        ----------
+        mapped_cells : list[PackedCell]
+            Current mapped-cell list from the normal combinator result.
+        host_indices : list[int]
+            Indices of eligible single-cell hosts in ``mapped_cells``.
+        donor_indices : list[int]
+            Indices of pair-cell donors in ``mapped_cells``.
+
+        Returns
+        -------
+        list[_CandidateMove]
+            Candidate moves that pass capacity, architecture binding, and gain
+            checks.
+        """
         candidates: list[_CandidateMove] = []
 
         for host_index in host_indices:
@@ -185,7 +235,31 @@ class LeftoverReorderer:
         moved_lut: LogicalLutCell,
         remaining_lut: LogicalLutCell,
     ) -> _CandidateMove | None:
-        """Validate and rebuild one candidate move."""
+        """Validate and rebuild one candidate move.
+
+        Parameters
+        ----------
+        host_index : int
+            Index of ``host_cell`` in the mapped-cell list.
+        donor_index : int
+            Index of ``donor_cell`` in the mapped-cell list.
+        host_cell : PackedCell
+            Existing single-cell host that may receive ``moved_lut``.
+        donor_cell : PackedCell
+            Existing pair cell that may give up ``moved_lut``.
+        host_lut : LogicalLutCell
+            Logical LUT currently placed in the host.
+        moved_lut : LogicalLutCell
+            Logical LUT to move out of the donor and into the host.
+        remaining_lut : LogicalLutCell
+            Logical LUT left behind in the donor.
+
+        Returns
+        -------
+        _CandidateMove | None
+            Rebuilt candidate if the move is legal and profitable, otherwise
+            ``None``.
+        """
         binding: PairBinding | None = self.arch.try_bind_pair(host_lut, moved_lut)
         if binding is None:
             return None
@@ -225,7 +299,19 @@ class LeftoverReorderer:
         )
 
     def _select_moves(self, candidates: list[_CandidateMove]) -> list[_CandidateMove]:
-        """Select a deterministic non-conflicting greedy move set."""
+        """Select a deterministic non-conflicting greedy move set.
+
+        Parameters
+        ----------
+        candidates : list[_CandidateMove]
+            Legal move candidates to choose from.
+
+        Returns
+        -------
+        list[_CandidateMove]
+            Selected moves sorted by original mapped-cell order. Each selected
+            move uses a unique host and donor.
+        """
         ordered = sorted(
             candidates,
             key=lambda c: (
@@ -255,7 +341,19 @@ class LeftoverReorderer:
         )
 
     def _is_host_cell(self, cell: PackedCell) -> bool:
-        """Return whether a packed cell can host one additional LUT."""
+        """Return whether a packed cell can host one additional LUT.
+
+        Parameters
+        ----------
+        cell : PackedCell
+            Packed cell to classify.
+
+        Returns
+        -------
+        bool
+            ``True`` when ``cell`` is a non-full single cell with at least one
+            reusable effective leftover input.
+        """
         if len(cell.placements) != 1:
             return False
         lut = cell.placements[0].cell
@@ -264,11 +362,34 @@ class LeftoverReorderer:
         return self._reusable_effective_leftover(cell) >= 1
 
     def _total_reusable_effective_leftover(self, cells: list[PackedCell]) -> int:
-        """Return total reusable leftover capacity across single non-full cells."""
+        """Return total reusable leftover capacity across single non-full cells.
+
+        Parameters
+        ----------
+        cells : list[PackedCell]
+            Mapped cells to aggregate.
+
+        Returns
+        -------
+        int
+            Sum of reusable effective leftover widths.
+        """
         return sum(self._reusable_effective_leftover(cell) for cell in cells)
 
     def _reusable_effective_leftover(self, cell: PackedCell) -> int:
-        """Return reusable effective leftover width for one packed cell."""
+        """Return reusable effective leftover width for one packed cell.
+
+        Parameters
+        ----------
+        cell : PackedCell
+            Packed cell to evaluate.
+
+        Returns
+        -------
+        int
+            Effective leftover width that can host another independent LUT.
+            Pair cells and full LUT(K+1) single cells return zero.
+        """
         if len(cell.placements) != 1:
             return 0
         if cell.placements[0].cell.width > self.arch.frac_lut_size:
@@ -279,7 +400,18 @@ class LeftoverReorderer:
         return max(0, leftover)
 
     def _move_type_count(self, moves: tuple[ReorderingMove, ...]) -> dict[str, int]:
-        """Count applied moves by host/moved LUT width combination."""
+        """Count applied moves by host/moved LUT width combination.
+
+        Parameters
+        ----------
+        moves : tuple[ReorderingMove, ...]
+            Applied moves from the current reordering run.
+
+        Returns
+        -------
+        dict[str, int]
+            Counts keyed by labels such as ``"LUT2 into LUT4"``.
+        """
         counts: dict[str, int] = {}
         for move in moves:
             label = f"LUT{move.moved_width} into LUT{move.host_width}"
