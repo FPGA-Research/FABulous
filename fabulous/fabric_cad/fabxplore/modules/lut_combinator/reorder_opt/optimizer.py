@@ -1,9 +1,16 @@
 """Remove pair cells by spending reusable leftover LUT capacity.
 
-The optimizer is an area-saving companion to leftover reordering. It searches for two
-single-cell hosts with enough reusable leftover capacity to absorb the two LUTs from one
-donor pair cell. When both new host pairs are legal according to the architecture
-binder, the donor pair cell can be removed.
+The optimizer is an area-saving companion to leftover reordering. It searches
+for two single-cell hosts with enough reusable leftover capacity to absorb the
+two LUTs from one donor pair cell. When both new host pairs are legal according
+to the architecture binder, the donor pair cell can be removed.
+
+The pass is intentionally bounded and streaming. A naive implementation would
+materialize all donor-pair and host-pair combinations, which grows as
+``O(donors * hosts**2)``. Instead, each donor only looks at the lowest-waste
+host options per side and immediately consumes selected hosts. This keeps memory
+usage stable on larger designs while preserving the important architectural
+legality checks.
 """
 
 from dataclasses import dataclass, replace
@@ -30,7 +37,23 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.reorder_opt.report imp
 
 @dataclass(frozen=True)
 class _OptCandidate:
-    """Internal removable-pair candidate with rebuilt hosts attached."""
+    """Internal removable-pair candidate with rebuilt hosts attached.
+
+    Attributes
+    ----------
+    donor_index : int
+        Index of the pair-cell donor that would be removed.
+    host0_index : int
+        Index of the first single-cell host.
+    host1_index : int
+        Index of the second single-cell host.
+    new_host0 : PackedCell
+        Rebuilt first host after accepting one donor LUT.
+    new_host1 : PackedCell
+        Rebuilt second host after accepting the other donor LUT.
+    move : ReorderOptMove
+        Public move description used for reporting.
+    """
 
     donor_index: int
     host0_index: int
@@ -50,9 +73,17 @@ class ReorderOptOptimizer:
 
     ``H0+B`` and ``H1+A``
 
-    If both rebuilt host pairs are legal, the original donor pair is removed.
+    If both rebuilt host pairs are legal, the original donor pair is removed:
+
+    ``H0 + H1 + (A+B) -> (H0+A) + (H1+B)``
+
+    or the swapped version:
+
+    ``H0 + H1 + (A+B) -> (H0+B) + (H1+A)``
+
     The normal architecture binding functions perform the final pin and INIT
-    remapping, so this pass only chooses and applies valid transformations.
+    remapping, so this pass only chooses and applies valid transformations. It
+    trades reusable leftover capacity for fewer mapped FRAC cells.
 
     Parameters
     ----------
@@ -175,7 +206,23 @@ class ReorderOptOptimizer:
         host_indices: list[int],
         donor_indices: list[int],
     ) -> tuple[list[_OptCandidate], int]:
-        """Select donor-removal candidates without materializing all options."""
+        """Select donor-removal candidates without materializing all options.
+
+        Parameters
+        ----------
+        mapped_cells : list[PackedCell]
+            Current mapped-cell list.
+        host_indices : list[int]
+            Indices of eligible single-cell hosts.
+        donor_indices : list[int]
+            Indices of pair-cell donors.
+
+        Returns
+        -------
+        tuple[list[_OptCandidate], int]
+            Selected non-conflicting candidates and the number of legal
+            candidates seen during the bounded search.
+        """
         available_hosts: set[int] = set(host_indices)
         selected: list[_OptCandidate] = []
         legal_optimizations = 0
@@ -210,7 +257,27 @@ class ReorderOptOptimizer:
         donor_cell: PackedCell,
         donor_luts: tuple[LogicalLutCell, LogicalLutCell],
     ) -> tuple[_OptCandidate | None, int]:
-        """Return the best bounded candidate for one donor pair."""
+        """Return the best bounded candidate for one donor pair.
+
+        Parameters
+        ----------
+        mapped_cells : list[PackedCell]
+            Current mapped-cell list.
+        available_hosts : set[int]
+            Host indices not consumed by earlier selected optimizations.
+        donor_index : int
+            Index of ``donor_cell`` in ``mapped_cells``.
+        donor_cell : PackedCell
+            Pair cell considered for removal.
+        donor_luts : tuple[LogicalLutCell, LogicalLutCell]
+            The two logical LUTs currently placed in ``donor_cell``.
+
+        Returns
+        -------
+        tuple[_OptCandidate | None, int]
+            Best candidate for this donor, if any, and the number of legal
+            bounded candidates found.
+        """
         lut_a, lut_b = donor_luts
         candidates: list[_OptCandidate] = []
 
@@ -249,7 +316,28 @@ class ReorderOptOptimizer:
         moved0: LogicalLutCell,
         moved1: LogicalLutCell,
     ) -> list[_OptCandidate]:
-        """Build bounded host-pair candidates for one donor assignment."""
+        """Build bounded host-pair candidates for one donor assignment.
+
+        Parameters
+        ----------
+        mapped_cells : list[PackedCell]
+            Current mapped-cell list.
+        available_hosts : set[int]
+            Host indices still available for selection.
+        donor_index : int
+            Index of the donor pair in ``mapped_cells``.
+        donor_cell : PackedCell
+            Donor pair cell being considered for removal.
+        moved0 : LogicalLutCell
+            Donor LUT assigned to the first host.
+        moved1 : LogicalLutCell
+            Donor LUT assigned to the second host.
+
+        Returns
+        -------
+        list[_OptCandidate]
+            Legal bounded candidates for this donor-side assignment.
+        """
         host0_options = self._host_options_for_lut(
             mapped_cells=mapped_cells,
             available_hosts=available_hosts,
@@ -289,7 +377,23 @@ class ReorderOptOptimizer:
         available_hosts: set[int],
         moved_lut: LogicalLutCell,
     ) -> list[int]:
-        """Return bounded host options ordered by lowest capacity waste."""
+        """Return bounded host options ordered by lowest capacity waste.
+
+        Parameters
+        ----------
+        mapped_cells : list[PackedCell]
+            Current mapped-cell list.
+        available_hosts : set[int]
+            Host indices still available for selection.
+        moved_lut : LogicalLutCell
+            Logical LUT that must fit into a host's leftover space.
+
+        Returns
+        -------
+        list[int]
+            At most ``max_host_candidates_per_side`` host indices ordered by
+            increasing leftover waste.
+        """
         options = [
             idx
             for idx in available_hosts
@@ -307,7 +411,20 @@ class ReorderOptOptimizer:
     def _ordered_donor_indices(
         self, mapped_cells: list[PackedCell], donor_indices: list[int]
     ) -> list[int]:
-        """Return donors in an order that tries easier removals first."""
+        """Return donors in an order that tries easier removals first.
+
+        Parameters
+        ----------
+        mapped_cells : list[PackedCell]
+            Current mapped-cell list.
+        donor_indices : list[int]
+            Indices of pair-cell donors.
+
+        Returns
+        -------
+        list[int]
+            Donor indices sorted by total donor LUT width and stable IDs.
+        """
         return sorted(
             donor_indices,
             key=lambda idx: (
@@ -328,7 +445,33 @@ class ReorderOptOptimizer:
         moved0: LogicalLutCell,
         moved1: LogicalLutCell,
     ) -> _OptCandidate | None:
-        """Validate and rebuild one donor-removal candidate."""
+        """Validate and rebuild one donor-removal candidate.
+
+        Parameters
+        ----------
+        donor_index : int
+            Index of the donor pair in the mapped-cell list.
+        donor_cell : PackedCell
+            Pair cell considered for removal.
+        host0_index : int
+            Index of ``host0_cell`` in the mapped-cell list.
+        host1_index : int
+            Index of ``host1_cell`` in the mapped-cell list.
+        host0_cell : PackedCell
+            First single-cell host.
+        host1_cell : PackedCell
+            Second single-cell host.
+        moved0 : LogicalLutCell
+            Donor LUT assigned to ``host0_cell``.
+        moved1 : LogicalLutCell
+            Donor LUT assigned to ``host1_cell``.
+
+        Returns
+        -------
+        _OptCandidate | None
+            Rebuilt candidate if both host pairings are legal, otherwise
+            ``None``.
+        """
         cap0 = self._reusable_effective_leftover(host0_cell)
         cap1 = self._reusable_effective_leftover(host1_cell)
         if cap0 < moved0.width or cap1 < moved1.width:
@@ -373,7 +516,18 @@ class ReorderOptOptimizer:
         )
 
     def _candidate_sort_key(self, candidate: _OptCandidate) -> tuple:
-        """Return deterministic score for candidate comparison."""
+        """Return deterministic score for candidate comparison.
+
+        Parameters
+        ----------
+        candidate : _OptCandidate
+            Candidate to score.
+
+        Returns
+        -------
+        tuple
+            Sort key prioritizing low leftover waste and stable IDs.
+        """
         return (
             candidate.move.leftover_waste,
             (
@@ -388,7 +542,19 @@ class ReorderOptOptimizer:
         )
 
     def _is_host_cell(self, cell: PackedCell) -> bool:
-        """Return whether a packed cell can receive one donor LUT."""
+        """Return whether a packed cell can receive one donor LUT.
+
+        Parameters
+        ----------
+        cell : PackedCell
+            Packed cell to classify.
+
+        Returns
+        -------
+        bool
+            ``True`` when ``cell`` is a non-full single cell with reusable
+            effective leftover capacity.
+        """
         if len(cell.placements) != 1:
             return False
         lut = cell.placements[0].cell
@@ -397,11 +563,34 @@ class ReorderOptOptimizer:
         return self._reusable_effective_leftover(cell) >= 1
 
     def _total_reusable_effective_leftover(self, cells: list[PackedCell]) -> int:
-        """Return total reusable leftover capacity across eligible single cells."""
+        """Return total reusable leftover capacity across eligible single cells.
+
+        Parameters
+        ----------
+        cells : list[PackedCell]
+            Mapped cells to aggregate.
+
+        Returns
+        -------
+        int
+            Sum of reusable effective leftover widths.
+        """
         return sum(self._reusable_effective_leftover(cell) for cell in cells)
 
     def _reusable_effective_leftover(self, cell: PackedCell) -> int:
-        """Return reusable effective leftover width for one packed cell."""
+        """Return reusable effective leftover width for one packed cell.
+
+        Parameters
+        ----------
+        cell : PackedCell
+            Packed cell to evaluate.
+
+        Returns
+        -------
+        int
+            Effective leftover width that can receive one donor LUT. Pair cells
+            and full LUT(K+1) single cells return zero.
+        """
         if len(cell.placements) != 1:
             return 0
         if cell.placements[0].cell.width > self.arch.frac_lut_size:
@@ -412,7 +601,18 @@ class ReorderOptOptimizer:
         return max(0, leftover)
 
     def _move_type_count(self, moves: tuple[ReorderOptMove, ...]) -> dict[str, int]:
-        """Count applied optimizations by moved and host LUT widths."""
+        """Count applied optimizations by moved and host LUT widths.
+
+        Parameters
+        ----------
+        moves : tuple[ReorderOptMove, ...]
+            Applied reorder-opt transformations.
+
+        Returns
+        -------
+        dict[str, int]
+            Counts keyed by moved pair type and host pair type.
+        """
         counts: dict[str, int] = {}
         for move in moves:
             moved = sorted((move.moved0_width, move.moved1_width))
