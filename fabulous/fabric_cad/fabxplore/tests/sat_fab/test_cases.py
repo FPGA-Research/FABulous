@@ -38,12 +38,16 @@ def run_all_tests() -> None:
     test_route_inputs_and_outputs_together()
     test_route_inputs_lut6_mux4_to_two_lut5_hard_mux()
     test_blif_flut6_implements_mux4_lut6()
+    test_blif_flut51p2ps_implements_mux4_lut6()
     test_routed_lut_network_mux4()
     test_blif_names_import()
     test_blif_out_of_order_names_import()
     test_blif_out_of_order_subckt_flattening()
     test_blif_prunes_dead_undriven_logic()
     test_blif_rejects_live_undriven_logic()
+    test_blif_prunes_dead_latch_logic()
+    test_blif_rejects_requested_latch_output()
+    test_blif_rejects_latch_output_dependency()
     test_blif_subckt_flattening()
     test_blif_same_names_are_circuit_local()
     test_blif_input_mapping()
@@ -534,6 +538,65 @@ def test_blif_flut6_implements_mux4_lut6() -> None:
         print(f"  c2/{name} = {int(bool(value))}")  # noqa: T201
 
 
+def test_blif_flut51p2ps_implements_mux4_lut6() -> None:
+    """Check the FLUT6 BLIF can implement a LUT6 MUX4."""
+    c1 = Circuit.truth_table(
+        name="mux4_lut6_spec",
+        inputs=["D0", "D1", "D2", "D3", "S0", "S1"],
+        outputs={
+            "X": Func.mux_indexed(
+                data=["D0", "D1", "D2", "D3"],
+                select=["S0", "S1"],
+            )
+        },
+    )
+
+    c2 = Circuit.from_blif(
+        Path(__file__).with_name("FLUT5_1P_2PS.blif"),
+        top="LUT4x2_V2_frame_config",
+        inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
+        config_prefixes=["ConfigBits"],
+        outputs=["O0", "O1", "Co"],
+    )
+
+    result = (
+        Equiv.check(c1, c2)
+        .route_inputs(
+            c2,
+            pool=["D0", "D1", "D2", "D3", "S0", "S1"],
+            inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
+            allow_reuse=True,
+            allow_constants=False,
+        )
+        .route_outputs(
+            c2,
+            {"X": ["O0", "O1", "Co"]},
+            allow_reuse=False,
+        )
+        .solve()
+    )
+
+    assert result.sat
+    mapping = result.input_mapping(c2)
+    assert set(mapping) == {"I0", "I1", "I2", "A0", "B0", "S", "Ci"}
+    assert set(mapping.values()) <= {"D0", "D1", "D2", "D3", "S0", "S1"}
+
+    cfg = result.config_for(c2)
+
+    print("C2 input mapping")  # noqa: T201
+    for dst, src in result.input_mapping(c2, scoped=True).items():
+        print(f"  {dst} <- {src}")  # noqa: T201
+
+    print("C2 output mapping")  # noqa: T201
+    for dst, src in result.output_mapping(c2, scoped=True).items():
+        print(f"  {dst} <- {src}")  # noqa: T201
+
+    print("C2 top config ports")  # noqa: T201
+    for name in c2.config_names():
+        value = cfg.external_value(name)
+        print(f"  c2/{name} = {int(bool(value))}")  # noqa: T201
+
+
 def test_routed_lut_network_mux4() -> None:
     """Check a routed two-LUT4 network against a MUX4 target."""
     target = Circuit.lut(
@@ -699,6 +762,103 @@ def test_blif_rejects_live_undriven_logic() -> None:
         if not error_message:
             raise AssertionError("expected live undriven BLIF logic to fail")
         assert "floating" in error_message
+
+
+def test_blif_prunes_dead_latch_logic() -> None:
+    """Check BLIF import accepts latches outside the requested output cone."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "dead_latch.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A CLK",
+                    ".outputs Y Q",
+                    ".names A Y",
+                    "1 1",
+                    ".names A next_q",
+                    "0 1",
+                    ".latch next_q Q re CLK 2",
+                    ".end",
+                ]
+            )
+        )
+        imported = Circuit.from_blif(path, inputs=["A"], outputs=["Y"])
+        target = Circuit.truth_table(
+            name="identity",
+            inputs=["A"],
+            outputs={"Y": Func.var("A")},
+        )
+        result = Equiv.check(target, imported).match_inputs_by_name().solve()
+        assert result.sat
+
+
+def test_blif_rejects_requested_latch_output() -> None:
+    """Check BLIF import rejects requested sequential outputs.
+
+    Raises
+    ------
+    AssertionError
+        If a requested latch output is silently accepted.
+    """
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "requested_latch.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A CLK",
+                    ".outputs Q",
+                    ".names A next_q",
+                    "1 1",
+                    ".latch next_q Q re CLK 2",
+                    ".end",
+                ]
+            )
+        )
+        error_message = ""
+        try:
+            Circuit.from_blif(path, inputs=["A"], outputs=["Q"])
+        except ValueError as exc:
+            error_message = str(exc)
+        if not error_message:
+            raise AssertionError("expected requested BLIF latch output to fail")
+        assert "sequential BLIF is not supported" in error_message
+
+
+def test_blif_rejects_latch_output_dependency() -> None:
+    """Check BLIF import rejects combinational cones fed by latches.
+
+    Raises
+    ------
+    AssertionError
+        If a live latch dependency is silently accepted.
+    """
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "live_latch_dependency.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A CLK",
+                    ".outputs Y",
+                    ".names A next_q",
+                    "1 1",
+                    ".latch next_q Q re CLK 2",
+                    ".names Q Y",
+                    "1 1",
+                    ".end",
+                ]
+            )
+        )
+        error_message = ""
+        try:
+            Circuit.from_blif(path, inputs=["A"], outputs=["Y"])
+        except ValueError as exc:
+            error_message = str(exc)
+        if not error_message:
+            raise AssertionError("expected live BLIF latch dependency to fail")
+        assert "latch output 'Q' is live" in error_message
 
 
 def test_blif_subckt_flattening() -> None:

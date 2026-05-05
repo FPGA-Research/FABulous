@@ -533,13 +533,20 @@ Supported BLIF features:
 - `.outputs`
 - `.names`
 - `.subckt` when the referenced model is defined in the same file
+- `.latch` only as a sequential boundary outside the requested output cone
 - `.end`
 
 Unsupported in this version:
 
-- `.latch`
+- requested output cones that depend on `.latch` outputs
 - external black-box `.subckt` cells without a model definition
 - very large `.names` tables above `max_truth_table_inputs`
+
+sat_fab still solves combinational equivalence problems. If a BLIF file
+contains registers that do not feed the selected outputs, the importer prunes
+that dead sequential logic. If a selected output is a latch output, or if its
+combinational cone depends on a latch output, import fails with a clear
+sequential-logic error.
 
 ## Solver Options
 

@@ -48,6 +48,31 @@ class BlifSubckt:
 
 
 @dataclass
+class BlifLatch:
+    """Raw BLIF ``.latch`` boundary.
+
+    Attributes
+    ----------
+    input : str
+        Next-state input net.
+    output : str
+        Present-state output net.
+    latch_type : str | None
+        Optional BLIF latch type.
+    control : str | None
+        Optional control net.
+    init : str | None
+        Optional initial value.
+    """
+
+    input: str
+    output: str
+    latch_type: str | None = None
+    control: str | None = None
+    init: str | None = None
+
+
+@dataclass
 class BlifModel:
     """Raw BLIF model.
 
@@ -63,6 +88,8 @@ class BlifModel:
         ``.names`` blocks contained in the model.
     subckts : list[BlifSubckt]
         ``.subckt`` instances contained in the model.
+    latches : list[BlifLatch]
+        ``.latch`` boundaries contained in the model.
     """
 
     name: str
@@ -70,6 +97,7 @@ class BlifModel:
     outputs: list[str] = field(default_factory=list)
     names_blocks: list[BlifNames] = field(default_factory=list)
     subckts: list[BlifSubckt] = field(default_factory=list)
+    latches: list[BlifLatch] = field(default_factory=list)
 
 
 def parse_blif(path: str | Path) -> dict[str, BlifModel]:
@@ -143,10 +171,24 @@ def parse_blif(path: str | Path) -> dict[str, BlifModel]:
                 conns[formal] = actual
             model.subckts.append(BlifSubckt(parts[1], conns))
             index += 1
+        elif cmd == ".latch":
+            model = _require_model(current, cmd)
+            if len(parts) < 3:
+                raise ValueError(".latch requires at least input and output nets")
+            model.latches.append(
+                BlifLatch(
+                    input=parts[1],
+                    output=parts[2],
+                    latch_type=parts[3] if len(parts) > 3 else None,
+                    control=parts[4] if len(parts) > 4 else None,
+                    init=parts[5] if len(parts) > 5 else None,
+                )
+            )
+            index += 1
         elif cmd == ".end":
             current = None
             index += 1
-        elif cmd in {".latch", ".gate"}:
+        elif cmd == ".gate":
             raise ValueError(f"{cmd} is not supported by sat_fab BLIF import yet")
         else:
             raise ValueError(f"unsupported BLIF command: {cmd}")
@@ -221,13 +263,20 @@ def circuit_from_blif(
         circuit.config(config_name)
     output_names = outputs or top_model.outputs[:]
     flat_names: list[BlifNames] = []
+    flat_latches: list[BlifLatch] = []
     if flatten:
-        _flatten_model(models, top_name, {}, "", flat_names)
+        _flatten_model(models, top_name, {}, "", flat_names, flat_latches)
     elif top_model.subckts:
         raise ValueError("flatten=False does not support .subckt instances")
     else:
         flat_names.extend(top_model.names_blocks)
-    flat_names = _prune_names_to_output_cone(flat_names, output_names)
+        flat_latches.extend(top_model.latches)
+    sequential_outputs = {latch.output for latch in flat_latches}
+    flat_names = _prune_names_to_output_cone(
+        flat_names,
+        output_names,
+        sequential_outputs,
+    )
     flat_names = _topological_sort_names_blocks(
         flat_names,
         available=set(input_names) | config_names,
@@ -255,6 +304,7 @@ def circuit_from_blif(
 def _prune_names_to_output_cone(
     blocks: list[BlifNames],
     outputs: list[str],
+    sequential_outputs: set[str] | None = None,
 ) -> list[BlifNames]:
     """Keep only ``.names`` blocks that can affect selected outputs.
 
@@ -264,6 +314,8 @@ def _prune_names_to_output_cone(
         Flattened ``.names`` blocks.
     outputs : list[str]
         Output nets whose transitive fan-in cone should be retained.
+    sequential_outputs : set[str] | None
+        Nets driven by BLIF sequential elements.
 
     Returns
     -------
@@ -273,8 +325,10 @@ def _prune_names_to_output_cone(
     Raises
     ------
     ValueError
-        If a net has multiple drivers.
+        If a net has multiple drivers or a selected cone crosses a sequential
+        boundary.
     """
+    sequential = sequential_outputs or set()
     driver_by_net: dict[str, int] = {}
     for index, block in enumerate(blocks):
         if block.output in driver_by_net:
@@ -285,6 +339,11 @@ def _prune_names_to_output_cone(
     pending = list(outputs)
     while pending:
         net = pending.pop()
+        if net in sequential:
+            raise ValueError(
+                f"BLIF latch output {net!r} is live in the requested output cone; "
+                "sequential BLIF is not supported"
+            )
         driver_index = driver_by_net.get(net)
         if driver_index is None or driver_index in kept:
             continue
@@ -452,6 +511,7 @@ def _flatten_model(
     port_map: dict[str, str],
     prefix: str,
     out: list[BlifNames],
+    latches: list[BlifLatch],
 ) -> None:
     """Flatten a model into ``.names`` blocks.
 
@@ -467,6 +527,8 @@ def _flatten_model(
         Internal-net prefix for this instance.
     out : list[BlifNames]
         Destination list of flattened ``.names`` blocks.
+    latches : list[BlifLatch]
+        Destination list of flattened ``.latch`` boundaries.
 
     Raises
     ------
@@ -480,13 +542,27 @@ def _flatten_model(
         mapped_inputs = [_map_net(net, model, port_map, prefix) for net in block.inputs]
         mapped_output = _map_net(block.output, model, port_map, prefix)
         out.append(BlifNames(mapped_inputs, mapped_output, block.rows[:]))
+    for latch in model.latches:
+        latches.append(
+            BlifLatch(
+                input=_map_net(latch.input, model, port_map, prefix),
+                output=_map_net(latch.output, model, port_map, prefix),
+                latch_type=latch.latch_type,
+                control=(
+                    _map_net(latch.control, model, port_map, prefix)
+                    if latch.control is not None
+                    else None
+                ),
+                init=latch.init,
+            )
+        )
     for index, subckt in enumerate(model.subckts):
         sub_prefix = f"{prefix}u{index}."
         sub_map = {
             formal: _map_net(actual, model, port_map, prefix)
             for formal, actual in subckt.conns.items()
         }
-        _flatten_model(models, subckt.model, sub_map, sub_prefix, out)
+        _flatten_model(models, subckt.model, sub_map, sub_prefix, out, latches)
 
 
 def _map_net(net: str, model: BlifModel, port_map: dict[str, str], prefix: str) -> str:
