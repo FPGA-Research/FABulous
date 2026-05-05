@@ -11,14 +11,28 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.combinator import
     LutCombinator,
     LutCombinatorConfig,
 )
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.json_transform import (
+    apply_mapping_to_json,
+)
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
     LogicalLutCell,
     LutSpec,
+    MappingResult,
+    MappingStats,
     MatchingMode,
+)
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.netlist import (
+    parse_model_json,
+)
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.reordering import (
+    LeftoverReorderer,
 )
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.utils.equiv_checker import (
     EquivalenceCheckConfig,
     LutEquivalenceChecker,
+)
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass import (
+    LutCombinatorPass,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 from fabulous.fabulous_cli.helper import (
@@ -698,6 +712,148 @@ endmodule
         LutEquivalenceChecker(eq_cfg).run()
 
 
+def test_leftover_reordering_improves_reusable_capacity_eq() -> None:
+    """Test reordering moves a small paired LUT into a single-cell leftover."""
+    benchmark_text = """
+module leftover_reordering_case(
+    input a, b, c, d, e, f, g, h,
+    output y_host, y_moved, y_remaining
+);
+  LUT4 #(.INIT(16'h6996)) host (
+    .I0(a), .I1(b), .I2(c), .I3(d), .O(y_host)
+  );
+  LUT2 #(.INIT(4'h8)) moved (
+    .I0(e), .I1(f), .O(y_moved)
+  );
+  LUT2 #(.INIT(4'h6)) remaining (
+    .I0(g), .I1(h), .O(y_remaining)
+  );
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_leftover_reorder_") as td:
+        tmp_dir = Path(td)
+        gold = tmp_dir / "leftover_reordering_case.v"
+        gate = tmp_dir / "leftover_reordering_case_mapped.v"
+        gold.write_text(benchmark_text, encoding="utf-8")
+
+        arch = FracLutArchitecture(
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            name="FRAC_LUT5",
+            use_select_as_data_in_pair_mode=True,
+        )
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([gold])
+        src_json = bridge.to_netlist_dict()
+        model = parse_model_json(
+            model_json=src_json,
+            top_name="leftover_reordering_case",
+            lut_spec=_named_lut_spec(),
+        )
+        cells_by_id = {cell.cell_id: cell for cell in model.lut_cells}
+        host = cells_by_id["host"]
+        moved = cells_by_id["moved"]
+        remaining = cells_by_id["remaining"]
+
+        host_cell = arch.bind_single_lut(host)
+        assert host_cell is not None
+        donor_binding = arch.try_bind_pair(moved, remaining)
+        assert donor_binding is not None
+        donor_cell = arch.build_mapped_cell("FRAC_LUT5_donor", donor_binding)
+
+        mapping = MappingResult(
+            architecture_name=arch.name,
+            top_name="leftover_reordering_case",
+            mapped_cells=[host_cell, donor_cell],
+            passthrough_luts=[],
+            stats=MappingStats(
+                total_luts_before=3,
+                total_cells_after=2,
+                mapped_groups=2,
+                mapped_luts=3,
+                passthrough_luts=0,
+                source_type_count={"LUT2": 2, "LUT4": 1},
+                result_type_count={arch.name: 2},
+            ),
+            metadata={
+                "frac_lut_size": arch.frac_lut_size,
+                "num_shared_inputs": arch.num_shared_inputs,
+            },
+        )
+
+        result = LeftoverReorderer(arch).reorder(mapping)
+        assert result.stats.applied_moves == 1
+        assert result.stats.reusable_leftover_gain > 0
+        assert len(result.mapping.mapped_cells) == 2
+        assert sorted(len(c.placements) for c in result.mapping.mapped_cells) == [1, 2]
+
+        single_cells = [
+            c for c in result.mapping.mapped_cells if len(c.placements) == 1
+        ]
+        pair_cells = [c for c in result.mapping.mapped_cells if len(c.placements) == 2]
+        assert single_cells[0].placements[0].cell.cell_id in {"moved", "remaining"}
+        assert {p.cell.cell_id for p in pair_cells[0].placements} in (
+            {"host", "moved"},
+            {"host", "remaining"},
+        )
+
+        mapped_json = apply_mapping_to_json(src_json, result.mapping)
+        bridge.load_netlist_dict(mapped_json)
+        bridge.write_verilog_path(gate)
+
+        eq_cfg = EquivalenceCheckConfig(
+            gold_verilog=gold,
+            gate_verilog=gate,
+            top_name="leftover_reordering_case",
+            frac_cell_name=arch.name,
+            frac_lut_size=arch.frac_lut_size,
+            num_shared_inputs=arch.num_shared_inputs,
+        )
+        LutEquivalenceChecker(eq_cfg).run()
+
+
+def test_lut_combinator_pass_reordering_option_smoke() -> None:
+    """Test the public pyosys pass accepts and reports the reordering option."""
+    benchmark_text = """
+module leftover_reordering_smoke(
+    input a, b, c, d,
+    output y0, y1
+);
+  \\$lut #(.LUT(4'h8), .WIDTH(32'd2)) lut0 (
+    .A({b, a}), .Y(y0)
+  );
+  \\$lut #(.LUT(4'h6), .WIDTH(32'd2)) lut1 (
+    .A({d, c}), .Y(y1)
+  );
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_reorder_pass_smoke_") as td:
+        tmp_dir = Path(td)
+        source = tmp_dir / "leftover_reordering_smoke.v"
+        source.write_text(benchmark_text, encoding="utf-8")
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([source])
+
+        pass_ = LutCombinatorPass(
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            lut_name="FRAC_LUT5",
+            top_name="leftover_reordering_smoke",
+            passthrough=True,
+            mode=MatchingMode.MAX_WEIGHT,
+            use_select_as_data_in_pair_mode=True,
+            reorder_leftover_luts=True,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.metadata["leftover_reordering_enabled"] is True
+        assert "Leftover Reordering" in pass_.report_summary
+        assert "module FRAC_LUT5" in pass_.verilog_model
+
+
 def main() -> None:
     """Run all tests."""
     sel_test: int = 0
@@ -720,6 +876,8 @@ def main() -> None:
             test_select_as_data_parameters_are_stable()
             test_packed_cascade_output_feeds_packed_input_eq()
             test_select_as_data_packed_feedback_unused_input_eq()
+            test_leftover_reordering_improves_reusable_capacity_eq()
+            test_lut_combinator_pass_reordering_option_smoke()
 
 
 if __name__ == "__main__":

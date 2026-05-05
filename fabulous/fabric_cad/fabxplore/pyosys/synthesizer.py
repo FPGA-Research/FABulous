@@ -133,6 +133,7 @@ class ArchitectureSynthesizer(ABC):
         mode: MatchingMode = MatchingMode.MAXIMAL,
         use_select_as_data_in_pair_mode: bool = False,
         allow_duplicate_private_nets: bool = True,
+        reorder_leftover_luts: bool = False,
     ) -> LutCombinatorPass:
         """Run the LutCombinatorPass on the current design.
 
@@ -159,6 +160,9 @@ class ArchitectureSynthesizer(ABC):
         allow_duplicate_private_nets : bool
             Whether pair mapping may assign the same net to private pins on both
             LUT sides.
+        reorder_leftover_luts : bool
+            Whether to run post-pack leftover reordering before the mapped FRAC
+            cells are applied to the design.
 
         Returns
         -------
@@ -175,6 +179,7 @@ class ArchitectureSynthesizer(ABC):
             mode=mode,
             use_select_as_data_in_pair_mode=use_select_as_data_in_pair_mode,
             allow_duplicate_private_nets=allow_duplicate_private_nets,
+            reorder_leftover_luts=reorder_leftover_luts,
         )
 
         result.run_on(self.design)

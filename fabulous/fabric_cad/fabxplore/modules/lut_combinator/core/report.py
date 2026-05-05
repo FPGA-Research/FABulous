@@ -115,6 +115,10 @@ Capacity
 - Effective leftover LUT input width across mapped cells:
   {{ total_effective_leftover_lut_width }}
 - Mapped cells with leftover width >= 1: {{ reusable_leftover_cells }}
+{% if reordering_report %}
+
+{{ reordering_report }}
+{% endif %}
 """
 
 _REPORT_TEMPLATE = _REPORT_ENV.from_string(REPORT_TEMPLATE)
@@ -217,6 +221,7 @@ def render_report(mapping: MappingResult) -> str:
         reusable_leftover_cells=sum(
             1 for c in mapped_cells if c.leftover_lut_width >= 1
         ),
+        reordering_report=mapping.metadata.get("_leftover_reordering_report", ""),
     )
 
 
@@ -302,7 +307,9 @@ def _format_config_lines(metadata: dict) -> list[str]:
         if key in metadata:
             lines.append(f"{key}: {metadata[key]}")
 
-    for key in sorted(k for k in metadata if k not in ordered_keys):
+    for key in sorted(
+        k for k in metadata if k not in ordered_keys and not k.startswith("_")
+    ):
         lines.append(f"{key}: {metadata[key]}")
 
     return lines

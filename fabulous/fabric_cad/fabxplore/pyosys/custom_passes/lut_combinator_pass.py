@@ -45,6 +45,8 @@ class LutCombinatorPass(SynthPass):
     allow_duplicate_private_nets : bool
         Whether pair mapping may assign the same net to private pins on both
         LUT sides.
+    reorder_leftover_luts : bool
+        Whether to run the post-pack leftover reordering optimization.
     """
 
     frac_lut_size: int = 4
@@ -55,6 +57,7 @@ class LutCombinatorPass(SynthPass):
     mode: MatchingMode = MatchingMode.MAXIMAL
     use_select_as_data_in_pair_mode: bool = True
     allow_duplicate_private_nets: bool = True
+    reorder_leftover_luts: bool = False
 
     _verilog_model: str = ""
     _result: MappingResult | None = None
@@ -81,6 +84,7 @@ class LutCombinatorPass(SynthPass):
             lut_spec=LutSpec(),
             passthrough=self.passthrough,
             mode=self.mode,
+            reorder_leftover_luts=self.reorder_leftover_luts,
         )
 
         comb = LutCombinator(cfg)

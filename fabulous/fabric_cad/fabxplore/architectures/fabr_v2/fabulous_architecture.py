@@ -136,6 +136,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design_lut_combinator_pass(
             passthrough=True,
             use_select_as_data_in_pair_mode=True,
+            reorder_leftover_luts=True,
         )
 
     def map_cells(self) -> None:

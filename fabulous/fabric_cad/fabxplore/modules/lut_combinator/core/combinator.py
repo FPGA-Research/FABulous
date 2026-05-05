@@ -31,6 +31,9 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.packer import (
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.report import (
     render_report,
 )
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.reordering import (
+    LeftoverReorderer,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 
 
@@ -53,6 +56,9 @@ class LutCombinatorConfig:
         If ``True``, map LUT(K+1) cells through architecture full-LUT mode.
     mode : MatchingMode
         Pair selection strategy used by the mapper.
+    reorder_leftover_luts : bool
+        If ``True``, run a second-stage leftover reordering optimization after
+        normal pair packing and before applying the mapping to the design.
     debug : bool
         If ``True``, enable debug logging in pyosys bridge for design conversions.
     """
@@ -62,6 +68,7 @@ class LutCombinatorConfig:
     lut_spec: LutSpec
     passthrough: bool = False
     mode: MatchingMode = MatchingMode.MAX_WEIGHT
+    reorder_leftover_luts: bool = False
     debug: bool = False
 
 
@@ -190,6 +197,10 @@ class LutCombinator:
         result: MappingResult = mapper.map_luts(
             list(model.lut_cells), top_name=model.top_name
         )
+
+        if self.config.reorder_leftover_luts:
+            reordering = LeftoverReorderer(self.config.architecture)
+            result = reordering.reorder(result).mapping
 
         mapped_netlist_dict: dict = apply_mapping_to_json(
             model_json=src_json, mapping=result
