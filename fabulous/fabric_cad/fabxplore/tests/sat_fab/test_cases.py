@@ -39,6 +39,7 @@ def run_all_tests() -> None:
     test_route_inputs_lut6_mux4_to_two_lut5_hard_mux()
     test_blif_flut6_implements_mux4_lut6()
     test_blif_flut51p2ps_implements_mux4_lut6()
+    test_blif_flut51p2ps_implements_xor6()
     test_routed_lut_network_mux4()
     test_blif_names_import()
     test_blif_out_of_order_names_import()
@@ -580,6 +581,62 @@ def test_blif_flut51p2ps_implements_mux4_lut6() -> None:
     mapping = result.input_mapping(c2)
     assert set(mapping) == {"I0", "I1", "I2", "A0", "B0", "S", "Ci"}
     assert set(mapping.values()) <= {"D0", "D1", "D2", "D3", "S0", "S1"}
+
+    cfg = result.config_for(c2)
+
+    print("C2 input mapping")  # noqa: T201
+    for dst, src in result.input_mapping(c2, scoped=True).items():
+        print(f"  {dst} <- {src}")  # noqa: T201
+
+    print("C2 output mapping")  # noqa: T201
+    for dst, src in result.output_mapping(c2, scoped=True).items():
+        print(f"  {dst} <- {src}")  # noqa: T201
+
+    print("C2 top config ports")  # noqa: T201
+    for name in c2.config_names():
+        value = cfg.external_value(name)
+        print(f"  c2/{name} = {int(bool(value))}")  # noqa: T201
+
+
+def test_blif_flut51p2ps_implements_xor6() -> None:
+    """Check the FLUT6 BLIF can implement a XOR6."""
+    c1 = Circuit.truth_table(
+        name="xor6_spec",
+        inputs=["D0", "D1", "D2", "D3", "D4", "D5"],
+        outputs={
+            "X": Func.xor("D0", "D1", "D2", "D3", "D4", "D5"),
+        },
+    )
+
+    c2 = Circuit.from_blif(
+        Path(__file__).with_name("FLUT5_1P_2PS.blif"),
+        top="LUT4x2_V2_frame_config",
+        inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
+        config_prefixes=["ConfigBits"],
+        outputs=["O0", "O1", "Co"],
+    )
+
+    result = (
+        Equiv.check(c1, c2)
+        .route_inputs(
+            c2,
+            pool=["D0", "D1", "D2", "D3", "D4", "D5"],
+            inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
+            allow_reuse=True,
+            allow_constants=False,
+        )
+        .route_outputs(
+            c2,
+            {"X": ["O0", "O1", "Co"]},
+            allow_reuse=False,
+        )
+        .solve()
+    )
+
+    assert result.sat
+    mapping = result.input_mapping(c2)
+    assert set(mapping) == {"I0", "I1", "I2", "A0", "B0", "S", "Ci"}
+    assert set(mapping.values()) <= {"D0", "D1", "D2", "D3", "D4", "D5"}
 
     cfg = result.config_for(c2)
 
