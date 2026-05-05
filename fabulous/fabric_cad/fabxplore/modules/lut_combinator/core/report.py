@@ -119,6 +119,10 @@ Capacity
 
 {{ reordering_report }}
 {% endif %}
+{% if reorder_opt_report %}
+
+{{ reorder_opt_report }}
+{% endif %}
 """
 
 _REPORT_TEMPLATE = _REPORT_ENV.from_string(REPORT_TEMPLATE)
@@ -222,6 +226,7 @@ def render_report(mapping: MappingResult) -> str:
             1 for c in mapped_cells if c.leftover_lut_width >= 1
         ),
         reordering_report=mapping.metadata.get("_leftover_reordering_report", ""),
+        reorder_opt_report=mapping.metadata.get("_reorder_opt_report", ""),
     )
 
 

@@ -1054,3 +1054,602 @@ O0 = S ? L1 : L0
 
 So select-as-data is deliberately not used there. The `S` pin is already
 semantically required to reconstruct the original `K+1` input LUT.
+
+## 16. Leftover Reordering
+
+The normal LUT combinator first packs the design into fractional LUT cells.
+That stage is mainly about reducing the number of physical FRAC cells. After
+that, a second optional stage can reorder already packed cells to maximize
+**reusable leftover LUT space** without increasing the number of FRAC cells.
+
+This is useful for layered mapping. A later pass may want to inject a new user
+design on top of the already mapped design. Reusable leftover space gives that
+later pass real LUT capacity inside existing FRAC cells, so a small overlay,
+debug circuit, monitor, patch function, or secondary user design can be added
+without immediately allocating new fabric sites.
+
+### Why pair leftovers are not reusable
+
+A dual mapped cell already uses both outputs:
+
+```text
+FRAC cell:
+  L0 -> O0
+  L1 -> O1
+```
+
+Even if the two logical LUTs are small, there is no free independent output for
+another unrelated LUT. So this cell may have unused truth-table dimensions, but
+that space is not reusable for a new independent function.
+
+A single mapped cell is different:
+
+```text
+FRAC cell:
+  L0 -> O0
+  L1 -> free
+```
+
+If the single LUT uses fewer inputs than the architecture can provide, the
+unused side can later host another function. With select-as-data capability,
+the effective leftover space can be one input wider than the physical leftover
+reported by the normal slot accounting.
+
+### Reordering transformation
+
+The reordering pass looks for this pattern:
+
+```text
+before:
+
+  host single cell:  H
+  donor pair cell:   A + B
+
+after:
+
+  host pair cell:    H + A
+  donor single cell: B
+```
+
+or symmetrically:
+
+```text
+before:
+
+  host single cell:  H
+  donor pair cell:   A + B
+
+after:
+
+  host pair cell:    H + B
+  donor single cell: A
+```
+
+The total number of FRAC cells is unchanged:
+
+$$
+N_{cells}^{before} = N_{cells}^{after}
+$$
+
+The total number of mapped logical LUTs is also unchanged:
+
+$$
+N_{LUTs}^{before} = N_{LUTs}^{after}
+$$
+
+Only the distribution of logical LUTs across the existing FRAC cells changes.
+
+### Example
+
+Assume `K=4`, `num_shared_inputs=3`, and select-as-data is enabled. A single
+`LUT4` can leave an effective `LUT2`-sized reusable space, because the unused
+side can also use `S` as an extra data input.
+
+```text
+before:
+
+  cell 0: LUT4          reusable effective leftover: LUT2
+  cell 1: LUT2 + LUT2   reusable effective leftover: none
+```
+
+The reordering pass can move one `LUT2` into the `LUT4` host:
+
+```text
+after:
+
+  cell 0: LUT4 + LUT2   reusable effective leftover: none
+  cell 1: LUT2          reusable effective leftover: LUT4
+```
+
+The FRAC cell count is still two, but the reusable space is now much better.
+Instead of one small `LUT2` leftover, the design has one whole effective
+`LUT4` leftover that can be used by a later layering/remapping step.
+
+### Candidate math
+
+For each single-cell host `H`, define its reusable effective leftover width as:
+
+$$
+E(H) =
+\begin{cases}
+L(H) + 1, & \text{if select-as-data is available for that cell} \\
+L(H),     & \text{otherwise}
+\end{cases}
+$$
+
+where $L(H)$ is the physical leftover LUT input width reported by the normal
+packer.
+
+A donor pair contains two logical LUTs, `A` and `B`, with widths:
+
+$$
+w_A,\quad w_B
+$$
+
+The simple capacity pre-check for moving `A` into host `H` is:
+
+$$
+w_A \le E(H)
+$$
+
+and for moving `B`:
+
+$$
+w_B \le E(H)
+$$
+
+This pre-check only decides whether a move is worth trying. The final legality
+check still uses the existing architecture binding logic:
+
+```python
+binding = arch.try_bind_pair(host_lut, moved_lut)
+new_host = arch.build_mapped_cell(old_host_id, binding)
+new_donor = arch.bind_single_lut(remaining_lut)
+```
+
+That means INIT remapping, pin order, shared/private input assignment,
+select-as-data handling, metadata, and routing are all rebuilt by the same
+code path used by the normal LUT combinator.
+
+### Gain function
+
+Before the move, only the host contributes reusable leftover capacity. The
+donor pair contributes zero because both outputs are already used:
+
+$$
+C_{before} = E(H)
+$$
+
+After the move, the rebuilt host is a pair and contributes zero reusable
+capacity, while the donor becomes a single cell containing the remaining LUT
+`R`:
+
+$$
+C_{after} = E(R)
+$$
+
+The move gain is:
+
+$$
+G = C_{after} - C_{before}
+$$
+
+Only moves with positive gain are applied:
+
+$$
+G > 0
+$$
+
+So the reordering pass is conservative. If there is no profitable legal move,
+the mapping result is returned unchanged.
+
+### Current selection strategy
+
+The pass tries all local split moves:
+
+```text
+for every host H:
+  for every donor pair A+B:
+    try H+A, donor keeps B
+    try H+B, donor keeps A
+```
+
+Every valid candidate is scored by gain. The current implementation then uses a
+deterministic greedy selection:
+
+1. sort by highest gain
+2. use each host cell at most once
+3. use each donor pair at most once
+
+This is not a global optimum solver, but it is simple, deterministic, and
+usually captures the obvious useful cases such as moving `LUT2` functions out
+of `LUT2+LUT2` pairs into roomy single `LUT4` cells. A future version could
+replace the final greedy selection with max-weight matching if global
+optimality becomes important.
+
+### What this enables later
+
+After reordering, the design may contain more large single-cell leftovers. A
+later layered synthesis flow can target those spaces first:
+
+```text
+base design:
+  already packed into FRAC cells
+
+reordering:
+  concentrates leftover capacity into larger reusable single-cell spaces
+
+layered synthesis:
+  maps a new user function into those reusable spaces
+```
+
+This is useful for:
+
+- adding a small secondary user design without reserving new fabric upfront
+- injecting debug or trace logic after the main design has already been mapped
+- adding patch logic or feature variants into unused capacity
+- design-space exploration where the mapper tries to maximize future overlay
+  capacity instead of only minimizing current LUT count
+
+The important point is that reordering does not itself synthesize the second
+design. It prepares a better leftover-capacity landscape for a later pass.
+
+## 17. Reorder Opt
+
+`reorder_opt` is the area-saving companion to leftover reordering. It uses
+existing reusable leftover LUT space to remove whole pair cells. So while
+leftover reordering tries to improve future capacity without changing the FRAC
+cell count, `reorder_opt` deliberately spends leftover capacity to reduce the
+current number of mapped FRAC cells.
+
+The two passes therefore optimize different goals:
+
+```text
+leftover reordering:
+  same FRAC count, larger reusable leftovers
+
+reorder_opt:
+  fewer FRAC cells, less reusable leftover space
+```
+
+If both options are enabled, the flow is:
+
+```text
+normal packing -> leftover reordering -> reorder_opt -> apply mapping
+```
+
+If only `reorder_opt` is enabled, it runs directly on the leftovers produced by
+normal packing:
+
+```text
+normal packing -> reorder_opt -> apply mapping
+```
+
+### Reorder-opt transformation
+
+The transformation needs two single-cell hosts and one donor pair:
+
+```text
+before:
+
+  host single cell: H0
+  host single cell: H1
+  donor pair cell:  A + B
+
+after:
+
+  host pair cell:   H0 + A
+  host pair cell:   H1 + B
+```
+
+The symmetric assignment is also tried:
+
+```text
+before:
+
+  host single cell: H0
+  host single cell: H1
+  donor pair cell:  A + B
+
+after:
+
+  host pair cell:   H0 + B
+  host pair cell:   H1 + A
+```
+
+In compact form:
+
+$$
+H_0 + H_1 + (A + B) \rightarrow (H_0 + A) + (H_1 + B)
+$$
+
+or:
+
+$$
+H_0 + H_1 + (A + B) \rightarrow (H_0 + B) + (H_1 + A)
+$$
+
+The logical LUT count is unchanged:
+
+$$
+N_{LUTs}^{before} = N_{LUTs}^{after}
+$$
+
+but the FRAC cell count decreases by one:
+
+$$
+N_{cells}^{after} = N_{cells}^{before} - 1
+$$
+
+This is why `reorder_opt` can save area.
+
+### Concrete example
+
+Assume `K=4`, `num_shared_inputs=3`, and select-as-data is enabled. Two single
+`LUT4` cells each have enough effective leftover space to host one `LUT2`.
+
+```text
+before:
+
+  cell 0: LUT4          reusable effective leftover: LUT2
+  cell 1: LUT4          reusable effective leftover: LUT2
+  cell 2: LUT2 + LUT2   reusable effective leftover: none
+```
+
+`reorder_opt` can split the `LUT2 + LUT2` donor pair and place one `LUT2` into
+each host:
+
+```text
+after:
+
+  cell 0: LUT4 + LUT2   reusable effective leftover: none
+  cell 1: LUT4 + LUT2   reusable effective leftover: none
+```
+
+The design still implements the same four logical LUTs, but it now uses two
+FRAC cells instead of three:
+
+$$
+3 \rightarrow 2
+$$
+
+The cost is that both previous leftover spaces were consumed.
+
+### Candidate math
+
+As in leftover reordering, define the reusable effective leftover width of a
+single host as:
+
+$$
+E(H) =
+\begin{cases}
+L(H) + 1, & \text{if select-as-data is available for that cell} \\
+L(H),     & \text{otherwise}
+\end{cases}
+$$
+
+For a donor pair `A + B`, let the moved LUT widths be:
+
+$$
+w_A,\quad w_B
+$$
+
+For one assignment, the quick capacity check is:
+
+$$
+w_A \le E(H_0)
+$$
+
+and:
+
+$$
+w_B \le E(H_1)
+$$
+
+For the swapped assignment, the check becomes:
+
+$$
+w_B \le E(H_0)
+$$
+
+and:
+
+$$
+w_A \le E(H_1)
+$$
+
+This is only a cheap pre-filter. The final correctness check still uses the
+same architecture binding code:
+
+```python
+binding0 = arch.try_bind_pair(host0_lut, moved0)
+binding1 = arch.try_bind_pair(host1_lut, moved1)
+
+new_host0 = arch.build_mapped_cell(old_host0_id, binding0)
+new_host1 = arch.build_mapped_cell(old_host1_id, binding1)
+```
+
+So `reorder_opt` does not implement its own INIT or routing logic. The normal
+architecture code still owns:
+
+- INIT remapping
+- pin ordering
+- shared/private input assignment
+- select-as-data use
+- metadata and parameters
+- external pin and output wiring
+
+### Area gain and leftover cost
+
+Every accepted `reorder_opt` move removes exactly one donor pair cell:
+
+$$
+G_{area} = 1
+$$
+
+The pass intentionally spends leftover capacity. For one assignment, the
+leftover waste is:
+
+$$
+W =
+\left(E(H_0) - w_A\right) +
+\left(E(H_1) - w_B\right)
+$$
+
+For the swapped assignment:
+
+$$
+W_{swap} =
+\left(E(H_0) - w_B\right) +
+\left(E(H_1) - w_A\right)
+$$
+
+Lower waste is better because it uses smaller, tighter leftover spaces first.
+For example, placing a `LUT2` into an effective `LUT2` leftover is preferred
+over placing it into an effective `LUT4` leftover.
+
+### Search-space and memory issue
+
+The naive way to implement `reorder_opt` is to try every donor pair against
+every pair of host cells:
+
+```text
+for every donor pair A+B:
+  for every host H0:
+    for every host H1:
+      try H0+A and H1+B
+      try H0+B and H1+A
+```
+
+If:
+
+$$
+D = \text{number of donor pair cells}
+$$
+
+and:
+
+$$
+H = \text{number of eligible single-host cells}
+$$
+
+then the naive search is approximately:
+
+$$
+O(D \cdot H^2)
+$$
+
+This is dangerous on real designs. For example:
+
+```text
+D = 4000
+H = 1500
+```
+
+gives:
+
+$$
+4000 \cdot 1500^2 = 9{,}000{,}000{,}000
+$$
+
+host-pair combinations before even considering the two donor-side assignments.
+If all candidates are stored in a Python list, runtime becomes very large and
+RAM usage grows quickly.
+
+### Bounded streaming search
+
+To avoid that memory blow-up, the current implementation does not materialize
+all possible candidates. Instead, it processes donor pairs in a streaming greedy
+way:
+
+```text
+for each donor pair:
+  find the best bounded host options for A
+  find the best bounded host options for B
+  try only those bounded host pairs
+  keep the best valid candidate for this donor
+  consume the selected hosts immediately
+```
+
+The bound is controlled by:
+
+```python
+max_host_candidates_per_side = 32
+```
+
+Let this bound be:
+
+$$
+M = \text{max\_host\_candidates\_per\_side}
+$$
+
+Then each donor tries at most:
+
+$$
+2M^2
+$$
+
+host assignments: `M^2` for the normal assignment and `M^2` for the swapped
+assignment.
+
+With the default:
+
+$$
+M = 32
+$$
+
+this gives:
+
+$$
+2M^2 = 2048
+$$
+
+bounded host-pair attempts per donor, instead of $2H^2$.
+
+This changes the practical behavior from a potentially explosive search into a
+bounded greedy search. It is not globally optimal, but it is predictable and
+keeps memory usage under control.
+
+Increasing `max_host_candidates_per_side` can improve quality but costs runtime
+quadratically:
+
+```text
+M = 32   fast
+M = 64   about 4x more host-pair attempts
+M = 128  about 16x more host-pair attempts
+```
+
+### Interaction with leftover reordering
+
+Running leftover reordering before `reorder_opt` can improve the opportunity
+for area savings. Reordering tends to concentrate capacity into larger single
+leftovers:
+
+```text
+before reordering:
+  many small leftovers
+
+after reordering:
+  fewer but larger reusable leftovers
+```
+
+This means more donor pairs may pass the `reorder_opt` capacity checks. That is
+good for quality, but it also increases the number of possible legal placements.
+The bounded streaming search is therefore especially important when both
+options are enabled.
+
+The conceptual flow is:
+
+```text
+normal packing:
+  reduce cell count using pair packing
+
+leftover reordering:
+  reshape leftovers to make them more useful
+
+reorder_opt:
+  spend those useful leftovers to delete additional pair cells
+```
+
+The two optimizations are complementary: one shapes leftover capacity, the
+other consumes it to save physical FRAC cells.

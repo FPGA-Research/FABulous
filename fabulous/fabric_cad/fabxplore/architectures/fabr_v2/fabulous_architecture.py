@@ -137,6 +137,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             passthrough=True,
             use_select_as_data_in_pair_mode=True,
             reorder_leftover_luts=True,
+            reorder_opt_luts=True,
         )
 
     def map_cells(self) -> None:

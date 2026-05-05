@@ -24,6 +24,9 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.netlist import (
     parse_model_json,
 )
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.reorder_opt import (
+    ReorderOptOptimizer,
+)
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.reordering import (
     LeftoverReorderer,
 )
@@ -854,6 +857,146 @@ endmodule
         assert "module FRAC_LUT5" in pass_.verilog_model
 
 
+def test_reorder_opt_saves_pair_cell_eq() -> None:
+    """Test reorder-opt spends two leftovers to remove one donor pair cell."""
+    benchmark_text = """
+module reorder_opt_case(
+    input a, b, c, d, e, f, g, h, i, j, k, l,
+    output y_host0, y_host1, y_moved0, y_moved1
+);
+  LUT4 #(.INIT(16'h6996)) host0 (
+    .I0(a), .I1(b), .I2(c), .I3(d), .O(y_host0)
+  );
+  LUT4 #(.INIT(16'he8e8)) host1 (
+    .I0(e), .I1(f), .I2(g), .I3(h), .O(y_host1)
+  );
+  LUT2 #(.INIT(4'h8)) moved0 (
+    .I0(i), .I1(j), .O(y_moved0)
+  );
+  LUT2 #(.INIT(4'h6)) moved1 (
+    .I0(k), .I1(l), .O(y_moved1)
+  );
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_reorder_opt_") as td:
+        tmp_dir = Path(td)
+        gold = tmp_dir / "reorder_opt_case.v"
+        gate = tmp_dir / "reorder_opt_case_mapped.v"
+        gold.write_text(benchmark_text, encoding="utf-8")
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([gold])
+        src_json = bridge.to_netlist_dict()
+        model = parse_model_json(
+            model_json=src_json,
+            top_name="reorder_opt_case",
+            lut_spec=_named_lut_spec(),
+        )
+        cells_by_id = {cell.cell_id: cell for cell in model.lut_cells}
+
+        arch = FracLutArchitecture(
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            name="FRAC_LUT5",
+            use_select_as_data_in_pair_mode=True,
+        )
+
+        host0_cell = arch.bind_single_lut(cells_by_id["host0"])
+        host1_cell = arch.bind_single_lut(cells_by_id["host1"])
+        assert host0_cell is not None
+        assert host1_cell is not None
+
+        donor_binding = arch.try_bind_pair(cells_by_id["moved0"], cells_by_id["moved1"])
+        assert donor_binding is not None
+        donor_cell = arch.build_mapped_cell("FRAC_LUT5_donor", donor_binding)
+
+        mapping = MappingResult(
+            architecture_name=arch.name,
+            top_name="reorder_opt_case",
+            mapped_cells=[host0_cell, host1_cell, donor_cell],
+            passthrough_luts=[],
+            stats=MappingStats(
+                total_luts_before=4,
+                total_cells_after=3,
+                mapped_groups=3,
+                mapped_luts=4,
+                passthrough_luts=0,
+                source_type_count={"LUT2": 2, "LUT4": 2},
+                result_type_count={arch.name: 3},
+            ),
+            metadata={
+                "frac_lut_size": arch.frac_lut_size,
+                "num_shared_inputs": arch.num_shared_inputs,
+            },
+        )
+
+        result = ReorderOptOptimizer(arch).optimize(mapping)
+        assert result.stats.applied_optimizations == 1
+        assert result.stats.frac_cells_saved == 1
+        assert len(result.mapping.mapped_cells) == 2
+        assert result.mapping.stats.mapped_groups == 2
+        assert result.mapping.stats.total_cells_after == 2
+        assert result.mapping.stats.mapped_luts == 4
+        assert all(len(c.placements) == 2 for c in result.mapping.mapped_cells)
+
+        mapped_json = apply_mapping_to_json(src_json, result.mapping)
+        bridge.load_netlist_dict(mapped_json)
+        bridge.write_verilog_path(gate)
+
+        eq_cfg = EquivalenceCheckConfig(
+            gold_verilog=gold,
+            gate_verilog=gate,
+            top_name="reorder_opt_case",
+            frac_cell_name=arch.name,
+            frac_lut_size=arch.frac_lut_size,
+            num_shared_inputs=arch.num_shared_inputs,
+        )
+        LutEquivalenceChecker(eq_cfg).run()
+
+
+def test_lut_combinator_pass_reorder_opt_option_smoke() -> None:
+    """Test the public pyosys pass accepts combined reorder/reorder-opt options."""
+    benchmark_text = """
+module reorder_opt_smoke(
+    input a, b, c, d,
+    output y0, y1
+);
+  \\$lut #(.LUT(4'h8), .WIDTH(32'd2)) lut0 (
+    .A({b, a}), .Y(y0)
+  );
+  \\$lut #(.LUT(4'h6), .WIDTH(32'd2)) lut1 (
+    .A({d, c}), .Y(y1)
+  );
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_reorder_opt_smoke_") as td:
+        tmp_dir = Path(td)
+        source = tmp_dir / "reorder_opt_smoke.v"
+        source.write_text(benchmark_text, encoding="utf-8")
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([source])
+
+        pass_ = LutCombinatorPass(
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            lut_name="FRAC_LUT5",
+            top_name="reorder_opt_smoke",
+            passthrough=True,
+            mode=MatchingMode.MAX_WEIGHT,
+            use_select_as_data_in_pair_mode=True,
+            reorder_leftover_luts=True,
+            reorder_opt_luts=True,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.metadata["leftover_reordering_enabled"] is True
+        assert pass_.result_data.metadata["reorder_opt_enabled"] is True
+        assert "Leftover Reordering" in pass_.report_summary
+        assert "Reorder Opt" in pass_.report_summary
+
+
 def main() -> None:
     """Run all tests."""
     sel_test: int = 0
@@ -878,6 +1021,8 @@ def main() -> None:
             test_select_as_data_packed_feedback_unused_input_eq()
             test_leftover_reordering_improves_reusable_capacity_eq()
             test_lut_combinator_pass_reordering_option_smoke()
+            test_reorder_opt_saves_pair_cell_eq()
+            test_lut_combinator_pass_reorder_opt_option_smoke()
 
 
 if __name__ == "__main__":

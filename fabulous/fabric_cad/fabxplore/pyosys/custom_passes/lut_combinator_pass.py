@@ -47,6 +47,8 @@ class LutCombinatorPass(SynthPass):
         LUT sides.
     reorder_leftover_luts : bool
         Whether to run the post-pack leftover reordering optimization.
+    reorder_opt_luts : bool
+        Whether to spend existing leftovers to remove pair cells.
     """
 
     frac_lut_size: int = 4
@@ -58,6 +60,7 @@ class LutCombinatorPass(SynthPass):
     use_select_as_data_in_pair_mode: bool = True
     allow_duplicate_private_nets: bool = True
     reorder_leftover_luts: bool = False
+    reorder_opt_luts: bool = False
 
     _verilog_model: str = ""
     _result: MappingResult | None = None
@@ -85,6 +88,7 @@ class LutCombinatorPass(SynthPass):
             passthrough=self.passthrough,
             mode=self.mode,
             reorder_leftover_luts=self.reorder_leftover_luts,
+            reorder_opt_luts=self.reorder_opt_luts,
         )
 
         comb = LutCombinator(cfg)
