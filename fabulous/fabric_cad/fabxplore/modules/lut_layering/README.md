@@ -66,7 +66,8 @@ The implementation does the following:
 1. The base design must already have been processed by the LUT combinator.
 2. The synthesizer keeps the latest `MappingResult` and `FracLutArchitecture`.
 3. The overlay design is read into a fresh `PyosysBridge`.
-4. The overlay design is normalized with Yosys and mapped to `$lut` cells.
+4. The overlay design is normalized with Yosys and mapped to `$lut` cells with
+   an inventory-aware ABC9 retry loop.
 5. The layerer extracts all overlay `$lut` cells.
 6. Overlay names are prefixed, for example with `design1_`.
 7. Overlay integer JSON bit IDs are remapped to avoid collisions with the base
@@ -81,7 +82,56 @@ If any overlay LUT cannot fit, layering raises an error and the base design is
 not modified. Partial injection is intentionally not supported, because a
 half-injected user design would not be functionally complete.
 
-## 3. Effective Leftover Space
+## 3. Overlay LUT Mapping
+
+The overlay design is synthesized in a separate pyosys design, because all
+Yosys operations mutate the current design in place. The layerer runs the normal
+front-end cleanup:
+
+```text
+read_verilog -> hierarchy -> proc -> opt -> flatten -> techmap -> opt
+```
+
+Then it maps the overlay to `$lut` cells with `abc9`. The important part is
+that the LUT size is not chosen only from the largest free slot. If the
+inventory contains one `LUT4` slot and one hundred `LUT2` slots, blindly mapping
+to `LUT4` can easily create a few LUT4 cells that cannot be placed, even though
+the same logic might fit as several LUT2 cells.
+
+By default, the layerer therefore tries an inventory-aware sequence:
+
+1. Build a leftover capacity histogram.
+2. Emit an ABC9 cost vector for LUT1 through the largest available slot.
+3. Map the overlay with `abc9 -luts <costs>`.
+4. Check the result against the leftover inventory.
+5. If it does not fit, retry with larger LUTs punished more strongly.
+6. After the configured retry count, force a fallback mapping, by default
+   `abc9 -lut 2`.
+7. If the fallback still does not fit, raise an error and leave the base design
+   unchanged.
+
+This keeps the algorithm bounded: each attempt produces one overlay netlist,
+then checks only a small width histogram and a greedy placement. There is no
+large pairwise overlay/slot matrix kept in memory.
+
+The public controls are:
+
+- `overlay_lut_size`: manual maximum LUT width. If set, the retry loop is
+  skipped and the user-requested width is used directly.
+- `overlay_mapper_max_tries`: number of inventory-aware cost-vector attempts
+  before fallback.
+- `overlay_mapper_cost_scale`: integer scale factor used to make ABC9 costs.
+- `overlay_mapper_size_penalty`: base penalty for larger LUT widths.
+- `overlay_mapper_retry_penalty`: extra larger-LUT penalty applied after each
+  failed attempt.
+- `overlay_mapper_fallback_lut_size`: final forced maximum LUT size, default
+  `2`.
+
+The fallback to LUT2 is useful because every effective leftover slot of width
+two or more can host a LUT2. If the design still cannot fit as LUT2 cells, the
+overlay is genuinely too large for the current inventory.
+
+## 4. Effective Leftover Space
 
 For a fractional LUT architecture with internal LUT size $K$ and nominal shared
 input count $N$, the LUT combinator reports a leftover width for each mapped
@@ -115,7 +165,7 @@ single LUT4 in one FRAC_LUT:
 That means a second design LUT2 can be inserted into this cell even though the
 normal leftover accounting would only show one unused private input.
 
-## 4. Placement Rule
+## 5. Placement Rule
 
 The overlay LUTs are sorted largest first. Each overlay LUT is placed into the
 smallest legal remaining leftover slot.
@@ -154,7 +204,7 @@ This reuses the same INIT remapping used by normal pair packing. Therefore the
 overlay LUT truth table is remapped to the internal FRAC pin order exactly like a
 normal dual-LUT packed cell.
 
-## 5. Port and Name Renaming
+## 6. Port and Name Renaming
 
 The overlay design is merged into the base design, so name conflicts must be
 avoided. The layerer prefixes overlay objects:
@@ -179,7 +229,7 @@ Yosys JSON also uses integer bit IDs for wires. Prefixing names is not enough,
 because two different designs may both contain bit ID `42`. The layerer remaps
 all overlay integer bit IDs to a fresh range before merging.
 
-## 6. What Happens to Non-LUT Overlay Cells?
+## 7. What Happens to Non-LUT Overlay Cells?
 
 Only overlay `$lut` cells are absorbed into FRAC leftovers. All other overlay
 cells are copied into the base design as normal cells.
@@ -209,7 +259,7 @@ The `$dff` remains explicit. This is deliberate: Yosys can produce many
 different FF and sequential-cell variants. Absorbing FFs into architecture
 flip-flops should be a later physical packing pass, after all layering is done.
 
-## 7. Example
+## 8. Example
 
 Base design after LUT combinator:
 
@@ -244,7 +294,7 @@ FRAC_1.O1 -> design1_overlay_n1
 So the second design gets implemented without adding new FRAC cells, as long as
 the full overlay LUT set fits into the leftover inventory.
 
-## 8. Inventory Math
+## 9. Inventory Math
 
 Let the base mapping provide leftover slots:
 
@@ -289,20 +339,55 @@ $waste = c(s_i) - w(u_j)$
 This keeps large overlay LUTs from being blocked by earlier small placements and
 tries to preserve larger remaining slots where possible.
 
-## 9. Limitations and Next Steps
+The overlay mapping cost vector is derived from the same inventory. Let
 
-The first implementation maps the overlay design with one maximum LUT size,
-derived from the largest available leftover slot unless explicitly configured.
-For example, if the inventory contains one `LUT4` slot and one hundred `LUT2`
-slots, the current default overlay mapping allows `LUT4`.
+$C_k = |\{s \in S \mid c(s) \ge k\}|$
 
-That is simple and works, but it is not yet histogram-aware. A later
-improvement should derive an ABC/ABC9 cost vector from the leftover inventory,
-so overlay synthesis is biased toward the LUT widths that are actually abundant.
+be the number of slots that can host a LUT of width $k$, and let
+
+$M = |S|$
+
+be the total number of slots. For retry attempt $r$, the generated cost is:
+
+$cost(k,r) =
+scale \cdot \frac{M}{\max(C_k,1)}
+\cdot k^{p_{size}}
+\cdot (p_{retry}^{r})^{\max(k-1,0)}$
+
+rounded to an integer. The first factor makes scarce LUT widths expensive. The
+second factor discourages large LUTs in general. The retry factor increases the
+pressure on larger LUTs after a failed placement attempt.
+
+Example inventory:
+
+```text
+slots:
+  LUT4: 1
+  LUT2: 100
+```
+
+Then:
+
+```text
+C1 = 101
+C2 = 101
+C3 = 1
+C4 = 1
+```
+
+So LUT3 and LUT4 become expensive because only one slot can host them. If ABC9
+still produces an overlay that cannot be placed, the next try increases the
+larger-LUT penalty. The final fallback maps to LUT2 only.
+
+## 10. Limitations and Next Steps
+
+The mapper is capacity-aware, but it is still a bounded heuristic. ABC9 may pick
+a different local LUT decomposition than a hand-written exact packer would. The
+retry loop and LUT2 fallback make the result practical and predictable without
+building a high-memory global optimizer.
 
 Other future steps:
 
 - absorb supported overlay FF cells into physical FRAC output FFs
 - support repeated layers with updated inventory reports
 - add timing-aware overlay placement
-- expose a histogram-aware overlay LUT mapper backend

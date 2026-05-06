@@ -44,7 +44,18 @@ class LutLayeringPass(SynthPass):
     lut_spec : LutSpec
         LUT parser convention for the overlay netlist.
     overlay_lut_size : int | None
-        Optional maximum LUT size for overlay mapping.
+        Manual maximum LUT size for overlay mapping. If set, skip the
+        inventory-aware retry loop.
+    overlay_mapper_max_tries : int
+        Number of inventory-aware ABC9 cost-vector attempts before fallback.
+    overlay_mapper_cost_scale : int
+        Integer baseline for generated ABC9 LUT costs.
+    overlay_mapper_size_penalty : float
+        Penalty strength for larger overlay LUTs.
+    overlay_mapper_retry_penalty : float
+        Larger-LUT penalty multiplier applied after failed attempts.
+    overlay_mapper_fallback_lut_size : int
+        Final forced maximum LUT size if inventory-aware attempts fail.
     debug : bool
         Enable verbose output in the temporary overlay pyosys bridge.
     """
@@ -58,6 +69,11 @@ class LutLayeringPass(SynthPass):
     base_prefix: str | None = "design0_"
     lut_spec: LutSpec = field(default_factory=LutSpec)
     overlay_lut_size: int | None = None
+    overlay_mapper_max_tries: int = 4
+    overlay_mapper_cost_scale: int = 100
+    overlay_mapper_size_penalty: float = 1.4
+    overlay_mapper_retry_penalty: float = 1.8
+    overlay_mapper_fallback_lut_size: int = 2
     debug: bool = False
 
     _verilog_model: str = ""
@@ -81,6 +97,11 @@ class LutLayeringPass(SynthPass):
             base_prefix=self.base_prefix,
             lut_spec=self.lut_spec,
             overlay_lut_size=self.overlay_lut_size,
+            overlay_mapper_max_tries=self.overlay_mapper_max_tries,
+            overlay_mapper_cost_scale=self.overlay_mapper_cost_scale,
+            overlay_mapper_size_penalty=self.overlay_mapper_size_penalty,
+            overlay_mapper_retry_penalty=self.overlay_mapper_retry_penalty,
+            overlay_mapper_fallback_lut_size=self.overlay_mapper_fallback_lut_size,
             debug=self.debug,
         )
         layerer = LutLayerer(config)

@@ -222,6 +222,11 @@ class ArchitectureSynthesizer(ABC):
         overlay_prefix: str = "design1_",
         base_prefix: str | None = "design0_",
         overlay_lut_size: int | None = None,
+        overlay_mapper_max_tries: int = 4,
+        overlay_mapper_cost_scale: int = 100,
+        overlay_mapper_size_penalty: float = 1.4,
+        overlay_mapper_retry_penalty: float = 1.8,
+        overlay_mapper_fallback_lut_size: int = 2,
     ) -> LutLayeringPass:
         """Run LUT layering on the current packed design.
 
@@ -241,8 +246,18 @@ class ArchitectureSynthesizer(ABC):
             Optional prefix applied to base ports and netnames. ``None`` keeps
             base names unchanged.
         overlay_lut_size : int | None
-            Optional maximum LUT width used for overlay mapping. If ``None``,
-            derive it from the available leftover inventory.
+            Manual maximum LUT width used for overlay mapping. If set, skip the
+            inventory-aware retry loop.
+        overlay_mapper_max_tries : int
+            Number of inventory-aware ABC9 cost-vector attempts before fallback.
+        overlay_mapper_cost_scale : int
+            Integer baseline for generated ABC9 LUT costs.
+        overlay_mapper_size_penalty : float
+            Penalty strength for larger overlay LUTs.
+        overlay_mapper_retry_penalty : float
+            Larger-LUT penalty multiplier applied after failed attempts.
+        overlay_mapper_fallback_lut_size : int
+            Final forced maximum LUT size if inventory-aware attempts fail.
 
         Returns
         -------
@@ -271,6 +286,11 @@ class ArchitectureSynthesizer(ABC):
             overlay_prefix=overlay_prefix,
             base_prefix=base_prefix,
             overlay_lut_size=overlay_lut_size,
+            overlay_mapper_max_tries=overlay_mapper_max_tries,
+            overlay_mapper_cost_scale=overlay_mapper_cost_scale,
+            overlay_mapper_size_penalty=overlay_mapper_size_penalty,
+            overlay_mapper_retry_penalty=overlay_mapper_retry_penalty,
+            overlay_mapper_fallback_lut_size=overlay_mapper_fallback_lut_size,
             debug=self.debug,
         )
 

@@ -36,6 +36,8 @@ from fabulous.fabric_cad.fabxplore.modules.lut_layering.core.models import (
     LutLayeringConfig,
     LutLayeringResult,
     LutLayeringStats,
+    OverlayMappingAttempt,
+    OverlayMappingSelection,
 )
 from fabulous.fabric_cad.fabxplore.modules.lut_layering.core.report import (
     render_layering_report,
@@ -99,33 +101,16 @@ class LutLayerer:
         slots = collect_leftover_slots(
             self.config.base_mapping, self.config.architecture
         )
-        overlay_lut_size = self._select_overlay_lut_size(slots)
+        self._validate_overlay_mapping_config(slots)
 
         logger.info(
             f"{self.print_name} Starting layering. "
             f"(base_top={self.config.top_name}, "
-            f"overlay_top={self.config.overlay_top_name}, "
-            f"overlay_lut_size={overlay_lut_size})"
+            f"overlay_top={self.config.overlay_top_name})"
         )
 
-        overlay_json = self._synthesize_overlay_to_luts(overlay_lut_size)
-        prepared_overlay = prepare_overlay_json(
-            overlay_json=overlay_json,
-            overlay_top_name=self.config.overlay_top_name,
-            prefix=self.config.overlay_prefix,
-            fresh_bit_start=max_integer_bit(base_json) + 1,
-        )
-        overlay_model = parse_model_json(
-            model_json=prepared_overlay.netlist_json,
-            top_name=prepared_overlay.top_name,
-            lut_spec=self.config.lut_spec,
-        )
-        overlay_luts = tuple(
-            sorted(overlay_model.lut_cells, key=lambda lut: (-lut.width, lut.cell_id))
-        )
-
-        placements, updated_mapping = self._place_overlay_luts(
-            overlay_luts=overlay_luts,
+        selection = self._select_overlay_mapping(
+            base_json=base_json,
             slots=slots,
         )
 
@@ -135,10 +120,12 @@ class LutLayerer:
         }
         replaced_cells = {
             cell.packed_id: cell
-            for cell in updated_mapping.mapped_cells
+            for cell in selection.updated_mapping.mapped_cells
             if cell.packed_id in slot_packed_ids
         }
-        consumed_overlay_luts = {placement.overlay_cell_id for placement in placements}
+        consumed_overlay_luts = {
+            placement.overlay_cell_id for placement in selection.placements
+        }
 
         layered_json = prefix_base_top_names(
             base_json=base_json,
@@ -153,43 +140,48 @@ class LutLayerer:
         layered_json = merge_overlay_module(
             base_json=layered_json,
             top_name=self.config.top_name,
-            overlay=prepared_overlay,
+            overlay=selection.prepared_overlay,
             removed_overlay_lut_ids=consumed_overlay_luts,
         )
 
         stats = self._build_stats(
             slots=slots,
-            placements=placements,
-            overlay_luts=overlay_luts,
-            mapped_cells=updated_mapping.mapped_cells,
+            placements=selection.placements,
+            overlay_luts=selection.overlay_luts,
+            mapped_cells=selection.updated_mapping.mapped_cells,
         )
         report_summary = render_layering_report(
             config=self.config,
             stats=stats,
             slots=slots,
-            placements=placements,
-            overlay_lut_size=overlay_lut_size,
+            placements=selection.placements,
+            selected_attempt=selection.selected_attempt,
+            attempts=selection.attempts,
         )
 
-        metadata = dict(updated_mapping.metadata)
+        metadata = dict(selection.updated_mapping.metadata)
         metadata.update(
             {
                 "lut_layering_enabled": True,
                 "lut_layering_overlay_top": self.config.overlay_top_name,
-                "lut_layering_overlay_luts": len(overlay_luts),
-                "lut_layering_injected_luts": len(placements),
+                "lut_layering_overlay_luts": len(selection.overlay_luts),
+                "lut_layering_injected_luts": len(selection.placements),
+                "lut_layering_selected_mapper_attempt": (
+                    selection.selected_attempt.name
+                ),
                 "_lut_layering_report": report_summary,
             }
         )
         final_mapping = replace(
-            updated_mapping,
+            selection.updated_mapping,
             metadata=metadata,
-            report_summary=updated_mapping.report_summary,
+            report_summary=selection.updated_mapping.report_summary,
         )
 
         logger.info(
             f"{self.print_name} Done. "
-            f"overlay_luts={len(overlay_luts)}, injected={len(placements)}, "
+            f"overlay_luts={len(selection.overlay_luts)}, "
+            f"injected={len(selection.placements)}, "
             f"leftover_after={stats.reusable_leftover_after}"
         )
 
@@ -197,20 +189,124 @@ class LutLayerer:
             LutLayeringResult(
                 mapping=final_mapping,
                 stats=stats,
-                placements=placements,
+                placements=selection.placements,
                 report_summary=report_summary,
-                overlay_luts=overlay_luts,
+                overlay_luts=selection.overlay_luts,
+                selected_attempt=selection.selected_attempt,
+                attempts=selection.attempts,
             ),
             layered_json,
         )
 
-    def _synthesize_overlay_to_luts(self, overlay_lut_size: int) -> dict:
+    def _select_overlay_mapping(
+        self,
+        base_json: dict,
+        slots: tuple[LeftoverSlot, ...],
+    ) -> OverlayMappingSelection:
+        """Try overlay mappings until one fully fits the leftover inventory.
+
+        Parameters
+        ----------
+        base_json : dict
+            Current base design JSON dictionary.
+        slots : tuple[LeftoverSlot, ...]
+            Reusable leftover inventory.
+
+        Returns
+        -------
+        OverlayMappingSelection
+            Prepared overlay, accepted overlay LUTs, placements, updated
+            mapping, selected attempt, and all attempted mappings.
+
+        Raises
+        ------
+        RuntimeError
+            If no overlay mapping attempt can be fully layered.
+        """
+        attempts: list[OverlayMappingAttempt] = []
+        fresh_bit_start = max_integer_bit(base_json) + 1
+
+        for attempt_template in self._iter_overlay_attempt_templates(slots):
+            overlay_json = self._synthesize_overlay_to_luts(
+                lut_size=attempt_template.lut_size,
+                cost_vector=attempt_template.cost_vector,
+            )
+            prepared_overlay = prepare_overlay_json(
+                overlay_json=overlay_json,
+                overlay_top_name=self.config.overlay_top_name,
+                prefix=self.config.overlay_prefix,
+                fresh_bit_start=fresh_bit_start,
+            )
+            overlay_luts = self._parse_overlay_luts(prepared_overlay.netlist_json)
+            width_count = _width_count(overlay_luts)
+            capacity_fits = self._capacity_fits(
+                overlay_widths=tuple(lut.width for lut in overlay_luts),
+                slots=slots,
+            )
+
+            if not capacity_fits:
+                attempts.append(
+                    replace(
+                        attempt_template,
+                        capacity_fits=False,
+                        placement_fits=False,
+                        overlay_width_count=width_count,
+                        note="capacity check failed",
+                    )
+                )
+                continue
+
+            try:
+                placements, updated_mapping = self._place_overlay_luts(
+                    overlay_luts=overlay_luts,
+                    slots=slots,
+                )
+            except RuntimeError as exc:
+                attempts.append(
+                    replace(
+                        attempt_template,
+                        capacity_fits=True,
+                        placement_fits=False,
+                        overlay_width_count=width_count,
+                        note=str(exc),
+                    )
+                )
+                continue
+
+            selected = replace(
+                attempt_template,
+                capacity_fits=True,
+                placement_fits=True,
+                overlay_width_count=width_count,
+                note="selected",
+            )
+            attempts.append(selected)
+            return OverlayMappingSelection(
+                prepared_overlay=prepared_overlay,
+                overlay_luts=overlay_luts,
+                placements=placements,
+                updated_mapping=updated_mapping,
+                selected_attempt=selected,
+                attempts=tuple(attempts),
+            )
+
+        detail = "; ".join(f"{a.name}: {a.note}" for a in attempts)
+        raise RuntimeError(f"Overlay design does not fit leftover inventory. {detail}")
+
+    def _synthesize_overlay_to_luts(
+        self,
+        lut_size: int,
+        cost_vector: tuple[int, ...] | None,
+    ) -> dict:
         """Return overlay design JSON after mapping to Yosys ``$lut`` cells.
 
         Parameters
         ----------
-        overlay_lut_size : int
+        lut_size : int
             Maximum LUT width passed to ABC.
+        cost_vector : tuple[int, ...] | None
+            Optional ABC9 LUT cost vector. When present, use ``abc9 -luts``;
+            otherwise use ``abc9 -lut``.
 
         Returns
         -------
@@ -228,28 +324,27 @@ class LutLayerer:
         bridge.run_pass("flatten")
         bridge.run_pass("techmap")
         bridge.run_pass("opt")
-        bridge.run_pass(f"abc9 -lut {overlay_lut_size}")
+        if cost_vector is None:
+            bridge.run_pass(f"abc9 -lut {lut_size}")
+        else:
+            costs = ",".join(str(cost) for cost in cost_vector)
+            bridge.run_pass(f"abc9 -luts {costs}")
         bridge.run_pass("opt_lut")
         bridge.run_pass("clean")
         return bridge.to_netlist_dict()
 
-    def _select_overlay_lut_size(self, slots: tuple[LeftoverSlot, ...]) -> int:
-        """Return the LUT size to use for overlay mapping.
+    def _validate_overlay_mapping_config(self, slots: tuple[LeftoverSlot, ...]) -> None:
+        """Validate overlay mapping options against the leftover inventory.
 
         Parameters
         ----------
         slots : tuple[LeftoverSlot, ...]
             Current reusable leftover inventory.
 
-        Returns
-        -------
-        int
-            Explicit or derived overlay LUT size.
-
         Raises
         ------
         RuntimeError
-            If no slots exist or the requested LUT size cannot fit.
+            If no slots exist or a configured LUT size is impossible.
         """
         if not slots:
             raise RuntimeError(
@@ -257,17 +352,187 @@ class LutLayerer:
             )
 
         max_slot = max(slot.effective_leftover_width for slot in slots)
-        if self.config.overlay_lut_size is None:
-            return max_slot
-
-        if self.config.overlay_lut_size < 1:
+        if (
+            self.config.overlay_lut_size is not None
+            and self.config.overlay_lut_size < 1
+        ):
             raise RuntimeError("overlay_lut_size must be >= 1")
-        if self.config.overlay_lut_size > max_slot:
+        if (
+            self.config.overlay_lut_size is not None
+            and self.config.overlay_lut_size > max_slot
+        ):
             raise RuntimeError(
                 f"overlay_lut_size={self.config.overlay_lut_size} exceeds "
                 f"available maximum leftover width {max_slot}"
             )
-        return self.config.overlay_lut_size
+        if self.config.overlay_mapper_max_tries < 0:
+            raise RuntimeError("overlay_mapper_max_tries must be >= 0")
+        if self.config.overlay_mapper_cost_scale < 1:
+            raise RuntimeError("overlay_mapper_cost_scale must be >= 1")
+        if self.config.overlay_mapper_size_penalty <= 0:
+            raise RuntimeError("overlay_mapper_size_penalty must be > 0")
+        if self.config.overlay_mapper_retry_penalty <= 0:
+            raise RuntimeError("overlay_mapper_retry_penalty must be > 0")
+        if self.config.overlay_lut_size is not None:
+            return
+
+        if self.config.overlay_mapper_fallback_lut_size < 1:
+            raise RuntimeError("overlay_mapper_fallback_lut_size must be >= 1")
+        if self.config.overlay_mapper_fallback_lut_size > max_slot:
+            raise RuntimeError(
+                "overlay_mapper_fallback_lut_size exceeds available maximum "
+                f"leftover width {max_slot}"
+            )
+
+    def _iter_overlay_attempt_templates(
+        self,
+        slots: tuple[LeftoverSlot, ...],
+    ) -> tuple[OverlayMappingAttempt, ...]:
+        """Return overlay mapping attempts in execution order.
+
+        Parameters
+        ----------
+        slots : tuple[LeftoverSlot, ...]
+            Reusable leftover inventory.
+
+        Returns
+        -------
+        tuple[OverlayMappingAttempt, ...]
+            Attempt templates without result fields filled in.
+        """
+        max_slot = max(slot.effective_leftover_width for slot in slots)
+        if self.config.overlay_lut_size is not None:
+            return (
+                OverlayMappingAttempt(
+                    index=0,
+                    name=f"manual_lut{self.config.overlay_lut_size}",
+                    lut_size=self.config.overlay_lut_size,
+                    cost_vector=None,
+                ),
+            )
+
+        attempts: list[OverlayMappingAttempt] = []
+        for idx in range(self.config.overlay_mapper_max_tries):
+            cost_vector = self._build_inventory_cost_vector(
+                max_lut_size=max_slot,
+                slots=slots,
+                retry_index=idx,
+            )
+            attempts.append(
+                OverlayMappingAttempt(
+                    index=len(attempts),
+                    name=f"inventory_cost_try_{idx}",
+                    lut_size=max_slot,
+                    cost_vector=cost_vector,
+                )
+            )
+
+        fallback = self.config.overlay_mapper_fallback_lut_size
+        attempts.append(
+            OverlayMappingAttempt(
+                index=len(attempts),
+                name=f"fallback_lut{fallback}",
+                lut_size=fallback,
+                cost_vector=None,
+            )
+        )
+        return tuple(attempts)
+
+    def _build_inventory_cost_vector(
+        self,
+        max_lut_size: int,
+        slots: tuple[LeftoverSlot, ...],
+        retry_index: int,
+    ) -> tuple[int, ...]:
+        """Build an ABC9 cost vector from the leftover capacity histogram.
+
+        Parameters
+        ----------
+        max_lut_size : int
+            Largest LUT width to include in the cost vector.
+        slots : tuple[LeftoverSlot, ...]
+            Reusable leftover slots.
+        retry_index : int
+            Retry number used to progressively punish larger LUTs.
+
+        Returns
+        -------
+        tuple[int, ...]
+            Cost entries for LUT1 through ``max_lut_size``.
+        """
+        total_slots = max(1, len(slots))
+        costs: list[int] = []
+        for width in range(1, max_lut_size + 1):
+            capable_slots = sum(
+                1 for slot in slots if slot.effective_leftover_width >= width
+            )
+            scarcity = total_slots / max(capable_slots, 1)
+            size_penalty = width**self.config.overlay_mapper_size_penalty
+            retry_penalty = (
+                self.config.overlay_mapper_retry_penalty**retry_index
+            ) ** max(0, width - 1)
+            cost = round(
+                self.config.overlay_mapper_cost_scale
+                * scarcity
+                * size_penalty
+                * retry_penalty
+            )
+            costs.append(max(1, cost))
+        return tuple(costs)
+
+    def _parse_overlay_luts(self, overlay_json: dict) -> tuple[LogicalLutCell, ...]:
+        """Parse and sort overlay LUTs from a prepared overlay JSON design.
+
+        Parameters
+        ----------
+        overlay_json : dict
+            Prepared overlay JSON dictionary.
+
+        Returns
+        -------
+        tuple[LogicalLutCell, ...]
+            Overlay LUTs sorted largest-first.
+        """
+        overlay_model = parse_model_json(
+            model_json=overlay_json,
+            top_name=self.config.overlay_top_name,
+            lut_spec=self.config.lut_spec,
+        )
+        return tuple(
+            sorted(overlay_model.lut_cells, key=lambda lut: (-lut.width, lut.cell_id))
+        )
+
+    def _capacity_fits(
+        self,
+        overlay_widths: tuple[int, ...],
+        slots: tuple[LeftoverSlot, ...],
+    ) -> bool:
+        """Return whether overlay widths fit leftover slot capacities.
+
+        Parameters
+        ----------
+        overlay_widths : tuple[int, ...]
+            Overlay LUT widths to place.
+        slots : tuple[LeftoverSlot, ...]
+            Available leftover slots.
+
+        Returns
+        -------
+        bool
+            ``True`` if every overlay LUT can be assigned to a slot with enough
+            capacity.
+        """
+        capacities = sorted(slot.effective_leftover_width for slot in slots)
+        for width in sorted(overlay_widths, reverse=True):
+            fit_index = None
+            for idx, capacity in enumerate(capacities):
+                if capacity >= width:
+                    fit_index = idx
+                    break
+            if fit_index is None:
+                return False
+            capacities.pop(fit_index)
+        return True
 
     def _place_overlay_luts(
         self,

@@ -1214,6 +1214,74 @@ def test_synthesizer_lut_layering_requires_lut_combinator() -> None:
         raise AssertionError("Expected layering to require a previous combinator pass")
 
 
+def test_lut_layering_fallback_lut2_mapping_smoke() -> None:
+    """Test overlay mapping can force the LUT2 fallback candidate."""
+    host_count = 12
+    ports = "\n".join(f"    input a{i}, b{i}, c{i}, d{i}," for i in range(host_count))
+    outputs = ", ".join(f"y{i}" for i in range(host_count))
+    luts = "\n".join(
+        f"""  \\$lut #(.LUT(16'h6996), .WIDTH(32'd4)) base_lut{i} (
+    .A({{d{i}, c{i}, b{i}, a{i}}}), .Y(y{i})
+  );"""
+        for i in range(host_count)
+    )
+    base_text = f"""
+module layering_fallback_base(
+{ports}
+    output {outputs}
+);
+{luts}
+endmodule
+"""
+    overlay_text = """
+module overlay_mux4(
+    input a, b, c, d,
+    input s0, s1,
+    output y
+);
+  assign y = s1 ? (s0 ? d : c) : (s0 ? b : a);
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_layering_fallback_") as td:
+        tmp_dir = Path(td)
+        base = tmp_dir / "base.v"
+        overlay = tmp_dir / "overlay.v"
+        base.write_text(base_text, encoding="utf-8")
+        overlay.write_text(overlay_text, encoding="utf-8")
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+
+        comb_pass = LutCombinatorPass(
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            lut_name="FRAC_LUT5",
+            top_name="layering_fallback_base",
+            passthrough=True,
+            mode=MatchingMode.MAX_WEIGHT,
+            use_select_as_data_in_pair_mode=True,
+        )
+        comb_pass.run_on(bridge)
+        assert comb_pass.result_data is not None
+        assert comb_pass.architecture is not None
+
+        layer_pass = LutLayeringPass(
+            overlay_verilog_paths=[overlay],
+            overlay_top_name="overlay_mux4",
+            base_mapping=comb_pass.result_data,
+            architecture=comb_pass.architecture,
+            top_name="layering_fallback_base",
+            overlay_mapper_max_tries=0,
+            overlay_mapper_fallback_lut_size=2,
+        )
+        layer_pass.run_on(bridge)
+
+        assert layer_pass.result_data is not None
+        assert layer_pass.result_data.selected_attempt.name == "fallback_lut2"
+        assert all(lut.width <= 2 for lut in layer_pass.result_data.overlay_luts)
+        assert layer_pass.result_data.stats.injected_luts > 1
+
+
 def main() -> None:
     """Run all tests."""
     sel_test: int = 0
@@ -1244,6 +1312,7 @@ def main() -> None:
             test_lut_layering_pass_rejects_overlay_that_does_not_fit()
             test_synthesizer_lut_layering_flow_smoke()
             test_synthesizer_lut_layering_requires_lut_combinator()
+            test_lut_layering_fallback_lut2_mapping_smoke()
 
 
 if __name__ == "__main__":

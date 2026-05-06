@@ -7,6 +7,7 @@ from fabulous.fabric_cad.fabxplore.modules.lut_layering.core.models import (
     LeftoverSlot,
     LutLayeringConfig,
     LutLayeringStats,
+    OverlayMappingAttempt,
 )
 
 _REPORT_ENV = Environment(
@@ -24,7 +25,15 @@ Configuration
 - Base top: {{ config.top_name }}
 - Overlay prefix: {{ config.overlay_prefix }}
 - Base prefix: {{ config.base_prefix if config.base_prefix is not none else "none" }}
-- Overlay LUT size: {{ overlay_lut_size }}
+- Manual overlay LUT size:
+  {{ config.overlay_lut_size if config.overlay_lut_size is not none else "none" }}
+- Selected mapper attempt: {{ selected_attempt.name }}
+- Selected maximum LUT size: {{ selected_attempt.lut_size }}
+{% if selected_attempt.cost_vector %}
+- Selected ABC9 cost vector: {{ selected_attempt.cost_vector | join(",") }}
+{% else %}
+- Selected ABC9 cost vector: none
+{% endif %}
 
 Inventory Before Layering
 - Candidate leftover slots: {{ stats.slots_before }}
@@ -37,6 +46,24 @@ Inventory Before Layering
 {% else %}
 - Note: no usable leftover slots were available.
 {% endif %}
+
+Overlay Mapping Attempts
+{% for attempt in attempts %}
+- {{ attempt.name }}:
+  max_lut={{ attempt.lut_size }},
+  capacity_fits={{ attempt.capacity_fits }},
+  placement_fits={{ attempt.placement_fits }},
+  note={{ attempt.note }}
+{% if attempt.cost_vector %}
+  cost_vector={{ attempt.cost_vector | join(",") }}
+{% endif %}
+{% if attempt.overlay_width_count %}
+  widths:
+{% for label, count in attempt.overlay_width_count | dictsort %}
+    - {{ label }}: {{ count }}
+{% endfor %}
+{% endif %}
+{% endfor %}
 
 Overlay Consumption
 - Overlay LUTs: {{ stats.overlay_luts }}
@@ -78,7 +105,8 @@ def render_layering_report(
     stats: LutLayeringStats,
     slots: tuple[LeftoverSlot, ...],
     placements: tuple[LayeredLutPlacement, ...],
-    overlay_lut_size: int,
+    selected_attempt: OverlayMappingAttempt,
+    attempts: tuple[OverlayMappingAttempt, ...],
 ) -> str:
     """Render a report block for one layering run.
 
@@ -92,8 +120,10 @@ def render_layering_report(
         Candidate slots before layering.
     placements : tuple[LayeredLutPlacement, ...]
         Applied overlay placements.
-    overlay_lut_size : int
-        LUT size used when mapping the overlay design.
+    selected_attempt : OverlayMappingAttempt
+        Overlay mapping attempt selected for layering.
+    attempts : tuple[OverlayMappingAttempt, ...]
+        All overlay mapping attempts tried by the layerer.
 
     Returns
     -------
@@ -105,7 +135,8 @@ def render_layering_report(
         stats=stats,
         slots=slots,
         placements=placements,
-        overlay_lut_size=overlay_lut_size,
+        selected_attempt=selected_attempt,
+        attempts=attempts,
         overlay_files=", ".join(str(path) for path in config.overlay_verilog_paths),
         slot_rows=tuple(sorted(_slot_width_count(slots).items())),
         overlay_rows=tuple(sorted(stats.overlay_width_count.items())),

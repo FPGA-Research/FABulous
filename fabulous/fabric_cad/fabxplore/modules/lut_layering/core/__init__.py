@@ -7,6 +7,7 @@ from fabulous.fabric_cad.fabxplore.modules.lut_layering.core.models import (
     LutLayeringConfig,
     LutLayeringResult,
     LutLayeringStats,
+    OverlayMappingSelection,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "LutLayeringConfig",
     "LutLayeringResult",
     "LutLayeringStats",
+    "OverlayMappingSelection",
 ]
