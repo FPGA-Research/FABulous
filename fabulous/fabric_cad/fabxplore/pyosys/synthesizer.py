@@ -64,6 +64,7 @@ class ArchitectureSynthesizer(ABC):
 
         self._latest_lut_mapping_result: MappingResult | None = None
         self._latest_frac_lut_architecture: FracLutArchitecture | None = None
+        self._lut_layering_count: int = 0
 
     def add_primitive(self, primitive: str | Path) -> None:
         """Add a primitive to the set of primitives.
@@ -209,6 +210,7 @@ class ArchitectureSynthesizer(ABC):
 
         self._latest_lut_mapping_result = result.result_data
         self._latest_frac_lut_architecture = result.architecture
+        self._lut_layering_count = 0
         self.add_primitive(result.verilog_model)
 
         return result
@@ -219,7 +221,7 @@ class ArchitectureSynthesizer(ABC):
         overlay_top_name: str,
         log_report: bool = True,
         top_name: str | None = None,
-        overlay_prefix: str = "design1_",
+        overlay_prefix: str | None = None,
         base_prefix: str | None = "design0_",
         overlay_lut_size: int | None = None,
         overlay_mapper_max_tries: int = 4,
@@ -240,11 +242,15 @@ class ArchitectureSynthesizer(ABC):
             If ``True``, log the LUT layering report after execution.
         top_name : str | None
             Base design top module. If ``None``, use the current design top.
-        overlay_prefix : str
-            Prefix applied to overlay ports, netnames, and cells.
+        overlay_prefix : str | None
+            Prefix applied to overlay ports, netnames, and cells. If ``None``,
+            use ``design1_`` for the first layer, ``design2_`` for the second
+            layer, and so on.
         base_prefix : str | None
-            Optional prefix applied to base ports and netnames. ``None`` keeps
-            base names unchanged.
+            Optional prefix applied to base ports and netnames. The default
+            ``design0_`` is applied only to the first layer; later layers keep
+            the already-prefixed base unchanged to avoid names such as
+            ``design0_design0_*``. ``None`` always keeps base names unchanged.
         overlay_lut_size : int | None
             Manual maximum LUT width used for overlay mapping. If set, skip the
             inventory-aware retry loop.
@@ -277,14 +283,23 @@ class ArchitectureSynthesizer(ABC):
                 "LUT layering requires running design_lut_combinator_pass first."
             )
 
+        effective_overlay_prefix = (
+            overlay_prefix
+            if overlay_prefix is not None
+            else f"design{self._lut_layering_count + 1}_"
+        )
+        effective_base_prefix = base_prefix
+        if self._lut_layering_count > 0 and base_prefix == "design0_":
+            effective_base_prefix = None
+
         result = LutLayeringPass(
             overlay_verilog_paths=overlay_verilog_paths,
             overlay_top_name=overlay_top_name,
             base_mapping=self._latest_lut_mapping_result,
             architecture=self._latest_frac_lut_architecture,
             top_name=top_name or self.design.top_name(),
-            overlay_prefix=overlay_prefix,
-            base_prefix=base_prefix,
+            overlay_prefix=effective_overlay_prefix,
+            base_prefix=effective_base_prefix,
             overlay_lut_size=overlay_lut_size,
             overlay_mapper_max_tries=overlay_mapper_max_tries,
             overlay_mapper_cost_scale=overlay_mapper_cost_scale,
@@ -301,6 +316,7 @@ class ArchitectureSynthesizer(ABC):
 
         if result.result_data is not None:
             self._latest_lut_mapping_result = result.result_data.mapping
+            self._lut_layering_count += 1
 
         self.add_primitive(result.verilog_model)
 

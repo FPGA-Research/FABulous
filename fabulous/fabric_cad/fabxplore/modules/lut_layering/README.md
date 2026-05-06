@@ -232,6 +232,52 @@ base output y -> design0_y
 This is controlled by the `base_prefix` option. Passing `None` keeps the base
 names unchanged.
 
+For repeated layering, the current design after the first layer is already a
+valid base design. That base already contains the original design and the first
+overlay:
+
+```text
+design0_*   original design
+design1_*   first overlay
+```
+
+The next layer must therefore not prefix the base again. Otherwise the existing
+names would become:
+
+```text
+design0_design0_*
+design0_design1_*
+```
+
+The synthesizer-level helper handles this automatically:
+
+```python
+synth.design_lut_layering_pass(
+    overlay_verilog_paths=[design1],
+    overlay_top_name="design1_top",
+)
+synth.design_lut_layering_pass(
+    overlay_verilog_paths=[design2],
+    overlay_top_name="design2_top",
+)
+```
+
+The first call applies `base_prefix="design0_"` and uses `design1_` for the
+overlay. Later calls keep the already-layered base unchanged and auto-generate
+fresh overlay prefixes:
+
+```text
+design0_*   original design
+design1_*   first overlay
+design2_*   second overlay
+design3_*   third overlay
+```
+
+If the lower-level `LutLayeringPass` is used directly, the caller should follow
+the same convention manually: pass `base_prefix="design0_"` only on the first
+layer, pass `base_prefix=None` on later layers, and use a unique
+`overlay_prefix` for each overlay.
+
 Yosys JSON also uses integer bit IDs for wires. Prefixing names is not enough,
 because two different designs may both contain bit ID `42`. The layerer remaps
 all overlay integer bit IDs to a fresh range before merging.
@@ -414,5 +460,4 @@ building a high-memory global optimizer.
 Other future steps:
 
 - absorb supported overlay FF cells into physical FRAC output FFs
-- support repeated layers with updated inventory reports
 - add timing-aware overlay placement

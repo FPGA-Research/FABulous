@@ -151,6 +151,16 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             ],
         )
 
+        self.design_lut_layering_pass(
+            overlay_top_name="mux4",
+            overlay_verilog_paths=[
+                Path(
+                    "/home/hausding/Documents/FABulous/fabulous"
+                    "/fabric_cad/fabxplore/benchmarks/verilog_rtl/mux4/mux4.v"
+                )
+            ],
+        )
+
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""
         self.design.run_pass("techmap -D LUT_K=5 -map +/fabulous/cells_map.v")

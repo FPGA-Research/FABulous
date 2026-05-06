@@ -1284,6 +1284,87 @@ def test_synthesizer_lut_layering_requires_lut_combinator() -> None:
         raise AssertionError("Expected layering to require a previous combinator pass")
 
 
+def test_synthesizer_lut_layering_repeated_prefixes_smoke() -> None:
+    """Test repeated synthesizer layering keeps existing base names stable."""
+    base_text = """
+module layering_repeat_base(
+    input a0, b0, c0, d0,
+    input a1, b1, c1, d1,
+    output y0, y1
+);
+  \\$lut #(.LUT(16'h6996), .WIDTH(32'd4)) base_lut0 (
+    .A({d0, c0, b0, a0}), .Y(y0)
+  );
+  \\$lut #(.LUT(16'h6996), .WIDTH(32'd4)) base_lut1 (
+    .A({d1, c1, b1, a1}), .Y(y1)
+  );
+endmodule
+"""
+    overlay1_text = """
+module repeat_overlay1(
+    input e, f,
+    output z
+);
+  assign z = e & f;
+endmodule
+"""
+    overlay2_text = """
+module repeat_overlay2(
+    input g, h,
+    output q
+);
+  assign q = g ^ h;
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_layering_repeat_") as td:
+        tmp_dir = Path(td)
+        base = tmp_dir / "base.v"
+        overlay1 = tmp_dir / "overlay1.v"
+        overlay2 = tmp_dir / "overlay2.v"
+        base.write_text(base_text, encoding="utf-8")
+        overlay1.write_text(overlay1_text, encoding="utf-8")
+        overlay2.write_text(overlay2_text, encoding="utf-8")
+
+        synth = _LayeringTestSynthesizer(debug=False)
+        synth.design.read_verilog_paths([base])
+        synth.design_lut_combinator_pass(
+            log_report=False,
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            lut_name="FRAC_LUT5",
+            top_name="layering_repeat_base",
+            passthrough=True,
+            mode=MatchingMode.MAX_WEIGHT,
+            use_select_as_data_in_pair_mode=True,
+        )
+        first_layer = synth.design_lut_layering_pass(
+            overlay_verilog_paths=[overlay1],
+            overlay_top_name="repeat_overlay1",
+            log_report=False,
+            top_name="layering_repeat_base",
+        )
+        second_layer = synth.design_lut_layering_pass(
+            overlay_verilog_paths=[overlay2],
+            overlay_top_name="repeat_overlay2",
+            log_report=False,
+            top_name="layering_repeat_base",
+        )
+
+        assert first_layer.result_data is not None
+        assert second_layer.result_data is not None
+        assert first_layer.result_data.stats.injected_luts == 1
+        assert second_layer.result_data.stats.injected_luts == 1
+
+        netlist = synth.design.to_netlist_dict()
+        top = netlist["modules"]["layering_repeat_base"]
+        names = set(top["ports"]) | set(top["netnames"])
+        assert "design0_a0" in names
+        assert "design1_e" in names
+        assert "design2_g" in names
+        assert not any("design0_design0_" in name for name in names)
+        assert not any("design0_design1_" in name for name in names)
+
+
 def test_lut_layering_fallback_lut2_mapping_smoke() -> None:
     """Test overlay mapping can force the LUT2 fallback candidate."""
     host_count = 12
@@ -1402,6 +1483,7 @@ def main() -> None:
             test_lut_layering_pass_rejects_overlay_that_does_not_fit()
             test_synthesizer_lut_layering_flow_smoke()
             test_synthesizer_lut_layering_requires_lut_combinator()
+            test_synthesizer_lut_layering_repeated_prefixes_smoke()
             test_lut_layering_fallback_lut2_mapping_smoke()
             test_lut_layering_inventory_cost_vector_is_normalized()
             test_lut_layering_cost_normalization_keeps_gentle_shape()

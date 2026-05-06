@@ -38,9 +38,12 @@ class LutLayeringPass(SynthPass):
     top_name : str
         Base design top module name.
     overlay_prefix : str
-        Prefix for overlay ports, netnames, and cells.
+        Prefix for overlay ports, netnames, and cells. Use a unique value for
+        each repeated layer when this low-level pass is used directly.
     base_prefix : str | None
-        Optional prefix for base ports and netnames.
+        Optional prefix for base ports and netnames. For repeated layering,
+        apply this only on the first layer and pass ``None`` on later layers so
+        the already-prefixed base is not prefixed again.
     lut_spec : LutSpec
         LUT parser convention for the overlay netlist.
     overlay_lut_size : int | None
