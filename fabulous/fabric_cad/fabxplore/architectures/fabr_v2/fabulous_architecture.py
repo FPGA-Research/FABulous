@@ -101,7 +101,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         if self.config.map_carry_chains:
             self.design.run_pass("simplemap")
-            self.design_chain_mapper_pass(chunk_size=5, chain_name="FABCARRY5")
+            self.design_chain_mapper_pass(chunk_size=5)
             self.design.run_pass("techmap -map +/techmap.v")
 
         self.design.run_pass("opt -fast")
