@@ -12,6 +12,8 @@ mapping and optimization stages. This module serves as the central point for def
 the synthesis flow and architecture-specific transformations for FABulous.
 """
 
+from pathlib import Path
+
 from fabulous.fabric_cad.fabxplore.architectures.fabr_v2.models import (
     FabulousArchitectureConfig,
 )
@@ -140,6 +142,16 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             reorder_opt_luts=True,
         )
 
+        self.design_lut_layering_pass(
+            overlay_top_name="mux4",
+            overlay_verilog_paths=[
+                Path(
+                    "/home/hausding/Documents/FABulous/fabulous"
+                    "/fabric_cad/fabxplore/benchmarks/verilog_rtl/mux4/mux4.v"
+                )
+            ],
+        )
+
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""
         self.design.run_pass("techmap -D LUT_K=5 -map +/fabulous/cells_map.v")
@@ -185,7 +197,6 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         """Generate primitive definitions required by this architecture."""
 
         # TODO: Implement Architecture-specific extensions, sat solver, ordered solver.
-        # TODO: Implement Reordering of leftover lut space
         # TODO: Implement Multilyer synthesis, 2nd user design replace LUTS
         # TODO: Implement timing driven optimizations (weight match) subgraph
         # matching for critical path optimization

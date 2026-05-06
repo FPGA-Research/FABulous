@@ -37,7 +37,11 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.utils.equiv_checker im
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass import (
     LutCombinatorPass,
 )
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_layering_pass import (
+    LutLayeringPass,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
+from fabulous.fabric_cad.fabxplore.pyosys.synthesizer import ArchitectureSynthesizer
 from fabulous.fabulous_cli.helper import (
     setup_logger,
 )
@@ -45,6 +49,19 @@ from fabulous.fabulous_cli.helper import (
 ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "tests" / "lut_combinator" / "out"
 setup_logger(verbosity=0, debug=False)
+
+
+class _LayeringTestSynthesizer(ArchitectureSynthesizer):
+    """Tiny concrete synthesizer used by LUT layering smoke tests."""
+
+    def synthesize(self) -> None:
+        """No-op synthesis entry point for tests."""
+
+    def generate_primitives(self) -> None:
+        """No-op primitive generation for tests."""
+
+    def generate_switch_matrix(self) -> None:
+        """No-op switch-matrix generation for tests."""
 
 
 def _named_lut_spec() -> LutSpec:
@@ -997,6 +1014,206 @@ endmodule
         assert "Reorder Opt" in pass_.report_summary
 
 
+def test_lut_layering_pass_injects_overlay_lut_smoke() -> None:
+    """Test layering injects a small overlay LUT into single-cell leftover space."""
+    base_text = """
+module layering_base(
+    input a, b, c, d,
+    output y
+);
+  \\$lut #(.LUT(16'h6996), .WIDTH(32'd4)) base_lut (
+    .A({d, c, b, a}), .Y(y)
+  );
+endmodule
+"""
+    overlay_text = """
+module overlay_and2(
+    input e, f,
+    output z
+);
+  assign z = e & f;
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_layering_smoke_") as td:
+        tmp_dir = Path(td)
+        base = tmp_dir / "base.v"
+        overlay = tmp_dir / "overlay.v"
+        base.write_text(base_text, encoding="utf-8")
+        overlay.write_text(overlay_text, encoding="utf-8")
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+
+        comb_pass = LutCombinatorPass(
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            lut_name="FRAC_LUT5",
+            top_name="layering_base",
+            passthrough=True,
+            mode=MatchingMode.MAX_WEIGHT,
+            use_select_as_data_in_pair_mode=True,
+        )
+        comb_pass.run_on(bridge)
+        assert comb_pass.result_data is not None
+        assert comb_pass.architecture is not None
+        assert len(comb_pass.result_data.mapped_cells) == 1
+        assert len(comb_pass.result_data.mapped_cells[0].placements) == 1
+
+        layer_pass = LutLayeringPass(
+            overlay_verilog_paths=[overlay],
+            overlay_top_name="overlay_and2",
+            base_mapping=comb_pass.result_data,
+            architecture=comb_pass.architecture,
+            top_name="layering_base",
+            overlay_prefix="design1_",
+            base_prefix="design0_",
+        )
+        layer_pass.run_on(bridge)
+
+        assert layer_pass.result_data is not None
+        assert layer_pass.result_data.stats.injected_luts == 1
+        assert len(layer_pass.result_data.mapping.mapped_cells[0].placements) == 2
+        assert "LUT Layering" in layer_pass.report_summary
+
+        netlist = bridge.to_netlist_dict()
+        top = netlist["modules"]["layering_base"]
+        assert "design0_a" in top["ports"]
+        assert "design1_e" in top["ports"]
+        assert "design1_z" in top["ports"]
+
+
+def test_lut_layering_pass_rejects_overlay_that_does_not_fit() -> None:
+    """Test layering raises when the complete overlay cannot fit."""
+    base_text = """
+module layering_no_fit_base(
+    input a, b, c, d,
+    output y
+);
+  \\$lut #(.LUT(16'h6996), .WIDTH(32'd4)) base_lut (
+    .A({d, c, b, a}), .Y(y)
+  );
+endmodule
+"""
+    overlay_text = """
+module overlay_and3(
+    input e, f, g,
+    output z
+);
+  assign z = e & f & g;
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_layering_no_fit_") as td:
+        tmp_dir = Path(td)
+        base = tmp_dir / "base.v"
+        overlay = tmp_dir / "overlay.v"
+        base.write_text(base_text, encoding="utf-8")
+        overlay.write_text(overlay_text, encoding="utf-8")
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+
+        comb_pass = LutCombinatorPass(
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            lut_name="FRAC_LUT5",
+            top_name="layering_no_fit_base",
+            passthrough=True,
+            mode=MatchingMode.MAX_WEIGHT,
+            use_select_as_data_in_pair_mode=True,
+        )
+        comb_pass.run_on(bridge)
+        assert comb_pass.result_data is not None
+        assert comb_pass.architecture is not None
+
+        before = bridge.to_netlist_dict()
+        layer_pass = LutLayeringPass(
+            overlay_verilog_paths=[overlay],
+            overlay_top_name="overlay_and3",
+            base_mapping=comb_pass.result_data,
+            architecture=comb_pass.architecture,
+            top_name="layering_no_fit_base",
+            overlay_prefix="design1_",
+            base_prefix=None,
+            overlay_lut_size=3,
+        )
+
+        try:
+            layer_pass.run_on(bridge)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("Expected layering to reject a non-fitting overlay")
+
+        after = bridge.to_netlist_dict()
+        assert before == after
+
+
+def test_synthesizer_lut_layering_flow_smoke() -> None:
+    """Test synthesizer-level combinator-to-layering state handoff."""
+    base_text = """
+module layering_synth_base(
+    input a, b, c, d,
+    output y
+);
+  \\$lut #(.LUT(16'h6996), .WIDTH(32'd4)) base_lut (
+    .A({d, c, b, a}), .Y(y)
+  );
+endmodule
+"""
+    overlay_text = """
+module layering_synth_overlay(
+    input e, f,
+    output z
+);
+  assign z = e ^ f;
+endmodule
+"""
+    with tempfile.TemporaryDirectory(prefix="lut_layering_synth_") as td:
+        tmp_dir = Path(td)
+        base = tmp_dir / "base.v"
+        overlay = tmp_dir / "overlay.v"
+        base.write_text(base_text, encoding="utf-8")
+        overlay.write_text(overlay_text, encoding="utf-8")
+
+        synth = _LayeringTestSynthesizer(debug=False)
+        synth.design.read_verilog_paths([base])
+        synth.design_lut_combinator_pass(
+            log_report=False,
+            frac_lut_size=4,
+            num_shared_inputs=3,
+            lut_name="FRAC_LUT5",
+            top_name="layering_synth_base",
+            passthrough=True,
+            mode=MatchingMode.MAX_WEIGHT,
+            use_select_as_data_in_pair_mode=True,
+        )
+        layer_pass = synth.design_lut_layering_pass(
+            overlay_verilog_paths=[overlay],
+            overlay_top_name="layering_synth_overlay",
+            log_report=False,
+            top_name="layering_synth_base",
+        )
+
+        assert layer_pass.result_data is not None
+        assert layer_pass.result_data.stats.injected_luts == 1
+        assert "LUT Layering" in layer_pass.report_summary
+
+
+def test_synthesizer_lut_layering_requires_lut_combinator() -> None:
+    """Test synthesizer-level layering rejects missing base mapping state."""
+    synth = _LayeringTestSynthesizer(debug=False)
+    try:
+        synth.design_lut_layering_pass(
+            overlay_verilog_paths=[],
+            overlay_top_name="missing",
+            log_report=False,
+        )
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("Expected layering to require a previous combinator pass")
+
+
 def main() -> None:
     """Run all tests."""
     sel_test: int = 0
@@ -1023,6 +1240,10 @@ def main() -> None:
             test_lut_combinator_pass_reordering_option_smoke()
             test_reorder_opt_saves_pair_cell_eq()
             test_lut_combinator_pass_reorder_opt_option_smoke()
+            test_lut_layering_pass_injects_overlay_lut_smoke()
+            test_lut_layering_pass_rejects_overlay_that_does_not_fit()
+            test_synthesizer_lut_layering_flow_smoke()
+            test_synthesizer_lut_layering_requires_lut_combinator()
 
 
 if __name__ == "__main__":

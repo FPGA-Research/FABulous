@@ -64,6 +64,7 @@ class LutCombinatorPass(SynthPass):
 
     _verilog_model: str = ""
     _result: MappingResult | None = None
+    _architecture: FracLutArchitecture | None = None
 
     def run_on(self, design: PyosysBridge) -> None:
         """Run the LutCombinator pass on the given design.
@@ -97,6 +98,7 @@ class LutCombinatorPass(SynthPass):
         design.read_verilog_string(frac_model.to_verilog(), blackbox=True)
 
         self._result = result
+        self._architecture = frac_arch
         self._verilog_model = frac_model.to_verilog()
 
     @property
@@ -126,3 +128,15 @@ class LutCombinatorPass(SynthPass):
             architecture used in the mapping.
         """
         return self._verilog_model
+
+    @property
+    def architecture(self) -> FracLutArchitecture | None:
+        """Return the architecture instance used by the latest pass run.
+
+        Returns
+        -------
+        FracLutArchitecture | None
+            Architecture used to build the latest mapping, or ``None`` before
+            the pass has run.
+        """
+        return self._architecture

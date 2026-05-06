@@ -4,8 +4,11 @@ This module defines the `ArchitectureSynthesizer` abstract base class, which
 serves as a blueprint for synthesizers that generate FPGA architectures.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -14,6 +17,7 @@ from fabulous.fabric_cad.fabxplore.modules.chain_mapper.core.models import (
     ChainOp,
 )
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
+    MappingResult,
     MatchingMode,
 )
 from fabulous.fabric_cad.fabxplore.modules.lut_mapper.core.models import (
@@ -28,12 +32,20 @@ from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.design_analyzer_pass imp
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass import (
     LutCombinatorPass,
 )
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_layering_pass import (
+    LutLayeringPass,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_mapper_pass import (
     LutMapperPass,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
     PyosysBridge,
 )
+
+if TYPE_CHECKING:
+    from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.architecture import (
+        FracLutArchitecture,
+    )
 
 
 class ArchitectureSynthesizer(ABC):
@@ -49,6 +61,9 @@ class ArchitectureSynthesizer(ABC):
         self.debug = debug
         self.design: PyosysBridge = PyosysBridge(debug=self.debug)
         self.primitives: set[str] = set()
+
+        self._latest_lut_mapping_result: MappingResult | None = None
+        self._latest_frac_lut_architecture: FracLutArchitecture | None = None
 
     def add_primitive(self, primitive: str | Path) -> None:
         """Add a primitive to the set of primitives.
@@ -191,6 +206,81 @@ class ArchitectureSynthesizer(ABC):
 
         if log_report:
             self.log_info(result.report_summary)
+
+        self._latest_lut_mapping_result = result.result_data
+        self._latest_frac_lut_architecture = result.architecture
+        self.add_primitive(result.verilog_model)
+
+        return result
+
+    def design_lut_layering_pass(
+        self,
+        overlay_verilog_paths: list[Path],
+        overlay_top_name: str,
+        log_report: bool = True,
+        top_name: str | None = None,
+        overlay_prefix: str = "design1_",
+        base_prefix: str | None = "design0_",
+        overlay_lut_size: int | None = None,
+    ) -> LutLayeringPass:
+        """Run LUT layering on the current packed design.
+
+        Parameters
+        ----------
+        overlay_verilog_paths : list[Path]
+            Verilog source files for the overlay design.
+        overlay_top_name : str
+            Top module name of the overlay design.
+        log_report : bool
+            If ``True``, log the LUT layering report after execution.
+        top_name : str | None
+            Base design top module. If ``None``, use the current design top.
+        overlay_prefix : str
+            Prefix applied to overlay ports, netnames, and cells.
+        base_prefix : str | None
+            Optional prefix applied to base ports and netnames. ``None`` keeps
+            base names unchanged.
+        overlay_lut_size : int | None
+            Optional maximum LUT width used for overlay mapping. If ``None``,
+            derive it from the available leftover inventory.
+
+        Returns
+        -------
+        LutLayeringPass
+            Pass instance containing layering result and report data.
+
+        Raises
+        ------
+        RuntimeError
+            If the LUT combinator pass has not been run in this synthesizer.
+        """
+        if (
+            self._latest_lut_mapping_result is None
+            or self._latest_frac_lut_architecture is None
+        ):
+            raise RuntimeError(
+                "LUT layering requires running design_lut_combinator_pass first."
+            )
+
+        result = LutLayeringPass(
+            overlay_verilog_paths=overlay_verilog_paths,
+            overlay_top_name=overlay_top_name,
+            base_mapping=self._latest_lut_mapping_result,
+            architecture=self._latest_frac_lut_architecture,
+            top_name=top_name or self.design.top_name(),
+            overlay_prefix=overlay_prefix,
+            base_prefix=base_prefix,
+            overlay_lut_size=overlay_lut_size,
+            debug=self.debug,
+        )
+
+        result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        if result.result_data is not None:
+            self._latest_lut_mapping_result = result.result_data.mapping
 
         self.add_primitive(result.verilog_model)
 
