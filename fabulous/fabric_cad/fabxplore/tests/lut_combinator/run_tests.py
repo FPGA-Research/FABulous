@@ -24,6 +24,9 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.netlist import (
     parse_model_json,
 )
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.report import (
+    render_report,
+)
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.reorder_opt import (
     ReorderOptOptimizer,
 )
@@ -33,6 +36,12 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.reordering import (
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.utils.equiv_checker import (
     EquivalenceCheckConfig,
     LutEquivalenceChecker,
+)
+from fabulous.fabric_cad.fabxplore.modules.lut_layering.core.inventory import (
+    effective_leftover_width,
+)
+from fabulous.fabric_cad.fabxplore.modules.lut_layering.core.layerer import (
+    normalize_cost_vector,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass import (
     LutCombinatorPass,
@@ -428,6 +437,61 @@ def test_select_as_data_pair_mapping_edge_cases() -> None:
     assert binding.external_pin_nets == {"I0": "b", "S": "a"}
     assert binding.placement0.input_to_slot_pin == (0,)
     assert binding.placement1.input_to_slot_pin == (0,)
+
+
+def test_lut0_single_leftover_is_clamped_to_frac_lut_size() -> None:
+    """Test LUT0 single hosts cannot report impossible effective LUT capacity."""
+    arch = FracLutArchitecture(
+        frac_lut_size=4,
+        num_shared_inputs=3,
+        name="FRAC_LUT5",
+        use_select_as_data_in_pair_mode=True,
+    )
+    lut0 = LogicalLutCell(
+        cell_id="const_lut",
+        cell_type="$lut",
+        input_nets=(),
+        output_net="const_y",
+        init=1,
+        width=0,
+    )
+
+    packed = arch.bind_single_lut(lut0)
+    assert packed is not None
+    assert packed.leftover_lut_width == arch.frac_lut_size
+    assert effective_leftover_width(packed, arch) == arch.frac_lut_size
+
+    mapping = MappingResult(
+        architecture_name=arch.name,
+        top_name="lut0_single",
+        mapped_cells=[packed],
+        passthrough_luts=[],
+        stats=MappingStats(
+            total_luts_before=1,
+            total_cells_after=1,
+            mapped_groups=1,
+            mapped_luts=1,
+            source_type_count={"LUT0": 1},
+            result_type_count={arch.name: 1},
+        ),
+    )
+    report = render_report(mapping)
+    assert "effective LUT5" not in report
+    assert "effective LUT6" not in report
+    assert "reusable LUT4 capacity" in report
+
+    lut4 = LogicalLutCell(
+        cell_id="lut4",
+        cell_type="$lut",
+        input_nets=("a", "b", "c", "d"),
+        output_net="lut4_y",
+        init=0x6996,
+        width=4,
+    )
+    packed_lut4 = arch.bind_single_lut(lut4)
+    assert packed_lut4 is not None
+    assert packed_lut4.leftover_lut_width == 1
+    assert effective_leftover_width(packed_lut4, arch) == 2
 
 
 def test_select_as_data_uses_normal_binding_when_possible() -> None:
@@ -1134,13 +1198,19 @@ endmodule
             top_name="layering_no_fit_base",
             overlay_prefix="design1_",
             base_prefix=None,
-            overlay_lut_size=3,
+            overlay_mapper_max_tries=0,
+            overlay_mapper_fallback_lut_size=2,
         )
 
         try:
             layer_pass.run_on(bridge)
-        except RuntimeError:
-            pass
+        except RuntimeError as exc:
+            message = str(exc)
+            assert "Overlay design does not fit leftover inventory." in message
+            assert "Inventory:" in message
+            assert "Attempts:" in message
+            assert "overlay by width:" in message
+            assert "costs:" in message
         else:
             raise AssertionError("Expected layering to reject a non-fitting overlay")
 
@@ -1282,6 +1352,25 @@ endmodule
         assert layer_pass.result_data.stats.injected_luts > 1
 
 
+def test_lut_layering_inventory_cost_vector_is_normalized() -> None:
+    """Test aggressive retry penalties still emit bounded ABC9 costs."""
+    costs = normalize_cost_vector(
+        (100, 855, 4_887, 23_687, 104_891, 438_669),
+        target_min=100,
+    )
+
+    assert min(costs) == 100
+    assert max(costs) <= 10_000
+    assert costs == tuple(sorted(costs))
+
+
+def test_lut_layering_cost_normalization_keeps_gentle_shape() -> None:
+    """Test small raw cost differences remain small after normalization."""
+    costs = normalize_cost_vector((253, 264, 331), target_min=100)
+
+    assert costs == (100, 104, 131)
+
+
 def main() -> None:
     """Run all tests."""
     sel_test: int = 0
@@ -1298,6 +1387,7 @@ def main() -> None:
         case 4:
             test_select_as_data_pair_mapping_eq()
             test_select_as_data_pair_mapping_edge_cases()
+            test_lut0_single_leftover_is_clamped_to_frac_lut_size()
             test_select_as_data_uses_normal_binding_when_possible()
             test_select_as_data_with_duplicate_private_nets_disabled()
             test_allow_duplicate_private_nets_option()
@@ -1313,6 +1403,8 @@ def main() -> None:
             test_synthesizer_lut_layering_flow_smoke()
             test_synthesizer_lut_layering_requires_lut_combinator()
             test_lut_layering_fallback_lut2_mapping_smoke()
+            test_lut_layering_inventory_cost_vector_is_normalized()
+            test_lut_layering_cost_normalization_keeps_gentle_shape()
 
 
 if __name__ == "__main__":

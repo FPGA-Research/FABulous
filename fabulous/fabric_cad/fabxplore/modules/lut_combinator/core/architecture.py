@@ -599,7 +599,8 @@ class FracLutArchitecture:
         Returns
         -------
         int
-            The leftover LUT width after packing.
+            The leftover LUT width after packing, clamped to one physical
+            internal LUT half.
         """
         N = self.frac_lut_size
         P = (
@@ -609,7 +610,8 @@ class FracLutArchitecture:
         )
         S = shared_count
         T = 2 * N - P
-        return T - (lut0_width + lut1_width - min(S, P))
+        leftover_width = T - (lut0_width + lut1_width - min(S, P))
+        return min(self.frac_lut_size, max(0, leftover_width))
 
     def _build_input_map(
         self,

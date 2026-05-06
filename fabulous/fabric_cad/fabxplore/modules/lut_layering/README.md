@@ -104,7 +104,7 @@ By default, the layerer therefore tries an inventory-aware sequence:
 2. Emit an ABC9 cost vector for LUT1 through the largest available slot.
 3. Map the overlay with `abc9 -luts <costs>`.
 4. Check the result against the leftover inventory.
-5. If it does not fit, retry with larger LUTs punished more strongly.
+5. If it does not fit, retry with a slightly stronger push toward LUT2.
 6. After the configured retry count, force a fallback mapping, by default
    `abc9 -lut 2`.
 7. If the fallback still does not fit, raise an error and leave the base design
@@ -114,6 +114,13 @@ This keeps the algorithm bounded: each attempt produces one overlay netlist,
 then checks only a small width histogram and a greedy placement. There is no
 large pairwise overlay/slot matrix kept in memory.
 
+The generated cost vector is normalized before it is passed to ABC9. Only the
+relative shape matters for the mapper, and very large absolute costs can make
+ABC unstable. Normalization keeps the cheapest width at the configured
+`overlay_mapper_cost_scale`, preserves the raw ratios, and bounds the largest
+emitted cost. This matters because a small cost preference should remain a
+small preference, not become an accidental hard ban on larger LUTs.
+
 The public controls are:
 
 - `overlay_lut_size`: manual maximum LUT width. If set, the retry loop is
@@ -121,9 +128,9 @@ The public controls are:
 - `overlay_mapper_max_tries`: number of inventory-aware cost-vector attempts
   before fallback.
 - `overlay_mapper_cost_scale`: integer scale factor used to make ABC9 costs.
-- `overlay_mapper_size_penalty`: base penalty for larger LUT widths.
-- `overlay_mapper_retry_penalty`: extra larger-LUT penalty applied after each
-  failed attempt.
+- `overlay_mapper_size_penalty`: strength of the initial compactness preference
+  for larger available LUT widths.
+- `overlay_mapper_retry_penalty`: strength of the per-retry push toward LUT2.
 - `overlay_mapper_fallback_lut_size`: final forced maximum LUT size, default
   `2`.
 
@@ -347,16 +354,34 @@ be the number of slots that can host a LUT of width $k$, and let
 
 $M = |S|$
 
-be the total number of slots. For retry attempt $r$, the generated cost is:
+be the total number of slots. For retry attempt $r$, the raw generated cost is:
+
+$raw(k,r) =
+scale \cdot \frac{M}{\max(C_k,1)}
+\cdot \left(\frac{K_{max}}{\max(k,2)}\right)^{p_{size}}
+\cdot p_{retry}^{\rho(r)\max(k-2,0)}$
+
+where $K_{max}$ is the largest effective leftover slot and
+
+$\rho(r) = \frac{r}{\max(R-1,1)}$
+
+for $R$ inventory-aware attempts. The first factor makes scarce LUT widths
+expensive. The second factor is the initial compactness preference: larger LUTs
+are cheaper when the inventory can host them, so the first attempt does not
+explode the overlay into many tiny LUT2 cells. The final factor is the retry
+pressure: after failed attempts, LUT widths above two become gradually more
+expensive, nudging ABC9 toward LUT2.
+
+Before emitting the vector to ABC9, the raw costs are ratio-normalized:
 
 $cost(k,r) =
-scale \cdot \frac{M}{\max(C_k,1)}
-\cdot k^{p_{size}}
-\cdot (p_{retry}^{r})^{\max(k-1,0)}$
+\min\left(C_{max},
+\max\left(1,
+\mathrm{round}\left(scale \frac{raw(k,r)}{\min_j raw(j,r)}\right)
+\right)\right)$
 
-rounded to an integer. The first factor makes scarce LUT widths expensive. The
-second factor discourages large LUTs in general. The retry factor increases the
-pressure on larger LUTs after a failed placement attempt.
+This preserves small cost differences as small differences while still avoiding
+unstable vectors with very large absolute costs.
 
 Example inventory:
 

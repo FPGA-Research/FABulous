@@ -47,7 +47,10 @@ def collect_leftover_slots(
                 host_cell_id=host_lut.cell_id,
                 host_width=host_lut.width,
                 effective_leftover_width=effective,
-                nominal_leftover_width=max(0, cell.leftover_lut_width),
+                nominal_leftover_width=min(
+                    architecture.frac_lut_size,
+                    max(0, cell.leftover_lut_width),
+                ),
             )
         )
 
@@ -79,9 +82,9 @@ def effective_leftover_width(
     if not _is_layering_host(cell, architecture):
         return 0
 
-    base = max(0, cell.leftover_lut_width)
+    base = min(architecture.frac_lut_size, max(0, cell.leftover_lut_width))
     if architecture.use_select_as_data_in_pair_mode:
-        return base + 1
+        return min(architecture.frac_lut_size, base + 1)
     return base
 
 

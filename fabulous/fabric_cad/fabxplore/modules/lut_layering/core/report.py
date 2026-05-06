@@ -53,9 +53,13 @@ Overlay Mapping Attempts
   max_lut={{ attempt.lut_size }},
   capacity_fits={{ attempt.capacity_fits }},
   placement_fits={{ attempt.placement_fits }},
+  overlay_luts={{ attempt.total_overlay_luts }},
+  overlay_width={{ attempt.total_overlay_width }},
   note={{ attempt.note }}
 {% if attempt.cost_vector %}
   cost_vector={{ attempt.cost_vector | join(",") }}
+{% else %}
+  cost_vector=none
 {% endif %}
 {% if attempt.overlay_width_count %}
   widths:

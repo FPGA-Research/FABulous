@@ -595,10 +595,10 @@ class ReorderOptOptimizer:
             return 0
         if cell.placements[0].cell.width > self.arch.frac_lut_size:
             return 0
-        leftover = cell.leftover_lut_width
+        leftover = min(self.arch.frac_lut_size, max(0, cell.leftover_lut_width))
         if cell.frac_lut_parameters.select_as_data_capable:
             leftover += 1
-        return max(0, leftover)
+        return min(self.arch.frac_lut_size, leftover)
 
     def _move_type_count(self, moves: tuple[ReorderOptMove, ...]) -> dict[str, int]:
         """Count applied optimizations by moved and host LUT widths.

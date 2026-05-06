@@ -665,9 +665,11 @@ def _effective_shared_inputs(cell: PackedCell) -> int:
 
 def _effective_leftover_lut_width(cell: PackedCell) -> int:
     """Return leftover LUT width including select-as-data extra capacity."""
+    max_width = cell.frac_lut_parameters.lut_size
+    base_width = min(max_width, max(0, cell.leftover_lut_width))
     if len(cell.placements) == 1 and cell.frac_lut_parameters.select_as_data_capable:
-        return cell.leftover_lut_width + 1
-    return cell.leftover_lut_width
+        return min(max_width, base_width + 1)
+    return base_width
 
 
 def _format_average(total: int, count: int) -> str:

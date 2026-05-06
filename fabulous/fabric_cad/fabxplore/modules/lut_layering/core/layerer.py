@@ -239,6 +239,7 @@ class LutLayerer:
             )
             overlay_luts = self._parse_overlay_luts(prepared_overlay.netlist_json)
             width_count = _width_count(overlay_luts)
+            total_overlay_width = sum(lut.width for lut in overlay_luts)
             capacity_fits = self._capacity_fits(
                 overlay_widths=tuple(lut.width for lut in overlay_luts),
                 slots=slots,
@@ -252,6 +253,8 @@ class LutLayerer:
                         placement_fits=False,
                         overlay_width_count=width_count,
                         note="capacity check failed",
+                        total_overlay_luts=len(overlay_luts),
+                        total_overlay_width=total_overlay_width,
                     )
                 )
                 continue
@@ -269,6 +272,8 @@ class LutLayerer:
                         placement_fits=False,
                         overlay_width_count=width_count,
                         note=str(exc),
+                        total_overlay_luts=len(overlay_luts),
+                        total_overlay_width=total_overlay_width,
                     )
                 )
                 continue
@@ -279,6 +284,8 @@ class LutLayerer:
                 placement_fits=True,
                 overlay_width_count=width_count,
                 note="selected",
+                total_overlay_luts=len(overlay_luts),
+                total_overlay_width=total_overlay_width,
             )
             attempts.append(selected)
             return OverlayMappingSelection(
@@ -290,8 +297,7 @@ class LutLayerer:
                 attempts=tuple(attempts),
             )
 
-        detail = "; ".join(f"{a.name}: {a.note}" for a in attempts)
-        raise RuntimeError(f"Overlay design does not fit leftover inventory. {detail}")
+        raise RuntimeError(_format_no_fit_error(slots, tuple(attempts)))
 
     def _synthesize_overlay_to_luts(
         self,
@@ -453,32 +459,40 @@ class LutLayerer:
         slots : tuple[LeftoverSlot, ...]
             Reusable leftover slots.
         retry_index : int
-            Retry number used to progressively punish larger LUTs.
+            Retry number used to progressively push the mapper toward LUT2.
 
         Returns
         -------
         tuple[int, ...]
-            Cost entries for LUT1 through ``max_lut_size``.
+            Normalized cost entries for LUT1 through ``max_lut_size``.
         """
         total_slots = max(1, len(slots))
+        retry_denominator = max(1, self.config.overlay_mapper_max_tries - 1)
+        retry_pressure = retry_index / retry_denominator
         costs: list[int] = []
         for width in range(1, max_lut_size + 1):
             capable_slots = sum(
                 1 for slot in slots if slot.effective_leftover_width >= width
             )
             scarcity = total_slots / max(capable_slots, 1)
-            size_penalty = width**self.config.overlay_mapper_size_penalty
-            retry_penalty = (
-                self.config.overlay_mapper_retry_penalty**retry_index
-            ) ** max(0, width - 1)
+            compact_width = max(2, width)
+            compactness_bonus = (
+                max_lut_size / compact_width
+            ) ** self.config.overlay_mapper_size_penalty
+            lut2_push = self.config.overlay_mapper_retry_penalty ** (
+                retry_pressure * max(0, width - 2)
+            )
             cost = round(
                 self.config.overlay_mapper_cost_scale
                 * scarcity
-                * size_penalty
-                * retry_penalty
+                * compactness_bonus
+                * lut2_push
             )
             costs.append(max(1, cost))
-        return tuple(costs)
+        return normalize_cost_vector(
+            tuple(costs),
+            target_min=self.config.overlay_mapper_cost_scale,
+        )
 
     def _parse_overlay_luts(self, overlay_json: dict) -> tuple[LogicalLutCell, ...]:
         """Parse and sort overlay LUTs from a prepared overlay JSON design.
@@ -732,3 +746,151 @@ def _add_type_counts(left: dict[str, int], right: dict[str, int]) -> dict[str, i
     for label, count in right.items():
         out[label] = out.get(label, 0) + count
     return out
+
+
+def normalize_cost_vector(
+    costs: tuple[int, ...],
+    target_min: int,
+    target_max: int = 10_000,
+) -> tuple[int, ...]:
+    """Normalize ABC9 costs into a bounded integer range.
+
+    ABC9 uses the relative cost shape to bias LUT sizes. Very large absolute
+    values are not useful for that purpose and can make ABC unstable, so this
+    scales the cheapest generated cost to ``target_min`` and clamps the largest
+    emitted value to ``target_max`` without stretching gentle differences into
+    artificial hard penalties.
+
+    Parameters
+    ----------
+    costs : tuple[int, ...]
+        Raw generated cost entries.
+    target_min : int
+        Cost assigned to the cheapest LUT width.
+    target_max : int
+        Maximum cost emitted to ABC9.
+
+    Returns
+    -------
+    tuple[int, ...]
+        Bounded cost vector preserving the raw relative ratios.
+    """
+    if not costs:
+        return ()
+
+    raw_min = min(costs)
+    min_cost = max(1, target_min)
+    max_cost = max(min_cost, target_max)
+    if raw_min == 0:
+        return tuple(min_cost for _ in costs)
+    if min(costs) == max(costs):
+        return tuple(min_cost for _ in costs)
+
+    return tuple(
+        min(max_cost, max(1, round(min_cost * cost / raw_min))) for cost in costs
+    )
+
+
+def _format_no_fit_error(
+    slots: tuple[LeftoverSlot, ...],
+    attempts: tuple[OverlayMappingAttempt, ...],
+) -> str:
+    """Return a detailed diagnostic for failed overlay layering.
+
+    Parameters
+    ----------
+    slots : tuple[LeftoverSlot, ...]
+        Available leftover slots.
+    attempts : tuple[OverlayMappingAttempt, ...]
+        Mapping attempts that failed to fit.
+
+    Returns
+    -------
+    str
+        Multi-line error text with inventory, costs, and overlay histograms.
+    """
+    total_capacity = sum(slot.effective_leftover_width for slot in slots)
+    lines = [
+        "Overlay design does not fit leftover inventory.",
+        "Inventory:",
+        f"- slots: {len(slots)}",
+        f"- total effective capacity: {total_capacity}",
+        f"- by width: {_format_count_map(_slot_width_count(slots))}",
+        "Attempts:",
+    ]
+    for attempt in attempts:
+        lines.extend(
+            [
+                f"- {attempt.name}: {attempt.note}",
+                f"  max_lut: LUT{attempt.lut_size}",
+                f"  costs: {_format_cost_vector(attempt.cost_vector)}",
+                (
+                    "  overlay: "
+                    f"{attempt.total_overlay_luts} LUTs, "
+                    f"total width {attempt.total_overlay_width}"
+                ),
+                f"  overlay by width: {_format_count_map(attempt.overlay_width_count)}",
+                (
+                    "  capacity_fits: "
+                    f"{attempt.capacity_fits}, "
+                    f"placement_fits: {attempt.placement_fits}"
+                ),
+            ]
+        )
+    return "\n".join(lines)
+
+
+def _slot_width_count(slots: tuple[LeftoverSlot, ...]) -> dict[str, int]:
+    """Return leftover slot counts by effective LUT width label.
+
+    Parameters
+    ----------
+    slots : tuple[LeftoverSlot, ...]
+        Leftover slots to histogram.
+
+    Returns
+    -------
+    dict[str, int]
+        Counts of slots by effective LUT width label (e.g. "LUT3").
+    """
+    counts: dict[str, int] = {}
+    for slot in slots:
+        label = f"LUT{slot.effective_leftover_width}"
+        counts[label] = counts.get(label, 0) + 1
+    return counts
+
+
+def _format_count_map(counts: dict[str, int]) -> str:
+    """Return a compact sorted histogram string.
+
+    Parameters
+    ----------
+    counts : dict[str, int]
+        Counts of slots by effective LUT width label.
+
+    Returns
+    -------
+    str
+        Compact sorted histogram string.
+    """
+    if not counts:
+        return "none"
+    return ", ".join(f"{key}: {value}" for key, value in sorted(counts.items()))
+
+
+def _format_cost_vector(cost_vector: tuple[int, ...] | None) -> str:
+    """Return a compact cost-vector string.
+
+    Parameters
+    ----------
+    cost_vector : tuple[int, ...] | None
+        Cost vector to format.
+
+    Returns
+    -------
+    str
+        Compact cost-vector string.
+    """
+    if cost_vector is None:
+        return "none"
+    return ",".join(str(cost) for cost in cost_vector)

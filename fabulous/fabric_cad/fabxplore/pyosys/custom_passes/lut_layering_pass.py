@@ -51,9 +51,9 @@ class LutLayeringPass(SynthPass):
     overlay_mapper_cost_scale : int
         Integer baseline for generated ABC9 LUT costs.
     overlay_mapper_size_penalty : float
-        Penalty strength for larger overlay LUTs.
+        Compactness preference strength for larger LUTs in early attempts.
     overlay_mapper_retry_penalty : float
-        Larger-LUT penalty multiplier applied after failed attempts.
+        Larger-LUT penalty multiplier used to push later attempts toward LUT2.
     overlay_mapper_fallback_lut_size : int
         Final forced maximum LUT size if inventory-aware attempts fail.
     debug : bool

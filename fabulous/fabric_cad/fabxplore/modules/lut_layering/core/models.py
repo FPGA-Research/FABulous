@@ -54,11 +54,11 @@ class LutLayeringConfig:
     overlay_mapper_cost_scale : int
         Integer cost baseline used when generating ABC9 LUT cost vectors.
     overlay_mapper_size_penalty : float
-        Exponent-like multiplier that makes larger LUTs more expensive even
-        when corresponding leftover slots exist.
+        Compactness preference strength for larger LUTs in early
+        inventory-aware mapping attempts.
     overlay_mapper_retry_penalty : float
-        Extra larger-LUT penalty multiplier applied after each failed
-        inventory-aware attempt.
+        Larger-LUT penalty multiplier used to gradually push later attempts
+        toward LUT2.
     overlay_mapper_fallback_lut_size : int
         Final forced maximum LUT size if all inventory-aware attempts fail.
         Defaults to 2, because LUT2 cells can be hosted by every reusable slot
@@ -108,6 +108,10 @@ class OverlayMappingAttempt:
         Overlay LUT histogram produced by this attempt.
     note : str
         Short outcome detail for reports and diagnostics.
+    total_overlay_luts : int
+        Total number of overlay LUTs produced by this attempt.
+    total_overlay_width : int
+        Sum of overlay LUT input widths produced by this attempt.
     """
 
     index: int
@@ -118,6 +122,8 @@ class OverlayMappingAttempt:
     placement_fits: bool = False
     overlay_width_count: dict[str, int] = field(default_factory=dict)
     note: str = ""
+    total_overlay_luts: int = 0
+    total_overlay_width: int = 0
 
 
 @dataclass(frozen=True)
