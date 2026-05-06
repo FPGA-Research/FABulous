@@ -261,7 +261,14 @@ class TileGeometry:
         self.eastMiddleY = self.smGeometry.relY + self.smGeometry.height + padding
         self.westMiddleY = self.smGeometry.relY + self.smGeometry.height + padding
 
-        if self.border == Border.NORTHSOUTH:
+        alignNorthSouth = (
+            self.border == Border.NORTHSOUTH and self.neighbourConstraints is not None
+        )
+        alignEastWest = (
+            self.border == Border.EASTWEST and self.neighbourConstraints is not None
+        )
+
+        if alignNorthSouth:
             wireNorthPositions = sorted(
                 self.neighbourConstraints.southPositions, reverse=True
             )
@@ -270,16 +277,22 @@ class TileGeometry:
             )
             northIter = iter(wireNorthPositions)
             southIter = iter(wireSouthPositions)
-            self.northMiddleX = next(northIter, None)
-            self.southMiddleX = next(southIter, None)
+            self.northMiddleX = next(northIter, self.northMiddleX)
+            self.southMiddleX = next(southIter, self.southMiddleX)
+        else:
+            northIter = iter(())
+            southIter = iter(())
 
-        if self.border == Border.EASTWEST:
+        if alignEastWest:
             wireEastPositions = sorted(self.neighbourConstraints.westPositions)
             wireWestPositions = sorted(self.neighbourConstraints.eastPositions)
             eastIter = iter(wireEastPositions)
             westIter = iter(wireWestPositions)
-            self.eastMiddleY = next(eastIter, None)
-            self.westMiddleY = next(westIter, None)
+            self.eastMiddleY = next(eastIter, self.eastMiddleY)
+            self.westMiddleY = next(westIter, self.westMiddleY)
+        else:
+            eastIter = iter(())
+            westIter = iter(())
 
         for portGeom in self.smGeometry.portGeoms:
             if abs(portGeom.offset) != 1:
@@ -300,8 +313,8 @@ class TileGeometry:
                 wireGeom.addPathLoc(Location(endX, endY))
                 self.wireConstraints.northPositions.append(self.northMiddleX)
 
-                if self.border == Border.NORTHSOUTH:
-                    self.northMiddleX = next(northIter, 0)
+                if alignNorthSouth:
+                    self.northMiddleX = next(northIter, self.northMiddleX - 1)
                 else:
                     self.northMiddleX -= 1
 
@@ -318,8 +331,8 @@ class TileGeometry:
                 wireGeom.addPathLoc(Location(endX, endY))
                 self.wireConstraints.southPositions.append(self.southMiddleX)
 
-                if self.border == Border.NORTHSOUTH:
-                    self.southMiddleX = next(southIter, 0)
+                if alignNorthSouth:
+                    self.southMiddleX = next(southIter, self.southMiddleX - 1)
                 else:
                     self.southMiddleX -= 1
 
@@ -336,8 +349,8 @@ class TileGeometry:
                 wireGeom.addPathLoc(Location(endX, endY))
                 self.wireConstraints.eastPositions.append(self.eastMiddleY)
 
-                if self.border == Border.EASTWEST:
-                    self.eastMiddleY = next(eastIter, 0)
+                if alignEastWest:
+                    self.eastMiddleY = next(eastIter, self.eastMiddleY + 1)
                 else:
                     self.eastMiddleY += 1
 
@@ -354,8 +367,8 @@ class TileGeometry:
                 wireGeom.addPathLoc(Location(endX, endY))
                 self.wireConstraints.westPositions.append(self.westMiddleY)
 
-                if self.border == Border.EASTWEST:
-                    self.westMiddleY = next(westIter, 0)
+                if alignEastWest:
+                    self.westMiddleY = next(westIter, self.westMiddleY + 1)
                 else:
                     self.westMiddleY += 1
 
