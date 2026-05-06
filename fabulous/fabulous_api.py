@@ -14,6 +14,10 @@ import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
 import fabulous.fabric_generator.parser.parse_csv as fileParser
 from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
+from fabulous.fabric_cad.gen_fabric_metadata import (
+    collect_fabric_metadata,
+    generate_fabric_metadata,
+)
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
     FABulousTimingModelInterface,
 )
@@ -292,6 +296,36 @@ class FABulous_API:
         Using 'generateTopWrapper' defined in 'fabric_gen.py'.
         """
         generateTopWrapper(self.writer, self.fabric)
+
+    def collectFabricMetadata(self) -> dict:
+        """Return a structured dictionary of machine-readable fabric metadata.
+
+        Includes fabric dimensions, bitstream sizing, tile counts and primitive
+        (BEL) counts. See ``gen_fabric_metadata.collect_fabric_metadata`` for
+        the full schema.
+        """
+        return collect_fabric_metadata(self.fabric)
+
+    def genFabricMetadata(
+        self,
+        output_dir: Path,
+        formats: tuple[str, ...] = ("yaml", "verilog", "systemverilog"),
+    ) -> dict[str, Path]:
+        """Write fabric metadata to ``output_dir`` in the requested formats.
+
+        Parameters
+        ----------
+        output_dir : Path
+            Directory to write the metadata files into. Created if missing.
+        formats : tuple[str, ...]
+            Subset of ``("yaml", "verilog", "systemverilog")``.
+
+        Returns
+        -------
+        dict[str, Path]
+            Mapping from format name to the path written.
+        """
+        return generate_fabric_metadata(self.fabric, Path(output_dir), formats=formats)
 
     def genBitStreamSpec(self) -> dict:
         """Generate the bitstream specification object.
