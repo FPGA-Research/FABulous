@@ -3,10 +3,10 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use std.env.finish;
 
-entity sequential_16bit_en_tb is
-end sequential_16bit_en_tb;
+entity top_tb is
+end top_tb;
 
-architecture Behavior of sequential_16bit_en_tb is
+architecture Behavior of top_tb is
 
   component eFPGA_top is
     generic (
@@ -40,7 +40,7 @@ architecture Behavior of sequential_16bit_en_tb is
     );
     end component;
 
-  component sequential_16bit_en is
+  component top is
     port (
       clk : in std_logic;
       io_out: out std_logic_vector(27 downto 0);
@@ -79,7 +79,7 @@ architecture Behavior of sequential_16bit_en_tb is
   impure function readmemh(filename : string) return bitstream_Type is
     use std.textio.all;
     variable bs : bitstream_Type;
-    file read_file: text open READ_MODE is "build/sequential_16bit_en.hex";
+    file read_file: text open READ_MODE is "build/top.hex";
     variable counter : integer := 0;
     variable L: LINE;
     variable temp: std_logic_vector(7 downto 0);
@@ -128,7 +128,7 @@ begin
 
     );
 
-    init_top: sequential_16bit_en
+    init_top: top
       port map (
         clk => CLK,
         io_out => I_top_gold,

@@ -3,7 +3,7 @@ FAB_PROJ_ROOT=..
 BUILD_DIR=build
 YOSYS?=$(or $(FAB_YOSYS_PATH),yosys)
 NEXTPNR?=$(or $(FAB_NEXTPNR_PATH),nextpnr-generic)
-DESIGN=sequential_16bit_en
+DESIGN=top
 TESTBENCH=${DESIGN}_tb
 TOP_WRAPPER=top_wrapper
 

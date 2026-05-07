@@ -24,9 +24,9 @@ FABulous> synthesis <path_to_user_design>
 ```
 
 The result of the synthesis will be located in the directory that contains the design file. For example, if the design
-file is located at `user_design/sequential_16bit_en.v` then the result of the synthesis will be located at
-`user/design`. For the above example, the file generated will call `sequential_16bit_en.json` or
-`sequential_16bit_en.blif` depends on which command is being used.
+file is located at `user_design/top.v` then the result of the synthesis will be located at
+`user/design`. For the above example, the file generated will call `top.json` or
+`top.blif` depends on which command is being used.
 
 :::{note}
 The underlying of the command is a python subprocess call to the Yosys command line with the exact command example used in manual synthesis If some extra toggles need to be used for Yosys then the CLI synthesis is not sufficient for now. (We might add flag pass-through from the CLI in later iterations).

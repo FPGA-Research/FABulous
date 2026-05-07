@@ -31,7 +31,7 @@ FAB_ROOT=<Project_directory> nextpnr-generic --uarch fabulous --json <JSON_file>
 Example:
 
 ```console
-FAB_ROOT=demo nextpnr-generic --uarch fabulous --json demo/user_design/sequential_16bit_en.v -o fasm=demo/user_design/sequential_16bit_en.fasm
+FAB_ROOT=demo nextpnr-generic --uarch fabulous --json demo/user_design/top.v -o fasm=demo/user_design/top.fasm
 ```
 
 ## Primitive instantiation

@@ -17,7 +17,7 @@ from tests.conftest import (
     run_cmd,
 )
 
-SIM_CMD = "run_simulation fst ./user_design/sequential_16bit_en.bin"
+SIM_CMD = "run_simulation fst ./user_design/top.bin"
 
 
 def test_load_fabric(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
@@ -131,7 +131,7 @@ def test_run_FABulous_bitstream_deprecated(
     mocker.patch("subprocess.run", return_value=MOCK_COMPLETED_PROCESS)
     run_cmd(cli, "run_FABulous_fabric")
 
-    run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
+    run_cmd(cli, "run_FABulous_bitstream ./user_design/top.v")
 
     assert any("deprecated" in r.message.lower() for r in caplog.records)
     assert any("compile_design" in r.message for r in caplog.records)
@@ -230,7 +230,7 @@ def test_run_tcl_with_fabulous_command(
     test_script = tmp_path / "test_script.tcl"
     test_script.write_text(
         "load_fabric\n"
-        "gen_user_design_wrapper user_design/sequential_16bit_en.v "
+        "gen_user_design_wrapper user_design/top.v "
         "user_design/top_wrapper.v\n"
     )
     run_cmd(cli, f"run_tcl {test_script}")

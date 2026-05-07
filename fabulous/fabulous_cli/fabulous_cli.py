@@ -118,8 +118,8 @@ The shell support tab completion for commands and files
 
 To run the complete FABulous flow with the default project, run the following command:
     run_FABulous_fabric
-    compile_design ./user_design/sequential_16bit_en.v
-    run_simulation fst ./user_design/sequential_16bit_en.bin
+    compile_design ./user_design/top.v
+    run_simulation fst ./user_design/top.bin
 """
 
 

@@ -434,7 +434,7 @@ To test our custom tile, we need to modify our current test setup.
 The current simulation setup is described in section {ref}`simulation_setup`.
 
 Our current simulation setup uses a simple counter to test the fabric.
-You can find the testbench `sequential_16bit_en_tb.v` in the `Test` folder of your FABulous project.
+You can find the testbench `top_tb.v` in the `Test` folder of your FABulous project.
 The `Test` folder also contains a Makefile, which can be used to run the testbench and
 a `README.md`, which describes how to run the testbench.
 
@@ -451,7 +451,7 @@ We want to instantiate our custom primitive in the simulated fabric and
 compare the output of our CRC5 custom tile, with the output of the simulated
 crc5 implementation in the testbench.
 
-The counter is located in the `user_design` folder and is named `sequential_16bit_en.v`.
+The counter is located in the `user_design` folder and is named `top.v`.
 We want to instantiate the provided `crc5` module in the simulated counter as well as
 in the bitstream loaded into the simulated fabric, but the port descriptions
 differ. To keep it simple, we are just using the `__ICARUS__` macro,
@@ -461,7 +461,7 @@ To test our custom primitive, we just use the counter as input for our crc5
 module and the output of the crc5 module is assigned to some unused bits of the
 output of the counter module.
 
-We just extend our `sequential_16bit_en.v` counter like following:
+We just extend our `top.v` counter like following:
 
 ```verilog
 module top(input wire clk, input wire [27:0] io_in, output wire [27:0] io_out, io_oeb);
@@ -528,8 +528,8 @@ Afterward, we just run our simulation with the FABulous CLI command `run_simulat
 (venv)$ FABulous demo
 FABulous> load_fabric
 FABulous> run_FABulous_fabric
-FABulous> compile_design ./user_design/sequential_16bit_en.v
-FABulous> run_simulation fst ./user_design/sequential_16bit_en.bin
+FABulous> compile_design ./user_design/top.v
+FABulous> run_simulation fst ./user_design/top.bin
 FABulous> exit
 ```
 
@@ -539,11 +539,11 @@ The output of the whole flow is quite a lot, for debugging, we recommend
 running the steps individually, to see what is actually going on.
 
 ```console
-iverilog -s sequential_16bit_en_tb -o build/sequential_16bit_en.vvp build/fabric_files/* ../user_design/sequential_16bit_en.v sequential_16bit_en_tb.v -g2012
-vvp build/sequential_16bit_en.vvp +output_waveform=build/sequential_16bit_en.fst +bitstream_hex=build/sequential_16bit_en.hex -fst
-FST info: dumpfile build/sequential_16bit_en.fst opened for output.
-Output waveform set to build/sequential_16bit_en.fst
-Read bitstream hex from build/sequential_16bit_en.hex
+iverilog -s top_tb -o build/top.vvp build/fabric_files/* ../user_design/top.v top_tb.v -g2012
+vvp build/top.vvp +output_waveform=build/top.fst +bitstream_hex=build/top.hex -fst
+FST info: dumpfile build/top.fst opened for output.
+Output waveform set to build/top.fst
+Read bitstream hex from build/top.hex
 fabric(I_top) = 0x01f0000 gold = 0x01f0000, fabric(T_top) = 0xffffffe gold = 0xffffffe
 fabric(I_top) = 0x0010001 gold = 0x0010001, fabric(T_top) = 0xffffffe gold = 0xffffffe
 fabric(I_top) = 0x01e0002 gold = 0x01e0002, fabric(T_top) = 0xffffffe gold = 0xffffffe
@@ -557,7 +557,7 @@ fabric(I_top) = 0x0030060 gold = 0x0030060, fabric(T_top) = 0xffffffe gold = 0xf
 fabric(I_top) = 0x01e0061 gold = 0x01e0061, fabric(T_top) = 0xffffffe gold = 0xffffffe
 fabric(I_top) = 0x0090062 gold = 0x0090062, fabric(T_top) = 0xffffffe gold = 0xffffffe
 fabric(I_top) = 0x0010063 gold = 0x0010063, fabric(T_top) = 0xffffffe gold = 0xffffffe
-sequential_16bit_en_tb.v:107: $finish called at 207060000 (1ps)
+top_tb.v:107: $finish called at 207060000 (1ps)
 rm -rf build
 ```
 

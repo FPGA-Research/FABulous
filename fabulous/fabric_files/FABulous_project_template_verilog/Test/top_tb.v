@@ -1,5 +1,5 @@
 `timescale 1ps/1ps
-module sequential_16bit_en_tb;
+module top_tb;
     wire [27:0] I_top;
     wire [27:0] T_top;
     reg [27:0] O_top = 0;
@@ -32,7 +32,7 @@ module sequential_16bit_en_tb;
 
 
     wire [27:0] I_top_gold, oeb_gold, T_top_gold;
-    sequential_16bit_en dut_i (
+    top dut_i (
         .clk(CLK),
         .io_out(I_top_gold),
         .io_oeb(oeb_gold),
@@ -55,7 +55,7 @@ module sequential_16bit_en_tb;
 
         if ($value$plusargs("output_waveform=%s", output_waveform_arg)) begin
             $dumpfile(output_waveform_arg);
-            $dumpvars(0, sequential_16bit_en_tb);
+            $dumpvars(0, top_tb);
             $display("Output waveform set to %s", output_waveform_arg);
         end
 

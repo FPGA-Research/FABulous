@@ -61,13 +61,13 @@ Inside the FABulous shell:
 
 ```
 fabulous> run_FABulous_fabric
-fabulous> compile_design user_design/sequential_16bit_en.v
+fabulous> compile_design user_design/top.v
 ```
 
 **Option B -- Command line (batch mode):**
 
 ```bash
-FABulous -p demo run "run_FABulous_fabric; compile_design user_design/sequential_16bit_en.v"
+FABulous -p demo run "run_FABulous_fabric; compile_design user_design/top.v"
 ```
 
 ## 5. Check the outputs
@@ -76,7 +76,7 @@ After a successful run:
 
 - **Tile RTL files** are in `demo/Tile/`
 - **Fabric RTL file** is in `demo/Fabric/`
-- **Bitstream** is at `demo/user_design/sequential_16bit_en.bin`
+- **Bitstream** is at `demo/user_design/top.bin`
 - **Synthesis and PnR logs** are in `demo/user_design/`
 
 ## What's next?

@@ -15,7 +15,7 @@ vars:
   MAX_BITBYTES: '{{.MAX_BITBYTES | default "16384"}}'
   FAB_PROJ_ROOT: '{{.FAB_PROJ_ROOT | default ".."}}'
   BUILD_DIR: '{{.BUILD_DIR | default "build"}}'
-  DESIGN: '{{.DESIGN | default "sequential_16bit_en"}}'
+  DESIGN: '{{.DESIGN | default "top"}}'
   TESTBENCH: "{{.DESIGN}}_tb"
   TOP_WRAPPER: '{{.TOP_WRAPPER | default "top_wrapper"}}'
   USER_DESIGN_DIR: "{{.FAB_PROJ_ROOT}}/user_design"
