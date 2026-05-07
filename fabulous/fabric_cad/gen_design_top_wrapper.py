@@ -175,7 +175,7 @@ def generateUserDesignTopWrapper(
         # hardcoded for now
         logger.info(
             "Using default design, "
-            "with top counter and IO_1_bidirectional_frame_config_pass"
+            "with a sequential 16 bit counter and IO_1_bidirectional_frame_config_pass"
         )
 
         user_design_inst += ".clk(clk), "
