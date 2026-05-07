@@ -114,7 +114,7 @@ The available variables are:
 
 | Variable | Default | Description |
 |---|---|---|
-| `DESIGN` | `sequential_16bit_en` | Name of the user design (without extension) |
+| `DESIGN` | `top` | Name of the user design (without extension) |
 | `TOP_WRAPPER` | `top_wrapper` | Top-level wrapper module name |
 | `WAVEFORM_TYPE` | `fst` | Waveform output format (`fst` or `vcd`) |
 | `BUILD_DIR` | `build` | Build output directory |

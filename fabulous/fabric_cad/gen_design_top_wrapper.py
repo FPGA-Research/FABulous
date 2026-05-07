@@ -169,13 +169,13 @@ def generateUserDesignTopWrapper(
         user_design_inst = f"{user_design.module_name} user_design_i ("
 
     if (
-        user_design.name == "sequential_16bit_en"
+        user_design.name == "top"
         and "IO_1_bidirectional_frame_config_pass" in bel_count
     ):
         # hardcoded for now
         logger.info(
             "Using default design, "
-            "with sequential_16bit_en counter and IO_1_bidirectional_frame_config_pass"
+            "with top counter and IO_1_bidirectional_frame_config_pass"
         )
 
         user_design_inst += ".clk(clk), "

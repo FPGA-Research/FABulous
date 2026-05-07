@@ -57,7 +57,7 @@ Inside the FABulous shell:
 
 ```bash
 fabulous>run_FABulous_fabric
-fabulous>compile_design user_design/sequential_16bit_en.v
+fabulous>compile_design user_design/top.v
 ```
 
 ### Using GUI Tools

@@ -88,9 +88,9 @@ reference_projects:
     fab_commands: #optional
       - "load_fabric"
       - "run_FABulous_fabric"
-      - "gen_user_design_wrapper user_design/sequential_16bit_en.v user_design/top_wrapper.v"
-      - "compile_design ./user_design/sequential_16bit_en.v"
-      - "run_simulation fst ./user_design/sequential_16bit_en.bin"
+      - "gen_user_design_wrapper user_design/top.v user_design/top_wrapper.v"
+      - "compile_design ./user_design/top.v"
+      - "run_simulation fst ./user_design/top.bin"
     post_fab_commands: #optional
       - cmd: "make sim"
         cwd: "Test/"

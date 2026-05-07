@@ -99,9 +99,9 @@ def simulation_mock(cli: FABulous_CLI, mocker: MockerFixture) -> None:
 
     user_design = cli.projectDir / "user_design"
     for suffix in (".json", ".fasm", ".bin"):
-        (user_design / f"sequential_16bit_en{suffix}").touch()
+        (user_design / f"top{suffix}").touch()
 
-    run_cmd(cli, "compile_design ./user_design/sequential_16bit_en.v")
+    run_cmd(cli, "compile_design ./user_design/top.v")
 
 
 def find_task_calls() -> list[list[str]]:
