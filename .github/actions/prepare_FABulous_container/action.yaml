@@ -23,6 +23,10 @@ inputs:
       version is used"
     required: false
     default: "true"
+  install_nvc:
+    description: "If true, NVC VHDL simulator will be installed (recommended, faster than GHDL)"
+    required: false
+    default: "true"
 
 runs:
   using: "composite"
@@ -87,6 +91,9 @@ runs:
       with:
         github-token: ${{ github.token }}
         version: ${{ steps.oss-cad-version.outputs.version }}
+    - name: Install NVC VHDL simulator
+      uses: nickg/setup-nvc@v1
+      if: ${{ inputs.install_nvc != 'false' }}
     - name: Install GHDL mcode nightly
       # GHDL mcode is required to test our fabric.
       # The oss-cad-suite action installs GHDL, but with the LLVM backend, which is much slower for our simulation

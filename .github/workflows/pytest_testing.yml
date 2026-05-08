@@ -103,6 +103,7 @@ jobs:
           COVERAGE_FILE: .coverage.${{ matrix.job-index }}
         run: |
           echo "Running at PATH=$PATH"
+          which nvc
           which ghdl
           which iverilog
           # Ensure no stale coverage data from previous attempts (no coverage module needed)
