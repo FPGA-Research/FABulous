@@ -19,7 +19,7 @@ flowchart TB
 
     subgraph sim ["Simulation"]
         direction LR
-        E[Test Bitstream] --> H["Testbench (iverilog / GHDL)"]
+        E[Test Bitstream] --> H["Testbench (iverilog / NVC / GHDL)"]
         H --> I{Pass / Fail}
     end
 
@@ -65,11 +65,13 @@ For more complex use cases it can be useful to create your own flow using the
 
 ## Prerequisites
 
-Please make sure to use recent versions of [Yosys](https://github.com/YosysHQ/yosys), [nextpnr-generic](https://github.com/YosysHQ/nextpnr) (_not_ the old FABulous nextpnr fork)
-and [GHDL with mcode backend](<https://github.com/ghdl/ghdl/releases>) or use the [OSS-CAD-Suite](https://github.com/YosysHQ/oss-cad-suite-build) which provides nightly builds of the necessary dependencies.
+Please make sure to use recent versions of [Yosys](https://github.com/YosysHQ/yosys), [nextpnr-generic](https://github.com/YosysHQ/nextpnr) (_not_ the old FABulous nextpnr fork),
+and either [NVC](https://github.com/nickg/nvc) or [GHDL with mcode backend](<https://github.com/ghdl/ghdl/releases>), or use the [OSS-CAD-Suite](https://github.com/YosysHQ/oss-cad-suite-build) which provides nightly builds of the necessary dependencies.
 
 :::{note}
-The OSS-CAD-Suite is providing GHDL only with LLVM backend, which increases the simulation speed for FABulous projects significantly. We recommend using the latest GHDL with mcode backend for the best simulation performance.
+**NVC is significantly faster than GHDL for our simulation.** We recommend installing NVC first. The simulation will automatically use NVC if available, otherwise it falls back to GHDL.
+
+If using GHDL, we recommend the mcode backend for better simulation performance. The OSS-CAD-Suite provides only LLVM backend, which is slower than mcode.
 :::
 
 ## Taskfile
@@ -119,9 +121,10 @@ The available variables are:
 | `WAVEFORM_TYPE` | `fst` | Waveform output format (`fst` or `vcd`) |
 | `BUILD_DIR` | `build` | Build output directory |
 | `FAB_PROJ_ROOT` | `..` | Path to the project root |
-| `GHDL_FLAGS` | `--std=08 -O2` | GHDL compilation flags (VHDL only) |
+| `SIMULATOR` | `auto` | Simulator selection (`auto`, `nvc`, or `ghdl`). `auto` uses NVC if available, falls back to GHDL |
 | `BITSTREAM_BIN` | `build/<DESIGN>.bin` | Path to the `.bin` bitstream file |
 | `EXTRA_IVERILOG_FLAGS` | *(empty)* | Extra flags passed to iverilog (Verilog only) |
+| `EXTRA_NVC_FLAGS` | *(empty)* | Extra flags passed to NVC (VHDL only) |
 | `EXTRA_GHDL_FLAGS` | *(empty)* | Extra flags passed to GHDL (VHDL only) |
 | `MAX_BITBYTES` | `16384` | Maximum bitstream size in bytes |
 
@@ -145,7 +148,12 @@ FABulous> run_simulation fst path/to/design.bin -d my_design
 
 # Pass extra simulator flags
 FABulous> run_simulation fst path/to/design.bin --extra-iverilog-flag="-DDEBUG"
+FABulous> run_simulation fst path/to/design.bin --extra-nvc-flag="--ieee-warnings=error"
 FABulous> run_simulation fst path/to/design.bin --extra-ghdl-flag="--warn-error"
+
+# Force a specific simulator
+FABulous> run_simulation fst path/to/design.bin SIMULATOR=nvc
+FABulous> run_simulation fst path/to/design.bin SIMULATOR=ghdl
 
 # Combine options
 FABulous> run_simulation vcd path/to/design.bin -d my_design -if "-DDEBUG -DTRACE"
@@ -155,6 +163,7 @@ FABulous> run_simulation vcd path/to/design.bin -d my_design -if "-DDEBUG -DTRAC
 |---|---|---|
 | `--design` | `-d` | Override the design name (default: inferred from bitstream filename) |
 | `--extra-iverilog-flag` | `-if` | Extra flags for iverilog (Verilog projects) |
+| `--extra-nvc-flag` | `-nf` | Extra flags for NVC (VHDL projects) |
 | `--extra-ghdl-flag` | `-gf` | Extra flags for GHDL (VHDL projects) |
 
 ### Verilog vs. VHDL
@@ -164,10 +173,11 @@ toolchain.
 
 - **Verilog projects** use [Icarus Verilog](https://steveicarus.github.io/iverilog/)
   (`iverilog` / `vvp`) for simulation.
-- **VHDL projects** use [GHDL](https://ghdl.github.io/ghdl/) for simulation.
-  GHDL requires files to be compiled in dependency order, so the VHDL Taskfile
+- **VHDL projects** use [NVC](https://github.com/nickg/nvc) by default for simulation, with automatic fallback to [GHDL](https://ghdl.github.io/ghdl/) if NVC is not available.
+  Both simulators require files to be compiled in dependency order, so the VHDL Taskfile
   compiles packages (`models_pack`) first, then tile files, then fabric
   infrastructure, and finally the user design and testbench.
+  You can force a specific simulator by setting `SIMULATOR=nvc` or `SIMULATOR=ghdl`.
 
 :::{note}
 The `Taskfile.yml` is a regular YAML file that you can freely edit to add

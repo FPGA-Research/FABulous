@@ -40,8 +40,8 @@ entity MUX8LUT_frame_config_mux is
   );
   attribute FABulous of MUX8LUT_frame_config_mux : entity is "TRUE";
   attribute BelMap of MUX8LUT_frame_config_mux   : entity is "TRUE";
-  attribute c0 of MUX8LUT_frame_config_mux       : entity is 0;
-  attribute c1 of MUX8LUT_frame_config_mux       : entity is 1;
+  attribute C0 of MUX8LUT_frame_config_mux       : entity is 0;
+  attribute C1 of MUX8LUT_frame_config_mux       : entity is 1;
   attribute GLOBAL of ConfigBits                 : signal is "TRUE";
 end entity MUX8LUT_frame_config_mux;
 
@@ -60,7 +60,7 @@ architecture Behavioral of MUX8LUT_frame_config_mux is
   signal AH    : std_logic;
   signal EH_GH : std_logic;
 
-  signal c0, c1 : std_logic; -- configuration bits
+  signal CB_C0, CB_C1 : std_logic; -- configuration bits
 
   component cus_mux21 is
     port (
@@ -73,8 +73,8 @@ architecture Behavioral of MUX8LUT_frame_config_mux is
 
 begin
 
-  c0 <= ConfigBits(0);
-  c1 <= ConfigBits(1);
+  CB_C0 <= ConfigBits(0);
+  CB_C1 <= ConfigBits(1);
 
   -- see figure (column-wise left-to-right)
 
@@ -114,39 +114,39 @@ begin
       X  => GH
     );
 
-  -- sCD <= S(1) when (c0 = '0') else S(0);
+  -- sCD <= S(1) when (CB_C0 = '0') else S(0);
   cus_mux21_scd : component cus_mux21
     port map (
       A0 => S(1),
       A1 => S(0),
-      S  => c0,
+      S  => CB_C0,
       X  => sCD
     );
 
-  -- sEF <= S(2) when (c1 = '0') else S(0);
+  -- sEF <= S(2) when (CB_C0 = '0') else S(0);
   cus_mux21_sef : component cus_mux21
     port map (
       A0 => S(2),
       A1 => S(0),
-      S  => c1,
+      S  => CB_C1,
       X  => sEF
     );
 
-  -- sGH <= sEH when (c0 = '0') else sEF;
+  -- sGH <= sEH when (CB_C0 = '0') else sEF;
   cus_mux21_sgh : component cus_mux21
     port map (
       A0 => sEH,
       A1 => sEF,
-      S  => c0,
+      S  => CB_C0,
       X  => sGH
     );
 
-  -- sEH <= S(3) when (c1 = '0') else S(1);
+  -- sEH <= S(3) when (CB_C1 = '0') else S(1);
   cus_mux21_seh : component cus_mux21
     port map (
       A0 => S(3),
       A1 => S(1),
-      S  => c1,
+      S  => CB_C1,
       X  => sEH
     );
 
@@ -179,21 +179,21 @@ begin
 
   M_AB <= AB;
 
-  -- M_AD <= CD when (c0 = '0') else AD;
+  -- M_AD <= CD when (CB_C0 = '0') else AD;
   cus_mux21_m_ad : component cus_mux21
     port map (
       A0 => CD,
       A1 => AD,
-      S  => c0,
+      S  => CB_C0,
       X  => M_AD
     );
 
-  -- M_AH <= EH_GH when (c1 = '0') else AH;
+  -- M_AH <= EH_GH when (CB_C1 = '0') else AH;
   cus_mux21_m_ah : component cus_mux21
     port map (
       A0 => EH_GH,
       A1 => AH,
-      S  => c1,
+      S  => CB_C1,
       X  => M_AH
     );
 

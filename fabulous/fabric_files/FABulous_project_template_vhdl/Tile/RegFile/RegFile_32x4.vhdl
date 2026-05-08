@@ -51,10 +51,10 @@ architecture Behavioral of RegFile_32x4 is
 
   signal mem : memtype;
 
-  signal AD_reg    : std_logic_vector(3 downto 0); -- port A read data register
-  signal BD_reg    : std_logic_vector(3 downto 0); -- port B read data register
-  signal AD_signal : std_logic_vector(3 downto 0); -- port A read data signal
-  signal BD_signal : std_logic_vector(3 downto 0); -- port B read data signal
+  signal AD_reg_data : std_logic_vector(3 downto 0); -- port A read data register
+  signal BD_reg_data : std_logic_vector(3 downto 0); -- port B read data register
+  signal AD_signal   : std_logic_vector(3 downto 0); -- port A read data signal
+  signal BD_signal   : std_logic_vector(3 downto 0); -- port B read data signal
 
 begin
 
@@ -76,15 +76,15 @@ begin
   begin
 
     if (UserCLK'event and UserCLK = '1') then
-      AD_reg <= AD_signal;
-      BD_reg <= BD_signal;
+      AD_reg_data <= AD_signal;
+      BD_reg_data <= BD_signal;
     end if;
 
   end process;
 
   AD <= AD_signal when (ConfigBits(0) = '0') else
-        AD_reg;
+        AD_reg_data;
   BD <= BD_signal when (ConfigBits(1) = '0') else
-        BD_reg;
+        BD_reg_data;
 
 end architecture Behavioral;

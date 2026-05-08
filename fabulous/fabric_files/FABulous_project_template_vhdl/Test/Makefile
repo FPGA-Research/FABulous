@@ -3,6 +3,8 @@ FAB_PROJ_ROOT=..
 BUILD_DIR=build
 YOSYS?=$(or $(FAB_YOSYS_PATH),yosys)
 NEXTPNR?=$(or $(FAB_NEXTPNR_PATH),nextpnr-generic)
+
+.PHONY: mkdir_build run_GTKWave clean run_simulation
 DESIGN=sequential_16bit_en
 TESTBENCH=${DESIGN}_tb
 TOP_WRAPPER=top_wrapper
@@ -13,8 +15,34 @@ TOP_WRAPPER_VERILOG=${USER_DESIGN_DIR}/${TOP_WRAPPER}.v # Still needs to be veri
 FAB_TILE_FOLDER=${FAB_PROJ_ROOT}/Tile
 FAB_FABRIC_FOLDER=${FAB_PROJ_ROOT}/Fabric
 
-GHDL=ghdl
+# Simulator selection: nvc or ghdl (default: nvc if available, fallback to ghdl)
+SIMULATOR?=$(if $(shell which nvc),nvc,ghdl)
+
+# NVC simulator flags
+NVC_CMD=nvc
+NVC_ANALYZE_CMD=${NVC_CMD} --std=2008 -L ${BUILD_DIR} -H 2g -M 1g --ieee-warnings=off --work=${BUILD_DIR}/work -a
+NVC_ELAB_CMD=${NVC_CMD} --std=2008 -L ${BUILD_DIR} -H 2g -M 1g --ieee-warnings=off --work=${BUILD_DIR}/work -e -O2
+NVC_RUN_CMD=${NVC_CMD} --std=2008 -L ${BUILD_DIR} -H 2g -M 1g --ieee-warnings=off --work=${BUILD_DIR}/work -r
+
+# GHDL simulator flags
+GHDL_CMD=ghdl
 GHDL_FLAGS=--std=08 -O2 --workdir=${BUILD_DIR}
+GHDL_ANALYZE_CMD=${GHDL_CMD} -a ${GHDL_FLAGS}
+GHDL_ELAB_CMD=${GHDL_CMD} -e ${GHDL_FLAGS} -fexplicit
+GHDL_RUN_CMD=${GHDL_CMD} -r ${GHDL_FLAGS}
+
+# Select simulator
+ifeq (${SIMULATOR},nvc)
+ANALYZE_CMD=${NVC_ANALYZE_CMD}
+ELAB_CMD=${NVC_ELAB_CMD}
+RUN_CMD=${NVC_RUN_CMD}
+OUTPUT_OPT=-w${BUILD_DIR}/${TESTBENCH}.fst
+else ifeq (${SIMULATOR},ghdl)
+ANALYZE_CMD=${GHDL_ANALYZE_CMD}
+ELAB_CMD=${GHDL_ELAB_CMD}
+RUN_CMD=${GHDL_RUN_CMD}
+OUTPUT_OPT=--fst=${BUILD_DIR}/${TESTBENCH}.fst
+endif
 
 #only add if custom_prims.v exists
 ifneq ($(wildcard ${USER_DESIGN_DIR}/custom_prims.v),)
@@ -60,8 +88,8 @@ clean:
 
 run_simulation: mkdir_build
 	ulimit -s unlimited && \
-	${GHDL} -a ${GHDL_FLAGS} ${FAB_FABRIC_FOLDER}/models_pack.vhdl && \
-	${GHDL} -a ${GHDL_FLAGS} \
+	${ANALYZE_CMD} ${FAB_FABRIC_FOLDER}/models_pack.vhdl && \
+	${ANALYZE_CMD} \
 	              ${FAB_TILE_FOLDER}/LUT4AB/LUT4AB_switch_matrix.vhdl \
 	              ${FAB_TILE_FOLDER}/LUT4AB/LUT4AB_ConfigMem.vhdl \
 	              ${FAB_TILE_FOLDER}/LUT4AB/LUT4c_frame_config_dffesr.vhdl \
@@ -81,7 +109,7 @@ run_simulation: mkdir_build
 	              ${FAB_TILE_FOLDER}/W_IO/IO_1_bidirectional_frame_config_pass.vhdl \
 	              ${FAB_TILE_FOLDER}/W_IO/Config_access.vhdl \
 	              ${FAB_TILE_FOLDER}/W_IO/W_IO.vhdl && \
-	${GHDL} -a ${GHDL_FLAGS} \
+	${ANALYZE_CMD} \
 	              ${FAB_TILE_FOLDER}/DSP/DSP_top/DSP_top_switch_matrix.vhdl \
 	              ${FAB_TILE_FOLDER}/DSP/DSP_top/DSP_top_ConfigMem.vhdl \
 	              ${FAB_TILE_FOLDER}/DSP/DSP_top/DSP_top.vhdl \
@@ -90,7 +118,7 @@ run_simulation: mkdir_build
 	              ${FAB_TILE_FOLDER}/DSP/DSP_bot/MULADD.vhdl \
 	              ${FAB_TILE_FOLDER}/DSP/DSP_bot/DSP_bot.vhdl \
 	              ${FAB_TILE_FOLDER}/DSP/DSP.vhdl && \
-	${GHDL} -a ${GHDL_FLAGS} \
+	${ANALYZE_CMD} \
 	              ${FAB_TILE_FOLDER}/N_term_DSP/N_term_DSP_switch_matrix.vhdl \
 	              ${FAB_TILE_FOLDER}/N_term_DSP/N_term_DSP.vhdl \
 	              ${FAB_TILE_FOLDER}/S_term_DSP/S_term_DSP_switch_matrix.vhdl \
@@ -107,7 +135,7 @@ run_simulation: mkdir_build
 	              ${FAB_TILE_FOLDER}/N_term_single2/N_term_single2.vhdl \
 	              ${FAB_TILE_FOLDER}/S_term_single2/S_term_single2_switch_matrix.vhdl \
 	              ${FAB_TILE_FOLDER}/S_term_single2/S_term_single2.vhdl && \
-	${GHDL} -a ${GHDL_FLAGS} \
+	${ANALYZE_CMD} \
 	              ${FAB_FABRIC_FOLDER}/config_UART.vhdl \
 	              ${FAB_FABRIC_FOLDER}/bitbang.vhdl \
 	              ${FAB_FABRIC_FOLDER}/ConfigFSM.vhdl \
@@ -119,5 +147,7 @@ run_simulation: mkdir_build
 	              ${FAB_FABRIC_FOLDER}/eFPGA_top.vhdl \
 	              ${USER_DESIGN_DIR}/${DESIGN}.vhdl \
 	              ${TESTBENCH}.vhdl && \
-	${GHDL} -e ${GHDL_FLAGS} -fexplicit ${TESTBENCH} && \
-	${GHDL} -r ${GHDL_FLAGS} ${TESTBENCH} --stats --ieee-asserts=disable --fst=${BUILD_DIR}/${TESTBENCH}.fst
+	${ELAB_CMD} ${TESTBENCH} && \
+	$(if $(filter nvc,${SIMULATOR}), \
+		${RUN_CMD} ${TESTBENCH} ${OUTPUT_OPT} --stats, \
+		${RUN_CMD} ${TESTBENCH} --stats --ieee-asserts=disable ${OUTPUT_OPT})

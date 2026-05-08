@@ -28,12 +28,14 @@ To perform synthesis, place and route and simulation you will need the following
 
 - VHDL:
   - [yosys](https://github.com/YosysHQ/yosys)
-  - [ghdl-yosys-plugin](https://github.com/ghdl/ghdl-yosys-plugin)
+  - [ghdl-yosys-plugin](https://github.com/ghdl/ghdl-yosys-plugin) (for synthesis)
   - [nextnpr-generic](https://github.com/YosysHQ/nextpnr?tab=readme-ov-file#nextpnr-generic)
-  - [ghdl](https://github.com/ghdl/ghdl/releases/tag/nightly)
+  - [nvc](https://github.com/nickg/nvc) (for simulation, recommended) or [ghdl](https://github.com/ghdl/ghdl/releases/tag/nightly) (fallback simulator)
 
 As mentioned in the previous section, using the `FABulous install-oss-cad-suite` will install all the required software.
 
 :::{note}
-For GHDL we suggest using the `mcode` backend, as the simulation time is short using the `mcode` backend then any other backend. If you are a Mac user, the `mcode` backend is not available, and we recommend going with the `llvm-jit` backend instead.
+For VHDL simulation, **NVC is significantly faster than GHDL** and is the recommended simulator. If NVC is not available, GHDL can be used as a fallback.
+
+If using GHDL, we suggest using the `mcode` backend, as simulation time is shorter with `mcode` than any other backend. If you are a Mac user, the `mcode` backend is not available, and we recommend going with the `llvm-jit` backend instead.
 :::
