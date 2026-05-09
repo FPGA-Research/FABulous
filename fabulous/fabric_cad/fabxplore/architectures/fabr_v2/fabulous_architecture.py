@@ -127,12 +127,24 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     def map_luts(self) -> None:
         """Map combinational logic into LUT resources."""
         self.design_lut_mapper_pass(
-            max_lut_size=5,
+            max_lut_size=6,
             use_select_as_data_in_pair_mode=True,
             sharing_penalty_factor=3,
             size_penalty_factor=0.7,
-            larger_lut_discount_factor=0.8,
+            larger_lut_discount_factor=0.6,
             backend="abc9",
+        )
+
+        self.design_morph_tile_pass(
+            tile_verilog_path=Path(
+                "/home/hausding/Documents/FABulous/demo0/Tile/test_tile/FLUT5_1P_2PS.v"
+            ),
+            tile_top_name="FLUT5_1P_2PS",
+            tile_inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
+            tile_outputs=["O0", "O1", "Co"],
+            considered_lut_widths=[6],
+            tile_config_prefixes=["ConfigBits"],
+            progress_chunk_size=5,
         )
 
         self.design_lut_combinator_pass(
@@ -150,7 +162,6 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                 )
             ],
         )
-
         self.design_lut_layering_pass(
             overlay_top_name="mux4",
             overlay_verilog_paths=[
@@ -206,7 +217,6 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         """Generate primitive definitions required by this architecture."""
 
         # TODO: Implement Architecture-specific extensions, sat solver, ordered solver.
-        # TODO: Implement Multilyer synthesis, 2nd user design replace LUTS
         # TODO: Implement timing driven optimizations (weight match) subgraph
         # matching for critical path optimization
         # TODO: Explain Morph-Tiles

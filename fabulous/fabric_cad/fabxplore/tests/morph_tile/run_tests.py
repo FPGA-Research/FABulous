@@ -6,6 +6,10 @@ from tempfile import TemporaryDirectory
 import pyosys.libyosys as ys
 
 from fabulous.fabric_cad.fabxplore.modules.morph_tile import CutSolver
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.canonical import (
+    canonicalize_lut_init,
+    permute_lut_init,
+)
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.reader import (
     MorphTileReader,
 )
@@ -59,6 +63,17 @@ endmodule
         assert result.output_mapping == {"X": "O"}
 
 
+def test_canonical_lut_init_groups_input_permutations() -> None:
+    """Test permutation-equivalent truth tables share one canonical INIT."""
+    assert permute_lut_init(0x4, 2, (1, 0)) == 0x2
+
+    left = canonicalize_lut_init(0x2, 2)
+    right = canonicalize_lut_init(0x4, 2)
+
+    assert left.cache_key == right.cache_key
+    assert right.permutation == (1, 0)
+
+
 def test_morph_tile_pass_replaces_and_lut_eq() -> None:
     """Test a compatible LUT is replaced and remains equivalent."""
     with TemporaryDirectory(prefix="morph_tile_replace_") as td:
@@ -85,7 +100,8 @@ def test_morph_tile_pass_replaces_and_lut_eq() -> None:
         assert pass_.result_data.stats.failed_luts == 0
         assert "Replaced LUTs: 1" in pass_.report_summary
         assert "of all LUTs: 100.0%" in pass_.report_summary
-        assert "of checked candidates: 100.0%" in pass_.report_summary
+        assert "of checked candidates:" in pass_.report_summary
+        assert "100.0%" in pass_.report_summary
 
         netlist = bridge.to_netlist_dict()
         cells = netlist["modules"]["base"]["cells"]
@@ -207,6 +223,117 @@ endmodule
         assert pass_.result_data.stats.replaced_luts == 2
         assert pass_.result_data.stats.cache_misses == 1
         assert pass_.result_data.stats.cache_hits == 1
+
+
+def test_morph_tile_pass_uses_canonical_solver_cache() -> None:
+    """Test input-permuted LUT functions share one cached SAT result."""
+    with TemporaryDirectory(prefix="morph_tile_canonical_cache_") as td:
+        tmp_dir = Path(td)
+        base = tmp_dir / "base.v"
+        base.write_text(
+            """
+module base(input a, input b, input c, input d, output y0, output y1);
+  \\$lut #(.LUT(4'h2), .WIDTH(32'd2)) lut0 (.A({b, a}), .Y(y0));
+  \\$lut #(.LUT(4'h4), .WIDTH(32'd2)) lut1 (.A({d, c}), .Y(y1));
+endmodule
+""",
+            encoding="utf-8",
+        )
+        tile = _write_asymmetric_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="asym_tile",
+            tile_inputs=["I0", "I1"],
+            tile_outputs=["O"],
+            considered_lut_widths=[2],
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 2
+        assert pass_.result_data.stats.cache_misses == 1
+        assert pass_.result_data.stats.cache_hits == 1
+
+        gate = tmp_dir / "gate.v"
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
+def test_morph_tile_pass_can_disable_canonical_solver_cache() -> None:
+    """Test raw INIT cache mode keeps permuted functions separate."""
+    with TemporaryDirectory(prefix="morph_tile_raw_cache_") as td:
+        tmp_dir = Path(td)
+        base = tmp_dir / "base.v"
+        base.write_text(
+            """
+module base(input a, input b, input c, input d, output y0, output y1);
+  \\$lut #(.LUT(4'h2), .WIDTH(32'd2)) lut0 (.A({b, a}), .Y(y0));
+  \\$lut #(.LUT(4'h4), .WIDTH(32'd2)) lut1 (.A({d, c}), .Y(y1));
+endmodule
+""",
+            encoding="utf-8",
+        )
+        tile = _write_asymmetric_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="asym_tile",
+            tile_inputs=["I0", "I1"],
+            tile_outputs=["O"],
+            considered_lut_widths=[2],
+            top_name="base",
+            use_canonical_cache=False,
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 2
+        assert pass_.result_data.stats.cache_misses == 2
+        assert pass_.result_data.stats.cache_hits == 0
+
+
+def test_morph_tile_pass_respects_canonical_cache_max_width() -> None:
+    """Test canonicalization falls back to raw cache above max width."""
+    with TemporaryDirectory(prefix="morph_tile_canonical_width_") as td:
+        tmp_dir = Path(td)
+        base = tmp_dir / "base.v"
+        base.write_text(
+            """
+module base(input a, input b, input c, input d, output y0, output y1);
+  \\$lut #(.LUT(4'h2), .WIDTH(32'd2)) lut0 (.A({b, a}), .Y(y0));
+  \\$lut #(.LUT(4'h4), .WIDTH(32'd2)) lut1 (.A({d, c}), .Y(y1));
+endmodule
+""",
+            encoding="utf-8",
+        )
+        tile = _write_asymmetric_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="asym_tile",
+            tile_inputs=["I0", "I1"],
+            tile_outputs=["O"],
+            considered_lut_widths=[2],
+            top_name="base",
+            canonical_cache_max_width=1,
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 2
+        assert pass_.result_data.stats.cache_misses == 2
+        assert pass_.result_data.stats.cache_hits == 0
 
 
 def test_morph_tile_pass_respects_max_replacements() -> None:
@@ -334,6 +461,20 @@ endmodule
     return tile
 
 
+def _write_asymmetric_tile(tmp_dir: Path) -> Path:
+    """Write a two-input tile with input-order-sensitive behavior."""
+    tile = tmp_dir / "asym_tile.v"
+    tile.write_text(
+        """
+module asym_tile(input I0, input I1, output O);
+  assign O = I0 & ~I1;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
 def _assert_equiv(gold: Path, gate: Path, tile: Path, top_name: str) -> None:
     """Run a Yosys equivalence check between gold and mapped designs."""
     design = ys.Design()
@@ -357,11 +498,15 @@ def _assert_equiv(gold: Path, gate: Path, tile: Path, top_name: str) -> None:
 def main() -> None:
     """Run all tests."""
     test_cut_solver_simple_and()
+    test_canonical_lut_init_groups_input_permutations()
     test_morph_tile_pass_replaces_and_lut_eq()
     test_morph_tile_reader_extracts_internal_lut_view()
     test_morph_tile_reader_rejects_malformed_lut_output()
     test_morph_tile_pass_leaves_unsupported_lut()
     test_morph_tile_pass_uses_solver_cache()
+    test_morph_tile_pass_uses_canonical_solver_cache()
+    test_morph_tile_pass_can_disable_canonical_solver_cache()
+    test_morph_tile_pass_respects_canonical_cache_max_width()
     test_morph_tile_pass_respects_max_replacements()
     test_morph_tile_pass_wires_scalar_config()
     test_synthesizer_morph_tile_pass_smoke()

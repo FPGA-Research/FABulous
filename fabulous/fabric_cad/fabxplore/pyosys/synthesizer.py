@@ -436,6 +436,8 @@ class ArchitectureSynthesizer(ABC):
         allow_input_reuse: bool = True,
         allow_input_constants: bool = False,
         allow_output_reuse: bool = False,
+        use_canonical_cache: bool = True,
+        canonical_cache_max_width: int = 6,
         track_progress: bool = True,
         progress_chunk_size: int = 50,
         top_name: str | None = None,
@@ -474,6 +476,11 @@ class ArchitectureSynthesizer(ABC):
             Whether SAT may tie tile inputs to constants.
         allow_output_reuse : bool
             Whether SAT may reuse tile outputs.
+        use_canonical_cache : bool
+            Whether to share cache entries across input-permutation-equivalent
+            LUT INIT functions.
+        canonical_cache_max_width : int
+            Maximum LUT width where permutation canonicalization is attempted.
         track_progress : bool
             Whether to log morph-tile mapping progress.
         progress_chunk_size : int
@@ -501,6 +508,8 @@ class ArchitectureSynthesizer(ABC):
             allow_input_reuse=allow_input_reuse,
             allow_input_constants=allow_input_constants,
             allow_output_reuse=allow_output_reuse,
+            use_canonical_cache=use_canonical_cache,
+            canonical_cache_max_width=canonical_cache_max_width,
             track_progress=track_progress,
             progress_chunk_size=progress_chunk_size,
             top_name=top_name or self.design.top_name(),

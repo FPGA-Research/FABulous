@@ -174,6 +174,8 @@ class MorphTileResult:
         LUT widths considered by the mapper.
     max_replacements : int | None
         Optional replacement cap.
+    use_canonical_cache : bool
+        Whether cache keys use permutation-canonical INIT values.
     stats : MorphTileStats
         Summary counters.
     replacements : tuple[MorphTileReplacement, ...]
@@ -186,6 +188,7 @@ class MorphTileResult:
     tile_top_name: str
     considered_lut_widths: list[int]
     max_replacements: int | None
+    use_canonical_cache: bool
     stats: MorphTileStats
     replacements: tuple[MorphTileReplacement, ...]
     report_summary: str = ""

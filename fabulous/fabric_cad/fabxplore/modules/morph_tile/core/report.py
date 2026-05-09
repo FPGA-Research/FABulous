@@ -22,6 +22,7 @@ Configuration
 - considered_lut_widths: {{ result.considered_lut_widths }}
 - max_replacements:
   {{ result.max_replacements if result.max_replacements is not none else "none" }}
+- use_canonical_cache: {{ result.use_canonical_cache }}
 
 Summary
 - Total LUTs: {{ stats.total_luts }}

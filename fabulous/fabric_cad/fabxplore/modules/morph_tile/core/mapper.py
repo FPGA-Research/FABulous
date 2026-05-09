@@ -11,6 +11,10 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.canonical import (
+    canonicalize_lut_init,
+    remap_cut_solve_result,
+)
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.cut_solver import (
     CutSolver,
 )
@@ -74,6 +78,11 @@ class MorphTileMapper:
         Whether SAT may tie tile inputs to constants.
     allow_output_reuse : bool
         Whether SAT may reuse tile outputs.
+    use_canonical_cache : bool
+        Whether cache entries are shared across input-permutation-equivalent
+        LUT INIT functions.
+    canonical_cache_max_width : int
+        Maximum LUT width where permutation canonicalization is attempted.
     track_progress : bool
         Whether to log progress updates while candidates are processed.
     progress_chunk_size : int
@@ -98,6 +107,8 @@ class MorphTileMapper:
         allow_input_reuse: bool = True,
         allow_input_constants: bool = False,
         allow_output_reuse: bool = False,
+        use_canonical_cache: bool = True,
+        canonical_cache_max_width: int = 6,
         track_progress: bool = True,
         progress_chunk_size: int = 50,
         debug: bool = False,
@@ -117,6 +128,8 @@ class MorphTileMapper:
         self.allow_input_reuse = allow_input_reuse
         self.allow_input_constants = allow_input_constants
         self.allow_output_reuse = allow_output_reuse
+        self.use_canonical_cache = use_canonical_cache
+        self.canonical_cache_max_width = canonical_cache_max_width
         self.track_progress = track_progress
         self.progress_chunk_size = progress_chunk_size
         self.debug = debug
@@ -231,22 +244,30 @@ class MorphTileMapper:
                 continue
 
             candidate_luts += 1
-            cache_key = (width, init)
+            canonical = canonicalize_lut_init(
+                init=init,
+                width=width,
+                enabled=(
+                    self.use_canonical_cache and width <= self.canonical_cache_max_width
+                ),
+            )
+            cache_key = canonical.cache_key
             if cache_key in self._cache:
-                solve_result = self._cache[cache_key]
+                canonical_result = self._cache[cache_key]
                 cache_hits += 1
                 tracker.cache_hit()
             else:
-                solve_result = solver.solve_lut(
-                    init=init,
+                canonical_result = solver.solve_lut(
+                    init=canonical.canonical_init,
                     lut_size=width,
                     allow_input_reuse=self.allow_input_reuse,
                     allow_input_constants=self.allow_input_constants,
                     allow_output_reuse=self.allow_output_reuse,
                 )
-                self._cache[cache_key] = solve_result
+                self._cache[cache_key] = canonical_result
                 cache_misses += 1
                 tracker.cache_miss()
+            solve_result = remap_cut_solve_result(canonical_result, canonical)
 
             if not solve_result.sat:
                 failed_luts += 1
@@ -287,6 +308,7 @@ class MorphTileMapper:
             tile_top_name=self.tile_top_name,
             considered_lut_widths=self.considered_lut_widths,
             max_replacements=self.max_replacements,
+            use_canonical_cache=self.use_canonical_cache,
             stats=stats,
             replacements=tuple(replacements),
         )

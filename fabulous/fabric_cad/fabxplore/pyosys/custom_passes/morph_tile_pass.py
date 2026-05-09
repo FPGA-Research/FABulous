@@ -47,6 +47,11 @@ class MorphTilePass(SynthPass):
         Whether SAT may tie tile inputs to constants.
     allow_output_reuse : bool
         Whether SAT may reuse tile outputs.
+    use_canonical_cache : bool
+        Whether to share cache entries across input-permutation-equivalent LUT
+        INIT functions.
+    canonical_cache_max_width : int
+        Maximum LUT width where permutation canonicalization is attempted.
     track_progress : bool
         Whether to log morph-tile mapping progress.
     progress_chunk_size : int
@@ -71,6 +76,8 @@ class MorphTilePass(SynthPass):
     allow_input_reuse: bool = True
     allow_input_constants: bool = False
     allow_output_reuse: bool = False
+    use_canonical_cache: bool = True
+    canonical_cache_max_width: int = 6
     track_progress: bool = True
     progress_chunk_size: int = 50
     top_name: str | None = None
@@ -102,6 +109,8 @@ class MorphTilePass(SynthPass):
             allow_input_reuse=self.allow_input_reuse,
             allow_input_constants=self.allow_input_constants,
             allow_output_reuse=self.allow_output_reuse,
+            use_canonical_cache=self.use_canonical_cache,
+            canonical_cache_max_width=self.canonical_cache_max_width,
             track_progress=self.track_progress,
             progress_chunk_size=self.progress_chunk_size,
             debug=self.debug,
