@@ -169,6 +169,17 @@ class PyosysBridge:
         path.parent.mkdir(parents=True, exist_ok=True)
         self._run(f"write_verilog -noattr -noexpr {self._quote_path(path)}")
 
+    def write_blif_path(self, path: Path) -> None:
+        """Write the active design to a BLIF file.
+
+        Parameters
+        ----------
+        path : Path
+            Destination BLIF file path.
+        """
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._run(f"write_blif {self._quote_path(path)}")
+
     def to_netlist_dict(self) -> dict:
         """Return the active design as a parsed Yosys JSON dictionary.
 

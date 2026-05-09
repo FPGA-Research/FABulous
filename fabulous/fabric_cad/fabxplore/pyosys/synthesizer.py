@@ -38,6 +38,9 @@ from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_layering_pass import
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_mapper_pass import (
     LutMapperPass,
 )
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.morph_tile_pass import (
+    MorphTilePass,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
     PyosysBridge,
 )
@@ -414,6 +417,101 @@ class ArchitectureSynthesizer(ABC):
 
         self.add_primitive(result.verilog_model)
 
+        return result
+
+    def design_morph_tile_pass(
+        self,
+        tile_verilog_path: Path,
+        tile_top_name: str,
+        tile_inputs: list[str],
+        tile_outputs: list[str],
+        considered_lut_widths: list[int],
+        log_report: bool = True,
+        tile_configs: list[str] | None = None,
+        tile_config_prefixes: list[str] | None = None,
+        include_unused_inputs: bool = False,
+        max_replacements: int | None = None,
+        map_luts_first: bool = False,
+        lut_map_size: int | None = None,
+        allow_input_reuse: bool = True,
+        allow_input_constants: bool = False,
+        allow_output_reuse: bool = False,
+        track_progress: bool = True,
+        progress_chunk_size: int = 50,
+        top_name: str | None = None,
+    ) -> MorphTilePass:
+        """Run morph-tile replacement on the current design.
+
+        Parameters
+        ----------
+        tile_verilog_path : Path
+            Verilog source file containing the morph-tile module.
+        tile_top_name : str
+            Module name to instantiate for replacements.
+        tile_inputs : list[str]
+            Candidate tile data input ports.
+        tile_outputs : list[str]
+            Candidate tile output ports.
+        considered_lut_widths : list[int]
+            LUT widths considered for replacement.
+        log_report : bool
+            If ``True``, log the morph-tile report after execution.
+        tile_configs : list[str] | None
+            Explicit tile configuration input ports.
+        tile_config_prefixes : list[str] | None
+            Prefixes used to classify BLIF inputs as configuration bits.
+        include_unused_inputs : bool
+            Whether tile inputs unused by a solved mapping are tied to zero.
+        max_replacements : int | None
+            Optional cap on successful replacements.
+        map_luts_first : bool
+            Whether to run a simple LUT mapping flow before replacement.
+        lut_map_size : int | None
+            Maximum LUT size for optional pre-mapping.
+        allow_input_reuse : bool
+            Whether SAT may map several tile inputs to the same LUT input.
+        allow_input_constants : bool
+            Whether SAT may tie tile inputs to constants.
+        allow_output_reuse : bool
+            Whether SAT may reuse tile outputs.
+        track_progress : bool
+            Whether to log morph-tile mapping progress.
+        progress_chunk_size : int
+            Number of processed candidate LUTs between progress updates.
+        top_name : str | None
+            Top module to process. If ``None``, use the current design top.
+
+        Returns
+        -------
+        MorphTilePass
+            Pass instance containing result and report data.
+        """
+        result = MorphTilePass(
+            tile_verilog_path=tile_verilog_path,
+            tile_top_name=tile_top_name,
+            tile_inputs=tile_inputs,
+            tile_outputs=tile_outputs,
+            considered_lut_widths=considered_lut_widths,
+            tile_configs=tile_configs,
+            tile_config_prefixes=tile_config_prefixes,
+            include_unused_inputs=include_unused_inputs,
+            max_replacements=max_replacements,
+            map_luts_first=map_luts_first,
+            lut_map_size=lut_map_size,
+            allow_input_reuse=allow_input_reuse,
+            allow_input_constants=allow_input_constants,
+            allow_output_reuse=allow_output_reuse,
+            track_progress=track_progress,
+            progress_chunk_size=progress_chunk_size,
+            top_name=top_name or self.design.top_name(),
+            debug=self.debug,
+        )
+        result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        self.add_primitive(result.verilog_model)
         return result
 
     def design_lut_mapper_pass(
