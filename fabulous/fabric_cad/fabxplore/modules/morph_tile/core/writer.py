@@ -12,6 +12,7 @@ import pyosys.libyosys as ys
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.models import (
     MorphTileReplacement,
     MorphTileResult,
+    ReplacementPortRef,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 
@@ -69,28 +70,14 @@ class MorphTileWriter:
             Module containing the original LUT.
         replacement : MorphTileReplacement
             Replacement to apply.
-
-        Raises
-        ------
-        RuntimeError
-            If the original LUT has malformed ports or cannot be found.
         """
         old_cell = _find_cell(module, replacement.original_cell_id)
-        input_signal = old_cell.getPort(_id("\\A"))
-        output_signal = old_cell.getPort(_id("\\Y"))
-        if output_signal.size() != 1:
-            raise RuntimeError(
-                f"$lut '{replacement.original_cell_id}' must have exactly one Y bit"
-            )
-
         new_cell = module.addCell(
             _id(f"\\{replacement.replacement_cell_id}"),
             _id(f"\\{self.tile_top_name}"),
         )
-        for tile_input, source in replacement.input_mapping.items():
-            signal = _source_to_signal(source, input_signal)
-            if signal is not None:
-                new_cell.setPort(_id(f"\\{tile_input}"), signal)
+        for tile_input, ref in replacement.input_ports.items():
+            new_cell.setPort(_id(f"\\{tile_input}"), _ref_to_signal(old_cell, ref))
 
         if self.include_unused_inputs:
             zero = _const_signal(0, 1)
@@ -99,8 +86,8 @@ class MorphTileWriter:
                 if not new_cell.hasPort(port_id):
                     new_cell.setPort(port_id, zero)
 
-        for _, tile_output in replacement.output_mapping.items():
-            new_cell.setPort(_id(f"\\{tile_output}"), output_signal)
+        for tile_output, ref in replacement.output_ports.items():
+            new_cell.setPort(_id(f"\\{tile_output}"), _ref_to_signal(old_cell, ref))
 
         _add_config_ports(new_cell, replacement.config_bits)
         module.remove(old_cell)
@@ -158,32 +145,37 @@ def _find_cell(module: ys.Module, cell_id: str) -> ys.Cell:
     raise RuntimeError(f"Cell '{cell_id}' not found in module '{module.name}'")
 
 
-def _source_to_signal(source: str, input_signal: ys.SigSpec) -> ys.SigSpec | None:
-    """Convert a solved source name to a pyosys signal.
+def _ref_to_signal(cell: ys.Cell, ref: ReplacementPortRef) -> ys.SigSpec:
+    """Convert a replacement reference to a pyosys signal.
 
     Parameters
     ----------
-    source : str
-        Source name such as ``A0``, ``0``, or ``1``.
-    input_signal : ys.SigSpec
-        Original LUT ``A`` input vector.
+    cell : ys.Cell
+        Original cell being replaced.
+    ref : ReplacementPortRef
+        Replacement signal reference.
 
     Returns
     -------
-    ys.SigSpec | None
-        Single-bit pyosys signal, or ``None`` for unsupported source names.
+    ys.SigSpec
+        Single-bit pyosys signal.
+
+    Raises
+    ------
+    RuntimeError
+        If the referenced original-cell port bit is invalid.
     """
-    if source in {"0", "1"}:
-        return _const_signal(int(source), 1)
-    if not source.startswith("A"):
-        return None
-    index_text = source.removeprefix("A")
-    if not index_text.isdigit():
-        return None
-    index = int(index_text)
-    if index >= input_signal.size():
-        return None
-    return ys.SigSpec(input_signal.at(index), 1)
+    if ref.constant is not None:
+        return _const_signal(ref.constant, 1)
+    if ref.cell_port is None:
+        raise RuntimeError("replacement reference must contain a signal source")
+    signal = cell.getPort(_id(f"\\{ref.cell_port.port}"))
+    if ref.cell_port.index >= signal.size():
+        raise RuntimeError(
+            f"Cell '{_clean_name(cell.name)}' port '{ref.cell_port.port}' "
+            f"does not have bit {ref.cell_port.index}"
+        )
+    return ys.SigSpec(signal.at(ref.cell_port.index), 1)
 
 
 def _add_config_ports(

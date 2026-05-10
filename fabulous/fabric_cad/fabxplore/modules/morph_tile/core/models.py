@@ -1,8 +1,8 @@
 """Typed models for morph-tile cut solving.
 
 The cut solver uses SAT-based equivalence to check whether a target configurable tile
-can implement a single LUT truth table. These models keep the public result compact
-while preserving the decoded mappings that are useful for later morph-tile flows.
+can implement one source-design cut. These models keep the public result compact while
+preserving decoded mappings for later morph-tile flows.
 """
 
 from __future__ import annotations
@@ -21,13 +21,13 @@ class CutSolveResult:
     Attributes
     ----------
     sat : bool
-        Whether the requested LUT function can be implemented.
+        Whether the requested cut function can be implemented.
     input_mapping : dict[str, str]
-        Mapping from candidate tile input names to logical LUT input names.
+        Mapping from candidate tile input names to logical spec input names.
     scoped_input_mapping : dict[str, str]
         Same mapping with SAT-fab circuit role prefixes.
     output_mapping : dict[str, str]
-        Mapping from logical LUT output names to selected candidate tile output
+        Mapping from logical spec output names to selected candidate tile output
         names.
     scoped_output_mapping : dict[str, str]
         Same mapping with SAT-fab circuit role prefixes.
@@ -48,23 +48,94 @@ class CutSolveResult:
 
 
 @dataclass(frozen=True)
+class CellPortBitRef:
+    """Reference one bit of a port on the original netlist cell.
+
+    Attributes
+    ----------
+    port : str
+        Original cell port name without a leading backslash.
+    index : int
+        Bit index within the original port signal.
+    """
+
+    port: str
+    index: int = 0
+
+
+@dataclass(frozen=True)
+class ReplacementPortRef:
+    """Describe a signal used by a replacement tile port.
+
+    Attributes
+    ----------
+    constant : int | None
+        Constant bit value when this reference is tied to ``0`` or ``1``.
+    cell_port : CellPortBitRef | None
+        Original-cell port bit to reuse when the signal comes from the replaced
+        cell.
+    """
+
+    constant: int | None = None
+    cell_port: CellPortBitRef | None = None
+
+    @classmethod
+    def const(cls, value: int | bool) -> ReplacementPortRef:
+        """Build a constant replacement-port reference.
+
+        Parameters
+        ----------
+        value : int | bool
+            Boolean-like constant value.
+
+        Returns
+        -------
+        ReplacementPortRef
+            Constant signal reference.
+        """
+        return cls(constant=1 if bool(value) else 0)
+
+    @classmethod
+    def cell_port_bit(cls, port: str, index: int = 0) -> ReplacementPortRef:
+        """Build an original-cell port-bit reference.
+
+        Parameters
+        ----------
+        port : str
+            Original cell port name without a leading backslash.
+        index : int
+            Bit index within the original port.
+
+        Returns
+        -------
+        ReplacementPortRef
+            Port-bit signal reference.
+        """
+        return cls(cell_port=CellPortBitRef(port=port, index=index))
+
+
+@dataclass(frozen=True)
 class MorphTileReplacement:
-    """Describe one LUT replaced by a morph-tile instance.
+    """Describe one source cell replaced by a morph-tile instance.
 
     Attributes
     ----------
     original_cell_id : str
-        Original Yosys ``$lut`` instance name.
+        Original Yosys cell instance name.
     replacement_cell_id : str
         New morph-tile instance name.
     width : int
-        Width of the replaced LUT.
+        Width-like value of the replaced cut, used for report compatibility.
     init : int
-        INIT value of the replaced LUT.
+        INIT-like value of the replaced cut, used for report compatibility.
     input_mapping : dict[str, str]
-        Candidate tile input to logical LUT input mapping.
+        Decoded SAT candidate tile input to spec input mapping.
     output_mapping : dict[str, str]
-        Logical LUT output to selected candidate tile output mapping.
+        Decoded SAT spec output to selected candidate tile output mapping.
+    input_ports : dict[str, ReplacementPortRef]
+        Concrete replacement tile input port wiring.
+    output_ports : dict[str, ReplacementPortRef]
+        Concrete replacement tile output port wiring.
     config_bits : dict[str, bool | None]
         Solved configuration values.
     """
@@ -75,26 +146,31 @@ class MorphTileReplacement:
     init: int
     input_mapping: dict[str, str]
     output_mapping: dict[str, str]
+    input_ports: dict[str, ReplacementPortRef]
+    output_ports: dict[str, ReplacementPortRef]
     config_bits: dict[str, bool | None]
 
 
 @dataclass(frozen=True)
-class MorphTileLutCell:
-    """Represent one LUT cell extracted from the source design.
+class MorphTileNetlistCell:
+    """Represent one generic netlist cell in the source design.
 
     Attributes
     ----------
     cell_id : str
         Cell name in the selected top module.
-    width : int
-        LUT input width.
-    init : int
-        Parsed LSB-first INIT value.
+    cell_type : str
+        Cell type without a leading Yosys escape backslash.
+    parameters : dict[str, str]
+        Cell parameters normalized to string values.
+    connections : dict[str, tuple[str, ...]]
+        Cell port connections normalized to string net tokens.
     """
 
     cell_id: str
-    width: int
-    init: int
+    cell_type: str
+    parameters: dict[str, str]
+    connections: dict[str, tuple[str, ...]]
 
 
 @dataclass(frozen=True)
@@ -105,12 +181,12 @@ class MorphTileDesign:
     ----------
     top_name : str
         Name of the top module that was read.
-    lut_cells : tuple[MorphTileLutCell, ...]
-        LUT cells found in stable module order.
+    cells : tuple[MorphTileNetlistCell, ...]
+        Cells found in stable module order.
     """
 
     top_name: str
-    lut_cells: tuple[MorphTileLutCell, ...]
+    cells: tuple[MorphTileNetlistCell, ...]
 
 
 @dataclass(frozen=True)
@@ -119,45 +195,122 @@ class MorphTileStats:
 
     Attributes
     ----------
-    total_luts : int
-        Total ``$lut`` cells in the processed top module.
-    candidate_luts : int
-        LUTs whose widths were considered for morphing.
-    replaced_luts : int
-        Candidate LUTs successfully replaced.
-    failed_luts : int
-        Candidate LUTs that SAT could not implement.
-    skipped_luts : int
-        LUTs ignored because their width was not considered or the replacement
-        limit was reached.
-    skipped_width_luts : int
-        LUTs ignored because their width was not selected.
-    skipped_limit_luts : int
-        Candidate LUTs ignored after the replacement limit was reached.
+    total_candidates : int
+        Source-design candidates yielded by all enabled circuit adapters.
+    checked_candidates : int
+        Candidates selected for SAT solving.
+    replaced_candidates : int
+        Candidates successfully replaced.
+    failed_candidates : int
+        Checked candidates that SAT could not implement.
+    skipped_candidates : int
+        Candidates ignored because filters did not select them or the
+        replacement limit was reached.
+    skipped_filter_candidates : int
+        Candidates ignored by adapter-local filters.
+    skipped_limit_candidates : int
+        Candidates ignored after the replacement limit was reached.
     cache_hits : int
         Number of candidate checks served by the solver cache.
     cache_misses : int
-        Number of unique ``(width, init)`` checks sent to the solver.
+        Number of unique checks sent to the solver.
     replacements_by_width : dict[str, int]
-        Replaced LUT histogram by width label.
+        Replaced candidate histogram by width label.
     failures_by_width : dict[str, int]
-        Failed LUT histogram by width label.
+        Failed candidate histogram by width label.
     mapped_init_count : dict[str, int]
-        Most common replaced INIT functions, keyed as ``LUTW:0xINIT``.
+        Most common replaced INIT-like signatures.
     """
 
-    total_luts: int = 0
-    candidate_luts: int = 0
-    replaced_luts: int = 0
-    failed_luts: int = 0
-    skipped_luts: int = 0
-    skipped_width_luts: int = 0
-    skipped_limit_luts: int = 0
+    total_candidates: int = 0
+    checked_candidates: int = 0
+    replaced_candidates: int = 0
+    failed_candidates: int = 0
+    skipped_candidates: int = 0
+    skipped_filter_candidates: int = 0
+    skipped_limit_candidates: int = 0
     cache_hits: int = 0
     cache_misses: int = 0
     replacements_by_width: dict[str, int] = field(default_factory=dict)
     failures_by_width: dict[str, int] = field(default_factory=dict)
     mapped_init_count: dict[str, int] = field(default_factory=dict)
+
+    @property
+    def total_luts(self) -> int:
+        """Return the legacy total-LUT counter alias.
+
+        Returns
+        -------
+        int
+            ``total_candidates``.
+        """
+        return self.total_candidates
+
+    @property
+    def candidate_luts(self) -> int:
+        """Return the legacy checked-LUT counter alias.
+
+        Returns
+        -------
+        int
+            ``checked_candidates``.
+        """
+        return self.checked_candidates
+
+    @property
+    def replaced_luts(self) -> int:
+        """Return the legacy replaced-LUT counter alias.
+
+        Returns
+        -------
+        int
+            ``replaced_candidates``.
+        """
+        return self.replaced_candidates
+
+    @property
+    def failed_luts(self) -> int:
+        """Return the legacy failed-LUT counter alias.
+
+        Returns
+        -------
+        int
+            ``failed_candidates``.
+        """
+        return self.failed_candidates
+
+    @property
+    def skipped_luts(self) -> int:
+        """Return the legacy skipped-LUT counter alias.
+
+        Returns
+        -------
+        int
+            ``skipped_candidates``.
+        """
+        return self.skipped_candidates
+
+    @property
+    def skipped_width_luts(self) -> int:
+        """Return the legacy skipped-width counter alias.
+
+        Returns
+        -------
+        int
+            ``skipped_filter_candidates``.
+        """
+        return self.skipped_filter_candidates
+
+    @property
+    def skipped_limit_luts(self) -> int:
+        """Return the legacy skipped-limit counter alias.
+
+        Returns
+        -------
+        int
+            ``skipped_limit_candidates``.
+        """
+        return self.skipped_limit_candidates
 
 
 @dataclass(frozen=True)
@@ -170,12 +323,10 @@ class MorphTileResult:
         Processed top module.
     tile_top_name : str
         Morph-tile module instantiated for replacements.
-    considered_lut_widths : list[int]
-        LUT widths considered by the mapper.
+    filter_summary : dict[str, list[str]]
+        User-facing filters selected by enabled circuit adapters.
     max_replacements : int | None
         Optional replacement cap.
-    use_canonical_cache : bool
-        Whether cache keys use permutation-canonical INIT values.
     stats : MorphTileStats
         Summary counters.
     replacements : tuple[MorphTileReplacement, ...]
@@ -186,9 +337,8 @@ class MorphTileResult:
 
     top_name: str
     tile_top_name: str
-    considered_lut_widths: list[int]
+    filter_summary: dict[str, list[str]]
     max_replacements: int | None
-    use_canonical_cache: bool
     stats: MorphTileStats
     replacements: tuple[MorphTileReplacement, ...]
     report_summary: str = ""
@@ -200,11 +350,14 @@ class MorphTileResult:
         Returns
         -------
         float
-            ``100 * replaced_luts / total_luts`` or ``0.0`` for empty designs.
+            ``100 * replaced_candidates / total_candidates`` or ``0.0`` for
+            empty designs.
         """
-        if self.stats.total_luts <= 0:
+        if self.stats.total_candidates <= 0:
             return 0.0
-        return (100.0 * self.stats.replaced_luts) / float(self.stats.total_luts)
+        return (100.0 * self.stats.replaced_candidates) / float(
+            self.stats.total_candidates
+        )
 
     @property
     def replaced_checked_candidate_percent(self) -> float:
@@ -213,10 +366,12 @@ class MorphTileResult:
         Returns
         -------
         float
-            ``100 * replaced_luts / candidate_luts`` or ``0.0`` when no
-            candidate was checked. ``candidate_luts`` is affected by
+            ``100 * replaced_candidates / checked_candidates`` or ``0.0`` when
+            no candidate was checked. ``checked_candidates`` is affected by
             ``max_replacements`` because candidates after the cap are skipped.
         """
-        if self.stats.candidate_luts <= 0:
+        if self.stats.checked_candidates <= 0:
             return 0.0
-        return (100.0 * self.stats.replaced_luts) / float(self.stats.candidate_luts)
+        return (100.0 * self.stats.replaced_candidates) / float(
+            self.stats.checked_candidates
+        )

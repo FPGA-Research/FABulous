@@ -1,4 +1,4 @@
-"""Plan and apply morph-tile replacements for compatible LUT cells.
+"""Plan and apply morph-tile replacements for compatible source cells.
 
 The mapper coordinates the morph-tile flow without depending on any concrete netlist
 storage format. A reader extracts stable Python objects from the design, this mapper
@@ -11,15 +11,16 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.canonical import (
-    canonicalize_lut_init,
-    remap_cut_solve_result,
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.base import (
+    MorphCircuitEnvironment,
+    MorphCircuitKind,
+    MorphSolveOptions,
+    MorphTileContext,
 )
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.cut_solver import (
     CutSolver,
 )
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.models import (
-    CutSolveResult,
     MorphTileDesign,
     MorphTileReplacement,
     MorphTileResult,
@@ -31,6 +32,9 @@ from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.process_tracker impor
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.reader import (
     MorphTileReader,
 )
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.registry import (
+    build_morph_circuits,
+)
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.report import (
     render_morph_tile_report,
 )
@@ -39,13 +43,14 @@ from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.writer import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from pathlib import Path
 
     from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 
 
 class MorphTileMapper:
-    """Replace implementable ``$lut`` cells with morph-tile instances.
+    """Replace implementable source cells with morph-tile instances.
 
     Parameters
     ----------
@@ -57,8 +62,11 @@ class MorphTileMapper:
         Candidate tile data input ports available to the SAT solver.
     tile_outputs : list[str]
         Candidate tile output ports available to the SAT solver.
-    considered_lut_widths : list[int]
-        LUT widths that should be checked for replacement.
+    enabled_circuits : list[str | MorphCircuitKind] | None
+        Circuit adapters to enable. ``None`` enables only normal ``$lut``.
+    circuit_options : dict[str, object] | None
+        Generic adapter option payload. Future circuit adapters can read their
+        own options from this dictionary without changing mapper orchestration.
     tile_configs : list[str] | None
         Explicit tile configuration input names.
     tile_config_prefixes : list[str] | None
@@ -78,11 +86,6 @@ class MorphTileMapper:
         Whether SAT may tie tile inputs to constants.
     allow_output_reuse : bool
         Whether SAT may reuse tile outputs.
-    use_canonical_cache : bool
-        Whether cache entries are shared across input-permutation-equivalent
-        LUT INIT functions.
-    canonical_cache_max_width : int
-        Maximum LUT width where permutation canonicalization is attempted.
     track_progress : bool
         Whether to log progress updates while candidates are processed.
     progress_chunk_size : int
@@ -97,7 +100,8 @@ class MorphTileMapper:
         tile_top_name: str,
         tile_inputs: list[str],
         tile_outputs: list[str],
-        considered_lut_widths: list[int],
+        enabled_circuits: list[str | MorphCircuitKind] | None = None,
+        circuit_options: dict[str, object] | None = None,
         tile_configs: list[str] | None = None,
         tile_config_prefixes: list[str] | None = None,
         include_unused_inputs: bool = False,
@@ -107,8 +111,6 @@ class MorphTileMapper:
         allow_input_reuse: bool = True,
         allow_input_constants: bool = False,
         allow_output_reuse: bool = False,
-        use_canonical_cache: bool = True,
-        canonical_cache_max_width: int = 6,
         track_progress: bool = True,
         progress_chunk_size: int = 50,
         debug: bool = False,
@@ -117,8 +119,8 @@ class MorphTileMapper:
         self.tile_top_name = tile_top_name
         self.tile_inputs = tile_inputs
         self.tile_outputs = tile_outputs
-        self.considered_lut_widths = considered_lut_widths
-        self._considered_lut_width_set = set(considered_lut_widths)
+        self.enabled_circuits = enabled_circuits
+        self.circuit_options = circuit_options or {}
         self.tile_configs = tile_configs
         self.tile_config_prefixes = tile_config_prefixes
         self.include_unused_inputs = include_unused_inputs
@@ -128,12 +130,9 @@ class MorphTileMapper:
         self.allow_input_reuse = allow_input_reuse
         self.allow_input_constants = allow_input_constants
         self.allow_output_reuse = allow_output_reuse
-        self.use_canonical_cache = use_canonical_cache
-        self.canonical_cache_max_width = canonical_cache_max_width
         self.track_progress = track_progress
         self.progress_chunk_size = progress_chunk_size
         self.debug = debug
-        self._cache: dict[tuple[int, int], CutSolveResult] = {}
 
     def map_from_design(
         self,
@@ -145,7 +144,7 @@ class MorphTileMapper:
         Parameters
         ----------
         design : PyosysBridge
-            Design containing ``$lut`` cells.
+            Design containing source cells for enabled circuit adapters.
         top_name : str | None
             Top module to process. If ``None``, use the bridge top.
 
@@ -206,18 +205,58 @@ class MorphTileMapper:
             config_prefixes=self.tile_config_prefixes,
             debug=self.debug,
         )
+        solve_options = MorphSolveOptions(
+            allow_input_reuse=self.allow_input_reuse,
+            allow_input_constants=self.allow_input_constants,
+            allow_output_reuse=self.allow_output_reuse,
+        )
+        env = MorphCircuitEnvironment(
+            solver=solver,
+            solve_options=solve_options,
+            tile_inputs=self.tile_inputs,
+            tile_outputs=self.tile_outputs,
+            options={
+                "enabled_circuits": self.enabled_circuits,
+                "circuit_options": self.circuit_options,
+            },
+        )
+        circuits = build_morph_circuits(
+            env=env,
+            enabled_circuits=self.enabled_circuits,
+        )
+        context = MorphTileContext(design=morph_design)
+        candidate_groups = [
+            (circuit, tuple(circuit.iter_candidates(context))) for circuit in circuits
+        ]
+        total_candidates = sum(
+            len(candidates) for _circuit, candidates in candidate_groups
+        )
+        checked_candidate_count = sum(
+            1
+            for circuit, candidates in candidate_groups
+            for candidate in candidates
+            if circuit.is_enabled_candidate(candidate)
+        )
+        filter_summary = _merge_filter_summaries(
+            circuit.filter_summary() for circuit in circuits
+        )
+
         tracker = MorphTileProcessTracker(
             enabled=self.track_progress,
             chunk_size=self.progress_chunk_size,
         )
-        tracker.start(morph_design, self.considered_lut_widths)
+        tracker.start(
+            top_name=morph_design.top_name,
+            total_candidates=total_candidates,
+            checked_candidates=checked_candidate_count,
+            filter_summary=filter_summary,
+        )
 
-        total_luts = 0
-        candidate_luts = 0
-        failed_luts = 0
-        skipped_luts = 0
-        skipped_width_luts = 0
-        skipped_limit_luts = 0
+        checked_candidates = 0
+        failed_candidates = 0
+        skipped_candidates = 0
+        skipped_filter_candidates = 0
+        skipped_limit_candidates = 0
         cache_hits = 0
         cache_misses = 0
         replacements: list[MorphTileReplacement] = []
@@ -225,78 +264,51 @@ class MorphTileMapper:
         failures_by_width: dict[str, int] = {}
         mapped_init_count: dict[str, int] = {}
 
-        for lut_cell in morph_design.lut_cells:
-            total_luts += 1
-            width = lut_cell.width
-            init = lut_cell.init
-            if width not in self._considered_lut_width_set:
-                skipped_luts += 1
-                skipped_width_luts += 1
-                tracker.skipped_width()
-                continue
-            if (
-                self.max_replacements is not None
-                and len(replacements) >= self.max_replacements
-            ):
-                skipped_luts += 1
-                skipped_limit_luts += 1
-                tracker.skipped_limit()
-                continue
+        for circuit, candidates in candidate_groups:
+            for candidate in candidates:
+                if not circuit.is_enabled_candidate(candidate):
+                    skipped_candidates += 1
+                    skipped_filter_candidates += 1
+                    tracker.skipped_filter()
+                    continue
+                if (
+                    self.max_replacements is not None
+                    and len(replacements) >= self.max_replacements
+                ):
+                    skipped_candidates += 1
+                    skipped_limit_candidates += 1
+                    tracker.skipped_limit()
+                    continue
 
-            candidate_luts += 1
-            canonical = canonicalize_lut_init(
-                init=init,
-                width=width,
-                enabled=(
-                    self.use_canonical_cache and width <= self.canonical_cache_max_width
-                ),
-            )
-            cache_key = canonical.cache_key
-            if cache_key in self._cache:
-                canonical_result = self._cache[cache_key]
-                cache_hits += 1
-                tracker.cache_hit()
-            else:
-                canonical_result = solver.solve_lut(
-                    init=canonical.canonical_init,
-                    lut_size=width,
-                    allow_input_reuse=self.allow_input_reuse,
-                    allow_input_constants=self.allow_input_constants,
-                    allow_output_reuse=self.allow_output_reuse,
-                )
-                self._cache[cache_key] = canonical_result
-                cache_misses += 1
-                tracker.cache_miss()
-            solve_result = remap_cut_solve_result(canonical_result, canonical)
+                checked_candidates += 1
+                outcome = circuit.solve(candidate)
+                if outcome.cache_hit:
+                    cache_hits += 1
+                    tracker.cache_hit()
+                else:
+                    cache_misses += 1
+                    tracker.cache_miss()
 
-            if not solve_result.sat:
-                failed_luts += 1
-                _increment(failures_by_width, _lut_label(width))
-                tracker.solved(sat=False)
-                continue
+                if not outcome.result.sat:
+                    failed_candidates += 1
+                    _increment(failures_by_width, circuit.width_label(candidate))
+                    tracker.solved(sat=False)
+                    continue
 
-            replacement = MorphTileReplacement(
-                original_cell_id=lut_cell.cell_id,
-                replacement_cell_id=f"{lut_cell.cell_id}__morph_tile",
-                width=width,
-                init=init,
-                input_mapping=solve_result.input_mapping,
-                output_mapping=solve_result.output_mapping,
-                config_bits=solve_result.config_bits,
-            )
-            replacements.append(replacement)
-            _increment(replacements_by_width, _lut_label(width))
-            _increment(mapped_init_count, f"{_lut_label(width)}:0x{init:x}")
-            tracker.solved(sat=True)
+                replacement = circuit.make_replacement(candidate, outcome.result)
+                replacements.append(replacement)
+                _increment(replacements_by_width, circuit.width_label(candidate))
+                _increment(mapped_init_count, circuit.init_label(candidate))
+                tracker.solved(sat=True)
 
         stats = MorphTileStats(
-            total_luts=total_luts,
-            candidate_luts=candidate_luts,
-            replaced_luts=len(replacements),
-            failed_luts=failed_luts,
-            skipped_luts=skipped_luts,
-            skipped_width_luts=skipped_width_luts,
-            skipped_limit_luts=skipped_limit_luts,
+            total_candidates=total_candidates,
+            checked_candidates=checked_candidates,
+            replaced_candidates=len(replacements),
+            failed_candidates=failed_candidates,
+            skipped_candidates=skipped_candidates,
+            skipped_filter_candidates=skipped_filter_candidates,
+            skipped_limit_candidates=skipped_limit_candidates,
             cache_hits=cache_hits,
             cache_misses=cache_misses,
             replacements_by_width=replacements_by_width,
@@ -306,9 +318,8 @@ class MorphTileMapper:
         result = MorphTileResult(
             top_name=morph_design.top_name,
             tile_top_name=self.tile_top_name,
-            considered_lut_widths=self.considered_lut_widths,
+            filter_summary=filter_summary,
             max_replacements=self.max_replacements,
-            use_canonical_cache=self.use_canonical_cache,
             stats=stats,
             replacements=tuple(replacements),
         )
@@ -322,6 +333,28 @@ def _increment(counts: dict[str, int], label: str) -> None:
     counts[label] = counts.get(label, 0) + 1
 
 
-def _lut_label(width: int) -> str:
-    """Return a report label for a LUT width."""
-    return f"LUT{width}"
+def _merge_filter_summaries(
+    summaries: Iterable[dict[str, list[str]]],
+) -> dict[str, list[str]]:
+    """Merge adapter filter summaries while preserving value order.
+
+    Parameters
+    ----------
+    summaries : Iterable[dict[str, list[str]]]
+        Filter summaries returned by enabled adapters.
+
+    Returns
+    -------
+    dict[str, list[str]]
+        Combined filter summary.
+    """
+    merged: dict[str, list[str]] = {}
+    for summary in summaries:
+        for key, values in summary.items():
+            target = merged.setdefault(key, [])
+            seen = set(target)
+            for value in values:
+                if value not in seen:
+                    target.append(value)
+                    seen.add(value)
+    return merged

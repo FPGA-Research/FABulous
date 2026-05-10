@@ -49,6 +49,9 @@ if TYPE_CHECKING:
     from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.architecture import (
         FracLutArchitecture,
     )
+    from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.base import (
+        MorphCircuitKind,
+    )
 
 
 class ArchitectureSynthesizer(ABC):
@@ -425,8 +428,9 @@ class ArchitectureSynthesizer(ABC):
         tile_top_name: str,
         tile_inputs: list[str],
         tile_outputs: list[str],
-        considered_lut_widths: list[int],
         log_report: bool = True,
+        enabled_circuits: list[str | MorphCircuitKind] | None = None,
+        circuit_options: dict[str, object] | None = None,
         tile_configs: list[str] | None = None,
         tile_config_prefixes: list[str] | None = None,
         include_unused_inputs: bool = False,
@@ -436,8 +440,6 @@ class ArchitectureSynthesizer(ABC):
         allow_input_reuse: bool = True,
         allow_input_constants: bool = False,
         allow_output_reuse: bool = False,
-        use_canonical_cache: bool = True,
-        canonical_cache_max_width: int = 6,
         track_progress: bool = True,
         progress_chunk_size: int = 50,
         top_name: str | None = None,
@@ -454,10 +456,12 @@ class ArchitectureSynthesizer(ABC):
             Candidate tile data input ports.
         tile_outputs : list[str]
             Candidate tile output ports.
-        considered_lut_widths : list[int]
-            LUT widths considered for replacement.
         log_report : bool
             If ``True``, log the morph-tile report after execution.
+        enabled_circuits : list[str | MorphCircuitKind] | None
+            Circuit adapters to enable. ``None`` enables only normal ``$lut``.
+        circuit_options : dict[str, object] | None
+            Generic adapter option payload for future circuit kinds.
         tile_configs : list[str] | None
             Explicit tile configuration input ports.
         tile_config_prefixes : list[str] | None
@@ -476,11 +480,6 @@ class ArchitectureSynthesizer(ABC):
             Whether SAT may tie tile inputs to constants.
         allow_output_reuse : bool
             Whether SAT may reuse tile outputs.
-        use_canonical_cache : bool
-            Whether to share cache entries across input-permutation-equivalent
-            LUT INIT functions.
-        canonical_cache_max_width : int
-            Maximum LUT width where permutation canonicalization is attempted.
         track_progress : bool
             Whether to log morph-tile mapping progress.
         progress_chunk_size : int
@@ -498,7 +497,8 @@ class ArchitectureSynthesizer(ABC):
             tile_top_name=tile_top_name,
             tile_inputs=tile_inputs,
             tile_outputs=tile_outputs,
-            considered_lut_widths=considered_lut_widths,
+            enabled_circuits=enabled_circuits,
+            circuit_options=circuit_options,
             tile_configs=tile_configs,
             tile_config_prefixes=tile_config_prefixes,
             include_unused_inputs=include_unused_inputs,
@@ -508,8 +508,6 @@ class ArchitectureSynthesizer(ABC):
             allow_input_reuse=allow_input_reuse,
             allow_input_constants=allow_input_constants,
             allow_output_reuse=allow_output_reuse,
-            use_canonical_cache=use_canonical_cache,
-            canonical_cache_max_width=canonical_cache_max_width,
             track_progress=track_progress,
             progress_chunk_size=progress_chunk_size,
             top_name=top_name or self.design.top_name(),

@@ -5,10 +5,16 @@ from tempfile import TemporaryDirectory
 
 import pyosys.libyosys as ys
 
+from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.verilog_model import (
+    FracLutBehavioralModel,
+)
 from fabulous.fabric_cad.fabxplore.modules.morph_tile import CutSolver
-from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.canonical import (
-    canonicalize_lut_init,
-    permute_lut_init,
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.base import (
+    MorphCircuitKind,
+)
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.permute_cache import (
+    canonicalize_truth_table,
+    permute_truth_init,
 )
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.reader import (
     MorphTileReader,
@@ -63,12 +69,12 @@ endmodule
         assert result.output_mapping == {"X": "O"}
 
 
-def test_canonical_lut_init_groups_input_permutations() -> None:
-    """Test permutation-equivalent truth tables share one canonical INIT."""
-    assert permute_lut_init(0x4, 2, (1, 0)) == 0x2
+def test_permute_cache_groups_multi_output_truth_tables() -> None:
+    """Test permutation-equivalent truth tables share one cache key."""
+    assert permute_truth_init(0x4, 2, (1, 0)) == 0x2
 
-    left = canonicalize_lut_init(0x2, 2)
-    right = canonicalize_lut_init(0x4, 2)
+    left = canonicalize_truth_table(["A0", "A1"], {"O0": 0x2, "O1": 0x8})
+    right = canonicalize_truth_table(["A0", "A1"], {"O0": 0x4, "O1": 0x8})
 
     assert left.cache_key == right.cache_key
     assert right.permutation == (1, 0)
@@ -88,7 +94,7 @@ def test_morph_tile_pass_replaces_and_lut_eq() -> None:
             tile_top_name="and_tile",
             tile_inputs=["I0", "I1"],
             tile_outputs=["O"],
-            considered_lut_widths=[2],
+            circuit_options={"lut": {"widths": [2]}},
             top_name="base",
             track_progress=False,
         )
@@ -98,8 +104,11 @@ def test_morph_tile_pass_replaces_and_lut_eq() -> None:
         assert pass_.result_data.stats.candidate_luts == 1
         assert pass_.result_data.stats.replaced_luts == 1
         assert pass_.result_data.stats.failed_luts == 0
-        assert "Replaced LUTs: 1" in pass_.report_summary
-        assert "of all LUTs: 100.0%" in pass_.report_summary
+        replacement = pass_.result_data.replacements[0]
+        assert set(replacement.input_ports) == {"I0", "I1"}
+        assert set(replacement.output_ports) == {"O"}
+        assert "Replaced candidates: 1" in pass_.report_summary
+        assert "of all candidates: 100.0%" in pass_.report_summary
         assert "of checked candidates:" in pass_.report_summary
         assert "100.0%" in pass_.report_summary
 
@@ -109,6 +118,148 @@ def test_morph_tile_pass_replaces_and_lut_eq() -> None:
         assert cells["u_lut__morph_tile"]["type"] == "and_tile"
 
         gate = tmp_dir / "gate.v"
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
+def test_morph_tile_pass_accepts_lut_options() -> None:
+    """Test circuit_options controls the registered LUT adapter."""
+    with TemporaryDirectory(prefix="morph_tile_lut_options_") as td:
+        tmp_dir = Path(td)
+        base = _write_and_base(tmp_dir)
+        tile = _write_and_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="and_tile",
+            tile_inputs=["I0", "I1"],
+            tile_outputs=["O"],
+            circuit_options={"lut": {"widths": [2]}},
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 1
+        assert pass_.result_data.filter_summary["lut.widths"] == ["LUT2"]
+
+
+def test_morph_tile_pass_accepts_enum_circuit_kind() -> None:
+    """Test enabled_circuits accepts internal enum values."""
+    with TemporaryDirectory(prefix="morph_tile_enum_kind_") as td:
+        tmp_dir = Path(td)
+        base = _write_and_base(tmp_dir)
+        tile = _write_and_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="and_tile",
+            tile_inputs=["I0", "I1"],
+            tile_outputs=["O"],
+            enabled_circuits=[MorphCircuitKind.LUT],
+            circuit_options={"lut": {"widths": [2]}},
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 1
+
+
+def test_morph_tile_pass_replaces_dual_frac_lut_eq() -> None:
+    """Test a compatible dual-output FRAC LUT is replaced and equivalent."""
+    with TemporaryDirectory(prefix="morph_tile_frac_dual_") as td:
+        tmp_dir = Path(td)
+        base = _write_frac_dual_base(tmp_dir)
+        tile = _write_dual_frac_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="dual_frac_tile",
+            tile_inputs=["I0", "A0", "B0"],
+            tile_outputs=["T0", "T1"],
+            enabled_circuits=["frac_lut"],
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 1
+        assert pass_.result_data.stats.failed_luts == 0
+        assert "FRAC_LUT2:dual" in pass_.report_summary
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        assert "u_frac" not in cells
+        assert cells["u_frac__morph_tile"]["type"] == "dual_frac_tile"
+
+        gate = tmp_dir / "gate.v"
+        bridge.run_pass("hierarchy -top base")
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
+def test_morph_tile_pass_frac_lut_mode_filter_skips() -> None:
+    """Test frac_lut modes can filter out otherwise valid FRAC candidates."""
+    with TemporaryDirectory(prefix="morph_tile_frac_filter_") as td:
+        tmp_dir = Path(td)
+        base = _write_frac_dual_base(tmp_dir)
+        tile = _write_dual_frac_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="dual_frac_tile",
+            tile_inputs=["I0", "A0", "B0"],
+            tile_outputs=["T0", "T1"],
+            enabled_circuits=["frac_lut"],
+            circuit_options={"frac_lut": {"modes": ["single"]}},
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 0
+        assert pass_.result_data.stats.skipped_width_luts == 1
+        assert "u_frac" in bridge.to_netlist_dict()["modules"]["base"]["cells"]
+
+
+def test_morph_tile_pass_replaces_select_as_data_frac_lut_eq() -> None:
+    """Test a select-as-data FRAC LUT is solved with its special pin mapping."""
+    with TemporaryDirectory(prefix="morph_tile_frac_sad_") as td:
+        tmp_dir = Path(td)
+        base = _write_frac_select_as_data_base(tmp_dir)
+        tile = _write_select_as_data_frac_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="select_as_data_frac_tile",
+            tile_inputs=["I0", "A0", "B0", "S"],
+            tile_outputs=["T0", "T1"],
+            enabled_circuits=["frac_lut"],
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 1
+        assert pass_.result_data.stats.failed_luts == 0
+        assert "FRAC_LUT2:dual_select_as_data" in pass_.report_summary
+
+        gate = tmp_dir / "gate.v"
+        bridge.run_pass("hierarchy -top base")
         bridge.write_verilog_path(gate)
         _assert_equiv(base, gate, tile, "base")
 
@@ -124,14 +275,15 @@ def test_morph_tile_reader_extracts_internal_lut_view() -> None:
         morph_design = MorphTileReader().read_design(bridge, "base")
 
         assert morph_design.top_name == "base"
-        assert len(morph_design.lut_cells) == 1
-        assert morph_design.lut_cells[0].cell_id == "u_lut"
-        assert morph_design.lut_cells[0].width == 2
-        assert morph_design.lut_cells[0].init == 0x8
+        assert len(morph_design.cells) == 1
+        assert morph_design.cells[0].cell_id == "u_lut"
+        assert morph_design.cells[0].cell_type == "$lut"
+        assert len(morph_design.cells[0].connections["A"]) == 2
+        assert morph_design.cells[0].parameters["LUT"] == "1000"
 
 
-def test_morph_tile_reader_rejects_malformed_lut_output() -> None:
-    """Test malformed LUT output vectors are rejected before planning."""
+def test_morph_tile_lut_adapter_rejects_malformed_lut_output() -> None:
+    """Test malformed LUT output vectors are rejected by the LUT adapter."""
     with TemporaryDirectory(prefix="morph_tile_bad_lut_") as td:
         tmp_dir = Path(td)
         base = tmp_dir / "base.v"
@@ -143,12 +295,22 @@ endmodule
 """,
             encoding="utf-8",
         )
+        tile = _write_and_tile(tmp_dir)
 
         bridge = PyosysBridge(debug=False)
         bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="and_tile",
+            tile_inputs=["I0", "I1"],
+            tile_outputs=["O"],
+            circuit_options={"lut": {"widths": [2]}},
+            top_name="base",
+            track_progress=False,
+        )
         error_text = ""
         try:
-            MorphTileReader().read_design(bridge, "base")
+            pass_.run_on(bridge)
         except RuntimeError as exc:
             error_text = str(exc)
 
@@ -177,7 +339,7 @@ endmodule
             tile_top_name="and_tile",
             tile_inputs=["I0", "I1"],
             tile_outputs=["O"],
-            considered_lut_widths=[2],
+            circuit_options={"lut": {"widths": [2]}},
             top_name="base",
             track_progress=False,
         )
@@ -213,7 +375,7 @@ endmodule
             tile_top_name="and_tile",
             tile_inputs=["I0", "I1"],
             tile_outputs=["O"],
-            considered_lut_widths=[2],
+            circuit_options={"lut": {"widths": [2]}},
             top_name="base",
             track_progress=False,
         )
@@ -225,9 +387,9 @@ endmodule
         assert pass_.result_data.stats.cache_hits == 1
 
 
-def test_morph_tile_pass_uses_canonical_solver_cache() -> None:
+def test_morph_tile_pass_uses_permute_solver_cache() -> None:
     """Test input-permuted LUT functions share one cached SAT result."""
-    with TemporaryDirectory(prefix="morph_tile_canonical_cache_") as td:
+    with TemporaryDirectory(prefix="morph_tile_permute_cache_") as td:
         tmp_dir = Path(td)
         base = tmp_dir / "base.v"
         base.write_text(
@@ -248,7 +410,7 @@ endmodule
             tile_top_name="asym_tile",
             tile_inputs=["I0", "I1"],
             tile_outputs=["O"],
-            considered_lut_widths=[2],
+            circuit_options={"lut": {"widths": [2]}},
             top_name="base",
             track_progress=False,
         )
@@ -264,7 +426,7 @@ endmodule
         _assert_equiv(base, gate, tile, "base")
 
 
-def test_morph_tile_pass_can_disable_canonical_solver_cache() -> None:
+def test_morph_tile_pass_can_disable_permute_solver_cache() -> None:
     """Test raw INIT cache mode keeps permuted functions separate."""
     with TemporaryDirectory(prefix="morph_tile_raw_cache_") as td:
         tmp_dir = Path(td)
@@ -287,9 +449,13 @@ endmodule
             tile_top_name="asym_tile",
             tile_inputs=["I0", "I1"],
             tile_outputs=["O"],
-            considered_lut_widths=[2],
             top_name="base",
-            use_canonical_cache=False,
+            circuit_options={
+                "lut": {
+                    "widths": [2],
+                    "enable_permute_cache": False,
+                },
+            },
             track_progress=False,
         )
         pass_.run_on(bridge)
@@ -300,40 +466,35 @@ endmodule
         assert pass_.result_data.stats.cache_hits == 0
 
 
-def test_morph_tile_pass_respects_canonical_cache_max_width() -> None:
-    """Test canonicalization falls back to raw cache above max width."""
-    with TemporaryDirectory(prefix="morph_tile_canonical_width_") as td:
+def test_morph_tile_pass_uses_frac_lut_permute_cache() -> None:
+    """Test FRAC multi-output truth tables share the permutation cache."""
+    with TemporaryDirectory(prefix="morph_tile_frac_permute_cache_") as td:
         tmp_dir = Path(td)
-        base = tmp_dir / "base.v"
-        base.write_text(
-            """
-module base(input a, input b, input c, input d, output y0, output y1);
-  \\$lut #(.LUT(4'h2), .WIDTH(32'd2)) lut0 (.A({b, a}), .Y(y0));
-  \\$lut #(.LUT(4'h4), .WIDTH(32'd2)) lut1 (.A({d, c}), .Y(y1));
-endmodule
-""",
-            encoding="utf-8",
-        )
-        tile = _write_asymmetric_tile(tmp_dir)
+        base = _write_frac_permute_cache_base(tmp_dir)
+        tile = _write_asymmetric_frac_tile(tmp_dir)
 
         bridge = PyosysBridge(debug=False)
         bridge.read_verilog_paths([base])
         pass_ = MorphTilePass(
             tile_verilog_path=tile,
-            tile_top_name="asym_tile",
-            tile_inputs=["I0", "I1"],
-            tile_outputs=["O"],
-            considered_lut_widths=[2],
+            tile_top_name="asym_frac_tile",
+            tile_inputs=["I0", "A0"],
+            tile_outputs=["T0", "T1"],
+            enabled_circuits=["frac_lut"],
             top_name="base",
-            canonical_cache_max_width=1,
             track_progress=False,
         )
         pass_.run_on(bridge)
 
         assert pass_.result_data is not None
         assert pass_.result_data.stats.replaced_luts == 2
-        assert pass_.result_data.stats.cache_misses == 2
-        assert pass_.result_data.stats.cache_hits == 0
+        assert pass_.result_data.stats.cache_misses == 1
+        assert pass_.result_data.stats.cache_hits == 1
+
+        gate = tmp_dir / "gate.v"
+        bridge.run_pass("hierarchy -top base")
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
 
 
 def test_morph_tile_pass_respects_max_replacements() -> None:
@@ -359,7 +520,7 @@ endmodule
             tile_top_name="and_tile",
             tile_inputs=["I0", "I1"],
             tile_outputs=["O"],
-            considered_lut_widths=[2],
+            circuit_options={"lut": {"widths": [2]}},
             max_replacements=1,
             top_name="base",
             track_progress=False,
@@ -395,7 +556,7 @@ endmodule
             tile_top_name="cfg_tile",
             tile_inputs=["I0", "I1"],
             tile_outputs=["O"],
-            considered_lut_widths=[2],
+            circuit_options={"lut": {"widths": [2]}},
             tile_configs=["C"],
             top_name="base",
             track_progress=False,
@@ -422,7 +583,7 @@ def test_synthesizer_morph_tile_pass_smoke() -> None:
             tile_top_name="and_tile",
             tile_inputs=["I0", "I1"],
             tile_outputs=["O"],
-            considered_lut_widths=[2],
+            circuit_options={"lut": {"widths": [2]}},
             top_name="base",
             track_progress=False,
             log_report=False,
@@ -475,6 +636,192 @@ endmodule
     return tile
 
 
+def _write_frac_dual_base(tmp_dir: Path) -> Path:
+    """Write a base design containing one dual-output FRAC LUT."""
+    base = tmp_dir / "frac_base.v"
+    frac_model = FracLutBehavioralModel(
+        name="__frac_lut",
+        lut_size=2,
+        num_shared_inputs=1,
+    ).to_verilog()
+    base.write_text(
+        f"""
+{frac_model}
+
+module base(input a, input b, input c, output y0, output y1);
+  __frac_lut #(
+    .L0_INIT(4'h8),
+    .L1_INIT(4'he),
+    .LUT_SIZE("2"),
+    .NUM_SHARED_INPUTS("1"),
+    .META_DATA("lut_mapping=dual;lut0_width=2;lut1_width=2"),
+    .SELECT_AS_DATA_USED(1'b0),
+    .MUX_SELECT_CONFIG(1'b0)
+  ) u_frac (
+    .I0(a),
+    .A0(b),
+    .B0(c),
+    .S(1'b0),
+    .O0(y0),
+    .O1(y1)
+  );
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return base
+
+
+def _write_dual_frac_tile(tmp_dir: Path) -> Path:
+    """Write a direct tile matching the FRAC LUT test behavior."""
+    tile = tmp_dir / "dual_frac_tile.v"
+    tile.write_text(
+        """
+module dual_frac_tile(input I0, input A0, input B0, output T0, output T1);
+  assign T0 = I0 & A0;
+  assign T1 = I0 | B0;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
+def _write_frac_select_as_data_base(tmp_dir: Path) -> Path:
+    """Write a base design containing one select-as-data FRAC LUT."""
+    base = tmp_dir / "frac_select_as_data_base.v"
+    frac_model = FracLutBehavioralModel(
+        name="__frac_lut",
+        lut_size=2,
+        num_shared_inputs=1,
+    ).to_verilog()
+    base.write_text(
+        f"""
+{frac_model}
+
+module base(input a, input b, input c, input d, output y0, output y1);
+  __frac_lut #(
+    .L0_INIT(4'h8),
+    .L1_INIT(4'he),
+    .LUT_SIZE("2"),
+    .NUM_SHARED_INPUTS("1"),
+    .META_DATA("lut_mapping=dual_select_as_data;lut0_width=2;lut1_width=2"),
+    .SELECT_AS_DATA_USED(1'b1),
+    .MUX_SELECT_CONFIG(1'b0)
+  ) u_frac (
+    .I0(a),
+    .A0(b),
+    .B0(c),
+    .S(d),
+    .O0(y0),
+    .O1(y1)
+  );
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return base
+
+
+def _write_select_as_data_frac_tile(tmp_dir: Path) -> Path:
+    """Write a direct tile matching the select-as-data FRAC behavior."""
+    tile = tmp_dir / "select_as_data_frac_tile.v"
+    tile.write_text(
+        """
+module select_as_data_frac_tile(
+  input I0,
+  input A0,
+  input B0,
+  input S,
+  output T0,
+  output T1
+);
+  assign T0 = A0 & S;
+  assign T1 = B0 | I0;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
+def _write_frac_permute_cache_base(tmp_dir: Path) -> Path:
+    """Write two input-permuted FRAC LUTs for cache testing."""
+    base = tmp_dir / "frac_permute_cache_base.v"
+    frac_model = FracLutBehavioralModel(
+        name="__frac_lut",
+        lut_size=2,
+        num_shared_inputs=1,
+    ).to_verilog()
+    base.write_text(
+        f"""
+{frac_model}
+
+module base(
+  input a,
+  input b,
+  input c,
+  input d,
+  output y0,
+  output y1,
+  output y2,
+  output y3
+);
+  __frac_lut #(
+    .L0_INIT(4'h2),
+    .L1_INIT(4'h0),
+    .LUT_SIZE("2"),
+    .NUM_SHARED_INPUTS("1"),
+    .META_DATA("lut_mapping=dual;lut0_width=2;lut1_width=2"),
+    .SELECT_AS_DATA_USED(1'b0),
+    .MUX_SELECT_CONFIG(1'b0)
+  ) frac0 (
+    .I0(a),
+    .A0(b),
+    .B0(1'b0),
+    .S(1'b0),
+    .O0(y0),
+    .O1(y1)
+  );
+
+  __frac_lut #(
+    .L0_INIT(4'h4),
+    .L1_INIT(4'h0),
+    .LUT_SIZE("2"),
+    .NUM_SHARED_INPUTS("1"),
+    .META_DATA("lut_mapping=dual;lut0_width=2;lut1_width=2"),
+    .SELECT_AS_DATA_USED(1'b0),
+    .MUX_SELECT_CONFIG(1'b0)
+  ) frac1 (
+    .I0(c),
+    .A0(d),
+    .B0(1'b0),
+    .S(1'b0),
+    .O0(y2),
+    .O1(y3)
+  );
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return base
+
+
+def _write_asymmetric_frac_tile(tmp_dir: Path) -> Path:
+    """Write a tile that implements one asymmetric two-output FRAC function."""
+    tile = tmp_dir / "asym_frac_tile.v"
+    tile.write_text(
+        """
+module asym_frac_tile(input I0, input A0, output T0, output T1);
+  assign T0 = I0 & ~A0;
+  assign T1 = 1'b0;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
 def _assert_equiv(gold: Path, gate: Path, tile: Path, top_name: str) -> None:
     """Run a Yosys equivalence check between gold and mapped designs."""
     design = ys.Design()
@@ -485,7 +832,7 @@ def _assert_equiv(gold: Path, gate: Path, tile: Path, top_name: str) -> None:
     run(f"read_verilog {gold}")
     run(f"rename {top_name} {top_name}_gold")
     run(f"read_verilog {tile}")
-    run(f"read_verilog {gate}")
+    run(f"read_verilog -overwrite {gate}")
     run(f"rename {top_name} {top_name}_gate")
     run(f"equiv_make {top_name}_gold {top_name}_gate equiv")
     run("hierarchy -top equiv")
@@ -498,15 +845,20 @@ def _assert_equiv(gold: Path, gate: Path, tile: Path, top_name: str) -> None:
 def main() -> None:
     """Run all tests."""
     test_cut_solver_simple_and()
-    test_canonical_lut_init_groups_input_permutations()
+    test_permute_cache_groups_multi_output_truth_tables()
     test_morph_tile_pass_replaces_and_lut_eq()
+    test_morph_tile_pass_accepts_lut_options()
+    test_morph_tile_pass_accepts_enum_circuit_kind()
+    test_morph_tile_pass_replaces_dual_frac_lut_eq()
+    test_morph_tile_pass_frac_lut_mode_filter_skips()
+    test_morph_tile_pass_replaces_select_as_data_frac_lut_eq()
     test_morph_tile_reader_extracts_internal_lut_view()
-    test_morph_tile_reader_rejects_malformed_lut_output()
+    test_morph_tile_lut_adapter_rejects_malformed_lut_output()
     test_morph_tile_pass_leaves_unsupported_lut()
     test_morph_tile_pass_uses_solver_cache()
-    test_morph_tile_pass_uses_canonical_solver_cache()
-    test_morph_tile_pass_can_disable_canonical_solver_cache()
-    test_morph_tile_pass_respects_canonical_cache_max_width()
+    test_morph_tile_pass_uses_permute_solver_cache()
+    test_morph_tile_pass_can_disable_permute_solver_cache()
+    test_morph_tile_pass_uses_frac_lut_permute_cache()
     test_morph_tile_pass_respects_max_replacements()
     test_morph_tile_pass_wires_scalar_config()
     test_synthesizer_morph_tile_pass_smoke()

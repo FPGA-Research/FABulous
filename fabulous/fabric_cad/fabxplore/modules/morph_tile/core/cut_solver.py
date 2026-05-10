@@ -6,14 +6,20 @@ module to BLIF, importing it through ``sat_fab``, and asking the SAT equivalence
 engine to find input routes, an output route, and configuration bits.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING
 
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.models import (
     CutSolveResult,
 )
 from fabulous.fabric_cad.fabxplore.modules.sat_fab import Circuit, Equiv
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
+
+if TYPE_CHECKING:
+    from fabulous.fabric_cad.fabxplore.modules.sat_fab.truth import TruthTableSpec
 
 
 class CutSolver:
@@ -108,6 +114,46 @@ class CutSolver:
             output=spec_output,
         )
 
+        return self.solve_spec(
+            spec=spec,
+            spec_inputs=spec_inputs,
+            spec_outputs=[spec_output],
+            allow_input_reuse=allow_input_reuse,
+            allow_input_constants=allow_input_constants,
+            allow_output_reuse=allow_output_reuse,
+        )
+
+    def solve_spec(
+        self,
+        spec: Circuit | TruthTableSpec,
+        spec_inputs: list[str],
+        spec_outputs: list[str],
+        allow_input_reuse: bool = True,
+        allow_input_constants: bool = False,
+        allow_output_reuse: bool = False,
+    ) -> CutSolveResult:
+        """Check whether the candidate tile can implement a spec circuit.
+
+        Parameters
+        ----------
+        spec : Circuit | TruthTableSpec
+            Fixed target behavior to implement.
+        spec_inputs : list[str]
+            Input names from ``spec`` that may feed candidate tile inputs.
+        spec_outputs : list[str]
+            Output names from ``spec`` that may be routed to candidate outputs.
+        allow_input_reuse : bool
+            Whether multiple candidate tile inputs may use the same spec input.
+        allow_input_constants : bool
+            Whether routed candidate tile inputs may be tied to constants.
+        allow_output_reuse : bool
+            Whether multiple spec outputs may use the same candidate output.
+
+        Returns
+        -------
+        CutSolveResult
+            SAT status plus decoded input, output, and config mappings.
+        """
         equiv_result = (
             Equiv.check(spec, self._candidate)
             .route_inputs(
@@ -119,7 +165,7 @@ class CutSolver:
             )
             .route_outputs(
                 self._candidate,
-                {spec_output: self.outputs},
+                {output: self.outputs for output in spec_outputs},
                 allow_reuse=allow_output_reuse,
             )
             .solve()

@@ -1,8 +1,11 @@
-"""Pyosys pass wrapper for morph-tile LUT replacement."""
+"""Pyosys pass wrapper for morph-tile replacement."""
 
 from dataclasses import dataclass
 from pathlib import Path
 
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.base import (
+    MorphCircuitKind,
+)
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.mapper import (
     MorphTileMapper,
 )
@@ -15,7 +18,7 @@ from fabulous.fabric_cad.fabxplore.pyosys.synth_pass import SynthPass
 
 @dataclass
 class MorphTilePass(SynthPass):
-    """Replace compatible ``$lut`` cells with morph-tile instances.
+    """Replace compatible source cells with morph-tile instances.
 
     Attributes
     ----------
@@ -27,8 +30,10 @@ class MorphTilePass(SynthPass):
         Candidate tile data input ports.
     tile_outputs : list[str]
         Candidate tile output ports.
-    considered_lut_widths : list[int]
-        LUT widths considered for replacement.
+    enabled_circuits : list[str | MorphCircuitKind] | None
+        Circuit adapters to enable. ``None`` enables only normal ``$lut``.
+    circuit_options : dict[str, object] | None
+        Generic adapter option payload for future circuit kinds.
     tile_configs : list[str] | None
         Explicit tile configuration input ports.
     tile_config_prefixes : list[str] | None
@@ -47,11 +52,6 @@ class MorphTilePass(SynthPass):
         Whether SAT may tie tile inputs to constants.
     allow_output_reuse : bool
         Whether SAT may reuse tile outputs.
-    use_canonical_cache : bool
-        Whether to share cache entries across input-permutation-equivalent LUT
-        INIT functions.
-    canonical_cache_max_width : int
-        Maximum LUT width where permutation canonicalization is attempted.
     track_progress : bool
         Whether to log morph-tile mapping progress.
     progress_chunk_size : int
@@ -66,7 +66,8 @@ class MorphTilePass(SynthPass):
     tile_top_name: str
     tile_inputs: list[str]
     tile_outputs: list[str]
-    considered_lut_widths: list[int]
+    enabled_circuits: list[str | MorphCircuitKind] | None = None
+    circuit_options: dict[str, object] | None = None
     tile_configs: list[str] | None = None
     tile_config_prefixes: list[str] | None = None
     include_unused_inputs: bool = False
@@ -76,8 +77,6 @@ class MorphTilePass(SynthPass):
     allow_input_reuse: bool = True
     allow_input_constants: bool = False
     allow_output_reuse: bool = False
-    use_canonical_cache: bool = True
-    canonical_cache_max_width: int = 6
     track_progress: bool = True
     progress_chunk_size: int = 50
     top_name: str | None = None
@@ -99,7 +98,8 @@ class MorphTilePass(SynthPass):
             tile_top_name=self.tile_top_name,
             tile_inputs=self.tile_inputs,
             tile_outputs=self.tile_outputs,
-            considered_lut_widths=self.considered_lut_widths,
+            enabled_circuits=self.enabled_circuits,
+            circuit_options=self.circuit_options,
             tile_configs=self.tile_configs,
             tile_config_prefixes=self.tile_config_prefixes,
             include_unused_inputs=self.include_unused_inputs,
@@ -109,8 +109,6 @@ class MorphTilePass(SynthPass):
             allow_input_reuse=self.allow_input_reuse,
             allow_input_constants=self.allow_input_constants,
             allow_output_reuse=self.allow_output_reuse,
-            use_canonical_cache=self.use_canonical_cache,
-            canonical_cache_max_width=self.canonical_cache_max_width,
             track_progress=self.track_progress,
             progress_chunk_size=self.progress_chunk_size,
             debug=self.debug,

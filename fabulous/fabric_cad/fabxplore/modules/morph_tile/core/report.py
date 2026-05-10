@@ -19,22 +19,27 @@ Top Module: {{ result.top_name }}
 Tile Module: {{ result.tile_top_name }}
 
 Configuration
-- considered_lut_widths: {{ result.considered_lut_widths }}
+{% if result.filter_summary %}
+{% for name, values in result.filter_summary | dictsort %}
+- {{ name }}: {{ values }}
+{% endfor %}
+{% else %}
+- filters: none
+{% endif %}
 - max_replacements:
   {{ result.max_replacements if result.max_replacements is not none else "none" }}
-- use_canonical_cache: {{ result.use_canonical_cache }}
 
 Summary
-- Total LUTs: {{ stats.total_luts }}
-- Replacement candidates: {{ stats.candidate_luts }}
-- Replaced LUTs: {{ stats.replaced_luts }}
-  - of all LUTs: {{ "%.1f"|format(result.replaced_total_percent) }}%
+- Total candidates: {{ stats.total_candidates }}
+- Checked candidates: {{ stats.checked_candidates }}
+- Replaced candidates: {{ stats.replaced_candidates }}
+  - of all candidates: {{ "%.1f"|format(result.replaced_total_percent) }}%
   - of checked candidates:
     {{ "%.1f"|format(result.replaced_checked_candidate_percent) }}%
-- Failed candidates: {{ stats.failed_luts }}
-- Skipped LUTs: {{ stats.skipped_luts }}
-  - skipped by width: {{ stats.skipped_width_luts }}
-  - skipped after limit: {{ stats.skipped_limit_luts }}
+- Failed candidates: {{ stats.failed_candidates }}
+- Skipped candidates: {{ stats.skipped_candidates }}
+  - skipped by filter: {{ stats.skipped_filter_candidates }}
+  - skipped after limit: {{ stats.skipped_limit_candidates }}
 - Solver cache hits: {{ stats.cache_hits }}
 - Solver cache misses: {{ stats.cache_misses }}
 
@@ -56,7 +61,7 @@ Failures By Width
 - none
 {% endif %}
 
-Top Replaced INIT Functions
+Top Replaced Signatures
 {% if init_rows %}
 {% for label, count in init_rows %}
 - {{ label }}: {{ count }}
