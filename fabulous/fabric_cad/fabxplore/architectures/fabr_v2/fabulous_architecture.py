@@ -127,24 +127,12 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     def map_luts(self) -> None:
         """Map combinational logic into LUT resources."""
         self.design_lut_mapper_pass(
-            max_lut_size=6,
+            max_lut_size=5,
             use_select_as_data_in_pair_mode=True,
             sharing_penalty_factor=3,
             size_penalty_factor=0.7,
-            larger_lut_discount_factor=0.6,
+            larger_lut_discount_factor=0.85,
             backend="abc9",
-        )
-
-        self.design_morph_tile_pass(
-            tile_verilog_path=Path(
-                "/home/hausding/Documents/FABulous/demo0/Tile/test_tile/FLUT5_1P_2PS.v"
-            ),
-            tile_top_name="FLUT5_1P_2PS",
-            tile_inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
-            tile_outputs=["O0", "O1", "Co"],
-            considered_lut_widths=[6],
-            tile_config_prefixes=["ConfigBits"],
-            progress_chunk_size=5,
         )
 
         self.design_lut_combinator_pass(
@@ -170,6 +158,19 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "/fabric_cad/fabxplore/benchmarks/verilog_rtl/mux4/mux4.v"
                 )
             ],
+        )
+
+        self.design_morph_tile_pass(
+            tile_verilog_path=Path(
+                "/home/hausding/Documents/FABulous/demo0/Tile/test_tile/FLUT5_1P_2PS.v"
+            ),
+            tile_top_name="FLUT5_1P_2PS",
+            tile_inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
+            tile_outputs=["O0", "O1", "Co"],
+            enabled_circuits=["lut", "frac_lut"],
+            circuit_options={"lut": {"widths": [6]}},
+            tile_config_prefixes=["ConfigBits"],
+            progress_chunk_size=5,
         )
 
     def map_cells(self) -> None:
@@ -216,10 +217,8 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     def generate_primitives(self) -> None:
         """Generate primitive definitions required by this architecture."""
 
-        # TODO: Implement Architecture-specific extensions, sat solver, ordered solver.
         # TODO: Implement timing driven optimizations (weight match) subgraph
         # matching for critical path optimization
-        # TODO: Explain Morph-Tiles
         # TODO: Explain Techmap (LUTs, chains)
         # TODO: Explain how to do simulation and verification.
 

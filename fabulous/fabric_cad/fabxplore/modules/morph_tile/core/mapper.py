@@ -329,7 +329,15 @@ class MorphTileMapper:
 
 
 def _increment(counts: dict[str, int], label: str) -> None:
-    """Increment a histogram entry."""
+    """Increment a histogram entry.
+
+    Parameters
+    ----------
+    counts : dict[str, int]
+        Histogram dictionary to update.
+    label : str
+        Entry label to increment.
+    """
     counts[label] = counts.get(label, 0) + 1
 
 

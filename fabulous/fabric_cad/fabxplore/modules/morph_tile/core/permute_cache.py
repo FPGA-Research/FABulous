@@ -206,7 +206,20 @@ def remap_permuted_solve_result(
 
 
 def _remap_source_name(source: str, remap: dict[str, str]) -> str:
-    """Remap one source input name through a canonical input map."""
+    """Remap one source input name through a canonical input map.
+
+    Parameters
+    ----------
+    source : str
+        Original source name, possibly with a prefix.
+    remap : dict[str, str]
+        Mapping from canonical input name to original input name.
+
+    Returns
+    -------
+    str
+        Remapped source name with the same prefix.
+    """
     prefix, separator, leaf = source.rpartition("/")
     name = leaf if separator else source
     remapped = remap.get(name)

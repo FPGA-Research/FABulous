@@ -350,7 +350,19 @@ class FracLutCircuit(MorphCircuitAdapter[FracLutCandidate]):
 
 
 class _InputView:
-    """Create a variable view over fractional-LUT input port connections."""
+    """Create a variable view over fractional-LUT input port connections.
+
+    Parameters
+    ----------
+    adapter : FracLutCircuit
+        Adapter used to build replacement references.
+    cell : MorphTileNetlistCell
+        Fractional-LUT source cell.
+    lut_size : int
+        Internal LUT half width.
+    num_shared_inputs : int
+        Nominal number of shared input pins.
+    """
 
     def __init__(
         self,
@@ -389,6 +401,19 @@ class _InputView:
         return bool(values[source])
 
     def _source_for_port(self, port: str) -> str | int:
+        """Return the logical source backing one fractional-LUT input port.
+
+        Parameters
+        ----------
+        port : str
+            Fractional-LUT input port name.
+
+        Returns
+        -------
+        str | int
+            Spec input name for variable sources, or integer constant ``0`` or
+            ``1`` for tied ports.
+        """
         token = _scalar_connection(self._cell, port, allow_missing=True)
         if token in {"0", "1"}:
             return int(token)
@@ -400,6 +425,18 @@ class _InputView:
         return source_name
 
     def _source_name_for_token(self, token: str) -> str:
+        """Return a stable spec input name for one source net token.
+
+        Parameters
+        ----------
+        token : str
+            Source net token from the generic netlist view.
+
+        Returns
+        -------
+        str
+            Stable generated spec input name.
+        """
         source_name = self._source_by_token.get(token)
         if source_name is not None:
             return source_name
@@ -502,7 +539,24 @@ def _eval_lut_init(
     value_for_port: Callable[[str, dict[str, bool]], bool],
     values: dict[str, bool],
 ) -> bool:
-    """Evaluate one LUT INIT from ordered bit ports."""
+    """Evaluate one LUT INIT from ordered bit ports.
+
+    Parameters
+    ----------
+    init : int
+        LSB-first LUT INIT value.
+    bit_ports : list[str]
+        Input port names in INIT-index bit order.
+    value_for_port : Callable[[str, dict[str, bool]], bool]
+        Callback that returns a port value for the current assignment.
+    values : dict[str, bool]
+        Current truth-table assignment keyed by spec input name.
+
+    Returns
+    -------
+    bool
+        Evaluated LUT output bit.
+    """
     index = 0
     for bit_index, port in enumerate(bit_ports):
         if value_for_port(port, values):
@@ -515,7 +569,22 @@ def _index_bits_for_l0(
     num_shared_inputs: int,
     select_as_data_used: bool,
 ) -> list[str]:
-    """Return L0 input-index ports in least-significant-bit order."""
+    """Return L0 input-index ports in least-significant-bit order.
+
+    Parameters
+    ----------
+    lut_size : int
+        Internal LUT half width.
+    num_shared_inputs : int
+        Nominal number of shared input pins.
+    select_as_data_used : bool
+        Whether select-as-data wiring is active.
+
+    Returns
+    -------
+    list[str]
+        L0 port names in INIT-index bit order.
+    """
     if select_as_data_used:
         return _select_as_data_bits(lut_size, num_shared_inputs, "A")
     private_count = lut_size - num_shared_inputs
@@ -529,7 +598,22 @@ def _index_bits_for_l1(
     num_shared_inputs: int,
     select_as_data_used: bool,
 ) -> list[str]:
-    """Return L1 input-index ports in least-significant-bit order."""
+    """Return L1 input-index ports in least-significant-bit order.
+
+    Parameters
+    ----------
+    lut_size : int
+        Internal LUT half width.
+    num_shared_inputs : int
+        Nominal number of shared input pins.
+    select_as_data_used : bool
+        Whether select-as-data wiring is active.
+
+    Returns
+    -------
+    list[str]
+        L1 port names in INIT-index bit order.
+    """
     if select_as_data_used:
         return _select_as_data_bits(lut_size, num_shared_inputs, "B")
     private_count = lut_size - num_shared_inputs
@@ -543,7 +627,23 @@ def _select_as_data_bits(
     num_shared_inputs: int,
     private_prefix: str,
 ) -> list[str]:
-    """Return select-as-data index ports in least-significant-bit order."""
+    """Return select-as-data index ports in least-significant-bit order.
+
+    Parameters
+    ----------
+    lut_size : int
+        Internal LUT half width.
+    num_shared_inputs : int
+        Nominal number of shared input pins.
+    private_prefix : str
+        Private input prefix for the selected LUT half, usually ``"A"`` or
+        ``"B"``.
+
+    Returns
+    -------
+    list[str]
+        Port names in INIT-index bit order for select-as-data mode.
+    """
     normal_private_count = lut_size - num_shared_inputs
     if num_shared_inputs == 0:
         return [f"{private_prefix}{i}" for i in range(normal_private_count)]
@@ -558,7 +658,20 @@ def _select_as_data_bits(
 
 
 def _input_port_order(lut_size: int, num_shared_inputs: int) -> tuple[str, ...]:
-    """Return deterministic fractional-LUT input port order."""
+    """Return deterministic fractional-LUT input port order.
+
+    Parameters
+    ----------
+    lut_size : int
+        Internal LUT half width.
+    num_shared_inputs : int
+        Nominal number of shared input pins.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Shared inputs, private inputs, and select input in stable order.
+    """
     private_count = lut_size - num_shared_inputs
     return (
         *(f"I{i}" for i in range(num_shared_inputs)),
@@ -572,7 +685,21 @@ def _parse_output_refs(
     adapter: FracLutCircuit,
     cell: MorphTileNetlistCell,
 ) -> dict[str, ReplacementPortRef]:
-    """Parse connected scalar output ports."""
+    """Parse connected scalar output ports.
+
+    Parameters
+    ----------
+    adapter : FracLutCircuit
+        Adapter used to build replacement references.
+    cell : MorphTileNetlistCell
+        Fractional-LUT source cell.
+
+    Returns
+    -------
+    dict[str, ReplacementPortRef]
+        Mapping from connected FRAC output port names to original-cell output
+        references.
+    """
     output_refs: dict[str, ReplacementPortRef] = {}
     for port in ("O0", "O1"):
         if port not in cell.connections:
@@ -625,7 +752,27 @@ def _parse_int_parameter(
     name: str,
     default: int | None = None,
 ) -> int:
-    """Parse an integer-like parameter value."""
+    """Parse an integer-like parameter value.
+
+    Parameters
+    ----------
+    parameters : dict[str, str]
+        Cell parameter dictionary.
+    name : str
+        Parameter name to parse.
+    default : int | None
+        Optional value returned when the parameter is missing.
+
+    Returns
+    -------
+    int
+        Parsed integer value.
+
+    Raises
+    ------
+    RuntimeError
+        If the parameter is missing and no default is provided.
+    """
     if name not in parameters:
         if default is None:
             raise RuntimeError(f"Missing fractional-LUT parameter {name}")
@@ -639,12 +786,38 @@ def _parse_int_parameter(
 
 
 def _parse_bool_parameter(parameters: dict[str, str], name: str) -> bool:
-    """Parse a Boolean-like parameter value."""
+    """Parse a Boolean-like parameter value.
+
+    Parameters
+    ----------
+    parameters : dict[str, str]
+        Cell parameter dictionary.
+    name : str
+        Parameter name to parse.
+
+    Returns
+    -------
+    bool
+        Parsed Boolean value.
+    """
     return bool(_parse_int_parameter(parameters, name, default=0))
 
 
 def _metadata_field(meta_data: str, key: str) -> str | None:
-    """Return one semicolon-separated metadata value."""
+    """Return one semicolon-separated metadata value.
+
+    Parameters
+    ----------
+    meta_data : str
+        Metadata string emitted by the LUT combinator.
+    key : str
+        Metadata key to look up.
+
+    Returns
+    -------
+    str | None
+        Metadata value, or ``None`` when the key is absent.
+    """
     meta_data = _clean_parameter_text(meta_data)
     for item in meta_data.split(";"):
         if "=" not in item:
@@ -656,7 +829,18 @@ def _metadata_field(meta_data: str, key: str) -> str | None:
 
 
 def _clean_parameter_text(value: str) -> str:
-    """Normalize a parameter value emitted by Yosys JSON."""
+    """Normalize a parameter value emitted by Yosys JSON.
+
+    Parameters
+    ----------
+    value : str
+        Raw parameter text.
+
+    Returns
+    -------
+    str
+        Parameter text with surrounding quotes removed.
+    """
     text = str(value).strip()
     if len(text) >= 2 and text[0] == text[-1] == '"':
         return text[1:-1]
@@ -664,7 +848,18 @@ def _clean_parameter_text(value: str) -> str:
 
 
 def _combined_init_signature(output_inits: dict[str, int]) -> int:
-    """Combine multi-output INITs into one compact report signature."""
+    """Combine multi-output INITs into one compact report signature.
+
+    Parameters
+    ----------
+    output_inits : dict[str, int]
+        Output INIT values keyed by output name.
+
+    Returns
+    -------
+    int
+        Deterministic compact signature used only for reports and summaries.
+    """
     value = 0
     shift = 0
     for _name, init in sorted(output_inits.items()):

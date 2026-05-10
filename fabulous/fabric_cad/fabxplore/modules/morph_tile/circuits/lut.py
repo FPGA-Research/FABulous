@@ -255,7 +255,19 @@ class LutCircuit(MorphCircuitAdapter[LutCandidate]):
         return ports
 
     def _source_to_ref(self, source: str) -> ReplacementPortRef | None:
-        """Convert one solved source name to a replacement reference."""
+        """Convert one solved source name to a replacement reference.
+
+        Parameters
+        ----------
+        source : str
+            Logical source name returned by SAT-fab.
+
+        Returns
+        -------
+        ReplacementPortRef | None
+            Concrete source-cell port reference, constant reference, or
+            ``None`` when the source is not part of the LUT input namespace.
+        """
         if source in {"0", "1"}:
             return self.const(int(source))
         if not source.startswith("A"):
@@ -267,7 +279,18 @@ class LutCircuit(MorphCircuitAdapter[LutCandidate]):
 
 
 def _lut_label(width: int) -> str:
-    """Return a report label for a LUT width."""
+    """Return a report label for a LUT width.
+
+    Parameters
+    ----------
+    width : int
+        LUT input width.
+
+    Returns
+    -------
+    str
+        Label such as ``"LUT2"``.
+    """
     return f"LUT{width}"
 
 
