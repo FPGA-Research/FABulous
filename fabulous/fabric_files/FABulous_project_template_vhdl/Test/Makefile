@@ -42,6 +42,8 @@ ANALYZE_CMD=${GHDL_ANALYZE_CMD}
 ELAB_CMD=${GHDL_ELAB_CMD}
 RUN_CMD=${GHDL_RUN_CMD}
 OUTPUT_OPT=--fst=${BUILD_DIR}/${TESTBENCH}.fst
+else
+$(error Unknown SIMULATOR value '${SIMULATOR}'. Supported values: nvc, ghdl)
 endif
 
 #only add if custom_prims.v exists

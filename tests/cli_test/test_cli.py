@@ -194,6 +194,37 @@ def test_run_simulation_with_extra_flags(
 
 
 @pytest.mark.usefixtures("simulation_mock")
+def test_run_simulation_with_extra_nvc_flag(
+    cli: FABulous_CLI,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test simulation passes --extra-nvc-flag to Taskfile as EXTRA_NVC_FLAGS."""
+    run_cmd(cli, f'{SIM_CMD} --extra-nvc-flag="--ieee-warnings=error"')
+    log = normalize_and_check_for_errors(caplog.text)
+    assert "Simulation finished" in log[-1]
+
+    task_cmds = find_task_calls()
+    assert len(task_cmds) >= 1
+    assert any("EXTRA_NVC_FLAGS" in arg for arg in task_cmds[-1])
+
+
+@pytest.mark.usefixtures("simulation_mock")
+def test_run_simulation_with_simulator_flag(
+    cli: FABulous_CLI,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test simulation passes --simulator to Taskfile as SIMULATOR."""
+    for sim in ("nvc", "ghdl", "auto"):
+        run_cmd(cli, f"{SIM_CMD} --simulator={sim}")
+        log = normalize_and_check_for_errors(caplog.text)
+        assert "Simulation finished" in log[-1]
+
+        task_cmds = find_task_calls()
+        assert len(task_cmds) >= 1
+        assert any(f"SIMULATOR={sim}" in arg for arg in task_cmds[-1])
+
+
+@pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation_with_design_flag(
     cli: FABulous_CLI,
     caplog: pytest.LogCaptureFixture,

@@ -117,12 +117,23 @@ tasks:
     cmds:
       - |
         SIM="{{.SIMULATOR}}"
-        if [ "$SIM" = "ghdl" ]; then
-          task run-simulation-ghdl
-        elif [ "$SIM" = "nvc" ] || which nvc >/dev/null 2>&1; then
+        if [ "$SIM" = "nvc" ]; then
+          if ! which nvc >/dev/null 2>&1; then
+            echo "Error: SIMULATOR=nvc but nvc is not installed or not found in PATH" >&2
+            exit 1
+          fi
           task run-simulation-nvc
-        else
+        elif [ "$SIM" = "ghdl" ]; then
           task run-simulation-ghdl
+        elif [ "$SIM" = "auto" ]; then
+          if which nvc >/dev/null 2>&1; then
+            task run-simulation-nvc
+          else
+            task run-simulation-ghdl
+          fi
+        else
+          echo "Error: Unknown SIMULATOR value '$SIM'. Use nvc, ghdl, or auto." >&2
+          exit 1
         fi
 
   run-simulation-nvc:
@@ -138,8 +149,8 @@ tasks:
       - sh -c 'for f in $(find $FAB_PROJ_ROOT/Tile/ -name "*.vhdl" -type f); do nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$f"; done'
       - sh -c 'for f in $(find $FAB_PROJ_ROOT/Fabric/ -name "*.vhdl" -type f ! -name "models_pack.vhdl"); do nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} "$f"; done'
       - nvc {{.NVC_GLOBAL_FLAGS}} -a {{.NVC_ANALYZE_FLAGS}} {{.EXTRA_NVC_FLAGS}} $USER_DESIGN_DIR/$DESIGN.vhdl $TESTBENCH.vhdl
-      - nvc {{.NVC_GLOBAL_FLAGS}} -e {{.NVC_ELAB_FLAGS}} $TESTBENCH
-      - sh -c 'ulimit -s unlimited; nvc {{.NVC_GLOBAL_FLAGS}} -r $TESTBENCH -w$BUILD_DIR/$TESTBENCH.$WAVEFORM_TYPE --stats'
+      - nvc {{.NVC_GLOBAL_FLAGS}} -e {{.NVC_ELAB_FLAGS}} {{.EXTRA_NVC_FLAGS}} $TESTBENCH
+      - sh -c 'ulimit -s unlimited; nvc {{.NVC_GLOBAL_FLAGS}} -r {{.EXTRA_NVC_FLAGS}} $TESTBENCH -w$BUILD_DIR/$TESTBENCH.$WAVEFORM_TYPE --stats'
 
   run-simulation-ghdl:
     env:
@@ -154,8 +165,8 @@ tasks:
       - sh -c 'for f in $(find $FAB_PROJ_ROOT/Tile/ -name "*.vhdl" -type f); do ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$f"; done'
       - sh -c 'for f in $(find $FAB_PROJ_ROOT/Fabric/ -name "*.vhdl" -type f ! -name "models_pack.vhdl"); do ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} "$f"; done'
       - ghdl -a {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ANALYZE_FLAGS}} {{.EXTRA_GHDL_FLAGS}} $USER_DESIGN_DIR/$DESIGN.vhdl $TESTBENCH.vhdl
-      - ghdl -e {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ELAB_FLAGS}} $TESTBENCH
-      - sh -c 'ulimit -s unlimited; ghdl -r {{.GHDL_GLOBAL_FLAGS}} $TESTBENCH --stats --ieee-asserts=disable --{{.WAVEFORM_TYPE}}=$BUILD_DIR/$TESTBENCH.{{.WAVEFORM_TYPE}}'
+      - ghdl -e {{.GHDL_GLOBAL_FLAGS}} {{.GHDL_ELAB_FLAGS}} {{.EXTRA_GHDL_FLAGS}} $TESTBENCH
+      - sh -c 'ulimit -s unlimited; ghdl -r {{.GHDL_GLOBAL_FLAGS}} {{.EXTRA_GHDL_FLAGS}} $TESTBENCH --stats --ieee-asserts=disable --{{.WAVEFORM_TYPE}}=$BUILD_DIR/$TESTBENCH.{{.WAVEFORM_TYPE}}'
 
   gtkwave:
     desc: Open waveform in GTKWave

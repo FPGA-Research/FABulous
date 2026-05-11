@@ -1008,10 +1008,23 @@ class FABulous_CLI(Cmd):
         help="Design name to simulate (default: inferred from bitstream filename)",
     )
     simulation_parser.add_argument(
+        "-s",
+        "--simulator",
+        default="",
+        choices=["nvc", "ghdl", "auto", ""],
+        help="VHDL simulator to use: nvc, ghdl, or auto (default: auto-detect)",
+    )
+    simulation_parser.add_argument(
         "-if",
         "--extra-iverilog-flag",
         default="",
         help="Extra flags to pass to iverilog (Verilog projects)",
+    )
+    simulation_parser.add_argument(
+        "-nf",
+        "--extra-nvc-flag",
+        default="",
+        help="Extra flags to pass to NVC (VHDL projects)",
     )
     simulation_parser.add_argument(
         "-gf",
@@ -1064,8 +1077,12 @@ class FABulous_CLI(Cmd):
             "DESIGN": design_name,
             "BITSTREAM_BIN": str(bitstreamPath.resolve()),
         }
+        if args.simulator:
+            task_vars["SIMULATOR"] = args.simulator
         if args.extra_iverilog_flag:
             task_vars["EXTRA_IVERILOG_FLAGS"] = args.extra_iverilog_flag
+        if args.extra_nvc_flag:
+            task_vars["EXTRA_NVC_FLAGS"] = args.extra_nvc_flag
         if args.extra_ghdl_flag:
             task_vars["EXTRA_GHDL_FLAGS"] = args.extra_ghdl_flag
 

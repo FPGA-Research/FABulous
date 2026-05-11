@@ -123,7 +123,7 @@ begin
       X  => sCD
     );
 
-  -- sEF <= S(2) when (CB_C0 = '0') else S(0);
+  -- sEF <= S(2) when (CB_C1 = '0') else S(0);
   cus_mux21_sef : component cus_mux21
     port map (
       A0 => S(2),

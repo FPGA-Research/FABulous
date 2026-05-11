@@ -151,9 +151,9 @@ FABulous> run_simulation fst path/to/design.bin --extra-iverilog-flag="-DDEBUG"
 FABulous> run_simulation fst path/to/design.bin --extra-nvc-flag="--ieee-warnings=error"
 FABulous> run_simulation fst path/to/design.bin --extra-ghdl-flag="--warn-error"
 
-# Force a specific simulator
-FABulous> run_simulation fst path/to/design.bin SIMULATOR=nvc
-FABulous> run_simulation fst path/to/design.bin SIMULATOR=ghdl
+# Force a specific VHDL simulator
+FABulous> run_simulation fst path/to/design.bin --simulator=nvc
+FABulous> run_simulation fst path/to/design.bin --simulator=ghdl
 
 # Combine options
 FABulous> run_simulation vcd path/to/design.bin -d my_design -if "-DDEBUG -DTRACE"
@@ -162,6 +162,7 @@ FABulous> run_simulation vcd path/to/design.bin -d my_design -if "-DDEBUG -DTRAC
 | Flag | Short | Description |
 |---|---|---|
 | `--design` | `-d` | Override the design name (default: inferred from bitstream filename) |
+| `--simulator` | `-s` | VHDL simulator: `nvc`, `ghdl`, or `auto` (default: auto-detect) |
 | `--extra-iverilog-flag` | `-if` | Extra flags for iverilog (Verilog projects) |
 | `--extra-nvc-flag` | `-nf` | Extra flags for NVC (VHDL projects) |
 | `--extra-ghdl-flag` | `-gf` | Extra flags for GHDL (VHDL projects) |

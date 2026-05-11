@@ -227,8 +227,12 @@ def test_create_project_vhdl_has_taskfile(tmp_path: Path) -> None:
 
     content = taskfile.read_text()
     assert "ghdl" in content, "VHDL Taskfile should reference ghdl"
-    assert "GHDL_FLAGS" in content, "VHDL Taskfile should have GHDL_FLAGS var"
+    assert "nvc" in content, "VHDL Taskfile should reference nvc"
+    assert "GHDL_GLOBAL_FLAGS" in content, (
+        "VHDL Taskfile should have GHDL_GLOBAL_FLAGS var"
+    )
     assert "EXTRA_GHDL_FLAGS" in content
+    assert "EXTRA_NVC_FLAGS" in content
 
 
 def test_create_project_has_compile_taskfile(tmp_path: Path) -> None:

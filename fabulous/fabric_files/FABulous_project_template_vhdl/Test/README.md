@@ -5,8 +5,8 @@ FABulous provides a simulation environment to test the fabric and the bitstream 
 For simple use cases, there is the `run_simulation command` in the FABulous shell.
 For more complex use cases it can be useful to create an own flow, like the following example `make` based flow.
 
-Please make sure to use recent versions of (Yosys)[https://github.com/YosysHQ/yosys], (nextpnr-generic)[https://github.com/YosysHQ/nextpnr] (_not_ the old FABulous nextpnr fork)
-and either (NVC)[https://github.com/nickg/nvc] or (GHDL with mcode backend)[https://github.com/ghdl/ghdl/releases], or use the (OSS-CAD-Suite)[https://github.com/YosysHQ/oss-cad-suite-build] which provides nightly builds of the necessary dependencies.
+Please make sure to use recent versions of [Yosys](https://github.com/YosysHQ/yosys), [nextpnr-generic](https://github.com/YosysHQ/nextpnr) (_not_ the old FABulous nextpnr fork)
+and either [NVC](https://github.com/nickg/nvc) or [GHDL with mcode backend](https://github.com/ghdl/ghdl/releases), or use the [OSS-CAD-Suite](https://github.com/YosysHQ/oss-cad-suite-build) which provides nightly builds of the necessary dependencies.
 
 > [!NOTE]
 >
