@@ -10,6 +10,12 @@ on:
       - '.github/actions/**'
 
 jobs:
+  # NOTE: This workflow intentionally uses two separate jobs instead of two
+  # steps calling the same composite action in one job.
+  # Calling a composite action twice in the same job causes a GitHub Actions
+  # runner bug: Node.js actions inside it (setup-python, cache, setup-ghdl)
+  # register post-run handlers that break on duplicate step indices, producing
+  # "Index was out of range" errors in the post-run phase.
   generate_old_project:
     name: Generate old project (${{ matrix.name }})
     runs-on: ubuntu-latest
