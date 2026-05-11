@@ -39,6 +39,7 @@ jobs:
         with:
           name: demo-${{ matrix.type }}-base
           path: /tmp/demo_${{ matrix.type }}
+          include-hidden-files: true
 
   run_simulation:
     name: Run simulation with PR branch against base project (${{ matrix.name }})
