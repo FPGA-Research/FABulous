@@ -1,5 +1,3 @@
-`default_nettype none
-
 // Copyright 2021 University of Manchester
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,6 +11,25 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+
+`default_nettype none
+
+// 8x8 multiply-accumulate unit with optional input registers
+//
+//  A[7:0] -->[MUX c0]--> OPA --+
+//            (A/A_reg)         |   +------+   +--------+   +-----+
+//                              +-->| 8x8  |-->|  ext   |-->|     |
+//  B[7:0] -->[MUX c1]--> OPB --+-->| MUL  |   | [c4]   |   | ADD |----> sum
+//            (B/B_reg)             +------+   +--------+ +>|     |       |
+//                                                        | +-----+       |
+//  C[19:0] ->[MUX c2]--> OPC -->[MUX c3]--> sum_in ------+               |
+//            (C/C_reg)          (OPC/ACC)                                |
+//                                   ^          +-------+                 |
+//                                   +----------|  ACC  |<----------------+
+//                                              | D   Q |<-- clr
+//  Q[19:0] <-----[MUX c5]----------------------+-------+
+//                (sum/ACC)
+//
 
 (* FABulous, BelMap,
     A_reg=0,

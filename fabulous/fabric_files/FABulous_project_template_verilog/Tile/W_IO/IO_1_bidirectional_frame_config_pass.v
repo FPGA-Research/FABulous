@@ -14,6 +14,10 @@
 
 `default_nettype none
 
+//                        _____
+//    I-----T_DRIVER----->|PAD|--+-------> O
+//              |                |
+//    T---------+                +-->FF--> Q
 
 module IO_1_bidirectional_frame_config_pass (
     input I,  // from fabric to external pin

@@ -1,3 +1,11 @@
+-- SPDX-FileCopyrightText: © 2026 FABulous Contributors
+-- SPDX-License-Identifier: Apache-2.0
+
+--                        _____
+--    I-----T_DRIVER----->|PAD|--+-------> O
+--              |                |
+--    T---------+                +-->FF--> Q
+
 package attr_pack_W_IO_IO_1_bidirectional_frame_config_pass is
 
   attribute FABulous    : string;
@@ -57,7 +65,6 @@ architecture Behavioral of IO_1_bidirectional_frame_config_pass is
 
 begin
 
-  -- Slice outputs
   O <= O_top;
 
   process (UserCLK) is

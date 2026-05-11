@@ -15,6 +15,34 @@
 
 `default_nettype none
 
+// LUT4 with carry chain, flip-flop, enable, and synchronous reset
+//
+//                        ConfigBits[15:0]
+//                              |
+//                              v
+//                    +-----------------+
+//                    |                 |
+//        +-------+   |                 |                    +-------+
+//  I[0]--|0  MUX |-->| 16:1 MUX (LUT)  |--+-- LUT_out --+-->|0  MUX |---> O
+//  Ci  --|1      |   |                 |  |             |   |1      |
+//        +-------+   |                 |  |             |   +-------+
+//            ^       |                 |  | +------+    |       ^
+//         c_I0mux    |                 |  +-| D  Q |----+   c_out_mux
+//                    |                 |    |      |
+//  I[1] ------------>|                 |    | >clk |
+//  I[2] ------------>|                 |    | en   |
+//  I[3] ------------>|                 |    | sr   |
+//                    +-----------------+    +------+
+//                                            ^ ^ ^
+//  UserCLK ----------------------------------+ | |
+//  EN  (enable) -------------------------------+ |
+//  SR  (sync reset, value = c_reset_value) ------+
+//
+//  Carry chain (iCE40 style):
+//  Co = majority(Ci, I[1], I[2])
+//
+
+
 (* FABulous, BelMap,
     INIT=0,
     INIT_1=1,

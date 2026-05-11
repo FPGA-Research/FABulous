@@ -1,3 +1,6 @@
+-- SPDX-FileCopyrightText: © 2026 FABulous Contributors
+-- SPDX-License-Identifier: Apache-2.0
+
 package attr_pack_RAM_IO_InPass4_frame_config_mux is
 
   attribute FABulous    : string;
@@ -35,16 +38,16 @@ entity InPass4_frame_config_mux is
     ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
   );
 
-  attribute FABulous of InPass4_frame_config_mux : entity is "TRUE";
-  attribute BelMap of InPass4_frame_config_mux   : entity is "TRUE";
-  attribute I0_reg of InPass4_frame_config_mux   : entity is 0;
-  attribute I1_reg of InPass4_frame_config_mux   : entity is 1;
-  attribute I2_reg of InPass4_frame_config_mux   : entity is 2;
-  attribute I3_reg of InPass4_frame_config_mux   : entity is 3;
-  attribute EXTERNAL of I                        : signal is "TRUE";
-  attribute EXTERNAL of UserCLK                  : signal is "TRUE";
-  attribute SHARED_PORT of UserCLK               : signal is "TRUE";
-  attribute GLOBAL of ConfigBits                 : signal is "TRUE";
+  attribute FABulous of InPass4_frame_config_mux   : entity is "TRUE";
+  attribute BelMap of InPass4_frame_config_mux     : entity is "TRUE";
+  attribute I0_reg of InPass4_frame_config_mux     : entity is 0;
+  attribute I1_reg of InPass4_frame_config_mux     : entity is 1;
+  attribute I2_reg of InPass4_frame_config_mux     : entity is 2;
+  attribute I3_reg of InPass4_frame_config_mux     : entity is 3;
+  attribute EXTERNAL of I          : signal is "TRUE";
+  attribute EXTERNAL of UserCLK    : signal is "TRUE";
+  attribute SHARED_PORT of UserCLK : signal is "TRUE";
+  attribute GLOBAL of ConfigBits   : signal is "TRUE";
 end entity InPass4_frame_config_mux;
 
 architecture Behavioral of InPass4_frame_config_mux is

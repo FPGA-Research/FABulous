@@ -12,8 +12,26 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 `default_nettype none
+
+// 32-entry x 4-bit register file with dual read ports
+//
+//                +-------------------------------+
+//                |       32 x 4-bit RAM          |
+//  D[3:0] ------>| Write Data                    |
+//  W_ADR[4:0] -->| Write Address                 |
+//  W_en -------->| Write Enable                  |
+//                |                               |
+//  A_ADR[4:0] -->| Read Port A --> AD_comb --+---|---> [MUX c0] --> AD[3:0]
+//                |                    |      |   |     (comb/reg)
+//                |                  [REG]----+   |
+//                |                               |
+//  B_ADR[4:0] -->| Read Port B --> BD_comb --+---|---> [MUX c1] --> BD[3:0]
+//                |                    |      |   |     (comb/reg)
+//                |                  [REG]----+   |
+//                +-------------------------------+
+//
+
 
 (* FABulous, BelMap,
     AD_reg=0,
