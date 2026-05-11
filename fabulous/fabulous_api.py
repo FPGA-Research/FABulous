@@ -233,6 +233,7 @@ class FABulous_API:
                 config_bit_mode=self.fabric.configBitMode,
                 multiplexer_style=self.fabric.multiplexerStyle,
                 default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
+                preserve_list_order=self.fabric.preserveListOrder,
             )
         else:
             raise ValueError(f"Tile {tileName} not found")

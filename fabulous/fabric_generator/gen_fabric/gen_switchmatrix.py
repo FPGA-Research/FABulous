@@ -44,6 +44,7 @@ def genTileSwitchMatrix(
     config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
     multiplexer_style: MultiplexerStyle = MultiplexerStyle.CUSTOM,
     default_pip_delay: int = 80,
+    preserve_list_order: bool = False,
 ) -> None:
     """Generate the RTL code for the tile switch matrix.
 
@@ -73,6 +74,10 @@ def genTileSwitchMatrix(
         The multiplexer style used to implement switch-matrix muxes.
     default_pip_delay : int
         Per-mux delay (ps) emitted on assign statements in the switch matrix.
+    preserve_list_order : bool
+        When True, `list2CSV` writes a per-row 1-based index encoding the
+        connection's position in the `.list` file so the mux input order
+        can be recovered downstream. Defaults to False (legacy behaviour).
 
     Raises
     ------
@@ -100,7 +105,7 @@ def genTileSwitchMatrix(
             matrixDir = tile.matrixDir.with_suffix(".csv")
 
         bootstrapSwitchMatrix(tile, matrixDir)
-        list2CSV(tile.matrixDir, matrixDir, fabric.preserveListOrder)
+        list2CSV(tile.matrixDir, matrixDir, preserve_list_order)
         logger.info(
             f"Update matrix directory to {matrixDir} for Fabric Tile Dictionary"
         )
