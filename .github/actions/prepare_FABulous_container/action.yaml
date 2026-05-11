@@ -130,4 +130,4 @@ runs:
     - name: Set PATH
       shell: bash
       run: |
-        echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+        echo "$GITHUB_WORKSPACE/.venv/bin:/usr/local/bin:/usr/bin:/bin" >> "$GITHUB_PATH"
