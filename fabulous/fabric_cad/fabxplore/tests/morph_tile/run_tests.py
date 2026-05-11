@@ -264,6 +264,150 @@ def test_morph_tile_pass_replaces_select_as_data_frac_lut_eq() -> None:
         _assert_equiv(base, gate, tile, "base")
 
 
+def test_morph_tile_pass_replaces_reduce_chain_eq() -> None:
+    """Test a reduction ``__chain`` cell is replaced through CO."""
+    with TemporaryDirectory(prefix="morph_tile_chain_reduce_") as td:
+        tmp_dir = Path(td)
+        base = _write_reduce_chain_base(tmp_dir)
+        tile = _write_reduce_or_chain_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="reduce_or_tile",
+            tile_inputs=["P0", "P1", "P2"],
+            tile_outputs=["O"],
+            enabled_circuits=["chain"],
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 1
+        assert pass_.result_data.stats.failed_luts == 0
+        assert "CHAIN:REDUCE_OR:N2" in pass_.report_summary
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        assert "u_chain" not in cells
+        assert cells["u_chain__morph_tile"]["type"] == "reduce_or_tile"
+
+        gate = tmp_dir / "gate.v"
+        bridge.run_pass("hierarchy -top base")
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
+def test_morph_tile_pass_replaces_add_chain_eq() -> None:
+    """Test an ADD ``__chain`` cell maps both Y and CO outputs."""
+    with TemporaryDirectory(prefix="morph_tile_chain_add_") as td:
+        tmp_dir = Path(td)
+        base = _write_add_chain_base(tmp_dir)
+        tile = _write_full_adder_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="full_adder_tile",
+            tile_inputs=["P0", "P1", "P2"],
+            tile_outputs=["SUM", "CARRY"],
+            enabled_circuits=["chain"],
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 1
+        assert pass_.result_data.stats.failed_luts == 0
+        replacement = pass_.result_data.replacements[0]
+        assert set(replacement.output_ports) == {"SUM", "CARRY"}
+        assert "CHAIN:ADD:N2" in pass_.report_summary
+
+        gate = tmp_dir / "gate.v"
+        bridge.run_pass("hierarchy -top base")
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
+def test_morph_tile_pass_skips_reduction_chain_without_co() -> None:
+    """Test reduction chains without CO are ignored because Y is unused."""
+    with TemporaryDirectory(prefix="morph_tile_chain_no_co_") as td:
+        tmp_dir = Path(td)
+        base = tmp_dir / "chain_no_co_base.v"
+        base.write_text(
+            f"""
+{_chain_model_verilog()}
+
+module base(input a, input b, input ci, output y);
+  __chain #(
+    .MODE("REDUCE_OR"),
+    .N(32'd2),
+    .INIT(4'he)
+  ) u_chain (
+    .I({{b, a}}),
+    .A(2'b0),
+    .B(2'b0),
+    .CI(ci),
+    .Y(y)
+  );
+endmodule
+""",
+            encoding="utf-8",
+        )
+        tile = _write_reduce_or_chain_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="reduce_or_tile",
+            tile_inputs=["P0", "P1", "P2"],
+            tile_outputs=["O"],
+            enabled_circuits=["chain"],
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.total_luts == 0
+        assert pass_.result_data.stats.replaced_luts == 0
+        assert "u_chain" in bridge.to_netlist_dict()["modules"]["base"]["cells"]
+
+
+def test_morph_tile_pass_uses_chain_permute_cache() -> None:
+    """Test input-permuted chain truth tables share the permutation cache."""
+    with TemporaryDirectory(prefix="morph_tile_chain_permute_cache_") as td:
+        tmp_dir = Path(td)
+        base = _write_chain_permute_cache_base(tmp_dir)
+        tile = _write_asymmetric_chain_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="asym_chain_tile",
+            tile_inputs=["P0", "P1"],
+            tile_outputs=["O"],
+            enabled_circuits=["chain"],
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 2
+        assert pass_.result_data.stats.cache_misses == 1
+        assert pass_.result_data.stats.cache_hits == 1
+
+        gate = tmp_dir / "gate.v"
+        bridge.run_pass("hierarchy -top base")
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
 def test_morph_tile_reader_extracts_internal_lut_view() -> None:
     """Test the reader builds the compact internal LUT representation."""
     with TemporaryDirectory(prefix="morph_tile_reader_") as td:
@@ -822,6 +966,176 @@ endmodule
     return tile
 
 
+def _chain_model_verilog() -> str:
+    """Return a compact behavioral model for test ``__chain`` cells."""
+    return r"""
+module __chain #(
+  parameter MODE = "REDUCE_OR",
+  parameter [31:0] N = 32'd1,
+  parameter INIT = 0,
+  parameter [N-1:0] INV_IN = {N{1'b0}},
+  parameter INV_OUT = 1'b0,
+  parameter ALU_INIT_MODE = "xor"
+) (
+  input [N-1:0] I,
+  input [N-1:0] A,
+  input [N-1:0] B,
+  input CI,
+  output Y,
+  output CO
+);
+  wire local = INIT[I];
+  wire add_a = N > 1 ? I[1] : I[0];
+  wire add_b = I[0];
+  assign Y = MODE == "ADD" ? (local ^ CI) : local;
+  assign CO =
+    MODE == "REDUCE_OR"  ? (CI | local) :
+    MODE == "REDUCE_AND" ? (CI & local) :
+    MODE == "REDUCE_XOR" ? (CI ^ local) :
+    MODE == "ADD"        ? ((add_a & add_b) | (add_a & CI) | (add_b & CI)) :
+    local;
+endmodule
+"""
+
+
+def _write_reduce_chain_base(tmp_dir: Path) -> Path:
+    """Write a base design containing one reduction chain cell."""
+    base = tmp_dir / "chain_reduce_base.v"
+    base.write_text(
+        f"""
+{_chain_model_verilog()}
+
+module base(input a, input b, input ci, output y);
+  __chain #(
+    .MODE("REDUCE_OR"),
+    .N(32'd2),
+    .INIT(4'he)
+  ) u_chain (
+    .I({{b, a}}),
+    .A(2'b0),
+    .B(2'b0),
+    .CI(ci),
+    .Y(),
+    .CO(y)
+  );
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return base
+
+
+def _write_add_chain_base(tmp_dir: Path) -> Path:
+    """Write a base design containing one ADD chain cell."""
+    base = tmp_dir / "chain_add_base.v"
+    base.write_text(
+        f"""
+{_chain_model_verilog()}
+
+module base(input a, input b, input ci, output sum, output carry);
+  __chain #(
+    .MODE("ADD"),
+    .N(32'd2),
+    .INIT(4'h6),
+    .ALU_INIT_MODE("xor")
+  ) u_chain (
+    .I({{a, b}}),
+    .A({{a, b}}),
+    .B({{a, b}}),
+    .CI(ci),
+    .Y(sum),
+    .CO(carry)
+  );
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return base
+
+
+def _write_chain_permute_cache_base(tmp_dir: Path) -> Path:
+    """Write two input-permuted chain cells for cache testing."""
+    base = tmp_dir / "chain_permute_cache_base.v"
+    base.write_text(
+        f"""
+{_chain_model_verilog()}
+
+module base(input a, input b, input c, input d, output y0, output y1);
+  __chain #(
+    .MODE("REDUCE_XOR"),
+    .N(32'd2),
+    .INIT(4'h2)
+  ) chain0 (
+    .I({{b, a}}),
+    .A(2'b0),
+    .B(2'b0),
+    .CI(1'b0),
+    .Y(),
+    .CO(y0)
+  );
+
+  __chain #(
+    .MODE("REDUCE_XOR"),
+    .N(32'd2),
+    .INIT(4'h4)
+  ) chain1 (
+    .I({{d, c}}),
+    .A(2'b0),
+    .B(2'b0),
+    .CI(1'b0),
+    .Y(),
+    .CO(y1)
+  );
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return base
+
+
+def _write_reduce_or_chain_tile(tmp_dir: Path) -> Path:
+    """Write a tile that implements one two-input OR chain step."""
+    tile = tmp_dir / "reduce_or_tile.v"
+    tile.write_text(
+        """
+module reduce_or_tile(input P0, input P1, input P2, output O);
+  assign O = P0 | P1 | P2;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
+def _write_full_adder_tile(tmp_dir: Path) -> Path:
+    """Write a tile that implements one ADD chain step."""
+    tile = tmp_dir / "full_adder_tile.v"
+    tile.write_text(
+        """
+module full_adder_tile(input P0, input P1, input P2, output SUM, output CARRY);
+  assign SUM = P0 ^ P1 ^ P2;
+  assign CARRY = (P0 & P1) | (P0 & P2) | (P1 & P2);
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
+def _write_asymmetric_chain_tile(tmp_dir: Path) -> Path:
+    """Write a tile for asymmetric chain cache tests."""
+    tile = tmp_dir / "asym_chain_tile.v"
+    tile.write_text(
+        """
+module asym_chain_tile(input P0, input P1, output O);
+  assign O = P0 & ~P1;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
 def _assert_equiv(gold: Path, gate: Path, tile: Path, top_name: str) -> None:
     """Run a Yosys equivalence check between gold and mapped designs."""
     design = ys.Design()
@@ -852,6 +1166,10 @@ def main() -> None:
     test_morph_tile_pass_replaces_dual_frac_lut_eq()
     test_morph_tile_pass_frac_lut_mode_filter_skips()
     test_morph_tile_pass_replaces_select_as_data_frac_lut_eq()
+    test_morph_tile_pass_replaces_reduce_chain_eq()
+    test_morph_tile_pass_replaces_add_chain_eq()
+    test_morph_tile_pass_skips_reduction_chain_without_co()
+    test_morph_tile_pass_uses_chain_permute_cache()
     test_morph_tile_reader_extracts_internal_lut_view()
     test_morph_tile_lut_adapter_rejects_malformed_lut_output()
     test_morph_tile_pass_leaves_unsupported_lut()

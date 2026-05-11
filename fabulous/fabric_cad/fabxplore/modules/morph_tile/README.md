@@ -476,6 +476,11 @@ multi-output behavior from `L0_INIT`, `L1_INIT`, `LUT_SIZE`,
 `NUM_SHARED_INPUTS`, and select-as-data parameters, then solves that
 multi-output specification against the morph tile.
 
+`circuits/chain.py`
+: Adapter for generic `__chain` cells emitted by the chain mapper. It turns
+reduction and carry-chain steps into fixed single-output or multi-output truth
+tables and asks whether the morph tile can implement each step directly.
+
 `core/process_tracker.py`
 : Emits progress messages for long runs without cluttering the mapper logic.
 
@@ -522,10 +527,11 @@ Important options:
 - `tile_config_prefixes`: prefixes used to discover config ports, such as
   `ConfigBits`.
 - `enabled_circuits`: registered source-cell adapters to run. Today this can
-  include `lut` and `frac_lut`.
+  include `lut`, `frac_lut`, and `chain`.
 - `circuit_options`: adapter-specific options keyed by circuit name. For
   `frac_lut`, useful keys are `modes`, `cell_types`, and
   `enable_permute_cache`. For `lut`, useful keys are `widths` and
+  `enable_permute_cache`. For `chain`, useful keys are `cell_types` and
   `enable_permute_cache`.
 - `include_unused_inputs`: whether the writer should connect unused tile inputs
   instead of leaving them unconnected.
@@ -652,6 +658,127 @@ self.design_morph_tile_pass(
 )
 ```
 
+## Chain Cuts
+
+The chain mapper can emit target-independent `__chain` cells before the final
+architecture primitive is chosen. A chain cell represents one local step of a
+larger reduction or carry structure:
+
+```verilog
+__chain #(
+  .ALU_INIT_MODE("xor"),
+  .INIT(4'h6),
+  .INV_IN(2'h0),
+  .INV_OUT(1'h0),
+  .MODE("ADD"),
+  .N(32'd2)
+) u_chain (
+  .I({ a, b }),
+  .CI(ci),
+  .CO(co),
+  .Y(sum)
+);
+```
+
+The morph-tile `chain` adapter does not treat this as a normal LUT by name. It
+first rebuilds the local mathematical function described by the chain
+parameters and ports, then solves that function against the tile.
+
+For a chain with local inputs
+
+$i = (i_0,\ldots,i_{N-1})$
+
+and carry input $c_i$, the local INIT table defines:
+
+$l(i) = INIT[i]$
+
+For reduction modes, the chain output is the accumulation of the previous carry
+state with the local value:
+
+$CO = c_i \lor l(i)$ for `REDUCE_OR`
+
+$CO = c_i \land l(i)$ for `REDUCE_AND`
+
+$CO = c_i \oplus l(i)$ for `REDUCE_XOR`
+
+The chain mapper intentionally does not use `Y` for reductions, so the adapter
+only constrains `CO` for those modes. This matters because a raw reduction
+`__chain` may still have a syntactic `Y` connection in emitted Verilog, but that
+wire is dead from the reduction point of view.
+
+For ADD mode, the chain cell is multi-output. The adapter constrains the
+connected outputs among `Y` and `CO`. For the common two-input adder step:
+
+$Y = l(i) \oplus c_i$
+
+$CO = majority(i_1, i_0, c_i)$
+
+where:
+
+$majority(a,b,c) = (a \land b) \lor (a \land c) \lor (b \land c)$
+
+So an ADD chain becomes a multi-output SAT-fab spec:
+
+```python
+{
+    "Y":  init_for_sum,
+    "CO": init_for_carry,
+}
+```
+
+and the solver asks:
+
+$\exists \rho, q, r_Y, r_{CO} \;.\;
+  \forall a : T_{r_Y}(\rho(a), q)=Y(a)
+  \land T_{r_{CO}}(\rho(a), q)=CO(a)$
+
+where $r_Y$ and $r_{CO}$ are selected tile outputs. They may be different
+physical tile outputs such as `O1` and `Co`.
+
+### Supported Chain Shapes
+
+The adapter is intentionally generic over the emitted `__chain` cell rather than
+over a specific benchmark:
+
+- `MODE="ADD"`: maps connected `Y` and/or `CO` outputs.
+- `MODE="REDUCE_OR"`: maps the accumulated `CO` output.
+- `MODE="REDUCE_AND"`: maps the accumulated `CO` output.
+- `MODE="REDUCE_XOR"`: modeled as XOR accumulation if emitted.
+- `ALU_INIT_MODE="xor"`: the common chain-adder mode where `Y = INIT ^ CI`.
+- `ALU_INIT_MODE="full_adder"`: supported for wider full-adder-style cells.
+- Constant bits on `I` or `CI` are folded into the generated truth table.
+- Repeated source nets are represented once in the SAT spec, so a cell can have
+  shared inputs without creating fake independent variables.
+
+Unsupported or irrelevant chain outputs are skipped rather than forced. For
+example, a reduction chain without a connected `CO` output is not a useful
+candidate because the reduction result is not observable through the modeled
+chain output.
+
+To enable chain morphing:
+
+```python
+self.design_morph_tile_pass(
+    tile_verilog_path=Path("tile.v"),
+    tile_top_name="my_tile",
+    tile_inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
+    tile_outputs=["O0", "O1", "Co"],
+    enabled_circuits=["chain"],
+    tile_config_prefixes=["ConfigBits"],
+    circuit_options={
+        "chain": {
+            "cell_types": ["__chain"],
+            "enable_permute_cache": True,
+        },
+    },
+)
+```
+
+The same permutation cache used by LUT and FRAC-LUT cuts also works for chains,
+including multi-output ADD cells. The cache key is built from all modeled output
+truth tables together, so a sum/carry pair is cached as one coupled function,
+not as two unrelated one-output LUTs.
+
 ## Why This Is Useful
 
 Morph tile lets us explore whether an architecture tile can absorb logic that
@@ -674,9 +801,10 @@ INIT functions that were successfully mapped.
 ## Limitations
 
 The current mapper replaces one source cut with one morph tile instance. The
-`lut` adapter covers normal single-output `$lut` cells, and the `frac_lut`
-adapter covers multi-output LUT-combinator `__frac_lut` cells. Larger composed
-cuts are still future work.
+`lut` adapter covers normal single-output `$lut` cells, the `frac_lut` adapter
+covers multi-output LUT-combinator `__frac_lut` cells, and the `chain` adapter
+covers generic chain-mapper `__chain` cells. Larger composed cuts that span
+multiple source cells are still future work.
 
 Permutation caching only considers input permutation. It does not yet canonicalize
 under input inversion or output inversion, so it is not a full NPN cache.

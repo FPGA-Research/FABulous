@@ -45,12 +45,14 @@ class MorphCircuitKind(StrEnum):
     LUT
         Normal Yosys ``$lut`` cells.
     FRAC_LUT
-        LUT-combinator fractional LUT cells. The adapter is reserved for the
-        upcoming packed-cell path.
+        LUT-combinator fractional LUT cells.
+    CHAIN
+        Generic ``__chain`` cells emitted by the chain mapper.
     """
 
     LUT = "lut"
     FRAC_LUT = "frac_lut"
+    CHAIN = "chain"
 
 
 @dataclass(frozen=True)

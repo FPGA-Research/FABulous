@@ -7,6 +7,10 @@ mapper orchestration loop.
 
 from typing import Any
 
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.circuits.chain import (
+    ChainCircuit,
+    ChainCircuitOptions,
+)
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.circuits.frac_lut import (
     FracLutCircuit,
     FracLutCircuitOptions,
@@ -63,6 +67,16 @@ def build_morph_circuits(
                 FracLutCircuit(
                     env=env,
                     options=FracLutCircuitOptions.model_validate(
+                        _circuit_options(env, kind)
+                    ),
+                )
+            )
+            continue
+        if kind is MorphCircuitKind.CHAIN:
+            circuits.append(
+                ChainCircuit(
+                    env=env,
+                    options=ChainCircuitOptions.model_validate(
                         _circuit_options(env, kind)
                     ),
                 )
