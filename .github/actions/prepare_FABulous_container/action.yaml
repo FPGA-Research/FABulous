@@ -92,15 +92,7 @@ runs:
         github-token: ${{ github.token }}
         version: ${{ steps.oss-cad-version.outputs.version }}
     - name: Install NVC VHDL simulator
-      shell: bash
-      run: |
-        UBUNTU_VERSION=$(lsb_release -rs)
-        NVC_TAG=$(curl -sf -H "Authorization: Bearer ${{ github.token }}" \
-          "https://api.github.com/repos/nickg/nvc/releases/latest" | jq -r .tag_name)
-        NVC_VERSION=${NVC_TAG#r}
-        DEB_URL="https://github.com/nickg/nvc/releases/download/${NVC_TAG}/nvc_${NVC_VERSION}-1_amd64_ubuntu-${UBUNTU_VERSION}.deb"
-        wget -q "${DEB_URL}" -O /tmp/nvc.deb
-        sudo dpkg -i /tmp/nvc.deb
+      uses: nickg/setup-nvc@v1
       if: ${{ inputs.install_nvc != 'false' }}
     - name: Install GHDL mcode nightly
       # GHDL mcode is required to test our fabric.
