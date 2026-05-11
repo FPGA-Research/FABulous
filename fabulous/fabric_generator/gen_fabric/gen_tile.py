@@ -17,7 +17,6 @@ from collections import defaultdict
 from pathlib import Path
 
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction
-from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -29,7 +28,14 @@ from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
 )
 
 
-def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
+def generateTile(
+    writer: CodeGenerator,
+    tile: Tile,
+    frame_bits_per_row: int = 32,
+    max_frame_per_col: int = 20,
+    disable_user_clk: bool = False,
+    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
+) -> None:
     """Generate the RTL code for a tile given the tile object.
 
     This function creates the complete RTL implementation for a tile, including:
@@ -66,10 +72,16 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
     ----------
     writer : CodeGenerator
         The code generator instance for RTL output
-    fabric : Fabric
-        The fabric object containing global configuration
     tile : Tile
         The tile object containing BELs and port information
+    frame_bits_per_row : int
+        Number of configuration bits per row for frame-based configuration
+    max_frame_per_col : int
+        Maximum number of frames per column for frame-based configuration
+    disable_user_clk : bool
+        If True, the UserCLK port will not be generated or connected
+    config_bit_mode : ConfigBitMode
+        The configuration bit mode to use (frame-based or FlipFlop chain)
 
     Raises
     ------
@@ -82,7 +94,7 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
     writer.addHeader(f"{tile.name}")
     writer.addParameterStart(indentLevel=1)
     if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
-        maxBits = fabric.frameBitsPerRow * fabric.maxFramesPerCol
+        maxBits = frame_bits_per_row * max_frame_per_col
         writer.addPreprocIfDef("EMULATION")
         writer.addParameter(
             "Emulate_Bitstream",
@@ -91,12 +103,8 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
             indentLevel=2,
         )
         writer.addPreprocEndif()
-    writer.addParameter(
-        "MaxFramesPerCol", "integer", fabric.maxFramesPerCol, indentLevel=2
-    )
-    writer.addParameter(
-        "FrameBitsPerRow", "integer", fabric.frameBitsPerRow, indentLevel=2
-    )
+    writer.addParameter("MaxFramesPerCol", "integer", max_frame_per_col, indentLevel=2)
+    writer.addParameter("FrameBitsPerRow", "integer", frame_bits_per_row, indentLevel=2)
     if tile.globalConfigBits > 0:
         writer.addParameter(
             "NoConfigBits", "integer", tile.globalConfigBits, indentLevel=2
@@ -142,11 +150,11 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
 
     writer.addComment("Tile IO ports from BELs", onNewLine=True, indentLevel=1)
 
-    if not fabric.disableUserCLK:
+    if not disable_user_clk:
         writer.addPortScalar("UserCLK", IO.INPUT, indentLevel=2)
         writer.addPortScalar("UserCLKo", IO.OUTPUT, indentLevel=2)
 
-    if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
         writer.addPortVector("FrameData", IO.INPUT, "FrameBitsPerRow-1", indentLevel=2)
         writer.addComment("CONFIG_PORT", onNewLine=False, end="")
         writer.addPortVector(
@@ -160,7 +168,7 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
             "FrameStrobe_O", IO.OUTPUT, "MaxFramesPerCol-1", indentLevel=2
         )
 
-    elif fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+    elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
         writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
         writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
         writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
@@ -283,13 +291,13 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
     # buffer FrameData signals
     writer.addAssignScalar("FrameData_O_i", "FrameData_i")
     writer.addNewLine()
-    for i in range(fabric.frameBitsPerRow):
+    for i in range(frame_bits_per_row):
         writer.addInstantiation(
             "my_buf",
             f"data_inbuf_{i}",
             portsPairs=[("A", f"FrameData[{i}]"), ("X", f"FrameData_i[{i}]")],
         )
-    for i in range(fabric.frameBitsPerRow):
+    for i in range(frame_bits_per_row):
         writer.addInstantiation(
             "my_buf",
             f"data_outbuf_{i}",
@@ -302,14 +310,14 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
     # strobe is always added even when config bits are 0
     writer.addAssignScalar("FrameStrobe_O_i", "FrameStrobe_i")
     writer.addNewLine()
-    for i in range(fabric.maxFramesPerCol):
+    for i in range(max_frame_per_col):
         writer.addInstantiation(
             "my_buf",
             f"strobe_inbuf_{i}",
             portsPairs=[("A", f"FrameStrobe[{i}]"), ("X", f"FrameStrobe_i[{i}]")],
         )
 
-    for i in range(fabric.maxFramesPerCol):
+    for i in range(max_frame_per_col):
         writer.addInstantiation(
             "my_buf",
             f"strobe_outbuf_{i}",
@@ -355,7 +363,7 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
 
             added.add((port.sourceName, port.destinationName))
 
-    if not fabric.disableUserCLK:
+    if not disable_user_clk:
         writer.addInstantiation(
             "clk_buf",
             "inst_clk_buf",
@@ -364,14 +372,14 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
 
     writer.addNewLine()
     # top configuration data daisy chaining
-    if fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+    if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
         writer.addComment("top configuration data daisy chaining", onNewLine=True)
         writer.addAssignScalar("conf_data(conf_data'low)", "CONFin")
         writer.addComment("conf_data'low=0 and CONFin is from tile entity")
         writer.addAssignScalar("conf_data(conf_data'high)", "CONFout")
         writer.addComment("CONFout is from tile entity")
 
-    if fabric.configBitMode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
+    if config_bit_mode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
         writer.addComment("configuration storage latches", onNewLine=True)
         writer.addInstantiation(
             compName=f"{tile.name}_ConfigMem",
@@ -417,7 +425,7 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         # Shared ports
         for port in bel.sharedPort:
             if port[0] == "UserCLK":
-                if not fabric.disableUserCLK:
+                if not disable_user_clk:
                     userclk_pair = (port[0], port[0])
             else:
                 portsPairs.append((port[0], port[0]))
@@ -438,7 +446,7 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
         if userclk_pair is not None:
             portsPairs.append(userclk_pair)
 
-        if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
+        if config_bit_mode == ConfigBitMode.FRAME_BASED:
             if bel.configBit > 0:
                 portsPairs.append(
                     (
@@ -447,7 +455,7 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
                         f"{belConfigBitsCounter}]",
                     )
                 )
-        elif fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+        elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
             portsPairs.append(("MODE", "Mode"))
             portsPairs.append(("CONFin", f"conf_data({belCounter})"))
             portsPairs.append(("CONFout", f"conf_data({belCounter + 1})"))
@@ -519,13 +527,13 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
 
     portsPairs += list(zip(port, signal, strict=False))
 
-    if fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+    if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
         portsPairs.append(("MODE", "Mode"))
         portsPairs.append(("CONFin", f"conf_data({belCounter})"))
         portsPairs.append(("CONFout", f"conf_data({belCounter + 1})"))
         portsPairs.append(("CLK", "CLK"))
 
-    if fabric.configBitMode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
+    if config_bit_mode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
         portsPairs.append(
             (
                 "ConfigBits",
@@ -550,7 +558,12 @@ def generateTile(writer: CodeGenerator, fabric: Fabric, tile: Tile) -> None:
 
 
 def generateSuperTile(
-    writer: CodeGenerator, fabric: Fabric, superTile: SuperTile
+    writer: CodeGenerator,
+    superTile: SuperTile,
+    frame_bits_per_row: int = 32,
+    max_frame_per_col: int = 20,
+    disable_user_clk: bool = False,
+    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
 ) -> None:
     """Generate a super tile wrapper for given super tile.
 
@@ -566,16 +579,22 @@ def generateSuperTile(
     ----------
     writer : CodeGenerator
         The code generator instance for RTL output
-    fabric : Fabric
-        The fabric object containing global configuration
     superTile : SuperTile
         Super tile object containing tile map and configuration
+    frame_bits_per_row : int
+        Number of configuration bits per row for frame-based configuration
+    max_frame_per_col : int
+        Maximum number of frames per column for frame-based configuration
+    disable_user_clk : bool
+        If True, the UserCLK port will not be generated or connected
+    config_bit_mode : ConfigBitMode
+        The configuration bit mode to use (frame-based or FlipFlop chain)
     """
     writer.addHeader(f"{superTile.name}")
     writer.addParameterStart(indentLevel=1)
     if isinstance(writer, VerilogCodeGenerator):
         writer.addPreprocIfDef("EMULATION")
-        maxBits = fabric.frameBitsPerRow * fabric.maxFramesPerCol
+        maxBits = frame_bits_per_row * max_frame_per_col
         for y, row in enumerate(superTile.tileMap):
             for x, tile in enumerate(row):
                 if not tile:
@@ -587,12 +606,8 @@ def generateSuperTile(
                     indentLevel=2,
                 )
         writer.addPreprocEndif()
-    writer.addParameter(
-        "MaxFramesPerCol", "integer", fabric.maxFramesPerCol, indentLevel=2
-    )
-    writer.addParameter(
-        "FrameBitsPerRow", "integer", fabric.frameBitsPerRow, indentLevel=2
-    )
+    writer.addParameter("MaxFramesPerCol", "integer", max_frame_per_col, indentLevel=2)
+    writer.addParameter("FrameBitsPerRow", "integer", frame_bits_per_row, indentLevel=2)
 
     writer.addParameterEnd(indentLevel=1)
     writer.addPortStart(indentLevel=1)
@@ -634,7 +649,7 @@ def generateSuperTile(
                 writer.addPortScalar(p[0], p[1], indentLevel=2)
 
     # add config port
-    if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
         for y, row in enumerate(superTile.tileMap):
             for x, _tile in enumerate(row):
                 if y - 1 < 0 or superTile.tileMap[y - 1][x] is None:
@@ -675,7 +690,7 @@ def generateSuperTile(
                         indentLevel=2,
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
-    if not fabric.disableUserCLK:
+    if not disable_user_clk:
         for y, row in enumerate(superTile.tileMap):
             for x, _tile in enumerate(row):
                 if y - 1 < 0 or superTile.tileMap[y - 1][x] is None:
@@ -730,7 +745,7 @@ def generateSuperTile(
                     "MaxFramesPerCol-1",
                     indentLevel=1,
                 )
-                if not fabric.disableUserCLK:
+                if not disable_user_clk:
                     writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo", indentLevel=1)
             if (
                 0 <= x - 1 < len(superTile.tileMap[y])
@@ -826,13 +841,13 @@ def generateSuperTile(
                 for p in b.externalOutput:
                     portsPairs.append((p, p))
 
-                if not fabric.disableUserCLK:
+                if not disable_user_clk:
                     for p in b.sharedPort:
                         if "UserCLK" not in p[0]:
                             portsPairs.append(("UserCLK", p[0]))
 
             # add clock to tile
-            if not fabric.disableUserCLK:
+            if not disable_user_clk:
                 if (
                     0 <= y + 1 < len(superTile.tileMap)
                     and superTile.tileMap[y + 1][x] is not None
@@ -841,7 +856,7 @@ def generateSuperTile(
                 else:
                     portsPairs.append(("UserCLK", f"Tile_X{x}Y{y}_UserCLK"))
                 portsPairs.append(("UserCLKo", f"Tile_X{x}Y{y}_UserCLKo"))
-            if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
+            if config_bit_mode == ConfigBitMode.FRAME_BASED:
                 # add connection for frameData, frameStrobe
                 if (
                     0 <= x - 1 < len(superTile.tileMap[0])

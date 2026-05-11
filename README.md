@@ -132,7 +132,9 @@ FABulous> gen_geometry
 
 We welcome community contributions. To ensure consistency, please use uv for environment setup, follow Ruff formatting standards, and use conventional commits for your messages. Comprehensive details regarding environment setup and coding standards are available in our [Development Guide](https://fabulous.readthedocs.io/en/latest/development.html).
 
-By contributing to this project, you agree that your modifications will be licensed under the project's Apache 2.0 License.
+Before opening a pull request, please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full contribution terms. By submitting a pull request, you agree that your contribution is licensed under the project's [Apache 2.0 License](./LICENSE) and that you have the right to grant this license.
+
+Contributors are recognised automatically in [`AUTHORS.md`](./AUTHORS.md), which is regenerated from the GitHub contributors list as part of the release flow.
 
 ## Citation
 

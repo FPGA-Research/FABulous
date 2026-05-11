@@ -1,4 +1,5 @@
 package attr_pack_W_IO_Config_access is
+
   attribute FABulous    : string;
   attribute BelMap      : string;
   attribute C_bit0      : integer;
@@ -7,19 +8,24 @@ package attr_pack_W_IO_Config_access is
   attribute C_bit3      : integer;
   attribute EXTERNAL    : string;
   attribute GLOBAL      : string;
-end package;
+
+end package attr_pack_W_IO_Config_access;
+
 library IEEE;
-use IEEE.STD_LOGIC_1164.all;
-use work.attr_pack_W_IO_Config_access.all;
+  use IEEE.STD_LOGIC_1164.all;
+  use work.attr_pack_W_IO_Config_access.all;
 
 -- (* FABulous, BelMap, C_bit0=0, C_bit1=1, C_bit2=2, C_bit3=3 *)
+
 entity Config_access is
-  generic (NoConfigBits : integer := 4); -- has to be adjusted manually (we don't use an arithmetic parser for the value)
+  generic (
+    NoConfigBits : integer := 4 -- has to be adjusted manually (we don't use an arithmetic parser for the value)
+  );
   port (
     -- Pin0
-    C : out std_logic_vector(3 downto 0); -- (* FABulous, EXTERNAL *)
+    C : out   std_logic_vector(3 downto 0); -- (* FABulous, EXTERNAL *)
     -- GLOBAL all primitive pins that are connected to the switch matrix have to go before the GLOBAL label
-    ConfigBits : in std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
+    ConfigBits : in    std_logic_vector(NoConfigBits - 1 downto 0) -- (* FABulous, GLOBAL *)
   );
   attribute FABulous of Config_access : entity is "TRUE";
   attribute BelMap of Config_access   : entity is "TRUE";

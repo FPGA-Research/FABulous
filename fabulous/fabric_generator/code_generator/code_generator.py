@@ -481,6 +481,7 @@ class CodeGenerator(abc.ABC):
         portsPairs: list[tuple[str, str]],
         paramPairs: list[tuple[str, str]] | None = None,
         emulateParamPairs: list[tuple[str, str]] | None = None,
+        add_keep: bool = False,
         indentLevel: int = 0,
     ) -> None:
         """Add an instantiation.
@@ -504,6 +505,9 @@ class CodeGenerator(abc.ABC):
         emulateParamPairs : list[tuple[str, str]] | None, optional
             List of parameter signals of the component in emulation mode only.
             Defaults to None.
+        add_keep : bool, optional
+            Whether to add a FABulous "keep" attribute to the instance.
+            Defaults to False.
         indentLevel : int, optional
             The level of indentation. Defaults to 0.
 

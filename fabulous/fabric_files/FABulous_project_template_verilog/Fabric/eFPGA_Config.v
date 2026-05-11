@@ -1,27 +1,29 @@
-module eFPGA_Config (CLK, resetn, Rx, ComActive, ReceiveLED, s_clk, s_data, SelfWriteData, SelfWriteStrobe, ConfigWriteData, ConfigWriteStrobe, FrameAddressRegister, LongFrameStrobe, RowSelect);
-    parameter NumberOfRows = 16;
-    parameter RowSelectWidth = 5;
-    parameter FrameBitsPerRow = 32;
-    parameter desync_flag = 20;
-    input CLK;
-    input resetn;
+`default_nettype none
+
+module eFPGA_Config #(
+    parameter integer NumberOfRows = 16,
+    parameter integer RowSelectWidth = 5,
+    parameter integer FrameBitsPerRow = 32,
+    parameter integer desync_flag = 20
+) (
+    input CLK,
+    input resetn,
     // UART configuration port
-    input Rx;
-    output ComActive;
-    output ReceiveLED;
+    input Rx,
+    output ComActive,
+    output ReceiveLED,
     // BitBang configuration port
-    input s_clk;
-    input s_data;
-    // CPU configuration port
-    input [32-1:0] SelfWriteData; // configuration data write port
-    input SelfWriteStrobe; // must decode address and write enable
-
-    output [32-1:0] ConfigWriteData;
-    output ConfigWriteStrobe;
-
-    output [FrameBitsPerRow-1:0] FrameAddressRegister;
-    output LongFrameStrobe;
-    output [RowSelectWidth-1:0] RowSelect;
+    input s_clk,
+    input s_data,
+    // Parallel configuration port
+    input [31:0] SelfWriteData,
+    input SelfWriteStrobe,
+    output [31:0] ConfigWriteData,
+    output ConfigWriteStrobe,
+    output [FrameBitsPerRow-1:0] FrameAddressRegister,
+    output LongFrameStrobe,
+    output [RowSelectWidth-1:0] RowSelect
+);
 
     wire [7:0] Command;
     wire [31:0] UART_WriteData;
@@ -37,66 +39,61 @@ module eFPGA_Config (CLK, resetn, Rx, ComActive, ReceiveLED, s_clk, s_data, Self
     wire BitBangWriteStrobe_Mux;
     wire BitBangActive;
 
-    wire FSM_Reset;
+    wire fsm_reset;
 
     config_UART INST_config_UART (
-    .CLK(CLK),
-    .resetn(resetn),
-    .Rx(Rx),
-    .WriteData(UART_WriteData),
-    .ComActive(UART_ComActive),
-    .WriteStrobe(UART_WriteStrobe),
-    .Command(Command),
-    .ReceiveLED(UART_LED)
+        .CLK(CLK),
+        .reset_n(resetn),
+        .Rx(Rx),
+        .WriteData(UART_WriteData),
+        .ComActive(UART_ComActive),
+        .WriteStrobe(UART_WriteStrobe),
+        .Command(Command),
+        .ReceiveLED(UART_LED)
     );
 
-    //bitbang
-    bitbang Inst_bitbang (
-    .s_clk(s_clk),
-    .s_data(s_data),
-    .strobe(BitBangWriteStrobe),
-    .data(BitBangWriteData),
-    .active(BitBangActive),
-    .clk(CLK),
-    .resetn(resetn)
+    // BitBang
+    bitbang inst_bit_bang (
+        .s_clk(s_clk),
+        .s_data(s_data),
+        .strobe(BitBangWriteStrobe),
+        .data(BitBangWriteData),
+        .active(BitBangActive),
+        .clk(CLK),
+        .reset_n(resetn)
     );
 
-    // BitBangActive is used to switch between bitbang or internal configuration port (BitBang has therefore higher priority)
+    // Configuration port priority (highest to lowest): UART > BitBang > Parallel
+
     assign BitBangWriteData_Mux = BitBangActive ? BitBangWriteData : SelfWriteData;
     assign BitBangWriteStrobe_Mux = BitBangActive ? BitBangWriteStrobe : SelfWriteStrobe;
 
-    // ComActive is used to switch between (bitbang+internal) port or UART (UART has therefore higher priority
     assign UART_WriteData_Mux = UART_ComActive ? UART_WriteData : BitBangWriteData_Mux;
     assign UART_WriteStrobe_Mux = UART_ComActive ? UART_WriteStrobe : BitBangWriteStrobe_Mux;
 
     assign ConfigWriteData = UART_WriteData_Mux;
     assign ConfigWriteStrobe = UART_WriteStrobe_Mux;
 
-    assign FSM_Reset = UART_ComActive || BitBangActive;
+    assign fsm_reset = UART_ComActive || BitBangActive;
 
     assign ComActive = UART_ComActive;
-    assign ReceiveLED = UART_LED^BitBangWriteStrobe;
-
-//  wire [FrameBitsPerRow-1:0] FrameAddressRegister;
-//  wire LongFrameStrobe;
-//  wire [RowSelectWidth-1:0] RowSelect;
+    assign ReceiveLED = UART_LED ^ BitBangWriteStrobe;
 
     ConfigFSM #(
-    .NumberOfRows(NumberOfRows),
-    .RowSelectWidth(RowSelectWidth),
-    .FrameBitsPerRow(FrameBitsPerRow),
-    .desync_flag(desync_flag)
-    )
-    ConfigFSM_inst
-    (.CLK(CLK),
-    .resetn(resetn),
-    .WriteData(UART_WriteData_Mux),
-    .WriteStrobe(UART_WriteStrobe_Mux),
-    .FSM_Reset(FSM_Reset),
-    //outputs
-    .FrameAddressRegister(FrameAddressRegister),
-    .LongFrameStrobe(LongFrameStrobe),
-    .RowSelect(RowSelect)
+        .NumberOfRows(NumberOfRows),
+        .RowSelectWidth(RowSelectWidth),
+        .FrameBitsPerRow(FrameBitsPerRow),
+        .desync_flag(desync_flag)
+    ) ConfigFSM_inst (
+        .CLK(CLK),
+        .reset_n(resetn),
+        .write_data(UART_WriteData_Mux),
+        .write_strobe(UART_WriteStrobe_Mux),
+        .fsm_reset(fsm_reset),
+        .frame_address_register(FrameAddressRegister),
+        .long_frame_strobe(LongFrameStrobe),
+        .row_select(RowSelect)
     );
 
 endmodule
+`default_nettype wire

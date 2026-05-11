@@ -39,7 +39,12 @@ def _expect_capacity_error(
 ) -> None:
     """Test that capacity error is raised with meaningful message."""
     with pytest.raises((ValueError, RuntimeError, AssertionError)) as exc_info:
-        generateConfigMemInit(fabric_config, output_file, tile_config_bits)
+        generateConfigMemInit(
+            output_file,
+            tile_config_bits,
+            frame_bits_per_row=fabric_config.frameBitsPerRow,
+            max_frame_per_col=fabric_config.maxFramesPerCol,
+        )
     # Verify that the error message is meaningful
     error_msg = str(exc_info.value).lower()
     assert "exceed fabric capacity" in error_msg
@@ -66,7 +71,12 @@ class TestGenerateConfigMemInit:
         if tile_config_bits == 0:
             return
 
-        generateConfigMemInit(fabric_config, output_file, tile_config_bits)
+        generateConfigMemInit(
+            output_file,
+            tile_config_bits,
+            frame_bits_per_row=fabric_config.frameBitsPerRow,
+            max_frame_per_col=fabric_config.maxFramesPerCol,
+        )
         rows = verify_csv_content(
             output_file, expected_rows=fabric_config.maxFramesPerCol
         )
@@ -92,12 +102,20 @@ class TestGenerateConfigMemInit:
         if not has_capacity:
             with pytest.raises((ValueError, RuntimeError, AssertionError)):
                 generateConfigMemInit(
-                    fabric_config, tmp_path / "should_fail.csv", tile_config_bits
+                    tmp_path / "should_fail.csv",
+                    tile_config_bits,
+                    frame_bits_per_row=fabric_config.frameBitsPerRow,
+                    max_frame_per_col=fabric_config.maxFramesPerCol,
                 )
             return
 
         output_file = tmp_path / f"bitmask_{fabric_config.name}_{tile_config.name}.csv"
-        generateConfigMemInit(fabric_config, output_file, tile_config_bits)
+        generateConfigMemInit(
+            output_file,
+            tile_config_bits,
+            frame_bits_per_row=fabric_config.frameBitsPerRow,
+            max_frame_per_col=fabric_config.maxFramesPerCol,
+        )
 
         rows = verify_csv_content(
             output_file, expected_rows=fabric_config.maxFramesPerCol
@@ -134,14 +152,22 @@ class TestGenerateConfigMemInit:
         if not has_capacity:
             with pytest.raises((ValueError, RuntimeError, AssertionError)):
                 generateConfigMemInit(
-                    fabric_config, tmp_path / "should_fail.csv", tile_config_bits
+                    tmp_path / "should_fail.csv",
+                    tile_config_bits,
+                    frame_bits_per_row=fabric_config.frameBitsPerRow,
+                    max_frame_per_col=fabric_config.maxFramesPerCol,
                 )
             return
 
         output_file = (
             tmp_path / f"allocation_{fabric_config.name}_{tile_config.name}.csv"
         )
-        generateConfigMemInit(fabric_config, output_file, tile_config_bits)
+        generateConfigMemInit(
+            output_file,
+            tile_config_bits,
+            frame_bits_per_row=fabric_config.frameBitsPerRow,
+            max_frame_per_col=fabric_config.maxFramesPerCol,
+        )
 
         rows = verify_csv_content(
             output_file, expected_rows=fabric_config.maxFramesPerCol
@@ -181,10 +207,20 @@ class TestGenerateConfigMemInit:
         # Expect error when fabric can't accommodate the config bits
         if not has_capacity:
             with pytest.raises((ValueError, RuntimeError, AssertionError)):
-                generateConfigMemInit(default_fabric, output_file, tile_config_bits)
+                generateConfigMemInit(
+                    output_file,
+                    tile_config_bits,
+                    frame_bits_per_row=default_fabric.frameBitsPerRow,
+                    max_frame_per_col=default_fabric.maxFramesPerCol,
+                )
             return
 
-        generateConfigMemInit(default_fabric, output_file, tile_config_bits)
+        generateConfigMemInit(
+            output_file,
+            tile_config_bits,
+            frame_bits_per_row=default_fabric.frameBitsPerRow,
+            max_frame_per_col=default_fabric.maxFramesPerCol,
+        )
 
         rows = verify_csv_content(output_file)
 
@@ -223,10 +259,22 @@ class TestGeneratedConfigMemRTL:
         )
         if not has_capacity and tile_config.globalConfigBits > 0:
             with pytest.raises(ValueError, match="adjust the tile configuration."):
-                generateConfigMem(writer, fabric_config, tile_config, config_csv)
+                generateConfigMem(
+                    writer,
+                    tile_config,
+                    config_csv,
+                    frame_bits_per_row=fabric_config.frameBitsPerRow,
+                    max_frame_per_col=fabric_config.maxFramesPerCol,
+                )
             return
 
-        generateConfigMem(writer, fabric_config, tile_config, config_csv)
+        generateConfigMem(
+            writer,
+            tile_config,
+            config_csv,
+            frame_bits_per_row=fabric_config.frameBitsPerRow,
+            max_frame_per_col=fabric_config.maxFramesPerCol,
+        )
 
         # Verify output file was created and contains expected content
         output_file = writer.outFileName
@@ -273,7 +321,13 @@ class TestGeneratedConfigMemRTL:
         mock_parse.return_value = config_memlist_data
 
         # Generate the ConfigMem RTL
-        generateConfigMem(writer, default_fabric, default_tile, csv_path)
+        generateConfigMem(
+            writer,
+            default_tile,
+            csv_path,
+            frame_bits_per_row=default_fabric.frameBitsPerRow,
+            max_frame_per_col=default_fabric.maxFramesPerCol,
+        )
 
         # Read the generated RTL
         rtl_content = writer.outFileName.read_text()

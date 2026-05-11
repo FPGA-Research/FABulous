@@ -23,9 +23,9 @@ repos:
       - id: docformatter
         name: docformatter
         description: "Formats docstrings to follow PEP 257."
-        args: [--in-place, --black]
+        args: [ --in-place, --black ]
         language: python
-        types: [python]
+        types: [ python ]
 
   - repo: local
     hooks:
@@ -33,7 +33,7 @@ repos:
         name: interrogate
         entry: interrogate
         language: python
-        args: [-vv, -c, pyproject.toml]
+        args: [ -vv, -c, pyproject.toml ]
         pass_filenames: false # needed if excluding files with pyproject.toml or setup.cfg
       - id: deptry
         name: deptry
@@ -55,7 +55,7 @@ repos:
     hooks:
       # Run the linter.
       - id: ruff
-        args: [--fix]
+        args: [ --fix ]
       # Run the formatter.
       - id: ruff-format
 
@@ -63,6 +63,39 @@ repos:
     rev: 0.7.3
     hooks:
       - id: pydoclint
-        args: [--style=numpy]
+        args: [ --style=numpy ]
         exclude: ^(tests/|FABulous/FABulous_CLI/FABulous_CLI\.py$)
 
+  - repo: https://github.com/jeremiah-c-leary/vhdl-style-guide
+    rev: 3.35.0
+    hooks:
+      - id: vsg
+        args: [ --configuration=.vsg.yaml ]
+
+  # Verilog / SystemVerilog linting — upstream hook (Docker-backed)
+  - repo: https://github.com/verilator/verilator
+    rev: v5.048 # refreshed by `pre-commit autoupdate`
+    hooks:
+      - id: verilator
+        # Waivers are inherent to pre-commit's per-file linting, not real design defects:
+        args:
+          [
+            --lint-only,
+            -Wno-MODMISSING,
+            -Wno-TIMESCALEMOD,
+            -Wno-MULTITOP,
+            -Wno-MODDUP,
+          ]
+        exclude: ^fabulous/fabric_files/FABulous_project_template_common/Tile/include/.*_latchmap\.v$
+
+  # Verilog / SystemVerilog linting — upstream svlint static binary.
+  # scripts/svlint_wrapper.py downloads and caches the pinned release on first
+  # invocation, so no manual install is required.
+  - repo: local
+    hooks:
+      - id: svlint
+        name: svlint
+        description: Lint (System)Verilog with upstream svlint
+        language: script
+        entry: scripts/svlint_wrapper.py --config .svlint.toml
+        types_or: [ verilog, system-verilog ]

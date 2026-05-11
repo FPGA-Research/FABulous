@@ -391,12 +391,12 @@ class TestGenerateIOPinOrderConfig:
         return tile
 
     def test_generate_io_pin_order_config_writes_yaml(
-        self, mock_fabric: Fabric, mock_tile: Tile, tmp_path: Path
+        self, mock_tile: Tile, tmp_path: Path
     ) -> None:
         """Test that config is written to YAML file."""
         outfile = tmp_path / "test_config.yaml"
 
-        generate_IO_pin_order_config(mock_fabric, mock_tile, outfile)
+        generate_IO_pin_order_config(mock_tile, outfile)
 
         assert outfile.exists()
 
@@ -407,12 +407,12 @@ class TestGenerateIOPinOrderConfig:
         assert "X0Y0" in config
 
     def test_generate_io_pin_order_config_tile_structure(
-        self, mock_fabric: Fabric, mock_tile: Tile, tmp_path: Path
+        self, mock_tile: Tile, tmp_path: Path
     ) -> None:
         """Test structure of generated config for a tile."""
         outfile = tmp_path / "test_config.yaml"
 
-        generate_IO_pin_order_config(mock_fabric, mock_tile, outfile)
+        generate_IO_pin_order_config(mock_tile, outfile)
 
         with outfile.open() as f:
             config = yaml.safe_load(f)
@@ -424,12 +424,12 @@ class TestGenerateIOPinOrderConfig:
         assert "WEST" in config["X0Y0"]
 
     def test_generate_io_pin_order_config_with_prefix(
-        self, mock_fabric: Fabric, mock_tile: Tile, tmp_path: Path
+        self, mock_tile: Tile, tmp_path: Path
     ) -> None:
         """Test generation with prefix."""
         outfile = tmp_path / "test_config.yaml"
 
-        generate_IO_pin_order_config(mock_fabric, mock_tile, outfile, prefix="Pre_")
+        generate_IO_pin_order_config(mock_tile, outfile, prefix="Pre_")
 
         with outfile.open() as f:
             config = yaml.safe_load(f)
@@ -439,7 +439,7 @@ class TestGenerateIOPinOrderConfig:
         assert config is not None
 
     def test_generate_io_pin_order_config_supertile(
-        self, mock_fabric: Fabric, mocker: MockerFixture, tmp_path: Path
+        self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         """Test generation for a SuperTile."""
         # Create mock supertile
@@ -458,40 +458,16 @@ class TestGenerateIOPinOrderConfig:
         mock_supertile.tileMap = [[mock_tile]]
         mock_supertile.getPortsAroundTile.return_value = {}
 
-        # Fabric returns position
-        mock_fabric.find_tile_positions.return_value = [(0, 0)]
-        mock_fabric.determine_border_side.return_value = Side.SOUTH
-
         outfile = tmp_path / "test_supertile_config.yaml"
 
-        generate_IO_pin_order_config(mock_fabric, mock_supertile, outfile)
+        generate_IO_pin_order_config(mock_supertile, outfile)
 
         assert outfile.exists()
 
-    def test_generate_io_pin_order_config_no_positions(
-        self, mock_fabric: Fabric, mock_tile: Tile, tmp_path: Path
+    def test_generate_io_pin_order_config_defaults_external_side_to_south(
+        self, mock_tile: Tile, mocker: MockerFixture, tmp_path: Path
     ) -> None:
-        """Test generation when fabric returns no positions."""
-        mock_fabric.find_tile_positions.return_value = []
-
-        outfile = tmp_path / "test_config.yaml"
-
-        generate_IO_pin_order_config(mock_fabric, mock_tile, outfile)
-
-        # Should still work with default side
-        assert outfile.exists()
-
-    def test_generate_io_pin_order_config_border_side_handling(
-        self,
-        mock_fabric: Fabric,
-        mock_tile: Tile,
-        mocker: MockerFixture,
-        tmp_path: Path,
-    ) -> None:
-        """Test that border side is used for external ports."""
-        mock_fabric.determine_border_side.return_value = Side.EAST
-
-        # Add BEL with external ports
+        """Test generation uses SOUTH for external ports by default."""
         bel = mocker.MagicMock()
         bel.externalInput = ["ext_in"]
         bel.externalOutput = []
@@ -499,7 +475,62 @@ class TestGenerateIOPinOrderConfig:
 
         outfile = tmp_path / "test_config.yaml"
 
-        generate_IO_pin_order_config(mock_fabric, mock_tile, outfile)
+        generate_IO_pin_order_config(mock_tile, outfile)
+
+        with outfile.open() as f:
+            config = yaml.safe_load(f)
+
+        south_configs = config["X0Y0"]["SOUTH"]
+        pin_lists = [c["pins"] for c in south_configs]
+        all_pins = [pin for pins in pin_lists for pin in pins]
+
+        assert "ext_in" in all_pins
+
+    def test_generate_io_pin_order_config_without_fabric_uses_external_side(
+        self, mock_tile: Tile, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        """Test generation without fabric placement context."""
+        bel = mocker.MagicMock()
+        bel.externalInput = ["ext_in"]
+        bel.externalOutput = []
+        mock_tile.bels = [bel]
+
+        outfile = tmp_path / "test_config.yaml"
+
+        generate_IO_pin_order_config(
+            mock_tile,
+            outfile,
+            external_port_side=Side.EAST,
+        )
+
+        with outfile.open() as f:
+            config = yaml.safe_load(f)
+
+        east_configs = config["X0Y0"]["EAST"]
+        pin_lists = [c["pins"] for c in east_configs]
+        all_pins = [pin for pins in pin_lists for pin in pins]
+
+        assert "ext_in" in all_pins
+
+    def test_generate_io_pin_order_config_external_side_handling(
+        self,
+        mock_tile: Tile,
+        mocker: MockerFixture,
+        tmp_path: Path,
+    ) -> None:
+        """Test that explicit external side is used for external ports."""
+        bel = mocker.MagicMock()
+        bel.externalInput = ["ext_in"]
+        bel.externalOutput = []
+        mock_tile.bels = [bel]
+
+        outfile = tmp_path / "test_config.yaml"
+
+        generate_IO_pin_order_config(
+            mock_tile,
+            outfile,
+            external_port_side=Side.EAST,
+        )
 
         with outfile.open() as f:
             config = yaml.safe_load(f)
@@ -511,10 +542,10 @@ class TestGenerateIOPinOrderConfig:
 
         assert "ext_in" in all_pins
 
-    def test_generate_io_pin_order_config_supertile_multiple_positions(
-        self, mock_fabric: Fabric, mocker: MockerFixture, tmp_path: Path
+    def test_generate_io_pin_order_config_supertile_uses_fabric_border_side(
+        self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
-        """Test supertile with multiple positions uses top-left."""
+        """SuperTile subtile sides come from fabric placement when given."""
         mock_supertile = mocker.MagicMock(spec=SuperTile)
 
         mock_tile = mocker.MagicMock(spec=Tile)
@@ -524,20 +555,72 @@ class TestGenerateIOPinOrderConfig:
             Side.SOUTH: PinOrderConfig(),
             Side.WEST: PinOrderConfig(),
         }
-        mock_tile.bels = []
+        bel = mocker.MagicMock()
+        bel.externalInput = ["ext_in"]
+        bel.externalOutput = []
+        mock_tile.bels = [bel]
 
         mock_supertile.tileMap = [[mock_tile]]
-        mock_supertile.getPortsAroundTile.return_value = {}
+        mock_supertile.getPortsAroundTile.return_value = {"0,0": [[]]}
 
-        # Multiple positions
-        mock_fabric.find_tile_positions.return_value = [(2, 3), (0, 1), (1, 2)]
-        mock_fabric.determine_border_side.return_value = None
+        mock_fabric = mocker.MagicMock(spec=Fabric)
+        mock_fabric.find_tile_positions.return_value = [(2, 0)]
+        mock_fabric.determine_border_side.return_value = Side.EAST
 
         outfile = tmp_path / "test_config.yaml"
 
-        generate_IO_pin_order_config(mock_fabric, mock_supertile, outfile)
+        generate_IO_pin_order_config(
+            mock_supertile,
+            outfile,
+            fabric=mock_fabric,
+        )
 
-        assert outfile.exists()
+        with outfile.open() as f:
+            config = yaml.safe_load(f)
+
+        east_configs = config["X0Y0"]["EAST"]
+        pin_lists = [c["pins"] for c in east_configs]
+        all_pins = [pin for pins in pin_lists for pin in pins]
+
+        assert "ext_in" in all_pins
+
+    def test_generate_io_pin_order_config_supertile_without_fabric(
+        self, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        """Test SuperTile generation without fabric placement context."""
+        mock_supertile = mocker.MagicMock(spec=SuperTile)
+
+        mock_tile = mocker.MagicMock(spec=Tile)
+        mock_tile.pinOrderConfig = {
+            Side.NORTH: PinOrderConfig(),
+            Side.EAST: PinOrderConfig(),
+            Side.SOUTH: PinOrderConfig(),
+            Side.WEST: PinOrderConfig(),
+        }
+        bel = mocker.MagicMock()
+        bel.externalInput = ["ext_in"]
+        bel.externalOutput = []
+        mock_tile.bels = [bel]
+
+        mock_supertile.tileMap = [[mock_tile]]
+        mock_supertile.getPortsAroundTile.return_value = {"0,0": [[]]}
+
+        outfile = tmp_path / "test_config.yaml"
+
+        generate_IO_pin_order_config(
+            mock_supertile,
+            outfile,
+            external_port_side=Side.EAST,
+        )
+
+        with outfile.open() as f:
+            config = yaml.safe_load(f)
+
+        east_configs = config["X0Y0"]["EAST"]
+        pin_lists = [c["pins"] for c in east_configs]
+        all_pins = [pin for pins in pin_lists for pin in pins]
+
+        assert "ext_in" in all_pins
 
 
 class TestPinOrderConfigIntegration:

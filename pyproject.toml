@@ -175,3 +175,6 @@ FABulous-bit-gen = "FABulous_bit_gen"
 
 [tool.uv.sources]
 sdf-timing = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" }
+
+[tool.uv.extra-build-dependencies]
+sdf-timing = ["vcs-versioning"]

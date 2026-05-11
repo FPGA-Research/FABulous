@@ -12,7 +12,6 @@ docker-image
 .claude
 .codex
 .coverage*
-CLAUDE.md
 fabulous_nix
 build
 

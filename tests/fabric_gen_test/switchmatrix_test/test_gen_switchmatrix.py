@@ -9,7 +9,6 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
 from tests.fabric_gen_test.conftest import (
@@ -28,7 +27,6 @@ class TestListFileCsvOutputDirectory:
 
     def test_csv_written_to_custom_directory(
         self,
-        default_fabric: Fabric,
         default_tile: Tile,
         tmp_path: Path,
         mocker: MockerFixture,
@@ -53,7 +51,6 @@ class TestListFileCsvOutputDirectory:
         with pytest.raises(AttributeError):
             genTileSwitchMatrix(
                 None,
-                default_fabric,
                 default_tile,
                 False,
                 csv_output_dir=custom_output_dir,
@@ -66,7 +63,6 @@ class TestListFileCsvOutputDirectory:
 
     def test_default_writes_to_same_directory(
         self,
-        default_fabric: Fabric,
         default_tile: Tile,
         tmp_path: Path,
         mocker: MockerFixture,
@@ -85,7 +81,7 @@ class TestListFileCsvOutputDirectory:
         )
 
         with pytest.raises(AttributeError):
-            genTileSwitchMatrix(None, default_fabric, default_tile, False)
+            genTileSwitchMatrix(None, default_tile, False)
 
         expected_csv = tmp_path / "test_matrix.csv"
         assert expected_csv.exists()
@@ -93,7 +89,6 @@ class TestListFileCsvOutputDirectory:
 
     def test_creates_nested_output_directory(
         self,
-        default_fabric: Fabric,
         default_tile: Tile,
         tmp_path: Path,
         mocker: MockerFixture,
@@ -117,7 +112,6 @@ class TestListFileCsvOutputDirectory:
         with pytest.raises(AttributeError):
             genTileSwitchMatrix(
                 None,
-                default_fabric,
                 default_tile,
                 False,
                 csv_output_dir=custom_output_dir,
@@ -150,7 +144,6 @@ class TestListFileCsvOutputDirectory:
         with pytest.raises(AttributeError):
             genTileSwitchMatrix(
                 None,
-                mocker.MagicMock(),
                 default_tile,
                 False,
                 csv_output_dir=custom_output_dir,

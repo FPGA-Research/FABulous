@@ -9,34 +9,64 @@ permissions:
 
 name: release-please
 
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/create-github-app-token@v2
-      id: app-token
-      with:
-        app-id: ${{ vars.RP_APP_ID }}
-        private-key: ${{ secrets.RP_APP_PK }}
-        owner: ${{ github.repository_owner }}
-        repositories: ${{ github.event.repository.name }}
-    - uses: googleapis/release-please-action@v4
-      id: release
-      with:
-        token: ${{ steps.app-token.outputs.token }}
-        release-type: python
-        
-    - name: tag major and minor versions
-      if: ${{ steps.release.outputs.release_created }}
-      run: |
-        git config user.name github-actions[bot]
-        git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-        git tag -d v${{ steps.release.outputs.major }} || true
-        git tag -d v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }} || true
-        git push origin :v${{ steps.release.outputs.major }} || true
-        git push origin :v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }} || true
-        git tag -a v${{ steps.release.outputs.major }} -m "Release v${{ steps.release.outputs.major }}"
-        git tag -a v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }} -m "Release v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}"
-        git push origin v${{ steps.release.outputs.major }}
-        git push origin v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}
+      - uses: actions/checkout@v4
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.RP_APP_ID }}
+          private-key: ${{ secrets.RP_APP_PK }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          release-type: python
+
+      - name: Update AUTHORS.md on release PR
+        if: ${{ steps.release.outputs.pr }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_JSON: ${{ steps.release.outputs.pr }}
+        run: |
+          PR_BRANCH=$(printf '%s' "$PR_JSON" | jq -r '.headBranchName')
+          git fetch origin "$PR_BRANCH"
+          git checkout "$PR_BRANCH"
+          {
+            echo "# Authors"
+            echo ""
+            echo "FABulous is developed and maintained by the following contributors."
+            echo "This list is generated automatically from the GitHub contributors API and refreshed with each release. For the always-current list of contributors between releases, see the [GitHub contributors page](../../graphs/contributors)."
+            echo ""
+            gh api --paginate "repos/${{ github.repository }}/contributors?per_page=100" \
+              --jq '.[] | select(.type=="User") | "- [@\(.login)](https://github.com/\(.login))"'
+          } > AUTHORS.md
+          if [[ -n "$(git status --porcelain AUTHORS.md)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add AUTHORS.md
+            git commit -m "chore: update AUTHORS.md"
+            git push origin "$PR_BRANCH"
+          fi
+
+      - name: tag major and minor versions
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git tag -d v${{ steps.release.outputs.major }} || true
+          git tag -d v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }} || true
+          git push origin :v${{ steps.release.outputs.major }} || true
+          git push origin :v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }} || true
+          git tag -a v${{ steps.release.outputs.major }} -m "Release v${{ steps.release.outputs.major }}"
+          git tag -a v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }} -m "Release v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}"
+          git push origin v${{ steps.release.outputs.major }}
+          git push origin v${{ steps.release.outputs.major }}.${{ steps.release.outputs.minor }}

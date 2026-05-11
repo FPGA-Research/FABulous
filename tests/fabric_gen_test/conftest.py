@@ -430,6 +430,7 @@ def cocotb_runner(tmp_path: Path) -> Callable:
                 hdl_toplevel=hdl_top_level,
                 always=True,
                 build_dir=build_dir,
+                timescale=("1ps", "1ps"),
             )
         elif hdl_toplevel_lang == ".vhd":
             # GHDL converts identifiers to lowercase for elaboration and execution

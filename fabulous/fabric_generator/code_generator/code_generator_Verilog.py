@@ -247,6 +247,7 @@ class VerilogCodeGenerator(CodeGenerator):
         portsPairs: list[tuple[str, str]],
         paramPairs: list[tuple[str, str]] | None = None,
         emulateParamPairs: list[tuple[str, str]] | None = None,
+        add_keep: bool = False,
         indentLevel: int = 0,
     ) -> None:
         """Add a module instantiation.
@@ -257,6 +258,7 @@ class VerilogCodeGenerator(CodeGenerator):
             portsPairs: List of (port, signal) pairs for port mapping
             paramPairs: List of (parameter, value) pairs for parameter mapping
             emulateParamPairs: Parameters for emulation mode only
+            add_keep: Whether to add a "keep" attribute to the instance
             indentLevel: The indentation level
         """
         if emulateParamPairs is None:
@@ -265,7 +267,10 @@ class VerilogCodeGenerator(CodeGenerator):
             paramPairs = []
         if paramPairs:
             port = [f".{i[0]}({i[1]})" for i in paramPairs]
-            self._add(f"{compName}", indentLevel=indentLevel)
+            if add_keep:
+                self._add(f"(* keep *) {compName}", indentLevel=indentLevel)
+            else:
+                self._add(f"{compName}", indentLevel=indentLevel)
             self._add("#(", indentLevel=indentLevel + 1)
             self._add(
                 (f",\n{' ':<{4 * (indentLevel + 1)}}").join(port),
@@ -276,7 +281,10 @@ class VerilogCodeGenerator(CodeGenerator):
             self._add("(", indentLevel=indentLevel + 1)
         elif emulateParamPairs:
             port = [f".{i[0]}({i[1]})" for i in emulateParamPairs]
-            self._add(f"{compName}", indentLevel=indentLevel)
+            if add_keep:
+                self._add(f"(* keep *) {compName}", indentLevel=indentLevel)
+            else:
+                self._add(f"{compName}", indentLevel=indentLevel)
             self._add("`ifdef EMULATION", indentLevel=0)
             self._add("#(", indentLevel=indentLevel + 1)
             self._add(
@@ -288,7 +296,12 @@ class VerilogCodeGenerator(CodeGenerator):
             self._add(f"{compInsName}", indentLevel=indentLevel + 1)
             self._add("(", indentLevel=indentLevel + 1)
         else:
-            self._add(f"{compName} {compInsName} (", indentLevel=indentLevel)
+            if add_keep:
+                self._add(
+                    f"(* keep *) {compName} {compInsName} (", indentLevel=indentLevel
+                )
+            else:
+                self._add(f"{compName} {compInsName} (", indentLevel=indentLevel)
 
         connectPair = []
         for i in portsPairs:

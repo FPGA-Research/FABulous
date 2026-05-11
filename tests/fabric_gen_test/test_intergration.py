@@ -1,9 +1,29 @@
 """Integration tests for FABulous fabric generation."""
 
+import subprocess
+import sys
 from pathlib import Path
 from subprocess import run
 
 import pytest
+from dotenv import unset_key
+
+
+@pytest.fixture(autouse=True)
+def _disable_pdk_download(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("FAB_PDK", raising=False)
+    monkeypatch.delenv("FAB_PDK_ROOT", raising=False)
+
+    real_run = subprocess.run
+
+    def scrubbing_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess:
+        result = real_run(*args, **kwargs)
+        for env_file in tmp_path.rglob(".FABulous/.env"):
+            unset_key(env_file, "FAB_PDK")
+            unset_key(env_file, "FAB_PDK_ROOT")
+        return result
+
+    monkeypatch.setattr(sys.modules[__name__], "run", scrubbing_run)
 
 
 @pytest.mark.slow
