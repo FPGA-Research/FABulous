@@ -122,4 +122,4 @@ runs:
     - name: Set PATH
       shell: bash
       run: |
-        echo "/home/runner/work/FABulous/FABulous/install/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH" >> "$GITHUB_PATH"
+        echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
