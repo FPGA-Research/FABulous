@@ -180,6 +180,7 @@
             customPkgs.nextpnr
             customPkgs.fabulator
             customPkgs.ghdl
+            pkgs.nvc
           ]
           ++ (builtins.filter systemSupported librelane-pkg.includedTools);
 
