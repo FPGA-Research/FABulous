@@ -177,7 +177,7 @@ It is planned to remove these limitations in future versions of FABulous.
 
   - `PreserveListOrder`, `[TRUE|FALSE]` (default `FALSE`)
 
-    When `TRUE`, FABulous preserves the mux input order from each tile's `.list` file: the first listed input becomes `A0`, the second `A1`, and so on. The default `FALSE` keeps the legacy behaviour, where mux input order is determined by column order in the bootstrapped switch matrix CSV.
+    When `TRUE`, FABulous preserves the mux input order from each tile's `.list` file: the rightmost listed input becomes `A0`, the next-rightmost `A1`, and so on (MSB-first, matching Verilog/VHDL `downto`). The default `FALSE` keeps the legacy behaviour, where mux input order is determined by column order in the bootstrapped switch matrix CSV.
 
     This is useful when a specific input must occupy a known mux position.
 

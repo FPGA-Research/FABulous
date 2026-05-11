@@ -102,6 +102,20 @@ def test_expand_list_ports(
             InvalidSwitchMatrixDefinition,
             id="tile_name_mismatch",
         ),
+        pytest.param(
+            "T,D0,D1,D2,D3\nSRC,1,2,3,4\n",
+            "T",
+            {"SRC": ["D3", "D2", "D1", "D0"]},
+            None,
+            id="preserve_order_msb_first",
+        ),
+        pytest.param(
+            "T,D0,D1,D2\nSRC,0,foo,1\n",
+            "T",
+            None,
+            InvalidSwitchMatrixDefinition,
+            id="non_integer_cell_value",
+        ),
     ],
 )
 def test_parse_matrix(

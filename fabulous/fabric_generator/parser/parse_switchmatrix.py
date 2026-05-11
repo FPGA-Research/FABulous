@@ -20,9 +20,9 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     """Parse the matrix CSV into a dictionary from destination to source.
 
     Any non-zero integer denotes a configurable connection; the integer
-    encodes the mux input position (lower = earlier). Sort by
-    (value, column) so all-`1` rows fall back to CSV-column order via the
-    column-index secondary key.
+    encodes the mux input position (higher = earlier, i.e. rightmost
+    `.list` entry → `A0`, MSB-first). Sort by (-value, column) so all-`1`
+    rows fall back to CSV-column order via the column-index secondary key.
 
     Parameters
     ----------
@@ -75,7 +75,7 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
                 ) from exc
             if value != 0 and k < len(dest_list):
                 items.append((value, k, dest_list[k]))
-        items.sort(key=lambda x: (x[0], x[1]))
+        items.sort(key=lambda x: (-x[0], x[1]))
         connections[port_name] = [d for _, _, d in items]
     return connections
 
