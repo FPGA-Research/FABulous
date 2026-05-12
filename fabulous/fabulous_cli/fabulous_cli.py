@@ -1539,13 +1539,16 @@ class FABulous_CLI(Cmd):
             script_file.write(f"read_db {db_file}\n")
             file_name = script_file.name
         logger.info(f"Start OpenROAD GUI with odb: {db_file}")
-        sp.run(
-            [
-                str(openroad),
-                "-gui",
-                str(file_name),
-            ]
-        )
+        try:
+            sp.run(
+                [
+                    str(openroad),
+                    "-gui",
+                    str(file_name),
+                ]
+            )
+        finally:
+            Path(file_name).unlink(missing_ok=True)
 
     @with_argparser(gui_parser)
     @with_category(CMD_TOOLS)

@@ -4,7 +4,6 @@ This module provides comprehensive tests for the Yosys JSON parser, including pa
 different HDL formats and netlist analysis methods.
 """
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -14,7 +13,9 @@ from fabulous.custom_exception import InvalidFileType
 from fabulous.fabric_definition.yosys_obj import YosysJson
 
 
-def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
+def setup_mocks(
+    monkeypatch: pytest.MonkeyPatch, json_data: dict, tmp_path: Path
+) -> None:
     """Set up mocks."""
     monkeypatch.setattr(
         "subprocess.run",
@@ -37,14 +38,11 @@ def setup_mocks(monkeypatch: pytest.MonkeyPatch, json_data: dict) -> None:
 
     monkeypatch.setattr("builtins.open", mock_open_func)
 
-    # Ensure FABulousSettings validation passes by providing a models pack
-    tmp_mp = Path(tempfile.gettempdir()) / "models_pack.v"
-    try:
-        tmp_mp.write_text("// test models pack\n")
-    except OSError:
-        # In rare cases temp dir may be read-only; fallback to current working dir
-        tmp_mp = Path.cwd() / "models_pack.v"
-        tmp_mp.write_text("// test models pack\n")
+    # Ensure FABulousSettings validation passes by providing a models pack.
+    # Use tmp_path (pytest-isolated per-test dir) to avoid collisions between
+    # concurrent test workers or users sharing the same machine.
+    tmp_mp = tmp_path / "models_pack.v"
+    tmp_mp.write_text("// test models pack\n")
     monkeypatch.setenv("FAB_MODELS_PACK", str(tmp_mp))
 
 
@@ -149,7 +147,7 @@ def test_yosys_json_file_not_exists(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Test YosysJson with unsupported file type."""
-    setup_mocks(monkeypatch, {})
+    setup_mocks(monkeypatch, {}, tmp_path)
     fakePath = tmp_path / "file.txt"
     with pytest.raises(FileNotFoundError, match="does not exist"):
         YosysJson(fakePath)
@@ -159,7 +157,7 @@ def test_yosys_json_unsupported_file_type(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Test YosysJson with unsupported file type."""
-    setup_mocks(monkeypatch, {})
+    setup_mocks(monkeypatch, {}, tmp_path)
     fakePath = tmp_path / "file.txt"
     fakePath.touch()
     with pytest.raises(InvalidFileType, match="Unsupported HDL file type"):
@@ -183,7 +181,7 @@ def test_get_top_module(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
         "models": {},
     }
 
-    setup_mocks(monkeypatch, json_data)
+    setup_mocks(monkeypatch, json_data, tmp_path)
     fakePath = tmp_path / "test_file.v"
     fakePath.touch()
     fakePath.with_suffix(".json").touch()
@@ -212,7 +210,7 @@ def test_get_top_module_no_top(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         "models": {},
     }
 
-    setup_mocks(monkeypatch, json_data)
+    setup_mocks(monkeypatch, json_data, tmp_path)
     fakePath = tmp_path / "test_file.v"
     fakePath.touch()
     fakePath.with_suffix(".json").touch()
@@ -240,7 +238,7 @@ def test_get_top_module_blackbox_fallback(
         "models": {},
     }
 
-    setup_mocks(monkeypatch, json_data)
+    setup_mocks(monkeypatch, json_data, tmp_path)
     fakePath = tmp_path / "test_file.v"
     fakePath.touch()
     fakePath.with_suffix(".json").touch()
@@ -278,7 +276,7 @@ def test_get_top_module_prefers_top_over_blackbox(
         "models": {},
     }
 
-    setup_mocks(monkeypatch, json_data)
+    setup_mocks(monkeypatch, json_data, tmp_path)
     fakePath = tmp_path / "test_file.v"
     fakePath.touch()
     fakePath.with_suffix(".json").touch()
@@ -329,7 +327,7 @@ def test_getNetPortSrcSinks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
         "models": {},
     }
 
-    setup_mocks(monkeypatch, json_data)
+    setup_mocks(monkeypatch, json_data, tmp_path)
     fakePath = tmp_path / "test_file.v"
     fakePath.touch()
     fakePath.with_suffix(".json").touch()

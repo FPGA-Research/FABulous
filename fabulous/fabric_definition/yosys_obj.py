@@ -262,33 +262,38 @@ class YosysJson:
         ghdl = get_context().ghdl_path
         json_file = self.srcPath.with_suffix(".json")
 
-        # FIXME: a fake file to ensure things working with 1.3
-        temp: Path = Path(tempfile.gettempdir())
-        temp = temp / "my_package.vhd"
-        temp.touch()
-        temp.write_text("package my_package is\nend package;\n")
         # VHDL files are converted to Verilog by GHDL, so use .v suffix for yosys
         # Verilog/SystemVerilog files use their original suffix
         if self.srcPath.suffix in {".vhd", ".vhdl"}:
-            runCmd = [
-                f"{ghdl!s}",
-                "--synth",
-                "--std=08",
-                "--out=verilog",
-                str(temp),
-                f"{get_context().models_pack!s}",
-                f"{self.srcPath}",
-                "-e",
-                f"{self.srcPath.stem}",
-            ]
+            # FIXME: a fake stub package required by 1.3 -- unique per-invocation
+            # to avoid collisions when multiple users run FABulous on the same machine.
+            with tempfile.NamedTemporaryFile(
+                suffix=".vhd", mode="w", delete=False
+            ) as _tf:
+                _tf.write("package my_package is\nend package;\n")
+                temp = Path(_tf.name)
             try:
-                r = subprocess.run(runCmd, check=True, capture_output=True)
-                self.srcPath.with_suffix(".v").write_text(r.stdout.decode())
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(
-                    f"Failed to run GHDL on {self.srcPath}: {e.stderr.decode()} "
-                    f"run cmd: {' '.join(runCmd)}"
-                ) from e
+                runCmd = [
+                    f"{ghdl!s}",
+                    "--synth",
+                    "--std=08",
+                    "--out=verilog",
+                    str(temp),
+                    f"{get_context().models_pack!s}",
+                    f"{self.srcPath}",
+                    "-e",
+                    f"{self.srcPath.stem}",
+                ]
+                try:
+                    r = subprocess.run(runCmd, check=True, capture_output=True)
+                    self.srcPath.with_suffix(".v").write_text(r.stdout.decode())
+                except subprocess.CalledProcessError as e:
+                    raise RuntimeError(
+                        f"Failed to run GHDL on {self.srcPath}: {e.stderr.decode()} "
+                        f"run cmd: {' '.join(runCmd)}"
+                    ) from e
+            finally:
+                temp.unlink(missing_ok=True)
             yosys_src = self.srcPath.with_suffix(".v")
         else:
             yosys_src = self.srcPath
