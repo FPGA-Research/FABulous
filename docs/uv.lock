@@ -563,7 +563,7 @@ requires-dist = [
     { name = "sphinx-autodoc-typehints", specifier = ">=3.10.2" },
     { name = "sphinx-copybutton", specifier = ">=0.5.0" },
     { name = "sphinx-design", specifier = ">=0.5.0" },
-    { name = "sphinx-llm", extras = ["gen"], specifier = ">=0.3.0" },
+    { name = "sphinx-llm", extras = ["gen"], specifier = ">=0.4.1" },
     { name = "sphinx-prompt", specifier = "==1.10.2" },
     { name = "sphinx-remove-toctrees", specifier = ">=1.0.0.post1" },
     { name = "sphinxcontrib-bibtex", specifier = ">=2.6.0" },
