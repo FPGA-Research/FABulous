@@ -6,6 +6,7 @@ locations and is used during bitstream generation.
 """
 
 import string
+from importlib.metadata import version
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -45,6 +46,11 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
         "ArchSpecs": {
             "MaxFramesPerCol": fabric.maxFramesPerCol,
             "FrameBitsPerRow": fabric.frameBitsPerRow,
+            "FrameSelectWidth": fabric.frameSelectWidth,
+            "DesyncBit": fabric.desync_flag,
+            "SyncHeaderHex": fabric.syncHeaderHex,
+            "IncludeBorderRows": False,  # Currently not supported in FABulous
+            "FABulousVersion": version("FABulous-FPGA"),
         },
     }
 
