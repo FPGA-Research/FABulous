@@ -154,22 +154,25 @@ class CutSolver:
         CutSolveResult
             SAT status plus decoded input, output, and config mappings.
         """
-        equiv_result = (
-            Equiv.check(spec, self._candidate)
-            .route_inputs(
-                self._candidate,
-                pool=spec_inputs,
-                inputs=self.inputs,
-                allow_reuse=allow_input_reuse,
-                allow_constants=allow_input_constants,
-            )
-            .route_outputs(
+        try:
+            check = Equiv.check(spec, self._candidate)
+            if spec_inputs:
+                check = check.route_inputs(
+                    self._candidate,
+                    pool=spec_inputs,
+                    inputs=self.inputs,
+                    allow_reuse=allow_input_reuse,
+                    allow_constants=allow_input_constants,
+                )
+            equiv_result = check.route_outputs(
                 self._candidate,
                 {output: self.outputs for output in spec_outputs},
                 allow_reuse=allow_output_reuse,
-            )
-            .solve()
-        )
+            ).solve()
+        except ValueError:
+            # SAT-fab raises ValueError for structurally impossible routing
+            # requests; for morph-tile mapping that is simply an UNSAT cut.
+            return CutSolveResult(sat=False)
 
         if not equiv_result.sat:
             return CutSolveResult(sat=False, raw_result=equiv_result)

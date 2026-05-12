@@ -32,6 +32,9 @@ from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.design_analyzer_pass imp
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass import (
     LutCombinatorPass,
 )
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_decomposer_pass import (
+    LutDecomposerPass,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_layering_pass import (
     LutLayeringPass,
 )
@@ -508,6 +511,93 @@ class ArchitectureSynthesizer(ABC):
             allow_input_reuse=allow_input_reuse,
             allow_input_constants=allow_input_constants,
             allow_output_reuse=allow_output_reuse,
+            track_progress=track_progress,
+            progress_chunk_size=progress_chunk_size,
+            top_name=top_name or self.design.top_name(),
+            debug=self.debug,
+        )
+        result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        self.add_primitive(result.verilog_model)
+        return result
+
+    def design_decompose_lut_pass(
+        self,
+        source_lut_widths: list[int],
+        leaf_lut_width: int,
+        mux_verilog_path: Path,
+        mux_top_name: str,
+        mux_data_inputs: list[str],
+        mux_select_inputs: list[str],
+        mux_outputs: list[str],
+        log_report: bool = True,
+        mux_configs: list[str] | None = None,
+        mux_config_prefixes: list[str] | None = None,
+        mux_dependency_paths: list[Path] | None = None,
+        include_unused_mux_inputs: bool = False,
+        max_decompositions: int | None = None,
+        track_progress: bool = True,
+        progress_chunk_size: int = 100,
+        top_name: str | None = None,
+    ) -> LutDecomposerPass:
+        """Run high-LUT decomposition on the current design.
+
+        Parameters
+        ----------
+        source_lut_widths : list[int]
+            Source ``$lut`` widths to decompose.
+        leaf_lut_width : int
+            Width of generated cofactor ``$lut`` cells.
+        mux_verilog_path : Path
+            Verilog source containing the mux primitive.
+        mux_top_name : str
+            Mux primitive module name.
+        mux_data_inputs : list[str]
+            Candidate mux data input ports.
+        mux_select_inputs : list[str]
+            Candidate mux select input ports.
+        mux_outputs : list[str]
+            Candidate mux output ports.
+        log_report : bool
+            If ``True``, log the decomposition report after execution.
+        mux_configs : list[str] | None
+            Explicit mux configuration input ports.
+        mux_config_prefixes : list[str] | None
+            Prefixes used to classify mux configuration inputs.
+        mux_dependency_paths : list[Path] | None
+            Additional Verilog dependencies needed by the mux primitive.
+        include_unused_mux_inputs : bool
+            Whether unused mux inputs are tied to zero.
+        max_decompositions : int | None
+            Optional cap on successful decompositions.
+        track_progress : bool
+            Whether to log progress.
+        progress_chunk_size : int
+            Number of processed candidates between progress messages.
+        top_name : str | None
+            Top module to process. If ``None``, use the current design top.
+
+        Returns
+        -------
+        LutDecomposerPass
+            Pass instance containing result and report data.
+        """
+        result = LutDecomposerPass(
+            source_lut_widths=source_lut_widths,
+            leaf_lut_width=leaf_lut_width,
+            mux_verilog_path=mux_verilog_path,
+            mux_top_name=mux_top_name,
+            mux_data_inputs=mux_data_inputs,
+            mux_select_inputs=mux_select_inputs,
+            mux_outputs=mux_outputs,
+            mux_configs=mux_configs,
+            mux_config_prefixes=mux_config_prefixes,
+            mux_dependency_paths=mux_dependency_paths,
+            include_unused_mux_inputs=include_unused_mux_inputs,
+            max_decompositions=max_decompositions,
             track_progress=track_progress,
             progress_chunk_size=progress_chunk_size,
             top_name=top_name or self.design.top_name(),
