@@ -650,7 +650,7 @@ dev = [
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "pytest-cov", specifier = ">=6.2.1" },
-    { name = "pytest-mock", specifier = ">=3.14.1" },
+    { name = "pytest-mock", specifier = ">=3.15.1" },
     { name = "pytest-split", specifier = ">=0.10.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "ruff", specifier = ">=0.12.7" },
