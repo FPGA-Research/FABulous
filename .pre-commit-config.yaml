@@ -18,7 +18,7 @@ repos:
       - id: no-commit-to-branch
 
   - repo: https://github.com/PyCQA/docformatter.git
-    rev: "v1.7.7"
+    rev: "v1.7.8"
     hooks:
       - id: docformatter
         name: docformatter
