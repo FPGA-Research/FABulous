@@ -3,7 +3,7 @@ default_language_version:
   python: python3.12
 repos:
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.9.7
+    rev: 0.11.13
     hooks:
       - id: uv-lock
 
@@ -60,7 +60,7 @@ repos:
       - id: ruff-format
 
   - repo: https://github.com/jsh9/pydoclint
-    rev: 0.7.3
+    rev: 0.8.3
     hooks:
       - id: pydoclint
         args: [ --style=numpy ]
