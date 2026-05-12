@@ -92,7 +92,7 @@ jobs:
 
       - name: Upload tile project
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tile-project-${{ matrix.pdk }}
           path: tile-project.tar.zst
@@ -171,7 +171,7 @@ jobs:
       - uses: ./.github/actions/prepare_nix_environment
 
       - name: Download tile project
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: tile-project-${{ matrix.pdk }}
 
@@ -235,7 +235,7 @@ jobs:
 
       - name: Upload fabric artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fabric-output-${{ matrix.pdk }}
           path: fabric-output.tar.zst

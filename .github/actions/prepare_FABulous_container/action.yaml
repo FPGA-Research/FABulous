@@ -32,11 +32,11 @@ runs:
   using: "composite"
   steps:
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ inputs.python_version }}
     - name: Install uv
-      uses: astral-sh/setup-uv@v6
+      uses: astral-sh/setup-uv@v7
       with:
         version: "latest"
         enable-cache: true
@@ -73,7 +73,7 @@ runs:
         echo "version=$VERSION" >> $GITHUB_OUTPUT
     - name: Cache OSS CAD Suite
       id: cache-oss-cad
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ${{ runner.temp }}/oss-cad-suite
@@ -87,7 +87,7 @@ runs:
         echo "${{ runner.temp }}/oss-cad-suite/bin:$PATH" >> "$GITHUB_PATH"
     - name: Set up OSS CAD suite
       if: ${{ steps.cache-oss-cad.outputs.cache-hit != 'true' }}
-      uses: YosysHQ/setup-oss-cad-suite@v3
+      uses: YosysHQ/setup-oss-cad-suite@v4
       with:
         github-token: ${{ github.token }}
         version: ${{ steps.oss-cad-version.outputs.version }}

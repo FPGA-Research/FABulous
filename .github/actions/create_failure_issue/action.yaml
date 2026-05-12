@@ -19,7 +19,7 @@ runs:
   using: "composite"
   steps:
     - name: Create issue on failure
-      uses: actions/github-script@v7
+      uses: actions/github-script@v9
       env:
         ISSUE_TITLE: ${{ inputs.title }}
         ISSUE_BODY: ${{ inputs.body }}

@@ -28,7 +28,7 @@ jobs:
           - name: VHDL
             type: vhdl
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.base_ref }}
       - uses: ./.github/actions/prepare_FABulous_container
@@ -36,7 +36,7 @@ jobs:
         run: |
           uv run FABulous -c /tmp/demo_${{ matrix.type }} -w ${{ matrix.type }}
       - name: Upload generated project
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: demo-${{ matrix.type }}-base
           path: /tmp/demo_${{ matrix.type }}
@@ -54,10 +54,10 @@ jobs:
           - name: VHDL
             type: vhdl
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/prepare_FABulous_container
       - name: Download base project
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: demo-${{ matrix.type }}-base
           path: /tmp/demo_${{ matrix.type }}

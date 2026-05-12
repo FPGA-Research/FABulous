@@ -28,7 +28,7 @@ jobs:
       # It's mandatory to use the exact same path when saving/restoring cache, otherwise it won't work
       - name: Restore test durations
         id: restore-test-durations
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: /tmp/.test_durations_cached
           key: tests-durations-${{ github.sha }}
@@ -42,7 +42,7 @@ jobs:
       # retry the exact same tests, even if the cache has been updated in the meantime).
       - name: Upload test durations
         if: steps.restore-test-durations.outputs.cache-hit != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-durations-before
           path: /tmp/.test_durations_cached
@@ -66,12 +66,12 @@ jobs:
     steps:
       # These two steps will be executed only when there IS a cache hit (exact match or not). 
       # When a matrix job is retried, it will reuse the same artifact, to execute the exact same split.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with: 
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Download test durations
         if: needs.restore_test_durations.outputs.restored == 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: test-durations-before
       - name: Use cached test durations
@@ -135,7 +135,7 @@ jobs:
       # within one final file in the "Merge all partial test durations" step below.
       - name: Upload test durations
         if: github.run_attempt == 1
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-durations-after-partial-${{ matrix.job-index }}
           path: .test_durations
@@ -143,7 +143,7 @@ jobs:
           include-hidden-files: true
 
       - name: Upload coverage data
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-after-partial-attempt-${{ github.run_attempt }}-${{ matrix.job-index }}
           path: .coverage*
@@ -157,7 +157,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all partial test durations
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: test-durations-after-partial-*
           
@@ -172,7 +172,7 @@ jobs:
       # and use it to manually commit file `.test_durations_fallback` from time to time,
       # to keep an up-to-date fallback:
       - name: Upload final test durations
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-durations-after
           path: /tmp/.test_durations_cached
@@ -181,7 +181,7 @@ jobs:
 
       # Finally, we cache the new test durations. This file will be restored in next CI execution
       - name: Cache final test durations
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: /tmp/.test_durations_cached
           key: tests-durations-${{ github.sha }}
@@ -198,15 +198,15 @@ jobs:
     env:
       COVERAGE_FAIL_UNDER: '70'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Download all partial coverage artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: coverage-after-partial-*
           merge-multiple: false
 
       - name: Set up Python for coverage
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -236,14 +236,14 @@ jobs:
           coverage report --skip-covered --format=markdown > code-coverage-results.md || true
 
       - name: Upload combined coverage XML
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-xml
           path: coverage.xml
           if-no-files-found: error
 
       - name: Upload combined coverage HTML
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-html
           path: coverage_html
