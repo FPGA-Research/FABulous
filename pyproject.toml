@@ -80,6 +80,20 @@ build_py = "build_hooks.BuildPyWithFabulousNix"
 [tool.setuptools.package-data]
 fabulous = ["**/*"]
 
+[tool.docformatter]
+# Align with ruff's black-compatible formatting. Wrapping is disabled because
+# docformatter's line-joining logic disagrees with ruff format on multi-line
+# docstring descriptions, causing an oscillation on every pre-commit run.
+# custom_exception: hardcoded single-newline-after-module-docstring in
+#   docformatter v1.7.8 conflicts with ruff format's E302 (two blank lines
+#   before class).
+# verilog_gate_level: verbose r"""...""" regex strings inside re.compile()
+#   calls are misidentified as docstrings and reformatted.
+black = true
+wrap-summaries = 0
+wrap-descriptions = 0
+exclude = ["custom_exception", "verilog_gate_level"]
+
 [tool.interrogate]
 ignore-init-method = false
 ignore-init-module = false

@@ -482,11 +482,10 @@ class PinPlacementPlan:
     ) -> list[list[float]]:
         """Build track lists for segments using physical tile-based allocation.
 
-        Each division gets tracks computed as if it were a standalone tile with
-        the same PDK origin and step.  The division boundary (division_size) is
-        guaranteed to be a multiple of ``step`` by the upstream
-        ``round_die_area`` step, so ``tile_origin`` always falls on the global
-        routing grid.
+        Each division gets tracks computed as if it were a standalone tile with the same
+        PDK origin and step.  The division boundary (division_size) is guaranteed to be
+        a multiple of ``step`` by the upstream ``round_die_area`` step, so
+        ``tile_origin`` always falls on the global routing grid.
         """
         if not segments_for_side:
             return []

@@ -547,10 +547,10 @@ def script_cmd(
 @app.command("start")
 @app.command("s", hidden=True)
 def start_cmd(force: ForceType = False) -> None:
-    """Start FABulous in interactive mode. Alias: s.
+    """Start FABulous in interactive mode.
 
-    This is the main command for running FABulous in interactive mode or with scripts.
-    If no project directory is specified, uses the current directory.
+    Alias: s. Main command for running FABulous in interactive mode or with
+    scripts. If no project directory is specified, uses the current directory.
     """
     fab_CLI = FABulous_CLI(
         get_context().proj_lang,

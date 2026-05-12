@@ -150,10 +150,10 @@ def project_factory(
 ) -> Callable[..., Path]:
     """Return a callable that creates a FABulous project in a temp directory.
 
-    The returned callable accepts `lang` to choose Verilog vs VHDL and an
-    optional `name` for the directory (default `test_project`). It also
-    chdirs into the temp directory and sets `FAB_PROJ_DIR` via monkeypatch
-    so context lookups resolve to the newly created project.
+    The returned callable accepts `lang` to choose Verilog vs VHDL and an optional
+    `name` for the directory (default `test_project`). It also chdirs into the temp
+    directory and sets `FAB_PROJ_DIR` via monkeypatch so context lookups resolve to the
+    newly created project.
     """
 
     def _create(lang: HDLType = HDLType.VERILOG, name: str = "test_project") -> Path:

@@ -692,8 +692,8 @@ class CommandPipeline:
     def _run_command_threadsafe(self, command: str) -> None:
         """Run a CLI command in a thread.
 
-        Run `onecmd_plus_hooks`; exceptions will be propagated to the Future so
-        the caller can handle them.
+        Run `onecmd_plus_hooks`; exceptions will be propagated to the Future so the
+        caller can handle them.
         """
         # Run the command on the CLI instance. onecmd_plus_hooks will set
         # `self.cli.exit_code` appropriately.

@@ -1,10 +1,10 @@
 """Port definition module for FPGA fabric.
 
-This module contains the `Port` class, which represents a connection point on a tile
-in the FPGA fabric. Ports define the physical and logical characteristics of wires
-entering or leaving a tile, including their direction, source and destination names,
-offsets, and wire counts. These definitions are typically parsed from a CSV file
-that describes the fabric architecture.
+This module contains the `Port` class, which represents a connection point on a tile in
+the FPGA fabric. Ports define the physical and logical characteristics of wires entering
+or leaving a tile, including their direction, source and destination names, offsets, and
+wire counts. These definitions are typically parsed from a CSV file that describes the
+fabric architecture.
 """
 
 from dataclasses import dataclass

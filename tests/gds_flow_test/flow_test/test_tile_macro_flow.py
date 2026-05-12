@@ -360,7 +360,6 @@ class TestFABulousTileVerilogMacroFlowInit:
         mock_pdk_root: dict[str, Any],
     ) -> None:
         """Test none handling for opt_mode results in NO_OPT."""
-
         flow: FABulousTileVerilogMacroFlow = FABulousTileVerilogMacroFlow(
             tile_type=mock_tile,
             io_pin_config=io_pin_config,

@@ -1,4 +1,5 @@
 """Classes for geometry generation."""
+
 # Copyright 2023 Heidelberg University
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

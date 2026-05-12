@@ -1,9 +1,8 @@
 """Basic Element of Logic (BEL) definition module.
 
 This module contains the `Bel` class which represents a Basic Element of Logic in the
-FPGA fabric.
-BELs are the fundamental building blocks that can be placed and configured within tiles,
-such as LUTs, flip-flops, and other logic elements.
+FPGA fabric. BELs are the fundamental building blocks that can be placed and configured
+within tiles, such as LUTs, flip-flops, and other logic elements.
 """
 
 from dataclasses import dataclass, field

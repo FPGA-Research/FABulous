@@ -31,7 +31,6 @@ def _io_place_setup(
     mock_odb_io_place: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
 ) -> None:  # noqa: ANN001, ANN202
     """Setup io_place with mocked OdbReader and odb module."""
-
     from fabulous.fabric_generator.gds_generator.script import fabric_io_place
 
     # Patch odb module using monkeypatch

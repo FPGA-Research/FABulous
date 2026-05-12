@@ -106,10 +106,8 @@ class SmGeometry:
         """Order the ports for downstream drawing.
 
         Ensure that ports are ordered correctly, merge connected jump ports and augment
-        ports for term tiles.
-        This step augments ports in border tiles.
-        This is needed, as these are not contained in the (north...west)SidePorts
-        in FABulous.
+        ports for term tiles. This step augments ports in border tiles. This is needed,
+        as these are not contained in the (north...west)SidePorts in FABulous.
         """
         # This step ensures correct ordering, this is important
         # for the wire generation step.

@@ -368,7 +368,6 @@ def test_force_flag(
     search_text: str,
 ) -> None:
     """Test force flag functionality with different scenarios."""
-
     # Replace project placeholder
     argv = [arg.replace("{project}", str(project)) for arg in argv_base]
 
@@ -423,7 +422,6 @@ def test_install_oss_cad_suite(
     expected_code: int,
 ) -> None:
     """Parametric test for install-oss-cad-suite variants with mocked network."""
-
     argv_template: list[str] = argv
     install_dir = tmp_path / "oss"
     test_argv = [
@@ -1030,7 +1028,6 @@ def test_check_version_compatibility_cases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Test version compatibility checking with different version scenarios."""
-
     from fabulous.fabulous import check_version_compatibility
     from fabulous.fabulous_settings import init_context, reset_context
 

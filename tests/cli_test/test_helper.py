@@ -93,7 +93,6 @@ def test_update_project_version_major_mismatch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Test version update when major versions don't match."""
-
     env_dir = tmp_path / "proj" / ".FABulous"
     env_dir.mkdir(parents=True)
     env_file = env_dir / ".env"

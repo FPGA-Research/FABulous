@@ -23,7 +23,7 @@ repos:
       - id: docformatter
         name: docformatter
         description: "Formats docstrings to follow PEP 257."
-        args: [ --in-place, --black ]
+        args: [ --in-place ]
         language: python
         types: [ python ]
 

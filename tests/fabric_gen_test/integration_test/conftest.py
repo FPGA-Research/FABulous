@@ -358,9 +358,9 @@ async def setup_fabric(dut: FabricConfigDUT, settle_ns: int = 10) -> PCF:
 def _collect_fabric_sources(project_dir: Path, suffix: str) -> list[Path]:
     """Return every HDL source emitted under ``Fabric/`` and ``Tile/``.
 
-    FABulous emits the same module (e.g. ``Config_access.v``) under multiple
-    tile directories with identical content; deduplicate by basename so the
-    simulator sees one definition per module name.
+    FABulous emits the same module (e.g. ``Config_access.v``) under multiple tile
+    directories with identical content; deduplicate by basename so the simulator sees
+    one definition per module name.
     """
     # NVC rejects forward references, so the models_pack package must come first.
     fabric_paths = sorted((project_dir / "Fabric").glob(f"*{suffix}"))

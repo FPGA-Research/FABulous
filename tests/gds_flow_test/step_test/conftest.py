@@ -48,7 +48,6 @@ def mock_config() -> Config:  # type: ignore[name-defined]
 @pytest.fixture
 def mock_state(mocker: MockerFixture) -> dict:  # type: ignore[name-defined]
     """Create a mock State object for testing."""
-
     state = mocker.MagicMock()
     state.metrics = {
         "klayout__drc_error__count": 0,

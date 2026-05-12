@@ -16,12 +16,12 @@ from librelane.steps.step import (
 
 @Step.factory.register()
 class FABulousFabricIOPlacement(OdbpyStep):
-    """Place I/O pins using a custom script. This is the fabric-level version.
+    """Place I/O pins using a custom script.
 
-    This step uses a custom Python script to place I/O pins according to the macro pin
-    coordinates. This is intended for use in the stitching flow to place top level macro
-    I/Os. This step will just line up to the master driver terminals and does not care
-    if the pin placement is pitch aligned.
+    This is the fabric-level version.     This step uses a custom Python script to place
+    I/O pins according to the macro pin     coordinates. This is intended for use in the
+    stitching flow to place top level macro     I/Os. This step will just line up to the
+    master driver terminals and does not care     if the pin placement is pitch aligned.
     """
 
     id = "Odb.FABulousFabricIOPlacement"
