@@ -6,9 +6,9 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Install uv
-      uses: astral-sh/setup-uv@v6
+      uses: astral-sh/setup-uv@v7
     - name: Install the project
       run: |
         echo "UV_SYSTEM_PYTHON=1" >> $GITHUB_ENV
