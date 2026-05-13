@@ -291,6 +291,120 @@ def copy_verilog_files(src: Path, dst: Path) -> None:
         shutil.copy(file_path, destination_path)
 
 
+_TEXT_CLONE_EXTENSIONS = {
+    ".csv",
+    ".list",
+    ".v",
+    ".vhd",
+    ".vhdl",
+    ".yaml",
+    ".yml",
+    ".tcl",
+}
+
+
+def clone_tile_directory(
+    src_dir: Path, dst_dir: Path, src_name: str, dst_name: str
+) -> None:
+    """Copy a tile directory and rename all occurrences of src_name to dst_name.
+
+    .. note::
+        Only works correctly for tiles that follow the default FABulous tile naming
+        scheme, where the tile name is used as a prefix for all files and internal
+        references (e.g. ``LUT4AB.csv``, ``LUT4AB_switch_matrix.list``).
+
+    Parameters
+    ----------
+    src_dir : Path
+        Source tile directory to copy.
+    dst_dir : Path
+        Destination path for the cloned directory.
+    src_name : str
+        Tile name to replace in file contents and file/directory names.
+    dst_name : str
+        Replacement tile name.
+    """
+    shutil.copytree(src_dir, dst_dir)
+
+    for f in dst_dir.rglob("*"):
+        if f.is_file() and f.suffix in _TEXT_CLONE_EXTENSIONS:
+            text = f.read_text(encoding="utf-8")
+            if src_name in text:
+                f.write_text(text.replace(src_name, dst_name), encoding="utf-8")
+
+    # Rename deepest items first so parent paths remain valid when children move
+    for item in sorted(dst_dir.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if src_name in item.name:
+            item.rename(item.parent / item.name.replace(src_name, dst_name))
+
+
+def resolve_tile(arg: str, tile_dir: Path) -> Path:
+    """Resolve a tile name-or-path argument to a Path.
+
+    An argument that is absolute or contains a directory separator is treated as
+    a filesystem path; otherwise it is treated as a bare tile name and looked up
+    under *tile_dir*.
+
+    Parameters
+    ----------
+    arg : str
+        Tile name or path supplied by the user.
+    tile_dir : Path
+        Project ``Tile/`` directory used for name-based lookup.
+
+    Returns
+    -------
+    Path
+        Resolved path (caller must validate existence as appropriate).
+    """
+    p = Path(arg)
+    if p.is_absolute() or p.parent != Path():
+        return p
+    return tile_dir / arg
+
+
+def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
+    """Append Tile/Supertile entries for *dst_dir* to *csv_path* before ParametersEnd.
+
+    The CSV paths are written relative to the directory containing *csv_path*
+    (i.e. the project root), so *dst_dir* may be anywhere on the filesystem.
+    Detects whether *dst_dir* is a supertile by checking for sub-directories
+    (excluding ``macro``) inside it.
+
+    Parameters
+    ----------
+    csv_path : Path
+        Path to the fabric CSV file to update.
+    dst_dir : Path
+        Directory of the cloned tile.
+    """
+    dst_name = dst_dir.name
+    project_dir = csv_path.parent
+    tile_rel = dst_dir.relative_to(project_dir, walk_up=True)
+
+    sub_tile_names = sorted(
+        f.name for f in dst_dir.iterdir() if f.is_dir() and f.name != "macro"
+    )
+    lines = csv_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    ref_line = next((ln for ln in lines if ln.startswith("Tile,")), "")
+    trailing = "," * (ref_line.rstrip("\n\r").count(",") - 1) if ref_line else ""
+
+    new_entries: list[str] = []
+    if sub_tile_names:
+        for sub in sub_tile_names:
+            new_entries.append(f"Tile,./{tile_rel}/{sub}/{sub}.csv{trailing}\n")
+        new_entries.append(f"Supertile,./{tile_rel}/{dst_name}.csv{trailing}\n")
+    else:
+        new_entries.append(f"Tile,./{tile_rel}/{dst_name}.csv{trailing}\n")
+
+    result: list[str] = []
+    for line in lines:
+        if line.strip().startswith("ParametersEnd"):
+            result.extend(new_entries)
+        result.append(line)
+    csv_path.write_text("".join(result), encoding="utf-8")
+
+
 def remove_dir(path: Path) -> None:
     """Remove a directory and all its contents.
 

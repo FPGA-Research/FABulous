@@ -68,10 +68,13 @@ from fabulous.fabulous_cli import cmd_compile_design
 from fabulous.fabulous_cli.helper import (
     CommandPipeline,
     allow_blank,
+    clone_tile_directory,
     get_file_path,
     install_fabulator,
     install_oss_cad_suite,
     make_hex,
+    register_tile_in_fabric_csv,
+    resolve_tile,
     run_task,
     wrap_with_except_handling,
 )
@@ -183,6 +186,8 @@ class FABulous_CLI(Cmd):
         Argument parser for commands accepting a list of tile names
     tile_single_parser : Cmd2ArgumentParser
         Argument parser for commands accepting a single tile name
+    clone_tile_parser : Cmd2ArgumentParser
+        Argument parser for the clone_tile command
     install_oss_cad_suite_parser : Cmd2ArgumentParser
         Argument parser for the install-oss-cad-suite command
     install_FABulator_parser : Cmd2ArgumentParser
@@ -496,6 +501,18 @@ class FABulous_CLI(Cmd):
         completer=lambda self: self.fab.getTiles(),
     )
 
+    clone_tile_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
+    clone_tile_parser.add_argument(
+        "src_tile",
+        type=str,
+        help="Name of the tile to clone (looked up in Tile/) or path to a tile dir",
+    )
+    clone_tile_parser.add_argument(
+        "dst_tile",
+        type=str,
+        help="Name for the cloned tile (placed in Tile/) or path to destination dir",
+    )
+
     install_oss_cad_suite_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     install_oss_cad_suite_parser.add_argument(
         "destination_folder",
@@ -608,6 +625,47 @@ class FABulous_CLI(Cmd):
         self.enable_category(CMD_FABRIC_FLOW)
         self.enable_category(CMD_USER_DESIGN_FLOW)
         logger.info("Complete")
+
+    @with_category(CMD_SETUP)
+    @with_argparser(clone_tile_parser)
+    def do_clone_tile(self, args: argparse.Namespace) -> None:
+        """Clone a tile or supertile directory and register it in fabric.csv.
+
+        Copies the source tile directory to a new destination directory, renaming
+        all files and replacing all internal references to match the new tile name.
+        Also appends the required Tile/Supertile entries to fabric.csv.
+
+        .. note::
+            Only works correctly for tiles that follow the default FABulous tile
+            naming scheme, where the tile name is used as a prefix for all files
+            and internal references (e.g. ``LUT4AB.csv``,
+            ``LUT4AB_switch_matrix.list``).
+
+        Parameters
+        ----------
+        args : argparse.Namespace
+            Command arguments containing:
+            - src_tile: Name of the existing tile (looked up in Tile/) or path to
+              a tile directory
+            - dst_tile: Name for the new tile (placed in Tile/) or path to the
+              destination directory
+        """
+        tile_dir = self.projectDir / "Tile"
+        src_dir = resolve_tile(args.src_tile, tile_dir)
+        dst_dir = resolve_tile(args.dst_tile, tile_dir)
+
+        if not src_dir.is_dir():
+            logger.error(f"Tile '{args.src_tile}' not found at {src_dir}")
+            return
+        if dst_dir.exists():
+            logger.error(f"Destination '{args.dst_tile}' already exists at {dst_dir}")
+            return
+
+        clone_tile_directory(src_dir, dst_dir, src_dir.name, dst_dir.name)
+        logger.info(f"Cloned tile '{args.src_tile}' → '{args.dst_tile}'")
+
+        register_tile_in_fabric_csv(self.csvFile, dst_dir)
+        logger.info(f"Updated {self.csvFile} with entries for '{args.dst_tile}'")
 
     @with_category(CMD_HELPER)
     def do_print_bel(self, args: argparse.Namespace) -> None:
