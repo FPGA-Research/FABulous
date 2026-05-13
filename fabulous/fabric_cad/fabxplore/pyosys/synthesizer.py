@@ -44,6 +44,9 @@ from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_mapper_pass import (
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.morph_tile_pass import (
     MorphTilePass,
 )
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.reg_absorber_pass import (
+    RegAbsorberPass,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
     PyosysBridge,
 )
@@ -54,6 +57,10 @@ if TYPE_CHECKING:
     )
     from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.base import (
         MorphCircuitKind,
+    )
+    from fabulous.fabric_cad.fabxplore.modules.reg_absorber.core.models import (
+        FfPortsInput,
+        RuleInput,
     )
 
 
@@ -609,6 +616,64 @@ class ArchitectureSynthesizer(ABC):
             self.log_info(result.report_summary)
 
         self.add_primitive(result.verilog_model)
+        return result
+
+    def design_absorb_registers_pass(
+        self,
+        cell_types: list[str],
+        rules: list[RuleInput],
+        log_report: bool = True,
+        ff_ports: FfPortsInput | None = None,
+        allow_extra_fanout: bool = False,
+        strict: bool = False,
+        track_progress: bool = True,
+        progress_chunk_size: int = 100,
+        top_name: str | None = None,
+    ) -> RegAbsorberPass:
+        """Absorb adjacent FFs into primitive sequential ports.
+
+        Parameters
+        ----------
+        cell_types : list[str]
+            Primitive cell types that may absorb FFs.
+        rules : list[RuleInput]
+            Absorption rules. Dicts are validated as pydantic models
+            internally.
+        log_report : bool
+            If ``True``, log the register absorption report.
+        ff_ports : FfPortsInput | None
+            Supported FF cell port mapping. ``None`` selects defaults.
+        allow_extra_fanout : bool
+            Whether non-clean fanout patterns may be absorbed.
+        strict : bool
+            Whether invalid matches raise instead of being skipped.
+        track_progress : bool
+            Whether to log progress.
+        progress_chunk_size : int
+            Number of processed checks between progress updates.
+        top_name : str | None
+            Top module to process. If ``None``, use the current design top.
+
+        Returns
+        -------
+        RegAbsorberPass
+            Pass instance containing result and report data.
+        """
+        result = RegAbsorberPass(
+            cell_types=cell_types,
+            rules=rules,
+            ff_ports=ff_ports,
+            allow_extra_fanout=allow_extra_fanout,
+            strict=strict,
+            track_progress=track_progress,
+            progress_chunk_size=progress_chunk_size,
+            top_name=top_name or self.design.top_name(),
+        )
+        result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
         return result
 
     def design_lut_mapper_pass(

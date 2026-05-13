@@ -1,0 +1,1 @@
+"""Core register absorption implementation."""
