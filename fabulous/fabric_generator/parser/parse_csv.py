@@ -14,6 +14,7 @@ from fabulous.custom_exception import (
     InvalidPortType,
     InvalidSupertileDefinition,
     InvalidTileDefinition,
+    InvalidTileLibraryDefinition,
 )
 from fabulous.fabric_definition.define import (
     IO,
@@ -506,6 +507,87 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
     return new_supertiles
 
 
+def parseTileLibraryCSV(fileName: Path) -> list[tuple[str, Path]]:
+    """Parse a tile library CSV and return its Tile/Supertile entries.
+
+    A tile library CSV groups a collection of tile and supertile descriptions
+    so a fabric.csv can pull them in through a single ``TileLibrary`` row
+    rather than enumerating each tile path individually.
+
+    Parameters
+    ----------
+    fileName : Path
+        Path to the tile library CSV file.
+
+    Raises
+    ------
+    InvalidFileType
+        If the input file is not a CSV file.
+    FileNotFoundError
+        If the input does not exist.
+    InvalidTileLibraryDefinition
+        If the library definition is malformed.
+
+    Returns
+    -------
+    list[tuple[str, Path]]
+        Ordered list of ``("Tile" | "Supertile", absolute_path)`` entries.
+        Tile entries are emitted before Supertile entries so downstream
+        parsing can populate the tile dict before resolving supertiles.
+    """
+    logger.info(f"Reading tile library: {fileName}")
+
+    if fileName.suffix != ".csv":
+        raise InvalidFileType("File must be a csv file.")
+    if not fileName.exists():
+        raise FileNotFoundError(f"File {fileName} does not exist.")
+
+    libraryDir = fileName.parent
+
+    with fileName.open() as f:
+        file = f.read()
+        file = re.sub(r"#.*", "", file)
+
+    libraryBlock = re.search(
+        r"TileLibraryBegin(.*?)TileLibraryEnd", file, re.MULTILINE | re.DOTALL
+    )
+    if libraryBlock is None:
+        raise InvalidTileLibraryDefinition(
+            f"Cannot find TileLibraryBegin and TileLibraryEnd in {fileName}."
+        )
+
+    tileEntries: list[tuple[str, Path]] = []
+    supertileEntries: list[tuple[str, Path]] = []
+
+    for rawLine in libraryBlock.group(1).split("\n"):
+        fields = [c.strip() for c in rawLine.split(",")]
+        if not any(fields):
+            continue
+        kind = fields[0]
+        if not kind:
+            raise InvalidTileLibraryDefinition(
+                f"Tile library row in {fileName} must place the keyword in the "
+                f"first CSV field: {rawLine!r}"
+            )
+        if kind not in ("Tile", "Supertile"):
+            raise InvalidTileLibraryDefinition(
+                f"Unknown entry kind '{kind}' in tile library {fileName}. "
+                "Expected 'Tile' or 'Supertile'."
+            )
+        if len(fields) < 2 or not fields[1]:
+            raise InvalidTileLibraryDefinition(
+                f"Missing path for '{kind}' entry in tile library {fileName} "
+                f"in the second CSV field: {rawLine!r}"
+            )
+        entryPath = (libraryDir / fields[1]).resolve()
+        if kind == "Tile":
+            tileEntries.append((kind, entryPath))
+        else:
+            supertileEntries.append((kind, entryPath))
+
+    return tileEntries + supertileEntries
+
+
 def parseFabricCSV(fileName: str) -> Fabric:
     """Parse a CSV file and returns a fabric object.
 
@@ -606,26 +688,53 @@ def parseFabricCSV(fileName: str) -> Fabric:
     disableUserCLK = False
     preserveListOrder = False
 
-    for i in parameters:
-        i = i.split(",")
-        i = [j for j in i if j != ""]
-        i = [i.strip() for i in i]
+    def registerTile(tilePath: Path) -> None:
+        nonlocal tileTypes, tileDefs, commonWirePair, tileDic
+        new_tiles, new_commonWirePair = parseTilesCSV(tilePath)
+        tileTypes += [new_tile.name for new_tile in new_tiles]
+        tileDefs += new_tiles
+        commonWirePair += new_commonWirePair
+        tileDic = dict(zip(tileTypes, tileDefs, strict=False))
+
+    def registerSupertile(supertilePath: Path) -> None:
+        new_supertiles = parseSupertilesCSV(supertilePath, tileDic)
+        for new_supertile in new_supertiles:
+            superTileDic[new_supertile.name] = new_supertile
+
+    def positionalPath(rawRow: str, kind: str) -> str:
+        fields = [c.strip() for c in rawRow.split(",")]
+        if not fields[0].startswith(kind):
+            raise InvalidFabricParameter(
+                f"'{kind}' row in {fName} must place the keyword in the first "
+                f"CSV field: {rawRow!r}"
+            )
+        if len(fields) < 2 or not fields[1]:
+            raise InvalidFabricParameter(
+                f"'{kind}' row in {fName} is missing a path in the second CSV "
+                f"field: {rawRow!r}"
+            )
+        return fields[1]
+
+    for rawRow in parameters:
+        i = [j.strip() for j in rawRow.split(",") if j.strip() != ""]
         if not i:
             continue
-        if i[0].startswith("Tile"):
+        if i[0].startswith("TileLibrary"):
+            libraryPath = filePath.joinpath(positionalPath(rawRow, "TileLibrary"))
+            for kind, entryPath in parseTileLibraryCSV(libraryPath):
+                if kind == "Tile":
+                    registerTile(entryPath)
+                else:
+                    registerSupertile(entryPath)
+        elif i[0].startswith("Tile"):
+            tilePath = positionalPath(rawRow, "Tile")
             if "GENERATE" in i:
                 # we generate the tile right before we parse everything
-                i[1] = str(generateCustomTileConfig(filePath.joinpath(i[1])))
+                tilePath = str(generateCustomTileConfig(filePath.joinpath(tilePath)))
 
-            new_tiles, new_commonWirePair = parseTilesCSV(filePath.joinpath(i[1]))
-            tileTypes += [new_tile.name for new_tile in new_tiles]
-            tileDefs += new_tiles
-            commonWirePair += new_commonWirePair
-            tileDic = dict(zip(tileTypes, tileDefs, strict=False))
+            registerTile(filePath.joinpath(tilePath))
         elif i[0].startswith("Supertile"):
-            new_supertiles = parseSupertilesCSV(filePath.joinpath(i[1]), tileDic)
-            for new_supertile in new_supertiles:
-                superTileDic[new_supertile.name] = new_supertile
+            registerSupertile(filePath.joinpath(positionalPath(rawRow, "Supertile")))
         elif i[0].startswith("ConfigBitMode"):
             if i[1] == "frame_based":
                 configBitMode = ConfigBitMode.FRAME_BASED

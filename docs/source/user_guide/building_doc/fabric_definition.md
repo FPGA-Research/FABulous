@@ -23,6 +23,7 @@ The following figure shows a small fabric, which we will model throughout this s
 The full model of a fabric is described by the following files:
 
 - A file [fabric csv](#fabric-csv) providing the [fabric layout](#fabric-layout) and some global settings
+- A file `tile_library.csv` listing the paths of every Tile and Supertile
 - A file [tile csv](#tile-csv) for each tile describing wires, BELs and a link to the switch matrix
 - A set of list files (`*.list`) describing the adjacency list of the switch matrix for each of the used tiles or the corresponding adjacency matrix as a CSV file
 - A set of optional bitstream mapping CSV files
@@ -31,7 +32,7 @@ The full model of a fabric is described by the following files:
 The following block provides a fabric.csv example.
 
 ```{code-block} python
-:emphasize-lines: 1,6,8,32
+:emphasize-lines: 1,6,8,17
 
 FabricBegin      # explained in subsection Fabric layout
 NULL,  N_term,   N_term,   N_term,  N_term,  NULL
@@ -48,23 +49,23 @@ Package, use work.my_package.all; # populate package fields in VHDL code generat
 GenerateDelayInSwitchMatrix, 80   # we can annotate some delay to multiplexers
 MultiplexerStyle, custom          #
 
-# Links to tile configuration files
-Tile,./Tile/LUT4AB/LUT4AB.csv
-Tile,./Tile/N_term_single/N_term_single.csv
-Tile,./Tile/S_term_single/S_term_single.csv
-Tile,./Tile/CPU_IO/CPU_IO.csv
-Tile,./Tile/RegFile/RegFile.csv
-Tile,./Tile/N_term_single2/N_term_single2.csv
-Tile,./Tile/S_term_single2/S_term_single2.csv
-Tile,./Tile/W_IO/W_IO.csv
-Tile,./Tile/DSP/DSP_top/DSP_top.csv
-Tile,./Tile/DSP/DSP_bot/DSP_bot.csv
-Tile,./Tile/N_term_DSP/N_term_DSP.csv
-Tile,./Tile/S_term_DSP/S_term_DSP.csv
-
-Supertile,./Tile/DSP/DSP.csv
+# Link to a tile library listing every tile/supertile this fabric uses
+TileLibrary,./Tile/tile_library.csv
 
 ParametersEnd
+```
+
+The following block provides a tile_library.csv example.
+
+```{code-block} python
+:emphasize-lines: 1,6
+
+TileLibraryBegin
+Tile,LUT4AB/LUT4AB.csv
+Tile,DSP/DSP_top/DSP_top.csv
+Tile,DSP/DSP_bot/DSP_bot.csv
+Supertile,DSP/DSP.csv
+TileLibraryEnd
 ```
 
 And the following block provides a tile.csv example (in this case LUT4AB.csv).
@@ -181,17 +182,9 @@ It is planned to remove these limitations in future versions of FABulous.
 
     This is useful when a specific input must occupy a known mux position.
 
-  - `Tile`, `path`
+  - `TileLibrary`, `path`
 
-    Specify a path to a tile configuration file that will be loaded.
-
-  - `Supertile`, `path`
-
-    Specify a path to a supertile configuration file that will be loaded.
-
-    :::{warning}
-    Previously, tile definitions were contained in the fabric.csv file. This has been deprecated and it is recommended to move the tile descriptions to the respective tile.csv files.
-    :::
+    Path to a tile library CSV listing the project's tile and supertile files. Paths inside are resolved relative to the library file.
 
 (fabric-layout)=
 
