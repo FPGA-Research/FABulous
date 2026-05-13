@@ -488,7 +488,7 @@ class Fabric:
                     if fabric_tile and fabric_tile.name == tile.name:
                         positions.append((x, y))
 
-        return positions if positions else None
+        return positions or None
 
     def determine_border_side(self, x: int, y: int) -> Side | None:
         """Determine which border side a tile position is on, if any.

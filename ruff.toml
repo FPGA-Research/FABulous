@@ -100,18 +100,17 @@ select = [
   "ARG",
   "ANN",
   "D",
-  "DOC",
 ]
 
 
 # Future rules: Currently disabled, since it needs some more work.
 # - E501: Line too long -- Not automatically fixable
 # - N: flake8 Naming
-# - DOC: Doclint
 # - S: flake8 Bandit
 # - TD: flake8 TODOS
 # - FIX: flake8 fixme
 # - PL: pylint
+# - DOC: pydoclint, currently still not fully suported by ruff and only with preview
 
 # Ignoed rules:
 # - PYI063: https://docs.astral.sh/ruff/rules/pep484-style-positional-only-parameter/
@@ -127,9 +126,6 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [lint.per-file-ignores]
 "tests/*" = ["D"]
-
-[lint.pydoclint]
-ignore-one-line-docstrings = true
 
 [lint.pydocstyle]
 convention = "numpy"
@@ -153,7 +149,7 @@ line-ending = "auto"
 #
 # This is currently disabled by default, but it is planned for this
 # to be opt-out in the future.
-docstring-code-format = false
+docstring-code-format = true
 
 # Set the line length limit used when formatting code snippets in
 # docstrings.
