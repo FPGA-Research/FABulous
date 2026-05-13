@@ -163,9 +163,15 @@ class PCF:
         ----------
         signal : str
             User-design signal name as it appears in the PCF.
-        index : int, optional
+        index : int | None, optional
             If ``None`` (default), the whole bus is returned as a
             :class:`LogicArray`. Otherwise a single bit as a :class:`Logic`.
+
+        Returns
+        -------
+        LogicArray | Logic
+            The signal value. If index is None, returns the whole bus as a
+            :class:`LogicArray`. Otherwise a single :class:`Logic`.
         """
         if index is None:
             bits = "".join(
@@ -186,10 +192,10 @@ class PCF:
         ----------
         signal : str
             User-design signal name as it appears in the PCF.
-        value : LogicArray or Logic
+        value : LogicArray | Logic
             New value. Must be a :class:`LogicArray` of matching width when
             ``index`` is ``None``, otherwise a single :class:`Logic`.
-        index : int, optional
+        index : int | None, optional
             If given, only this bit is updated.
         """
         if index is None:
@@ -212,6 +218,11 @@ class PCF:
             ``"IN"``, ``"OUT"`` or ``"EN"``.
         index : int, optional
             Bit index. Default ``0``.
+
+        Returns
+        -------
+        LogicObject
+            The raw cocotb handle.
         """
         return self.signals[signal][index][use]
 
@@ -255,13 +266,11 @@ async def upload_bitstream(
     delay_ns : int, optional
         Duration each strobe is held high (and then low) per row, in
         nanoseconds. Default `10`.
-    num_data_rows : int, optional
+    num_data_rows : int | None, optional
         Number of 32-bit row words per frame in the bitstream payload.
 
     Raises
     ------
-    FileNotFoundError
-        If ``bitstream_path`` does not exist.
     ValueError
         If the file ends before the sync word is found.
     """
@@ -342,6 +351,12 @@ async def setup_fabric(dut: FabricConfigDUT, settle_ns: int = 10) -> PCF:
         cocotb top-level handle.
     settle_ns : int, optional
         Per-phase settling delay in ns. Default ``10``.
+
+    Returns
+    -------
+    PCF
+        A parsed PCF object for driving/sampling signals by user-design
+        signal name.
     """
     pcf = PCF(dut, Path(cocotb.plusargs["FAB_PCF"]))
     await zero_bitstream(dut)

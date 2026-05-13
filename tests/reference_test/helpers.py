@@ -32,9 +32,17 @@ def compare_files_with_diff(
 ) -> list[str] | None:
     """Compare two files and return unified diff if they differ.
 
+    Parameters
+    ----------
+    current_file : Path
+        Path to the current (output) file.
+    reference_file : Path
+        Path to the reference (expected) file.
+
     Returns
     -------
-        None if files are identical, list of diff lines if different
+    list[str] | None
+        None if files are identical, list of diff lines if different.
     """
     try:
         with current_file.open("r", encoding="utf-8", errors="replace") as f:
@@ -230,19 +238,27 @@ def run_fabulous_commands_with_logging(
 ) -> tuple[FABulous_CLI, dict[str, Any]]:
     """Run standard FABulous commands using existing test patterns.
 
-    Args:
-        project_path: Path to the project directory to run commands in
-        language: Language type for FABulous CLI ("verilog" or "vhdl")
-        caplog: Pytest log capture fixture for collecting log output
-        monkeypatch: Pytest monkeypatch fixture for environment management
-        commands: Optional list of commands to run. If None, runs standard sequence
-        skip_on_fail: Whether to skip remaining commands if one fails
+    Parameters
+    ----------
+    project_path : Path
+        Path to the project directory to run commands in.
+    language : str
+        Language type for FABulous CLI ("verilog" or "vhdl").
+    caplog : pytest.LogCaptureFixture
+        Pytest log capture fixture for collecting log output.
+    monkeypatch : pytest.MonkeyPatch
+        Pytest monkeypatch fixture for environment management.
+    commands : list[str] | None, optional
+        Optional list of commands to run. If None, runs standard sequence.
+    skip_on_fail : bool, optional
+        Whether to skip remaining commands if one fails.
 
     Returns
     -------
-        Tuple of (FABulous_CLI instance, execution_info dict)
-
-    The execution_info dict contains:
+    cli : FABulous_CLI
+        The FABulous CLI instance with executed commands.
+    execution_info : dict[str, Any]
+        Contains:
         - commands_run: List of successfully executed commands
         - commands_failed: List of commands that failed
         - commands_not_executed: List of commands skipped due to failures

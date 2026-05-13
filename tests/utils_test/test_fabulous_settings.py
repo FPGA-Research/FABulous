@@ -851,6 +851,12 @@ class TestCheckPdkAutoResolution:
 
         Parameters
         ----------
+        project : Path
+            Project directory path.
+        monkeypatch : pytest.MonkeyPatch
+            Pytest monkeypatch fixture for environment manipulation.
+        mocker : MockerFixture
+            Pytest-mock mocker fixture.
         pdk_name : str
             PDK family name (used for env var and default pdk_root path).
         pdk_root : Path | None
@@ -863,6 +869,11 @@ class TestCheckPdkAutoResolution:
         mock_ciel_enable : bool
             When True (default), mock ``ciel.manage.enable`` so tests don't
             make real network calls.
+
+        Returns
+        -------
+        Path | None
+            The pdk_root path if set_pdk_root_env is True, otherwise None.
         """
         for key in list(os.environ.keys()):
             if key.startswith("FAB_"):

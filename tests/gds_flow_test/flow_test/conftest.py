@@ -218,7 +218,7 @@ def create_macro(instances: dict[str, Instance]) -> Macro:
 
     Parameters
     ----------
-    instances : dict
+    instances : dict[str, Instance]
         Dictionary mapping instance names to Instance objects.
 
     Returns
