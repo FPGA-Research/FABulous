@@ -689,6 +689,13 @@ def parseFabricCSV(fileName: str) -> Fabric:
     preserveListOrder = False
 
     def registerTile(tilePath: Path) -> None:
+        """Parse a tile CSV and merge its tiles into the fabric tile dict.
+
+        Parameters
+        ----------
+        tilePath : Path
+            Absolute path to the tile CSV file.
+        """
         nonlocal tileTypes, tileDefs, commonWirePair, tileDic
         new_tiles, new_commonWirePair = parseTilesCSV(tilePath)
         tileTypes += [new_tile.name for new_tile in new_tiles]
@@ -697,11 +704,39 @@ def parseFabricCSV(fileName: str) -> Fabric:
         tileDic = dict(zip(tileTypes, tileDefs, strict=False))
 
     def registerSupertile(supertilePath: Path) -> None:
+        """Parse a supertile CSV and merge its supertiles into the fabric.
+
+        Parameters
+        ----------
+        supertilePath : Path
+            Absolute path to the supertile CSV file.
+        """
         new_supertiles = parseSupertilesCSV(supertilePath, tileDic)
         for new_supertile in new_supertiles:
             superTileDic[new_supertile.name] = new_supertile
 
     def positionalPath(rawRow: str, kind: str) -> str:
+        """Return the path field of a Tile/Supertile/TileLibrary row.
+
+        Parameters
+        ----------
+        rawRow : str
+            The raw comma-separated row from the parameters block.
+        kind : str
+            Expected keyword in column 0 (``Tile``, ``Supertile``, or
+            ``TileLibrary``).
+
+        Raises
+        ------
+        InvalidFabricParameter
+            If the keyword is not in the first CSV field or the path field
+            is empty.
+
+        Returns
+        -------
+        str
+            The path value taken from the second CSV field.
+        """
         fields = [c.strip() for c in rawRow.split(",")]
         if not fields[0].startswith(kind):
             raise InvalidFabricParameter(
