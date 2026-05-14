@@ -71,6 +71,9 @@ class MorphTileMapper:
         Explicit tile configuration input names.
     tile_config_prefixes : list[str] | None
         Prefixes used to detect configuration inputs in BLIF.
+    tile_fixed_configs : dict[str, int | bool] | None
+        Tile configuration bits fixed before SAT-fab imports the candidate
+        BLIF. Fixed bits are also emitted on replacement instances.
     include_unused_inputs : bool
         Whether tile inputs unused by the solved mapping are tied to zero in
         replacement instances.
@@ -104,6 +107,7 @@ class MorphTileMapper:
         circuit_options: dict[str, object] | None = None,
         tile_configs: list[str] | None = None,
         tile_config_prefixes: list[str] | None = None,
+        tile_fixed_configs: dict[str, int | bool] | None = None,
         include_unused_inputs: bool = False,
         max_replacements: int | None = None,
         map_luts_first: bool = False,
@@ -123,6 +127,7 @@ class MorphTileMapper:
         self.circuit_options = circuit_options or {}
         self.tile_configs = tile_configs
         self.tile_config_prefixes = tile_config_prefixes
+        self.tile_fixed_configs = tile_fixed_configs
         self.include_unused_inputs = include_unused_inputs
         self.max_replacements = max_replacements
         self.map_luts_first = map_luts_first
@@ -203,6 +208,7 @@ class MorphTileMapper:
             outputs=self.tile_outputs,
             configs=self.tile_configs,
             config_prefixes=self.tile_config_prefixes,
+            fixed_configs=self.tile_fixed_configs,
             debug=self.debug,
         )
         solve_options = MorphSolveOptions(

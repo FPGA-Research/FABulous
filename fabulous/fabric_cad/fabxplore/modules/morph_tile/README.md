@@ -506,6 +506,9 @@ self.design_morph_tile_pass(
     tile_outputs=["O0", "O1", "Co"],
     enabled_circuits=["lut"],
     tile_config_prefixes=["ConfigBits"],
+    tile_fixed_configs={
+        "ConfigBits[0]": 0,
+    },
     circuit_options={
         "lut": {
             "widths": [6],
@@ -526,6 +529,11 @@ Important options:
 - `tile_configs`: explicit config ports, if they should be named directly.
 - `tile_config_prefixes`: prefixes used to discover config ports, such as
   `ConfigBits`.
+- `tile_fixed_configs`: config bits that are fixed before the tile is converted
+  to the SAT BLIF model. These values are also written back into every emitted
+  replacement instance, so a setting like `{"ConfigBits[0]": 0}` both lets Yosys
+  simplify away logic that is disabled by that bit and guarantees the final
+  netlist contains `ConfigBits[0] = 0`.
 - `enabled_circuits`: registered source-cell adapters to run. Today this can
   include `lut`, `frac_lut`, and `chain`.
 - `circuit_options`: adapter-specific options keyed by circuit name. For

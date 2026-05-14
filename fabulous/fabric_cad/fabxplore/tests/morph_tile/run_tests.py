@@ -19,6 +19,7 @@ from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.permute_cache import 
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.reader import (
     MorphTileReader,
 )
+from fabulous.fabric_cad.fabxplore.modules.sat_fab.circuit import Circuit
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.morph_tile_pass import (
     MorphTilePass,
 )
@@ -91,6 +92,124 @@ def test_cut_solver_lut0_constants() -> None:
         assert one.input_mapping == {}
         assert set(zero.output_mapping) == {"X"}
         assert set(one.output_mapping) == {"X"}
+
+
+def test_preconfigured_blif_removes_dead_sequential_path() -> None:
+    """Test fixed config lets Yosys remove an unselected BLIF latch cone."""
+    with TemporaryDirectory(prefix="morph_tile_preconfig_blif_") as td:
+        tmp_dir = Path(td)
+        source = tmp_dir / "muxseq.blif"
+        output = tmp_dir / "muxseq_out.blif"
+        source.write_text(
+            """.model muxseq
+.inputs D CFG CLK
+.outputs O
+.names D C
+1 1
+.latch C Q re CLK 0
+.names CFG Q C O
+11- 1
+0-1 1
+.end
+""",
+            encoding="utf-8",
+        )
+
+        bridge = PyosysBridge(debug=False)
+        bridge.run_pass(f"read_blif {source}")
+        bridge.run_pass("hierarchy -top muxseq")
+        bridge.run_pass("cd muxseq")
+        bridge.run_pass("connect -set CFG 1'0")
+        bridge.run_pass("cd ..")
+        bridge.run_pass("simplemap")
+        bridge.run_pass("opt -full")
+        bridge.run_pass("clean")
+        bridge.write_blif_path(output)
+
+        blif = output.read_text(encoding="utf-8")
+        assert ".latch" not in blif
+        assert ".inputs CLK D CFG" in blif
+        assert ".names D O" in blif
+
+        circuit = Circuit.from_blif(
+            output,
+            top="muxseq",
+            inputs=["D", "CFG", "CLK"],
+            outputs=["O"],
+        )
+        assert circuit.config_names() == []
+
+
+def test_preconfigured_verilog_config_bus_removes_dead_sequential_path() -> None:
+    """Test fixed config bus bits keep names while pruning sequential logic."""
+    with TemporaryDirectory(prefix="morph_tile_preconfig_verilog_") as td:
+        tmp_dir = Path(td)
+        source = tmp_dir / "buscfgseq.v"
+        output = tmp_dir / "buscfgseq.blif"
+        source.write_text(
+            """
+module buscfgseq(input D, input CLK, input [2:0] ConfigBits, output O);
+  reg Q;
+  wire comb = ConfigBits[1] ? ~D : D;
+  always @(posedge CLK) Q <= comb;
+  assign O = ConfigBits[0] ? Q : comb;
+endmodule
+""",
+            encoding="utf-8",
+        )
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([source], replace_design=True)
+        bridge.run_pass("hierarchy -top buscfgseq")
+        bridge.run_pass("proc")
+        bridge.run_pass("opt -fast")
+        bridge.run_pass("cd buscfgseq")
+        bridge.run_pass("connect -set ConfigBits[0] 1'0")
+        bridge.run_pass("cd ..")
+        bridge.run_pass("simplemap")
+        bridge.run_pass("opt -full")
+        bridge.run_pass("clean")
+        bridge.write_blif_path(output)
+
+        blif = output.read_text(encoding="utf-8")
+        assert ".latch" not in blif
+        assert "$dff" not in blif
+        assert ".inputs D CLK ConfigBits[0] ConfigBits[1] ConfigBits[2]" in blif
+        assert ".names $false ConfigBits[0]" in blif
+
+        circuit = Circuit.from_blif(
+            output,
+            top="buscfgseq",
+            inputs=["D"],
+            config_prefixes=["ConfigBits"],
+            outputs=["O"],
+        )
+        assert circuit.config_names() == [
+            "ConfigBits[0]",
+            "ConfigBits[1]",
+            "ConfigBits[2]",
+        ]
+
+
+def test_cut_solver_fixed_config_maps_combinational_side_of_seq_tile() -> None:
+    """Test CutSolver fixes config bits before importing a sequential tile."""
+    with TemporaryDirectory(prefix="morph_tile_fixed_config_solver_") as td:
+        tmp_dir = Path(td)
+        tile = _write_seq_config_and_tile(tmp_dir)
+
+        result = CutSolver(
+            verilog_path=tile,
+            top_name="seq_config_and_tile",
+            inputs=["I0", "I1"],
+            outputs=["O"],
+            config_prefixes=["ConfigBits"],
+            fixed_configs={"ConfigBits[0]": 0},
+        ).solve_lut(init=0x8, lut_size=2, allow_input_reuse=False)
+
+        assert result.sat
+        assert result.config_bits["ConfigBits[0]"] is False
+        assert result.output_mapping == {"X": "O"}
+        assert set(result.input_mapping) == {"I0", "I1"}
 
 
 def test_permute_cache_groups_multi_output_truth_tables() -> None:
@@ -737,6 +856,37 @@ endmodule
         assert cell["connections"]["C"] == ["0"]
 
 
+def test_morph_tile_pass_wires_fixed_config_bits() -> None:
+    """Test fixed config bits are emitted on replacement instances."""
+    with TemporaryDirectory(prefix="morph_tile_fixed_config_pass_") as td:
+        tmp_dir = Path(td)
+        base = _write_and_base(tmp_dir)
+        tile = _write_seq_config_and_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="seq_config_and_tile",
+            tile_inputs=["I0", "I1"],
+            tile_outputs=["O"],
+            circuit_options={"lut": {"widths": [2]}},
+            tile_config_prefixes=["ConfigBits"],
+            tile_fixed_configs={"ConfigBits[0]": 0},
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 1
+        replacement = pass_.result_data.replacements[0]
+        assert replacement.config_bits["ConfigBits[0]"] is False
+
+        cell = bridge.to_netlist_dict()["modules"]["base"]["cells"]["u_lut__morph_tile"]
+        assert cell["connections"]["ConfigBits"][0] == "0"
+
+
 def test_morph_tile_pass_replaces_lut0_constants_and_cache() -> None:
     """Test LUT0 constants are replaced and identical constants hit cache."""
     with TemporaryDirectory(prefix="morph_tile_lut0_") as td:
@@ -1029,6 +1179,29 @@ def _write_and_tile(tmp_dir: Path) -> Path:
         """
 module and_tile(input I0, input I1, output O);
   assign O = I0 & I1;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
+def _write_seq_config_and_tile(tmp_dir: Path) -> Path:
+    """Write a tile with config-selectable combinational/sequential output."""
+    tile = tmp_dir / "seq_config_and_tile.v"
+    tile.write_text(
+        """
+module seq_config_and_tile(
+    input I0,
+    input I1,
+    input CLK,
+    input [1:0] ConfigBits,
+    output O
+);
+  reg Q;
+  wire comb = I0 & I1;
+  always @(posedge CLK) Q <= comb;
+  assign O = ConfigBits[0] ? Q : comb;
 endmodule
 """,
         encoding="utf-8",
@@ -1685,6 +1858,9 @@ def main() -> None:
     """Run all tests."""
     test_cut_solver_simple_and()
     test_cut_solver_lut0_constants()
+    test_preconfigured_blif_removes_dead_sequential_path()
+    test_preconfigured_verilog_config_bus_removes_dead_sequential_path()
+    test_cut_solver_fixed_config_maps_combinational_side_of_seq_tile()
     test_permute_cache_groups_multi_output_truth_tables()
     test_morph_tile_pass_replaces_and_lut_eq()
     test_morph_tile_pass_accepts_lut_options()
@@ -1705,6 +1881,7 @@ def main() -> None:
     test_morph_tile_pass_uses_frac_lut_permute_cache()
     test_morph_tile_pass_respects_max_replacements()
     test_morph_tile_pass_wires_scalar_config()
+    test_morph_tile_pass_wires_fixed_config_bits()
     test_morph_tile_pass_replaces_lut0_constants_and_cache()
     test_morph_tile_pass_replaces_single_constant_frac_lut()
     test_morph_tile_pass_replaces_dual_constant_frac_lut()

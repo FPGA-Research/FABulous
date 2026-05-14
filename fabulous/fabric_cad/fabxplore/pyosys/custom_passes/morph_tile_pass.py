@@ -38,6 +38,9 @@ class MorphTilePass(SynthPass):
         Explicit tile configuration input ports.
     tile_config_prefixes : list[str] | None
         Prefixes used to classify BLIF inputs as configuration bits.
+    tile_fixed_configs : dict[str, int | bool] | None
+        Configuration bits fixed before candidate BLIF generation and emitted
+        on replacement tile instances.
     include_unused_inputs : bool
         Whether tile inputs unused by the solved mapping are tied to zero.
     max_replacements : int | None
@@ -70,6 +73,7 @@ class MorphTilePass(SynthPass):
     circuit_options: dict[str, object] | None = None
     tile_configs: list[str] | None = None
     tile_config_prefixes: list[str] | None = None
+    tile_fixed_configs: dict[str, int | bool] | None = None
     include_unused_inputs: bool = False
     max_replacements: int | None = None
     map_luts_first: bool = False
@@ -102,6 +106,7 @@ class MorphTilePass(SynthPass):
             circuit_options=self.circuit_options,
             tile_configs=self.tile_configs,
             tile_config_prefixes=self.tile_config_prefixes,
+            tile_fixed_configs=self.tile_fixed_configs,
             include_unused_inputs=self.include_unused_inputs,
             max_replacements=self.max_replacements,
             map_luts_first=self.map_luts_first,

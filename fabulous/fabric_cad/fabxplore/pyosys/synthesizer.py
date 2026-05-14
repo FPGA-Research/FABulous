@@ -450,6 +450,7 @@ class ArchitectureSynthesizer(ABC):
         circuit_options: dict[str, object] | None = None,
         tile_configs: list[str] | None = None,
         tile_config_prefixes: list[str] | None = None,
+        tile_fixed_configs: dict[str, int | bool] | None = None,
         include_unused_inputs: bool = False,
         max_replacements: int | None = None,
         map_luts_first: bool = False,
@@ -483,6 +484,9 @@ class ArchitectureSynthesizer(ABC):
             Explicit tile configuration input ports.
         tile_config_prefixes : list[str] | None
             Prefixes used to classify BLIF inputs as configuration bits.
+        tile_fixed_configs : dict[str, int | bool] | None
+            Configuration bits fixed before candidate BLIF generation and
+            emitted on replacement tile instances.
         include_unused_inputs : bool
             Whether tile inputs unused by a solved mapping are tied to zero.
         max_replacements : int | None
@@ -518,6 +522,7 @@ class ArchitectureSynthesizer(ABC):
             circuit_options=circuit_options,
             tile_configs=tile_configs,
             tile_config_prefixes=tile_config_prefixes,
+            tile_fixed_configs=tile_fixed_configs,
             include_unused_inputs=include_unused_inputs,
             max_replacements=max_replacements,
             map_luts_first=map_luts_first,

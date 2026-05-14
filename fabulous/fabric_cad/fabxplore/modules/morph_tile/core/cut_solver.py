@@ -39,6 +39,10 @@ class CutSolver:
         Explicit candidate tile configuration input ports.
     config_prefixes : list[str] | None
         Prefixes used to classify BLIF model inputs as configuration bits.
+    fixed_configs : dict[str, int | bool] | None
+        Configuration bits fixed before the candidate BLIF is generated. This
+        is useful for selecting the combinational mode of tiles that also
+        contain sequential logic.
     max_truth_table_inputs : int
         Maximum ``.names`` input count accepted by the BLIF importer.
     debug : bool
@@ -53,6 +57,7 @@ class CutSolver:
         outputs: list[str],
         configs: list[str] | None = None,
         config_prefixes: list[str] | None = None,
+        fixed_configs: dict[str, int | bool] | None = None,
         max_truth_table_inputs: int = 12,
         debug: bool = False,
     ) -> None:
@@ -62,6 +67,7 @@ class CutSolver:
         self.outputs = outputs
         self.configs = configs
         self.config_prefixes = config_prefixes
+        self.fixed_configs = _normalize_fixed_configs(fixed_configs)
         self.max_truth_table_inputs = max_truth_table_inputs
         self.debug = debug
         self._candidate = self._build_candidate_circuit()
@@ -178,9 +184,10 @@ class CutSolver:
             return CutSolveResult(sat=False, raw_result=equiv_result)
 
         config = equiv_result.config_for(self._candidate)
-        config_bits = {
+        config_bits: dict[str, bool | None] = {
             name: config.external_value(name) for name in self._candidate.config_names()
         }
+        config_bits.update(self.fixed_configs)
         return CutSolveResult(
             sat=True,
             input_mapping=equiv_result.input_mapping(self._candidate),
@@ -221,9 +228,27 @@ class CutSolver:
         bridge = PyosysBridge(debug=self.debug)
         bridge.read_verilog_paths([self.verilog_path], replace_design=True)
         bridge.run_pass(f"prep -top {self.top_name}")
+        self._apply_fixed_configs(bridge)
         bridge.run_pass("aigmap")
         bridge.run_pass(f"synth -top {self.top_name} -flatten")
         bridge.write_blif_path(blif_path)
+
+    def _apply_fixed_configs(self, bridge: PyosysBridge) -> None:
+        """Apply fixed configuration values to the candidate module.
+
+        Parameters
+        ----------
+        bridge : PyosysBridge
+            Temporary design containing the candidate tile module.
+        """
+        if not self.fixed_configs:
+            return
+        bridge.run_pass(f"cd {self.top_name}")
+        for name, value in self.fixed_configs.items():
+            bridge.run_pass(f"connect -set {name} 1'{int(value)}")
+        bridge.run_pass("cd ..")
+        bridge.run_pass("simplemap")
+        bridge.run_pass("opt -full")
 
     def _candidate_from_blif(self, blif_path: Path) -> Circuit:
         """Load the generated BLIF into a SAT-fab circuit.
@@ -247,3 +272,35 @@ class CutSolver:
             outputs=self.outputs,
             max_truth_table_inputs=self.max_truth_table_inputs,
         )
+
+
+def _normalize_fixed_configs(
+    fixed_configs: dict[str, int | bool] | None,
+) -> dict[str, bool]:
+    """Normalize fixed configuration values.
+
+    Parameters
+    ----------
+    fixed_configs : dict[str, int | bool] | None
+        User-provided fixed configuration mapping.
+
+    Returns
+    -------
+    dict[str, bool]
+        Normalized fixed configuration mapping.
+
+    Raises
+    ------
+    ValueError
+        If a fixed configuration value is not ``0``/``1`` or ``False``/``True``.
+    """
+    if fixed_configs is None:
+        return {}
+    normalized: dict[str, bool] = {}
+    for name, value in fixed_configs.items():
+        if not isinstance(value, bool) and (
+            not isinstance(value, int) or value not in {0, 1}
+        ):
+            raise ValueError(f"fixed config '{name}' must be 0/1 or bool")
+        normalized[str(name)] = bool(value)
+    return normalized
