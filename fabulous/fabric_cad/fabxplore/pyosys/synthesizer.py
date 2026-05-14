@@ -29,6 +29,9 @@ from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.chain_mapper_pass import
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.design_analyzer_pass import (
     DesignAnalyzerPass,
 )
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.ff_materializer_pass import (
+    FfMaterializerPass,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_combinator_pass import (
     LutCombinatorPass,
 )
@@ -52,6 +55,10 @@ from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
 )
 
 if TYPE_CHECKING:
+    from fabulous.fabric_cad.fabxplore.modules.ff_materializer.core.models import (
+        FfPortsInputAlias,
+        LaneInput,
+    )
     from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.architecture import (
         FracLutArchitecture,
     )
@@ -674,6 +681,89 @@ class ArchitectureSynthesizer(ABC):
         if log_report:
             self.log_info(result.report_summary)
 
+        return result
+
+    def design_materialize_registers_pass(
+        self,
+        tile_verilog_path: Path,
+        tile_top_name: str,
+        tile_inputs: list[str],
+        tile_outputs: list[str],
+        lanes: list[LaneInput],
+        log_report: bool = True,
+        tile_configs: list[str] | None = None,
+        tile_config_prefixes: list[str] | None = None,
+        ff_ports: FfPortsInputAlias | None = None,
+        pack_multiple_ffs_per_tile: bool = True,
+        max_replacements: int | None = None,
+        strict: bool = False,
+        track_progress: bool = True,
+        progress_chunk_size: int = 100,
+        top_name: str | None = None,
+    ) -> FfMaterializerPass:
+        """Replace standalone FFs with configured tile register lanes.
+
+        Parameters
+        ----------
+        tile_verilog_path : Path
+            Verilog source file containing the replacement tile module.
+        tile_top_name : str
+            Module name to instantiate for replacements.
+        tile_inputs : list[str]
+            Scalar tile input ports exposed to the pass.
+        tile_outputs : list[str]
+            Scalar tile output ports exposed to the pass.
+        lanes : list[LaneInput]
+            Register lane definitions. Dicts are validated as pydantic models.
+        log_report : bool
+            If ``True``, log the FF materializer report.
+        tile_configs : list[str] | None
+            Explicit scalar tile configuration bits.
+        tile_config_prefixes : list[str] | None
+            Prefixes used to discover config bits from emitted BLIF.
+        ff_ports : FfPortsInputAlias | None
+            Supported FF cell mapping. ``None`` selects defaults.
+        pack_multiple_ffs_per_tile : bool
+            Whether multiple lanes may be filled in one replacement tile
+            instance.
+        max_replacements : int | None
+            Optional cap on replaced FFs.
+        strict : bool
+            Whether invalid matches raise instead of being skipped.
+        track_progress : bool
+            Whether progress should be logged.
+        progress_chunk_size : int
+            Number of processed FFs between progress updates.
+        top_name : str | None
+            Top module to process. If ``None``, use the current design top.
+
+        Returns
+        -------
+        FfMaterializerPass
+            Pass instance containing result and report data.
+        """
+        result = FfMaterializerPass(
+            tile_verilog_path=tile_verilog_path,
+            tile_top_name=tile_top_name,
+            tile_inputs=tile_inputs,
+            tile_outputs=tile_outputs,
+            lanes=lanes,
+            tile_configs=tile_configs,
+            tile_config_prefixes=tile_config_prefixes,
+            ff_ports=ff_ports,
+            pack_multiple_ffs_per_tile=pack_multiple_ffs_per_tile,
+            max_replacements=max_replacements,
+            strict=strict,
+            track_progress=track_progress,
+            progress_chunk_size=progress_chunk_size,
+            top_name=top_name or self.design.top_name(),
+        )
+        result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        self.add_primitive(result.verilog_model)
         return result
 
     def design_lut_mapper_pass(
