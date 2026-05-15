@@ -16,6 +16,7 @@ from fabulous.fabric_cad.fabxplore.modules.sat_fab.import_blif import (
     BlifModel,
     BlifNames,
     BlifSubckt,
+    SequentialMode,
     blif_names_to_init,
     parse_blif,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "InputSourceKind",
     "Node",
     "Signal",
+    "SequentialMode",
     "TruthTableSpec",
     "blif_names_to_init",
     "init_from_function",

@@ -206,6 +206,7 @@ class Circuit:
         outputs: list[str] | None = None,
         flatten: bool = True,
         max_truth_table_inputs: int = 12,
+        sequential_mode: str = "error",
     ) -> Circuit:
         """Load a circuit from a BLIF file.
 
@@ -229,6 +230,10 @@ class Circuit:
             Whether to flatten defined ``.subckt`` instances.
         max_truth_table_inputs : int
             Maximum imported ``.names`` input count.
+        sequential_mode : str
+            BLIF ``.latch`` handling mode. The default ``"error"`` preserves
+            combinational-only import. Other modes are handled by the BLIF
+            importer before SAT encoding.
 
         Returns
         -------
@@ -249,6 +254,7 @@ class Circuit:
             outputs=outputs,
             flatten=flatten,
             max_truth_table_inputs=max_truth_table_inputs,
+            sequential_mode=sequential_mode,
         )
 
     def input(self, name: str) -> Signal:

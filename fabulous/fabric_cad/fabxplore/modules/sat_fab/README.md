@@ -533,7 +533,8 @@ Supported BLIF features:
 - `.outputs`
 - `.names`
 - `.subckt` when the referenced model is defined in the same file
-- `.latch` only as a sequential boundary outside the requested output cone
+- `.latch` only as a sequential boundary outside the requested output cone by
+  default
 - `.end`
 
 Unsupported in this version:
@@ -542,11 +543,42 @@ Unsupported in this version:
 - external black-box `.subckt` cells without a model definition
 - very large `.names` tables above `max_truth_table_inputs`
 
-sat_fab still solves combinational equivalence problems. If a BLIF file
-contains registers that do not feed the selected outputs, the importer prunes
-that dead sequential logic. If a selected output is a latch output, or if its
-combinational cone depends on a latch output, import fails with a clear
-sequential-logic error.
+sat_fab still solves combinational equivalence problems. By default,
+`Circuit.from_blif(..., sequential_mode="error")` rejects selected output cones
+that depend on `.latch` outputs. Dead latch cones are pruned before this check,
+so unused sequential logic does not matter.
+
+For architecture exploration or register materialization passes, a caller can
+explicitly collapse live latch boundaries during import:
+
+```python
+candidate = Circuit.from_blif(
+    "registered_tile.blif",
+    inputs=["D"],
+    outputs=["Q"],
+    sequential_mode="passthrough",
+)
+```
+
+For a latch like:
+
+```blif
+.latch D Q re CLK 2
+```
+
+the available modes are:
+
+- `error`: reject the live latch output. This is the default.
+- `passthrough`: model the boundary as `Q = D`.
+- `const0`: model the boundary as `Q = 0`.
+- `const1`: model the boundary as `Q = 1`.
+
+In non-error modes the latch type, control signal, and initial value are
+ignored. Control-only signals such as `CLK` are not connected into the
+combinational SAT model unless they also appear in the data cone through
+ordinary `.names` logic. This keeps the abstraction focused on data-path
+reachability; clock, reset, and enable semantics should be handled by the
+higher-level register packing or absorption pass.
 
 ## Solver Options
 

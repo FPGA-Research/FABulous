@@ -50,6 +50,16 @@ def run_all_tests() -> None:
     test_blif_prunes_dead_latch_logic()
     test_blif_rejects_requested_latch_output()
     test_blif_rejects_latch_output_dependency()
+    test_blif_latch_passthrough_mode()
+    test_blif_latch_const_modes()
+    test_blif_latch_passthrough_mode_flattens_subckt_latches()
+    test_blif_sequential_mode_rejects_duplicate_latch_outputs()
+    test_blif_sequential_mode_rejects_latch_and_names_driver()
+    test_blif_latch_passthrough_rejects_undriven_input()
+    test_blif_latch_passthrough_chain()
+    test_blif_latch_passthrough_feedback_errors()
+    test_blif_latch_metadata_is_ignored_in_passthrough()
+    test_blif_latch_passthrough_constant_input()
     test_blif_subckt_flattening()
     test_blif_same_names_are_circuit_local()
     test_blif_input_mapping()
@@ -972,6 +982,357 @@ def test_blif_rejects_latch_output_dependency() -> None:
         if not error_message:
             raise AssertionError("expected live BLIF latch dependency to fail")
         assert "latch output 'Q' is live" in error_message
+
+
+def test_blif_latch_passthrough_mode() -> None:
+    """Check BLIF import can model live latches as identity paths."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "latch_passthrough.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A CLK",
+                    ".outputs Y",
+                    ".names A next_q",
+                    "1 1",
+                    ".latch next_q Q re CLK 2",
+                    ".names Q Y",
+                    "1 1",
+                    ".end",
+                ]
+            )
+        )
+        imported = Circuit.from_blif(
+            path,
+            inputs=["A"],
+            outputs=["Y"],
+            sequential_mode="passthrough",
+        )
+        target = Circuit.truth_table(
+            name="identity",
+            inputs=["A"],
+            outputs={"Y": Func.var("A")},
+        )
+        result = Equiv.check(target, imported).match_inputs_by_name().solve()
+        assert result.sat
+
+
+def test_blif_latch_const_modes() -> None:
+    """Check BLIF import can model live latches as constants."""
+    for mode, expected in [("const0", 0), ("const1", 1)]:
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / f"latch_{mode}.blif"
+            path.write_text(
+                "\n".join(
+                    [
+                        ".model top",
+                        ".inputs A CLK",
+                        ".outputs Y",
+                        ".names A next_q",
+                        "1 1",
+                        ".latch next_q Q re CLK 2",
+                        ".names Q Y",
+                        "1 1",
+                        ".end",
+                    ]
+                )
+            )
+            imported = Circuit.from_blif(
+                path,
+                inputs=["A"],
+                outputs=["Y"],
+                sequential_mode=mode,
+            )
+            target = Circuit.truth_table(
+                name=f"target_{mode}",
+                inputs=["A"],
+                outputs={"Y": Func.const(bool(expected))},
+            )
+            result = Equiv.check(target, imported).match_inputs_by_name().solve()
+            assert result.sat
+
+
+def test_blif_latch_passthrough_mode_flattens_subckt_latches() -> None:
+    """Check sequential mode also applies to flattened subcircuit latches."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "subckt_latch.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A CLK",
+                    ".outputs Y",
+                    ".subckt REG I=A C=CLK O=Y",
+                    ".end",
+                    ".model REG",
+                    ".inputs I C",
+                    ".outputs O",
+                    ".names I next_q",
+                    "0 1",
+                    ".latch next_q O re C 2",
+                    ".end",
+                ]
+            )
+        )
+        imported = Circuit.from_blif(
+            path,
+            top="top",
+            inputs=["A"],
+            outputs=["Y"],
+            sequential_mode="passthrough",
+        )
+        target = Circuit.truth_table(
+            name="inverted",
+            inputs=["A"],
+            outputs={"Y": Func.not_("A")},
+        )
+        result = Equiv.check(target, imported).match_inputs_by_name().solve()
+        assert result.sat
+
+
+def test_blif_sequential_mode_rejects_duplicate_latch_outputs() -> None:
+    """Check duplicate latch output drivers are rejected.
+
+    Raises
+    ------
+    AssertionError
+        If two latches driving the same output are accepted.
+    """
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "duplicate_latch_outputs.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A B CLK",
+                    ".outputs Q",
+                    ".latch A Q re CLK 2",
+                    ".latch B Q re CLK 2",
+                    ".end",
+                ]
+            )
+        )
+        error_message = ""
+        try:
+            Circuit.from_blif(
+                path,
+                inputs=["A", "B"],
+                outputs=["Q"],
+                sequential_mode="passthrough",
+            )
+        except ValueError as exc:
+            error_message = str(exc)
+        if not error_message:
+            raise AssertionError("expected duplicate latch outputs to fail")
+        assert "multiple BLIF latches drive the same output net" in error_message
+
+
+def test_blif_sequential_mode_rejects_latch_and_names_driver() -> None:
+    """Check a net driven by latch and ``.names`` is rejected.
+
+    Raises
+    ------
+    AssertionError
+        If a net with two different BLIF drivers is accepted.
+    """
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "latch_and_names_driver.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A CLK",
+                    ".outputs Q",
+                    ".latch A Q re CLK 2",
+                    ".names A Q",
+                    "1 1",
+                    ".end",
+                ]
+            )
+        )
+        error_message = ""
+        try:
+            Circuit.from_blif(
+                path,
+                inputs=["A"],
+                outputs=["Q"],
+                sequential_mode="passthrough",
+            )
+        except ValueError as exc:
+            error_message = str(exc)
+        if not error_message:
+            raise AssertionError("expected latch/.names double driver to fail")
+        assert "driven by both .names and .latch" in error_message
+
+
+def test_blif_latch_passthrough_rejects_undriven_input() -> None:
+    """Check passthrough mode rejects live latches with undriven data.
+
+    Raises
+    ------
+    AssertionError
+        If an undriven live latch input is accepted.
+    """
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "undriven_latch_input.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A CLK",
+                    ".outputs Q",
+                    ".latch floating Q re CLK 2",
+                    ".end",
+                ]
+            )
+        )
+        error_message = ""
+        try:
+            Circuit.from_blif(
+                path,
+                inputs=["A"],
+                outputs=["Q"],
+                sequential_mode="passthrough",
+            )
+        except ValueError as exc:
+            error_message = str(exc)
+        if not error_message:
+            raise AssertionError("expected undriven latch input to fail")
+        assert "floating" in error_message
+
+
+def test_blif_latch_passthrough_chain() -> None:
+    """Check chained latches collapse to a data-path identity."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "latch_chain.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A CLK",
+                    ".outputs Q1",
+                    ".names A D0",
+                    "1 1",
+                    ".latch D0 Q0 re CLK 2",
+                    ".latch Q0 Q1 re CLK 2",
+                    ".end",
+                ]
+            )
+        )
+        imported = Circuit.from_blif(
+            path,
+            inputs=["A"],
+            outputs=["Q1"],
+            sequential_mode="passthrough",
+        )
+        target = Circuit.truth_table(
+            name="identity",
+            inputs=["A"],
+            outputs={"Q1": Func.var("A")},
+        )
+        result = Equiv.check(target, imported).match_inputs_by_name().solve()
+        assert result.sat
+
+
+def test_blif_latch_passthrough_feedback_errors() -> None:
+    """Check sequential feedback becomes a rejected combinational cycle.
+
+    Raises
+    ------
+    AssertionError
+        If feedback through a passthrough latch is silently accepted.
+    """
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "latch_feedback.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A CLK",
+                    ".outputs Q",
+                    ".names Q A D",
+                    "11 1",
+                    ".latch D Q re CLK 2",
+                    ".end",
+                ]
+            )
+        )
+        error_message = ""
+        try:
+            Circuit.from_blif(
+                path,
+                inputs=["A"],
+                outputs=["Q"],
+                sequential_mode="passthrough",
+            )
+        except ValueError as exc:
+            error_message = str(exc)
+        if not error_message:
+            raise AssertionError("expected latch feedback to fail")
+        assert "combinational cycle" in error_message
+
+
+def test_blif_latch_metadata_is_ignored_in_passthrough() -> None:
+    """Check latch type/control/init do not affect passthrough import."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "latch_metadata.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A CLK",
+                    ".outputs Q",
+                    ".latch A Q ah CLK 1",
+                    ".end",
+                ]
+            )
+        )
+        imported = Circuit.from_blif(
+            path,
+            inputs=["A"],
+            outputs=["Q"],
+            sequential_mode="passthrough",
+        )
+        target = Circuit.truth_table(
+            name="identity",
+            inputs=["A"],
+            outputs={"Q": Func.var("A")},
+        )
+        result = Equiv.check(target, imported).match_inputs_by_name().solve()
+        assert result.sat
+
+
+def test_blif_latch_passthrough_constant_input() -> None:
+    """Check constant latch inputs naturally propagate in passthrough mode."""
+    with TemporaryDirectory() as tmp:
+        path = Path(tmp) / "latch_const_input.blif"
+        path.write_text(
+            "\n".join(
+                [
+                    ".model top",
+                    ".inputs A CLK",
+                    ".outputs Q",
+                    ".names D",
+                    "1",
+                    ".latch D Q re CLK 2",
+                    ".end",
+                ]
+            )
+        )
+        imported = Circuit.from_blif(
+            path,
+            inputs=["A"],
+            outputs=["Q"],
+            sequential_mode="passthrough",
+        )
+        target = Circuit.truth_table(
+            name="const1",
+            inputs=["A"],
+            outputs={"Q": Func.const(True)},
+        )
+        result = Equiv.check(target, imported).match_inputs_by_name().solve()
+        assert result.sat
 
 
 def test_blif_subckt_flattening() -> None:

@@ -7,9 +7,35 @@ the internal flat :class:`Circuit` representation.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fabulous.fabric_cad.fabxplore.modules.sat_fab.circuit import Circuit, Signal
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+
+class SequentialMode(StrEnum):
+    """BLIF sequential-element handling mode.
+
+    Attributes
+    ----------
+    ERROR
+        Reject requested output cones that cross BLIF ``.latch`` boundaries.
+    PASSTHROUGH
+        Treat each live ``.latch`` output as an identity of its input.
+    CONST0
+        Treat each live ``.latch`` output as constant zero.
+    CONST1
+        Treat each live ``.latch`` output as constant one.
+    """
+
+    ERROR = "error"
+    PASSTHROUGH = "passthrough"
+    CONST0 = "const0"
+    CONST1 = "const1"
 
 
 @dataclass
@@ -205,6 +231,7 @@ def circuit_from_blif(
     outputs: list[str] | None = None,
     flatten: bool = True,
     max_truth_table_inputs: int = 12,
+    sequential_mode: SequentialMode | str = SequentialMode.ERROR,
 ) -> Circuit:
     """Load a BLIF file into a flat circuit.
 
@@ -228,6 +255,10 @@ def circuit_from_blif(
         Whether to flatten defined ``.subckt`` instances.
     max_truth_table_inputs : int
         Maximum ``.names`` input count converted into a truth table.
+    sequential_mode : SequentialMode | str
+        How live BLIF ``.latch`` outputs are handled. The default ``"error"``
+        preserves SAT-fab's combinational-only behavior. Other modes are only
+        applied to latches in the requested output cone.
 
     Returns
     -------
@@ -239,6 +270,7 @@ def circuit_from_blif(
     ValueError
         If the BLIF contains unsupported hierarchy or oversized truth tables.
     """
+    mode = SequentialMode(sequential_mode)
     models = parse_blif(path)
     if not models:
         raise ValueError("BLIF file contains no models")
@@ -276,6 +308,8 @@ def circuit_from_blif(
         flat_names,
         output_names,
         sequential_outputs,
+        mode,
+        flat_latches,
     )
     flat_names = _topological_sort_names_blocks(
         flat_names,
@@ -305,6 +339,8 @@ def _prune_names_to_output_cone(
     blocks: list[BlifNames],
     outputs: list[str],
     sequential_outputs: set[str] | None = None,
+    sequential_mode: SequentialMode = SequentialMode.ERROR,
+    latches: list[BlifLatch] | None = None,
 ) -> list[BlifNames]:
     """Keep only ``.names`` blocks that can affect selected outputs.
 
@@ -316,6 +352,10 @@ def _prune_names_to_output_cone(
         Output nets whose transitive fan-in cone should be retained.
     sequential_outputs : set[str] | None
         Nets driven by BLIF sequential elements.
+    sequential_mode : SequentialMode
+        Handling mode for live sequential outputs.
+    latches : list[BlifLatch] | None
+        Flattened latch boundaries. Required for non-error sequential modes.
 
     Returns
     -------
@@ -325,31 +365,104 @@ def _prune_names_to_output_cone(
     Raises
     ------
     ValueError
-        If a net has multiple drivers or a selected cone crosses a sequential
-        boundary.
+        If a net has multiple drivers, if a selected cone crosses a sequential
+        boundary in ``ERROR`` mode, or if a sequential output cannot be
+        materialized in the selected mode.
     """
     sequential = sequential_outputs or set()
+    latch_by_output = {latch.output: latch for latch in latches or []}
+    if len(latch_by_output) != len(latches or []):
+        raise ValueError("multiple BLIF latches drive the same output net")
     driver_by_net: dict[str, int] = {}
     for index, block in enumerate(blocks):
         if block.output in driver_by_net:
             raise ValueError(f"multiple BLIF drivers for net {block.output!r}")
+        if block.output in sequential:
+            raise ValueError(
+                f"BLIF net {block.output!r} is driven by both .names and .latch"
+            )
         driver_by_net[block.output] = index
 
     kept: set[int] = set()
+    live_latches: dict[str, BlifLatch] = {}
     pending = list(outputs)
     while pending:
         net = pending.pop()
         if net in sequential:
-            raise ValueError(
-                f"BLIF latch output {net!r} is live in the requested output cone; "
-                "sequential BLIF is not supported"
-            )
+            latch = latch_by_output.get(net)
+            if latch is None:
+                raise ValueError(f"missing BLIF latch metadata for output {net!r}")
+            if sequential_mode is SequentialMode.ERROR:
+                raise ValueError(
+                    f"BLIF latch output {net!r} is live in the requested output cone; "
+                    "sequential BLIF is not supported"
+                )
+            if net in live_latches:
+                continue
+            live_latches[net] = latch
+            if sequential_mode is SequentialMode.PASSTHROUGH:
+                pending.append(latch.input)
+            continue
         driver_index = driver_by_net.get(net)
         if driver_index is None or driver_index in kept:
             continue
         kept.add(driver_index)
         pending.extend(blocks[driver_index].inputs)
-    return [block for index, block in enumerate(blocks) if index in kept]
+    pruned = [block for index, block in enumerate(blocks) if index in kept]
+    if live_latches:
+        pruned.extend(
+            _sequential_latch_blocks(
+                live_latches.values(),
+                sequential_mode,
+                driver_by_net,
+            )
+        )
+    return pruned
+
+
+def _sequential_latch_blocks(
+    latches: Iterable[BlifLatch],
+    sequential_mode: SequentialMode,
+    driver_by_net: dict[str, int],
+) -> list[BlifNames]:
+    """Convert live latch outputs into combinational ``.names`` blocks.
+
+    Parameters
+    ----------
+    latches : Iterable[BlifLatch]
+        Iterable of live BLIF latches.
+    sequential_mode : SequentialMode
+        Conversion mode for latch outputs.
+    driver_by_net : dict[str, int]
+        Existing combinational drivers keyed by net name.
+
+    Returns
+    -------
+    list[BlifNames]
+        Synthetic ``.names`` blocks implementing the selected sequential mode.
+
+    Raises
+    ------
+    ValueError
+        If ``ERROR`` mode is requested or if a latch output already has a
+        combinational driver.
+    """
+    if sequential_mode is SequentialMode.ERROR:
+        raise ValueError("cannot materialize latches in error mode")
+
+    blocks: list[BlifNames] = []
+    for latch in latches:
+        if latch.output in driver_by_net:
+            raise ValueError(
+                f"BLIF latch output {latch.output!r} also has a .names driver"
+            )
+        if sequential_mode is SequentialMode.PASSTHROUGH:
+            blocks.append(BlifNames([latch.input], latch.output, [("1", "1")]))
+        elif sequential_mode is SequentialMode.CONST0:
+            blocks.append(BlifNames([], latch.output, []))
+        elif sequential_mode is SequentialMode.CONST1:
+            blocks.append(BlifNames([], latch.output, [("", "1")]))
+    return blocks
 
 
 def _topological_sort_names_blocks(
