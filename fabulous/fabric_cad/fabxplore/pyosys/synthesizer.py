@@ -66,6 +66,7 @@ if TYPE_CHECKING:
         MorphCircuitKind,
     )
     from fabulous.fabric_cad.fabxplore.modules.reg_absorber.core.models import (
+        ConfigValue,
         FfPortsInput,
         RuleInput,
     )
@@ -700,8 +701,13 @@ class ArchitectureSynthesizer(ABC):
         tile_config_prefixes: list[str] | None = None,
         ff_ports: FfPortsInputAlias | None = None,
         pack_multiple_ffs_per_tile: bool = True,
+        auto_config: bool = False,
+        auto_config_overwrites: dict[str, ConfigValue] | None = None,
         max_replacements: int | None = None,
-        strict: bool = False,
+        fail_on_invalid_lane: bool = True,
+        fail_on_auto_config_unsat: bool = False,
+        fail_on_pack_conflict: bool = False,
+        fail_on_unmaterialized_ff: bool = False,
         track_progress: bool = True,
         progress_chunk_size: int = 100,
         top_name: str | None = None,
@@ -731,10 +737,24 @@ class ArchitectureSynthesizer(ABC):
         pack_multiple_ffs_per_tile : bool
             Whether multiple lanes may be filled in one replacement tile
             instance.
+        auto_config : bool
+            If ``True``, solve one shared identity-path config for each packed
+            lane set. Lane-local ``config`` entries are invalid in this mode.
+        auto_config_overwrites : dict[str, ConfigValue] | None
+            Fixed config constraints used by ``auto_config`` and copied into
+            emitted replacements. Ignored when ``auto_config`` is ``False``.
         max_replacements : int | None
             Optional cap on replaced FFs.
-        strict : bool
-            Whether invalid matches raise instead of being skipped.
+        fail_on_invalid_lane : bool
+            Whether invalid lane definitions should raise instead of being
+            ignored.
+        fail_on_auto_config_unsat : bool
+            Whether unsatisfiable auto-config attempts should raise.
+        fail_on_pack_conflict : bool
+            Whether config, parameter, or shared-port packing conflicts should
+            raise.
+        fail_on_unmaterialized_ff : bool
+            Whether any supported FF left unreplaced should raise.
         track_progress : bool
             Whether progress should be logged.
         progress_chunk_size : int
@@ -757,8 +777,13 @@ class ArchitectureSynthesizer(ABC):
             tile_config_prefixes=tile_config_prefixes,
             ff_ports=ff_ports,
             pack_multiple_ffs_per_tile=pack_multiple_ffs_per_tile,
+            auto_config=auto_config,
+            auto_config_overwrites=auto_config_overwrites,
             max_replacements=max_replacements,
-            strict=strict,
+            fail_on_invalid_lane=fail_on_invalid_lane,
+            fail_on_auto_config_unsat=fail_on_auto_config_unsat,
+            fail_on_pack_conflict=fail_on_pack_conflict,
+            fail_on_unmaterialized_ff=fail_on_unmaterialized_ff,
             track_progress=track_progress,
             progress_chunk_size=progress_chunk_size,
             top_name=top_name or self.design.top_name(),

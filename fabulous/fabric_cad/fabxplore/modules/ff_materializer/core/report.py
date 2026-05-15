@@ -17,6 +17,26 @@ Configuration
 - Lanes: {{ result.lanes | length }}
 - FF cell types: {{ result.ff_ports.keys() | list | join(", ") }}
 - Config bits discovered: {{ result.tile.config_bits | length }}
+- pack_multiple_ffs_per_tile: {{ result.options.pack_multiple_ffs_per_tile }}
+- auto_config: {{ result.options.auto_config }}
+- auto_config_overwrites:
+{% if result.options.auto_config_overwrites %}
+{% for name, value in result.options.auto_config_overwrites.items() | sort %}
+  - {{ name }} = {{ value | int }}
+{% endfor %}
+{% else %}
+- none
+{% endif %}
+- max_replacements: {{
+    result.options.max_replacements
+    if result.options.max_replacements is not none
+    else "none"
+}}
+- fail_on_invalid_lane: {{ result.options.fail_on_invalid_lane }}
+- fail_on_auto_config_unsat: {{ result.options.fail_on_auto_config_unsat }}
+- fail_on_pack_conflict: {{ result.options.fail_on_pack_conflict }}
+- fail_on_unmaterialized_ff: {{ result.options.fail_on_unmaterialized_ff }}
+- progress_chunk_size: {{ result.options.progress_chunk_size }}
 
 Summary
 - FF cells considered: {{ stats.ff_cells }}

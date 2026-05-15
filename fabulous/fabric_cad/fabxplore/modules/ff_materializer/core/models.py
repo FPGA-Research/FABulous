@@ -279,6 +279,43 @@ class FfMaterializerStats:
 
 
 @dataclass(frozen=True)
+class FfMaterializerOptions:
+    """Pass-level options used for one FF materialization run.
+
+    Attributes
+    ----------
+    pack_multiple_ffs_per_tile : bool
+        Whether multiple FFs may be packed into one replacement tile.
+    auto_config : bool
+        Whether SAT-fab solves replacement tile config for identity paths.
+    auto_config_overwrites : dict[str, ConfigValue]
+        Fixed config constraints used when auto-config is enabled.
+    max_replacements : int | None
+        Optional cap on materialized FFs.
+    fail_on_invalid_lane : bool
+        Whether invalid lanes/config references raise instead of being skipped.
+    fail_on_auto_config_unsat : bool
+        Whether an unsatisfied auto-config group raises instead of skipping.
+    fail_on_pack_conflict : bool
+        Whether config, parameter, or shared-port packing conflicts raise.
+    fail_on_unmaterialized_ff : bool
+        Whether any remaining supported FF raises after planning.
+    progress_chunk_size : int
+        Number of FFs between progress messages.
+    """
+
+    pack_multiple_ffs_per_tile: bool
+    auto_config: bool
+    auto_config_overwrites: dict[str, ConfigValue]
+    max_replacements: int | None
+    fail_on_invalid_lane: bool
+    fail_on_auto_config_unsat: bool
+    fail_on_pack_conflict: bool
+    fail_on_unmaterialized_ff: bool
+    progress_chunk_size: int
+
+
+@dataclass(frozen=True)
 class FfMaterializerResult:
     """Result of FF materialization.
 
@@ -292,6 +329,8 @@ class FfMaterializerResult:
         Normalized lane definitions.
     ff_ports : dict[str, FfPortSpec]
         Supported FF cell types.
+    options : FfMaterializerOptions
+        Pass-level options used for this run.
     materializations : tuple[FfMaterialization, ...]
         Planned and applied materializations.
     stats : FfMaterializerStats
@@ -304,6 +343,7 @@ class FfMaterializerResult:
     tile: FfMaterializerTileModel
     lanes: tuple[FfMaterializerLane, ...]
     ff_ports: dict[str, FfPortSpec]
+    options: FfMaterializerOptions
     materializations: tuple[FfMaterialization, ...]
     stats: FfMaterializerStats
     report_summary: str = ""
@@ -349,13 +389,24 @@ def normalize_lanes(lanes: list[LaneInput]) -> tuple[FfMaterializerLane, ...]:
     -------
     tuple[FfMaterializerLane, ...]
         Validated lanes.
+
+    Raises
+    ------
+    ValueError
+        When a lane contains invalid keys or an ``auto_config`` key is found.
     """
-    return tuple(
-        lane
-        if isinstance(lane, FfMaterializerLane)
-        else FfMaterializerLane.model_validate(lane)
-        for lane in lanes
-    )
+    normalized = []
+    for lane in lanes:
+        if isinstance(lane, dict) and "auto_config" in lane:
+            raise ValueError(
+                "auto_config is a pass-level option; remove it from lane definitions"
+            )
+        normalized.append(
+            lane
+            if isinstance(lane, FfMaterializerLane)
+            else FfMaterializerLane.model_validate(lane)
+        )
+    return tuple(normalized)
 
 
 def split_indexed_name(name: str) -> tuple[str, int | None]:

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
 from fabulous.fabric_cad.fabxplore.modules.ff_materializer.core.models import (
@@ -11,9 +9,14 @@ from fabulous.fabric_cad.fabxplore.modules.ff_materializer.core.models import (
     FfMaterializerDesign,
     FfMaterializerTileModel,
 )
-from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
+from fabulous.fabric_cad.fabxplore.modules.ff_materializer.core.tile_compiler import (
+    FfMaterializerTileCompiler,
+)
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
+    from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
     from fabulous.fabric_definition.yosys_obj import YosysCellDetails
 
 
@@ -88,7 +91,10 @@ class FfMaterializerReader:
         FfMaterializerTileModel
             Tile model containing BLIF text and scalar config names.
         """
-        blif_text = self._emit_tile_blif(verilog_path=verilog_path, top_name=top_name)
+        blif_text = FfMaterializerTileCompiler().emit_blif_text(
+            verilog_path=verilog_path,
+            top_name=top_name,
+        )
         discovered = _discover_config_bits(blif_text, tuple(config_prefixes or ()))
         config_bits = tuple(dict.fromkeys([*discovered, *(configs or [])]))
         return FfMaterializerTileModel(
@@ -132,29 +138,6 @@ class FfMaterializerReader:
                 key: str(value) for key, value in cell.port_directions.items()
             },
         )
-
-    def _emit_tile_blif(self, verilog_path: Path, top_name: str) -> str:
-        """Compile the tile Verilog to BLIF and return the text.
-
-        Parameters
-        ----------
-        verilog_path : Path
-            Verilog source defining the tile.
-        top_name : str
-            Tile top module name.
-
-        Returns
-        -------
-        str
-            Emitted BLIF text.
-        """
-        bridge = PyosysBridge(debug=False)
-        bridge.read_verilog_paths([verilog_path], replace_design=True)
-        bridge.run_pass(f"prep -top {top_name}")
-        with TemporaryDirectory(prefix="ff_materializer_tile_") as td:
-            blif_path = Path(td) / "tile.blif"
-            bridge.write_blif_path(blif_path)
-            return blif_path.read_text(encoding="utf-8")
 
 
 def _discover_config_bits(

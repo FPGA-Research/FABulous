@@ -11,6 +11,9 @@ from fabulous.fabric_cad.fabxplore.modules.ff_materializer.core.models import (
     FfPortsInputAlias,
     LaneInput,
 )
+from fabulous.fabric_cad.fabxplore.modules.reg_absorber.core.models import (
+    ConfigValue,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 from fabulous.fabric_cad.fabxplore.pyosys.synth_pass import SynthPass
 
@@ -39,10 +42,22 @@ class FfMaterializerPass(SynthPass):
         Supported FF cell mapping. ``None`` selects defaults.
     pack_multiple_ffs_per_tile : bool
         Whether multiple lanes may be filled in one replacement tile instance.
+    auto_config : bool
+        Whether SAT-fab should solve one shared identity-path config for each
+        materialized lane set.
+    auto_config_overwrites : dict[str, ConfigValue] | None
+        Optional fixed config bits used as constraints when ``auto_config`` is
+        enabled. Ignored when ``auto_config`` is disabled.
     max_replacements : int | None
         Optional cap on replaced FFs.
-    strict : bool
-        Whether invalid matches raise instead of being skipped.
+    fail_on_invalid_lane : bool
+        Whether invalid lane definitions should raise instead of being ignored.
+    fail_on_auto_config_unsat : bool
+        Whether unsatisfiable auto-config attempts should raise.
+    fail_on_pack_conflict : bool
+        Whether config, parameter, or shared-port packing conflicts should raise.
+    fail_on_unmaterialized_ff : bool
+        Whether any supported FF left unreplaced should raise.
     track_progress : bool
         Whether progress should be logged.
     progress_chunk_size : int
@@ -60,8 +75,13 @@ class FfMaterializerPass(SynthPass):
     tile_config_prefixes: list[str] | None = None
     ff_ports: FfPortsInputAlias | None = None
     pack_multiple_ffs_per_tile: bool = True
+    auto_config: bool = False
+    auto_config_overwrites: dict[str, ConfigValue] | None = None
     max_replacements: int | None = None
-    strict: bool = False
+    fail_on_invalid_lane: bool = True
+    fail_on_auto_config_unsat: bool = False
+    fail_on_pack_conflict: bool = False
+    fail_on_unmaterialized_ff: bool = False
     track_progress: bool = True
     progress_chunk_size: int = 100
     top_name: str | None = None
@@ -87,8 +107,13 @@ class FfMaterializerPass(SynthPass):
             tile_config_prefixes=self.tile_config_prefixes,
             ff_ports=self.ff_ports,
             pack_multiple_ffs_per_tile=self.pack_multiple_ffs_per_tile,
+            auto_config=self.auto_config,
+            auto_config_overwrites=self.auto_config_overwrites,
             max_replacements=self.max_replacements,
-            strict=self.strict,
+            fail_on_invalid_lane=self.fail_on_invalid_lane,
+            fail_on_auto_config_unsat=self.fail_on_auto_config_unsat,
+            fail_on_pack_conflict=self.fail_on_pack_conflict,
+            fail_on_unmaterialized_ff=self.fail_on_unmaterialized_ff,
             track_progress=self.track_progress,
             progress_chunk_size=self.progress_chunk_size,
         )

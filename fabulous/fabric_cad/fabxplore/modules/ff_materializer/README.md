@@ -194,6 +194,147 @@ tile.I1 ----> tile.Q1
 The pass does not invent extra timing behavior. It preserves the FF data and
 output nets according to the selected lane bindings.
 
+## How Sequential Logic Is Handled
+
+The pass does not map arbitrary sequential logic with SAT. It replaces each
+supported one-bit FF cell with one sequential lane of the replacement tile. The
+state element is still present in the final netlist, but it lives inside the
+architecture primitive instead of in a generic FF cell.
+
+For a plain FF:
+
+```text
+before:
+
+  d_net ----> D  $dff  Q ----> q_net
+              ^        |
+              |        |
+             clk      output state
+
+after:
+
+  d_net ----> I0  TILE  Q0 ----> q_net
+              ^         |
+              |         |
+             clk ----> UserCLK
+```
+
+The intended behavior is the same:
+
+$$
+\begin{aligned}
+q_\text{old}(t + 1) &= d_\text{old}(t) \\
+Q0_\text{tile}(t + 1) &= I0_\text{tile}(t)
+\end{aligned}
+$$
+
+The writer therefore performs two structural edits:
+
+- connect the old FF data signal to the lane `data_port`;
+- connect the lane `output_port` to the old FF output signal and remove the old
+  FF cell.
+
+Clock, enable, and reset are handled as ports of the replacement tile. If a lane
+names `clock_port`, the old FF clock net is connected to that tile port. If a
+lane names `enable_tile_port` or `reset_tile_port`, then matching FF control
+nets are connected when present. If the FF has no such control, the pass may use
+the lane neutral value:
+
+```text
+$dff without enable/reset:
+
+  .EN(1'b1)   because enable_neutral = 1
+  .SR(1'b0)   because reset_neutral = 0
+```
+
+For an enabled FF:
+
+```text
+before:
+
+  d_net ----> D  $dffe  Q ----> q_net
+  en_net ----> EN
+  clk -------> CLK
+
+after:
+
+  d_net ----> I0  TILE  Q0 ----> q_net
+  en_net --------> EN
+  clk -----------> UserCLK
+```
+
+For a resettable FF, `reset_kind` and `reset_value` describe what kind of reset
+the lane can preserve. For example, a lane with `reset_kind="sync"` and
+`reset_value=0` may absorb an FF whose reset is synchronous and resets the
+output to zero. A reset mismatch is skipped, or raises when the relevant failure
+option is enabled.
+
+### Auto-Config And Sequential Tiles
+
+`auto_config=True` only uses sequential passthrough during the config search. It
+does not remove the tile registers from the final netlist.
+
+Internally, the tile Verilog is lowered to BLIF. For the SAT problem, sat_fab
+imports that BLIF with `sequential_mode="passthrough"`, so a register boundary
+inside the tile is treated like an identity edge while solving the combinational
+question:
+
+```text
+SAT-only view:
+
+  I0 ----> combinational config fabric ----> Q0
+
+real emitted tile:
+
+  I0 ----> combinational config fabric ----> D(register)  Q0
+```
+
+This lets SAT find the config bits for the data path, for example `I0 -> Q0`,
+without trying to prove sequential behavior. The sequential behavior is
+preserved by the tile instance itself.
+
+If the tile has controls that can block the identity path, auto-config
+temporarily fixes them to their lane neutral values while compiling the BLIF for
+SAT:
+
+```text
+auto-config solve view:
+
+  EN = 1
+  SR = 0
+  solve ConfigBits so Q0 = I0
+```
+
+The real output netlist still wires the actual FF controls when the FF has them.
+The neutral values are only for finding the identity data-path configuration.
+
+When multiple lanes are packed into one tile, auto-config solves the full packed
+set together:
+
+$$
+\begin{aligned}
+Q0 &= I0 \\
+Q1 &= I1
+\end{aligned}
+$$
+
+with one shared config assignment. This is important when both lanes share mode
+bits. The pack is accepted only if one config assignment implements all occupied
+lane identities at the same time.
+
+### What This Pass Does Not Do
+
+This pass does not:
+
+- absorb FFs into already mapped neighboring tiles; use the register absorber
+  for that;
+- reason about arbitrary sequential equivalence;
+- create a globally optimal placement of all FFs;
+- remove all sequential behavior from the design.
+
+It only turns supported standalone FF cells into architecture tile instances
+whose lanes have matching clock/control semantics.
+
 ## Mathematical Packing Problem
 
 Let $F$ be the set of supported FF cells and $L$ be the set of tile lanes.
@@ -231,23 +372,39 @@ $p$.
 This is a greedy packing pass. It is deterministic and conservative. It does not
 currently solve a global optimum assignment.
 
-## What The Pass Does Not Prove
+## Manual And Auto Config
 
-The current implementation does not use SAT to derive the lane configuration.
-The user supplies the lane `config` and `params`.
+By default the materializer does not derive lane configuration. The user
+supplies `config` and `params`, and the pass checks structural legality, control
+compatibility, config conflicts, and port compatibility. This is useful for
+architectures with direct register bypass paths where no SAT solve is needed.
 
-That means the architecture author is responsible for making sure the lane
-configuration really implements the intended FF path, for example
-$Q0(t + 1) = I0(t)$ or $Q1(t + 1) = I1(t)$.
+When the pass-level option `auto_config=True` is set, the pass uses sat_fab to
+derive config bits that make every occupied lane output behave as an identity of
+its lane input:
 
-The pass checks structural legality, control compatibility, config conflicts,
-and port compatibility. It does not formally prove that the provided config bits
-make the tile behave like the removed FF.
+$$
+\forall i \in \text{packed lanes}: Q_i = I_i
+$$
 
-This is intentional for now because many architectures have direct register
-bypass paths where SAT is unnecessary and manual config is clearer. A future
-auto-config mode can use the stored tile BLIF model to derive passthrough config
-bits when the data must pass through configurable logic.
+The tile BLIF is imported with `sequential_mode="passthrough"`, so register
+boundaries inside the tile are treated as data-path boundaries for this solve.
+The solve is joint for all FFs packed into one tile instance. This matters when
+two lanes share mode bits: the pass accepts a packed replacement only if one
+global config assignment implements every requested identity at the same time.
+
+`auto_config_overwrites` can fix selected config bits before SAT and therefore
+acts as a global constraint. SAT fills the remaining config bits. The emitted
+tile instance receives the merged result:
+
+```text
+final config = auto_config_overwrites + SAT-found config
+```
+
+Lane-local `config` entries are not allowed when `auto_config=True`; use
+`auto_config_overwrites` for fixed constraints. If `auto_config=False` and
+`config` is absent, the pass simply replaces the FF and emits no config updates
+for that lane.
 
 ## Internal Structure
 
@@ -258,13 +415,16 @@ modules/ff_materializer/
   core/
     models.py           typed internal models and pydantic lane validation
     reader.py           reads pyosys design and tile model
+    tile_compiler.py    emits normalized BLIF from the tile Verilog
     materializer.py     plans FF-to-lane replacements
     writer.py           mutates the live pyosys design
     report.py           renders a Jinja2 report
     process_tracker.py  progress logging
 ```
 
-The reader builds internal Python objects from the Yosys object view. The
+The reader builds internal Python objects from the Yosys object view. The tile
+compiler uses Yosys to lower the replacement tile Verilog into normalized BLIF;
+the same compiler path is used by the reader and by auto-config solves. The
 materializer creates a replacement plan. The writer applies that plan directly
 to the live pyosys design by inserting tile cells and removing the original FF
 cells.
@@ -283,8 +443,8 @@ FfMaterializerTileModel(
 )
 ```
 
-The BLIF text is stored so future features, such as SAT-derived passthrough
-configuration, can reuse the same tile model.
+The BLIF text is stored so `auto_config` can run SAT-derived passthrough
+configuration on the same tile model.
 
 ## Pass Interface
 
@@ -365,8 +525,13 @@ self.design_materialize_registers_pass(
     ],
     ff_ports=None,
     pack_multiple_ffs_per_tile=True,
+    auto_config=False,
+    auto_config_overwrites=None,
     max_replacements=None,
-    strict=False,
+    fail_on_invalid_lane=True,
+    fail_on_auto_config_unsat=False,
+    fail_on_pack_conflict=False,
+    fail_on_unmaterialized_ff=False,
     track_progress=True,
     progress_chunk_size=100,
     top_name=None,
@@ -412,12 +577,34 @@ gate-level FF cells such as `LUTFF`, `$dff`, `$dffe`, `$sdff`, `$adff`,
 replacement tile when ports and config do not conflict. If `False`, every
 materialized FF gets its own tile instance.
 
+`auto_config`
+: If `True`, derive one shared config with sat_fab for each packed lane set so
+each selected output is an identity of its selected input. If `False`, no SAT
+solve is run and lane-local `config` is used directly.
+
+`auto_config_overwrites`
+: Fixed config constraints used by `auto_config`. These values are also emitted
+on the replacement tile. This option is ignored when `auto_config=False`.
+
 `max_replacements`
 : Optional cap on the number of FFs to replace.
 
-`strict`
-: If `True`, some invalid packing situations raise errors instead of being
-reported as skips. This is useful while validating an architecture definition.
+`fail_on_invalid_lane`
+: If `True`, invalid lane definitions, unknown lane config names, and invalid
+`auto_config_overwrites` raise during setup. If `False`, invalid lanes and
+invalid overwrites are ignored.
+
+`fail_on_auto_config_unsat`
+: If `True`, an unsatisfiable auto-config solve raises. If `False`, that
+candidate pack is rejected and the pass may try another tile or skip the FF.
+
+`fail_on_pack_conflict`
+: If `True`, config, parameter, or shared-port conflicts while packing raise.
+If `False`, the conflicting FF is tried in another tile or skipped.
+
+`fail_on_unmaterialized_ff`
+: If `True`, the pass raises after planning when any supported FF cell remains
+unreplaced. If `False`, leftovers are reported in the summary counters.
 
 `track_progress`
 : Enable progress logging.
@@ -475,7 +662,8 @@ value parameter when one is present.
 
 `config`
 : Config bits applied to the inserted tile. Keys may be scalar port names such
-as `"MODE"` or indexed names such as `"ConfigBits[32]"`.
+as `"MODE"` or indexed names such as `"ConfigBits[32]"`. This is valid only
+when pass-level `auto_config=False`.
 
 `params`
 : Parameter updates applied to the inserted tile.
@@ -538,6 +726,11 @@ ff_ports={
 
 The pass reports:
 
+- the replacement tile and tile source;
+- the number of lanes, discovered config bits, and supported FF cell types;
+- the pass options used for the run, including `auto_config`,
+  `auto_config_overwrites`, packing, failure-policy flags, and replacement
+  limits;
 - FF cells considered;
 - FFs materialized;
 - tile instances inserted;
