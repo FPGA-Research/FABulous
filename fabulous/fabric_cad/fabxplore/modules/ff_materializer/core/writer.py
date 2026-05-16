@@ -64,17 +64,20 @@ class FfMaterializerWriter:
             _id(f"\\{materialization.tile_type}"),
         )
         for binding in materialization.bindings:
-            ff = _find_cell(module, binding.ff_cell_id)
-            self._connect_binding(new_cell, ff, binding)
+            first_ff = _find_cell(module, binding.ff_cell_ids[0])
+            last_ff = _find_cell(module, binding.ff_cell_ids[-1])
+            self._connect_binding(new_cell, first_ff, last_ff, binding)
         _add_config_ports(new_cell, materialization.config, self.tile)
         _add_params(new_cell, materialization.params)
         for binding in materialization.bindings:
-            module.remove(_find_cell(module, binding.ff_cell_id))
+            for ff_cell_id in binding.ff_cell_ids:
+                module.remove(_find_cell(module, ff_cell_id))
 
     def _connect_binding(
         self,
         new_cell: ys.Cell,
-        ff: ys.Cell,
+        first_ff: ys.Cell,
+        last_ff: ys.Cell,
         binding: FfLaneBinding,
     ) -> None:
         """Connect one FF binding to a replacement tile cell.
@@ -83,35 +86,37 @@ class FfMaterializerWriter:
         ----------
         new_cell : ys.Cell
             Replacement tile cell.
-        ff : ys.Cell
-            FF cell being replaced.
+        first_ff : ys.Cell
+            First FF stage consumed by the binding.
+        last_ff : ys.Cell
+            Last FF stage consumed by the binding.
         binding : FfLaneBinding
             Lane binding.
         """
         lane = binding.lane
         new_cell.setPort(
             _id(f"\\{lane.data_port}"),
-            ff.getPort(_id(f"\\{binding.ff_data_port}")),
+            first_ff.getPort(_id(f"\\{binding.ff_data_port}")),
         )
         new_cell.setPort(
             _id(f"\\{lane.output_port}"),
-            ff.getPort(_id(f"\\{binding.ff_output_port}")),
+            last_ff.getPort(_id(f"\\{binding.ff_output_port}")),
         )
         if lane.clock_port is not None:
             new_cell.setPort(
                 _id(f"\\{lane.clock_port}"),
-                ff.getPort(_id(f"\\{binding.ff_clock_port}")),
+                first_ff.getPort(_id(f"\\{binding.ff_clock_port}")),
             )
         _connect_optional_control(
             new_cell=new_cell,
-            ff=ff,
+            ff=first_ff,
             tile_port=lane.enable_tile_port,
             ff_port=binding.ff_enable_port,
             neutral=lane.enable_neutral,
         )
         _connect_optional_control(
             new_cell=new_cell,
-            ff=ff,
+            ff=first_ff,
             tile_port=lane.reset_tile_port,
             ff_port=binding.ff_reset_port,
             neutral=lane.reset_neutral,

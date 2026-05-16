@@ -4,6 +4,7 @@ from jinja2 import Template
 
 from fabulous.fabric_cad.fabxplore.modules.ff_materializer.core.models import (
     FfMaterializerResult,
+    count_bindings_by_depth,
     count_materializations_by_size,
 )
 
@@ -57,6 +58,15 @@ Inserted Tiles by Occupied Lane Count
 {% else -%}
 - none
 {% endif -%}
+
+Materialized Chunks by Depth
+{% if by_depth -%}
+{% for depth, count in by_depth.items() -%}
+- depth {{ depth }}: {{ count }}
+{% endfor -%}
+{% else -%}
+- none
+{% endif -%}
 """
 )
 
@@ -78,4 +88,5 @@ def render_ff_materializer_report(result: FfMaterializerResult) -> str:
         result=result,
         stats=result.stats,
         by_size=count_materializations_by_size(result.materializations),
+        by_depth=count_bindings_by_depth(result.materializations),
     ).strip()

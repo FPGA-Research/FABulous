@@ -11,6 +11,7 @@ from fabulous.fabric_cad.fabxplore.modules.ff_materializer.core.models import (
     FfLaneBinding,
     FfMaterialization,
     FfMaterializerCell,
+    FfMaterializerDepthOption,
     FfMaterializerDesign,
     FfMaterializerLane,
     FfMaterializerOptions,
@@ -189,7 +190,13 @@ class FfMaterializer:
             If ``fail_on_unmaterialized_ff`` is set and any supported FFs are left
             unreplaced.
         """
-        ff_cells = [cell for cell in design.cells if cell.cell_type in self.ff_ports]
+        design_index = _DesignIndex.build(design.cells, self.ff_ports)
+        ff_cells = _sort_ff_cells_for_chains(
+            [cell for cell in design.cells if cell.cell_type in self.ff_ports],
+            design_index,
+            self.ff_ports,
+        )
+        consumed_ff_ids: set[str] = set()
         stats = MutableStats(ff_cells=len(ff_cells))
         self._tracker.start(len(ff_cells))
 
@@ -197,6 +204,8 @@ class FfMaterializer:
         current = _OpenMaterialization(index=0)
         materialized_count = 0
         for ff in ff_cells:
+            if ff.cell_id in consumed_ff_ids:
+                continue
             if (
                 self.max_replacements is not None
                 and materialized_count >= self.max_replacements
@@ -208,11 +217,30 @@ class FfMaterializer:
                 )
                 continue
 
-            binding = self._try_ff_in_group(ff=ff, group=current, stats=stats)
+            remaining_slots = (
+                None
+                if self.max_replacements is None
+                else self.max_replacements - materialized_count
+            )
+            binding = self._try_chain_in_group(
+                ff=ff,
+                group=current,
+                stats=stats,
+                design_index=design_index,
+                consumed_ff_ids=consumed_ff_ids,
+                remaining_slots=remaining_slots,
+            )
             if binding is None and self.pack_multiple_ffs_per_tile and current.bindings:
                 materializations.append(current.freeze(self.tile.top_name))
                 current = _OpenMaterialization(index=len(materializations))
-                binding = self._try_ff_in_group(ff=ff, group=current, stats=stats)
+                binding = self._try_chain_in_group(
+                    ff=ff,
+                    group=current,
+                    stats=stats,
+                    design_index=design_index,
+                    consumed_ff_ids=consumed_ff_ids,
+                    remaining_slots=remaining_slots,
+                )
 
             if binding is None:
                 self._tracker.record(
@@ -221,7 +249,8 @@ class FfMaterializer:
                 )
                 continue
 
-            materialized_count += 1
+            consumed_ff_ids.update(binding.ff_cell_ids)
+            materialized_count += len(binding.ff_cell_ids)
             if not self.pack_multiple_ffs_per_tile:
                 materializations.append(current.freeze(self.tile.top_name))
                 current = _OpenMaterialization(index=len(materializations))
@@ -380,11 +409,10 @@ class FfMaterializer:
             SAT-found config bits, or ``None`` when no shared solution exists.
         """
         fixed_controls = _neutral_controls_for_bindings(bindings)
-        key = _AutoConfigKey.from_bindings(
-            bindings,
-            self.auto_config_overwrites,
-            fixed_controls,
-        )
+        fixed_config = _auto_fixed_config(bindings, self.auto_config_overwrites)
+        if fixed_config is None:
+            return None
+        key = _AutoConfigKey.from_bindings(bindings, fixed_config, fixed_controls)
         if key in self._auto_config_cache:
             cached = self._auto_config_cache[key]
             return dict(cached) if cached is not None else None
@@ -412,8 +440,8 @@ class FfMaterializer:
             },
         )
         problem = Equiv.check(target, candidate).match_inputs_by_name()
-        if self.auto_config_overwrites:
-            problem.fix_config(candidate, self.auto_config_overwrites)
+        if fixed_config:
+            problem.fix_config(candidate, fixed_config)
         result = problem.solve()
         if not result.sat:
             self._auto_config_cache[key] = None
@@ -424,7 +452,7 @@ class FfMaterializer:
             value = config.external_value(name)
             if value is not None:
                 solved[name] = bool(value)
-        for name, value in self.auto_config_overwrites.items():
+        for name, value in fixed_config.items():
             solved[name] = bool(value)
         self._auto_config_cache[key] = dict(solved)
         return solved
@@ -454,22 +482,31 @@ class FfMaterializer:
             fixed_ports=fixed_controls,
         )
 
-    def _try_ff_in_group(
+    def _try_chain_in_group(
         self,
         ff: FfMaterializerCell,
         group: _OpenMaterialization,
         stats: MutableStats,
+        design_index: _DesignIndex,
+        consumed_ff_ids: set[str],
+        remaining_slots: int | None,
     ) -> FfLaneBinding | None:
-        """Try to bind one FF to any free lane in ``group``.
+        """Try to bind an FF-chain chunk to any free lane in ``group``.
 
         Parameters
         ----------
         ff : FfMaterializerCell
-            FF candidate.
+            First FF candidate in the prospective chain chunk.
         group : _OpenMaterialization
             Open replacement tile group.
         stats : MutableStats
             Mutable stats counters.
+        design_index : _DesignIndex
+            Netlist connectivity index.
+        consumed_ff_ids : set[str]
+            FF cells already consumed by previous bindings.
+        remaining_slots : int | None
+            Optional remaining replacement budget.
 
         Returns
         -------
@@ -481,18 +518,37 @@ class FfMaterializer:
         for index, lane in enumerate(self.lanes):
             if index in group.used_lanes:
                 continue
-            outcome = self._build_binding(ff=ff, lane=lane, lane_index=index)
-            if outcome.reason == _RejectReason.CONTROL:
-                saw_control_mismatch = True
+            for depth_option in lane.depth_options:
+                if remaining_slots is not None and depth_option.depth > remaining_slots:
+                    continue
+                outcome = self._build_binding(
+                    ff=ff,
+                    lane=lane,
+                    lane_index=index,
+                    depth_option=depth_option,
+                    design_index=design_index,
+                    consumed_ff_ids=consumed_ff_ids,
+                )
+                if outcome.reason == _RejectReason.CONTROL:
+                    saw_control_mismatch = True
+                    continue
+                if outcome.binding is None:
+                    continue
+                config_override = self._config_for_group_add(
+                    group,
+                    outcome.binding,
+                    ff,
+                )
+                if config_override is None:
+                    saw_config_conflict = True
+                    continue
+                group.add(outcome.binding, config_override=config_override)
+                return outcome.binding
+            if remaining_slots is not None and all(
+                option.depth > remaining_slots for option in lane.depth_options
+            ):
+                stats.skipped_limit += 1
                 continue
-            if outcome.binding is None:
-                continue
-            config_override = self._config_for_group_add(group, outcome.binding, ff)
-            if config_override is None:
-                saw_config_conflict = True
-                continue
-            group.add(outcome.binding, config_override=config_override)
-            return outcome.binding
         if saw_config_conflict:
             stats.skipped_config_conflict += 1
         elif saw_control_mismatch:
@@ -538,7 +594,15 @@ class FfMaterializer:
                 )
             return None
         if not self.auto_config:
-            return {**group.config, **binding.lane.config}
+            manual_config = _manual_binding_config(binding)
+            if manual_config is None:
+                if self.fail_on_pack_conflict:
+                    raise RuntimeError(
+                        f"Config conflict inside lane {binding.lane_index} "
+                        f"depth {binding.depth_option.depth}"
+                    )
+                return None
+            return {**group.config, **manual_config}
         bindings = tuple((*group.bindings, binding))
         solved = self._solve_group_auto_config(bindings)
         if solved is None:
@@ -555,34 +619,52 @@ class FfMaterializer:
         ff: FfMaterializerCell,
         lane: FfMaterializerLane,
         lane_index: int,
+        depth_option: FfMaterializerDepthOption,
+        design_index: _DesignIndex,
+        consumed_ff_ids: set[str],
     ) -> _BindingOutcome:
-        """Build a lane binding if one FF is compatible.
+        """Build a lane binding if an FF chain is compatible.
 
         Parameters
         ----------
         ff : FfMaterializerCell
-            FF candidate.
+            First FF candidate.
         lane : FfMaterializerLane
             Candidate lane.
         lane_index : int
             Candidate lane index.
+        depth_option : FfMaterializerDepthOption
+            Selected latency mode.
+        design_index : _DesignIndex
+            Netlist connectivity index.
+        consumed_ff_ids : set[str]
+            FF cells already consumed by previous bindings.
 
         Returns
         -------
         _BindingOutcome
             Binding or rejection reason.
         """
-        spec = self.ff_ports[ff.cell_type]
-        ff_clock = one_bit(ff.connections.get(spec.clock))
-        ff_data = one_bit(ff.connections.get(spec.data))
-        ff_output = one_bit(ff.connections.get(spec.output))
-        if ff_clock is None or ff_data is None or ff_output is None:
+        chain = _trace_ff_chain(
+            start=ff,
+            depth=depth_option.depth,
+            design_index=design_index,
+            ff_ports=self.ff_ports,
+            consumed_ff_ids=consumed_ff_ids,
+        )
+        if chain is None:
             return _BindingOutcome(reason=_RejectReason.NO_LANE)
-        if not _required_ff_ports_match(ff, spec):
-            return _BindingOutcome(reason=_RejectReason.CONTROL)
-        if not _enable_is_compatible(ff, spec, lane):
-            return _BindingOutcome(reason=_RejectReason.CONTROL)
-        if not _reset_is_compatible(ff, spec, lane):
+        stage_infos: list[_FfStageInfo] = []
+        for stage in chain:
+            info = _stage_info(stage, self.ff_ports[stage.cell_type])
+            if info is None:
+                return _BindingOutcome(reason=_RejectReason.NO_LANE)
+            if not _ff_is_compatible_with_lane(stage, info.spec, lane):
+                return _BindingOutcome(reason=_RejectReason.CONTROL)
+            stage_infos.append(info)
+        first = stage_infos[0]
+        last = stage_infos[-1]
+        if not _stage_controls_match(stage_infos, lane):
             return _BindingOutcome(reason=_RejectReason.CONTROL)
         return _BindingOutcome(
             binding=FfLaneBinding(
@@ -590,23 +672,26 @@ class FfMaterializer:
                 ff_type=ff.cell_type,
                 lane_index=lane_index,
                 lane=lane,
-                ff_clock_port=spec.clock,
-                ff_data_port=spec.data,
-                ff_output_port=spec.output,
-                ff_enable_port=spec.enable_port
-                if _has_control_port(ff, spec.enable_port)
+                depth_option=depth_option,
+                ff_cell_ids=tuple(stage.cell_id for stage in chain),
+                ff_types=tuple(stage.cell_type for stage in chain),
+                ff_clock_port=first.spec.clock,
+                ff_data_port=first.spec.data,
+                ff_output_port=last.spec.output,
+                ff_enable_port=first.spec.enable_port
+                if _has_control_port(ff, first.spec.enable_port)
                 else None,
-                ff_reset_port=spec.reset_port
-                if _has_control_port(ff, spec.reset_port)
+                ff_reset_port=first.spec.reset_port
+                if _has_control_port(ff, first.spec.reset_port)
                 else None,
-                ff_clock_bit=ff_clock,
-                ff_data_bit=ff_data,
-                ff_output_bit=ff_output,
-                ff_enable_bit=one_bit(ff.connections.get(spec.enable_port))
-                if spec.enable_port is not None
+                ff_clock_bit=first.clock_bit,
+                ff_data_bit=first.data_bit,
+                ff_output_bit=last.output_bit,
+                ff_enable_bit=one_bit(ff.connections.get(first.spec.enable_port))
+                if first.spec.enable_port is not None
                 else None,
-                ff_reset_bit=one_bit(ff.connections.get(spec.reset_port))
-                if spec.reset_port is not None
+                ff_reset_bit=one_bit(ff.connections.get(first.spec.reset_port))
+                if first.spec.reset_port is not None
                 else None,
             )
         )
@@ -641,8 +726,10 @@ class _OpenMaterialization:
         """
         if binding.lane_index in self.used_lanes:
             return False
-        if check_config and _updates_conflict(self.config, binding.lane.config):
-            return False
+        if check_config:
+            manual_config = _manual_binding_config(binding)
+            if manual_config is None or _updates_conflict(self.config, manual_config):
+                return False
         if _updates_conflict(self.params, binding.lane.params):
             return False
         for port, source in _binding_port_sources(binding).items():
@@ -668,7 +755,9 @@ class _OpenMaterialization:
         self.bindings.append(binding)
         self.used_lanes.add(binding.lane_index)
         if config_override is None:
-            self.config.update(binding.lane.config)
+            manual_config = _manual_binding_config(binding)
+            if manual_config is not None:
+                self.config.update(manual_config)
         else:
             self.config = dict(config_override)
         self.params.update(binding.lane.params)
@@ -702,23 +791,23 @@ class _AutoConfigKey:
 
     Attributes
     ----------
-    lanes : tuple[tuple[int, str, str], ...]
-        Lane index, data port, and output port tuples in packed order.
-    overwrites : tuple[tuple[str, bool], ...]
+    lanes : tuple[tuple[int, int, str, str], ...]
+        Lane index, depth, data port, and output port tuples in packed order.
+    fixed_config : tuple[tuple[str, bool], ...]
         Fixed config constraints used during the solve.
     controls : tuple[tuple[str, bool], ...]
         Fixed neutral control values used to specialize sequential paths.
     """
 
-    lanes: tuple[tuple[int, str, str], ...]
-    overwrites: tuple[tuple[str, bool], ...]
+    lanes: tuple[tuple[int, int, str, str], ...]
+    fixed_config: tuple[tuple[str, bool], ...]
     controls: tuple[tuple[str, bool], ...]
 
     @classmethod
     def from_bindings(
         cls,
         bindings: tuple[FfLaneBinding, ...],
-        overwrites: dict[str, ConfigValue],
+        fixed_config: dict[str, ConfigValue],
         controls: dict[str, ConfigValue],
     ) -> _AutoConfigKey:
         """Build a cache key for a prospective packed lane set.
@@ -727,7 +816,7 @@ class _AutoConfigKey:
         ----------
         bindings : tuple[FfLaneBinding, ...]
             Prospective bindings in one replacement tile.
-        overwrites : dict[str, ConfigValue]
+        fixed_config : dict[str, ConfigValue]
             Global fixed config constraints.
         controls : dict[str, ConfigValue]
             Fixed neutral control values.
@@ -739,11 +828,16 @@ class _AutoConfigKey:
         """
         return cls(
             lanes=tuple(
-                (binding.lane_index, binding.lane.data_port, binding.lane.output_port)
+                (
+                    binding.lane_index,
+                    binding.depth_option.depth,
+                    binding.lane.data_port,
+                    binding.lane.output_port,
+                )
                 for binding in bindings
             ),
-            overwrites=tuple(
-                sorted((name, bool(value)) for name, value in overwrites.items())
+            fixed_config=tuple(
+                sorted((name, bool(value)) for name, value in fixed_config.items())
             ),
             controls=tuple(
                 sorted((name, bool(value)) for name, value in controls.items())
@@ -764,6 +858,105 @@ class _RejectReason:
 
     NO_LANE = "no_lane"
     CONTROL = "control"
+
+
+@dataclass(frozen=True)
+class _InputConsumer:
+    """Record one cell input that consumes a net.
+
+    Attributes
+    ----------
+    cell_id : str
+        Consuming cell instance name.
+    port : str
+        Consuming input port name.
+    """
+
+    cell_id: str
+    port: str
+
+
+@dataclass(frozen=True)
+class _DesignIndex:
+    """Connectivity index used for FF-chain tracing.
+
+    Attributes
+    ----------
+    cells : dict[str, FfMaterializerCell]
+        Cell lookup by instance name.
+    input_consumers : dict[str, tuple[_InputConsumer, ...]]
+        Signal bit to input ports that consume it.
+    """
+
+    cells: dict[str, FfMaterializerCell]
+    input_consumers: dict[str, tuple[_InputConsumer, ...]]
+
+    @classmethod
+    def build(
+        cls,
+        cells: tuple[FfMaterializerCell, ...],
+        ff_ports: dict[str, FfPortSpec],
+    ) -> _DesignIndex:
+        """Build a connectivity index from materializer cells.
+
+        Parameters
+        ----------
+        cells : tuple[FfMaterializerCell, ...]
+            Cells in the design.
+        ff_ports : dict[str, FfPortSpec]
+            Supported FF port specifications.
+
+        Returns
+        -------
+        _DesignIndex
+            Built connectivity index.
+        """
+        cell_map = {cell.cell_id: cell for cell in cells}
+        mutable_consumers: dict[str, list[_InputConsumer]] = {}
+        for cell in cells:
+            input_ports = _input_ports_for_cell(cell, ff_ports)
+            for port in input_ports:
+                for bit in cell.connections.get(port, ()):
+                    mutable_consumers.setdefault(bit, []).append(
+                        _InputConsumer(cell_id=cell.cell_id, port=port)
+                    )
+        return cls(
+            cells=cell_map,
+            input_consumers={
+                bit: tuple(consumers) for bit, consumers in mutable_consumers.items()
+            },
+        )
+
+
+@dataclass(frozen=True)
+class _FfStageInfo:
+    """Endpoint and control metadata for one FF stage.
+
+    Attributes
+    ----------
+    cell : FfMaterializerCell
+        FF cell represented by this stage.
+    spec : FfPortSpec
+        Port specification for the FF type.
+    clock_bit : str
+        Clock signal bit.
+    data_bit : str
+        Data input signal bit.
+    output_bit : str
+        FF output signal bit.
+    enable_bit : str | None
+        Enable signal bit when present.
+    reset_bit : str | None
+        Reset signal bit when present.
+    """
+
+    cell: FfMaterializerCell
+    spec: FfPortSpec
+    clock_bit: str
+    data_bit: str
+    output_bit: str
+    enable_bit: str | None
+    reset_bit: str | None
 
 
 def _lane_input_ports(lane: FfMaterializerLane) -> tuple[str, ...]:
@@ -823,6 +1016,298 @@ def _binding_port_sources(binding: FfLaneBinding) -> dict[str, tuple[str, ...]]:
             else ("const", str(int(bool(lane.reset_neutral))))
         )
     return sources
+
+
+def _input_ports_for_cell(
+    cell: FfMaterializerCell,
+    ff_ports: dict[str, FfPortSpec],
+) -> tuple[str, ...]:
+    """Return input ports for a cell.
+
+    Parameters
+    ----------
+    cell : FfMaterializerCell
+        Cell to inspect.
+    ff_ports : dict[str, FfPortSpec]
+        Supported FF port specifications.
+
+    Returns
+    -------
+    tuple[str, ...]
+        Input port names.
+    """
+    if cell.cell_type in ff_ports:
+        spec = ff_ports[cell.cell_type]
+        ports = [spec.data, spec.clock]
+        ports.extend(
+            port for port in (spec.enable_port, spec.reset_port) if port is not None
+        )
+        ports.extend(spec.required_ports)
+        return tuple(dict.fromkeys(ports))
+    return tuple(
+        port for port, direction in cell.port_directions.items() if direction == "input"
+    )
+
+
+def _trace_ff_chain(
+    start: FfMaterializerCell,
+    depth: int,
+    design_index: _DesignIndex,
+    ff_ports: dict[str, FfPortSpec],
+    consumed_ff_ids: set[str],
+) -> tuple[FfMaterializerCell, ...] | None:
+    """Trace a linear FF-to-FF chain of exactly ``depth`` stages.
+
+    Parameters
+    ----------
+    start : FfMaterializerCell
+        First FF candidate.
+    depth : int
+        Number of FF stages to consume.
+    design_index : _DesignIndex
+        Connectivity index.
+    ff_ports : dict[str, FfPortSpec]
+        Supported FF port specifications.
+    consumed_ff_ids : set[str]
+        FF cells already consumed by previous materializations.
+
+    Returns
+    -------
+    tuple[FfMaterializerCell, ...] | None
+        Linear chain if one exists, otherwise ``None``.
+    """
+    if start.cell_id in consumed_ff_ids or start.cell_type not in ff_ports:
+        return None
+    chain = [start]
+    current = start
+    for _stage_index in range(depth - 1):
+        spec = ff_ports[current.cell_type]
+        output_bit = one_bit(current.connections.get(spec.output))
+        if output_bit is None:
+            return None
+        consumers = design_index.input_consumers.get(output_bit, ())
+        if len(consumers) != 1:
+            return None
+        consumer = consumers[0]
+        next_cell = design_index.cells.get(consumer.cell_id)
+        if next_cell is None or next_cell.cell_type not in ff_ports:
+            return None
+        next_spec = ff_ports[next_cell.cell_type]
+        if consumer.port != next_spec.data:
+            return None
+        if next_cell.cell_id in consumed_ff_ids:
+            return None
+        chain.append(next_cell)
+        current = next_cell
+    return tuple(chain)
+
+
+def _sort_ff_cells_for_chains(
+    ff_cells: list[FfMaterializerCell],
+    design_index: _DesignIndex,
+    ff_ports: dict[str, FfPortSpec],
+) -> list[FfMaterializerCell]:
+    """Return FF cells in source-to-sink order where possible.
+
+    Parameters
+    ----------
+    ff_cells : list[FfMaterializerCell]
+        Supported FF cells in reader order.
+    design_index : _DesignIndex
+        Connectivity index.
+    ff_ports : dict[str, FfPortSpec]
+        Supported FF port specifications.
+
+    Returns
+    -------
+    list[FfMaterializerCell]
+        FF cells sorted so chain heads are visited before downstream stages.
+    """
+    cell_ids = {cell.cell_id for cell in ff_cells}
+    original_index = {cell.cell_id: index for index, cell in enumerate(ff_cells)}
+    successors: dict[str, set[str]] = {cell.cell_id: set() for cell in ff_cells}
+    predecessors: dict[str, set[str]] = {cell.cell_id: set() for cell in ff_cells}
+    for cell in ff_cells:
+        spec = ff_ports[cell.cell_type]
+        output_bit = one_bit(cell.connections.get(spec.output))
+        if output_bit is None:
+            continue
+        for consumer in design_index.input_consumers.get(output_bit, ()):
+            next_cell = design_index.cells.get(consumer.cell_id)
+            if next_cell is None or next_cell.cell_id not in cell_ids:
+                continue
+            next_spec = ff_ports[next_cell.cell_type]
+            if consumer.port != next_spec.data:
+                continue
+            successors[cell.cell_id].add(next_cell.cell_id)
+            predecessors[next_cell.cell_id].add(cell.cell_id)
+
+    ready = sorted(
+        (cell_id for cell_id, incoming in predecessors.items() if not incoming),
+        key=original_index.__getitem__,
+    )
+    ordered_ids: list[str] = []
+    while ready:
+        cell_id = ready.pop(0)
+        ordered_ids.append(cell_id)
+        for successor in sorted(successors[cell_id], key=original_index.__getitem__):
+            predecessors[successor].discard(cell_id)
+            if (
+                not predecessors[successor]
+                and successor not in ordered_ids
+                and successor not in ready
+            ):
+                ready.append(successor)
+        ready.sort(key=original_index.__getitem__)
+
+    if len(ordered_ids) != len(ff_cells):
+        remaining = [
+            cell.cell_id for cell in ff_cells if cell.cell_id not in set(ordered_ids)
+        ]
+        ordered_ids.extend(remaining)
+    by_id = {cell.cell_id: cell for cell in ff_cells}
+    return [by_id[cell_id] for cell_id in ordered_ids]
+
+
+def _stage_info(
+    ff: FfMaterializerCell,
+    spec: FfPortSpec,
+) -> _FfStageInfo | None:
+    """Return one-bit FF stage metadata.
+
+    Parameters
+    ----------
+    ff : FfMaterializerCell
+        FF cell to inspect.
+    spec : FfPortSpec
+        FF port specification.
+
+    Returns
+    -------
+    _FfStageInfo | None
+        Stage metadata, or ``None`` if a required endpoint is not one bit.
+    """
+    clock_bit = one_bit(ff.connections.get(spec.clock))
+    data_bit = one_bit(ff.connections.get(spec.data))
+    output_bit = one_bit(ff.connections.get(spec.output))
+    if clock_bit is None or data_bit is None or output_bit is None:
+        return None
+    enable_bit = (
+        one_bit(ff.connections.get(spec.enable_port))
+        if spec.enable_port is not None
+        else None
+    )
+    reset_bit = (
+        one_bit(ff.connections.get(spec.reset_port))
+        if spec.reset_port is not None
+        else None
+    )
+    return _FfStageInfo(
+        cell=ff,
+        spec=spec,
+        clock_bit=clock_bit,
+        data_bit=data_bit,
+        output_bit=output_bit,
+        enable_bit=enable_bit,
+        reset_bit=reset_bit,
+    )
+
+
+def _ff_is_compatible_with_lane(
+    ff: FfMaterializerCell,
+    spec: FfPortSpec,
+    lane: FfMaterializerLane,
+) -> bool:
+    """Return whether one FF stage is compatible with one lane.
+
+    Parameters
+    ----------
+    ff : FfMaterializerCell
+        FF cell to check.
+    spec : FfPortSpec
+        FF port specification.
+    lane : FfMaterializerLane
+        Candidate lane.
+
+    Returns
+    -------
+    bool
+        ``True`` if the FF can be represented by the lane.
+    """
+    return (
+        _required_ff_ports_match(ff, spec)
+        and _enable_is_compatible(ff, spec, lane)
+        and _reset_is_compatible(ff, spec, lane)
+    )
+
+
+def _stage_controls_match(
+    stages: list[_FfStageInfo],
+    lane: FfMaterializerLane,
+) -> bool:
+    """Return whether a multi-stage lane has coherent control semantics.
+
+    Parameters
+    ----------
+    stages : list[_FfStageInfo]
+        FF stages in chain order.
+    lane : FfMaterializerLane
+        Candidate lane.
+
+    Returns
+    -------
+    bool
+        ``True`` if all stages can share the lane clock and controls.
+    """
+    first = stages[0]
+    if any(stage.clock_bit != first.clock_bit for stage in stages):
+        return False
+    if lane.enable_tile_port is not None:
+        enable_sources = {
+            _stage_control_source(stage, stage.spec.enable_port, lane.enable_neutral)
+            for stage in stages
+        }
+        if len(enable_sources) != 1:
+            return False
+    if lane.reset_tile_port is not None:
+        reset_sources = {
+            _stage_control_source(stage, stage.spec.reset_port, lane.reset_neutral)
+            for stage in stages
+        }
+        if len(reset_sources) != 1:
+            return False
+    return True
+
+
+def _stage_control_source(
+    stage: _FfStageInfo,
+    port: str | None,
+    neutral: ConfigValue | None,
+) -> tuple[str, str]:
+    """Return an effective control source signature for one stage.
+
+    Parameters
+    ----------
+    stage : _FfStageInfo
+        FF stage metadata.
+    port : str | None
+        FF control port.
+    neutral : ConfigValue | None
+        Neutral value used when the FF has no matching control.
+
+    Returns
+    -------
+    tuple[str, str]
+        Source kind and value.
+    """
+    if port is None:
+        return ("const", str(int(bool(neutral))))
+    bit = one_bit(stage.cell.connections.get(port))
+    if bit is None:
+        return ("const", str(int(bool(neutral))))
+    if bit in {"0", "1"}:
+        return ("const", bit)
+    return ("signal", bit)
 
 
 def _validate_shared_control_settings(
@@ -1009,6 +1494,50 @@ def _updates_conflict(
     )
 
 
+def _manual_binding_config(binding: FfLaneBinding) -> dict[str, ConfigValue] | None:
+    """Return manual config updates for one binding.
+
+    Parameters
+    ----------
+    binding : FfLaneBinding
+        Lane binding to inspect.
+
+    Returns
+    -------
+    dict[str, ConfigValue] | None
+        Merged lane and selected-depth config, or ``None`` on conflict.
+    """
+    if _updates_conflict(binding.lane.config, binding.depth_option.mode_config):
+        return None
+    return {**binding.lane.config, **binding.depth_option.mode_config}
+
+
+def _auto_fixed_config(
+    bindings: tuple[FfLaneBinding, ...],
+    overwrites: dict[str, ConfigValue],
+) -> dict[str, ConfigValue] | None:
+    """Return fixed config constraints for one auto-config solve.
+
+    Parameters
+    ----------
+    bindings : tuple[FfLaneBinding, ...]
+        Prospective bindings in one replacement tile.
+    overwrites : dict[str, ConfigValue]
+        Global user-provided fixed config constraints.
+
+    Returns
+    -------
+    dict[str, ConfigValue] | None
+        Merged fixed config, or ``None`` if selected depth modes conflict.
+    """
+    fixed_config = dict(overwrites)
+    for binding in bindings:
+        if _updates_conflict(fixed_config, binding.depth_option.mode_config):
+            return None
+        fixed_config.update(binding.depth_option.mode_config)
+    return fixed_config
+
+
 def _invalid_lane_config_reason(
     index: int,
     lane: FfMaterializerLane,
@@ -1042,6 +1571,20 @@ def _invalid_lane_config_reason(
         )
         if reason is not None:
             return reason
+    for option in lane.depth_options:
+        if _updates_conflict(lane.config, option.mode_config):
+            return (
+                f"Lane {index} config conflicts with depth {option.depth} mode_config"
+            )
+        for name in option.mode_config:
+            reason = _invalid_config_name_reason(
+                name=name,
+                label=f"Lane {index} depth {option.depth} mode_config",
+                config_bits=config_bits,
+                config_prefixes=config_prefixes,
+            )
+            if reason is not None:
+                return reason
     return None
 
 

@@ -269,6 +269,87 @@ the lane can preserve. For example, a lane with `reset_kind="sync"` and
 output to zero. A reset mismatch is skipped, or raises when the relevant failure
 option is enabled.
 
+### Register Position Inside The Tile
+
+The materializer does not require the register to be physically located only at
+the tile output. A lane is described by the external data port and the external
+output port that together implement one FF-equivalent timing step. Therefore the
+tile may place the register on the output side, the input side, or mix both
+styles across different lanes.
+
+Output-side register lane:
+
+```text
+old FF:
+
+  d_net ----> [ FF ] ----> q_net
+
+tile lane:
+
+  d_net ----> I0 ----> comb path ----> [ tile FF ] ----> Q0 ----> q_net
+```
+
+The lane definition uses the tile input and registered output:
+
+```python
+{
+    "data_port": "I0",
+    "output_port": "Q0",
+    "clock_port": "CLK",
+}
+```
+
+Input-side register lane:
+
+```text
+old FF:
+
+  d_net ----> [ FF ] ----> q_net
+
+tile lane:
+
+  d_net ----> I0 ----> [ tile FF ] ----> comb/bypass path ----> O0 ----> q_net
+```
+
+The lane definition still names the external data and output ports:
+
+```python
+{
+    "data_port": "I0",
+    "output_port": "O0",
+    "clock_port": "CLK",
+}
+```
+
+Mixed tiles are also supported. For example, one tile may materialize five FFs
+where lanes 0 and 2 expose input-side registers through `O0` and `O2`, while
+lanes 1, 3, and 4 expose output-side registers through `Q1`, `Q3`, and `Q4`:
+
+```text
+lane 0: d0 -> I0 -> [FF] -> O0 -> q0
+lane 1: d1 -> I1 -> comb -> [FF] -> Q1 -> q1
+lane 2: d2 -> I2 -> [FF] -> O2 -> q2
+lane 3: d3 -> I3 -> comb -> [FF] -> Q3 -> q3
+lane 4: d4 -> I4 -> comb -> [FF] -> Q4 -> q4
+```
+
+The corresponding lanes are just the external port pairs:
+
+```python
+lanes=[
+    {"data_port": "I0", "output_port": "O0", "clock_port": "CLK"},
+    {"data_port": "I1", "output_port": "Q1", "clock_port": "CLK"},
+    {"data_port": "I2", "output_port": "O2", "clock_port": "CLK"},
+    {"data_port": "I3", "output_port": "Q3", "clock_port": "CLK"},
+    {"data_port": "I4", "output_port": "Q4", "clock_port": "CLK"},
+]
+```
+
+The important rule is that each lane must represent exactly one FF worth of
+latency between `data_port` and `output_port`. If a tile path contains two
+registers, or no register, then it is not equivalent to replacing one standalone
+FF unless the surrounding flow intentionally accounts for that timing.
+
 ### Auto-Config And Sequential Tiles
 
 `auto_config=True` only uses sequential passthrough during the config search. It
@@ -486,6 +567,14 @@ self.design_materialize_registers_pass(
             "reset_neutral": 0,
             "reset_kind": "sync",
             "reset_value": 0,
+            "depth_options": [
+                {
+                    "depth": 1,
+                    "mode_config": {
+                        "ConfigBits[32]": 1,
+                    },
+                },
+            ],
             "config": {
                 "ConfigBits[1]": 1,
                 "ConfigBits[3]": 1,
@@ -495,7 +584,6 @@ self.design_materialize_registers_pass(
                 "ConfigBits[11]": 1,
                 "ConfigBits[13]": 1,
                 "ConfigBits[15]": 1,
-                "ConfigBits[32]": 1,
             },
         },
         {
@@ -510,6 +598,14 @@ self.design_materialize_registers_pass(
             "reset_neutral": 0,
             "reset_kind": "sync",
             "reset_value": 0,
+            "depth_options": [
+                {
+                    "depth": 1,
+                    "mode_config": {
+                        "ConfigBits[32]": 1,
+                    },
+                },
+            ],
             "config": {
                 "ConfigBits[18]": 1,
                 "ConfigBits[19]": 1,
@@ -519,7 +615,6 @@ self.design_materialize_registers_pass(
                 "ConfigBits[27]": 1,
                 "ConfigBits[30]": 1,
                 "ConfigBits[31]": 1,
-                "ConfigBits[32]": 1,
             },
         },
     ],
@@ -659,6 +754,126 @@ The FF must have matching reset semantics when it has a reset port.
 `reset_value`
 : Optional reset value required by the lane. The FF must have a matching reset
 value parameter when one is present.
+
+`depth_options`
+: Legal latency modes for this lane. If omitted, the lane has one default
+option with `depth=1` and no `mode_config`. A depth of `N` means the lane
+consumes exactly `N` chained FFs from the netlist and must preserve that
+latency. The planner only collapses a linear chain segment when every consumed
+stage has compatible clock, enable, and reset semantics. Intermediate fanout is
+left alone, so observable chain taps are not silently removed.
+
+Example:
+
+```python
+{
+    "data_port": "I0",
+    "output_port": "Q0",
+    "clock_port": "UserCLK",
+    "depth_options": [
+        {
+            "depth": 3,
+            "mode_config": {
+                "ConfigBits[10]": 0,
+                "ConfigBits[11]": 1,
+            },
+        },
+        {
+            "depth": 2,
+            "mode_config": {
+                "ConfigBits[10]": 1,
+                "ConfigBits[11]": 0,
+            },
+        },
+    ],
+}
+```
+
+For a 5-FF chain and the lane above, the pass can materialize one depth-3
+chunk and one depth-2 chunk. The final circuit still has five cycles of latency.
+
+```text
+original netlist chain:
+
+  d -> [FF0] -> n0 -> [FF1] -> n1 -> [FF2] -> n2 -> [FF3] -> n3 -> [FF4] -> q
+
+selected materializer chunks:
+
+  chunk A, depth 3:
+
+    d  -> I0 -> [tile stage 0] -> [tile stage 1] -> [tile stage 2] -> Q0 -> n2
+
+  chunk B, depth 2:
+
+    n2 -> I0 -> [tile stage 0] -> [tile stage 1] --------------------> Q0 -> q
+
+latency before: 5 cycles
+latency after:  3 cycles + 2 cycles = 5 cycles
+```
+
+The planner visits FF chains from source to sink where possible. It tries deeper
+options first, so `depth_options=[3, 2]` naturally packs a 5-FF linear chain as
+`3 + 2`. It will not collapse across an intermediate fanout:
+
+```text
+allowed depth-2 chunk:
+
+  d -> [FF0] -> n0 -> [FF1] -> q
+
+rejected as one depth-2 chunk:
+
+  d -> [FF0] -> n0 -> [FF1] -> q
+                |
+                +----> other logic / observable tap
+```
+
+That rejection is deliberate. If `n0` is used by other logic, removing `FF0`
+as part of a larger replacement would also remove or move an observable pipeline
+tap.
+
+`mode_config`
+: Config bits required for one selected `depth_options` entry. In manual mode,
+the emitted config is `lane.config + selected mode_config`, and conflicting
+bits reject that pack. In `auto_config=True`, lane-local `config` is forbidden;
+`auto_config_overwrites + selected mode_config` is fixed first, then SAT solves
+the remaining config bits for the identity data path.
+
+Manual depth selection:
+
+```text
+depth option says:
+
+  depth = 2
+  mode_config = ConfigBits[10]=1, ConfigBits[11]=0
+
+replacement emits:
+
+  lane.config
+  + ConfigBits[10]=1
+  + ConfigBits[11]=0
+```
+
+Auto-config depth selection:
+
+```text
+fixed before SAT:
+
+  auto_config_overwrites
+  + selected mode_config
+  + neutralized EN/SR controls
+
+SAT then solves:
+
+  I0(t) == Q0(t) in the passthrough solve view
+
+planner still consumes:
+
+  exactly `depth` netlist FFs
+```
+
+The SAT solve proves the configured data path is identity. The `depth` value is
+the timing contract that tells the planner how many original FFs this identity
+path is allowed to replace.
 
 `config`
 : Config bits applied to the inserted tile. Keys may be scalar port names such

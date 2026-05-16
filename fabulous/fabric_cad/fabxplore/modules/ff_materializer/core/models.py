@@ -27,6 +27,60 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+class FfMaterializerDepthOption(BaseModel):
+    """Describe one legal latency mode for a materializer lane.
+
+    Attributes
+    ----------
+    model_config
+        Pydantic model configuration.
+    depth : int
+        Number of netlist FFs this option consumes.
+    mode_config : dict[str, ConfigValue]
+        Config bits required to select this latency mode.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    depth: int = 1
+    mode_config: dict[str, ConfigValue] = Field(default_factory=dict)
+
+    @field_validator("depth")
+    @classmethod
+    def _validate_depth(cls, value: int) -> int:
+        """Validate that lane depth is positive.
+
+        Parameters
+        ----------
+        value : int
+            User-provided depth.
+
+        Returns
+        -------
+        int
+            Validated depth.
+
+        Raises
+        ------
+        ValueError
+            If the depth is less than one.
+        """
+        if value < 1:
+            raise ValueError("depth must be at least 1")
+        return value
+
+
+def _default_depth_options() -> tuple[FfMaterializerDepthOption, ...]:
+    """Return the default single-FF depth option.
+
+    Returns
+    -------
+    tuple[FfMaterializerDepthOption, ...]
+        Default depth option tuple.
+    """
+    return (FfMaterializerDepthOption(depth=1),)
+
+
 class FfMaterializerLane(BaseModel):
     """Describe one one-bit register lane inside the replacement tile.
 
@@ -56,6 +110,8 @@ class FfMaterializerLane(BaseModel):
         Optional reset timing required by the lane.
     reset_value : int | None
         Optional reset value required by the lane.
+    depth_options : tuple[FfMaterializerDepthOption, ...]
+        Legal latency modes for this lane.
     config : dict[str, ConfigValue]
         Tile config updates needed for this lane to act as an FF path.
     params : dict[str, ParamValue]
@@ -75,6 +131,9 @@ class FfMaterializerLane(BaseModel):
     reset_neutral: ConfigValue | None = None
     reset_kind: FfResetKind | None = None
     reset_value: int | None = None
+    depth_options: tuple[FfMaterializerDepthOption, ...] = Field(
+        default_factory=_default_depth_options
+    )
     config: dict[str, ConfigValue] = Field(default_factory=dict)
     params: dict[str, ParamValue] = Field(default_factory=dict)
 
@@ -96,6 +155,55 @@ class FfMaterializerLane(BaseModel):
         if value is None:
             return None
         return FfResetKind(value)
+
+    @field_validator("depth_options", mode="before")
+    @classmethod
+    def _coerce_depth_options(cls, value: object) -> object:
+        """Normalize missing depth options.
+
+        Parameters
+        ----------
+        value : object
+            User-provided depth option payload.
+
+        Returns
+        -------
+        object
+            Payload for pydantic's nested model validation.
+        """
+        if value is None:
+            return list(_default_depth_options())
+        return value
+
+    @field_validator("depth_options")
+    @classmethod
+    def _validate_depth_options(
+        cls,
+        value: tuple[FfMaterializerDepthOption, ...],
+    ) -> tuple[FfMaterializerDepthOption, ...]:
+        """Validate depth option list.
+
+        Parameters
+        ----------
+        value : tuple[FfMaterializerDepthOption, ...]
+            Validated depth options.
+
+        Returns
+        -------
+        tuple[FfMaterializerDepthOption, ...]
+            Validated depth options.
+
+        Raises
+        ------
+        ValueError
+            If the option list is empty or contains duplicate depths.
+        """
+        if not value:
+            raise ValueError("depth_options must contain at least one option")
+        depths = [option.depth for option in value]
+        if len(depths) != len(set(depths)):
+            raise ValueError("depth_options cannot contain duplicate depths")
+        return tuple(sorted(value, key=lambda option: option.depth, reverse=True))
 
 
 @dataclass(frozen=True)
@@ -184,6 +292,12 @@ class FfLaneBinding:
         Index of the selected lane.
     lane : FfMaterializerLane
         Selected lane configuration.
+    depth_option : FfMaterializerDepthOption
+        Selected latency mode for this binding.
+    ff_cell_ids : tuple[str, ...]
+        FF cells consumed by this binding in chain order.
+    ff_types : tuple[str, ...]
+        FF cell types consumed by this binding in chain order.
     ff_clock_port : str
         FF clock port name.
     ff_data_port : str
@@ -210,6 +324,9 @@ class FfLaneBinding:
     ff_type: str
     lane_index: int
     lane: FfMaterializerLane
+    depth_option: FfMaterializerDepthOption
+    ff_cell_ids: tuple[str, ...]
+    ff_types: tuple[str, ...]
     ff_clock_port: str
     ff_data_port: str
     ff_output_port: str
@@ -481,4 +598,27 @@ def count_materializations_by_size(
     for materialization in materializations:
         label = str(len(materialization.bindings))
         counts[label] = counts.get(label, 0) + 1
+    return counts
+
+
+def count_bindings_by_depth(
+    materializations: tuple[FfMaterialization, ...],
+) -> dict[str, int]:
+    """Count materialized chain chunks by selected depth.
+
+    Parameters
+    ----------
+    materializations : tuple[FfMaterialization, ...]
+        Planned materializations.
+
+    Returns
+    -------
+    dict[str, int]
+        Depth label to binding count.
+    """
+    counts: dict[str, int] = {}
+    for materialization in materializations:
+        for binding in materialization.bindings:
+            label = str(binding.depth_option.depth)
+            counts[label] = counts.get(label, 0) + 1
     return counts

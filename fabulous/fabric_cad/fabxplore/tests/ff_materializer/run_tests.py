@@ -726,6 +726,395 @@ def test_auto_config_rejects_lane_local_config() -> None:
         assert "config is not allowed when auto_config=True" in error_message
 
 
+def test_single_sequential_input_lane_is_equivalent() -> None:
+    """Test a tile lane whose input side contains the register."""
+    with TemporaryDirectory(prefix="ff_mat_seq_input_one_") as td:
+        tmp_dir = Path(td)
+        base = _write_many_dff_base(tmp_dir, count=1)
+        tile = _write_sequential_input_tile(tmp_dir, count=1)
+
+        bridge = _load_base(base)
+        result = _run_custom_materializer(
+            bridge=bridge,
+            tile=tile,
+            tile_inputs=["I0", "CLK"],
+            tile_outputs=["O0"],
+            lanes=[
+                {
+                    "data_port": "I0",
+                    "output_port": "O0",
+                    "clock_port": "CLK",
+                }
+            ],
+        )
+
+        assert result.result_data is not None
+        assert result.result_data.stats.materialized_ffs == 1
+        assert result.result_data.stats.inserted_tiles == 1
+        _assert_equivalent(base=base, gate_bridge=bridge, tile=tile)
+
+
+def test_two_sequential_input_lanes_pack_and_are_equivalent() -> None:
+    """Test two input-side register lanes can be packed together."""
+    with TemporaryDirectory(prefix="ff_mat_seq_input_two_") as td:
+        tmp_dir = Path(td)
+        base = _write_many_dff_base(tmp_dir, count=2)
+        tile = _write_sequential_input_tile(tmp_dir, count=2)
+
+        bridge = _load_base(base)
+        result = _run_custom_materializer(
+            bridge=bridge,
+            tile=tile,
+            tile_inputs=["I0", "I1", "CLK"],
+            tile_outputs=["O0", "O1"],
+            lanes=[
+                {
+                    "data_port": "I0",
+                    "output_port": "O0",
+                    "clock_port": "CLK",
+                },
+                {
+                    "data_port": "I1",
+                    "output_port": "O1",
+                    "clock_port": "CLK",
+                },
+            ],
+        )
+
+        assert result.result_data is not None
+        assert result.result_data.stats.materialized_ffs == 2
+        assert result.result_data.stats.inserted_tiles == 1
+        _assert_equivalent(base=base, gate_bridge=bridge, tile=tile)
+
+
+def test_five_sequential_input_lanes_pack_and_are_equivalent() -> None:
+    """Test a wider tile where every materialized FF is input-side sequential."""
+    with TemporaryDirectory(prefix="ff_mat_seq_input_five_") as td:
+        tmp_dir = Path(td)
+        base = _write_many_dff_base(tmp_dir, count=5)
+        tile = _write_sequential_input_tile(tmp_dir, count=5)
+
+        bridge = _load_base(base)
+        result = _run_custom_materializer(
+            bridge=bridge,
+            tile=tile,
+            tile_inputs=["I0", "I1", "I2", "I3", "I4", "CLK"],
+            tile_outputs=["O0", "O1", "O2", "O3", "O4"],
+            lanes=[
+                {
+                    "data_port": f"I{index}",
+                    "output_port": f"O{index}",
+                    "clock_port": "CLK",
+                }
+                for index in range(5)
+            ],
+        )
+
+        assert result.result_data is not None
+        assert result.result_data.stats.materialized_ffs == 5
+        assert result.result_data.stats.inserted_tiles == 1
+        _assert_equivalent(base=base, gate_bridge=bridge, tile=tile)
+
+
+def test_mixed_sequential_input_and_output_lanes_are_equivalent() -> None:
+    """Test one tile mixing input-side and output-side register lanes."""
+    with TemporaryDirectory(prefix="ff_mat_seq_mixed_five_") as td:
+        tmp_dir = Path(td)
+        base = _write_many_dff_base(tmp_dir, count=5)
+        tile = _write_mixed_sequential_tile(tmp_dir)
+
+        bridge = _load_base(base)
+        result = _run_custom_materializer(
+            bridge=bridge,
+            tile=tile,
+            tile_inputs=["I0", "I1", "I2", "I3", "I4", "CLK"],
+            tile_outputs=["O0", "Q1", "O2", "Q3", "Q4"],
+            lanes=[
+                {
+                    "data_port": "I0",
+                    "output_port": "O0",
+                    "clock_port": "CLK",
+                },
+                {
+                    "data_port": "I1",
+                    "output_port": "Q1",
+                    "clock_port": "CLK",
+                },
+                {
+                    "data_port": "I2",
+                    "output_port": "O2",
+                    "clock_port": "CLK",
+                },
+                {
+                    "data_port": "I3",
+                    "output_port": "Q3",
+                    "clock_port": "CLK",
+                },
+                {
+                    "data_port": "I4",
+                    "output_port": "Q4",
+                    "clock_port": "CLK",
+                },
+            ],
+        )
+
+        assert result.result_data is not None
+        assert result.result_data.stats.materialized_ffs == 5
+        assert result.result_data.stats.inserted_tiles == 1
+        _assert_equivalent(base=base, gate_bridge=bridge, tile=tile)
+
+
+def test_manual_depth_two_lane_replaces_two_ff_chain() -> None:
+    """Test a depth-two lane consumes two chained FFs and preserves latency."""
+    with TemporaryDirectory(prefix="ff_mat_depth_two_") as td:
+        tmp_dir = Path(td)
+        base = _write_pipeline_base(tmp_dir, depth=2)
+        tile = _write_configurable_depth_tile(tmp_dir)
+
+        bridge = _load_base(base)
+        result = _run_custom_materializer(
+            bridge=bridge,
+            tile=tile,
+            tile_inputs=["I0", "CLK"],
+            tile_outputs=["Q0"],
+            lanes=[
+                {
+                    "data_port": "I0",
+                    "output_port": "Q0",
+                    "clock_port": "CLK",
+                    "depth_options": [
+                        {
+                            "depth": 2,
+                            "mode_config": {
+                                "ConfigBits[0]": 1,
+                                "ConfigBits[1]": 0,
+                            },
+                        }
+                    ],
+                }
+            ],
+            tile_config_prefixes=["ConfigBits"],
+        )
+
+        assert result.result_data is not None
+        assert result.result_data.stats.materialized_ffs == 2
+        assert result.result_data.stats.inserted_tiles == 1
+        assert "depth 2: 1" in result.result_data.report_summary
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        assert not _has_cell_type(cells, "$dff")
+        _assert_equivalent(base=base, gate_bridge=bridge, tile=tile, seq_depth=4)
+
+
+def test_manual_configurable_depth_chunks_long_chain() -> None:
+    """Test a long chain is split into legal depth chunks."""
+    with TemporaryDirectory(prefix="ff_mat_depth_chunks_") as td:
+        tmp_dir = Path(td)
+        base = _write_pipeline_base(tmp_dir, depth=5)
+        tile = _write_configurable_depth_tile(tmp_dir)
+
+        bridge = _load_base(base)
+        result = _run_custom_materializer(
+            bridge=bridge,
+            tile=tile,
+            tile_inputs=["I0", "CLK"],
+            tile_outputs=["Q0"],
+            lanes=[
+                {
+                    "data_port": "I0",
+                    "output_port": "Q0",
+                    "clock_port": "CLK",
+                    "depth_options": [
+                        {
+                            "depth": 3,
+                            "mode_config": {
+                                "ConfigBits[0]": 0,
+                                "ConfigBits[1]": 1,
+                            },
+                        },
+                        {
+                            "depth": 2,
+                            "mode_config": {
+                                "ConfigBits[0]": 1,
+                                "ConfigBits[1]": 0,
+                            },
+                        },
+                    ],
+                }
+            ],
+            tile_config_prefixes=["ConfigBits"],
+        )
+
+        assert result.result_data is not None
+        assert result.result_data.stats.materialized_ffs == 5
+        assert result.result_data.stats.inserted_tiles == 2
+        assert "depth 3: 1" in result.result_data.report_summary
+        assert "depth 2: 1" in result.result_data.report_summary
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        assert len(_cells_by_type(cells, "configurable_depth_tile")) == 2
+        assert not _has_cell_type(cells, "$dff")
+        _assert_equivalent(base=base, gate_bridge=bridge, tile=tile, seq_depth=7)
+
+
+def test_auto_config_depth_mode_solves_identity() -> None:
+    """Test auto_config uses depth mode config while solving identity."""
+    with TemporaryDirectory(prefix="ff_mat_auto_depth_") as td:
+        tmp_dir = Path(td)
+        base = _write_pipeline_base(tmp_dir, depth=2)
+        tile = _write_auto_depth_tile(tmp_dir)
+
+        bridge = _load_base(base)
+        result = _run_custom_materializer(
+            bridge=bridge,
+            tile=tile,
+            tile_inputs=["I0", "CLK"],
+            tile_outputs=["Q0"],
+            lanes=[
+                {
+                    "data_port": "I0",
+                    "output_port": "Q0",
+                    "clock_port": "CLK",
+                    "depth_options": [
+                        {
+                            "depth": 2,
+                            "mode_config": {"ConfigBits[2]": 1},
+                        }
+                    ],
+                }
+            ],
+            tile_config_prefixes=["ConfigBits"],
+            auto_config=True,
+        )
+
+        assert result.result_data is not None
+        assert result.result_data.stats.materialized_ffs == 2
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        tile_cell = _cells_by_type(cells, "auto_depth_tile")[0]
+        assert tile_cell["connections"]["ConfigBits"][2] == "1"
+        assert not _has_cell_type(cells, "$dff")
+        _assert_equivalent(base=base, gate_bridge=bridge, tile=tile, seq_depth=4)
+
+
+def test_depth_mode_config_conflict_splits_tiles() -> None:
+    """Test incompatible depth mode configs cannot share one tile."""
+    with TemporaryDirectory(prefix="ff_mat_depth_mode_conflict_") as td:
+        tmp_dir = Path(td)
+        base = _write_two_dff_base(tmp_dir)
+        tile = _write_tile(tmp_dir)
+
+        bridge = _load_base(base)
+        result = _run_custom_materializer(
+            bridge=bridge,
+            tile=tile,
+            tile_inputs=["I0", "I1", "CLK", "EN", "SR"],
+            tile_outputs=["Q0", "Q1"],
+            lanes=[
+                {
+                    "data_port": "I0",
+                    "output_port": "Q0",
+                    "clock_port": "CLK",
+                    "depth_options": [
+                        {"depth": 1, "mode_config": {"ConfigBits[2]": 1}}
+                    ],
+                },
+                {
+                    "data_port": "I1",
+                    "output_port": "Q1",
+                    "clock_port": "CLK",
+                    "depth_options": [
+                        {"depth": 1, "mode_config": {"ConfigBits[2]": 0}}
+                    ],
+                },
+            ],
+            tile_config_prefixes=["ConfigBits"],
+        )
+
+        assert result.result_data is not None
+        assert result.result_data.stats.materialized_ffs == 2
+        assert result.result_data.stats.inserted_tiles == 2
+
+
+def test_depth_larger_than_chain_fails_when_requested() -> None:
+    """Test a lane that only supports depth two cannot consume one FF."""
+    with TemporaryDirectory(prefix="ff_mat_depth_too_large_") as td:
+        tmp_dir = Path(td)
+        base = _write_single_dff_base(tmp_dir)
+        tile = _write_configurable_depth_tile(tmp_dir)
+
+        bridge = _load_base(base)
+        error_message = ""
+        try:
+            _run_custom_materializer(
+                bridge=bridge,
+                tile=tile,
+                tile_inputs=["I0", "CLK"],
+                tile_outputs=["Q0"],
+                lanes=[
+                    {
+                        "data_port": "I0",
+                        "output_port": "Q0",
+                        "clock_port": "CLK",
+                        "depth_options": [
+                            {
+                                "depth": 2,
+                                "mode_config": {
+                                    "ConfigBits[0]": 1,
+                                    "ConfigBits[1]": 0,
+                                },
+                            }
+                        ],
+                    }
+                ],
+                tile_config_prefixes=["ConfigBits"],
+                fail_on_unmaterialized_ff=True,
+            )
+        except RuntimeError as exc:
+            error_message = str(exc)
+        if not error_message:
+            raise AssertionError("expected unsupported depth to leave FF unmapped")
+        assert "left supported FFs unreplaced" in error_message
+
+
+def test_depth_chain_with_intermediate_fanout_is_not_collapsed() -> None:
+    """Test depth tracing refuses to collapse across intermediate fanout."""
+    with TemporaryDirectory(prefix="ff_mat_depth_fanout_") as td:
+        tmp_dir = Path(td)
+        base = _write_pipeline_with_fanout_base(tmp_dir)
+        tile = _write_configurable_depth_tile(tmp_dir)
+
+        bridge = _load_base(base)
+        error_message = ""
+        try:
+            _run_custom_materializer(
+                bridge=bridge,
+                tile=tile,
+                tile_inputs=["I0", "CLK"],
+                tile_outputs=["Q0"],
+                lanes=[
+                    {
+                        "data_port": "I0",
+                        "output_port": "Q0",
+                        "clock_port": "CLK",
+                        "depth_options": [
+                            {
+                                "depth": 2,
+                                "mode_config": {
+                                    "ConfigBits[0]": 1,
+                                    "ConfigBits[1]": 0,
+                                },
+                            }
+                        ],
+                    }
+                ],
+                tile_config_prefixes=["ConfigBits"],
+                fail_on_unmaterialized_ff=True,
+            )
+        except RuntimeError as exc:
+            error_message = str(exc)
+        if not error_message:
+            raise AssertionError("expected fanout chain to remain unmapped")
+        assert "left supported FFs unreplaced" in error_message
+
+
 def test_fail_on_unmaterialized_ff_raises() -> None:
     """Test a leftover supported FF can be turned into a hard error."""
     with TemporaryDirectory(prefix="ff_mat_fail_unmaterialized_") as td:
@@ -925,6 +1314,59 @@ def _run_auto_materializer(
     return result
 
 
+def _run_custom_materializer(
+    bridge: PyosysBridge,
+    tile: Path,
+    tile_inputs: list[str],
+    tile_outputs: list[str],
+    lanes: list[dict[str, object]],
+    tile_config_prefixes: list[str] | None = None,
+    auto_config: bool = False,
+    fail_on_unmaterialized_ff: bool = False,
+) -> FfMaterializerPass:
+    """Run the materializer with a custom tile shape.
+
+    Parameters
+    ----------
+    bridge : PyosysBridge
+        Design bridge to mutate.
+    tile : Path
+        Tile Verilog path.
+    tile_inputs : list[str]
+        Tile input ports exposed to the pass.
+    tile_outputs : list[str]
+        Tile output ports exposed to the pass.
+    lanes : list[dict[str, object]]
+        Lane payloads passed to the pass.
+    tile_config_prefixes : list[str] | None
+        Optional config prefixes exposed to the pass.
+    auto_config : bool
+        Whether SAT-fab should solve identity config for each replacement.
+    fail_on_unmaterialized_ff : bool
+        Whether leftover supported FFs should raise.
+
+    Returns
+    -------
+    FfMaterializerPass
+        Executed pass.
+    """
+    result = FfMaterializerPass(
+        tile_verilog_path=tile,
+        tile_top_name=_tile_top_from_path(tile),
+        tile_inputs=tile_inputs,
+        tile_outputs=tile_outputs,
+        tile_config_prefixes=tile_config_prefixes,
+        lanes=lanes,
+        pack_multiple_ffs_per_tile=True,
+        auto_config=auto_config,
+        fail_on_unmaterialized_ff=fail_on_unmaterialized_ff,
+        top_name="base",
+        track_progress=False,
+    )
+    result.run_on(bridge)
+    return result
+
+
 def _load_base(base: Path) -> PyosysBridge:
     """Load and process a base design.
 
@@ -944,7 +1386,12 @@ def _load_base(base: Path) -> PyosysBridge:
     return bridge
 
 
-def _assert_equivalent(base: Path, gate_bridge: PyosysBridge, tile: Path) -> None:
+def _assert_equivalent(
+    base: Path,
+    gate_bridge: PyosysBridge,
+    tile: Path,
+    seq_depth: int = 2,
+) -> None:
     """Run a small Yosys equivalence check against the original FF design.
 
     Parameters
@@ -955,6 +1402,8 @@ def _assert_equivalent(base: Path, gate_bridge: PyosysBridge, tile: Path) -> Non
         Mutated gate design.
     tile : Path
         Tile implementation Verilog.
+    seq_depth : int
+        Sequential equivalence depth.
     """
     with TemporaryDirectory(prefix="ff_mat_equiv_") as td:
         gate = Path(td) / "gate.v"
@@ -972,8 +1421,174 @@ def _assert_equivalent(base: Path, gate_bridge: PyosysBridge, tile: Path) -> Non
         bridge.run_pass("proc")
         bridge.run_pass("flatten")
         bridge.run_pass("opt_clean")
-        bridge.run_pass("equiv_simple -seq 2")
+        bridge.run_pass(f"equiv_simple -seq {seq_depth}")
         bridge.run_pass("equiv_status -assert")
+
+
+def _write_sequential_input_tile(tmp_dir: Path, count: int) -> Path:
+    """Write a tile where each exposed output is driven by an input register.
+
+    Parameters
+    ----------
+    tmp_dir : Path
+        Directory for the generated file.
+    count : int
+        Number of one-bit input-side register lanes.
+
+    Returns
+    -------
+    Path
+        Generated Verilog path.
+    """
+    path = tmp_dir / f"seq_input_tile_{count}.v"
+    input_ports = "\n".join(f"  input I{index}," for index in range(count))
+    output_ports = "\n".join(
+        f"  output O{index}{',' if index + 1 < count else ''}" for index in range(count)
+    )
+    regs = "\n".join(f"  reg R{index};" for index in range(count))
+    updates = "\n".join(f"    R{index} <= I{index};" for index in range(count))
+    assigns = "\n".join(f"  assign O{index} = R{index};" for index in range(count))
+    path.write_text(
+        f"""
+module seq_input_tile_{count} (
+{input_ports}
+  input CLK,
+{output_ports}
+);
+{regs}
+  always @(posedge CLK) begin
+{updates}
+  end
+{assigns}
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_mixed_sequential_tile(tmp_dir: Path) -> Path:
+    """Write a five-lane tile with input-side and output-side registers.
+
+    Parameters
+    ----------
+    tmp_dir : Path
+        Directory for the generated file.
+
+    Returns
+    -------
+    Path
+        Generated Verilog path.
+    """
+    path = tmp_dir / "mixed_sequential_tile.v"
+    path.write_text(
+        """
+module mixed_sequential_tile (
+  input I0,
+  input I1,
+  input I2,
+  input I3,
+  input I4,
+  input CLK,
+  output O0,
+  output reg Q1,
+  output O2,
+  output reg Q3,
+  output reg Q4
+);
+  reg R0;
+  reg R2;
+  always @(posedge CLK) begin
+    R0 <= I0;
+    Q1 <= I1;
+    R2 <= I2;
+    Q3 <= I3;
+    Q4 <= I4;
+  end
+  assign O0 = R0;
+  assign O2 = R2;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_configurable_depth_tile(tmp_dir: Path) -> Path:
+    """Write a single-lane tile with selectable pipeline depth.
+
+    Parameters
+    ----------
+    tmp_dir : Path
+        Directory for the generated file.
+
+    Returns
+    -------
+    Path
+        Generated Verilog path.
+    """
+    path = tmp_dir / "configurable_depth_tile.v"
+    path.write_text(
+        """
+module configurable_depth_tile (
+  input I0,
+  input CLK,
+  input [1:0] ConfigBits,
+  output reg Q0
+);
+  reg R0;
+  reg R1;
+  always @(posedge CLK) begin
+    R0 <= I0;
+    R1 <= R0;
+    case (ConfigBits)
+      2'b00: Q0 <= I0;
+      2'b01: Q0 <= R0;
+      2'b10: Q0 <= R1;
+      default: Q0 <= 1'b0;
+    endcase
+  end
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_auto_depth_tile(tmp_dir: Path) -> Path:
+    """Write a depth-two tile whose identity path needs SAT config.
+
+    Parameters
+    ----------
+    tmp_dir : Path
+        Directory for the generated file.
+
+    Returns
+    -------
+    Path
+        Generated Verilog path.
+    """
+    path = tmp_dir / "auto_depth_tile.v"
+    path.write_text(
+        """
+module auto_depth_tile (
+  input I0,
+  input CLK,
+  input [2:0] ConfigBits,
+  output reg Q0
+);
+  reg R0;
+  wire first = ConfigBits[0] ? I0 : ~I0;
+  wire second = ConfigBits[1] ? R0 : ~R0;
+  always @(posedge CLK) begin
+    R0 <= first;
+    Q0 <= ConfigBits[2] ? second : I0;
+  end
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return path
 
 
 def _write_tile(tmp_dir: Path) -> Path:
@@ -1279,6 +1894,38 @@ endmodule
     return path
 
 
+def _write_many_dff_base(tmp_dir: Path, count: int) -> Path:
+    """Write a design with ``count`` independent inferred DFFs.
+
+    Parameters
+    ----------
+    tmp_dir : Path
+        Directory for the generated file.
+    count : int
+        Number of one-bit FFs to infer.
+
+    Returns
+    -------
+    Path
+        Generated Verilog path.
+    """
+    path = tmp_dir / f"base_{count}_dff.v"
+    inputs = ", ".join(f"input d{index}" for index in range(count))
+    outputs = ", ".join(f"output reg q{index}" for index in range(count))
+    updates = "\n".join(f"    q{index} <= d{index};" for index in range(count))
+    path.write_text(
+        f"""
+module base(input clk, {inputs}, {outputs});
+  always @(posedge clk) begin
+{updates}
+  end
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
 def _write_chain_base(tmp_dir: Path) -> Path:
     """Write a design with a two-FF pipeline."""
     path = tmp_dir / "base_chain.v"
@@ -1289,6 +1936,72 @@ module base(input clk, input d, output q0, output q1);
   reg r1;
   assign q0 = r0;
   assign q1 = r1;
+  always @(posedge clk) begin
+    r0 <= d;
+    r1 <= r0;
+  end
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_pipeline_base(tmp_dir: Path, depth: int) -> Path:
+    """Write a linear FF pipeline with only the final output exposed.
+
+    Parameters
+    ----------
+    tmp_dir : Path
+        Directory for the generated file.
+    depth : int
+        Number of pipeline FFs.
+
+    Returns
+    -------
+    Path
+        Generated Verilog path.
+    """
+    path = tmp_dir / f"base_pipeline_{depth}.v"
+    regs = "\n".join(f"  reg r{index};" for index in range(depth))
+    updates = ["    r0 <= d;"]
+    updates.extend(f"    r{index} <= r{index - 1};" for index in range(1, depth))
+    path.write_text(
+        f"""
+module base(input clk, input d, output q);
+{regs}
+  assign q = r{depth - 1};
+  always @(posedge clk) begin
+{chr(10).join(updates)}
+  end
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_pipeline_with_fanout_base(tmp_dir: Path) -> Path:
+    """Write a two-FF chain whose intermediate net has combinational fanout.
+
+    Parameters
+    ----------
+    tmp_dir : Path
+        Directory for the generated file.
+
+    Returns
+    -------
+    Path
+        Generated Verilog path.
+    """
+    path = tmp_dir / "base_pipeline_fanout.v"
+    path.write_text(
+        """
+module base(input clk, input d, input side, output q, output tap);
+  reg r0;
+  reg r1;
+  assign tap = r0 & side;
+  assign q = r1;
   always @(posedge clk) begin
     r0 <= d;
     r1 <= r0;
@@ -1415,6 +2128,16 @@ def main() -> None:
     test_auto_config_fail_on_unsat_group_raises()
     test_auto_config_shared_solution_packs_two_ffs()
     test_auto_config_rejects_lane_local_config()
+    test_single_sequential_input_lane_is_equivalent()
+    test_two_sequential_input_lanes_pack_and_are_equivalent()
+    test_five_sequential_input_lanes_pack_and_are_equivalent()
+    test_mixed_sequential_input_and_output_lanes_are_equivalent()
+    test_manual_depth_two_lane_replaces_two_ff_chain()
+    test_manual_configurable_depth_chunks_long_chain()
+    test_auto_config_depth_mode_solves_identity()
+    test_depth_mode_config_conflict_splits_tiles()
+    test_depth_larger_than_chain_fails_when_requested()
+    test_depth_chain_with_intermediate_fanout_is_not_collapsed()
     test_fail_on_unmaterialized_ff_raises()
     test_fail_on_invalid_lane_false_ignores_bad_lane()
 
