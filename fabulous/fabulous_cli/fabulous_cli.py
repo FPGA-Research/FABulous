@@ -203,6 +203,8 @@ class FABulous_CLI(Cmd):
         Argument parser for the open_gui command
     timing_model_parser : Cmd2ArgumentParser
         Argument parser for the timing_model command
+    fabxplore_parser : Cmd2ArgumentParser
+        Argument parser for the fabxplore command
 
     Notes
     -----
@@ -1694,3 +1696,20 @@ class FABulous_CLI(Cmd):
         )
         resolved_path.write_text(tm_config_resolved.model_dump_json(indent=4))
         logger.info(f"Timing model config resolved at {resolved_path}")
+
+    fabxplore_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
+    fabxplore_parser.add_argument(
+        "architecture_file",
+        type=Path,
+        help="Python file defining an ArchitectureSynthesizer flow",
+        completer=Cmd.path_complete,
+    )
+
+    @with_argparser(fabxplore_parser)
+    @with_category(CMD_USER_DESIGN_FLOW)
+    def do_fabxplore(self, args: argparse.Namespace) -> None:
+        """Run a fabxplore architecture flow Python file."""
+        if not getattr(self, "fabricLoaded", False):
+            self.do_load_fabric(argparse.Namespace(file=Path()))
+
+        self.fabulousAPI.run_fabxplore(args.architecture_file, debug=self.debug)

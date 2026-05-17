@@ -17,6 +17,12 @@ from pathlib import Path
 from fabulous.fabric_cad.fabxplore.architectures.fabr_v2.models import (
     FabulousArchitectureConfig,
 )
+from fabulous.fabric_cad.fabxplore.architectures.fabr_v2.tests.run_tests import (
+    test_aes_like_sboxes_benchmark,
+    test_basic_large_or_benchmark,
+    test_basic_synth_flow,
+    test_lut32_mixed_benchmark,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.synthesizer import (
     ArchitectureSynthesizer,
 )
@@ -31,27 +37,21 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
     Parameters
     ----------
-    config : FabulousArchitectureConfig
-        Configuration parameters for the architecture mapping process.
-    debug : bool, optional
+    debug : bool
         Enable debug mode for verbose logging and intermediate design dumps.
     """
 
-    def __init__(self, config: FabulousArchitectureConfig, debug: bool = False) -> None:
+    def __init__(self, debug: bool = False) -> None:
         super().__init__(debug=debug)
-        self.debug = debug
 
-        self.config = config
-        self._read_hdl()
-
-    def _read_hdl(self) -> None:
+    def read_hdl(self, config: FabulousArchitectureConfig) -> None:
         """Read the input HDL design into the PyosysBridge."""
-        self.design.read_verilog_paths(self.config.hdl_files)
+        self.design.read_verilog_paths(config.hdl_files)
         self.design.run_pass("read_verilog -lib +/fabulous/prims.v")
 
-    def begin(self) -> None:
+    def begin(self, config: FabulousArchitectureConfig) -> None:
         """Prepare the design and initialize the synthesis flow."""
-        self.design.run_pass(f"hierarchy -check -top {self.config.top_module}")
+        self.design.run_pass(f"hierarchy -check -top {config.top_module}")
         self.design.run_pass("proc")
 
     def flatten(self) -> None:
@@ -60,7 +60,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design.run_pass("tribuf -logic")
         self.design.run_pass("deminout")
 
-    def coarse(self) -> None:
+    def coarse(self, config: FabulousArchitectureConfig) -> None:
         """Run coarse-grain synthesis optimizations on the design."""
         self.design.run_pass("tribuf -logic")
         self.design.run_pass("deminout")
@@ -68,15 +68,15 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design.run_pass("opt_clean")
         self.design.run_pass("check")
         self.design.run_pass("opt -nodffe -nosdff")
-        if self.config.optimize_fsm:
+        if config.optimize_fsm:
             self.design.run_pass("fsm")
         self.design.run_pass("opt")
         self.design.run_pass("wreduce")
         self.design.run_pass("peepopt")
         self.design.run_pass("opt_clean")
-        if self.config.map_alu_macc_cells:
+        if config.map_alu_macc_cells:
             self.design.run_pass("alumacc")
-        if self.config.allow_resource_sharing:
+        if config.allow_resource_sharing:
             self.design.run_pass("share")
         self.design.run_pass("opt")
         self.design.run_pass("memory -nomap")
@@ -95,14 +95,26 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design.run_pass("memory_map")
         self.design.run_pass("opt -undriven -fine")
 
-    def map_gates(self) -> None:
+    def map_gates(self, config: FabulousArchitectureConfig) -> None:
         """Map generic logic into technology-specific gate primitives."""
         self.design.run_pass("opt -full")
 
-        if self.config.map_carry_chains:
+        if config.map_carry_chains:
             self.design.run_pass("simplemap")
             self.design_chain_mapper_pass(chunk_size=5)
             self.design.run_pass("techmap -map +/techmap.v")
+
+        self.design_morph_tile_pass(
+            tile_verilog_path=Path(
+                "/home/hausding/Documents/FABulous/demo0/Tile/test_tile/FLUT5_1P_2PS.v"
+            ),
+            tile_top_name="FLUT5_1P_2PS",
+            tile_inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
+            tile_outputs=["O0", "O1", "Co"],
+            enabled_circuits=["chain"],
+            tile_config_prefixes=["ConfigBits"],
+            progress_chunk_size=5,
+        )
 
         self.design.run_pass("opt -fast")
 
@@ -127,12 +139,27 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     def map_luts(self) -> None:
         """Map combinational logic into LUT resources."""
         self.design_lut_mapper_pass(
-            max_lut_size=5,
+            max_lut_size=8,
             use_select_as_data_in_pair_mode=True,
             sharing_penalty_factor=3,
             size_penalty_factor=0.7,
-            larger_lut_discount_factor=0.85,
+            larger_lut_discount_factor=0.7,
             backend="abc9",
+        )
+
+        self.design_decompose_lut_pass(
+            source_lut_widths=[6, 7, 8],
+            leaf_lut_width=5,
+            mux_verilog_path=Path(
+                "/home/hausding/Documents/FABulous/demo0/"
+                "Tile/LUT4AB/MUX8LUT_frame_config_mux.v"
+            ),
+            mux_top_name="MUX8LUT_frame_config_mux",
+            mux_data_inputs=["A", "B", "C", "D", "E", "F", "G", "H"],
+            mux_select_inputs=["S[0]", "S[1]", "S[2]", "S[3]"],
+            mux_outputs=["M_AB", "M_AD", "M_AH", "M_EF"],
+            mux_config_prefixes=["ConfigBits"],
+            progress_chunk_size=5,
         )
 
         self.design_lut_combinator_pass(
@@ -173,54 +200,178 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             progress_chunk_size=5,
         )
 
+        self.design_absorb_registers_pass(
+            cell_types=["FLUT5_1P_2PS"],
+            rules=[
+                {
+                    "side": "output",
+                    "cell_type": "FLUT5_1P_2PS",
+                    "comb_port": "O0",
+                    "seq_port": "Q0",
+                    "remove_disconnected_comb_port": True,
+                    "include_enable_ff": True,
+                    "include_reset_ff": True,
+                },
+                {
+                    "side": "output",
+                    "cell_type": "FLUT5_1P_2PS",
+                    "comb_port": "O1",
+                    "seq_port": "Q1",
+                    "remove_disconnected_comb_port": True,
+                    "include_enable_ff": True,
+                    "include_reset_ff": True,
+                },
+            ],
+            progress_chunk_size=5,
+        )
+
+        self.design_materialize_registers_pass(
+            tile_verilog_path=Path(
+                "/home/hausding/Documents/FABulous/demo0/Tile/test_tile/FLUT5_1P_2PS.v"
+            ),
+            tile_top_name="FLUT5_1P_2PS",
+            tile_inputs=[
+                "I0",
+                "I1",
+                "I2",
+                "A0",
+                "B0",
+                "S",
+                "Ci",
+                "EN",
+                "SR",
+                "UserCLK",
+            ],
+            tile_outputs=[
+                "Q0",
+                "Q1",
+            ],
+            tile_config_prefixes=[
+                "ConfigBits",
+            ],
+            lanes=[
+                {
+                    # FF.D -> I0, Q0 replaces FF.Q
+                    "data_port": "I0",
+                    "output_port": "Q0",
+                    "clock_port": "UserCLK",
+                    # Plain FFs get EN=1 and SR=0.
+                    # Enabled/reset FFs can also be materialized if compatible.
+                    "include_enable_ff": True,
+                    "enable_tile_port": "EN",
+                    "enable_neutral": 1,
+                    "include_reset_ff": True,
+                    "reset_tile_port": "SR",
+                    "reset_neutral": 0,
+                    "reset_kind": "sync",
+                    "reset_value": 0,
+                },
+                {
+                    # FF.D -> I1, Q1 replaces FF.Q
+                    "data_port": "I1",
+                    "output_port": "Q1",
+                    "clock_port": "UserCLK",
+                    "include_enable_ff": True,
+                    "enable_tile_port": "EN",
+                    "enable_neutral": 1,
+                    "include_reset_ff": True,
+                    "reset_tile_port": "SR",
+                    "reset_neutral": 0,
+                    "reset_kind": "sync",
+                    "reset_value": 0,
+                },
+            ],
+            pack_multiple_ffs_per_tile=True,
+            progress_chunk_size=5,
+            auto_config=True,
+        )
+
+        self.design_placement_hints_pass(
+            rules=[
+                {
+                    "kind": "linear_chain",
+                    "name": "carry",
+                    "cell_types": ["FLUT5_1P_2PS"],
+                    "source_port": "Co",
+                    "sink_port": "Ci",
+                    "allow_branching": True,
+                    "min_length": 4,
+                },
+            ],
+            progress_chunk_size=5,
+        )
+
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""
         self.design.run_pass("techmap -D LUT_K=5 -map +/fabulous/cells_map.v")
         self.design.run_pass("clean")
 
-    def check(self) -> None:
+    def check(self, config: FabulousArchitectureConfig) -> None:
         """Validate the mapped design and report structural issues."""
-        self.design.run_pass(f"hierarchy -top {self.config.top_module} -check")
+        self.design.run_pass(f"hierarchy -top {config.top_module} -check")
         self.design.run_pass("stat")
         self.design_analyzer_pass()
 
-    def synthesize(self) -> None:
+    def write_verilog_path(self, config: FabulousArchitectureConfig) -> None:
+        """Write the synthesized design to a Verilog file."""
+        config.user_design_out_dir.mkdir(parents=True, exist_ok=True)
+        self.design.write_verilog_path(
+            config.user_design_out_dir / f"{config.top_module}.v",
+            include_attributes=True,
+        )
+
+    def write_json_path(self, config: FabulousArchitectureConfig) -> None:
+        """Write a JSON report of the synthesis results."""
+        config.user_design_out_dir.mkdir(parents=True, exist_ok=True)
+        self.design.write_json_path(
+            config.user_design_out_dir / f"{config.top_module}.json"
+        )
+
+    def write_report_path(self, config: FabulousArchitectureConfig) -> None:
+        """Write a report summarizing the results."""
+        config.user_design_out_dir.mkdir(parents=True, exist_ok=True)
+        self.design_report_summary_pass(
+            path=config.user_design_out_dir / f"{config.top_module}.rpt",
+        )
+
+    def synthesize(self, config: FabulousArchitectureConfig) -> None:
         """Run the full synthesis pipeline for a user design."""
-        self.begin()
+        self.read_hdl(config)
+        self.begin(config)
         self.flatten()
-        self.coarse()
-        if self.config.map_ram_cells:
+        self.coarse(config)
+        if config.map_ram_cells:
             self.map_ram()
         self.map_ffram()
-        self.map_gates()
-        if self.config.map_io_pads:
+        self.map_gates(config)
+        if config.map_io_pads:
             self.map_iopad()
         self.map_ffs()
         self.map_luts()
         self.map_cells()
-        self.check()
+        self.check(config)
 
-    def write_verilog_path(self) -> None:
-        """Write the synthesized design to a Verilog file."""
-        self.config.user_design_out_dir.mkdir(parents=True, exist_ok=True)
-        self.design.write_verilog_path(
-            self.config.user_design_out_dir / f"{self.config.top_module}.v"
-        )
+        self.write_verilog_path(config)
+        self.write_json_path(config)
+        self.write_report_path(config)
 
-    def write_json_path(self) -> None:
-        """Write a JSON report of the synthesis results."""
-        self.config.user_design_out_dir.mkdir(parents=True, exist_ok=True)
-        self.design.write_json_path(
-            self.config.user_design_out_dir / f"{self.config.top_module}.json"
-        )
-
-    def generate_primitives(self) -> None:
-        """Generate primitive definitions required by this architecture."""
-
+    def run_flow(self) -> None:
+        """Run the entire synthesis flow."""
         # TODO: Implement timing driven optimizations (weight match) subgraph
         # matching for critical path optimization
-        # TODO: Explain Techmap (LUTs, chains)
         # TODO: Explain how to do simulation and verification.
+        # TODO: sequential pattern graph.
 
-    def generate_switch_matrix(self) -> None:
-        """Generate switch-matrix resources for routing integration."""
+        sel_test: int = 0
+        config: FabulousArchitectureConfig = None
+        match sel_test:
+            case 0:
+                config = test_basic_synth_flow()
+            case 1:
+                config = test_basic_large_or_benchmark()
+            case 2:
+                config = test_lut32_mixed_benchmark()
+            case 3:
+                config = test_aes_like_sboxes_benchmark()
+
+        self.synthesize(config)

@@ -76,6 +76,8 @@ if TYPE_CHECKING:
         FfPortsInput,
         RuleInput,
     )
+    from fabulous.fabric_cad.fabxplore.pyosys.synth_pass import SynthPass
+    from fabulous.fabulous_api import FABulous_API
 
 
 class ArchitectureSynthesizer(ABC):
@@ -92,9 +94,36 @@ class ArchitectureSynthesizer(ABC):
         self.design: PyosysBridge = PyosysBridge(debug=self.debug)
         self.primitives: set[str] = set()
 
+        self._pass_history: list[SynthPass] = []
+
         self._latest_lut_mapping_result: MappingResult | None = None
         self._latest_frac_lut_architecture: FracLutArchitecture | None = None
         self._lut_layering_count: int = 0
+
+        self._fabulous_api: FABulous_API | None = None
+
+    def attach_fabulous_api(self, api: FABulous_API) -> None:
+        """Attach the loaded FABulous project API to this architecture flow.
+
+        Parameters
+        ----------
+        api : FABulous_API
+            FABulous API instance with project context and fabric data.
+        """
+        self._fabulous_api = api
+
+    @property
+    def fab(self) -> FABulous_API:
+        """Return the attached FABulous API instance.
+
+        Raises
+        ------
+        RuntimeError
+            If no FABulous API instance has been attached.
+        """
+        if self._fabulous_api is None:
+            raise RuntimeError("FABulous API not attached to architecture flow.")
+        return self._fabulous_api
 
     def add_primitive(self, primitive: str | Path) -> None:
         """Add a primitive to the set of primitives.
@@ -123,6 +152,41 @@ class ArchitectureSynthesizer(ABC):
             The message to log.
         """
         logger.info(message)
+
+    def design_report_summary_pass(
+        self,
+        log_report: bool = True,
+        path: Path | None = None,
+    ) -> str:
+        """Summary report of the current design.
+
+        Parameters
+        ----------
+        log_report : bool
+            If ``True``, log the report summary.
+        path : Path | None
+            Optional file path to write the report summary to.
+            If ``None``, do not write to a file.
+
+        Returns
+        -------
+        str
+            The generated report summary string.
+        """
+        r_sep: str = """
+            ===================================================================
+        """.strip()
+
+        report: str = f"\n{r_sep}\n\n".join(
+            r.report_summary for r in self._pass_history
+        )
+
+        if log_report:
+            self.log_info(report)
+        if path is not None:
+            path.write_text(report)
+
+        return report
 
     def design_analyzer_pass(
         self,
@@ -165,6 +229,8 @@ class ArchitectureSynthesizer(ABC):
 
         if log_report:
             self.log_info(result.report_summary)
+
+        self._pass_history.append(result)
 
         return result
 
@@ -242,6 +308,8 @@ class ArchitectureSynthesizer(ABC):
         self._latest_frac_lut_architecture = result.architecture
         self._lut_layering_count = 0
         self.add_primitive(result.verilog_model)
+
+        self._pass_history.append(result)
 
         return result
 
@@ -350,6 +418,8 @@ class ArchitectureSynthesizer(ABC):
 
         self.add_primitive(result.verilog_model)
 
+        self._pass_history.append(result)
+
         return result
 
     def design_chain_mapper_pass(
@@ -443,6 +513,8 @@ class ArchitectureSynthesizer(ABC):
             self.log_info(result.report_summary)
 
         self.add_primitive(result.verilog_model)
+
+        self._pass_history.append(result)
 
         return result
 
@@ -548,6 +620,9 @@ class ArchitectureSynthesizer(ABC):
             self.log_info(result.report_summary)
 
         self.add_primitive(result.verilog_model)
+
+        self._pass_history.append(result)
+
         return result
 
     def design_decompose_lut_pass(
@@ -635,6 +710,9 @@ class ArchitectureSynthesizer(ABC):
             self.log_info(result.report_summary)
 
         self.add_primitive(result.verilog_model)
+
+        self._pass_history.append(result)
+
         return result
 
     def design_absorb_registers_pass(
@@ -692,6 +770,8 @@ class ArchitectureSynthesizer(ABC):
 
         if log_report:
             self.log_info(result.report_summary)
+
+        self._pass_history.append(result)
 
         return result
 
@@ -800,6 +880,9 @@ class ArchitectureSynthesizer(ABC):
             self.log_info(result.report_summary)
 
         self.add_primitive(result.verilog_model)
+
+        self._pass_history.append(result)
+
         return result
 
     def design_placement_hints_pass(
@@ -853,6 +936,8 @@ class ArchitectureSynthesizer(ABC):
 
         if log_report:
             self.log_info(result.report_summary)
+
+        self._pass_history.append(result)
 
         return result
 
@@ -957,16 +1042,10 @@ class ArchitectureSynthesizer(ABC):
         if log_report:
             self.log_info(result.report_summary)
 
+        self._pass_history.append(result)
+
         return result
 
     @abstractmethod
-    def synthesize(self) -> None:
+    def run_flow(self) -> None:
         """Run the full synthesis pipeline for a user design."""
-
-    @abstractmethod
-    def generate_primitives(self) -> None:
-        """Generate primitive definitions required by this architecture."""
-
-    @abstractmethod
-    def generate_switch_matrix(self) -> None:
-        """Generate switch-matrix resources for routing integration."""

@@ -13,6 +13,7 @@ from loguru import logger
 
 import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
 import fabulous.fabric_generator.parser.parse_csv as fileParser
+from fabulous.fabric_cad.fabxplore.runner import run_fabxplore_architecture
 from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
@@ -742,3 +743,31 @@ class FABulous_API:
         )
 
         return iconfig
+
+    def run_fabxplore(
+        self,
+        architecture_file: Path,
+        debug: bool = False,
+    ) -> object:
+        """Run a fabxplore architecture flow script.
+
+        Parameters
+        ----------
+        architecture_file : Path
+            Python file defining exactly one ``ArchitectureSynthesizer`` subclass.
+        debug : bool
+            Enable debug mode on the architecture flow before running it.
+
+        Returns
+        -------
+        object
+            The executed architecture flow instance.
+        """
+        if not architecture_file.is_absolute():
+            architecture_file = get_context().proj_dir / architecture_file
+
+        return run_fabxplore_architecture(
+            architecture_file=architecture_file,
+            fabulous_api=self,
+            debug=debug,
+        )
