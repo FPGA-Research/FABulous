@@ -4,7 +4,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from fabulous.fabric_cad.fabxplore.architectures.fabr_v2.models import (
+from fabulous.fabric_cad.fabxplore.examples.fabr_v2.models import (
     FabulousArchitectureConfig,
 )
 from fabulous.fabulous_cli.helper import (
@@ -12,7 +12,7 @@ from fabulous.fabulous_cli.helper import (
 )
 
 ROOT = Path(__file__).resolve().parents[3]
-OUT_DIR = ROOT / "architectures" / "fabr_v2" / "tests" / "out"
+OUT_DIR = ROOT / "examples" / "fabr_v2" / "tests" / "out"
 setup_logger(verbosity=0, debug=False)
 
 
@@ -27,7 +27,7 @@ def test_basic_synth_flow() -> FabulousArchitectureConfig:
         map_alu_macc_cells=True,
         map_ram_cells=True,
         optimize_fsm=True,
-        map_io_pads=True,
+        map_io_pads=False,
         map_carry_chains=True,
         user_design_out_dir=OUT_DIR,
     )
@@ -44,7 +44,7 @@ def test_basic_large_or_benchmark() -> FabulousArchitectureConfig:
         map_alu_macc_cells=True,
         map_ram_cells=True,
         optimize_fsm=True,
-        map_io_pads=True,
+        map_io_pads=False,
         map_carry_chains=True,
         user_design_out_dir=OUT_DIR,
     )
@@ -61,7 +61,7 @@ def test_lut32_mixed_benchmark() -> FabulousArchitectureConfig:
         map_alu_macc_cells=True,
         map_ram_cells=True,
         optimize_fsm=True,
-        map_io_pads=True,
+        map_io_pads=False,
         map_carry_chains=True,
         user_design_out_dir=OUT_DIR,
     )
@@ -80,7 +80,7 @@ def test_aes_like_sboxes_benchmark() -> FabulousArchitectureConfig:
         map_alu_macc_cells=True,
         map_ram_cells=True,
         optimize_fsm=True,
-        map_io_pads=True,
+        map_io_pads=False,
         map_carry_chains=True,
         user_design_out_dir=OUT_DIR,
     )

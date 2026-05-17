@@ -186,18 +186,14 @@ class MuxShapeSolver:
         bridge.write_blif_path(blif_path)
 
     def _effective_dependency_paths(self) -> list[Path]:
-        """Return explicit and auto-discovered mux dependency paths.
+        """Return explicit mux dependency paths.
 
         Returns
         -------
         list[Path]
             Existing dependency paths to read before the mux model.
         """
-        paths = list(self.mux_dependency_paths or [])
-        project_models = self.mux_verilog_path.parents[2] / "Fabric" / "models_pack.v"
-        if project_models.exists() and project_models not in paths:
-            paths.append(project_models)
-        return paths
+        return list(self.mux_dependency_paths or [])
 
     def _selected_candidate_inputs(self) -> list[str]:
         """Return candidate input ports used for SAT routing.

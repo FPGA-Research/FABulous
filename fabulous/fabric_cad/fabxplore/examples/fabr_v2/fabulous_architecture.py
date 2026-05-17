@@ -14,16 +14,16 @@ the synthesis flow and architecture-specific transformations for FABulous.
 
 from pathlib import Path
 
-from fabulous.fabric_cad.fabxplore.architectures.fabr_v2.models import (
+from fabulous.fabric_cad.fabxplore.examples.fabr_v2.models import (
     FabulousArchitectureConfig,
 )
-from fabulous.fabric_cad.fabxplore.architectures.fabr_v2.tests.run_tests import (
+from fabulous.fabric_cad.fabxplore.examples.fabr_v2.tests.run_tests import (
     test_aes_like_sboxes_benchmark,
     test_basic_large_or_benchmark,
     test_basic_synth_flow,
     test_lut32_mixed_benchmark,
 )
-from fabulous.fabric_cad.fabxplore.pyosys.synthesizer import (
+from fabulous.fabric_cad.fabxplore.flow.architecture_synthesizer import (
     ArchitectureSynthesizer,
 )
 
@@ -43,6 +43,9 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
     def __init__(self, debug: bool = False) -> None:
         super().__init__(debug=debug)
+
+        self.x_root = Path(__file__).resolve().parents[2]
+        self.my_root = self.x_root / "examples" / "fabr_v2"
 
     def read_hdl(self, config: FabulousArchitectureConfig) -> None:
         """Read the input HDL design into the PyosysBridge."""
@@ -105,9 +108,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             self.design.run_pass("techmap -map +/techmap.v")
 
         self.design_morph_tile_pass(
-            tile_verilog_path=Path(
-                "/home/hausding/Documents/FABulous/demo0/Tile/test_tile/FLUT5_1P_2PS.v"
-            ),
+            tile_verilog_path=self.my_root / "arch_rtl" / "FLUT5_1P_2PS.v",
             tile_top_name="FLUT5_1P_2PS",
             tile_inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
             tile_outputs=["O0", "O1", "Co"],
@@ -150,10 +151,8 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design_decompose_lut_pass(
             source_lut_widths=[6, 7, 8],
             leaf_lut_width=5,
-            mux_verilog_path=Path(
-                "/home/hausding/Documents/FABulous/demo0/"
-                "Tile/LUT4AB/MUX8LUT_frame_config_mux.v"
-            ),
+            mux_verilog_path=self.my_root / "arch_rtl" / "MUX8LUT_frame_config_mux.v",
+            mux_dependency_paths=[self.project_context.models_pack],
             mux_top_name="MUX8LUT_frame_config_mux",
             mux_data_inputs=["A", "B", "C", "D", "E", "F", "G", "H"],
             mux_select_inputs=["S[0]", "S[1]", "S[2]", "S[3]"],
@@ -168,29 +167,17 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             reorder_leftover_luts=True,
         )
 
+        # Can be called multiple times with different overlay
+        # modules to support.
         self.design_lut_layering_pass(
             overlay_top_name="mux4",
             overlay_verilog_paths=[
-                Path(
-                    "/home/hausding/Documents/FABulous/fabulous"
-                    "/fabric_cad/fabxplore/benchmarks/verilog_rtl/mux4/mux4.v"
-                )
-            ],
-        )
-        self.design_lut_layering_pass(
-            overlay_top_name="mux4",
-            overlay_verilog_paths=[
-                Path(
-                    "/home/hausding/Documents/FABulous/fabulous"
-                    "/fabric_cad/fabxplore/benchmarks/verilog_rtl/mux4/mux4.v"
-                )
+                Path(self.x_root / "benchmarks" / "verilog_rtl" / "mux4" / "mux4.v")
             ],
         )
 
         self.design_morph_tile_pass(
-            tile_verilog_path=Path(
-                "/home/hausding/Documents/FABulous/demo0/Tile/test_tile/FLUT5_1P_2PS.v"
-            ),
+            tile_verilog_path=self.my_root / "arch_rtl" / "FLUT5_1P_2PS.v",
             tile_top_name="FLUT5_1P_2PS",
             tile_inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
             tile_outputs=["O0", "O1", "Co"],
@@ -226,9 +213,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         )
 
         self.design_materialize_registers_pass(
-            tile_verilog_path=Path(
-                "/home/hausding/Documents/FABulous/demo0/Tile/test_tile/FLUT5_1P_2PS.v"
-            ),
+            tile_verilog_path=self.my_root / "arch_rtl" / "FLUT5_1P_2PS.v",
             tile_top_name="FLUT5_1P_2PS",
             tile_inputs=[
                 "I0",

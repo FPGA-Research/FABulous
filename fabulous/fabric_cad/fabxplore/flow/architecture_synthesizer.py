@@ -56,6 +56,7 @@ from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.reg_absorber_pass import
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
     PyosysBridge,
 )
+from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
     from fabulous.fabric_cad.fabxplore.modules.ff_materializer.core.models import (
@@ -101,6 +102,7 @@ class ArchitectureSynthesizer(ABC):
         self._lut_layering_count: int = 0
 
         self._fabulous_api: FABulous_API | None = None
+        self.project_context = get_context()
 
     def attach_fabulous_api(self, api: FABulous_API) -> None:
         """Attach the loaded FABulous project API to this architecture flow.
