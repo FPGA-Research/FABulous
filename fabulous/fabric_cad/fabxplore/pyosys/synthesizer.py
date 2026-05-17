@@ -47,6 +47,9 @@ from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_mapper_pass import (
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.morph_tile_pass import (
     MorphTilePass,
 )
+from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.placement_hints_pass import (
+    PlacementHintsPass,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.reg_absorber_pass import (
     RegAbsorberPass,
 )
@@ -64,6 +67,9 @@ if TYPE_CHECKING:
     )
     from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.base import (
         MorphCircuitKind,
+    )
+    from fabulous.fabric_cad.fabxplore.modules.placement_hints.core.models import (
+        PlacementRuleInput,
     )
     from fabulous.fabric_cad.fabxplore.modules.reg_absorber.core.models import (
         ConfigValue,
@@ -794,6 +800,60 @@ class ArchitectureSynthesizer(ABC):
             self.log_info(result.report_summary)
 
         self.add_primitive(result.verilog_model)
+        return result
+
+    def design_placement_hints_pass(
+        self,
+        rules: list[PlacementRuleInput],
+        log_report: bool = True,
+        attribute_prefix: str = "FAB_CLUSTER",
+        overwrite_existing: bool = False,
+        fail_on_conflict: bool = True,
+        track_progress: bool = True,
+        progress_chunk_size: int = 100,
+        top_name: str | None = None,
+    ) -> PlacementHintsPass:
+        """Add structural placement hint attributes to existing cells.
+
+        Parameters
+        ----------
+        rules : list[PlacementRuleInput]
+            Structural hint rules. Each rule is a typed model or dictionary with
+            a ``kind`` field.
+        log_report : bool
+            If ``True``, log the placement-hints report.
+        attribute_prefix : str
+            Prefix used for emitted placement-hint attributes.
+        overwrite_existing : bool
+            Whether existing placement-hint attributes may be replaced.
+        fail_on_conflict : bool
+            Whether generated or existing attribute conflicts should raise.
+        track_progress : bool
+            Whether progress should be logged.
+        progress_chunk_size : int
+            Number of processed candidate cells between progress updates.
+        top_name : str | None
+            Top module to process. If ``None``, use the current design top.
+
+        Returns
+        -------
+        PlacementHintsPass
+            Pass instance containing result and report data.
+        """
+        result = PlacementHintsPass(
+            rules=rules,
+            attribute_prefix=attribute_prefix,
+            overwrite_existing=overwrite_existing,
+            fail_on_conflict=fail_on_conflict,
+            track_progress=track_progress,
+            progress_chunk_size=progress_chunk_size,
+            top_name=top_name or self.design.top_name(),
+        )
+        result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
         return result
 
     def design_lut_mapper_pass(

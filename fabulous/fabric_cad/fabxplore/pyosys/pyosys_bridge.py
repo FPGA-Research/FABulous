@@ -155,19 +155,23 @@ class PyosysBridge:
         path.parent.mkdir(parents=True, exist_ok=True)
         self._run(f"write_json {self._quote_path(path)}")
 
-    def write_verilog_path(self, path: Path) -> None:
+    def write_verilog_path(self, path: Path, include_attributes: bool = False) -> None:
         """Write the active design to a Verilog file.
 
-        The emitted Verilog omits attributes and expression expansion to match
-        the project output conventions.
+        The emitted Verilog omits expression expansion. Attributes are omitted
+        by default to match the project output conventions, but can be emitted
+        when downstream tooling or diagnostics need cell metadata.
 
         Parameters
         ----------
         path : Path
             Destination Verilog file path.
+        include_attributes : bool
+            If ``True``, preserve Yosys attributes in the emitted Verilog.
         """
         path.parent.mkdir(parents=True, exist_ok=True)
-        self._run(f"write_verilog -noattr -noexpr {self._quote_path(path)}")
+        attr_flag = "" if include_attributes else "-noattr "
+        self._run(f"write_verilog {attr_flag}-noexpr {self._quote_path(path)}")
 
     def write_blif_path(self, path: Path) -> None:
         """Write the active design to a BLIF file.
@@ -192,8 +196,13 @@ class PyosysBridge:
             self.write_json_path(path)
             return json.loads(path.read_text(encoding="utf-8"))
 
-    def to_verilog_string(self) -> str:
+    def to_verilog_string(self, include_attributes: bool = False) -> str:
         """Return the active design emitted as Verilog text.
+
+        Parameters
+        ----------
+        include_attributes : bool
+            If ``True``, preserve Yosys attributes in the emitted Verilog.
 
         Returns
         -------
@@ -201,7 +210,7 @@ class PyosysBridge:
             Emitted Verilog netlist text.
         """
         with self._temporary_path(".v") as path:
-            self.write_verilog_path(path)
+            self.write_verilog_path(path, include_attributes=include_attributes)
             return path.read_text(encoding="utf-8")
 
     def to_py_object(self) -> YosysJson:
