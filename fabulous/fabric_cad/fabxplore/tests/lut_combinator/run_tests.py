@@ -6,6 +6,9 @@ from pathlib import Path
 
 from loguru import logger
 
+from fabulous.fabric_cad.fabxplore.flow.architecture_synthesizer import (
+    ArchitectureSynthesizer,
+)
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.combinator import (
     FracLutArchitecture,
     LutCombinator,
@@ -50,7 +53,6 @@ from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.lut_layering_pass import
     LutLayeringPass,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
-from fabulous.fabric_cad.fabxplore.pyosys.synthesizer import ArchitectureSynthesizer
 from fabulous.fabulous_cli.helper import (
     setup_logger,
 )

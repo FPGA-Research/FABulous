@@ -4,11 +4,13 @@ from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from fabulous.fabric_cad.fabxplore.flow.architecture_synthesizer import (
+    ArchitectureSynthesizer,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.placement_hints_pass import (
     PlacementHintsPass,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
-from fabulous.fabric_cad.fabxplore.pyosys.synthesizer import ArchitectureSynthesizer
 from fabulous.fabulous_cli.helper import setup_logger
 
 setup_logger(verbosity=0, debug=False)

@@ -88,6 +88,7 @@ CMD_GUI = "GUI"
 CMD_SCRIPT = "Script"
 CMD_TOOLS = "Tools"
 CMD_TIMING_MODEL = "Timing Characterization"
+CMD_DSE = "Design Space Exploration"
 
 
 INTO_STRING = rf"""
@@ -1706,7 +1707,7 @@ class FABulous_CLI(Cmd):
     )
 
     @with_argparser(fabxplore_parser)
-    @with_category(CMD_USER_DESIGN_FLOW)
+    @with_category(CMD_DSE)
     def do_fabxplore(self, args: argparse.Namespace) -> None:
         """Run a fabxplore architecture flow Python file."""
         if not getattr(self, "fabricLoaded", False):

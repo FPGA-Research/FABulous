@@ -5,6 +5,9 @@ from tempfile import TemporaryDirectory
 
 import pyosys.libyosys as ys
 
+from fabulous.fabric_cad.fabxplore.flow.architecture_synthesizer import (
+    ArchitectureSynthesizer,
+)
 from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.verilog_model import (
     FracLutBehavioralModel,
 )
@@ -24,7 +27,6 @@ from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.morph_tile_pass import (
     MorphTilePass,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
-from fabulous.fabric_cad.fabxplore.pyosys.synthesizer import ArchitectureSynthesizer
 from fabulous.fabulous_cli.helper import setup_logger
 
 setup_logger(verbosity=0, debug=False)

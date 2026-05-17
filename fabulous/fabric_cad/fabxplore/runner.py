@@ -12,7 +12,9 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from fabulous.fabric_cad.fabxplore.pyosys.synthesizer import ArchitectureSynthesizer
+from fabulous.fabric_cad.fabxplore.flow.architecture_synthesizer import (
+    ArchitectureSynthesizer,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
