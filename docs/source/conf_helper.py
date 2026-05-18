@@ -46,5 +46,8 @@ def get_version() -> str:
 
 
 def get_display_version(version_text: str) -> str:
-    """Strip development and local suffixes from the displayed version tag."""
-    return re.sub(r"\.dev.*$", "", version_text)
+    """Return bare version for tagged releases, or version+dev for dev builds."""
+    base = re.sub(r"(\.dev.*|[+].*)$", "", version_text)
+    if re.search(r"\.dev", version_text):
+        return f"{base}+dev"
+    return base
