@@ -25,6 +25,7 @@ import csv
 import os
 import pickle
 import pprint
+import re
 import shutil
 import subprocess as sp
 import sys
@@ -641,11 +642,12 @@ class FABulous_CLI(Cmd):
         all files and replacing all internal references to match the new tile name.
         Also appends the required Tile/Supertile entries to fabric.csv.
 
-        .. note::
-            Only works correctly for tiles that follow the default FABulous tile
-            naming scheme, where the tile name is used as a prefix for all files
-            and internal references (e.g. ``LUT4AB.csv``,
-            ``LUT4AB_switch_matrix.list``).
+        Notes
+        -----
+        Only works correctly for tiles that follow the default FABulous tile
+        naming scheme, where the tile name is used as a prefix for all files
+        and internal references (e.g. `LUT4AB.csv`,
+        `LUT4AB_switch_matrix.list`).
 
         Parameters
         ----------
@@ -664,12 +666,24 @@ class FABulous_CLI(Cmd):
         if not src_dir.is_dir():
             logger.error(f"Tile '{args.src_tile}' not found at {src_dir}")
             return
+        if not (src_dir / f"{src_dir.name}.csv").exists():
+            logger.error(
+                f"'{args.src_tile}' at {src_dir} is not a valid FABulous tile"
+                f" (missing {src_dir.name}.csv)"
+            )
+            return
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", dst_dir.name):
+            logger.error(
+                f"'{args.dst_tile}' is not a valid tile name"
+                " (must start with a letter, contain only letters, digits, underscores)"
+            )
+            return
         if dst_dir.exists():
             logger.error(f"Destination '{args.dst_tile}' already exists at {dst_dir}")
             return
 
         clone_tile_directory(src_dir, dst_dir, src_dir.name, dst_dir.name)
-        logger.info(f"Cloned tile '{args.src_tile}' → '{args.dst_tile}'")
+        logger.info(f"Cloned tile '{args.src_tile}' -> '{args.dst_tile}'")
 
         if not args.no_register:
             register_tile_in_fabric_csv(self.csvFile, dst_dir)

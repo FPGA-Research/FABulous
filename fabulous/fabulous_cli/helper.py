@@ -300,6 +300,7 @@ _TEXT_CLONE_EXTENSIONS = {
     ".yaml",
     ".yml",
     ".tcl",
+    ".sv",
 }
 
 
@@ -308,10 +309,11 @@ def clone_tile_directory(
 ) -> None:
     """Copy a tile directory and rename all occurrences of src_name to dst_name.
 
-    .. note::
-        Only works correctly for tiles that follow the default FABulous tile naming
-        scheme, where the tile name is used as a prefix for all files and internal
-        references (e.g. ``LUT4AB.csv``, ``LUT4AB_switch_matrix.list``).
+    Notes
+    -----
+    Only works correctly for tiles that follow the default FABulous tile naming
+    scheme, where the tile name is used as a prefix for all files and internal
+    references (e.g. `LUT4AB.csv`, `LUT4AB_switch_matrix.list`).
 
     Parameters
     ----------
@@ -364,12 +366,12 @@ def resolve_tile(arg: str, tile_dir: Path) -> Path:
 
 
 def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
-    """Append Tile/Supertile entries for *dst_dir* to *csv_path* before ParametersEnd.
+    """Append Tile/Supertile entries for `dst_dir` to `csv_path` before ParametersEnd.
 
-    The CSV paths are written relative to the directory containing *csv_path*
-    (i.e. the project root), so *dst_dir* may be anywhere on the filesystem.
-    Detects whether *dst_dir* is a supertile by checking for sub-directories
-    (excluding ``macro``) inside it.
+    The CSV paths are written relative to the directory containing `csv_path`
+    (i.e. the project root), so `dst_dir` may be anywhere on the filesystem.
+    Detects whether `dst_dir` is a supertile by checking for sub-directories
+    (excluding `macro`) inside it.
 
     Parameters
     ----------
@@ -378,9 +380,10 @@ def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
     dst_dir : Path
         Directory of the cloned tile.
     """
+    dst_dir = dst_dir.resolve()
     dst_name = dst_dir.name
-    project_dir = csv_path.parent
-    tile_rel = dst_dir.relative_to(project_dir, walk_up=True)
+    project_dir = csv_path.parent.resolve()
+    tile_rel = dst_dir.relative_to(project_dir, walk_up=True).as_posix()
 
     sub_tile_names = sorted(
         f.name for f in dst_dir.iterdir() if f.is_dir() and f.name != "macro"
@@ -392,10 +395,14 @@ def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
     new_entries: list[str] = []
     if sub_tile_names:
         for sub in sub_tile_names:
-            new_entries.append(f"Tile,./{tile_rel}/{sub}/{sub}.csv{trailing}\n")
-        new_entries.append(f"Supertile,./{tile_rel}/{dst_name}.csv{trailing}\n")
+            new_entries.append(
+                f"Tile,./{Path(tile_rel, sub, f'{sub}.csv')!s}{trailing}\n"
+            )
+        new_entries.append(
+            f"Supertile,./{Path(tile_rel, f'{dst_name}.csv')!s}{trailing}\n"
+        )
     else:
-        new_entries.append(f"Tile,./{tile_rel}/{dst_name}.csv{trailing}\n")
+        new_entries.append(f"Tile,./{Path(tile_rel, f'{dst_name}.csv')!s}{trailing}\n")
 
     result: list[str] = []
     for line in lines:

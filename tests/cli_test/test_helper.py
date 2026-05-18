@@ -1,5 +1,6 @@
 """Tests for FABulous CLI helper functions."""
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -8,11 +9,14 @@ from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import EnvironmentNotSet
 from fabulous.fabric_definition.define import HDLType
+from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from fabulous.fabulous_cli.helper import (
     create_project,
+    register_tile_in_fabric_csv,
     run_task,
     update_project_version,
 )
+from tests.conftest import normalize_and_check_for_errors, run_cmd
 
 
 def test_create_project(tmp_path: Path) -> None:
@@ -247,3 +251,152 @@ def test_create_project_has_compile_taskfile(tmp_path: Path) -> None:
     assert "compile-yosys" in content
     assert "compile-nextpnr" in content
     assert "compile-bitgen" in content
+
+
+def test_register_tile_in_fabric_csv(tmp_path: Path) -> None:
+    """register_tile_in_fabric_csv appends Tile entry before ParametersEnd."""
+    csv_path = tmp_path / "fabric.csv"
+    csv_path.write_text("Tile,./Tile/LUT4AB/LUT4AB.csv,\nParametersEnd\n")
+
+    dst_dir = tmp_path / "Tile" / "MY_TILE"
+    dst_dir.mkdir(parents=True)
+    (dst_dir / "MY_TILE.csv").touch()
+
+    register_tile_in_fabric_csv(csv_path, dst_dir)
+
+    csv_text = csv_path.read_text(encoding="utf-8")
+    assert f"Tile,./{Path('Tile', 'MY_TILE', 'MY_TILE.csv')!s}" in csv_text
+
+
+@pytest.mark.parametrize("src_kind", ["name", "absolute", "external"])
+def test_clone_tile_various_src(
+    src_kind: str,
+    cli: FABulous_CLI,
+    caplog: pytest.LogCaptureFixture,
+    tmp_path: Path,
+) -> None:
+    """Clone a tile into Tile/ using different source specifications."""
+    if src_kind == "name":
+        run_cmd(cli, "clone_tile LUT4AB MY_TILE")
+    elif src_kind == "absolute":
+        src_path = str((cli.projectDir / "Tile" / "LUT4AB").resolve())
+        run_cmd(cli, f"clone_tile {src_path} MY_TILE")
+    else:
+        external_src = tmp_path / "external" / "LUT4AB"
+        shutil.copytree(cli.projectDir / "Tile" / "LUT4AB", external_src)
+        run_cmd(cli, f"clone_tile {external_src} MY_TILE")
+
+    normalize_and_check_for_errors(caplog.text)
+
+    dst_dir = cli.projectDir / "Tile" / "MY_TILE"
+    assert dst_dir.is_dir()
+    assert (dst_dir / "MY_TILE.csv").exists()
+    assert not (dst_dir / "LUT4AB.csv").exists()
+
+    csv_content = (dst_dir / "MY_TILE.csv").read_text(encoding="utf-8")
+    assert "MY_TILE" in csv_content
+    assert "LUT4AB" not in csv_content
+
+    fabric_csv = cli.csvFile.read_text(encoding="utf-8")
+    assert f"Tile,./{Path('Tile', 'MY_TILE', 'MY_TILE.csv')!s}" in fabric_csv
+
+    lines = fabric_csv.splitlines()
+    tile_idx = next(i for i, ln in enumerate(lines) if "MY_TILE" in ln)
+    params_end_idx = next(
+        i for i, ln in enumerate(lines) if ln.strip().startswith("ParametersEnd")
+    )
+    assert tile_idx < params_end_idx
+
+
+def test_clone_supertile_creates_subtile_and_supertile_entries(
+    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Cloning a supertile adds Tile entries for sub-tiles and a Supertile entry."""
+    run_cmd(cli, "clone_tile DSP MY_DSP")
+    normalize_and_check_for_errors(caplog.text)
+
+    csv_text = cli.csvFile.read_text(encoding="utf-8")
+    assert (
+        f"Tile,./{Path('Tile', 'MY_DSP', 'MY_DSP_bot', 'MY_DSP_bot.csv')!s}" in csv_text
+    )
+    assert (
+        f"Tile,./{Path('Tile', 'MY_DSP', 'MY_DSP_top', 'MY_DSP_top.csv')!s}" in csv_text
+    )
+    assert f"Supertile,./{Path('Tile', 'MY_DSP', 'MY_DSP.csv')!s}" in csv_text
+
+
+@pytest.mark.parametrize(
+    ("cmd", "error_fragment"),
+    [
+        ("clone_tile NONEXISTENT MY_TILE", "NONEXISTENT"),
+        ("clone_tile LUT4AB LUT4AB_copy", "already exists"),
+        ("clone_tile EMPTY_DIR MY_TILE", "not a valid FABulous tile"),
+        ("clone_tile LUT4AB my-tile", "not a valid tile name"),
+        ("clone_tile LUT4AB 1TILE", "not a valid tile name"),
+    ],
+)
+def test_clone_tile_error_cases(
+    cli: FABulous_CLI,
+    caplog: pytest.LogCaptureFixture,
+    cmd: str,
+    error_fragment: str,
+) -> None:
+    """Error cases log an ERROR with an informative message."""
+    if "LUT4AB_copy" in cmd:
+        (cli.projectDir / "Tile" / "LUT4AB_copy").mkdir(parents=True)
+    if "EMPTY_DIR" in cmd:
+        (cli.projectDir / "Tile" / "EMPTY_DIR").mkdir(parents=True)
+
+    run_cmd(cli, cmd)
+
+    assert "ERROR" in caplog.text
+    assert error_fragment in caplog.text
+
+
+def test_clone_tile_dst_absolute_path(
+    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
+    """Cloning to an absolute path places the tile outside the Tile directory."""
+    dst_path = (tmp_path / "external_tiles" / "MY_TILE").resolve()
+    run_cmd(cli, f"clone_tile LUT4AB {dst_path}")
+    normalize_and_check_for_errors(caplog.text)
+
+    assert dst_path.is_dir()
+    assert (dst_path / "MY_TILE.csv").exists()
+
+    csv_text = cli.csvFile.read_text(encoding="utf-8")
+    expected_rel = dst_path.relative_to(cli.projectDir.resolve(), walk_up=True)
+    assert f"Tile,./{Path(expected_rel, 'MY_TILE.csv')!s}" in csv_text
+
+
+def test_clone_tile_dst_path_with_separator(
+    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dst argument containing a path separator is treated as a path, not a name."""
+    dst_path = cli.projectDir / "Tile" / "subdir" / "MY_TILE"
+    run_cmd(cli, f"clone_tile LUT4AB {dst_path}")
+    normalize_and_check_for_errors(caplog.text)
+
+    assert dst_path.is_dir()
+    assert (dst_path / "MY_TILE.csv").exists()
+
+    csv_text = cli.csvFile.read_text(encoding="utf-8")
+    assert f"Tile,./{Path('Tile', 'subdir', 'MY_TILE', 'MY_TILE.csv')!s}" in csv_text
+
+
+def test_clone_tile_no_register_skips_fabric_csv(
+    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
+) -> None:
+    """--no-register clones the tile directory but leaves fabric.csv unchanged."""
+    csv_before = cli.csvFile.read_text(encoding="utf-8")
+
+    run_cmd(cli, "clone_tile LUT4AB MY_TILE --no-register")
+    normalize_and_check_for_errors(caplog.text)
+
+    dst_dir = cli.projectDir / "Tile" / "MY_TILE"
+    assert dst_dir.is_dir()
+    assert (dst_dir / "MY_TILE.csv").exists()
+
+    csv_after = cli.csvFile.read_text(encoding="utf-8")
+    assert csv_after == csv_before
+    assert "MY_TILE" not in csv_after
