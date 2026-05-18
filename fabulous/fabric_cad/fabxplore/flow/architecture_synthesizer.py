@@ -23,6 +23,9 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
 from fabulous.fabric_cad.fabxplore.modules.lut_mapper.core.models import (
     LutMapperBackend,
 )
+from fabulous.fabric_cad.fabxplore.pnr.custom_passes.tile_builder_pass import (
+    TileBuilderPass,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.chain_mapper_pass import (
     ChainMapperPass,
 )
@@ -77,6 +80,11 @@ if TYPE_CHECKING:
         FfPortsInput,
         RuleInput,
     )
+    from fabulous.fabric_cad.fabxplore.modules.tile_builder.core.models import (
+        BaselineRouting,
+        TileBel,
+    )
+    from fabulous.fabric_cad.fabxplore.pnr.pnr_pass import PnRPass
     from fabulous.fabric_cad.fabxplore.pyosys.synth_pass import SynthPass
     from fabulous.fabulous_api import FABulous_API
 
@@ -95,7 +103,7 @@ class ArchitectureSynthesizer(ABC):
         self.design: PyosysBridge = PyosysBridge(debug=self.debug)
         self.primitives: set[str] = set()
 
-        self._pass_history: list[SynthPass] = []
+        self._pass_history: list[SynthPass | PnRPass] = []
 
         self._latest_lut_mapping_result: MappingResult | None = None
         self._latest_frac_lut_architecture: FracLutArchitecture | None = None
@@ -1040,6 +1048,63 @@ class ArchitectureSynthesizer(ABC):
         )
 
         result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        self._pass_history.append(result)
+
+        return result
+
+    def pnr_tile_builder_pass(
+        self,
+        tile_name: str,
+        bels: list[TileBel | dict[str, object]],
+        routing: BaselineRouting | dict[str, object] | None = None,
+        log_report: bool = True,
+        tile_dir: Path | None = None,
+        register_in_fabric: bool = True,
+        track_progress: bool = True,
+        progress_chunk_size: int = 25,
+    ) -> TileBuilderPass:
+        """Build FABulous tile files for the active project.
+
+        Parameters
+        ----------
+        tile_name : str
+            Name of the FABulous tile to generate.
+        bels : list[TileBel | dict[str, object]]
+            BEL source files and prefixes to instantiate.
+        routing : BaselineRouting | dict[str, object] | None
+            Baseline routing options. ``None`` selects defaults.
+        log_report : bool
+            If ``True``, log the tile-builder report after execution.
+        tile_dir : Path | None
+            Optional tile directory. If ``None``, use
+            ``<project>/Tile/<tile_name>``.
+        register_in_fabric : bool
+            Whether ``fabric.csv`` should receive a ``Tile`` entry for the
+            generated tile.
+        track_progress : bool
+            Whether progress should be logged.
+        progress_chunk_size : int
+            Number of BEL instances between progress updates.
+
+        Returns
+        -------
+        TileBuilderPass
+            Pass instance containing result and report data.
+        """
+        result = TileBuilderPass(
+            tile_name=tile_name,
+            bels=bels,
+            routing=routing,
+            tile_dir=tile_dir,
+            register_in_fabric=register_in_fabric,
+            track_progress=track_progress,
+            progress_chunk_size=progress_chunk_size,
+        )
+        result.run_on(self.design, self.fab)
 
         if log_report:
             self.log_info(result.report_summary)
