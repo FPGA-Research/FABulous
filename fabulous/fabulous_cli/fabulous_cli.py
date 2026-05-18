@@ -512,6 +512,12 @@ class FABulous_CLI(Cmd):
         type=str,
         help="Name for the cloned tile (placed in Tile/) or path to destination dir",
     )
+    clone_tile_parser.add_argument(
+        "--no-register",
+        action="store_true",
+        default=False,
+        help="Skip adding the new tile to fabric.csv",
+    )
 
     install_oss_cad_suite_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     install_oss_cad_suite_parser.add_argument(
@@ -649,6 +655,7 @@ class FABulous_CLI(Cmd):
               a tile directory
             - dst_tile: Name for the new tile (placed in Tile/) or path to the
               destination directory
+            - no_register: If True, skip updating fabric.csv
         """
         tile_dir = self.projectDir / "Tile"
         src_dir = resolve_tile(args.src_tile, tile_dir)
@@ -664,8 +671,9 @@ class FABulous_CLI(Cmd):
         clone_tile_directory(src_dir, dst_dir, src_dir.name, dst_dir.name)
         logger.info(f"Cloned tile '{args.src_tile}' → '{args.dst_tile}'")
 
-        register_tile_in_fabric_csv(self.csvFile, dst_dir)
-        logger.info(f"Updated {self.csvFile} with entries for '{args.dst_tile}'")
+        if not args.no_register:
+            register_tile_in_fabric_csv(self.csvFile, dst_dir)
+            logger.info(f"Updated {self.csvFile} with entries for '{args.dst_tile}'")
 
     @with_category(CMD_HELPER)
     def do_print_bel(self, args: argparse.Namespace) -> None:

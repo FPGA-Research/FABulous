@@ -257,3 +257,29 @@ def test_clone_tile_dst_path_with_separator(
 
     csv_text = cli.csvFile.read_text(encoding="utf-8")
     assert "Tile,./Tile/subdir/MY_TILE/MY_TILE.csv" in csv_text
+
+
+def test_clone_tile_no_register_skips_fabric_csv(
+    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
+) -> None:
+    """--no-register clones the tile directory but leaves fabric.csv unchanged.
+
+    Parameters
+    ----------
+    cli : FABulous_CLI
+        CLI instance with a loaded fabric.
+    caplog : pytest.LogCaptureFixture
+        Loguru-integrated log capture.
+    """
+    csv_before = cli.csvFile.read_text(encoding="utf-8")
+
+    run_cmd(cli, "clone_tile LUT4AB MY_TILE --no-register")
+    normalize_and_check_for_errors(caplog.text)
+
+    dst_dir = cli.projectDir / "Tile" / "MY_TILE"
+    assert dst_dir.is_dir()
+    assert (dst_dir / "MY_TILE.csv").exists()
+
+    csv_after = cli.csvFile.read_text(encoding="utf-8")
+    assert csv_after == csv_before
+    assert "MY_TILE" not in csv_after
