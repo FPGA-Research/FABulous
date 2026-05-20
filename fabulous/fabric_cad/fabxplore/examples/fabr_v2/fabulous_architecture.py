@@ -286,6 +286,64 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             progress_chunk_size=5,
         )
 
+    def build_tile(self) -> None:
+        """Generate the FABulous tile files used by this architecture."""
+        self.pnr_tile_builder_pass(
+            tile_name="test_tile2",
+            bels=[
+                {
+                    "verilog_path": self.my_root / "arch_rtl" / "FLUT5_1P_2PS.v",
+                    "prefixes": [
+                        "LA_",
+                        "LB_",
+                        "LC_",
+                        "LD_",
+                        "LE_",
+                        "LF_",
+                        "LG_",
+                        "LH_",
+                    ],
+                    "add_as_custom_prim": True,
+                },
+                {
+                    "verilog_path": (
+                        self.my_root / "arch_rtl" / "MUX8LUT_frame_config_mux.v"
+                    ),
+                    "prefixes": ["LM_"],
+                    "add_as_custom_prim": True,
+                },
+            ],
+            routing={
+                "use_fabulous_auto": False,
+                "base_csv_includes": ["./../include/Base.csv"],
+                "base_list_includes": ["../include/Base.list"],
+                "input_fanin": 4,
+                "output_fanin": 5,
+                "min_input_fanin": 1,
+                "min_output_fanin": 1,
+                "routing_pip_pattern": "wilton",
+                "routing_pip_fs": 3,
+                "min_routing_pip_fs": 1,
+                "generate_straight_routing_pips": True,
+                "generate_turn_routing_pips": True,
+                "connection_hierarchy": {
+                    "enabled": True,
+                    "levels": [2, 2],
+                    "generate_jump_ports": True,
+                    "jump_prefix": "J_LOCAL",
+                    "replace_direct_input_pips": True,
+                },
+                "config_bit_margin": 0,
+                "derive_sources_from_base": True,
+                "cover_unconnected_outputs": True,
+                "emit_constants_if_missing": True,
+                "allow_bel_output_feedback_sources": True,
+            },
+            register_in_fabric=True,
+            track_progress=True,
+            progress_chunk_size=5,
+        )
+
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""
         self.design.run_pass("techmap -D LUT_K=5 -map +/fabulous/cells_map.v")
@@ -335,6 +393,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.map_luts()
         self.map_cells()
         self.check(config)
+        self.build_tile()
 
         self.write_verilog_path(config)
         self.write_json_path(config)
@@ -347,7 +406,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         # TODO: Explain how to do simulation and verification.
         # TODO: sequential pattern graph.
 
-        sel_test: int = 0
+        sel_test: int = 1
         config: FabulousArchitectureConfig = None
         match sel_test:
             case 0:

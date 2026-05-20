@@ -3,8 +3,10 @@
 from fabulous.fabric_cad.fabxplore.modules.tile_builder.core.builder import TileBuilder
 from fabulous.fabric_cad.fabxplore.modules.tile_builder.core.models import (
     BaselineRouting,
+    ConnectionHierarchyOptions,
     FabulousCsvKeyword,
     FabulousSpecialFeature,
+    RoutingPipPattern,
     TileBel,
     TileBuilderGeneratedWire,
     TileBuilderOptions,
@@ -13,8 +15,10 @@ from fabulous.fabric_cad.fabxplore.modules.tile_builder.core.models import (
 
 __all__ = [
     "BaselineRouting",
+    "ConnectionHierarchyOptions",
     "FabulousCsvKeyword",
     "FabulousSpecialFeature",
+    "RoutingPipPattern",
     "TileBel",
     "TileBuilder",
     "TileBuilderGeneratedWire",

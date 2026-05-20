@@ -1,0 +1,314 @@
+# Tile Builder
+
+We additionally should provide to the user different types
+of switch-matrices like VTR/VPR:
+In FABulous, all of these are just different 0/1 patterns
+in the switch-matrix adjacency.
+
+subset:
+  put 1s at same-track connections
+
+wilton:
+  put 1s at permuted-track connections
+
+universal:
+  put 1s according to universal switch-box mapping
+
+custom:
+  put 1s wherever your own pattern wants
+
+For exaple:
+for FABulous, a Wilton-like switch matrix is just a generated .list/adjacency matrix
+where the 1s follow the Wilton permutation rule
+
+# Routing Demand Evaluator
+
+okay so the goal for that pass (routing_demand_evaluator) is:
+- That pass should be more or less self-contained.
+- We have options to give it the tile dir, or the individual files.
+- We will use the PathFinder router similar what nextpnr router2 is using.
+  Here we expose some options from that algorithm but we set useful defaults.
+- Then we expose what demands should be tested, we will have a default set of demands
+  but the user can choose also waht to use and waht not. We should think of good
+  demands that have benefits we also should intermix that with random paths that
+  can also be larger but in general we also want to test larger paths. Then we
+  expose how many demand iterations the user want to test and an option of
+  how many of then should be random. We must of course consider that the
+  switch matrix not only has local wires also wires from outside and
+  long distance wires. In general some useful demands are:
+  The most critical hard demands are BEL input reachability, BEL output escape,
+  straight/turn routing, local/neighbor feedback, and carry/direct-chain routes,
+  can BELs drive the same input net.
+  But maybe we should also consider:
+    1. BEL output escape
+       LUT/FF/BEL output -> N/E/S/W routing wires
+
+    2. BEL input reachability
+       N/E/S/W routing wires -> LUT/FF/BEL inputs
+
+    3. Same-tile local feedback
+       LUT/FF output -> LUT input in the same tile
+
+    4. Neighbor feedback
+       tile(x,y) BEL output -> tile(x+1,y), tile(x-1,y), tile(x,y+1), tile(x,y-1) BEL input
+
+    5. Straight wire continuation
+       N -> S, S -> N, E -> W, W -> E for same or compatible tracks
+
+    6. Left/right turns
+       N -> E/W, S -> E/W, E -> N/S, W -> N/S
+
+    7. Short-to-long wire access
+       local/single wire -> double/quad/hex wire
+
+    8. Long-to-short wire exit
+       double/quad/hex wire -> local/single wire -> BEL input
+
+    9. Multi-hop distance routes
+       BEL output -> BEL input at Manhattan distance 1, 2, 4, 8
+
+    10. Fanout routes
+        one BEL output -> 2, 4, 8 nearby BEL inputs
+
+    11. Control-net routes
+        one source -> many FF clock-enable/reset/select-like inputs
+
+    12. Carry/direct-chain routes
+        carry out -> neighboring carry in
+
+    13. DSP/RAM access routes
+        routing wires -> DSP/RAM inputs and DSP/RAM outputs -> routing wires
+
+    14. IO access routes
+        IO input -> fabric BEL input and BEL output -> IO output
+
+    15. Random seeded routes
+        random source/sink pairs with fixed seed, split by local/medium/long distance
+- Then we can do optimization. We just have an parameter opt, noting more.
+  Here we can optimize the the switch-matrix by itertively removing wires
+  and check the demand. Here we want to expose opt_* parameters that will then
+  be applied when opt=True. We have here parameters like how many demands are
+  we allow to fail, how much iterations, maybe what demand category should fail
+  waht number. then we have a number of how much percent we want to reduce the
+  pips, but demand boundary is priority.
+- Then how to do optimization: A scalable way to estimate PIP importance
+  is Monte Carlo ablation: repeatedly remove random PIP batches, run the
+  demand tester, measure demand loss, and estimate each PIP’s importance
+  from how much worse results are when that PIP is removed versus
+  when it is kept. This gives a statistical ranking before actual pruning.
+  Remove only small batches of high-removal-score PIPs, rerun the demand tester
+  after each batch, and keep the removal only if all hard demands still pass and
+  the soft/random demand failure rate stays below the user threshold. After each
+  accepted batch, recompute importance, because backup PIPs become more important
+  once other PIPs are removed.
+  Mabe that:  remove_score(PIP) = cost_saving(PIP) / (importance(PIP) + epsilon).
+  But:
+  A batch may contain 1 critical PIP + 99 useless PIPs.
+  The demand drops a lot.
+  Naively, all 100 PIPs look bad.
+  So that why we could fit a simple regression:
+  loss_k ≈ β0 + β1*x1 + β2*x2 + ... + βn*xn
+  where:
+  xi = 1 if PIP i was removed in experiment k
+  xi = 0 otherwise
+  So the flow could be:
+  1. Start from user switch-matrix list.
+  2. Generate random PIP-removal batches.
+     Use different batch sizes:
+       small: 1–2%
+       medium: 5%
+       large: 10–20%
+
+  3. For each batch:
+     remove PIPs
+     run demand tester
+     compute weighted loss
+     restore PIPs
+
+  4. Estimate PIP importance:
+     importance(e) = avg_loss_removed(e) - avg_loss_kept(e)
+     or use regression coefficient βe.
+
+  5. Protect structurally critical PIPs:
+     do not remove if it breaks minimum BEL input reachability,
+     output escape, straight/turn routing, carry/direct paths, etc.
+
+  6. Sort by:
+     remove_score = cost_saving / importance
+
+  7. Remove PIPs in small batches.
+     After each accepted batch, rerun full demand tester.
+
+  8. Stop when:
+     hard demands fail,
+     soft failure exceeds threshold,
+     or timing/path quality gets too bad.
+  We should then also store a matrix that shows each importance that we
+  calculated for each pip. Similar to the switch matrix csv but the
+  values are the importance values.
+- Report. The report could look like that:
+
+Switch Matrix Demand Test Report
+================================
+
+1. Summary
+----------
+Status: PASS / PASS WITH WARNINGS / FAIL
+Mode: demand-test only / demand-test + optimization
+Input switch matrix: <file>
+Demand suite: <default/custom/random seeds>
+Hard demands passed: 100.0%
+Soft demands passed: 97.3%
+Allowed soft failure: 5.0%
+Result: valid, below failure threshold
+
+Original PIPs: 12,480
+Final PIPs: 9,860
+Removed PIPs: 2,620 (-21.0%)
+Original mux inputs: 12,480
+Final mux inputs: 9,860
+Estimated config bits: -18.4%
+Estimated mux area proxy: -20.1%
+Estimated delay proxy: -6.3%
+
+
+2. Demand Results
+-----------------
+Demand class                 Type    Passed     Failed   Pass rate
+BEL output escape            hard    1024       0        100.0%
+BEL input reachability       hard    4096       0        100.0%
+Straight routing             hard    2048       0        100.0%
+Left/right turns             hard    4096       0        100.0%
+Local feedback               hard    512        0        100.0%
+Neighbor feedback            hard    2048       0        100.0%
+Carry/direct chain           hard    256        0        100.0%
+Short-to-long access         soft    1800       22       98.8%
+Long-to-short exit           soft    1800       35       98.1%
+Fanout routes                soft    1000       41       95.9%
+Random local                 soft    5000       28       99.4%
+Random medium                soft    5000       113      97.7%
+Random long                  soft    5000       391      92.2%
+
+Worst failing class:
+  random long routes
+
+Most sensitive class:
+  fanout routes, because average path length increased by 14.2%
+
+
+3. Routing Quality
+------------------
+Metric                       Original     Final       Change
+Average path PIPs            4.8          5.2         +8.3%
+Maximum path PIPs            19           24          +26.3%
+Average path delay proxy     1.00         1.06        +6.0%
+Worst path delay proxy       1.00         1.13        +13.0%
+Average alternatives/path    7.4          4.1         -44.6%
+Congested resources          18           31          +72.2%
+
+Interpretation:
+  The optimized matrix is still routable, but has less redundancy.
+  Long and high-fanout routes are the first classes affected by pruning.
+
+
+4. Optimization Summary
+-----------------------
+Optimization enabled: yes
+Algorithm: importance-guided batch pruning
+Iterations: 37
+Accepted batches: 29
+Rejected batches: 8
+Stop reason: soft failure threshold nearly reached
+
+Thresholds:
+  hard demands must pass: yes
+  max soft failure: 5.0%
+  max average delay increase: 10.0%
+  max average path length increase: 15.0%
+
+Final soft failure:
+  2.7%
+
+Final average delay increase:
+  6.0%
+
+
+5. Removed PIP Breakdown
+------------------------
+PIP category                 Removed     Original     Removed %
+BEL input PIPs               820         4200         19.5%
+BEL output escape PIPs       260         1600         16.3%
+Wire-to-wire PIPs            1290        5200         24.8%
+Local feedback PIPs          80          600          13.3%
+Long-wire access PIPs        170         880          19.3%
+
+Largest savings:
+  wire-to-wire PIPs
+
+Most protected:
+  carry/direct-chain PIPs
+  BEL input reachability PIPs
+
+
+6. Mux Size Changes
+-------------------
+Mux size range     Original count     Final count
+1                  120                260
+2-4                740                1120
+5-8                980                1020
+9-16               410                260
+17-32              96                 28
+>32                14                 0
+
+Interpretation:
+  Large muxes were successfully reduced.
+  No very large mux remains after optimization.
+
+
+7. Critical / Important PIPs
+----------------------------
+These PIPs should probably be kept in future optimization runs:
+
+PIP                         Reason
+N1END0 -> LUT_I0            required for BEL input reachability
+LUT_O -> E1BEG0             high use in output escape demands
+CARRY_OUT -> CARRY_IN_N     hard direct-chain demand
+Q4END2 -> S1BEG1            used by many long-route alternatives
+
+These PIPs are candidates for further pruning:
+
+PIP                         Reason
+W2END3 -> E2BEG3            low use, many alternatives
+N1END7 -> LUT_I3            low replacement penalty
+Q4END0 -> LOCAL_FB2         unused in all demand tests
+
+
+8. Failed Demand Examples
+-------------------------
+Demand: random_long_seed3_1842
+Source: tile(2,4).LUT_O
+Sink:   tile(17,19).LUT_I2
+Result: failed after optimization
+Likely cause:
+  removed long-to-short exit options in east/north direction
+
+Demand: fanout_seed1_392
+Source: tile(8,8).FF_Q
+Sinks:  4 nearby LUT inputs
+Result: routed, but path length increased from 6 to 11 PIPs
+Likely cause:
+  reduced local branching options
+
+
+9. Recommendation
+-----------------
+Result is acceptable if the goal is area/config reduction.
+The matrix removed 21.0% of PIPs while keeping all hard demands and only 2.7% soft-demand failure.
+
+Recommended next steps:
+  - Validate on real benchmark routing.
+  - Add more fanout demands before further pruning.
+  - Protect long-to-short exit PIPs if timing is important.
+  - Try a second optimization pass with lower removal aggressiveness.
+- Also: demand-driven grouping and hier opts.
+- larger muxes that we decompose them option
