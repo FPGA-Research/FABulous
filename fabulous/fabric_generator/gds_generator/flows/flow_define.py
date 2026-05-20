@@ -14,6 +14,9 @@ from librelane.steps.step import Step
 from fabulous.fabric_generator.gds_generator.steps.condition_magic_drc import (
     ConditionalMagicDRC,
 )
+from fabulous.fabric_generator.gds_generator.steps.diodes_on_ports import (
+    FABulousDiodesOnPorts,
+)
 from fabulous.fabric_generator.gds_generator.steps.extract_pdk_info import (
     ExtractPDKInfo,
 )
@@ -46,9 +49,9 @@ physical_steps: list[type[Step]] = [
     OpenROAD.GeneratePDN,
     Odb.RemovePDNObstructions,
     Odb.AddRoutingObstructions,
-    OpenROAD.GlobalPlacementSkipIO,
     Odb.CustomIOPlacement,
     Odb.ApplyDEFTemplate,
+    FABulousDiodesOnPorts,
     OpenROAD.GlobalPlacement,
     Odb.WriteVerilogHeader,
     Checker.PowerGridViolations,
@@ -63,7 +66,6 @@ physical_steps: list[type[Step]] = [
     OpenROAD.GlobalRouting,
     OpenROAD.CheckAntennas,
     OpenROAD.RepairDesignPostGRT,
-    Odb.DiodesOnPorts,
     Odb.HeuristicDiodeInsertion,
     OpenROAD.RepairAntennas,
     OpenROAD.ResizerTimingPostGRT,

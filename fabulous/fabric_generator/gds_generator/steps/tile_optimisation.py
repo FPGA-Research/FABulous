@@ -20,6 +20,9 @@ from fabulous.fabric_generator.gds_generator.helper import (
 )
 from fabulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
 from fabulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
+from fabulous.fabric_generator.gds_generator.steps.diodes_on_ports import (
+    FABulousDiodesOnPorts,
+)
 from fabulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
     FABulousTileIOPlacement,
 )
@@ -110,9 +113,9 @@ class TileOptimisation(WhileStep):
         CustomGeneratePDN,  # Custom PDN default pdn_cfg.tcl
         Odb.RemovePDNObstructions,
         Odb.AddRoutingObstructions,
-        OpenROAD.GlobalPlacementSkipIO,
         FABulousTileIOPlacement,  # Replace with FABulous IO Placement
         Odb.ApplyDEFTemplate,
+        FABulousDiodesOnPorts,
         OpenROAD.GlobalPlacement,
         AddBuffers,  # Add Buffers after Global Placement
         Odb.WriteVerilogHeader,
@@ -123,7 +126,6 @@ class TileOptimisation(WhileStep):
         OpenROAD.GlobalRouting,
         # AutoEcoDiodeInsertion,
         OpenROAD.CheckAntennas,
-        Odb.DiodesOnPorts,
         OpenROAD.RepairAntennas,
         OpenROAD.DetailedRouting,
         Odb.RemoveRoutingObstructions,
