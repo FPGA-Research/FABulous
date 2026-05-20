@@ -11,7 +11,7 @@ from librelane.steps.step import CompositeStep, MetricsUpdate, Step, ViewsUpdate
 class FABulousDiodesOnPorts(CompositeStep):
     """Insert diodes on design ports and legalize via global + detailed placement.
 
-    Mirrors ``Odb.DiodesOnPorts`` but omits the GlobalRouting re-run after
+    Mirrors `Odb.DiodesOnPorts` but omits the GlobalRouting re-run after
     placement, since global routing is run at a separate step later in the flow.
     """
 
