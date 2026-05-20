@@ -27,7 +27,7 @@ class FABulousDiodesOnPorts(CompositeStep):
     def run(self, state_in: State, **kwargs: dict) -> tuple[ViewsUpdate, MetricsUpdate]:
         """Run the step if diodes on ports are configured and a diode cell is set."""
         if self.config["DIODE_ON_PORTS"] == "none":
-            info(f"'DIODE_ON_PORTS' is set to 'none': skipping '{self.id}'…")
+            info(f"'DIODE_ON_PORTS' is set to 'none': skipping '{self.id}'...")
             return {}, {}
         if self.config["DIODE_CELL"] is None:
             raise ValueError(f"'DIODE_CELL' not set but '{self.id}' is enabled.")
