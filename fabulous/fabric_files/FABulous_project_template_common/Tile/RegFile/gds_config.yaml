@@ -1,3 +1,5 @@
+DIODE_ON_PORTS: "out"
+
 DIE_AREA: [0, 0, 260, 245]
 
 pdk::gf180mcuD:
