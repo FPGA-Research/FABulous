@@ -35,6 +35,8 @@ class TileBuilderPass(PnRPass):
         Baseline routing options. ``None`` selects defaults.
     tile_dir : Path | None
         Optional tile directory. ``None`` selects ``<project>/Tile/<tile_name>``.
+    config_bit_capacity_override : int | None
+        Optional total config-bit capacity. ``None`` uses the loaded FABulous fabric.
     register_in_fabric : bool
         Whether ``fabric.csv`` should receive a ``Tile`` entry for the generated tile.
     track_progress : bool
@@ -47,6 +49,7 @@ class TileBuilderPass(PnRPass):
     bels: list[TileBel | dict[str, object]]
     routing: BaselineRouting | dict[str, object] | None = None
     tile_dir: Path | None = None
+    config_bit_capacity_override: int | None = None
     register_in_fabric: bool = True
     track_progress: bool = True
     progress_chunk_size: int = 25
@@ -72,6 +75,7 @@ class TileBuilderPass(PnRPass):
             if isinstance(self.routing, BaselineRouting)
             else BaselineRouting(**(self.routing or {})),
             tile_dir=self.tile_dir,
+            config_bit_capacity_override=self.config_bit_capacity_override,
             register_in_fabric=self.register_in_fabric,
             track_progress=self.track_progress,
             progress_chunk_size=self.progress_chunk_size,

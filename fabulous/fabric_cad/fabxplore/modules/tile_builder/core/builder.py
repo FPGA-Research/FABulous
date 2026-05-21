@@ -81,6 +81,7 @@ class TileBuilder:
             self.options.tile_dir or project_dir / "Tile" / self.options.tile_name
         )
         tile_dir.mkdir(parents=True, exist_ok=True)
+        _remove_legacy_matrix_artifacts(tile_dir, self.options.tile_name)
 
         tracker = TileBuilderProcessTracker(
             enabled=self.options.track_progress,
@@ -98,7 +99,7 @@ class TileBuilder:
         baseline_result: BaselineListResult | None = None
         matrix_list: Path | None = None
         warnings: list[str] = []
-        capacity = _config_capacity(fab)
+        capacity = _config_capacity(fab, self.options.config_bit_capacity_override)
         bel_config_bits = sum(bel.configBit for bel in parsed_bels)
         matrix_budget = (
             capacity - bel_config_bits - self.options.routing.config_bit_margin
@@ -115,9 +116,7 @@ class TileBuilder:
                 [FabulousCsvKeyword.MATRIX, FabulousCsvKeyword.GENERATE]
             )
         else:
-            matrix_list = (
-                tile_dir / f"{self.options.tile_name}_baseline_switch_matrix.list"
-            )
+            matrix_list = tile_dir / f"{self.options.tile_name}_switch_matrix.list"
             baseline_result = baseline_list_generator.generate_baseline_list(
                 tile_name=self.options.tile_name,
                 bels=parsed_bels,
@@ -126,7 +125,7 @@ class TileBuilder:
                 matrix_config_budget=matrix_budget,
             )
             matrix_list.write_text(baseline_result.text, encoding="utf-8")
-            tracker.wrote_file("baseline list", matrix_list)
+            tracker.wrote_file("switch matrix list", matrix_list)
             artifacts.append(TileBuilderArtifact(kind="matrix_list", path=matrix_list))
             warnings.extend(baseline_result.warnings)
             matrix_line = f"MATRIX,./{matrix_list.name}"
@@ -533,19 +532,23 @@ def _register_tile_in_fabric(
     fabric_csv.write_text(text, encoding="utf-8")
 
 
-def _config_capacity(fab: FABulous_API) -> int:
+def _config_capacity(fab: FABulous_API, override: int | None = None) -> int:
     """Return the fabric config-bit capacity for one tile.
 
     Parameters
     ----------
     fab : FABulous_API
         Loaded FABulous API instance.
+    override : int | None
+        Optional capacity override.
 
     Returns
     -------
     int
         Frame bits per row multiplied by maximum frames per column.
     """
+    if override is not None:
+        return override
     return fab.fabric.frameBitsPerRow * fab.fabric.maxFramesPerCol
 
 
@@ -622,13 +625,29 @@ def _run_fabulous_generation(
         TileBuilderArtifact(kind="switch_matrix_rtl", path=switch_matrix),
         TileBuilderArtifact(
             kind="switch_matrix_csv",
-            path=tile_dir / f"{tile_name}_baseline_switch_matrix.csv",
+            path=tile_dir / f"{tile_name}_switch_matrix.csv",
         ),
         TileBuilderArtifact(kind="config_mem_csv", path=config_mem_csv),
         TileBuilderArtifact(kind="config_mem_rtl", path=config_mem),
         TileBuilderArtifact(kind="tile_rtl", path=tile_rtl),
     ]
     return [artifact for artifact in artifacts if artifact.path.exists()]
+
+
+def _remove_legacy_matrix_artifacts(tile_dir: Path, tile_name: str) -> None:
+    """Remove tile-builder matrix files from older variant naming.
+
+    Parameters
+    ----------
+    tile_dir : Path
+        Tile directory containing generated artifacts.
+    tile_name : str
+        Generated tile name.
+    """
+    for suffix in (".list", ".csv"):
+        legacy_path = tile_dir / f"{tile_name}_baseline_switch_matrix{suffix}"
+        if legacy_path.exists():
+            legacy_path.unlink()
 
 
 def _remove_stale_config_mem_csv(config_mem_csv: Path) -> None:

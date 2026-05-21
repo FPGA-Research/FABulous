@@ -1063,6 +1063,12 @@ def test_builder_generates_files_and_registers_tile() -> None:
         tmp_dir = Path(td)
         fabric_csv = _write_project(tmp_dir)
         source = _write_bel_source(tmp_dir)
+        tile_dir = tmp_dir / "Tile" / "test_tile"
+        tile_dir.mkdir(parents=True)
+        legacy_list = tile_dir / "test_tile_baseline_switch_matrix.list"
+        legacy_csv = tile_dir / "test_tile_baseline_switch_matrix.csv"
+        legacy_list.write_text("stale list\n", encoding="utf-8")
+        legacy_csv.write_text("stale csv\n", encoding="utf-8")
         fab = _FakeFab(
             fabric_csv=fabric_csv,
             tile=_FakeTile(name="test_tile", matrixConfigBits=10, globalConfigBits=14),
@@ -1084,6 +1090,13 @@ def test_builder_generates_files_and_registers_tile() -> None:
         assert result.tile_csv.is_file()
         assert result.matrix_list is not None
         assert result.matrix_list.is_file()
+        assert result.matrix_list.name == "test_tile_switch_matrix.list"
+        assert "MATRIX,./test_tile_switch_matrix.list" in result.tile_csv.read_text(
+            encoding="utf-8"
+        )
+        assert (tile_dir / "test_tile_switch_matrix.csv").is_file()
+        assert not legacy_list.exists()
+        assert not legacy_csv.exists()
         assert (tmp_dir / "user_design" / "custom_prims.v").is_file()
         assert "Tile,./Tile/test_tile/test_tile.csv" in fabric_csv.read_text()
         assert "Tile Builder Report" in result.report_summary
@@ -1218,6 +1231,36 @@ def test_builder_fails_when_config_capacity_is_exceeded() -> None:
                 ).build(PyosysBridge(debug=False), fab),
                 "config bits",
             )
+
+
+def test_builder_uses_config_bit_capacity_override() -> None:
+    """Test the top-level capacity override replaces the fabric capacity."""
+    with TemporaryDirectory(prefix="tile_builder_capacity_override_") as td:
+        tmp_dir = Path(td)
+        fabric_csv = _write_project(tmp_dir)
+        source = _write_bel_source(tmp_dir)
+        fab = _FakeFab(
+            fabric_csv=fabric_csv,
+            tile=_FakeTile(
+                name="override_tile",
+                matrixConfigBits=60,
+                globalConfigBits=70,
+            ),
+        )
+
+        with _patched_builder_functions():
+            result = builder_mod.TileBuilder(
+                TileBuilderOptions(
+                    tile_name="override_tile",
+                    bels=[TileBel(verilog_path=source, prefixes=["L_"])],
+                    routing=BaselineRouting(config_bit_margin=0),
+                    config_bit_capacity_override=80,
+                    track_progress=False,
+                )
+            ).build(PyosysBridge(debug=False), fab)
+
+        assert result.stats.config_capacity == 80
+        assert result.stats.total_config_bits == 70
 
 
 def test_pnr_pass_wrapper_runs_builder() -> None:
@@ -1537,6 +1580,7 @@ def main() -> None:
     test_builder_can_use_fabulous_auto_matrix()
     test_builder_regenerates_stale_config_memory_csv()
     test_builder_fails_when_config_capacity_is_exceeded()
+    test_builder_uses_config_bit_capacity_override()
     test_pnr_pass_wrapper_runs_builder()
     test_synthesizer_wrapper_runs_builder()
 

@@ -63,6 +63,7 @@ self.pnr_tile_builder_pass(
         min_output_fanin=1,
         config_bit_margin=0,
     ),
+    config_bit_capacity_override=None,
 )
 ```
 
@@ -90,6 +91,7 @@ self.pnr_tile_builder_pass(
         "input_fanin": 4,
         "output_fanin": 5,
     },
+    config_bit_capacity_override=None,
 )
 ```
 
@@ -108,8 +110,8 @@ Tile/test_tile/
 |-- FLUT5_1P_2PS.v
 |-- MUX8LUT_frame_config_mux.v
 |-- test_tile.csv
-|-- test_tile_baseline_switch_matrix.list
-|-- test_tile_baseline_switch_matrix.csv
+|-- test_tile_switch_matrix.list
+|-- test_tile_switch_matrix.csv
 |-- test_tile_switch_matrix.v
 |-- test_tile_ConfigMem.csv
 |-- test_tile_ConfigMem.v
@@ -132,12 +134,12 @@ JUMP,J_SRST_BEG,0,0,J_SRST_END,1,SHARED_RESET
 JUMP,J_SEN_BEG,0,0,J_SEN_END,1,SHARED_ENABLE
 BEL,./FLUT5_1P_2PS.v,LA_
 BEL,./FLUT5_1P_2PS.v,LB_
-MATRIX,./test_tile_baseline_switch_matrix.list
+MATRIX,./test_tile_switch_matrix.list
 EndTILE
 ```
 
-`test_tile_baseline_switch_matrix.list` is the baseline routing graph. FABulous turns
-that list into a matrix CSV and then switch-matrix RTL.
+`test_tile_switch_matrix.list` is the active routing graph. FABulous turns that
+list into a matrix CSV and then switch-matrix RTL.
 
 ## Mental Model
 
@@ -1094,6 +1096,19 @@ or more prefixes.
 Optional explicit output directory. Use this only when the tile should not be generated
 under `<project>/Tile/<tile_name>`.
 
+`config_bit_capacity_override`
+
+Optional total config-bit capacity for one tile. `None` keeps the default behavior:
+the pass queries the loaded FABulous fabric and uses:
+
+```text
+frameBitsPerRow * maxFramesPerCol
+```
+
+Set this only for architecture DSE where the frame capacity is intentionally being
+changed together with the generated tile. This is a pass-level option because it
+applies to the whole generated tile, not only to routing.
+
 `register_in_fabric`
 
 When `True`, the builder adds this line before `ParametersEnd` in `fabric.csv` if it is
@@ -1165,7 +1180,7 @@ limits.
 When `False`, fabxplore writes:
 
 ```text
-MATRIX,./<tile_name>_baseline_switch_matrix.list
+MATRIX,./<tile_name>_switch_matrix.list
 ```
 
 and generates the list itself.

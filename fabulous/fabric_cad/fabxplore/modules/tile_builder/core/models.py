@@ -537,6 +537,8 @@ class TileBuilderOptions(BaseModel):
         Baseline routing policy.
     tile_dir : Path | None
         Optional tile directory. ``None`` selects ``<project>/Tile/<tile_name>``.
+    config_bit_capacity_override : int | None
+        Optional total config-bit capacity. ``None`` uses the loaded FABulous fabric.
     register_in_fabric : bool
         Whether ``fabric.csv`` should receive a ``Tile`` entry for the new tile.
     track_progress : bool
@@ -551,6 +553,7 @@ class TileBuilderOptions(BaseModel):
     bels: list[TileBel]
     routing: BaselineRouting = Field(default_factory=BaselineRouting)
     tile_dir: Path | None = None
+    config_bit_capacity_override: int | None = None
     register_in_fabric: bool = True
     track_progress: bool = True
     progress_chunk_size: int = 25
@@ -625,6 +628,30 @@ class TileBuilderOptions(BaseModel):
         """
         if value < 1:
             raise ValueError("progress_chunk_size must be at least 1")
+        return value
+
+    @field_validator("config_bit_capacity_override")
+    @classmethod
+    def _validate_config_bit_capacity_override(cls, value: int | None) -> int | None:
+        """Validate optional config-bit capacity override.
+
+        Parameters
+        ----------
+        value : int | None
+            Optional config-bit capacity.
+
+        Returns
+        -------
+        int | None
+            Validated capacity.
+
+        Raises
+        ------
+        ValueError
+            If the override is not positive.
+        """
+        if value is not None and value <= 0:
+            raise ValueError("config_bit_capacity_override must be positive")
         return value
 
 

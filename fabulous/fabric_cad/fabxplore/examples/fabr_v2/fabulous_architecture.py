@@ -169,12 +169,15 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         # Can be called multiple times with different overlay
         # modules to support.
-        self.design_lut_layering_pass(
-            overlay_top_name="mux4",
-            overlay_verilog_paths=[
-                Path(self.x_root / "benchmarks" / "verilog_rtl" / "mux4" / "mux4.v")
-            ],
-        )
+
+        mode: bool = False
+        if mode:
+            self.design_lut_layering_pass(
+                overlay_top_name="mux4",
+                overlay_verilog_paths=[
+                    Path(self.x_root / "benchmarks" / "verilog_rtl" / "mux4" / "mux4.v")
+                ],
+            )
 
         self.design_morph_tile_pass(
             tile_verilog_path=self.my_root / "arch_rtl" / "FLUT5_1P_2PS.v",
@@ -317,7 +320,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                 "use_fabulous_auto": False,
                 "base_csv_includes": ["./../include/Base.csv"],
                 "base_list_includes": ["../include/Base.list"],
-                "input_fanin": 4,
+                "input_fanin": 8,
                 "output_fanin": 5,
                 "min_input_fanin": 1,
                 "min_output_fanin": 1,
@@ -342,6 +345,19 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             register_in_fabric=True,
             track_progress=True,
             progress_chunk_size=5,
+        )
+
+        self.pnr_switch_block_factorizer_pass(
+            tile_name="test_tile2",
+            global_reduction=1,
+            reduction_rules=[
+                {"from_fanin": 16, "to_fanin": 8},
+                {"from_fanin": 8, "to_fanin": 4},
+            ],
+            min_mux_fanin_to_factorize=8,
+            jump_prefix="J_FAC",
+            max_added_jump_wires=None,
+            track_progress=True,
         )
 
     def map_cells(self) -> None:

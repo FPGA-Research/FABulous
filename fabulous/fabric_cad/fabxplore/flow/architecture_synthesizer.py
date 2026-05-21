@@ -23,7 +23,8 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
 from fabulous.fabric_cad.fabxplore.modules.lut_mapper.core.models import (
     LutMapperBackend,
 )
-from fabulous.fabric_cad.fabxplore.pnr.custom_passes.tile_builder_pass import (
+from fabulous.fabric_cad.fabxplore.pnr.custom_passes import (
+    SwitchBlockFactorizerPass,
     TileBuilderPass,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.chain_mapper_pass import (
@@ -79,6 +80,9 @@ if TYPE_CHECKING:
         ConfigValue,
         FfPortsInput,
         RuleInput,
+    )
+    from fabulous.fabric_cad.fabxplore.modules.switch_block_factorizer import (
+        MuxReductionRule,
     )
     from fabulous.fabric_cad.fabxplore.modules.tile_builder.core.models import (
         BaselineRouting,
@@ -1063,6 +1067,7 @@ class ArchitectureSynthesizer(ABC):
         routing: BaselineRouting | dict[str, object] | None = None,
         log_report: bool = True,
         tile_dir: Path | None = None,
+        config_bit_capacity_override: int | None = None,
         register_in_fabric: bool = True,
         track_progress: bool = True,
         progress_chunk_size: int = 25,
@@ -1082,6 +1087,9 @@ class ArchitectureSynthesizer(ABC):
         tile_dir : Path | None
             Optional tile directory. If ``None``, use
             ``<project>/Tile/<tile_name>``.
+        config_bit_capacity_override : int | None
+            Optional total config-bit capacity. ``None`` uses the loaded
+            FABulous fabric.
         register_in_fabric : bool
             Whether ``fabric.csv`` should receive a ``Tile`` entry for the
             generated tile.
@@ -1100,9 +1108,86 @@ class ArchitectureSynthesizer(ABC):
             bels=bels,
             routing=routing,
             tile_dir=tile_dir,
+            config_bit_capacity_override=config_bit_capacity_override,
             register_in_fabric=register_in_fabric,
             track_progress=track_progress,
             progress_chunk_size=progress_chunk_size,
+        )
+        result.run_on(self.design, self.fab)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        self._pass_history.append(result)
+
+        return result
+
+    def pnr_switch_block_factorizer_pass(
+        self,
+        tile_name: str,
+        log_report: bool = True,
+        tile_dir: Path | None = None,
+        tile_csv: Path | None = None,
+        switch_matrix: Path | None = None,
+        global_reduction: int | None = 1,
+        reduction_rules: list[MuxReductionRule | dict[str, int]] | None = None,
+        min_mux_fanin_to_factorize: int = 3,
+        jump_prefix: str = "J_FAC",
+        max_added_jump_wires: int | None = None,
+        config_bit_capacity_override: int | None = None,
+        config_bit_margin: int = 0,
+        track_progress: bool = True,
+    ) -> SwitchBlockFactorizerPass:
+        """Factorize active FABulous switch-block mux rows in place.
+
+        Parameters
+        ----------
+        tile_name : str
+            Name of the FABulous tile to factorize.
+        log_report : bool
+            If ``True``, log the factorizer report after execution.
+        tile_dir : Path | None
+            Optional tile directory. If ``None``, derive it from the loaded tile.
+        tile_csv : Path | None
+            Optional tile CSV. If ``None``, use ``<tile_dir>/<tile_name>.csv``.
+        switch_matrix : Path | None
+            Optional active matrix file. If ``None``, use ``tile.matrixDir``.
+        global_reduction : int | None
+            Number of global fanin-halving passes to apply before explicit rules.
+        reduction_rules : list[MuxReductionRule | dict[str, int]] | None
+            Exact fanin reduction rules applied after global reduction.
+        min_mux_fanin_to_factorize : int
+            Smallest mux fanin eligible for factorization.
+        jump_prefix : str
+            Prefix for generated JUMP rows.
+        max_added_jump_wires : int | None
+            Optional maximum number of generated JUMP wires.
+        config_bit_capacity_override : int | None
+            Optional total config-bit capacity. ``None`` uses the loaded
+            FABulous fabric.
+        config_bit_margin : int
+            Reserved margin below the config-bit capacity.
+        track_progress : bool
+            Whether progress should be logged.
+
+        Returns
+        -------
+        SwitchBlockFactorizerPass
+            Pass instance containing result and report data.
+        """
+        result = SwitchBlockFactorizerPass(
+            tile_name=tile_name,
+            tile_dir=tile_dir,
+            tile_csv=tile_csv,
+            switch_matrix=switch_matrix,
+            global_reduction=global_reduction,
+            reduction_rules=reduction_rules or [],
+            min_mux_fanin_to_factorize=min_mux_fanin_to_factorize,
+            jump_prefix=jump_prefix,
+            max_added_jump_wires=max_added_jump_wires,
+            config_bit_capacity_override=config_bit_capacity_override,
+            config_bit_margin=config_bit_margin,
+            track_progress=track_progress,
         )
         result.run_on(self.design, self.fab)
 
