@@ -360,6 +360,28 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             track_progress=True,
         )
 
+        self.pnr_routing_demand_evaluator_pass(
+            tile_name="test_tile2",
+            demand_profile="full",
+            demand_iterations=1000,
+            random_demand_ratio=0.25,
+            seed=1,
+            opt=False,
+            optimizer="none",
+            target_pip_reduction=0.20,
+            max_soft_failure_rate=0.05,
+            router="pathfinder",
+            router_max_iterations=30,
+            router_present_cost_multiplier=1.3,
+            router_history_cost_increment=1.0,
+            router_base_resource_capacity=1,
+            fanout_targets=[2, 4, 8],
+            max_net_sinks=8,
+            config_bit_capacity_override=None,
+            config_bit_margin=0,
+            track_progress=True,
+        )
+
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""
         self.design.run_pass("techmap -D LUT_K=5 -map +/fabulous/cells_map.v")

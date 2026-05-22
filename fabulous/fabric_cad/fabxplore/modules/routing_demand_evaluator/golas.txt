@@ -1,26 +1,3 @@
-# Tile Builder
-
-We additionally should provide to the user different types
-of switch-matrices like VTR/VPR:
-In FABulous, all of these are just different 0/1 patterns
-in the switch-matrix adjacency.
-
-subset:
-  put 1s at same-track connections
-
-wilton:
-  put 1s at permuted-track connections
-
-universal:
-  put 1s according to universal switch-box mapping
-
-custom:
-  put 1s wherever your own pattern wants
-
-For exaple:
-for FABulous, a Wilton-like switch matrix is just a generated .list/adjacency matrix
-where the 1s follow the Wilton permutation rule
-
 # Routing Demand Evaluator
 
 okay so the goal for that pass (routing_demand_evaluator) is:
@@ -311,4 +288,125 @@ Recommended next steps:
   - Protect long-to-short exit PIPs if timing is important.
   - Try a second optimization pass with lower removal aggressiveness.
 - Also: demand-driven grouping and hier opts.
-- larger muxes that we decompose them option
+
+first of all, we dont make any fallback to names that is not forseen in fabulous.
+Then yes we must somehow also consider the fabric as a whole, so we can consider stuff as terminaly as you said.
+
+Also an important thing: if we implement it in stages:
+v1: evaluate only.
+v2: greedy/batch pruning using demand oracle.
+v3: Monte Carlo ablation importance matrix.
+
+then we must consider that already in v1 what we want to extend.
+So thats means we can do first evaluation since that will be calles by the optimizers v2 and v3 but then we must provie a good interface ie result that an optimizer can use.
+
+So the best idea is, we write that as one pass, only the most important options no optin mess i list some optins in the goals.txt
+then we first write the evaluator that gives us then an interface that an optimizer can use. And we will implement the pathfinder algorithm here so please do research on it because this is the standard algorithm used nowadays.
+
+Then we later in v2, v3 we should be able to easily extend the pass by an optimizer, so we have an option optimizer that we can choose greedy, mont carlo, any other in the future,
+like in the style for other modules next to core we have a folder called optimizers here that folder can contain other folders with the file for the optimizer, then we have a global registry where we can register the optimizer.
+All optimizer should return the same result or have a common interface maybe we use an abstract class for it. Then we can extend it easily.
+
+Like i said we dont want here an option mess, so we wont expose optimizer specific options we just choose the optimizer type nothing more, pluse an opt enable.
+
+Do already the placeholders for it. remember that we should be able to add any optimizer we want.
+
+An if we expose some optimizer options, but not much, then they should apply global for all.
+
+Structure:
+
+fabulous/fabric_cad/fabxplore/modules/routing_demand_evaluator/
+|-- README.md
+|-- __init__.py
+|
+|-- core/
+|   |-- __init__.py
+|   |-- models.py
+|   |-- matrix_loader.py
+|   |-- routing_graph.py
+|   |-- evaluator.py
+|   |-- process_tracker.py
+|   `-- report.py
+|
+|-- routers/
+|   |-- __init__.py
+|   |-- base.py
+|   |-- registry.py
+|   `-- pathfinder/
+|       |-- __init__.py
+|       `-- router.py
+|
+|-- demand_profiles/
+|   |-- __init__.py
+|   |-- registry.py
+|   |-- default/
+|   |   |-- __init__.py
+|   |   `-- profile.py
+|   `-- minimal/
+|       |-- __init__.py
+|       `-- profile.py
+|
+`-- optimizers/
+    |-- __init__.py
+    |-- base.py
+    |-- registry.py
+    |-- none/
+    |   |-- __init__.py
+    |   `-- optimizer.py
+    |-- greedy/
+    |   |-- __init__.py
+    |   `-- optimizer.py
+    `-- monte_carlo/
+        |-- __init__.py
+        `-- optimizer.py
+
+BEL output escape.
+BEL input reachability.
+Same-tile local feedback as a semantic demand class.
+Neighbor feedback using whole-fabric/tile adjacency.
+Straight routing vs turn routing as separate classes.
+Short-to-long and long-to-short wire access classes.
+Multi-hop Manhattan-distance routes.
+Fanout routes.
+Control-net routes.
+Carry/direct-chain routes.
+DSP/RAM access routes.
+IO access routes.
+Random local/medium/long split.
+User selection of individual demand classes inside a profile.
+Whole-fabric awareness beyond loading the tile from FABulous.
+Terminal classification from FABulous objects.
+How much BEL inputs can one NET feed.
+
+self.pnr_routing_demand_evaluator_pass(
+    tile_name="test_tile2",
+
+    tile_dir=None,
+    tile_csv=None,
+    switch_matrix=None,
+
+    demand_profile="default",
+    demand_iterations=1000,
+    random_demand_ratio=0.25,
+    seed=1,
+
+    fanout_targets=[2, 4, 8],
+    max_net_sinks=8,
+
+    router="pathfinder",
+    router_max_iterations=30,
+    router_present_cost_multiplier=1.3,
+    router_history_cost_increment=1.0,
+    router_base_resource_capacity=1,
+
+    max_soft_failure_rate=0.05,
+
+    opt=False,
+    optimizer="none",
+    target_pip_reduction=0.20,
+
+    config_bit_capacity_override=None,
+    config_bit_margin=0,
+
+    track_progress=True,
+) -> RoutingDemandEvaluatorPass:

@@ -24,6 +24,7 @@ from fabulous.fabric_cad.fabxplore.modules.lut_mapper.core.models import (
     LutMapperBackend,
 )
 from fabulous.fabric_cad.fabxplore.pnr.custom_passes import (
+    RoutingDemandEvaluatorPass,
     SwitchBlockFactorizerPass,
     TileBuilderPass,
 )
@@ -80,6 +81,11 @@ if TYPE_CHECKING:
         ConfigValue,
         FfPortsInput,
         RuleInput,
+    )
+    from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models import (  # noqa: E501
+        DemandProfileName,
+        OptimizerName,
+        RouterName,
     )
     from fabulous.fabric_cad.fabxplore.modules.switch_block_factorizer import (
         MuxReductionRule,
@@ -1185,6 +1191,122 @@ class ArchitectureSynthesizer(ABC):
             min_mux_fanin_to_factorize=min_mux_fanin_to_factorize,
             jump_prefix=jump_prefix,
             max_added_jump_wires=max_added_jump_wires,
+            config_bit_capacity_override=config_bit_capacity_override,
+            config_bit_margin=config_bit_margin,
+            track_progress=track_progress,
+        )
+        result.run_on(self.design, self.fab)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        self._pass_history.append(result)
+
+        return result
+
+    def pnr_routing_demand_evaluator_pass(
+        self,
+        tile_name: str,
+        tile_dir: Path | None = None,
+        tile_csv: Path | None = None,
+        switch_matrix: Path | None = None,
+        demand_profile: DemandProfileName | str = "default",
+        demand_iterations: int = 1000,
+        random_demand_ratio: float = 0.25,
+        seed: int = 1,
+        opt: bool = False,
+        optimizer: OptimizerName | str = "none",
+        target_pip_reduction: float = 0.20,
+        max_soft_failure_rate: float = 0.05,
+        router: RouterName | str = "pathfinder",
+        router_max_iterations: int = 30,
+        router_present_cost_multiplier: float = 1.3,
+        router_history_cost_increment: float = 1.0,
+        router_base_resource_capacity: int = 1,
+        fanout_targets: list[int] | None = None,
+        max_net_sinks: int = 8,
+        config_bit_capacity_override: int | None = None,
+        config_bit_margin: int = 0,
+        track_progress: bool = True,
+        log_report: bool = True,
+    ) -> RoutingDemandEvaluatorPass:
+        """Evaluate routing demands on an active FABulous switch matrix.
+
+        Parameters
+        ----------
+        tile_name : str
+            Name of the FABulous tile to evaluate.
+        tile_dir : Path | None
+            Optional tile directory override.
+        tile_csv : Path | None
+            Optional tile CSV override.
+        switch_matrix : Path | None
+            Optional active matrix file override.
+        demand_profile : DemandProfileName | str
+            Demand profile name.
+        demand_iterations : int
+            Target demand count.
+        random_demand_ratio : float
+            Fraction of demands reserved for random soft demands.
+        seed : int
+            Random seed.
+        opt : bool
+            Whether optimization is enabled.
+        optimizer : OptimizerName | str
+            Optimizer name.
+        target_pip_reduction : float
+            Target PIP reduction for optimizers.
+        max_soft_failure_rate : float
+            Maximum allowed soft-demand failure rate.
+        router : RouterName | str
+            Router name.
+        router_max_iterations : int
+            Maximum router negotiation iterations.
+        router_present_cost_multiplier : float
+            Present congestion cost multiplier.
+        router_history_cost_increment : float
+            Historical congestion increment.
+        router_base_resource_capacity : int
+            Default resource capacity before congestion is reported.
+        fanout_targets : list[int] | None
+            Fanout sizes used by fanout-style demand classes.
+        max_net_sinks : int
+            Maximum sinks in one generated net demand.
+        config_bit_capacity_override : int | None
+            Optional total config-bit capacity. ``None`` uses the loaded
+            FABulous fabric.
+        config_bit_margin : int
+            Reserved config-bit margin.
+        track_progress : bool
+            Whether progress should be logged.
+        log_report : bool
+            If ``True``, log the evaluator report after execution.
+
+        Returns
+        -------
+        RoutingDemandEvaluatorPass
+            Pass instance containing result and report data.
+        """
+        result = RoutingDemandEvaluatorPass(
+            tile_name=tile_name,
+            tile_dir=tile_dir,
+            tile_csv=tile_csv,
+            switch_matrix=switch_matrix,
+            demand_profile=demand_profile,
+            demand_iterations=demand_iterations,
+            random_demand_ratio=random_demand_ratio,
+            seed=seed,
+            opt=opt,
+            optimizer=optimizer,
+            target_pip_reduction=target_pip_reduction,
+            max_soft_failure_rate=max_soft_failure_rate,
+            router=router,
+            router_max_iterations=router_max_iterations,
+            router_present_cost_multiplier=router_present_cost_multiplier,
+            router_history_cost_increment=router_history_cost_increment,
+            router_base_resource_capacity=router_base_resource_capacity,
+            fanout_targets=fanout_targets,
+            max_net_sinks=max_net_sinks,
             config_bit_capacity_override=config_bit_capacity_override,
             config_bit_margin=config_bit_margin,
             track_progress=track_progress,
