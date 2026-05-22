@@ -60,6 +60,12 @@ class RoutingDemandEvaluatorPass(PnRPass):
         Whether optimizer failure-rate limits are added to the baseline rates.
     opt_write_back : bool
         Whether optimizer changes overwrite the active tile files in place.
+    opt_max_iterations : int
+        Maximum optimizer pruning iterations.
+    opt_clean_mux : bool
+        Whether greedy optimization should prefer mux bucket cleanup.
+    opt_power_of_two_muxes : bool
+        Whether mux cleanup should require power-of-two mux fanins where possible.
     report_max_soft_failure_rate : float
         Maximum soft-demand failure rate before the report status becomes a warning.
     router : RouterName | str
@@ -82,6 +88,8 @@ class RoutingDemandEvaluatorPass(PnRPass):
         Reserved config-bit margin.
     track_progress : bool
         Whether progress should be logged.
+    progress_chunk_size : int
+        Number of optimizer iterations between progress updates.
     """
 
     tile_name: str
@@ -99,6 +107,9 @@ class RoutingDemandEvaluatorPass(PnRPass):
     opt_max_hard_failure_rate: float = 0.0
     opt_use_baseline_failure_rates: bool = True
     opt_write_back: bool = False
+    opt_max_iterations: int = 50
+    opt_clean_mux: bool = False
+    opt_power_of_two_muxes: bool = False
     report_max_soft_failure_rate: float = 0.05
     router: RouterName | str = RouterName.PATHFINDER
     router_max_iterations: int = 30
@@ -110,6 +121,7 @@ class RoutingDemandEvaluatorPass(PnRPass):
     config_bit_capacity_override: int | None = None
     config_bit_margin: int = 0
     track_progress: bool = True
+    progress_chunk_size: int = 10
 
     _result: RoutingDemandEvaluatorResult | None = None
 
@@ -139,6 +151,9 @@ class RoutingDemandEvaluatorPass(PnRPass):
             opt_max_hard_failure_rate=self.opt_max_hard_failure_rate,
             opt_use_baseline_failure_rates=self.opt_use_baseline_failure_rates,
             opt_write_back=self.opt_write_back,
+            opt_max_iterations=self.opt_max_iterations,
+            opt_clean_mux=self.opt_clean_mux,
+            opt_power_of_two_muxes=self.opt_power_of_two_muxes,
             report_max_soft_failure_rate=self.report_max_soft_failure_rate,
             router=self.router,
             router_max_iterations=self.router_max_iterations,
@@ -150,6 +165,7 @@ class RoutingDemandEvaluatorPass(PnRPass):
             config_bit_capacity_override=self.config_bit_capacity_override,
             config_bit_margin=self.config_bit_margin,
             track_progress=self.track_progress,
+            progress_chunk_size=self.progress_chunk_size,
         )
         self._result = RoutingDemandEvaluator(options).run(design, fab)
 

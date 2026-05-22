@@ -20,6 +20,7 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.matrix_
 from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models import (
     DemandKind,
     DemandProfileName,
+    OptimizerName,
     RoutingDemand,
     RoutingTerminalRole,
 )
@@ -33,6 +34,10 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.demand_class
     random,
     routing,
 )
+from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.greedy.optimizer import (  # noqa: E501
+    _remove_emptying_pips,
+    _render_list,
+)
 from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.routers.pathfinder import (  # noqa: E501
     PathFinderRouter,
 )
@@ -42,6 +47,7 @@ from fabulous.fabric_cad.fabxplore.pnr.custom_passes.routing_demand_evaluator_pa
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from fabulous.fabric_generator.parser.parse_csv import parsePortLine
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_cli.helper import setup_logger
 
 if TYPE_CHECKING:
@@ -114,14 +120,19 @@ def test_models_validate_public_options() -> None:
         ),
         "between",
     )
-    _assert_raises_contains(
-        lambda: RoutingDemandEvaluatorOptions(
-            tile_name="t",
-            opt=False,
-            optimizer="greedy",
-        ),
-        "optimizer",
+    disabled_opt = RoutingDemandEvaluatorOptions(
+        tile_name="t",
+        opt=False,
+        optimizer="greedy",
     )
+    assert disabled_opt.optimizer == OptimizerName.NONE
+    power_mux = RoutingDemandEvaluatorOptions(
+        tile_name="t",
+        opt=True,
+        optimizer="greedy",
+        opt_power_of_two_muxes=True,
+    )
+    assert power_mux.opt_clean_mux is True
 
 
 def test_matrix_loader_reads_list_and_jump_edges() -> None:
@@ -894,11 +905,12 @@ def test_evaluator_reports_unreachable_random_soft_demands() -> None:
         assert result.stats.total_demands >= 2
 
 
-def test_optimizer_placeholders_raise_clear_errors() -> None:
-    """Test future optimizer placeholders are registered but explicit."""
+def test_greedy_optimizer_prunes_redundant_pips_without_writeback() -> None:
+    """Test greedy optimizer removes redundant PIPs in report-only mode."""
     with _project("opt_tile") as tile_dir:
         matrix = tile_dir / "opt_tile_switch_matrix.list"
-        matrix.write_text("I,A0\nI,O\nOUT0,O\n", encoding="utf-8")
+        original_matrix = "{2}I,[A0|DEAD]\nOUT0,O\n"
+        matrix.write_text(original_matrix, encoding="utf-8")
         tile_csv = _write_tile_csv(tile_dir, "opt_tile", matrix.name)
         fab = _FakeFab(
             _FakeTile(
@@ -910,16 +922,148 @@ def test_optimizer_placeholders_raise_clear_errors() -> None:
             )
         )
 
+        result = RoutingDemandEvaluator(
+            RoutingDemandEvaluatorOptions(
+                tile_name="opt_tile",
+                demand_profile="minimal",
+                demand_iterations=4,
+                opt=True,
+                optimizer="greedy",
+                opt_target_pip_reduction=0.25,
+                opt_max_hard_failure_rate=0.0,
+                opt_max_soft_failure_rate=0.0,
+                opt_use_baseline_failure_rates=True,
+                opt_write_back=False,
+                opt_max_iterations=8,
+                track_progress=False,
+            )
+        ).run(object(), fab)  # type: ignore[arg-type]
+
+        assert result.optimizer_stats is not None
+        assert result.optimizer_stats.accepted_pips == 1
+        assert result.optimizer_stats.removed_pips == 1
+        assert result.optimizer_stats.mux_cleanup.rows_crossing_thresholds == 1
+        assert result.optimizer_stats.mux_cleanup.direct_wire_conversions == 1
+        assert result.optimizer_stats.mux_cleanup.config_bit_reduction == 1
+        assert result.stats.final_pips < result.stats.original_pips
+        assert result.stats.hard_failed == 0
+        assert "## Optimization" in result.report_summary
+        assert "## Mux Cleanup" in result.report_summary
+        assert "### Mux Buckets" in result.report_summary
+        assert "### Rows Crossing Mux Thresholds" in result.report_summary
+        assert matrix.read_text(encoding="utf-8") == original_matrix
+
+
+def test_greedy_writeback_list_renderer_keeps_fabulous_list_valid() -> None:
+    """Test greedy write-back never emits invalid zero-connection list rows."""
+    with _project("writeback_zero") as tile_dir:
+        matrix = tile_dir / "writeback_zero_switch_matrix.list"
+        rendered = _render_list(
+            "writeback_zero",
+            {
+                "I": ["A0"],
+                "JS2BEG7": [],
+            },
+        )
+        matrix.write_text(rendered, encoding="utf-8")
+
+        pairs = parseList(matrix)
+
+        assert "{0}" not in rendered
+        assert pairs == [("I", "A0")]
+
+
+def test_greedy_batch_filter_preserves_one_pip_per_matrix_row() -> None:
+    """Test greedy batches cannot remove the last PIP from any row."""
+    removable = _remove_emptying_pips(
+        {
+            "A": ["S0", "S1", "S2"],
+            "B": ["S3"],
+        },
+        [
+            ("S0", "A"),
+            ("S1", "A"),
+            ("S2", "A"),
+            ("S3", "B"),
+        ],
+    )
+
+    assert removable == [("S0", "A"), ("S1", "A")]
+
+
+def test_greedy_power_of_two_mux_cleanup_normalizes_rows() -> None:
+    """Test power-of-two mux cleanup targets non-power-of-two rows."""
+    with _project("power_mux") as tile_dir:
+        matrix = tile_dir / "power_mux_switch_matrix.list"
+        matrix.write_text("{3}I,[A0|A1|DEAD]\nOUT0,O\n", encoding="utf-8")
+        tile_csv = _write_tile_csv(tile_dir, "power_mux", matrix.name)
+        fab = _FakeFab(
+            _FakeTile(
+                "power_mux",
+                tile_csv,
+                matrix,
+                ports=_simple_ports(),
+                bels=[_simple_bel(tile_dir)],
+            )
+        )
+
+        result = RoutingDemandEvaluator(
+            RoutingDemandEvaluatorOptions(
+                tile_name="power_mux",
+                demand_profile="minimal",
+                demand_iterations=4,
+                opt=True,
+                optimizer="greedy",
+                opt_target_pip_reduction=0.0,
+                opt_max_hard_failure_rate=0.0,
+                opt_max_soft_failure_rate=0.0,
+                opt_power_of_two_muxes=True,
+                opt_write_back=False,
+                opt_max_iterations=4,
+                track_progress=False,
+            )
+        ).run(object(), fab)  # type: ignore[arg-type]
+
+        assert result.options.opt_clean_mux is True
+        assert result.optimizer_stats is not None
+        assert result.optimizer_stats.accepted_pips == 1
+        assert result.optimizer_stats.mux_cleanup.rows_crossing_thresholds == 1
+        changed = result.optimizer_stats.mux_cleanup.changed_rows[0]
+        assert changed.row == "I"
+        assert changed.fanin_before == 3
+        assert changed.fanin_after == 2
+        assert changed.bucket_before == "mux4"
+        assert changed.bucket_after == "mux2"
+        assert "power-of-two mux cleanup" in result.report_summary
+        assert matrix.read_text(encoding="utf-8") == "{3}I,[A0|A1|DEAD]\nOUT0,O\n"
+
+
+def test_monte_carlo_optimizer_placeholder_raises_clear_error() -> None:
+    """Test future Monte Carlo optimizer placeholder is explicit."""
+    with _project("monte_tile") as tile_dir:
+        matrix = tile_dir / "monte_tile_switch_matrix.list"
+        matrix.write_text("I,A0\nI,O\nOUT0,O\n", encoding="utf-8")
+        tile_csv = _write_tile_csv(tile_dir, "monte_tile", matrix.name)
+        fab = _FakeFab(
+            _FakeTile(
+                "monte_tile",
+                tile_csv,
+                matrix,
+                ports=_simple_ports(),
+                bels=[_simple_bel(tile_dir)],
+            )
+        )
+
         _assert_raises_contains(
             lambda: RoutingDemandEvaluator(
                 RoutingDemandEvaluatorOptions(
-                    tile_name="opt_tile",
+                    tile_name="monte_tile",
                     opt=True,
-                    optimizer="greedy",
+                    optimizer="monte_carlo",
                     track_progress=False,
                 )
             ).run(object(), fab),  # type: ignore[arg-type]
-            "greedy",
+            "Monte Carlo",
         )
 
 
@@ -1265,7 +1409,11 @@ def main() -> None:
     test_random_demands_sample_from_reachable_candidates()
     test_evaluator_runs_added_profiles()
     test_evaluator_reports_unreachable_random_soft_demands()
-    test_optimizer_placeholders_raise_clear_errors()
+    test_greedy_optimizer_prunes_redundant_pips_without_writeback()
+    test_greedy_writeback_list_renderer_keeps_fabulous_list_valid()
+    test_greedy_batch_filter_preserves_one_pip_per_matrix_row()
+    test_greedy_power_of_two_mux_cleanup_normalizes_rows()
+    test_monte_carlo_optimizer_placeholder_raises_clear_error()
     test_pnr_pass_wrapper_exposes_result_data()
 
 

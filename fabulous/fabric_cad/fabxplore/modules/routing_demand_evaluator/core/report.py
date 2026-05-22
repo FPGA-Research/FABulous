@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models import (  # noqa: E501
         DemandClassStats,
         DemandRouteResult,
+        MuxCleanupRowStats,
         RoutingDemandEvaluatorResult,
     )
 
@@ -73,10 +74,13 @@ Switch matrix: {{ result.matrix.switch_matrix }}
 - soft demands failed: {{ result.stats.soft_failed }} / {{ result.stats.soft_demands }}
 - failed sinks: {{ result.stats.failed_sinks }}
 - soft failure rate: {{ soft_failure_rate }}
-- original PIPs: {{ result.stats.original_pips }}
-- final PIPs: {{ result.stats.final_pips }}
-- matrix config bits: {{ result.stats.matrix_config_bits }}
-- total config bits: {{ total_config_bits }}
+- original routing PIPs: {{ result.stats.original_routing_pips }}
+- final routing PIPs: {{ result.stats.final_routing_pips }}
+- jump wires: {{ result.stats.jump_wires }}
+- original routing graph edges: {{ result.stats.original_graph_edges }}
+- final routing graph edges: {{ result.stats.final_graph_edges }}
+- generated matrix config bits: {{ result.stats.matrix_config_bits }}
+- generated total config bits: {{ total_config_bits }}
 - average routed sink path length: {{ average_path_length }}
 
 ## Router
@@ -148,6 +152,8 @@ def _report_sections(result: RoutingDemandEvaluatorResult) -> str:
     """
     return "".join(
         [
+            _section_text(_optimization_section(result)),
+            _section_text(_mux_cleanup_section(result)),
             _section_text(_congestion_section(result)),
             _section_text(
                 _demand_section("Essential Checks", result, DemandCategory.ESSENTIAL)
@@ -175,6 +181,208 @@ def _report_sections(result: RoutingDemandEvaluatorResult) -> str:
             _section_text(_warnings_section(result)),
         ]
     )
+
+
+def _optimization_section(result: RoutingDemandEvaluatorResult) -> list[str]:
+    """Render optimizer summary lines.
+
+    Parameters
+    ----------
+    result : RoutingDemandEvaluatorResult
+        Evaluation result.
+
+    Returns
+    -------
+    list[str]
+        Optimization section lines.
+    """
+    stats = result.optimizer_stats
+    if stats is None:
+        return []
+    optimized_prefix = (
+        "written optimized" if stats.write_back else "estimated optimized"
+    )
+    rows = [
+        ["optimizer", stats.optimizer],
+        ["write back", str(stats.write_back)],
+        ["baseline routing PIPs", str(stats.baseline_pips)],
+        ["final routing PIPs", str(stats.final_pips)],
+        ["removed routing PIPs", str(stats.removed_pips)],
+        ["baseline matrix config bits", str(stats.baseline_matrix_config_bits)],
+        [
+            f"{optimized_prefix} matrix config bits",
+            str(stats.final_matrix_config_bits_estimate),
+        ],
+        ["baseline total config bits", str(stats.baseline_total_config_bits)],
+        [
+            f"{optimized_prefix} total config bits",
+            str(stats.final_total_config_bits_estimate),
+        ],
+        ["routing PIP reduction", _percent(stats.pip_reduction)],
+        ["target routing PIP reduction", _percent(stats.target_pip_reduction)],
+        ["baseline hard failure rate", _percent(stats.baseline_hard_failure_rate)],
+        ["final hard failure rate", _percent(stats.final_hard_failure_rate)],
+        ["allowed hard failure rate", _percent(stats.allowed_hard_failure_rate)],
+        ["baseline soft failure rate", _percent(stats.baseline_soft_failure_rate)],
+        ["final soft failure rate", _percent(stats.final_soft_failure_rate)],
+        ["allowed soft failure rate", _percent(stats.allowed_soft_failure_rate)],
+        ["iterations", str(stats.attempted_iterations)],
+        ["accepted batches", str(stats.accepted_batches)],
+        ["rejected batches", str(stats.rejected_batches)],
+        ["accepted routing PIPs", str(stats.accepted_pips)],
+        ["rejected routing PIPs", str(stats.rejected_pips)],
+        ["stop reason", stats.stop_reason],
+    ]
+    return [
+        "## Optimization",
+        *_markdown_table(
+            headers=["Metric", "Value"],
+            rows=rows,
+            aligns=["left", "right"],
+        ),
+        "",
+    ]
+
+
+def _mux_cleanup_section(result: RoutingDemandEvaluatorResult) -> list[str]:
+    """Render mux bucket/cost changes.
+
+    Parameters
+    ----------
+    result : RoutingDemandEvaluatorResult
+        Evaluation result.
+
+    Returns
+    -------
+    list[str]
+        Rendered mux cleanup section lines.
+    """
+    stats = result.optimizer_stats
+    if stats is None:
+        return []
+    mux = stats.mux_cleanup
+    rows = [
+        ["mux objective", _mux_objective(result)],
+        ["baseline mux cost", str(mux.baseline_mux_cost)],
+        ["final mux cost", str(mux.final_mux_cost)],
+        ["mux cost reduction", _percent(mux.mux_cost_reduction)],
+        ["threshold crossings", str(mux.rows_crossing_thresholds)],
+        ["direct-wire conversions", str(mux.direct_wire_conversions)],
+        ["matrix config bits saved", str(mux.config_bit_reduction)],
+        [
+            "non-power-of-two rows before",
+            str(mux.non_power_of_two_mux_rows_before),
+        ],
+        [
+            "non-power-of-two rows after",
+            str(mux.non_power_of_two_mux_rows_after),
+        ],
+    ]
+    lines = [
+        "## Mux Cleanup",
+        *_markdown_table(
+            headers=["Metric", "Value"],
+            rows=rows,
+            aligns=["left", "right"],
+        ),
+        "",
+        "### Mux Buckets",
+        *_markdown_table(
+            headers=["Bucket", "Before", "After", "Delta"],
+            rows=[
+                [
+                    bucket.bucket,
+                    str(bucket.before_rows),
+                    str(bucket.after_rows),
+                    _signed_int(bucket.delta),
+                ]
+                for bucket in mux.buckets
+            ],
+            aligns=["left", "right", "right", "right"],
+        ),
+        "",
+    ]
+    lines.extend(_mux_cleanup_rows_section(mux.changed_rows))
+    return lines
+
+
+def _mux_objective(result: RoutingDemandEvaluatorResult) -> str:
+    """Return the mux cleanup objective label.
+
+    Parameters
+    ----------
+    result : RoutingDemandEvaluatorResult
+        Evaluation result.
+
+    Returns
+    -------
+    str
+        Objective label.
+    """
+    if result.options.opt_power_of_two_muxes:
+        return "power-of-two mux cleanup"
+    if result.options.opt_clean_mux:
+        return "mux-cost optimized"
+    return "reported, not optimized directly"
+
+
+def _mux_cleanup_rows_section(rows: list[MuxCleanupRowStats]) -> list[str]:
+    """Render rows that crossed mux implementation thresholds.
+
+    Parameters
+    ----------
+    rows : list[MuxCleanupRowStats]
+        Mux cleanup row stats.
+
+    Returns
+    -------
+    list[str]
+        Rendered lines.
+    """
+    changed_rows = list(rows)[:20]
+    lines = ["### Rows Crossing Mux Thresholds"]
+    if not changed_rows:
+        lines.extend(["- none", ""])
+        return lines
+    lines.extend(
+        _markdown_table(
+            headers=[
+                "Row",
+                "Before",
+                "After",
+                "From",
+                "To",
+                "Removed",
+                "Cfg saved",
+                "Cost saved",
+            ],
+            rows=[
+                [
+                    row.row,
+                    str(row.fanin_before),
+                    str(row.fanin_after),
+                    row.bucket_before,
+                    row.bucket_after,
+                    str(row.removed_pips),
+                    str(row.config_bits_saved),
+                    str(row.mux_cost_saved),
+                ]
+                for row in changed_rows
+            ],
+            aligns=[
+                "left",
+                "right",
+                "right",
+                "left",
+                "left",
+                "right",
+                "right",
+                "right",
+            ],
+        )
+    )
+    lines.append("")
+    return lines
 
 
 def _section_text(lines: list[str]) -> str:
@@ -825,3 +1033,21 @@ def _percent(value: float, digits: int = 2) -> str:
         Percentage string.
     """
     return f"{value * 100.0:.{digits}f}%"
+
+
+def _signed_int(value: int) -> str:
+    """Format an integer with an explicit sign.
+
+    Parameters
+    ----------
+    value : int
+        Value to format.
+
+    Returns
+    -------
+    str
+        Signed integer string.
+    """
+    if value > 0:
+        return f"+{value}"
+    return str(value)

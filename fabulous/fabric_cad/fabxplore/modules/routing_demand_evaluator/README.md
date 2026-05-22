@@ -48,6 +48,9 @@ self.pnr_routing_demand_evaluator_pass(
     opt_max_hard_failure_rate=0.0,
     opt_use_baseline_failure_rates=True,
     opt_write_back=False,
+    opt_max_iterations=50,
+    opt_clean_mux=False,
+    opt_power_of_two_muxes=False,
     report_max_soft_failure_rate=0.05,
 
     # PathFinder-style router.
@@ -66,6 +69,7 @@ self.pnr_routing_demand_evaluator_pass(
     config_bit_margin=0,
 
     track_progress=True,
+    progress_chunk_size=10,
 )
 ```
 
@@ -85,8 +89,9 @@ Options:
   reachable candidate pairs.
 - `random_demand_ratio`: fraction of the budget reserved for random classes.
 - `seed`: random seed for repeatable random demand selection.
-- `opt`: enable an optimizer. Currently `False` is the normal evaluation mode.
-- `optimizer`: optimizer name. Currently `none` is implemented.
+- `opt`: enable an optimizer. `False` is the normal evaluation mode.
+- `optimizer`: optimizer name. Use `none` for evaluation only, or `greedy` for
+  deterministic demand-oracle pruning.
 - `opt_target_pip_reduction`: global reduction target for optimizer modes.
 - `opt_max_soft_failure_rate`: maximum soft-demand failure-rate increase allowed
   during optimization.
@@ -99,6 +104,14 @@ Options:
   files in place. The pass must regenerate the dependent switch-matrix,
   config-memory, and tile artifacts so no stale files remain. The default is
   `False`, which keeps optimizer runs report-only.
+- `opt_max_iterations`: maximum optimizer pruning iterations.
+- `opt_clean_mux`: make greedy pruning mux-aware. Instead of only ranking
+  individual PIPs, the optimizer tries row batches that cross FABulous mux
+  implementation buckets, such as `mux16 -> mux8` or `mux4 -> mux2`.
+- `opt_power_of_two_muxes`: require mux cleanup to target power-of-two fanins
+  where possible. This option automatically enables `opt_clean_mux`; if cleanup
+  cannot finish under the demand limits, the best legal result is kept and the
+  report lists the remaining non-power-of-two mux rows.
 - `report_max_soft_failure_rate`: soft-failure threshold used for top-level
   report status. Hard failures always make the report fail.
 - `router`: router implementation. Currently `pathfinder`.
@@ -113,6 +126,173 @@ Options:
   uses the loaded FABulous fabric capacity.
 - `config_bit_margin`: reserved config-bit margin.
 - `track_progress`: enables progress logging.
+- `progress_chunk_size`: number of optimizer iterations between progress
+  updates.
+
+The optimizer target is based only on removable switch-matrix routing PIPs, not
+on fixed JUMP wires:
+
+$$
+N_{targetRemove} =
+\left\lceil
+N_{routingPips,baseline} \cdot r_{target}
+\right\rceil
+$$
+
+where $r_{target}$ is `opt_target_pip_reduction`. For example, a baseline with
+$1329$ routing PIPs and `opt_target_pip_reduction=0.70` gives:
+
+$$
+\left\lceil 1329 \cdot 0.70 \right\rceil = 931
+$$
+
+That is the meaning of a progress line such as:
+
+```text
+[RoutingDemandEvaluator] Optimizer greedy start: target_removed_pips=931, max_iterations=300
+```
+
+## Greedy Optimizer
+
+The `greedy` optimizer removes switch-matrix PIPs only when the demand oracle
+accepts the candidate matrix. It never removes structural JUMP edges directly.
+It only considers selectable matrix edges of the form:
+
+$$
+e = (\mathrm{source}, \mathrm{row})
+$$
+
+where `row` still has at least one other source after removal.
+
+The optimizer first evaluates the baseline matrix and derives failure-rate
+limits. If `opt_use_baseline_failure_rates=True`, the limits are relative to the
+baseline:
+
+$$
+r_{hard,limit} =
+r_{hard,baseline} + r_{hard,opt}
+$$
+
+$$
+r_{soft,limit} =
+r_{soft,baseline} + r_{soft,opt}
+$$
+
+If `opt_use_baseline_failure_rates=False`, the optimizer limits are absolute:
+
+$$
+r_{hard,limit} = r_{hard,opt}
+$$
+
+$$
+r_{soft,limit} = r_{soft,opt}
+$$
+
+Each candidate batch is accepted only if:
+
+$$
+r_{hard,candidate} \le r_{hard,limit}
+$$
+
+and:
+
+$$
+r_{soft,candidate} \le r_{soft,limit}
+$$
+
+By default, candidate PIPs are ranked by current routed-path use. PIPs used by
+hard demands are protected most strongly, PIPs used by soft demands are
+protected next, and unused PIPs are tried first. A rejected non-mux batch is
+split into smaller batches down to individual PIPs.
+
+Rows with one source are direct wires. They have no select bits and no redundant
+matrix choice to remove:
+
+$$
+f = 1 \Rightarrow b(f) = 0
+$$
+
+where $f$ is row fanin and $b(f)$ is the number of switch-matrix config bits for
+that row. This is why terminal passthrough tiles can have routing PIPs but still
+stop with `no_removable_pips`.
+
+With `opt_clean_mux=True`, candidates are grouped by matrix row and by mux
+bucket threshold. For a row with fanin $f$, the mux-aware target is:
+
+$$
+f_{target} = 2^{\lceil \log_2(f) \rceil - 1}
+$$
+
+for $f > 1$. This means the optimizer tries complete cleanup batches such as
+$9 \rightarrow 8$, $7 \rightarrow 4$, $5 \rightarrow 4$, and
+$3 \rightarrow 2$. These batches are accepted only when the demand oracle still
+satisfies the configured failure-rate limits.
+
+With `opt_power_of_two_muxes=True`, non-power-of-two fanins are targeted first.
+If the input matrix already contains only direct or power-of-two mux rows, this
+mode preserves that property because each accepted batch crosses to another
+power-of-two boundary. If the input matrix already contains non-power-of-two
+fanin rows, the optimizer cleans as many as the demand limits allow and reports
+how many remain.
+
+The optimizer stops when it reaches `opt_target_pip_reduction`, reaches
+`opt_max_iterations`, has no removable PIPs left, or cannot complete a requested
+power-of-two mux cleanup under the configured limits.
+
+With `opt_write_back=False`, the pass is report-only: it shows the optimized
+candidate result but does not touch tile files. With `opt_write_back=True`, the
+accepted matrix is written back to the active tile and dependent FABulous
+artifacts are regenerated.
+
+## Mux And Config-Bit Math
+
+The report separates routing graph size from implementation cost.
+
+The number of selectable switch-matrix PIPs is:
+
+$$
+N_{routingPips} = \sum_{row \in R} f(row)
+$$
+
+where $f(row)$ is the number of sources in a matrix row. JUMP wires are reported
+separately because they are fixed hierarchy edges, not optimizer-removable mux
+choices:
+
+$$
+N_{graphEdges} = N_{routingPips} + N_{jumpWires}
+$$
+
+The switch-matrix config-bit cost of one row is:
+
+$$
+b(f) =
+\begin{cases}
+0 & f \le 1 \\
+\lceil \log_2(f) \rceil & f > 1
+\end{cases}
+$$
+
+The matrix config-bit count is:
+
+$$
+B_{matrix} = \sum_{row \in R} b(f(row))
+$$
+
+The report also shows a mux bucket cost used for cleanup analysis:
+
+$$
+m(f) =
+\begin{cases}
+0 & f \le 1 \\
+2^{\lceil \log_2(f) \rceil} & f > 1
+\end{cases}
+$$
+
+This cost approximates the implementation bucket selected by FABulous. Removing
+one PIP from a `mux16` row may save no implementation cost if it remains in the
+same bucket, while reducing a row from `mux16` to `mux8` saves one select bit
+and one mux bucket level. That is why mux-aware pruning is often more useful
+than raw PIP pruning when the goal is area or config-bit reduction.
 
 ## What The Pass Builds
 
@@ -205,6 +385,47 @@ If these are not marked as control or carry in the loaded FABulous BEL or tile
 metadata, then `control_reachability`, `control_net`, and `carry_chain` generate
 no demands. That is correct behavior for this pass because names are not stable
 architecture contracts.
+
+## Tile Applicability Detection
+
+Demand classes only generate checks when the tile exposes matching terminals and
+graph structure. If a class cannot find the terminals it needs, it reports:
+
+```text
+Demand class generated no demands: <class> (not applicable or no classified terminals matched)
+```
+
+This is not a failure by itself. It means the tile is not expected to support
+that feature according to the loaded FABulous metadata.
+
+For a terminal passthrough tile such as `N_term_single`, the pass detects that
+the tile has no BEL inputs, no BEL outputs, no control metadata, no carry chain,
+and no muxed switch rows. The generated matrix contains only direct passthrough
+rows:
+
+```text
+S1BEG0 <- N1END3
+S1BEG1 <- N1END2
+S1BEG2 <- N1END1
+S1BEG3 <- N1END0
+...
+```
+
+For that tile, a report like this is expected:
+
+```text
+hard demands passed: 74 / 74
+soft demands passed: 0 / 89
+original routing PIPs: 52
+final routing PIPs: 52
+generated matrix config bits: 0
+stop reason: no_removable_pips
+```
+
+The hard checks pass because the required passthrough rows exist. The soft
+stress checks fail because the tile is intentionally not a general-purpose
+routing tile. For example, `N1END1 -> N1END0` is not a valid passthrough; the
+tile routes `N1END1 -> S1BEG2`.
 
 ## Demand Profiles
 
@@ -592,40 +813,143 @@ J_EN_BEG0 / J_EN_END0
 Those are real generated JUMP/mux resources. If many demands go through them,
 the report correctly identifies them as bottlenecks.
 
-## Reading A LUT4AB-Style Report
+## Reading A LUT4AB Report
 
-An example `LUT4AB` full-profile report can show:
-
-```text
-hard demands passed: 209 / 209
-soft demands passed: 326 / 344
-status: PASS WITH WARNINGS
-```
-
-This means the tile passes all required structural checks, but some quality
-checks failed.
-
-If `bel_input_source_coverage` fails for examples like:
+The following block is an aggressive `LUT4AB` full-profile optimizer report. It
+is useful because it shows all major concepts at once: baseline graph size,
+optimized graph size, write-back config bits, hard/soft demand rates, mux
+cleanup, and skipped feature-specific classes.
 
 ```text
-Ci0 -> LA_I0
-E1END0 -> LA_I1
+Tile: LUT4AB
+Directory: /home/hausding/Documents/FABulous/demo0/Tile/LUT4AB
+Switch matrix: /home/hausding/Documents/FABulous/demo0/Tile/LUT4AB/LUT4AB_switch_matrix.list
+
+## Summary
+- status: FAIL
+- opt: True
+- optimizer: greedy
+- demand_profile: full
+- router: pathfinder
+- demands: 553
+- hard demands passed: 162 / 209 (77.51%)
+- hard demands failed: 47 / 209
+- hard failure rate: 22.49%
+- soft demands passed: 59 / 344 (17.15%)
+- soft demands failed: 285 / 344
+- failed sinks: 464
+- soft failure rate: 82.85%
+- original routing PIPs: 1329
+- final routing PIPs: 275
+- jump wires: 98
+- original routing graph edges: 1427
+- final routing graph edges: 373
+- generated matrix config bits: 462
+- generated total config bits: 616 / 640
+- average routed sink path length: 2.08
+
+## Optimization
+| Metric                               |             Value |
+| ------------------------------------ | ----------------: |
+| optimizer                            |            greedy |
+| write back                           |              True |
+| baseline routing PIPs                |              1329 |
+| final routing PIPs                   |               275 |
+| removed routing PIPs                 |              1054 |
+| baseline matrix config bits          |               462 |
+| written optimized matrix config bits |                 0 |
+| baseline total config bits           |               616 |
+| written optimized total config bits  |               154 |
+| routing PIP reduction                |            79.31% |
+| target routing PIP reduction         |            90.00% |
+| baseline hard failure rate           |             0.00% |
+| final hard failure rate              |            22.49% |
+| allowed hard failure rate            |            90.00% |
+| baseline soft failure rate           |             5.23% |
+| final soft failure rate              |            82.85% |
+| allowed soft failure rate            |            95.23% |
+| iterations                           |               462 |
+| accepted batches                     |               462 |
+| rejected batches                     |                 0 |
+| accepted routing PIPs                |              1054 |
+| rejected routing PIPs                |                 0 |
+| stop reason                          | no_removable_pips |
+
+## Mux Cleanup
+| Metric                       |                    Value |
+| ---------------------------- | -----------------------: |
+| mux objective                | power-of-two mux cleanup |
+| baseline mux cost            |                     1248 |
+| final mux cost               |                        0 |
+| mux cost reduction           |                  100.00% |
+| threshold crossings          |                      194 |
+| direct-wire conversions      |                      194 |
+| matrix config bits saved     |                      462 |
+| non-power-of-two rows before |                        0 |
+| non-power-of-two rows after  |                        0 |
+
+### Mux Buckets
+| Bucket | Before | After | Delta |
+| ------ | -----: | ----: | ----: |
+| direct |     81 |   275 |  +194 |
+| mux2   |     16 |     0 |   -16 |
+| mux4   |    124 |     0 |  -124 |
+| mux8   |     18 |     0 |   -18 |
+| mux16  |     36 |     0 |   -36 |
+
+## Failed Demand Examples
+- bel_output_escape_0 (bel_output_escape): LA_O -> JN2BEG1; reason=unreachable
+- bel_input_source_coverage_50 (bel_input_source_coverage): Ci0 -> LA_I0; reason=unreachable
+- matrix_row_coverage_120 (matrix_row_coverage): E1END2 -> J2MID_ABa_BEG2; reason=unreachable
+- local_feedback_197 (local_feedback): LA_O -> LA_I0; reason=unreachable
+- random_local_0 (random_local): LA_O -> LD_I0; reason=unreachable
+
+## Warnings
+- Demand class generated no demands: control_reachability (not applicable or no classified terminals matched)
+- Demand class generated no demands: control_net (not applicable or no classified terminals matched)
+- Demand class generated no demands: carry_chain (not applicable or no classified terminals matched)
+- Demand class generated no demands: dsp_ram_access (not applicable or no classified terminals matched)
+- Demand class generated no demands: io_access (not applicable or no classified terminals matched)
 ```
 
-then the evaluator is saying these exact source-to-sink paths do not exist in
-the loaded routing graph. That does not automatically mean the tile is wrong.
-It means those combinations are not supported by the matrix.
+This report says the optimizer made the tile extremely small: it reduced
+selectable routing PIPs from $1329$ to $275$ and converted every switch-matrix
+row into a direct wire. The switch matrix therefore has:
 
-If the report says:
+$$
+B_{matrix,final} = 0
+$$
+
+The written optimized tile uses $154$ total config bits, down from the baseline
+$616$. The $154$ remaining bits belong to non-switch-matrix tile logic, not to
+the routing matrix.
+
+The report status is still `FAIL` because hard failures are not zero:
+
+$$
+r_{hard} = \frac{47}{209} = 22.49\%
+$$
+
+That is acceptable only because this was an intentionally aggressive optimizer
+experiment with `allowed hard failure rate = 90.00%`. For normal tile-quality
+checking, `opt_max_hard_failure_rate` should usually stay at `0.0`.
+
+The failed examples are exact graph statements. For example:
 
 ```text
-Demand class generated no demands: control_net
-Demand class generated no demands: carry_chain
+LA_O -> JN2BEG1
 ```
 
-while the Verilog or matrix contains names like `SR`, `EN`, `Ci`, or `Co`, that
-is still correct unless the loaded FABulous metadata marks them as control or
-carry. The evaluator does not infer special roles from names.
+means there is no directed path from `LA_O` to `JN2BEG1` in the generated graph
+after optimization. It does not mean `LA_O` is useless; it means this exact
+source/sink combination is not supported by the optimized matrix.
+
+The warning block is also meaningful. Even though names such as `SR`, `EN`,
+`Ci`, or `Co` can appear in Verilog or matrix files, the evaluator does not
+classify them as control or carry unless FABulous metadata or tile CSV
+annotations say so. Therefore `control_net` and `carry_chain` can correctly
+generate no demands for a tile that has those names but not those semantic
+roles.
 
 ## What The Result Can Be Used For
 

@@ -15,12 +15,17 @@ if TYPE_CHECKING:
         RoutingDemandEvaluatorOptions,
         RoutingDemandEvaluatorResult,
     )
+    from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.process_tracker import (  # noqa: E501
+        RoutingDemandProcessTracker,
+    )
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.routing_graph import (  # noqa: E501
         RoutingGraph,
     )
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.routers.base import (  # noqa: E501
         RoutingDemandRouter,
     )
+    from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
+    from fabulous.fabulous_api import FABulous_API
 
 
 @dataclass(frozen=True)
@@ -39,6 +44,12 @@ class OptimizerContext:
         Generated demand profile.
     router : RoutingDemandRouter
         Router used as the demand oracle.
+    design : PyosysBridge
+        Packed design associated with the architecture flow.
+    fab : FABulous_API
+        Loaded FABulous API instance.
+    tracker : RoutingDemandProcessTracker
+        Progress tracker for optimizer status.
     warnings : list[str]
         Existing warnings.
     evaluate : Callable[[RoutingGraph, list[str]], RoutingDemandEvaluatorResult]
@@ -50,6 +61,9 @@ class OptimizerContext:
     graph: RoutingGraph
     demand_profile: DemandProfileResult
     router: RoutingDemandRouter
+    design: PyosysBridge
+    fab: FABulous_API
+    tracker: RoutingDemandProcessTracker
     warnings: list[str]
     evaluate: Callable[[RoutingGraph, list[str]], RoutingDemandEvaluatorResult]
 

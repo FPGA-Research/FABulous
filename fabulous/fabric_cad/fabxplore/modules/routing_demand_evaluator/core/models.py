@@ -176,6 +176,12 @@ class RoutingDemandEvaluatorOptions(BaseModel):
         Whether optimizer failure-rate limits are added to the baseline rates.
     opt_write_back : bool
         Whether optimizer changes overwrite the active tile files in place.
+    opt_max_iterations : int
+        Maximum optimizer pruning iterations.
+    opt_clean_mux : bool
+        Whether greedy optimization should prefer mux bucket cleanup.
+    opt_power_of_two_muxes : bool
+        Whether mux cleanup should require power-of-two mux fanins where possible.
     report_max_soft_failure_rate : float
         Maximum soft-demand failure rate before the report status becomes a warning.
     router : RouterName
@@ -198,6 +204,8 @@ class RoutingDemandEvaluatorOptions(BaseModel):
         Reserved config-bit margin.
     track_progress : bool
         Whether progress should be logged.
+    progress_chunk_size : int
+        Number of optimizer iterations between progress updates.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -217,6 +225,9 @@ class RoutingDemandEvaluatorOptions(BaseModel):
     opt_max_hard_failure_rate: float = 0.0
     opt_use_baseline_failure_rates: bool = True
     opt_write_back: bool = False
+    opt_max_iterations: int = 50
+    opt_clean_mux: bool = False
+    opt_power_of_two_muxes: bool = False
     report_max_soft_failure_rate: float = 0.05
     router: RouterName = RouterName.PATHFINDER
     router_max_iterations: int = 30
@@ -228,6 +239,45 @@ class RoutingDemandEvaluatorOptions(BaseModel):
     config_bit_capacity_override: int | None = None
     config_bit_margin: int = 0
     track_progress: bool = True
+    progress_chunk_size: int = 10
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_disabled_optimizer(cls, data: object) -> object:
+        """Ignore optimizer selection when optimization is disabled.
+
+        Parameters
+        ----------
+        data : object
+            Raw model input.
+
+        Returns
+        -------
+        object
+            Normalized model input.
+        """
+        if isinstance(data, dict) and not data.get("opt", False):
+            return {**data, "optimizer": OptimizerName.NONE}
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_mux_optimizer_options(cls, data: object) -> object:
+        """Normalize mux optimizer option dependencies.
+
+        Parameters
+        ----------
+        data : object
+            Raw model input.
+
+        Returns
+        -------
+        object
+            Normalized model input.
+        """
+        if isinstance(data, dict) and data.get("opt_power_of_two_muxes", False):
+            return {**data, "opt_clean_mux": True}
+        return data
 
     @field_validator("tile_name")
     @classmethod
@@ -257,7 +307,9 @@ class RoutingDemandEvaluatorOptions(BaseModel):
         "demand_iterations",
         "router_max_iterations",
         "router_base_resource_capacity",
+        "opt_max_iterations",
         "max_net_sinks",
+        "progress_chunk_size",
     )
     @classmethod
     def _validate_positive_int(cls, value: int) -> int:
@@ -412,24 +464,6 @@ class RoutingDemandEvaluatorOptions(BaseModel):
         if value <= 0.0:
             raise ValueError("value must be positive")
         return value
-
-    @model_validator(mode="after")
-    def _validate_optimizer_state(self) -> RoutingDemandEvaluatorOptions:
-        """Validate optimizer selection.
-
-        Returns
-        -------
-        RoutingDemandEvaluatorOptions
-            Validated options.
-
-        Raises
-        ------
-        ValueError
-            If optimization is disabled with a non-none optimizer.
-        """
-        if not self.opt and self.optimizer != OptimizerName.NONE:
-            raise ValueError("optimizer must be 'none' when opt is False")
-        return self
 
 
 class MatrixData(BaseModel):
@@ -795,9 +829,19 @@ class RoutingDemandEvaluationStats(BaseModel):
     failed_sinks : int
         Failed sinks across routed net demands.
     original_pips : int
-        PIPs in the evaluated matrix.
+        Original routing graph edges, including switch-matrix PIPs and JUMP wires.
     final_pips : int
-        PIPs after optional optimization.
+        Final routing graph edges, including switch-matrix PIPs and JUMP wires.
+    original_routing_pips : int
+        Original selectable switch-matrix routing PIPs.
+    final_routing_pips : int
+        Final selectable switch-matrix routing PIPs.
+    jump_wires : int
+        Fixed local JUMP edges added to the routing graph.
+    original_graph_edges : int
+        Original routing graph edge count.
+    final_graph_edges : int
+        Final routing graph edge count.
     matrix_config_bits : int
         Matrix config bits.
     total_config_bits : int
@@ -818,6 +862,11 @@ class RoutingDemandEvaluationStats(BaseModel):
     failed_sinks: int
     original_pips: int
     final_pips: int
+    original_routing_pips: int
+    final_routing_pips: int
+    jump_wires: int
+    original_graph_edges: int
+    final_graph_edges: int
     matrix_config_bits: int
     total_config_bits: int
     config_capacity: int
@@ -909,6 +958,213 @@ class RoutingDemandEvaluationStats(BaseModel):
         return self.soft_failed / self.soft_demands
 
 
+class MuxBucketStats(BaseModel):
+    """Mux implementation bucket row counts.
+
+    Attributes
+    ----------
+    model_config
+        Pydantic model configuration.
+    bucket : str
+        Bucket label, such as ``direct`` or ``mux8``.
+    before_rows : int
+        Rows in this bucket before optimization.
+    after_rows : int
+        Rows in this bucket after optimization.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    bucket: str
+    before_rows: int
+    after_rows: int
+
+    @property
+    def delta(self) -> int:
+        """Return row-count delta after optimization.
+
+        Returns
+        -------
+        int
+            Difference between after and before row counts.
+        """
+        return self.after_rows - self.before_rows
+
+
+class MuxCleanupRowStats(BaseModel):
+    """Per-row mux implementation change.
+
+    Attributes
+    ----------
+    model_config
+        Pydantic model configuration.
+    row : str
+        Matrix row name.
+    fanin_before : int
+        Row fanin before optimization.
+    fanin_after : int
+        Row fanin after optimization.
+    bucket_before : str
+        Implementation bucket before optimization.
+    bucket_after : str
+        Implementation bucket after optimization.
+    removed_pips : int
+        Removed PIPs from this row.
+    config_bits_saved : int
+        Estimated matrix config bits saved in this row.
+    mux_cost_saved : int
+        Estimated mux bucket cost saved in this row.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    row: str
+    fanin_before: int
+    fanin_after: int
+    bucket_before: str
+    bucket_after: str
+    removed_pips: int
+    config_bits_saved: int
+    mux_cost_saved: int
+
+
+class MuxCleanupStats(BaseModel):
+    """Mux-cost reporting statistics.
+
+    Attributes
+    ----------
+    model_config
+        Pydantic model configuration.
+    baseline_mux_cost : int
+        Estimated mux bucket cost before optimization.
+    final_mux_cost : int
+        Estimated mux bucket cost after optimization.
+    mux_cost_reduction : float
+        Fractional mux-cost reduction.
+    rows_crossing_thresholds : int
+        Rows whose implementation bucket changed.
+    direct_wire_conversions : int
+        Rows converted to direct wires.
+    config_bit_reduction : int
+        Estimated matrix config-bit reduction.
+    non_power_of_two_mux_rows_before : int
+        Non-power-of-two mux rows before optimization.
+    non_power_of_two_mux_rows_after : int
+        Non-power-of-two mux rows after optimization.
+    buckets : list[MuxBucketStats]
+        Per-bucket row counts.
+    changed_rows : list[MuxCleanupRowStats]
+        Rows whose implementation bucket changed.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    baseline_mux_cost: int
+    final_mux_cost: int
+    mux_cost_reduction: float
+    rows_crossing_thresholds: int
+    direct_wire_conversions: int
+    config_bit_reduction: int
+    non_power_of_two_mux_rows_before: int
+    non_power_of_two_mux_rows_after: int
+    buckets: list[MuxBucketStats]
+    changed_rows: list[MuxCleanupRowStats]
+
+
+class OptimizerStats(BaseModel):
+    """Optimizer summary statistics.
+
+    Attributes
+    ----------
+    model_config
+        Pydantic model configuration.
+    enabled : bool
+        Whether optimization ran.
+    optimizer : str
+        Optimizer implementation name.
+    write_back : bool
+        Whether optimized files were written back in place.
+    baseline_pips : int
+        PIPs before optimization.
+    final_pips : int
+        PIPs after optimization.
+    removed_pips : int
+        Accepted removed PIPs.
+    baseline_matrix_config_bits : int
+        Generated-file matrix config bits before optimization.
+    final_matrix_config_bits_estimate : int
+        Estimated matrix config bits after optimization.
+    baseline_total_config_bits : int
+        Generated-file total config bits before optimization.
+    final_total_config_bits_estimate : int
+        Estimated total config bits after optimization.
+    pip_reduction : float
+        Fraction of baseline PIPs removed.
+    target_pip_reduction : float
+        Requested PIP reduction target.
+    baseline_hard_failure_rate : float
+        Hard-demand failure rate before optimization.
+    baseline_soft_failure_rate : float
+        Soft-demand failure rate before optimization.
+    allowed_hard_failure_rate : float
+        Final hard-demand failure-rate limit.
+    allowed_soft_failure_rate : float
+        Final soft-demand failure-rate limit.
+    final_hard_failure_rate : float
+        Final hard-demand failure rate.
+    final_soft_failure_rate : float
+        Final soft-demand failure rate.
+    attempted_iterations : int
+        Optimizer iterations used.
+    attempted_batches : int
+        Candidate batches evaluated.
+    accepted_batches : int
+        Candidate batches accepted.
+    rejected_batches : int
+        Candidate batches rejected.
+    attempted_pips : int
+        Candidate PIP removals attempted.
+    accepted_pips : int
+        Candidate PIP removals accepted.
+    rejected_pips : int
+        Candidate PIP removals rejected.
+    stop_reason : str
+        Reason optimization stopped.
+    mux_cleanup : MuxCleanupStats
+        Mux bucket/cost changes from accepted optimization.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    enabled: bool
+    optimizer: str
+    write_back: bool
+    baseline_pips: int
+    final_pips: int
+    removed_pips: int
+    baseline_matrix_config_bits: int
+    final_matrix_config_bits_estimate: int
+    baseline_total_config_bits: int
+    final_total_config_bits_estimate: int
+    pip_reduction: float
+    target_pip_reduction: float
+    baseline_hard_failure_rate: float
+    baseline_soft_failure_rate: float
+    allowed_hard_failure_rate: float
+    allowed_soft_failure_rate: float
+    final_hard_failure_rate: float
+    final_soft_failure_rate: float
+    attempted_iterations: int
+    attempted_batches: int
+    accepted_batches: int
+    rejected_batches: int
+    attempted_pips: int
+    accepted_pips: int
+    rejected_pips: int
+    stop_reason: str
+    mux_cleanup: MuxCleanupStats
+
+
 class RoutingDemandEvaluatorResult(BaseModel):
     """Structured result returned by routing-demand evaluation.
 
@@ -938,6 +1194,8 @@ class RoutingDemandEvaluatorResult(BaseModel):
         Warnings from loading, generation, or evaluation.
     random_bucket_stats : list[RandomDemandBucketStats]
         Candidate statistics for random demand buckets.
+    optimizer_stats : OptimizerStats | None
+        Optional optimizer summary.
     report_summary : str
         Rendered human-readable report.
     """
@@ -955,6 +1213,7 @@ class RoutingDemandEvaluatorResult(BaseModel):
     pip_usage: dict[str, int]
     warnings: list[str]
     random_bucket_stats: list[RandomDemandBucketStats] = Field(default_factory=list)
+    optimizer_stats: OptimizerStats | None = None
     report_summary: str = ""
 
     @property

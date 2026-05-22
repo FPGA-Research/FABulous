@@ -1221,6 +1221,9 @@ class ArchitectureSynthesizer(ABC):
         opt_max_hard_failure_rate: float = 0.0,
         opt_use_baseline_failure_rates: bool = True,
         opt_write_back: bool = False,
+        opt_max_iterations: int = 50,
+        opt_clean_mux: bool = False,
+        opt_power_of_two_muxes: bool = False,
         report_max_soft_failure_rate: float = 0.05,
         router: RouterName | str = "pathfinder",
         router_max_iterations: int = 30,
@@ -1232,6 +1235,7 @@ class ArchitectureSynthesizer(ABC):
         config_bit_capacity_override: int | None = None,
         config_bit_margin: int = 0,
         track_progress: bool = True,
+        progress_chunk_size: int = 10,
         log_report: bool = True,
     ) -> RoutingDemandEvaluatorPass:
         """Evaluate routing demands on an active FABulous switch matrix.
@@ -1268,6 +1272,13 @@ class ArchitectureSynthesizer(ABC):
             Whether optimizer failure-rate limits are added to the baseline rates.
         opt_write_back : bool
             Whether optimizer changes overwrite the active tile files in place.
+        opt_max_iterations : int
+            Maximum optimizer pruning iterations.
+        opt_clean_mux : bool
+            Whether greedy optimization should prefer mux bucket cleanup.
+        opt_power_of_two_muxes : bool
+            Whether mux cleanup should require power-of-two mux fanins where
+            possible.
         report_max_soft_failure_rate : float
             Maximum soft-demand failure rate before the report status becomes a warning.
         router : RouterName | str
@@ -1291,6 +1302,8 @@ class ArchitectureSynthesizer(ABC):
             Reserved config-bit margin.
         track_progress : bool
             Whether progress should be logged.
+        progress_chunk_size : int
+            Number of optimizer iterations between progress updates.
         log_report : bool
             If ``True``, log the evaluator report after execution.
 
@@ -1315,6 +1328,9 @@ class ArchitectureSynthesizer(ABC):
             opt_max_hard_failure_rate=opt_max_hard_failure_rate,
             opt_use_baseline_failure_rates=opt_use_baseline_failure_rates,
             opt_write_back=opt_write_back,
+            opt_max_iterations=opt_max_iterations,
+            opt_clean_mux=opt_clean_mux,
+            opt_power_of_two_muxes=opt_power_of_two_muxes,
             report_max_soft_failure_rate=report_max_soft_failure_rate,
             router=router,
             router_max_iterations=router_max_iterations,
@@ -1326,6 +1342,7 @@ class ArchitectureSynthesizer(ABC):
             config_bit_capacity_override=config_bit_capacity_override,
             config_bit_margin=config_bit_margin,
             track_progress=track_progress,
+            progress_chunk_size=progress_chunk_size,
         )
         result.run_on(self.design, self.fab)
 

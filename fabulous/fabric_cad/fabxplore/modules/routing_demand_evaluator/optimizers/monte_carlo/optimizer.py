@@ -34,7 +34,7 @@ class MonteCarloOptimizer(RoutingDemandOptimizer):
         Returns
         -------
         RoutingDemandEvaluatorResult
-            Optimized routing-demand evaluation result.
+             The result of the optimization.
         """
         _ = context
         raise NotImplementedError(

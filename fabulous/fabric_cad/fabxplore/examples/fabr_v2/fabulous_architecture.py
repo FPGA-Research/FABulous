@@ -366,14 +366,17 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             demand_iterations=1000,
             random_demand_ratio=0.25,
             seed=1,
-            opt=False,
-            optimizer="none",
-            opt_target_pip_reduction=0.20,
-            opt_max_soft_failure_rate=0.05,
-            opt_max_hard_failure_rate=0.0,
+            opt=True,
+            optimizer="greedy",
+            opt_target_pip_reduction=0.2,
+            opt_max_soft_failure_rate=0.1,
+            opt_max_hard_failure_rate=0.1,
             opt_use_baseline_failure_rates=True,
-            opt_write_back=False,
-            report_max_soft_failure_rate=0.05,
+            opt_clean_mux=True,
+            opt_power_of_two_muxes=True,
+            opt_write_back=True,
+            opt_max_iterations=1000,
+            report_max_soft_failure_rate=0.1,
             router="pathfinder",
             router_max_iterations=30,
             router_present_cost_multiplier=1.3,
@@ -384,6 +387,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             config_bit_capacity_override=None,
             config_bit_margin=0,
             track_progress=True,
+            progress_chunk_size=5,
         )
 
     def map_cells(self) -> None:
@@ -417,6 +421,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         config.user_design_out_dir.mkdir(parents=True, exist_ok=True)
         self.design_report_summary_pass(
             path=config.user_design_out_dir / f"{config.top_module}.rpt",
+            log_report=False,
         )
 
     def synthesize(self, config: FabulousArchitectureConfig) -> None:

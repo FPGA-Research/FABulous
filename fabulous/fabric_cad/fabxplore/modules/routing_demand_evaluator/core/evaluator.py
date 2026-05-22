@@ -84,12 +84,15 @@ class RoutingDemandEvaluator:
             Structured result and report.
         """
         _ = design
-        tracker = RoutingDemandProcessTracker(enabled=self.options.track_progress)
+        tracker = RoutingDemandProcessTracker(
+            enabled=self.options.track_progress,
+            chunk_size=self.options.progress_chunk_size,
+        )
         tracker.start(self.options.tile_name)
 
         matrix = load_matrix_data(self.options, fab)
         graph = build_graph(matrix)
-        tracker.loaded_matrix(matrix.switch_matrix, _pip_count(matrix))
+        tracker.loaded_matrix(matrix.switch_matrix, _routing_pip_count(matrix))
 
         profile = generate_demand_profile(self.options, matrix, graph)
         tracker.generated_demands(len(profile.demands))
@@ -116,6 +119,9 @@ class RoutingDemandEvaluator:
                 graph=graph,
                 demand_profile=profile,
                 router=router,
+                design=design,
+                fab=fab,
+                tracker=tracker,
                 warnings=profile.warnings,
                 evaluate=evaluate,
             )
@@ -232,6 +238,11 @@ def _evaluation_stats(
         for result in demand_results
         for path in result.paths
     ]
+    original_routing_pips = _routing_pip_count(matrix)
+    jump_wires = len(matrix.jump_edges)
+    final_graph_edges = len(graph.edges())
+    final_routing_pips = max(final_graph_edges - jump_wires, 0)
+    original_graph_edges = original_routing_pips + jump_wires
     return RoutingDemandEvaluationStats(
         total_demands=len(demand_results),
         hard_demands=len(hard_results),
@@ -239,8 +250,13 @@ def _evaluation_stats(
         hard_failed=sum(1 for result in hard_results if not result.routed),
         soft_failed=sum(1 for result in soft_results if not result.routed),
         failed_sinks=sum(len(result.failed_sinks) for result in demand_results),
-        original_pips=_pip_count(matrix),
-        final_pips=len(graph.edges()),
+        original_pips=original_graph_edges,
+        final_pips=final_graph_edges,
+        original_routing_pips=original_routing_pips,
+        final_routing_pips=final_routing_pips,
+        jump_wires=jump_wires,
+        original_graph_edges=original_graph_edges,
+        final_graph_edges=final_graph_edges,
         matrix_config_bits=matrix.matrix_config_bits,
         total_config_bits=matrix.total_config_bits,
         config_capacity=matrix.config_capacity,
@@ -336,8 +352,8 @@ def _random_bucket_stats(
     return stats
 
 
-def _pip_count(matrix: MatrixData) -> int:
-    """Count switch-matrix PIPs plus local JUMP edges.
+def _routing_pip_count(matrix: MatrixData) -> int:
+    """Count selectable switch-matrix routing PIPs.
 
     Parameters
     ----------
@@ -347,8 +363,6 @@ def _pip_count(matrix: MatrixData) -> int:
     Returns
     -------
     int
-        PIP count.
+        Routing PIP count.
     """
-    return sum(len(sources) for sources in matrix.connections.values()) + len(
-        matrix.jump_edges
-    )
+    return sum(len(sources) for sources in matrix.connections.values())
