@@ -50,10 +50,18 @@ class RoutingDemandEvaluatorPass(PnRPass):
         Whether optimization is enabled.
     optimizer : OptimizerName | str
         Optimizer name.
-    target_pip_reduction : float
+    opt_target_pip_reduction : float
         Target PIP reduction for optimizers.
-    max_soft_failure_rate : float
-        Maximum allowed soft-demand failure rate.
+    opt_max_soft_failure_rate : float
+        Maximum optimizer-added soft-demand failure rate.
+    opt_max_hard_failure_rate : float
+        Maximum optimizer-added hard-demand failure rate.
+    opt_use_baseline_failure_rates : bool
+        Whether optimizer failure-rate limits are added to the baseline rates.
+    opt_write_back : bool
+        Whether optimizer changes overwrite the active tile files in place.
+    report_max_soft_failure_rate : float
+        Maximum soft-demand failure rate before the report status becomes a warning.
     router : RouterName | str
         Router name.
     router_max_iterations : int
@@ -86,8 +94,12 @@ class RoutingDemandEvaluatorPass(PnRPass):
     seed: int = 1
     opt: bool = False
     optimizer: OptimizerName | str = OptimizerName.NONE
-    target_pip_reduction: float = 0.20
-    max_soft_failure_rate: float = 0.05
+    opt_target_pip_reduction: float = 0.20
+    opt_max_soft_failure_rate: float = 0.05
+    opt_max_hard_failure_rate: float = 0.0
+    opt_use_baseline_failure_rates: bool = True
+    opt_write_back: bool = False
+    report_max_soft_failure_rate: float = 0.05
     router: RouterName | str = RouterName.PATHFINDER
     router_max_iterations: int = 30
     router_present_cost_multiplier: float = 1.3
@@ -122,8 +134,12 @@ class RoutingDemandEvaluatorPass(PnRPass):
             seed=self.seed,
             opt=self.opt,
             optimizer=self.optimizer,
-            target_pip_reduction=self.target_pip_reduction,
-            max_soft_failure_rate=self.max_soft_failure_rate,
+            opt_target_pip_reduction=self.opt_target_pip_reduction,
+            opt_max_soft_failure_rate=self.opt_max_soft_failure_rate,
+            opt_max_hard_failure_rate=self.opt_max_hard_failure_rate,
+            opt_use_baseline_failure_rates=self.opt_use_baseline_failure_rates,
+            opt_write_back=self.opt_write_back,
+            report_max_soft_failure_rate=self.report_max_soft_failure_rate,
             router=self.router,
             router_max_iterations=self.router_max_iterations,
             router_present_cost_multiplier=self.router_present_cost_multiplier,

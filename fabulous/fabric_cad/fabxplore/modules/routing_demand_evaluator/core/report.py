@@ -233,7 +233,7 @@ def _status(result: RoutingDemandEvaluatorResult) -> str:
     """
     if not result.hard_demands_passed:
         return "FAIL"
-    if result.soft_failure_rate > result.options.max_soft_failure_rate:
+    if result.soft_failure_rate > result.options.report_max_soft_failure_rate:
         return "PASS WITH WARNINGS"
     return "PASS"
 

@@ -43,8 +43,12 @@ self.pnr_routing_demand_evaluator_pass(
     # Optimizer hook.
     opt=False,
     optimizer="none",
-    target_pip_reduction=0.20,
-    max_soft_failure_rate=0.05,
+    opt_target_pip_reduction=0.20,
+    opt_max_soft_failure_rate=0.05,
+    opt_max_hard_failure_rate=0.0,
+    opt_use_baseline_failure_rates=True,
+    opt_write_back=False,
+    report_max_soft_failure_rate=0.05,
 
     # PathFinder-style router.
     router="pathfinder",
@@ -83,9 +87,20 @@ Options:
 - `seed`: random seed for repeatable random demand selection.
 - `opt`: enable an optimizer. Currently `False` is the normal evaluation mode.
 - `optimizer`: optimizer name. Currently `none` is implemented.
-- `target_pip_reduction`: global reduction target for future optimizer modes.
-- `max_soft_failure_rate`: soft-failure threshold used for top-level status.
-  Hard failures always make the report fail.
+- `opt_target_pip_reduction`: global reduction target for optimizer modes.
+- `opt_max_soft_failure_rate`: maximum soft-demand failure-rate increase allowed
+  during optimization.
+- `opt_max_hard_failure_rate`: maximum hard-demand failure-rate increase allowed
+  during optimization.
+- `opt_use_baseline_failure_rates`: when `True`, optimizer failure-rate limits
+  are added to the baseline failure rates. When `False`, the optimizer limits
+  are absolute.
+- `opt_write_back`: when `True`, optimizer changes overwrite the active tile
+  files in place. The pass must regenerate the dependent switch-matrix,
+  config-memory, and tile artifacts so no stale files remain. The default is
+  `False`, which keeps optimizer runs report-only.
+- `report_max_soft_failure_rate`: soft-failure threshold used for top-level
+  report status. Hard failures always make the report fail.
 - `router`: router implementation. Currently `pathfinder`.
 - `router_max_iterations`: maximum negotiated-congestion iterations.
 - `router_present_cost_multiplier`: multiplier for present congestion cost.
@@ -446,7 +461,7 @@ Demand kind controls report status:
 
 - `hard`: required structural checks. A hard failure makes the whole report fail.
 - `soft`: quality or stress checks. Soft failures are allowed up to
-  `max_soft_failure_rate`.
+  `report_max_soft_failure_rate`.
 
 Top-level status:
 
