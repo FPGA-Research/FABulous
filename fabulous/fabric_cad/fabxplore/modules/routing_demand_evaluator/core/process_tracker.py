@@ -136,6 +136,115 @@ class RoutingDemandProcessTracker:
             rejected_batches,
         )
 
+    def monte_carlo_learning_iteration(
+        self,
+        iteration: int,
+        max_iterations: int,
+        average_loss: float,
+        max_loss: float,
+        weight_change_rate: float,
+        scored_pips: int,
+        sampled_pips: int,
+        unsampled_pips: int,
+        epoch: int,
+        epoch_progress: int,
+        epoch_size: int,
+    ) -> None:
+        """Log Monte Carlo importance-learning progress.
+
+        Parameters
+        ----------
+        iteration : int
+            Current learning iteration.
+        max_iterations : int
+            Maximum learning iterations.
+        average_loss : float
+            Average sampled loss so far.
+        max_loss : float
+            Maximum sampled loss so far.
+        weight_change_rate : float
+            Relative importance-weight change.
+        scored_pips : int
+            Number of PIPs with importance scores.
+        sampled_pips : int
+            Removable PIPs seen in at least one learning sample.
+        unsampled_pips : int
+            Removable PIPs not seen in learning samples.
+        epoch : int
+            Current 1-based shuffled learning epoch.
+        epoch_progress : int
+            PIPs consumed in the current learning epoch.
+        epoch_size : int
+            PIPs in one full learning epoch.
+        """
+        if not self.enabled:
+            return
+        if iteration % self.chunk_size != 0 and iteration != max_iterations:
+            return
+        pct = 100.0 * iteration / max_iterations if max_iterations else 100.0
+        logger.info(
+            "[RoutingDemandEvaluator] Monte Carlo learning: "
+            "{}/{} ({:.1f}%), avg_loss={:.6f}, max_loss={:.6f}, "
+            "weight_change={:.6f}, scored_pips={}, sampled_pips={}, "
+            "unsampled_pips={}, epoch={}, epoch_pips={}/{}",
+            iteration,
+            max_iterations,
+            pct,
+            average_loss,
+            max_loss,
+            weight_change_rate,
+            scored_pips,
+            sampled_pips,
+            unsampled_pips,
+            epoch,
+            epoch_progress,
+            epoch_size,
+        )
+
+    def monte_carlo_pruning_iteration(
+        self,
+        iteration: int,
+        max_iterations: int,
+        current_pips: int,
+        accepted_pips: int,
+        accepted_batches: int,
+        rejected_batches: int,
+    ) -> None:
+        """Log Monte Carlo pruning progress.
+
+        Parameters
+        ----------
+        iteration : int
+            Current pruning iteration.
+        max_iterations : int
+            Maximum pruning iterations.
+        current_pips : int
+            Current accepted routing PIP count.
+        accepted_pips : int
+            Accepted removed PIPs.
+        accepted_batches : int
+            Accepted pruning batches.
+        rejected_batches : int
+            Rejected pruning batches.
+        """
+        if not self.enabled:
+            return
+        if iteration % self.chunk_size != 0 and iteration != max_iterations:
+            return
+        pct = 100.0 * iteration / max_iterations if max_iterations else 100.0
+        logger.info(
+            "[RoutingDemandEvaluator] Monte Carlo pruning: "
+            "{}/{} ({:.1f}%), current_pips={}, removed_pips={}, "
+            "accepted_batches={}, rejected_batches={}",
+            iteration,
+            max_iterations,
+            pct,
+            current_pips,
+            accepted_pips,
+            accepted_batches,
+            rejected_batches,
+        )
+
     def optimizer_finish(
         self,
         removed_pips: int,

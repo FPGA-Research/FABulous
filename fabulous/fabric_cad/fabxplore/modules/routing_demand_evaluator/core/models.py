@@ -1132,6 +1132,38 @@ class OptimizerStats(BaseModel):
         Reason optimization stopped.
     mux_cleanup : MuxCleanupStats
         Mux bucket/cost changes from accepted optimization.
+    sampled_batches : int
+        Monte Carlo ablation batches evaluated for importance estimation.
+    importance_rounds : int
+        Monte Carlo importance-estimation rounds.
+    learning_iterations : int
+        Monte Carlo temporary ablation evaluations.
+    pruning_iterations : int
+        Monte Carlo checked pruning evaluations.
+    average_sample_loss : float
+        Average loss observed while learning PIP importance.
+    max_sample_loss : float
+        Maximum loss observed while learning PIP importance.
+    weight_change_rate : float
+        Relative final change in learned PIP importance weights.
+    sampled_pips : int
+        Removable PIPs seen in at least one learning sample.
+    unsampled_pips : int
+        Removable PIPs not seen in learning samples.
+    sampled_pip_rate : float
+        Fraction of removable PIPs sampled during learning.
+    min_samples_per_pip : int
+        Minimum learning sample count across removable PIPs.
+    average_samples_per_pip : float
+        Average learning sample count across removable PIPs.
+    max_samples_per_pip : int
+        Maximum learning sample count across removable PIPs.
+    best_iteration : int | None
+        Optimizer iteration that produced the best accepted result.
+    pip_importance_matrix : dict[str, dict[str, float]]
+        Per-row, per-source PIP importance values from Monte Carlo sampling.
+    pip_importance_file : Path | None
+        Optional text file containing the PIP importance matrix.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -1163,6 +1195,22 @@ class OptimizerStats(BaseModel):
     rejected_pips: int
     stop_reason: str
     mux_cleanup: MuxCleanupStats
+    sampled_batches: int = 0
+    importance_rounds: int = 0
+    learning_iterations: int = 0
+    pruning_iterations: int = 0
+    average_sample_loss: float = 0.0
+    max_sample_loss: float = 0.0
+    weight_change_rate: float = 0.0
+    sampled_pips: int = 0
+    unsampled_pips: int = 0
+    sampled_pip_rate: float = 0.0
+    min_samples_per_pip: int = 0
+    average_samples_per_pip: float = 0.0
+    max_samples_per_pip: int = 0
+    best_iteration: int | None = None
+    pip_importance_matrix: dict[str, dict[str, float]] = Field(default_factory=dict)
+    pip_importance_file: Path | None = None
 
 
 class RoutingDemandEvaluatorResult(BaseModel):

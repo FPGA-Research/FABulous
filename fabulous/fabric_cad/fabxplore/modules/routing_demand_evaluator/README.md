@@ -90,8 +90,9 @@ Options:
 - `random_demand_ratio`: fraction of the budget reserved for random classes.
 - `seed`: random seed for repeatable random demand selection.
 - `opt`: enable an optimizer. `False` is the normal evaluation mode.
-- `optimizer`: optimizer name. Use `none` for evaluation only, or `greedy` for
-  deterministic demand-oracle pruning.
+- `optimizer`: optimizer name. Use `none` for evaluation only, `greedy` for
+  deterministic demand-oracle pruning, or `monte_carlo` for sampled
+  PIP-importance learning followed by checked pruning.
 - `opt_target_pip_reduction`: global reduction target for optimizer modes.
 - `opt_max_soft_failure_rate`: maximum soft-demand failure-rate increase allowed
   during optimization.
@@ -104,14 +105,21 @@ Options:
   files in place. The pass must regenerate the dependent switch-matrix,
   config-memory, and tile artifacts so no stale files remain. The default is
   `False`, which keeps optimizer runs report-only.
-- `opt_max_iterations`: maximum optimizer pruning iterations.
-- `opt_clean_mux`: make greedy pruning mux-aware. Instead of only ranking
+- `opt_max_iterations`: maximum optimizer iteration budget. For `greedy`, this
+  is the maximum pruning attempts. For `monte_carlo`, this is used once for
+  importance learning and again for checked pruning, so `1000` means up to
+  `1000` temporary ablation evaluations plus up to `1000` pruning evaluations.
+- `opt_clean_mux`: make optimizer pruning mux-aware. Instead of only ranking
   individual PIPs, the optimizer tries row batches that cross FABulous mux
   implementation buckets, such as `mux16 -> mux8` or `mux4 -> mux2`.
-- `opt_power_of_two_muxes`: require mux cleanup to target power-of-two fanins
-  where possible. This option automatically enables `opt_clean_mux`; if cleanup
-  cannot finish under the demand limits, the best legal result is kept and the
-  report lists the remaining non-power-of-two mux rows.
+- `opt_power_of_two_muxes`: restrict pruning to mux-cleanup batches that move
+  rows toward direct or power-of-two fanins. This option automatically enables
+  `opt_clean_mux`. For `greedy` and `monte_carlo`,
+  `opt_target_pip_reduction` remains an upper pruning budget: if no strict
+  mux-cleanup batch fits the remaining budget, pruning stops early. If strict
+  cleanup cannot produce a
+  direct-or-power-of-two final matrix, write-back is skipped and the report
+  lists the remaining non-power-of-two mux rows.
 - `report_max_soft_failure_rate`: soft-failure threshold used for top-level
   report status. Hard failures always make the report fail.
 - `router`: router implementation. Currently `pathfinder`.
@@ -228,11 +236,12 @@ $9 \rightarrow 8$, $7 \rightarrow 4$, $5 \rightarrow 4$, and
 $3 \rightarrow 2$. These batches are accepted only when the demand oracle still
 satisfies the configured failure-rate limits.
 
-With `opt_power_of_two_muxes=True`, non-power-of-two fanins are targeted first.
-If the input matrix already contains only direct or power-of-two mux rows, this
-mode preserves that property because each accepted batch crosses to another
-power-of-two boundary. If the input matrix already contains non-power-of-two
-fanin rows, the optimizer cleans as many as the demand limits allow and reports
+With `opt_power_of_two_muxes=True`, pruning is restricted to mux-cleanup
+batches that move rows toward direct or power-of-two fanins. If the input matrix
+already contains only direct or power-of-two mux rows, this mode preserves that
+property because each accepted batch crosses to another allowed boundary. If
+the input matrix already contains non-power-of-two fanin rows, the optimizer
+tries to normalize those rows, for example `14 -> 8` or `7 -> 4`, and reports
 how many remain.
 
 The optimizer stops when it reaches `opt_target_pip_reduction`, reaches
@@ -243,6 +252,414 @@ With `opt_write_back=False`, the pass is report-only: it shows the optimized
 candidate result but does not touch tile files. With `opt_write_back=True`, the
 accepted matrix is written back to the active tile and dependent FABulous
 artifacts are regenerated.
+
+## Monte Carlo Optimizer
+
+The `monte_carlo` optimizer is a two-phase optimizer. It first learns a
+PIP-importance model using temporary ablations, then it prunes the matrix using
+the learned weights and the same demand oracle used by the greedy optimizer.
+Like `greedy`, it only removes switch-matrix routing PIPs and never removes
+fixed JUMP wires directly.
+
+### Phase 1: Importance Learning
+
+During learning, the optimizer repeatedly samples a temporary batch $B$ of
+matrix PIPs:
+
+$$
+B = \{e_1, e_2, \ldots, e_k\}
+$$
+
+It removes $B$ from a copy of the baseline matrix, evaluates the generated
+demands, records the loss, and then restores the batch. No PIP is permanently
+removed during this phase:
+
+```text
+remove temporary batch
+run evaluator
+measure loss
+restore batch
+update importance evidence
+```
+
+The current loss function is deliberately conservative:
+
+$$
+L =
+1000 \Delta r_{hard}
++ 100 \Delta r_{soft}
++ 10 \Delta r_{failedSinks}
++ \Delta r_{path}
+$$
+
+where $\Delta r_{hard}$ and $\Delta r_{soft}$ are increases in hard and soft
+failure rates relative to the baseline, $\Delta r_{failedSinks}$ is the
+normalized increase in failed sinks, and $\Delta r_{path}$ is the normalized
+increase in average routed path length. Hard-demand regressions dominate the
+score because a hard failure means the matrix no longer satisfies an essential
+structural check.
+
+The importance learner is internal and modular. The default learner is a
+gradient-style learner; an average-difference learner is kept in the same
+module as a simple fallback/comparison implementation. Both implement the same
+contract:
+
+```text
+observe(batch, loss)
+penalize(rejected_batch, loss)
+scores()
+```
+
+The default gradient learner predicts batch loss as the sum of PIP weights:
+
+$$
+\hat{L}_B = \sum_{e \in B} w(e)
+$$
+
+Then it compares predicted loss with measured loss and distributes the update
+across the PIPs in the removed batch:
+
+$$
+w(e) \leftarrow
+\max\left(
+0,
+w(e) + \eta \frac{L_B - \hat{L}_B}{|B|}
+\right)
+\quad\text{for each } e \in B
+$$
+
+Only PIPs in the temporary batch receive a direct update. A low $w(e)$ means the
+PIP often appears in temporary removals without causing extra loss. A high
+$w(e)$ means the PIP tends to appear in high-loss removals and should be
+protected.
+
+For example, assume a temporary batch contains three PIPs:
+
+```text
+B = {A, B, C}
+```
+
+and the current weights are:
+
+```text
+w(A)=2.0, w(B)=1.0, w(C)=0.0
+```
+
+The predicted batch loss is:
+
+$$
+\hat{L}_B = 2.0 + 1.0 + 0.0 = 3.0
+$$
+
+If the evaluator measures an actual loss of:
+
+$$
+L_B = 12.0
+$$
+
+then the prediction was too small by:
+
+$$
+12.0 - 3.0 = 9.0
+$$
+
+With learning rate $\eta = 0.25$, the update distributed over the three
+temporary removals is:
+
+$$
+\frac{0.25 \cdot 9.0}{3} = 0.75
+$$
+
+so the new weights become:
+
+```text
+w(A)=2.75, w(B)=1.75, w(C)=0.75
+```
+
+If later batches containing `A` continue to produce high loss, `A` keeps rising.
+If batches containing `C` usually do not hurt, `C` stays low or is pulled less
+often into accepted pruning candidates.
+
+This gradient form is useful because it is online, cheap, and works naturally
+with partial evidence. The optimizer does not need to store every past sample or
+recompute all PIP scores from scratch after every observation. It also lets
+rejected pruning batches directly increase the weights of the PIPs that caused
+the rejected candidate. That is why the gradient learner is the default: it is
+not a proof of true global importance, but it is a practical estimator that
+adapts as the demand oracle gives more evidence.
+
+When a batch has much higher loss than the running average, Monte Carlo also
+splits that batch into smaller attribution batches and evaluates those pieces
+while learning budget remains. This gives high-loss batches better attribution:
+one critical PIP should not permanently poison a whole otherwise-safe group.
+
+The average-difference learner computes the older score:
+
+$$
+w(e) =
+\max\left(
+0,
+\overline{L \mid e \in B}
+-
+\overline{L \mid e \notin B}
+\right)
+$$
+
+It is useful because it is stable and easy to reason about, but the default
+gradient learner is more direct for online updates and rejected-batch feedback.
+
+Learning samples use small shuffled sliding windows. The optimizer builds the
+removable routing-PIP list, shuffles it, removes a small fixed-size window
+temporarily, then advances the window. When the end of the shuffled list is
+reached, it shuffles again and starts a new pass:
+
+```text
+shuffle removable PIPs
+try PIPs[0:batch]
+try PIPs[batch:2*batch]
+...
+reshuffle and repeat
+```
+
+One full shuffled pass is called an epoch. During the first epoch, Monte Carlo
+forces sliding-window batches until every removable PIP has been sampled at
+least once. After `unsampled_pips` reaches zero, the remaining learning budget
+is used for refinement: the sampler continues with new shuffled epochs and may
+mix in mux-threshold batches when mux cleanup is enabled.
+
+This is intentionally different from sampling huge random batches. If too many
+PIPs are removed at once, the loss almost always gets worse and the optimizer
+learns little about which individual PIP caused the regression. Small windows
+give each PIP direct evidence, avoid repeatedly testing only nearby row-local
+connections, and make the importance matrix converge more globally. The batch
+size and related tuning constants live in an internal Monte Carlo hyperparameter
+dataclass; they are not public pass options.
+
+### Why This Is Not Shapley
+
+The Monte Carlo optimizer uses sampled batch ablation around the baseline
+matrix. Its learning question is:
+
+```text
+How much does the demand oracle get worse when these PIPs are temporarily
+removed from the current full matrix?
+```
+
+That is the right question for checked pruning, because the optimizer starts
+from a complete matrix and wants to remove PIPs safely.
+
+This is related to Shapley-style importance, but it is not the same estimator.
+Exact Shapley values ask for the average marginal contribution of one player
+over all possible contexts:
+
+$$
+\phi(e) =
+\sum_{S \subseteq P \setminus \{e\}}
+\frac{|S|!(|P|-|S|-1)!}{|P|!}
+\left(
+V(S \cup \{e\}) - V(S)
+\right)
+$$
+
+For loss, where smaller is better, the marginal can be written as:
+
+$$
+\Delta_e = L(S) - L(S \cup \{e\})
+$$
+
+If adding PIP $e$ reduces loss, the marginal is positive. If adding it makes
+loss worse, the marginal is negative.
+
+A Monte Carlo Shapley approximation samples random build-up orders:
+
+```text
+score = {pip: 0}
+
+for sampled order in random_permutations(PIPs):
+    S = empty_matrix_or_partial_matrix()
+    old_loss = loss(S)
+
+    for pip in sampled order:
+        add pip to S
+        new_loss = loss(S)
+        score[pip] += old_loss - new_loss
+        old_loss = new_loss
+```
+
+For a tiny example with three PIPs:
+
+```text
+loss({})        = 100
+add A -> loss  = 70    A gets 100 - 70 = 30
+add B -> loss  = 60    B gets 70 - 60  = 10
+add C -> loss  = 20    C gets 60 - 20  = 40
+```
+
+Another random order may give different marginal values. The Shapley estimate
+is the average over many random orders.
+
+The computational difference is large. The current Monte Carlo learner costs
+approximately:
+
+$$
+N_{learn} = \texttt{opt\_max\_iterations}
+$$
+
+temporary demand-oracle evaluations. With `opt_max_iterations=400`, that is
+about 400 learning evaluations.
+
+Monte Carlo Shapley costs approximately:
+
+$$
+N_{shapley} = N_{permutations} \cdot N_{PIPs}
+$$
+
+For LUT4AB with 1329 routing PIPs:
+
+```text
+10 sampled orders   -> about 13,290 evaluator runs
+100 sampled orders  -> about 132,900 evaluator runs
+1000 sampled orders -> about 1,329,000 evaluator runs
+```
+
+Exact Shapley would be far larger because it averages over all subsets of PIPs.
+That is not practical with a demand router in the loop.
+
+There is also an architectural reason to prefer baseline ablation here. Many
+partial matrices in a Shapley build-up order are not meaningful FABulous routing
+architectures: they may have empty mux rows, broken hierarchy, or no useful path
+structure. The optimizer's actual task is not to value PIPs in arbitrary partial
+matrices; it is to decide which PIPs can be removed from the existing matrix
+while preserving the configured demand oracle.
+
+So the honest description is:
+
+```text
+Monte Carlo batch-ablation importance, followed by checked pruning.
+```
+
+It is a practical approximation of removal sensitivity under the selected
+demand profile, not an exact Shapley-value computation.
+
+The live progress log reports the current epoch:
+
+```text
+epoch=2, epoch_pips=128/1248
+```
+
+Here `epoch` is the current shuffled pass and `epoch_pips` is how many
+removable PIPs have been consumed in that pass. This makes it clear whether the
+optimizer is still in first-coverage learning or already refining weights.
+
+The report shows:
+
+- sampled PIPs
+- unsampled PIPs
+- sampled PIP rate
+- minimum, average, and maximum samples per removable PIP
+
+These coverage numbers explain the reliability of the importance matrix. A zero
+importance value on a well-sampled PIP means the optimizer did not observe loss
+from removing it. A zero importance value on an unsampled PIP only means there
+was no evidence yet.
+
+Learning stops after `opt_max_iterations` temporary ablation evaluations. The
+optimizer does not currently stop early on convergence. It still reports a
+weight-change indicator:
+
+$$
+\Delta_w =
+\frac{
+\frac{1}{N}\sum_i |w_i^{new} - w_i^{old}|
+}{
+\epsilon + \frac{1}{N}\sum_i |w_i^{new}|
+}
+$$
+
+When $\Delta_w$ trends toward zero, the importance weights are becoming more
+stable. This is a diagnostic only; it is not a stop condition.
+
+### Phase 2: Checked Pruning
+
+After learning, the optimizer ranks candidate PIP batches by low importance and
+high implementation value. A candidate batch is still accepted only if the full
+demand oracle remains inside the configured limits:
+
+$$
+r_{hard,candidate} \le r_{hard,limit}
+$$
+
+and:
+
+$$
+r_{soft,candidate} \le r_{soft,limit}
+$$
+
+If a supposedly low-risk pruning batch fails the oracle, the optimizer restores
+the batch, marks it rejected, and increases the score of the PIPs in that batch.
+This feeds pruning feedback back into the importance model:
+
+$$
+w(e) \leftarrow w(e) + \frac{\max(L_B, 1)}{|B|}
+\quad\text{for each } e \in B
+$$
+
+This matters because a high-loss batch does not prove every PIP in the batch is
+bad. Overlapping samples and rejected-batch feedback make the attribution more
+robust: PIPs that repeatedly appear in bad combinations become expensive, while
+PIPs that appear in safe combinations stay cheap.
+
+Rejected pruning batches are also split adaptively while pruning budget remains:
+
+```text
+try full low-importance batch
+if rejected:
+    penalize the batch
+    split by learned importance
+    retry smaller pieces
+```
+
+This prevents one critical PIP from blocking a whole otherwise-safe batch. Near
+the configured hard/soft failure-rate limits, Monte Carlo becomes more cautious
+and shrinks non-power-of-two candidate batches before evaluating them. This helps
+avoid accepting large removals that barely fit inside the limits.
+
+With `opt_clean_mux=True`, Monte Carlo ranks row-local mux cleanup batches by
+importance and mux/config-bit savings. With `opt_power_of_two_muxes=True`, this
+mux-aware mode is enabled automatically and pruning is restricted to strict
+mux-cleanup batches that target direct or power-of-two fanins. In this strict
+mode, the PIP reduction target is an upper budget, not a lower bound. The
+optimizer may stop below the requested reduction if the next strict mux-cleanup
+batch would exceed the remaining budget:
+
+```text
+target_removed_pips = 195
+accepted_pips       = 188
+next legal batch    = 8 PIPs
+stop instead of removing 196 PIPs
+```
+
+This means a run with `opt_target_pip_reduction=0.25` can legitimately finish at
+`0.02` if only 2% can be removed while preserving the strict mux constraint and
+the demand limits. Rejected strict mux-cleanup batches are not partially
+accepted, because a partial split can turn a legal row such as `mux16` into an
+illegal row such as `mux12`. If the input matrix already contains
+non-power-of-two rows and they cannot all be normalized inside the pruning
+budget and demand limits, write-back is skipped and the report warns that
+non-power-of-two rows remain.
+
+With `opt_write_back=True`, Monte Carlo also writes a PIP importance matrix:
+
+```text
+<tile_name>_pip_importance.txt
+```
+
+The file uses a CSV-shaped table but the extension is `.txt`. Rows are matrix
+destination rows, columns are matrix sources, and each populated cross point is
+the learned importance value for that PIP. The same matrix is also available in
+the structured optimizer result as `optimizer_stats.pip_importance_matrix`.
+Markdown reports show only the filename to keep the optimization and importance
+tables narrow; the structured result keeps the full path.
 
 ## Mux And Config-Bit Math
 
@@ -950,6 +1367,32 @@ classify them as control or carry unless FABulous metadata or tile CSV
 annotations say so. Therefore `control_net` and `carry_chain` can correctly
 generate no demands for a tile that has those names but not those semantic
 roles.
+
+When the optimizer is `monte_carlo`, the same report also contains learning
+rows in the `Optimization` section:
+
+```text
+learning iterations
+pruning iterations
+sampled batches
+importance rounds
+average sample loss
+max sample loss
+weight change rate
+sampled PIPs
+unsampled PIPs
+sampled PIP rate
+min / avg / max samples per PIP
+PIP importance file
+```
+
+These rows separate temporary learning work from permanent pruning work. A
+large `learning iterations` value means many temporary ablations were evaluated
+against the baseline matrix. A large `pruning iterations` value means many
+low-importance batches were checked against the demand oracle after learning.
+The `PIP Importance` section lists the highest-scored PIPs, and the
+`PIP importance file` points at the full CSV-shaped `.txt` matrix when
+`opt_write_back=True`.
 
 ## What The Result Can Be Used For
 

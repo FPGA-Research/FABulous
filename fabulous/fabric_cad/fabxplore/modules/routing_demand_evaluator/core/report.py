@@ -153,6 +153,7 @@ def _report_sections(result: RoutingDemandEvaluatorResult) -> str:
     return "".join(
         [
             _section_text(_optimization_section(result)),
+            _section_text(_pip_importance_section(result)),
             _section_text(_mux_cleanup_section(result)),
             _section_text(_congestion_section(result)),
             _section_text(
@@ -233,6 +234,28 @@ def _optimization_section(result: RoutingDemandEvaluatorResult) -> list[str]:
         ["rejected routing PIPs", str(stats.rejected_pips)],
         ["stop reason", stats.stop_reason],
     ]
+    if stats.sampled_batches:
+        rows.extend(
+            [
+                ["learning iterations", str(stats.learning_iterations)],
+                ["pruning iterations", str(stats.pruning_iterations)],
+                ["sampled batches", str(stats.sampled_batches)],
+                ["importance rounds", str(stats.importance_rounds)],
+                ["average sample loss", f"{stats.average_sample_loss:.6f}"],
+                ["max sample loss", f"{stats.max_sample_loss:.6f}"],
+                ["weight change rate", f"{stats.weight_change_rate:.6f}"],
+                ["sampled PIPs", str(stats.sampled_pips)],
+                ["unsampled PIPs", str(stats.unsampled_pips)],
+                ["sampled PIP rate", _percent(stats.sampled_pip_rate)],
+                ["min samples per PIP", str(stats.min_samples_per_pip)],
+                ["avg samples per PIP", f"{stats.average_samples_per_pip:.2f}"],
+                ["max samples per PIP", str(stats.max_samples_per_pip)],
+            ]
+        )
+    if stats.best_iteration is not None:
+        rows.append(["best iteration", str(stats.best_iteration)])
+    if stats.pip_importance_file is not None:
+        rows.append(["PIP importance file", stats.pip_importance_file.name])
     return [
         "## Optimization",
         *_markdown_table(
@@ -242,6 +265,56 @@ def _optimization_section(result: RoutingDemandEvaluatorResult) -> list[str]:
         ),
         "",
     ]
+
+
+def _pip_importance_section(result: RoutingDemandEvaluatorResult) -> list[str]:
+    """Render Monte Carlo PIP-importance summary lines.
+
+    Parameters
+    ----------
+    result : RoutingDemandEvaluatorResult
+        Evaluation result.
+
+    Returns
+    -------
+    list[str]
+        Importance section lines.
+    """
+    stats = result.optimizer_stats
+    if stats is None or not stats.pip_importance_matrix:
+        return []
+
+    scored = [
+        (row, source, importance)
+        for row, sources in stats.pip_importance_matrix.items()
+        for source, importance in sources.items()
+    ]
+    scored.sort(key=lambda item: (-item[2], item[0], item[1]))
+    rows = [
+        [row, source, f"{importance:.6f}"] for row, source, importance in scored[:10]
+    ]
+    lines = ["## PIP Importance"]
+    if stats.pip_importance_file is None:
+        lines.append("- matrix file: not written")
+    else:
+        lines.append(f"- matrix file: {stats.pip_importance_file.name}")
+    lines.append(f"- scored PIPs: {len(scored)}")
+    lines.append("")
+    if not rows:
+        lines.extend(["### Highest Importance PIPs", "- none", ""])
+        return lines
+    lines.extend(
+        [
+            "### Highest Importance PIPs",
+            *_markdown_table(
+                headers=["Row", "Source", "Importance"],
+                rows=rows,
+                aligns=["left", "left", "right"],
+            ),
+            "",
+        ]
+    )
+    return lines
 
 
 def _mux_cleanup_section(result: RoutingDemandEvaluatorResult) -> list[str]:

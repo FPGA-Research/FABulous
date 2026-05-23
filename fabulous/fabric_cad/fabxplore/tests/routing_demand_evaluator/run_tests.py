@@ -105,6 +105,61 @@ class _FakeFab:
 
     def __init__(self, tile: _FakeTile) -> None:
         self.fabric = _FakeFabric(tile)
+        self.fileExtension = ".v"
+        self._writer_output_file: Path | None = None
+
+    def loadFabric(self, fabric_csv: Path) -> None:
+        """Pretend to reload a FABulous fabric.
+
+        Parameters
+        ----------
+        fabric_csv : Path
+            Fabric CSV path.
+        """
+        _ = fabric_csv
+
+    def setWriterOutputFile(self, output_file: Path) -> None:
+        """Remember the requested writer output file.
+
+        Parameters
+        ----------
+        output_file : Path
+            Requested output file.
+        """
+        self._writer_output_file = output_file
+
+    def genSwitchMatrix(self, tile_name: str) -> None:
+        """Pretend to regenerate a switch matrix.
+
+        Parameters
+        ----------
+        tile_name : str
+            Tile name.
+        """
+        _ = tile_name
+
+    def genConfigMem(self, tile_name: str, config_mem_csv: Path) -> None:
+        """Pretend to regenerate config memory.
+
+        Parameters
+        ----------
+        tile_name : str
+            Tile name.
+        config_mem_csv : Path
+            Config-memory CSV path.
+        """
+        _ = tile_name
+        _ = config_mem_csv
+
+    def genTile(self, tile_name: str) -> None:
+        """Pretend to regenerate a tile wrapper.
+
+        Parameters
+        ----------
+        tile_name : str
+            Tile name.
+        """
+        _ = tile_name
 
 
 def test_models_validate_public_options() -> None:
@@ -1014,7 +1069,7 @@ def test_greedy_power_of_two_mux_cleanup_normalizes_rows() -> None:
                 demand_iterations=4,
                 opt=True,
                 optimizer="greedy",
-                opt_target_pip_reduction=0.0,
+                opt_target_pip_reduction=0.25,
                 opt_max_hard_failure_rate=0.0,
                 opt_max_soft_failure_rate=0.0,
                 opt_power_of_two_muxes=True,
@@ -1038,11 +1093,103 @@ def test_greedy_power_of_two_mux_cleanup_normalizes_rows() -> None:
         assert matrix.read_text(encoding="utf-8") == "{3}I,[A0|A1|DEAD]\nOUT0,O\n"
 
 
-def test_monte_carlo_optimizer_placeholder_raises_clear_error() -> None:
-    """Test future Monte Carlo optimizer placeholder is explicit."""
+def test_greedy_clean_mux_writeback_allows_non_power_rows() -> None:
+    """Test non-strict greedy mux cleanup can write non-power mux rows."""
+    with _project("clean_mux_non_power") as tile_dir:
+        matrix = tile_dir / "clean_mux_non_power_switch_matrix.list"
+        original_matrix = "{3}I,[A0|A1|DEAD]\n{8}X,[X0|X1|X2|X3|X4|X5|X6|X7]\nOUT0,O\n"
+        matrix.write_text(original_matrix, encoding="utf-8")
+        tile_csv = _write_tile_csv(tile_dir, "clean_mux_non_power", matrix.name)
+        fab = _FakeFab(
+            _FakeTile(
+                "clean_mux_non_power",
+                tile_csv,
+                matrix,
+                ports=_simple_ports(),
+                bels=[_simple_bel(tile_dir)],
+            )
+        )
+
+        result = RoutingDemandEvaluator(
+            RoutingDemandEvaluatorOptions(
+                tile_name="clean_mux_non_power",
+                demand_profile="minimal",
+                demand_iterations=4,
+                opt=True,
+                optimizer="greedy",
+                opt_target_pip_reduction=0.01,
+                opt_max_hard_failure_rate=1.0,
+                opt_max_soft_failure_rate=1.0,
+                opt_clean_mux=True,
+                opt_power_of_two_muxes=False,
+                opt_write_back=True,
+                opt_max_iterations=4,
+                track_progress=False,
+            )
+        ).run(object(), fab)  # type: ignore[arg-type]
+
+        assert result.optimizer_stats is not None
+        assert result.optimizer_stats.write_back is True
+        assert result.optimizer_stats.accepted_pips == 4
+        assert result.optimizer_stats.mux_cleanup.non_power_of_two_mux_rows_after == 1
+        assert "Write-back skipped because strict power-of-two mux cleanup" not in (
+            result.report_summary
+        )
+        written = matrix.read_text(encoding="utf-8")
+        assert "{3}I,[A0|A1|DEAD]" in written
+        assert "{4}X," in written
+
+
+def test_greedy_power_of_two_mux_cleanup_does_not_overshoot_budget() -> None:
+    """Test strict power-of-two mux cleanup treats the target as a budget."""
+    with _project("power_mux_budget") as tile_dir:
+        matrix = tile_dir / "power_mux_budget_switch_matrix.list"
+        original_matrix = "{6}I,[A0|A1|A2|A3|A4|DEAD]\nOUT0,O\n"
+        matrix.write_text(original_matrix, encoding="utf-8")
+        tile_csv = _write_tile_csv(tile_dir, "power_mux_budget", matrix.name)
+        fab = _FakeFab(
+            _FakeTile(
+                "power_mux_budget",
+                tile_csv,
+                matrix,
+                ports=_simple_ports(),
+                bels=[_simple_bel(tile_dir)],
+            )
+        )
+
+        result = RoutingDemandEvaluator(
+            RoutingDemandEvaluatorOptions(
+                tile_name="power_mux_budget",
+                demand_profile="minimal",
+                demand_iterations=4,
+                opt=True,
+                optimizer="greedy",
+                opt_target_pip_reduction=0.1,
+                opt_max_hard_failure_rate=0.0,
+                opt_max_soft_failure_rate=0.0,
+                opt_power_of_two_muxes=True,
+                opt_write_back=False,
+                opt_max_iterations=4,
+                track_progress=False,
+            )
+        ).run(object(), fab)  # type: ignore[arg-type]
+
+        assert result.optimizer_stats is not None
+        assert result.optimizer_stats.accepted_pips == 0
+        assert result.optimizer_stats.stop_reason == "power_of_two_budget_exhausted"
+        assert result.optimizer_stats.mux_cleanup.non_power_of_two_mux_rows_after == 1
+        assert "Write-back skipped because strict power-of-two mux cleanup" in (
+            result.report_summary
+        )
+        assert matrix.read_text(encoding="utf-8") == original_matrix
+
+
+def test_monte_carlo_optimizer_prunes_and_reports_importance() -> None:
+    """Test Monte Carlo optimizer prunes and reports PIP importance."""
     with _project("monte_tile") as tile_dir:
         matrix = tile_dir / "monte_tile_switch_matrix.list"
-        matrix.write_text("I,A0\nI,O\nOUT0,O\n", encoding="utf-8")
+        original_matrix = "{2}I,[A0|DEAD]\nOUT0,O\n"
+        matrix.write_text(original_matrix, encoding="utf-8")
         tile_csv = _write_tile_csv(tile_dir, "monte_tile", matrix.name)
         fab = _FakeFab(
             _FakeTile(
@@ -1054,17 +1201,36 @@ def test_monte_carlo_optimizer_placeholder_raises_clear_error() -> None:
             )
         )
 
-        _assert_raises_contains(
-            lambda: RoutingDemandEvaluator(
-                RoutingDemandEvaluatorOptions(
-                    tile_name="monte_tile",
-                    opt=True,
-                    optimizer="monte_carlo",
-                    track_progress=False,
-                )
-            ).run(object(), fab),  # type: ignore[arg-type]
-            "Monte Carlo",
-        )
+        result = RoutingDemandEvaluator(
+            RoutingDemandEvaluatorOptions(
+                tile_name="monte_tile",
+                demand_profile="minimal",
+                demand_iterations=4,
+                opt=True,
+                optimizer="monte_carlo",
+                opt_target_pip_reduction=0.25,
+                opt_max_hard_failure_rate=0.0,
+                opt_max_soft_failure_rate=0.0,
+                opt_use_baseline_failure_rates=True,
+                opt_write_back=False,
+                opt_max_iterations=20,
+                track_progress=False,
+            )
+        ).run(object(), fab)  # type: ignore[arg-type]
+
+        assert result.optimizer_stats is not None
+        assert result.optimizer_stats.accepted_pips == 1
+        assert result.optimizer_stats.removed_pips == 1
+        assert result.optimizer_stats.learning_iterations == 20
+        assert result.optimizer_stats.pruning_iterations >= 1
+        assert result.optimizer_stats.sampled_batches >= 1
+        assert result.optimizer_stats.weight_change_rate >= 0.0
+        assert result.optimizer_stats.sampled_pips >= 1
+        assert result.optimizer_stats.sampled_pip_rate > 0.0
+        assert result.optimizer_stats.pip_importance_matrix["I"]
+        assert result.optimizer_stats.pip_importance_file is None
+        assert "## PIP Importance" in result.report_summary
+        assert matrix.read_text(encoding="utf-8") == original_matrix
 
 
 def test_pnr_pass_wrapper_exposes_result_data() -> None:
@@ -1413,7 +1579,9 @@ def main() -> None:
     test_greedy_writeback_list_renderer_keeps_fabulous_list_valid()
     test_greedy_batch_filter_preserves_one_pip_per_matrix_row()
     test_greedy_power_of_two_mux_cleanup_normalizes_rows()
-    test_monte_carlo_optimizer_placeholder_raises_clear_error()
+    test_greedy_clean_mux_writeback_allows_non_power_rows()
+    test_greedy_power_of_two_mux_cleanup_does_not_overshoot_budget()
+    test_monte_carlo_optimizer_prunes_and_reports_importance()
     test_pnr_pass_wrapper_exposes_result_data()
 
 

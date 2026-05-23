@@ -109,6 +109,23 @@ class _CandidateBatch:
     normalizes_power_of_two: bool
 
 
+@dataclass(frozen=True)
+class _CandidateSelection:
+    """Selected candidate PIPs for one optimizer iteration.
+
+    Attributes
+    ----------
+    pips : list[Pip]
+        PIPs to try removing together.
+    blocked_by_target_budget : bool
+        Whether strict mux-cleanup candidates exist but all exceed the
+        remaining pruning budget.
+    """
+
+    pips: list[Pip]
+    blocked_by_target_budget: bool = False
+
+
 class GreedyOptimizer(RoutingDemandOptimizer):
     """Greedy demand-oracle pruning optimizer."""
 
@@ -147,6 +164,9 @@ class GreedyOptimizer(RoutingDemandOptimizer):
             baseline.stats.original_routing_pips
             * context.options.opt_target_pip_reduction
         )
+        clean_mux = (
+            context.options.opt_clean_mux or context.options.opt_power_of_two_muxes
+        )
         stop_reason = "target_reached" if target_remove == 0 else "max_iterations"
         context.tracker.optimizer_start(
             str(context.options.optimizer),
@@ -155,30 +175,29 @@ class GreedyOptimizer(RoutingDemandOptimizer):
         )
 
         while counters.iterations < context.options.opt_max_iterations:
-            if _optimizer_target_reached(
-                connections,
-                counters,
-                target_remove,
-                power_of_two_muxes=context.options.opt_power_of_two_muxes,
-            ):
+            if _optimizer_target_reached(counters, target_remove):
                 stop_reason = "target_reached"
                 break
-            batch = _next_candidate_batch(
+            selection = _next_candidate_batch(
                 connections=connections,
                 result=current,
                 rejected=rejected,
                 target_remove=target_remove,
                 counters=counters,
-                clean_mux=context.options.opt_clean_mux,
+                clean_mux=clean_mux,
                 power_of_two_muxes=context.options.opt_power_of_two_muxes,
             )
+            batch = selection.pips
             if not batch:
-                stop_reason = (
-                    "power_of_two_blocked"
-                    if context.options.opt_power_of_two_muxes
-                    and _has_non_power_of_two_muxes(connections)
-                    else "no_removable_pips"
-                )
+                if selection.blocked_by_target_budget:
+                    stop_reason = "power_of_two_budget_exhausted"
+                else:
+                    stop_reason = (
+                        "power_of_two_blocked"
+                        if context.options.opt_power_of_two_muxes
+                        and _has_non_power_of_two_muxes(connections)
+                        else "no_removable_pips"
+                    )
                 break
 
             counters.iterations += 1
@@ -190,7 +209,7 @@ class GreedyOptimizer(RoutingDemandOptimizer):
                 limits=limits,
                 rejected=rejected,
                 counters=counters,
-                allow_split=not context.options.opt_clean_mux,
+                allow_split=not clean_mux,
             )
             if accepted is None:
                 context.tracker.optimizer_iteration(
@@ -212,12 +231,15 @@ class GreedyOptimizer(RoutingDemandOptimizer):
                 rejected_batches=counters.rejected_batches,
             )
 
-        should_write_back = (
-            context.options.opt_write_back and counters.accepted_pips > 0
-        )
-        if should_write_back:
-            _write_back(context, connections)
         remaining_non_power_rows = _non_power_of_two_mux_count(connections)
+        should_write_back = (
+            context.options.opt_write_back
+            and counters.accepted_pips > 0
+            and (
+                not context.options.opt_power_of_two_muxes
+                or remaining_non_power_rows == 0
+            )
+        )
         if context.options.opt_power_of_two_muxes and remaining_non_power_rows:
             current = current.model_copy(
                 update={
@@ -228,9 +250,13 @@ class GreedyOptimizer(RoutingDemandOptimizer):
                             f"{remaining_non_power_rows} non-power-of-two "
                             "mux row(s) remain."
                         ),
+                        "Write-back skipped because strict power-of-two mux "
+                        "cleanup did not finish.",
                     ]
                 }
             )
+        if should_write_back:
+            _write_back(context, connections)
 
         result = _with_optimizer_stats(
             result=current,
@@ -395,7 +421,7 @@ def _next_candidate_batch(
     counters: _Counters,
     clean_mux: bool,
     power_of_two_muxes: bool,
-) -> list[Pip]:
+) -> _CandidateSelection:
     """Return the next candidate batch.
 
     Parameters
@@ -417,8 +443,8 @@ def _next_candidate_batch(
 
     Returns
     -------
-    list[Pip]
-        Candidate batch.
+    _CandidateSelection
+        Candidate batch and optional strict-budget block flag.
     """
     if clean_mux:
         batches = _rank_mux_candidate_batches(
@@ -427,12 +453,20 @@ def _next_candidate_batch(
             rejected,
             power_of_two_muxes=power_of_two_muxes,
         )
-        return batches[0].pips if batches else []
+        if not batches:
+            return _CandidateSelection(pips=[])
+        if not power_of_two_muxes:
+            return _CandidateSelection(pips=batches[0].pips)
+        remaining = max(target_remove - counters.accepted_pips, 1)
+        for batch in batches:
+            if len(batch.pips) <= remaining:
+                return _CandidateSelection(pips=batch.pips)
+        return _CandidateSelection(pips=[], blocked_by_target_budget=True)
 
     candidates = _rank_pip_candidates(connections, result, rejected)
     remaining = max(target_remove - counters.accepted_pips, 1)
     batch_size = min(_batch_size(len(candidates)), remaining)
-    return candidates[:batch_size]
+    return _CandidateSelection(pips=candidates[:batch_size])
 
 
 def _rank_pip_candidates(
@@ -601,32 +635,24 @@ def _batch_size(candidate_count: int) -> int:
 
 
 def _optimizer_target_reached(
-    connections: Connections,
     counters: _Counters,
     target_remove: int,
-    power_of_two_muxes: bool,
 ) -> bool:
     """Return whether the optimizer can stop.
 
     Parameters
     ----------
-    connections : Connections
-        Current accepted switch-matrix connections.
     counters : _Counters
         Optimizer counters.
     target_remove : int
         Target number of PIPs to remove.
-    power_of_two_muxes : bool
-        Whether non-power-of-two mux rows must still be targeted.
 
     Returns
     -------
     bool
         Whether the optimizer target is satisfied.
     """
-    if counters.accepted_pips < target_remove:
-        return False
-    return not power_of_two_muxes or not _has_non_power_of_two_muxes(connections)
+    return counters.accepted_pips >= target_remove
 
 
 def _has_non_power_of_two_muxes(connections: Connections) -> bool:
