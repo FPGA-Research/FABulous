@@ -78,6 +78,12 @@ def generate_demand_class(
             return routing.matrix_row_coverage(matrix, graph, limit, offset)
         case DemandClassName.MATRIX_SOURCE_USEFULNESS:
             return routing.matrix_source_usefulness(matrix, graph, limit, offset)
+        case DemandClassName.FANIN_DIVERSITY:
+            return routing.fanin_diversity(matrix, graph, limit, offset)
+        case DemandClassName.SOURCE_FANOUT_DIVERSITY:
+            return routing.source_fanout_diversity(matrix, graph, limit, offset)
+        case DemandClassName.SIDE_PAIR_BALANCE:
+            return routing.side_pair_balance(matrix, graph, limit, offset)
         case DemandClassName.HIERARCHY_INTEGRITY:
             return routing.hierarchy_integrity(matrix, graph, limit, offset)
         case DemandClassName.LOCAL_FEEDBACK:

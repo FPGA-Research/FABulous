@@ -361,16 +361,16 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         )
 
         self.pnr_routing_demand_evaluator_pass(
-            tile_name="RegFile",
+            tile_name="test_tile2",
             demand_profile="full",
             demand_iterations=1000,
             random_demand_ratio=0.25,
             seed=1,
             opt=True,
             optimizer="greedy",
-            opt_target_pip_reduction=0.8,
-            opt_max_soft_failure_rate=0.9,
-            opt_max_hard_failure_rate=0.9,
+            opt_target_pip_reduction=0.2,
+            opt_max_soft_failure_rate=0.1,
+            opt_max_hard_failure_rate=0.1,
             opt_use_baseline_failure_rates=True,
             opt_clean_mux=True,
             opt_power_of_two_muxes=False,

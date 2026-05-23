@@ -18,6 +18,7 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.matrix_
     load_matrix_data,
 )
 from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models import (
+    DemandClassName,
     DemandKind,
     DemandProfileName,
     OptimizerName,
@@ -663,6 +664,114 @@ def test_added_single_tile_demand_classes() -> None:
         ]
         assert input_fanout[0].sinks == ["I0", "I1"]
         assert [(demand.source, demand.sink) for demand in controls] == [("A0", "RST")]
+
+
+def test_matrix_diversity_demand_classes_probe_direct_choices() -> None:
+    """Test fanin and source-fanout diversity generate direct choice probes."""
+    with _project("diversity_tile") as tile_dir:
+        matrix = tile_dir / "diversity_tile_switch_matrix.list"
+        matrix.write_text(
+            "\n".join(
+                [
+                    "{3}ROW_A,[SRC0|SRC1|SRC2]",
+                    "ROW_B,SRC0",
+                    "ROW_C,SRC0",
+                    "ROW_D,SRC1",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        tile_csv = _write_tile_csv(tile_dir, "diversity_tile", matrix.name)
+        fab = _FakeFab(_FakeTile("diversity_tile", tile_csv, matrix))
+        data = load_matrix_data(
+            RoutingDemandEvaluatorOptions(tile_name="diversity_tile"),
+            fab,  # type: ignore[arg-type]
+        )
+        graph = build_graph(data)
+
+        fanin = routing.fanin_diversity(data, graph, limit=16, offset=0)
+        fanout_diversity = routing.source_fanout_diversity(
+            data,
+            graph,
+            limit=16,
+            offset=0,
+        )
+
+        assert {demand.demand_class for demand in fanin} == {
+            DemandClassName.FANIN_DIVERSITY
+        }
+        assert {demand.kind for demand in fanin} == {DemandKind.SOFT}
+        assert [(demand.source, demand.sink) for demand in fanin] == [
+            ("SRC0", "ROW_A"),
+            ("SRC1", "ROW_A"),
+            ("SRC2", "ROW_A"),
+        ]
+        assert {demand.demand_class for demand in fanout_diversity} == {
+            DemandClassName.SOURCE_FANOUT_DIVERSITY
+        }
+        assert {demand.kind for demand in fanout_diversity} == {DemandKind.SOFT}
+        assert [(demand.source, demand.sink) for demand in fanout_diversity] == [
+            ("SRC0", "ROW_A"),
+            ("SRC0", "ROW_B"),
+            ("SRC0", "ROW_C"),
+            ("SRC1", "ROW_A"),
+            ("SRC1", "ROW_D"),
+        ]
+
+
+def test_side_pair_balance_generates_ordered_side_pairs() -> None:
+    """Test side-pair balance emits one probe for each ordered side pair."""
+    with _project("side_pair_tile") as tile_dir:
+        matrix = tile_dir / "side_pair_tile_switch_matrix.list"
+        matrix.write_text(
+            "\n".join(
+                [
+                    "{3}N_ROW0,[E_SRC0|S_SRC0|W_SRC0]",
+                    "{3}E_ROW0,[N_SRC0|S_SRC0|W_SRC0]",
+                    "{3}S_ROW0,[N_SRC0|E_SRC0|W_SRC0]",
+                    "{3}W_ROW0,[N_SRC0|E_SRC0|S_SRC0]",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        tile_csv = _write_tile_csv(tile_dir, "side_pair_tile", matrix.name)
+        fab = _FakeFab(
+            _FakeTile(
+                "side_pair_tile",
+                tile_csv,
+                matrix,
+                ports=_cardinal_routing_ports(),
+                bels=[],
+            )
+        )
+        data = load_matrix_data(
+            RoutingDemandEvaluatorOptions(tile_name="side_pair_tile"),
+            fab,  # type: ignore[arg-type]
+        )
+        graph = build_graph(data)
+
+        demands = routing.side_pair_balance(data, graph, limit=16, offset=0)
+
+        assert {demand.demand_class for demand in demands} == {
+            DemandClassName.SIDE_PAIR_BALANCE
+        }
+        assert {demand.kind for demand in demands} == {DemandKind.SOFT}
+        assert [(demand.source, demand.sink) for demand in demands] == [
+            ("N_SRC0", "E_ROW0"),
+            ("N_SRC0", "S_ROW0"),
+            ("N_SRC0", "W_ROW0"),
+            ("E_SRC0", "N_ROW0"),
+            ("E_SRC0", "S_ROW0"),
+            ("E_SRC0", "W_ROW0"),
+            ("S_SRC0", "N_ROW0"),
+            ("S_SRC0", "E_ROW0"),
+            ("S_SRC0", "W_ROW0"),
+            ("W_SRC0", "N_ROW0"),
+            ("W_SRC0", "E_ROW0"),
+            ("W_SRC0", "S_ROW0"),
+        ]
 
 
 def test_routing_stress_uses_matrix_source_to_row_direction() -> None:
@@ -1388,6 +1497,21 @@ def _routing_ports() -> list[Port]:
     return [*north_ports, *east_ports]
 
 
+def _cardinal_routing_ports() -> list[Port]:
+    """Return one source/row port pair per cardinal direction.
+
+    Returns
+    -------
+    list[Port]
+        FABulous ports for north, east, south, and west routing resources.
+    """
+    north_ports, _common = parsePortLine("NORTH,N_ROW,0,1,N_SRC,1,")
+    east_ports, _common = parsePortLine("EAST,E_ROW,1,0,E_SRC,1,")
+    south_ports, _common = parsePortLine("SOUTH,S_ROW,0,-1,S_SRC,1,")
+    west_ports, _common = parsePortLine("WEST,W_ROW,-1,0,W_SRC,1,")
+    return [*north_ports, *east_ports, *south_ports, *west_ports]
+
+
 def _short_long_ports() -> list[Port]:
     """Return routing ports with short and long spans.
 
@@ -1569,6 +1693,8 @@ def main() -> None:
     test_bel_output_escape_uses_matrix_destination_rows()
     test_routing_demands_use_matrix_source_to_destination_direction()
     test_added_single_tile_demand_classes()
+    test_matrix_diversity_demand_classes_probe_direct_choices()
+    test_side_pair_balance_generates_ordered_side_pairs()
     test_routing_stress_uses_matrix_source_to_row_direction()
     test_control_net_prefers_reachable_control_sources()
     test_bel_input_source_coverage_is_not_first_source_biased()

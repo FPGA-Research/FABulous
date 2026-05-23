@@ -31,6 +31,8 @@ if TYPE_CHECKING:
         RoutingGraph,
     )
 
+_CARDINAL_DIRECTIONS = ("NORTH", "EAST", "SOUTH", "WEST")
+
 
 def matrix_row_coverage(
     matrix: MatrixData,
@@ -100,6 +102,174 @@ def matrix_source_usefulness(
         offset,
         graph,
     )
+
+
+def fanin_diversity(
+    matrix: MatrixData,
+    graph: RoutingGraph,
+    limit: int,
+    offset: int,
+) -> list[RoutingDemand]:
+    """Generate soft demands for alternative sources into muxed rows.
+
+    Parameters
+    ----------
+    matrix : MatrixData
+        Loaded matrix data.
+    graph : RoutingGraph
+        Routing graph.
+    limit : int
+        Maximum generated demands.
+    offset : int
+        Stable ID offset.
+
+    Returns
+    -------
+    list[RoutingDemand]
+        Generated demands.
+    """
+    source_by_name = {
+        terminal.name: terminal for terminal in _matrix_source_terminals(matrix, graph)
+    }
+    row_by_name = {
+        terminal.name: terminal for terminal in _matrix_row_terminals(matrix, graph)
+    }
+    pairs = []
+    for row in sorted(matrix.connections):
+        sink = row_by_name.get(row)
+        if sink is None:
+            continue
+        sources = sorted(
+            {
+                source
+                for source in matrix.connections[row]
+                if source != row and source in source_by_name
+            }
+        )
+        if len(sources) < 2:
+            continue
+        pairs.extend((source_by_name[source], sink) for source in sources)
+    return _direct_pair_demands(
+        DemandClassName.FANIN_DIVERSITY,
+        pairs,
+        limit,
+        offset,
+        graph,
+    )
+
+
+def source_fanout_diversity(
+    matrix: MatrixData,
+    graph: RoutingGraph,
+    limit: int,
+    offset: int,
+) -> list[RoutingDemand]:
+    """Generate soft demands for sources that feed multiple rows.
+
+    Parameters
+    ----------
+    matrix : MatrixData
+        Loaded matrix data.
+    graph : RoutingGraph
+        Routing graph.
+    limit : int
+        Maximum generated demands.
+    offset : int
+        Stable ID offset.
+
+    Returns
+    -------
+    list[RoutingDemand]
+        Generated demands.
+    """
+    source_by_name = {
+        terminal.name: terminal for terminal in _matrix_source_terminals(matrix, graph)
+    }
+    row_by_name = {
+        terminal.name: terminal for terminal in _matrix_row_terminals(matrix, graph)
+    }
+    rows_by_source: dict[str, list[RoutingTerminal]] = {}
+    for row in sorted(matrix.connections):
+        sink = row_by_name.get(row)
+        if sink is None:
+            continue
+        for source in sorted(set(matrix.connections[row])):
+            if source == row or source not in source_by_name:
+                continue
+            rows_by_source.setdefault(source, []).append(sink)
+
+    pairs = []
+    for source in sorted(rows_by_source):
+        sinks = _dedupe_terminals_by_name(rows_by_source[source])
+        if len(sinks) < 2:
+            continue
+        pairs.extend((source_by_name[source], sink) for sink in sinks)
+    return _direct_pair_demands(
+        DemandClassName.SOURCE_FANOUT_DIVERSITY,
+        pairs,
+        limit,
+        offset,
+        graph,
+    )
+
+
+def side_pair_balance(
+    matrix: MatrixData,
+    graph: RoutingGraph,
+    limit: int,
+    offset: int,
+) -> list[RoutingDemand]:
+    """Generate soft demands for ordered side-to-side routing balance.
+
+    Parameters
+    ----------
+    matrix : MatrixData
+        Loaded matrix data.
+    graph : RoutingGraph
+        Routing graph.
+    limit : int
+        Maximum generated demands.
+    offset : int
+        Stable ID offset.
+
+    Returns
+    -------
+    list[RoutingDemand]
+        Generated demands.
+    """
+    sources_by_direction = _terminals_by_direction(
+        _matrix_source_routing_terminals(matrix, graph)
+    )
+    sinks_by_direction = _terminals_by_direction(
+        _matrix_row_routing_terminals(matrix, graph)
+    )
+    demands: list[RoutingDemand] = []
+    for source_direction in _CARDINAL_DIRECTIONS:
+        for sink_direction in _CARDINAL_DIRECTIONS:
+            if source_direction == sink_direction:
+                continue
+            pair = _first_reachable_or_first_pair(
+                sources=sources_by_direction.get(source_direction, []),
+                sinks=sinks_by_direction.get(sink_direction, []),
+                graph=graph,
+            )
+            if pair is None:
+                continue
+            source, sink = pair
+            demands.append(
+                RoutingDemand(
+                    demand_id=(
+                        f"{DemandClassName.SIDE_PAIR_BALANCE}_{offset + len(demands)}"
+                    ),
+                    demand_class=DemandClassName.SIDE_PAIR_BALANCE,
+                    kind=DemandKind.SOFT,
+                    source=source.name,
+                    sink=sink.name,
+                )
+            )
+            if len(demands) >= limit:
+                return demands
+    return demands
 
 
 def hierarchy_integrity(
@@ -431,3 +601,133 @@ def _matrix_routing_terminals_by_distance(
     return [
         terminal for terminal in terminals if (_terminal_span(terminal) > 1) == long
     ]
+
+
+def _direct_pair_demands(
+    demand_class: DemandClassName,
+    pairs: list[tuple[RoutingTerminal, RoutingTerminal]],
+    limit: int,
+    offset: int,
+    graph: RoutingGraph,
+) -> list[RoutingDemand]:
+    """Generate bounded one-to-one demands from explicit direct pairs.
+
+    Parameters
+    ----------
+    demand_class : DemandClassName
+        Demand class.
+    pairs : list[tuple[RoutingTerminal, RoutingTerminal]]
+        Candidate source/sink terminal pairs.
+    limit : int
+        Maximum generated demands.
+    offset : int
+        Stable ID offset.
+    graph : RoutingGraph
+        Routing graph.
+
+    Returns
+    -------
+    list[RoutingDemand]
+        Generated demands.
+    """
+    demands: list[RoutingDemand] = []
+    seen: set[tuple[str, str]] = set()
+    for source, sink in pairs:
+        key = (source.name, sink.name)
+        if source.name == sink.name or key in seen:
+            continue
+        seen.add(key)
+        if graph.shortest_path(source.name, sink.name) is None:
+            continue
+        demands.append(
+            RoutingDemand(
+                demand_id=f"{demand_class}_{offset + len(demands)}",
+                demand_class=demand_class,
+                kind=DemandKind.SOFT,
+                source=source.name,
+                sink=sink.name,
+            )
+        )
+        if len(demands) >= limit:
+            break
+    return demands
+
+
+def _dedupe_terminals_by_name(
+    terminals: list[RoutingTerminal],
+) -> list[RoutingTerminal]:
+    """Return terminals with duplicate names removed.
+
+    Parameters
+    ----------
+    terminals : list[RoutingTerminal]
+        Candidate terminals.
+
+    Returns
+    -------
+    list[RoutingTerminal]
+        Deduplicated terminals.
+    """
+    result: list[RoutingTerminal] = []
+    seen: set[str] = set()
+    for terminal in terminals:
+        if terminal.name in seen:
+            continue
+        seen.add(terminal.name)
+        result.append(terminal)
+    return result
+
+
+def _terminals_by_direction(
+    terminals: list[RoutingTerminal],
+) -> dict[str, list[RoutingTerminal]]:
+    """Group terminals by cardinal FABulous direction.
+
+    Parameters
+    ----------
+    terminals : list[RoutingTerminal]
+        Terminals to group.
+
+    Returns
+    -------
+    dict[str, list[RoutingTerminal]]
+        Terminals keyed by direction.
+    """
+    by_direction: dict[str, list[RoutingTerminal]] = {}
+    for terminal in sorted(terminals, key=lambda item: item.name):
+        if terminal.direction not in _CARDINAL_DIRECTIONS:
+            continue
+        by_direction.setdefault(terminal.direction, []).append(terminal)
+    return by_direction
+
+
+def _first_reachable_or_first_pair(
+    sources: list[RoutingTerminal],
+    sinks: list[RoutingTerminal],
+    graph: RoutingGraph,
+) -> tuple[RoutingTerminal, RoutingTerminal] | None:
+    """Return a representative source/sink pair for one side pair.
+
+    Parameters
+    ----------
+    sources : list[RoutingTerminal]
+        Candidate source terminals for one side.
+    sinks : list[RoutingTerminal]
+        Candidate sink terminals for one side.
+    graph : RoutingGraph
+        Routing graph.
+
+    Returns
+    -------
+    tuple[RoutingTerminal, RoutingTerminal] | None
+        A reachable pair if one exists, otherwise a deterministic fallback pair.
+    """
+    fallback: tuple[RoutingTerminal, RoutingTerminal] | None = None
+    for source in sources:
+        for sink in sinks:
+            if source.name == sink.name:
+                continue
+            fallback = fallback or (source, sink)
+            if graph.shortest_path(source.name, sink.name) is not None:
+                return source, sink
+    return fallback

@@ -871,6 +871,9 @@ Practical single-tile quality check:
 - `hierarchy_integrity`
 - `bel_input_source_coverage`
 - `matrix_source_usefulness`
+- `fanin_diversity`
+- `source_fanout_diversity`
+- `side_pair_balance`
 - `local_feedback`
 - `straight_routing`
 - `turn_routing`
@@ -889,6 +892,9 @@ Routing-fabric pressure profile:
 - `hierarchy_integrity`
 - `bel_input_source_coverage`
 - `matrix_source_usefulness`
+- `fanin_diversity`
+- `source_fanout_diversity`
+- `side_pair_balance`
 - `straight_routing`
 - `turn_routing`
 - `short_to_long`
@@ -982,6 +988,25 @@ has much better source diversity.
 
 Checks whether source terminals can reach useful matrix destinations. It helps
 detect sources that technically exist but do not help route meaningful demands.
+
+`fanin_diversity`
+
+Checks rows that originally have multiple selectable sources by probing each
+alternative source into that row. This catches optimizations that preserve a row
+but collapse too much input choice.
+
+`source_fanout_diversity`
+
+Checks sources that originally feed multiple rows by probing each source-to-row
+choice. This catches optimizations that keep a source useful for one route but
+remove most of its matrix fanout.
+
+`side_pair_balance`
+
+Checks ordered side-to-side routing coverage, for example north-to-east,
+north-to-south, east-to-north, and so on. It generates one soft probe per
+available ordered cardinal side pair, which helps reveal matrices that preserve
+some turns while starving other directions.
 
 `local_feedback`
 
