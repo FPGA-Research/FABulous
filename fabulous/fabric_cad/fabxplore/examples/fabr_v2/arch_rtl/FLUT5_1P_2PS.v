@@ -229,8 +229,10 @@ module FLUT5_1P_2PS #(
     output reg  Q1,
 
     // Fixed carry chain.
-    (* FABulous, CARRY="C0" *) input  wire Ci,
-    (* FABulous, CARRY="C0" *) output wire Co,
+    //(* FABulous, CARRY="C0" *) input  wire Ci,
+    //(* FABulous, CARRY="C0" *) output wire Co,
+    input  wire Ci,
+    output wire Co,
 
     // Shared reset/enable/clock for Q0/Q1.
     //

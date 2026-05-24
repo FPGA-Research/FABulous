@@ -6,6 +6,8 @@ serves as a blueprint for synthesizers that generate FPGA architectures.
 
 from __future__ import annotations
 
+import csv
+import pickle
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -162,6 +164,46 @@ class ArchitectureSynthesizer(ABC):
 
         for prim in self.primitives:
             self.design.read_verilog_string(prim, blackbox=True)
+
+    def write_routingmodel_bitreamspec(self, path: Path | None = None) -> Path:
+        """Write FABulous routing-model and bitstream-spec metadata files.
+
+        Parameters
+        ----------
+        path : Path | None
+            Output metadata directory. If ``None``, write to
+            ``<project>/.FABulous``.
+
+        Returns
+        -------
+        Path
+            Directory containing the written metadata files.
+        """
+        metadata_dir = path or self.project_context.proj_dir / ".FABulous"
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+
+        pips, bel, bel_v2, template_pcf = self.fab.genRoutingModel()
+        (metadata_dir / "pips.txt").write_text(pips, encoding="utf-8")
+        (metadata_dir / "bel.txt").write_text(bel, encoding="utf-8")
+        (metadata_dir / "bel.v2.txt").write_text(bel_v2, encoding="utf-8")
+        (metadata_dir / "template.pcf").write_text(template_pcf, encoding="utf-8")
+
+        spec_object = self.fab.genBitStreamSpec()
+        with (metadata_dir / "bitStreamSpec.bin").open("wb") as out_file:
+            pickle.dump(spec_object, out_file)
+
+        with (metadata_dir / "bitStreamSpec.csv").open(
+            "w",
+            encoding="utf-8",
+            newline="\n",
+        ) as spec_file:
+            writer = csv.writer(spec_file)
+            for tile_name in spec_object["TileSpecs"]:
+                writer.writerow([tile_name])
+                for key, value in spec_object["TileSpecs"][tile_name].items():
+                    writer.writerow([key, value])
+
+        return metadata_dir
 
     def log_info(self, message: str) -> None:
         """Log an informational message.

@@ -44,7 +44,7 @@ def test_basic_large_or_benchmark() -> FabulousArchitectureConfig:
         map_alu_macc_cells=True,
         map_ram_cells=True,
         optimize_fsm=True,
-        map_io_pads=False,
+        map_io_pads=True,
         map_carry_chains=True,
         user_design_out_dir=OUT_DIR,
     )
