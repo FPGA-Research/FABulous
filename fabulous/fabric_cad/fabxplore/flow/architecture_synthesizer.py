@@ -26,6 +26,7 @@ from fabulous.fabric_cad.fabxplore.modules.lut_mapper.core.models import (
     LutMapperBackend,
 )
 from fabulous.fabric_cad.fabxplore.pnr.custom_passes import (
+    FabricRouterPass,
     RoutingDemandEvaluatorPass,
     SwitchBlockFactorizerPass,
     TileBuilderPass,
@@ -1251,6 +1252,95 @@ class ArchitectureSynthesizer(ABC):
             config_bit_capacity_override=config_bit_capacity_override,
             config_bit_margin=config_bit_margin,
             track_progress=track_progress,
+        )
+        result.run_on(self.design, self.fab)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        self._pass_history.append(result)
+
+        return result
+
+    def pnr_fabric_router_pass(
+        self,
+        top_name: str | None = None,
+        out_dir: Path | None = None,
+        nextpnr_exec: Path | str | None = None,
+        json_path: Path | None = None,
+        pcf_path: Path | None = None,
+        fasm_path: Path | None = None,
+        report_path: Path | None = None,
+        project_dir: Path | None = None,
+        extra_args: list[str] | tuple[str, ...] | None = None,
+        write_json: bool = True,
+        check: bool = True,
+        live_output: bool = False,
+        report_output: bool = True,
+        report_output_max_lines: int | None = 200,
+        log_report: bool = True,
+    ) -> FabricRouterPass:
+        """Route the active design with FABulous nextpnr.
+
+        Parameters
+        ----------
+        top_name : str | None
+            Optional top module name. If ``None``, infer it from the active
+            ``PyosysBridge`` design.
+        out_dir : Path | None
+            Optional output directory. If ``None``, write generated artifacts to
+            ``<project>/user_design/fabxplore``.
+        nextpnr_exec : Path | str | None
+            Optional nextpnr executable. If ``None``, use FABulous settings.
+        json_path : Path | None
+            Optional Yosys JSON netlist path. If ``None``, write
+            ``<out_dir>/<top>.json``.
+        pcf_path : Path | None
+            Optional concrete PCF path. If ``None``, auto-generate a PCF from
+            the in-memory FABulous routing model.
+        fasm_path : Path | None
+            Optional FASM output path. If ``None``, use ``<out_dir>/<top>.fasm``.
+        report_path : Path | None
+            Optional nextpnr JSON report path. If ``None``, use
+            ``<out_dir>/<top>_nextpnr_report.json``.
+        project_dir : Path | None
+            Optional FABulous project root. If ``None``, use FABulous settings.
+        extra_args : list[str] | tuple[str, ...] | None
+            Extra nextpnr command-line arguments.
+        write_json : bool
+            Whether to write the active pyosys design JSON before running nextpnr.
+        check : bool
+            Whether a non-zero nextpnr return code should raise an exception.
+        live_output : bool
+            Whether to stream nextpnr stdout/stderr live while capturing it.
+        report_output : bool
+            Whether to append captured nextpnr stdout/stderr to the report summary.
+        report_output_max_lines : int | None
+            Maximum trailing stdout/stderr lines to include in the report.
+            ``None`` includes the full captured output.
+        log_report : bool
+            If ``True``, log the nextpnr route report after execution.
+
+        Returns
+        -------
+        FabricRouterPass
+            Pass instance containing result and report data.
+        """
+        result = FabricRouterPass(
+            top_name=top_name or self.design.top_name(),
+            out_dir=out_dir,
+            nextpnr_exec=nextpnr_exec,
+            json_path=json_path,
+            pcf_path=pcf_path,
+            fasm_path=fasm_path,
+            report_path=report_path,
+            project_dir=project_dir,
+            extra_args=tuple(extra_args or ()),
+            write_json=write_json,
+            check=check,
+            live_output=live_output,
+            report_output=report_output,
+            report_output_max_lines=report_output_max_lines,
         )
         result.run_on(self.design, self.fab)
 

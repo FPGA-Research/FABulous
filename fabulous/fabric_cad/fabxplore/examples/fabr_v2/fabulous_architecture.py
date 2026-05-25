@@ -115,6 +115,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             enabled_circuits=["chain"],
             tile_config_prefixes=["ConfigBits"],
             progress_chunk_size=5,
+            conf2bel=True,
         )
 
         self.design.run_pass("opt -fast")
@@ -159,6 +160,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             mux_outputs=["M_AB", "M_AD", "M_AH", "M_EF"],
             mux_config_prefixes=["ConfigBits"],
             progress_chunk_size=5,
+            conf2bel=True,
         )
 
         self.design_lut_combinator_pass(
@@ -188,6 +190,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             circuit_options={"lut": {"widths": [6]}},
             tile_config_prefixes=["ConfigBits"],
             progress_chunk_size=5,
+            conf2bel=True,
         )
 
         self.design_absorb_registers_pass(
@@ -272,6 +275,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             pack_multiple_ffs_per_tile=True,
             progress_chunk_size=5,
             auto_config=True,
+            conf2bel=True,
         )
 
         self.design_placement_hints_pass(
@@ -292,7 +296,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
     def build_tile(self) -> None:
         """Generate the FABulous tile files used by this architecture."""
         self.pnr_tile_builder_pass(
-            tile_name="test_tile2",
+            tile_name="LUT5F",
             bels=[
                 {
                     "verilog_path": self.my_root / "arch_rtl" / "FLUT5_1P_2PS.v",
@@ -320,13 +324,13 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                 "use_fabulous_auto": False,
                 "base_csv_includes": ["./../include/Base.csv"],
                 "base_list_includes": ["../include/Base.list"],
-                "input_fanin": 8,
-                "output_fanin": 5,
-                "min_input_fanin": 1,
-                "min_output_fanin": 1,
+                "input_fanin": 6,
+                "output_fanin": 3,
+                "min_input_fanin": 2,
+                "min_output_fanin": 2,
                 "routing_pip_pattern": "wilton",
-                "routing_pip_fs": 3,
-                "min_routing_pip_fs": 1,
+                "routing_pip_fs": 4,
+                "min_routing_pip_fs": 2,
                 "generate_straight_routing_pips": True,
                 "generate_turn_routing_pips": True,
                 "connection_hierarchy": {
@@ -334,7 +338,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "levels": [2, 2],
                     "generate_jump_ports": True,
                     "jump_prefix": "J_LOCAL",
-                    "replace_direct_input_pips": True,
+                    "replace_direct_input_pips": False,
                 },
                 "config_bit_margin": 0,
                 "derive_sources_from_base": True,
@@ -348,7 +352,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         )
 
         self.pnr_switch_block_factorizer_pass(
-            tile_name="test_tile2",
+            tile_name="LUT5F",
             global_reduction=1,
             reduction_rules=[
                 {"from_fanin": 16, "to_fanin": 8},
@@ -361,14 +365,14 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         )
 
         self.pnr_routing_demand_evaluator_pass(
-            tile_name="test_tile2",
+            tile_name="LUT5F",
             demand_profile="full",
             demand_iterations=1000,
             random_demand_ratio=0.25,
             seed=1,
-            opt=True,
+            opt=False,
             optimizer="greedy",
-            opt_target_pip_reduction=0.2,
+            opt_target_pip_reduction=0.1,
             opt_max_soft_failure_rate=0.1,
             opt_max_hard_failure_rate=0.1,
             opt_use_baseline_failure_rates=True,
@@ -388,6 +392,15 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             config_bit_margin=0,
             track_progress=True,
             progress_chunk_size=5,
+        )
+
+        self.write_routingmodel_bitreamspec()
+
+        self.pnr_fabric_router_pass(
+            nextpnr_exec=Path(
+                "/home/hausding/Documents/FABulous/demo_master_thesis"
+                "/nextpnr/build/nextpnr-generic"
+            ),
         )
 
     def map_cells(self) -> None:
