@@ -602,6 +602,7 @@ class ArchitectureSynthesizer(ABC):
         track_progress: bool = True,
         progress_chunk_size: int = 50,
         top_name: str | None = None,
+        conf2bel: bool = False,
     ) -> MorphTilePass:
         """Run morph-tile replacement on the current design.
 
@@ -648,6 +649,9 @@ class ArchitectureSynthesizer(ABC):
             Number of processed candidate LUTs between progress updates.
         top_name : str | None
             Top module to process. If ``None``, use the current design top.
+        conf2bel : bool
+            Convert FABulous GLOBAL config-bit ports on emitted tile cells into
+            BEL parameters and load a matching parameterized blackbox model.
 
         Returns
         -------
@@ -675,6 +679,7 @@ class ArchitectureSynthesizer(ABC):
             progress_chunk_size=progress_chunk_size,
             top_name=top_name or self.design.top_name(),
             debug=self.debug,
+            conf2bel=conf2bel,
         )
         result.run_on(self.design)
 
@@ -705,6 +710,7 @@ class ArchitectureSynthesizer(ABC):
         track_progress: bool = True,
         progress_chunk_size: int = 100,
         top_name: str | None = None,
+        conf2bel: bool = False,
     ) -> LutDecomposerPass:
         """Run high-LUT decomposition on the current design.
 
@@ -742,6 +748,9 @@ class ArchitectureSynthesizer(ABC):
             Number of processed candidates between progress messages.
         top_name : str | None
             Top module to process. If ``None``, use the current design top.
+        conf2bel : bool
+            Convert FABulous GLOBAL config-bit ports on emitted mux cells into
+            BEL parameters and load a matching parameterized blackbox model.
 
         Returns
         -------
@@ -765,6 +774,7 @@ class ArchitectureSynthesizer(ABC):
             progress_chunk_size=progress_chunk_size,
             top_name=top_name or self.design.top_name(),
             debug=self.debug,
+            conf2bel=conf2bel,
         )
         result.run_on(self.design)
 
@@ -859,6 +869,7 @@ class ArchitectureSynthesizer(ABC):
         track_progress: bool = True,
         progress_chunk_size: int = 100,
         top_name: str | None = None,
+        conf2bel: bool = False,
     ) -> FfMaterializerPass:
         """Replace standalone FFs with configured tile register lanes.
 
@@ -909,6 +920,9 @@ class ArchitectureSynthesizer(ABC):
             Number of processed FFs between progress updates.
         top_name : str | None
             Top module to process. If ``None``, use the current design top.
+        conf2bel : bool
+            Convert FABulous GLOBAL config-bit ports on emitted tile cells into
+            BEL parameters and load a matching parameterized blackbox model.
 
         Returns
         -------
@@ -935,6 +949,7 @@ class ArchitectureSynthesizer(ABC):
             track_progress=track_progress,
             progress_chunk_size=progress_chunk_size,
             top_name=top_name or self.design.top_name(),
+            conf2bel=conf2bel,
         )
         result.run_on(self.design)
 

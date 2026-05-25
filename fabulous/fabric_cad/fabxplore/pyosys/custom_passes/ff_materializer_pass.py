@@ -16,6 +16,10 @@ from fabulous.fabric_cad.fabxplore.modules.reg_absorber.core.models import (
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 from fabulous.fabric_cad.fabxplore.pyosys.synth_pass import SynthPass
+from fabulous.fabric_cad.fabxplore.utils.conf2bel import (
+    apply_conf2bel_to_design,
+    derive_conf2bel_from_verilog,
+)
 
 
 @dataclass
@@ -64,6 +68,9 @@ class FfMaterializerPass(SynthPass):
         Number of processed FFs between progress updates.
     top_name : str | None
         Top module to process.
+    conf2bel : bool
+        Convert FABulous GLOBAL config-bit ports on emitted tile cells into
+        BEL parameters and load a matching parameterized blackbox model.
     """
 
     tile_verilog_path: Path
@@ -85,6 +92,7 @@ class FfMaterializerPass(SynthPass):
     track_progress: bool = True
     progress_chunk_size: int = 100
     top_name: str | None = None
+    conf2bel: bool = False
 
     _result: FfMaterializerResult | None = None
     _verilog_model: str = ""
@@ -118,7 +126,14 @@ class FfMaterializerPass(SynthPass):
             progress_chunk_size=self.progress_chunk_size,
         )
         self._result = materializer.map_from_design(design, top_name=self.top_name)
-        self._verilog_model = self.tile_verilog_path.read_text(encoding="utf-8")
+
+        if self.conf2bel:
+            conf2bel_model = derive_conf2bel_from_verilog(self.tile_verilog_path)
+            apply_conf2bel_to_design(design, conf2bel_model)
+            self._verilog_model = conf2bel_model.blackbox_verilog
+        else:
+            self._verilog_model = self.tile_verilog_path.read_text(encoding="utf-8")
+
         design.read_verilog_string(self._verilog_model, blackbox=True)
 
     @property
