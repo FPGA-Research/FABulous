@@ -2,17 +2,9 @@
 
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
-from multiprocessing.reduction import ForkingPickler
 from typing import Any
 
 import dill
-
-
-def _init_worker() -> None:
-    """Initialize worker process to use dill for pickling."""
-    # Override ForkingPickler with dill
-    ForkingPickler.dumps = dill.dumps
-    ForkingPickler.loads = dill.loads
 
 
 class DillProcessPoolExecutor(ProcessPoolExecutor):
@@ -29,8 +21,6 @@ class DillProcessPoolExecutor(ProcessPoolExecutor):
         initargs: tuple[Any, ...] = (),
         max_tasks_per_child: int | None = None,
     ) -> None:
-        ForkingPickler.dumps = dill.dumps
-        ForkingPickler.loads = dill.loads
         super().__init__(
             max_workers=max_workers,
             mp_context=multiprocessing.get_context("spawn"),
