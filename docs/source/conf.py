@@ -335,7 +335,10 @@ exclude_patterns = [
     "Thumbs.db",
     ".DS_Store",
     "generated_doc/fabulous_variable.md",
-]
+    "generated_doc/FABulous",
+    "generated_doc/FABulous/**",
+] # since we alias the fabulous package with FABulous, we have to exclude the FABulous
+# package from the generated_doc to avoid confusion and duplication in the documentation.
 
 # -- Options for HTML output
 
