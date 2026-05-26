@@ -355,12 +355,16 @@ class GlobalTileSizeOptimization(Step):
         subject to minimum area constraints w_i*h_i >= A_min,i (bilinear terms),
         row/column grid consistency, and supertile spanning constraints.
 
+        The formulation is:
+
+        ```
         Variables: row_heights[r], col_widths[c] for each row/col with tiles
         Objective: Minimize sum over all positions: row_height[r] * col_width[c]
         Constraints:
-        - Regular tiles: row_height[r] * col_width[c] >= A_min,i
-        - Supertiles: sum_spanned_row_h * sum_spanned_col_w >= A_min,i
-        - Bounds: from min tile dimensions to max available modes
+          - Regular tiles: row_height[r] * col_width[c] >= A_min,i
+          - Supertiles: sum_spanned_row_h * sum_spanned_col_w >= A_min,i
+          - Bounds: from min tile dimensions to max available modes
+        ```
 
         After solving, recompiles all tiles with optimal dimensions.
 

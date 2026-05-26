@@ -19,20 +19,8 @@
       {{ obj.docstring|normalize_docstring_for_rst|indent(6) }}
    {% endif %}
 
-   {% set attributes = obj.children | selectattr('type', 'equalto', 'data') | selectattr('display') | list %}
    {% set properties = obj.children | selectattr('type', 'equalto', 'property') | selectattr('display') | list %}
    {% set methods = obj.children | selectattr('type', 'equalto', 'method') | selectattr('display') | list %}
-
-   {% if attributes %}
-
-   Attributes
-   ~~~~~~~~~~
-
-   {% for attr in attributes %}
-
-   {{ attr.render()|indent(3) }}
-   {% endfor %}
-   {% endif %}
 
    {% if properties %}
 

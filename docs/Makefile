@@ -7,7 +7,6 @@ SPHINXOPTS    ?= -q -n
 SPHINXBUILD   ?= uv run --directory . --quiet sphinx-build
 SOURCEDIR     = source
 BUILDDIR      = build
-PACKAGEDIR    = ../FABulous
 PORT          ?= 8000
 
 # Put it first so that "make" without argument is like "make help".
@@ -26,8 +25,6 @@ help:
 setup:
 	@echo "Setting up uv environment for documentation..."
 	uv sync
-	@echo "Installing FABulous package in editable mode..."
-	uv pip install -e ..
 	@echo "Documentation environment ready!"
 
 # Build HTML documentation

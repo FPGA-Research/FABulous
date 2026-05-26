@@ -133,16 +133,16 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-        ::
-
-            Verilog
-                module **name**
-            VHDL
-                library IEEE;
-                use IEEE.std_logic_1164.all;
-                use IEEE.NUMERIC_STD.ALL
-                **package**
-                entity **name** is
+        ```text
+        Verilog
+            module <name>
+        VHDL
+            library IEEE;
+            use IEEE.std_logic_1164.all;
+            use IEEE.NUMERIC_STD.ALL
+            <package>
+            entity <name> is
+        ```
         """
 
     @abc.abstractmethod

@@ -8,12 +8,12 @@
    {% if obj.is_type_alias() %}
       {% if obj.value %}
 
-   :canonical: {{ obj.value|format_option_type_for_rst }}
+   :canonical: {{ obj.value }}
       {% endif %}
    {% else %}
       {% if obj.annotation is not none %}
 
-   :type: {% if obj.annotation %} {{ obj.annotation|format_option_type_for_rst }}{% endif %}
+   :type: {% if obj.annotation %} {{ obj.annotation }}{% endif %}
       {% endif %}
       {% if obj.value is not none %}
 

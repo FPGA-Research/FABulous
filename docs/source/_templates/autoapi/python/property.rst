@@ -7,7 +7,7 @@
 .. py:property:: {% if is_own_page %}{{ obj.id}}{% else %}{{ obj.short_name }}{% endif %}
    {% if obj.annotation %}
 
-   :type: {{ obj.annotation|format_option_type_for_rst }}
+   :type: {{ obj.annotation }}
    {% endif %}
    {% for property in obj.properties %}
 

@@ -25,7 +25,8 @@ xdg-open build/html/index.html
 ## General
 
 Our docs are built using [Sphinx](https://www.sphinx-doc.org/en/master).
-The documentation is written in [reStructuredText](https://docutils.sourceforge.io/rst.html) format.
+Pages are written in [MyST Markdown](https://myst-parser.readthedocs.io/en/latest/);
+the API reference is auto-generated from source docstrings by [sphinx-autoapi](https://sphinx-autoapi.readthedocs.io/).
 
 ## Prerequisites
 

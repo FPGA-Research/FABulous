@@ -901,7 +901,9 @@ entity LUT4c_frame_config_dffesr is
 end entity LUT4c_frame_config_dffesr;
 ```
 
-:::{deprecated}
+:::{admonition} Deprecated
+:class: warning
+
 The older plain comment style for port attributes is deprecated and should
 not be used in new BEL files:
 
