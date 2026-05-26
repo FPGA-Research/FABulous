@@ -67,11 +67,11 @@ local_scheme = "node-and-date"
 
 [tool.setuptools.packages.find]
 exclude = [
-  "docs",
-  "tests",
-  "scripts",
-  "nix",
-] # exclude packages matching these glob patterns (empty by default)
+  "docs*",
+  "tests*",
+  "scripts*",
+  "nix*",
+] # trailing * is required to also exclude sub-packages (e.g. tests.unit)
 
 [tool.setuptools.cmdclass]
 build_py = "build_hooks.BuildPyWithFabulousNix"
