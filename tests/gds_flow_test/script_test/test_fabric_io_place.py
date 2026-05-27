@@ -1,10 +1,4 @@
-"""Integration tests for fabric_io_place - calls the actual io_place function.
-
-This test file calls the actual io_place() function from fabric_io_place.py
-by mocking only the external dependencies (odb, OdbReader) at the module level.
-
-This tests the real production code, not a reimplementation.
-"""
+"""Tests for fabric_io_place: stamps BPin geometry from connected ITerms."""
 
 import contextlib
 from types import SimpleNamespace
@@ -12,207 +6,129 @@ from types import SimpleNamespace
 import pytest
 from conftest import (
     MockBlockIoPlace,
+    MockBPinIoPlace,
     MockBTermIoPlace,
     MockDie,
+    MockGeom,
+    MockInst,
     MockITerm,
-    MockLayer,
     MockMaster,
+    MockMPin,
     MockMTerm,
     MockNetIoPlace,
     MockReaderIoPlace,
     MockRect,
     MockTechIoPlace,
-    PinPlacementRecorder,
 )
 
 
 @pytest.fixture
 def _io_place_setup(
     mock_odb_io_place: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
-) -> None:  # noqa: ANN001, ANN202
-    """Setup io_place with mocked OdbReader and odb module."""
-
+) -> None:
+    """Wire the fake ODB module into fabric_io_place for the test."""
     from fabulous.fabric_generator.gds_generator.script import fabric_io_place
 
-    # Patch odb module using monkeypatch
     monkeypatch.setattr(fabric_io_place, "odb", mock_odb_io_place)
 
 
-def _call_io_place(
-    reader: MockReaderIoPlace,
-    monkeypatch: pytest.MonkeyPatch,
-    **kwargs: object,
-) -> None:
-    """Call the actual io_place function with mocked dependencies."""
+def _call_io_place(reader: MockReaderIoPlace, monkeypatch: pytest.MonkeyPatch) -> None:
     from librelane.scripts.odbpy.reader import OdbReader
 
     from fabulous.fabric_generator.gds_generator.script import fabric_io_place
 
-    # Mock OdbReader to return our mock reader
-    def mock_odbreader_init(self: object, *_args: object, **_: object) -> None:
+    def _init(self: object, *_a: object, **_k: object) -> None:
         for attr in dir(reader):
-            if not attr.startswith("_"):
-                with contextlib.suppress(AttributeError):
-                    setattr(self, attr, getattr(reader, attr))
+            if attr.startswith("_"):
+                continue
+            with contextlib.suppress(AttributeError):
+                setattr(self, attr, getattr(reader, attr))
 
-    monkeypatch.setattr(OdbReader, "__init__", mock_odbreader_init)
-    io_place_func = fabric_io_place.io_place
+    monkeypatch.setattr(OdbReader, "__init__", _init)
+    fn = fabric_io_place.io_place
+    actual = fn.callback if hasattr(fn, "callback") else fn
+    actual(input_db="x.odb", input_lefs=[], config_path=None, reader=reader)
 
-    # Get the actual function from Click command
-    actual_func = (
-        io_place_func.callback if hasattr(io_place_func, "callback") else io_place_func
-    )
 
-    # Call with parameters
-    actual_func(
-        input_db="dummy.odb",
-        input_lefs=[],
-        config_path=None,
-        reader=reader,
-        ver_layer=str(kwargs.get("ver_layer", "V")),
-        hor_layer=str(kwargs.get("hor_layer", "H")),
-        ver_width_mult=float(kwargs.get("ver_width_mult", 2.0)),  # type: ignore
-        hor_width_mult=float(kwargs.get("hor_width_mult", 2.0)),  # type: ignore
-        hor_length=kwargs.get("hor_length"),
-        ver_length=kwargs.get("ver_length"),
-        hor_extension=float(kwargs.get("hor_extension", 0.0)),  # type: ignore
-        ver_extension=float(kwargs.get("ver_extension", 0.0)),  # type: ignore
-        verbose=bool(kwargs.get("verbose", False)),
-    )
+def _make_iterm(inst_x: int, inst_y: int, geoms: list[MockGeom]) -> MockITerm:
+    master = MockMaster(100, 100)
+    bbox = MockRect(0, 0, 0, 0)
+    mterm = MockMTerm(bbox, master, mpins=[MockMPin(geoms)])
+    return MockITerm(bbox, mterm, inst=MockInst(inst_x, inst_y))
 
 
 @pytest.mark.usefixtures("_io_place_setup")
-def test_io_place_north_side_placement(
-    pin_placement_recorder: PinPlacementRecorder,
+def test_stamps_bpin_geometry_from_iterm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test pin placement on NORTH side - validates coordinates and layer selection."""
-    h_layer = MockLayer(width=50, area=10000, name="H")
-    v_layer = MockLayer(width=50, area=10000, name="V")
-    tech = MockTechIoPlace(h_layer, v_layer)
-    die = MockDie(0, 0, 1000, 1000)
+    """BPin gets one box per mPin geometry, shifted by the instance location."""
+    geom = MockGeom("Metal2", 10, 20, 30, 40)
+    iterm = _make_iterm(1000, 2000, [geom])
+    net = MockNetIoPlace("sig", [iterm])
+    bterm = MockBTermIoPlace("sig", net)
 
-    master = MockMaster(100, 100)
-    mterm_bbox = MockRect(25, 100, 50, 0)
-    iterm_bbox = MockRect(400, 400, 100, 100)
-    mterm = MockMTerm(mterm_bbox, master)
-    iterm = MockITerm(iterm_bbox, mterm)
-    net = MockNetIoPlace("north_pin", [iterm])
-    bterm = MockBTermIoPlace("north_pin", net)
+    block = MockBlockIoPlace(MockDie(0, 0, 1000, 1000), [bterm])
+    reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
 
-    block = MockBlockIoPlace(die, [bterm])
-    reader = MockReaderIoPlace(100.0, tech, block)
+    _call_io_place(reader, monkeypatch)
 
-    _call_io_place(
-        reader,
-        monkeypatch,
-        ver_layer="V",
-        hor_layer="H",
-        ver_width_mult=2.0,
-        hor_width_mult=2.0,
-        hor_length=None,
-        ver_length=None,
-        hor_extension=0.0,
-        ver_extension=0.0,
-        verbose=False,
-    )
-
-    assert len(pin_placement_recorder.placements) == 1
-    name, layer, x1, y1, x2, y2 = pin_placement_recorder.placements[0]
-
-    # Verify pin name and layer selection
-    assert name == "north_pin"
-    assert layer == "V", "NORTH side should use vertical layer"
-
-    # Verify Y coordinates - pin should extend to die boundary
-    assert y2 == 1000, f"Pin should extend to die yMax (1000), got {y2}"
-
-    # Verify X coordinates - pin should be centered on iterm
-    # iterm_bbox is at (400, 400) with width 100, so center is at 450
-    # Pin width = layer_width (50) * width_mult (2.0) = 100
-    # So pin should span from center - width/2 to center + width/2
-    assert x1 == 400, f"Pin x1 should be 400 (iterm x), got {x1}"
-
-    # Verify pin width is correct (using width multiplier)
-    expected_width = v_layer.getWidth() * 2.0  # width_mult = 2.0
-    actual_width = x2 - x1
-    assert actual_width == expected_width, (
-        f"Pin width should be {expected_width}, got {actual_width}"
-    )
+    pins = bterm.getBPins()
+    assert len(pins) == 1
+    pin = pins[0]
+    assert pin.status == "FIRM"
+    assert pin.bterm_name == "sig"
 
 
 @pytest.mark.usefixtures("_io_place_setup")
-def test_io_place_all_four_sides(
-    pin_placement_recorder: PinPlacementRecorder,
+def test_skips_power_and_ground(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that pins can be placed on all four sides with correct coordinates."""
-    h_layer = MockLayer(width=50, area=10000, name="H")
-    v_layer = MockLayer(width=50, area=10000, name="V")
-    tech = MockTechIoPlace(h_layer, v_layer)
-    die = MockDie(0, 0, 1000, 1000)
+    """POWER/GROUND BTerms must not be touched."""
+    pwr = MockBTermIoPlace("VPWR", None, sig_type="POWER")
+    gnd = MockBTermIoPlace("VGND", None, sig_type="GROUND")
 
-    master = MockMaster(100, 100)
+    block = MockBlockIoPlace(MockDie(0, 0, 100, 100), [pwr, gnd])
+    reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
 
-    bterms = []
-    for side, bbox in [
-        ("north", MockRect(25, 100, 50, 0)),
-        ("south", MockRect(25, 0, 50, 0)),
-        ("east", MockRect(100, 25, 0, 50)),
-        ("west", MockRect(0, 25, 0, 50)),
-    ]:
-        iterm_bbox = MockRect(400, 400, 100, 100)
-        mterm = MockMTerm(bbox, master)
-        iterm = MockITerm(iterm_bbox, mterm)
-        net = MockNetIoPlace(f"{side}_pin", [iterm])
-        bterm = MockBTermIoPlace(f"{side}_pin", net)
-        bterms.append(bterm)
+    _call_io_place(reader, monkeypatch)
 
-    block = MockBlockIoPlace(die, bterms)
-    reader = MockReaderIoPlace(100.0, tech, block)
+    assert pwr.getBPins() == []
+    assert gnd.getBPins() == []
 
-    _call_io_place(
-        reader,
-        monkeypatch,
-        ver_layer="V",
-        hor_layer="H",
-        ver_width_mult=2.0,
-        hor_width_mult=2.0,
-        hor_length=None,
-        ver_length=None,
-        hor_extension=0.0,
-        ver_extension=0.0,
-        verbose=False,
-    )
 
-    assert len(pin_placement_recorder.placements) == 4
+@pytest.mark.usefixtures("_io_place_setup")
+def test_destroys_orphan_bterm_with_no_iterms(
+    mock_odb_io_place: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A signal BTerm whose net has no ITerms is destroyed (and so is the net)."""
+    net = MockNetIoPlace("orphan", [])
+    bterm = MockBTermIoPlace("orphan", net)
 
-    placements_by_name = {
-        name: (layer, x1, y1, x2, y2)
-        for name, layer, x1, y1, x2, y2 in pin_placement_recorder.placements
-    }
+    block = MockBlockIoPlace(MockDie(0, 0, 100, 100), [bterm])
+    reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
 
-    # Verify layer selection based on side
-    assert placements_by_name["north_pin"][0] == "V", "North should use vertical layer"
-    assert placements_by_name["south_pin"][0] == "V", "South should use vertical layer"
-    assert placements_by_name["east_pin"][0] == "H", "East should use horizontal layer"
-    assert placements_by_name["west_pin"][0] == "H", "West should use horizontal layer"
+    _call_io_place(reader, monkeypatch)
 
-    # Verify boundary coordinates for each side
-    # North pin should extend to y=1000 (die yMax)
-    north_y2 = placements_by_name["north_pin"][4]
-    assert north_y2 == 1000, (
-        f"North pin should extend to die yMax (1000), got {north_y2}"
-    )
+    assert bterm in mock_odb_io_place.destroyed_bterms
+    assert net in mock_odb_io_place.destroyed_nets
 
-    # South pin should extend to y=0 (die yMin)
-    south_y1 = placements_by_name["south_pin"][2]
-    assert south_y1 == 0, f"South pin should extend to die yMin (0), got {south_y1}"
 
-    # East pin should extend to x=1000 (die xMax)
-    east_x2 = placements_by_name["east_pin"][3]
-    assert east_x2 == 1000, f"East pin should extend to die xMax (1000), got {east_x2}"
+@pytest.mark.usefixtures("_io_place_setup")
+def test_leaves_existing_bpins_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If a BTerm already has a BPin, io_place skips it without re-stamping."""
+    geom = MockGeom("Metal2", 0, 0, 10, 10)
+    iterm = _make_iterm(0, 0, [geom])
+    net = MockNetIoPlace("sig", [iterm])
+    bterm = MockBTermIoPlace("sig", net)
+    pre_existing = MockBPinIoPlace(bterm.getName())
+    bterm._add_bpin(pre_existing)  # noqa: SLF001
 
-    # West pin should extend to x=0 (die xMin)
-    west_x1 = placements_by_name["west_pin"][1]
-    assert west_x1 == 0, f"West pin should extend to die xMin (0), got {west_x1}"
+    block = MockBlockIoPlace(MockDie(0, 0, 100, 100), [bterm])
+    reader = MockReaderIoPlace(100.0, MockTechIoPlace(None, None), block)
+
+    _call_io_place(reader, monkeypatch)
+
+    # Still exactly one BPin, no new one was created.
+    assert bterm.getBPins() == [pre_existing]

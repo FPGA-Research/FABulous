@@ -1,0 +1,209 @@
+name: LibreLane Plugin Nightly
+
+on:
+  schedule:
+    # 03:00 UTC, offset from gds-flow-ci.yml (02:00) and dependency test (00:00)
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PDK: ihp-sg13g2
+  TILE_NAME: LUT4x8_ha
+  FABRIC_NAME: synthetic_lut4x8_ha_10x10
+  TILE_BASE_CONFIG: tests/assets/librelane_plugin/tiles/classic/common/config.yaml
+  TILE_CONFIG: tests/assets/librelane_plugin/tiles/classic/LUT4x8_ha/config.yaml
+  FABRIC_CONFIG: tests/assets/librelane_plugin/fabrics/synthetic_lut4x8_ha_10x10/config.yaml
+
+jobs:
+  plugin-smoke:
+    name: Plugin import smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install FABulous (triggers build_hooks side-packages)
+        run: uv sync --locked
+
+      - name: Confirm LibreLane auto-discovers the plugin and flows register
+        run: |
+          uv run python - <<'PY'
+          import librelane_plugin_fabulous
+          from librelane.flows import Flow
+          expected = {
+              "FABulousTileVerilogMacroFlow",
+              "FABulousTileVHDLMacroFlowClassic",
+              "FABulousFabricMacroFlow",
+              "FABulousFabricMacroFullFlow",
+              "FABulousTile",
+              "FABulousFabric",
+          }
+          registered = set(Flow.factory.list())
+          missing = expected - registered
+          assert not missing, f"Missing FABulous flows: {missing}"
+          print("plugin file:", librelane_plugin_fabulous.__file__)
+          print("flows OK:", sorted(expected))
+          PY
+
+  tile-hardening:
+    name: Harden LUT4x8_ha via FABulousTile
+    runs-on: ubuntu-latest
+    needs: plugin-smoke
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/prepare_nix_environment
+
+      - name: Run librelane on FABulousTile
+        run: |
+          nix develop --command bash -c "
+            set -euo pipefail
+            librelane \
+              --pdk ${PDK} \
+              --run-tag ci \
+              --save-views-to tile_final_views \
+              ${TILE_BASE_CONFIG} \
+              ${TILE_CONFIG} \
+              2>&1 | tee tile_run.log
+          "
+
+      - name: Verify tile final views exist
+        run: |
+          set -e
+          for sub in metrics.json gds lef nl pnl vh; do
+            if [ ! -e "tile_final_views/${sub}" ]; then
+              echo "FAIL: tile_final_views/${sub} missing"
+              ls -la tile_final_views/ || true
+              exit 1
+            fi
+          done
+          echo "Tile final views OK"
+          ls tile_final_views/
+
+      - name: Package tile final views
+        if: always()
+        run: |
+          if [ -d tile_final_views ]; then
+            tar --zstd -cf tile-final-views.tar.zst tile_final_views
+          fi
+          if [ -f tile_run.log ]; then
+            tar --zstd -cf tile-run-log.tar.zst tile_run.log
+          fi
+
+      - name: Upload tile final views
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tile-final-views-${{ env.PDK }}
+          path: tile-final-views.tar.zst
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload tile run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tile-run-log-${{ env.PDK }}
+          path: tile-run-log.tar.zst
+          if-no-files-found: warn
+          retention-days: 7
+
+  fabric-stitching:
+    name: Stitch synthetic_lut4x8_ha_10x10 via FABulousFabric
+    runs-on: ubuntu-latest
+    needs: tile-hardening
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/prepare_nix_environment
+
+      - name: Download hardened tile final views
+        uses: actions/download-artifact@v4
+        with:
+          name: tile-final-views-${{ env.PDK }}
+
+      - name: Unpack tile final views
+        run: |
+          tar --zstd -xf tile-final-views.tar.zst
+          ls tile_final_views/
+
+      - name: Generate FABULOUS_TILE_MACROS overlay
+        run: |
+          TILE_MACRO_DIR="$(realpath tile_final_views)"
+          cat > tile_macros_overlay.yaml <<EOF
+          FABULOUS_TILE_MACROS:
+            ${TILE_NAME}: ${TILE_MACRO_DIR}
+          EOF
+          cat tile_macros_overlay.yaml
+
+      - name: Run librelane on FABulousFabric
+        run: |
+          FABRIC_DIR="$(dirname ${FABRIC_CONFIG})"
+          nix develop --command bash -c "
+            set -euo pipefail
+            librelane \
+              --pdk ${PDK} \
+              --run-tag ci \
+              --design-dir ${FABRIC_DIR} \
+              --save-views-to fabric_final_views \
+              ${FABRIC_CONFIG} \
+              tile_macros_overlay.yaml \
+              2>&1 | tee fabric_run.log
+          "
+
+      - name: Verify fabric final GDS exists
+        run: |
+          set -e
+          if ! ls fabric_final_views/gds/*.gds >/dev/null 2>&1; then
+            echo "FAIL: no fabric GDS produced"
+            ls -la fabric_final_views/ || true
+            exit 1
+          fi
+          echo "Fabric GDS OK"
+          ls fabric_final_views/gds/
+
+      - name: Package fabric final views
+        if: always()
+        run: |
+          if [ -d fabric_final_views ]; then
+            tar --zstd -cf fabric-final-views.tar.zst fabric_final_views
+          fi
+          if [ -f fabric_run.log ]; then
+            tar --zstd -cf fabric-run-log.tar.zst fabric_run.log
+          fi
+
+      - name: Upload fabric final views
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabric-final-views-${{ env.PDK }}
+          path: fabric-final-views.tar.zst
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload fabric run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabric-run-log-${{ env.PDK }}
+          path: fabric-run-log.tar.zst
+          if-no-files-found: warn
+          retention-days: 7

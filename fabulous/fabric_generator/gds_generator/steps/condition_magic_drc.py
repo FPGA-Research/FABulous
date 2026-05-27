@@ -12,7 +12,7 @@ from librelane.steps.step import (
 class ConditionalMagicDRC(DRC):
     """Run Magic DRC if klayout DRC errors are found."""
 
-    id = "Condition.MagicDRC"
+    id = "Magic.DRC"
     name = "Magic DRC Check"
     long_name = "KLayout DRC Check with Conditional Flow Control"
 
