@@ -10,15 +10,15 @@ from typing import TYPE_CHECKING
 import pytest  # noqa: DEP004
 
 import fabulous.fabulous_settings as fabulous_settings
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core import (
     fab_graph,
 )
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.models import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
     RoutingConfigBits,
     RoutingPipKind,
     RoutingResourceCounts,
 )
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.writer import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.writer import (
     render_matrix_csv,
     render_matrix_list,
     render_tile_csv,

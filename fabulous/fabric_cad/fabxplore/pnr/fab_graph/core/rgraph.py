@@ -13,7 +13,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from fabulous.custom_exception import InvalidFileType
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.models import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
     RoutingConfigBits,
     RoutingEndpoint,
     RoutingGraphStats,

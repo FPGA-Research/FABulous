@@ -1,6 +1,6 @@
 """Fabric-wide routing optimization helpers for FABulous."""
 
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core import (
     FabGraph,
     PipFileWriteResult,
     ProjectSourceWriteResult,

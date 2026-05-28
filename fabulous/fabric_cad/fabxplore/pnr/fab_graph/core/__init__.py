@@ -1,6 +1,6 @@
 """Fast tile-local graph API for FABulous routing optimization."""
 
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core import (
     fab_graph,
     models,
     rgraph,

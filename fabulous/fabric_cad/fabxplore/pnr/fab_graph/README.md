@@ -22,7 +22,7 @@ from fabulous.fabric_definition.define import Direction
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
-from fabulous.fabric_cad.fabxplore.modules.fab_graph import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph import (
     FabGraph,
     RoutingPipKind,
 )

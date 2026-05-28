@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from fabulous.fabric_cad.fabxplore.modules.fabric_router.nextpnr import (
+from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr.core import (
     models,
     nextpnr_command,
     pcf,
@@ -63,9 +63,18 @@ class NextpnrRouter:
 
         Raises
         ------
+        ValueError
+            If an explicit ``json_path`` is provided while ``write_json`` is also
+            enabled.
         RuntimeError
             If nextpnr returns a non-zero exit code while ``check`` is enabled.
         """
+        if self.options.json_path is not None and self.options.write_json:
+            raise ValueError(
+                "json_path points to an existing netlist. Set write_json=False "
+                "to route it without overwriting it."
+            )
+
         context = get_context()
         top_name = self.options.top_name or design.top_name()
         project_dir = Path(self.options.project_dir or context.proj_dir)

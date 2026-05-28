@@ -6,7 +6,7 @@ nextpnr generic micro-architecture and keeps generated design artifacts under th
 user-design output directory.
 """
 
-from fabulous.fabric_cad.fabxplore.modules.fabric_router.nextpnr import (
+from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr.core import (
     NextpnrCommand,
     NextpnrCommandResult,
     NextpnrRouter,

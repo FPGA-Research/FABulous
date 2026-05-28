@@ -302,13 +302,6 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "verilog_path": self.my_root / "arch_rtl" / "FLUT5_1P_2PS.v",
                     "prefixes": [
                         "LA_",
-                        "LB_",
-                        "LC_",
-                        "LD_",
-                        "LE_",
-                        "LF_",
-                        "LG_",
-                        "LH_",
                     ],
                     "add_as_custom_prim": True,
                 },
@@ -333,13 +326,6 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                 "min_routing_pip_fs": 2,
                 "generate_straight_routing_pips": True,
                 "generate_turn_routing_pips": True,
-                "connection_hierarchy": {
-                    "enabled": True,
-                    "levels": [2, 2],
-                    "generate_jump_ports": True,
-                    "jump_prefix": "J_LOCAL",
-                    "replace_direct_input_pips": False,
-                },
                 "config_bit_margin": 0,
                 "derive_sources_from_base": True,
                 "cover_unconnected_outputs": True,
@@ -394,13 +380,12 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             progress_chunk_size=5,
         )
 
-        self.write_routingmodel_bitreamspec()
-
-        self.pnr_fabric_router_pass(
+        self.fpga_model.nextpnr_route(
             nextpnr_exec=Path(
                 "/home/hausding/Documents/FABulous/demo_master_thesis"
                 "/nextpnr/build/nextpnr-generic"
             ),
+            check=False,
         )
 
     def map_cells(self) -> None:

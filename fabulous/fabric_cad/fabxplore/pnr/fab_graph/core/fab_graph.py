@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import fabulous.fabulous_settings as fabulous_settings
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.models import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
     RoutingConfigBits,
     RoutingGraphStats,
     RoutingPip,
@@ -25,10 +25,10 @@ from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.models import (
     RoutingResourceKey,
     RoutingTileModel,
 )
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.rgraph import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.rgraph import (
     RoutingFabricGraph,
 )
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.writer import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.writer import (
     write_pips_txt,
     write_tile_source,
     write_tile_sources,

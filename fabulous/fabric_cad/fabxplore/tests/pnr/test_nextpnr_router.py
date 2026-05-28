@@ -7,25 +7,23 @@ executable that writes the expected FASM and JSON report artifacts.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest  # deptry: ignore[DEP004]
 
-from fabulous.fabric_cad.fabxplore.modules.fabric_router.nextpnr import (
+from fabulous.fabric_cad.fabxplore.pnr.pnr_bridge import PnRBridge
+from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr import (
     NextpnrCommand,
     NextpnrRouter,
     NextpnrRouterOptions,
 )
-from fabulous.fabric_cad.fabxplore.modules.fabric_router.nextpnr.pcf import (
+from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr.core.pcf import (
     auto_assign_pcf,
     extract_template_io_sites,
     filter_io_sites_by_bel_v2,
     normalize_template_pin,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def test_normalize_template_pin_accepts_fabulous_forms() -> None:
@@ -224,6 +222,53 @@ def test_router_writes_artifacts_and_parses_report(tmp_path: Path) -> None:
     assert "ARGS=--uarch fabulous" in result.report_summary
     assert "FAB_ROOT=" not in result.report_summary
     assert "ERR=diagnostic" in result.report_summary
+
+
+def test_pnr_bridge_routes_with_temporary_graph_pips(tmp_path: Path) -> None:
+    """Route through PnRBridge while restoring the original project PIPs."""
+    _write_project_metadata(tmp_path)
+    pips_path = tmp_path / ".FABulous" / "pips.txt"
+    original_pips = "# original pips\n# keep me\n"
+    pips_path.write_text(original_pips, encoding="utf-8")
+
+    design = _bridge_from_verilog(
+        "module top(input a, output y); assign y = a; endmodule"
+    )
+    bridge = _FakePnRBridge(
+        project_dir=tmp_path,
+        fabulous_api=_FakeFab(_template_pcf(site_count=2)),
+        pyosys_bridge=design,
+    )
+
+    def write_pips(path: Path | str | None = None) -> None:
+        output_path = Path(path or pips_path)
+        output_path.write_text("# graph candidate pips\n", encoding="utf-8")
+
+    bridge.write_pips = write_pips
+
+    result = bridge.nextpnr_route(
+        nextpnr_exec=_fake_nextpnr(tmp_path),
+        check=True,
+        log_report=False,
+    )
+
+    assert result.passed
+    assert result.paths.json_path.exists()
+    assert pips_path.read_text(encoding="utf-8") == original_pips
+
+
+class _FakePnRBridge(PnRBridge):
+    """Small bridge that avoids building a full routing graph for router tests."""
+
+    def __init__(
+        self,
+        project_dir: Path,
+        fabulous_api: _FakeFab,
+        pyosys_bridge: PyosysBridge,
+    ) -> None:
+        self.project_dir = project_dir
+        self.fab = fabulous_api
+        self._pyosys_bridge = pyosys_bridge
 
 
 class _FakeFab:

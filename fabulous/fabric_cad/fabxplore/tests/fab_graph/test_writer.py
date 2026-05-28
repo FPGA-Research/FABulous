@@ -11,14 +11,14 @@ from typing import TYPE_CHECKING
 import pytest  # noqa: DEP004 - test-only dependency
 
 import fabulous.fabulous_settings as fabulous_settings
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.models import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
     RoutingPipKind,
     RoutingResourceKey,
 )
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.rgraph import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.rgraph import (
     RoutingFabricGraph,
 )
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.writer import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.writer import (
     render_matrix_csv,
     render_matrix_list,
     render_pips_txt,

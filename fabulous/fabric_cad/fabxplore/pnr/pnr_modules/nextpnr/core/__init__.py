@@ -6,7 +6,7 @@ concrete PCF from the in-memory FABulous routing model, run nextpnr, and parse t
 JSON report produced by nextpnr.
 """
 
-from fabulous.fabric_cad.fabxplore.modules.fabric_router.nextpnr import (
+from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr.core import (
     models,
     nextpnr_command,
     nextpnr_router,

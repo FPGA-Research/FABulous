@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from jinja2 import Environment
 
 if TYPE_CHECKING:
-    from fabulous.fabric_cad.fabxplore.modules.fabric_router.nextpnr.models import (
+    from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr.core.models import (
         NextpnrRouterResult,
     )
 

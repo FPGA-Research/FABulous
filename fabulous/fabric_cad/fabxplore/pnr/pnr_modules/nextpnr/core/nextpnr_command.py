@@ -15,7 +15,7 @@ import threading
 from pathlib import Path
 from typing import TextIO
 
-from fabulous.fabric_cad.fabxplore.modules.fabric_router.nextpnr.models import (
+from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr.core.models import (
     NextpnrCommandResult,
 )
 

@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import pytest  # noqa: DEP004 - test-only dependency
 
 import fabulous.fabulous_settings as fabulous_settings
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.models import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
     RoutingConfigBits,
     RoutingEndpoint,
     RoutingPip,
@@ -18,7 +18,7 @@ from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.models import (
     RoutingResourceCounts,
     RoutingResourceKey,
 )
-from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.rgraph import (
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.rgraph import (
     RoutingFabricGraph,
 )
 from fabulous.fabric_cad.gen_npnr_model import genNextpnrModel

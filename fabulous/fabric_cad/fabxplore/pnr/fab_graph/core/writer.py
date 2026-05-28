@@ -18,10 +18,10 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
 
-    from fabulous.fabric_cad.fabxplore.modules.fab_graph.core import (
+    from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core import (
         rgraph,
     )
-    from fabulous.fabric_cad.fabxplore.modules.fab_graph.core.models import (
+    from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
         RoutingResourceKey,
         RoutingTileBelModel,
         RoutingTileGenIOModel,
