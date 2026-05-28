@@ -444,8 +444,8 @@ $$
 If an FF does not have an enable or reset but the tile lane needs one, the pass
 can connect a neutral constant such as `EN=1` or `SR=0`.
 
-When multiple FFs are packed into one tile instance, config and parameter updates
-must agree: $\forall k,\ c_a[k] = c_b[k]$ for every config bit or parameter key
+When multiple FFs are packed into one tile instance, config and attribute updates
+must agree: $\forall k,\ c_a[k] = c_b[k]$ for every config bit or attribute key
 used by more than one occupied lane. Shared tile input ports must also have the
 same source: $\text{source}_a(p) = \text{source}_b(p)$ for every shared port
 $p$.
@@ -456,7 +456,7 @@ currently solve a global optimum assignment.
 ## Manual And Auto Config
 
 By default the materializer does not derive lane configuration. The user
-supplies `config` and `params`, and the pass checks structural legality, control
+supplies `config` and `attributes`, and the pass checks structural legality, control
 compatibility, config conflicts, and port compatibility. This is useful for
 architectures with direct register bypass paths where no SAT solve is needed.
 
@@ -694,7 +694,7 @@ invalid overwrites are ignored.
 candidate pack is rejected and the pass may try another tile or skip the FF.
 
 `fail_on_pack_conflict`
-: If `True`, config, parameter, or shared-port conflicts while packing raise.
+: If `True`, config, attribute, or shared-port conflicts while packing raise.
 If `False`, the conflicting FF is tried in another tile or skipped.
 
 `fail_on_unmaterialized_ff`
@@ -880,8 +880,8 @@ path is allowed to replace.
 as `"MODE"` or indexed names such as `"ConfigBits[32]"`. This is valid only
 when pass-level `auto_config=False`.
 
-`params`
-: Parameter updates applied to the inserted tile.
+`attributes`
+: Attribute updates applied to the inserted tile.
 
 ## FF Port Descriptions
 

@@ -97,7 +97,7 @@ class RegAbsorberWriter:
             primitive.unsetPort(_id(f"\\{rule.comb_port}"))
 
         _add_config_ports(primitive, rule.config)
-        _add_params(primitive, rule.params)
+        _add_attributes(primitive, rule.attributes)
         module.remove(ff)
 
 
@@ -235,6 +235,22 @@ def _add_params(cell: ys.Cell, params: dict[str, str | int | bool]) -> None:
     """
     for name, value in params.items():
         cell.setParam(_id(f"\\{name}"), ys.Const(value))
+
+
+def _add_attributes(cell: ys.Cell, attrs: dict[str, str | int | bool]) -> None:
+    """Set attribute updates on a pyosys cell.
+
+    Parameters
+    ----------
+    cell : ys.Cell
+        Cell receiving attribute updates.
+    attrs : dict[str, str | int | bool]
+        Attribute updates.
+    """
+    updated_attrs = cell.attributes.copy()
+    for name, value in attrs.items():
+        updated_attrs[_id(f"\\{name}")] = ys.Const(value)
+    cell.attributes = updated_attrs
 
 
 def _indexed_signal(bits: list[ys.SigBit]) -> ys.SigSpec:

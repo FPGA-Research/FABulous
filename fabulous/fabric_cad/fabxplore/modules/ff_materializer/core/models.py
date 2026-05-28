@@ -114,8 +114,8 @@ class FfMaterializerLane(BaseModel):
         Legal latency modes for this lane.
     config : dict[str, ConfigValue]
         Tile config updates needed for this lane to act as an FF path.
-    params : dict[str, ParamValue]
-        Tile parameter updates needed for this lane.
+    attributes : dict[str, ParamValue]
+        Tile attribute updates needed for this lane.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -135,7 +135,7 @@ class FfMaterializerLane(BaseModel):
         default_factory=_default_depth_options
     )
     config: dict[str, ConfigValue] = Field(default_factory=dict)
-    params: dict[str, ParamValue] = Field(default_factory=dict)
+    attributes: dict[str, ParamValue] = Field(default_factory=dict)
 
     @field_validator("reset_kind", mode="before")
     @classmethod
@@ -353,15 +353,15 @@ class FfMaterialization:
         FF-to-lane bindings contained in this tile instance.
     config : dict[str, ConfigValue]
         Merged config updates for the replacement.
-    params : dict[str, ParamValue]
-        Merged parameter updates for the replacement.
+    attributes : dict[str, ParamValue]
+        Merged attribute updates for the replacement.
     """
 
     replacement_cell_id: str
     tile_type: str
     bindings: tuple[FfLaneBinding, ...]
     config: dict[str, ConfigValue]
-    params: dict[str, ParamValue]
+    attributes: dict[str, ParamValue]
 
 
 @dataclass(frozen=True)
@@ -381,7 +381,7 @@ class FfMaterializerStats:
     skipped_control_mismatch : int
         FFs skipped because enable/reset semantics were incompatible.
     skipped_config_conflict : int
-        FFs skipped because packing would conflict on config or params.
+        FFs skipped because packing would conflict on config or attributes.
     skipped_limit : int
         FFs skipped after ``max_replacements`` was reached.
     """
@@ -414,7 +414,7 @@ class FfMaterializerOptions:
     fail_on_auto_config_unsat : bool
         Whether an unsatisfied auto-config group raises instead of skipping.
     fail_on_pack_conflict : bool
-        Whether config, parameter, or shared-port packing conflicts raise.
+        Whether config, attribute, or shared-port packing conflicts raise.
     fail_on_unmaterialized_ff : bool
         Whether any remaining supported FF raises after planning.
     progress_chunk_size : int

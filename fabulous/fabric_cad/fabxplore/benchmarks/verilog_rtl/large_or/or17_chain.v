@@ -1,6 +1,7 @@
 module or17_chain (
+    input  wire        clk,
     input  wire [16:0] a,
-    output wire        y
+    output reg         y
 );
 
     wire [16:0] s;
@@ -23,6 +24,8 @@ module or17_chain (
     assign s[15] = s[14] | a[15];
     assign s[16] = s[15] | a[16];
 
-    assign y = s[16];
+    always @(posedge clk) begin
+        y <= s[16];
+    end
 
 endmodule

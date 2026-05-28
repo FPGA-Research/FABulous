@@ -47,7 +47,7 @@ Summary
 Skipped
 - no compatible lane: {{ stats.skipped_no_lane }}
 - control mismatch: {{ stats.skipped_control_mismatch }}
-- config/param conflict: {{ stats.skipped_config_conflict }}
+- config/attribute conflict: {{ stats.skipped_config_conflict }}
 - replacement limit: {{ stats.skipped_limit }}
 
 Inserted Tiles by Occupied Lane Count

@@ -68,7 +68,7 @@ class FfMaterializerWriter:
             last_ff = _find_cell(module, binding.ff_cell_ids[-1])
             self._connect_binding(new_cell, first_ff, last_ff, binding)
         _add_config_ports(new_cell, materialization.config, self.tile)
-        _add_params(new_cell, materialization.params)
+        _add_attributes(new_cell, materialization.attributes)
         for binding in materialization.bindings:
             for ff_cell_id in binding.ff_cell_ids:
                 module.remove(_find_cell(module, ff_cell_id))
@@ -255,6 +255,22 @@ def _add_params(cell: ys.Cell, params: dict[str, str | int | bool]) -> None:
     """
     for name, value in params.items():
         cell.setParam(_id(f"\\{name}"), ys.Const(value))
+
+
+def _add_attributes(cell: ys.Cell, attrs: dict[str, str | int | bool]) -> None:
+    """Set attribute updates on a pyosys cell.
+
+    Parameters
+    ----------
+    cell : ys.Cell
+        Cell receiving attribute updates.
+    attrs : dict[str, str | int | bool]
+        Attribute updates.
+    """
+    updated_attrs = cell.attributes.copy()
+    for name, value in attrs.items():
+        updated_attrs[_id(f"\\{name}")] = ys.Const(value)
+    cell.attributes = updated_attrs
 
 
 def _config_widths(tile: FfMaterializerTileModel) -> dict[str, int]:

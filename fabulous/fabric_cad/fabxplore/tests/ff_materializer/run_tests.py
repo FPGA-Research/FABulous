@@ -31,6 +31,7 @@ def test_single_dff_materialization() -> None:
         assert len(tile_cells) == 1
         assert {"I0", "Q0", "CLK", "ConfigBits"} <= set(tile_cells[0]["connections"])
         assert tile_cells[0]["connections"]["ConfigBits"][2] == "1"
+        assert int(tile_cells[0]["attributes"]["FF_USED"], 2) == 1
         bridge.run_pass("hierarchy -top base -check")
 
 
@@ -203,7 +204,7 @@ def test_fail_on_pack_conflict_raises() -> None:
             error_message = str(exc)
         if not error_message:
             raise AssertionError("expected packing conflict to fail")
-        assert "Config, parameter, or port conflict" in error_message
+        assert "Config, attribute, or port conflict" in error_message
 
 
 def test_max_replacements_limits_materialization() -> None:
@@ -1200,7 +1201,7 @@ def _run_materializer(
     second_lane_config : dict[str, int | bool] | None
         Optional second-lane config override.
     fail_on_pack_conflict : bool
-        Whether config, parameter, or port packing conflicts should raise.
+        Whether config, attribute, or port packing conflicts should raise.
     fail_on_unmaterialized_ff : bool
         Whether leftover supported FFs should raise.
 
@@ -1229,7 +1230,7 @@ def _run_materializer(
                 "reset_kind": "sync",
                 "reset_value": 0,
                 "config": {"ConfigBits[2]": 1},
-                "params": {"MODE": "ff_only"},
+                "attributes": {"FF_USED": 1},
             },
             {
                 "data_port": "I1",
@@ -1244,7 +1245,7 @@ def _run_materializer(
                 "reset_kind": "sync",
                 "reset_value": 0,
                 "config": second_lane_config or {"ConfigBits[3]": 1},
-                "params": {"MODE": "ff_only"},
+                "attributes": {"FF_USED": 1},
             },
         ],
         pack_multiple_ffs_per_tile=pack,

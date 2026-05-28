@@ -32,6 +32,7 @@ def test_output_absorption_equiv() -> None:
                     "seq_port": "OQ",
                     "clock_port": "CLK",
                     "config": {"ConfigBits[0]": 1},
+                    "attributes": {"FF_USED": 1},
                     "remove_disconnected_comb_port": True,
                 }
             ],
@@ -48,6 +49,7 @@ def test_output_absorption_equiv() -> None:
         assert "OQ" in cells["u_tile"]["connections"]
         assert "O" not in cells["u_tile"]["connections"]
         assert cells["u_tile"]["connections"]["ConfigBits"] == ["1"]
+        assert int(cells["u_tile"]["attributes"]["FF_USED"], 2) == 1
 
         bridge.run_pass("hierarchy -top base -check")
         gate = tmp_dir / "gate_output.v"

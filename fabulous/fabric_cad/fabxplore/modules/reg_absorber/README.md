@@ -314,8 +314,8 @@ self.design_absorb_registers_pass(
             "config": {
                 "ConfigBits[12]": 1,
             },
-            "params": {
-                "MODE": "registered",
+            "attributes": {
+                "FF_USED": 1,
             },
             "remove_disconnected_comb_port": True,
         }
@@ -413,8 +413,8 @@ self.design_absorb_registers_pass(
 : Config port updates to apply to the primitive instance, for example
   `{"ConfigBits[12]": 1}`.
 
-`params`
-: Parameter updates to apply to the primitive instance.
+`attributes`
+: Attribute updates to apply to the primitive instance.
 
 `remove_disconnected_comb_port`
 : If `True`, disconnect `comb_port` after absorption when `comb_port != seq_port`.

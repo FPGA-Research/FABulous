@@ -89,7 +89,7 @@ class FfMaterializer:
     fail_on_auto_config_unsat : bool
         Whether unsatisfiable auto-config attempts should raise.
     fail_on_pack_conflict : bool
-        Whether config, parameter, or shared-port packing conflicts should raise.
+        Whether config, attribute, or shared-port packing conflicts should raise.
     fail_on_unmaterialized_ff : bool
         Whether any supported FF left unreplaced should raise.
     track_progress : bool
@@ -583,13 +583,13 @@ class FfMaterializer:
         Raises
         ------
         RuntimeError
-            If ``fail_on_pack_conflict`` is set and a config, parameter, or
+            If ``fail_on_pack_conflict`` is set and a config, attribute, or
             shared-port conflict prevents packing this binding into the group.
         """
         if not group.can_add(binding, check_config=not self.auto_config):
             if self.fail_on_pack_conflict:
                 raise RuntimeError(
-                    f"Config, parameter, or port conflict while packing FF "
+                    f"Config, attribute, or port conflict while packing FF "
                     f"'{ff.cell_id}' into lane {binding.lane_index}"
                 )
             return None
@@ -704,7 +704,7 @@ class _OpenMaterialization:
     index: int
     bindings: list[FfLaneBinding] = field(default_factory=list)
     config: dict[str, ConfigValue] = field(default_factory=dict)
-    params: dict[str, ParamValue] = field(default_factory=dict)
+    attributes: dict[str, ParamValue] = field(default_factory=dict)
     port_sources: dict[str, tuple[str, ...]] = field(default_factory=dict)
     used_lanes: set[int] = field(default_factory=set)
 
@@ -722,7 +722,7 @@ class _OpenMaterialization:
         Returns
         -------
         bool
-            ``True`` if no lane, config, param, or shared-port conflict exists.
+            ``True`` if no lane, config, attribute, or shared-port conflict exists.
         """
         if binding.lane_index in self.used_lanes:
             return False
@@ -730,7 +730,7 @@ class _OpenMaterialization:
             manual_config = _manual_binding_config(binding)
             if manual_config is None or _updates_conflict(self.config, manual_config):
                 return False
-        if _updates_conflict(self.params, binding.lane.params):
+        if _updates_conflict(self.attributes, binding.lane.attributes):
             return False
         for port, source in _binding_port_sources(binding).items():
             if port in self.port_sources and self.port_sources[port] != source:
@@ -760,7 +760,7 @@ class _OpenMaterialization:
                 self.config.update(manual_config)
         else:
             self.config = dict(config_override)
-        self.params.update(binding.lane.params)
+        self.attributes.update(binding.lane.attributes)
         self.port_sources.update(_binding_port_sources(binding))
 
     def freeze(self, tile_type: str) -> FfMaterialization:
@@ -781,7 +781,7 @@ class _OpenMaterialization:
             tile_type=tile_type,
             bindings=tuple(self.bindings),
             config=dict(self.config),
-            params=dict(self.params),
+            attributes=dict(self.attributes),
         )
 
 

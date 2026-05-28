@@ -182,8 +182,8 @@ class RegisterAbsorptionRule(BaseModel):
         Optional tile reset value.
     config : dict[str, ConfigValue]
         Config bits to set after absorption.
-    params : dict[str, ParamValue]
-        Parameters to set after absorption.
+    attributes : dict[str, ParamValue]
+        Attributes to set after absorption.
     remove_disconnected_comb_port : bool
         Whether to disconnect ``comb_port`` when ``comb_port != seq_port``.
     """
@@ -204,7 +204,7 @@ class RegisterAbsorptionRule(BaseModel):
     reset_kind: FfResetKind | None = None
     reset_value: int | None = None
     config: dict[str, ConfigValue] = Field(default_factory=dict)
-    params: dict[str, ParamValue] = Field(default_factory=dict)
+    attributes: dict[str, ParamValue] = Field(default_factory=dict)
     remove_disconnected_comb_port: bool = True
 
     @field_validator("side", mode="before")
