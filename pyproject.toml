@@ -168,6 +168,8 @@ addopts = "-m 'not slow'"
 # These are indirect requirements needed by cmd2 and other interactive CLI tools
 extend_exclude = [
   "fabulous/fabric_generator/gds_generator/script",
+  # Tests may import dev-only dependencies such as pytest.
+  "fabulous/fabric_cad/fabxplore/tests",
   "docs",
   "build_hooks.py",
 ]
