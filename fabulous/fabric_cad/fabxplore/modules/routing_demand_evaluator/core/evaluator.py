@@ -48,8 +48,7 @@ if TYPE_CHECKING:
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.routers.base import (  # noqa: E501
         RoutingDemandRouter,
     )
-    from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
-    from fabulous.fabulous_api import FABulous_API
+    from fabulous.fabric_cad.fabxplore.pnr.pnr_bridge import PnRBridge
 
 
 class RoutingDemandEvaluator:
@@ -64,25 +63,21 @@ class RoutingDemandEvaluator:
     def __init__(self, options: RoutingDemandEvaluatorOptions) -> None:
         self.options = options
 
-    def run(
-        self,
-        design: PyosysBridge,
-        fab: FABulous_API,
-    ) -> RoutingDemandEvaluatorResult:
+    def run(self, fpga_model: PnRBridge) -> RoutingDemandEvaluatorResult:
         """Run demand evaluation.
 
         Parameters
         ----------
-        design : PyosysBridge
-            Packed design associated with the architecture flow.
-        fab : FABulous_API
-            Loaded FABulous API instance.
+        fpga_model : PnRBridge
+            Combined packed design, FABulous project API, and routing graph.
 
         Returns
         -------
         RoutingDemandEvaluatorResult
             Structured result and report.
         """
+        design = fpga_model.user_design
+        fab = fpga_model.fab
         _ = design
         tracker = RoutingDemandProcessTracker(
             enabled=self.options.track_progress,

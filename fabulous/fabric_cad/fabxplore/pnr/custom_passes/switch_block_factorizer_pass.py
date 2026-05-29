@@ -16,8 +16,7 @@ from fabulous.fabric_cad.fabxplore.pnr.pnr_pass import PnRPass
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
-    from fabulous.fabulous_api import FABulous_API
+    from fabulous.fabric_cad.fabxplore.pnr.pnr_bridge import PnRBridge
 
 
 @dataclass
@@ -69,15 +68,13 @@ class SwitchBlockFactorizerPass(PnRPass):
 
     _result: SwitchBlockFactorizerResult | None = None
 
-    def run_on(self, design: PyosysBridge, fab: FABulous_API) -> None:
+    def run_on(self, fpga_model: PnRBridge) -> None:
         """Run the factorizer on the active FABulous project.
 
         Parameters
         ----------
-        design : PyosysBridge
-            Packed design associated with the architecture flow.
-        fab : FABulous_API
-            Loaded FABulous API instance.
+        fpga_model : PnRBridge
+            Combined packed design, FABulous project API, and routing graph.
         """
         options = SwitchBlockFactorizerOptions(
             tile_name=self.tile_name,
@@ -96,7 +93,7 @@ class SwitchBlockFactorizerPass(PnRPass):
             config_bit_margin=self.config_bit_margin,
             track_progress=self.track_progress,
         )
-        self._result = SwitchBlockFactorizer(options).run(design, fab)
+        self._result = SwitchBlockFactorizer(options).run(fpga_model)
 
     @property
     def report_summary(self) -> str:

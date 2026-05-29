@@ -25,7 +25,7 @@ from fabulous.fabulous_settings import get_context
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
+    from fabulous.fabric_cad.fabxplore.pnr.pnr_bridge import PnRBridge
     from fabulous.fabric_definition.tile import Tile
     from fabulous.fabulous_api import FABulous_API
 
@@ -46,20 +46,15 @@ class SwitchBlockFactorizer:
     def __init__(self, options: SwitchBlockFactorizerOptions) -> None:
         self.options = options
 
-    def run(
-        self,
-        design: PyosysBridge,
-        fab: FABulous_API,
-    ) -> SwitchBlockFactorizerResult:
+    def run(self, fpga_model: PnRBridge) -> SwitchBlockFactorizerResult:
         """Run switch-block factorization on the active FABulous project.
 
         Parameters
         ----------
-        design : PyosysBridge
-            Packed pyosys design. The current factorizer records the dependency but
-            does not mutate the design.
-        fab : FABulous_API
-            Loaded FABulous API instance.
+        fpga_model : PnRBridge
+            Combined packed design, FABulous project API, and routing graph.
+            The current factorizer records the design dependency but does not
+            mutate the design.
 
         Returns
         -------
@@ -71,6 +66,8 @@ class SwitchBlockFactorizer:
         RuntimeError
             If guardrails are exceeded or reachability is not preserved.
         """
+        design = fpga_model.user_design
+        fab = fpga_model.fab
         _ = design
         tracker = SwitchBlockFactorizerProcessTracker(
             enabled=self.options.track_progress

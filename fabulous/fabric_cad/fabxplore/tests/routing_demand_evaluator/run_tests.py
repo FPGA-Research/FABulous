@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from random import Random
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator import (
@@ -161,6 +162,11 @@ class _FakeFab:
             Tile name.
         """
         _ = tile_name
+
+
+def _fake_fpga_model(fab: _FakeFab) -> SimpleNamespace:
+    """Return the bridge-shaped object expected by PnR modules."""
+    return SimpleNamespace(user_design=object(), fab=fab)
 
 
 def test_models_validate_public_options() -> None:
@@ -490,7 +496,7 @@ def test_evaluator_runs_minimal_profile() -> None:
                 demand_iterations=4,
                 track_progress=False,
             )
-        ).run(object(), fab)  # type: ignore[arg-type]
+        ).run(_fake_fpga_model(fab))
 
         assert result.stats.total_demands >= 2
         assert result.hard_demands_passed
@@ -1032,7 +1038,7 @@ def test_evaluator_runs_added_profiles() -> None:
                     demand_iterations=16,
                     track_progress=False,
                 )
-            ).run(object(), fab)  # type: ignore[arg-type]
+            ).run(_fake_fpga_model(fab))
 
             assert result.demand_profile.profile_name == profile
             assert result.stats.total_demands >= 0
@@ -1063,7 +1069,7 @@ def test_evaluator_reports_unreachable_random_soft_demands() -> None:
                 seed=3,
                 track_progress=False,
             )
-        ).run(object(), fab)  # type: ignore[arg-type]
+        ).run(_fake_fpga_model(fab))
 
         assert result.stats.hard_failed == 0
         assert result.stats.total_demands >= 2
@@ -1101,7 +1107,7 @@ def test_greedy_optimizer_prunes_redundant_pips_without_writeback() -> None:
                 opt_max_iterations=8,
                 track_progress=False,
             )
-        ).run(object(), fab)  # type: ignore[arg-type]
+        ).run(_fake_fpga_model(fab))
 
         assert result.optimizer_stats is not None
         assert result.optimizer_stats.accepted_pips == 1
@@ -1186,7 +1192,7 @@ def test_greedy_power_of_two_mux_cleanup_normalizes_rows() -> None:
                 opt_max_iterations=4,
                 track_progress=False,
             )
-        ).run(object(), fab)  # type: ignore[arg-type]
+        ).run(_fake_fpga_model(fab))
 
         assert result.options.opt_clean_mux is True
         assert result.optimizer_stats is not None
@@ -1235,7 +1241,7 @@ def test_greedy_clean_mux_writeback_allows_non_power_rows() -> None:
                 opt_max_iterations=4,
                 track_progress=False,
             )
-        ).run(object(), fab)  # type: ignore[arg-type]
+        ).run(_fake_fpga_model(fab))
 
         assert result.optimizer_stats is not None
         assert result.optimizer_stats.write_back is True
@@ -1281,7 +1287,7 @@ def test_greedy_power_of_two_mux_cleanup_does_not_overshoot_budget() -> None:
                 opt_max_iterations=4,
                 track_progress=False,
             )
-        ).run(object(), fab)  # type: ignore[arg-type]
+        ).run(_fake_fpga_model(fab))
 
         assert result.optimizer_stats is not None
         assert result.optimizer_stats.accepted_pips == 0
@@ -1325,7 +1331,7 @@ def test_monte_carlo_optimizer_prunes_and_reports_importance() -> None:
                 opt_max_iterations=20,
                 track_progress=False,
             )
-        ).run(object(), fab)  # type: ignore[arg-type]
+        ).run(_fake_fpga_model(fab))
 
         assert result.optimizer_stats is not None
         assert result.optimizer_stats.accepted_pips == 1
@@ -1364,7 +1370,7 @@ def test_pnr_pass_wrapper_exposes_result_data() -> None:
             track_progress=False,
         )
 
-        pass_.run_on(object(), fab)  # type: ignore[arg-type]
+        pass_.run_on(_fake_fpga_model(fab))
 
         assert pass_.result_data is not None
         assert "Routing Demand Evaluator Report" in pass_.report_summary

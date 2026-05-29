@@ -20,8 +20,7 @@ from fabulous.fabric_cad.fabxplore.pnr.pnr_pass import PnRPass
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
-    from fabulous.fabulous_api import FABulous_API
+    from fabulous.fabric_cad.fabxplore.pnr.pnr_bridge import PnRBridge
 
 
 @dataclass
@@ -125,15 +124,13 @@ class RoutingDemandEvaluatorPass(PnRPass):
 
     _result: RoutingDemandEvaluatorResult | None = None
 
-    def run_on(self, design: PyosysBridge, fab: FABulous_API) -> None:
+    def run_on(self, fpga_model: PnRBridge) -> None:
         """Run routing-demand evaluation.
 
         Parameters
         ----------
-        design : PyosysBridge
-            Packed design associated with the architecture flow.
-        fab : FABulous_API
-            Loaded FABulous API instance.
+        fpga_model : PnRBridge
+            Combined packed design, FABulous project API, and routing graph.
         """
         options = RoutingDemandEvaluatorOptions(
             tile_name=self.tile_name,
@@ -167,7 +164,7 @@ class RoutingDemandEvaluatorPass(PnRPass):
             track_progress=self.track_progress,
             progress_chunk_size=self.progress_chunk_size,
         )
-        self._result = RoutingDemandEvaluator(options).run(design, fab)
+        self._result = RoutingDemandEvaluator(options).run(fpga_model)
 
     @property
     def report_summary(self) -> str:

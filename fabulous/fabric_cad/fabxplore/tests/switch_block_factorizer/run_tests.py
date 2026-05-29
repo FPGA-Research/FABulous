@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from fabulous.fabric_cad.fabxplore.modules.switch_block_factorizer import (
@@ -147,6 +148,11 @@ class _FakeFab:
         self.output_file.write_text(f"module {tile_name}; endmodule\n")
 
 
+def _fake_fpga_model(fab: _FakeFab) -> SimpleNamespace:
+    """Return the bridge-shaped object expected by PnR modules."""
+    return SimpleNamespace(user_design=object(), fab=fab)
+
+
 def test_factorizer_rewrites_list_in_place_and_regenerates_csv() -> None:
     """Test list factorization, tile CSV update, and generated CSV replacement."""
     with _project("fac_tile") as project:
@@ -171,7 +177,7 @@ def test_factorizer_rewrites_list_in_place_and_regenerates_csv() -> None:
                 global_reduction=1,
                 track_progress=False,
             )
-        ).run(object(), fab)
+        ).run(_fake_fpga_model(fab))
 
         list_text = matrix_list.read_text(encoding="utf-8")
         tile_csv_text = tile_csv.read_text(encoding="utf-8")
@@ -210,7 +216,7 @@ def test_factorizer_accepts_csv_and_normalizes_to_list() -> None:
                 global_reduction=1,
                 track_progress=False,
             )
-        ).run(object(), fab)
+        ).run(_fake_fpga_model(fab))
 
         normalized_list = tile_dir / "csv_tile_switch_matrix.list"
         assert normalized_list.is_file()
@@ -246,7 +252,7 @@ def test_factorizer_applies_global_before_explicit_rules() -> None:
                 reduction_rules=[MuxReductionRule(from_fanin=8, to_fanin=4)],
                 track_progress=False,
             )
-        ).run(object(), fab)
+        ).run(_fake_fpga_model(fab))
 
         assert result.stats.added_jump_wires == 6
         assert result.stats.max_fanin_after == 4
@@ -279,7 +285,7 @@ def test_factorizer_rejects_too_many_jump_wires_before_rewrite() -> None:
                     max_added_jump_wires=1,
                     track_progress=False,
                 )
-            ).run(object(), fab)
+            ).run(_fake_fpga_model(fab))
         except RuntimeError as exc:
             message = str(exc)
 
@@ -307,7 +313,7 @@ def test_factorizer_uses_config_bit_capacity_override() -> None:
                 config_bit_capacity_override=80,
                 track_progress=False,
             )
-        ).run(object(), fab)
+        ).run(_fake_fpga_model(fab))
 
         assert result.stats.total_config_bits_after == 70
 
@@ -330,7 +336,7 @@ def test_factorizer_pass_exposes_result_data() -> None:
             track_progress=False,
         )
 
-        switch_pass.run_on(object(), fab)
+        switch_pass.run_on(_fake_fpga_model(fab))
 
         assert switch_pass.result_data is not None
         assert switch_pass.result_data.stats.added_jump_wires == 2

@@ -1,10 +1,9 @@
 """Base interface for fabxplore placement/routing passes.
 
 This module defines the abstract pass contract for work that happens after
-pyosys synthesis and packing. Unlike ``SynthPass``, a PnR pass receives both the
-packed ``PyosysBridge`` design and the loaded ``FABulous_API`` project object, so
-it can generate tile resources, call FABulous fabric generators, or invoke
-place-and-route tooling.
+pyosys synthesis and packing. Unlike ``SynthPass``, a PnR pass receives the
+loaded ``PnRBridge`` so it can access the packed design, FABulous project API,
+and editable routing graph through one object.
 """
 
 from __future__ import annotations
@@ -13,27 +12,25 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
-    from fabulous.fabulous_api import FABulous_API
+    from fabulous.fabric_cad.fabxplore.pnr.pnr_bridge import PnRBridge
 
 
 class PnRPass(ABC):
     """Abstract base class for placement/routing passes in fabxplore.
 
-    PnR passes run after synthesis/packing and can use both the packed pyosys design and
-    the loaded FABulous project API.
+    PnR passes run after synthesis/packing and operate on the bridge that owns the
+    packed design, loaded FABulous API, and routing graph.
     """
 
     @abstractmethod
-    def run_on(self, design: PyosysBridge, fab: FABulous_API) -> None:
-        """Run the PnR pass on the given design.
+    def run_on(self, fpga_model: PnRBridge) -> None:
+        """Run the PnR pass on the given FPGA model.
 
         Parameters
         ----------
-        design : PyosysBridge
-            The design to be processed by the PnR pass.
-        fab : FABulous_API
-            Loaded FABulous API for project, tile, and fabric generation access.
+        fpga_model : PnRBridge
+            Combined packed design, FABulous project API, and editable routing
+            graph model.
         """
 
     @property

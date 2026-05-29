@@ -141,7 +141,7 @@ class ArchitectureSynthesizer(ABC):
         """Generate a PnRBridge model from the current design and FABulous API."""
         self.fpga_model = PnRBridge(
             project_dir=self.project_context.proj_dir,
-            fabulous_api=self._fabulous_api,
+            fabulous_api=self.fab,
             pyosys_bridge=self.design,
         )
 
@@ -1187,7 +1187,7 @@ class ArchitectureSynthesizer(ABC):
             track_progress=track_progress,
             progress_chunk_size=progress_chunk_size,
         )
-        result.run_on(self.design, self.fab)
+        result.run_on(self.fpga_model)
 
         if log_report:
             self.log_info(result.report_summary)
@@ -1263,7 +1263,7 @@ class ArchitectureSynthesizer(ABC):
             config_bit_margin=config_bit_margin,
             track_progress=track_progress,
         )
-        result.run_on(self.design, self.fab)
+        result.run_on(self.fpga_model)
 
         if log_report:
             self.log_info(result.report_summary)
@@ -1412,7 +1412,7 @@ class ArchitectureSynthesizer(ABC):
             track_progress=track_progress,
             progress_chunk_size=progress_chunk_size,
         )
-        result.run_on(self.design, self.fab)
+        result.run_on(self.fpga_model)
 
         if log_report:
             self.log_info(result.report_summary)

@@ -6,6 +6,7 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from fabulous.fabric_cad.fabxplore.flow.architecture_synthesizer import (
@@ -35,7 +36,6 @@ from fabulous.fabric_cad.fabxplore.modules.tile_builder.routing_patterns import 
 from fabulous.fabric_cad.fabxplore.pnr.custom_passes.tile_builder_pass import (
     TileBuilderPass,
 )
-from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 from fabulous.fabric_definition.define import IO
 from fabulous.fabulous_cli.helper import setup_logger
 
@@ -213,8 +213,17 @@ class _FakeFab:
         self.output_file.write_text(f"module {tile_name}; endmodule\n")
 
 
+def _fake_fpga_model(fab: _FakeFab) -> SimpleNamespace:
+    """Return the bridge-shaped object expected by PnR modules."""
+    return SimpleNamespace(user_design=object(), fab=fab)
+
+
 class _TileBuilderTestSynthesizer(ArchitectureSynthesizer):
     """Concrete architecture synthesizer for tile-builder wrapper tests."""
+
+    def generate_fpga_model(self) -> None:
+        """Attach the minimal bridge surface needed by the pass wrapper test."""
+        self.fpga_model = SimpleNamespace(user_design=self.design, fab=self.fab)
 
     def run_flow(self) -> None:
         """No-op flow entry point for tests."""
@@ -1047,7 +1056,7 @@ def test_builder_accepts_real_vector_verilog_bel() -> None:
                 ),
                 track_progress=False,
             )
-        ).build(PyosysBridge(debug=False), fab)
+        ).build(_fake_fpga_model(fab))
 
         assert result.parsed_bel_modules == ("vector_passthrough",)
         assert result.matrix_list is not None
@@ -1082,7 +1091,7 @@ def test_builder_generates_files_and_registers_tile() -> None:
                     routing=BaselineRouting(input_fanin=2, output_fanin=2),
                     track_progress=False,
                 )
-            ).build(PyosysBridge(debug=False), fab)
+            ).build(_fake_fpga_model(fab))
 
         assert fab.loaded
         assert result.stats.bel_instances == 2
@@ -1139,7 +1148,7 @@ def test_builder_emits_connection_hierarchy_jump_rows() -> None:
                     ),
                     track_progress=False,
                 )
-            ).build(PyosysBridge(debug=False), fab)
+            ).build(_fake_fpga_model(fab))
 
         tile_csv_text = result.tile_csv.read_text(encoding="utf-8")
         assert "JUMP,J_BUILD_L0_0_BEG,0,0,J_BUILD_L0_0_END,1," in tile_csv_text
@@ -1170,7 +1179,7 @@ def test_builder_can_use_fabulous_auto_matrix() -> None:
                     routing=BaselineRouting(use_fabulous_auto=True),
                     track_progress=False,
                 )
-            ).build(PyosysBridge(debug=False), fab)
+            ).build(_fake_fpga_model(fab))
 
         assert result.matrix_list is None
         assert "MATRIX,GENERATE" in result.tile_csv.read_text()
@@ -1200,7 +1209,7 @@ def test_builder_regenerates_stale_config_memory_csv() -> None:
                     routing=BaselineRouting(use_fabulous_auto=True),
                     track_progress=False,
                 )
-            ).build(PyosysBridge(debug=False), fab)
+            ).build(_fake_fpga_model(fab))
 
         assert fab.config_mem_existed_at_gen is False
         assert stale_config_mem.read_text(encoding="utf-8") == (
@@ -1228,7 +1237,7 @@ def test_builder_fails_when_config_capacity_is_exceeded() -> None:
                         routing=BaselineRouting(config_bit_margin=0),
                         track_progress=False,
                     )
-                ).build(PyosysBridge(debug=False), fab),
+                ).build(_fake_fpga_model(fab)),
                 "config bits",
             )
 
@@ -1257,7 +1266,7 @@ def test_builder_uses_config_bit_capacity_override() -> None:
                     config_bit_capacity_override=80,
                     track_progress=False,
                 )
-            ).build(PyosysBridge(debug=False), fab)
+            ).build(_fake_fpga_model(fab))
 
         assert result.stats.config_capacity == 80
         assert result.stats.total_config_bits == 70
@@ -1281,7 +1290,7 @@ def test_pnr_pass_wrapper_runs_builder() -> None:
         )
 
         with _patched_builder_functions():
-            pass_.run_on(PyosysBridge(debug=False), fab)
+            pass_.run_on(_fake_fpga_model(fab))
 
         assert pass_.result_data is not None
         assert "Tile Builder Report" in pass_.report_summary

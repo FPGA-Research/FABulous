@@ -41,7 +41,7 @@ from fabulous.fabulous_settings import get_context
 from . import baseline_list_generator
 
 if TYPE_CHECKING:
-    from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
+    from fabulous.fabric_cad.fabxplore.pnr.pnr_bridge import PnRBridge
     from fabulous.fabric_definition.bel import Bel
     from fabulous.fabulous_api import FABulous_API
 
@@ -58,22 +58,23 @@ class TileBuilder:
     def __init__(self, options: TileBuilderOptions) -> None:
         self.options = options
 
-    def build(self, design: PyosysBridge, fab: FABulous_API) -> TileBuilderResult:
+    def build(self, fpga_model: PnRBridge) -> TileBuilderResult:
         """Build the tile package in the active FABulous project.
 
         Parameters
         ----------
-        design : PyosysBridge
-            Packed pyosys design. The current builder records the dependency but
-            does not mutate the design.
-        fab : FABulous_API
-            Loaded FABulous API instance.
+        fpga_model : PnRBridge
+            Combined packed design, FABulous project API, and routing graph.
+            The current builder records the design dependency but does not
+            mutate the design.
 
         Returns
         -------
         TileBuilderResult
             Structured result and report.
         """
+        design = fpga_model.user_design
+        fab = fpga_model.fab
         _ = design
         project_dir = _project_dir(fab)
         fabric_csv = project_dir / "fabric.csv"
