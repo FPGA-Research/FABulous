@@ -164,8 +164,8 @@ class RoutingFabricGraph:
         )
 
         matrix_pair_cache: dict[tuple[str, str], tuple[tuple[str, str], ...]] = {}
-        first_tiles = _first_tiles_by_type(fabric)
-        for tile_type, tile in first_tiles.items():
+        tile_definitions = _tile_definitions_by_type(fabric)
+        for tile_type, tile in tile_definitions.items():
             seen_external_rows: set[tuple[Direction, str, int, int, str, int]] = set()
             for port in tile.portsInfo:
                 external_row = (
@@ -208,14 +208,44 @@ class RoutingFabricGraph:
         return graph
 
     def tile_types(self) -> tuple[str, ...]:
-        """Return tile types in first-seen order.
+        """Return all known tile types in first-seen order.
 
         Returns
         -------
         tuple[str, ...]
-            Tile type names.
+            Tile type names, including standalone tile definitions that are not
+            placed in the fabric grid.
         """
         return tuple(self._tile_models)
+
+    def placed_tile_types(self) -> tuple[str, ...]:
+        """Return tile types with at least one placed grid instance.
+
+        Returns
+        -------
+        tuple[str, ...]
+            Tile type names that can emit concrete routing PIPs.
+        """
+        return tuple(
+            tile_type
+            for tile_type in self._tile_models
+            if self._tile_locations_by_type.get(tile_type)
+        )
+
+    def standalone_tile_types(self) -> tuple[str, ...]:
+        """Return declared tile types with no placed grid instances.
+
+        Returns
+        -------
+        tuple[str, ...]
+            Tile type names that are available for tile-local queries and edits
+            but cannot emit concrete routing PIPs.
+        """
+        return tuple(
+            tile_type
+            for tile_type in self._tile_models
+            if not self._tile_locations_by_type.get(tile_type)
+        )
 
     def tile_models(self) -> tuple[RoutingTileModel, ...]:
         """Return tile metadata models in graph order.
@@ -2002,6 +2032,28 @@ def _first_tiles_by_type(fabric: Fabric) -> dict[str, Tile]:
     return tiles
 
 
+def _tile_definitions_by_type(fabric: Fabric) -> dict[str, Tile]:
+    """Return placed and standalone tile definitions in stable order.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        Parsed fabric.
+
+    Returns
+    -------
+    dict[str, Tile]
+        Tile objects keyed by tile type.  Placed grid tile types keep their
+        first-seen order; declared but unplaced tile types are appended.
+    """
+    tiles = _first_tiles_by_type(fabric)
+    for tile_type, tile in getattr(fabric, "tileDic", {}).items():
+        tiles.setdefault(tile_type, tile)
+    for tile_type, tile in getattr(fabric, "unusedTileDic", {}).items():
+        tiles.setdefault(tile_type, tile)
+    return tiles
+
+
 def _tile_models(fabric: Fabric) -> dict[str, RoutingTileModel]:
     """Build stable tile metadata models.
 
@@ -2017,7 +2069,7 @@ def _tile_models(fabric: Fabric) -> dict[str, RoutingTileModel]:
     """
     return {
         tile_type: _tile_model(tile)
-        for tile_type, tile in _first_tiles_by_type(fabric).items()
+        for tile_type, tile in _tile_definitions_by_type(fabric).items()
     }
 
 

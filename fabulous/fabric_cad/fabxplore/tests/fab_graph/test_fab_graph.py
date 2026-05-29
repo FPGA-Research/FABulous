@@ -28,6 +28,7 @@ from fabulous.fabric_cad.fabxplore.tests.fab_graph.test_rgraph import (
     _parse_fabric_project,
     _resized_external_key,
     _write_and_parse_project,
+    _write_and_parse_project_with_standalone_tile,
 )
 from fabulous.fabric_cad.fabxplore.tests.fab_graph.test_writer import (
     _copy_demo_opt_project_or_skip,
@@ -53,6 +54,15 @@ LOGGER = logging.getLogger(__name__)
 def _write_and_load_api(project_dir: Path) -> FABulous_API:
     """Write the synthetic project and load it through FABulous API."""
     _write_and_parse_project(project_dir)
+    fab = FABulous_API(VerilogCodeGenerator())
+    _set_test_project_context(project_dir)
+    fab.loadFabric(project_dir / "fabric.csv")
+    return fab
+
+
+def _write_and_load_api_with_standalone_tile(project_dir: Path) -> FABulous_API:
+    """Write a synthetic project with a standalone tile and load it."""
+    _write_and_parse_project_with_standalone_tile(project_dir)
     fab = FABulous_API(VerilogCodeGenerator())
     _set_test_project_context(project_dir)
     fab.loadFabric(project_dir / "fabric.csv")
@@ -202,6 +212,24 @@ def test_fab_graph_query_api_accepts_callable_filters(tmp_path: Path) -> None:
     assert facade.disabled_pips(
         where=lambda pip: pip.resource_key == matrix_key,
     )
+
+
+def test_fab_graph_distinguishes_placed_and_standalone_tile_types(
+    tmp_path: Path,
+) -> None:
+    """Expose declared standalone tiles without concrete routing instances."""
+    facade = FabGraph(_write_and_load_api_with_standalone_tile(tmp_path), tmp_path)
+
+    assert facade.tile_types() == ["Toy", "Standalone"]
+    assert facade.placed_tile_types() == ["Toy"]
+    assert facade.standalone_tile_types() == ["Standalone"]
+    filtered_standalone = facade.standalone_tile_types(
+        where=lambda name: name.startswith("Stand")
+    )
+
+    assert filtered_standalone == ["Standalone"]
+    assert all(pip.tile_type != "Standalone" for pip in facade.active_pips())
+    assert facade.get_resource_counts("Standalone").total_active == 2
 
 
 def test_fab_graph_exposes_config_bit_queries(tmp_path: Path) -> None:

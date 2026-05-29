@@ -175,7 +175,7 @@ class FabGraph:
         self,
         where: Callable[[str], bool] | None = None,
     ) -> list[str]:
-        """Return tile types represented by the graph.
+        """Return all tile types represented by the graph.
 
         Parameters
         ----------
@@ -185,9 +185,47 @@ class FabGraph:
         Returns
         -------
         list[str]
-            Tile type names.
+            Tile type names, including standalone tile definitions that are not
+            placed in the fabric grid.
         """
         return _filter_items(self._graph.tile_types(), where)
+
+    def placed_tile_types(
+        self,
+        where: Callable[[str], bool] | None = None,
+    ) -> list[str]:
+        """Return tile types with at least one placed grid instance.
+
+        Parameters
+        ----------
+        where : Callable[[str], bool] | None
+            Optional predicate.
+
+        Returns
+        -------
+        list[str]
+            Tile type names that can emit concrete routing PIPs.
+        """
+        return _filter_items(self._graph.placed_tile_types(), where)
+
+    def standalone_tile_types(
+        self,
+        where: Callable[[str], bool] | None = None,
+    ) -> list[str]:
+        """Return declared tile types with no placed grid instances.
+
+        Parameters
+        ----------
+        where : Callable[[str], bool] | None
+            Optional predicate.
+
+        Returns
+        -------
+        list[str]
+            Tile type names that are queryable and editable but cannot emit
+            concrete routing PIPs.
+        """
+        return _filter_items(self._graph.standalone_tile_types(), where)
 
     def tile_model(self, tile_type: str) -> RoutingTileModel:
         """Return metadata for one tile type.

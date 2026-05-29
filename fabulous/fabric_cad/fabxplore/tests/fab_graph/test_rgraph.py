@@ -144,6 +144,45 @@ def test_tile_model_keeps_parsed_tile_metadata(tmp_path: Path) -> None:
         graph.tile_model("Missing")
 
 
+def test_declared_standalone_tiles_are_queryable_without_emitting_pips(
+    tmp_path: Path,
+) -> None:
+    """Load declared unplaced tile models without routing instances."""
+    graph = RoutingFabricGraph.from_fabric(
+        _write_and_parse_project_with_standalone_tile(tmp_path)
+    )
+
+    assert graph.tile_types() == ("Toy", "Standalone")
+    assert graph.placed_tile_types() == ("Toy",)
+    assert graph.standalone_tile_types() == ("Standalone",)
+    assert graph.tile_model("Standalone").tile_type == "Standalone"
+
+    standalone_matrix = graph.switch_matrix("Standalone")
+    standalone_matrix_key = graph.matrix_resource_key(
+        "Standalone",
+        "FREE_END0",
+        "FREE_BEG0",
+    )
+    standalone_external_key = graph.external_resource_key(
+        "Standalone",
+        Direction.JUMP,
+        "FREE_BEG",
+        0,
+        0,
+        "FREE_END",
+        1,
+    )
+
+    assert standalone_matrix.rows == ["FREE_END0"]
+    assert standalone_matrix.columns == ["FREE_BEG0"]
+    assert standalone_matrix.matrix == [[8.0]]
+    assert graph.by_resource_key(standalone_matrix_key) == ()
+    assert graph.by_resource_key(standalone_external_key) == ()
+    assert all(pip.tile_type != "Standalone" for pip in graph.active_pips())
+    assert graph.get_resource_counts("Standalone").total_active == 2
+    graph.validate()
+
+
 def test_config_bits_track_active_matrix_resources(tmp_path: Path) -> None:
     """Recompute switch-matrix config bits from active tile-local resources."""
     graph = RoutingFabricGraph.from_fabric(_write_and_parse_project(tmp_path))
@@ -845,7 +884,7 @@ def test_demo_opt_config_bits_match_parsed_fabulous_tiles(
 
     assert set(all_bits) == set(graph.tile_types())
     for tile_type in graph.tile_types():
-        tile = demo_opt_fabric.tileDic[tile_type]
+        tile = demo_opt_fabric.getTileByName(tile_type)
         config_bits = all_bits[tile_type]
 
         assert config_bits.tile_type == tile_type
@@ -1008,6 +1047,90 @@ EndTILE
 LOCAL_END0,LONG_BEG0
 LONG_END0,LOCAL_BEG0
 """,
+        encoding="utf-8",
+    )
+    return _parse_fabric_project(project_dir)
+
+
+def _write_and_parse_project_with_standalone_tile(project_dir: Path) -> Fabric:
+    """Write a project with one placed and one standalone tile declaration.
+
+    Parameters
+    ----------
+    project_dir : Path
+        Temporary project directory.
+
+    Returns
+    -------
+    Fabric
+        Parsed FABulous fabric.
+    """
+    include_dir = project_dir / "Tile" / "include"
+    toy_dir = project_dir / "Tile" / "Toy"
+    standalone_dir = project_dir / "Tile" / "Standalone"
+    include_dir.mkdir(parents=True)
+    toy_dir.mkdir(parents=True)
+    standalone_dir.mkdir(parents=True)
+
+    (project_dir / "fabric.csv").write_text(
+        """\
+FabricBegin
+Toy,Toy
+FabricEnd
+
+ParametersBegin
+ConfigBitMode,frame_based
+GenerateDelayInSwitchMatrix,80
+MultiplexerStyle,custom
+SuperTileEnable,FALSE
+Tile,./Tile/Toy/Toy.csv
+Tile,./Tile/Standalone/Standalone.csv
+ParametersEnd
+""",
+        encoding="utf-8",
+    )
+    (include_dir / "ToyBase.csv").write_text(
+        """\
+#direction,source_name,X-offset,Y-offset,destination_name,wires
+EAST,LONG_BEG,2,0,LONG_END,2
+JUMP,LOCAL_BEG,0,0,LOCAL_END,1
+""",
+        encoding="utf-8",
+    )
+    (toy_dir / "Toy.csv").write_text(
+        """\
+TILE,Toy
+INCLUDE,../include/ToyBase.csv
+MATRIX,./Toy_switch_matrix.list
+EndTILE
+""",
+        encoding="utf-8",
+    )
+    (toy_dir / "Toy_switch_matrix.list").write_text(
+        """\
+LOCAL_END0,LONG_BEG0
+LONG_END0,LOCAL_BEG0
+""",
+        encoding="utf-8",
+    )
+    (include_dir / "StandaloneBase.csv").write_text(
+        """\
+#direction,source_name,X-offset,Y-offset,destination_name,wires
+JUMP,FREE_BEG,0,0,FREE_END,1
+""",
+        encoding="utf-8",
+    )
+    (standalone_dir / "Standalone.csv").write_text(
+        """\
+TILE,Standalone
+INCLUDE,../include/StandaloneBase.csv
+MATRIX,./Standalone_switch_matrix.list
+EndTILE
+""",
+        encoding="utf-8",
+    )
+    (standalone_dir / "Standalone_switch_matrix.list").write_text(
+        "FREE_END0,FREE_BEG0\n",
         encoding="utf-8",
     )
     return _parse_fabric_project(project_dir)

@@ -49,6 +49,8 @@ Queries and rendering:
 - `get_config_bits(tile_type=None)`
 - `get_resource_counts(tile_type=None)`
 - `tile_types(where=None)`
+- `placed_tile_types(where=None)`
+- `standalone_tile_types(where=None)`
 - `tile_model(tile_type)`
 - `external_resources(tile_type=None, active_only=True, where=None)`
 - `matrix_resources(tile_type=None, active_only=True, where=None)`
@@ -171,12 +173,34 @@ for tile_type, counts in counts_by_tile.items():
 
 ### `tile_types(where=None)`
 
-List known tile types, optionally filtered by a callable.
+List all known tile types, optionally filtered by a callable.  This includes
+placed grid tile types and standalone tile declarations.
 
 ```python
 lut_tile_types = graph.tile_types(
     where=lambda tile_type: tile_type.startswith("LUT"),
 )
+```
+
+### `placed_tile_types(where=None)`
+
+List tile types that have at least one placed grid instance and therefore can
+emit concrete routing PIPs.
+
+```python
+for tile_type in graph.placed_tile_types():
+    print(tile_type, graph.get_resource_counts(tile_type).total_active)
+```
+
+### `standalone_tile_types(where=None)`
+
+List declared tile types that are not placed in the fabric grid.  These tile
+models can be queried and edited, but they do not emit concrete routing PIPs.
+
+```python
+for tile_type in graph.standalone_tile_types():
+    matrix = graph.switch_matrix(tile_type)
+    print(tile_type, len(matrix.rows), len(matrix.columns))
 ```
 
 ### `tile_model(tile_type)`
@@ -530,6 +554,10 @@ for tile_result in result.tile_results:
 
 FABulous routing resources are owned by tile type.  If a resource is changed on
 tile type `LUT4AB`, that change applies to every placed `LUT4AB` instance.
+Declared tile types that are not placed in the fabric grid are still loaded as
+standalone tile models.  They can be queried, edited, and written as tile
+sources, but they do not emit concrete routing PIPs because they have no grid
+locations.
 
 `fab_graph` uses two routing resource classes.
 
@@ -571,6 +599,17 @@ matrix_by_tile = {
     },
 }
 ```
+
+All declared tile models live in the model/index layer.  Concrete routing uses a
+separate placed-location index:
+
+```python
+tile_models = {"LUT5F": ..., "LUT4AB": ...}
+tile_locations_by_type = {"LUT5F": ((1, 2), (2, 2), ...)}
+```
+
+Here `LUT4AB` is editable as a standalone model, but it cannot be emitted into
+`pips.txt` unless it also appears in the placed-location index.
 
 An edit touches only one tile type and one indexed resource family:
 

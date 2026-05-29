@@ -33,6 +33,7 @@ def test_demo_opt_fast_api_sweep_all_tile_types(tmp_path: Path) -> None:
     output_project = tmp_path / "api_sweep_export"
     graph = _load_fab_graph(source_project)
     tile_types = graph.tile_types()
+    placed_tile_types = set(graph.placed_tile_types())
     operations_per_api = 10
 
     assert tile_types
@@ -148,13 +149,109 @@ def test_demo_opt_fast_api_sweep_all_tile_types(tmp_path: Path) -> None:
             for source_name, destination_name, _delay in rows
         )
 
-        assert graph.active_pips(where=lambda pip, t=tile_type: pip.tile_type == t)
+        pips_for_tile_type = graph.active_pips(
+            where=lambda pip, t=tile_type: pip.tile_type == t
+        )
+        if tile_type in placed_tile_types:
+            assert pips_for_tile_type
+        else:
+            assert not pips_for_tile_type
 
     graph.routing_graph.validate()
     assert graph.stats().active_pips > 0
     graph.write_project(output_project, generate_rtl=True)
     _assert_export_matches_graph(output_project, graph)
     assert any((output_project / "Tile").glob("**/*.v"))
+
+
+def test_demo_opt_standalone_tile_edits_do_not_emit_routing_metadata(
+    tmp_path: Path,
+) -> None:
+    """Edit an unused tile definition without adding concrete routing metadata."""
+    source_project = _copy_demo_opt_project_or_skip(tmp_path)
+    output_project = tmp_path / "standalone_tile_export"
+    pips_snapshot = tmp_path / "standalone_tile_pips.txt"
+    graph = _load_fab_graph(source_project)
+    standalone_types = graph.standalone_tile_types()
+
+    if not standalone_types:
+        pytest.skip("demo_opt has no standalone tile declarations")
+
+    tile_type = standalone_types[0]
+    unique_standalone_bels = _unique_standalone_bel_modules(graph, tile_type)
+    baseline_pips = graph.render_pips_txt()
+    initial_counts = graph.get_resource_counts(tile_type)
+
+    assert tile_type in graph.tile_types()
+    assert tile_type not in graph.placed_tile_types()
+    assert graph.tile_model(tile_type).tile_type == tile_type
+    assert graph.switch_matrix(tile_type).tile_type == tile_type
+    assert graph.matrix_sources(tile_type)
+    assert graph.matrix_sinks(tile_type)
+    assert initial_counts.total_active > 0
+    assert not graph.active_pips(where=lambda pip, t=tile_type: pip.tile_type == t)
+
+    added_external = _add_synthetic_external_resources(
+        graph,
+        tile_type,
+        prefix=f"STANDALONE_{_safe_name_fragment(tile_type)}_EXT",
+        count=1,
+        wire_count=2,
+    )[0]
+    graph.resize_external_resource(key=added_external, new_wire_count=3)
+    resized_external = graph.routing_graph.external_resource_key(
+        tile_type,
+        Direction.JUMP,
+        added_external.source_name,
+        added_external.x_offset,
+        added_external.y_offset,
+        added_external.destination_name,
+        3,
+    )
+    graph.disable_external_resource(key=resized_external)
+    assert resized_external not in graph.external_resources(tile_type)
+    graph.enable_external_resource(key=resized_external)
+    assert resized_external in graph.external_resources(tile_type)
+    graph.delete_external_resource(key=resized_external)
+    assert resized_external not in graph.external_resources(tile_type)
+    graph.restore_external_resource(key=resized_external)
+    assert resized_external in graph.external_resources(tile_type)
+
+    matrix_key = _add_synthetic_matrix_resources(
+        graph,
+        tile_type,
+        prefix=f"STANDALONE_{_safe_name_fragment(tile_type)}_MATRIX",
+        count=1,
+    )[0]
+    assert matrix_key in graph.matrix_resources(tile_type)
+    graph.disable_matrix_resource(key=matrix_key)
+    assert matrix_key not in graph.matrix_resources(tile_type)
+    graph.enable_matrix_resource(key=matrix_key)
+    assert matrix_key in graph.matrix_resources(tile_type)
+    graph.delete_matrix_resource(key=matrix_key)
+    assert matrix_key not in graph.matrix_resources(tile_type)
+    graph.restore_matrix_resource(key=matrix_key)
+    assert matrix_key in graph.matrix_resources(tile_type)
+
+    assert (
+        graph.get_resource_counts(tile_type).total_active > initial_counts.total_active
+    )
+    assert graph.render_pips_txt() == baseline_pips
+    graph.write_pips_txt(pips_snapshot)
+    assert pips_snapshot.read_text(encoding="utf-8") == baseline_pips
+
+    graph.write_project(output_project, generate_rtl=True)
+
+    assert _line_set((output_project / ".FABulous" / "pips.txt").read_text()) == (
+        _line_set(baseline_pips)
+    )
+    _assert_export_matches_graph(output_project, graph)
+    _assert_standalone_tile_absent_from_routing_metadata(
+        output_project,
+        tile_type,
+        unique_standalone_bels,
+    )
+    assert (output_project / "Tile" / tile_type / f"{tile_type}.v").exists()
 
 
 def test_demo_opt_mixed_batch_edits_export_about_ten_percent_smaller(
@@ -237,8 +334,9 @@ def test_demo_opt_matrix_batch_add_and_overwrite_empty_matrix(
     assert graph.external_resources(tile_type)
     assert len(graph.external_resources(tile_type)) == external_before
     assert not graph.active_pips(
-        where=lambda pip: pip.tile_type == tile_type
-        and pip.kind is RoutingPipKind.INTERNAL_MATRIX,
+        where=lambda pip: (
+            pip.tile_type == tile_type and pip.kind is RoutingPipKind.INTERNAL_MATRIX
+        ),
     )
 
     graph.write_project(output_project, generate_rtl=False)
@@ -268,15 +366,17 @@ def test_demo_opt_delete_all_external_resources_for_one_tile_type(
     assert active_after_delete < active_before
     assert graph.external_resources(tile_type) == []
     assert not graph.active_pips(
-        where=lambda pip: pip.tile_type == tile_type
-        and pip.kind is RoutingPipKind.EXTERNAL_WIRE,
+        where=lambda pip: (
+            pip.tile_type == tile_type and pip.kind is RoutingPipKind.EXTERNAL_WIRE
+        ),
     )
     graph.write_project(output_project, generate_rtl=False)
     exported = _load_fab_graph(output_project)
 
     assert not exported.active_pips(
-        where=lambda pip: pip.tile_type == tile_type
-        and pip.kind is RoutingPipKind.EXTERNAL_WIRE,
+        where=lambda pip: (
+            pip.tile_type == tile_type and pip.kind is RoutingPipKind.EXTERNAL_WIRE
+        ),
     )
     _assert_export_matches_graph(output_project, graph)
 
@@ -294,9 +394,11 @@ def test_demo_opt_query_driven_stress_export_thirty_percent_smaller(
     assert tile_type in graph.tile_types(where=lambda name: name.startswith("LUT"))
     wide_external = graph.external_resources(
         tile_type,
-        where=lambda key: key.wire_count is not None
-        and key.wire_count >= 4
-        and key.direction is not None,
+        where=lambda key: (
+            key.wire_count is not None
+            and key.wire_count >= 4
+            and key.direction is not None
+        ),
     )
     matrix_sources = graph.matrix_sources(
         tile_type,
@@ -339,8 +441,10 @@ def test_demo_opt_query_driven_stress_export_thirty_percent_smaller(
 
     queried_matrix = graph.matrix_resources(
         tile_type,
-        where=lambda key: key.source_name in set(matrix_sources)
-        or key.destination_name in set(matrix_sinks),
+        where=lambda key: (
+            key.source_name in set(matrix_sources)
+            or key.destination_name in set(matrix_sinks)
+        ),
     )
     assert queried_matrix
 
@@ -667,6 +771,65 @@ def _active_resource_count(graph: FabGraph, tile_type: str) -> int:
     return len(graph.external_resources(tile_type)) + len(
         graph.matrix_resources(tile_type)
     )
+
+
+def _unique_standalone_bel_modules(graph: FabGraph, tile_type: str) -> set[str]:
+    """Return BEL module names that appear only on one standalone tile.
+
+    Parameters
+    ----------
+    graph : FabGraph
+        Public graph facade.
+    tile_type : str
+        Standalone tile type.
+
+    Returns
+    -------
+    set[str]
+        BEL module names not used by any placed tile type.
+    """
+    placed_bels = {
+        bel.module_name
+        for placed_tile_type in graph.placed_tile_types()
+        for bel in graph.tile_model(placed_tile_type).bels
+    }
+    return {
+        bel.module_name
+        for bel in graph.tile_model(tile_type).bels
+        if bel.module_name not in placed_bels
+    }
+
+
+def _assert_standalone_tile_absent_from_routing_metadata(
+    project_dir: Path,
+    tile_type: str,
+    unique_bel_modules: set[str],
+) -> None:
+    """Check nextpnr routing metadata does not mention a standalone tile.
+
+    Parameters
+    ----------
+    project_dir : Path
+        Exported project directory.
+    tile_type : str
+        Standalone tile type.
+    unique_bel_modules : set[str]
+        BEL module names that uniquely identify the standalone tile.
+    """
+    metadata_dir = project_dir / ".FABulous"
+    metadata_files = (
+        metadata_dir / "pips.txt",
+        metadata_dir / "bel.txt",
+        metadata_dir / "bel.v2.txt",
+        metadata_dir / "template.pcf",
+        metadata_dir / "bitStreamSpec.csv",
+    )
+    for metadata_file in metadata_files:
+        text = metadata_file.read_text(encoding="utf-8")
+
+        assert tile_type not in text
+        for module_name in unique_bel_modules:
+            assert module_name not in text
 
 
 def _mutate_tile_resources_for_config_bit_export(
