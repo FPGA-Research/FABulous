@@ -233,6 +233,18 @@ def test_fab_graph_distinguishes_placed_and_standalone_tile_types(
     assert facade.get_resource_counts("Standalone").total_active == 2
 
 
+def test_fab_graph_exposes_demo_opt_supertile_queries(tmp_path: Path) -> None:
+    """Expose loaded supertile names and their child tile types."""
+    project_dir = _copy_demo_opt_project_or_skip(tmp_path)
+    facade = _load_demo_opt_facade(project_dir)
+
+    assert "DSP" in facade.supertile_types()
+    assert facade.supertile_types(where=lambda name: name == "DSP") == ["DSP"]
+    assert facade.supertile_subtiles("DSP") == ["DSP_top", "DSP_bot"]
+    with pytest.raises(ValueError, match="Unknown supertile type"):
+        facade.supertile_subtiles("Missing")
+
+
 def test_fab_graph_exposes_config_bit_queries(tmp_path: Path) -> None:
     """Expose tile-local config-bit counts through the public facade."""
     facade = FabGraph(_write_and_load_api(tmp_path), tmp_path)
@@ -1043,11 +1055,8 @@ def _tile_generated_artifact_paths(
     tuple[Path, ...]
         Generated RTL and config-memory artifact paths.
     """
-    tile_dir = project_dir / "Tile" / tile_type
-    return (
-        *_tile_generated_rtl_paths(project_dir, tile_type),
-        tile_dir / f"{tile_type}_ConfigMem.csv",
-        tile_dir / f"{tile_type}_ConfigMem.v",
+    return _tile_generated_artifact_paths_in_dir(
+        project_dir / "Tile" / tile_type, tile_type
     )
 
 
@@ -1066,7 +1075,50 @@ def _tile_generated_rtl_paths(project_dir: Path, tile_type: str) -> tuple[Path, 
     tuple[Path, ...]
         Tile and switch-matrix RTL paths.
     """
-    tile_dir = project_dir / "Tile" / tile_type
+    return _tile_generated_rtl_paths_in_dir(project_dir / "Tile" / tile_type, tile_type)
+
+
+def _tile_generated_artifact_paths_in_dir(
+    tile_dir: Path, tile_type: str
+) -> tuple[Path, ...]:
+    """Return generated artifact paths below an explicit tile directory.
+
+    Parameters
+    ----------
+    tile_dir : Path
+        Tile source directory.
+    tile_type : str
+        Tile type to inspect.
+
+    Returns
+    -------
+    tuple[Path, ...]
+        Generated RTL and config-memory artifact paths.
+    """
+    return (
+        *_tile_generated_rtl_paths_in_dir(tile_dir, tile_type),
+        tile_dir / f"{tile_type}_ConfigMem.csv",
+        tile_dir / f"{tile_type}_ConfigMem.v",
+    )
+
+
+def _tile_generated_rtl_paths_in_dir(
+    tile_dir: Path, tile_type: str
+) -> tuple[Path, ...]:
+    """Return generated RTL paths below an explicit tile directory.
+
+    Parameters
+    ----------
+    tile_dir : Path
+        Tile source directory.
+    tile_type : str
+        Tile type to inspect.
+
+    Returns
+    -------
+    tuple[Path, ...]
+        Tile and switch-matrix RTL paths.
+    """
     return (
         tile_dir / f"{tile_type}.v",
         tile_dir / f"{tile_type}_switch_matrix.v",
@@ -1397,6 +1449,115 @@ def test_fab_graph_write_tile_sources_updates_two_demo_tiles(
         if not in_place:
             for artifact_path, text in source_artifacts[tile_type].items():
                 assert artifact_path.read_text(encoding="utf-8") == text
+
+
+def test_fab_graph_write_tile_sources_rejects_supertile_subtile_rtl(
+    tmp_path: Path,
+) -> None:
+    """Reject selected RTL generation for tiles inside a supertile wrapper."""
+    project_dir = _copy_demo_opt_project_or_skip(tmp_path)
+    facade = _load_demo_opt_facade(project_dir)
+
+    with pytest.raises(ValueError, match="supertile wrapper"):
+        facade.write_tile_sources(
+            tile_types=("DSP_top",),
+            generate_rtl=True,
+        )
+
+    facade.write_tile_sources(
+        tile_types=("DSP_top",),
+        generate_rtl=False,
+    )
+
+
+@pytest.mark.parametrize("in_place", [True, False])
+def test_fab_graph_write_supertile_sources_regenerates_wrapper_and_subtiles(
+    tmp_path: Path,
+    *,
+    in_place: bool,
+) -> None:
+    """Write a supertile and regenerate its wrapper plus selected subtiles."""
+    project_dir = _copy_demo_opt_project_or_skip(tmp_path)
+    output_dir = project_dir if in_place else tmp_path / "supertile_sources_project"
+    if not in_place:
+        shutil.copytree(project_dir, output_dir)
+    facade = _load_demo_opt_facade(project_dir)
+    supertile_type = "DSP"
+    subtile_types = ("DSP_top", "DSP_bot")
+    output_tile_dirs = {
+        tile_type: output_dir
+        / facade.tile_model(tile_type)
+        .tile_dir.resolve()
+        .relative_to(project_dir.resolve())
+        for tile_type in subtile_types
+    }
+    source_tile_dirs = {
+        tile_type: facade.tile_model(tile_type).tile_dir for tile_type in subtile_types
+    }
+    deleted_keys = {
+        tile_type: facade.matrix_resources(tile_type)[0] for tile_type in subtile_types
+    }
+    stale_paths = [
+        output_dir / "Tile" / supertile_type / f"{supertile_type}.v",
+        *(
+            artifact_path
+            for tile_type in subtile_types
+            for artifact_path in _tile_generated_artifact_paths_in_dir(
+                output_tile_dirs[tile_type],
+                tile_type,
+            )
+        ),
+    ]
+    required_rtl_paths = [
+        output_dir / "Tile" / supertile_type / f"{supertile_type}.v",
+        *(
+            rtl_path
+            for tile_type in subtile_types
+            for rtl_path in _tile_generated_rtl_paths_in_dir(
+                output_tile_dirs[tile_type], tile_type
+            )
+        ),
+    ]
+    source_artifacts = {
+        source_path: source_path.read_text(encoding="utf-8")
+        for source_path in [
+            project_dir / "Tile" / supertile_type / f"{supertile_type}.v",
+            *(
+                artifact_path
+                for tile_type in subtile_types
+                for artifact_path in _tile_generated_artifact_paths_in_dir(
+                    source_tile_dirs[tile_type],
+                    tile_type,
+                )
+            ),
+        ]
+        if not in_place and source_path.exists()
+    }
+
+    for stale_path in stale_paths:
+        stale_path.write_text("stale artifact", encoding="utf-8")
+    for tile_type in subtile_types:
+        facade.disable_matrix_resource(key=deleted_keys[tile_type])
+
+    facade.write_supertile_sources(
+        output_root=None if in_place else output_dir,
+        supertile_types=(supertile_type,),
+        generate_rtl=True,
+    )
+    exported = _load_demo_opt_facade(output_dir)
+
+    assert (output_dir / "Tile" / supertile_type / f"{supertile_type}.csv").exists()
+    assert all(path.exists() for path in required_rtl_paths)
+    assert all(
+        not path.exists() or path.read_text(encoding="utf-8") != "stale artifact"
+        for path in stale_paths
+    )
+    for tile_type in subtile_types:
+        assert deleted_keys[tile_type] not in exported.matrix_resources(tile_type)
+
+    if not in_place:
+        for artifact_path, text in source_artifacts.items():
+            assert artifact_path.read_text(encoding="utf-8") == text
 
 
 def test_fab_graph_write_project_copy_writes_metadata_from_written_files(

@@ -227,6 +227,50 @@ class FabGraph:
         """
         return _filter_items(self._graph.standalone_tile_types(), where)
 
+    def supertile_types(
+        self,
+        where: Callable[[str], bool] | None = None,
+    ) -> list[str]:
+        """Return loaded supertile type names.
+
+        Parameters
+        ----------
+        where : Callable[[str], bool] | None
+            Optional predicate.
+
+        Returns
+        -------
+        list[str]
+            Supertile type names.
+        """
+        return _filter_items(
+            (supertile.name for supertile in self.fab.getSuperTiles()),
+            where,
+        )
+
+    def supertile_subtiles(self, supertile_type: str) -> list[str]:
+        """Return child tile types for one supertile.
+
+        Parameters
+        ----------
+        supertile_type : str
+            Supertile type name.
+
+        Returns
+        -------
+        list[str]
+            Child tile type names in FABulous order.
+
+        Raises
+        ------
+        ValueError
+            If ``supertile_type`` is not loaded.
+        """
+        for supertile in self.fab.getSuperTiles():
+            if supertile.name == supertile_type:
+                return [tile.name for tile in supertile.tiles]
+        raise ValueError(f"Unknown supertile type: {supertile_type}")
+
     def tile_model(self, tile_type: str) -> RoutingTileModel:
         """Return metadata for one tile type.
 
@@ -1051,6 +1095,13 @@ class FabGraph:
         generate_rtl : bool
             Regenerate switch-matrix RTL, config memory, and tile RTL for the
             written tile types.
+
+        Raises
+        ------
+        ValueError
+            If ``generate_rtl`` is ``True`` and the output root is not a valid
+            FABulous project root, or if any selected tile type is part of a
+            supertile (because the supertile wrapper would be stale).
         """
         root = None if output_root is None else Path(output_root)
         selected = (
@@ -1061,6 +1112,19 @@ class FabGraph:
         target_project = self.project_dir if root is None else root
         if generate_rtl:
             self._require_project_root_for_tile_rtl(target_project)
+            supertile_subtiles = {
+                tile.name
+                for supertile in self.fab.getSuperTiles()
+                for tile in supertile.tiles
+            }
+            selected_supertile_subtiles = sorted(set(selected) & supertile_subtiles)
+            if selected_supertile_subtiles:
+                raise ValueError(
+                    "write_tile_sources(generate_rtl=True) cannot regenerate "
+                    "tiles that are part of a supertile because the supertile "
+                    "wrapper would be stale. Use write_project(generate_rtl=True). "
+                    f"Affected: {', '.join(selected_supertile_subtiles)}"
+                )
 
         write_tile_sources(
             self._graph,
@@ -1075,6 +1139,92 @@ class FabGraph:
         try:
             self._reload_project(target_project)
             self._generate_tile_artifacts(selected, generate_rtl=True)
+        finally:
+            if not in_place:
+                self._reload_project(self.project_dir)
+
+    def write_supertile_sources(
+        self,
+        output_root: Path | str | None = None,
+        supertile_types: Iterable[str] | None = None,
+        *,
+        remove_generated_artifacts: bool = True,
+        generate_rtl: bool = True,
+    ) -> None:
+        """Write supertile sub-sources and optionally regenerate wrappers.
+
+        Parameters
+        ----------
+        output_root : Path | str | None
+            Optional output project root.  If omitted, writes in place.  When
+            ``generate_rtl`` is ``True``, this must be ``None`` or a valid
+            FABulous project root containing ``fabric.csv``.
+        supertile_types : Iterable[str] | None
+            Optional supertile subset.  If omitted, all loaded supertiles are
+            written.
+        remove_generated_artifacts : bool
+            Remove stale generated subtile artifacts before writing.
+        generate_rtl : bool
+            Regenerate subtile RTL and supertile wrapper RTL.
+
+        Raises
+        ------
+        ValueError
+            If a selected supertile is not known, or if RTL generation targets
+            a non-project output root.
+        """
+        root = None if output_root is None else Path(output_root)
+        supertiles = {
+            supertile.name: supertile for supertile in self.fab.getSuperTiles()
+        }
+        selected = (
+            tuple(supertile_types) if supertile_types is not None else tuple(supertiles)
+        )
+        missing = sorted(set(selected) - set(supertiles))
+        if missing:
+            raise ValueError(f"Unknown supertile type(s): {', '.join(missing)}")
+
+        target_project = self.project_dir if root is None else root
+        if generate_rtl:
+            self._require_project_root_for_tile_rtl(target_project)
+
+        subtile_types = tuple(
+            dict.fromkeys(
+                tile.name
+                for supertile_type in selected
+                for tile in supertiles[supertile_type].tiles
+            )
+        )
+        for supertile_type in selected:
+            if root is None:
+                continue
+            source = Path(supertiles[supertile_type].tileDir).resolve()
+            destination = root / source.relative_to(self.project_dir.resolve())
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if source != destination.resolve():
+                shutil.copy2(source, destination)
+
+        write_tile_sources(
+            self._graph,
+            output_root=root,
+            tile_types=subtile_types,
+            remove_generated_artifacts=remove_generated_artifacts,
+            preserve_relative_to=self.project_dir.resolve(),
+        )
+        if not generate_rtl:
+            return
+
+        in_place = target_project.resolve() == self.project_dir.resolve()
+        try:
+            self._reload_project(target_project)
+            self._generate_tile_artifacts(subtile_types, generate_rtl=True)
+            for supertile_type in selected:
+                supertile = self.fab.getSuperTile(supertile_type, raises_on_miss=True)
+                supertile_dir = Path(supertile.tileDir).parent
+                self.fab.setWriterOutputFile(
+                    supertile_dir / f"{supertile_type}{self.fab.fileExtension}"
+                )
+                self.fab.genSuperTile(supertile_type)
         finally:
             if not in_place:
                 self._reload_project(self.project_dir)
