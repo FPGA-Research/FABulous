@@ -17,6 +17,7 @@ router_pass = self.pnr_fabric_router_pass(
     out_dir=None,
     nextpnr_exec=None,
     json_path=None,
+    json_output_path=None,
     pcf_path=None,
     fasm_path=None,
     report_path=None,
@@ -40,16 +41,17 @@ Options:
 
 | Option | Default | Meaning |
 | ------ | ------- | ------- |
-| `top_name` | `None` | Top module to route. If `None`, the pass infers it from the active pyosys design. |
+| `top_name` | `None` | Top module to route. Required when `json_path` is provided. Otherwise `None` uses the active pyosys design top. |
 | `out_dir` | `None` | Output directory for generated route artifacts. If `None`, uses `<project>/user_design/fabxplore`. |
 | `nextpnr_exec` | `None` | nextpnr executable. If `None`, uses the FABulous project setting. |
-| `json_path` | `None` | Yosys JSON netlist path. If `None`, writes `<out_dir>/<top>.json`. |
+| `json_path` | `None` | Input Yosys JSON netlist path. If provided, this JSON is the design source of truth and has priority over the active pyosys bridge. |
+| `json_output_path` | `None` | Persisted JSON output path used when `write_json=True`. If omitted, uses `<out_dir>/<top>.json`. |
 | `pcf_path` | `None` | Concrete PCF path. If `None`, auto-generates `<out_dir>/<top>.pcf`. |
 | `fasm_path` | `None` | FASM output path. If `None`, writes `<out_dir>/<top>.fasm`. |
 | `report_path` | `None` | nextpnr JSON report path. If `None`, writes `<out_dir>/<top>_nextpnr_report.json`. |
 | `project_dir` | `None` | FABulous project root used as `FAB_ROOT`. If `None`, uses the active project context. |
 | `extra_args` | `None` | Extra arguments appended to the nextpnr command. |
-| `write_json` | `True` | Write the active pyosys design to JSON before invoking nextpnr. |
+| `write_json` | `True` | Persist the selected design JSON. With `json_path`, copies the input JSON. Without `json_path`, writes the active pyosys design. If `False` and no `json_path` is provided, a temporary bridge JSON is used only for the nextpnr invocation. |
 | `check` | `True` | Raise `RuntimeError` when nextpnr returns a non-zero exit code. |
 | `live_output` | `False` | Mirror nextpnr stdout/stderr live while still capturing both streams. |
 | `report_output` | `True` | Append captured nextpnr stdout/stderr to the Markdown report. |
@@ -82,12 +84,15 @@ metadata from `FAB_ROOT/.FABulous`, so the pass validates that at least
 
 The pass performs these steps:
 
-1. Resolve the top name and output paths.
-2. Validate FABulous routing metadata in `<project>/.FABulous`.
-3. Write the active pyosys design to JSON, unless `write_json=False`.
-4. Generate a PCF from the in-memory FABulous routing model, unless `pcf_path`
+1. Resolve the route design source: explicit `json_path` first, otherwise the
+   active pyosys bridge design.
+2. Resolve the top name and output paths.
+3. Validate FABulous routing metadata in `<project>/.FABulous`.
+4. Stage or temporarily write the selected JSON netlist for nextpnr.
+5. Generate a PCF from the selected design ports and the in-memory FABulous
+   routing model, unless `pcf_path`
    is provided.
-5. Run:
+6. Run:
 
 ```text
 nextpnr-generic --uarch fabulous \
@@ -97,8 +102,8 @@ nextpnr-generic --uarch fabulous \
   --report <top>_nextpnr_report.json
 ```
 
-6. Parse the nextpnr JSON report.
-7. Render a Markdown report with summary, utilization, timing, and captured
+7. Parse the nextpnr JSON report.
+8. Render a Markdown report with summary, utilization, timing, and captured
    nextpnr output.
 
 ## Config Bits As BEL Parameters

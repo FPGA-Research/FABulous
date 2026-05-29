@@ -7,6 +7,7 @@ executable that writes the expected FASM and JSON report artifacts.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest  # deptry: ignore[DEP004]
@@ -18,12 +19,16 @@ from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr import (
     NextpnrRouterOptions,
 )
 from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr.core.pcf import (
-    auto_assign_pcf,
+    auto_assign_pcf_for_ports,
+    extract_json_ports,
     extract_template_io_sites,
     filter_io_sites_by_bel_v2,
     normalize_template_pin,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
+from fabulous.fabric_cad.fabxplore.tests.fab_graph.test_fab_graph import (
+    _write_and_load_api,
+)
 
 
 def test_normalize_template_pin_accepts_fabulous_forms() -> None:
@@ -34,19 +39,10 @@ def test_normalize_template_pin_accepts_fabulous_forms() -> None:
     assert normalize_template_pin("X6Y7/D") == "X6Y7/D"
 
 
-def test_auto_assign_pcf_flattens_ports_and_uses_template_order() -> None:
-    """Auto-assign vector and scalar top ports to legal IO sites."""
-    bridge = _bridge_from_verilog(
-        """
-module top(input [2:0] a, output y);
-  assign y = |a;
-endmodule
-"""
-    )
-
-    pcf = auto_assign_pcf(
-        design=bridge,
-        top_name="top",
+def test_auto_assign_pcf_for_ports_uses_template_order() -> None:
+    """Auto-assign flattened top ports to legal IO sites."""
+    pcf = auto_assign_pcf_for_ports(
+        ports=["a[0]", "a[1]", "a[2]", "y"],
         template_pcf=_template_pcf(site_count=4),
     )
 
@@ -60,17 +56,8 @@ endmodule
 
 def test_auto_assign_pcf_filters_pass_through_template_sites() -> None:
     """Ignore non-IO pass-through BELs included in FABulous template PCFs."""
-    bridge = _bridge_from_verilog(
-        """
-module top(input [2:0] a, output y);
-  assign y = |a;
-endmodule
-"""
-    )
-
-    pcf = auto_assign_pcf(
-        design=bridge,
-        top_name="top",
+    pcf = auto_assign_pcf_for_ports(
+        ports=["a[0]", "a[1]", "a[2]", "y"],
         template_pcf=(
             "set_io Tile_X0Y1_A Tile_X0Y1.A\n"
             "set_io Tile_X0Y1_B Tile_X0Y1.B\n"
@@ -92,20 +79,30 @@ endmodule
 
 def test_auto_assign_pcf_rejects_too_few_sites() -> None:
     """Reject auto PCF assignment when the fabric has too few IO sites."""
-    bridge = _bridge_from_verilog(
-        """
-module top(input [2:0] a, output y);
-  assign y = |a;
-endmodule
-"""
-    )
-
     with pytest.raises(ValueError, match="top-level port"):
-        auto_assign_pcf(
-            design=bridge,
-            top_name="top",
+        auto_assign_pcf_for_ports(
+            ports=["a[0]", "a[1]", "a[2]", "y"],
             template_pcf=_template_pcf(site_count=3),
         )
+
+
+def test_json_port_helpers_flatten_named_top(tmp_path: Path) -> None:
+    """Extract flattened ports from an explicit Yosys JSON netlist."""
+    json_path = _write_json_netlist(
+        tmp_path / "input.json",
+        top_name="json_top",
+        ports={"j": [2, 3], "z": [4]},
+    )
+
+    assert extract_json_ports(json_path, "json_top") == ["j[0]", "j[1]", "z"]
+    assert auto_assign_pcf_for_ports(
+        ["j[0]", "j[1]", "z"],
+        _template_pcf(site_count=3),
+    ).splitlines() == [
+        "set_io j[0] X0Y1/A",
+        "set_io j[1] X0Y1/B",
+        "set_io z X0Y2/A",
+    ]
 
 
 def test_extract_template_io_sites_rejects_empty_template() -> None:
@@ -224,6 +221,137 @@ def test_router_writes_artifacts_and_parses_report(tmp_path: Path) -> None:
     assert "ERR=diagnostic" in result.report_summary
 
 
+def test_router_routes_external_json_and_auto_pcf_from_json(tmp_path: Path) -> None:
+    """Prefer explicit JSON design ports over the attached pyosys bridge."""
+    _write_project_metadata(tmp_path)
+    bridge = _bridge_from_verilog(
+        "module bridge_top(input bridge_a, output bridge_y); "
+        "assign bridge_y = bridge_a; endmodule"
+    )
+    json_path = _write_json_netlist(
+        tmp_path / "custom.json",
+        top_name="json_top",
+        ports={"j": [2, 3], "z": [4]},
+    )
+    out_dir = tmp_path / "route_out"
+    router = NextpnrRouter(
+        NextpnrRouterOptions(
+            project_dir=tmp_path,
+            out_dir=out_dir,
+            top_name="json_top",
+            json_path=json_path,
+            write_json=False,
+            nextpnr_exec=_fake_nextpnr(tmp_path),
+        )
+    )
+
+    result = router.route(bridge, _FakeFab(_template_pcf(site_count=3)))
+
+    assert result.passed
+    assert result.top_name == "json_top"
+    assert result.paths.json_path == json_path
+    assert not (out_dir / "json_top.json").exists()
+    assert result.paths.pcf_path.read_text(encoding="utf-8").splitlines() == [
+        "set_io j[0] X0Y1/A",
+        "set_io j[1] X0Y1/B",
+        "set_io z X0Y2/A",
+    ]
+
+
+def test_router_copies_external_json_when_write_json_is_enabled(
+    tmp_path: Path,
+) -> None:
+    """Persist a routed copy of an explicit input JSON when requested."""
+    _write_project_metadata(tmp_path)
+    bridge = _bridge_from_verilog(
+        "module bridge_top(input bridge_a, output bridge_y); "
+        "assign bridge_y = bridge_a; endmodule"
+    )
+    json_path = _write_json_netlist(
+        tmp_path / "input.json",
+        top_name="json_top",
+        ports={"j": [2, 3], "z": [4]},
+    )
+    json_output_path = tmp_path / "route_out" / "copied.json"
+    router = NextpnrRouter(
+        NextpnrRouterOptions(
+            project_dir=tmp_path,
+            top_name="json_top",
+            json_path=json_path,
+            json_output_path=json_output_path,
+            write_json=True,
+            nextpnr_exec=_fake_nextpnr(tmp_path),
+        )
+    )
+
+    result = router.route(bridge, _FakeFab(_template_pcf(site_count=3)))
+
+    assert result.passed
+    assert result.paths.json_path == json_output_path
+    assert json.loads(json_output_path.read_text(encoding="utf-8")) == json.loads(
+        json_path.read_text(encoding="utf-8")
+    )
+    assert result.paths.pcf_path.read_text(encoding="utf-8").splitlines() == [
+        "set_io j[0] X0Y1/A",
+        "set_io j[1] X0Y1/B",
+        "set_io z X0Y2/A",
+    ]
+
+
+def test_router_requires_top_name_for_external_json(tmp_path: Path) -> None:
+    """Reject explicit JSON routing without an explicit top name."""
+    _write_project_metadata(tmp_path)
+    bridge = _bridge_from_verilog(
+        "module bridge_top(input bridge_a, output bridge_y); "
+        "assign bridge_y = bridge_a; endmodule"
+    )
+    json_path = _write_json_netlist(
+        tmp_path / "input.json",
+        top_name="json_top",
+        ports={"j": [2, 3], "z": [4]},
+    )
+    router = NextpnrRouter(
+        NextpnrRouterOptions(
+            project_dir=tmp_path,
+            json_path=json_path,
+            write_json=False,
+            nextpnr_exec=_fake_nextpnr(tmp_path),
+        )
+    )
+
+    with pytest.raises(ValueError, match="top_name"):
+        router.route(bridge, _FakeFab(_template_pcf(site_count=3)))
+
+
+def test_router_uses_temporary_bridge_json_when_not_persisting(
+    tmp_path: Path,
+) -> None:
+    """Route a pyosys bridge design without leaving a JSON artifact behind."""
+    _write_project_metadata(tmp_path)
+    bridge = _bridge_from_verilog(
+        "module top(input a, output y); assign y = a; endmodule"
+    )
+    out_dir = tmp_path / "route_out"
+    router = NextpnrRouter(
+        NextpnrRouterOptions(
+            project_dir=tmp_path,
+            out_dir=out_dir,
+            write_json=False,
+            nextpnr_exec=_fake_nextpnr(tmp_path),
+        )
+    )
+
+    result = router.route(bridge, _FakeFab(_template_pcf(site_count=2)))
+
+    assert result.passed
+    assert not (out_dir / "top.json").exists()
+    assert not result.paths.json_path.exists()
+    assert result.paths.pcf_path.read_text(encoding="utf-8").splitlines() == [
+        "set_io a X0Y1/A",
+        "set_io y X0Y1/B",
+    ]
+
+
 def test_pnr_bridge_routes_with_temporary_graph_pips(tmp_path: Path) -> None:
     """Route through PnRBridge while restoring the original project PIPs."""
     _write_project_metadata(tmp_path)
@@ -255,6 +383,118 @@ def test_pnr_bridge_routes_with_temporary_graph_pips(tmp_path: Path) -> None:
     assert result.passed
     assert result.paths.json_path.exists()
     assert pips_path.read_text(encoding="utf-8") == original_pips
+
+
+def test_pnr_bridge_prefers_input_json_over_bridge_design(tmp_path: Path) -> None:
+    """Keep PnRBridge top and auto-PCF based on explicit input JSON."""
+    _write_project_metadata(tmp_path)
+    pips_path = tmp_path / ".FABulous" / "pips.txt"
+    original_pips = "# original pips\n"
+    pips_path.write_text(original_pips, encoding="utf-8")
+
+    design = _bridge_from_verilog(
+        "module bridge_top(input bridge_a, output bridge_y); "
+        "assign bridge_y = bridge_a; endmodule"
+    )
+    bridge = _FakePnRBridge(
+        project_dir=tmp_path,
+        fabulous_api=_FakeFab(_template_pcf(site_count=3)),
+        pyosys_bridge=design,
+    )
+    bridge.write_pips = lambda path=None: Path(path or pips_path).write_text(
+        "# graph candidate pips\n",
+        encoding="utf-8",
+    )
+    json_path = _write_json_netlist(
+        tmp_path / "custom.json",
+        top_name="json_top",
+        ports={"j": [2, 3], "z": [4]},
+    )
+
+    result = bridge.nextpnr_route(
+        top_name="json_top",
+        json_path=json_path,
+        write_json=False,
+        nextpnr_exec=_fake_nextpnr(tmp_path),
+        check=True,
+        log_report=False,
+    )
+
+    assert result.top_name == "json_top"
+    assert result.paths.json_path == json_path
+    assert result.paths.pcf_path.read_text(encoding="utf-8").splitlines() == [
+        "set_io j[0] X0Y1/A",
+        "set_io j[1] X0Y1/B",
+        "set_io z X0Y2/A",
+    ]
+    assert pips_path.read_text(encoding="utf-8") == original_pips
+
+
+def test_pnr_bridge_batch_test_routes_path_and_memory_json(tmp_path: Path) -> None:
+    """Route several explicit JSON benchmarks through temporary batch artifacts."""
+    _write_project_metadata(tmp_path)
+    pips_path = tmp_path / ".FABulous" / "pips.txt"
+    original_pips = "# original pips\n"
+    pips_path.write_text(original_pips, encoding="utf-8")
+
+    design = _bridge_from_verilog(
+        "module bridge_top(input bridge_a, output bridge_y); "
+        "assign bridge_y = bridge_a; endmodule"
+    )
+    bridge = _FakePnRBridge(
+        project_dir=tmp_path,
+        fabulous_api=_FakeFab(_template_pcf(site_count=4)),
+        pyosys_bridge=design,
+    )
+    bridge.write_pips = lambda path=None: Path(path or pips_path).write_text(
+        "# graph candidate pips\n",
+        encoding="utf-8",
+    )
+    path_json = _write_json_netlist(
+        tmp_path / "path_top.json",
+        top_name="path_top",
+        ports={"a": [2], "y": [3]},
+    )
+    memory_json = _json_netlist_dict(
+        top_name="memory_top",
+        ports={"d": [2, 3], "q": [4]},
+    )
+
+    results = bridge.nextpnr_batch_test(
+        {
+            "path_top": path_json,
+            "memory_top": memory_json,
+        },
+        nextpnr_exec=_fake_nextpnr(tmp_path),
+    )
+
+    assert [result.top_name for result in results] == ["path_top", "memory_top"]
+    assert all(result.passed for result in results)
+    assert all(not result.paths.out_dir.exists() for result in results)
+    assert pips_path.read_text(encoding="utf-8") == original_pips
+
+
+def test_pnr_bridge_update_from_project_rebuilds_graph(tmp_path: Path) -> None:
+    """Reload disk edits into FABulous and rebuild the bridge graph snapshot."""
+    fab = _write_and_load_api(tmp_path)
+    design = _bridge_from_verilog(
+        "module top(input a, output y); assign y = a; endmodule"
+    )
+    bridge = PnRBridge(tmp_path, fab, design)
+    added_pair = ("LONG_END1", "LOCAL_BEG0")
+    matrix_list = tmp_path / "Tile" / "Toy" / "Toy_switch_matrix.list"
+
+    assert added_pair not in _matrix_pairs(bridge)
+    matrix_list.write_text(
+        matrix_list.read_text(encoding="utf-8") + "LONG_END1,LOCAL_BEG0\n",
+        encoding="utf-8",
+    )
+    assert added_pair not in _matrix_pairs(bridge)
+
+    bridge.update_from_project()
+
+    assert added_pair in _matrix_pairs(bridge)
+    assert design.top_name() == "top"
 
 
 class _FakePnRBridge(PnRBridge):
@@ -309,6 +549,88 @@ def _bridge_from_verilog(verilog_text: str) -> PyosysBridge:
     bridge = PyosysBridge()
     bridge.read_verilog_string(verilog_text, replace_design=True)
     return bridge
+
+
+def _write_json_netlist(
+    path: Path,
+    *,
+    top_name: str,
+    ports: dict[str, list[int]],
+) -> Path:
+    """Write a minimal Yosys JSON netlist.
+
+    Parameters
+    ----------
+    path : Path
+        Destination JSON path.
+    top_name : str
+        Top module name.
+    ports : dict[str, list[int]]
+        Port names mapped to JSON bit lists.
+
+    Returns
+    -------
+    Path
+        Written JSON path.
+    """
+    path.write_text(
+        json.dumps(_json_netlist_dict(top_name=top_name, ports=ports)),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _json_netlist_dict(
+    *,
+    top_name: str,
+    ports: dict[str, list[int]],
+) -> dict[str, object]:
+    """Return a minimal Yosys JSON netlist dictionary.
+
+    Parameters
+    ----------
+    top_name : str
+        Top module name.
+    ports : dict[str, list[int]]
+        Port names mapped to JSON bit lists.
+
+    Returns
+    -------
+    dict[str, object]
+        Minimal JSON netlist dictionary.
+    """
+    return {
+        "modules": {
+            top_name: {
+                "attributes": {"top": "00000000000000000000000000000001"},
+                "ports": {
+                    name: {"direction": "input", "bits": bits}
+                    for name, bits in ports.items()
+                },
+                "cells": {},
+                "netnames": {},
+            }
+        }
+    }
+
+
+def _matrix_pairs(bridge: PnRBridge) -> set[tuple[str, str]]:
+    """Return active Toy matrix pairs from a bridge graph.
+
+    Parameters
+    ----------
+    bridge : PnRBridge
+        Bridge to inspect.
+
+    Returns
+    -------
+    set[tuple[str, str]]
+        Active ``(source_name, destination_name)`` pairs.
+    """
+    return {
+        (key.source_name, key.destination_name)
+        for key in bridge.matrix_resources("Toy")
+    }
 
 
 def _template_pcf(site_count: int) -> str:

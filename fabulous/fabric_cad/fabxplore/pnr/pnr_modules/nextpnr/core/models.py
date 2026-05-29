@@ -22,14 +22,21 @@ class NextpnrRouterOptions(BaseModel):
     model_config
         Pydantic model configuration.
     top_name : str | None
-        Optional top module name. ``None`` uses ``PyosysBridge.top_name()``.
+        Optional top module name. Required when ``json_path`` is provided.
+        Otherwise ``None`` uses ``PyosysBridge.top_name()``.
     out_dir : Path | None
         Optional output directory. ``None`` selects
         ``<project>/user_design/fabxplore``.
     nextpnr_exec : Path | str | None
         Optional nextpnr executable. ``None`` uses FABulous settings.
     json_path : Path | None
-        Optional input JSON path passed to nextpnr.
+        Optional input JSON netlist path. When provided, this JSON is the route
+        design source of truth and has priority over the pyosys bridge design.
+    json_output_path : Path | None
+        Optional path for a persisted route JSON copy. When ``json_path`` is
+        provided and ``write_json`` is enabled, the input JSON is copied here.
+        When ``json_path`` is omitted and ``write_json`` is enabled, the pyosys
+        bridge design is written here. ``None`` selects ``<out_dir>/<top>.json``.
     pcf_path : Path | None
         Optional concrete PCF path. ``None`` auto-generates one from the FABulous
         routing model.
@@ -42,7 +49,9 @@ class NextpnrRouterOptions(BaseModel):
     extra_args : tuple[str, ...]
         Extra nextpnr command-line arguments appended after standard arguments.
     write_json : bool
-        Whether to write the current pyosys design JSON before running nextpnr.
+        Whether to persist the selected route JSON under the output artifacts.
+        If disabled with a pyosys-bridge design source, the bridge JSON is
+        written to a temporary file for nextpnr and removed after routing.
     check : bool
         Whether a non-zero nextpnr return code should raise an exception.
     live_output : bool
@@ -60,6 +69,7 @@ class NextpnrRouterOptions(BaseModel):
     out_dir: Path | None = None
     nextpnr_exec: Path | str | None = None
     json_path: Path | None = None
+    json_output_path: Path | None = None
     pcf_path: Path | None = None
     fasm_path: Path | None = None
     report_path: Path | None = None

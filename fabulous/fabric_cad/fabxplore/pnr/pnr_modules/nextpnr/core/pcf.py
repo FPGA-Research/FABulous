@@ -3,19 +3,17 @@
 FABulous exposes legal IO sites through the routing model's template PCF text.
 This module keeps PCF handling in memory: the router receives ``template_pcf``
 and ``bel_v2`` from ``fab.genRoutingModel()``, extracts real IO sites, flattens
-top-level pyosys ports, and emits the concrete ``set_io`` constraints consumed
-by the FABulous nextpnr fork.
+top-level Yosys JSON ports, and emits the concrete ``set_io`` constraints
+consumed by the FABulous nextpnr fork.
 """
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
-
+from pathlib import Path
+from typing import Any
 
 _TILE_PIN_RE = re.compile(r"^Tile_X(?P<x>\d+)Y(?P<y>\d+)[./](?P<bel>[A-Za-z]+)$")
 _FAB_PIN_RE = re.compile(r"^X(?P<x>\d+)Y(?P<y>\d+)[./](?P<bel>[A-Za-z]+)$")
@@ -114,13 +112,13 @@ def filter_io_sites_by_bel_v2(
     return filtered
 
 
-def extract_design_ports(design: PyosysBridge, top_name: str) -> list[str]:
-    """Return flattened top-level port names in Yosys JSON order.
+def extract_json_ports(json_path: Path | str, top_name: str) -> list[str]:
+    """Return flattened top-level port names from a Yosys JSON netlist.
 
     Parameters
     ----------
-    design : PyosysBridge
-        Active pyosys design.
+    json_path : Path | str
+        Existing Yosys JSON netlist path.
     top_name : str
         Top module name to inspect.
 
@@ -132,37 +130,26 @@ def extract_design_ports(design: PyosysBridge, top_name: str) -> list[str]:
     Raises
     ------
     ValueError
-        If the top module is not present in the design JSON.
+        If the top module is not present in the JSON netlist.
     """
-    netlist = design.to_netlist_dict()
+    netlist = _read_json_netlist(json_path)
     modules = netlist.get("modules", {})
     if top_name not in modules:
-        raise ValueError(f"top module {top_name!r} not found in design")
-
-    ports: list[str] = []
-    for port_name, port in modules[top_name].get("ports", {}).items():
-        bits = port.get("bits", [])
-        if len(bits) <= 1:
-            ports.append(port_name)
-        else:
-            ports.extend(f"{port_name}[{index}]" for index in range(len(bits)))
-    return ports
+        raise ValueError(f"top module {top_name!r} not found in JSON netlist")
+    return _flatten_module_ports(modules[top_name])
 
 
-def auto_assign_pcf(
-    design: PyosysBridge,
-    top_name: str,
+def auto_assign_pcf_for_ports(
+    ports: list[str],
     template_pcf: str,
     bel_v2: str | None = None,
 ) -> str:
-    """Generate concrete PCF text by assigning ports to template IO sites.
+    """Generate concrete PCF text by assigning named ports to IO sites.
 
     Parameters
     ----------
-    design : PyosysBridge
-        Active pyosys design.
-    top_name : str
-        Top module name to constrain.
+    ports : list[str]
+        Flattened top-level port names in assignment order.
     template_pcf : str
         Template PCF returned by ``fab.genRoutingModel()``.
     bel_v2 : str | None
@@ -173,14 +160,13 @@ def auto_assign_pcf(
     Returns
     -------
     str
-        Concrete PCF text with one ``set_io`` line per flattened design port.
+        Concrete PCF text with one ``set_io`` line per port.
 
     Raises
     ------
     ValueError
-        If the design has more top-level ports than available IO sites.
+        If there are more ports than available IO sites.
     """
-    ports = extract_design_ports(design, top_name)
     sites = extract_template_io_sites(template_pcf)
     if bel_v2 is not None:
         sites = filter_io_sites_by_bel_v2(sites, bel_v2)
@@ -250,6 +236,45 @@ def _format_bel(x: str, y: str, bel: str) -> str:
         nextpnr BEL name.
     """
     return f"X{x}Y{y}/{bel}"
+
+
+def _read_json_netlist(json_path: Path | str) -> dict[str, Any]:
+    """Read one Yosys JSON netlist.
+
+    Parameters
+    ----------
+    json_path : Path | str
+        JSON netlist path.
+
+    Returns
+    -------
+    dict[str, Any]
+        Parsed JSON object.
+    """
+    return json.loads(Path(json_path).read_text(encoding="utf-8"))
+
+
+def _flatten_module_ports(module: dict[str, Any]) -> list[str]:
+    """Flatten scalar and vector module ports in Yosys JSON order.
+
+    Parameters
+    ----------
+    module : dict[str, Any]
+        Yosys JSON module object.
+
+    Returns
+    -------
+    list[str]
+        Flattened port names.
+    """
+    ports: list[str] = []
+    for port_name, port in module.get("ports", {}).items():
+        bits = port.get("bits", [])
+        if len(bits) <= 1:
+            ports.append(port_name)
+        else:
+            ports.extend(f"{port_name}[{index}]" for index in range(len(bits)))
+    return ports
 
 
 def _extract_io_bels_from_bel_v2(

@@ -1,15 +1,19 @@
 """Main nextpnr router orchestration for FABulous designs.
 
-``NextpnrRouter`` connects the active pyosys design to FABulous' nextpnr generic
-micro-architecture. It resolves default paths, writes the design JSON, generates a
-PCF from the in-memory FABulous routing model, validates that project
-``.FABulous`` metadata exists, invokes nextpnr, and parses the JSON report.
+``NextpnrRouter`` connects a Yosys JSON design to FABulous' nextpnr generic
+micro-architecture. The JSON can come from an explicit input file or from the
+active pyosys bridge design. It resolves default paths, stages the selected JSON,
+generates a PCF from the selected design ports and the in-memory FABulous routing
+model, validates that project ``.FABulous`` metadata exists, invokes nextpnr,
+and parses the JSON report.
 """
 
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any
 
 from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr.core import (
@@ -64,73 +68,105 @@ class NextpnrRouter:
         Raises
         ------
         ValueError
-            If an explicit ``json_path`` is provided while ``write_json`` is also
-            enabled.
+            If ``json_path`` is provided without ``top_name``, if the selected
+            top is missing from the selected design source, or if there are not
+            enough legal IO sites for auto-PCF generation.
         RuntimeError
             If nextpnr returns a non-zero exit code while ``check`` is enabled.
         """
-        if self.options.json_path is not None and self.options.write_json:
-            raise ValueError(
-                "json_path points to an existing netlist. Set write_json=False "
-                "to route it without overwriting it."
+        context = get_context()
+        project_dir = Path(self.options.project_dir or context.proj_dir)
+        input_json_path = (
+            Path(self.options.json_path) if self.options.json_path is not None else None
+        )
+        if input_json_path is not None and self.options.top_name is None:
+            raise ValueError("top_name is required when json_path is provided")
+        top_name = self.options.top_name or design.top_name()
+        out_dir = Path(
+            self.options.out_dir or project_dir / "user_design" / "fabxplore"
+        )
+        temp_dir = None
+        if input_json_path is None and not self.options.write_json:
+            temp_dir = TemporaryDirectory()
+            route_json_path = Path(temp_dir.name) / f"{top_name}.json"
+        elif input_json_path is not None and not self.options.write_json:
+            route_json_path = input_json_path
+        else:
+            route_json_path = Path(
+                self.options.json_output_path or out_dir / f"{top_name}.json"
             )
 
-        context = get_context()
-        top_name = self.options.top_name or design.top_name()
-        project_dir = Path(self.options.project_dir or context.proj_dir)
-        paths = _resolve_paths(self.options, project_dir, top_name)
+        paths = _resolve_paths(
+            self.options,
+            project_dir,
+            top_name,
+            out_dir=out_dir,
+            json_path=route_json_path,
+        )
         nextpnr_exec = self.options.nextpnr_exec or context.nextpnr_path
 
-        paths.out_dir.mkdir(parents=True, exist_ok=True)
-        _validate_metadata(paths.metadata_dir)
+        try:
+            paths.out_dir.mkdir(parents=True, exist_ok=True)
+            _validate_metadata(paths.metadata_dir)
 
-        if self.options.write_json:
-            design.write_json_path(paths.json_path)
+            if input_json_path is not None:
+                if self.options.write_json:
+                    paths.json_path.parent.mkdir(parents=True, exist_ok=True)
+                    if input_json_path.resolve() != paths.json_path.resolve():
+                        shutil.copy2(input_json_path, paths.json_path)
+            else:
+                paths.json_path.parent.mkdir(parents=True, exist_ok=True)
+                design.write_json_path(paths.json_path)
 
-        if self.options.pcf_path is None:
-            _, _, bel_v2, template_pcf = fab.genRoutingModel()
-            pcf_text = pcf.auto_assign_pcf(
-                design=design,
-                top_name=top_name,
-                template_pcf=template_pcf,
-                bel_v2=bel_v2,
+            if self.options.pcf_path is None:
+                _, _, bel_v2, template_pcf = fab.genRoutingModel()
+                pcf_text = pcf.auto_assign_pcf_for_ports(
+                    ports=pcf.extract_json_ports(paths.json_path, top_name),
+                    template_pcf=template_pcf,
+                    bel_v2=bel_v2,
+                )
+                paths.pcf_path.write_text(pcf_text, encoding="utf-8")
+
+            command = nextpnr_command.NextpnrCommand(
+                executable=nextpnr_exec,
+                fab_root=project_dir,
             )
-            paths.pcf_path.write_text(pcf_text, encoding="utf-8")
+            command_result = command.run(
+                json_path=paths.json_path,
+                pcf_path=paths.pcf_path,
+                fasm_path=paths.fasm_path,
+                report_path=paths.report_path,
+                extra_args=self.options.extra_args,
+                live_output=self.options.live_output,
+            )
+            nextpnr_report = _read_report(paths.report_path)
 
-        command = nextpnr_command.NextpnrCommand(
-            executable=nextpnr_exec,
-            fab_root=project_dir,
-        )
-        command_result = command.run(
-            json_path=paths.json_path,
-            pcf_path=paths.pcf_path,
-            fasm_path=paths.fasm_path,
-            report_path=paths.report_path,
-            extra_args=self.options.extra_args,
-            live_output=self.options.live_output,
-        )
-        nextpnr_report = _read_report(paths.report_path)
-
-        result = NextpnrRouterResult(
-            options=self.options,
-            top_name=top_name,
-            nextpnr_exec=nextpnr_exec,
-            paths=paths,
-            command_result=command_result,
-            nextpnr_report=nextpnr_report,
-        )
-        result = result.model_copy(
-            update={"report_summary": report.render_nextpnr_router_report(result)}
-        )
-        if self.options.check and not result.passed:
-            raise RuntimeError(_render_failure(result))
-        return result
+            result = NextpnrRouterResult(
+                options=self.options,
+                top_name=top_name,
+                nextpnr_exec=nextpnr_exec,
+                paths=paths,
+                command_result=command_result,
+                nextpnr_report=nextpnr_report,
+            )
+            result = result.model_copy(
+                update={"report_summary": report.render_nextpnr_router_report(result)}
+            )
+            if self.options.check and not result.passed:
+                raise RuntimeError(_render_failure(result))
+            return result
+        finally:
+            if temp_dir is not None:
+                temp_dir.cleanup()
 
 
 def _resolve_paths(
     options: NextpnrRouterOptions,
     project_dir: Path,
     top_name: str,
+    *,
+    out_dir: Path,
+    json_path: Path,
 ) -> NextpnrRouterPaths:
     """Resolve project, output, and nextpnr artifact paths.
 
@@ -142,19 +178,21 @@ def _resolve_paths(
         FABulous project root.
     top_name : str
         Top module name used for default file names.
+    out_dir : Path
+        Output directory for route artifacts.
+    json_path : Path
+        JSON netlist path consumed by nextpnr.
 
     Returns
     -------
     NextpnrRouterPaths
         Resolved paths for one route run.
     """
-    out_dir = options.out_dir or project_dir / "user_design" / "fabxplore"
-    out_dir = Path(out_dir)
     return NextpnrRouterPaths(
         project_dir=project_dir,
         metadata_dir=project_dir / ".FABulous",
         out_dir=out_dir,
-        json_path=Path(options.json_path or out_dir / f"{top_name}.json"),
+        json_path=json_path,
         pcf_path=Path(options.pcf_path or out_dir / f"{top_name}.pcf"),
         fasm_path=Path(options.fasm_path or out_dir / f"{top_name}.fasm"),
         report_path=Path(

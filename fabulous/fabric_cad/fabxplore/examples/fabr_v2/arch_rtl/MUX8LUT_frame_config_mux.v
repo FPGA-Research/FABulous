@@ -27,7 +27,10 @@ module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
     input F,
     input G,
     input H,
-    input [3:0] S,
+    input S0,
+    input S1,
+    input S2,
+    input S3,
     output M_AB,
     output M_AD,
     output M_AH,
@@ -47,11 +50,11 @@ module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
     assign c1 = ConfigBits[1];
 
 // see figure (column-wise left-to-right)
-    //assign AB = S[0] ? B : A;
+    //assign AB = S0 ? B : A;
     cus_mux21 cus_mux21_AB(
     .A0(A),
     .A1(B),
-    .S(S[0]),
+    .S(S0),
     .X(AB)
     );
     //assign CD = sCD ? D : C;
@@ -76,17 +79,17 @@ module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
     .X(GH)
     );
 
-    //assign sCD = c0 ? S[0] : S[1];
+    //assign sCD = c0 ? S0 : S1;
     cus_mux21 cus_mux21_sCD(
-    .A0(S[1]),
-    .A1(S[0]),
+    .A0(S1),
+    .A1(S0),
     .S(c0),
     .X(sCD)
     );
-    //assign sEF = c1 ? S[0] : S[2];
+    //assign sEF = c1 ? S0 : S2;
     cus_mux21 cus_mux21_sEF(
-    .A0(S[2]),
-    .A1(S[0]),
+    .A0(S2),
+    .A1(S0),
     .S(c1),
     .X(sEF)
     );
@@ -97,19 +100,19 @@ module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
     .S(c0),
     .X(sGH)
     );
-    //assign sEH = c1 ? S[1] : S[3];
+    //assign sEH = c1 ? S1 : S3;
     cus_mux21 cus_mux21_sEH(
-    .A0(S[3]),
-    .A1(S[1]),
+    .A0(S3),
+    .A1(S1),
     .S(c1),
     .X(sEH)
     );
 
-    //assign AD = S[1] ? CD : AB;
+    //assign AD = S1 ? CD : AB;
     cus_mux21 cus_mux21_AD(
     .A0(AB),
     .A1(CD),
-    .S(S[1]),
+    .S(S1),
     .X(AD)
     );
     //assign EH = sEH ? GH : EF;
@@ -120,11 +123,11 @@ module MUX8LUT_frame_config_mux #(parameter NoConfigBits = 2)(
     .X(EH)
     );
 
-    //assign AH = S[3] ? EH : AD;
+    //assign AH = S3 ? EH : AD;
     cus_mux21 cus_mux21_AH(
     .A0(AD),
     .A1(EH),
-    .S(S[3]),
+    .S(S3),
     .X(AH)
     );
 

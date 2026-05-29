@@ -7,13 +7,18 @@ immediately evaluate the candidate architecture with nextpnr.
 
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.fab_graph import FabGraph
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.rgraph import (
+    RoutingFabricGraph,
+)
 from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr.core.nextpnr_router import (
     NextpnrRouter,
     NextpnrRouterOptions,
@@ -49,12 +54,24 @@ class PnRBridge(FabGraph):
         super().__init__(fabulous_api, project_dir)
         self._pyosys_bridge = pyosys_bridge
 
+    def update_from_project(self) -> None:
+        """Reload the current project from disk and rebuild the routing graph.
+
+        Use this after editing project files directly under ``Tile/`` or
+        ``fabric.csv``. The method reloads FABulous first, then replaces the
+        internal graph snapshot with one built from the refreshed fabric object.
+        The packed pyosys design attached to this bridge is left unchanged.
+        """
+        self._reload_project(self.project_dir)
+        self._graph = RoutingFabricGraph.from_fabric(self.fab.fabric)
+
     def nextpnr_route(
         self,
         top_name: str | None = None,
         out_dir: Path | None = None,
         nextpnr_exec: Path | str | None = None,
         json_path: Path | None = None,
+        json_output_path: Path | None = None,
         pcf_path: Path | None = None,
         fasm_path: Path | None = None,
         report_path: Path | None = None,
@@ -72,17 +89,22 @@ class PnRBridge(FabGraph):
         Parameters
         ----------
         top_name : str | None
-            Optional top module name. If ``None``, infer it from the active
-            ``PyosysBridge`` design.
+            Optional top module name. Required when ``json_path`` is provided.
+            Otherwise ``None`` uses the active ``PyosysBridge`` design top.
         out_dir : Path | None
             Optional output directory. If ``None``, write generated artifacts to
             ``<project>/user_design/fabxplore``.
         nextpnr_exec : Path | str | None
             Optional nextpnr executable. If ``None``, use FABulous settings.
         json_path : Path | None
-            Optional existing Yosys JSON netlist path.  When provided,
-            ``write_json`` must be ``False`` so the file is not overwritten.
-            If ``None``, use ``<out_dir>/<top>.json``.
+            Optional existing Yosys JSON netlist path. When provided, this JSON
+            is the route design source of truth and has priority over the
+            attached ``PyosysBridge`` design.
+        json_output_path : Path | None
+            Optional persisted JSON output path used when ``write_json`` is
+            enabled. If ``json_path`` is provided, the input JSON is copied here.
+            If ``json_path`` is omitted, the pyosys bridge design is written
+            here. ``None`` selects ``<out_dir>/<top>.json``.
         pcf_path : Path | None
             Optional concrete PCF path. If ``None``, auto-generate a PCF from
             the in-memory FABulous routing model.
@@ -97,7 +119,9 @@ class PnRBridge(FabGraph):
         extra_args : list[str] | tuple[str, ...] | None
             Extra nextpnr command-line arguments.
         write_json : bool
-            Whether to write the active pyosys design JSON before running nextpnr.
+            Whether to persist the selected route JSON under the output artifacts.
+            If disabled and ``json_path`` is omitted, the pyosys bridge design is
+            written to a temporary JSON file for nextpnr and removed afterwards.
         check : bool
             Whether a non-zero nextpnr return code should raise an exception.
         live_output : bool
@@ -120,10 +144,11 @@ class PnRBridge(FabGraph):
         pips_path = route_project_dir / ".FABulous" / "pips.txt"
 
         options = NextpnrRouterOptions(
-            top_name=top_name or self._pyosys_bridge.top_name(),
+            top_name=top_name,
             out_dir=out_dir,
             nextpnr_exec=nextpnr_exec,
             json_path=json_path,
+            json_output_path=json_output_path,
             pcf_path=pcf_path,
             fasm_path=fasm_path,
             report_path=report_path,
@@ -151,6 +176,86 @@ class PnRBridge(FabGraph):
             s_dir.write_text(result.report_summary)
 
             return result
+
+    def nextpnr_batch_test(
+        self,
+        designs: dict[str, Path | dict[str, Any]],
+        *,
+        nextpnr_exec: Path | str | None = None,
+        project_dir: Path | None = None,
+        extra_args: list[str] | tuple[str, ...] | None = None,
+        check: bool = False,
+        live_output: bool = False,
+    ) -> list[NextpnrRouterResult]:
+        """Route several JSON netlists as temporary benchmark cases.
+
+        Parameters
+        ----------
+        designs : dict[str, Path | dict[str, Any]]
+            Mapping from top module name to either an existing Yosys JSON path or
+            an in-memory Yosys JSON dictionary.
+        nextpnr_exec : Path | str | None
+            Optional nextpnr executable. If ``None``, use FABulous settings.
+        project_dir : Path | None
+            Optional FABulous project root. If ``None``, use this bridge's
+            project root.
+        extra_args : list[str] | tuple[str, ...] | None
+            Extra nextpnr command-line arguments.
+        check : bool
+            Whether a non-zero nextpnr return code should raise an exception.
+            Defaults to ``False`` so a batch can collect failed routes.
+        live_output : bool
+            Whether to stream nextpnr stdout/stderr live while capturing it.
+
+        Returns
+        -------
+        list[NextpnrRouterResult]
+            Route results in input order. Artifact paths inside each result point
+            to temporary files that are deleted when this method returns.
+
+        Raises
+        ------
+        TypeError
+            If a design source is neither a ``Path`` nor a JSON dictionary.
+        """
+        route_project_dir = Path(project_dir or self.project_dir)
+        pips_path = route_project_dir / ".FABulous" / "pips.txt"
+        results: list[NextpnrRouterResult] = []
+
+        with TemporaryDirectory() as tmp_dir:
+            tmp_root = Path(tmp_dir)
+            with self._temporary_pips_override(pips_path):
+                for index, (top_name, source) in enumerate(designs.items()):
+                    case_dir = tmp_root / f"case_{index}"
+                    case_dir.mkdir(parents=True, exist_ok=True)
+
+                    if isinstance(source, Path):
+                        json_path = source
+                    elif isinstance(source, dict):
+                        json_path = case_dir / "input.json"
+                        json_path.write_text(json.dumps(source), encoding="utf-8")
+                    else:
+                        raise TypeError(
+                            "batch design sources must be Path or JSON dict, "
+                            f"got {type(source).__name__}"
+                        )
+
+                    options = NextpnrRouterOptions(
+                        top_name=top_name,
+                        out_dir=case_dir,
+                        nextpnr_exec=nextpnr_exec,
+                        json_path=json_path,
+                        project_dir=route_project_dir,
+                        extra_args=tuple(extra_args or ()),
+                        write_json=False,
+                        check=check,
+                        live_output=live_output,
+                    )
+                    results.append(
+                        NextpnrRouter(options).route(self._pyosys_bridge, self.fab)
+                    )
+
+        return results
 
     @contextmanager
     def _temporary_pips_override(self, pips_path: Path) -> Iterator[None]:
