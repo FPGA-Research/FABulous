@@ -18,6 +18,7 @@ RoutingPip = models.RoutingPip
 RoutingPipKind = models.RoutingPipKind
 RoutingResourceCounts = models.RoutingResourceCounts
 RoutingResourceKey = models.RoutingResourceKey
+RoutingSwitchMatrix = models.RoutingSwitchMatrix
 RoutingTileBelModel = models.RoutingTileBelModel
 RoutingTileGenIOModel = models.RoutingTileGenIOModel
 RoutingTileModel = models.RoutingTileModel
@@ -35,6 +36,7 @@ __all__ = [
     "RoutingPipKind",
     "RoutingResourceCounts",
     "RoutingResourceKey",
+    "RoutingSwitchMatrix",
     "RoutingTileBelModel",
     "RoutingTileGenIOModel",
     "RoutingTileModel",

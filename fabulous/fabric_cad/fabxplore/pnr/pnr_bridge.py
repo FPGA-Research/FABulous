@@ -142,6 +142,14 @@ class PnRBridge(FabGraph):
             if log_report:
                 logger.info(result.report_summary)
 
+            s_dir: Path = (
+                out_dir
+                if out_dir is not None
+                else (route_project_dir / "user_design" / "fabxplore" / "summary.txt")
+            )
+            s_dir.parent.mkdir(parents=True, exist_ok=True)
+            s_dir.write_text(result.report_summary)
+
             return result
 
     @contextmanager

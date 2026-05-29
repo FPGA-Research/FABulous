@@ -17,6 +17,7 @@ from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
     RoutingConfigBits,
     RoutingPipKind,
     RoutingResourceCounts,
+    RoutingSwitchMatrix,
 )
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.writer import (
     render_matrix_csv,
@@ -38,6 +39,7 @@ from fabulous.fabric_definition.define import Direction
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
 from fabulous.fabulous_api import FABulous_API
 
 if TYPE_CHECKING:
@@ -247,6 +249,133 @@ def test_fab_graph_exposes_resource_count_queries(tmp_path: Path) -> None:
     assert all_counts["Toy"] == changed
 
 
+def test_fab_graph_exposes_switch_matrix_query(tmp_path: Path) -> None:
+    """Expose switch-matrix rows, columns, and delay-valued cells."""
+    facade = FabGraph(_write_and_load_api(tmp_path), tmp_path)
+
+    switch_matrix = facade.switch_matrix("Toy")
+
+    assert isinstance(switch_matrix, RoutingSwitchMatrix)
+    assert switch_matrix.tile_type == "Toy"
+    assert _switch_matrix_value(switch_matrix, "LOCAL_END0", "LONG_BEG0") == 8.0
+    assert _switch_matrix_value(switch_matrix, "LONG_END0", "LOCAL_BEG0") == 8.0
+
+    facade.delete_matrix_resource("Toy", "LONG_END0", "LOCAL_BEG0")
+    disabled_matrix = facade.switch_matrix("Toy")
+
+    assert "LONG_END0" in disabled_matrix.rows
+    assert "LOCAL_BEG0" in disabled_matrix.columns
+    assert _switch_matrix_value(disabled_matrix, "LOCAL_END0", "LONG_BEG0") == 8.0
+    assert _switch_matrix_value(disabled_matrix, "LONG_END0", "LOCAL_BEG0") == 0.0
+
+    facade.add_matrix_resource("Toy", "LOCAL_END0", "LOCAL_BEG0", delay=12.5)
+    updated_matrix = facade.switch_matrix("Toy")
+
+    assert _switch_matrix_value(updated_matrix, "LOCAL_END0", "LOCAL_BEG0") == 12.5
+
+
+def test_fab_graph_set_switch_matrix_updates_tile_matrix(tmp_path: Path) -> None:
+    """Replace a switch matrix from row/column labels and delay values."""
+    facade = FabGraph(_write_and_load_api(tmp_path), tmp_path)
+    switch_matrix = facade.switch_matrix("Toy")
+    matrix = [list(row) for row in switch_matrix.matrix]
+
+    matrix[switch_matrix.rows.index("LONG_END0")][
+        switch_matrix.columns.index("LOCAL_BEG0")
+    ] = 0.0
+    matrix[switch_matrix.rows.index("LOCAL_END0")][
+        switch_matrix.columns.index("LOCAL_BEG0")
+    ] = 12.5
+
+    facade.set_switch_matrix(
+        "Toy",
+        switch_matrix.columns,
+        switch_matrix.rows,
+        matrix,
+    )
+    updated_matrix = facade.switch_matrix("Toy")
+
+    assert _switch_matrix_value(updated_matrix, "LONG_END0", "LOCAL_BEG0") == 0.0
+    assert _switch_matrix_value(updated_matrix, "LOCAL_END0", "LOCAL_BEG0") == 12.5
+    assert ("LOCAL_END0", "LOCAL_BEG0") in {
+        (key.source_name, key.destination_name)
+        for key in facade.matrix_resources("Toy")
+    }
+
+    with pytest.raises(ValueError, match="row count"):
+        facade.set_switch_matrix("Toy", switch_matrix.columns, switch_matrix.rows, [])
+    with pytest.raises(ValueError, match="column count"):
+        facade.set_switch_matrix(
+            "Toy",
+            switch_matrix.columns,
+            switch_matrix.rows,
+            [[0.0] for _row in switch_matrix.rows],
+        )
+    invalid_matrix = [list(row) for row in switch_matrix.matrix]
+    invalid_matrix[0][0] = -1.0
+    with pytest.raises(ValueError, match="non-negative"):
+        facade.set_switch_matrix(
+            "Toy",
+            switch_matrix.columns,
+            switch_matrix.rows,
+            invalid_matrix,
+        )
+
+
+def test_fab_graph_demo_opt_switch_matrix_query_matches_rendered_csv(
+    tmp_path: Path,
+) -> None:
+    """Compare queried ``LUT4AB`` switch matrix with rendered CSV content."""
+    project_dir = _copy_demo_opt_project_or_skip(tmp_path)
+    facade = _load_demo_opt_facade(project_dir)
+    tile_type = "LUT4AB"
+    switch_matrix = facade.switch_matrix(tile_type)
+    matrix_csv = tmp_path / f"{tile_type}_switch_matrix.csv"
+
+    matrix_csv.write_text(
+        render_matrix_csv(facade.routing_graph, tile_type),
+        encoding="utf-8",
+    )
+    parsed_csv = parseMatrix(matrix_csv, tile_type)
+    csv_pairs = {
+        (source_name, destination_name)
+        for source_name, destination_names in parsed_csv.items()
+        for destination_name in destination_names
+    }
+
+    assert _switch_matrix_active_pairs(switch_matrix) == csv_pairs
+
+
+def test_fab_graph_demo_opt_set_switch_matrix_round_trips_rendered_csv(
+    tmp_path: Path,
+) -> None:
+    """Set ``LUT4AB`` from its queried matrix and compare rendered CSV pairs."""
+    project_dir = _copy_demo_opt_project_or_skip(tmp_path)
+    facade = _load_demo_opt_facade(project_dir)
+    tile_type = "LUT4AB"
+    switch_matrix = facade.switch_matrix(tile_type)
+    matrix_csv = tmp_path / f"{tile_type}_switch_matrix.csv"
+
+    facade.set_switch_matrix(
+        tile_type,
+        switch_matrix.columns,
+        switch_matrix.rows,
+        [list(row) for row in switch_matrix.matrix],
+    )
+    matrix_csv.write_text(
+        render_matrix_csv(facade.routing_graph, tile_type),
+        encoding="utf-8",
+    )
+    parsed_csv = parseMatrix(matrix_csv, tile_type)
+    csv_pairs = {
+        (source_name, destination_name)
+        for source_name, destination_names in parsed_csv.items()
+        for destination_name in destination_names
+    }
+
+    assert _switch_matrix_active_pairs(facade.switch_matrix(tile_type)) == csv_pairs
+
+
 def test_fab_graph_delete_and_restore_external_resource_by_parameters(
     tmp_path: Path,
 ) -> None:
@@ -379,8 +508,10 @@ def test_fab_graph_add_matrix_rows_can_overwrite_matrix(
     new_delays = {
         pip.resource_key.source_name: pip.delay
         for pip in facade.active_pips(
-            where=lambda pip: pip.kind is RoutingPipKind.INTERNAL_MATRIX
-            and pip.resource_key in current_keys
+            where=lambda pip: (
+                pip.kind is RoutingPipKind.INTERNAL_MATRIX
+                and pip.resource_key in current_keys
+            )
         )
     }
 
@@ -509,9 +640,11 @@ def test_fab_graph_demo_opt_operation_timing_characterization(
     resize_keys = _require_count(
         resize_single.external_resources(
             tile_type,
-            where=lambda key: key.wire_count is not None
-            and key.wire_count > 2
-            and key.source_name != "Co",
+            where=lambda key: (
+                key.wire_count is not None
+                and key.wire_count > 2
+                and key.source_name != "Co"
+            ),
         ),
         30,
         "single external resize resources",
@@ -538,16 +671,20 @@ def test_fab_graph_demo_opt_operation_timing_characterization(
     )
     add_samples: list[tuple[float, int]] = []
     for source_name, destination_name, delay in add_entries[:60]:
-        elapsed, _result = _time_call(
-            lambda source_name=source_name,
-            destination_name=destination_name,
-            delay=delay: add_single.add_matrix_resource(
+
+        def add_one(
+            source_name: str = source_name,
+            destination_name: str = destination_name,
+            delay: float = delay,
+        ) -> None:
+            add_single.add_matrix_resource(
                 tile_type,
                 source_name,
                 destination_name,
                 delay=delay,
             )
-        )
+
+        elapsed, _result = _time_call(add_one)
         add_samples.append((elapsed, 1))
     metrics["add_single_matrix_resource"] = _timing_summary(
         add_samples,
@@ -561,8 +698,10 @@ def test_fab_graph_demo_opt_operation_timing_characterization(
         elapsed, result = _time_call(
             lambda: query_facade.matrix_resources(
                 tile_type,
-                where=lambda key: key.source_name.startswith("J")
-                or key.destination_name.startswith("L"),
+                where=lambda key: (
+                    key.source_name.startswith("J")
+                    or key.destination_name.startswith("L")
+                ),
             )
         )
         query_result_count += len(result)
@@ -594,6 +733,48 @@ def test_fab_graph_demo_opt_operation_timing_characterization(
     metrics["query_resource_counts_lut4ab"] = _timing_summary(
         resource_counts_samples,
         "query",
+    )
+
+    switch_matrix_samples: list[tuple[float, int]] = []
+    switch_matrix_nonzero_total = 0
+    for _index in range(100):
+        elapsed, result = _time_call(lambda: query_facade.switch_matrix(tile_type))
+        switch_matrix_nonzero_total += sum(
+            1 for row in result.matrix for value in row if value != 0.0
+        )
+        switch_matrix_samples.append((elapsed, 1))
+    metrics["query_switch_matrix_lut4ab"] = _timing_summary(
+        switch_matrix_samples,
+        "query",
+    )
+
+    set_switch_matrix = _load_demo_opt_facade(project_dir)
+    switch_matrix = set_switch_matrix.switch_matrix(tile_type)
+    replacement_matrix = [list(row) for row in switch_matrix.matrix]
+    cleared_cell = False
+    for row in replacement_matrix:
+        for column_index, value in enumerate(row):
+            if value != 0.0:
+                row[column_index] = 0.0
+                cleared_cell = True
+                break
+        if cleared_cell:
+            break
+    assert cleared_cell
+    set_switch_matrix_samples: list[tuple[float, int]] = []
+    for _index in range(10):
+        elapsed, _result = _time_call(
+            lambda: set_switch_matrix.set_switch_matrix(
+                tile_type,
+                list(switch_matrix.columns),
+                list(switch_matrix.rows),
+                [list(row) for row in replacement_matrix],
+            )
+        )
+        set_switch_matrix_samples.append((elapsed, 1))
+    metrics["set_switch_matrix_lut4ab"] = _timing_summary(
+        set_switch_matrix_samples,
+        "matrix",
     )
 
     batch_delete = _load_demo_opt_facade(project_dir)
@@ -664,9 +845,11 @@ def test_fab_graph_demo_opt_operation_timing_characterization(
     batch_resize_keys = _require_count(
         batch_resize.external_resources(
             tile_type,
-            where=lambda key: key.wire_count is not None
-            and key.wire_count > 2
-            and key.source_name != "Co",
+            where=lambda key: (
+                key.wire_count is not None
+                and key.wire_count > 2
+                and key.source_name != "Co"
+            ),
         ),
         30,
         "batch external resize resources",
@@ -737,6 +920,7 @@ def test_fab_graph_demo_opt_operation_timing_characterization(
     assert query_result_count > 0
     assert config_bits_total > 0
     assert resource_counts_total > 0
+    assert switch_matrix_nonzero_total > 0
     for metric in metrics.values():
         assert metric["samples"] > 0
         assert metric["median_seconds"] >= 0
@@ -762,6 +946,55 @@ def _time_call[ResultT](call: Callable[[], ResultT]) -> tuple[float, ResultT]:
     start = perf_counter()
     result = call()
     return perf_counter() - start, result
+
+
+def _switch_matrix_value(
+    switch_matrix: RoutingSwitchMatrix,
+    row: str,
+    column: str,
+) -> float:
+    """Return one switch-matrix cell by row and column label.
+
+    Parameters
+    ----------
+    switch_matrix : RoutingSwitchMatrix
+        Matrix to inspect.
+    row : str
+        Row label.
+    column : str
+        Column label.
+
+    Returns
+    -------
+    float
+        Cell value.
+    """
+    return switch_matrix.matrix[switch_matrix.rows.index(row)][
+        switch_matrix.columns.index(column)
+    ]
+
+
+def _switch_matrix_active_pairs(
+    switch_matrix: RoutingSwitchMatrix,
+) -> set[tuple[str, str]]:
+    """Return active ``(row, column)`` matrix pairs.
+
+    Parameters
+    ----------
+    switch_matrix : RoutingSwitchMatrix
+        Matrix to inspect.
+
+    Returns
+    -------
+    set[tuple[str, str]]
+        Active row and column labels.
+    """
+    return {
+        (row_name, column_name)
+        for row_index, row_name in enumerate(switch_matrix.rows)
+        for column_index, column_name in enumerate(switch_matrix.columns)
+        if switch_matrix.matrix[row_index][column_index] != 0.0
+    }
 
 
 def _timing_summary(
@@ -1082,6 +1315,60 @@ def test_fab_graph_write_project_exports_demo_opt_to_custom_path(
     assert _line_set(genNextpnrModel(_parse_fabric_project(output_dir))[0]) == (
         _line_set(facade.render_pips_txt())
     )
+
+
+def test_fab_graph_write_project_exports_set_switch_matrix_with_rtl(
+    tmp_path: Path,
+) -> None:
+    """Write a project after setting a real matrix without shrinking it."""
+    project_dir = _copy_demo_opt_project_or_skip(tmp_path)
+    output_dir = tmp_path / "exported_set_switch_matrix"
+    facade = _load_demo_opt_facade(project_dir)
+    tile_type = "LUT4AB"
+    switch_matrix = facade.switch_matrix(tile_type)
+    matrix = [list(row) for row in switch_matrix.matrix]
+    changed_cells: list[tuple[str, str, float]] = []
+
+    for row_index, row_name in enumerate(switch_matrix.rows):
+        for column_index, column_name in enumerate(switch_matrix.columns):
+            if matrix[row_index][column_index] == 0.0:
+                continue
+            new_delay = matrix[row_index][column_index] + 1.25
+            matrix[row_index][column_index] = new_delay
+            changed_cells.append((row_name, column_name, new_delay))
+            if len(changed_cells) == 10:
+                break
+        if len(changed_cells) == 10:
+            break
+
+    assert len(changed_cells) == 10
+    facade.set_switch_matrix(
+        tile_type,
+        switch_matrix.columns,
+        switch_matrix.rows,
+        matrix,
+    )
+    updated_matrix = facade.switch_matrix(tile_type)
+    for row_name, column_name, expected_delay in changed_cells:
+        assert _switch_matrix_value(updated_matrix, row_name, column_name) == (
+            expected_delay
+        )
+
+    facade.write_project(output_dir, generate_rtl=True)
+
+    output_tile_dir = output_dir / "Tile" / tile_type
+    matrix_csv = output_tile_dir / f"{tile_type}_switch_matrix.csv"
+    parsed_csv = parseMatrix(matrix_csv, tile_type)
+    csv_pairs = {
+        (source_name, destination_name)
+        for source_name, destination_names in parsed_csv.items()
+        for destination_name in destination_names
+    }
+
+    assert (output_tile_dir / f"{tile_type}.v").exists()
+    assert (output_tile_dir / f"{tile_type}_switch_matrix.v").exists()
+    assert (output_tile_dir / f"{tile_type}_ConfigMem.csv").exists()
+    assert _switch_matrix_active_pairs(updated_matrix) == csv_pairs
 
 
 def test_fab_graph_write_project_regenerates_demo_opt_rtl(

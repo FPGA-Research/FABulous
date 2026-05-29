@@ -430,6 +430,31 @@ class RoutingResourceCounts:
     total: int
 
 
+@dataclass(frozen=True, slots=True)
+class RoutingSwitchMatrix:
+    """Tile-local switch-matrix view.
+
+    Attributes
+    ----------
+    tile_type : str
+        Tile type represented by this matrix.
+    columns : list[str]
+        Matrix column labels. These are the right-hand side wires from FABulous
+        ``.list`` entries and the source endpoint wires in ``pips.txt``.
+    rows : list[str]
+        Matrix row labels. These are the left-hand side wires from FABulous
+        ``.list`` entries and the destination endpoint wires in ``pips.txt``.
+    matrix : list[list[float]]
+        Delay matrix indexed as ``matrix[row_index][column_index]``. ``0.0``
+        means no active PIP. Non-zero values are active PIP delays.
+    """
+
+    tile_type: str
+    columns: list[str]
+    rows: list[str]
+    matrix: list[list[float]]
+
+
 def _format_pip_delay(delay: float) -> str:
     """Format a PIP delay like FABulous output.
 

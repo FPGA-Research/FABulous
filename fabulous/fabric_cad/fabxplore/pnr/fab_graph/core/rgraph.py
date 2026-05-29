@@ -21,6 +21,7 @@ from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
     RoutingPipKind,
     RoutingResourceCounts,
     RoutingResourceKey,
+    RoutingSwitchMatrix,
     RoutingTileBelModel,
     RoutingTileGenIOModel,
     RoutingTileModel,
@@ -752,6 +753,185 @@ class RoutingFabricGraph:
             Sorted candidate wires.
         """
         return self.matrix_sources(tile_type)
+
+    def switch_matrix(self, tile_type: str) -> RoutingSwitchMatrix:
+        """Return a tile-local switch matrix with active delays.
+
+        Rows and columns are built from all tracked matrix resources for the tile
+        type, including inactive resources. Inactive resources are represented by
+        ``0.0`` cells, while active resources store their delay.
+
+        Parameters
+        ----------
+        tile_type : str
+            Tile type to inspect.
+
+        Returns
+        -------
+        RoutingSwitchMatrix
+            Matrix view of the tile-type switch matrix.
+        """
+        self._require_tile_type(tile_type)
+        states = list(self._matrix_by_tile.get(tile_type, {}).values())
+        rows = list(dict.fromkeys(state.key.source_name for state in states))
+        columns = list(dict.fromkeys(state.key.destination_name for state in states))
+        row_index = {row: index for index, row in enumerate(rows)}
+        column_index = {column: index for index, column in enumerate(columns)}
+        matrix = [[0.0 for _column in columns] for _row in rows]
+
+        for state in states:
+            if not state.active:
+                continue
+            matrix[row_index[state.key.source_name]][
+                column_index[state.key.destination_name]
+            ] = float(state.delay)
+
+        return RoutingSwitchMatrix(
+            tile_type=tile_type,
+            columns=columns,
+            rows=rows,
+            matrix=matrix,
+        )
+
+    def set_switch_matrix(
+        self,
+        tile_type: str,
+        columns: list[str],
+        rows: list[str],
+        matrix: list[list[float]],
+    ) -> None:
+        """Replace one tile type's switch matrix from a delay table.
+
+        Parameters
+        ----------
+        tile_type : str
+            Tile type to update.
+        columns : list[str]
+            Matrix column labels. These are FABulous ``.list`` right-hand side
+            wires and nextpnr source endpoint wires.
+        rows : list[str]
+            Matrix row labels. These are FABulous ``.list`` left-hand side wires
+            and nextpnr destination endpoint wires.
+        matrix : list[list[float]]
+            Delay matrix indexed as ``matrix[row_index][column_index]``.
+            ``0.0`` disables a PIP; positive values add or restore a PIP with
+            that delay.
+
+        Raises
+        ------
+        ValueError
+            If dimensions are inconsistent or any delay is negative.
+        """
+        self._require_tile_type(tile_type)
+        if len(set(columns)) != len(columns):
+            raise ValueError("switch matrix columns must be unique")
+        if len(set(rows)) != len(rows):
+            raise ValueError("switch matrix rows must be unique")
+        if len(matrix) != len(rows):
+            raise ValueError(
+                "switch matrix row count does not match rows: "
+                f"{len(matrix)} != {len(rows)}"
+            )
+        matrix_path = self.tile_model(tile_type).matrix_path
+        available_wires = self._available_matrix_wires(tile_type)
+        new_states: dict[RoutingResourceKey, _MatrixResourceState] = {}
+        new_pair_lookup: dict[tuple[str, str, str], RoutingResourceKey] = {}
+        new_by_wire: dict[tuple[str, str], dict[RoutingResourceKey, None]] = (
+            defaultdict(dict)
+        )
+        if rows and columns:
+            first_row = rows[0]
+            first_column = columns[0]
+            for source_name in rows:
+                key = RoutingResourceKey(
+                    tile_type=tile_type,
+                    kind=RoutingPipKind.INTERNAL_MATRIX,
+                    source_name=source_name,
+                    destination_name=first_column,
+                    matrix_path=matrix_path,
+                )
+                new_states[key] = _MatrixResourceState(
+                    key=key,
+                    delay=0.0,
+                    active=False,
+                )
+                new_pair_lookup[(tile_type, source_name, first_column)] = key
+                new_by_wire[(tile_type, source_name)][key] = None
+                new_by_wire[(tile_type, first_column)][key] = None
+            for destination_name in columns:
+                key = RoutingResourceKey(
+                    tile_type=tile_type,
+                    kind=RoutingPipKind.INTERNAL_MATRIX,
+                    source_name=first_row,
+                    destination_name=destination_name,
+                    matrix_path=matrix_path,
+                )
+                new_states[key] = _MatrixResourceState(
+                    key=key,
+                    delay=0.0,
+                    active=False,
+                )
+                new_pair_lookup[(tile_type, first_row, destination_name)] = key
+                new_by_wire[(tile_type, first_row)][key] = None
+                new_by_wire[(tile_type, destination_name)][key] = None
+
+        for row_index, source_name in enumerate(rows):
+            row = matrix[row_index]
+            if len(row) != len(columns):
+                raise ValueError(
+                    "switch matrix column count does not match columns at row "
+                    f"{row_index}: {len(row)} != {len(columns)}"
+                )
+            for column_index, destination_name in enumerate(columns):
+                delay = float(row[column_index])
+                if delay < 0:
+                    raise ValueError(
+                        "switch matrix delays must be non-negative at "
+                        f"row {row_index}, column {column_index}: "
+                        f"{row[column_index]}"
+                    )
+                if delay == 0.0:
+                    continue
+                key = RoutingResourceKey(
+                    tile_type=tile_type,
+                    kind=RoutingPipKind.INTERNAL_MATRIX,
+                    source_name=source_name,
+                    destination_name=destination_name,
+                    matrix_path=matrix_path,
+                )
+                if delay != 0.0 and (
+                    source_name not in available_wires
+                    or destination_name not in available_wires
+                ):
+                    raise ValueError(
+                        f"active matrix resource references missing tile wire: {key}"
+                    )
+                new_states[key] = _MatrixResourceState(
+                    key=key,
+                    delay=delay,
+                    active=delay != 0.0,
+                )
+                new_pair_lookup[(tile_type, source_name, destination_name)] = key
+                new_by_wire[(tile_type, source_name)][key] = None
+                new_by_wire[(tile_type, destination_name)][key] = None
+
+        old_pair_lookup_keys = [
+            lookup_key
+            for lookup_key in self._matrix_pair_lookup
+            if lookup_key[0] == tile_type
+        ]
+        old_wire_keys = [
+            wire_key for wire_key in self._matrix_by_wire if wire_key[0] == tile_type
+        ]
+
+        self._matrix_by_tile[tile_type] = new_states
+        for lookup_key in old_pair_lookup_keys:
+            self._matrix_pair_lookup.pop(lookup_key, None)
+        self._matrix_pair_lookup.update(new_pair_lookup)
+        for wire_key in old_wire_keys:
+            self._matrix_by_wire.pop(wire_key, None)
+        for wire_key, keys in new_by_wire.items():
+            self._matrix_by_wire[wire_key] = keys
 
     def by_resource_key(
         self,

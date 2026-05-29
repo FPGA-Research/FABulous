@@ -23,6 +23,7 @@ from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
     RoutingPipKind,
     RoutingResourceCounts,
     RoutingResourceKey,
+    RoutingSwitchMatrix,
     RoutingTileModel,
 )
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.rgraph import (
@@ -336,6 +337,44 @@ class FabGraph:
             Candidate wire names.
         """
         return _filter_items(self._graph.matrix_sinks(tile_type), where)
+
+    def switch_matrix(self, tile_type: str) -> RoutingSwitchMatrix:
+        """Return a tile-local switch-matrix delay table.
+
+        Parameters
+        ----------
+        tile_type : str
+            Tile type to inspect.
+
+        Returns
+        -------
+        RoutingSwitchMatrix
+            Matrix rows, columns, and delay values.
+        """
+        return self._graph.switch_matrix(tile_type)
+
+    def set_switch_matrix(
+        self,
+        tile_type: str,
+        columns: list[str],
+        rows: list[str],
+        matrix: list[list[float]],
+    ) -> None:
+        """Replace one tile type's switch matrix from a delay table.
+
+        Parameters
+        ----------
+        tile_type : str
+            Tile type to update.
+        columns : list[str]
+            Matrix column labels from :meth:`switch_matrix`.
+        rows : list[str]
+            Matrix row labels from :meth:`switch_matrix`.
+        matrix : list[list[float]]
+            Delay matrix. ``0.0`` disables a PIP; positive values set the active
+            PIP delay.
+        """
+        self._graph.set_switch_matrix(tile_type, columns, rows, matrix)
 
     def render_pips_txt(self) -> str:
         """Render active concrete PIPs in nextpnr ``pips.txt`` format.
