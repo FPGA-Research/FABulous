@@ -87,7 +87,7 @@ Write-back:
 - `write_pips(path=None)`
 - `write_tile(name, path)`
 - `write_project(path=None, generate_rtl=True)`
-- `write_tile_sources(output_root=None, tile_types=None, remove_generated_artifacts=True)`
+- `write_tile_sources(output_root=None, tile_types=None, remove_generated_artifacts=True, generate_rtl=False)`
 
 ## Public API Examples
 
@@ -535,19 +535,24 @@ The project writer regenerates tile CSV/list files, generated RTL, and
 `.FABulous` metadata such as `pips.txt`, `bel.txt`, `bel.v2.txt`,
 `template.pcf`, and bitstream specs.
 
-### `write_tile_sources(output_root=None, tile_types=None, remove_generated_artifacts=True)`
+### `write_tile_sources(output_root=None, tile_types=None, remove_generated_artifacts=True, generate_rtl=False)`
 
-Write tile source files without regenerating the whole project.  This is mainly
-useful for writer tests and custom flows.
+Write tile source files without regenerating the whole project.  If
+`generate_rtl=True`, only the selected tile RTL artifacts are regenerated.  RTL
+generation requires either in-place writing or an `output_root` that is already
+a valid FABulous project root with `fabric.csv`.
 
 ```python
-result = graph.write_tile_sources(
-    output_root="/tmp/tile_sources",
+graph.write_tile_sources(
     tile_types=["LUT4AB"],
+    generate_rtl=True,
 )
 
-for tile_result in result.tile_results:
-    print(tile_result.tile_csv_path)
+graph.write_tile_sources(
+    output_root="/tmp/fabulous_candidate_project",
+    tile_types=["LUT4AB"],
+    generate_rtl=True,
+)
 ```
 
 ## Resource Semantics

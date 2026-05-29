@@ -1034,25 +1034,50 @@ class FabGraph:
         tile_types: Iterable[str] | None = None,
         *,
         remove_generated_artifacts: bool = True,
+        generate_rtl: bool = False,
     ) -> None:
         """Write tile source files from the graph.
 
         Parameters
         ----------
         output_root : Path | str | None
-            Optional output project root.  If omitted, writes in place.
+            Optional output project root.  If omitted, writes in place.  When
+            ``generate_rtl`` is ``True``, this must be ``None`` or a valid
+            FABulous project root containing ``fabric.csv``.
         tile_types : Iterable[str] | None
             Optional tile-type subset.
         remove_generated_artifacts : bool
             Remove stale generated tile artifacts before writing.
+        generate_rtl : bool
+            Regenerate switch-matrix RTL, config memory, and tile RTL for the
+            written tile types.
         """
         root = None if output_root is None else Path(output_root)
+        selected = (
+            tuple(tile_types)
+            if tile_types is not None
+            else tuple(self._graph.tile_types())
+        )
+        target_project = self.project_dir if root is None else root
+        if generate_rtl:
+            self._require_project_root_for_tile_rtl(target_project)
+
         write_tile_sources(
             self._graph,
             output_root=root,
-            tile_types=tile_types,
+            tile_types=selected,
             remove_generated_artifacts=remove_generated_artifacts,
         )
+        if not generate_rtl:
+            return
+
+        in_place = target_project.resolve() == self.project_dir.resolve()
+        try:
+            self._reload_project(target_project)
+            self._generate_tile_artifacts(selected, generate_rtl=True)
+        finally:
+            if not in_place:
+                self._reload_project(self.project_dir)
 
     def _copy_project_shell(self, target_project: Path) -> None:
         """Copy non-generated project content to a new project.
@@ -1164,7 +1189,27 @@ class FabGraph:
         generate_rtl : bool
             Whether to generate tile RTL in addition to config-memory CSV data.
         """
-        for tile_type in self._graph.tile_types():
+        self._generate_tile_artifacts(
+            self._graph.tile_types(),
+            generate_rtl=generate_rtl,
+        )
+
+    def _generate_tile_artifacts(
+        self,
+        tile_types: Iterable[str],
+        *,
+        generate_rtl: bool,
+    ) -> None:
+        """Generate derived FABulous artifacts for selected tile types.
+
+        Parameters
+        ----------
+        tile_types : Iterable[str]
+            Tile types to regenerate in the currently loaded FABulous project.
+        generate_rtl : bool
+            Whether to generate tile RTL in addition to config-memory CSV data.
+        """
+        for tile_type in tile_types:
             tile = self.fab.getTile(tile_type, raises_on_miss=True)
             tile_dir = tile.tileDir.parent
 
@@ -1185,6 +1230,27 @@ class FabGraph:
                     tile_dir / f"{tile_type}{self.fab.fileExtension}"
                 )
                 self.fab.genTile(tile_type)
+
+    def _require_project_root_for_tile_rtl(self, project_dir: Path) -> None:
+        """Require a valid project root before selected tile RTL generation.
+
+        Parameters
+        ----------
+        project_dir : Path
+            Candidate FABulous project root.
+
+        Raises
+        ------
+        ValueError
+            If ``project_dir`` does not contain ``fabric.csv``.
+        """
+        fabric_csv = project_dir / "fabric.csv"
+        if not fabric_csv.exists():
+            raise ValueError(
+                "generate_rtl=True for write_tile_sources requires output_root "
+                "to be omitted or point to a valid FABulous project root "
+                f"containing fabric.csv: {project_dir}"
+            )
 
     def _write_routing_metadata(self, metadata_dir: Path) -> Path:
         """Write nextpnr and bitstream metadata from the loaded project.

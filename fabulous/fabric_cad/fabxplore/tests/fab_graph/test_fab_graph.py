@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from statistics import mean, median
 from time import perf_counter
 from typing import TYPE_CHECKING
@@ -1025,6 +1026,53 @@ def _switch_matrix_active_pairs(
     }
 
 
+def _tile_generated_artifact_paths(
+    project_dir: Path, tile_type: str
+) -> tuple[Path, ...]:
+    """Return generated tile artifact paths controlled by ``generate_rtl``.
+
+    Parameters
+    ----------
+    project_dir : Path
+        FABulous project root.
+    tile_type : str
+        Tile type to inspect.
+
+    Returns
+    -------
+    tuple[Path, ...]
+        Generated RTL and config-memory artifact paths.
+    """
+    tile_dir = project_dir / "Tile" / tile_type
+    return (
+        *_tile_generated_rtl_paths(project_dir, tile_type),
+        tile_dir / f"{tile_type}_ConfigMem.csv",
+        tile_dir / f"{tile_type}_ConfigMem.v",
+    )
+
+
+def _tile_generated_rtl_paths(project_dir: Path, tile_type: str) -> tuple[Path, ...]:
+    """Return generated tile RTL paths required for every generated tile.
+
+    Parameters
+    ----------
+    project_dir : Path
+        FABulous project root.
+    tile_type : str
+        Tile type to inspect.
+
+    Returns
+    -------
+    tuple[Path, ...]
+        Tile and switch-matrix RTL paths.
+    """
+    tile_dir = project_dir / "Tile" / tile_type
+    return (
+        tile_dir / f"{tile_type}.v",
+        tile_dir / f"{tile_type}_switch_matrix.v",
+    )
+
+
 def _timing_summary(
     samples: list[tuple[float, int]],
     unit_name: str,
@@ -1252,6 +1300,103 @@ def test_fab_graph_write_tile_exports_demo_opt_tile_to_custom_path(
     assert _read_csv_rows(tile_csv)[0] == ["TILE", tile_type]
     assert "INCLUDE" not in tile_csv.read_text(encoding="utf-8")
     assert "GENERATE" not in tile_csv.read_text(encoding="utf-8")
+
+
+def test_fab_graph_write_tile_sources_generate_rtl_requires_project_root(
+    tmp_path: Path,
+) -> None:
+    """Reject generated RTL output to a non-project tile-source directory."""
+    project_dir = tmp_path / "project"
+    facade = FabGraph(_write_and_load_api(project_dir), project_dir)
+    output_root = tmp_path / "tile_sources"
+
+    with pytest.raises(ValueError, match="valid FABulous project root"):
+        facade.write_tile_sources(
+            output_root=output_root,
+            tile_types=("Toy",),
+            generate_rtl=True,
+        )
+
+    assert not output_root.exists()
+
+
+@pytest.mark.parametrize(
+    ("in_place", "generate_rtl"),
+    [
+        (True, True),
+        (False, True),
+        (True, False),
+        (False, False),
+    ],
+)
+def test_fab_graph_write_tile_sources_updates_two_demo_tiles(
+    tmp_path: Path,
+    *,
+    in_place: bool,
+    generate_rtl: bool,
+) -> None:
+    """Write selected demo tiles in place and to a project copy."""
+    project_dir = _copy_demo_opt_project_or_skip(tmp_path)
+    output_dir = project_dir if in_place else tmp_path / "tile_sources_project"
+    if not in_place:
+        shutil.copytree(project_dir, output_dir)
+    facade = _load_demo_opt_facade(project_dir)
+    tile_types = ("RegFile", "N_term_single")
+    deleted_keys = {
+        tile_type: facade.matrix_resources(tile_type)[0] for tile_type in tile_types
+    }
+    source_artifacts = {
+        tile_type: {
+            artifact_path: artifact_path.read_text(encoding="utf-8")
+            for artifact_path in _tile_generated_artifact_paths(project_dir, tile_type)
+            if artifact_path.exists()
+        }
+        for tile_type in tile_types
+    }
+    output_artifact_paths = {
+        tile_type: _tile_generated_artifact_paths(output_dir, tile_type)
+        for tile_type in tile_types
+    }
+
+    for tile_type in tile_types:
+        for artifact_path in output_artifact_paths[tile_type]:
+            artifact_path.write_text("stale artifact", encoding="utf-8")
+        facade.disable_matrix_resource(key=deleted_keys[tile_type])
+
+    facade.write_tile_sources(
+        output_root=None if in_place else output_dir,
+        tile_types=tile_types,
+        generate_rtl=generate_rtl,
+    )
+    exported = _load_demo_opt_facade(output_dir)
+
+    assert facade.project_dir == project_dir
+    for tile_type in tile_types:
+        assert deleted_keys[tile_type] not in exported.matrix_resources(tile_type)
+        assert (output_dir / "Tile" / tile_type / f"{tile_type}.csv").exists()
+        assert (
+            output_dir / "Tile" / tile_type / f"{tile_type}_switch_matrix.list"
+        ).exists()
+        assert (
+            output_dir / "Tile" / tile_type / f"{tile_type}_switch_matrix.csv"
+        ).read_text(encoding="utf-8") != "stale artifact"
+
+        if generate_rtl:
+            assert all(
+                path.exists()
+                for path in _tile_generated_rtl_paths(output_dir, tile_type)
+            )
+            assert all(
+                not path.exists()
+                or path.read_text(encoding="utf-8") != "stale artifact"
+                for path in output_artifact_paths[tile_type]
+            )
+        else:
+            assert all(not path.exists() for path in output_artifact_paths[tile_type])
+
+        if not in_place:
+            for artifact_path, text in source_artifacts[tile_type].items():
+                assert artifact_path.read_text(encoding="utf-8") == text
 
 
 def test_fab_graph_write_project_copy_writes_metadata_from_written_files(
