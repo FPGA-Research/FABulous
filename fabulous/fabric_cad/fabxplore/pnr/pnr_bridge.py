@@ -54,6 +54,17 @@ class PnRBridge(FabGraph):
         super().__init__(fabulous_api, project_dir)
         self._pyosys_bridge = pyosys_bridge
 
+    @property
+    def user_design(self) -> PyosysBridge:
+        """The packed pyosys design attached to this PnR bridge.
+
+        Returns
+        -------
+        PyosysBridge
+            The packed pyosys design attached to this PnR bridge.
+        """
+        return self._pyosys_bridge
+
     def update_from_project(self) -> None:
         """Reload the current project from disk and rebuild the routing graph.
 
