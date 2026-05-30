@@ -156,7 +156,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             mux_dependency_paths=[self.project_context.models_pack],
             mux_top_name="MUX8LUT_frame_config_mux",
             mux_data_inputs=["A", "B", "C", "D", "E", "F", "G", "H"],
-            mux_select_inputs=["S[0]", "S[1]", "S[2]", "S[3]"],
+            mux_select_inputs=["S0", "S1", "S2", "S3"],
             mux_outputs=["M_AB", "M_AD", "M_AH", "M_EF"],
             mux_config_prefixes=["ConfigBits"],
             progress_chunk_size=5,
@@ -204,6 +204,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "remove_disconnected_comb_port": True,
                     "include_enable_ff": True,
                     "include_reset_ff": True,
+                    "attributes": {"FF_USED": 1},
                 },
                 {
                     "side": "output",
@@ -213,6 +214,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "remove_disconnected_comb_port": True,
                     "include_enable_ff": True,
                     "include_reset_ff": True,
+                    "attributes": {"FF_USED": 1},
                 },
             ],
             progress_chunk_size=5,
@@ -256,6 +258,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "reset_neutral": 0,
                     "reset_kind": "sync",
                     "reset_value": 0,
+                    "attributes": {"FF_USED": 123, "ANOTHER_ATTR": 456},
                 },
                 {
                     # FF.D -> I1, Q1 replaces FF.Q
@@ -270,6 +273,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "reset_neutral": 0,
                     "reset_kind": "sync",
                     "reset_value": 0,
+                    "attributes": {"FF_USED": 1234, "ANOTHER_ATTR": 5678},
                 },
             ],
             pack_multiple_ffs_per_tile=True,
@@ -302,6 +306,13 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "verilog_path": self.my_root / "arch_rtl" / "FLUT5_1P_2PS.v",
                     "prefixes": [
                         "LA_",
+                        "LB_",
+                        "LC_",
+                        "LD_",
+                        "LE_",
+                        "LF_",
+                        "LG_",
+                        "LH_",
                     ],
                     "add_as_custom_prim": True,
                 },
@@ -313,27 +324,40 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "add_as_custom_prim": True,
                 },
             ],
-            routing={
-                "use_fabulous_auto": False,
-                "base_csv_includes": ["./../include/Base.csv"],
-                "base_list_includes": ["../include/Base.list"],
-                "input_fanin": 6,
-                "output_fanin": 3,
-                "min_input_fanin": 2,
-                "min_output_fanin": 2,
-                "routing_pip_pattern": "wilton",
-                "routing_pip_fs": 4,
-                "min_routing_pip_fs": 2,
-                "generate_straight_routing_pips": True,
-                "generate_turn_routing_pips": True,
-                "config_bit_margin": 0,
-                "derive_sources_from_base": True,
-                "cover_unconnected_outputs": True,
-                "emit_constants_if_missing": True,
-                "allow_bel_output_feedback_sources": True,
-            },
+            use_fabulous_auto=False,
+            base_csv_includes=["./../include/Base.csv"],
+            base_list_includes=["../include/Base.list"],
+            input_fanin=6,
+            output_fanin=3,
+            min_input_fanin=2,
+            min_output_fanin=2,
+            config_bit_margin=0,
+            derive_sources_from_base=True,
+            cover_unconnected_outputs=True,
+            emit_constants_if_missing=True,
+            allow_bel_output_feedback_sources=True,
             register_in_fabric=True,
             track_progress=True,
+            progress_chunk_size=5,
+            register_tile_in_fpga_model=True,
+        )
+
+        self.pnr_switch_matrix_pattern_pass(
+            tile_name="LUT5F",
+            input_fanin=3,
+            include_bel_output_sources=True,
+            include_constant_sources=True,
+            output_fanin=3,
+            cover_unconnected_matrix_rows=True,
+            routing_pip_pattern="wilton",
+            routing_pip_fs=4,
+            generate_straight_routing_pips=True,
+            generate_turn_routing_pips=True,
+            hierarchy_enabled=False,
+            hierarchy_levels=[2, 2],
+            hierarchy_jump_prefix="J_LOCAL",
+            hierarchy_replace_direct_input_pips=True,
+            delay=8.0,
             progress_chunk_size=5,
         )
 
@@ -386,6 +410,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                 "/nextpnr/build/nextpnr-generic"
             ),
             check=False,
+            log_report=True,
         )
 
     def map_cells(self) -> None:
@@ -451,7 +476,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         # TODO: Explain how to do simulation and verification.
         # TODO: sequential pattern graph.
 
-        sel_test: int = 1
+        sel_test: int = 2
         config: FabulousArchitectureConfig = None
         match sel_test:
             case 0:

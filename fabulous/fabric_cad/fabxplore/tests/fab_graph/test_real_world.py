@@ -14,6 +14,7 @@ import pytest  # noqa: DEP004 - test-only dependency
 import fabulous.fabulous_settings as fabulous_settings
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core import FabGraph
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
+    RoutingConfigBits,
     RoutingPipKind,
     RoutingResourceKey,
 )
@@ -521,6 +522,57 @@ def test_demo_opt_config_bits_match_generated_rtl_after_tile_mutations(
         assert exported.get_config_bits(tile_type) == expected_bits[tile_type]
 
 
+def test_demo_opt_oversized_lut4ab_config_bits_fail_rtl_generation(
+    tmp_path: Path,
+) -> None:
+    """Confirm FABulous rejects oversized config bits during RTL generation."""
+    tile_type = "LUT4AB"
+    source_project = _copy_demo_opt_project_or_skip(tmp_path)
+    graph = _load_fab_graph(source_project)
+    oversized_bits = _inflate_switch_matrix_past_fabric_capacity(graph, tile_type)
+    tile_dir = source_project / "Tile" / tile_type
+    stale_switch_matrix_rtl = tile_dir / f"{tile_type}_switch_matrix.v"
+
+    stale_switch_matrix_rtl.write_text("// stale switch matrix rtl\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="exceeds fabric capacity"):
+        graph.write_tile_sources(tile_types=(tile_type,), generate_rtl=True)
+
+    assert (tile_dir / f"{tile_type}.csv").exists()
+    assert (tile_dir / f"{tile_type}_switch_matrix.list").exists()
+    assert (tile_dir / f"{tile_type}_switch_matrix.csv").exists()
+    switch_matrix_rtl = stale_switch_matrix_rtl.read_text(encoding="utf-8")
+    assert "stale switch matrix rtl" not in switch_matrix_rtl
+    assert (
+        f"NumberOfConfigBits: {oversized_bits.matrix_config_bits}" in switch_matrix_rtl
+    )
+    assert not (tile_dir / f"{tile_type}_ConfigMem.csv").exists()
+
+    project_source = _copy_demo_opt_project_or_skip(tmp_path / "project_write")
+    project_graph = _load_fab_graph(project_source)
+    project_bits = _inflate_switch_matrix_past_fabric_capacity(
+        project_graph,
+        tile_type,
+    )
+    output_project = tmp_path / "oversized_project"
+
+    with pytest.raises(ValueError, match="exceeds fabric capacity"):
+        project_graph.write_project(output_project, generate_rtl=True)
+
+    output_tile_dir = output_project / "Tile" / tile_type
+    assert (output_tile_dir / f"{tile_type}.csv").exists()
+    assert (output_tile_dir / f"{tile_type}_switch_matrix.list").exists()
+    assert (output_tile_dir / f"{tile_type}_switch_matrix.csv").exists()
+    output_switch_matrix_rtl = (
+        output_tile_dir / f"{tile_type}_switch_matrix.v"
+    ).read_text(encoding="utf-8")
+    assert (
+        f"NumberOfConfigBits: {project_bits.matrix_config_bits}"
+        in output_switch_matrix_rtl
+    )
+    assert not (output_project / ".FABulous").exists()
+
+
 def _copy_demo_opt_project_or_skip(tmp_path: Path) -> Path:
     """Copy ``demo_opt`` into the test temp directory.
 
@@ -924,6 +976,67 @@ def _mutate_tile_resources_for_config_bit_export(
 
     if _active_resource_count(graph, tile_type) > target_resources:
         raise AssertionError(f"not enough {tile_type} resources to reach target")
+
+
+def _inflate_switch_matrix_past_fabric_capacity(
+    graph: FabGraph,
+    tile_type: str,
+) -> RoutingConfigBits:
+    """Replace a switch matrix with enough active PIPs to exceed capacity.
+
+    Parameters
+    ----------
+    graph : FabGraph
+        Public graph facade.
+    tile_type : str
+        Tile type to inflate.
+
+    Returns
+    -------
+    RoutingConfigBits
+        Oversized config-bit summary after the matrix replacement.
+
+    Raises
+    ------
+    AssertionError
+        If the tile cannot be inflated beyond the fabric config-bit capacity.
+    """
+    switch_matrix = graph.switch_matrix(tile_type)
+    capacity = graph.fab.fabric.frameBitsPerRow * graph.fab.fabric.maxFramesPerCol
+    fixed_bits = graph.get_config_bits(tile_type).fixed_config_bits
+    fanin_bits = (len(switch_matrix.columns) - 1).bit_length()
+    if fanin_bits <= 0:
+        raise AssertionError(f"{tile_type} does not have matrix columns to inflate")
+
+    rows_needed = min(
+        len(switch_matrix.rows),
+        max(1, ((capacity - fixed_bits) // fanin_bits) + 2),
+    )
+    matrix = [
+        [
+            8.0 if row_index < rows_needed and row_name != column_name else 0.0
+            for column_name in switch_matrix.columns
+        ]
+        for row_index, row_name in enumerate(switch_matrix.rows)
+    ]
+    graph.set_switch_matrix(
+        tile_type,
+        list(switch_matrix.columns),
+        list(switch_matrix.rows),
+        matrix,
+    )
+
+    oversized_bits = graph.get_config_bits(tile_type)
+    nonzero_pips = sum(1 for row in matrix for delay in row if delay > 0.0)
+
+    if oversized_bits.total_config_bits <= capacity:
+        raise AssertionError(
+            f"{tile_type} has only {oversized_bits.total_config_bits} config bits; "
+            f"expected more than fabric capacity {capacity}"
+        )
+    if nonzero_pips <= len(switch_matrix.rows):
+        raise AssertionError(f"{tile_type} was not inflated with enough active PIPs")
+    return oversized_bits
 
 
 def _read_switch_matrix_config_bits(project_dir: Path, tile_type: str) -> int:

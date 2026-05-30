@@ -26,12 +26,7 @@ from fabulous.fabric_cad.fabxplore.modules.tile_builder.core.base_model import (
     build_base_routing_model,
 )
 from fabulous.fabric_cad.fabxplore.modules.tile_builder.core.models import (
-    ConnectionHierarchyOptions,
-    RoutingPipPattern,
     TileBuilderOptions,
-)
-from fabulous.fabric_cad.fabxplore.modules.tile_builder.routing_patterns import (
-    generate_routing_pattern_pairs,
 )
 from fabulous.fabric_cad.fabxplore.pnr.custom_passes.tile_builder_pass import (
     TileBuilderPass,
@@ -239,18 +234,6 @@ def test_models_validate_inputs() -> None:
         "min_input_fanin",
     )
     _assert_raises_contains(
-        lambda: BaselineRouting(routing_pip_fs=1, min_routing_pip_fs=2),
-        "min_routing_pip_fs",
-    )
-    _assert_raises_contains(
-        lambda: ConnectionHierarchyOptions(enabled=True, levels=[]),
-        "connection hierarchy",
-    )
-    _assert_raises_contains(
-        lambda: ConnectionHierarchyOptions(levels=[1]),
-        "levels",
-    )
-    _assert_raises_contains(
         lambda: TileBuilderOptions(
             tile_name="", bels=[TileBel(verilog_path=Path("x.v"))]
         ),
@@ -391,488 +374,6 @@ def test_base_model_uses_fabulous_null_endpoint_expansion() -> None:
         "TERM_OUT2",
         "TERM_OUT3",
     ]
-
-
-def test_base_model_exposes_structured_routing_groups() -> None:
-    """Test routing groups are derived from FABulous port metadata."""
-    with TemporaryDirectory(prefix="tile_builder_groups_") as td:
-        tmp_dir = Path(td)
-        base_csv = tmp_dir / "BaseGroups.csv"
-        base_csv.write_text(
-            "\n".join(
-                [
-                    "NORTH,ALPHA_START,0,-1,ALPHA_STOP,2",
-                    "JUMP,LOCAL_START,0,0,LOCAL_STOP,2",
-                    "EAST,BETA_START,1,0,BETA_STOP,3",
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        routing = BaselineRouting(
-            base_csv_includes=["BaseGroups.csv"],
-            base_list_includes=[],
-        )
-        base_model = build_base_routing_model(
-            tile_dir=tmp_dir,
-            routing=routing,
-            require_gnd=False,
-            require_vcc=False,
-        )
-
-    groups = base_model.routing_track_groups
-    assert len(groups) == 2
-    assert groups[0].destination_rows == ["ALPHA_START0", "ALPHA_START1"]
-    assert groups[0].selectable_sources == ["ALPHA_STOP0", "ALPHA_STOP1"]
-    assert groups[1].wire_count == 3
-
-
-def test_routing_pattern_subset_uses_same_track_indices() -> None:
-    """Test subset pattern emits same-index PIPs over arbitrary names."""
-    with TemporaryDirectory(prefix="tile_builder_subset_") as td:
-        tmp_dir = Path(td)
-        base_csv = tmp_dir / "BaseSubset.csv"
-        base_csv.write_text(
-            "\n".join(
-                [
-                    "NORTH,ROW_A,0,-1,COL_A,2",
-                    "EAST,ROW_B,1,0,COL_B,2",
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        routing = BaselineRouting(
-            base_csv_includes=["BaseSubset.csv"],
-            base_list_includes=[],
-            routing_pip_pattern=RoutingPipPattern.SUBSET,
-            routing_pip_fs=2,
-        )
-        base_model = build_base_routing_model(
-            tile_dir=tmp_dir,
-            routing=routing,
-            require_gnd=False,
-            require_vcc=False,
-        )
-        result = generate_routing_pattern_pairs(base_model, routing)
-
-    assert ("ROW_A0", "COL_A0") in result.pairs
-    assert ("ROW_A0", "COL_B0") in result.pairs
-    assert ("ROW_B1", "COL_A1") in result.pairs
-    assert result.generated_pips == 8
-    assert result.compatible_groups == 2
-
-
-def test_routing_pattern_wilton_permutes_turn_tracks() -> None:
-    """Test Wilton pattern twists track indices for turns."""
-    with TemporaryDirectory(prefix="tile_builder_wilton_") as td:
-        tmp_dir = Path(td)
-        base_csv = tmp_dir / "BaseWilton.csv"
-        base_csv.write_text(
-            "\n".join(
-                [
-                    "NORTH,ROW_A,0,-1,COL_A,4",
-                    "EAST,ROW_B,1,0,COL_B,4",
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        routing = BaselineRouting(
-            base_csv_includes=["BaseWilton.csv"],
-            base_list_includes=[],
-            routing_pip_pattern="wilton",
-            routing_pip_fs=2,
-        )
-        base_model = build_base_routing_model(
-            tile_dir=tmp_dir,
-            routing=routing,
-            require_gnd=False,
-            require_vcc=False,
-        )
-        result = generate_routing_pattern_pairs(base_model, routing)
-
-    assert ("ROW_A0", "COL_A0") in result.pairs
-    assert ("ROW_A0", "COL_B1") in result.pairs
-    assert ("ROW_B0", "COL_A0") not in result.pairs
-    assert result.generated_pips == 16
-
-
-def test_routing_pattern_universal_spreads_sources() -> None:
-    """Test universal pattern spreads choices across source groups."""
-    with TemporaryDirectory(prefix="tile_builder_universal_") as td:
-        tmp_dir = Path(td)
-        base_csv = tmp_dir / "BaseUniversal.csv"
-        base_csv.write_text(
-            "\n".join(
-                [
-                    "NORTH,ROW_A,0,-1,COL_A,3",
-                    "EAST,ROW_B,1,0,COL_B,3",
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        routing = BaselineRouting(
-            base_csv_includes=["BaseUniversal.csv"],
-            base_list_includes=[],
-            routing_pip_pattern="universal",
-            routing_pip_fs=3,
-        )
-        base_model = build_base_routing_model(
-            tile_dir=tmp_dir,
-            routing=routing,
-            require_gnd=False,
-            require_vcc=False,
-        )
-        result = generate_routing_pattern_pairs(base_model, routing)
-
-    assert ("ROW_A0", "COL_A0") in result.pairs
-    assert ("ROW_A0", "COL_B0") in result.pairs
-    assert ("ROW_A0", "COL_A1") in result.pairs
-    assert result.generated_pips == 18
-
-
-def test_baseline_list_records_routing_pattern_statistics() -> None:
-    """Test routing pattern PIPs are merged into the generated list."""
-    with TemporaryDirectory(prefix="tile_builder_pattern_stats_") as td:
-        tmp_dir = Path(td)
-        base_csv = tmp_dir / "BasePattern.csv"
-        base_csv.write_text(
-            "\n".join(
-                [
-                    "NORTH,ROW_A,0,-1,COL_A,2",
-                    "EAST,ROW_B,1,0,COL_B,2",
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        routing = BaselineRouting(
-            base_csv_includes=["BasePattern.csv"],
-            base_list_includes=[],
-            input_fanin=2,
-            output_fanin=2,
-            routing_pip_pattern="subset",
-            routing_pip_fs=2,
-        )
-        base_model = build_base_routing_model(
-            tile_dir=tmp_dir,
-            routing=routing,
-            require_gnd=False,
-            require_vcc=False,
-        )
-        result = baseline_list_generator.generate_baseline_list(
-            tile_name="pattern_tile",
-            bels=[_make_fake_bel(Path("a.v"), "LA_")],
-            routing=routing,
-            base_model=base_model,
-            matrix_config_budget=None,
-        )
-
-    body = _generated_body(result.text)
-    assert "{3}ROW_A0,[COL_A0|COL_B0|LA_O]" in body
-    assert result.routing_pattern_pips == 8
-    assert result.routing_pattern_groups == 2
-
-
-def test_connection_hierarchy_preserves_routing_pattern_pips() -> None:
-    """Test hierarchy does not rewrite generated routing-pattern PIPs."""
-    with TemporaryDirectory(prefix="tile_builder_hierarchy_pattern_") as td:
-        tmp_dir = Path(td)
-        base_csv = tmp_dir / "BaseHierarchyPattern.csv"
-        base_csv.write_text(
-            "\n".join(
-                [
-                    "NORTH,ROW_N,0,-1,COL_N,2",
-                    "EAST,ROW_E,1,0,COL_E,2",
-                    "SOUTH,ROW_S,0,1,COL_S,2",
-                    "WEST,ROW_W,-1,0,COL_W,2",
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        flat_routing = BaselineRouting(
-            base_csv_includes=["BaseHierarchyPattern.csv"],
-            base_list_includes=[],
-            input_fanin=4,
-            output_fanin=1,
-            allow_bel_output_feedback_sources=False,
-            routing_pip_pattern=RoutingPipPattern.WILTON,
-            routing_pip_fs=4,
-        )
-        hierarchy_routing = flat_routing.model_copy(
-            update={
-                "connection_hierarchy": ConnectionHierarchyOptions(
-                    enabled=True,
-                    levels=[2, 2],
-                    jump_prefix="J_KEEP",
-                )
-            }
-        )
-        base_model = build_base_routing_model(
-            tile_dir=tmp_dir,
-            routing=flat_routing,
-            require_gnd=False,
-            require_vcc=False,
-        )
-        pattern_result = generate_routing_pattern_pairs(base_model, flat_routing)
-        flat_result = baseline_list_generator.generate_baseline_list(
-            tile_name="flat_pattern_tile",
-            bels=[_make_fake_bel(Path("a.v"), "LA_")],
-            routing=flat_routing,
-            base_model=base_model,
-            matrix_config_budget=None,
-        )
-        hierarchy_result = baseline_list_generator.generate_baseline_list(
-            tile_name="hierarchy_pattern_tile",
-            bels=[_make_fake_bel(Path("a.v"), "LA_")],
-            routing=hierarchy_routing,
-            base_model=base_model,
-            matrix_config_budget=None,
-        )
-
-    flat_rows = _list_row_sources(flat_result.text)
-    hierarchy_rows = _list_row_sources(hierarchy_result.text)
-    for destination, source in pattern_result.pairs:
-        assert source in flat_rows[destination]
-        assert source in hierarchy_rows[destination]
-    assert flat_result.routing_pattern_pips == hierarchy_result.routing_pattern_pips
-    assert flat_result.routing_pattern_groups == hierarchy_result.routing_pattern_groups
-    assert hierarchy_result.active_connection_hierarchy_levels == (2, 2)
-    assert any(row.startswith("J_KEEP_L0") for row in hierarchy_rows)
-    assert not any(row.startswith("J_KEEP") for row in flat_rows)
-
-
-def test_connection_hierarchy_generates_jump_stage() -> None:
-    """Test one-level connection hierarchy replaces flat BEL input PIPs."""
-    with TemporaryDirectory(prefix="tile_builder_hierarchy_") as td:
-        tmp_dir = Path(td)
-        base_csv = tmp_dir / "BaseHierarchy.csv"
-        base_csv.write_text(
-            "NORTH,ROW_A,0,-1,COL_A,4\n",
-            encoding="utf-8",
-        )
-        routing = BaselineRouting(
-            base_csv_includes=["BaseHierarchy.csv"],
-            base_list_includes=[],
-            input_fanin=4,
-            output_fanin=1,
-            allow_bel_output_feedback_sources=False,
-            connection_hierarchy=ConnectionHierarchyOptions(
-                enabled=True,
-                levels=[4],
-                jump_prefix="J_TEST",
-            ),
-        )
-        base_model = build_base_routing_model(
-            tile_dir=tmp_dir,
-            routing=routing,
-            require_gnd=False,
-            require_vcc=False,
-        )
-        result = baseline_list_generator.generate_baseline_list(
-            tile_name="hierarchy_tile",
-            bels=[_make_fake_bel(Path("a.v"), "LA_")],
-            routing=routing,
-            base_model=base_model,
-            matrix_config_budget=None,
-        )
-
-    body = _generated_body(result.text)
-    assert "J_TEST_L0_0_BEG0" in body
-    assert "{4}J_TEST_L0_0_BEG0,[COL_A1|COL_A2|COL_A3|COL_A0]" in body
-    assert "LA_I0,J_TEST_L0_0_END0" in body
-    assert "{4}LA_I0" not in body
-    assert result.generated_csv_lines == (
-        "JUMP,J_TEST_L0_0_BEG,0,0,J_TEST_L0_0_END,1,",
-    )
-    assert result.connection_hierarchy_levels == (4,)
-    assert result.active_connection_hierarchy_levels == (4,)
-    assert result.generated_jump_wires == 1
-    assert result.hierarchy_source_pips == 4
-    assert result.hierarchy_sink_pips == 1
-    assert result.bypassed_hierarchy_inputs == 0
-
-
-def test_connection_hierarchy_builds_multiple_levels() -> None:
-    """Test multi-level hierarchy creates staged JUMP muxes."""
-    with TemporaryDirectory(prefix="tile_builder_hierarchy_levels_") as td:
-        tmp_dir = Path(td)
-        base_csv = tmp_dir / "BaseHierarchyLevels.csv"
-        base_csv.write_text(
-            "NORTH,ROW_A,0,-1,COL_A,8\n",
-            encoding="utf-8",
-        )
-        routing = BaselineRouting(
-            base_csv_includes=["BaseHierarchyLevels.csv"],
-            base_list_includes=[],
-            input_fanin=8,
-            output_fanin=1,
-            allow_bel_output_feedback_sources=False,
-            connection_hierarchy=ConnectionHierarchyOptions(
-                enabled=True,
-                levels=[4, 2],
-                jump_prefix="J_TREE",
-            ),
-        )
-        base_model = build_base_routing_model(
-            tile_dir=tmp_dir,
-            routing=routing,
-            require_gnd=False,
-            require_vcc=False,
-        )
-        result = baseline_list_generator.generate_baseline_list(
-            tile_name="hierarchy_levels_tile",
-            bels=[_make_fake_bel(Path("a.v"), "LA_")],
-            routing=routing,
-            base_model=base_model,
-            matrix_config_budget=None,
-        )
-
-    body = _generated_body(result.text)
-    assert "{4}J_TREE_L0_0_BEG0,[COL_A1|COL_A2|COL_A3|COL_A4]" in body
-    assert "{4}J_TREE_L0_1_BEG0,[COL_A5|COL_A6|COL_A7|COL_A0]" in body
-    assert "{2}J_TREE_L1_2_BEG0,[J_TREE_L0_0_END0|J_TREE_L0_1_END0]" in body
-    assert "LA_I0,J_TREE_L1_2_END0" in body
-    assert len(result.generated_csv_lines) == 3
-    assert result.connection_hierarchy_levels == (4, 2)
-    assert result.active_connection_hierarchy_levels == (4, 2)
-    assert result.generated_jump_wires == 3
-    assert result.hierarchy_source_pips == 10
-    assert result.hierarchy_sink_pips == 1
-
-
-def test_connection_hierarchy_reports_bypassed_inputs() -> None:
-    """Test hierarchy reports direct wiring when fanin needs no staging."""
-    with TemporaryDirectory(prefix="tile_builder_hierarchy_bypass_") as td:
-        tmp_dir = Path(td)
-        base_csv = tmp_dir / "BaseHierarchyBypass.csv"
-        base_csv.write_text(
-            "NORTH,ROW_A,0,-1,COL_A,1\n",
-            encoding="utf-8",
-        )
-        routing = BaselineRouting(
-            base_csv_includes=["BaseHierarchyBypass.csv"],
-            base_list_includes=[],
-            input_fanin=1,
-            output_fanin=1,
-            allow_bel_output_feedback_sources=False,
-            connection_hierarchy=ConnectionHierarchyOptions(
-                enabled=True,
-                levels=[4, 2],
-            ),
-        )
-        base_model = build_base_routing_model(
-            tile_dir=tmp_dir,
-            routing=routing,
-            require_gnd=False,
-            require_vcc=False,
-        )
-        result = baseline_list_generator.generate_baseline_list(
-            tile_name="hierarchy_bypass_tile",
-            bels=[_make_fake_bel(Path("a.v"), "LA_")],
-            routing=routing,
-            base_model=base_model,
-            matrix_config_budget=None,
-        )
-
-    body = _generated_body(result.text)
-    assert "LA_I0,COL_A0" in body
-    assert "J_LOCAL" not in body
-    assert result.connection_hierarchy_levels == (4, 2)
-    assert result.active_connection_hierarchy_levels == ()
-    assert result.generated_jump_wires == 0
-    assert result.hierarchy_source_pips == 0
-    assert result.hierarchy_sink_pips == 0
-    assert result.bypassed_hierarchy_inputs == 1
-    assert any("did not generate JUMP wires" in warning for warning in result.warnings)
-
-
-def test_connection_hierarchy_can_keep_direct_input_pips() -> None:
-    """Test hierarchy can add staged choices without replacing direct PIPs."""
-    with TemporaryDirectory(prefix="tile_builder_hierarchy_direct_") as td:
-        tmp_dir = Path(td)
-        base_csv = tmp_dir / "BaseHierarchyDirect.csv"
-        base_csv.write_text(
-            "NORTH,ROW_A,0,-1,COL_A,3\n",
-            encoding="utf-8",
-        )
-        routing = BaselineRouting(
-            base_csv_includes=["BaseHierarchyDirect.csv"],
-            base_list_includes=[],
-            input_fanin=3,
-            output_fanin=1,
-            allow_bel_output_feedback_sources=False,
-            connection_hierarchy=ConnectionHierarchyOptions(
-                enabled=True,
-                levels=[2],
-                replace_direct_input_pips=False,
-            ),
-        )
-        base_model = build_base_routing_model(
-            tile_dir=tmp_dir,
-            routing=routing,
-            require_gnd=False,
-            require_vcc=False,
-        )
-        result = baseline_list_generator.generate_baseline_list(
-            tile_name="hierarchy_direct_tile",
-            bels=[_make_fake_bel(Path("a.v"), "LA_")],
-            routing=routing,
-            base_model=base_model,
-            matrix_config_budget=None,
-        )
-
-    body = _generated_body(result.text)
-    assert "J_LOCAL_L0_0_BEG0" in body
-    assert "{5}LA_I0,[J_LOCAL_L0_0_END0|J_LOCAL_L0_1_END0|COL_A2|COL_A0|COL_A1]" in body
-
-
-def test_baseline_list_reduces_routing_pattern_fs_for_budget() -> None:
-    """Test routing pattern fanout is reduced to fit the matrix budget."""
-    with TemporaryDirectory(prefix="tile_builder_pattern_budget_") as td:
-        tmp_dir = Path(td)
-        base_csv = tmp_dir / "BasePatternBudget.csv"
-        base_csv.write_text(
-            "\n".join(
-                [
-                    "NORTH,ROW_A,0,-1,COL_A,4",
-                    "EAST,ROW_B,1,0,COL_B,4",
-                ]
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        routing = BaselineRouting(
-            base_csv_includes=["BasePatternBudget.csv"],
-            base_list_includes=[],
-            input_fanin=1,
-            output_fanin=1,
-            routing_pip_pattern="wilton",
-            routing_pip_fs=3,
-            min_routing_pip_fs=1,
-            cover_unconnected_outputs=False,
-            allow_bel_output_feedback_sources=False,
-        )
-        base_model = build_base_routing_model(
-            tile_dir=tmp_dir,
-            routing=routing,
-            require_gnd=False,
-            require_vcc=False,
-        )
-        result = baseline_list_generator.generate_baseline_list(
-            tile_name="pattern_budget_tile",
-            bels=[],
-            routing=routing,
-            base_model=base_model,
-            matrix_config_budget=7,
-        )
-
-    assert result.routing_pip_fs_used == 1
-    assert result.matrix_config_bits <= 7
-    assert result.warnings
 
 
 def test_baseline_list_reduces_fanin_for_budget() -> None:
@@ -1112,52 +613,38 @@ def test_builder_generates_files_and_registers_tile() -> None:
         assert (tmp_dir / "Tile" / "test_tile" / "test_tile.v").is_file()
 
 
-def test_builder_emits_connection_hierarchy_jump_rows() -> None:
-    """Test builder writes generated hierarchy JUMP rows into tile CSV."""
-    with TemporaryDirectory(prefix="tile_builder_hierarchy_builder_") as td:
+def test_builder_refreshes_fpga_model_when_requested() -> None:
+    """Test successful builds can refresh the owning PnR bridge graph."""
+    with TemporaryDirectory(prefix="tile_builder_refresh_") as td:
         tmp_dir = Path(td)
         fabric_csv = _write_project(tmp_dir)
         source = _write_bel_source(tmp_dir)
-        base_csv = tmp_dir / "Tile" / "include" / "Base.csv"
-        base_csv.write_text("NORTH,ROW_A,0,-1,COL_A,4\n", encoding="utf-8")
         fab = _FakeFab(
             fabric_csv=fabric_csv,
-            tile=_FakeTile(
-                name="hierarchy_builder_tile",
-                matrixConfigBits=12,
-                globalConfigBits=16,
-            ),
+            tile=_FakeTile(name="refresh_tile", matrixConfigBits=6, globalConfigBits=8),
+        )
+        calls: list[None] = []
+
+        def update_from_project() -> None:
+            calls.append(None)
+
+        fpga_model = SimpleNamespace(
+            user_design=object(),
+            fab=fab,
+            update_from_project=update_from_project,
         )
 
         with _patched_builder_functions():
-            result = builder_mod.TileBuilder(
+            builder_mod.TileBuilder(
                 TileBuilderOptions(
-                    tile_name="hierarchy_builder_tile",
-                    bels=[TileBel(verilog_path=source, prefixes=["LA_"])],
-                    routing=BaselineRouting(
-                        base_csv_includes=["./../include/Base.csv"],
-                        base_list_includes=[],
-                        input_fanin=4,
-                        output_fanin=1,
-                        allow_bel_output_feedback_sources=False,
-                        connection_hierarchy=ConnectionHierarchyOptions(
-                            enabled=True,
-                            levels=[4],
-                            jump_prefix="J_BUILD",
-                        ),
-                    ),
+                    tile_name="refresh_tile",
+                    bels=[TileBel(verilog_path=source, prefixes=["L_"])],
+                    routing=BaselineRouting(input_fanin=2, output_fanin=2),
                     track_progress=False,
                 )
-            ).build(_fake_fpga_model(fab))
+            ).build(fpga_model)
 
-        tile_csv_text = result.tile_csv.read_text(encoding="utf-8")
-        assert "JUMP,J_BUILD_L0_0_BEG,0,0,J_BUILD_L0_0_END,1," in tile_csv_text
-        assert result.matrix_list is not None
-        assert "J_BUILD_L0_0_BEG0" in result.matrix_list.read_text(encoding="utf-8")
-        assert result.stats.generated_jump_wires == 1
-        assert result.stats.active_connection_hierarchy_levels == (4,)
-        assert "Generated hierarchy JUMP wires: 1" in result.report_summary
-        assert "Connection hierarchy active levels: (4,)" in result.report_summary
+        assert len(calls) == 1
 
 
 def test_builder_can_use_fabulous_auto_matrix() -> None:
@@ -1285,7 +772,8 @@ def test_pnr_pass_wrapper_runs_builder() -> None:
         pass_ = TileBuilderPass(
             tile_name="pass_tile",
             bels=[{"verilog_path": source, "prefixes": ["L_"]}],
-            routing={"input_fanin": 2, "output_fanin": 2},
+            input_fanin=2,
+            output_fanin=2,
             track_progress=False,
         )
 
@@ -1313,7 +801,8 @@ def test_synthesizer_wrapper_runs_builder() -> None:
             result = synth.pnr_tile_builder_pass(
                 tile_name="synth_tile",
                 bels=[TileBel(verilog_path=source, prefixes=["L_"])],
-                routing=BaselineRouting(input_fanin=2, output_fanin=2),
+                input_fanin=2,
+                output_fanin=2,
                 track_progress=False,
                 log_report=False,
             )
@@ -1569,23 +1058,12 @@ def main() -> None:
     test_baseline_list_handles_carry_and_shared_ports()
     test_baseline_list_discovers_multiple_base_fragments()
     test_base_model_uses_fabulous_null_endpoint_expansion()
-    test_base_model_exposes_structured_routing_groups()
-    test_routing_pattern_subset_uses_same_track_indices()
-    test_routing_pattern_wilton_permutes_turn_tracks()
-    test_routing_pattern_universal_spreads_sources()
-    test_baseline_list_records_routing_pattern_statistics()
-    test_connection_hierarchy_preserves_routing_pattern_pips()
-    test_connection_hierarchy_generates_jump_stage()
-    test_connection_hierarchy_builds_multiple_levels()
-    test_connection_hierarchy_reports_bypassed_inputs()
-    test_connection_hierarchy_can_keep_direct_input_pips()
-    test_baseline_list_reduces_routing_pattern_fs_for_budget()
     test_baseline_list_reduces_fanin_for_budget()
     test_real_verilog_bel_edge_shapes_parse_and_route()
     test_real_verilog_carry_and_shared_ports_parse_and_route()
     test_builder_accepts_real_vector_verilog_bel()
     test_builder_generates_files_and_registers_tile()
-    test_builder_emits_connection_hierarchy_jump_rows()
+    test_builder_refreshes_fpga_model_when_requested()
     test_builder_can_use_fabulous_auto_matrix()
     test_builder_regenerates_stale_config_memory_csv()
     test_builder_fails_when_config_capacity_is_exceeded()

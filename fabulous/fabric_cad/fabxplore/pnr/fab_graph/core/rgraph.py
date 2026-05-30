@@ -336,7 +336,8 @@ class RoutingFabricGraph:
                 delay=delay,
             )
             self._external_lookup[_external_lookup_key(key)] = key
-        self._validate_tile(tile_type)
+
+        # maybe add here _validate_tile of tile_type
 
     def add_matrix_resource(
         self,

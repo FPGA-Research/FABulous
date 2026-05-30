@@ -15,7 +15,6 @@ from fabulous.custom_exception import InvalidPortType
 from fabulous.fabric_cad.fabxplore.modules.tile_builder.core.models import (
     BaselineRouting,
     FabulousCsvKeyword,
-    RoutingTrackGroup,
     TileBuilderGeneratedWire,
 )
 from fabulous.fabric_definition.define import Direction
@@ -79,36 +78,6 @@ class BasePortRecord:
             Expanded input column names.
         """
         return list(self.switch_matrix_destinations)
-
-    def to_routing_track_group(self, index: int) -> RoutingTrackGroup | None:
-        """Convert directional records into a normalized routing track group.
-
-        Parameters
-        ----------
-        index : int
-            Record index used for a stable diagnostic identifier.
-
-        Returns
-        -------
-        RoutingTrackGroup | None
-            Routing track group, or ``None`` for non-routing records.
-        """
-        if self.direction == Direction.JUMP:
-            return None
-        if not self.switch_matrix_sources or not self.switch_matrix_destinations:
-            return None
-        return RoutingTrackGroup(
-            group_id=(
-                f"{self.direction.value}:{self.x_offset}:{self.y_offset}:"
-                f"{self.wire_count}:{index}"
-            ),
-            direction=self.direction,
-            x_offset=self.x_offset,
-            y_offset=self.y_offset,
-            wire_count=self.wire_count,
-            destination_rows=list(self.switch_matrix_sources),
-            selectable_sources=list(self.switch_matrix_destinations),
-        )
 
 
 @dataclass(frozen=True)
@@ -211,22 +180,6 @@ class BaseRoutingModel:
             Expanded VCC source name if present.
         """
         return _find_named_source(self.input_ports, TileBuilderGeneratedWire.VCC)
-
-    @property
-    def routing_track_groups(self) -> list[RoutingTrackGroup]:
-        """Return directional routing groups for pattern generators.
-
-        Returns
-        -------
-        list[RoutingTrackGroup]
-            Track groups derived from non-JUMP base records.
-        """
-        groups: list[RoutingTrackGroup] = []
-        for index, record in enumerate(self.port_records):
-            group = record.to_routing_track_group(index)
-            if group is not None:
-                groups.append(group)
-        return groups
 
 
 def build_base_routing_model(

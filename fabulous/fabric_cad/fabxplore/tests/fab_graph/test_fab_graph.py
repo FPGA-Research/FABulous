@@ -704,6 +704,23 @@ def test_fab_graph_demo_opt_operation_timing_characterization(
         "resource",
     )
 
+    add_external_single = _load_demo_opt_facade(project_dir)
+    elapsed, _result = _time_call(
+        lambda: add_external_single.add_external_resource(
+            tile_type,
+            Direction.JUMP,
+            "TIMING_PROBE_BEG",
+            0,
+            0,
+            "TIMING_PROBE_END",
+            1,
+        )
+    )
+    metrics["add_single_external_resource"] = _timing_summary(
+        [(elapsed, 1)],
+        "resource",
+    )
+
     add_single = _load_demo_opt_facade(project_dir)
     add_entries = _require_count(
         _missing_matrix_triplets_for_tile(add_single, tile_type, limit=60),

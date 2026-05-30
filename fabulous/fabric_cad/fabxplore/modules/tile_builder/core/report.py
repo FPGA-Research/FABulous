@@ -32,23 +32,8 @@ Configuration
 - emit_constants_if_missing: {{ result.options.routing.emit_constants_if_missing }}
 - allow_bel_output_feedback_sources:
   {{ result.options.routing.allow_bel_output_feedback_sources }}
-- routing_pip_pattern: {{ result.options.routing.routing_pip_pattern }}
-- routing_pip_fs: {{ result.options.routing.routing_pip_fs }}
-- min_routing_pip_fs: {{ result.options.routing.min_routing_pip_fs }}
-- generate_straight_routing_pips:
-  {{ result.options.routing.generate_straight_routing_pips }}
-- generate_turn_routing_pips:
-  {{ result.options.routing.generate_turn_routing_pips }}
-- connection_hierarchy.enabled:
-  {{ result.options.routing.connection_hierarchy.enabled }}
-- connection_hierarchy.levels:
-  {{ result.options.routing.connection_hierarchy.levels }}
-- connection_hierarchy.generate_jump_ports:
-  {{ result.options.routing.connection_hierarchy.generate_jump_ports }}
-- connection_hierarchy.jump_prefix:
-  {{ result.options.routing.connection_hierarchy.jump_prefix }}
-- connection_hierarchy.replace_direct_input_pips:
-  {{ result.options.routing.connection_hierarchy.replace_direct_input_pips }}
+- register_in_fabric: {{ result.options.register_in_fabric }}
+- register_tile_in_fpga_model: {{ result.options.register_tile_in_fpga_model }}
 
 BELs
 - Instances: {{ stats.bel_instances }}
@@ -64,16 +49,6 @@ Routing
 - Direct connections: {{ stats.direct_connections }}
 - Input fanin used: {{ stats.input_fanin_used }}
 - Output fanin used: {{ stats.output_fanin_used }}
-- Routing pattern PIPs: {{ stats.routing_pattern_pips }}
-- Routing pattern groups: {{ stats.routing_pattern_groups }}
-- Routing PIP fs used: {{ stats.routing_pip_fs_used }}
-- Connection hierarchy enabled: {{ stats.connection_hierarchy_enabled }}
-- Connection hierarchy configured levels: {{ stats.connection_hierarchy_levels }}
-- Connection hierarchy active levels: {{ stats.active_connection_hierarchy_levels }}
-- Generated hierarchy JUMP wires: {{ stats.generated_jump_wires }}
-- Hierarchy source PIPs: {{ stats.hierarchy_source_pips }}
-- Hierarchy sink PIPs: {{ stats.hierarchy_sink_pips }}
-- Hierarchy bypassed inputs: {{ stats.bypassed_hierarchy_inputs }}
 
 Config Bits
 - BEL config bits: {{ stats.bel_config_bits }}

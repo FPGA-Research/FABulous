@@ -28,6 +28,7 @@ from fabulous.fabric_cad.fabxplore.modules.lut_mapper.core.models import (
 from fabulous.fabric_cad.fabxplore.pnr.custom_passes import (
     RoutingDemandEvaluatorPass,
     SwitchBlockFactorizerPass,
+    SwitchMatrixPatternPass,
     TileBuilderPass,
 )
 from fabulous.fabric_cad.fabxplore.pnr.pnr_bridge import PnRBridge
@@ -90,13 +91,13 @@ if TYPE_CHECKING:
         OptimizerName,
         RouterName,
     )
+    from fabulous.fabric_cad.fabxplore.modules.routing_patterns import (
+        RoutingPipPattern,
+    )
     from fabulous.fabric_cad.fabxplore.modules.switch_block_factorizer import (
         MuxReductionRule,
     )
-    from fabulous.fabric_cad.fabxplore.modules.tile_builder.core.models import (
-        BaselineRouting,
-        TileBel,
-    )
+    from fabulous.fabric_cad.fabxplore.modules.tile_builder.core.models import TileBel
     from fabulous.fabric_cad.fabxplore.pnr.pnr_pass import PnRPass
     from fabulous.fabric_cad.fabxplore.pyosys.synth_pass import SynthPass
     from fabulous.fabulous_api import FABulous_API
@@ -1138,11 +1139,23 @@ class ArchitectureSynthesizer(ABC):
         self,
         tile_name: str,
         bels: list[TileBel | dict[str, object]],
-        routing: BaselineRouting | dict[str, object] | None = None,
         log_report: bool = True,
+        use_fabulous_auto: bool = False,
+        base_csv_includes: list[str] | None = None,
+        base_list_includes: list[str] | None = None,
+        input_fanin: int = 4,
+        output_fanin: int = 5,
+        min_input_fanin: int = 1,
+        min_output_fanin: int = 1,
+        config_bit_margin: int = 0,
+        derive_sources_from_base: bool = True,
+        cover_unconnected_outputs: bool = True,
+        emit_constants_if_missing: bool = True,
+        allow_bel_output_feedback_sources: bool = True,
         tile_dir: Path | None = None,
         config_bit_capacity_override: int | None = None,
         register_in_fabric: bool = True,
+        register_tile_in_fpga_model: bool = True,
         track_progress: bool = True,
         progress_chunk_size: int = 25,
     ) -> TileBuilderPass:
@@ -1154,10 +1167,35 @@ class ArchitectureSynthesizer(ABC):
             Name of the FABulous tile to generate.
         bels : list[TileBel | dict[str, object]]
             BEL source files and prefixes to instantiate.
-        routing : BaselineRouting | dict[str, object] | None
-            Baseline routing options. ``None`` selects defaults.
         log_report : bool
             If ``True``, log the tile-builder report after execution.
+        use_fabulous_auto : bool
+            If ``True``, emit ``MATRIX,GENERATE`` and let FABulous create the list.
+        base_csv_includes : list[str] | None
+            Tile CSV include paths for shared base wire descriptions.
+            ``None`` selects defaults.
+        base_list_includes : list[str] | None
+            Switch-matrix list include paths for shared base routing lists.
+            ``None`` selects defaults.
+        input_fanin : int
+            Preferred number of routing sources for each ordinary BEL input.
+        output_fanin : int
+            Preferred mux size for routing destinations driven by BEL outputs.
+        min_input_fanin : int
+            Lowest BEL-input fanin allowed when fitting the config-bit budget.
+        min_output_fanin : int
+            Lowest BEL-output routing fanin allowed when fitting the config-bit budget.
+        config_bit_margin : int
+            Number of fabric config bits to leave unused.
+        derive_sources_from_base : bool
+            Whether ordinary BEL inputs may use discovered base input ports.
+        cover_unconnected_outputs : bool
+            Whether to add coverage for base output rows not covered by included lists.
+        emit_constants_if_missing : bool
+            Whether to add local GND/VCC jump sources when the base does not
+            define them.
+        allow_bel_output_feedback_sources : bool
+            Whether ordinary BEL input muxes may also select ordinary BEL outputs.
         tile_dir : Path | None
             Optional tile directory. If ``None``, use
             ``<project>/Tile/<tile_name>``.
@@ -1167,6 +1205,9 @@ class ArchitectureSynthesizer(ABC):
         register_in_fabric : bool
             Whether ``fabric.csv`` should receive a ``Tile`` entry for the
             generated tile.
+        register_tile_in_fpga_model : bool
+            Whether the active PnR bridge should reload project and graph after
+            a successful build.
         track_progress : bool
             Whether progress should be logged.
         progress_chunk_size : int
@@ -1180,10 +1221,22 @@ class ArchitectureSynthesizer(ABC):
         result = TileBuilderPass(
             tile_name=tile_name,
             bels=bels,
-            routing=routing,
+            use_fabulous_auto=use_fabulous_auto,
+            base_csv_includes=base_csv_includes,
+            base_list_includes=base_list_includes,
+            input_fanin=input_fanin,
+            output_fanin=output_fanin,
+            min_input_fanin=min_input_fanin,
+            min_output_fanin=min_output_fanin,
+            config_bit_margin=config_bit_margin,
+            derive_sources_from_base=derive_sources_from_base,
+            cover_unconnected_outputs=cover_unconnected_outputs,
+            emit_constants_if_missing=emit_constants_if_missing,
+            allow_bel_output_feedback_sources=allow_bel_output_feedback_sources,
             tile_dir=tile_dir,
             config_bit_capacity_override=config_bit_capacity_override,
             register_in_fabric=register_in_fabric,
+            register_tile_in_fpga_model=register_tile_in_fpga_model,
             track_progress=track_progress,
             progress_chunk_size=progress_chunk_size,
         )
@@ -1262,6 +1315,107 @@ class ArchitectureSynthesizer(ABC):
             config_bit_capacity_override=config_bit_capacity_override,
             config_bit_margin=config_bit_margin,
             track_progress=track_progress,
+        )
+        result.run_on(self.fpga_model)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        self._pass_history.append(result)
+
+        return result
+
+    def pnr_switch_matrix_pattern_pass(
+        self,
+        tile_name: str,
+        input_fanin: int = 6,
+        include_bel_output_sources: bool = True,
+        include_constant_sources: bool = True,
+        output_fanin: int = 3,
+        cover_unconnected_matrix_rows: bool = True,
+        routing_pip_pattern: RoutingPipPattern | str = "wilton",
+        routing_pip_fs: int = 4,
+        generate_straight_routing_pips: bool = True,
+        generate_turn_routing_pips: bool = True,
+        hierarchy_enabled: bool = False,
+        hierarchy_levels: list[int] | None = None,
+        hierarchy_jump_prefix: str = "J_LOCAL",
+        hierarchy_replace_direct_input_pips: bool = True,
+        replace_existing_matrix: bool = False,
+        delay: float = 8.0,
+        track_progress: bool = True,
+        progress_chunk_size: int = 100,
+        log_report: bool = True,
+    ) -> SwitchMatrixPatternPass:
+        """Apply graph-only switch-matrix patterns to one tile type.
+
+        Parameters
+        ----------
+        tile_name : str
+            FABulous tile type to modify in the active FabGraph.
+        input_fanin : int
+            Number of sources generated for each BEL input row.
+        include_bel_output_sources : bool
+            Whether BEL outputs are eligible as local source columns.
+        include_constant_sources : bool
+            Whether constant wires are eligible as source columns.
+        output_fanin : int
+            Number of sources generated for each uncovered routing output row.
+        cover_unconnected_matrix_rows : bool
+            Whether uncovered routing output rows should receive sources.
+        routing_pip_pattern : RoutingPipPattern | str
+            Routing-resource pattern name: ``none``, ``full``, ``subset``,
+            ``wilton``, or ``universal``.
+        routing_pip_fs : int
+            Number of routing-resource sources per generated route-through row.
+        generate_straight_routing_pips : bool
+            Whether same-direction route-through pairs are generated.
+        generate_turn_routing_pips : bool
+            Whether turn route-through pairs are generated.
+        hierarchy_enabled : bool
+            Whether BEL input access should be built through generated JUMP levels.
+        hierarchy_levels : list[int] | None
+            Fanins for generated JUMP hierarchy levels. ``None`` selects
+            ``[2, 2]``.
+        hierarchy_jump_prefix : str
+            Prefix for generated hierarchy JUMP resources.
+        hierarchy_replace_direct_input_pips : bool
+            Whether hierarchy PIPs replace direct BEL-input PIPs.
+        replace_existing_matrix : bool
+            Whether generated pairs replace the tile matrix instead of adding to it.
+        delay : float
+            Delay assigned to generated active matrix resources.
+        track_progress : bool
+            Whether progress should be logged.
+        progress_chunk_size : int
+            Number of generated rows between progress messages.
+        log_report : bool
+            If ``True``, log the pattern report after execution.
+
+        Returns
+        -------
+        SwitchMatrixPatternPass
+            Pass instance containing result and report data.
+        """
+        result = SwitchMatrixPatternPass(
+            tile_name=tile_name,
+            input_fanin=input_fanin,
+            include_bel_output_sources=include_bel_output_sources,
+            include_constant_sources=include_constant_sources,
+            output_fanin=output_fanin,
+            cover_unconnected_matrix_rows=cover_unconnected_matrix_rows,
+            routing_pip_pattern=routing_pip_pattern,
+            routing_pip_fs=routing_pip_fs,
+            generate_straight_routing_pips=generate_straight_routing_pips,
+            generate_turn_routing_pips=generate_turn_routing_pips,
+            hierarchy_enabled=hierarchy_enabled,
+            hierarchy_levels=hierarchy_levels or [2, 2],
+            hierarchy_jump_prefix=hierarchy_jump_prefix,
+            hierarchy_replace_direct_input_pips=(hierarchy_replace_direct_input_pips),
+            replace_existing_matrix=replace_existing_matrix,
+            delay=delay,
+            track_progress=track_progress,
+            progress_chunk_size=progress_chunk_size,
         )
         result.run_on(self.fpga_model)
 
