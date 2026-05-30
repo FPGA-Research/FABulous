@@ -47,6 +47,10 @@ self.pnr_routing_demand_evaluator_pass(
     opt_max_iterations=50,
     opt_clean_mux=False,
     opt_power_of_two_muxes=False,
+    repair_unreachable_demands=False,
+    repair_max_rounds=10,
+    relax_congestion=False,
+    relax_congestion_max_rounds=10,
     report_max_soft_failure_rate=0.05,
 
     # PathFinder-style router.
@@ -80,9 +84,10 @@ Options:
 - `random_demand_ratio`: fraction of the budget reserved for random classes.
 - `seed`: random seed for repeatable random demand selection.
 - `opt`: enable an optimizer. `False` is the normal evaluation mode.
-- `optimizer`: optimizer name. Use `none` for evaluation only, `greedy` for
-  deterministic demand-oracle pruning, or `monte_carlo` for sampled
-  PIP-importance learning followed by checked pruning.
+- `optimizer`: optimizer name. Use `none` for evaluation only, `dense` for a
+  coarse demand-guided prune of very large matrices, `greedy` for deterministic
+  demand-oracle pruning, or `monte_carlo` for sampled PIP-importance learning
+  followed by checked pruning.
 - `opt_target_pip_reduction`: global reduction target for optimizer modes.
 - `opt_max_soft_failure_rate`: maximum soft-demand failure-rate increase allowed
   during optimization.
@@ -109,6 +114,20 @@ Options:
   mux-cleanup batch fits the remaining budget, pruning stops early. If strict
   cleanup cannot produce a direct-or-power-of-two final matrix, tile-model apply
   is skipped and the report lists the remaining non-power-of-two mux rows.
+- `repair_unreachable_demands`: after an optimizer proposes a matrix, restore
+  baseline switch-matrix PIPs along paths for any failed unreachable demands,
+  then rerun evaluation. This is global and applies to optimizer outputs; it
+  does not create new resources, call nextpnr, or write files.
+- `repair_max_rounds`: maximum repair rounds. Use `None` to keep repairing
+  until all failed sinks are reachable or a round cannot restore any more
+  baseline PIPs.
+- `relax_congestion`: after unreachable repair, restore baseline PIPs from
+  alternate paths around overused demand-router resources. This is a
+  congestion/capacity repair, not a connectivity repair. It is monotonic and
+  only adds back PIPs that existed in the baseline matrix.
+- `relax_congestion_max_rounds`: maximum congestion-relaxation rounds. Use
+  `None` to keep relaxing until the demand-router has no congested intermediate
+  resources or a round cannot restore any more baseline PIPs.
 - `report_max_soft_failure_rate`: soft-failure threshold used for top-level
   report status. Hard failures always make the report fail.
 - `router`: router implementation. Currently `pathfinder`.
@@ -123,6 +142,156 @@ Options:
 - `track_progress`: enables progress logging.
 - `progress_chunk_size`: number of optimizer iterations between progress
   updates.
+
+## Post-Optimizer Repair
+
+Optimizer pruning can leave two different kinds of damage:
+
+1. a source/sink demand is no longer reachable at all
+2. all demands remain reachable, but many routes share the same narrow resources
+
+The evaluator handles these with two global, optimizer-independent repair
+passes. They run after `dense`, `greedy`, or `monte_carlo` proposes a matrix.
+Both repair passes are in-memory only: they update the local switch-matrix model
+used by the evaluator, and if `apply_to_tile_model=True` the final repaired
+matrix is applied through FabGraph. They do not write files and they do not call
+nextpnr.
+
+Both passes are conservative in the same important way:
+
+```text
+optimized matrix + restored baseline PIPs
+```
+
+They never invent a new wire, row, column, or PIP. A repaired PIP must already
+exist in the baseline matrix snapshot that was loaded before optimization.
+
+### Unreachable-Demand Repair
+
+Enable this with:
+
+```python
+repair_unreachable_demands=True,
+repair_max_rounds=10,  # None means until no progress
+```
+
+The algorithm is:
+
+```text
+evaluate optimized matrix
+while failed unreachable demands exist:
+    for each failed source -> sink:
+        route source -> sink on the baseline graph
+        restore missing baseline matrix PIPs from that path
+    reevaluate optimized matrix
+```
+
+This repairs cases like:
+
+```text
+E1END1 -> LA_I0 unreachable
+N4END0 -> N2BEGb0 unreachable
+```
+
+The repair stops when all failed sinks are reachable, the round limit is reached,
+or a round cannot restore any new baseline PIPs. If a failed demand was already
+unreachable in the baseline graph, this repair cannot fix it; that is a demand
+or fabric-model issue rather than an optimizer issue.
+
+### Congestion Relaxation
+
+Enable this with:
+
+```python
+relax_congestion=True,
+relax_congestion_max_rounds=10,  # None means until no progress
+```
+
+This pass runs after unreachable-demand repair. It is not a connectivity repair;
+it is a capacity/alternative-path repair. It uses the evaluator's PathFinder
+result to find intermediate routing resources whose usage exceeds
+`router_base_resource_capacity`.
+
+One relaxation round does this:
+
+```text
+find overused intermediate resources
+select the highest-pressure resources
+find routed demand paths that pass through them
+for those source -> sink pairs:
+    route on the baseline graph while penalizing the congested resources
+    restore missing baseline PIPs from the alternate path
+evaluate the candidate matrix
+commit the candidate only if congestion score improves
+```
+
+The congestion score is:
+
+$$
+S = \left(u_{max}, N_{congested}\right)
+$$
+
+where $u_{max}$ is the maximum intermediate resource usage, and
+$N_{congested}$ is the number of intermediate resources with usage above
+capacity. The score is compared lexicographically, so the first priority is
+reducing the worst bottleneck. The second priority is reducing the number of
+congested resources.
+
+That means this change is accepted:
+
+```text
+max usage:           122 -> 116
+congested resources: 158 -> 226
+```
+
+because the worst bottleneck improved. If the worst bottleneck does not improve,
+then a round is rejected even if it restored PIPs. Rejected rounds are not
+committed.
+
+The pass is intentionally monotonic with respect to resources: it only adds back
+baseline PIPs. The tradeoff is that the final matrix can have slightly more PIPs
+than the raw optimizer result. The report records this through:
+
+```text
+Congestion relaxation restored N baseline PIP(s) in R round(s);
+congested resources A -> B, max usage C -> D.
+```
+
+### Reading The Repair Results
+
+The two repair options answer different questions:
+
+```text
+repair_unreachable_demands:
+    Are all generated source/sink checks reachable?
+
+relax_congestion:
+    Are we avoiding extreme synthetic demand bottlenecks?
+```
+
+High congestion after relaxation does not automatically mean the real design
+will fail in nextpnr. The demand evaluator routes many synthetic checks and then
+aggregates their resource usage. A real benchmark may not stress the same
+resources. However, high `max usage` is a useful warning that nextpnr may spend a
+long time in ripup-routing around a narrow channel.
+
+For architecture exploration, a practical workflow is:
+
+```python
+self.pnr_routing_demand_evaluator_pass(
+    tile_name="LUT5F",
+    opt=True,
+    optimizer="dense",
+    opt_target_pip_reduction=0.80,
+    repair_unreachable_demands=True,
+    relax_congestion=True,
+    apply_to_tile_model=True,
+)
+```
+
+Then run batch nextpnr tests. If nextpnr still stalls with many remaining arcs,
+reduce `opt_target_pip_reduction`, run another lighter optimizer pass, or add
+bench-driven demand classes later.
 
 The optimizer target is based only on removable switch-matrix routing PIPs, not
 on fixed JUMP wires:

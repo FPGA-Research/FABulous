@@ -131,6 +131,7 @@ class OptimizerName(StrEnum):
 
     NONE = "none"
     GREEDY = "greedy"
+    DENSE = "dense"
     MONTE_CARLO = "monte_carlo"
 
 
@@ -179,6 +180,19 @@ class RoutingDemandEvaluatorOptions(BaseModel):
         Whether greedy optimization should prefer mux bucket cleanup.
     opt_power_of_two_muxes : bool
         Whether mux cleanup should require power-of-two mux fanins where possible.
+    repair_unreachable_demands : bool
+        Whether optimizer results should restore baseline PIPs for unreachable
+        failed demands before final reporting/apply.
+    repair_max_rounds : int | None
+        Maximum unreachable-demand repair rounds.  If ``None``, repair until no
+        unreachable failed demands remain or no baseline path can restore more
+        PIPs.
+    relax_congestion : bool
+        Whether optimizer results should restore baseline PIPs that create
+        alternate paths around congested demand-router resources.
+    relax_congestion_max_rounds : int | None
+        Maximum congestion-relaxation rounds.  If ``None``, relax until no
+        further progress is possible.
     report_max_soft_failure_rate : float
         Maximum soft-demand failure rate before the report status becomes a warning.
     router : RouterName
@@ -220,6 +234,10 @@ class RoutingDemandEvaluatorOptions(BaseModel):
     opt_max_iterations: int = 50
     opt_clean_mux: bool = False
     opt_power_of_two_muxes: bool = False
+    repair_unreachable_demands: bool = False
+    repair_max_rounds: int | None = 10
+    relax_congestion: bool = False
+    relax_congestion_max_rounds: int | None = 10
     report_max_soft_failure_rate: float = 0.05
     router: RouterName = RouterName.PATHFINDER
     router_max_iterations: int = 30
@@ -373,6 +391,30 @@ class RoutingDemandEvaluatorOptions(BaseModel):
         """
         if value < 0:
             raise ValueError("value must be non-negative")
+        return value
+
+    @field_validator("repair_max_rounds", "relax_congestion_max_rounds")
+    @classmethod
+    def _validate_optional_positive_int(cls, value: int | None) -> int | None:
+        """Validate optional positive integer options.
+
+        Parameters
+        ----------
+        value : int | None
+            Integer option or ``None``.
+
+        Returns
+        -------
+        int | None
+            Validated value.
+
+        Raises
+        ------
+        ValueError
+            If the value is less than one.
+        """
+        if value is not None and value < 1:
+            raise ValueError("value must be at least 1")
         return value
 
     @field_validator(

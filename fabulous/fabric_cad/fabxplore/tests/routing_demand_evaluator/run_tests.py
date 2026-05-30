@@ -22,9 +22,19 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models 
     DemandClassName,
     DemandKind,
     DemandProfileName,
+    DemandProfileResult,
+    DemandRouteResult,
+    MatrixData,
     OptimizerName,
+    RoutedPath,
+    RouterRunStats,
     RoutingDemand,
+    RoutingDemandEvaluationStats,
+    RoutingDemandEvaluatorResult,
     RoutingTerminalRole,
+)
+from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.process_tracker import (  # noqa: E501
+    RoutingDemandProcessTracker,
 )
 from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.routing_graph import (  # noqa: E501
     RoutingGraph,
@@ -35,6 +45,13 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.demand_class
     fanout,
     random,
     routing,
+)
+from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.base import (  # noqa: E501
+    OptimizerContext,
+)
+from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.common import (  # noqa: E501
+    relax_congestion,
+    repair_unreachable_demands,
 )
 from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.greedy.optimizer import (  # noqa: E501
     _remove_emptying_pips,
@@ -331,6 +348,13 @@ def test_models_validate_public_options() -> None:
             random_demand_ratio=1.5,
         ),
         "between",
+    )
+    _assert_raises_contains(
+        lambda: RoutingDemandEvaluatorOptions(
+            tile_name="t",
+            relax_congestion_max_rounds=0,
+        ),
+        "at least 1",
     )
     disabled_opt = RoutingDemandEvaluatorOptions(
         tile_name="t",
@@ -1398,6 +1422,227 @@ def test_greedy_removes_unused_pips_in_large_validated_batches() -> None:
         assert result.stats.hard_failed == 0
 
 
+def test_dense_optimizer_bulk_prunes_demand_unused_pips() -> None:
+    """Test dense optimizer bulk-prunes excess PIPs using demand evidence."""
+    with _project("dense_opt") as tile_dir:
+        matrix = tile_dir / "dense_opt_switch_matrix.list"
+        dead_sources = "|".join(f"DEAD{index}" for index in range(32))
+        original_matrix = f"{{33}}I,[A0|{dead_sources}]\nOUT0,O\n"
+        matrix.write_text(original_matrix, encoding="utf-8")
+        tile_csv = _write_tile_csv(tile_dir, "dense_opt", matrix.name)
+        fab = _FakeFab(
+            _FakeTile(
+                "dense_opt",
+                tile_csv,
+                matrix,
+                ports=_simple_ports(),
+                bels=[_simple_bel(tile_dir)],
+            )
+        )
+        fpga_model = _fake_fpga_model(fab)
+
+        result = RoutingDemandEvaluator(
+            RoutingDemandEvaluatorOptions(
+                tile_name="dense_opt",
+                demand_profile="minimal",
+                demand_iterations=4,
+                opt=True,
+                optimizer="dense",
+                opt_target_pip_reduction=0.5,
+                opt_max_hard_failure_rate=0.0,
+                opt_max_soft_failure_rate=0.0,
+                opt_use_baseline_failure_rates=True,
+                apply_to_tile_model=True,
+                opt_max_iterations=2,
+                track_progress=False,
+            )
+        ).run(fpga_model)
+
+        assert result.optimizer_stats is not None
+        assert result.optimizer_stats.optimizer == OptimizerName.DENSE
+        assert result.optimizer_stats.accepted_pips == 17
+        assert result.optimizer_stats.attempted_iterations == 1
+        assert result.stats.hard_failed == 0
+        assert fpga_model.applied_switch_matrix is not None
+        applied = _connections_from_fake_switch_matrix(fpga_model.applied_switch_matrix)
+        assert "A0" in applied["I"]
+        assert len(applied["I"]) == 16
+        assert matrix.read_text(encoding="utf-8") == original_matrix
+
+
+def test_unreachable_repair_restores_baseline_path_pips() -> None:
+    """Test global repair restores baseline PIPs for failed demands."""
+    matrix = MatrixData(
+        tile_name="repair_tile",
+        matrix_source="unit",
+        columns=["A", "MID", "B"],
+        rows=["MID", "I"],
+        connections={"MID": ["A"], "I": ["MID", "B"]},
+        delay_by_row={"MID": {"A": 1.0}, "I": {"MID": 1.0, "B": 1.0}},
+        jump_edges=[],
+        matrix_config_bits=1,
+        total_config_bits=2,
+        config_capacity=64,
+    )
+    demand = RoutingDemand(
+        demand_id="repair_0",
+        demand_class="unit",
+        kind=DemandKind.SOFT,
+        source="A",
+        sink="I",
+    )
+    failed_result = _repair_unit_result(
+        options=RoutingDemandEvaluatorOptions(
+            tile_name="repair_tile",
+            repair_unreachable_demands=True,
+            repair_max_rounds=10,
+            track_progress=False,
+        ),
+        matrix=matrix,
+        demand=demand,
+        routed=False,
+        final_routing_pips=1,
+    )
+    optimized_connections = {"MID": ["A"], "I": ["B"]}
+
+    def evaluate(
+        candidate_graph: RoutingGraph,
+        warnings: list[str],
+        *,
+        track_router: bool = False,
+    ) -> RoutingDemandEvaluatorResult:
+        _ = warnings
+        _ = track_router
+        assert candidate_graph.is_reachable("A", "I")
+        return _repair_unit_result(
+            options=failed_result.options,
+            matrix=matrix,
+            demand=demand,
+            routed=True,
+            final_routing_pips=2,
+        )
+
+    repair = repair_unreachable_demands(
+        OptimizerContext(
+            options=failed_result.options,
+            matrix=matrix,
+            graph=RoutingGraph.from_edges([("A", "MID"), ("B", "I")]),
+            demand_profile=failed_result.demand_profile,
+            router=PathFinderRouter(1, 1.0, 1.0),
+            fpga_model=object(),
+            tracker=RoutingDemandProcessTracker(enabled=False),
+            warnings=[],
+            evaluate=evaluate,
+        ),
+        baseline_connections=matrix.connections,
+        optimized_connections=optimized_connections,
+        result=failed_result,
+    )
+
+    assert repair.restored_pips == 1
+    assert repair.rounds == 1
+    assert repair.connections["I"] == ["MID", "B"]
+    assert repair.result.stats.soft_failed == 0
+    assert any(
+        "Unreachable-demand repair restored" in item for item in repair.result.warnings
+    )
+
+
+def test_congestion_relaxation_restores_baseline_alternate_pips() -> None:
+    """Test congestion relaxation restores alternate baseline paths."""
+    matrix = MatrixData(
+        tile_name="relax_tile",
+        matrix_source="unit",
+        columns=["A", "HOT", "ALT"],
+        rows=["HOT", "ALT", "I"],
+        connections={"HOT": ["A"], "ALT": ["A"], "I": ["HOT", "ALT"]},
+        delay_by_row={
+            "HOT": {"A": 1.0},
+            "ALT": {"A": 1.0},
+            "I": {"HOT": 1.0, "ALT": 1.0},
+        },
+        jump_edges=[],
+        matrix_config_bits=1,
+        total_config_bits=2,
+        config_capacity=64,
+    )
+    options = RoutingDemandEvaluatorOptions(
+        tile_name="relax_tile",
+        relax_congestion=True,
+        relax_congestion_max_rounds=10,
+        router_base_resource_capacity=1,
+        track_progress=False,
+    )
+    demand_a = RoutingDemand(
+        demand_id="relax_0",
+        demand_class="unit",
+        kind=DemandKind.SOFT,
+        source="A",
+        sink="I",
+    )
+    demand_b = RoutingDemand(
+        demand_id="relax_1",
+        demand_class="unit",
+        kind=DemandKind.SOFT,
+        source="A",
+        sink="I",
+    )
+    congested_result = _relax_unit_result(
+        options=options,
+        matrix=matrix,
+        demands=[demand_a, demand_b],
+        paths=[["A", "HOT", "I"], ["A", "HOT", "I"]],
+        congested_resources=1,
+        max_resource_usage=2,
+        final_routing_pips=3,
+    )
+    optimized_connections = {"HOT": ["A"], "ALT": ["A"], "I": ["HOT"]}
+
+    def evaluate(
+        candidate_graph: RoutingGraph,
+        warnings: list[str],
+        *,
+        track_router: bool = False,
+    ) -> RoutingDemandEvaluatorResult:
+        _ = warnings
+        _ = track_router
+        assert candidate_graph.is_reachable("A", "I")
+        return _relax_unit_result(
+            options=options,
+            matrix=matrix,
+            demands=[demand_a, demand_b],
+            paths=[["A", "HOT", "I"], ["A", "ALT", "I"]],
+            congested_resources=0,
+            max_resource_usage=1,
+            final_routing_pips=4,
+        )
+
+    relax = relax_congestion(
+        OptimizerContext(
+            options=options,
+            matrix=matrix,
+            graph=RoutingGraph.from_edges([("A", "HOT"), ("HOT", "I")]),
+            demand_profile=congested_result.demand_profile,
+            router=PathFinderRouter(1, 1.0, 1.0),
+            fpga_model=object(),
+            tracker=RoutingDemandProcessTracker(enabled=False),
+            warnings=[],
+            evaluate=evaluate,
+        ),
+        baseline_connections=matrix.connections,
+        optimized_connections=optimized_connections,
+        result=congested_result,
+    )
+
+    assert relax.restored_pips == 1
+    assert relax.rounds == 1
+    assert relax.connections["I"] == ["HOT", "ALT"]
+    assert relax.result.router_stats.congested_resources == 0
+    assert any(
+        "Congestion relaxation restored" in item for item in relax.result.warnings
+    )
+
+
 def test_greedy_power_of_two_mux_cleanup_normalizes_rows() -> None:
     """Test power-of-two mux cleanup targets non-power-of-two rows."""
     with _project("power_mux") as tile_dir:
@@ -1898,6 +2143,191 @@ def _feature_bel(tile_dir: Path) -> Bel:
     )
 
 
+def _repair_unit_result(
+    options: RoutingDemandEvaluatorOptions,
+    matrix: MatrixData,
+    demand: RoutingDemand,
+    routed: bool,
+    final_routing_pips: int,
+) -> RoutingDemandEvaluatorResult:
+    """Return a minimal evaluator result for repair unit tests.
+
+    Parameters
+    ----------
+    options : RoutingDemandEvaluatorOptions
+        Evaluator options.
+    matrix : MatrixData
+        Matrix metadata.
+    demand : RoutingDemand
+        Demand under test.
+    routed : bool
+        Whether the demand is routed.
+    final_routing_pips : int
+        Final routing PIP count to report.
+
+    Returns
+    -------
+    RoutingDemandEvaluatorResult
+        Minimal structured result.
+    """
+    demand_result = (
+        DemandRouteResult(
+            demand=demand,
+            routed=True,
+            path=RoutedPath(
+                demand_id=demand.demand_id,
+                nodes=["A", "MID", "I"],
+                cost=2.0,
+            ),
+            paths=[
+                RoutedPath(
+                    demand_id=demand.demand_id,
+                    nodes=["A", "MID", "I"],
+                    cost=2.0,
+                )
+            ],
+        )
+        if routed
+        else DemandRouteResult(
+            demand=demand,
+            routed=False,
+            failed_sinks=["I"],
+            failure_reason="unreachable",
+        )
+    )
+    soft_failed = 0 if routed else 1
+    return RoutingDemandEvaluatorResult(
+        options=options,
+        matrix=matrix,
+        demand_profile=DemandProfileResult(
+            profile_name="unit",
+            demands=[demand],
+        ),
+        demand_results=[demand_result],
+        stats=RoutingDemandEvaluationStats(
+            total_demands=1,
+            hard_demands=0,
+            soft_demands=1,
+            hard_failed=0,
+            soft_failed=soft_failed,
+            failed_sinks=soft_failed,
+            original_pips=2,
+            final_pips=final_routing_pips,
+            original_routing_pips=2,
+            final_routing_pips=final_routing_pips,
+            jump_wires=0,
+            original_graph_edges=2,
+            final_graph_edges=final_routing_pips,
+            matrix_config_bits=1,
+            total_config_bits=2,
+            config_capacity=64,
+            average_path_length=2.0 if routed else 0.0,
+        ),
+        class_stats=[],
+        router_stats=RouterRunStats(
+            iterations_used=1,
+            congested_resources=0,
+            max_resource_usage=0,
+            failed_sinks=soft_failed,
+        ),
+        resource_usage={},
+        pip_usage={},
+        warnings=[],
+    )
+
+
+def _relax_unit_result(
+    options: RoutingDemandEvaluatorOptions,
+    matrix: MatrixData,
+    demands: list[RoutingDemand],
+    paths: list[list[str]],
+    congested_resources: int,
+    max_resource_usage: int,
+    final_routing_pips: int,
+) -> RoutingDemandEvaluatorResult:
+    """Return a minimal evaluator result for congestion-relaxation tests.
+
+    Parameters
+    ----------
+    options : RoutingDemandEvaluatorOptions
+        Evaluator options.
+    matrix : MatrixData
+        Matrix metadata.
+    demands : list[RoutingDemand]
+        Routed demands.
+    paths : list[list[str]]
+        Routed node paths matching ``demands``.
+    congested_resources : int
+        Router congested-resource count.
+    max_resource_usage : int
+        Maximum router resource usage.
+    final_routing_pips : int
+        Final routing PIP count to report.
+
+    Returns
+    -------
+    RoutingDemandEvaluatorResult
+        Minimal structured result.
+    """
+    demand_results = [
+        DemandRouteResult(
+            demand=demand,
+            routed=True,
+            path=RoutedPath(
+                demand_id=demand.demand_id,
+                nodes=path,
+                cost=float(len(path) - 1),
+            ),
+            paths=[
+                RoutedPath(
+                    demand_id=demand.demand_id,
+                    nodes=path,
+                    cost=float(len(path) - 1),
+                )
+            ],
+        )
+        for demand, path in zip(demands, paths, strict=True)
+    ]
+    return RoutingDemandEvaluatorResult(
+        options=options,
+        matrix=matrix,
+        demand_profile=DemandProfileResult(
+            profile_name="unit",
+            demands=demands,
+        ),
+        demand_results=demand_results,
+        stats=RoutingDemandEvaluationStats(
+            total_demands=len(demands),
+            hard_demands=0,
+            soft_demands=len(demands),
+            hard_failed=0,
+            soft_failed=0,
+            failed_sinks=0,
+            original_pips=4,
+            final_pips=final_routing_pips,
+            original_routing_pips=4,
+            final_routing_pips=final_routing_pips,
+            jump_wires=0,
+            original_graph_edges=4,
+            final_graph_edges=final_routing_pips,
+            matrix_config_bits=1,
+            total_config_bits=2,
+            config_capacity=64,
+            average_path_length=2.0,
+        ),
+        class_stats=[],
+        router_stats=RouterRunStats(
+            iterations_used=1,
+            congested_resources=congested_resources,
+            max_resource_usage=max_resource_usage,
+            failed_sinks=0,
+        ),
+        resource_usage={},
+        pip_usage={},
+        warnings=[],
+    )
+
+
 def _assert_raises_contains(fn: object, expected: str) -> None:
     """Assert a callable raises an exception containing text.
 
@@ -1951,6 +2381,9 @@ def main() -> None:
     test_greedy_list_renderer_keeps_fabulous_list_valid()
     test_greedy_batch_filter_preserves_one_pip_per_matrix_row()
     test_greedy_removes_unused_pips_in_large_validated_batches()
+    test_dense_optimizer_bulk_prunes_demand_unused_pips()
+    test_unreachable_repair_restores_baseline_path_pips()
+    test_congestion_relaxation_restores_baseline_alternate_pips()
     test_greedy_power_of_two_mux_cleanup_normalizes_rows()
     test_greedy_clean_mux_apply_allows_non_power_rows()
     test_greedy_power_of_two_mux_cleanup_does_not_overshoot_budget()

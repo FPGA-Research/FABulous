@@ -18,6 +18,10 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.b
     OptimizerContext,
     RoutingDemandOptimizer,
 )
+from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.common import (  # noqa: E501
+    relax_congestion,
+    repair_unreachable_demands,
+)
 from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.monte_carlo.candidates import (  # noqa: E501
     SlidingWindowSampler,
     pruning_candidates,
@@ -182,6 +186,35 @@ class MonteCarloOptimizer(RoutingDemandOptimizer):
             if current_loss <= best_loss:
                 best_loss = current_loss
                 counters.best_iteration = counters.pruning_iterations
+
+        repair = repair_unreachable_demands(
+            context=context,
+            baseline_connections=context.matrix.connections,
+            optimized_connections=connections,
+            result=current,
+        )
+        connections = repair.connections
+        current = repair.result
+        if repair.restored_pips:
+            counters.accepted_pips = max(
+                baseline.stats.original_routing_pips - routing_pip_count(connections),
+                0,
+            )
+            counters.rejected_pips += repair.restored_pips
+        relax = relax_congestion(
+            context=context,
+            baseline_connections=context.matrix.connections,
+            optimized_connections=connections,
+            result=current,
+        )
+        connections = relax.connections
+        current = relax.result
+        if relax.restored_pips:
+            counters.accepted_pips = max(
+                baseline.stats.original_routing_pips - routing_pip_count(connections),
+                0,
+            )
+            counters.rejected_pips += relax.restored_pips
 
         remaining_non_power_rows = non_power_of_two_mux_count(connections)
         if context.options.opt_power_of_two_muxes and remaining_non_power_rows:

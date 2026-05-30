@@ -57,6 +57,17 @@ class RoutingDemandEvaluatorPass(PnRPass):
         Whether greedy optimization should prefer mux bucket cleanup.
     opt_power_of_two_muxes : bool
         Whether mux cleanup should require power-of-two mux fanins where possible.
+    repair_unreachable_demands : bool
+        Whether optimizers should restore baseline PIPs for unreachable failed
+        demands before final reporting/apply.
+    repair_max_rounds : int | None
+        Maximum repair rounds.  If ``None``, repair until no further progress.
+    relax_congestion : bool
+        Whether optimizers should restore baseline PIPs that create alternate
+        paths around congested demand-router resources.
+    relax_congestion_max_rounds : int | None
+        Maximum congestion-relaxation rounds.  If ``None``, relax until no
+        further progress.
     report_max_soft_failure_rate : float
         Maximum soft-demand failure rate before the report status becomes a warning.
     router : RouterName | str
@@ -96,6 +107,10 @@ class RoutingDemandEvaluatorPass(PnRPass):
     opt_max_iterations: int = 50
     opt_clean_mux: bool = False
     opt_power_of_two_muxes: bool = False
+    repair_unreachable_demands: bool = False
+    repair_max_rounds: int | None = 10
+    relax_congestion: bool = False
+    relax_congestion_max_rounds: int | None = 10
     report_max_soft_failure_rate: float = 0.05
     router: RouterName | str = RouterName.PATHFINDER
     router_max_iterations: int = 30
@@ -134,6 +149,10 @@ class RoutingDemandEvaluatorPass(PnRPass):
             opt_max_iterations=self.opt_max_iterations,
             opt_clean_mux=self.opt_clean_mux,
             opt_power_of_two_muxes=self.opt_power_of_two_muxes,
+            repair_unreachable_demands=self.repair_unreachable_demands,
+            repair_max_rounds=self.repair_max_rounds,
+            relax_congestion=self.relax_congestion,
+            relax_congestion_max_rounds=self.relax_congestion_max_rounds,
             report_max_soft_failure_rate=self.report_max_soft_failure_rate,
             router=self.router,
             router_max_iterations=self.router_max_iterations,

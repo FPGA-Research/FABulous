@@ -8,6 +8,9 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models 
     OptimizerName,
     RoutingDemandEvaluatorOptions,
 )
+from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.dense.optimizer import (  # noqa: E501
+    DenseOptimizer,
+)
 from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.greedy.optimizer import (  # noqa: E501
     GreedyOptimizer,
 )
@@ -49,6 +52,8 @@ def create_optimizer(
             return NoOptimizer()
         case OptimizerName.GREEDY:
             return GreedyOptimizer()
+        case OptimizerName.DENSE:
+            return DenseOptimizer()
         case OptimizerName.MONTE_CARLO:
             return MonteCarloOptimizer()
         case _:

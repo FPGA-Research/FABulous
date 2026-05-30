@@ -484,6 +484,109 @@ class RoutingDemandProcessTracker:
                 stop_reason,
             )
 
+    def repair_start(
+        self,
+        repair_name: str,
+        max_rounds: int | None,
+        issues: int,
+    ) -> None:
+        """Log post-optimizer repair start.
+
+        Parameters
+        ----------
+        repair_name : str
+            Repair mode name.
+        max_rounds : int | None
+            Maximum repair rounds, or ``None`` for unbounded repair.
+        issues : int
+            Initial issue count.
+        """
+        if self.enabled:
+            logger.info(
+                "[RoutingDemandEvaluator] Repair {} start: issues={}, max_rounds={}",
+                repair_name,
+                issues,
+                "all" if max_rounds is None else max_rounds,
+            )
+
+    def repair_round(
+        self,
+        repair_name: str,
+        round_index: int,
+        restored_pips: int,
+        failed_sinks: int,
+        congested_resources: int,
+        max_resource_usage: int,
+    ) -> None:
+        """Log one post-optimizer repair round.
+
+        Parameters
+        ----------
+        repair_name : str
+            Repair mode name.
+        round_index : int
+            One-based repair round index.
+        restored_pips : int
+            Number of PIPs restored in the round.
+        failed_sinks : int
+            Failed sinks after the round.
+        congested_resources : int
+            Congested resources after the round.
+        max_resource_usage : int
+            Maximum resource usage after the round.
+        """
+        if self.enabled:
+            logger.info(
+                "[RoutingDemandEvaluator] Repair {} round {}: "
+                "restored_pips={}, failed_sinks={}, congested_resources={}, "
+                "max_usage={}",
+                repair_name,
+                round_index,
+                restored_pips,
+                failed_sinks,
+                congested_resources,
+                max_resource_usage,
+            )
+
+    def repair_done(
+        self,
+        repair_name: str,
+        rounds: int,
+        restored_pips: int,
+        failed_sinks: int,
+        congested_resources: int,
+        max_resource_usage: int,
+    ) -> None:
+        """Log post-optimizer repair completion.
+
+        Parameters
+        ----------
+        repair_name : str
+            Repair mode name.
+        rounds : int
+            Repair rounds executed.
+        restored_pips : int
+            Total restored PIPs.
+        failed_sinks : int
+            Final failed sinks.
+        congested_resources : int
+            Final congested resources.
+        max_resource_usage : int
+            Final maximum resource usage.
+        """
+        if self.enabled:
+            logger.info(
+                "[RoutingDemandEvaluator] Repair {} done: rounds={}, "
+                "restored_pips={}, failed_sinks={}, congested_resources={}, "
+                "max_usage={}",
+                repair_name,
+                rounds,
+                restored_pips,
+                failed_sinks,
+                congested_resources,
+                max_resource_usage,
+            )
+
     def done(self, hard_failed: int, soft_failed: int) -> None:
         """Log pass completion.
 

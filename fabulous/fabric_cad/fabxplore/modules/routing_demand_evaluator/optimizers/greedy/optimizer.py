@@ -26,6 +26,11 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.b
     OptimizerContext,
     RoutingDemandOptimizer,
 )
+from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.common import (  # noqa: E501
+    relax_congestion,
+    repair_unreachable_demands,
+    routing_pip_count,
+)
 
 Connections = dict[str, list[str]]
 Pip = tuple[str, str]
@@ -250,6 +255,35 @@ class GreedyOptimizer(RoutingDemandOptimizer):
                 accepted_batches=counters.accepted_batches,
                 rejected_batches=counters.rejected_batches,
             )
+
+        repair = repair_unreachable_demands(
+            context=context,
+            baseline_connections=context.matrix.connections,
+            optimized_connections=connections,
+            result=current,
+        )
+        connections = repair.connections
+        current = repair.result
+        if repair.restored_pips:
+            counters.accepted_pips = max(
+                baseline.stats.original_routing_pips - routing_pip_count(connections),
+                0,
+            )
+            counters.rejected_pips += repair.restored_pips
+        relax = relax_congestion(
+            context=context,
+            baseline_connections=context.matrix.connections,
+            optimized_connections=connections,
+            result=current,
+        )
+        connections = relax.connections
+        current = relax.result
+        if relax.restored_pips:
+            counters.accepted_pips = max(
+                baseline.stats.original_routing_pips - routing_pip_count(connections),
+                0,
+            )
+            counters.rejected_pips += relax.restored_pips
 
         remaining_non_power_rows = _non_power_of_two_mux_count(connections)
         should_apply = (
