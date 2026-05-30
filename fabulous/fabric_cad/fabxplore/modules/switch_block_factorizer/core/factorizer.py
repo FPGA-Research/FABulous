@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import math
+import re
 from collections import Counter
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from fabulous.fabric_cad.fabxplore.modules.switch_block_factorizer.core.models import (
@@ -19,8 +21,8 @@ from fabulous.fabric_cad.fabxplore.modules.switch_block_factorizer.core.process_
 from fabulous.fabric_cad.fabxplore.modules.switch_block_factorizer.core.report import (
     render_switch_block_factorizer_report,
 )
+from fabulous.fabric_definition.define import Direction
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
-from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -34,8 +36,28 @@ Connections = dict[str, list[str]]
 JumpRows = list[tuple[str, str]]
 
 
+@dataclass(frozen=True, slots=True)
+class _ReductionStep:
+    """One configured reduction action in cyclic evaluation order."""
+
+    label: str
+    rule: MuxReductionRule | None = None
+    global_level: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _BudgetReport:
+    """Local config-budget accounting for one factorizer run."""
+
+    fixed_config_bits: int
+    matrix_config_bits_before: int
+    total_config_bits_before: int
+    effective_config_bit_limit: int | None
+    blocked_reductions: int = 0
+
+
 class SwitchBlockFactorizer:
-    """Factorize active FABulous switch matrices in place.
+    """Factorize active FABulous switch matrices in the graph.
 
     Parameters
     ----------
@@ -47,7 +69,7 @@ class SwitchBlockFactorizer:
         self.options = options
 
     def run(self, fpga_model: PnRBridge) -> SwitchBlockFactorizerResult:
-        """Run switch-block factorization on the active FABulous project.
+        """Run switch-block factorization on the active routing graph.
 
         Parameters
         ----------
@@ -64,111 +86,80 @@ class SwitchBlockFactorizer:
         Raises
         ------
         RuntimeError
-            If guardrails are exceeded or reachability is not preserved.
+            If reachability is not preserved.
         """
-        design = fpga_model.user_design
-        fab = fpga_model.fab
-        _ = design
         tracker = SwitchBlockFactorizerProcessTracker(
             enabled=self.options.track_progress
         )
         tracker.start(self.options.tile_name)
 
-        tile = _get_tile(fab, self.options.tile_name)
-        tile_dir = self.options.tile_dir or _tile_dir(tile)
-        tile_csv = self.options.tile_csv or tile_dir / f"{self.options.tile_name}.csv"
-        source_matrix = self.options.switch_matrix or tile.matrixDir
-        output_list = tile_dir / f"{self.options.tile_name}_switch_matrix.list"
-
-        connections = _read_connections(source_matrix, self.options.tile_name)
+        switch_matrix = fpga_model.switch_matrix(self.options.tile_name)
+        connections, base_rows, base_columns, delays = _connections_from_matrix(
+            switch_matrix
+        )
         before_connections = _copy_connections(connections)
-        transformed, jump_rows, warnings = _factorize_connections(
+        current_config = fpga_model.get_config_bits(self.options.tile_name)
+        transformed, jump_rows, warnings, budget = _factorize_connections(
             connections,
             self.options,
+            fixed_config_bits=current_config.fixed_config_bits,
         )
-
-        if self.options.max_added_jump_wires is not None and (
-            len(jump_rows) > self.options.max_added_jump_wires
-        ):
-            raise RuntimeError(
-                "switch-block factorization would add "
-                f"{len(jump_rows)} JUMP wires, but max_added_jump_wires is "
-                f"{self.options.max_added_jump_wires}."
-            )
 
         if not _preserves_reachability(before_connections, transformed, jump_rows):
             raise RuntimeError(
                 "switch-block factorization did not preserve reachability."
             )
 
-        output_list.write_text(
-            _render_list(self.options.tile_name, transformed),
-            encoding="utf-8",
-        )
-        tracker.wrote_file("switch matrix list", output_list)
-
-        _rewrite_tile_csv(tile_csv, output_list, self.options.jump_prefix, jump_rows)
-        tracker.wrote_file("tile csv", tile_csv)
-
-        _remove_generated_artifacts(tile_dir, self.options.tile_name, fab.fileExtension)
-
-        project_dir = get_context().proj_dir
-        fab.loadFabric(project_dir / "fabric.csv")
-        refreshed_tile = _get_tile(fab, self.options.tile_name)
-        _check_config_limit(
-            refreshed_tile.globalConfigBits,
-            _config_capacity(fab, self.options.config_bit_capacity_override),
-            self.options.config_bit_margin,
-        )
-
-        artifacts = [
-            SwitchBlockFactorizerArtifact(kind="switch_matrix_list", path=output_list),
-            SwitchBlockFactorizerArtifact(kind="tile_csv", path=tile_csv),
-        ]
-        artifacts.extend(
-            _run_fabulous_generation(
-                fab=fab,
-                tile_name=self.options.tile_name,
-                tile_dir=tile_dir,
-                file_extension=fab.fileExtension,
+        for begin, end in jump_rows:
+            fpga_model.add_external_resource(
+                self.options.tile_name,
+                Direction.JUMP,
+                begin,
+                0,
+                0,
+                end,
+                1,
             )
-        )
-        for artifact in artifacts[2:]:
-            tracker.wrote_file(artifact.kind, artifact.path)
 
-        after_connections = _read_connections(output_list, self.options.tile_name)
+        columns, rows, matrix = _matrix_from_connections(
+            transformed,
+            base_rows=base_rows,
+            base_columns=base_columns,
+            delays=delays,
+        )
+        fpga_model.set_switch_matrix(
+            self.options.tile_name,
+            columns,
+            rows,
+            matrix,
+        )
+
+        after_config = fpga_model.get_config_bits(self.options.tile_name)
         stats = SwitchBlockFactorizerStats(
             mux_rows_before=len(before_connections),
-            mux_rows_after=len(after_connections),
+            mux_rows_after=len(transformed),
             pips_before=_count_pips(before_connections),
-            pips_after=_count_pips(after_connections),
+            pips_after=_count_pips(transformed),
             max_fanin_before=_max_fanin(before_connections),
-            max_fanin_after=_max_fanin(after_connections),
-            matrix_config_bits_before=_estimate_config_bits(before_connections),
-            matrix_config_bits_after=refreshed_tile.matrixConfigBits,
-            total_config_bits_after=refreshed_tile.globalConfigBits,
+            max_fanin_after=_max_fanin(transformed),
+            matrix_config_bits_before=budget.matrix_config_bits_before,
+            matrix_config_bits_after=after_config.matrix_config_bits,
+            fixed_config_bits=budget.fixed_config_bits,
+            total_config_bits_before=budget.total_config_bits_before,
+            total_config_bits_after=after_config.total_config_bits,
+            effective_config_bit_limit=budget.effective_config_bit_limit,
+            blocked_reductions=budget.blocked_reductions,
             added_jump_wires=len(jump_rows),
             factorized_rows=_count_factorized_rows(before_connections, transformed),
             generated_hierarchy_pips=_count_hierarchy_pips(transformed, jump_rows),
             fanin_histogram_before=_fanin_histogram(before_connections),
-            fanin_histogram_after=_fanin_histogram(after_connections),
+            fanin_histogram_after=_fanin_histogram(transformed),
             reachability_preserved=True,
         )
 
         result = SwitchBlockFactorizerResult(
-            options=self.options.model_copy(
-                update={
-                    "tile_dir": tile_dir,
-                    "tile_csv": tile_csv,
-                    "switch_matrix": output_list,
-                }
-            ),
+            options=self.options,
             tile_name=self.options.tile_name,
-            tile_dir=tile_dir,
-            tile_csv=tile_csv,
-            switch_matrix_list=output_list,
-            source_matrix=source_matrix,
-            artifacts=tuple(artifacts),
             stats=stats,
             warnings=tuple(warnings),
         )
@@ -277,11 +268,46 @@ def _copy_connections(connections: Connections) -> Connections:
     return {row: list(sources) for row, sources in connections.items()}
 
 
+def _connections_from_matrix(
+    switch_matrix: object,
+) -> tuple[Connections, list[str], list[str], dict[tuple[str, str], float]]:
+    """Extract active connections from a graph switch-matrix view.
+
+    Parameters
+    ----------
+    switch_matrix : object
+        Graph switch-matrix object with ``rows``, ``columns``, and ``matrix``.
+
+    Returns
+    -------
+    tuple[Connections, list[str], list[str], dict[tuple[str, str], float]]
+        Active connections, original row labels, original column labels, and
+        per-PIP delays.
+    """
+    connections: Connections = {}
+    delays: dict[tuple[str, str], float] = {}
+    rows = list(switch_matrix.rows)
+    columns = list(switch_matrix.columns)
+    for row_index, row in enumerate(rows):
+        sources: list[str] = []
+        for column_index, column in enumerate(columns):
+            delay = float(switch_matrix.matrix[row_index][column_index])
+            if delay <= 0:
+                continue
+            sources.append(column)
+            delays[(row, column)] = delay
+        if sources:
+            connections[row] = sources
+    return connections, rows, columns, delays
+
+
 def _factorize_connections(
     connections: Connections,
     options: SwitchBlockFactorizerOptions,
-) -> tuple[Connections, JumpRows, list[str]]:
-    """Factorize connections according to configured rules.
+    *,
+    fixed_config_bits: int,
+) -> tuple[Connections, JumpRows, list[str], _BudgetReport]:
+    """Factorize connections with local config-budget checks.
 
     Parameters
     ----------
@@ -289,40 +315,486 @@ def _factorize_connections(
         Original connectivity.
     options : SwitchBlockFactorizerOptions
         Factorizer options.
+    fixed_config_bits : int
+        Non-matrix config bits preserved from the graph tile model.
 
     Returns
     -------
-    tuple[Connections, JumpRows, list[str]]
-        Factorized connectivity, generated JUMP rows, and warnings.
+    tuple[Connections, JumpRows, list[str], _BudgetReport]
+        Factorized connectivity, generated JUMP rows, warnings, and budget
+        accounting.
     """
     state = _copy_connections(connections)
     jump_rows: JumpRows = []
     warnings: list[str] = []
-    counter = 0
+    counter = _next_jump_counter(state, options.jump_prefix)
+    blocked_reductions = 0
+    start_matrix_bits = _estimate_config_bits(state)
+    start_total_bits = start_matrix_bits + fixed_config_bits
+    effective_limit = _effective_config_bit_limit(start_total_bits, options)
+    steps = _reduction_steps(options)
 
-    if options.global_reduction is not None:
-        for level in range(options.global_reduction):
-            state, jump_rows, counter = _apply_global_reduction(
-                state,
-                options,
-                jump_rows,
-                counter,
-                level,
-            )
-
-    for rule_index, rule in enumerate(options.reduction_rules):
-        state, jump_rows, counter = _apply_reduction_rule(
+    if not steps:
+        warnings.append("No reduction steps were configured.")
+        return (
             state,
-            options,
             jump_rows,
-            counter,
-            rule,
-            rule_index,
+            warnings,
+            _BudgetReport(
+                fixed_config_bits=fixed_config_bits,
+                matrix_config_bits_before=start_matrix_bits,
+                total_config_bits_before=start_total_bits,
+                effective_config_bit_limit=effective_limit,
+            ),
         )
+
+    while True:
+        accepted_in_round = False
+        for step in steps:
+            move = _first_accepted_move(
+                connections=state,
+                options=options,
+                step=step,
+                jump_rows=jump_rows,
+                counter=counter,
+                fixed_config_bits=fixed_config_bits,
+                effective_limit=effective_limit,
+            )
+            if move is None:
+                blocked_reductions += _count_blocked_moves(
+                    connections=state,
+                    options=options,
+                    step=step,
+                    jump_rows=jump_rows,
+                    counter=counter,
+                    fixed_config_bits=fixed_config_bits,
+                    effective_limit=effective_limit,
+                )
+                continue
+            state, new_jump_rows, counter = move
+            jump_rows.extend(new_jump_rows)
+            accepted_in_round = True
+        if not accepted_in_round:
+            break
 
     if not jump_rows:
         warnings.append("No mux rows met the configured factorization criteria.")
-    return state, jump_rows, warnings
+    if blocked_reductions:
+        warnings.append(
+            f"Skipped {blocked_reductions} candidate reduction(s) that exceeded "
+            "the configured graph-local limits."
+        )
+    return (
+        state,
+        jump_rows,
+        warnings,
+        _BudgetReport(
+            fixed_config_bits=fixed_config_bits,
+            matrix_config_bits_before=start_matrix_bits,
+            total_config_bits_before=start_total_bits,
+            effective_config_bit_limit=effective_limit,
+            blocked_reductions=blocked_reductions,
+        ),
+    )
+
+
+def _reduction_steps(options: SwitchBlockFactorizerOptions) -> list[_ReductionStep]:
+    """Return configured reduction steps in cyclic order.
+
+    Parameters
+    ----------
+    options : SwitchBlockFactorizerOptions
+        Factorizer options.
+
+    Returns
+    -------
+    list[_ReductionStep]
+        Ordered reduction steps.
+    """
+    steps: list[_ReductionStep] = []
+    if options.global_reduction is not None:
+        steps.extend(
+            _ReductionStep(label=f"G{level}", global_level=level)
+            for level in range(options.global_reduction)
+        )
+    steps.extend(
+        _ReductionStep(label=f"R{index}", rule=rule)
+        for index, rule in enumerate(options.reduction_rules)
+    )
+    return steps
+
+
+def _effective_config_bit_limit(
+    total_config_bits_before: int,
+    options: SwitchBlockFactorizerOptions,
+) -> int | None:
+    """Return the active graph-local config-bit budget.
+
+    Parameters
+    ----------
+    total_config_bits_before : int
+        Total config bits before factorization.
+    options : SwitchBlockFactorizerOptions
+        Factorizer options.
+
+    Returns
+    -------
+    int | None
+        Effective limit, or ``None`` when no config-bit budget is configured.
+    """
+    limits: list[int] = []
+    if options.config_bit_margin is not None:
+        limits.append(total_config_bits_before + options.config_bit_margin)
+    if options.config_bit_limit is not None:
+        limits.append(options.config_bit_limit)
+    return min(limits) if limits else None
+
+
+def _first_accepted_move(
+    *,
+    connections: Connections,
+    options: SwitchBlockFactorizerOptions,
+    step: _ReductionStep,
+    jump_rows: JumpRows,
+    counter: int,
+    fixed_config_bits: int,
+    effective_limit: int | None,
+) -> tuple[Connections, JumpRows, int] | None:
+    """Return the first factorization move accepted by configured limits.
+
+    Parameters
+    ----------
+    connections : Connections
+        Current local connectivity.
+    options : SwitchBlockFactorizerOptions
+        Factorizer options.
+    step : _ReductionStep
+        Reduction step to try.
+    jump_rows : JumpRows
+        Already accepted generated JUMP rows.
+    counter : int
+        Next generated JUMP counter.
+    fixed_config_bits : int
+        Non-matrix config bits.
+    effective_limit : int | None
+        Optional total config-bit budget.
+
+    Returns
+    -------
+    tuple[Connections, JumpRows, int] | None
+        Accepted connectivity, newly generated JUMP rows, and next counter.
+        ``None`` means no eligible move fit the configured limits.
+    """
+    for row, sources in connections.items():
+        candidate = _candidate_factorization(
+            connections=connections,
+            options=options,
+            step=step,
+            row=row,
+            sources=sources,
+            counter=counter,
+        )
+        if candidate is None:
+            continue
+        candidate_connections, new_jump_rows, next_counter = candidate
+        if _exceeds_limits(
+            connections=candidate_connections,
+            jump_count=len(jump_rows) + len(new_jump_rows),
+            options=options,
+            fixed_config_bits=fixed_config_bits,
+            effective_limit=effective_limit,
+        ):
+            continue
+        return candidate_connections, new_jump_rows, next_counter
+    return None
+
+
+def _count_blocked_moves(
+    *,
+    connections: Connections,
+    options: SwitchBlockFactorizerOptions,
+    step: _ReductionStep,
+    jump_rows: JumpRows,
+    counter: int,
+    fixed_config_bits: int,
+    effective_limit: int | None,
+) -> int:
+    """Count eligible moves rejected by configured limits.
+
+    Parameters
+    ----------
+    connections : Connections
+        Current local connectivity.
+    options : SwitchBlockFactorizerOptions
+        Factorizer options.
+    step : _ReductionStep
+        Reduction step to try.
+    jump_rows : JumpRows
+        Already accepted generated JUMP rows.
+    counter : int
+        Next generated JUMP counter.
+    fixed_config_bits : int
+        Non-matrix config bits.
+    effective_limit : int | None
+        Optional total config-bit budget.
+
+    Returns
+    -------
+    int
+        Number of eligible moves rejected by limits.
+    """
+    blocked = 0
+    for row, sources in connections.items():
+        candidate = _candidate_factorization(
+            connections=connections,
+            options=options,
+            step=step,
+            row=row,
+            sources=sources,
+            counter=counter,
+        )
+        if candidate is None:
+            continue
+        candidate_connections, new_jump_rows, _next_counter = candidate
+        if _exceeds_limits(
+            connections=candidate_connections,
+            jump_count=len(jump_rows) + len(new_jump_rows),
+            options=options,
+            fixed_config_bits=fixed_config_bits,
+            effective_limit=effective_limit,
+        ):
+            blocked += 1
+    return blocked
+
+
+def _candidate_factorization(
+    *,
+    connections: Connections,
+    options: SwitchBlockFactorizerOptions,
+    step: _ReductionStep,
+    row: str,
+    sources: list[str],
+    counter: int,
+) -> tuple[Connections, JumpRows, int] | None:
+    """Build one candidate row factorization.
+
+    Parameters
+    ----------
+    connections : Connections
+        Current local connectivity.
+    options : SwitchBlockFactorizerOptions
+        Factorizer options.
+    step : _ReductionStep
+        Reduction step to try.
+    row : str
+        Candidate matrix row.
+    sources : list[str]
+        Current row sources.
+    counter : int
+        Next generated JUMP counter.
+
+    Returns
+    -------
+    tuple[Connections, JumpRows, int] | None
+        Candidate connectivity, generated JUMP rows, and next counter.
+    """
+    target_fanin = _target_fanin_for_step(row, sources, step, options)
+    if target_fanin is None:
+        return None
+    replacement, new_jump_rows, next_counter = _factorize_row(
+        row=row,
+        sources=sources,
+        target_fanin=target_fanin,
+        jump_prefix=options.jump_prefix,
+        counter=counter,
+        stage_label=step.label,
+    )
+    if not new_jump_rows:
+        return None
+    next_connections: Connections = {}
+    for current_row, current_sources in connections.items():
+        if current_row == row:
+            next_connections.update(replacement)
+        else:
+            next_connections[current_row] = list(current_sources)
+    return next_connections, new_jump_rows, next_counter
+
+
+def _target_fanin_for_step(
+    row: str,
+    sources: list[str],
+    step: _ReductionStep,
+    options: SwitchBlockFactorizerOptions,
+) -> int | None:
+    """Return the target fanin for a row and reduction step.
+
+    Parameters
+    ----------
+    row : str
+        Candidate matrix row.
+    sources : list[str]
+        Current row sources.
+    step : _ReductionStep
+        Reduction step to try.
+    options : SwitchBlockFactorizerOptions
+        Factorizer options.
+
+    Returns
+    -------
+    int | None
+        Target fanin, or ``None`` when the step does not apply.
+    """
+    if len(sources) < options.min_mux_fanin_to_factorize:
+        return None
+    if step.rule is not None:
+        if len(sources) != step.rule.from_fanin:
+            return None
+        return step.rule.to_fanin
+    if len(sources) <= 2:
+        return None
+    if step.global_level is not None and (
+        _global_depth(row, options.jump_prefix) != step.global_level
+    ):
+        return None
+    return math.ceil(len(sources) / 2)
+
+
+def _global_depth(row: str, jump_prefix: str) -> int | None:
+    """Return how many global stages produced a generated row.
+
+    Parameters
+    ----------
+    row : str
+        Matrix row name.
+    jump_prefix : str
+        Generated JUMP prefix.
+
+    Returns
+    -------
+    int | None
+        ``0`` for original rows, ``1`` for ``G0`` rows, and so on. ``None``
+        means the row was generated by a non-global factorizer stage.
+    """
+    if row.startswith(f"{jump_prefix}_") and not row.startswith(f"{jump_prefix}_G"):
+        return None
+    pattern = re.compile(rf"^{re.escape(jump_prefix)}_G(\d+)_")
+    match = pattern.match(row)
+    if match is None:
+        return 0
+    return int(match.group(1)) + 1
+
+
+def _exceeds_limits(
+    *,
+    connections: Connections,
+    jump_count: int,
+    options: SwitchBlockFactorizerOptions,
+    fixed_config_bits: int,
+    effective_limit: int | None,
+) -> bool:
+    """Return whether a candidate exceeds local guardrails.
+
+    Parameters
+    ----------
+    connections : Connections
+        Candidate local connectivity.
+    jump_count : int
+        Candidate generated JUMP count.
+    options : SwitchBlockFactorizerOptions
+        Factorizer options.
+    fixed_config_bits : int
+        Non-matrix config bits.
+    effective_limit : int | None
+        Optional total config-bit budget.
+
+    Returns
+    -------
+    bool
+        ``True`` when the candidate exceeds a configured limit.
+    """
+    if (
+        options.max_added_jump_wires is not None
+        and jump_count > options.max_added_jump_wires
+    ):
+        return True
+    if effective_limit is None:
+        return False
+    return _estimate_config_bits(connections) + fixed_config_bits > effective_limit
+
+
+def _next_jump_counter(connections: Connections, jump_prefix: str) -> int:
+    """Return the next generated JUMP counter for a prefix.
+
+    Parameters
+    ----------
+    connections : Connections
+        Current local connectivity.
+    jump_prefix : str
+        Generated JUMP prefix.
+
+    Returns
+    -------
+    int
+        Next unused counter.
+    """
+    pattern = re.compile(rf"^{re.escape(jump_prefix)}_[GR]\d+_(\d+)_(?:BEG|END)0$")
+    counters: list[int] = []
+    for row, sources in connections.items():
+        names = [row, *sources]
+        for name in names:
+            match = pattern.match(name)
+            if match is not None:
+                counters.append(int(match.group(1)))
+    return max(counters, default=-1) + 1
+
+
+def _matrix_from_connections(
+    connections: Connections,
+    *,
+    base_rows: list[str],
+    base_columns: list[str],
+    delays: dict[tuple[str, str], float],
+    default_delay: float = 8.0,
+) -> tuple[list[str], list[str], list[list[float]]]:
+    """Build a graph switch-matrix table from local connections.
+
+    Parameters
+    ----------
+    connections : Connections
+        Active local connectivity.
+    base_rows : list[str]
+        Existing graph matrix rows to preserve.
+    base_columns : list[str]
+        Existing graph matrix columns to preserve.
+    delays : dict[tuple[str, str], float]
+        Original active PIP delays.
+    default_delay : float
+        Delay assigned to generated PIPs.
+
+    Returns
+    -------
+    tuple[list[str], list[str], list[list[float]]]
+        Columns, rows, and delay matrix for ``set_switch_matrix``.
+    """
+    rows = list(dict.fromkeys([*base_rows, *connections.keys()]))
+    columns = list(
+        dict.fromkeys(
+            [
+                *base_columns,
+                *(source for sources in connections.values() for source in sources),
+            ]
+        )
+    )
+    row_index = {row: index for index, row in enumerate(rows)}
+    column_index = {column: index for index, column in enumerate(columns)}
+    matrix = [[0.0 for _column in columns] for _row in rows]
+    for row, sources in connections.items():
+        for source in sources:
+            matrix[row_index[row]][column_index[source]] = delays.get(
+                (row, source),
+                default_delay,
+            )
+    return columns, rows, matrix
 
 
 def _apply_global_reduction(
@@ -463,6 +935,9 @@ def _factorize_row(
     jump_rows: JumpRows = []
     final_sources: list[str] = []
     for chunk in chunks:
+        if len(chunk) == 1:
+            final_sources.append(chunk[0])
+            continue
         base = f"{jump_prefix}_{stage_label}_{counter}"
         begin = f"{base}_BEG"
         end = f"{base}_END"
@@ -709,55 +1184,6 @@ def _run_fabulous_generation(
         )
         if artifact.path.exists()
     ]
-
-
-def _check_config_limit(
-    total_config_bits: int,
-    capacity: int,
-    config_bit_margin: int,
-) -> None:
-    """Check the configured total config-bit limit.
-
-    Parameters
-    ----------
-    total_config_bits : int
-        Total tile config bits after factorization.
-    capacity : int
-        Total config-bit capacity.
-    config_bit_margin : int
-        Margin reserved below the maximum.
-
-    Raises
-    ------
-    RuntimeError
-        If the total config bits exceed the configured maximum.
-    """
-    usable = capacity - config_bit_margin
-    if total_config_bits > usable:
-        raise RuntimeError(
-            f"Tile uses {total_config_bits} config bits, but only {usable} "
-            f"of {capacity} are usable with margin {config_bit_margin}."
-        )
-
-
-def _config_capacity(fab: FABulous_API, override: int | None = None) -> int:
-    """Return the fabric config-bit capacity for one tile.
-
-    Parameters
-    ----------
-    fab : FABulous_API
-        Loaded FABulous API instance.
-    override : int | None
-        Optional capacity override.
-
-    Returns
-    -------
-    int
-        Config-bit capacity.
-    """
-    if override is not None:
-        return override
-    return fab.fabric.frameBitsPerRow * fab.fabric.maxFramesPerCol
 
 
 def _count_pips(connections: Connections) -> int:

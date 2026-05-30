@@ -306,13 +306,6 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "verilog_path": self.my_root / "arch_rtl" / "FLUT5_1P_2PS.v",
                     "prefixes": [
                         "LA_",
-                        "LB_",
-                        "LC_",
-                        "LD_",
-                        "LE_",
-                        "LF_",
-                        "LG_",
-                        "LH_",
                     ],
                     "add_as_custom_prim": True,
                 },
@@ -344,7 +337,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         self.pnr_switch_matrix_pattern_pass(
             tile_name="LUT5F",
-            input_fanin=3,
+            input_fanin=4,
             include_bel_output_sources=True,
             include_constant_sources=True,
             output_fanin=3,
@@ -363,7 +356,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         self.pnr_switch_block_factorizer_pass(
             tile_name="LUT5F",
-            global_reduction=1,
+            global_reduction=2,
             reduction_rules=[
                 {"from_fanin": 16, "to_fanin": 8},
                 {"from_fanin": 8, "to_fanin": 4},

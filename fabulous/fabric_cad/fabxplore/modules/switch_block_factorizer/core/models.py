@@ -39,21 +39,18 @@ class MuxReductionRule(BaseModel):
 
 
 class SwitchBlockFactorizerOptions(BaseModel):
-    """Options for in-place switch-block factorization."""
+    """Options for graph-local switch-block factorization."""
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     tile_name: str
-    tile_dir: Path | None = None
-    tile_csv: Path | None = None
-    switch_matrix: Path | None = None
     global_reduction: int | None = 1
     reduction_rules: list[MuxReductionRule] = Field(default_factory=list)
     min_mux_fanin_to_factorize: int = 3
     jump_prefix: str = "J_FAC"
     max_added_jump_wires: int | None = None
-    config_bit_capacity_override: int | None = None
-    config_bit_margin: int = 0
+    config_bit_margin: int | None = None
+    config_bit_limit: int | None = None
     track_progress: bool = True
 
     @field_validator("tile_name", "jump_prefix")
@@ -106,7 +103,6 @@ class SwitchBlockFactorizerOptions(BaseModel):
 
     @field_validator(
         "min_mux_fanin_to_factorize",
-        "config_bit_margin",
     )
     @classmethod
     def _validate_non_negative_int(cls, value: int) -> int:
@@ -131,7 +127,7 @@ class SwitchBlockFactorizerOptions(BaseModel):
             raise ValueError("value must be non-negative")
         return value
 
-    @field_validator("max_added_jump_wires", "config_bit_capacity_override")
+    @field_validator("max_added_jump_wires", "config_bit_limit")
     @classmethod
     def _validate_optional_positive_int(cls, value: int | None) -> int | None:
         """Validate optional positive integer limits.
@@ -178,7 +174,11 @@ class SwitchBlockFactorizerStats(BaseModel):
     max_fanin_after: int = 0
     matrix_config_bits_before: int = 0
     matrix_config_bits_after: int = 0
+    fixed_config_bits: int = 0
+    total_config_bits_before: int = 0
     total_config_bits_after: int = 0
+    effective_config_bit_limit: int | None = None
+    blocked_reductions: int = 0
     added_jump_wires: int = 0
     factorized_rows: int = 0
     generated_hierarchy_pips: int = 0
@@ -194,10 +194,6 @@ class SwitchBlockFactorizerResult(BaseModel):
 
     options: SwitchBlockFactorizerOptions
     tile_name: str
-    tile_dir: Path
-    tile_csv: Path
-    switch_matrix_list: Path
-    source_matrix: Path
     artifacts: tuple[SwitchBlockFactorizerArtifact, ...] = ()
     stats: SwitchBlockFactorizerStats = Field(
         default_factory=SwitchBlockFactorizerStats

@@ -9,9 +9,6 @@ from fabulous.fabric_cad.fabxplore.modules.switch_block_factorizer.core.models i
 _REPORT_TEMPLATE = Template(
     """Switch Block Factorizer Report
 Tile: {{ result.tile_name }}
-Directory: {{ result.tile_dir }}
-Source matrix: {{ result.source_matrix }}
-Active list: {{ result.switch_matrix_list }}
 
 Configuration
 - global_reduction: {{ result.options.global_reduction }}
@@ -20,8 +17,8 @@ Configuration
 - min_mux_fanin_to_factorize: {{ result.options.min_mux_fanin_to_factorize }}
 - jump_prefix: {{ result.options.jump_prefix }}
 - max_added_jump_wires: {{ result.options.max_added_jump_wires }}
-- config_bit_capacity_override: {{ result.options.config_bit_capacity_override }}
 - config_bit_margin: {{ result.options.config_bit_margin }}
+- config_bit_limit: {{ result.options.config_bit_limit }}
 
 Muxes
 - rows: {{ stats.mux_rows_before }} -> {{ stats.mux_rows_after }}
@@ -32,9 +29,13 @@ Muxes
 - generated hierarchy PIPs: {{ stats.generated_hierarchy_pips }}
 
 Config Bits
+- fixed config bits: {{ stats.fixed_config_bits }}
 - matrix config bits before: {{ stats.matrix_config_bits_before }}
 - matrix config bits after: {{ stats.matrix_config_bits_after }}
+- total tile config bits before: {{ stats.total_config_bits_before }}
 - total tile config bits after: {{ stats.total_config_bits_after }}
+- effective config-bit limit: {{ stats.effective_config_bit_limit }}
+- blocked reductions: {{ stats.blocked_reductions }}
 
 Fanin Histogram Before
 {{ histogram_before }}

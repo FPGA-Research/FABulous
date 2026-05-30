@@ -1253,19 +1253,16 @@ class ArchitectureSynthesizer(ABC):
         self,
         tile_name: str,
         log_report: bool = True,
-        tile_dir: Path | None = None,
-        tile_csv: Path | None = None,
-        switch_matrix: Path | None = None,
         global_reduction: int | None = 1,
         reduction_rules: list[MuxReductionRule | dict[str, int]] | None = None,
         min_mux_fanin_to_factorize: int = 3,
         jump_prefix: str = "J_FAC",
         max_added_jump_wires: int | None = None,
-        config_bit_capacity_override: int | None = None,
-        config_bit_margin: int = 0,
+        config_bit_margin: int | None = None,
+        config_bit_limit: int | None = None,
         track_progress: bool = True,
     ) -> SwitchBlockFactorizerPass:
-        """Factorize active FABulous switch-block mux rows in place.
+        """Factorize active FABulous switch-block mux rows in the graph.
 
         Parameters
         ----------
@@ -1273,12 +1270,6 @@ class ArchitectureSynthesizer(ABC):
             Name of the FABulous tile to factorize.
         log_report : bool
             If ``True``, log the factorizer report after execution.
-        tile_dir : Path | None
-            Optional tile directory. If ``None``, derive it from the loaded tile.
-        tile_csv : Path | None
-            Optional tile CSV. If ``None``, use ``<tile_dir>/<tile_name>.csv``.
-        switch_matrix : Path | None
-            Optional active matrix file. If ``None``, use ``tile.matrixDir``.
         global_reduction : int | None
             Number of global fanin-halving passes to apply before explicit rules.
         reduction_rules : list[MuxReductionRule | dict[str, int]] | None
@@ -1289,11 +1280,10 @@ class ArchitectureSynthesizer(ABC):
             Prefix for generated JUMP rows.
         max_added_jump_wires : int | None
             Optional maximum number of generated JUMP wires.
-        config_bit_capacity_override : int | None
-            Optional total config-bit capacity. ``None`` uses the loaded
-            FABulous fabric.
-        config_bit_margin : int
-            Reserved margin below the config-bit capacity.
+        config_bit_margin : int | None
+            Optional relative config-bit budget from the starting tile bits.
+        config_bit_limit : int | None
+            Optional absolute config-bit budget.
         track_progress : bool
             Whether progress should be logged.
 
@@ -1304,16 +1294,13 @@ class ArchitectureSynthesizer(ABC):
         """
         result = SwitchBlockFactorizerPass(
             tile_name=tile_name,
-            tile_dir=tile_dir,
-            tile_csv=tile_csv,
-            switch_matrix=switch_matrix,
             global_reduction=global_reduction,
             reduction_rules=reduction_rules or [],
             min_mux_fanin_to_factorize=min_mux_fanin_to_factorize,
             jump_prefix=jump_prefix,
             max_added_jump_wires=max_added_jump_wires,
-            config_bit_capacity_override=config_bit_capacity_override,
             config_bit_margin=config_bit_margin,
+            config_bit_limit=config_bit_limit,
             track_progress=track_progress,
         )
         result.run_on(self.fpga_model)
