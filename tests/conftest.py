@@ -92,8 +92,10 @@ def fabulous_test_environment(
     """Set up global test environment for FABulous tests."""
     fabulous_root = str(Path(__file__).resolve().parent.parent / "FABulous")
 
+    # FAB_GL_FABRIC_PROJECT selects the hardened project for the GL suite; it
+    # is test-control input, not project state, so it must survive the scrub.
     for key in list(os.environ.keys()):
-        if key.startswith("FAB_"):
+        if key.startswith("FAB_") and key != "FAB_GL_FABRIC_PROJECT":
             monkeypatch.delenv(key, raising=False)
 
     fake_user_config_dir = tmp_path / ".fabulous"

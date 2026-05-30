@@ -7,7 +7,6 @@ import os
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
@@ -16,7 +15,7 @@ import pytest
 from cocotb.handle import HierarchyObject, LogicObject
 from cocotb.triggers import Timer
 from cocotb.types import Logic, LogicArray
-from dotenv import dotenv_values, unset_key
+from dotenv import unset_key
 from loguru import logger
 
 import fabulous.fabric_files as _fab_template_pkg
@@ -565,172 +564,6 @@ def gl_fabric_project(pytestconfig: pytest.Config) -> Path:
             "you point at the right unpacked artifact?"
         )
     return project
-
-
-_SCL_BY_PDK: dict[str, str] = {
-    "ihp-sg13g2": "sg13g2_stdcell",
-    "sky130A": "sky130_fd_sc_hd",
-    "gf180mcuD": "gf180mcu_fd_sc_mcu7t5v0",
-}
-
-
-@dataclass(frozen=True)
-class GLSim:
-    """Everything :func:`cocotb_runner` needs to drive a GL netlist."""
-
-    sources: list[Path]
-    hdl_top: str
-
-
-def _find_fabric_netlist(project: Path) -> Path:
-    """Return the post-PnR fabric netlist under ``Fabric/macro/final_views/``.
-
-    LibreLane's ``save_snapshot`` writes a single ``*.nl.v`` per fabric. This
-    is a *structural* netlist — it instantiates tile macros by name without
-    their bodies, so the tile netlists must also be passed to the simulator.
-    """
-    macro_root = project / "Fabric" / "macro" / "final_views"
-    if not macro_root.is_dir():
-        pytest.fail(
-            f"{macro_root} does not exist. Run `gen_fabric_macro` against the "
-            "project before invoking the GL suite."
-        )
-
-    candidates = sorted(macro_root.rglob("*.nl.v"))
-    if not candidates:
-        pytest.fail(
-            f"No *.nl.v netlist under {macro_root}. The librelane snapshot did "
-            "not finish."
-        )
-    if len(candidates) > 1:
-        pytest.fail(
-            "Multiple *.nl.v candidates; refusing to guess: "
-            + ", ".join(str(p.relative_to(project)) for p in candidates)
-        )
-    return candidates[0]
-
-
-def _find_tile_netlists(project: Path) -> list[Path]:
-    """Collect every ``Tile/<name>/macro/final_views/nl/<name>.nl.v``."""
-    tile_root = project / "Tile"
-    if not tile_root.is_dir():
-        pytest.fail(f"{tile_root} does not exist")
-
-    netlists: list[Path] = []
-    for tile_dir in sorted(tile_root.iterdir()):
-        if not tile_dir.is_dir():
-            continue
-        nl_dir = tile_dir / "macro" / "final_views" / "nl"
-        if not nl_dir.is_dir():
-            # Supertile parents (e.g. DSP/) hold sub-tiles, no macro of their own.
-            continue
-        netlists.extend(sorted(nl_dir.glob("*.nl.v")))
-    if not netlists:
-        pytest.fail(
-            f"No tile netlists found under {tile_root}/*/macro/final_views/nl/. "
-            "Run `gen_all_tile_macros` first."
-        )
-    return netlists
-
-
-def _find_sim_libs(project: Path, overrides: list[str]) -> list[Path]:
-    """Resolve the PDK standard-cell sim file(s).
-
-    Honours ``--gl-sim-libs`` overrides first; otherwise reads ``FAB_PDK`` from
-    the project ``.env`` (and ``FAB_PDK_ROOT`` from the same source or the
-    local ciel install) and globs ``<pdk_root>/<pdk>/libs.ref/<scl>/verilog/``
-    for ``<scl>.v`` plus any ``*udp*.v`` companion.
-    """
-    if overrides:
-        return _resolve_overrides(overrides, base=project)
-
-    env = dotenv_values(project / ".FABulous" / ".env")
-    pdk = env.get("FAB_PDK") or os.environ.get("FAB_PDK")
-    if not pdk:
-        pytest.fail(
-            "Cannot resolve PDK sim libs: set FAB_PDK in the project .env, or "
-            "pass --gl-sim-libs=<path> overrides explicitly."
-        )
-
-    pdk_root = _resolve_pdk_root(pdk, env)
-    if pdk_root is None:
-        pytest.fail(
-            f"Cannot resolve PDK_ROOT for '{pdk}'. Set FAB_PDK_ROOT in the "
-            "project .env, install the PDK via ciel, or override with "
-            "--gl-sim-libs=<path>."
-        )
-
-    scl = _SCL_BY_PDK.get(pdk)
-    if scl is None:
-        pytest.fail(
-            f"No default standard-cell library known for PDK '{pdk}'. Pass "
-            "--gl-sim-libs=<path> to point at the cell models directly."
-        )
-
-    verilog_root = pdk_root / pdk / "libs.ref" / scl / "verilog"
-    primary = verilog_root / f"{scl}.v"
-    if not primary.exists():
-        pytest.fail(f"PDK sim file {primary} is missing.")
-    return [primary, *sorted(verilog_root.glob("*udp*.v"))]
-
-
-@pytest.fixture
-def gl_sim(
-    gl_fabric_project: Path,
-    pytestconfig: pytest.Config,
-) -> GLSim:
-    """One-stop GL setup: every Verilog source the simulator needs + the top.
-
-    Collapses the three path-resolution steps (fabric netlist, tile netlists,
-    PDK sim libs) so the test signature stays narrow. Read from the
-    *original* hardened project, not the per-test copy, because the copy
-    excludes the heavy librelane ``macro/`` artifacts.
-    """
-    netlist = _find_fabric_netlist(gl_fabric_project)
-    tiles = _find_tile_netlists(gl_fabric_project)
-    libs = _find_sim_libs(gl_fabric_project, pytestconfig.getoption("gl_sim_libs"))
-    logger.info(
-        f"GL sim: 1 fabric netlist + {len(tiles)} tile netlists + "
-        f"{len(libs)} PDK sim file(s)"
-    )
-    return GLSim(
-        sources=[netlist, *tiles, *libs],
-        hdl_top=netlist.stem.removesuffix(".nl"),
-    )
-
-
-def _resolve_pdk_root(pdk: str, env: dict) -> Path | None:
-    """Find the PDK install root, mirroring FABulousSettings auto-resolution."""
-    explicit = env.get("FAB_PDK_ROOT") or os.environ.get("FAB_PDK_ROOT")
-    if explicit:
-        return Path(explicit).expanduser()
-
-    try:
-        import ciel.common
-        import ciel.families
-    except ImportError:
-        return None
-
-    if pdk not in ciel.families.Family.by_name:
-        return None
-    family = ciel.families.Family.by_name[pdk]
-    return Path(ciel.common.get_ciel_home()) / family.name
-
-
-def _resolve_overrides(specs: list[str], base: Path) -> list[Path]:
-    """Resolve --gl-sim-libs args as either concrete files or globs."""
-    resolved: list[Path] = []
-    for spec in specs:
-        p = Path(spec).expanduser()
-        if p.is_file():
-            resolved.append(p.resolve())
-            continue
-        anchor = p if p.is_absolute() else (base / p)
-        matches = sorted(Path(anchor.anchor or "/").glob(str(anchor).lstrip("/")))
-        if not matches:
-            pytest.fail(f"--gl-sim-libs={spec} matched no files")
-        resolved.extend(m.resolve() for m in matches)
-    return resolved
 
 
 def _ignore_heavy_artifacts(_dir: str, names: list[str]) -> set[str]:

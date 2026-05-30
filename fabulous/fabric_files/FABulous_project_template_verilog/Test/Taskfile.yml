@@ -142,6 +142,36 @@ tasks:
         +bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
         {{if eq .WAVEFORM_TYPE "fst"}}-fst{{end}}
 
+  run-gl-simulation:
+    desc: Gate-level (mixed-level) simulation against the hardened fabric netlist
+    deps: [mkdir-build]
+    vars:
+      # Absolute gate-level sources resolved by `run_simulation --gl`:
+      # the fabric netlist (eFPGA.nl.v), the tile netlists, and the PDK
+      # standard-cell models.
+      GL_SOURCES: '{{.GL_SOURCES}}'
+      # The behavioural wrapper keeps driving configuration (eFPGA_top,
+      # eFPGA_Config, Frame_*, BlockRAM, models_pack); only the inner eFPGA
+      # core and its tiles are swapped for gates. Exclude the behavioural core
+      # eFPGA.v, and stay at depth 1 so Fabric/macro/**/*.nl.v is not picked up.
+      WRAPPER_FILES:
+        sh: find {{.FAB_PROJ_ROOT}}/Fabric -maxdepth 1 -name '*.v' ! -name 'eFPGA.v'
+    cmds:
+      - >-
+        iverilog -g2012
+        {{.EXTRA_IVERILOG_FLAGS}}
+        -s {{.TESTBENCH}}
+        -o {{.BUILD_DIR}}/{{.DESIGN}}_gl.vvp
+        {{.WRAPPER_FILES}}
+        {{.GL_SOURCES}}
+        {{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
+        {{.TESTBENCH}}.v
+      - >-
+        vvp {{.BUILD_DIR}}/{{.DESIGN}}_gl.vvp
+        +output_waveform={{.BUILD_DIR}}/{{.DESIGN}}_gl.{{.WAVEFORM_TYPE}}
+        +bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
+        {{if eq .WAVEFORM_TYPE "fst"}}-fst{{end}}
+
   run-emulation:
     desc: Run emulation using Icarus Verilog (iverilog)
     deps: [mkdir-build]

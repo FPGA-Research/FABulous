@@ -1,72 +1,73 @@
-"""Gate-level (GL) simulation of FABulous user designs.
+"""Gate-level (mixed-level) simulation of the demo FABulous user design.
 
-The gate-level analogue of :mod:`test_designs_pattern`: it reuses the same
-``@cocotb.test`` coroutines and the same bitstream-upload helper, but
-simulates the post-PnR fabric netlist produced by LibreLane instead of the
-behavioural Verilog FABulous emits.
+The behavioural fabric wrapper ``eFPGA_top`` (with its configuration
+controller) is kept, but the inner fabric core ``eFPGA`` and its tiles are
+swapped for the post-place-and-route netlists hardened by the GDS / LibreLane
+flow, linked against the PDK standard-cell models. The existing Verilog
+``sequential_16bit_en_tb.v`` then drives the mixed-level DUT unchanged — the
+exact same testbench the RTL ``run_simulation`` uses.
 
-The test is marked ``@pytest.mark.gl`` and is skipped from the default suite.
-Opt in with ``pytest --rungl --gl-fabric-project=<path>`` (see the GL fixtures
-in this directory's :mod:`conftest` for layout expectations).
+This mirrors the demo flow in the project ``FABulous.tcl`` (``load_fabric`` →
+``run_FABulous_fabric`` → ``gen_user_design_wrapper`` → ``compile_design`` →
+``run_simulation``), differing only in the final ``--gl`` step.
+
+Marked ``@pytest.mark.gl`` and skipped from the default suite. Opt in with
+``pytest --rungl --gl-fabric-project=<path>`` and a Nix toolchain that provides
+iverilog plus the PDK cell models (see the GL fixtures in this directory's
+:mod:`conftest` for layout expectations).
 """
 
-# cspell:words cocotb noqa netlist hdl pnr
+# cspell:words netlist iverilog pnr hdl
 
-from collections.abc import Callable
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.fabric_gen_test.integration_test.conftest import (
-    compile_user_design,
-    stage_user_design,
-)
+import fabulous.fabric_files as _fab_template_pkg
+from tests.conftest import run_cmd
 
 if TYPE_CHECKING:
     from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
-    from tests.fabric_gen_test.integration_test.conftest import GLSim
 
-# The cocotb runner reuses the RTL test module — it owns the @cocotb.test
-# coroutines — keeping GL and RTL coroutines in lockstep without a re-export
-# shim.
-_COCOTB_TEST_MODULE = Path(__file__).resolve().parent / "test_designs_pattern.py"
+_DEMO_NAME = "sequential_16bit_en"
+_DEMO_DESIGN = (
+    Path(_fab_template_pkg.__file__).resolve().parent
+    / "FABulous_project_template_verilog"
+    / "user_design"
+    / f"{_DEMO_NAME}.v"
+)
 
 
 @pytest.mark.gl
-@pytest.mark.parametrize(
-    ("design_name", "testcase"),
-    [
-        pytest.param("passthrough", "cocotb_test_passthrough", id="passthrough"),
-        pytest.param("addition", "cocotb_test_addition", id="addition"),
-        pytest.param(
-            "multiplication", "cocotb_test_multiplication", id="multiplication"
-        ),
-        pytest.param("all_ones", "cocotb_test_all_ones", id="all_ones"),
-        pytest.param("all_zeros", "cocotb_test_all_zeros", id="all_zeros"),
-        pytest.param("counter", "cocotb_test_counter", id="counter"),
-        pytest.param("sys_reset", "cocotb_test_sys_reset", id="sys_reset"),
-    ],
-)
-def test_design_pattern_gl(
-    design_name: str,
-    testcase: str,
+def test_gl_simulation_demo(
     cli: "FABulous_CLI",
-    gl_sim: "GLSim",
-    cocotb_runner: Callable[..., None],
+    pytestconfig: pytest.Config,
 ) -> None:
-    """Compile a Verilog user design and simulate against the GL fabric netlist."""
-    user_design, pcf = stage_user_design(cli.projectDir, design_name)
-    bitstream = compile_user_design(cli, user_design, design_name, pcf)
+    """Compile the demo design and gate-level simulate it through ``--gl``.
 
-    cocotb_runner(
-        sources=gl_sim.sources,
-        hdl_top_level=gl_sim.hdl_top,
-        test_module_path=_COCOTB_TEST_MODULE,
-        plusargs=[
-            f"+FAB_BIT={bitstream}",
-            f"+FAB_PCF={pcf}",
-            f"+FAB_NUM_DATA_ROWS={cli.fabulousAPI.fabric.numberOfRows - 2}",
-        ],
-        testcase=testcase,
+    ``cli`` is bound to the per-test copy of the hardened project via the
+    ``fabulous_project`` override, so the ``Fabric/macro/final_views`` netlists
+    in that copy are what ``run_simulation --gl`` resolves.
+    """
+    project = cli.projectDir
+    user_design_dir = project / "user_design"
+    user_design_dir.mkdir(exist_ok=True)
+    shutil.copy(_DEMO_DESIGN, user_design_dir / f"{_DEMO_NAME}.v")
+
+    run_cmd(cli, "run_FABulous_fabric")
+    run_cmd(
+        cli,
+        f"gen_user_design_wrapper user_design/{_DEMO_NAME}.v user_design/top_wrapper.v",
     )
+    run_cmd(cli, f"compile_design user_design/{_DEMO_NAME}.v")
+
+    bitstream = user_design_dir / f"{_DEMO_NAME}.bin"
+    if not bitstream.exists():
+        raise FileNotFoundError(f"compile_design did not produce {bitstream}")
+
+    sim_lib_args = "".join(
+        f" --gl-sim-libs {lib}" for lib in pytestconfig.getoption("gl_sim_libs")
+    )
+    run_cmd(cli, f"run_simulation --gl fst user_design/{_DEMO_NAME}.bin{sim_lib_args}")
