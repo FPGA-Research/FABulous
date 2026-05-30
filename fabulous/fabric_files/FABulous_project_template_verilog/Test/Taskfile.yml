@@ -150,19 +150,19 @@ tasks:
       # the fabric netlist (eFPGA.nl.v), the tile netlists, and the PDK
       # standard-cell models.
       GL_SOURCES: '{{.GL_SOURCES}}'
+    cmds:
       # The behavioural wrapper keeps driving configuration (eFPGA_top,
       # eFPGA_Config, Frame_*, BlockRAM, models_pack); only the inner eFPGA
-      # core and its tiles are swapped for gates. Exclude the behavioural core
-      # eFPGA.v, and stay at depth 1 so Fabric/macro/**/*.nl.v is not picked up.
-      WRAPPER_FILES:
-        sh: find {{.FAB_PROJ_ROOT}}/Fabric -maxdepth 1 -name '*.v' ! -name 'eFPGA.v'
-    cmds:
+      # core and its tiles are swapped for gates. `$(find ...)` is expanded by
+      # the shell so its (newline-separated) output is word-split into separate
+      # iverilog arguments. Exclude the behavioural core eFPGA.v, and stay at
+      # depth 1 so Fabric/macro/**/*.nl.v is not picked up.
       - >-
         iverilog -g2012
         {{.EXTRA_IVERILOG_FLAGS}}
         -s {{.TESTBENCH}}
         -o {{.BUILD_DIR}}/{{.DESIGN}}_gl.vvp
-        {{.WRAPPER_FILES}}
+        $(find {{.FAB_PROJ_ROOT}}/Fabric -maxdepth 1 -name '*.v' ! -name 'eFPGA.v')
         {{.GL_SOURCES}}
         {{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
         {{.TESTBENCH}}.v

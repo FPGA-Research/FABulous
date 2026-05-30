@@ -71,3 +71,13 @@ def test_gl_simulation_demo(
         f" --gl-sim-libs {lib}" for lib in pytestconfig.getoption("gl_sim_libs")
     )
     run_cmd(cli, f"run_simulation --gl fst user_design/{_DEMO_NAME}.bin{sim_lib_args}")
+
+    # run_cmd routes through cmd2, which swallows the CalledProcessError raised
+    # when the Taskfile (iverilog/vvp) fails, so assert on the exit code and the
+    # waveform artifact rather than relying on the command to propagate.
+    assert cli.exit_code == 0, "run_simulation --gl reported a non-zero exit code"
+    waveform = project / "Test" / "build" / f"{_DEMO_NAME}_gl.fst"
+    if not waveform.exists():
+        raise FileNotFoundError(
+            f"gate-level simulation did not produce a waveform at {waveform}"
+        )
