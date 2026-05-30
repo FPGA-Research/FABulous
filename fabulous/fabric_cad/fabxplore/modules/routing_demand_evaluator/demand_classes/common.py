@@ -56,7 +56,7 @@ def _reachable_random_candidates(
                 continue
             if not _distance_matches(source, sink, distance):
                 continue
-            if graph.shortest_path(source.name, sink.name) is None:
+            if not graph.is_reachable(source.name, sink.name):
                 continue
             candidates.append((source, sink))
     return candidates
@@ -252,7 +252,7 @@ def _coverage_from_pairs(
     for source, sink in pairs:
         if source.name == sink.name:
             continue
-        if graph.shortest_path(source.name, sink.name) is not None:
+        if graph.is_reachable(source.name, sink.name):
             reachable_by_source.setdefault(source.name, (source, sink))
             continue
         fallback_by_source.setdefault(source.name, (source, sink))
@@ -332,7 +332,7 @@ def _fanout_demands(
     source_candidates = []
     for source in sources:
         reachable = [
-            sink for sink in sinks if graph.shortest_path(source.name, sink.name)
+            sink for sink in sinks if graph.is_reachable(source.name, sink.name)
         ]
         unreachable = [
             sink for sink in sinks if sink.name != source.name and sink not in reachable
@@ -562,6 +562,7 @@ def _matrix_terminals(
         Existing classified terminals or generated matrix terminals.
     """
     terminal_by_name = {terminal.name: terminal for terminal in matrix.terminals}
+    generated_jump_roles = _generated_jump_roles(matrix)
     result: list[RoutingTerminal] = []
     seen: set[str] = set()
     for name in names:
@@ -572,11 +573,33 @@ def _matrix_terminals(
             terminal_by_name.get(name)
             or RoutingTerminal(
                 name=name,
-                role=RoutingTerminalRole.TILE_OUTPUT,
+                role=generated_jump_roles.get(name) or RoutingTerminalRole.TILE_OUTPUT,
                 source=RoutingTerminalSource.GENERATED,
             )
         )
     return result
+
+
+def _generated_jump_roles(
+    matrix: MatrixData,
+) -> dict[str, RoutingTerminalRole]:
+    """Return metadata-derived JUMP roles for generated matrix nodes.
+
+    Parameters
+    ----------
+    matrix : MatrixData
+        Loaded matrix data.
+
+    Returns
+    -------
+    dict[str, RoutingTerminalRole]
+        Generated node names mapped to roles inferred from FabGraph JUMP metadata.
+    """
+    roles: dict[str, RoutingTerminalRole] = {}
+    for jump_begin, jump_end in matrix.jump_edges:
+        roles[jump_begin] = RoutingTerminalRole.JUMP_BEGIN
+        roles[jump_end] = RoutingTerminalRole.JUMP_END
+    return roles
 
 
 def _generic_bel_input_terminals(
@@ -655,7 +678,8 @@ def _generic_bel_input_sources(
     sources = [
         terminal
         for terminal in _matrix_source_routing_terminals(matrix, graph)
-        if terminal.role != RoutingTerminalRole.JUMP_BEGIN
+        if terminal.role
+        not in {RoutingTerminalRole.JUMP_BEGIN, RoutingTerminalRole.JUMP_END}
     ]
     sources.extend(_terminals(matrix, [RoutingTerminalRole.CONSTANT], graph))
     sources.extend(_generic_bel_output_terminals(matrix, graph))
@@ -846,7 +870,7 @@ def _first_reachable_source(
     for source in sources:
         if source.name == sink.name:
             continue
-        if graph.shortest_path(source.name, sink.name) is not None:
+        if graph.is_reachable(source.name, sink.name):
             return source
     return None
 
@@ -875,7 +899,7 @@ def _first_reachable_sink(
     for sink in sinks:
         if source.name == sink.name:
             continue
-        if graph.shortest_path(source.name, sink.name) is not None:
+        if graph.is_reachable(source.name, sink.name):
             return sink
     return None
 

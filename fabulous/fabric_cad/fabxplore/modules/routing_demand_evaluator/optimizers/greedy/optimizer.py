@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 from math import ceil
-from typing import TYPE_CHECKING
 
 from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models import (
     DemandKind,
@@ -27,17 +26,10 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.b
     OptimizerContext,
     RoutingDemandOptimizer,
 )
-from fabulous.fabric_cad.fabxplore.modules.switch_block_factorizer.core.factorizer import (  # noqa: E501
-    _remove_generated_artifacts,
-    _run_fabulous_generation,
-)
-from fabulous.fabulous_settings import get_context
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 Connections = dict[str, list[str]]
 Pip = tuple[str, str]
+_ZERO_USE_BATCH_LIMIT = 512
 
 
 @dataclass(frozen=True)
@@ -143,7 +135,7 @@ class GreedyOptimizer(RoutingDemandOptimizer):
             Evaluation result after greedy pruning.
         """
         context.tracker.evaluation_start("baseline demand oracle")
-        baseline = context.evaluate(context.graph, [])
+        baseline = context.evaluate(context.graph, [], track_router=True)
         limits = _failure_limits(context, baseline)
         if not _within_limits(baseline, limits):
             return _with_optimizer_stats(
@@ -153,7 +145,7 @@ class GreedyOptimizer(RoutingDemandOptimizer):
                 limits=limits,
                 counters=_Counters(),
                 stop_reason="baseline_exceeds_optimizer_limits",
-                write_back=False,
+                applied_to_tile_model=False,
             )
 
         connections = _copy_connections(context.matrix.connections)
@@ -178,15 +170,32 @@ class GreedyOptimizer(RoutingDemandOptimizer):
             if _optimizer_target_reached(counters, target_remove):
                 stop_reason = "target_reached"
                 break
-            selection = _next_candidate_batch(
-                connections=connections,
-                result=current,
-                rejected=rejected,
-                target_remove=target_remove,
-                counters=counters,
-                clean_mux=clean_mux,
-                power_of_two_muxes=context.options.opt_power_of_two_muxes,
+            # Normal pruning can cheaply validate PIPs that no current routed
+            # demand uses.  Mux-cleanup modes keep their stricter row-local
+            # batch semantics, so they intentionally skip this shortcut.
+            zero_use_batch = (
+                []
+                if clean_mux
+                else _zero_use_candidate_batch(
+                    connections=connections,
+                    result=current,
+                    rejected=rejected,
+                    target_remove=target_remove,
+                    counters=counters,
+                )
             )
+            if zero_use_batch:
+                selection = _CandidateSelection(pips=zero_use_batch)
+            else:
+                selection = _next_candidate_batch(
+                    connections=connections,
+                    result=current,
+                    rejected=rejected,
+                    target_remove=target_remove,
+                    counters=counters,
+                    clean_mux=clean_mux,
+                    power_of_two_muxes=context.options.opt_power_of_two_muxes,
+                )
             batch = selection.pips
             if not batch:
                 if selection.blocked_by_target_budget:
@@ -201,15 +210,26 @@ class GreedyOptimizer(RoutingDemandOptimizer):
                 break
 
             counters.iterations += 1
-            accepted = _try_adaptive_batch(
-                context=context,
-                connections=connections,
-                current=current,
-                batch=batch,
-                limits=limits,
-                rejected=rejected,
-                counters=counters,
-                allow_split=not clean_mux,
+            accepted = (
+                _try_zero_use_batch(
+                    context=context,
+                    connections=connections,
+                    batch=batch,
+                    limits=limits,
+                    rejected=rejected,
+                    counters=counters,
+                )
+                if zero_use_batch
+                else _try_adaptive_batch(
+                    context=context,
+                    connections=connections,
+                    current=current,
+                    batch=batch,
+                    limits=limits,
+                    rejected=rejected,
+                    counters=counters,
+                    allow_split=not clean_mux,
+                )
             )
             if accepted is None:
                 context.tracker.optimizer_iteration(
@@ -232,8 +252,8 @@ class GreedyOptimizer(RoutingDemandOptimizer):
             )
 
         remaining_non_power_rows = _non_power_of_two_mux_count(connections)
-        should_write_back = (
-            context.options.opt_write_back
+        should_apply = (
+            context.options.apply_to_tile_model
             and counters.accepted_pips > 0
             and (
                 not context.options.opt_power_of_two_muxes
@@ -250,13 +270,13 @@ class GreedyOptimizer(RoutingDemandOptimizer):
                             f"{remaining_non_power_rows} non-power-of-two "
                             "mux row(s) remain."
                         ),
-                        "Write-back skipped because strict power-of-two mux "
+                        "Tile-model apply skipped because strict power-of-two mux "
                         "cleanup did not finish.",
                     ]
                 }
             )
-        if should_write_back:
-            _write_back(context, connections)
+        if should_apply:
+            _apply_to_tile_model(context, connections)
 
         result = _with_optimizer_stats(
             result=current,
@@ -265,7 +285,7 @@ class GreedyOptimizer(RoutingDemandOptimizer):
             limits=limits,
             counters=counters,
             stop_reason=stop_reason,
-            write_back=should_write_back,
+            applied_to_tile_model=should_apply,
         )
         context.tracker.optimizer_finish(
             removed_pips=counters.accepted_pips,
@@ -273,6 +293,129 @@ class GreedyOptimizer(RoutingDemandOptimizer):
             stop_reason=stop_reason,
         )
         return result
+
+
+def _zero_use_candidate_batch(
+    connections: Connections,
+    result: RoutingDemandEvaluatorResult,
+    rejected: set[Pip],
+    target_remove: int,
+    counters: _Counters,
+) -> list[Pip]:
+    """Return a large batch of PIPs unused by the current routes.
+
+    Parameters
+    ----------
+    connections : Connections
+        Current accepted switch-matrix connections.
+    result : RoutingDemandEvaluatorResult
+        Current accepted routed result.
+    rejected : set[Pip]
+        PIPs rejected by previous oracle calls.
+    target_remove : int
+        Target number of PIPs to remove.
+    counters : _Counters
+        Optimizer counters.
+
+    Returns
+    -------
+    list[Pip]
+        Unused PIPs that can be removed without emptying a matrix row.
+    """
+    remaining = target_remove - counters.accepted_pips
+    if remaining <= 0:
+        return []
+    hard_use, soft_use = _pip_use_by_kind(result)
+    candidates: list[Pip] = []
+    for sink, sources in connections.items():
+        if len(sources) <= 1:
+            continue
+        for source in sources:
+            pip = (source, sink)
+            if pip in rejected:
+                continue
+            if hard_use[pip] or soft_use[pip]:
+                continue
+            candidates.append(pip)
+
+    removable = _remove_emptying_pips(
+        connections,
+        sorted(
+            candidates,
+            key=lambda pip: (
+                -len(connections[pip[1]]),
+                pip[1],
+                pip[0],
+            ),
+        ),
+    )
+    batch_size = min(_zero_use_batch_size(len(removable)), remaining)
+    return removable[:batch_size]
+
+
+def _zero_use_batch_size(candidate_count: int) -> int:
+    """Return validation chunk size for unused-PIP pruning.
+
+    Parameters
+    ----------
+    candidate_count : int
+        Number of currently removable unused PIPs.
+
+    Returns
+    -------
+    int
+        Batch size.
+    """
+    if candidate_count <= 0:
+        return 0
+    return max(1, min(_ZERO_USE_BATCH_LIMIT, candidate_count))
+
+
+def _try_zero_use_batch(
+    context: OptimizerContext,
+    connections: Connections,
+    batch: list[Pip],
+    limits: _Limits,
+    rejected: set[Pip],
+    counters: _Counters,
+) -> tuple[Connections, RoutingDemandEvaluatorResult] | None:
+    """Try removing PIPs unused by the current routed solution.
+
+    Parameters
+    ----------
+    context : OptimizerContext
+        Optimizer context.
+    connections : Connections
+        Current accepted switch-matrix connections.
+    batch : list[Pip]
+        Unused candidate PIPs to remove.
+    limits : _Limits
+        Allowed failure-rate limits.
+    rejected : set[Pip]
+        PIPs rejected by previous oracle calls.
+    counters : _Counters
+        Mutable optimizer counters.
+
+    Returns
+    -------
+    tuple[Connections, RoutingDemandEvaluatorResult] | None
+        Accepted connections and validated result, or ``None``.
+    """
+    candidate_connections = _remove_pips(connections, batch)
+    candidate_graph = _build_graph(context.matrix, candidate_connections)
+    counters.attempted_batches += 1
+    counters.attempted_pips += len(batch)
+    context.tracker.evaluation_start(f"greedy zero-use validation ({len(batch)} PIPs)")
+    candidate = context.evaluate(candidate_graph, [])
+    if _within_limits(candidate, limits):
+        counters.accepted_batches += 1
+        counters.accepted_pips += len(batch)
+        return candidate_connections, candidate
+
+    counters.rejected_batches += 1
+    counters.rejected_pips += len(batch)
+    rejected.update(batch)
+    return None
 
 
 def _failure_limits(
@@ -372,6 +515,9 @@ def _try_adaptive_batch(
     candidate_graph = _build_graph(context.matrix, candidate_connections)
     counters.attempted_batches += 1
     counters.attempted_pips += len(removable_batch)
+    context.tracker.evaluation_start(
+        f"greedy candidate validation ({len(removable_batch)} PIPs)"
+    )
     candidate = context.evaluate(candidate_graph, [])
     if _within_limits(candidate, limits):
         counters.accepted_batches += 1
@@ -822,7 +968,7 @@ def _with_optimizer_stats(
     limits: _Limits,
     counters: _Counters,
     stop_reason: str,
-    write_back: bool,
+    applied_to_tile_model: bool,
 ) -> RoutingDemandEvaluatorResult:
     """Attach optimizer statistics and rerender the report.
 
@@ -840,8 +986,8 @@ def _with_optimizer_stats(
         Optimizer counters.
     stop_reason : str
         Stop reason.
-    write_back : bool
-        Whether files were written back.
+    applied_to_tile_model : bool
+        Whether the accepted matrix was applied to the in-memory tile model.
 
     Returns
     -------
@@ -863,7 +1009,7 @@ def _with_optimizer_stats(
     stats = OptimizerStats(
         enabled=True,
         optimizer=str(result.options.optimizer),
-        write_back=write_back,
+        applied_to_tile_model=applied_to_tile_model,
         baseline_pips=baseline_pips,
         final_pips=result.stats.final_routing_pips,
         removed_pips=removed_pips,
@@ -1099,8 +1245,8 @@ def _mux_config_bits(fanin: int) -> int:
     return (fanin - 1).bit_length()
 
 
-def _write_back(context: OptimizerContext, connections: Connections) -> None:
-    """Write optimized connections back into the active tile files.
+def _apply_to_tile_model(context: OptimizerContext, connections: Connections) -> None:
+    """Apply optimized connections to the active in-memory tile model.
 
     Parameters
     ----------
@@ -1109,30 +1255,49 @@ def _write_back(context: OptimizerContext, connections: Connections) -> None:
     connections : Connections
         Accepted optimized connections.
     """
-    output_list = (
-        context.matrix.tile_dir / f"{context.matrix.tile_name}_switch_matrix.list"
-    )
-    output_list.write_text(
-        _render_list(context.matrix.tile_name, connections),
-        encoding="utf-8",
-    )
-    _rewrite_matrix_row(context.matrix.tile_csv, output_list)
-    _remove_generated_artifacts(
-        context.matrix.tile_dir,
+    matrix = _connections_to_delay_matrix(context.matrix, connections)
+    context.fpga_model.set_switch_matrix(
         context.matrix.tile_name,
-        context.fab.fileExtension,
+        list(context.matrix.columns),
+        list(context.matrix.rows),
+        matrix,
     )
-    context.fab.loadFabric(get_context().proj_dir / "fabric.csv")
-    _run_fabulous_generation(
-        fab=context.fab,
-        tile_name=context.matrix.tile_name,
-        tile_dir=context.matrix.tile_dir,
-        file_extension=context.fab.fileExtension,
-    )
+
+
+def _connections_to_delay_matrix(
+    matrix: MatrixData,
+    connections: Connections,
+) -> list[list[float]]:
+    """Return a FabGraph delay matrix from local optimized connections.
+
+    Parameters
+    ----------
+    matrix : MatrixData
+        Baseline matrix metadata.
+    connections : Connections
+        Optimized connections.
+
+    Returns
+    -------
+    list[list[float]]
+        Delay matrix suitable for ``set_switch_matrix``.
+    """
+    column_index = {column: index for index, column in enumerate(matrix.columns)}
+    result = [[0.0 for _column in matrix.columns] for _row in matrix.rows]
+    for row_index, row in enumerate(matrix.rows):
+        for source in connections.get(row, []):
+            source_index = column_index.get(source)
+            if source_index is None:
+                continue
+            result[row_index][source_index] = matrix.delay_by_row.get(row, {}).get(
+                source,
+                1.0,
+            )
+    return result
 
 
 def _render_list(tile_name: str, connections: Connections) -> str:
-    """Render FABulous list text.
+    """Render FABulous list text for diagnostics and tests.
 
     Parameters
     ----------
@@ -1146,15 +1311,7 @@ def _render_list(tile_name: str, connections: Connections) -> str:
     str
         List-file contents.
     """
-    lines = [
-        "# --------------WARNING-----------------",
-        "# This is a generated list file!",
-        "# Your changes will be overwritten!",
-        "# Generated by fabxplore routing_demand_evaluator greedy optimizer.",
-        "# --------------WARNING-----------------",
-        f"# Tile: {tile_name}",
-        "",
-    ]
+    lines = [f"# Tile: {tile_name}", ""]
     for row, sources in connections.items():
         unique_sources = list(dict.fromkeys(sources))
         if not unique_sources:
@@ -1164,32 +1321,3 @@ def _render_list(tile_name: str, connections: Connections) -> str:
         else:
             lines.append(f"{{{len(unique_sources)}}}{row},[{'|'.join(unique_sources)}]")
     return "\n".join(lines) + "\n"
-
-
-def _rewrite_matrix_row(tile_csv: Path, switch_matrix_list: Path) -> None:
-    """Point a tile CSV at the optimized switch-matrix list.
-
-    Parameters
-    ----------
-    tile_csv : Path
-        Tile CSV path.
-    switch_matrix_list : Path
-        Optimized list path.
-
-    Raises
-    ------
-    ValueError
-        If the tile CSV has no MATRIX row.
-    """
-    lines = tile_csv.read_text(encoding="utf-8").splitlines()
-    rewritten: list[str] = []
-    matrix_seen = False
-    for line in lines:
-        if line.strip().startswith("MATRIX,"):
-            rewritten.append(f"MATRIX,./{switch_matrix_list.name}")
-            matrix_seen = True
-        else:
-            rewritten.append(line)
-    if not matrix_seen:
-        raise ValueError(f"tile CSV has no MATRIX row: {tile_csv}")
-    tile_csv.write_text("\n".join(rewritten) + "\n", encoding="utf-8")

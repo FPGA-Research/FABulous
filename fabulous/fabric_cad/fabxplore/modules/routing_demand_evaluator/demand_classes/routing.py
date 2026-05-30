@@ -504,8 +504,8 @@ def multi_hop(
         for sink in _matrix_row_routing_terminals(matrix, graph):
             if source.name == sink.name:
                 continue
-            path = graph.shortest_path(source.name, sink.name)
-            if path is not None and len(path[0]) >= 4:
+            distance = graph.hop_distance(source.name, sink.name)
+            if distance is not None and distance >= 3:
                 pairs.append((source, sink))
     return _coverage_from_pairs(
         DemandClassName.MULTI_HOP,
@@ -548,8 +548,7 @@ def routing_redundancy(
         reachable = [
             source
             for source in sources
-            if source.name != sink.name
-            and graph.shortest_path(source.name, sink.name) is not None
+            if source.name != sink.name and graph.is_reachable(source.name, sink.name)
         ]
         if len(reachable) < 2:
             continue
@@ -637,7 +636,7 @@ def _direct_pair_demands(
         if source.name == sink.name or key in seen:
             continue
         seen.add(key)
-        if graph.shortest_path(source.name, sink.name) is None:
+        if not graph.is_reachable(source.name, sink.name):
             continue
         demands.append(
             RoutingDemand(
@@ -728,6 +727,6 @@ def _first_reachable_or_first_pair(
             if source.name == sink.name:
                 continue
             fallback = fallback or (source, sink)
-            if graph.shortest_path(source.name, sink.name) is not None:
+            if graph.is_reachable(source.name, sink.name):
                 return source, sink
     return fallback

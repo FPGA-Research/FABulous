@@ -31,4 +31,5 @@ class NoOptimizer(RoutingDemandOptimizer):
         RoutingDemandEvaluatorResult
             Evaluation result.
         """
-        return context.evaluate(context.graph, [])
+        context.tracker.evaluation_start("demand router")
+        return context.evaluate(context.graph, [], track_router=True)

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
-from heapq import heappop, heappush
+from heapq import heapify, heappop, heappush
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -27,6 +28,11 @@ class RoutingGraph:
     node_to_id: dict[str, int]
     id_to_node: list[str]
     adjacency: dict[int, list[int]]
+    _reachability_cache: dict[int, dict[int, int]] = field(
+        default_factory=dict,
+        compare=False,
+        repr=False,
+    )
 
     @classmethod
     def from_edges(cls, edges: Iterable[tuple[str, str]]) -> RoutingGraph:
@@ -161,6 +167,83 @@ class RoutingGraph:
                     heappush(queue, (next_cost, next_node))
         return None
 
+    def is_reachable(self, source: str, sink: str) -> bool:
+        """Return whether ``sink`` is reachable from ``source``.
+
+        This uses cached unweighted BFS reachability and is intended for
+        demand-generation probes. Use ``shortest_path`` when a concrete path or
+        weighted congestion costs are required.
+
+        Parameters
+        ----------
+        source : str
+            Source node.
+        sink : str
+            Sink node.
+
+        Returns
+        -------
+        bool
+            Whether a directed path exists.
+        """
+        if source not in self.node_to_id or sink not in self.node_to_id:
+            return False
+        source_id = self.node_to_id[source]
+        sink_id = self.node_to_id[sink]
+        return sink_id in self._distances_from_id(source_id)
+
+    def hop_distance(self, source: str, sink: str) -> int | None:
+        """Return unweighted hop distance from ``source`` to ``sink``.
+
+        Parameters
+        ----------
+        source : str
+            Source node.
+        sink : str
+            Sink node.
+
+        Returns
+        -------
+        int | None
+            Number of graph edges in the shortest unweighted path, or ``None``
+            when no path exists.
+        """
+        if source not in self.node_to_id or sink not in self.node_to_id:
+            return None
+        source_id = self.node_to_id[source]
+        sink_id = self.node_to_id[sink]
+        return self._distances_from_id(source_id).get(sink_id)
+
+    def _distances_from_id(self, source_id: int) -> dict[int, int]:
+        """Return cached unweighted BFS distances from a source id.
+
+        Parameters
+        ----------
+        source_id : int
+            Source node id.
+
+        Returns
+        -------
+        dict[int, int]
+            Reachable node ids mapped to hop distances.
+        """
+        cached = self._reachability_cache.get(source_id)
+        if cached is not None:
+            return cached
+
+        distances = {source_id: 0}
+        queue: deque[int] = deque([source_id])
+        while queue:
+            node = queue.popleft()
+            next_distance = distances[node] + 1
+            for next_node in self.adjacency.get(node, []):
+                if next_node in distances:
+                    continue
+                distances[next_node] = next_distance
+                queue.append(next_node)
+        self._reachability_cache[source_id] = distances
+        return distances
+
     def shortest_path_to_any(
         self,
         sources: list[str],
@@ -183,14 +266,37 @@ class RoutingGraph:
         tuple[list[str], float] | None
             Path and cost, or ``None`` if unreachable.
         """
-        best: tuple[list[str], float] | None = None
-        for source in sources:
-            path = self.shortest_path(source, sink, node_costs)
-            if path is None:
+        if sink not in self.node_to_id:
+            return None
+
+        source_ids = [
+            self.node_to_id[source]
+            for source in dict.fromkeys(sources)
+            if source in self.node_to_id
+        ]
+        if not source_ids:
+            return None
+
+        sink_id = self.node_to_id[sink]
+        costs = node_costs or {}
+        queue: list[tuple[float, int]] = [(0.0, source_id) for source_id in source_ids]
+        heapify(queue)
+        distances = {source_id: 0.0 for source_id in source_ids}
+        parents: dict[int, int] = {}
+
+        while queue:
+            cost, node = heappop(queue)
+            if node == sink_id:
+                return self._path_from_any_parent(parents, sink_id), cost
+            if cost != distances[node]:
                 continue
-            if best is None or path[1] < best[1]:
-                best = path
-        return best
+            for next_node in self.adjacency.get(node, []):
+                next_cost = cost + 1.0 + costs.get(next_node, 0.0)
+                if next_cost < distances.get(next_node, float("inf")):
+                    distances[next_node] = next_cost
+                    parents[next_node] = node
+                    heappush(queue, (next_cost, next_node))
+        return None
 
     def _path_from_parents(
         self,
@@ -216,6 +322,31 @@ class RoutingGraph:
         """
         path = [sink_id]
         while path[-1] != source_id:
+            path.append(parents[path[-1]])
+        path.reverse()
+        return [self.id_to_node[node] for node in path]
+
+    def _path_from_any_parent(
+        self,
+        parents: dict[int, int],
+        sink_id: int,
+    ) -> list[str]:
+        """Reconstruct a path from one of many Dijkstra roots.
+
+        Parameters
+        ----------
+        parents : dict[int, int]
+            Parent map.
+        sink_id : int
+            Sink node id.
+
+        Returns
+        -------
+        list[str]
+            Node-name path.
+        """
+        path = [sink_id]
+        while path[-1] in parents:
             path.append(parents[path[-1]])
         path.reverse()
         return [self.id_to_node[node] for node in path]

@@ -1416,9 +1416,6 @@ class ArchitectureSynthesizer(ABC):
     def pnr_routing_demand_evaluator_pass(
         self,
         tile_name: str,
-        tile_dir: Path | None = None,
-        tile_csv: Path | None = None,
-        switch_matrix: Path | None = None,
         demand_profile: DemandProfileName | str = "default",
         demand_iterations: int = 1000,
         random_demand_ratio: float = 0.25,
@@ -1429,7 +1426,7 @@ class ArchitectureSynthesizer(ABC):
         opt_max_soft_failure_rate: float = 0.05,
         opt_max_hard_failure_rate: float = 0.0,
         opt_use_baseline_failure_rates: bool = True,
-        opt_write_back: bool = False,
+        apply_to_tile_model: bool = False,
         opt_max_iterations: int = 50,
         opt_clean_mux: bool = False,
         opt_power_of_two_muxes: bool = False,
@@ -1441,7 +1438,6 @@ class ArchitectureSynthesizer(ABC):
         router_base_resource_capacity: int = 1,
         fanout_targets: list[int] | None = None,
         max_net_sinks: int = 8,
-        config_bit_capacity_override: int | None = None,
         config_bit_margin: int = 0,
         track_progress: bool = True,
         progress_chunk_size: int = 10,
@@ -1453,12 +1449,6 @@ class ArchitectureSynthesizer(ABC):
         ----------
         tile_name : str
             Name of the FABulous tile to evaluate.
-        tile_dir : Path | None
-            Optional tile directory override.
-        tile_csv : Path | None
-            Optional tile CSV override.
-        switch_matrix : Path | None
-            Optional active matrix file override.
         demand_profile : DemandProfileName | str
             Demand profile name.
         demand_iterations : int
@@ -1479,8 +1469,8 @@ class ArchitectureSynthesizer(ABC):
             Maximum optimizer-added hard-demand failure rate.
         opt_use_baseline_failure_rates : bool
             Whether optimizer failure-rate limits are added to the baseline rates.
-        opt_write_back : bool
-            Whether optimizer changes overwrite the active tile files in place.
+        apply_to_tile_model : bool
+            Whether optimizer changes update the in-memory FabGraph tile model.
         opt_max_iterations : int
             Maximum optimizer pruning iterations.
         opt_clean_mux : bool
@@ -1504,9 +1494,6 @@ class ArchitectureSynthesizer(ABC):
             Fanout sizes used by fanout-style demand classes.
         max_net_sinks : int
             Maximum sinks in one generated net demand.
-        config_bit_capacity_override : int | None
-            Optional total config-bit capacity. ``None`` uses the loaded
-            FABulous fabric.
         config_bit_margin : int
             Reserved config-bit margin.
         track_progress : bool
@@ -1523,9 +1510,6 @@ class ArchitectureSynthesizer(ABC):
         """
         result = RoutingDemandEvaluatorPass(
             tile_name=tile_name,
-            tile_dir=tile_dir,
-            tile_csv=tile_csv,
-            switch_matrix=switch_matrix,
             demand_profile=demand_profile,
             demand_iterations=demand_iterations,
             random_demand_ratio=random_demand_ratio,
@@ -1536,7 +1520,7 @@ class ArchitectureSynthesizer(ABC):
             opt_max_soft_failure_rate=opt_max_soft_failure_rate,
             opt_max_hard_failure_rate=opt_max_hard_failure_rate,
             opt_use_baseline_failure_rates=opt_use_baseline_failure_rates,
-            opt_write_back=opt_write_back,
+            apply_to_tile_model=apply_to_tile_model,
             opt_max_iterations=opt_max_iterations,
             opt_clean_mux=opt_clean_mux,
             opt_power_of_two_muxes=opt_power_of_two_muxes,
@@ -1548,7 +1532,6 @@ class ArchitectureSynthesizer(ABC):
             router_base_resource_capacity=router_base_resource_capacity,
             fanout_targets=fanout_targets,
             max_net_sinks=max_net_sinks,
-            config_bit_capacity_override=config_bit_capacity_override,
             config_bit_margin=config_bit_margin,
             track_progress=track_progress,
             progress_chunk_size=progress_chunk_size,

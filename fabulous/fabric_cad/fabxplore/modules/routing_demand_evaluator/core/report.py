@@ -60,8 +60,7 @@ REPORT_TEMPLATE = """\
 # Routing Demand Evaluator Report
 
 Tile: {{ result.matrix.tile_name }}
-Directory: {{ result.matrix.tile_dir }}
-Switch matrix: {{ result.matrix.switch_matrix }}
+Matrix source: {{ result.matrix.matrix_source }}
 
 ## Summary
 - status: {{ status }}
@@ -204,11 +203,11 @@ def _optimization_section(result: RoutingDemandEvaluatorResult) -> list[str]:
     if stats is None:
         return []
     optimized_prefix = (
-        "written optimized" if stats.write_back else "estimated optimized"
+        "applied optimized" if stats.applied_to_tile_model else "estimated optimized"
     )
     rows = [
         ["optimizer", stats.optimizer],
-        ["write back", str(stats.write_back)],
+        ["applied to tile model", str(stats.applied_to_tile_model)],
         ["baseline routing PIPs", str(stats.baseline_pips)],
         ["final routing PIPs", str(stats.final_pips)],
         ["removed routing PIPs", str(stats.removed_pips)],

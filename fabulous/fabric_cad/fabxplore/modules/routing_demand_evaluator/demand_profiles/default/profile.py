@@ -19,6 +19,9 @@ if TYPE_CHECKING:
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models import (  # noqa: E501
         MatrixData,
     )
+    from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.process_tracker import (  # noqa: E501
+        RoutingDemandProcessTracker,
+    )
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.routing_graph import (  # noqa: E501
         RoutingGraph,
     )
@@ -29,6 +32,7 @@ def generate_default_profile(
     matrix: MatrixData,
     graph: RoutingGraph,
     rng: Random,
+    tracker: RoutingDemandProcessTracker | None = None,
 ) -> DemandProfileResult:
     """Generate the default meaningful routing-demand profile.
 
@@ -42,6 +46,8 @@ def generate_default_profile(
         Routing graph.
     rng : Random
         Random generator.
+    tracker : RoutingDemandProcessTracker | None
+        Optional progress tracker.
 
     Returns
     -------
@@ -71,4 +77,5 @@ def generate_default_profile(
         matrix=matrix,
         graph=graph,
         rng=rng,
+        tracker=tracker,
     )

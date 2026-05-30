@@ -39,6 +39,7 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.m
     MonteCarloHyperParameters,
     MonteCarloLimits,
     Pip,
+    apply_to_tile_model,
     build_graph,
     build_importance_matrix,
     copy_connections,
@@ -48,7 +49,6 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.m
     remove_pips,
     routing_pip_count,
     target_reached,
-    write_back,
 )
 
 if TYPE_CHECKING:
@@ -92,7 +92,7 @@ class MonteCarloOptimizer(RoutingDemandOptimizer):
             Evaluation result after Monte Carlo pruning.
         """
         context.tracker.evaluation_start("baseline demand oracle")
-        baseline = context.evaluate(context.graph, [])
+        baseline = context.evaluate(context.graph, [], track_router=True)
         limits = _failure_limits(context, baseline)
         if not _within_limits(baseline, limits):
             return _with_optimizer_stats(
@@ -102,7 +102,7 @@ class MonteCarloOptimizer(RoutingDemandOptimizer):
                 limits=limits,
                 counters=MonteCarloCounters(),
                 stop_reason="baseline_exceeds_optimizer_limits",
-                write_back_enabled=False,
+                applied_to_tile_model=False,
                 importance_by_pip={},
                 importance_file=None,
             )
@@ -194,23 +194,23 @@ class MonteCarloOptimizer(RoutingDemandOptimizer):
                             f"{remaining_non_power_rows} non-power-of-two "
                             "mux row(s) remain."
                         ),
-                        "Write-back skipped because strict power-of-two mux "
+                        "Tile-model apply skipped because strict power-of-two mux "
                         "cleanup did not finish.",
                     ]
                 }
             )
 
         importance_file: Path | None = None
-        should_write_back = (
-            context.options.opt_write_back
+        should_apply = (
+            context.options.apply_to_tile_model
             and counters.accepted_pips > 0
             and (
                 not context.options.opt_power_of_two_muxes
                 or remaining_non_power_rows == 0
             )
         )
-        if should_write_back:
-            importance_file = write_back(context, connections, importance_by_pip)
+        if should_apply:
+            apply_to_tile_model(context, connections)
 
         result = _with_optimizer_stats(
             result=current,
@@ -219,7 +219,7 @@ class MonteCarloOptimizer(RoutingDemandOptimizer):
             limits=limits,
             counters=counters,
             stop_reason=stop_reason,
-            write_back_enabled=should_write_back,
+            applied_to_tile_model=should_apply,
             importance_by_pip=importance_by_pip,
             importance_file=importance_file,
         )
@@ -956,7 +956,7 @@ def _with_optimizer_stats(
     limits: MonteCarloLimits,
     counters: MonteCarloCounters,
     stop_reason: str,
-    write_back_enabled: bool,
+    applied_to_tile_model: bool,
     importance_by_pip: ImportanceByPip,
     importance_file: Path | None,
 ) -> RoutingDemandEvaluatorResult:
@@ -976,8 +976,8 @@ def _with_optimizer_stats(
         Mutable counters.
     stop_reason : str
         Stop reason.
-    write_back_enabled : bool
-        Whether files were written back.
+    applied_to_tile_model : bool
+        Whether the accepted matrix was applied to the in-memory tile model.
     importance_by_pip : ImportanceByPip
         PIP importance values.
     importance_file : Path | None
@@ -1004,7 +1004,7 @@ def _with_optimizer_stats(
     stats = OptimizerStats(
         enabled=True,
         optimizer=str(result.options.optimizer),
-        write_back=write_back_enabled,
+        applied_to_tile_model=applied_to_tile_model,
         baseline_pips=baseline_pips,
         final_pips=final_pips,
         removed_pips=removed_pips,

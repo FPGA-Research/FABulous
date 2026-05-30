@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 from random import Random
 from tempfile import TemporaryDirectory
-from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator import (
@@ -46,8 +46,14 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.routers.path
 from fabulous.fabric_cad.fabxplore.pnr.custom_passes.routing_demand_evaluator_pass import (  # noqa: E501
     RoutingDemandEvaluatorPass,
 )
+from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
+    RoutingConfigBits,
+    RoutingPipKind,
+    RoutingResourceKey,
+    RoutingSwitchMatrix,
+)
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO, Direction
 from fabulous.fabric_generator.parser.parse_csv import parsePortLine
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_cli.helper import setup_logger
@@ -164,9 +170,153 @@ class _FakeFab:
         _ = tile_name
 
 
-def _fake_fpga_model(fab: _FakeFab) -> SimpleNamespace:
+class _FakeFpgaModel:
+    """Bridge-shaped graph test double for routing-demand tests."""
+
+    def __init__(
+        self,
+        fab: _FakeFab,
+        external_resources: list[RoutingResourceKey] | None = None,
+    ) -> None:
+        self.user_design = object()
+        self.fab = fab
+        self._external_resources = external_resources or []
+        self.applied_switch_matrix: RoutingSwitchMatrix | None = None
+
+    def switch_matrix(self, tile_name: str) -> RoutingSwitchMatrix:
+        """Return the active fake graph switch matrix."""
+        if self.applied_switch_matrix is not None:
+            return self.applied_switch_matrix
+        tile = self.fab.fabric.getTileByName(tile_name)
+        assert tile is not None
+        connections = {
+            row: list(sources)
+            for row, sources in parseList(tile.matrixDir, collect="source").items()
+        }
+        rows = list(connections)
+        columns = list(
+            dict.fromkeys(
+                source for sources in connections.values() for source in sources
+            )
+        )
+        column_index = {column: index for index, column in enumerate(columns)}
+        matrix = [[0.0 for _column in columns] for _row in rows]
+        for row_index, row in enumerate(rows):
+            for source in connections[row]:
+                matrix[row_index][column_index[source]] = 1.0
+        return RoutingSwitchMatrix(
+            tile_type=tile_name,
+            columns=columns,
+            rows=rows,
+            matrix=matrix,
+        )
+
+    def set_switch_matrix(
+        self,
+        tile_name: str,
+        columns: list[str],
+        rows: list[str],
+        matrix: list[list[float]],
+    ) -> None:
+        """Remember the applied matrix without writing files."""
+        self.applied_switch_matrix = RoutingSwitchMatrix(
+            tile_type=tile_name,
+            columns=columns,
+            rows=rows,
+            matrix=matrix,
+        )
+
+    def get_config_bits(self, tile_name: str) -> RoutingConfigBits:
+        """Return fake graph config-bit counts."""
+        swm = self.switch_matrix(tile_name)
+        matrix_bits = sum(
+            (sum(1 for value in row if value != 0.0) - 1).bit_length()
+            for row in swm.matrix
+            if sum(1 for value in row if value != 0.0) >= 2
+        )
+        return RoutingConfigBits(
+            tile_type=tile_name,
+            matrix_config_bits=matrix_bits,
+            fixed_config_bits=1,
+            total_config_bits=matrix_bits + 1,
+        )
+
+    def external_resources(
+        self,
+        tile_type: str | None = None,
+        *,
+        active_only: bool = True,
+    ) -> list[RoutingResourceKey]:
+        """Return fake active external resources."""
+        _ = active_only
+        tile_resources = [
+            resource for resource in _jump_resources_from_tile_csv(self.fab.fabric.tile)
+        ]
+        resources = [*tile_resources, *self._external_resources]
+        if tile_type is None:
+            return resources
+        return [resource for resource in resources if resource.tile_type == tile_type]
+
+
+def _fake_fpga_model(
+    fab: _FakeFab,
+    external_resources: list[RoutingResourceKey] | None = None,
+) -> _FakeFpgaModel:
     """Return the bridge-shaped object expected by PnR modules."""
-    return SimpleNamespace(user_design=object(), fab=fab)
+    return _FakeFpgaModel(fab, external_resources)
+
+
+def _connections_from_fake_switch_matrix(
+    switch_matrix: RoutingSwitchMatrix,
+) -> dict[str, list[str]]:
+    """Return row-to-source connections from a fake switch matrix."""
+    return {
+        row: [
+            column
+            for column_index, column in enumerate(switch_matrix.columns)
+            if switch_matrix.matrix[row_index][column_index] != 0.0
+        ]
+        for row_index, row in enumerate(switch_matrix.rows)
+    }
+
+
+def _jump_resource(
+    tile_name: str,
+    source_name: str,
+    destination_name: str,
+    wire_count: int = 1,
+) -> RoutingResourceKey:
+    """Return one fake active JUMP resource key."""
+    return RoutingResourceKey(
+        tile_type=tile_name,
+        kind=RoutingPipKind.EXTERNAL_WIRE,
+        source_name=source_name,
+        destination_name=destination_name,
+        direction=Direction.JUMP,
+        wire_count=wire_count,
+    )
+
+
+def _jump_resources_from_tile_csv(tile: _FakeTile) -> list[RoutingResourceKey]:
+    """Return fake JUMP resources declared by the temporary tile CSV."""
+    resources: list[RoutingResourceKey] = []
+    with tile.tileDir.open(newline="", encoding="utf-8") as stream:
+        for row in csv.reader(stream):
+            if not row or row[0] != "JUMP":
+                continue
+            ports, _common = parsePortLine(",".join(row))
+            for port in ports:
+                if port.wireDirection is not Direction.JUMP:
+                    continue
+                resources.append(
+                    _jump_resource(
+                        tile.name,
+                        port.sourceName,
+                        port.destinationName,
+                        port.wireCount,
+                    )
+                )
+    return resources
 
 
 def test_models_validate_public_options() -> None:
@@ -212,7 +362,7 @@ def test_matrix_loader_reads_list_and_jump_edges() -> None:
 
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="jump_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
 
         assert data.connections["J0_BEG0"] == ["A", "B"]
@@ -235,7 +385,7 @@ def test_matrix_loader_skips_source_less_jump_resources() -> None:
 
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="constant_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
 
         assert data.jump_edges == []
@@ -262,7 +412,7 @@ def test_matrix_loader_classifies_fabulous_terminals() -> None:
 
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="role_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
 
         roles = {(terminal.name, terminal.role) for terminal in data.terminals}
@@ -274,8 +424,8 @@ def test_matrix_loader_classifies_fabulous_terminals() -> None:
         assert ("EN", RoutingTerminalRole.LOCAL_ENABLE) in roles
 
 
-def test_matrix_loader_classifies_tile_carry_ports_from_csv() -> None:
-    """Test carry-annotated tile ports are classified as carry terminals."""
+def test_matrix_loader_ignores_file_only_carry_annotations() -> None:
+    """Test graph loading does not read carry annotations from tile CSV files."""
     with _project("carry_tile") as tile_dir:
         matrix = tile_dir / "carry_tile_switch_matrix.list"
         matrix.write_text("Ci0,Co0\nN_ROW0,N_SRC0\n", encoding="utf-8")
@@ -297,20 +447,18 @@ def test_matrix_loader_classifies_tile_carry_ports_from_csv() -> None:
 
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="carry_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
         roles = {(terminal.name, terminal.role) for terminal in data.terminals}
         straight = routing.straight_routing(data, graph, limit=8, offset=0)
         carry_demands = carry.carry_chain(data, graph, limit=8, offset=0)
 
-        assert ("Ci0", RoutingTerminalRole.CARRY_INPUT) in roles
-        assert ("Co0", RoutingTerminalRole.CARRY_OUTPUT) in roles
+        assert ("Ci0", RoutingTerminalRole.TILE_INPUT) in roles
+        assert ("Co0", RoutingTerminalRole.TILE_OUTPUT) in roles
         assert all(demand.source != "Ci0" for demand in straight)
         assert all(demand.sink != "Co0" for demand in straight)
-        assert [(demand.source, demand.sink) for demand in carry_demands] == [
-            ("Co0", "Ci0")
-        ]
+        assert carry_demands == []
 
 
 def test_carry_chain_uses_actual_matrix_carry_segments() -> None:
@@ -375,16 +523,14 @@ def test_carry_chain_uses_actual_matrix_carry_segments() -> None:
         )
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="carry_segments"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
 
         demands = carry.carry_chain(data, graph, limit=8, offset=0)
 
         assert [(demand.source, demand.sink) for demand in demands] == [
-            ("Ci0", "LA_Ci"),
             ("LA_Co", "LB_Ci"),
-            ("LB_Co", "Co0"),
         ]
 
 
@@ -410,13 +556,46 @@ def test_hierarchy_fed_single_fanin_bel_input_counts_as_generic() -> None:
         )
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="hier_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
 
         demands = access.bel_input_reachability(data, graph, limit=8, offset=0)
 
         assert [(demand.source, demand.sink) for demand in demands] == [("A0", "I")]
+
+
+def test_jump_endpoints_are_not_generic_bel_input_sources() -> None:
+    """Test generated JUMP endpoints are classified from metadata."""
+    with _project("jump_source_tile") as tile_dir:
+        matrix = tile_dir / "jump_source_tile_switch_matrix.list"
+        matrix.write_text("J0_BEG0,A0\nI,J0_END0\n", encoding="utf-8")
+        tile_csv = _write_tile_csv(
+            tile_dir,
+            "jump_source_tile",
+            matrix.name,
+            extra_rows=["JUMP,J0_BEG,0,0,J0_END,1,"],
+        )
+        fab = _FakeFab(
+            _FakeTile(
+                "jump_source_tile",
+                tile_csv,
+                matrix,
+                ports=_simple_ports(),
+                bels=[_simple_bel(tile_dir)],
+            )
+        )
+        data = load_matrix_data(
+            RoutingDemandEvaluatorOptions(tile_name="jump_source_tile"),
+            _fake_fpga_model(fab),
+        )
+        graph = build_graph(data)
+
+        demands = access.bel_input_source_coverage(data, graph, limit=8, offset=0)
+        pairs = [(demand.source, demand.sink) for demand in demands]
+
+        assert ("A0", "I") in pairs
+        assert all(source not in {"J0_BEG0", "J0_END0"} for source, _sink in pairs)
 
 
 def test_pathfinder_routes_through_jump_edge() -> None:
@@ -473,6 +652,26 @@ def test_pathfinder_routes_multi_sink_net() -> None:
     assert result.router_stats.failed_sinks == 0
 
 
+def test_routing_graph_reachability_and_multi_source_path() -> None:
+    """Test cached reachability and multi-source shortest-path routing."""
+    graph = RoutingGraph.from_edges(
+        [
+            ("SLOW", "MID"),
+            ("MID", "T"),
+            ("FAST", "T"),
+        ]
+    )
+
+    assert graph.is_reachable("SLOW", "T")
+    assert graph.hop_distance("SLOW", "T") == 2
+    assert not graph.is_reachable("T", "SLOW")
+    path = graph.shortest_path_to_any(["SLOW", "FAST"], "T")
+
+    assert path is not None
+    assert path[0] == ["FAST", "T"]
+    assert path[1] == 1.0
+
+
 def test_evaluator_runs_minimal_profile() -> None:
     """Test end-to-end evaluator on a minimal profile."""
     with _project("eval_tile") as tile_dir:
@@ -523,7 +722,7 @@ def test_bel_output_escape_uses_matrix_destination_rows() -> None:
         )
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="escape_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
 
@@ -556,7 +755,7 @@ def test_routing_demands_use_matrix_source_to_destination_direction() -> None:
         )
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="route_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
 
@@ -630,7 +829,7 @@ def test_added_single_tile_demand_classes() -> None:
                 tile_name="complete_tile",
                 fanout_targets=[2],
             ),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
 
@@ -692,7 +891,7 @@ def test_matrix_diversity_demand_classes_probe_direct_choices() -> None:
         fab = _FakeFab(_FakeTile("diversity_tile", tile_csv, matrix))
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="diversity_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
 
@@ -754,7 +953,7 @@ def test_side_pair_balance_generates_ordered_side_pairs() -> None:
         )
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="side_pair_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
 
@@ -813,7 +1012,7 @@ def test_routing_stress_uses_matrix_source_to_row_direction() -> None:
         )
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="stress_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
 
@@ -884,7 +1083,7 @@ def test_control_net_prefers_reachable_control_sources() -> None:
                 tile_name="control_tile",
                 fanout_targets=[2],
             ),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
 
@@ -954,7 +1153,7 @@ def test_bel_input_source_coverage_is_not_first_source_biased() -> None:
         )
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="coverage_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
 
@@ -991,7 +1190,7 @@ def test_random_demands_sample_from_reachable_candidates() -> None:
         )
         data = load_matrix_data(
             RoutingDemandEvaluatorOptions(tile_name="random_tile"),
-            fab,  # type: ignore[arg-type]
+            _fake_fpga_model(fab),
         )
         graph = build_graph(data)
 
@@ -1075,7 +1274,7 @@ def test_evaluator_reports_unreachable_random_soft_demands() -> None:
         assert result.stats.total_demands >= 2
 
 
-def test_greedy_optimizer_prunes_redundant_pips_without_writeback() -> None:
+def test_greedy_optimizer_prunes_redundant_pips_without_tile_model_apply() -> None:
     """Test greedy optimizer removes redundant PIPs in report-only mode."""
     with _project("opt_tile") as tile_dir:
         matrix = tile_dir / "opt_tile_switch_matrix.list"
@@ -1103,7 +1302,6 @@ def test_greedy_optimizer_prunes_redundant_pips_without_writeback() -> None:
                 opt_max_hard_failure_rate=0.0,
                 opt_max_soft_failure_rate=0.0,
                 opt_use_baseline_failure_rates=True,
-                opt_write_back=False,
                 opt_max_iterations=8,
                 track_progress=False,
             )
@@ -1124,12 +1322,12 @@ def test_greedy_optimizer_prunes_redundant_pips_without_writeback() -> None:
         assert matrix.read_text(encoding="utf-8") == original_matrix
 
 
-def test_greedy_writeback_list_renderer_keeps_fabulous_list_valid() -> None:
-    """Test greedy write-back never emits invalid zero-connection list rows."""
-    with _project("writeback_zero") as tile_dir:
-        matrix = tile_dir / "writeback_zero_switch_matrix.list"
+def test_greedy_list_renderer_keeps_fabulous_list_valid() -> None:
+    """Test greedy diagnostic renderer never emits invalid zero-connection list rows."""
+    with _project("render_zero") as tile_dir:
+        matrix = tile_dir / "render_zero_switch_matrix.list"
         rendered = _render_list(
-            "writeback_zero",
+            "render_zero",
             {
                 "I": ["A0"],
                 "JS2BEG7": [],
@@ -1161,6 +1359,45 @@ def test_greedy_batch_filter_preserves_one_pip_per_matrix_row() -> None:
     assert removable == [("S0", "A"), ("S1", "A")]
 
 
+def test_greedy_removes_unused_pips_in_large_validated_batches() -> None:
+    """Test greedy accepts unused PIP batches without one-by-one pruning."""
+    with _project("zero_use_opt") as tile_dir:
+        matrix = tile_dir / "zero_use_opt_switch_matrix.list"
+        dead_sources = "|".join(f"DEAD{index}" for index in range(32))
+        matrix.write_text(f"{{33}}I,[A0|{dead_sources}]\nOUT0,O\n", encoding="utf-8")
+        tile_csv = _write_tile_csv(tile_dir, "zero_use_opt", matrix.name)
+        fab = _FakeFab(
+            _FakeTile(
+                "zero_use_opt",
+                tile_csv,
+                matrix,
+                ports=_simple_ports(),
+                bels=[_simple_bel(tile_dir)],
+            )
+        )
+
+        result = RoutingDemandEvaluator(
+            RoutingDemandEvaluatorOptions(
+                tile_name="zero_use_opt",
+                demand_profile="minimal",
+                demand_iterations=4,
+                opt=True,
+                optimizer="greedy",
+                opt_target_pip_reduction=0.5,
+                opt_max_hard_failure_rate=0.0,
+                opt_max_soft_failure_rate=0.0,
+                opt_use_baseline_failure_rates=True,
+                opt_max_iterations=1,
+                track_progress=False,
+            )
+        ).run(_fake_fpga_model(fab))
+
+        assert result.optimizer_stats is not None
+        assert result.optimizer_stats.accepted_pips > 1
+        assert result.optimizer_stats.attempted_iterations == 1
+        assert result.stats.hard_failed == 0
+
+
 def test_greedy_power_of_two_mux_cleanup_normalizes_rows() -> None:
     """Test power-of-two mux cleanup targets non-power-of-two rows."""
     with _project("power_mux") as tile_dir:
@@ -1188,7 +1425,6 @@ def test_greedy_power_of_two_mux_cleanup_normalizes_rows() -> None:
                 opt_max_hard_failure_rate=0.0,
                 opt_max_soft_failure_rate=0.0,
                 opt_power_of_two_muxes=True,
-                opt_write_back=False,
                 opt_max_iterations=4,
                 track_progress=False,
             )
@@ -1208,8 +1444,8 @@ def test_greedy_power_of_two_mux_cleanup_normalizes_rows() -> None:
         assert matrix.read_text(encoding="utf-8") == "{3}I,[A0|A1|DEAD]\nOUT0,O\n"
 
 
-def test_greedy_clean_mux_writeback_allows_non_power_rows() -> None:
-    """Test non-strict greedy mux cleanup can write non-power mux rows."""
+def test_greedy_clean_mux_apply_allows_non_power_rows() -> None:
+    """Test non-strict greedy mux cleanup can apply non-power mux rows."""
     with _project("clean_mux_non_power") as tile_dir:
         matrix = tile_dir / "clean_mux_non_power_switch_matrix.list"
         original_matrix = "{3}I,[A0|A1|DEAD]\n{8}X,[X0|X1|X2|X3|X4|X5|X6|X7]\nOUT0,O\n"
@@ -1225,6 +1461,7 @@ def test_greedy_clean_mux_writeback_allows_non_power_rows() -> None:
             )
         )
 
+        fpga_model = _fake_fpga_model(fab)
         result = RoutingDemandEvaluator(
             RoutingDemandEvaluatorOptions(
                 tile_name="clean_mux_non_power",
@@ -1237,22 +1474,25 @@ def test_greedy_clean_mux_writeback_allows_non_power_rows() -> None:
                 opt_max_soft_failure_rate=1.0,
                 opt_clean_mux=True,
                 opt_power_of_two_muxes=False,
-                opt_write_back=True,
+                apply_to_tile_model=True,
                 opt_max_iterations=4,
                 track_progress=False,
             )
-        ).run(_fake_fpga_model(fab))
+        ).run(fpga_model)
 
         assert result.optimizer_stats is not None
-        assert result.optimizer_stats.write_back is True
+        assert result.optimizer_stats.applied_to_tile_model is True
         assert result.optimizer_stats.accepted_pips == 4
         assert result.optimizer_stats.mux_cleanup.non_power_of_two_mux_rows_after == 1
-        assert "Write-back skipped because strict power-of-two mux cleanup" not in (
-            result.report_summary
+        assert (
+            "Tile-model apply skipped because strict power-of-two mux cleanup"
+            not in result.report_summary
         )
-        written = matrix.read_text(encoding="utf-8")
-        assert "{3}I,[A0|A1|DEAD]" in written
-        assert "{4}X," in written
+        assert matrix.read_text(encoding="utf-8") == original_matrix
+        assert fpga_model.applied_switch_matrix is not None
+        applied = _connections_from_fake_switch_matrix(fpga_model.applied_switch_matrix)
+        assert applied["I"] == ["A0", "A1", "DEAD"]
+        assert len(applied["X"]) == 4
 
 
 def test_greedy_power_of_two_mux_cleanup_does_not_overshoot_budget() -> None:
@@ -1283,7 +1523,6 @@ def test_greedy_power_of_two_mux_cleanup_does_not_overshoot_budget() -> None:
                 opt_max_hard_failure_rate=0.0,
                 opt_max_soft_failure_rate=0.0,
                 opt_power_of_two_muxes=True,
-                opt_write_back=False,
                 opt_max_iterations=4,
                 track_progress=False,
             )
@@ -1293,7 +1532,7 @@ def test_greedy_power_of_two_mux_cleanup_does_not_overshoot_budget() -> None:
         assert result.optimizer_stats.accepted_pips == 0
         assert result.optimizer_stats.stop_reason == "power_of_two_budget_exhausted"
         assert result.optimizer_stats.mux_cleanup.non_power_of_two_mux_rows_after == 1
-        assert "Write-back skipped because strict power-of-two mux cleanup" in (
+        assert "Tile-model apply skipped because strict power-of-two mux cleanup" in (
             result.report_summary
         )
         assert matrix.read_text(encoding="utf-8") == original_matrix
@@ -1327,7 +1566,6 @@ def test_monte_carlo_optimizer_prunes_and_reports_importance() -> None:
                 opt_max_hard_failure_rate=0.0,
                 opt_max_soft_failure_rate=0.0,
                 opt_use_baseline_failure_rates=True,
-                opt_write_back=False,
                 opt_max_iterations=20,
                 track_progress=False,
             )
@@ -1690,11 +1928,13 @@ def main() -> None:
     test_matrix_loader_reads_list_and_jump_edges()
     test_matrix_loader_skips_source_less_jump_resources()
     test_matrix_loader_classifies_fabulous_terminals()
-    test_matrix_loader_classifies_tile_carry_ports_from_csv()
+    test_matrix_loader_ignores_file_only_carry_annotations()
     test_carry_chain_uses_actual_matrix_carry_segments()
     test_hierarchy_fed_single_fanin_bel_input_counts_as_generic()
+    test_jump_endpoints_are_not_generic_bel_input_sources()
     test_pathfinder_routes_through_jump_edge()
     test_pathfinder_routes_multi_sink_net()
+    test_routing_graph_reachability_and_multi_source_path()
     test_evaluator_runs_minimal_profile()
     test_bel_output_escape_uses_matrix_destination_rows()
     test_routing_demands_use_matrix_source_to_destination_direction()
@@ -1707,11 +1947,12 @@ def main() -> None:
     test_random_demands_sample_from_reachable_candidates()
     test_evaluator_runs_added_profiles()
     test_evaluator_reports_unreachable_random_soft_demands()
-    test_greedy_optimizer_prunes_redundant_pips_without_writeback()
-    test_greedy_writeback_list_renderer_keeps_fabulous_list_valid()
+    test_greedy_optimizer_prunes_redundant_pips_without_tile_model_apply()
+    test_greedy_list_renderer_keeps_fabulous_list_valid()
     test_greedy_batch_filter_preserves_one_pip_per_matrix_row()
+    test_greedy_removes_unused_pips_in_large_validated_batches()
     test_greedy_power_of_two_mux_cleanup_normalizes_rows()
-    test_greedy_clean_mux_writeback_allows_non_power_rows()
+    test_greedy_clean_mux_apply_allows_non_power_rows()
     test_greedy_power_of_two_mux_cleanup_does_not_overshoot_budget()
     test_monte_carlo_optimizer_prunes_and_reports_importance()
     test_pnr_pass_wrapper_exposes_result_data()

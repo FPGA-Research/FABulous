@@ -151,12 +151,6 @@ class RoutingDemandEvaluatorOptions(BaseModel):
         Pydantic model configuration.
     tile_name : str
         FABulous tile to evaluate.
-    tile_dir : Path | None
-        Optional tile directory override.
-    tile_csv : Path | None
-        Optional tile CSV override.
-    switch_matrix : Path | None
-        Optional switch-matrix list or CSV override.
     demand_profile : DemandProfileName
         Demand profile to generate.
     demand_iterations : int
@@ -177,8 +171,8 @@ class RoutingDemandEvaluatorOptions(BaseModel):
         Maximum optimizer-added hard-demand failure rate.
     opt_use_baseline_failure_rates : bool
         Whether optimizer failure-rate limits are added to the baseline rates.
-    opt_write_back : bool
-        Whether optimizer changes overwrite the active tile files in place.
+    apply_to_tile_model : bool
+        Whether optimizer changes update the in-memory FabGraph tile model.
     opt_max_iterations : int
         Maximum optimizer pruning iterations.
     opt_clean_mux : bool
@@ -201,8 +195,6 @@ class RoutingDemandEvaluatorOptions(BaseModel):
         Fanout sink counts used by fanout-style demand classes.
     max_net_sinks : int
         Maximum sinks allowed on one generated net demand.
-    config_bit_capacity_override : int | None
-        Optional total config-bit capacity. ``None`` uses the loaded FABulous fabric.
     config_bit_margin : int
         Reserved config-bit margin.
     track_progress : bool
@@ -214,9 +206,6 @@ class RoutingDemandEvaluatorOptions(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     tile_name: str
-    tile_dir: Path | None = None
-    tile_csv: Path | None = None
-    switch_matrix: Path | None = None
     demand_profile: DemandProfileName = DemandProfileName.DEFAULT
     demand_iterations: int = 1000
     random_demand_ratio: float = 0.25
@@ -227,7 +216,7 @@ class RoutingDemandEvaluatorOptions(BaseModel):
     opt_max_soft_failure_rate: float = 0.05
     opt_max_hard_failure_rate: float = 0.0
     opt_use_baseline_failure_rates: bool = True
-    opt_write_back: bool = False
+    apply_to_tile_model: bool = False
     opt_max_iterations: int = 50
     opt_clean_mux: bool = False
     opt_power_of_two_muxes: bool = False
@@ -239,7 +228,6 @@ class RoutingDemandEvaluatorOptions(BaseModel):
     router_base_resource_capacity: int = 1
     fanout_targets: list[int] = Field(default_factory=lambda: [2, 4, 8])
     max_net_sinks: int = 8
-    config_bit_capacity_override: int | None = None
     config_bit_margin: int = 0
     track_progress: bool = True
     progress_chunk_size: int = 10
@@ -387,30 +375,6 @@ class RoutingDemandEvaluatorOptions(BaseModel):
             raise ValueError("value must be non-negative")
         return value
 
-    @field_validator("config_bit_capacity_override")
-    @classmethod
-    def _validate_optional_positive_int(cls, value: int | None) -> int | None:
-        """Validate optional positive integer options.
-
-        Parameters
-        ----------
-        value : int | None
-            Optional integer.
-
-        Returns
-        -------
-        int | None
-            Validated value.
-
-        Raises
-        ------
-        ValueError
-            If the value is not positive.
-        """
-        if value is not None and value <= 0:
-            raise ValueError("value must be positive when set")
-        return value
-
     @field_validator(
         "random_demand_ratio",
         "opt_target_pip_reduction",
@@ -478,14 +442,16 @@ class MatrixData(BaseModel):
         Pydantic model configuration.
     tile_name : str
         Tile name.
-    tile_dir : Path
-        Tile directory.
-    tile_csv : Path
-        Tile CSV path.
-    switch_matrix : Path
-        Active switch matrix path.
+    matrix_source : str
+        Human-readable source of the evaluated matrix snapshot.
+    columns : list[str]
+        Switch-matrix source columns from FabGraph.
+    rows : list[str]
+        Switch-matrix destination rows from FabGraph.
     connections : dict[str, list[str]]
         Mapping from destination rows to selectable sources.
+    delay_by_row : dict[str, dict[str, float]]
+        Active PIP delays keyed by row and source.
     jump_edges : list[tuple[str, str]]
         Local JUMP resource edges.
     terminals : list[RoutingTerminal]
@@ -501,10 +467,11 @@ class MatrixData(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     tile_name: str
-    tile_dir: Path
-    tile_csv: Path
-    switch_matrix: Path
+    matrix_source: str
+    columns: list[str]
+    rows: list[str]
     connections: dict[str, list[str]]
+    delay_by_row: dict[str, dict[str, float]] = Field(default_factory=dict)
     jump_edges: list[tuple[str, str]]
     terminals: list[RoutingTerminal] = Field(default_factory=list)
     matrix_config_bits: int
@@ -1085,8 +1052,8 @@ class OptimizerStats(BaseModel):
         Whether optimization ran.
     optimizer : str
         Optimizer implementation name.
-    write_back : bool
-        Whether optimized files were written back in place.
+    applied_to_tile_model : bool
+        Whether optimizer changes updated the in-memory FabGraph tile model.
     baseline_pips : int
         PIPs before optimization.
     final_pips : int
@@ -1094,11 +1061,11 @@ class OptimizerStats(BaseModel):
     removed_pips : int
         Accepted removed PIPs.
     baseline_matrix_config_bits : int
-        Generated-file matrix config bits before optimization.
+        Matrix config bits before optimization.
     final_matrix_config_bits_estimate : int
         Estimated matrix config bits after optimization.
     baseline_total_config_bits : int
-        Generated-file total config bits before optimization.
+        Total config bits before optimization.
     final_total_config_bits_estimate : int
         Estimated total config bits after optimization.
     pip_reduction : float
@@ -1173,7 +1140,7 @@ class OptimizerStats(BaseModel):
 
     enabled: bool
     optimizer: str
-    write_back: bool
+    applied_to_tile_model: bool
     baseline_pips: int
     final_pips: int
     removed_pips: int

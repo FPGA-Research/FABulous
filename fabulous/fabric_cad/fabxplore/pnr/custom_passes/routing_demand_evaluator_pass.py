@@ -18,8 +18,6 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models 
 from fabulous.fabric_cad.fabxplore.pnr.pnr_pass import PnRPass
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from fabulous.fabric_cad.fabxplore.pnr.pnr_bridge import PnRBridge
 
 
@@ -31,12 +29,6 @@ class RoutingDemandEvaluatorPass(PnRPass):
     ----------
     tile_name : str
         FABulous tile to evaluate.
-    tile_dir : Path | None
-        Optional tile directory override.
-    tile_csv : Path | None
-        Optional tile CSV override.
-    switch_matrix : Path | None
-        Optional switch-matrix list or CSV override.
     demand_profile : DemandProfileName | str
         Demand profile name.
     demand_iterations : int
@@ -57,8 +49,8 @@ class RoutingDemandEvaluatorPass(PnRPass):
         Maximum optimizer-added hard-demand failure rate.
     opt_use_baseline_failure_rates : bool
         Whether optimizer failure-rate limits are added to the baseline rates.
-    opt_write_back : bool
-        Whether optimizer changes overwrite the active tile files in place.
+    apply_to_tile_model : bool
+        Whether optimizer changes update the in-memory FabGraph tile model.
     opt_max_iterations : int
         Maximum optimizer pruning iterations.
     opt_clean_mux : bool
@@ -81,8 +73,6 @@ class RoutingDemandEvaluatorPass(PnRPass):
         Fanout sizes used by fanout-style demand classes.
     max_net_sinks : int
         Maximum sinks in one generated net demand.
-    config_bit_capacity_override : int | None
-        Optional total config-bit capacity. ``None`` uses the loaded FABulous fabric.
     config_bit_margin : int
         Reserved config-bit margin.
     track_progress : bool
@@ -92,9 +82,6 @@ class RoutingDemandEvaluatorPass(PnRPass):
     """
 
     tile_name: str
-    tile_dir: Path | None = None
-    tile_csv: Path | None = None
-    switch_matrix: Path | None = None
     demand_profile: DemandProfileName | str = DemandProfileName.DEFAULT
     demand_iterations: int = 1000
     random_demand_ratio: float = 0.25
@@ -105,7 +92,7 @@ class RoutingDemandEvaluatorPass(PnRPass):
     opt_max_soft_failure_rate: float = 0.05
     opt_max_hard_failure_rate: float = 0.0
     opt_use_baseline_failure_rates: bool = True
-    opt_write_back: bool = False
+    apply_to_tile_model: bool = False
     opt_max_iterations: int = 50
     opt_clean_mux: bool = False
     opt_power_of_two_muxes: bool = False
@@ -117,7 +104,6 @@ class RoutingDemandEvaluatorPass(PnRPass):
     router_base_resource_capacity: int = 1
     fanout_targets: list[int] | None = None
     max_net_sinks: int = 8
-    config_bit_capacity_override: int | None = None
     config_bit_margin: int = 0
     track_progress: bool = True
     progress_chunk_size: int = 10
@@ -134,9 +120,6 @@ class RoutingDemandEvaluatorPass(PnRPass):
         """
         options = RoutingDemandEvaluatorOptions(
             tile_name=self.tile_name,
-            tile_dir=self.tile_dir,
-            tile_csv=self.tile_csv,
-            switch_matrix=self.switch_matrix,
             demand_profile=self.demand_profile,
             demand_iterations=self.demand_iterations,
             random_demand_ratio=self.random_demand_ratio,
@@ -147,7 +130,7 @@ class RoutingDemandEvaluatorPass(PnRPass):
             opt_max_soft_failure_rate=self.opt_max_soft_failure_rate,
             opt_max_hard_failure_rate=self.opt_max_hard_failure_rate,
             opt_use_baseline_failure_rates=self.opt_use_baseline_failure_rates,
-            opt_write_back=self.opt_write_back,
+            apply_to_tile_model=self.apply_to_tile_model,
             opt_max_iterations=self.opt_max_iterations,
             opt_clean_mux=self.opt_clean_mux,
             opt_power_of_two_muxes=self.opt_power_of_two_muxes,
@@ -159,7 +142,6 @@ class RoutingDemandEvaluatorPass(PnRPass):
             router_base_resource_capacity=self.router_base_resource_capacity,
             fanout_targets=self.fanout_targets or [2, 4, 8],
             max_net_sinks=self.max_net_sinks,
-            config_bit_capacity_override=self.config_bit_capacity_override,
             config_bit_margin=self.config_bit_margin,
             track_progress=self.track_progress,
             progress_chunk_size=self.progress_chunk_size,

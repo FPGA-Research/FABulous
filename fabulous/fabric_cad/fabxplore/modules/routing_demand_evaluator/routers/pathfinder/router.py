@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from time import perf_counter
 from typing import TYPE_CHECKING
 
 from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models import (
@@ -17,6 +18,9 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.routers.base
 )
 
 if TYPE_CHECKING:
+    from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.process_tracker import (  # noqa: E501
+        RoutingDemandProcessTracker,
+    )
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.routing_graph import (  # noqa: E501
         RoutingGraph,
     )
@@ -53,6 +57,7 @@ class PathFinderRouter(RoutingDemandRouter):
         self,
         graph: RoutingGraph,
         demands: list[RoutingDemand],
+        tracker: RoutingDemandProcessTracker | None = None,
     ) -> RouterResult:
         """Route demands on a graph.
 
@@ -62,6 +67,8 @@ class PathFinderRouter(RoutingDemandRouter):
             Routing-resource graph.
         demands : list[RoutingDemand]
             Demands to route.
+        tracker : RoutingDemandProcessTracker | None
+            Optional progress tracker.
 
         Returns
         -------
@@ -76,9 +83,19 @@ class PathFinderRouter(RoutingDemandRouter):
         congested_resources = 0
         max_resource_usage = 0
         iterations_used = 0
+        failed_sinks = 0
 
+        if tracker is not None:
+            tracker.routing_start(len(demands), self.max_iterations)
         for iteration in range(1, self.max_iterations + 1):
             iterations_used = iteration
+            if tracker is not None:
+                tracker.routing_iteration_start(
+                    iteration,
+                    self.max_iterations,
+                    len(demands),
+                )
+            started_at = perf_counter()
             node_costs = self._node_costs(history, previous_usage, iteration)
             final_results = [
                 self._route_one_net(graph, demand, node_costs) for demand in demands
@@ -92,6 +109,15 @@ class PathFinderRouter(RoutingDemandRouter):
             congested_resources = len(congested)
             max_resource_usage = max(previous_usage.values(), default=0)
             failed_sinks = sum(len(result.failed_sinks) for result in final_results)
+            if tracker is not None:
+                tracker.routing_iteration_done(
+                    iteration,
+                    self.max_iterations,
+                    failed_sinks,
+                    congested_resources,
+                    max_resource_usage,
+                    perf_counter() - started_at,
+                )
             if not congested and failed_sinks == 0:
                 break
             for node in congested:
@@ -99,13 +125,20 @@ class PathFinderRouter(RoutingDemandRouter):
 
         final_usage = self._usage_by_name(final_results)
         final_pip_usage = self._pip_usage(final_results)
+        if tracker is not None:
+            tracker.routing_done(
+                iterations_used,
+                failed_sinks,
+                congested_resources,
+                max_resource_usage,
+            )
         return RouterResult(
             demand_results=final_results,
             router_stats=RouterRunStats(
                 iterations_used=iterations_used,
                 congested_resources=congested_resources,
                 max_resource_usage=max_resource_usage,
-                failed_sinks=sum(len(result.failed_sinks) for result in final_results),
+                failed_sinks=failed_sinks,
             ),
             resource_usage=dict(final_usage),
             pip_usage=dict(final_pip_usage),

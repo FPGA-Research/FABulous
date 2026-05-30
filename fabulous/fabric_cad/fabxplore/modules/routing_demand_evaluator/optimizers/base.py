@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models import (  # noqa: E501
         DemandProfileResult,
         MatrixData,
@@ -24,8 +22,20 @@ if TYPE_CHECKING:
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.routers.base import (  # noqa: E501
         RoutingDemandRouter,
     )
-    from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
-    from fabulous.fabulous_api import FABulous_API
+    from fabulous.fabric_cad.fabxplore.pnr.pnr_bridge import PnRBridge
+
+
+class EvaluationOracle(Protocol):
+    """Callable protocol for optimizer demand-oracle evaluations."""
+
+    def __call__(
+        self,
+        graph: RoutingGraph,
+        warnings: list[str],
+        *,
+        track_router: bool = False,
+    ) -> RoutingDemandEvaluatorResult:
+        """Evaluate one routing graph candidate."""
 
 
 @dataclass(frozen=True)
@@ -44,15 +54,13 @@ class OptimizerContext:
         Generated demand profile.
     router : RoutingDemandRouter
         Router used as the demand oracle.
-    design : PyosysBridge
-        Packed design associated with the architecture flow.
-    fab : FABulous_API
-        Loaded FABulous API instance.
+    fpga_model : PnRBridge
+        Active PnR bridge whose graph may be updated by optimizers.
     tracker : RoutingDemandProcessTracker
         Progress tracker for optimizer status.
     warnings : list[str]
         Existing warnings.
-    evaluate : Callable[[RoutingGraph, list[str]], RoutingDemandEvaluatorResult]
+    evaluate : EvaluationOracle
         Evaluation oracle callable.
     """
 
@@ -61,11 +69,10 @@ class OptimizerContext:
     graph: RoutingGraph
     demand_profile: DemandProfileResult
     router: RoutingDemandRouter
-    design: PyosysBridge
-    fab: FABulous_API
+    fpga_model: PnRBridge
     tracker: RoutingDemandProcessTracker
     warnings: list[str]
-    evaluate: Callable[[RoutingGraph, list[str]], RoutingDemandEvaluatorResult]
+    evaluate: EvaluationOracle
 
 
 class RoutingDemandOptimizer(ABC):

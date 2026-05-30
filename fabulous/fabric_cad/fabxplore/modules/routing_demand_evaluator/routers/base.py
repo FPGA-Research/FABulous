@@ -11,6 +11,9 @@ if TYPE_CHECKING:
         RouterRunStats,
         RoutingDemand,
     )
+    from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.process_tracker import (  # noqa: E501
+        RoutingDemandProcessTracker,
+    )
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.routing_graph import (  # noqa: E501
         RoutingGraph,
     )
@@ -52,6 +55,7 @@ class RoutingDemandRouter(ABC):
         self,
         graph: RoutingGraph,
         demands: list[RoutingDemand],
+        tracker: RoutingDemandProcessTracker | None = None,
     ) -> RouterResult:
         """Route demands on a graph.
 
@@ -61,6 +65,8 @@ class RoutingDemandRouter(ABC):
             Routing-resource graph.
         demands : list[RoutingDemand]
             Demands to route.
+        tracker : RoutingDemandProcessTracker | None
+            Optional progress tracker.
 
         Returns
         -------

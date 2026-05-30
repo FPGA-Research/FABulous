@@ -1,9 +1,10 @@
 # Routing Demand Evaluator
 
 `routing_demand_evaluator` is a PnR-side analysis pass for FABulous switch
-matrices. It reads one tile, builds the routing graph represented by the active
-switch matrix, generates synthetic routing demands, routes those demands with a
-PathFinder-style negotiated-congestion router, and reports how the matrix behaves.
+matrices. It snapshots one tile from the active `PnRBridge` FabGraph, builds the
+routing graph represented by the in-memory switch matrix, generates synthetic
+routing demands, routes those demands with a PathFinder-style
+negotiated-congestion router, and reports how the matrix behaves.
 
 The pass answers questions like:
 
@@ -29,11 +30,6 @@ Use the pass from an architecture flow:
 self.pnr_routing_demand_evaluator_pass(
     tile_name="LUT4AB",
 
-    # Optional file overrides.
-    tile_dir=None,
-    tile_csv=None,
-    switch_matrix=None,
-
     # Demand profile.
     demand_profile="full",
     demand_iterations=1000,
@@ -47,7 +43,7 @@ self.pnr_routing_demand_evaluator_pass(
     opt_max_soft_failure_rate=0.05,
     opt_max_hard_failure_rate=0.0,
     opt_use_baseline_failure_rates=True,
-    opt_write_back=False,
+    apply_to_tile_model=False,
     opt_max_iterations=50,
     opt_clean_mux=False,
     opt_power_of_two_muxes=False,
@@ -65,7 +61,6 @@ self.pnr_routing_demand_evaluator_pass(
     max_net_sinks=8,
 
     # Config-bit policy.
-    config_bit_capacity_override=None,
     config_bit_margin=0,
 
     track_progress=True,
@@ -76,11 +71,6 @@ self.pnr_routing_demand_evaluator_pass(
 Options:
 
 - `tile_name`: FABulous tile name to evaluate.
-- `tile_dir`: optional tile directory override. If omitted, the pass uses the
-  directory from the loaded FABulous tile.
-- `tile_csv`: optional tile CSV override.
-- `switch_matrix`: optional switch-matrix `.list` or `.csv` override. If omitted,
-  the pass uses the tile's active matrix.
 - `demand_profile`: preset demand bundle. Users select profiles, not individual
   demand classes.
 - `demand_iterations`: target demand budget. The final number can be lower or
@@ -101,10 +91,10 @@ Options:
 - `opt_use_baseline_failure_rates`: when `True`, optimizer failure-rate limits
   are added to the baseline failure rates. When `False`, the optimizer limits
   are absolute.
-- `opt_write_back`: when `True`, optimizer changes overwrite the active tile
-  files in place. The pass must regenerate the dependent switch-matrix,
-  config-memory, and tile artifacts so no stale files remain. The default is
-  `False`, which keeps optimizer runs report-only.
+- `apply_to_tile_model`: when `True`, accepted optimizer changes are applied to
+  the in-memory FabGraph tile model with `set_switch_matrix`. The pass does not
+  write tile files. Persisting the result is an explicit later
+  `write_tile_sources(...)` / project-write step.
 - `opt_max_iterations`: maximum optimizer iteration budget. For `greedy`, this
   is the maximum pruning attempts. For `monte_carlo`, this is used once for
   importance learning and again for checked pruning, so `1000` means up to
@@ -117,9 +107,8 @@ Options:
   `opt_clean_mux`. For `greedy` and `monte_carlo`,
   `opt_target_pip_reduction` remains an upper pruning budget: if no strict
   mux-cleanup batch fits the remaining budget, pruning stops early. If strict
-  cleanup cannot produce a
-  direct-or-power-of-two final matrix, write-back is skipped and the report
-  lists the remaining non-power-of-two mux rows.
+  cleanup cannot produce a direct-or-power-of-two final matrix, tile-model apply
+  is skipped and the report lists the remaining non-power-of-two mux rows.
 - `report_max_soft_failure_rate`: soft-failure threshold used for top-level
   report status. Hard failures always make the report fail.
 - `router`: router implementation. Currently `pathfinder`.
@@ -130,8 +119,6 @@ Options:
   resource. A value of `1` is the conservative FPGA routing default.
 - `fanout_targets`: sink counts used by fanout-style demand classes.
 - `max_net_sinks`: maximum number of sinks in one generated multi-sink demand.
-- `config_bit_capacity_override`: optional config-bit capacity override. `None`
-  uses the loaded FABulous fabric capacity.
 - `config_bit_margin`: reserved config-bit margin.
 - `track_progress`: enables progress logging.
 - `progress_chunk_size`: number of optimizer iterations between progress
@@ -248,10 +235,10 @@ The optimizer stops when it reaches `opt_target_pip_reduction`, reaches
 `opt_max_iterations`, has no removable PIPs left, or cannot complete a requested
 power-of-two mux cleanup under the configured limits.
 
-With `opt_write_back=False`, the pass is report-only: it shows the optimized
-candidate result but does not touch tile files. With `opt_write_back=True`, the
-accepted matrix is written back to the active tile and dependent FABulous
-artifacts are regenerated.
+With `apply_to_tile_model=False`, the pass is report-only: it shows the
+optimized candidate result but does not touch the graph. With
+`apply_to_tile_model=True`, the accepted matrix replaces the in-memory FabGraph
+tile model. No files are written by this pass.
 
 ## Monte Carlo Optimizer
 
@@ -645,21 +632,13 @@ the demand limits. Rejected strict mux-cleanup batches are not partially
 accepted, because a partial split can turn a legal row such as `mux16` into an
 illegal row such as `mux12`. If the input matrix already contains
 non-power-of-two rows and they cannot all be normalized inside the pruning
-budget and demand limits, write-back is skipped and the report warns that
+budget and demand limits, tile-model apply is skipped and the report warns that
 non-power-of-two rows remain.
 
-With `opt_write_back=True`, Monte Carlo also writes a PIP importance matrix:
-
-```text
-<tile_name>_pip_importance.txt
-```
-
-The file uses a CSV-shaped table but the extension is `.txt`. Rows are matrix
+Monte Carlo also records a PIP importance matrix in memory. Rows are matrix
 destination rows, columns are matrix sources, and each populated cross point is
-the learned importance value for that PIP. The same matrix is also available in
-the structured optimizer result as `optimizer_stats.pip_importance_matrix`.
-Markdown reports show only the filename to keep the optimization and importance
-tables narrow; the structured result keeps the full path.
+the learned importance value for that PIP. The same matrix is available in the
+structured optimizer result as `optimizer_stats.pip_importance_matrix`.
 
 ## Mux And Config-Bit Math
 
@@ -1259,13 +1238,12 @@ the report correctly identifies them as bottlenecks.
 
 The following block is an aggressive `LUT4AB` full-profile optimizer report. It
 is useful because it shows all major concepts at once: baseline graph size,
-optimized graph size, write-back config bits, hard/soft demand rates, mux
+optimized graph size, estimated config bits, hard/soft demand rates, mux
 cleanup, and skipped feature-specific classes.
 
 ```text
 Tile: LUT4AB
-Directory: /home/hausding/Documents/FABulous/demo0/Tile/LUT4AB
-Switch matrix: /home/hausding/Documents/FABulous/demo0/Tile/LUT4AB/LUT4AB_switch_matrix.list
+Matrix source: FabGraph:LUT4AB
 
 ## Summary
 - status: FAIL
@@ -1294,7 +1272,7 @@ Switch matrix: /home/hausding/Documents/FABulous/demo0/Tile/LUT4AB/LUT4AB_switch
 | Metric                               |             Value |
 | ------------------------------------ | ----------------: |
 | optimizer                            |            greedy |
-| write back                           |              True |
+| applied to tile model                |              True |
 | baseline routing PIPs                |              1329 |
 | final routing PIPs                   |               275 |
 | removed routing PIPs                 |              1054 |
@@ -1408,16 +1386,14 @@ sampled PIPs
 unsampled PIPs
 sampled PIP rate
 min / avg / max samples per PIP
-PIP importance file
 ```
 
 These rows separate temporary learning work from permanent pruning work. A
 large `learning iterations` value means many temporary ablations were evaluated
 against the baseline matrix. A large `pruning iterations` value means many
 low-importance batches were checked against the demand oracle after learning.
-The `PIP Importance` section lists the highest-scored PIPs, and the
-`PIP importance file` points at the full CSV-shaped `.txt` matrix when
-`opt_write_back=True`.
+The `PIP Importance` section lists the highest-scored PIPs. The full in-memory
+matrix is available in `optimizer_stats.pip_importance_matrix`.
 
 ## What The Result Can Be Used For
 

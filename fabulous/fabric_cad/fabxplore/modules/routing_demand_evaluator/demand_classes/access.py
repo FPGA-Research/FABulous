@@ -138,7 +138,7 @@ def bel_input_source_coverage(
         for sink in sinks:
             if source.name == sink.name:
                 continue
-            if graph.shortest_path(source.name, sink.name) is None:
+            if not graph.is_reachable(source.name, sink.name):
                 unreachable.append((source.name, sink.name))
             else:
                 reachable.append((source.name, sink.name))

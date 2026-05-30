@@ -15,15 +15,8 @@ from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.routing
     RoutingGraph,
     RoutingGraphBuilder,
 )
-from fabulous.fabric_cad.fabxplore.modules.switch_block_factorizer.core.factorizer import (  # noqa: E501
-    _remove_generated_artifacts,
-    _run_fabulous_generation,
-)
-from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.optimizers.base import (  # noqa: E501
         OptimizerContext,
     )
@@ -586,12 +579,11 @@ def build_importance_matrix(
     }
 
 
-def write_back(
+def apply_to_tile_model(
     context: OptimizerContext,
     connections: Connections,
-    importance_by_pip: ImportanceByPip,
-) -> Path:
-    """Write optimized list files and the PIP importance matrix.
+) -> None:
+    """Apply optimized connections to the active in-memory tile model.
 
     Parameters
     ----------
@@ -599,41 +591,45 @@ def write_back(
         Optimizer context.
     connections : Connections
         Accepted optimized connections.
-    importance_by_pip : ImportanceByPip
-        PIP importance values.
+    """
+    context.fpga_model.set_switch_matrix(
+        context.matrix.tile_name,
+        list(context.matrix.columns),
+        list(context.matrix.rows),
+        connections_to_delay_matrix(context.matrix, connections),
+    )
+
+
+def connections_to_delay_matrix(
+    matrix: MatrixData,
+    connections: Connections,
+) -> list[list[float]]:
+    """Return a FabGraph delay matrix from local optimized connections.
+
+    Parameters
+    ----------
+    matrix : MatrixData
+        Baseline matrix metadata.
+    connections : Connections
+        Optimized connections.
 
     Returns
     -------
-    Path
-        Written importance matrix text file.
+    list[list[float]]
+        Delay matrix suitable for ``set_switch_matrix``.
     """
-    output_list = (
-        context.matrix.tile_dir / f"{context.matrix.tile_name}_switch_matrix.list"
-    )
-    output_list.write_text(
-        render_list(context.matrix.tile_name, connections),
-        encoding="utf-8",
-    )
-    importance_file = write_importance_matrix(
-        context.matrix.tile_dir,
-        context.matrix.tile_name,
-        context.matrix.connections,
-        importance_by_pip,
-    )
-    rewrite_matrix_row(context.matrix.tile_csv, output_list)
-    _remove_generated_artifacts(
-        context.matrix.tile_dir,
-        context.matrix.tile_name,
-        context.fab.fileExtension,
-    )
-    context.fab.loadFabric(get_context().proj_dir / "fabric.csv")
-    _run_fabulous_generation(
-        fab=context.fab,
-        tile_name=context.matrix.tile_name,
-        tile_dir=context.matrix.tile_dir,
-        file_extension=context.fab.fileExtension,
-    )
-    return importance_file
+    column_index = {column: index for index, column in enumerate(matrix.columns)}
+    result = [[0.0 for _column in matrix.columns] for _row in matrix.rows]
+    for row_index, row in enumerate(matrix.rows):
+        for source in connections.get(row, []):
+            source_index = column_index.get(source)
+            if source_index is None:
+                continue
+            result[row_index][source_index] = matrix.delay_by_row.get(row, {}).get(
+                source,
+                1.0,
+            )
+    return result
 
 
 def render_list(tile_name: str, connections: Connections) -> str:
@@ -669,67 +665,6 @@ def render_list(tile_name: str, connections: Connections) -> str:
         else:
             lines.append(f"{{{len(unique_sources)}}}{row},[{'|'.join(unique_sources)}]")
     return "\n".join(lines) + "\n"
-
-
-def rewrite_matrix_row(tile_csv: Path, switch_matrix_list: Path) -> None:
-    """Point a tile CSV at the optimized switch-matrix list.
-
-    Parameters
-    ----------
-    tile_csv : Path
-        Tile CSV path.
-    switch_matrix_list : Path
-        Optimized switch-matrix list.
-
-    Raises
-    ------
-    ValueError
-        If no MATRIX row exists.
-    """
-    lines = tile_csv.read_text(encoding="utf-8").splitlines()
-    rewritten: list[str] = []
-    matrix_seen = False
-    for line in lines:
-        if line.strip().startswith("MATRIX,"):
-            rewritten.append(f"MATRIX,./{switch_matrix_list.name}")
-            matrix_seen = True
-        else:
-            rewritten.append(line)
-    if not matrix_seen:
-        raise ValueError(f"tile CSV has no MATRIX row: {tile_csv}")
-    tile_csv.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
-
-
-def write_importance_matrix(
-    tile_dir: Path,
-    tile_name: str,
-    baseline_connections: Connections,
-    importance_by_pip: ImportanceByPip,
-) -> Path:
-    """Write a CSV-shaped importance matrix with a ``.txt`` extension.
-
-    Parameters
-    ----------
-    tile_dir : Path
-        Tile directory.
-    tile_name : str
-        Tile name.
-    baseline_connections : Connections
-        Baseline switch-matrix connections.
-    importance_by_pip : ImportanceByPip
-        PIP importance values.
-
-    Returns
-    -------
-    Path
-        Written matrix path.
-    """
-    path = tile_dir / f"{tile_name}_pip_importance.txt"
-    path.write_text(
-        render_importance_matrix(tile_name, baseline_connections, importance_by_pip),
-        encoding="utf-8",
-    )
-    return path
 
 
 def render_importance_matrix(

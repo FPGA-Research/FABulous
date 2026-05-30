@@ -112,6 +112,6 @@ def random_bucket_candidate_counts(
             if not _distance_matches(source, sink, distance):
                 continue
             candidate_count += 1
-            if graph.shortest_path(source.name, sink.name) is not None:
+            if graph.is_reachable(source.name, sink.name):
                 reachable_count += 1
     return candidate_count, reachable_count

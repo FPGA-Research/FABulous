@@ -30,6 +30,9 @@ if TYPE_CHECKING:
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.models import (  # noqa: E501
         MatrixData,
     )
+    from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.process_tracker import (  # noqa: E501
+        RoutingDemandProcessTracker,
+    )
     from fabulous.fabric_cad.fabxplore.modules.routing_demand_evaluator.core.routing_graph import (  # noqa: E501
         RoutingGraph,
     )
@@ -39,6 +42,7 @@ def generate_demand_profile(
     options: RoutingDemandEvaluatorOptions,
     matrix: MatrixData,
     graph: RoutingGraph,
+    tracker: RoutingDemandProcessTracker | None = None,
 ) -> DemandProfileResult:
     """Generate demands for a named profile.
 
@@ -50,6 +54,8 @@ def generate_demand_profile(
         Loaded matrix data.
     graph : RoutingGraph
         Routing graph.
+    tracker : RoutingDemandProcessTracker | None
+        Optional progress tracker.
 
     Returns
     -------
@@ -64,14 +70,26 @@ def generate_demand_profile(
     rng = Random(options.seed)
     match options.demand_profile:
         case DemandProfileName.DEFAULT:
-            return generate_default_profile(options, matrix, graph, rng)
+            return generate_default_profile(options, matrix, graph, rng, tracker)
         case DemandProfileName.MINIMAL:
-            return generate_minimal_profile(options, matrix, graph, rng)
+            return generate_minimal_profile(options, matrix, graph, rng, tracker)
         case DemandProfileName.ROUTING_STRESS:
-            return generate_routing_stress_profile(options, matrix, graph, rng)
+            return generate_routing_stress_profile(
+                options,
+                matrix,
+                graph,
+                rng,
+                tracker,
+            )
         case DemandProfileName.CONTROL_STRESS:
-            return generate_control_stress_profile(options, matrix, graph, rng)
+            return generate_control_stress_profile(
+                options,
+                matrix,
+                graph,
+                rng,
+                tracker,
+            )
         case DemandProfileName.FULL:
-            return generate_full_profile(options, matrix, graph, rng)
+            return generate_full_profile(options, matrix, graph, rng, tracker)
         case _:
             raise ValueError(f"Unknown demand profile: {options.demand_profile}")

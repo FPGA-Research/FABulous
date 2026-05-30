@@ -76,26 +76,25 @@ class RoutingDemandEvaluator:
         RoutingDemandEvaluatorResult
             Structured result and report.
         """
-        design = fpga_model.user_design
-        fab = fpga_model.fab
-        _ = design
         tracker = RoutingDemandProcessTracker(
             enabled=self.options.track_progress,
             chunk_size=self.options.progress_chunk_size,
         )
         tracker.start(self.options.tile_name)
 
-        matrix = load_matrix_data(self.options, fab)
+        matrix = load_matrix_data(self.options, fpga_model)
         graph = build_graph(matrix)
-        tracker.loaded_matrix(matrix.switch_matrix, _routing_pip_count(matrix))
+        tracker.loaded_matrix(matrix.matrix_source, _routing_pip_count(matrix))
 
-        profile = generate_demand_profile(self.options, matrix, graph)
+        profile = generate_demand_profile(self.options, matrix, graph, tracker)
         tracker.generated_demands(len(profile.demands))
         router = create_router(self.options)
 
         def evaluate(
             candidate_graph: RoutingGraph,
             warnings: list[str],
+            *,
+            track_router: bool = False,
         ) -> RoutingDemandEvaluatorResult:
             return evaluate_graph(
                 options=self.options,
@@ -104,6 +103,7 @@ class RoutingDemandEvaluator:
                 demand_profile=profile,
                 router=router,
                 warnings=profile.warnings + warnings,
+                tracker=tracker if track_router else None,
             )
 
         optimizer = create_optimizer(self.options)
@@ -114,8 +114,7 @@ class RoutingDemandEvaluator:
                 graph=graph,
                 demand_profile=profile,
                 router=router,
-                design=design,
-                fab=fab,
+                fpga_model=fpga_model,
                 tracker=tracker,
                 warnings=profile.warnings,
                 evaluate=evaluate,
@@ -151,6 +150,7 @@ def evaluate_graph(
     demand_profile: DemandProfileResult,
     router: RoutingDemandRouter,
     warnings: list[str],
+    tracker: RoutingDemandProcessTracker | None = None,
 ) -> RoutingDemandEvaluatorResult:
     """Evaluate a graph against generated demands.
 
@@ -168,13 +168,15 @@ def evaluate_graph(
         Router implementation.
     warnings : list[str]
         Warnings to include in the result.
+    tracker : RoutingDemandProcessTracker | None
+        Optional progress tracker for top-level routing.
 
     Returns
     -------
     RoutingDemandEvaluatorResult
         Evaluation result.
     """
-    router_result = router.route(graph, demand_profile.demands)
+    router_result = router.route(graph, demand_profile.demands, tracker=tracker)
     result = RoutingDemandEvaluatorResult(
         options=options,
         matrix=matrix,
