@@ -124,6 +124,7 @@ class NextpnrRouter:
                     ports=pcf.extract_json_ports(paths.json_path, top_name),
                     template_pcf=template_pcf,
                     bel_v2=bel_v2,
+                    pcf_assignment_seed=self.options.pcf_assignment_seed,
                 )
                 paths.pcf_path.write_text(pcf_text, encoding="utf-8")
 
@@ -140,6 +141,7 @@ class NextpnrRouter:
                 live_output=self.options.live_output,
             )
             nextpnr_report = _read_report(paths.report_path)
+            fasm_text = _read_fasm(paths.fasm_path)
 
             result = NextpnrRouterResult(
                 options=self.options,
@@ -148,6 +150,7 @@ class NextpnrRouter:
                 paths=paths,
                 command_result=command_result,
                 nextpnr_report=nextpnr_report,
+                fasm_text=fasm_text,
             )
             result = result.model_copy(
                 update={"report_summary": report.render_nextpnr_router_report(result)}
@@ -242,6 +245,24 @@ def _read_report(report_path: Path) -> dict[str, Any]:
     if not report_path.exists() or report_path.stat().st_size == 0:
         return {}
     return json.loads(report_path.read_text(encoding="utf-8"))
+
+
+def _read_fasm(fasm_path: Path) -> str | None:
+    """Read a nextpnr FASM file if it exists.
+
+    Parameters
+    ----------
+    fasm_path : Path
+        FASM output path.
+
+    Returns
+    -------
+    str | None
+        FASM text, or ``None`` if nextpnr did not produce the file.
+    """
+    if not fasm_path.exists():
+        return None
+    return fasm_path.read_text(encoding="utf-8")
 
 
 def _render_failure(result: NextpnrRouterResult) -> str:

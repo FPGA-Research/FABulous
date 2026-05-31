@@ -40,6 +40,9 @@ class NextpnrRouterOptions(BaseModel):
     pcf_path : Path | None
         Optional concrete PCF path. ``None`` auto-generates one from the FABulous
         routing model.
+    pcf_assignment_seed : int
+        Deterministic seed for auto-generated PCF port-to-IO-site assignment.
+        Seed ``1`` preserves template order.
     fasm_path : Path | None
         Optional FASM output path.
     report_path : Path | None
@@ -71,6 +74,7 @@ class NextpnrRouterOptions(BaseModel):
     json_path: Path | None = None
     json_output_path: Path | None = None
     pcf_path: Path | None = None
+    pcf_assignment_seed: int = 1
     fasm_path: Path | None = None
     report_path: Path | None = None
     project_dir: Path | None = None
@@ -127,6 +131,30 @@ class NextpnrRouterOptions(BaseModel):
         """
         if value is not None and value < 0:
             raise ValueError("report_output_max_lines must be non-negative")
+        return value
+
+    @field_validator("pcf_assignment_seed")
+    @classmethod
+    def _validate_positive_int(cls, value: int) -> int:
+        """Validate positive integer options.
+
+        Parameters
+        ----------
+        value : int
+            Integer option value.
+
+        Returns
+        -------
+        int
+            Validated value.
+
+        Raises
+        ------
+        ValueError
+            If the value is not positive.
+        """
+        if value <= 0:
+            raise ValueError("pcf_assignment_seed must be greater than 0")
         return value
 
 
@@ -209,6 +237,9 @@ class NextpnrRouterResult(BaseModel):
     nextpnr_report : dict[str, Any]
         Parsed nextpnr JSON report, or an empty dictionary if no report was
         produced.
+    fasm_text : str | None
+        Captured FASM output text, or ``None`` if nextpnr did not produce a FASM
+        file.
     report_summary : str
         Human-readable route summary.
     warnings : tuple[str, ...]
@@ -223,6 +254,7 @@ class NextpnrRouterResult(BaseModel):
     paths: NextpnrRouterPaths
     command_result: NextpnrCommandResult
     nextpnr_report: dict[str, Any] = Field(default_factory=dict)
+    fasm_text: str | None = None
     report_summary: str = ""
     warnings: tuple[str, ...] = ()
 

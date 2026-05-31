@@ -215,6 +215,24 @@ def test_fab_graph_query_api_accepts_callable_filters(tmp_path: Path) -> None:
     )
 
 
+def test_fab_graph_iter_active_pips_yields_filtered_pips_lazily(
+    tmp_path: Path,
+) -> None:
+    """Expose lazy active PIP iteration through the public facade."""
+    facade = FabGraph(_write_and_load_api_with_standalone_tile(tmp_path), tmp_path)
+    active_external = facade.active_pips(
+        where=lambda pip: pip.kind is RoutingPipKind.EXTERNAL_WIRE,
+    )
+    iter_external = list(
+        facade.iter_active_pips(
+            where=lambda pip: pip.kind is RoutingPipKind.EXTERNAL_WIRE,
+        )
+    )
+
+    assert iter_external == active_external
+    assert next(facade.iter_active_pips()).kind in set(RoutingPipKind)
+
+
 def test_fab_graph_distinguishes_placed_and_standalone_tile_types(
     tmp_path: Path,
 ) -> None:

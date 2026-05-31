@@ -10,6 +10,7 @@ consumed by the FABulous nextpnr fork.
 from __future__ import annotations
 
 import json
+import random
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -143,6 +144,7 @@ def auto_assign_pcf_for_ports(
     ports: list[str],
     template_pcf: str,
     bel_v2: str | None = None,
+    pcf_assignment_seed: int = 1,
 ) -> str:
     """Generate concrete PCF text by assigning named ports to IO sites.
 
@@ -156,6 +158,9 @@ def auto_assign_pcf_for_ports(
         Optional BEL v2 text returned by ``fab.genRoutingModel()``. When
         provided, template sites are filtered to real IO BELs so pass-through
         interface BELs are not used as top-level IO pins.
+    pcf_assignment_seed : int
+        Positive deterministic assignment seed. Seed ``1`` preserves template
+        order. Any other seed permutes legal IO sites before assigning ports.
 
     Returns
     -------
@@ -165,11 +170,16 @@ def auto_assign_pcf_for_ports(
     Raises
     ------
     ValueError
-        If there are more ports than available IO sites.
+        If there are more ports than available IO sites, or if
+        ``pcf_assignment_seed`` is not positive.
     """
+    if pcf_assignment_seed <= 0:
+        raise ValueError("pcf_assignment_seed must be greater than 0")
     sites = extract_template_io_sites(template_pcf)
     if bel_v2 is not None:
         sites = filter_io_sites_by_bel_v2(sites, bel_v2)
+    if pcf_assignment_seed != 1:
+        random.Random(pcf_assignment_seed).shuffle(sites)
     if len(ports) > len(sites):
         raise ValueError(
             f"design has {len(ports)} top-level port(s), but template PCF "

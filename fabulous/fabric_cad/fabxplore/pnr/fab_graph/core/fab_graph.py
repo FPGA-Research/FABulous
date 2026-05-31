@@ -339,6 +339,26 @@ class FabGraph:
         """
         return _filter_items(self._graph.active_pips(), where)
 
+    def iter_active_pips(
+        self,
+        where: Callable[[RoutingPip], bool] | None = None,
+    ) -> Iterable[RoutingPip]:
+        """Yield active concrete PIPs lazily.
+
+        Parameters
+        ----------
+        where : Callable[[RoutingPip], bool] | None
+            Optional predicate.
+
+        Yields
+        ------
+        RoutingPip
+            Active concrete PIPs accepted by ``where``.
+        """
+        for pip in self._graph.iter_pips(active_only=True):
+            if where is None or where(pip):
+                yield pip
+
     def disabled_pips(
         self,
         where: Callable[[RoutingPip], bool] | None = None,

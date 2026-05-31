@@ -63,6 +63,7 @@ Queries and rendering:
 - `switch_matrix(tile_type)`
 - `set_switch_matrix(tile_type, columns, rows, matrix)`
 - `active_pips(where=None)`
+- `iter_active_pips(where=None)`
 - `disabled_pips(where=None)`
 - `render_pips_txt()`
 
@@ -373,6 +374,17 @@ external_pips = graph.active_pips(
 )
 
 print(external_pips[0].render())
+```
+
+### `iter_active_pips(where=None)`
+
+Yield active concrete nextpnr PIPs lazily.  Use this when the caller can stop
+early or stream results without materializing the whole fabric-wide PIP list.
+
+```python
+first_lut_pip = next(
+    graph.iter_active_pips(where=lambda pip: pip.tile_type == "LUT4AB")
+)
 ```
 
 ### `disabled_pips(where=None)`
@@ -774,6 +786,7 @@ only when needed:
 
 - `render_pips_txt()`
 - `write_pips()`
+- `iter_active_pips()`
 - `active_pips()`
 - `disabled_pips()`
 - `stats()`

@@ -24,6 +24,10 @@ from fabulous.fabric_cad.fabxplore.pnr.pnr_modules.nextpnr.core.nextpnr_router i
     NextpnrRouterOptions,
     NextpnrRouterResult,
 )
+from fabulous.fabric_cad.fabxplore.utils.fabulous_fasm import (
+    FabulousFasmDocument,
+    parse_fabulous_fasm,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -76,6 +80,25 @@ class PnRBridge(FabGraph):
         self._reload_project(self.project_dir)
         self._graph = RoutingFabricGraph.from_fabric(self.fab.fabric)
 
+    def evaluate_fasm(self, fasm_text: str) -> FabulousFasmDocument:
+        """Evaluate a FASM string against the current FABulous fabric state.
+
+        This parses the FASM text into a document, resolves any FABulous-specific
+        semantics, and returns the resulting document. This is useful for
+        interpreting the PnR output FASM in terms of the current FabGraph state.
+
+        Parameters
+        ----------
+        fasm_text : str
+            The FASM text to evaluate.
+
+        Returns
+        -------
+        FabulousFasmDocument
+            The evaluated FASM document reflecting the current fabric state.
+        """
+        return parse_fabulous_fasm(fasm_text, self)
+
     def nextpnr_route(
         self,
         top_name: str | None = None,
@@ -84,6 +107,7 @@ class PnRBridge(FabGraph):
         json_path: Path | None = None,
         json_output_path: Path | None = None,
         pcf_path: Path | None = None,
+        pcf_assignment_seed: int = 1,
         fasm_path: Path | None = None,
         report_path: Path | None = None,
         project_dir: Path | None = None,
@@ -119,6 +143,9 @@ class PnRBridge(FabGraph):
         pcf_path : Path | None
             Optional concrete PCF path. If ``None``, auto-generate a PCF from
             the in-memory FABulous routing model.
+        pcf_assignment_seed : int
+            Positive deterministic seed for auto-generated PCF assignment. Seed
+            ``1`` preserves template order.
         fasm_path : Path | None
             Optional FASM output path. If ``None``, use ``<out_dir>/<top>.fasm``.
         report_path : Path | None
@@ -161,6 +188,7 @@ class PnRBridge(FabGraph):
             json_path=json_path,
             json_output_path=json_output_path,
             pcf_path=pcf_path,
+            pcf_assignment_seed=pcf_assignment_seed,
             fasm_path=fasm_path,
             report_path=report_path,
             project_dir=route_project_dir,
@@ -195,6 +223,7 @@ class PnRBridge(FabGraph):
         nextpnr_exec: Path | str | None = None,
         project_dir: Path | None = None,
         extra_args: list[str] | tuple[str, ...] | None = None,
+        pcf_assignment_seed: int = 1,
         check: bool = False,
         live_output: bool = False,
     ) -> list[NextpnrRouterResult]:
@@ -212,6 +241,9 @@ class PnRBridge(FabGraph):
             project root.
         extra_args : list[str] | tuple[str, ...] | None
             Extra nextpnr command-line arguments.
+        pcf_assignment_seed : int
+            Positive deterministic seed for auto-generated PCF assignment. Seed
+            ``1`` preserves template order.
         check : bool
             Whether a non-zero nextpnr return code should raise an exception.
             Defaults to ``False`` so a batch can collect failed routes.
@@ -258,6 +290,7 @@ class PnRBridge(FabGraph):
                         json_path=json_path,
                         project_dir=route_project_dir,
                         extra_args=tuple(extra_args or ()),
+                        pcf_assignment_seed=pcf_assignment_seed,
                         write_json=False,
                         check=check,
                         live_output=live_output,

@@ -12,6 +12,7 @@ mapping and optimization stages. This module serves as the central point for def
 the synthesis flow and architecture-specific transformations for FABulous.
 """
 
+from asyncio.log import logger
 from pathlib import Path
 
 from fabulous.fabric_cad.fabxplore.examples.fabr_v2.models import (
@@ -306,6 +307,13 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "verilog_path": self.my_root / "arch_rtl" / "FLUT5_1P_2PS.v",
                     "prefixes": [
                         "LA_",
+                        "LB_",
+                        "LC_",
+                        "LD_",
+                        "LE_",
+                        "LF_",
+                        "LG_",
+                        "LH_",
                     ],
                     "add_as_custom_prim": True,
                 },
@@ -342,7 +350,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             include_constant_sources=True,
             output_fanin=3,
             cover_unconnected_matrix_rows=True,
-            routing_pip_pattern="wilton",
+            routing_pip_pattern="full",
             routing_pip_fs=4,
             generate_straight_routing_pips=True,
             generate_turn_routing_pips=True,
@@ -374,15 +382,15 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             random_demand_ratio=0.25,
             seed=1,
             opt=False,
-            optimizer="greedy",
-            opt_target_pip_reduction=0.1,
-            opt_max_soft_failure_rate=0.1,
-            opt_max_hard_failure_rate=0.1,
+            optimizer="dense",
+            opt_target_pip_reduction=0.8,
+            opt_max_soft_failure_rate=0.8,
+            opt_max_hard_failure_rate=0.8,
             opt_use_baseline_failure_rates=True,
             opt_clean_mux=True,
             opt_power_of_two_muxes=False,
-            opt_write_back=True,
-            opt_max_iterations=400,
+            apply_to_tile_model=True,
+            opt_max_iterations=40,
             report_max_soft_failure_rate=0.1,
             router="pathfinder",
             router_max_iterations=30,
@@ -391,20 +399,61 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             router_base_resource_capacity=1,
             fanout_targets=[2, 4, 8],
             max_net_sinks=8,
-            config_bit_capacity_override=None,
             config_bit_margin=0,
             track_progress=True,
             progress_chunk_size=5,
+            repair_unreachable_demands=True,
+            relax_congestion=True,
         )
 
-        self.fpga_model.nextpnr_route(
+        s = self.fpga_model.nextpnr_route(
             nextpnr_exec=Path(
                 "/home/hausding/Documents/FABulous/demo_master_thesis"
                 "/nextpnr/build/nextpnr-generic"
             ),
             check=False,
             log_report=True,
+            live_output=True,
         )
+
+        o = self.fpga_model.evaluate_fasm(s.fasm_text)
+        d = o.used_switch_matrix_for_tile_type("LUT5F", active_pip_value=1)
+
+        self.fpga_model.set_switch_matrix(
+            "LUT5F",
+            d.columns,
+            d.rows,
+            d.matrix,
+        )
+
+        s = self.fpga_model.nextpnr_route(
+            nextpnr_exec=Path(
+                "/home/hausding/Documents/FABulous/demo_master_thesis"
+                "/nextpnr/build/nextpnr-generic"
+            ),
+            check=False,
+            log_report=True,
+            live_output=True,
+        )
+
+        s = self.fpga_model.nextpnr_batch_test(
+            designs={
+                "lut32_mixed": Path(
+                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad/fabxplore/examples/fabr_v2/tests/out/lut32_mixed.json"
+                ),
+                "or17_chain": Path(
+                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad/fabxplore/examples/fabr_v2/tests/out/or17_chain.json"
+                ),
+            },
+            nextpnr_exec=Path(
+                "/home/hausding/Documents/FABulous/demo_master_thesis"
+                "/nextpnr/build/nextpnr-generic"
+            ),
+            live_output=True,
+        )
+
+        for i in s:
+            logger.info(i.passed)
 
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""

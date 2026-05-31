@@ -19,6 +19,7 @@ router_pass = self.pnr_fabric_router_pass(
     json_path=None,
     json_output_path=None,
     pcf_path=None,
+    pcf_assignment_seed=1,
     fasm_path=None,
     report_path=None,
     project_dir=None,
@@ -47,6 +48,7 @@ Options:
 | `json_path` | `None` | Input Yosys JSON netlist path. If provided, this JSON is the design source of truth and has priority over the active pyosys bridge. |
 | `json_output_path` | `None` | Persisted JSON output path used when `write_json=True`. If omitted, uses `<out_dir>/<top>.json`. |
 | `pcf_path` | `None` | Concrete PCF path. If `None`, auto-generates `<out_dir>/<top>.pcf`. |
+| `pcf_assignment_seed` | `1` | Positive deterministic seed for auto-generated PCF assignment. Seed `1` preserves template order; other seeds permute legal IO sites before assigning ports. |
 | `fasm_path` | `None` | FASM output path. If `None`, writes `<out_dir>/<top>.fasm`. |
 | `report_path` | `None` | nextpnr JSON report path. If `None`, writes `<out_dir>/<top>_nextpnr_report.json`. |
 | `project_dir` | `None` | FABulous project root used as `FAB_ROOT`. If `None`, uses the active project context. |
@@ -208,8 +210,9 @@ as `InPass4_frame_config_mux` or `OutPass4_frame_config_mux` are skipped, even
 if they appear in the template PCF. This avoids constraints like `X9Y1/A` being
 emitted for a site that nextpnr cannot use as a user IO BEL.
 
-The design ports are flattened in declaration order and assigned to the legal IO
-sites in template order. For example:
+The design ports are flattened in declaration order. With the default
+`pcf_assignment_seed=1`, they are assigned to legal IO sites in template order.
+For example:
 
 ```verilog
 module top(input [2:0] a, output y);
@@ -223,6 +226,14 @@ set_io a[0] X0Y1/A
 set_io a[1] X0Y1/B
 set_io a[2] X0Y2/A
 set_io y X0Y2/B
+```
+
+With any other positive `pcf_assignment_seed`, the legal IO sites are
+deterministically permuted before assignment. This is useful when running the
+same benchmark multiple times with different IO placements:
+
+```python
+self.fpga_model.nextpnr_route(pcf_assignment_seed=2)
 ```
 
 If the design has more top-level ports than legal IO sites, the pass raises a

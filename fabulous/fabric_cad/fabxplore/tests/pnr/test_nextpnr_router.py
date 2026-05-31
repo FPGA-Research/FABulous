@@ -54,6 +54,32 @@ def test_auto_assign_pcf_for_ports_uses_template_order() -> None:
     ]
 
 
+def test_auto_assign_pcf_for_ports_uses_seeded_site_permutation() -> None:
+    """Permute legal IO sites with a deterministic non-default seed."""
+    pcf = auto_assign_pcf_for_ports(
+        ports=["a[0]", "a[1]", "a[2]", "y"],
+        template_pcf=_template_pcf(site_count=4),
+        pcf_assignment_seed=2,
+    )
+
+    assert pcf.splitlines() == [
+        "set_io a[0] X0Y1/B",
+        "set_io a[1] X0Y2/A",
+        "set_io a[2] X0Y2/B",
+        "set_io y X0Y1/A",
+    ]
+
+
+def test_auto_assign_pcf_for_ports_rejects_non_positive_seed() -> None:
+    """Require positive auto-PCF assignment seeds."""
+    with pytest.raises(ValueError, match="pcf_assignment_seed"):
+        auto_assign_pcf_for_ports(
+            ports=["a"],
+            template_pcf=_template_pcf(site_count=1),
+            pcf_assignment_seed=0,
+        )
+
+
 def test_auto_assign_pcf_filters_pass_through_template_sites() -> None:
     """Ignore non-IO pass-through BELs included in FABulous template PCFs."""
     pcf = auto_assign_pcf_for_ports(
@@ -211,6 +237,7 @@ def test_router_writes_artifacts_and_parses_report(tmp_path: Path) -> None:
         "set_io y X0Y1/B",
     ]
     assert result.paths.fasm_path.read_text(encoding="utf-8") == "# fake fasm\n"
+    assert result.fasm_text == "# fake fasm\n"
     assert result.nextpnr_report["utilization"]["FAKE"]["used"] == 1
     assert "PASS" in result.report_summary
     assert "## Utilization" in result.report_summary
@@ -255,6 +282,30 @@ def test_router_routes_external_json_and_auto_pcf_from_json(tmp_path: Path) -> N
         "set_io j[0] X0Y1/A",
         "set_io j[1] X0Y1/B",
         "set_io z X0Y2/A",
+    ]
+
+
+def test_router_uses_auto_pcf_assignment_seed(tmp_path: Path) -> None:
+    """Use router options to permute auto-generated PCF assignments."""
+    _write_project_metadata(tmp_path)
+    bridge = _bridge_from_verilog(
+        "module top(input [2:0] a, output y); assign y = |a; endmodule"
+    )
+    router = NextpnrRouter(
+        NextpnrRouterOptions(
+            project_dir=tmp_path,
+            nextpnr_exec=_fake_nextpnr(tmp_path),
+            pcf_assignment_seed=2,
+        )
+    )
+
+    result = router.route(bridge, _FakeFab(_template_pcf(site_count=4)))
+
+    assert result.paths.pcf_path.read_text(encoding="utf-8").splitlines() == [
+        "set_io a[0] X0Y1/B",
+        "set_io a[1] X0Y2/A",
+        "set_io a[2] X0Y2/B",
+        "set_io y X0Y1/A",
     ]
 
 
