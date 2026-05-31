@@ -51,11 +51,17 @@ Queries and rendering:
 - `tile_types(where=None)`
 - `placed_tile_types(where=None)`
 - `standalone_tile_types(where=None)`
+- `supertile_types(where=None)`
+- `supertile_subtiles(supertile_type)`
 - `tile_model(tile_type)`
+- `tile_type_at(x, y)`
+- `tile_model_at(x, y)`
 - `external_resources(tile_type=None, active_only=True, where=None)`
 - `matrix_resources(tile_type=None, active_only=True, where=None)`
 - `matrix_sources(tile_type, where=None)`
 - `matrix_sinks(tile_type, where=None)`
+- `switch_matrix(tile_type)`
+- `set_switch_matrix(tile_type, columns, rows, matrix)`
 - `active_pips(where=None)`
 - `disabled_pips(where=None)`
 - `render_pips_txt()`
@@ -88,6 +94,7 @@ Write-back:
 - `write_tile(name, path)`
 - `write_project(path=None, generate_rtl=True)`
 - `write_tile_sources(output_root=None, tile_types=None, remove_generated_artifacts=True, generate_rtl=False)`
+- `write_supertile_sources(output_root=None, supertile_types=None, remove_generated_artifacts=True, generate_rtl=True)`
 
 ## Public API Examples
 
@@ -203,6 +210,25 @@ for tile_type in graph.standalone_tile_types():
     print(tile_type, len(matrix.rows), len(matrix.columns))
 ```
 
+### `supertile_types(where=None)`
+
+List loaded supertile type names, optionally filtered by a callable.
+
+```python
+for supertile_type in graph.supertile_types():
+    print(supertile_type)
+```
+
+### `supertile_subtiles(supertile_type)`
+
+Return the child tile types that make up one supertile.  The result uses the
+order loaded by FABulous and does not assume names such as `_top` or `_bot`.
+
+```python
+for subtile_type in graph.supertile_subtiles("DSP"):
+    print(subtile_type)
+```
+
 ### `tile_model(tile_type)`
 
 Read preserved tile metadata such as source paths, BELs, ports, and matrix file
@@ -213,6 +239,35 @@ lut_model = graph.tile_model("LUT4AB")
 print(lut_model.tile_csv_path)
 print([bel.module_name for bel in lut_model.bels])
 ```
+
+### `tile_type_at(x, y)`
+
+Return the tile type placed at one fabric coordinate, or `None` if the coordinate
+is empty or outside the loaded grid.  This is a placement query only; it does not
+materialize routing PIPs.
+
+```python
+tile_type = graph.tile_type_at(3, 2)
+if tile_type is not None:
+    print("X3Y2 contains", tile_type)
+```
+
+Standalone tile declarations never appear in coordinate lookup results because
+they have no placed grid location.
+
+### `tile_model_at(x, y)`
+
+Return the shared tile model for the tile type placed at one coordinate, or
+`None` if the coordinate has no placed tile.
+
+```python
+tile_model = graph.tile_model_at(3, 2)
+if tile_model is not None:
+    print(tile_model.tile_csv_path)
+```
+
+The returned model is shared by tile type.  If several grid locations contain
+`LUT4AB`, they all return the same `RoutingTileModel` object for `LUT4AB`.
 
 ### `external_resources(tile_type=None, active_only=True, where=None)`
 
@@ -268,6 +323,42 @@ List valid sink wire names for a tile matrix.
 lut_sinks = graph.matrix_sinks(
     "LUT4AB",
     where=lambda name: name.startswith("LA_I"),
+)
+```
+
+### `switch_matrix(tile_type)`
+
+Return a tile-local switch-matrix table.  Rows are source wires, columns are sink
+wires, and positive entries are active PIP delays.  Zero entries mean no active
+PIP for that source/sink pair.
+
+```python
+matrix = graph.switch_matrix("LUT4AB")
+print(matrix.rows)
+print(matrix.columns)
+print(matrix.matrix[0])
+```
+
+### `set_switch_matrix(tile_type, columns, rows, matrix)`
+
+Replace one tile type's active switch matrix with an explicit delay table.
+Positive values enable PIPs with that delay; `0.0` disables the pair.  This
+updates tile-local graph state only.  Source files are not written until a
+write-back method is called.
+
+```python
+matrix = graph.switch_matrix("LUT4AB")
+
+new_table = [
+    [8.0 if source.startswith("E") else 0.0 for sink in matrix.columns]
+    for source in matrix.rows
+]
+
+graph.set_switch_matrix(
+    "LUT4AB",
+    columns=matrix.columns,
+    rows=matrix.rows,
+    matrix=new_table,
 )
 ```
 
@@ -555,6 +646,23 @@ graph.write_tile_sources(
 )
 ```
 
+### `write_supertile_sources(output_root=None, supertile_types=None, remove_generated_artifacts=True, generate_rtl=True)`
+
+Write the selected supertile subtiles and optionally regenerate the supertile
+wrapper RTL.  Use this when a changed tile type is part of a supertile and the
+wrapper must stay consistent with the generated subtile RTL.
+
+```python
+graph.write_supertile_sources(
+    supertile_types=["DSP"],
+    generate_rtl=True,
+)
+```
+
+When `output_root` is provided and `generate_rtl=True`, the output root must
+already be a valid FABulous project root with `fabric.csv`, matching the tile RTL
+generation rules used by `write_tile_sources`.
+
 ## Resource Semantics
 
 FABulous routing resources are owned by tile type.  If a resource is changed on
@@ -611,10 +719,19 @@ separate placed-location index:
 ```python
 tile_models = {"LUT5F": ..., "LUT4AB": ...}
 tile_locations_by_type = {"LUT5F": ((1, 2), (2, 2), ...)}
+tile_types_by_xy = {(1, 2): "LUT5F", (2, 2): "LUT5F", ...}
 ```
 
 Here `LUT4AB` is editable as a standalone model, but it cannot be emitted into
 `pips.txt` unless it also appears in the placed-location index.
+
+Coordinate lookup methods read the placed-location layer directly:
+
+```python
+graph.tile_type_at(1, 2)   # "LUT5F"
+graph.tile_model_at(1, 2)  # shared RoutingTileModel for "LUT5F"
+graph.tile_type_at(0, 9)   # None for an empty or missing coordinate
+```
 
 An edit touches only one tile type and one indexed resource family:
 
