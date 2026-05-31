@@ -286,6 +286,41 @@ class FabGraph:
         """
         return self._graph.tile_model(tile_type)
 
+    def tile_type_at(self, x: int, y: int) -> str | None:
+        """Return the placed tile type at one grid coordinate.
+
+        Parameters
+        ----------
+        x : int
+            Fabric x coordinate.
+        y : int
+            Fabric y coordinate.
+
+        Returns
+        -------
+        str | None
+            Placed tile type, or ``None`` if the coordinate has no tile.
+        """
+        return self._graph.tile_type_at(x, y)
+
+    def tile_model_at(self, x: int, y: int) -> RoutingTileModel | None:
+        """Return the placed tile model at one grid coordinate.
+
+        Parameters
+        ----------
+        x : int
+            Fabric x coordinate.
+        y : int
+            Fabric y coordinate.
+
+        Returns
+        -------
+        RoutingTileModel | None
+            Shared tile model for the placed tile type, or ``None`` if the
+            coordinate has no tile.
+        """
+        return self._graph.tile_model_at(x, y)
+
     def active_pips(
         self,
         where: Callable[[RoutingPip], bool] | None = None,

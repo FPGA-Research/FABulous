@@ -272,6 +272,44 @@ class RoutingFabricGraph:
         """
         return self._tile_models[tile_type]
 
+    def tile_type_at(self, x: int, y: int) -> str | None:
+        """Return the placed tile type at one grid coordinate.
+
+        Parameters
+        ----------
+        x : int
+            Fabric x coordinate.
+        y : int
+            Fabric y coordinate.
+
+        Returns
+        -------
+        str | None
+            Placed tile type, or ``None`` if the coordinate has no tile.
+        """
+        return self.tile_types_by_xy.get((x, y))
+
+    def tile_model_at(self, x: int, y: int) -> RoutingTileModel | None:
+        """Return the placed tile model at one grid coordinate.
+
+        Parameters
+        ----------
+        x : int
+            Fabric x coordinate.
+        y : int
+            Fabric y coordinate.
+
+        Returns
+        -------
+        RoutingTileModel | None
+            Shared tile model for the placed tile type, or ``None`` if the
+            coordinate has no tile.
+        """
+        tile_type = self.tile_type_at(x, y)
+        if tile_type is None:
+            return None
+        return self.tile_model(tile_type)
+
     def add_external_resource(
         self,
         tile_type: str,

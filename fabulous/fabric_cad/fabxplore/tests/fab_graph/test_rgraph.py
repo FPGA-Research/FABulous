@@ -144,6 +144,23 @@ def test_tile_model_keeps_parsed_tile_metadata(tmp_path: Path) -> None:
         graph.tile_model("Missing")
 
 
+def test_tile_lookup_by_coordinate_uses_placed_grid_only(tmp_path: Path) -> None:
+    """Look up placed tile metadata from fabric coordinates."""
+    graph = RoutingFabricGraph.from_fabric(
+        _write_and_parse_project_with_standalone_tile(tmp_path)
+    )
+    toy = graph.tile_model("Toy")
+
+    assert graph.tile_type_at(0, 0) == "Toy"
+    assert graph.tile_type_at(1, 0) == "Toy"
+    assert graph.tile_model_at(0, 0) is toy
+    assert graph.tile_model_at(1, 0) is toy
+    assert graph.tile_type_at(0, 1) is None
+    assert graph.tile_model_at(0, 1) is None
+    assert graph.tile_type_at(-1, 0) is None
+    assert graph.tile_model_at(99, 99) is None
+
+
 def test_declared_standalone_tiles_are_queryable_without_emitting_pips(
     tmp_path: Path,
 ) -> None:

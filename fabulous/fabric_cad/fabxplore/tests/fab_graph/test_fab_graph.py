@@ -233,6 +233,21 @@ def test_fab_graph_distinguishes_placed_and_standalone_tile_types(
     assert facade.get_resource_counts("Standalone").total_active == 2
 
 
+def test_fab_graph_exposes_tile_lookup_by_coordinate(tmp_path: Path) -> None:
+    """Expose placed tile lookup through the public facade."""
+    facade = FabGraph(_write_and_load_api_with_standalone_tile(tmp_path), tmp_path)
+    toy = facade.tile_model("Toy")
+
+    assert facade.tile_type_at(0, 0) == "Toy"
+    assert facade.tile_type_at(1, 0) == "Toy"
+    assert facade.tile_model_at(0, 0) is toy
+    assert facade.tile_model_at(1, 0) is toy
+    assert facade.tile_type_at(0, 1) is None
+    assert facade.tile_model_at(0, 1) is None
+    assert facade.tile_type_at(-1, 0) is None
+    assert facade.tile_model_at(99, 99) is None
+
+
 def test_fab_graph_exposes_demo_opt_supertile_queries(tmp_path: Path) -> None:
     """Expose loaded supertile names and their child tile types."""
     project_dir = _copy_demo_opt_project_or_skip(tmp_path)
