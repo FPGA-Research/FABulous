@@ -44,8 +44,8 @@ def resolve_sim_libs(project: Path, overrides: list[str]) -> list[Path]:
     PDK and its install root from the FABulous context (which resolves
     ``FAB_PDK`` / ``FAB_PDK_ROOT`` and the ciel install) and globs
     ``<pdk_root>/<pdk>/libs.ref/<scl>/verilog/`` for ``<scl>.v`` plus any
-    ``*udp*.v`` / ``primitives.v`` companion (sky130 and gf180 ship their UDP
-    primitives in a separate ``primitives.v``; IHP inlines them).
+    ``*udp*.v`` / ``primitives.v`` companion (sky130 and gf180 ship their UDPs
+    in a separate ``primitives.v``; IHP inlines them).
 
     Parameters
     ----------
@@ -124,7 +124,7 @@ def collect_gl_sources(project: Path, sim_lib_overrides: list[str]) -> list[Path
       the gate-level ``eFPGA.nl.v`` replaces it.
     - the post-PnR fabric netlist (``Fabric/macro/final_views`` holds exactly one
       ``*.nl.v``, structural, instantiating tile macros by name),
-    - every tile netlist (``Tile/*/macro/final_views/nl/*.nl.v``),
+    - every tile netlist (``Tile/<tile>/macro/final_views/nl/<tile>.nl.v``),
     - the PDK cell models the netlists bind against.
 
     Parameters

@@ -86,8 +86,11 @@ def collect_efpga_nets(efpga: Path) -> list[str]:
 def collect_reset_nets(tile_dir: Path, reset_pin: str) -> dict[str, list[str]]:
     """Map each tile type to the unique nets driving its flop reset pins.
 
-    Every tile netlist is scanned; tiles with no flip-flop (no reset-pin
-    connection) drop out naturally, so no per-fabric tile-type list is needed.
+    The X-init clears flop state by pulsing the async reset pin, so flops are
+    located by that pin: every tile netlist is scanned for it. A tile whose
+    netlist never connects the pin yields no reset nets and drops out naturally
+    (the hardened user-flop cell FABulous binds always exposes it), so no
+    per-fabric tile-type list is needed.
 
     Parameters
     ----------
@@ -112,7 +115,7 @@ def collect_reset_nets(tile_dir: Path, reset_pin: str) -> dict[str, list[str]]:
     return out
 
 
-def collect_instances(efpga: Path, types: list[str]) -> list[tuple[str, str]]:
+def collect_flop_tile_instances(efpga: Path, types: list[str]) -> list[tuple[str, str]]:
     """Return ``(tile_type, instance_name)`` for every flop-bearing tile instance.
 
     Parameters
@@ -137,14 +140,14 @@ def collect_instances(efpga: Path, types: list[str]) -> list[tuple[str, str]]:
 
 
 def net_ref(top_inst: str, net: str) -> str:
-    """Build a hierarchical reference, preserving escaped-identifier syntax.
+    """Build a hierarchical reference of a net, preserving escaped-identifier syntax.
 
     Parameters
     ----------
     top_inst : str
-        Hierarchical path to the gate-level fabric core.
+        Hierarchical path to the gate-level fabric top level instance.
     net : str
-        Net name relative to the fabric core.
+        Net name relative to the fabric top level instance.
 
     Returns
     -------
@@ -169,7 +172,7 @@ def main() -> None:
     ap.add_argument(
         "--top-inst",
         default="top_i.eFPGA_inst",
-        help="hierarchical path to the gate-level fabric core",
+        help="hierarchical path to the gate-level fabric top level instance",
     )
     ap.add_argument(
         "--trigger",
@@ -183,7 +186,7 @@ def main() -> None:
 
     nets = collect_efpga_nets(args.efpga)
     reset_nets = collect_reset_nets(args.tile_dir, reset_pin)
-    instances = collect_instances(args.efpga, sorted(reset_nets))
+    instances = collect_flop_tile_instances(args.efpga, sorted(reset_nets))
 
     flop_resets: list[str] = []
     for ttype, inst in instances:

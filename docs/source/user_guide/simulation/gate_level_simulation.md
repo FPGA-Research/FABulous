@@ -26,11 +26,10 @@ unchanged, **the same testbench drives RTL and GL** with no edits.
 
 ```{mermaid}
 flowchart TB
-    subgraph harden ["GDS flow (run once, see fabric_gds.md)"]
+    subgraph harden ["GDS flow"]
         T[Tiles] --> M[gen_all_tile_macros]
         M --> S[gen_fabric_macro]
-        S --> NL["Fabric/macro/final_views/nl/eFPGA.nl.v
-        Tile/*/macro/final_views/nl/*.nl.v"]
+        S --> NL["Hardened netlists<br/>(eFPGA + per-tile)"]
     end
 
     subgraph design ["Per design"]
@@ -38,7 +37,7 @@ flowchart TB
         C --> B[Bitstream .bin]
     end
 
-    subgraph sim ["Gate-level simulation (run_simulation --gl)"]
+    subgraph sim ["Gate-level simulation"]
         direction LR
         W["Behavioural eFPGA_top
         + config logic"] --> H["iverilog / vvp"]
@@ -56,6 +55,31 @@ simulation is opt-in: you point it at an existing hardened project rather than
 hardening one on the fly.
 :::
 
+## End-to-end at a glance
+
+A gate-level simulation always starts from a fabric that has been **generated**
+and then **hardened**. From a fresh project the full path is:
+
+```bash
+FABulous --createProject <project>      # scaffold a project
+```
+
+then, inside the FABulous shell (`FABulous start <project>`):
+
+```text
+run_FABulous_fabric                                             # 1. generate the fabric HDL
+gen_tile_macro --parallel                                       # 2. harden it (long; see fabric_gds.md)
+gen_fabric_macro                                         
+compile_design ./user_design/sequential_16bit_en.v              # 3. build a design bitstream
+run_simulation --gl fst ./user_design/sequential_16bit_en.bin   # 4. gate-level simulate
+```
+
+Steps 1-2 are the slow, one-off part (`run_FABulous_eFPGA_macro` is the
+automated equivalent of `gen_all_tile_macros` then `gen_fabric_macro`); steps
+3-4 are repeated per user design. The sections below detail each piece.
+
+:::
+
 ## Prerequisites
 
 1. **The Nix environment.** GL simulation needs Yosys, nextpnr, and Icarus
@@ -68,7 +92,8 @@ hardening one on the fly.
    See the [Nix environment setup guide](../../getting_started/installation/nix-env.md)
    for details and `nix develop` as the manual alternative.
 
-2. **A hardened fabric project.** Run a project through the
+2. **A generated, then hardened, fabric project.** First generate the fabric
+   HDL with `run_FABulous_fabric`, then run that through the
    [GDS flow](../building_doc/fabric_gds.md) (`gen_all_tile_macros` then
    `gen_fabric_macro`, or the automated `run_FABulous_eFPGA_macro`). CI also
    publishes this as the `fabric-output-<pdk>` artifact from `gds-flow-ci.yml`,
@@ -110,7 +135,7 @@ identical to RTL simulation up to the final step: compile the design to a
 bitstream, then simulate it with `--gl`.
 
 ```bash
-# Inside a hardened project, in the Nix environment
+# Inside the FABulous shell of a hardened project, in the Nix environment
 compile_design ./user_design/sequential_16bit_en.v
 run_simulation --gl fst ./user_design/sequential_16bit_en.bin
 ```
