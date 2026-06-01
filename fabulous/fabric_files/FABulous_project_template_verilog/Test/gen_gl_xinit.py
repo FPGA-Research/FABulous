@@ -11,18 +11,24 @@ the user flip-flops power up / capture X that the synchronous reset cannot scrub
 (the reset path runs through the same X-pessimistic gates; the async reset pin is
 tied off). This is the #252 / #719 flop-X manifestation.
 
-This generator emits two one-shot actions fired after configuration upload:
+This generator emits two one-shot actions fired after configuration upload,
+each gated so it touches only state that is still X -- a net or flop the
+configuration already drives to a defined value is left untouched:
 
-1. ``$deposit`` 0 onto every fabric-level net  -> breaks the combinational
-   X web. ``$deposit`` is overrideable, so used (toggling) nets keep working;
-   unused nets settle to a defined constant.
-2. A momentary ``force`` of every flip-flop async reset pin to its active level
+1. ``if (net === 1'bx) $deposit(net, 0)`` on every fabric-level net -> breaks
+   the combinational X web. The X-only guard means a net the configuration
+   drives to a real constant is never overwritten with 0; only genuinely
+   undriven (unused) nets are pinned to a defined constant.
+2. A momentary ``force`` of a flip-flop async reset pin to its active level
    (a reset pulse), then ``release`` -> clears flop *state* X that no net
-   deposit can reach.
+   deposit can reach. Gated on that flop's own ``Q`` being X, so a flop already
+   holding a defined value is left alone.
 
 Neither action can hide a design bug: the design output is still compared
 against the golden reference, so a wrong value can only cause a visible
-mismatch, never a false pass.
+mismatch, never a false pass. Because both actions are X-only, they can only
+*add* definedness where the design left X; they never change a value the
+configuration or datapath already resolved.
 
 The flip-flop async reset pin name is PDK-specific; the three PDKs FABulous
 hardens for all use an active-low async reset, so the pulse drives it to 0.
@@ -47,17 +53,22 @@ while triggering it at ``config_done`` passes.
 Limitation: bitstream-set power-on flop values
 ----------------------------------------------
 
-The reset pulse drives every user flop to the async-reset level (0). For the
-current FABulous DFF (``LUT4c_frame_config_dffesr``) this is safe: the bitstream
-only configures the *synchronous* reset target ``c_reset_value`` (applied by the
-design's own ``SR``), never the power-up runtime value of the flop, so there is
-nothing for the pulse to clobber.
+The reset pulse drives a user flop to the async-reset level (0), but only when
+that flop still holds X (action 2 is X-only). For the current FABulous DFF
+(``LUT4c_frame_config_dffesr``) this is moot: the bitstream only configures the
+*synchronous* reset target ``c_reset_value`` (applied by the design's own
+``SR``), never the power-up runtime value, so every user flop is X at
+``config_done`` and the pulse simply defines it.
 
 A future fabric that adds a true INIT bit -- letting the bitstream set a flop's
-power-on runtime value -- would break this assumption: the blanket reset-to-0
-would overwrite that configured value. Note the fix is *not* to move the pulse
-before config (the X returns during upload, as verified above); it is to pulse
-each flop toward its configured INIT value instead of a hard 0.
+power-on runtime value -- is largely covered by the X-only guard: if that value
+is materialised into the flop's ``Q`` by ``config_done``, ``Q`` is no longer X
+and the pulse skips it, preserving the configured value. The guard does *not*
+cover an INIT bit staged in config memory but not yet reflected in ``Q`` --
+there the flop is still X and the pulse defaults it to 0. The fix in that case
+is to pulse each flop toward its configured INIT value instead of a hard 0
+(moving the pulse before config does not help -- the X returns during upload,
+as verified above).
 
 Usage
 -----
@@ -115,14 +126,21 @@ def collect_efpga_nets(efpga: Path) -> list[str]:
     return names
 
 
-def collect_reset_nets(tile_dir: Path, reset_pin: str) -> dict[str, list[str]]:
-    """Map each tile type to the unique nets driving its flop reset pins.
+# A gate-level cell instantiation: ``CELL inst ( .PIN(net), ... );``. Net names
+# (including escaped identifiers) never contain ``)`` or ``;``, so the body runs
+# to the first ``);``.
+_INST_RE = re.compile(r"\b\w+\s+\S+\s*\((.*?)\)\s*;", re.DOTALL)
 
-    The X-init clears flop state by pulsing the async reset pin, so flops are
-    located by that pin: every tile netlist is scanned for it. A tile whose
-    netlist never connects the pin yields no reset nets and drops out naturally
-    (the hardened user-flop cell FABulous binds always exposes it), so no
-    per-fabric tile-type list is needed.
+
+def collect_flop_pins(
+    tile_dir: Path, reset_pin: str
+) -> dict[str, list[tuple[str, str]]]:
+    """Map each tile type to its flops' ``(reset net, Q net)`` pairs.
+
+    Flops are located by the presence of both the async reset pin and a ``Q``
+    output on the same cell instantiation, so this is std-cell-name agnostic.
+    Pairing the reset net with its own ``Q`` lets the X-init pulse a flop only
+    when that flop actually holds X, never overwriting a defined value.
 
     Parameters
     ----------
@@ -133,17 +151,23 @@ def collect_reset_nets(tile_dir: Path, reset_pin: str) -> dict[str, list[str]]:
 
     Returns
     -------
-    dict[str, list[str]]
-        Tile type (the ``Tile/<type>`` directory name) -> reset net names.
+    dict[str, list[tuple[str, str]]]
+        Tile type (the ``Tile/<type>`` directory name) -> list of
+        ``(reset net, Q net)``, one entry per flop instance.
     """
-    pin_re = re.compile(rf"\.{re.escape(reset_pin)}\(([^)]*)\)")
-    out: dict[str, list[str]] = {}
+    rpin = re.compile(rf"\.{re.escape(reset_pin)}\(\s*(.*?)\s*\)")
+    qpin = re.compile(r"\.Q\(\s*(.*?)\s*\)")
+    out: dict[str, list[tuple[str, str]]] = {}
     for nl in sorted(tile_dir.glob("*/macro/final_views/nl/*.nl.v")):
         ttype = nl.parents[3].name
-        nets = sorted(set(pin_re.findall(nl.read_text())))
-        if nets:
-            out.setdefault(ttype, [])
-            out[ttype].extend(n for n in nets if n not in out[ttype])
+        pairs: list[tuple[str, str]] = []
+        for body in _INST_RE.findall(nl.read_text()):
+            rm = rpin.search(body)
+            qm = qpin.search(body)
+            if rm and qm:
+                pairs.append((rm.group(1).strip(), qm.group(1).strip()))
+        if pairs:
+            out[ttype] = pairs
     return out
 
 
@@ -190,6 +214,27 @@ def net_ref(top_inst: str, net: str) -> str:
     return f"{top_inst}.{suffix}"
 
 
+def leaf_ref(top_inst: str, inst: str, net: str) -> str:
+    """Build a hierarchical reference of a tile-internal net, preserving escapes.
+
+    Parameters
+    ----------
+    top_inst : str
+        Hierarchical path to the gate-level fabric top level instance.
+    inst : str
+        Tile instance name (relative to the fabric top level instance).
+    net : str
+        Net name relative to the tile instance.
+
+    Returns
+    -------
+    str
+        ``<top_inst>.<inst>.<net>``; an escaped leaf net keeps its trailing space.
+    """
+    leaf = net + " " if net.startswith("\\") else net
+    return f"{top_inst}.{inst}.{leaf}"
+
+
 def main() -> None:
     """Emit the X-init include consumed by the gate-level testbench."""
     ap = argparse.ArgumentParser(description=__doc__)
@@ -217,13 +262,18 @@ def main() -> None:
     reset_pin = _RESET_PIN_BY_PDK[args.pdk]
 
     nets = collect_efpga_nets(args.efpga)
-    reset_nets = collect_reset_nets(args.tile_dir, reset_pin)
-    instances = collect_flop_tile_instances(args.efpga, sorted(reset_nets))
+    flop_pins = collect_flop_pins(args.tile_dir, reset_pin)
+    instances = collect_flop_tile_instances(args.efpga, sorted(flop_pins))
 
-    flop_resets: list[str] = []
+    flop_pulses: list[tuple[str, str]] = []  # (reset net ref, Q net ref) per flop
     for ttype, inst in instances:
-        for rnet in reset_nets.get(ttype, []):
-            flop_resets.append(net_ref(args.top_inst, f"{inst}.{rnet}"))
+        for rnet, qnet in flop_pins.get(ttype, []):
+            flop_pulses.append(
+                (
+                    leaf_ref(args.top_inst, inst, rnet),
+                    leaf_ref(args.top_inst, inst, qnet),
+                )
+            )
 
     L: list[str] = []
     L.append("// AUTO-GENERATED by gen_gl_xinit.py -- do not edit by hand.")
@@ -231,26 +281,31 @@ def main() -> None:
     L.append("initial begin : gl_xinit")
     L.append(f"    wait ({args.trigger} === 1'b1);  // configuration upload complete")
     L.append("    #1;")
-    L.append("    // 1) break the unused-routing combinational X web (overrideable)")
+    L.append("    // 1) break the unused-routing combinational X web. X-only: a net")
+    L.append("    //    the configuration already drives to a constant is left alone,")
+    L.append("    //    so a real configured value is never overwritten with 0.")
     for n in nets:
-        L.append(f"    $deposit({net_ref(args.top_inst, n)}, 1'b0);")
+        ref = net_ref(args.top_inst, n)
+        L.append(f"    if ({ref} === 1'bx) $deposit({ref}, 1'b0);")
     L.append(
-        f"    // 2) async-reset pulse ({reset_pin}, active-low): clear flop state X"
+        f"    // 2) async-reset pulse ({reset_pin}, active-low): clear flop state X."
     )
-    for r in flop_resets:
-        L.append(f"    force {r}= 1'b0;")
+    L.append("    //    X-only: a flop already holding a defined value (e.g. a future")
+    L.append("    //    INIT-bit power-on value) is left alone, never forced to 0.")
+    for rnet, qnet in flop_pulses:
+        L.append(f"    if ({qnet} === 1'bx) force {rnet}= 1'b0;")
     L.append("    #1;")
-    for r in flop_resets:
-        L.append(f"    release {r};")
+    for rnet, _qnet in flop_pulses:
+        L.append(f"    release {rnet};")
     L.append(
         f'    $display("[gl_xinit] %0d deposits, %0d flop resets @ %0t",'
-        f" {len(nets)}, {len(flop_resets)}, $time);"
+        f" {len(nets)}, {len(flop_pulses)}, $time);"
     )
     L.append("end")
 
     args.out.write_text("\n".join(L) + "\n")
     sys.stderr.write(
-        f"wrote {args.out}: {len(nets)} deposits, {len(flop_resets)} flop async "
+        f"wrote {args.out}: {len(nets)} deposits, {len(flop_pulses)} flop async "
         f"resets ({len(instances)} flop tiles, reset pin {reset_pin})\n"
     )
 

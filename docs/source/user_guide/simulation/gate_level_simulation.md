@@ -67,11 +67,14 @@ simulation is unaffected.
 `-DGL_SIM`) that fires two one-shot actions **once configuration upload
 finishes** (`config_done`):
 
-1. `$deposit 0` onto every fabric net. `$deposit` is overrideable, so used
-   (toggling) nets keep working and only unused nets settle to a constant. This
-   breaks the combinational X web.
-2. A momentary `force` of every flip-flop async reset pin to its active level,
-   then `release`. This clears flop *state* X that no net deposit can reach.
+1. `if (net === 1'bx) $deposit 0` on every fabric net. The X-only guard pins
+   only genuinely undriven (unused) nets to a constant; a net the configuration
+   already drives to a real value is left untouched. This breaks the
+   combinational X web without overwriting any configured value.
+2. A momentary `force` of a flip-flop async reset pin to its active level, then
+   `release`, gated on that flop's own `Q` still being X. This clears flop
+   *state* X that no net deposit can reach, while leaving a flop that already
+   holds a defined value alone.
 
 The scrub fires *after* config upload by design. The X comes from uninitialised
 state (flops and config-memory latches power up X). During upload the config
@@ -85,16 +88,19 @@ upload loop instead leaves every fabric output X (the golden comparison fails),
 while firing it at `config_done` passes.
 
 :::{note}
-The reset pulse drives every user flop to its async-reset level (0). For the
-current FABulous DFF (`LUT4c_frame_config_dffesr`) this is safe, because the
-bitstream only configures the *synchronous* reset target (`c_reset_value`),
-never the power-up runtime value of the flop.
+The reset pulse drives a user flop to its async-reset level (0), but only when
+that flop still holds X. For the current FABulous DFF
+(`LUT4c_frame_config_dffesr`) this is moot, because the bitstream only
+configures the *synchronous* reset target (`c_reset_value`), never the power-up
+runtime value, so every user flop is X at `config_done`.
 
 A future fabric that adds a true **INIT bit** — letting the bitstream set a
-flop's power-on runtime value — would break this assumption, since the blanket
-reset-to-0 would overwrite that configured value. The fix in that case is *not*
-to move the scrub before config (the X returns during upload regardless); it is
-to pulse each flop toward its configured INIT value instead of a hard 0.
+flop's power-on runtime value — is largely covered by the X-only guard: if that
+value reaches the flop's `Q` by `config_done`, `Q` is no longer X and the pulse
+skips it. The guard does *not* cover an INIT bit staged in config memory but not
+yet reflected in `Q`; the fix there is to pulse each flop toward its configured
+INIT value instead of a hard 0 (moving the scrub before config does not help —
+the X returns during upload regardless).
 :::
 
 ## Prerequisites
