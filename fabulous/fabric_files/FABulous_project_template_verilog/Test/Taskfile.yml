@@ -161,12 +161,18 @@ tasks:
   run-gl-simulation:
     desc: Gate-level (mixed-level) simulation against the hardened fabric netlist
     deps: [mkdir-build, gen-force-block]
-    vars:
-      # The complete gate-level source list resolved by `run_simulation --gl`:
-      # the behavioural wrapper (eFPGA_top, config controller, Frame_*, BlockRAM,
-      # models_pack -- the behavioural eFPGA.v core excluded), the fabric netlist
-      # (eFPGA.nl.v), the tile netlists, and the PDK standard-cell models.
-      GL_SOURCES: "{{.GL_SOURCES}}"
+    # GL_SOURCES -- the complete gate-level source list (behavioural wrapper with
+    # the eFPGA.v core excluded, the fabric netlist eFPGA.nl.v, the tile
+    # netlists, and the PDK standard-cell models) -- it is populated only by the
+    # `run_simulation --gl` CLI command, not by the Taskfile.
+    preconditions:
+      - sh: 'test -n "{{.GL_SOURCES}}"'
+        msg: >-
+          GL_SOURCES is not set. It is normally populated by the FABulous CLI
+          (`run_simulation fst <bitstream>.bin --gl`), which resolves the
+          hardened netlists and PDK cell models for you. To run this task on its
+          own, set GL_SOURCES yourself to the gate-level source list, e.g.
+          `task run-gl-simulation GL_SOURCES="<netlists and cell models>"`.
     cmds:
       # `-gspecify` lets iverilog process the PDK specify blocks (copies each
       # cell's delayed_* data/clock nets from their sources, else every flop is
