@@ -285,6 +285,8 @@ class FABulous_CLI(Cmd):
         Argument parser for the install-FABulator command
     geometryParser : Cmd2ArgumentParser
         Argument parser for the gen_geometry command
+    do_run_simulation : Callable
+        Method to run simulation of a compiled user design
     gen_tile_parser : Cmd2ArgumentParser
         Argument parser for the gen_tile command
     gds_parser : Cmd2ArgumentParser

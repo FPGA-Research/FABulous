@@ -440,11 +440,26 @@ def stage_user_design(
     ``lang``), copies it next to a fresh empty ``top_wrapper.v`` and a copy
     of the shared ``constraints.pcf`` renamed to ``<design_name>.pcf``.
 
+    Parameters
+    ----------
+    project_dir : Path
+        The project directory to stage the user design into.
+    design_name : str
+        Basename of the packaged design under ``user_designs/``.
+    lang : HDLType, optional
+        Source language to select the file extension. Default
+        ``HDLType.VERILOG``.
+
     Returns
     -------
     tuple[Path, Path]
         ``(user_design_path, pcf_path)`` inside the project — both ready to
         be passed to :func:`compile_user_design`.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no source file matching ``design_name`` and ``lang`` exists.
     """
     suffixes = _USER_DESIGN_SUFFIXES[lang]
     candidates = [_USER_DESIGNS_DIR / f"{design_name}{ext}" for ext in suffixes]
@@ -479,10 +494,26 @@ def compile_user_design(
     place-and-route under the supplied PCF, generate the bitstream binary,
     and surface a clear failure if the binary is missing.
 
+    Parameters
+    ----------
+    cli : FABulous_CLI
+        The CLI instance with the target fabric already loaded.
+    user_design : Path
+        Path to the staged user design source to compile.
+    design_name : str
+        Top-level module name passed to ``compile_design``.
+    pcf : Path
+        Pin constraints file forwarded to nextpnr.
+
     Returns
     -------
     Path
         The ``.bin`` bitstream produced next to ``user_design``.
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``compile_design`` does not produce the expected bitstream.
     """
     run_cmd(
         cli,
