@@ -24,30 +24,6 @@ are kept, and only the inner `eFPGA` core and its tiles are swapped for the
 hardened netlists plus the PDK cell models. Because the wrapper interface is
 unchanged, **the same testbench drives RTL and GL** with no edits.
 
-```{mermaid}
-flowchart TB
-    subgraph harden ["GDS flow"]
-        T[Tiles] --> M[gen_all_tile_macros]
-        M --> S[gen_fabric_macro]
-        S --> NL["Hardened netlists<br/>(eFPGA + per-tile)"]
-    end
-
-    subgraph design ["Per design"]
-        U[User design Verilog] --> C[compile_design]
-        C --> B[Bitstream .bin]
-    end
-
-    subgraph sim ["Gate-level simulation"]
-        direction LR
-        W["Behavioural eFPGA_top
-        + config logic"] --> H["iverilog / vvp"]
-        NL --> H
-        PDK[PDK std-cell models] --> H
-        B --> H
-        H --> R{Pass / Fail}
-    end
-```
-
 :::{important}
 GL simulation needs a fabric that has already been hardened through the GDS
 flow. Producing that artifact takes a long time and is not always wanted, so GL
