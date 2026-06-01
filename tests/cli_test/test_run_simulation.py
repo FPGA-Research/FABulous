@@ -149,28 +149,40 @@ def _make_pdk(
     return primary
 
 
-def _write_env(project: Path, pdk_root: Path) -> None:
-    """Write a project ``.FABulous/.env`` pointing at ``pdk_root``."""
-    (project / ".FABulous").mkdir()
-    (project / ".FABulous" / ".env").write_text(
-        f"FAB_PDK=ihp-sg13g2\nFAB_PDK_ROOT={pdk_root}\n"
-    )
+def _patch_context(
+    mocker: MockerFixture, pdk: str | None, pdk_root: Path | None
+) -> None:
+    """Point ``cmd_run_simulation``'s context at a stub PDK and install root."""
+    ctx = mocker.Mock()
+    ctx.pdk = pdk
+    ctx.pdk_root = pdk_root
+    mocker.patch(f"{_CMD_MODULE}.get_context", return_value=ctx)
 
 
-def test_collect_gl_sources_orders_fabric_tiles_then_libs(tmp_path: Path) -> None:
-    """Sources are fabric netlist, then tile netlists, then PDK cell models."""
+def test_collect_gl_sources_orders_wrapper_fabric_tiles_then_libs(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Sources are behavioural wrapper, fabric netlist, tiles, then PDK models."""
     netlist = _make_fabric_netlist(tmp_path)
     tile = _make_tile_netlist(tmp_path, "LUT4AB")
     (tmp_path / "Tile" / "DSP").mkdir()  # supertile parent, no macro -> skipped
+    # behavioural wrapper directly under Fabric/; eFPGA.v core must be excluded.
+    (tmp_path / "Fabric" / "eFPGA_top.v").write_text("// wrapper\n")
+    (tmp_path / "Fabric" / "models_pack.v").write_text("// models\n")
+    (tmp_path / "Fabric" / "eFPGA.v").write_text("// behavioural core\n")
     primary = _make_pdk(tmp_path / "pdk_root")
-    _write_env(tmp_path, tmp_path / "pdk_root")
+    _patch_context(mocker, "ihp-sg13g2", tmp_path / "pdk_root")
 
     sources = cmd_run_simulation.collect_gl_sources(tmp_path, [])
+    names = [p.name for p in sources]
 
-    assert sources[0] == netlist
-    assert sources[1] == tile
-    assert primary in sources
-    assert any("udp" in p.name for p in sources)
+    assert "eFPGA_top.v" in names
+    assert "models_pack.v" in names
+    assert "eFPGA.v" not in names  # behavioural core replaced by the gate netlist
+    assert {netlist, tile, primary} <= set(sources)
+    assert any("udp" in n for n in names)
+    # behavioural wrapper precedes the gate netlist, which precedes the tiles
+    assert names.index("eFPGA_top.v") < sources.index(netlist) < sources.index(tile)
 
 
 def test_collect_gl_sources_missing_fabric_netlist(tmp_path: Path) -> None:
@@ -207,28 +219,24 @@ def test_resolve_sim_libs_override_no_match(tmp_path: Path) -> None:
         cmd_run_simulation.resolve_sim_libs(tmp_path, [str(tmp_path / "no" / "*.v")])
 
 
-def test_resolve_sim_libs_missing_pdk(tmp_path: Path) -> None:
-    """Without FAB_PDK and without overrides, resolution fails clearly."""
-    (tmp_path / ".FABulous").mkdir()
-    (tmp_path / ".FABulous" / ".env").write_text("")
+def test_resolve_sim_libs_missing_pdk(tmp_path: Path, mocker: MockerFixture) -> None:
+    """Without a PDK in the context and without overrides, resolution fails."""
+    _patch_context(mocker, None, None)
     with pytest.raises(ValueError, match="set FAB_PDK"):
         cmd_run_simulation.resolve_sim_libs(tmp_path, [])
 
 
-def test_resolve_sim_libs_unknown_pdk(tmp_path: Path) -> None:
+def test_resolve_sim_libs_unknown_pdk(tmp_path: Path, mocker: MockerFixture) -> None:
     """A PDK with no known standard-cell library fails clearly."""
-    (tmp_path / ".FABulous").mkdir()
-    (tmp_path / ".FABulous" / ".env").write_text(
-        "FAB_PDK=made_up_pdk\nFAB_PDK_ROOT=/tmp/pdk\n"
-    )
+    _patch_context(mocker, "made_up_pdk", Path("/tmp/pdk"))
     with pytest.raises(ValueError, match="No default standard-cell"):
         cmd_run_simulation.resolve_sim_libs(tmp_path, [])
 
 
-def test_resolve_sim_libs_from_env(tmp_path: Path) -> None:
-    """FAB_PDK + FAB_PDK_ROOT resolve to the primary cell file plus UDPs."""
+def test_resolve_sim_libs_from_context(tmp_path: Path, mocker: MockerFixture) -> None:
+    """The context's PDK + root resolve to the primary cell file plus UDPs."""
     primary = _make_pdk(tmp_path / "pdk_root")
-    _write_env(tmp_path, tmp_path / "pdk_root")
+    _patch_context(mocker, "ihp-sg13g2", tmp_path / "pdk_root")
     result = cmd_run_simulation.resolve_sim_libs(tmp_path, [])
     assert result[0] == primary
     assert any("udp" in p.name for p in result)

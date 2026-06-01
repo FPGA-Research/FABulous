@@ -12,17 +12,16 @@ so the existing ``<design>_tb.v`` drives the mixed-level DUT unchanged.
 # cspell:words sg13g2 ihp sg13 udp pdk dotenv ciel
 
 import argparse
-import os
 import subprocess as sp
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cmd2 import Cmd, Cmd2ArgumentParser, with_argparser, with_category
-from dotenv import dotenv_values
 from loguru import logger
 
 from fabulous.custom_exception import InvalidFileType
 from fabulous.fabulous_cli.helper import make_hex, run_task
+from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
     from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
@@ -41,16 +40,18 @@ _SCL_BY_PDK: dict[str, str] = {
 def resolve_sim_libs(project: Path, overrides: list[str]) -> list[Path]:
     """Resolve the PDK standard-cell Verilog sim models for ``project``.
 
-    Honours ``overrides`` (files or globs) first; otherwise reads ``FAB_PDK``
-    (and ``FAB_PDK_ROOT``, or the ciel install) from the project ``.env`` and
-    globs ``<pdk_root>/<pdk>/libs.ref/<scl>/verilog/`` for ``<scl>.v`` plus any
+    Honours ``overrides`` (files or globs) first; otherwise takes the active
+    PDK and its install root from the FABulous context (which resolves
+    ``FAB_PDK`` / ``FAB_PDK_ROOT`` and the ciel install) and globs
+    ``<pdk_root>/<pdk>/libs.ref/<scl>/verilog/`` for ``<scl>.v`` plus any
     ``*udp*.v`` / ``primitives.v`` companion (sky130 and gf180 ship their UDP
     primitives in a separate ``primitives.v``; IHP inlines them).
 
     Parameters
     ----------
     project : Path
-        Root of a hardened FABulous project.
+        Root of a hardened FABulous project; used to anchor relative override
+        globs.
     overrides : list[str]
         Explicit sim-cell library files or globs. When non-empty, PDK
         auto-resolution is skipped.
@@ -65,8 +66,8 @@ def resolve_sim_libs(project: Path, overrides: list[str]) -> list[Path]:
     FileNotFoundError
         If an override matches nothing, or the resolved PDK sim file is missing.
     ValueError
-        If ``FAB_PDK`` / ``FAB_PDK_ROOT`` cannot be resolved, or the PDK has no
-        known default standard-cell library.
+        If the context has no PDK or PDK root, or the PDK has no known default
+        standard-cell library.
     """
     if overrides:
         resolved: list[Path] = []
@@ -82,8 +83,8 @@ def resolve_sim_libs(project: Path, overrides: list[str]) -> list[Path]:
             resolved.extend(m.resolve() for m in matches)
         return resolved
 
-    env = dotenv_values(project / ".FABulous" / ".env")
-    pdk = env.get("FAB_PDK") or os.environ.get("FAB_PDK")
+    ctx = get_context()
+    pdk = ctx.pdk
     if not pdk:
         raise ValueError(
             "Cannot resolve PDK sim libs: set FAB_PDK in the project .env, or "
@@ -95,22 +96,13 @@ def resolve_sim_libs(project: Path, overrides: list[str]) -> list[Path]:
             f"No default standard-cell library known for PDK '{pdk}'. Pass "
             "--gl-sim-libs to point at the cell models directly."
         )
+    if ctx.pdk_root is None:
+        raise ValueError(
+            f"Cannot resolve PDK_ROOT for '{pdk}'. Set FAB_PDK_ROOT in the "
+            "project .env, install the PDK via ciel, or pass --gl-sim-libs."
+        )
 
-    pdk_root_env = env.get("FAB_PDK_ROOT") or os.environ.get("FAB_PDK_ROOT")
-    if pdk_root_env:
-        pdk_root = Path(pdk_root_env).expanduser()
-    else:
-        import ciel.common
-        import ciel.families
-
-        if pdk not in ciel.families.Family.by_name:
-            raise ValueError(
-                f"Cannot resolve PDK_ROOT for '{pdk}'. Set FAB_PDK_ROOT in the "
-                "project .env, install the PDK via ciel, or pass --gl-sim-libs."
-            )
-        pdk_root = Path(ciel.common.get_ciel_home()) / pdk
-
-    verilog_root = pdk_root / pdk / "libs.ref" / scl / "verilog"
+    verilog_root = ctx.pdk_root / pdk / "libs.ref" / scl / "verilog"
     primary = verilog_root / f"{scl}.v"
     if not primary.exists():
         raise FileNotFoundError(f"PDK sim file {primary} is missing.")
@@ -121,12 +113,19 @@ def resolve_sim_libs(project: Path, overrides: list[str]) -> list[Path]:
 
 
 def collect_gl_sources(project: Path, sim_lib_overrides: list[str]) -> list[Path]:
-    """Resolve every gate-level Verilog source the simulator needs.
+    """Resolve every Verilog source the gate-level simulator needs.
 
-    The list is the post-PnR fabric netlist (``Fabric/macro/final_views`` holds
-    exactly one ``*.nl.v``, structural, instantiating tile macros by name),
-    every tile netlist (``Tile/*/macro/final_views/nl/*.nl.v``), and the PDK
-    cell models the netlists bind against.
+    Returns one self-contained source list so the caller can hand it to
+    iverilog directly (no extra ``find`` in the Taskfile):
+
+    - the behavioural wrapper that keeps driving configuration (``Fabric/*.v``:
+      ``eFPGA_top``, the config controller, ``Frame_*``, ``BlockRAM``,
+      ``models_pack`` ...). The behavioural core ``eFPGA.v`` is excluded because
+      the gate-level ``eFPGA.nl.v`` replaces it.
+    - the post-PnR fabric netlist (``Fabric/macro/final_views`` holds exactly one
+      ``*.nl.v``, structural, instantiating tile macros by name),
+    - every tile netlist (``Tile/*/macro/final_views/nl/*.nl.v``),
+    - the PDK cell models the netlists bind against.
 
     Parameters
     ----------
@@ -138,7 +137,8 @@ def collect_gl_sources(project: Path, sim_lib_overrides: list[str]) -> list[Path
     Returns
     -------
     list[Path]
-        Fabric netlist, tile netlists, then PDK cell models, in that order.
+        Behavioural wrapper, fabric netlist, tile netlists, then PDK cell
+        models, in that order.
 
     Raises
     ------
@@ -166,12 +166,18 @@ def collect_gl_sources(project: Path, sim_lib_overrides: list[str]) -> list[Path
             "Run `gen_all_tile_macros` first."
         )
 
+    # Behavioural wrapper Verilog directly under Fabric/ (not the macro/ tree).
+    # Exclude the behavioural fabric core; the gate-level netlist replaces it.
+    behavioural = sorted(
+        p for p in (project / "Fabric").glob("*.v") if p.name != "eFPGA.v"
+    )
+
     sim_libs = resolve_sim_libs(project, sim_lib_overrides)
     logger.info(
-        f"GL sources: 1 fabric netlist + {len(tile_netlists)} tile netlists + "
-        f"{len(sim_libs)} PDK sim file(s)"
+        f"GL sources: {len(behavioural)} behavioural wrapper + 1 fabric netlist "
+        f"+ {len(tile_netlists)} tile netlists + {len(sim_libs)} PDK sim file(s)"
     )
-    return [*fabric_netlists, *tile_netlists, *sim_libs]
+    return [*behavioural, *fabric_netlists, *tile_netlists, *sim_libs]
 
 
 run_simulation_parser = Cmd2ArgumentParser()
