@@ -27,6 +27,38 @@ mismatch, never a false pass.
 The flip-flop async reset pin name is PDK-specific; the three PDKs FABulous
 hardens for all use an active-low async reset, so the pulse drives it to 0.
 
+Why both actions fire *after* config upload (``config_done``)
+------------------------------------------------------------
+
+The X originates from uninitialized state: flops and config-memory latches power
+up X. The deposit is overrideable, so it only sticks where nothing else drives.
+During upload the config-memory latches resolve frame by frame, and every
+not-yet-written bit drives an X mux select that re-drives the unused-routing web;
+meanwhile ``UserCLK`` is toggling, so the user flops re-capture that X each cycle.
+A one-shot scrub *before* upload is therefore undone -- the deposit is re-driven
+and the flops re-dirtied before ``config_done``, with no later pass to clear them.
+``config_done`` is the first point where config memory is fully defined, so the
+deposit holds and the flop reset is final.
+
+This was verified empirically: triggering the scrub before the upload loop
+instead leaves every fabric output X and the golden comparison fails outright,
+while triggering it at ``config_done`` passes.
+
+Limitation: bitstream-set power-on flop values
+----------------------------------------------
+
+The reset pulse drives every user flop to the async-reset level (0). For the
+current FABulous DFF (``LUT4c_frame_config_dffesr``) this is safe: the bitstream
+only configures the *synchronous* reset target ``c_reset_value`` (applied by the
+design's own ``SR``), never the power-up runtime value of the flop, so there is
+nothing for the pulse to clobber.
+
+A future fabric that adds a true INIT bit -- letting the bitstream set a flop's
+power-on runtime value -- would break this assumption: the blanket reset-to-0
+would overwrite that configured value. Note the fix is *not* to move the pulse
+before config (the X returns during upload, as verified above); it is to pulse
+each flop toward its configured INIT value instead of a hard 0.
+
 Usage
 -----
     python3 gen_gl_xinit.py \

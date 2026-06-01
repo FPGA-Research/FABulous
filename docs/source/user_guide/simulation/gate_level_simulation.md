@@ -54,6 +54,47 @@ Steps 1-2 are the slow, one-off part (`run_FABulous_eFPGA_macro` is the
 automated equivalent of `gen_all_tile_macros` then `gen_fabric_macro`); steps
 3-4 are repeated per user design. The sections below detail each piece.
 
+## X-pessimism removal
+
+After hardening, OpenROAD resynthesises the X-optimistic LUT/mux
+structures into generic AOI/NAND standard cells that are X-pessimistic. Unused
+fabric routing then forms a self-sustaining X web that leaks into used logic,
+and the user flip-flops power up (and capture during config upload) an X that
+the synchronous reset cannot scrub. This only affects GL simulation; RTL
+simulation is unaffected.
+
+`gen_gl_xinit.py` generates a `force_block.vh` include (compiled in via
+`-DGL_SIM`) that fires two one-shot actions **once configuration upload
+finishes** (`config_done`):
+
+1. `$deposit 0` onto every fabric net. `$deposit` is overrideable, so used
+   (toggling) nets keep working and only unused nets settle to a constant. This
+   breaks the combinational X web.
+2. A momentary `force` of every flip-flop async reset pin to its active level,
+   then `release`. This clears flop *state* X that no net deposit can reach.
+
+The scrub fires *after* config upload by design. The X comes from uninitialised
+state (flops and config-memory latches power up X). During upload the config
+memory resolves frame by frame, so every not-yet-written bit drives an X mux
+select that re-drives the unused-routing web, and the toggling `UserCLK` makes
+the flops re-capture it each cycle. A one-shot scrub *before* upload is therefore
+undone before `config_done`, with no later pass to clear it. `config_done` is the
+first point where config memory is fully defined, so the deposit holds and the
+flop reset is final. This is verified empirically: firing the scrub before the
+upload loop instead leaves every fabric output X (the golden comparison fails),
+while firing it at `config_done` passes.
+
+:::{note}
+The reset pulse drives every user flop to its async-reset level (0). For the
+current FABulous DFF (`LUT4c_frame_config_dffesr`) this is safe, because the
+bitstream only configures the *synchronous* reset target (`c_reset_value`),
+never the power-up runtime value of the flop.
+
+A future fabric that adds a true **INIT bit** — letting the bitstream set a
+flop's power-on runtime value — would break this assumption, since the blanket
+reset-to-0 would overwrite that configured value. The fix in that case is *not*
+to move the scrub before config (the X returns during upload regardless); it is
+to pulse each flop toward its configured INIT value instead of a hard 0.
 :::
 
 ## Prerequisites
