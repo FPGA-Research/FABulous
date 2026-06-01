@@ -45,7 +45,7 @@ then, inside the FABulous shell (`FABulous start <project>`):
 ```text
 run_FABulous_fabric                                             # 1. generate the fabric HDL
 gen_tile_macro --parallel                                       # 2. harden it (long; see fabric_gds.md)
-gen_fabric_macro                                         
+gen_fabric_macro
 compile_design ./user_design/sequential_16bit_en.v              # 3. build a design bitstream
 run_simulation --gl fst ./user_design/sequential_16bit_en.bin   # 4. gate-level simulate
 ```
