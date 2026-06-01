@@ -44,7 +44,8 @@ def resolve_sim_libs(project: Path, overrides: list[str]) -> list[Path]:
     Honours ``overrides`` (files or globs) first; otherwise reads ``FAB_PDK``
     (and ``FAB_PDK_ROOT``, or the ciel install) from the project ``.env`` and
     globs ``<pdk_root>/<pdk>/libs.ref/<scl>/verilog/`` for ``<scl>.v`` plus any
-    ``*udp*.v`` companion.
+    ``*udp*.v`` / ``primitives.v`` companion (sky130 and gf180 ship their UDP
+    primitives in a separate ``primitives.v``; IHP inlines them).
 
     Parameters
     ----------
@@ -113,7 +114,10 @@ def resolve_sim_libs(project: Path, overrides: list[str]) -> list[Path]:
     primary = verilog_root / f"{scl}.v"
     if not primary.exists():
         raise FileNotFoundError(f"PDK sim file {primary} is missing.")
-    return [primary, *sorted(verilog_root.glob("*udp*.v"))]
+    companions = sorted(
+        set(verilog_root.glob("*udp*.v")) | set(verilog_root.glob("primitives.v"))
+    )
+    return [primary, *companions]
 
 
 def collect_gl_sources(project: Path, sim_lib_overrides: list[str]) -> list[Path]:

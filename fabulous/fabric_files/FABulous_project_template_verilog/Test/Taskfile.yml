@@ -81,7 +81,7 @@ tasks:
         vars:
           YOSYS_PATH: '{{.YOSYS_PATH | default .FAB_YOSYS_PATH | default "yosys"}}'
           YOSYS_EXTRA_ARGS: '{{.YOSYS_EXTRA_ARGS | default ""}}'
-          SYNTH_CMD: "synth_fabulous -top {{.TOP_WRAPPER}} -json {{.RESOLVED_JSON_FILE}} {{.CUSTOM_PRIMS}} {{.SYNTH_EXTRA_ARGS | default \"\"}}"
+          SYNTH_CMD: 'synth_fabulous -top {{.TOP_WRAPPER}} -json {{.RESOLVED_JSON_FILE}} {{.CUSTOM_PRIMS}} {{.SYNTH_EXTRA_ARGS | default ""}}'
           DESIGN_FILES: "{{.RESOLVED_DESIGN_FILES}}"
           TOP_WRAPPER_FILE: "{{.RESOLVED_TOP_WRAPPER_FILE}}"
 
@@ -142,14 +142,30 @@ tasks:
         +bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
         {{if eq .WAVEFORM_TYPE "fst"}}-fst{{end}}
 
+  gen-force-block:
+    desc: Generate force_block.vh (gate-level X-init) from the hardened netlists
+    deps: [mkdir-build]
+    cmds:
+      # gen_gl_xinit.py emits one $deposit per fabric net plus an async-reset
+      # pulse per flop; the reset pin is chosen from FAB_PDK. Requires the
+      # hardened netlists to be present (run the GDS flow, or `mock-macros`).
+      - >-
+        python3 gen_gl_xinit.py
+        --efpga {{.FAB_PROJ_ROOT}}/Fabric/macro/final_views/nl/eFPGA.nl.v
+        --tile-dir {{.FAB_PROJ_ROOT}}/Tile
+        --pdk {{.FAB_PDK}}
+        --top-inst top_i.eFPGA_inst
+        --trigger config_done
+        --out force_block.vh
+
   run-gl-simulation:
     desc: Gate-level (mixed-level) simulation against the hardened fabric netlist
-    deps: [mkdir-build]
+    deps: [mkdir-build, gen-force-block]
     vars:
       # Absolute gate-level sources resolved by `run_simulation --gl`:
       # the fabric netlist (eFPGA.nl.v), the tile netlists, and the PDK
       # standard-cell models.
-      GL_SOURCES: '{{.GL_SOURCES}}'
+      GL_SOURCES: "{{.GL_SOURCES}}"
     cmds:
       # The behavioural wrapper keeps driving configuration (eFPGA_top,
       # eFPGA_Config, Frame_*, BlockRAM, models_pack); only the inner eFPGA
@@ -157,8 +173,13 @@ tasks:
       # the shell so its (newline-separated) output is word-split into separate
       # iverilog arguments. Exclude the behavioural core eFPGA.v, and stay at
       # depth 1 so Fabric/macro/**/*.nl.v is not picked up.
+      #
+      # `-gspecify` lets iverilog process the PDK specify blocks, which copies
+      # the cells' `delayed_*` data/clock nets from their sources (zero-delay) --
+      # without it every gate-level flop is stuck X. `-DGL_SIM` compiles in the
+      # force_block.vh X-init include (skipped for plain RTL simulation).
       - >-
-        iverilog -g2012
+        iverilog -g2012 -gspecify -DGL_SIM
         {{.EXTRA_IVERILOG_FLAGS}}
         -s {{.TESTBENCH}}
         -o {{.BUILD_DIR}}/{{.DESIGN}}_gl.vvp

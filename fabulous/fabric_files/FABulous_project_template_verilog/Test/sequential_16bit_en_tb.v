@@ -17,6 +17,7 @@ module sequential_16bit_en_tb ();
     wire        receive_led                ;
     reg         s_clk               = 1'b0 ;
     reg         s_data              = 1'b0 ;
+    reg         config_done         = 1'b0 ;
 
     // Instantiate both the fabric and the reference DUT
     eFPGA_top top_i (
@@ -92,6 +93,7 @@ module sequential_16bit_en_tb ();
             repeat (2) @(posedge CLK);
         end
 `endif
+        config_done = 1'b1;  // configuration upload complete -> trigger GL X-init
         repeat (100) @(posedge CLK);
         // Enable and reset the counter
         O_top = 28'b0000_0000_0000_0000_0000_0000_0011;
@@ -109,6 +111,15 @@ module sequential_16bit_en_tb ();
         if (have_errors) $fatal;
         else $finish;
     end
+
+    // Gate-level only: the hardened fabric powers up X-pessimistic (unused
+    // routing forms a combinational X web; flops capture X during upload). The
+    // generated force_block.vh deposits 0 onto every fabric net and pulses the
+    // flop async resets once config_done is high. Guarded so RTL simulation,
+    // which never generates force_block.vh, still compiles.
+`ifdef GL_SIM
+    `include "force_block.vh"
+`endif
 
 endmodule
 `endif
