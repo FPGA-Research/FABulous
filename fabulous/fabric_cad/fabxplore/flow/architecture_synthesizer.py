@@ -10,7 +10,7 @@ import csv
 import pickle
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -26,6 +26,7 @@ from fabulous.fabric_cad.fabxplore.modules.lut_mapper.core.models import (
     LutMapperBackend,
 )
 from fabulous.fabric_cad.fabxplore.pnr.custom_passes import (
+    InverseRouterPass,
     RoutingDemandEvaluatorPass,
     SwitchBlockFactorizerPass,
     SwitchMatrixPatternPass,
@@ -1127,6 +1128,109 @@ class ArchitectureSynthesizer(ABC):
         )
 
         result.run_on(self.design)
+
+        if log_report:
+            self.log_info(result.report_summary)
+
+        self._pass_history.append(result)
+
+        return result
+
+    def pnr_inverse_router_pass(
+        self,
+        tile_name: str,
+        training_benchmarks: dict[str, Path | dict[str, Any]],
+        test_benchmarks: dict[str, Path | dict[str, Any]] | None = None,
+        log_report: bool = True,
+        io_seed_count: int = 1,
+        io_seed_start: int = 1,
+        optimize_switch_matrix: bool = True,
+        switch_matrix_remove_unused_ratio: float = 1.0,
+        switch_matrix_remove_used_ratio: float = 0.0,
+        switch_matrix_active_pip_value: int | None = 1,
+        optimize_external_pips: bool = False,
+        external_remove_unused_ratio: float = 1.0,
+        external_remove_used_ratio: float = 0.0,
+        validate_training: bool = True,
+        validate_test: bool = True,
+        nextpnr_exec: Path | str | None = None,
+        extra_args: list[str] | tuple[str, ...] | None = None,
+        live_output: bool = False,
+        track_progress: bool = True,
+        progress_chunk_size: int = 1,
+    ) -> InverseRouterPass:
+        """Run benchmark-driven inverse routing on one tile type.
+
+        Parameters
+        ----------
+        tile_name : str
+            Tile type to score and optionally modify.
+        training_benchmarks : dict[str, Path | dict[str, Any]]
+            Benchmarks used to learn routing-resource scores.
+        test_benchmarks : dict[str, Path | dict[str, Any]] | None
+            Benchmarks used only for validation. ``None`` selects an empty set.
+        log_report : bool
+            If ``True``, log the inverse-router report after execution.
+        io_seed_count : int
+            Number of deterministic auto-PCF assignments per benchmark set.
+        io_seed_start : int
+            First auto-PCF assignment seed.
+        optimize_switch_matrix : bool
+            Whether switch-matrix pruning should be applied to the graph.
+        switch_matrix_remove_unused_ratio : float
+            Ratio of score-zero matrix PIPs to remove.
+        switch_matrix_remove_used_ratio : float
+            Ratio of score-positive matrix PIPs to remove.
+        switch_matrix_active_pip_value : int | None
+            Value assigned to kept matrix PIPs. ``None`` keeps original delays.
+        optimize_external_pips : bool
+            Whether external PIP pruning should be applied to the graph.
+        external_remove_unused_ratio : float
+            Ratio of score-zero external PIPs to remove.
+        external_remove_used_ratio : float
+            Ratio of score-positive external PIPs to remove.
+        validate_training : bool
+            Whether training benchmarks are rerun after graph updates.
+        validate_test : bool
+            Whether test benchmarks are run after graph updates.
+        nextpnr_exec : Path | str | None
+            Optional nextpnr executable.
+        extra_args : list[str] | tuple[str, ...] | None
+            Extra nextpnr command-line arguments.
+        live_output : bool
+            Whether nextpnr output should stream live.
+        track_progress : bool
+            Whether progress should be logged.
+        progress_chunk_size : int
+            Number of route cases between progress updates.
+
+        Returns
+        -------
+        InverseRouterPass
+            Pass instance containing result and report data.
+        """
+        result = InverseRouterPass(
+            tile_name=tile_name,
+            training_benchmarks=training_benchmarks,
+            test_benchmarks=test_benchmarks or {},
+            io_seed_count=io_seed_count,
+            io_seed_start=io_seed_start,
+            optimize_switch_matrix=optimize_switch_matrix,
+            switch_matrix_remove_unused_ratio=switch_matrix_remove_unused_ratio,
+            switch_matrix_remove_used_ratio=switch_matrix_remove_used_ratio,
+            switch_matrix_active_pip_value=switch_matrix_active_pip_value,
+            optimize_external_pips=optimize_external_pips,
+            external_remove_unused_ratio=external_remove_unused_ratio,
+            external_remove_used_ratio=external_remove_used_ratio,
+            validate_training=validate_training,
+            validate_test=validate_test,
+            nextpnr_exec=nextpnr_exec,
+            extra_args=extra_args,
+            live_output=live_output,
+            track_progress=track_progress,
+            progress_chunk_size=progress_chunk_size,
+        )
+        result.run_on(self.fpga_model)
 
         if log_report:
             self.log_info(result.report_summary)
