@@ -8,15 +8,19 @@ when callers ask for ``pips.txt``, concrete PIP lists, or full statistics.
 
 from __future__ import annotations
 
+import string
+from bisect import bisect_left
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from fabulous.custom_exception import InvalidFileType
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
+    FabricDimensions,
     RoutingConfigBits,
     RoutingEndpoint,
     RoutingGraphStats,
+    RoutingModelText,
     RoutingPip,
     RoutingPipKind,
     RoutingResourceCounts,
@@ -41,6 +45,24 @@ if TYPE_CHECKING:
     from fabulous.fabric_definition.gen_io import Gen_IO
     from fabulous.fabric_definition.port import Port
     from fabulous.fabric_definition.tile import Tile
+
+
+_IO_BEL_TYPES_FOR_TEMPLATE_PCF = frozenset(
+    {
+        "IO_1_bidirectional_frame_config_pass",
+        "InPass4_frame_config",
+        "OutPass4_frame_config",
+        "InPass4_frame_config_mux",
+        "OutPass4_frame_config_mux",
+    }
+)
+
+_FABULOUS_LC_BEL_TYPES = frozenset(
+    {
+        "LUT4c_frame_config",
+        "LUT4c_frame_config_dffesr",
+    }
+)
 
 
 @dataclass(slots=True)
@@ -106,6 +128,9 @@ class RoutingFabricGraph:
         self.rows = rows
         self.columns = columns
         self.tile_types_by_xy = dict(tile_types_by_xy)
+        self._initial_rows = rows
+        self._initial_columns = columns
+        self._initial_tile_types_by_xy = dict(tile_types_by_xy)
         self._tile_models = dict(tile_models)
         self._tile_locations_by_type = _tile_locations_by_type(self.tile_types_by_xy)
         self._static_matrix_wires_by_tile_type = _static_matrix_wires_by_tile_type(
@@ -257,6 +282,16 @@ class RoutingFabricGraph:
         """
         return tuple(self._tile_models.values())
 
+    def fabric_dimensions(self) -> FabricDimensions:
+        """Return current fabric dimensions.
+
+        Returns
+        -------
+        FabricDimensions
+            Current ``columns`` and ``rows``.
+        """
+        return FabricDimensions(columns=self.columns, rows=self.rows)
+
     def tile_model(self, tile_type: str) -> RoutingTileModel:
         """Return metadata for one tile type.
 
@@ -309,6 +344,104 @@ class RoutingFabricGraph:
         if tile_type is None:
             return None
         return self.tile_model(tile_type)
+
+    def resize_fabric(
+        self,
+        *,
+        remove_rows: tuple[int, ...] | None = None,
+        remove_columns: tuple[int, ...] | None = None,
+        copy_row_after: tuple[int, int] | None = None,
+        copy_column_after: tuple[int, int] | None = None,
+    ) -> None:
+        """Resize the placed fabric by removing or copying rows and columns.
+
+        The graph keeps routing resources tile-local, so resizing only updates
+        the placed tile-type coordinate map and derived placement indexes.
+        Tile models, switch matrices, BEL metadata, and external resources stay
+        shared by tile type and continue to materialize lazily at the new
+        coordinates.  When multiple options are provided, removals run first on
+        the current layout, then copies run on the reduced layout:
+        remove rows, remove columns, copy row, copy column.
+
+        Parameters
+        ----------
+        remove_rows : tuple[int, ...] | None
+            Optional row indexes to remove from the current layout.
+        remove_columns : tuple[int, ...] | None
+            Optional column indexes to remove from the current layout.
+        copy_row_after : tuple[int, int] | None
+            Optional ``(row_index, copy_count)`` request.  The selected existing
+            row is copied ``copy_count`` times directly after ``row_index`` in
+            the layout after removals.
+        copy_column_after : tuple[int, int] | None
+            Optional ``(column_index, copy_count)`` request.  The selected
+            existing column is copied ``copy_count`` times directly after
+            ``column_index`` in the layout after removals.
+        """
+        tile_types_by_xy = self.tile_types_by_xy
+        rows = self.rows
+        columns = self.columns
+
+        if remove_rows is not None:
+            row_indexes = _validate_resize_remove_request(
+                remove_rows,
+                rows,
+                "row",
+            )
+            tile_types_by_xy = _remove_rows(tile_types_by_xy, row_indexes)
+            rows -= len(row_indexes)
+
+        if remove_columns is not None:
+            column_indexes = _validate_resize_remove_request(
+                remove_columns,
+                columns,
+                "column",
+            )
+            tile_types_by_xy = _remove_columns(tile_types_by_xy, column_indexes)
+            columns -= len(column_indexes)
+
+        if copy_row_after is not None:
+            row_index, copy_count = _validate_resize_copy_request(
+                copy_row_after,
+                rows,
+                "row",
+            )
+            tile_types_by_xy = _copy_row_after(
+                tile_types_by_xy,
+                row_index,
+                copy_count,
+            )
+            rows += copy_count
+
+        if copy_column_after is not None:
+            column_index, copy_count = _validate_resize_copy_request(
+                copy_column_after,
+                columns,
+                "column",
+            )
+            tile_types_by_xy = _copy_column_after(
+                tile_types_by_xy,
+                column_index,
+                copy_count,
+            )
+            columns += copy_count
+
+        self.rows = rows
+        self.columns = columns
+        self.tile_types_by_xy = tile_types_by_xy
+        self._tile_locations_by_type = _tile_locations_by_type(tile_types_by_xy)
+
+    def reset_fabric_layout(self) -> None:
+        """Restore the fabric placement loaded when the graph was created.
+
+        This is a layout-only reset.  Tile models, switch-matrix resources, external
+        resources, and active/disabled resource state are not changed. Concrete PIPs and
+        BEL metadata will again materialize over the original coordinates.
+        """
+        self.rows = self._initial_rows
+        self.columns = self._initial_columns
+        self.tile_types_by_xy = dict(self._initial_tile_types_by_xy)
+        self._tile_locations_by_type = _tile_locations_by_type(self.tile_types_by_xy)
 
     def add_external_resource(
         self,
@@ -572,6 +705,151 @@ class RoutingFabricGraph:
             resource_key.tile_type,
             candidate_wires=old_wires - new_wires,
         )
+
+    def remove_external_resource_track(
+        self,
+        resource_key: RoutingResourceKey,
+        track_index: int,
+    ) -> RoutingResourceKey:
+        """Remove one logical track from an external vector resource.
+
+        The selected track is removed by compacting the tile-local switch
+        matrix first and then shrinking the external vector by one. Only wire
+        names belonging to ``resource_key`` are remapped; unrelated vectors and
+        local wires keep their labels. For a four-track vector, removing index
+        ``2`` performs this local remap before the resize::
+
+            0 -> 0
+            1 -> 1
+            2 -> removed
+            3 -> 2
+
+        This makes arbitrary track removal behave like removing the final
+        vector element after compaction.
+
+        Parameters
+        ----------
+        resource_key : RoutingResourceKey
+            Active external vector resource to edit.
+        track_index : int
+            Logical track index to remove.
+
+        Returns
+        -------
+        RoutingResourceKey
+            Active key for the compacted external resource.
+
+        Raises
+        ------
+        TypeError
+            If ``track_index`` is not an integer.
+        ValueError
+            If the key is not an active external vector resource, if the track
+            is out of range, or if a multi-track resource uses a ``NULL``
+            endpoint whose expanded-vector semantics cannot be compacted by
+            this local matrix operation.
+        """
+        if not isinstance(track_index, int):
+            raise TypeError(f"track_index must be an integer: {track_index!r}")
+        if resource_key.kind is not RoutingPipKind.EXTERNAL_WIRE:
+            raise ValueError(
+                f"only external resources have removable tracks: {resource_key}"
+            )
+        if resource_key.wire_count is None:
+            raise ValueError(f"external resource has no wire count: {resource_key}")
+        if resource_key.wire_count == 0:
+            raise ValueError(
+                f"external resource has no removable tracks: {resource_key}"
+            )
+        if not 0 <= track_index < resource_key.wire_count:
+            raise ValueError(
+                "track_index out of range for external resource: "
+                f"{track_index} not in [0, {resource_key.wire_count})"
+            )
+        state = self._external_by_tile.get(resource_key.tile_type, {}).get(resource_key)
+        if state is None:
+            raise ValueError(f"external resource does not exist: {resource_key}")
+        if not state.active:
+            raise ValueError(
+                f"cannot remove track from inactive resource: {resource_key}"
+            )
+        if resource_key.wire_count == 1:
+            self.delete_resource(resource_key)
+            return resource_key
+        if (
+            resource_key.source_name == "NULL"
+            or resource_key.destination_name == "NULL"
+        ):
+            raise ValueError(
+                "external resources with NULL endpoints need expanded-vector "
+                f"remapping and cannot be compacted locally: {resource_key}"
+            )
+
+        base_names = sorted(
+            (resource_key.source_name, resource_key.destination_name),
+            key=len,
+            reverse=True,
+        )
+
+        def remap_wire_name(wire_name: str) -> str | None:
+            for base_name in base_names:
+                if not wire_name.startswith(base_name):
+                    continue
+                suffix = wire_name[len(base_name) :]
+                if not suffix.isdigit():
+                    continue
+                index = int(suffix)
+                if index >= resource_key.wire_count:
+                    continue
+                if index == track_index:
+                    return None
+                if index > track_index:
+                    return f"{base_name}{index - 1}"
+                return wire_name
+            return wire_name
+
+        def remap_labels(labels: list[str]) -> list[str]:
+            remapped: list[str] = []
+            seen: set[str] = set()
+            for label in labels:
+                new_label = remap_wire_name(label)
+                if new_label is None or new_label in seen:
+                    continue
+                remapped.append(new_label)
+                seen.add(new_label)
+            return remapped
+
+        switch_matrix = self.switch_matrix(resource_key.tile_type)
+        new_rows = remap_labels(switch_matrix.rows)
+        new_columns = remap_labels(switch_matrix.columns)
+        row_index = {row: index for index, row in enumerate(new_rows)}
+        column_index = {column: index for index, column in enumerate(new_columns)}
+        new_matrix = [[0.0 for _column in new_columns] for _row in new_rows]
+
+        for old_row_index, old_row in enumerate(switch_matrix.rows):
+            new_row = remap_wire_name(old_row)
+            if new_row is None:
+                continue
+            for old_column_index, old_column in enumerate(switch_matrix.columns):
+                delay = float(switch_matrix.matrix[old_row_index][old_column_index])
+                if delay == 0.0:
+                    continue
+                new_column = remap_wire_name(old_column)
+                if new_column is None:
+                    continue
+                current = new_matrix[row_index[new_row]][column_index[new_column]]
+                if current == 0.0 or delay < current:
+                    new_matrix[row_index[new_row]][column_index[new_column]] = delay
+
+        new_key = replace(resource_key, wire_count=resource_key.wire_count - 1)
+        self.resize_external_resource(resource_key, resource_key.wire_count - 1)
+        self.set_switch_matrix(
+            resource_key.tile_type,
+            new_columns,
+            new_rows,
+            new_matrix,
+        )
+        return new_key
 
     def resource_keys(
         self,
@@ -1057,6 +1335,21 @@ class RoutingFabricGraph:
         """
         return tuple(self.iter_pips(active_only=False, inactive_only=True))
 
+    def _iter_placed_tile_models(self) -> Iterator[tuple[int, int, RoutingTileModel]]:
+        """Yield placed tile coordinates with their tile models.
+
+        Yields
+        ------
+        tuple[int, int, RoutingTileModel]
+            X coordinate, Y coordinate, and tile model.
+        """
+        for y in range(self.rows):
+            for x in range(self.columns):
+                tile_type = self.tile_types_by_xy.get((x, y))
+                if tile_type is None:
+                    continue
+                yield x, y, self._tile_models[tile_type]
+
     def iter_pips(
         self,
         *,
@@ -1144,6 +1437,92 @@ class RoutingFabricGraph:
                     ):
                         lines.append(pip.render())
         return "\n".join(lines)
+
+    def render_bel_txt(self) -> str:
+        """Render old-style FABulous routing-model BEL metadata.
+
+        Returns
+        -------
+        str
+            Contents for ``bel.txt``.
+        """
+        lines = [
+            f"# BEL descriptions: top left corner Tile_X0Y0,"
+            f" bottom right Tile_X{self.columns}Y{self.rows}"
+        ]
+        for x, y, tile_model in self._iter_placed_tile_models():
+            lines.append(f"#Tile_X{x}Y{y}")
+            for index, bel in enumerate(tile_model.bels):
+                bel_ports = [*bel.inputs, *bel.outputs]
+                lines.append(
+                    f"X{x}Y{y},X{x},Y{y},{_bel_letter(index)},"
+                    f"{_routing_model_bel_type(bel)},{','.join(bel_ports)}"
+                )
+        return "\n".join(lines)
+
+    def render_bel_v2_txt(self) -> str:
+        """Render nextpnr ``bel.v2.txt`` metadata from the graph layout.
+
+        Returns
+        -------
+        str
+            Contents for ``bel.v2.txt``.
+        """
+        lines = [
+            f"# BEL descriptions: top left corner Tile_X0Y0, "
+            f"bottom right Tile_X{self.columns}Y{self.rows}"
+        ]
+        for x, y, tile_model in self._iter_placed_tile_models():
+            lines.append(f"#Tile_X{x}Y{y}")
+            for index, bel in enumerate(tile_model.bels):
+                letter = _bel_letter(index)
+                lines.append(
+                    f"BelBegin,X{x}Y{y},{letter},"
+                    f"{_routing_model_bel_type(bel)},{bel.prefix}"
+                )
+                for inp in bel.inputs:
+                    lines.append(f"I,{inp.removeprefix(bel.prefix)},X{x}Y{y}.{inp}")
+                for outp in bel.outputs:
+                    lines.append(f"O,{outp.removeprefix(bel.prefix)},X{x}Y{y}.{outp}")
+                for feature_name in bel.feature_names:
+                    lines.append(f"CFG,{feature_name}")
+                if bel.with_user_clk:
+                    lines.append("GlobalClk")
+                lines.append("BelEnd")
+        return "\n".join(lines)
+
+    def render_template_pcf(self) -> str:
+        """Render auto-PCF template constraints from graph BEL metadata.
+
+        Returns
+        -------
+        str
+            Contents for ``template.pcf``.
+        """
+        lines: list[str] = []
+        for x, y, tile_model in self._iter_placed_tile_models():
+            for index, bel in enumerate(tile_model.bels):
+                if bel.name not in _IO_BEL_TYPES_FOR_TEMPLATE_PCF:
+                    continue
+                letter = _bel_letter(index)
+                lines.append(f"set_io Tile_X{x}Y{y}_{letter} Tile_X{x}Y{y}.{letter}")
+        return "\n".join(lines)
+
+    def render_routing_model(self) -> RoutingModelText:
+        """Render the graph-backed FABulous routing-model bundle.
+
+        Returns
+        -------
+        RoutingModelText
+            Text for ``pips.txt``, ``bel.txt``, ``bel.v2.txt``, and
+            ``template.pcf``.
+        """
+        return RoutingModelText(
+            pips=self.render_pips_txt(),
+            bel=self.render_bel_txt(),
+            bel_v2=self.render_bel_v2_txt(),
+            template_pcf=self.render_template_pcf(),
+        )
 
     def stats(self) -> RoutingGraphStats:
         """Return concrete graph statistics by lazy materialization.
@@ -2050,6 +2429,40 @@ def _tile_locations_by_type(
     return {tile_type: tuple(values) for tile_type, values in locations.items()}
 
 
+def _bel_letter(index: int) -> str:
+    """Return routing-model BEL letter for one tile-local BEL index.
+
+    Parameters
+    ----------
+    index : int
+        Tile-local BEL index.
+
+    Returns
+    -------
+    str
+        BEL letter.
+    """
+    return string.ascii_uppercase[index]
+
+
+def _routing_model_bel_type(bel: RoutingTileBelModel) -> str:
+    """Return the routing-model BEL type name for one graph BEL model.
+
+    Parameters
+    ----------
+    bel : RoutingTileBelModel
+        BEL metadata.
+
+    Returns
+    -------
+    str
+        Routing-model BEL type.
+    """
+    if bel.name in _FABULOUS_LC_BEL_TYPES:
+        return "FABULOUS_LC"
+    return bel.name
+
+
 def _first_tiles_by_type(fabric: Fabric) -> dict[str, Tile]:
     """Return first parsed tile object for every tile type.
 
@@ -2138,6 +2551,230 @@ def _tile_model(tile: Tile) -> RoutingTileModel:
         bels=tuple(_bel_model(bel) for bel in tile.bels),
         gen_ios=tuple(_gen_io_model(gen_io) for gen_io in tile.gen_ios),
     )
+
+
+def _validate_resize_copy_request(
+    request: tuple[int, int],
+    limit: int,
+    axis: str,
+) -> tuple[int, int]:
+    """Validate a row or column copy request.
+
+    Parameters
+    ----------
+    request : tuple[int, int]
+        ``(index, copy_count)`` request.
+    limit : int
+        Current size of the selected axis.
+    axis : str
+        Human-readable axis name for errors.
+
+    Returns
+    -------
+    tuple[int, int]
+        Validated index and copy count.
+
+    Raises
+    ------
+    TypeError
+        If the request is not a tuple or contains non-integer values.
+    ValueError
+        If the request is malformed, out of range, or has a non-positive copy
+        count.
+    """
+    if not isinstance(request, tuple):
+        raise TypeError(f"{axis} resize request must be (index, copy_count)")
+
+    try:
+        index, copy_count = request
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{axis} resize request must be (index, copy_count)") from exc
+
+    if not isinstance(index, int) or not isinstance(copy_count, int):
+        raise TypeError(f"{axis} resize request must contain integer values")
+    if copy_count <= 0:
+        raise ValueError(f"{axis} copy count must be positive: {copy_count}")
+    if index < 0 or index >= limit:
+        raise ValueError(
+            f"{axis} index {index} is outside the current fabric range 0..{limit - 1}"
+        )
+    return index, copy_count
+
+
+def _validate_resize_remove_request(
+    request: tuple[int, ...],
+    limit: int,
+    axis: str,
+) -> frozenset[int]:
+    """Validate row or column indexes selected for removal.
+
+    Parameters
+    ----------
+    request : tuple[int, ...]
+        Indexes to remove.
+    limit : int
+        Current size of the selected axis.
+    axis : str
+        Human-readable axis name for errors.
+
+    Returns
+    -------
+    frozenset[int]
+        Unique indexes to remove.
+
+    Raises
+    ------
+    TypeError
+        If the request is not a tuple of integer indexes.
+    ValueError
+        If the indexes are out of range, or if removal would empty the selected
+        axis.
+    """
+    if not isinstance(request, tuple):
+        raise TypeError(f"{axis} removal request must be a tuple of indexes")
+
+    indexes = frozenset(request)
+    for index in indexes:
+        if not isinstance(index, int):
+            raise TypeError(f"{axis} removal indexes must be integers")
+        if index < 0 or index >= limit:
+            raise ValueError(
+                f"{axis} index {index} is outside the current fabric range "
+                f"0..{limit - 1}"
+            )
+    if indexes and len(indexes) >= limit:
+        raise ValueError(f"removing all {axis}s would empty the fabric")
+    return indexes
+
+
+def _remove_rows(
+    tile_types_by_xy: dict[tuple[int, int], str],
+    row_indexes: frozenset[int],
+) -> dict[tuple[int, int], str]:
+    """Return a placement map with selected rows removed.
+
+    Parameters
+    ----------
+    tile_types_by_xy : dict[tuple[int, int], str]
+        Current placed tile-type lookup.
+    row_indexes : frozenset[int]
+        Rows to remove.
+
+    Returns
+    -------
+    dict[tuple[int, int], str]
+        Placement map with remaining rows shifted down.
+    """
+    if not row_indexes:
+        return dict(tile_types_by_xy)
+
+    removed_rows = sorted(row_indexes)
+    compacted: dict[tuple[int, int], str] = {}
+    for (x, y), tile_type in tile_types_by_xy.items():
+        if y in row_indexes:
+            continue
+        compacted[(x, y - bisect_left(removed_rows, y))] = tile_type
+    return compacted
+
+
+def _remove_columns(
+    tile_types_by_xy: dict[tuple[int, int], str],
+    column_indexes: frozenset[int],
+) -> dict[tuple[int, int], str]:
+    """Return a placement map with selected columns removed.
+
+    Parameters
+    ----------
+    tile_types_by_xy : dict[tuple[int, int], str]
+        Current placed tile-type lookup.
+    column_indexes : frozenset[int]
+        Columns to remove.
+
+    Returns
+    -------
+    dict[tuple[int, int], str]
+        Placement map with remaining columns shifted left.
+    """
+    if not column_indexes:
+        return dict(tile_types_by_xy)
+
+    removed_columns = sorted(column_indexes)
+    compacted: dict[tuple[int, int], str] = {}
+    for (x, y), tile_type in tile_types_by_xy.items():
+        if x in column_indexes:
+            continue
+        compacted[(x - bisect_left(removed_columns, x), y)] = tile_type
+    return compacted
+
+
+def _copy_row_after(
+    tile_types_by_xy: dict[tuple[int, int], str],
+    row_index: int,
+    copy_count: int,
+) -> dict[tuple[int, int], str]:
+    """Return a placement map with one row copied after itself.
+
+    Parameters
+    ----------
+    tile_types_by_xy : dict[tuple[int, int], str]
+        Current placed tile-type lookup.
+    row_index : int
+        Existing row to duplicate.
+    copy_count : int
+        Number of row copies to insert.
+
+    Returns
+    -------
+    dict[tuple[int, int], str]
+        Resized placement map.
+    """
+    copied: dict[tuple[int, int], str] = {}
+    row_entries: list[tuple[int, str]] = []
+    for (x, y), tile_type in tile_types_by_xy.items():
+        if y == row_index:
+            row_entries.append((x, tile_type))
+        shifted_y = y if y <= row_index else y + copy_count
+        copied[(x, shifted_y)] = tile_type
+
+    for offset in range(1, copy_count + 1):
+        for x, tile_type in row_entries:
+            copied[(x, row_index + offset)] = tile_type
+    return copied
+
+
+def _copy_column_after(
+    tile_types_by_xy: dict[tuple[int, int], str],
+    column_index: int,
+    copy_count: int,
+) -> dict[tuple[int, int], str]:
+    """Return a placement map with one column copied after itself.
+
+    Parameters
+    ----------
+    tile_types_by_xy : dict[tuple[int, int], str]
+        Current placed tile-type lookup.
+    column_index : int
+        Existing column to duplicate.
+    copy_count : int
+        Number of column copies to insert.
+
+    Returns
+    -------
+    dict[tuple[int, int], str]
+        Resized placement map.
+    """
+    copied: dict[tuple[int, int], str] = {}
+    column_entries: list[tuple[int, str]] = []
+    for (x, y), tile_type in tile_types_by_xy.items():
+        if x == column_index:
+            column_entries.append((y, tile_type))
+        shifted_x = x if x <= column_index else x + copy_count
+        copied[(shifted_x, y)] = tile_type
+
+    for offset in range(1, copy_count + 1):
+        for y, tile_type in column_entries:
+            copied[(column_index + offset, y)] = tile_type
+    return copied
 
 
 def _port_model(port: Port) -> RoutingTilePortModel:

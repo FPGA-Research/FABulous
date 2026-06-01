@@ -2,12 +2,14 @@
 
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core import (
     FabGraph,
+    FabricDimensions,
     PipFileWriteResult,
     ProjectSourceWriteResult,
     RoutingConfigBits,
     RoutingEndpoint,
     RoutingFabricGraph,
     RoutingGraphStats,
+    RoutingModelText,
     RoutingPip,
     RoutingPipKind,
     RoutingResourceCounts,
@@ -21,12 +23,14 @@ from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core import (
 
 __all__ = [
     "FabGraph",
+    "FabricDimensions",
     "PipFileWriteResult",
     "ProjectSourceWriteResult",
     "RoutingEndpoint",
     "RoutingConfigBits",
     "RoutingFabricGraph",
     "RoutingGraphStats",
+    "RoutingModelText",
     "RoutingPip",
     "RoutingPipKind",
     "RoutingResourceCounts",

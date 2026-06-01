@@ -48,7 +48,7 @@ Switch Matrix
 - removed used: {{ result.switch_matrix_stats.removed_used }}
 - kept: {{ result.switch_matrix_stats.kept }}
 
-External PIPs
+External Tracks
 - candidates: {{ result.external_stats.candidates }}
 - unused candidates: {{ result.external_stats.unused_candidates }}
 - used candidates: {{ result.external_stats.used_candidates }}

@@ -37,11 +37,11 @@ class InverseRouterOptions(BaseModel):
         Value assigned to kept matrix PIPs. If ``None``, original delays are
         kept where available.
     optimize_external_pips : bool
-        Whether external PIP pruning should be applied to the graph.
+        Whether external logical-track pruning should be applied to the graph.
     external_remove_unused_ratio : float
-        Ratio of score-zero external PIPs to remove.
+        Ratio of score-zero external tracks to remove.
     external_remove_used_ratio : float
-        Ratio of score-positive external PIPs to remove after unused pruning.
+        Ratio of score-positive external tracks to remove after unused pruning.
     validate_training : bool
         Whether training benchmarks are rerun after graph updates.
     validate_test : bool
@@ -267,12 +267,12 @@ class InverseRouterResult(BaseModel):
         Final kept switch matrix produced by pruning.
     switch_matrix_stats : InverseRouterPruneStats
         Switch-matrix pruning statistics.
-    external_scores : dict[str, int]
-        Tile-local external PIP usage counts.
+    external_scores : dict[Any, int]
+        Tile-local external logical-track usage counts.
     final_external_pips : list[Any]
-        External PIPs kept after pruning.
+        External logical tracks kept after pruning.
     removed_external_pips : list[Any]
-        External PIPs selected for removal.
+        External logical tracks selected for removal.
     external_stats : InverseRouterPruneStats
         External pruning statistics.
     report_summary : str
@@ -293,7 +293,7 @@ class InverseRouterResult(BaseModel):
     switch_matrix_stats: InverseRouterPruneStats = Field(
         default_factory=InverseRouterPruneStats
     )
-    external_scores: dict[str, int] = Field(default_factory=dict)
+    external_scores: dict[Any, int] = Field(default_factory=dict)
     final_external_pips: list[Any] = Field(default_factory=list)
     removed_external_pips: list[Any] = Field(default_factory=list)
     external_stats: InverseRouterPruneStats = Field(

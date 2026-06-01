@@ -11,12 +11,17 @@ import pytest  # noqa: DEP004 - test-only dependency
 
 import fabulous.fabulous_settings as fabulous_settings
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
+    FabricDimensions,
     RoutingConfigBits,
     RoutingEndpoint,
+    RoutingModelText,
     RoutingPip,
     RoutingPipKind,
     RoutingResourceCounts,
     RoutingResourceKey,
+    RoutingSwitchMatrix,
+    RoutingTileBelModel,
+    RoutingTileModel,
 )
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.rgraph import (
     RoutingFabricGraph,
@@ -71,15 +76,101 @@ def _resized_external_key(
     return replace(key, wire_count=wire_count)
 
 
+def _empty_tile_model(tmp_path: Path, tile_type: str) -> RoutingTileModel:
+    """Return a minimal tile model for coordinate-only graph tests.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Temporary project root.
+    tile_type : str
+        Tile type name.
+
+    Returns
+    -------
+    RoutingTileModel
+        Tile model without ports, BELs, GEN_IO, or matrix resources.
+    """
+    tile_dir = tmp_path / "Tile" / tile_type
+    return RoutingTileModel(
+        tile_type=tile_type,
+        tile_csv_path=tile_dir / f"{tile_type}.csv",
+        tile_dir=tile_dir,
+        matrix_path=tile_dir / f"{tile_type}_switch_matrix.list",
+        matrix_config_bits=0,
+        with_user_clk=False,
+        ports=(),
+        bels=(),
+        gen_ios=(),
+    )
+
+
 def test_graph_matches_generated_nextpnr_pips(tmp_path: Path) -> None:
     """Build from ``Fabric`` and render the same PIP text as FABulous."""
     fabric = _write_and_parse_project(tmp_path)
     graph = RoutingFabricGraph.from_fabric(fabric)
 
     assert graph.render_pips_txt() == genNextpnrModel(fabric)[0]
+    assert graph.render_routing_model() == RoutingModelText(*genNextpnrModel(fabric))
     assert graph.stats().active_pips == graph.stats().total_pips
     assert graph.stats().internal_pips == 4
     assert graph.stats().external_pips > 0
+
+
+def test_graph_renders_bel_metadata_from_tile_models(tmp_path: Path) -> None:
+    """Render BEL metadata from graph placement and preserved tile models."""
+    bel = RoutingTileBelModel(
+        source_path=tmp_path / "IO.v",
+        prefix="I_",
+        name="IO_1_bidirectional_frame_config_pass",
+        module_name="IO_1_bidirectional_frame_config_pass",
+        inputs=("I_A",),
+        outputs=("I_Y",),
+        external_inputs=(),
+        external_outputs=(),
+        config_bits=2,
+        feature_names=("CFG0", "CFG1"),
+        with_user_clk=True,
+    )
+    tile = RoutingTileModel(
+        tile_type="IO_TILE",
+        tile_csv_path=tmp_path / "Tile" / "IO_TILE" / "IO_TILE.csv",
+        tile_dir=tmp_path / "Tile" / "IO_TILE",
+        matrix_path=tmp_path / "Tile" / "IO_TILE" / "IO_TILE_switch_matrix.list",
+        matrix_config_bits=0,
+        with_user_clk=True,
+        ports=(),
+        bels=(bel,),
+        gen_ios=(),
+    )
+    graph = RoutingFabricGraph(
+        rows=1,
+        columns=1,
+        tile_types_by_xy={(0, 0): "IO_TILE"},
+        tile_models={"IO_TILE": tile},
+    )
+
+    assert graph.render_bel_txt() == "\n".join(
+        [
+            "# BEL descriptions: top left corner Tile_X0Y0, bottom right Tile_X1Y1",
+            "#Tile_X0Y0",
+            "X0Y0,X0,Y0,A,IO_1_bidirectional_frame_config_pass,I_A,I_Y",
+        ]
+    )
+    assert graph.render_bel_v2_txt() == "\n".join(
+        [
+            "# BEL descriptions: top left corner Tile_X0Y0, bottom right Tile_X1Y1",
+            "#Tile_X0Y0",
+            "BelBegin,X0Y0,A,IO_1_bidirectional_frame_config_pass,I_",
+            "I,A,X0Y0.I_A",
+            "O,Y,X0Y0.I_Y",
+            "CFG,CFG0",
+            "CFG,CFG1",
+            "GlobalClk",
+            "BelEnd",
+        ]
+    )
+    assert graph.render_template_pcf() == "set_io Tile_X0Y0_A Tile_X0Y0.A"
 
 
 def test_external_pips_keep_structured_resource_metadata(tmp_path: Path) -> None:
@@ -159,6 +250,176 @@ def test_tile_lookup_by_coordinate_uses_placed_grid_only(tmp_path: Path) -> None
     assert graph.tile_model_at(0, 1) is None
     assert graph.tile_type_at(-1, 0) is None
     assert graph.tile_model_at(99, 99) is None
+
+
+def test_fabric_dimensions_tracks_current_layout(tmp_path: Path) -> None:
+    """Return named current dimensions and update them after layout changes."""
+    graph = RoutingFabricGraph.from_fabric(_write_and_parse_project(tmp_path))
+
+    assert graph.fabric_dimensions() == FabricDimensions(columns=2, rows=1)
+    columns, rows = graph.fabric_dimensions()
+    assert (columns, rows) == (2, 1)
+
+    graph.resize_fabric(
+        copy_row_after=(0, 1),
+        copy_column_after=(0, 1),
+    )
+    assert graph.fabric_dimensions().columns == 3
+    assert graph.fabric_dimensions().rows == 2
+
+    graph.reset_fabric_layout()
+    assert graph.fabric_dimensions() == FabricDimensions(columns=2, rows=1)
+
+
+def test_resize_fabric_duplicates_existing_rows_and_columns(tmp_path: Path) -> None:
+    """Resize placement by copying rows and columns without rebuilding tiles."""
+    graph = RoutingFabricGraph.from_fabric(_write_and_parse_project(tmp_path))
+    toy = graph.tile_model("Toy")
+    key = graph.matrix_resource_key("Toy", "LONG_END0", "LOCAL_BEG0")
+
+    assert graph.rows == 1
+    assert graph.columns == 2
+    assert len(graph.by_resource_key(key)) == 2
+
+    graph.resize_fabric(
+        copy_row_after=(0, 1),
+        copy_column_after=(0, 1),
+    )
+
+    assert graph.rows == 2
+    assert graph.columns == 3
+    assert graph.tile_type_at(0, 0) == "Toy"
+    assert graph.tile_type_at(1, 0) == "Toy"
+    assert graph.tile_type_at(2, 0) == "Toy"
+    assert graph.tile_type_at(0, 1) == "Toy"
+    assert graph.tile_type_at(1, 1) == "Toy"
+    assert graph.tile_type_at(2, 1) == "Toy"
+    assert graph.tile_model_at(2, 1) is toy
+    assert len(graph.by_resource_key(key)) == 6
+    assert "#Tile-internal pips on tile X2Y1:" in graph.render_pips_txt()
+    graph.validate()
+
+
+def test_resize_fabric_removes_before_copying_rows_and_columns(
+    tmp_path: Path,
+) -> None:
+    """Remove original coordinates, then copy on the reduced layout."""
+    tile_types_by_xy = {
+        (0, 0): "A",
+        (1, 0): "B",
+        (2, 0): "C",
+        (3, 0): "D",
+        (0, 1): "E",
+        (1, 1): "F",
+        (2, 1): "G",
+        (3, 1): "H",
+        (0, 2): "I",
+        (1, 2): "J",
+        (2, 2): "K",
+        (3, 2): "L",
+    }
+    graph = RoutingFabricGraph(
+        rows=3,
+        columns=4,
+        tile_types_by_xy=tile_types_by_xy,
+        tile_models={
+            tile_type: _empty_tile_model(tmp_path, tile_type)
+            for tile_type in tile_types_by_xy.values()
+        },
+    )
+
+    graph.resize_fabric(
+        remove_rows=(0,),
+        remove_columns=(3,),
+        copy_row_after=(0, 1),
+        copy_column_after=(1, 1),
+    )
+
+    assert graph.rows == 3
+    assert graph.columns == 4
+    assert graph.tile_types_by_xy == {
+        (0, 0): "E",
+        (1, 0): "F",
+        (2, 0): "F",
+        (3, 0): "G",
+        (0, 1): "E",
+        (1, 1): "F",
+        (2, 1): "F",
+        (3, 1): "G",
+        (0, 2): "I",
+        (1, 2): "J",
+        (2, 2): "J",
+        (3, 2): "K",
+    }
+    assert graph.tile_model_at(3, 2).tile_type == "K"
+    graph.validate()
+
+
+def test_resize_fabric_rejects_invalid_copy_requests(tmp_path: Path) -> None:
+    """Reject invalid row and column duplication requests."""
+    graph = RoutingFabricGraph.from_fabric(_write_and_parse_project(tmp_path))
+
+    with pytest.raises(ValueError, match="row index"):
+        graph.resize_fabric(copy_row_after=(1, 1))
+    with pytest.raises(ValueError, match="column index"):
+        graph.resize_fabric(copy_column_after=(2, 1))
+    with pytest.raises(ValueError, match="copy count"):
+        graph.resize_fabric(copy_row_after=(0, 0))
+
+
+def test_resize_fabric_rejects_invalid_remove_requests(tmp_path: Path) -> None:
+    """Reject invalid row and column removal requests."""
+    graph = RoutingFabricGraph.from_fabric(_write_and_parse_project(tmp_path))
+
+    with pytest.raises(ValueError, match="row index"):
+        graph.resize_fabric(remove_rows=(1,))
+    with pytest.raises(ValueError, match="column index"):
+        graph.resize_fabric(remove_columns=(2,))
+    with pytest.raises(ValueError, match="removing all rows"):
+        graph.resize_fabric(remove_rows=(0,))
+    with pytest.raises(ValueError, match="removing all columns"):
+        graph.resize_fabric(remove_columns=(0, 1))
+    with pytest.raises(TypeError, match="tuple"):
+        graph.resize_fabric(remove_columns=[0])  # type: ignore[arg-type]
+
+
+def test_reset_fabric_layout_restores_initial_placement_only(tmp_path: Path) -> None:
+    """Restore loaded placement while preserving tile-local resource edits."""
+    graph = RoutingFabricGraph.from_fabric(_write_and_parse_project(tmp_path))
+    initial_pips = graph.render_pips_txt()
+
+    graph.add_external_resource(
+        "Toy",
+        Direction.JUMP,
+        "RESET_BEG",
+        0,
+        0,
+        "RESET_END",
+        1,
+    )
+    graph.add_matrix_resource("Toy", "RESET_END0", "RESET_BEG0")
+    matrix_key = graph.matrix_resource_key("Toy", "RESET_END0", "RESET_BEG0")
+    edited_pips = graph.render_pips_txt()
+
+    graph.resize_fabric(
+        copy_row_after=(0, 1),
+        copy_column_after=(0, 1),
+    )
+    assert graph.rows == 2
+    assert graph.columns == 3
+    assert len(graph.by_resource_key(matrix_key)) == 6
+
+    graph.reset_fabric_layout()
+
+    assert graph.rows == 1
+    assert graph.columns == 2
+    assert graph.tile_type_at(0, 0) == "Toy"
+    assert graph.tile_type_at(1, 0) == "Toy"
+    assert graph.tile_type_at(2, 0) is None
+    assert len(graph.by_resource_key(matrix_key)) == 2
+    assert graph.render_pips_txt() == edited_pips
+    assert graph.render_pips_txt() != initial_pips
+    graph.validate()
 
 
 def test_declared_standalone_tiles_are_queryable_without_emitting_pips(
@@ -381,6 +642,182 @@ def test_resize_external_resource_shrinks_and_prunes_lane_dependencies(
     assert graph.by_resource_key(lane_key) == ()
     assert graph.stats().active_pips < active_before
     graph.validate()
+
+
+def test_remove_external_resource_track_compacts_switch_matrix(
+    tmp_path: Path,
+) -> None:
+    """Remove a middle external track and compact only that vector's matrix names."""
+    graph = RoutingFabricGraph.from_fabric(_write_and_parse_project(tmp_path))
+    external_key = next(
+        key
+        for key in graph.resource_keys()
+        if key.kind is RoutingPipKind.EXTERNAL_WIRE and key.source_name == "LONG_BEG"
+    )
+    graph.resize_external_resource(external_key, 4)
+    wide_key = _resized_external_key(external_key, 4)
+    graph.add_external_resource(
+        "Toy",
+        Direction.JUMP,
+        "OTHER_BEG",
+        0,
+        0,
+        "OTHER_END",
+        4,
+    )
+    graph.set_switch_matrix(
+        "Toy",
+        ["LONG_BEG0", "LONG_BEG1", "LONG_BEG2", "LONG_BEG3", "OTHER_BEG2"],
+        ["LONG_END0", "LONG_END1", "LONG_END2", "LONG_END3", "LOCAL_END0"],
+        [
+            [1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 2.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 3.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 4.0, 0.0],
+            [0.0, 0.0, 0.0, 5.0, 7.0],
+        ],
+    )
+
+    compact_key = graph.remove_external_resource_track(wide_key, 2)
+    switch_matrix = graph.switch_matrix("Toy")
+
+    assert compact_key == _resized_external_key(external_key, 3)
+    assert graph.by_resource_key(wide_key) == ()
+    assert graph.by_resource_key(compact_key)
+    assert switch_matrix.rows == [
+        "LONG_END0",
+        "LONG_END1",
+        "LONG_END2",
+        "LOCAL_END0",
+    ]
+    assert switch_matrix.columns == [
+        "LONG_BEG0",
+        "LONG_BEG1",
+        "LONG_BEG2",
+        "OTHER_BEG2",
+    ]
+    assert _switch_matrix_cell(switch_matrix, "LONG_END0", "LONG_BEG0") == 1.0
+    assert _switch_matrix_cell(switch_matrix, "LONG_END1", "LONG_BEG1") == 2.0
+    assert _switch_matrix_cell(switch_matrix, "LONG_END2", "LONG_BEG2") == 4.0
+    assert _switch_matrix_cell(switch_matrix, "LOCAL_END0", "LONG_BEG2") == 5.0
+    assert _switch_matrix_cell(switch_matrix, "LOCAL_END0", "OTHER_BEG2") == 7.0
+    assert "LONG_END3" not in graph.matrix_sources("Toy")
+    assert "LONG_BEG3" not in graph.matrix_sinks("Toy")
+    graph.validate()
+
+
+def test_remove_external_resource_track_handles_first_and_last_lanes(
+    tmp_path: Path,
+) -> None:
+    """Compact edge lanes without disturbing the remaining matrix order."""
+    graph = RoutingFabricGraph.from_fabric(_write_and_parse_project(tmp_path))
+    external_key = next(
+        key
+        for key in graph.resource_keys()
+        if key.kind is RoutingPipKind.EXTERNAL_WIRE and key.source_name == "LONG_BEG"
+    )
+    graph.resize_external_resource(external_key, 3)
+    key = _resized_external_key(external_key, 3)
+    graph.set_switch_matrix(
+        "Toy",
+        ["LONG_BEG0", "LONG_BEG1", "LONG_BEG2", "LOCAL_BEG0"],
+        ["LONG_END0", "LONG_END1", "LONG_END2"],
+        [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 2.0, 0.0, 0.0],
+            [0.0, 0.0, 3.0, 4.0],
+        ],
+    )
+
+    key = graph.remove_external_resource_track(key, 0)
+    switch_matrix = graph.switch_matrix("Toy")
+
+    assert key == _resized_external_key(external_key, 2)
+    assert switch_matrix.rows == ["LONG_END0", "LONG_END1"]
+    assert switch_matrix.columns == ["LONG_BEG0", "LONG_BEG1", "LOCAL_BEG0"]
+    assert _switch_matrix_cell(switch_matrix, "LONG_END0", "LONG_BEG0") == 2.0
+    assert _switch_matrix_cell(switch_matrix, "LONG_END1", "LONG_BEG1") == 3.0
+    assert _switch_matrix_cell(switch_matrix, "LONG_END1", "LOCAL_BEG0") == 4.0
+
+    key = graph.remove_external_resource_track(key, 1)
+    switch_matrix = graph.switch_matrix("Toy")
+
+    assert key == _resized_external_key(external_key, 1)
+    assert switch_matrix.rows == ["LONG_END0"]
+    assert switch_matrix.columns == ["LONG_BEG0", "LOCAL_BEG0"]
+    assert _switch_matrix_cell(switch_matrix, "LONG_END0", "LONG_BEG0") == 2.0
+    graph.validate()
+
+
+def test_remove_external_resource_track_rejects_invalid_requests(
+    tmp_path: Path,
+) -> None:
+    """Reject non-vector, inactive, out-of-range, and NULL-endpoint requests."""
+    graph = RoutingFabricGraph.from_fabric(_write_and_parse_project(tmp_path))
+    external_key = next(
+        key
+        for key in graph.resource_keys()
+        if key.kind is RoutingPipKind.EXTERNAL_WIRE and key.source_name == "LONG_BEG"
+    )
+    matrix_key = next(
+        key
+        for key in graph.resource_keys()
+        if key.kind is RoutingPipKind.INTERNAL_MATRIX
+    )
+
+    with pytest.raises(TypeError, match="track_index"):
+        graph.remove_external_resource_track(external_key, "1")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="out of range"):
+        graph.remove_external_resource_track(external_key, 2)
+    with pytest.raises(ValueError, match="only external"):
+        graph.remove_external_resource_track(matrix_key, 0)
+
+    graph.resize_external_resource(external_key, 1)
+    single_key = _resized_external_key(external_key, 1)
+    dependent_key = graph.matrix_resource_key("Toy", "LONG_END0", "LOCAL_BEG0")
+
+    returned_key = graph.remove_external_resource_track(single_key, 0)
+
+    assert returned_key == single_key
+    assert graph.by_resource_key(single_key) == ()
+    assert graph.by_resource_key(single_key, active_only=False)
+    assert graph.by_resource_key(dependent_key) == ()
+
+    inactive_graph = RoutingFabricGraph.from_fabric(
+        _write_and_parse_project(tmp_path / "inactive")
+    )
+    inactive_key = next(
+        key
+        for key in inactive_graph.resource_keys()
+        if key.kind is RoutingPipKind.EXTERNAL_WIRE and key.source_name == "LONG_BEG"
+    )
+    inactive_graph.disable_resource(inactive_key)
+    with pytest.raises(ValueError, match="inactive"):
+        inactive_graph.remove_external_resource_track(inactive_key, 0)
+
+    null_graph = RoutingFabricGraph.from_fabric(
+        _write_and_parse_project(tmp_path / "null_endpoint")
+    )
+    null_graph.add_external_resource(
+        "Toy",
+        Direction.EAST,
+        "NULL",
+        1,
+        0,
+        "NULL_END",
+        2,
+    )
+    null_key = null_graph.external_resource_key(
+        "Toy",
+        Direction.EAST,
+        "NULL",
+        1,
+        0,
+        "NULL_END",
+        2,
+    )
+    with pytest.raises(ValueError, match="NULL endpoints"):
+        null_graph.remove_external_resource_track(null_key, 0)
 
 
 def test_resize_external_resource_grows_without_matrix_connections(
@@ -1598,3 +2035,29 @@ def _active_signatures(
         Active nextpnr PIP signatures.
     """
     return tuple(pip.signature for pip in graph.active_pips())
+
+
+def _switch_matrix_cell(
+    switch_matrix: RoutingSwitchMatrix,
+    row: str,
+    column: str,
+) -> float:
+    """Return one switch-matrix delay by row and column label.
+
+    Parameters
+    ----------
+    switch_matrix : RoutingSwitchMatrix
+        Matrix to inspect.
+    row : str
+        Row label.
+    column : str
+        Column label.
+
+    Returns
+    -------
+    float
+        Cell delay.
+    """
+    return switch_matrix.matrix[switch_matrix.rows.index(row)][
+        switch_matrix.columns.index(column)
+    ]

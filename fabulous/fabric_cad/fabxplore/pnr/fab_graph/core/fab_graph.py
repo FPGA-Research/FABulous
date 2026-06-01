@@ -17,8 +17,10 @@ from typing import TYPE_CHECKING
 
 import fabulous.fabulous_settings as fabulous_settings
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
+    FabricDimensions,
     RoutingConfigBits,
     RoutingGraphStats,
+    RoutingModelText,
     RoutingPip,
     RoutingPipKind,
     RoutingResourceCounts,
@@ -271,6 +273,16 @@ class FabGraph:
                 return [tile.name for tile in supertile.tiles]
         raise ValueError(f"Unknown supertile type: {supertile_type}")
 
+    def fabric_dimensions(self) -> FabricDimensions:
+        """Return current fabric dimensions.
+
+        Returns
+        -------
+        FabricDimensions
+            Current ``columns`` and ``rows``.
+        """
+        return self._graph.fabric_dimensions()
+
     def tile_model(self, tile_type: str) -> RoutingTileModel:
         """Return metadata for one tile type.
 
@@ -320,6 +332,50 @@ class FabGraph:
             coordinate has no tile.
         """
         return self._graph.tile_model_at(x, y)
+
+    def resize_fabric(
+        self,
+        *,
+        remove_rows: tuple[int, ...] | None = None,
+        remove_columns: tuple[int, ...] | None = None,
+        copy_row_after: tuple[int, int] | None = None,
+        copy_column_after: tuple[int, int] | None = None,
+    ) -> None:
+        """Resize the placed fabric by removing or copying rows and columns.
+
+        When multiple options are provided, removals run first on the current
+        layout, then copies run on the reduced layout: remove rows, remove
+        columns, copy row, copy column.
+
+        Parameters
+        ----------
+        remove_rows : tuple[int, ...] | None
+            Optional row indexes to remove from the current layout.
+        remove_columns : tuple[int, ...] | None
+            Optional column indexes to remove from the current layout.
+        copy_row_after : tuple[int, int] | None
+            Optional ``(row_index, copy_count)`` request.  The selected existing
+            row is copied ``copy_count`` times directly after ``row_index`` in
+            the layout after removals.
+        copy_column_after : tuple[int, int] | None
+            Optional ``(column_index, copy_count)`` request.  The selected
+            existing column is copied ``copy_count`` times directly after
+            ``column_index`` in the layout after removals.
+        """
+        self._graph.resize_fabric(
+            remove_rows=remove_rows,
+            remove_columns=remove_columns,
+            copy_row_after=copy_row_after,
+            copy_column_after=copy_column_after,
+        )
+
+    def reset_fabric_layout(self) -> None:
+        """Restore the fabric placement loaded when the graph was created.
+
+        This is a layout-only reset.  Tile models, switch-matrix resources, external
+        resources, and active/disabled resource state are not changed.
+        """
+        self._graph.reset_fabric_layout()
 
     def active_pips(
         self,
@@ -522,6 +578,47 @@ class FabGraph:
             PIP text.
         """
         return self._graph.render_pips_txt()
+
+    def render_bel_txt(self) -> str:
+        """Render graph-backed FABulous ``bel.txt`` routing-model metadata.
+
+        Returns
+        -------
+        str
+            BEL metadata text.
+        """
+        return self._graph.render_bel_txt()
+
+    def render_bel_v2_txt(self) -> str:
+        """Render graph-backed FABulous ``bel.v2.txt`` routing-model metadata.
+
+        Returns
+        -------
+        str
+            BEL v2 metadata text.
+        """
+        return self._graph.render_bel_v2_txt()
+
+    def render_template_pcf(self) -> str:
+        """Render graph-backed FABulous ``template.pcf`` constraints.
+
+        Returns
+        -------
+        str
+            Template PCF text.
+        """
+        return self._graph.render_template_pcf()
+
+    def render_routing_model(self) -> RoutingModelText:
+        """Render the graph-backed FABulous routing-model bundle.
+
+        Returns
+        -------
+        RoutingModelText
+            Text for ``pips.txt``, ``bel.txt``, ``bel.v2.txt``, and
+            ``template.pcf``.
+        """
+        return self._graph.render_routing_model()
 
     def add_external_resource(
         self,
@@ -1014,6 +1111,69 @@ class FabGraph:
             new_wire_count,
         )
 
+    def remove_external_resource_track(
+        self,
+        tile_type: str | None = None,
+        direction: Direction | None = None,
+        source_name: str | None = None,
+        x_offset: int | None = None,
+        y_offset: int | None = None,
+        destination_name: str | None = None,
+        track_index: int | None = None,
+        *,
+        wire_count: int | None = None,
+        key: RoutingResourceKey | None = None,
+    ) -> RoutingResourceKey:
+        """Remove one logical track from an external routing vector.
+
+        Parameters
+        ----------
+        tile_type : str | None
+            Owner tile type.
+        direction : Direction | None
+            FABulous routing direction.
+        source_name : str | None
+            CSV source name.
+        x_offset : int | None
+            CSV X offset.
+        y_offset : int | None
+            CSV Y offset.
+        destination_name : str | None
+            CSV destination name.
+        track_index : int | None
+            Logical vector track index to remove.
+        wire_count : int | None
+            Optional current wire count.
+        key : RoutingResourceKey | None
+            Optional pre-resolved external resource key.
+
+        Returns
+        -------
+        RoutingResourceKey
+            Active key for the compacted external resource.
+
+        Raises
+        ------
+        ValueError
+            If ``track_index`` is missing.
+        """
+        if track_index is None:
+            raise ValueError("remove_external_resource_track requires track_index.")
+        return self._graph.remove_external_resource_track(
+            self._resolve_external_resource_key(
+                tile_type,
+                direction,
+                source_name,
+                x_offset,
+                y_offset,
+                destination_name,
+                wire_count,
+                key=key,
+                active_only=True,
+            ),
+            track_index,
+        )
+
     def write_pips_txt(self, output_path: Path | str) -> None:
         """Write active PIPs to an explicit ``pips.txt`` path.
 
@@ -1040,6 +1200,26 @@ class FabGraph:
             if output_path.exists() and output_path.is_dir():
                 output_path = output_path / "pips.txt"
         write_pips_txt(self._graph, output_path)
+
+    def write_routing_model(self, path: Path | str | None = None) -> None:
+        """Write graph-backed FABulous routing-model files.
+
+        Parameters
+        ----------
+        path : Path | str | None
+            Destination metadata directory. If omitted, writes to
+            ``<project>/.FABulous``.
+        """
+        output_dir = self.project_dir / ".FABulous" if path is None else Path(path)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        model = self.render_routing_model()
+        (output_dir / "pips.txt").write_text(model.pips, encoding="utf-8")
+        (output_dir / "bel.txt").write_text(model.bel, encoding="utf-8")
+        (output_dir / "bel.v2.txt").write_text(model.bel_v2, encoding="utf-8")
+        (output_dir / "template.pcf").write_text(
+            model.template_pcf,
+            encoding="utf-8",
+        )
 
     def write_tile(
         self,
@@ -1122,7 +1302,7 @@ class FabGraph:
         try:
             self._reload_project(target_project)
             self._generate_project_artifacts(generate_rtl=generate_rtl)
-            self._write_routing_metadata(target_project / ".FABulous")
+            self._write_routing_and_bitstream_metadata(target_project / ".FABulous")
         finally:
             if not in_place:
                 self._reload_project(self.project_dir)
@@ -1457,8 +1637,8 @@ class FabGraph:
                 f"containing fabric.csv: {project_dir}"
             )
 
-    def _write_routing_metadata(self, metadata_dir: Path) -> Path:
-        """Write nextpnr and bitstream metadata from the loaded project.
+    def _write_routing_and_bitstream_metadata(self, metadata_dir: Path) -> Path:
+        """Write graph routing metadata and FABulous bitstream metadata.
 
         Parameters
         ----------
@@ -1471,12 +1651,7 @@ class FabGraph:
             Metadata directory.
         """
         metadata_dir.mkdir(parents=True, exist_ok=True)
-
-        pips, bel, bel_v2, template_pcf = self.fab.genRoutingModel()
-        (metadata_dir / "pips.txt").write_text(pips, encoding="utf-8")
-        (metadata_dir / "bel.txt").write_text(bel, encoding="utf-8")
-        (metadata_dir / "bel.v2.txt").write_text(bel_v2, encoding="utf-8")
-        (metadata_dir / "template.pcf").write_text(template_pcf, encoding="utf-8")
+        self.write_routing_model(metadata_dir)
 
         spec_object = self.fab.genBitStreamSpec()
         with (metadata_dir / "bitStreamSpec.bin").open("wb") as out_file:

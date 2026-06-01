@@ -15,6 +15,7 @@ import fabulous.fabulous_settings as fabulous_settings
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core import FabGraph
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
     RoutingConfigBits,
+    RoutingModelText,
     RoutingPipKind,
     RoutingResourceKey,
 )
@@ -573,6 +574,266 @@ def test_demo_opt_oversized_lut4ab_config_bits_fail_rtl_generation(
     assert not (output_project / ".FABulous").exists()
 
 
+def test_demo_opt_written_routing_model_matches_fabulous_generator(
+    tmp_path: Path,
+) -> None:
+    """Write demo_opt routing metadata and compare it to FABulous generation."""
+    source_project = _copy_demo_opt_project_or_skip(tmp_path)
+    output_dir = tmp_path / "routing_model"
+    graph = _load_fab_graph(source_project)
+    expected_pips, expected_bel, expected_bel_v2, expected_pcf = (
+        graph.fab.genRoutingModel()
+    )
+
+    graph.write_routing_model(output_dir)
+
+    assert (output_dir / "pips.txt").read_text(encoding="utf-8") == expected_pips
+    assert (output_dir / "bel.txt").read_text(encoding="utf-8") == expected_bel
+    assert (output_dir / "bel.v2.txt").read_text(encoding="utf-8") == expected_bel_v2
+    assert (output_dir / "template.pcf").read_text(encoding="utf-8") == expected_pcf
+
+
+def test_demo_opt_resized_fabric_writes_larger_routing_model(
+    tmp_path: Path,
+) -> None:
+    """Resize real demo_opt placement and check routing metadata grows cleanly."""
+    source_project = _copy_demo_opt_project_or_skip(tmp_path)
+    baseline_dir = tmp_path / "routing_model_before_resize"
+    resized_dir = tmp_path / "routing_model_after_resize"
+    graph = _load_fab_graph(source_project)
+    baseline_model = graph.render_routing_model()
+    baseline_pcf_coords = _pcf_tile_coordinates(baseline_model.template_pcf)
+
+    if not baseline_pcf_coords:
+        pytest.skip("demo_opt routing model has no auto-PCF coordinates to duplicate")
+
+    column_index, row_index = baseline_pcf_coords[0]
+    row_copies = 10
+    column_copies = 20
+    baseline_rows = graph.routing_graph.rows
+    baseline_columns = graph.routing_graph.columns
+    baseline_placements = dict(graph.routing_graph.tile_types_by_xy)
+    expected_placements = _expected_placement_count_after_resize(
+        baseline_placements,
+        row_index=row_index,
+        row_copies=row_copies,
+        column_index=column_index,
+        column_copies=column_copies,
+    )
+    expected_pcf_lines = _expected_feature_lines_after_resize(
+        baseline_pcf_coords,
+        row_index=row_index,
+        row_copies=row_copies,
+        column_index=column_index,
+        column_copies=column_copies,
+    )
+
+    graph.write_routing_model(baseline_dir)
+    graph.resize_fabric(
+        copy_row_after=(row_index, row_copies),
+        copy_column_after=(column_index, column_copies),
+    )
+    graph.write_routing_model(resized_dir)
+    resized_model = graph.render_routing_model()
+
+    assert len(graph.routing_graph.tile_types_by_xy) == expected_placements
+    assert graph.routing_graph.rows == baseline_rows + row_copies
+    assert graph.routing_graph.columns == baseline_columns + column_copies
+    assert (
+        _count_prefixed_lines(
+            resized_model.pips,
+            "#Tile-internal pips on tile ",
+        )
+        == expected_placements
+    )
+    assert (
+        _count_prefixed_lines(
+            resized_model.pips,
+            "#Tile-external pips on tile ",
+        )
+        == expected_placements
+    )
+    assert _count_prefixed_lines(resized_model.bel, "#Tile_X") == expected_placements
+    assert _count_prefixed_lines(resized_model.bel_v2, "#Tile_X") == expected_placements
+    assert len(resized_model.template_pcf.splitlines()) == expected_pcf_lines
+    assert len(resized_model.pips.splitlines()) > len(baseline_model.pips.splitlines())
+    assert len(resized_model.bel.splitlines()) > len(baseline_model.bel.splitlines())
+    assert len(resized_model.bel_v2.splitlines()) > len(
+        baseline_model.bel_v2.splitlines()
+    )
+    assert len(resized_model.template_pcf.splitlines()) > len(
+        baseline_model.template_pcf.splitlines()
+    )
+    assert _active_pip_line_count(resized_model.pips) == graph.stats().active_pips
+
+    _assert_routing_model_files_match(baseline_dir, baseline_model)
+    _assert_routing_model_files_match(resized_dir, resized_model)
+    assert (resized_dir / "pips.txt").stat().st_size > (
+        baseline_dir / "pips.txt"
+    ).stat().st_size
+    assert (resized_dir / "bel.txt").stat().st_size > (
+        baseline_dir / "bel.txt"
+    ).stat().st_size
+    assert (resized_dir / "bel.v2.txt").stat().st_size > (
+        baseline_dir / "bel.v2.txt"
+    ).stat().st_size
+    assert (resized_dir / "template.pcf").stat().st_size > (
+        baseline_dir / "template.pcf"
+    ).stat().st_size
+
+
+def test_demo_opt_resize_remove_and_restore_lut4ab_column_routing_model(
+    tmp_path: Path,
+) -> None:
+    """Remove and restore a real LUT4AB column without changing metadata text."""
+    source_project = _copy_demo_opt_project_or_skip(tmp_path)
+    baseline_dir = tmp_path / "demo_opt_lut4ab_column_baseline"
+    restored_dir = tmp_path / "demo_opt_lut4ab_column_restored"
+    graph = _load_fab_graph(source_project)
+    lut4ab_column = _first_column_with_tile_type(graph, "LUT4AB")
+    baseline_model = graph.render_routing_model()
+
+    graph.write_routing_model(baseline_dir)
+    graph.resize_fabric(copy_column_after=(lut4ab_column, 1))
+    graph.resize_fabric(remove_columns=(lut4ab_column,))
+    restored_model = graph.render_routing_model()
+    graph.write_routing_model(restored_dir)
+
+    assert restored_model == baseline_model
+    _assert_routing_model_files_match(baseline_dir, baseline_model)
+    _assert_routing_model_files_match(restored_dir, baseline_model)
+
+
+def test_demo_opt_resize_removals_shrink_routing_model(
+    tmp_path: Path,
+) -> None:
+    """Remove real demo_opt rows/columns and check routing metadata shrinks."""
+    source_project = _copy_demo_opt_project_or_skip(tmp_path)
+    baseline_graph = _load_fab_graph(source_project)
+    baseline_model = baseline_graph.render_routing_model()
+    remove_io_column = _load_fab_graph(source_project)
+
+    remove_io_column.resize_fabric(remove_columns=(0,))
+    no_west_io_model = remove_io_column.render_routing_model()
+
+    assert len(no_west_io_model.template_pcf.splitlines()) < len(
+        baseline_model.template_pcf.splitlines()
+    )
+    assert len(no_west_io_model.pips.splitlines()) < len(
+        baseline_model.pips.splitlines()
+    )
+    assert len(no_west_io_model.bel.splitlines()) < len(baseline_model.bel.splitlines())
+    assert len(no_west_io_model.bel_v2.splitlines()) < len(
+        baseline_model.bel_v2.splitlines()
+    )
+
+    mixed_resize = _load_fab_graph(source_project)
+    mixed_dir = tmp_path / "demo_opt_mixed_resize"
+    mixed_resize.resize_fabric(
+        remove_rows=(1, 2),
+        remove_columns=(0, 1),
+        copy_row_after=(0, 1),
+        copy_column_after=(1, 1),
+    )
+    mixed_model = mixed_resize.render_routing_model()
+    mixed_resize.write_routing_model(mixed_dir)
+
+    assert len(mixed_model.pips.splitlines()) < len(baseline_model.pips.splitlines())
+    assert len(mixed_model.bel.splitlines()) < len(baseline_model.bel.splitlines())
+    assert len(mixed_model.bel_v2.splitlines()) < len(
+        baseline_model.bel_v2.splitlines()
+    )
+    assert _active_pip_line_count(mixed_model.pips) == mixed_resize.stats().active_pips
+    _assert_routing_model_files_match(mixed_dir, mixed_model)
+
+
+def test_demo_opt_remove_external_resource_tracks_compacts_real_vectors(
+    tmp_path: Path,
+) -> None:
+    """Remove first, middle, and final tracks from real demo_opt vectors."""
+    source_project = _copy_demo_opt_project_or_skip(tmp_path)
+    graph = _load_fab_graph(source_project)
+    tile_type = "LUT4AB"
+    baseline_model = graph.render_routing_model()
+    candidates: list[RoutingResourceKey] = []
+    seen_bases: set[tuple[str, str]] = set()
+    for key in graph.external_resources(
+        tile_type,
+        where=lambda key: (
+            key.wire_count is not None
+            and key.wire_count > 2
+            and key.source_name != "NULL"
+            and key.destination_name != "NULL"
+        ),
+    ):
+        base_pair = (key.source_name, key.destination_name)
+        if base_pair in seen_bases:
+            continue
+        seen_bases.add(base_pair)
+        candidates.append(key)
+    if len(candidates) < 6:
+        pytest.skip("demo_opt has too few removable LUT4AB external vectors")
+
+    removed: list[RoutingResourceKey] = []
+    for index, key in enumerate(candidates[:6]):
+        assert key.wire_count is not None
+        track_index = (0, key.wire_count // 2, key.wire_count - 1)[index % 3]
+        pips_before = graph.routing_graph.by_resource_key(key)
+
+        compact_key = graph.remove_external_resource_track(
+            key=key,
+            track_index=track_index,
+        )
+
+        assert compact_key.wire_count == key.wire_count - 1
+        assert key not in graph.external_resources(tile_type)
+        assert compact_key in graph.external_resources(tile_type)
+        assert graph.routing_graph.by_resource_key(key) == ()
+        assert len(graph.routing_graph.by_resource_key(compact_key)) < len(pips_before)
+        removed.append(compact_key)
+
+    compact_model = graph.render_routing_model()
+    output_dir = tmp_path / "demo_opt_external_track_remove"
+    graph.write_routing_model(output_dir)
+
+    assert removed
+    assert compact_model.bel == baseline_model.bel
+    assert compact_model.bel_v2 == baseline_model.bel_v2
+    assert compact_model.template_pcf == baseline_model.template_pcf
+    assert len(compact_model.pips.splitlines()) < len(baseline_model.pips.splitlines())
+    assert _active_pip_line_count(compact_model.pips) == graph.stats().active_pips
+    graph.routing_graph.validate()
+    _assert_routing_model_files_match(output_dir, compact_model)
+
+
+def test_demo_opt_reset_fabric_layout_restores_routing_model_files(
+    tmp_path: Path,
+) -> None:
+    """Resize demo_opt, reset layout, and compare routing metadata to baseline."""
+    source_project = _copy_demo_opt_project_or_skip(tmp_path)
+    baseline_dir = tmp_path / "demo_opt_reset_baseline"
+    reset_dir = tmp_path / "demo_opt_reset_restored"
+    graph = _load_fab_graph(source_project)
+    baseline_model = graph.render_routing_model()
+
+    graph.write_routing_model(baseline_dir)
+    graph.resize_fabric(
+        remove_rows=(1,),
+        remove_columns=(0,),
+        copy_row_after=(0, 2),
+        copy_column_after=(1, 3),
+    )
+    assert graph.render_routing_model() != baseline_model
+
+    graph.reset_fabric_layout()
+    reset_model = graph.render_routing_model()
+    graph.write_routing_model(reset_dir)
+
+    assert reset_model == baseline_model
+    _assert_routing_model_files_match(baseline_dir, baseline_model)
+    _assert_routing_model_files_match(reset_dir, baseline_model)
+
+
 def _copy_demo_opt_project_or_skip(tmp_path: Path) -> Path:
     """Copy ``demo_opt`` into the test temp directory.
 
@@ -619,6 +880,36 @@ def _load_fab_graph(project_dir: Path) -> FabGraph:
     fab = FABulous_API(VerilogCodeGenerator())
     fab.loadFabric(project_dir / "fabric.csv")
     return FabGraph(fab, project_dir)
+
+
+def _first_column_with_tile_type(graph: FabGraph, tile_type: str) -> int:
+    """Return the first placed column containing a tile type.
+
+    Parameters
+    ----------
+    graph : FabGraph
+        Public graph facade.
+    tile_type : str
+        Tile type to search for.
+
+    Returns
+    -------
+    int
+        First X coordinate containing ``tile_type``.
+
+    Raises
+    ------
+    AssertionError
+        If the tile type has no placed instance.
+    """
+    columns = sorted(
+        x
+        for (x, _y), placed_tile_type in graph.routing_graph.tile_types_by_xy.items()
+        if placed_tile_type == tile_type
+    )
+    if not columns:
+        raise AssertionError(f"{tile_type} has no placed column")
+    return columns[0]
 
 
 def _safe_name_fragment(tile_type: str) -> str:
@@ -803,6 +1094,169 @@ def _assert_export_matches_graph(project_dir: Path, graph: FabGraph) -> None:
     assert _line_set(exported_graph.render_pips_txt()) == _line_set(
         graph.render_pips_txt()
     )
+
+
+def _assert_routing_model_files_match(
+    output_dir: Path,
+    model: RoutingModelText,
+) -> None:
+    """Check written routing-model files exactly match rendered text.
+
+    Parameters
+    ----------
+    output_dir : Path
+        Directory containing routing-model files.
+    model : RoutingModelText
+        Expected rendered routing-model text.
+    """
+    expected = {
+        "pips.txt": model.pips,
+        "bel.txt": model.bel,
+        "bel.v2.txt": model.bel_v2,
+        "template.pcf": model.template_pcf,
+    }
+    for file_name, text in expected.items():
+        path = output_dir / file_name
+
+        assert path.exists()
+        assert path.read_text(encoding="utf-8") == text
+        assert path.stat().st_size > 0
+
+
+def _pcf_tile_coordinates(template_pcf: str) -> list[tuple[int, int]]:
+    """Return tile coordinates referenced by auto-PCF constraints.
+
+    Parameters
+    ----------
+    template_pcf : str
+        Rendered ``template.pcf`` text.
+
+    Returns
+    -------
+    list[tuple[int, int]]
+        ``(x, y)`` coordinates, one entry per template-PCF line.
+    """
+    coordinates: list[tuple[int, int]] = []
+    for line in template_pcf.splitlines():
+        match = re.search(r"\bTile_X(?P<x>\d+)Y(?P<y>\d+)_", line)
+        if match is None:
+            continue
+        coordinates.append((int(match.group("x")), int(match.group("y"))))
+    return coordinates
+
+
+def _expected_placement_count_after_resize(
+    placements: dict[tuple[int, int], str],
+    *,
+    row_index: int,
+    row_copies: int,
+    column_index: int,
+    column_copies: int,
+) -> int:
+    """Return expected placed-tile count after row-then-column duplication.
+
+    Parameters
+    ----------
+    placements : dict[tuple[int, int], str]
+        Initial placed tile-type lookup.
+    row_index : int
+        Row copied first.
+    row_copies : int
+        Number of inserted row copies.
+    column_index : int
+        Column copied after the row insertion.
+    column_copies : int
+        Number of inserted column copies.
+
+    Returns
+    -------
+    int
+        Expected placement count after resize.
+    """
+    row_entries = sum(1 for _x, y in placements if y == row_index)
+    column_entries = sum(1 for x, _y in placements if x == column_index)
+    intersection = int((column_index, row_index) in placements)
+    column_entries_after_row_copy = column_entries + intersection * row_copies
+    return (
+        len(placements)
+        + row_entries * row_copies
+        + column_entries_after_row_copy * column_copies
+    )
+
+
+def _expected_feature_lines_after_resize(
+    coordinates: list[tuple[int, int]],
+    *,
+    row_index: int,
+    row_copies: int,
+    column_index: int,
+    column_copies: int,
+) -> int:
+    """Return expected coordinate-owned feature count after resize.
+
+    Parameters
+    ----------
+    coordinates : list[tuple[int, int]]
+        Initial feature coordinates, one entry per feature line.
+    row_index : int
+        Row copied first.
+    row_copies : int
+        Number of inserted row copies.
+    column_index : int
+        Column copied after the row insertion.
+    column_copies : int
+        Number of inserted column copies.
+
+    Returns
+    -------
+    int
+        Expected feature line count after resize.
+    """
+    row_entries = sum(1 for _x, y in coordinates if y == row_index)
+    column_entries = sum(1 for x, _y in coordinates if x == column_index)
+    intersection_entries = sum(
+        1 for x, y in coordinates if x == column_index and y == row_index
+    )
+    column_entries_after_row_copy = column_entries + (intersection_entries * row_copies)
+    return (
+        len(coordinates)
+        + row_entries * row_copies
+        + column_entries_after_row_copy * column_copies
+    )
+
+
+def _count_prefixed_lines(text: str, prefix: str) -> int:
+    """Count rendered text lines with a given prefix.
+
+    Parameters
+    ----------
+    text : str
+        Text to inspect.
+    prefix : str
+        Required line prefix.
+
+    Returns
+    -------
+    int
+        Number of matching lines.
+    """
+    return sum(1 for line in text.splitlines() if line.startswith(prefix))
+
+
+def _active_pip_line_count(pips_txt: str) -> int:
+    """Count non-comment PIP lines in rendered ``pips.txt`` text.
+
+    Parameters
+    ----------
+    pips_txt : str
+        Rendered PIP metadata.
+
+    Returns
+    -------
+    int
+        Number of concrete PIP lines.
+    """
+    return sum(1 for line in pips_txt.splitlines() if line and not line.startswith("#"))
 
 
 def _active_resource_count(graph: FabGraph, tile_type: str) -> int:

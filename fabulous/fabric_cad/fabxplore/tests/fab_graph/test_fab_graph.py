@@ -15,9 +15,11 @@ from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core import (
     fab_graph,
 )
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
+    FabricDimensions,
     RoutingConfigBits,
     RoutingPipKind,
     RoutingResourceCounts,
+    RoutingResourceKey,
     RoutingSwitchMatrix,
 )
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.writer import (
@@ -157,6 +159,24 @@ def test_fab_graph_query_and_parameter_modify_api(tmp_path: Path) -> None:
         key.kind is RoutingPipKind.EXTERNAL_WIRE for key in facade.external_resources()
     )
 
+    facade.add_matrix_resource("Toy", "FG_END1", "LOCAL_BEG0")
+    compact_key = facade.remove_external_resource_track(
+        "Toy",
+        Direction.JUMP,
+        "FG_BEG",
+        0,
+        0,
+        "FG_END",
+        0,
+        wire_count=2,
+    )
+
+    assert compact_key == _resized_external_key(resized_key, 1)
+    assert compact_key in facade.external_resources("Toy")
+    assert resized_key not in facade.external_resources("Toy")
+    assert "FG_END1" not in facade.matrix_sources("Toy")
+    assert "FG_END0" in facade.matrix_sources("Toy")
+
 
 def test_fab_graph_query_api_accepts_callable_filters(tmp_path: Path) -> None:
     """Filter public query results with user-provided predicates."""
@@ -264,6 +284,77 @@ def test_fab_graph_exposes_tile_lookup_by_coordinate(tmp_path: Path) -> None:
     assert facade.tile_model_at(0, 1) is None
     assert facade.tile_type_at(-1, 0) is None
     assert facade.tile_model_at(99, 99) is None
+
+
+def test_fab_graph_exposes_fabric_dimensions(tmp_path: Path) -> None:
+    """Expose named current fabric dimensions through the public facade."""
+    facade = FabGraph(_write_and_load_api(tmp_path), tmp_path)
+
+    assert facade.fabric_dimensions() == FabricDimensions(columns=2, rows=1)
+    facade.resize_fabric(copy_row_after=(0, 1), copy_column_after=(0, 1))
+    assert facade.fabric_dimensions() == FabricDimensions(columns=3, rows=2)
+    facade.reset_fabric_layout()
+    assert facade.fabric_dimensions() == FabricDimensions(columns=2, rows=1)
+
+
+def test_fab_graph_resizes_placement_by_copying_rows_and_columns(
+    tmp_path: Path,
+) -> None:
+    """Expose row and column copy-based fabric resizing through the facade."""
+    facade = FabGraph(_write_and_load_api(tmp_path), tmp_path)
+    key = facade.routing_graph.matrix_resource_key("Toy", "LONG_END0", "LOCAL_BEG0")
+
+    facade.resize_fabric(
+        copy_row_after=(0, 1),
+        copy_column_after=(0, 1),
+    )
+
+    assert facade.tile_type_at(2, 1) == "Toy"
+    assert facade.tile_model_at(2, 1) is facade.tile_model("Toy")
+    assert len(facade.routing_graph.by_resource_key(key)) == 6
+    assert "#Tile-internal pips on tile X2Y1:" in facade.render_routing_model().pips
+
+
+def test_fab_graph_resizes_placement_by_removing_rows_and_columns(
+    tmp_path: Path,
+) -> None:
+    """Expose row and column removal through the public facade."""
+    facade = FabGraph(_write_and_load_api(tmp_path), tmp_path)
+    key = facade.routing_graph.matrix_resource_key("Toy", "LONG_END0", "LOCAL_BEG0")
+
+    facade.resize_fabric(
+        copy_row_after=(0, 1),
+        copy_column_after=(0, 1),
+    )
+    facade.resize_fabric(
+        remove_rows=(0,),
+        remove_columns=(0,),
+    )
+
+    assert facade.tile_type_at(0, 0) == "Toy"
+    assert facade.tile_type_at(1, 0) == "Toy"
+    assert facade.tile_type_at(2, 0) is None
+    assert len(facade.routing_graph.by_resource_key(key)) == 2
+
+
+def test_fab_graph_resets_fabric_layout(tmp_path: Path) -> None:
+    """Expose layout reset through the public facade."""
+    facade = FabGraph(_write_and_load_api(tmp_path), tmp_path)
+    baseline_pips = facade.render_pips_txt()
+
+    facade.resize_fabric(
+        copy_row_after=(0, 1),
+        copy_column_after=(0, 1),
+    )
+    assert facade.tile_type_at(2, 1) == "Toy"
+
+    facade.reset_fabric_layout()
+
+    assert facade.tile_type_at(0, 0) == "Toy"
+    assert facade.tile_type_at(1, 0) == "Toy"
+    assert facade.tile_type_at(2, 0) is None
+    assert facade.tile_type_at(0, 1) is None
+    assert facade.render_pips_txt() == baseline_pips
 
 
 def test_fab_graph_exposes_demo_opt_supertile_queries(tmp_path: Path) -> None:
@@ -735,6 +826,44 @@ def test_fab_graph_demo_opt_operation_timing_characterization(
     metrics["resize_single_external_resource"] = _timing_summary(
         resize_samples,
         "resource",
+    )
+
+    remove_track_single = _load_demo_opt_facade(project_dir)
+    remove_track_keys: list[RoutingResourceKey] = []
+    seen_track_bases: set[tuple[str, str]] = set()
+    for key in remove_track_single.external_resources(
+        tile_type,
+        where=lambda key: (
+            key.wire_count is not None
+            and key.wire_count > 2
+            and key.source_name != "NULL"
+            and key.destination_name != "NULL"
+            and key.source_name != "Co"
+        ),
+    ):
+        base_pair = (key.source_name, key.destination_name)
+        if base_pair in seen_track_bases:
+            continue
+        seen_track_bases.add(base_pair)
+        remove_track_keys.append(key)
+    remove_track_keys = _require_count(
+        remove_track_keys,
+        20,
+        "single external track remove resources",
+    )
+    remove_track_samples: list[tuple[float, int]] = []
+    for key in remove_track_keys[:20]:
+        assert key.wire_count is not None
+        elapsed, _result = _time_call(
+            lambda key=key: remove_track_single.remove_external_resource_track(
+                key=key,
+                track_index=key.wire_count // 2,
+            )
+        )
+        remove_track_samples.append((elapsed, 1))
+    metrics["remove_single_external_resource_track"] = _timing_summary(
+        remove_track_samples,
+        "track",
     )
 
     add_external_single = _load_demo_opt_facade(project_dir)
@@ -1342,6 +1471,22 @@ def test_fab_graph_write_pips_uses_default_metadata_path(tmp_path: Path) -> None
     assert pips_path.read_text(encoding="utf-8") == facade.render_pips_txt()
 
 
+def test_fab_graph_write_routing_model_uses_graph_renderers(tmp_path: Path) -> None:
+    """Write graph-backed FABulous routing-model files."""
+    facade = FabGraph(_write_and_load_api(tmp_path), tmp_path)
+    output_dir = tmp_path / "routing_model"
+
+    facade.write_routing_model(output_dir)
+    model = facade.render_routing_model()
+
+    assert (output_dir / "pips.txt").read_text(encoding="utf-8") == model.pips
+    assert (output_dir / "bel.txt").read_text(encoding="utf-8") == model.bel
+    assert (output_dir / "bel.v2.txt").read_text(encoding="utf-8") == model.bel_v2
+    assert (output_dir / "template.pcf").read_text(
+        encoding="utf-8"
+    ) == model.template_pcf
+
+
 def test_fab_graph_write_tile_requires_explicit_name_and_path(
     tmp_path: Path,
 ) -> None:
@@ -1620,6 +1765,7 @@ def test_fab_graph_write_project_copy_writes_metadata_from_written_files(
 
     facade.delete_matrix_resource("Toy", "LONG_END0", "LOCAL_BEG0")
     facade.write_project(output_dir, generate_rtl=False)
+    expected_model = facade.render_routing_model()
 
     assert facade.project_dir == source_dir
     assert (output_dir / "fabric.csv").exists()
@@ -1630,6 +1776,18 @@ def test_fab_graph_write_project_copy_writes_metadata_from_written_files(
     assert (output_dir / ".FABulous" / "template.pcf").exists()
     assert (output_dir / ".FABulous" / "bitStreamSpec.bin").exists()
     assert (output_dir / ".FABulous" / "bitStreamSpec.csv").exists()
+    assert (output_dir / ".FABulous" / "pips.txt").read_text(
+        encoding="utf-8"
+    ) == expected_model.pips
+    assert (output_dir / ".FABulous" / "bel.txt").read_text(
+        encoding="utf-8"
+    ) == expected_model.bel
+    assert (output_dir / ".FABulous" / "bel.v2.txt").read_text(
+        encoding="utf-8"
+    ) == expected_model.bel_v2
+    assert (output_dir / ".FABulous" / "template.pcf").read_text(
+        encoding="utf-8"
+    ) == expected_model.template_pcf
     assert genNextpnrModel(_parse_fabric_project(output_dir))[0] == (
         output_dir / ".FABulous" / "pips.txt"
     ).read_text(encoding="utf-8")

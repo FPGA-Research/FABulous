@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -21,6 +21,21 @@ class RoutingPipKind(StrEnum):
 
     INTERNAL_MATRIX = "internal_matrix"
     EXTERNAL_WIRE = "external_wire"
+
+
+class FabricDimensions(NamedTuple):
+    """Current fabric dimensions.
+
+    Attributes
+    ----------
+    columns : int
+        Number of fabric columns, matching the X coordinate range.
+    rows : int
+        Number of fabric rows, matching the Y coordinate range.
+    """
+
+    columns: int
+    rows: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -453,6 +468,28 @@ class RoutingSwitchMatrix:
     columns: list[str]
     rows: list[str]
     matrix: list[list[float]]
+
+
+@dataclass(frozen=True, slots=True)
+class RoutingModelText:
+    """Graph-rendered FABulous routing-model text files.
+
+    Attributes
+    ----------
+    pips : str
+        Contents for ``pips.txt``.
+    bel : str
+        Contents for ``bel.txt``.
+    bel_v2 : str
+        Contents for ``bel.v2.txt``.
+    template_pcf : str
+        Contents for ``template.pcf``.
+    """
+
+    pips: str
+    bel: str
+    bel_v2: str
+    template_pcf: str
 
 
 def _format_pip_delay(delay: float) -> str:

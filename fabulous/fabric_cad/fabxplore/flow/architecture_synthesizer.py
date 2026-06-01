@@ -191,15 +191,19 @@ class ArchitectureSynthesizer(ABC):
         -------
         Path
             Directory containing the written metadata files.
+
+        Raises
+        ------
+        RuntimeError
+            If no FABulous PnR model can be attached to the architecture flow.
         """
         metadata_dir = path or self.project_context.proj_dir / ".FABulous"
         metadata_dir.mkdir(parents=True, exist_ok=True)
-
-        pips, bel, bel_v2, template_pcf = self.fab.genRoutingModel()
-        (metadata_dir / "pips.txt").write_text(pips, encoding="utf-8")
-        (metadata_dir / "bel.txt").write_text(bel, encoding="utf-8")
-        (metadata_dir / "bel.v2.txt").write_text(bel_v2, encoding="utf-8")
-        (metadata_dir / "template.pcf").write_text(template_pcf, encoding="utf-8")
+        if self.fpga_model is None:
+            self.generate_fpga_model()
+        if self.fpga_model is None:
+            raise RuntimeError("FABulous PnR model not attached to architecture flow.")
+        self.fpga_model.write_routing_model(metadata_dir)
 
         spec_object = self.fab.genBitStreamSpec()
         with (metadata_dir / "bitStreamSpec.bin").open("wb") as out_file:

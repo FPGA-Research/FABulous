@@ -2,9 +2,9 @@
 
 FABulous exposes legal IO sites through the routing model's template PCF text.
 This module keeps PCF handling in memory: the router receives ``template_pcf``
-and ``bel_v2`` from ``fab.genRoutingModel()``, extracts real IO sites, flattens
-top-level Yosys JSON ports, and emits the concrete ``set_io`` constraints
-consumed by the FABulous nextpnr fork.
+and ``bel_v2`` from the current routing metadata, extracts real IO sites,
+flattens top-level Yosys JSON ports, and emits the concrete ``set_io``
+constraints consumed by the FABulous nextpnr fork.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def extract_template_io_sites(template_pcf: str) -> list[PcfIoSite]:
     Parameters
     ----------
     template_pcf : str
-        Template PCF returned by ``fab.genRoutingModel()``.
+        Template PCF text from the current FABulous routing metadata.
 
     Returns
     -------
@@ -91,7 +91,7 @@ def filter_io_sites_by_bel_v2(
     sites : list[PcfIoSite]
         Candidate template sites.
     bel_v2 : str
-        BEL v2 text returned by ``fab.genRoutingModel()``.
+        BEL v2 text from the current FABulous routing metadata.
     io_bel_types : frozenset[str]
         BEL types accepted as user IO pads.
 
@@ -153,9 +153,9 @@ def auto_assign_pcf_for_ports(
     ports : list[str]
         Flattened top-level port names in assignment order.
     template_pcf : str
-        Template PCF returned by ``fab.genRoutingModel()``.
+        Template PCF text from the current FABulous routing metadata.
     bel_v2 : str | None
-        Optional BEL v2 text returned by ``fab.genRoutingModel()``. When
+        Optional BEL v2 text from the current FABulous routing metadata. When
         provided, template sites are filtered to real IO BELs so pass-through
         interface BELs are not used as top-level IO pins.
     pcf_assignment_seed : int

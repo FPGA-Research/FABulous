@@ -18,8 +18,8 @@ from fabulous.fabric_cad.fabxplore.modules.inverse_router.core.report import (
     render_inverse_router_report,
 )
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
-    RoutingPip,
     RoutingPipKind,
+    RoutingResourceKey,
     RoutingSwitchMatrix,
 )
 
@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     )
 
 MatrixKey = tuple[str, str]
+ExternalTrackKey = tuple[RoutingResourceKey, int]
 
 
 class InverseRouter:
@@ -70,9 +71,14 @@ class InverseRouter:
         matrix_score, final_matrix, matrix_stats = self._score_switch_matrix(
             fpga_model,
             documents,
+            prune_enabled=self.options.optimize_switch_matrix,
         )
         external_scores, final_external, removed_external, external_stats = (
-            self._score_external_pips(fpga_model, documents)
+            self._score_external_tracks(
+                fpga_model,
+                documents,
+                prune_enabled=self.options.optimize_external_pips,
+            )
         )
         tracker.scoring(
             _active_cell_count(matrix_score) if matrix_score is not None else 0,
@@ -88,14 +94,11 @@ class InverseRouter:
             )
 
         if self.options.optimize_external_pips:
-            for key in {pip.resource_key for pip in removed_external}:
-                fpga_model.disable_external_resource(key=key)
+            _remove_external_tracks(fpga_model, removed_external)
 
         tracker.applied(
-            matrix_stats.removed_unused + matrix_stats.removed_used
-            if self.options.optimize_switch_matrix
-            else 0,
-            len(removed_external) if self.options.optimize_external_pips else 0,
+            matrix_stats.removed_unused + matrix_stats.removed_used,
+            len(removed_external),
         )
 
         training_validation_routes = (
@@ -279,6 +282,8 @@ class InverseRouter:
         self,
         fpga_model: PnRBridge,
         documents: list[FabulousFasmDocument],
+        *,
+        prune_enabled: bool,
     ) -> tuple[RoutingSwitchMatrix, RoutingSwitchMatrix, InverseRouterPruneStats]:
         """Build switch-matrix scores and final pruned matrix.
 
@@ -288,6 +293,8 @@ class InverseRouter:
             Graph that provides the starting switch matrix.
         documents : list[FabulousFasmDocument]
             Evaluated FASM documents from successful training routes.
+        prune_enabled : bool
+            Whether pruning ratios should select PIPs for removal.
 
         Returns
         -------
@@ -311,11 +318,18 @@ class InverseRouter:
                 column_order=column_order,
             )
 
-        removed_keys, stats = _select_removed_keys(
-            scores,
-            remove_unused_ratio=self.options.switch_matrix_remove_unused_ratio,
-            remove_used_ratio=self.options.switch_matrix_remove_used_ratio,
-        )
+        if prune_enabled:
+            removed_keys, stats = _select_removed_keys(
+                scores,
+                remove_unused_ratio=self.options.switch_matrix_remove_unused_ratio,
+                remove_used_ratio=self.options.switch_matrix_remove_used_ratio,
+            )
+        else:
+            removed_keys, stats = _select_removed_keys(
+                scores,
+                remove_unused_ratio=0.0,
+                remove_used_ratio=0.0,
+            )
         score_matrix = _matrix_from_values(
             self.options.tile_name,
             scores,
@@ -323,63 +337,78 @@ class InverseRouter:
             column_order,
             include_zero=True,
         )
-        final_matrix = _final_matrix(
-            self.options.tile_name,
-            scores,
-            original_values,
-            removed_keys,
-            row_order,
-            column_order,
-            active_pip_value=self.options.switch_matrix_active_pip_value,
+        final_matrix = (
+            _final_matrix(
+                self.options.tile_name,
+                scores,
+                original_values,
+                removed_keys,
+                row_order,
+                column_order,
+                active_pip_value=self.options.switch_matrix_active_pip_value,
+            )
+            if prune_enabled
+            else initial_matrix
         )
         return (score_matrix, final_matrix, stats)
 
-    def _score_external_pips(
+    def _score_external_tracks(
         self,
         fpga_model: PnRBridge,
         documents: list[FabulousFasmDocument],
+        *,
+        prune_enabled: bool,
     ) -> tuple[
-        dict[str, int],
-        list[RoutingPip],
-        list[RoutingPip],
+        dict[ExternalTrackKey, int],
+        list[ExternalTrackKey],
+        list[ExternalTrackKey],
         InverseRouterPruneStats,
     ]:
-        """Build external PIP scores and final kept/removed lists.
+        """Build external track scores and final kept/removed lists.
 
         Parameters
         ----------
         fpga_model : PnRBridge
-            Graph that provides active external PIPs.
+            Graph that provides active external resources.
         documents : list[FabulousFasmDocument]
             Evaluated FASM documents from successful training routes.
+        prune_enabled : bool
+            Whether pruning ratios should select tracks for removal.
 
         Returns
         -------
-        dict[str, int]
-            External scores keyed by tile-local PIP name.
-        list[RoutingPip]
-            External PIPs kept after pruning.
-        list[RoutingPip]
-            External PIPs removed by pruning.
+        dict[ExternalTrackKey, int]
+            External scores keyed by tile-local ``(resource_key, track_index)``.
+        list[ExternalTrackKey]
+            External tracks kept after pruning.
+        list[ExternalTrackKey]
+            External tracks removed by pruning.
         InverseRouterPruneStats
-            External pruning statistics.
+            External track pruning statistics.
         """
-        candidates = _external_candidates(fpga_model, self.options.tile_name)
-        scores = {name: 0 for name in candidates}
+        candidates = _external_track_candidates(fpga_model, self.options.tile_name)
+        scores = {track: 0 for track in candidates}
         for document in documents:
-            for pip in document.used_external_pips_for_tile_type(
+            for track, score in document.used_external_track_scores_for_tile_type(
                 self.options.tile_name
-            ):
-                candidates.setdefault(pip.name, pip)
-                scores[pip.name] = scores.get(pip.name, 0) + 1
+            ).items():
+                candidates.setdefault(track, track)
+                scores[track] = scores.get(track, 0) + score
 
-        removed_names, stats = _select_removed_keys(
-            scores,
-            remove_unused_ratio=self.options.external_remove_unused_ratio,
-            remove_used_ratio=self.options.external_remove_used_ratio,
-        )
-        removed = [pip for name, pip in candidates.items() if name in removed_names]
-        kept = [pip for name, pip in candidates.items() if name not in removed_names]
+        if prune_enabled:
+            removed_tracks, stats = _select_removed_keys(
+                scores,
+                remove_unused_ratio=self.options.external_remove_unused_ratio,
+                remove_used_ratio=self.options.external_remove_used_ratio,
+            )
+        else:
+            removed_tracks, stats = _select_removed_keys(
+                scores,
+                remove_unused_ratio=0.0,
+                remove_used_ratio=0.0,
+            )
+        removed = [track for track in candidates.values() if track in removed_tracks]
+        kept = [track for track in candidates.values() if track not in removed_tracks]
         return (scores, kept, removed, stats)
 
     def _seeds(self) -> range:
@@ -520,7 +549,10 @@ def _select_removed_keys(
     tuple[set[Any], InverseRouterPruneStats]
         Removed keys and pruning statistics.
     """
-    unused = sorted(key for key, score in scores.items() if score == 0)
+    unused = sorted(
+        (key for key, score in scores.items() if score == 0),
+        key=str,
+    )
     used = sorted(
         (key for key, score in scores.items() if score > 0),
         key=lambda key: (scores[key], str(key)),
@@ -664,31 +696,67 @@ def _final_matrix(
     )
 
 
-def _external_candidates(
+def _external_track_candidates(
     fpga_model: PnRBridge,
     tile_name: str,
-) -> dict[str, RoutingPip]:
-    """Return tile-type-level external PIP candidates.
+) -> dict[ExternalTrackKey, ExternalTrackKey]:
+    """Return tile-type-level logical external track candidates.
 
     Parameters
     ----------
     fpga_model : PnRBridge
-        Graph that provides active PIPs.
+        Graph that provides active external resources.
     tile_name : str
         Tile type to inspect.
 
     Returns
     -------
-    dict[str, RoutingPip]
-        First concrete PIP representative for each tile-local external PIP name.
+    dict[ExternalTrackKey, ExternalTrackKey]
+        Candidate tracks keyed by ``(resource_key, track_index)``.
     """
-    candidates: dict[str, RoutingPip] = {}
-    for pip in fpga_model.iter_active_pips(
-        lambda candidate: candidate.tile_type == tile_name
-        and candidate.kind is RoutingPipKind.EXTERNAL_WIRE
+    candidates: dict[ExternalTrackKey, ExternalTrackKey] = {}
+    for key in fpga_model.external_resources(
+        tile_name,
+        where=lambda candidate: candidate.kind is RoutingPipKind.EXTERNAL_WIRE
+        and candidate.wire_count is not None
+        and candidate.wire_count > 0,
     ):
-        candidates.setdefault(pip.name, pip)
+        if key.wire_count is None:
+            continue
+        if key.wire_count > 1 and (
+            key.source_name == "NULL" or key.destination_name == "NULL"
+        ):
+            continue
+        for track_index in range(key.wire_count):
+            track = (key, track_index)
+            candidates[track] = track
     return candidates
+
+
+def _remove_external_tracks(
+    fpga_model: PnRBridge,
+    tracks: list[ExternalTrackKey],
+) -> None:
+    """Apply external track removals to the graph.
+
+    Parameters
+    ----------
+    fpga_model : PnRBridge
+        Graph to mutate.
+    tracks : list[ExternalTrackKey]
+        Original resource keys and logical track indices selected for removal.
+    """
+    tracks_by_resource: dict[RoutingResourceKey, set[int]] = {}
+    for resource_key, track_index in tracks:
+        tracks_by_resource.setdefault(resource_key, set()).add(track_index)
+
+    for resource_key, track_indices in tracks_by_resource.items():
+        active_key = resource_key
+        for track_index in sorted(track_indices, reverse=True):
+            active_key = fpga_model.remove_external_resource_track(
+                key=active_key,
+                track_index=track_index,
+            )
 
 
 def _active_cell_count(matrix: RoutingSwitchMatrix) -> int:

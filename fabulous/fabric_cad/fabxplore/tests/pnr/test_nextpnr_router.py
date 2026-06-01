@@ -211,6 +211,30 @@ def test_router_rejects_missing_project_metadata(tmp_path: Path) -> None:
         router.route(bridge, _FakeFab(_template_pcf(site_count=2)))
 
 
+def test_router_rejects_missing_template_pcf_for_auto_pcf(tmp_path: Path) -> None:
+    """Require template PCF metadata when the router auto-generates PCF."""
+    metadata_dir = tmp_path / ".FABulous"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    (metadata_dir / "bel.v2.txt").write_text(
+        _bel_v2_with_mixed_io_sites(),
+        encoding="utf-8",
+    )
+    (metadata_dir / "pips.txt").write_text("# pips\n", encoding="utf-8")
+    bridge = _bridge_from_verilog(
+        "module top(input a, output y); assign y = a; endmodule"
+    )
+    router = NextpnrRouter(
+        NextpnrRouterOptions(
+            project_dir=tmp_path,
+            nextpnr_exec=_fake_nextpnr(tmp_path),
+            check=False,
+        )
+    )
+
+    with pytest.raises(FileNotFoundError, match="template.pcf"):
+        router.route(bridge, _FakeFab(_template_pcf(site_count=2)))
+
+
 def test_router_writes_artifacts_and_parses_report(tmp_path: Path) -> None:
     """Route through a fake nextpnr command and parse the emitted report."""
     _write_project_metadata(tmp_path)
@@ -403,12 +427,15 @@ def test_router_uses_temporary_bridge_json_when_not_persisting(
     ]
 
 
-def test_pnr_bridge_routes_with_temporary_graph_pips(tmp_path: Path) -> None:
-    """Route through PnRBridge while restoring the original project PIPs."""
-    _write_project_metadata(tmp_path)
-    pips_path = tmp_path / ".FABulous" / "pips.txt"
-    original_pips = "# original pips\n# keep me\n"
-    pips_path.write_text(original_pips, encoding="utf-8")
+def test_pnr_bridge_routes_with_temporary_graph_routing_model(
+    tmp_path: Path,
+) -> None:
+    """Route through PnRBridge while restoring original routing metadata."""
+    _write_project_metadata(
+        tmp_path,
+        template_pcf="# original template is intentionally unusable\n",
+    )
+    original_metadata = _read_routing_model_metadata(tmp_path)
 
     design = _bridge_from_verilog(
         "module top(input a, output y); assign y = a; endmodule"
@@ -419,11 +446,10 @@ def test_pnr_bridge_routes_with_temporary_graph_pips(tmp_path: Path) -> None:
         pyosys_bridge=design,
     )
 
-    def write_pips(path: Path | str | None = None) -> None:
-        output_path = Path(path or pips_path)
-        output_path.write_text("# graph candidate pips\n", encoding="utf-8")
-
-    bridge.write_pips = write_pips
+    bridge.write_routing_model = lambda path=None: _write_candidate_routing_model(
+        path,
+        site_count=2,
+    )
 
     result = bridge.nextpnr_route(
         nextpnr_exec=_fake_nextpnr(tmp_path),
@@ -433,15 +459,17 @@ def test_pnr_bridge_routes_with_temporary_graph_pips(tmp_path: Path) -> None:
 
     assert result.passed
     assert result.paths.json_path.exists()
-    assert pips_path.read_text(encoding="utf-8") == original_pips
+    assert result.paths.pcf_path.read_text(encoding="utf-8").splitlines() == [
+        "set_io a X0Y1/A",
+        "set_io y X0Y1/B",
+    ]
+    assert _read_routing_model_metadata(tmp_path) == original_metadata
 
 
 def test_pnr_bridge_prefers_input_json_over_bridge_design(tmp_path: Path) -> None:
     """Keep PnRBridge top and auto-PCF based on explicit input JSON."""
     _write_project_metadata(tmp_path)
-    pips_path = tmp_path / ".FABulous" / "pips.txt"
-    original_pips = "# original pips\n"
-    pips_path.write_text(original_pips, encoding="utf-8")
+    original_metadata = _read_routing_model_metadata(tmp_path)
 
     design = _bridge_from_verilog(
         "module bridge_top(input bridge_a, output bridge_y); "
@@ -452,9 +480,9 @@ def test_pnr_bridge_prefers_input_json_over_bridge_design(tmp_path: Path) -> Non
         fabulous_api=_FakeFab(_template_pcf(site_count=3)),
         pyosys_bridge=design,
     )
-    bridge.write_pips = lambda path=None: Path(path or pips_path).write_text(
-        "# graph candidate pips\n",
-        encoding="utf-8",
+    bridge.write_routing_model = lambda path=None: _write_candidate_routing_model(
+        path,
+        site_count=3,
     )
     json_path = _write_json_netlist(
         tmp_path / "custom.json",
@@ -478,15 +506,13 @@ def test_pnr_bridge_prefers_input_json_over_bridge_design(tmp_path: Path) -> Non
         "set_io j[1] X0Y1/B",
         "set_io z X0Y2/A",
     ]
-    assert pips_path.read_text(encoding="utf-8") == original_pips
+    assert _read_routing_model_metadata(tmp_path) == original_metadata
 
 
 def test_pnr_bridge_batch_test_routes_path_and_memory_json(tmp_path: Path) -> None:
     """Route several explicit JSON benchmarks through temporary batch artifacts."""
     _write_project_metadata(tmp_path)
-    pips_path = tmp_path / ".FABulous" / "pips.txt"
-    original_pips = "# original pips\n"
-    pips_path.write_text(original_pips, encoding="utf-8")
+    original_metadata = _read_routing_model_metadata(tmp_path)
 
     design = _bridge_from_verilog(
         "module bridge_top(input bridge_a, output bridge_y); "
@@ -497,9 +523,9 @@ def test_pnr_bridge_batch_test_routes_path_and_memory_json(tmp_path: Path) -> No
         fabulous_api=_FakeFab(_template_pcf(site_count=4)),
         pyosys_bridge=design,
     )
-    bridge.write_pips = lambda path=None: Path(path or pips_path).write_text(
-        "# graph candidate pips\n",
-        encoding="utf-8",
+    bridge.write_routing_model = lambda path=None: _write_candidate_routing_model(
+        path,
+        site_count=4,
     )
     path_json = _write_json_netlist(
         tmp_path / "path_top.json",
@@ -522,7 +548,7 @@ def test_pnr_bridge_batch_test_routes_path_and_memory_json(tmp_path: Path) -> No
     assert [result.top_name for result in results] == ["path_top", "memory_top"]
     assert all(result.passed for result in results)
     assert all(not result.paths.out_dir.exists() for result in results)
-    assert pips_path.read_text(encoding="utf-8") == original_pips
+    assert _read_routing_model_metadata(tmp_path) == original_metadata
 
 
 def test_pnr_bridge_update_from_project_rebuilds_graph(tmp_path: Path) -> None:
@@ -563,7 +589,7 @@ class _FakePnRBridge(PnRBridge):
 
 
 class _FakeFab:
-    """Small fake FABulous API exposing only ``genRoutingModel``."""
+    """Small fake FABulous API object for router API compatibility."""
 
     def __init__(
         self,
@@ -574,14 +600,19 @@ class _FakeFab:
         self.bel_v2 = bel_v2 or _bel_v2_with_mixed_io_sites()
 
     def genRoutingModel(self) -> tuple[str, str, str, str]:  # noqa: N802
-        """Return fake routing-model strings.
+        """Fail if router code still regenerates routing metadata.
 
         Returns
         -------
         tuple[str, str, str, str]
-            PIPs, legacy BELs, BEL v2, and template PCF text.
+            Unused routing-model tuple; this fake always raises instead.
+
+        Raises
+        ------
+        AssertionError
+            Always raised; tests expect routing metadata to be read from disk.
         """
-        return "", "", self.bel_v2, self.template_pcf
+        raise AssertionError("router must read routing metadata from .FABulous")
 
 
 def _bridge_from_verilog(verilog_text: str) -> PyosysBridge:
@@ -771,15 +802,99 @@ print("ERR=diagnostic", file=sys.stderr)
     return executable
 
 
-def _write_project_metadata(project_dir: Path) -> None:
+def _write_project_metadata(
+    project_dir: Path,
+    *,
+    bel_v2: str | None = None,
+    template_pcf: str | None = None,
+) -> None:
     """Write minimal project metadata files required by the router.
 
     Parameters
     ----------
     project_dir : Path
         Fake FABulous project root.
+    bel_v2 : str | None
+        Optional BEL v2 metadata. If ``None``, write mixed IO metadata.
+    template_pcf : str | None
+        Optional template PCF. If ``None``, write four legal IO sites.
     """
     metadata_dir = project_dir / ".FABulous"
     metadata_dir.mkdir(parents=True, exist_ok=True)
-    (metadata_dir / "bel.v2.txt").write_text("# bels\n", encoding="utf-8")
+    (metadata_dir / "bel.v2.txt").write_text(
+        bel_v2 or _bel_v2_with_mixed_io_sites(),
+        encoding="utf-8",
+    )
+    (metadata_dir / "bel.txt").write_text("# bels\n", encoding="utf-8")
     (metadata_dir / "pips.txt").write_text("# pips\n", encoding="utf-8")
+    (metadata_dir / "template.pcf").write_text(
+        template_pcf or _template_pcf(site_count=4),
+        encoding="utf-8",
+    )
+
+
+def _read_routing_model_metadata(project_dir: Path) -> dict[str, str]:
+    """Read routing-model metadata files from a fake project.
+
+    Parameters
+    ----------
+    project_dir : Path
+        Fake FABulous project root.
+
+    Returns
+    -------
+    dict[str, str]
+        Routing-model file names mapped to file text.
+    """
+    metadata_dir = project_dir / ".FABulous"
+    return {
+        file_name: (metadata_dir / file_name).read_text(encoding="utf-8")
+        for file_name in (
+            "pips.txt",
+            "bel.txt",
+            "bel.v2.txt",
+            "template.pcf",
+        )
+    }
+
+
+def _write_candidate_routing_model(
+    path: Path | str | None,
+    *,
+    site_count: int,
+) -> None:
+    """Write candidate graph routing metadata for bridge tests.
+
+    Parameters
+    ----------
+    path : Path | str | None
+        Metadata directory selected by ``PnRBridge``.
+    site_count : int
+        Number of template PCF sites to expose.
+
+    Raises
+    ------
+    ValueError
+        If no metadata path is provided.
+    """
+    if path is None:
+        raise ValueError("candidate routing model tests require an explicit path")
+
+    metadata_dir = Path(path)
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    (metadata_dir / "pips.txt").write_text(
+        "# graph candidate pips\n",
+        encoding="utf-8",
+    )
+    (metadata_dir / "bel.txt").write_text(
+        "# graph candidate bels\n",
+        encoding="utf-8",
+    )
+    (metadata_dir / "bel.v2.txt").write_text(
+        _bel_v2_with_mixed_io_sites(),
+        encoding="utf-8",
+    )
+    (metadata_dir / "template.pcf").write_text(
+        _template_pcf(site_count=site_count),
+        encoding="utf-8",
+    )

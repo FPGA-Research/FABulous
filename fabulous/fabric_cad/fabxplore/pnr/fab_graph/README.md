@@ -53,9 +53,12 @@ Queries and rendering:
 - `standalone_tile_types(where=None)`
 - `supertile_types(where=None)`
 - `supertile_subtiles(supertile_type)`
+- `fabric_dimensions()`
 - `tile_model(tile_type)`
 - `tile_type_at(x, y)`
 - `tile_model_at(x, y)`
+- `resize_fabric(remove_rows=None, remove_columns=None, copy_row_after=None, copy_column_after=None)`
+- `reset_fabric_layout()`
 - `external_resources(tile_type=None, active_only=True, where=None)`
 - `matrix_resources(tile_type=None, active_only=True, where=None)`
 - `matrix_sources(tile_type, where=None)`
@@ -66,6 +69,10 @@ Queries and rendering:
 - `iter_active_pips(where=None)`
 - `disabled_pips(where=None)`
 - `render_pips_txt()`
+- `render_bel_txt()`
+- `render_bel_v2_txt()`
+- `render_template_pcf()`
+- `render_routing_model()`
 
 Add and modify:
 
@@ -73,6 +80,7 @@ Add and modify:
 - `add_matrix_resource(...)`
 - `add_matrix_rows(tile_type, entries, overwrite=False)`
 - `resize_external_resource(..., new_wire_count, key=None)`
+- `remove_external_resource_track(..., track_index, key=None)`
 
 Delete and disable:
 
@@ -92,6 +100,7 @@ Write-back:
 
 - `write_pips_txt(output_path)`
 - `write_pips(path=None)`
+- `write_routing_model(path=None)`
 - `write_tile(name, path)`
 - `write_project(path=None, generate_rtl=True)`
 - `write_tile_sources(output_root=None, tile_types=None, remove_generated_artifacts=True, generate_rtl=False)`
@@ -230,6 +239,20 @@ for subtile_type in graph.supertile_subtiles("DSP"):
     print(subtile_type)
 ```
 
+### `fabric_dimensions()`
+
+Return current fabric dimensions as a named tuple with `columns` and `rows`.
+
+```python
+dimensions = graph.fabric_dimensions()
+print(dimensions.columns, dimensions.rows)
+
+columns, rows = graph.fabric_dimensions()
+```
+
+The values follow the current graph layout, so `resize_fabric()` changes them
+and `reset_fabric_layout()` restores them to the loaded fabric dimensions.
+
 ### `tile_model(tile_type)`
 
 Read preserved tile metadata such as source paths, BELs, ports, and matrix file
@@ -269,6 +292,46 @@ if tile_model is not None:
 
 The returned model is shared by tile type.  If several grid locations contain
 `LUT4AB`, they all return the same `RoutingTileModel` object for `LUT4AB`.
+
+### `resize_fabric(remove_rows=None, remove_columns=None, copy_row_after=None, copy_column_after=None)`
+
+Resize the graph placement by removing or copying existing rows and columns.
+The operation changes the in-memory coordinate map only: tile models, switch
+matrices, BELs, and external resources stay tile-type-local and are
+materialized lazily at the new coordinates.
+
+```python
+graph.resize_fabric(
+    remove_rows=(0, 1),            # remove original rows Y0 and Y1
+    remove_columns=(7,),           # remove original column X7
+    copy_row_after=(3, 2),          # copy row Y3 twice after Y3
+    copy_column_after=(5, 1),       # copy column X5 once after X5
+)
+```
+
+Copy options use tuple form `(index, copy_count)`.  Remove options use tuple form
+`(index, ...)`.  When multiple options are provided, removals run first on the
+current layout, then copies run on the reduced layout: remove rows, remove
+columns, copy row, copy column.  Empty coordinates remain empty, and copied
+placements keep the same tile type as the selected source row or column.  This
+can intentionally create a graph-only routing model that is smaller or larger
+than the original FABulous fabric.  It is useful for architecture exploration
+and router experiments before writing a final project back out.
+
+### `reset_fabric_layout()`
+
+Restore the fabric placement loaded when the graph was created.
+
+```python
+graph.resize_fabric(copy_column_after=(5, 20))
+graph.reset_fabric_layout()
+```
+
+This is a layout-only reset.  It restores `rows`, `columns`, and the placed
+tile-type coordinate map, then rebuilds the placement index.  It does not reset
+tile models, switch-matrix edits, external resource edits, or active/disabled
+resource state.  After reset, concrete PIPs and BEL metadata materialize over
+the original loaded fabric size again.
 
 ### `external_resources(tile_type=None, active_only=True, where=None)`
 
@@ -404,6 +467,43 @@ Render active concrete PIPs in FABulous/nextpnr `pips.txt` format.
 ```python
 pips_text = graph.render_pips_txt()
 assert "X" in pips_text
+```
+
+### `render_bel_txt()`
+
+Render old-style graph-backed FABulous routing-model BEL metadata.
+
+```python
+bel_text = graph.render_bel_txt()
+```
+
+### `render_bel_v2_txt()`
+
+Render graph-backed `bel.v2.txt` metadata from placed graph tile coordinates and
+preserved tile BEL models.
+
+```python
+bel_v2_text = graph.render_bel_v2_txt()
+```
+
+### `render_template_pcf()`
+
+Render graph-backed template PCF constraints for IO BELs.
+
+```python
+template_pcf = graph.render_template_pcf()
+```
+
+### `render_routing_model()`
+
+Render the graph-backed FABulous routing-model bundle.
+
+```python
+model = graph.render_routing_model()
+print(model.pips)
+print(model.bel)
+print(model.bel_v2)
+print(model.template_pcf)
 ```
 
 ### `add_external_resource(...)`
@@ -598,6 +698,37 @@ resized_key = graph.external_resources(
 )[0]
 ```
 
+### `remove_external_resource_track(..., track_index, key=None)`
+
+Remove one logical lane from an external vector.  This is different from
+`resize_external_resource`: it can remove an arbitrary lane, not only the final
+high-index lane.  The graph first compacts switch-matrix row and column labels
+for that vector, then shrinks the external resource by one.
+
+For example, removing `track_index=2` from a four-lane vector maps the local
+switch-matrix names like this:
+
+```text
+E1BEG0 -> E1BEG0
+E1BEG1 -> E1BEG1
+E1BEG2 -> removed
+E1BEG3 -> E1BEG2
+```
+
+The same compaction is applied to the destination side of the vector.  Unrelated
+rows, columns, and other external vectors keep their labels.
+
+```python
+key = graph.external_resources(
+    "LUT4AB",
+    where=lambda key: key.source_name == "E1BEG" and key.wire_count == 4,
+)[0]
+
+compact_key = graph.remove_external_resource_track(key=key, track_index=2)
+```
+
+The returned `compact_key` is the active key with one fewer lane.
+
 ### `write_pips_txt(output_path)`
 
 Write active PIPs to one explicit `pips.txt` path.
@@ -615,6 +746,24 @@ loops.
 graph.write_pips()
 graph.write_pips("runs/candidate_001/.FABulous")
 graph.write_pips("runs/candidate_001/.FABulous/pips.txt")
+```
+
+### `write_routing_model(path=None)`
+
+Write the graph-backed FABulous routing-model bundle:
+
+```text
+pips.txt
+bel.txt
+bel.v2.txt
+template.pcf
+```
+
+If `path` is omitted, files are written to `<project>/.FABulous`.
+
+```python
+graph.write_routing_model()
+graph.write_routing_model("runs/candidate_001/.FABulous")
 ```
 
 ### `write_tile(name, path)`

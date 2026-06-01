@@ -8,12 +8,14 @@ from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core import (
 )
 
 FabGraph = fab_graph.FabGraph
+FabricDimensions = models.FabricDimensions
 PipFileWriteResult = writer.PipFileWriteResult
 ProjectSourceWriteResult = writer.ProjectSourceWriteResult
 RoutingEndpoint = models.RoutingEndpoint
 RoutingConfigBits = models.RoutingConfigBits
 RoutingFabricGraph = rgraph.RoutingFabricGraph
 RoutingGraphStats = models.RoutingGraphStats
+RoutingModelText = models.RoutingModelText
 RoutingPip = models.RoutingPip
 RoutingPipKind = models.RoutingPipKind
 RoutingResourceCounts = models.RoutingResourceCounts
@@ -26,12 +28,14 @@ RoutingTilePortModel = models.RoutingTilePortModel
 
 __all__ = [
     "FabGraph",
+    "FabricDimensions",
     "PipFileWriteResult",
     "ProjectSourceWriteResult",
     "RoutingEndpoint",
     "RoutingConfigBits",
     "RoutingFabricGraph",
     "RoutingGraphStats",
+    "RoutingModelText",
     "RoutingPip",
     "RoutingPipKind",
     "RoutingResourceCounts",

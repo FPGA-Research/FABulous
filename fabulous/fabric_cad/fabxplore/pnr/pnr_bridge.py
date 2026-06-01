@@ -179,7 +179,7 @@ class PnRBridge(FabGraph):
             artifacts and a summary report.
         """
         route_project_dir = Path(project_dir or self.project_dir)
-        pips_path = route_project_dir / ".FABulous" / "pips.txt"
+        metadata_dir = route_project_dir / ".FABulous"
 
         options = NextpnrRouterOptions(
             top_name=top_name,
@@ -200,7 +200,7 @@ class PnRBridge(FabGraph):
             report_output_max_lines=report_output_max_lines,
         )
 
-        with self._temporary_pips_override(pips_path):
+        with self._temporary_routing_model_override(metadata_dir):
             result = NextpnrRouter(options).route(self._pyosys_bridge, self.fab)
 
             if log_report:
@@ -262,12 +262,12 @@ class PnRBridge(FabGraph):
             If a design source is neither a ``Path`` nor a JSON dictionary.
         """
         route_project_dir = Path(project_dir or self.project_dir)
-        pips_path = route_project_dir / ".FABulous" / "pips.txt"
+        metadata_dir = route_project_dir / ".FABulous"
         results: list[NextpnrRouterResult] = []
 
         with TemporaryDirectory() as tmp_dir:
             tmp_root = Path(tmp_dir)
-            with self._temporary_pips_override(pips_path):
+            with self._temporary_routing_model_override(metadata_dir):
                 for index, (top_name, source) in enumerate(designs.items()):
                     case_dir = tmp_root / f"case_{index}"
                     case_dir.mkdir(parents=True, exist_ok=True)
@@ -302,30 +302,44 @@ class PnRBridge(FabGraph):
         return results
 
     @contextmanager
-    def _temporary_pips_override(self, pips_path: Path) -> Iterator[None]:
-        """Temporarily replace ``pips.txt`` with graph-rendered PIPs.
+    def _temporary_routing_model_override(self, metadata_dir: Path) -> Iterator[None]:
+        """Temporarily replace routing metadata with the graph-rendered model.
 
-        The current file contents are stored as bytes, the graph-rendered PIPs
-        are written to the real path for nextpnr, and the previous file state is
-        restored when the ``with`` block exits.
+        The current routing-model files are stored as bytes, the graph-rendered
+        routing model is written to the real project metadata directory for
+        nextpnr, and the previous file state is restored when the ``with`` block
+        exits.
 
         Parameters
         ----------
-        pips_path : Path
-            Project ``.FABulous/pips.txt`` file to replace for one route run.
+        metadata_dir : Path
+            Project ``.FABulous`` directory to replace for one route run.
 
         Yields
         ------
         None
-            Control while the graph-rendered PIPs are installed.
+            Control while the graph-rendered routing model is installed.
         """
-        original_pips = pips_path.read_bytes() if pips_path.exists() else None
+        routing_model_files = (
+            "pips.txt",
+            "bel.txt",
+            "bel.v2.txt",
+            "template.pcf",
+        )
+        original_files = {
+            file_name: (metadata_dir / file_name).read_bytes()
+            if (metadata_dir / file_name).exists()
+            else None
+            for file_name in routing_model_files
+        }
 
         try:
-            self.write_pips(pips_path)
+            self.write_routing_model(metadata_dir)
             yield
         finally:
-            if original_pips is not None:
-                pips_path.write_bytes(original_pips)
-            else:
-                pips_path.unlink(missing_ok=True)
+            for file_name, original_content in original_files.items():
+                path = metadata_dir / file_name
+                if original_content is not None:
+                    path.write_bytes(original_content)
+                else:
+                    path.unlink(missing_ok=True)

@@ -3,8 +3,8 @@
 ``NextpnrRouter`` connects a Yosys JSON design to FABulous' nextpnr generic
 micro-architecture. The JSON can come from an explicit input file or from the
 active pyosys bridge design. It resolves default paths, stages the selected JSON,
-generates a PCF from the selected design ports and the in-memory FABulous routing
-model, validates that project ``.FABulous`` metadata exists, invokes nextpnr,
+generates a PCF from the selected design ports and the project routing metadata,
+validates that project ``.FABulous`` metadata exists, invokes nextpnr,
 and parses the JSON report.
 """
 
@@ -57,8 +57,8 @@ class NextpnrRouter:
         design : PyosysBridge
             Packed pyosys design to export and route.
         fab : FABulous_API
-            Loaded FABulous API instance. The router uses it to obtain the
-            in-memory template PCF from ``genRoutingModel``.
+            Loaded FABulous API instance. Kept in the route signature for API
+            compatibility; routing metadata is read from ``.FABulous``.
 
         Returns
         -------
@@ -74,6 +74,7 @@ class NextpnrRouter:
         RuntimeError
             If nextpnr returns a non-zero exit code while ``check`` is enabled.
         """
+        _ = fab
         context = get_context()
         project_dir = Path(self.options.project_dir or context.proj_dir)
         input_json_path = (
@@ -107,7 +108,10 @@ class NextpnrRouter:
 
         try:
             paths.out_dir.mkdir(parents=True, exist_ok=True)
-            _validate_metadata(paths.metadata_dir)
+            _validate_metadata(
+                paths.metadata_dir,
+                require_template_pcf=self.options.pcf_path is None,
+            )
 
             if input_json_path is not None:
                 if self.options.write_json:
@@ -119,7 +123,7 @@ class NextpnrRouter:
                 design.write_json_path(paths.json_path)
 
             if self.options.pcf_path is None:
-                _, _, bel_v2, template_pcf = fab.genRoutingModel()
+                bel_v2, template_pcf = _read_auto_pcf_metadata(paths.metadata_dir)
                 pcf_text = pcf.auto_assign_pcf_for_ports(
                     ports=pcf.extract_json_ports(paths.json_path, top_name),
                     template_pcf=template_pcf,
@@ -204,13 +208,19 @@ def _resolve_paths(
     )
 
 
-def _validate_metadata(metadata_dir: Path) -> None:
+def _validate_metadata(
+    metadata_dir: Path,
+    *,
+    require_template_pcf: bool = False,
+) -> None:
     """Validate required FABulous routing metadata files.
 
     Parameters
     ----------
     metadata_dir : Path
         Project ``.FABulous`` metadata directory.
+    require_template_pcf : bool
+        Whether ``template.pcf`` is required for auto-PCF generation.
 
     Raises
     ------
@@ -218,6 +228,8 @@ def _validate_metadata(metadata_dir: Path) -> None:
         If required routing metadata files are missing.
     """
     required = [metadata_dir / "bel.v2.txt", metadata_dir / "pips.txt"]
+    if require_template_pcf:
+        required.append(metadata_dir / "template.pcf")
     missing = [path for path in required if not path.exists()]
     if missing:
         missing_text = ", ".join(str(path) for path in missing)
@@ -226,6 +238,25 @@ def _validate_metadata(metadata_dir: Path) -> None:
             "Run write_routingmodel_bitreamspec() or the FABulous generation flow "
             f"first: {missing_text}"
         )
+
+
+def _read_auto_pcf_metadata(metadata_dir: Path) -> tuple[str, str]:
+    """Read metadata files needed for automatic PCF assignment.
+
+    Parameters
+    ----------
+    metadata_dir : Path
+        Project ``.FABulous`` metadata directory.
+
+    Returns
+    -------
+    tuple[str, str]
+        ``bel.v2.txt`` text and ``template.pcf`` text.
+    """
+    return (
+        (metadata_dir / "bel.v2.txt").read_text(encoding="utf-8"),
+        (metadata_dir / "template.pcf").read_text(encoding="utf-8"),
+    )
 
 
 def _read_report(report_path: Path) -> dict[str, Any]:

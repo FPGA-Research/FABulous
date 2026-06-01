@@ -221,6 +221,11 @@ def test_routing_matrix_features_for_tile_type_filters_instances() -> None:
 
 def test_parse_fabulous_fasm_uses_owner_tile_for_external_pip_annotation() -> None:
     """Resolve external PIPs by owner tile and PIP name."""
+    resource_key = _resource_key(
+        source_name="WW4BEG",
+        destination_name="WW4END",
+        wire_count=4,
+    )
     pip = _pip(
         owner=(2, 5),
         source=(2, 5, "WW4BEG12"),
@@ -228,6 +233,7 @@ def test_parse_fabulous_fasm_uses_owner_tile_for_external_pip_annotation() -> No
         name="WW4BEG12.WW4END8",
         kind=RoutingPipKind.EXTERNAL_WIRE,
         tile_type="LUT5F",
+        resource_key=resource_key,
     )
     document = parse_fabulous_fasm(
         "X2Y5.WW4BEG12.WW4END8",
@@ -240,6 +246,158 @@ def test_parse_fabulous_fasm_uses_owner_tile_for_external_pip_annotation() -> No
     assert feature.feature_type is FabulousFasmFeatureType.ROUTING
     assert feature.pip_kind is RoutingPipKind.EXTERNAL_WIRE
     assert feature.pip == pip
+    assert feature.external_resource_key == resource_key
+    assert feature.external_track_index == 0
+    assert feature.external_source_index == 12
+    assert feature.external_destination_index == 8
+    assert feature.external_segment_index == 3
+
+
+def test_parse_fabulous_fasm_resolves_external_logical_tracks() -> None:
+    """Map expanded external FASM PIPs back to logical vector tracks."""
+    one_hop_key = _resource_key("E1BEG", "E1END", 4)
+    long_key = _resource_key("EE4BEG", "EE4END", 4)
+    null_key = _resource_key("NULL", "TERM_END", 4)
+    one_hop = _pip(
+        owner=(1, 5),
+        source=(1, 5, "E1BEG2"),
+        destination=(2, 5, "E1END2"),
+        name="E1BEG2.E1END2",
+        kind=RoutingPipKind.EXTERNAL_WIRE,
+        tile_type="LUT5F",
+        resource_key=one_hop_key,
+    )
+    long_segment = _pip(
+        owner=(1, 5),
+        source=(1, 5, "EE4BEG13"),
+        destination=(2, 5, "EE4END9"),
+        name="EE4BEG13.EE4END9",
+        kind=RoutingPipKind.EXTERNAL_WIRE,
+        tile_type="LUT5F",
+        resource_key=long_key,
+    )
+    long_cascade = _pip(
+        owner=(1, 5),
+        source=(1, 5, "EE4END14"),
+        destination=(1, 5, "EE4BEG14"),
+        name="EE4END14.EE4BEG14",
+        kind=RoutingPipKind.EXTERNAL_WIRE,
+        tile_type="LUT5F",
+        resource_key=long_key,
+    )
+    null_endpoint = _pip(
+        owner=(1, 5),
+        source=(1, 5, "TERM_END6"),
+        destination=(2, 5, "TERM_END6"),
+        name="TERM_END6.TERM_END6",
+        kind=RoutingPipKind.EXTERNAL_WIRE,
+        tile_type="LUT5F",
+        resource_key=null_key,
+    )
+    matrix = _pip(
+        owner=(1, 5),
+        source=(1, 5, "E1END0"),
+        destination=(1, 5, "LA_I0"),
+        name="E1END0.LA_I0",
+        kind=RoutingPipKind.INTERNAL_MATRIX,
+        tile_type="LUT5F",
+    )
+    document = parse_fabulous_fasm(
+        """
+        X1Y5.E1BEG2.E1END2
+        X1Y5.EE4BEG13.EE4END9
+        X1Y5.EE4END14.EE4BEG14
+        X1Y5.TERM_END6.TERM_END6
+        X1Y5.E1END0.LA_I0
+        """,
+        graph=_FakeGraph(
+            tile_types={(1, 5): "LUT5F"},
+            pips=[one_hop, long_segment, long_cascade, null_endpoint, matrix],
+        ),
+    )
+
+    features = document.query()
+    one_hop_feature = features[0]
+    long_segment_feature = features[1]
+    long_cascade_feature = features[2]
+    null_feature = features[3]
+    matrix_feature = features[4]
+
+    assert one_hop_feature.external_resource_key == one_hop_key
+    assert one_hop_feature.external_track_index == 2
+    assert one_hop_feature.external_source_index == 2
+    assert one_hop_feature.external_destination_index == 2
+    assert one_hop_feature.external_segment_index == 0
+    assert long_segment_feature.external_resource_key == long_key
+    assert long_segment_feature.external_track_index == 1
+    assert long_segment_feature.external_source_index == 13
+    assert long_segment_feature.external_destination_index == 9
+    assert long_segment_feature.external_segment_index == 3
+    assert long_cascade_feature.external_resource_key == long_key
+    assert long_cascade_feature.external_track_index == 2
+    assert long_cascade_feature.external_source_index == 14
+    assert long_cascade_feature.external_destination_index == 14
+    assert long_cascade_feature.external_segment_index == 3
+    assert null_feature.external_resource_key == null_key
+    assert null_feature.external_track_index is None
+    assert matrix_feature.external_resource_key is None
+    assert matrix_feature.external_track_index is None
+
+    assert document.used_external_tracks_for_tile_type("LUT5F") == [
+        (one_hop_key, 2),
+        (long_key, 1),
+        (long_key, 2),
+    ]
+    assert document.used_external_track_scores_for_tile_type("LUT5F") == {
+        (one_hop_key, 2): 1,
+        (long_key, 1): 1,
+        (long_key, 2): 1,
+    }
+
+
+def test_parse_fabulous_fasm_scores_single_track_null_endpoint() -> None:
+    """Treat a single-track NULL endpoint resource as logical track zero."""
+    key = _resource_key("NULL", "TERM_END", 1)
+    pip = _pip(
+        owner=(1, 5),
+        source=(1, 5, "TERM_END0"),
+        destination=(1, 5, "TERM_END0"),
+        name="TERM_END0.TERM_END0",
+        kind=RoutingPipKind.EXTERNAL_WIRE,
+        tile_type="LUT5F",
+        resource_key=key,
+    )
+
+    document = parse_fabulous_fasm(
+        "X1Y5.TERM_END0.TERM_END0",
+        graph=_FakeGraph(tile_types={(1, 5): "LUT5F"}, pips=[pip]),
+    )
+
+    feature = document.query()[0]
+    assert feature.external_resource_key == key
+    assert feature.external_track_index == 0
+    assert document.used_external_tracks_for_tile_type("LUT5F") == [(key, 0)]
+    assert document.used_external_track_scores_for_tile_type("LUT5F") == {(key, 0): 1}
+
+
+def test_parse_fabulous_fasm_rejects_external_track_mismatch() -> None:
+    """Reject external PIPs whose endpoints do not share a logical track."""
+    key = _resource_key("EE4BEG", "EE4END", 4)
+    pip = _pip(
+        owner=(1, 5),
+        source=(1, 5, "EE4BEG13"),
+        destination=(2, 5, "EE4END10"),
+        name="EE4BEG13.EE4END10",
+        kind=RoutingPipKind.EXTERNAL_WIRE,
+        tile_type="LUT5F",
+        resource_key=key,
+    )
+
+    with pytest.raises(FabulousFasmResolveError, match="logical track"):
+        parse_fabulous_fasm(
+            "X1Y5.EE4BEG13.EE4END10",
+            graph=_FakeGraph(tile_types={(1, 5): "LUT5F"}, pips=[pip]),
+        )
 
 
 def test_routing_external_features_for_tile_type_filters_instances() -> None:
@@ -400,6 +558,7 @@ def _pip(
     name: str,
     kind: RoutingPipKind,
     tile_type: str,
+    resource_key: RoutingResourceKey | None = None,
 ) -> RoutingPip:
     """Create a concrete routing PIP for parser tests."""
     return RoutingPip(
@@ -411,10 +570,41 @@ def _pip(
         name=name,
         owner_tile=owner,
         tile_type=tile_type,
-        resource_key=RoutingResourceKey(
+        resource_key=resource_key
+        or RoutingResourceKey(
             tile_type=tile_type,
             kind=kind,
             source_name=source[2],
             destination_name=destination[2],
         ),
+    )
+
+
+def _resource_key(
+    source_name: str,
+    destination_name: str,
+    wire_count: int,
+) -> RoutingResourceKey:
+    """Create an external vector resource key for parser tests.
+
+    Parameters
+    ----------
+    source_name : str
+        Resource source base name.
+    destination_name : str
+        Resource destination base name.
+    wire_count : int
+        Logical vector width.
+
+    Returns
+    -------
+    RoutingResourceKey
+        External resource key.
+    """
+    return RoutingResourceKey(
+        tile_type="LUT5F",
+        kind=RoutingPipKind.EXTERNAL_WIRE,
+        source_name=source_name,
+        destination_name=destination_name,
+        wire_count=wire_count,
     )

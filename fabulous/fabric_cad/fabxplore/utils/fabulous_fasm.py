@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
     from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
         RoutingPip,
+        RoutingResourceKey,
     )
 
 
@@ -92,6 +93,17 @@ class FabulousFasmFeature:
         Graph-resolved routing PIP kind.
     pip : RoutingPip | None
         Graph-resolved routing PIP.
+    external_resource_key : RoutingResourceKey | None
+        Graph-resolved external resource key for external routing features.
+    external_track_index : int | None
+        Logical external vector track used by an external routing feature.
+    external_source_index : int | None
+        Concrete expanded source-wire index, when it can be parsed.
+    external_destination_index : int | None
+        Concrete expanded destination-wire index, when it can be parsed.
+    external_segment_index : int | None
+        Expanded segment index derived from the source index when available,
+        otherwise from the destination index.
     resolved : bool
         Whether graph annotation was requested and succeeded.
     """
@@ -109,6 +121,11 @@ class FabulousFasmFeature:
     tile_type: str | None = None
     pip_kind: RoutingPipKind | None = None
     pip: RoutingPip | None = None
+    external_resource_key: RoutingResourceKey | None = None
+    external_track_index: int | None = None
+    external_source_index: int | None = None
+    external_destination_index: int | None = None
+    external_segment_index: int | None = None
     resolved: bool = False
 
     @property
@@ -263,6 +280,84 @@ class FabulousFasmDocument:
             filter_unique_pips=filter_unique_pips,
         )
         return [feature.pip for feature in features if feature.pip is not None]
+
+    def used_external_tracks_for_tile_type(
+        self,
+        tile_type: str,
+        where: Callable[[FabulousFasmFeature], bool] | None = None,
+        *,
+        filter_unique_tracks: bool = True,
+    ) -> list[tuple[RoutingResourceKey, int]]:
+        """Return resolved logical external tracks used by a tile type.
+
+        Parameters
+        ----------
+        tile_type : str
+            Placed tile type to query.
+        where : Callable[[FabulousFasmFeature], bool] | None
+            Optional additional predicate applied before tracks are returned.
+        filter_unique_tracks : bool
+            If ``True``, collapse repeated ``(resource_key, track_index)`` pairs
+            across tile instances and expanded long-wire segments.
+
+        Returns
+        -------
+        list[tuple[RoutingResourceKey, int]]
+            Used logical external tracks.
+        """
+        tracks: list[tuple[RoutingResourceKey, int]] = []
+        seen: set[tuple[RoutingResourceKey, int]] = set()
+        for feature in self.routing_external_features_for_tile_type(
+            tile_type,
+            where=where,
+            filter_unique_pips=False,
+        ):
+            if (
+                feature.external_resource_key is None
+                or feature.external_track_index is None
+            ):
+                continue
+            track = (feature.external_resource_key, feature.external_track_index)
+            if filter_unique_tracks and track in seen:
+                continue
+            tracks.append(track)
+            seen.add(track)
+        return tracks
+
+    def used_external_track_scores_for_tile_type(
+        self,
+        tile_type: str,
+        where: Callable[[FabulousFasmFeature], bool] | None = None,
+    ) -> dict[tuple[RoutingResourceKey, int], int]:
+        """Return usage counts for logical external tracks.
+
+        Parameters
+        ----------
+        tile_type : str
+            Placed tile type to query.
+        where : Callable[[FabulousFasmFeature], bool] | None
+            Optional additional predicate applied before tracks are scored.
+
+        Returns
+        -------
+        dict[tuple[RoutingResourceKey, int], int]
+            Mapping from ``(resource_key, track_index)`` to number of matching
+            external FASM features.
+        """
+        scores: dict[tuple[RoutingResourceKey, int], int] = {}
+        for feature in self.routing_external_features_for_tile_type(
+            tile_type,
+            where=where,
+            filter_unique_pips=False,
+        ):
+            if (
+                feature.external_resource_key is None
+                or feature.external_track_index is None
+            ):
+                continue
+            track = (feature.external_resource_key, feature.external_track_index)
+            scores[track] = scores.get(track, 0) + 1
+        return scores
 
     def unused_external_pips_for_tile_type(
         self,
@@ -537,6 +632,7 @@ def _annotate_feature(
 
     pip = pip_index.get((feature.tile_x, feature.tile_y, _pip_name(feature)))
     if pip is not None:
+        external_metadata = _external_track_metadata(pip)
         return replace(
             feature,
             feature_type=FabulousFasmFeatureType.ROUTING,
@@ -544,6 +640,7 @@ def _annotate_feature(
             pip_kind=pip.kind,
             pip=pip,
             resolved=True,
+            **external_metadata,
         )
 
     return replace(
@@ -653,6 +750,118 @@ def _external_pip_key(
     if filter_unique_pips:
         return pip.name
     return (pip.owner_tile, pip.name)
+
+
+def _external_track_metadata(pip: RoutingPip) -> dict[str, object]:
+    """Return graph-backed logical track fields for one resolved external PIP.
+
+    Parameters
+    ----------
+    pip : RoutingPip
+        Resolved graph PIP.
+
+    Returns
+    -------
+    dict[str, object]
+        Keyword values suitable for :func:`dataclasses.replace`. Non-external
+        PIPs, ``NULL`` endpoint resources, and resources without a wire count
+        return an empty dictionary.
+
+    Raises
+    ------
+    FabulousFasmResolveError
+        If a non-``NULL`` external PIP has inconsistent source and destination
+        track indexes.
+    """
+    if pip.kind is not RoutingPipKind.EXTERNAL_WIRE:
+        return {}
+
+    key = pip.resource_key
+    if key.wire_count is None:
+        return {"external_resource_key": key}
+    if key.source_name == "NULL" or key.destination_name == "NULL":
+        metadata: dict[str, object] = {"external_resource_key": key}
+        if key.wire_count == 1:
+            metadata["external_track_index"] = 0
+        return metadata
+
+    source_index = _external_endpoint_index(pip.source.wire, key)
+    destination_index = _external_endpoint_index(pip.destination.wire, key)
+    concrete_index = source_index if source_index is not None else destination_index
+    if concrete_index is None:
+        return {"external_resource_key": key}
+
+    track_index = concrete_index % key.wire_count
+    if (
+        source_index is not None
+        and destination_index is not None
+        and source_index % key.wire_count != destination_index % key.wire_count
+    ):
+        raise FabulousFasmResolveError(
+            f"external FASM PIP endpoints disagree on logical track: {pip.name}"
+        )
+
+    return {
+        "external_resource_key": key,
+        "external_track_index": track_index,
+        "external_source_index": source_index,
+        "external_destination_index": destination_index,
+        "external_segment_index": concrete_index // key.wire_count,
+    }
+
+
+def _wire_suffix_index(wire_name: str, base_name: str) -> int | None:
+    """Return the integer suffix of ``wire_name`` after ``base_name``.
+
+    Parameters
+    ----------
+    wire_name : str
+        Concrete wire name such as ``EE4BEG12``.
+    base_name : str
+        Base vector name such as ``EE4BEG``.
+
+    Returns
+    -------
+    int | None
+        Parsed suffix index, or ``None`` if the wire does not match the base.
+    """
+    if base_name == "NULL" or not wire_name.startswith(base_name):
+        return None
+    suffix = wire_name[len(base_name) :]
+    if not suffix.isdigit():
+        return None
+    return int(suffix)
+
+
+def _external_endpoint_index(
+    wire_name: str,
+    resource_key: RoutingResourceKey,
+) -> int | None:
+    """Return the expanded index for an endpoint of an external resource.
+
+    Parameters
+    ----------
+    wire_name : str
+        Concrete endpoint wire.
+    resource_key : RoutingResourceKey
+        External resource that generated the endpoint.
+
+    Returns
+    -------
+    int | None
+        Parsed expanded index from either the resource source or destination
+        base name.
+    """
+    base_names = sorted(
+        (resource_key.source_name, resource_key.destination_name),
+        key=len,
+        reverse=True,
+    )
+    for base_name in base_names:
+        index = _wire_suffix_index(wire_name, base_name)
+        if index is not None:
+            return index
+    return None
 
 
 def _parse_tile_coordinate(tile: str | None) -> tuple[int | None, int | None]:
