@@ -10,12 +10,12 @@ end-to-end gate-level run lives in
 
 # cspell:words netlist netlists pnr hdl stdcell sg13g2 ihp udp pdk
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.custom_exception import InvalidFileType
 from fabulous.fabulous_cli import cmd_run_simulation
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from tests.conftest import run_cmd
@@ -97,7 +97,9 @@ def test_gl_sim_libs_forwarded(cli: FABulous_CLI, mocker: MockerFixture) -> None
     assert collect.call_args.args[1] == ["a/*.v", "b.v"]
 
 
-def test_gl_rejects_vhdl(cli: FABulous_CLI, mocker: MockerFixture) -> None:
+def test_gl_rejects_vhdl(
+    cli: FABulous_CLI, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+) -> None:
     """Gate-level simulation is Verilog-only; a VHDL project is rejected."""
     bitstream = _make_bitstream(cli)
     mocker.patch(f"{_CMD_MODULE}.make_hex")
@@ -105,9 +107,11 @@ def test_gl_rejects_vhdl(cli: FABulous_CLI, mocker: MockerFixture) -> None:
     collect = mocker.patch(f"{_CMD_MODULE}.collect_gl_sources")
     cli.extension = "vhdl"
 
-    with pytest.raises(InvalidFileType, match="Verilog-only"):
-        cli.do_run_simulation(f"fst {bitstream} --gl")
+    run_cmd(cli, f"run_simulation --gl fst {bitstream}")
 
+    # cmd2 catches the raised InvalidFileType and reports it via exit_code + log.
+    assert cli.exit_code != 0
+    assert "Verilog-only" in caplog.text
     run_task.assert_not_called()
     collect.assert_not_called()
 
@@ -185,24 +189,39 @@ def test_collect_gl_sources_orders_wrapper_fabric_tiles_then_libs(
     assert names.index("eFPGA_top.v") < sources.index(netlist) < sources.index(tile)
 
 
-def test_collect_gl_sources_missing_fabric_netlist(tmp_path: Path) -> None:
-    """A missing fabric macro surfaces a clear error, not a skip."""
-    with pytest.raises(FileNotFoundError, match="gen_fabric_macro"):
-        cmd_run_simulation.collect_gl_sources(tmp_path, [])
+def _layout_no_fabric(_project: Path) -> None:
+    """No macro tree at all -> the fabric netlist is missing."""
 
 
-def test_collect_gl_sources_multiple_fabric_netlists(tmp_path: Path) -> None:
-    """More than one fabric netlist refuses to guess."""
-    _make_fabric_netlist(tmp_path, "eFPGA")
-    (tmp_path / "Fabric" / "macro" / "final_views" / "other.nl.v").write_text("//")
-    with pytest.raises(ValueError, match="Multiple fabric netlists"):
-        cmd_run_simulation.collect_gl_sources(tmp_path, [])
+def _layout_multiple_fabric(project: Path) -> None:
+    """Two fabric netlists under the macro tree -> ambiguous."""
+    _make_fabric_netlist(project, "eFPGA")
+    (project / "Fabric" / "macro" / "final_views" / "other.nl.v").write_text("//")
 
 
-def test_collect_gl_sources_missing_tile_netlists(tmp_path: Path) -> None:
-    """A fabric netlist without tile netlists surfaces a clear error."""
-    _make_fabric_netlist(tmp_path)
-    with pytest.raises(FileNotFoundError, match="gen_all_tile_macros"):
+def _layout_fabric_only(project: Path) -> None:
+    """A fabric netlist but no tile netlists."""
+    _make_fabric_netlist(project)
+
+
+@pytest.mark.parametrize(
+    ("setup", "exc", "match"),
+    [
+        (_layout_no_fabric, FileNotFoundError, "gen_fabric_macro"),
+        (_layout_multiple_fabric, ValueError, "Multiple fabric netlists"),
+        (_layout_fabric_only, FileNotFoundError, "gen_all_tile_macros"),
+    ],
+    ids=["missing-fabric", "multiple-fabric", "missing-tiles"],
+)
+def test_collect_gl_sources_invalid_layout(
+    tmp_path: Path,
+    setup: Callable[[Path], None],
+    exc: type[Exception],
+    match: str,
+) -> None:
+    """An incomplete or ambiguous macro layout surfaces a clear error, not a skip."""
+    setup(tmp_path)
+    with pytest.raises(exc, match=match):
         cmd_run_simulation.collect_gl_sources(tmp_path, [])
 
 
@@ -219,17 +238,24 @@ def test_resolve_sim_libs_override_no_match(tmp_path: Path) -> None:
         cmd_run_simulation.resolve_sim_libs(tmp_path, [str(tmp_path / "no" / "*.v")])
 
 
-def test_resolve_sim_libs_missing_pdk(tmp_path: Path, mocker: MockerFixture) -> None:
-    """Without a PDK in the context and without overrides, resolution fails."""
-    _patch_context(mocker, None, None)
-    with pytest.raises(ValueError, match="set FAB_PDK"):
-        cmd_run_simulation.resolve_sim_libs(tmp_path, [])
-
-
-def test_resolve_sim_libs_unknown_pdk(tmp_path: Path, mocker: MockerFixture) -> None:
-    """A PDK with no known standard-cell library fails clearly."""
-    _patch_context(mocker, "made_up_pdk", Path("/tmp/pdk"))
-    with pytest.raises(ValueError, match="No default standard-cell"):
+@pytest.mark.parametrize(
+    ("pdk", "pdk_root", "match"),
+    [
+        (None, None, "set FAB_PDK"),
+        ("made_up_pdk", Path("/tmp/pdk"), "No default standard-cell"),
+    ],
+    ids=["no-pdk", "unknown-pdk"],
+)
+def test_resolve_sim_libs_invalid_context(
+    tmp_path: Path,
+    mocker: MockerFixture,
+    pdk: str | None,
+    pdk_root: Path | None,
+    match: str,
+) -> None:
+    """Without usable PDK context and no overrides, resolution fails clearly."""
+    _patch_context(mocker, pdk, pdk_root)
+    with pytest.raises(ValueError, match=match):
         cmd_run_simulation.resolve_sim_libs(tmp_path, [])
 
 

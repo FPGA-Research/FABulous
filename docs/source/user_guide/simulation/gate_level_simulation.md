@@ -29,7 +29,7 @@ flowchart TB
     subgraph harden ["GDS flow (run once, see fabric_gds.md)"]
         T[Tiles] --> M[gen_all_tile_macros]
         M --> S[gen_fabric_macro]
-        S --> NL["Fabric/macro/final_views/eFPGA.nl.v
+        S --> NL["Fabric/macro/final_views/nl/eFPGA.nl.v
         Tile/*/macro/final_views/nl/*.nl.v"]
     end
 
@@ -94,7 +94,7 @@ The hardened project must contain the LibreLane outputs in place:
 ```text
 <project>/
 ├── .FABulous/.env                               # FAB_PDK (+ FAB_PDK_ROOT)
-├── Fabric/macro/final_views/**/eFPGA.nl.v        # exactly one fabric netlist
+├── Fabric/macro/final_views/nl/eFPGA.nl.v        # exactly one fabric netlist
 └── Tile/<tile>/macro/final_views/nl/<tile>.nl.v  # one netlist per tile
 ```
 
