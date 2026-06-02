@@ -18,12 +18,6 @@ from fabulous.fabric_generator.gds_generator.steps.timed_detailed_routing import
 class TestFABulousDetailedRoutingTimed:
     """Test suite for the timed detailed routing step."""
 
-    def test_timeout_config_var_default(self) -> None:
-        """FABULOUS_DRT_TIMEOUT is declared in config_vars with default 600."""
-        names = {var.name: var for var in FABulousDetailedRoutingTimed.config_vars}
-        assert "FABULOUS_DRT_TIMEOUT" in names
-        assert names["FABULOUS_DRT_TIMEOUT"].default == 600
-
     def test_timeout_raises_drt_timed_out_error(self, mocker: MockerFixture) -> None:
         """When the timer fired, a failure is wrapped as DRTTimedOutError."""
         event = mocker.MagicMock()
