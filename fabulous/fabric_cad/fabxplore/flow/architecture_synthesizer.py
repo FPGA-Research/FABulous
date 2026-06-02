@@ -25,6 +25,12 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.models import (
 from fabulous.fabric_cad.fabxplore.modules.lut_mapper.core.models import (
     LutMapperBackend,
 )
+from fabulous.fabric_cad.fabxplore.modules.netlist_tool.core.gatelevel_mapper import (
+    NetlistTool,
+)
+from fabulous.fabric_cad.fabxplore.modules.netlist_tool.core.models import (
+    PdkInputConfig,
+)
 from fabulous.fabric_cad.fabxplore.pnr.custom_passes import (
     InverseRouterPass,
     RoutingDemandEvaluatorPass,
@@ -266,6 +272,80 @@ class ArchitectureSynthesizer(ABC):
             path.write_text(report)
 
         return report
+
+    def netlist_tool_pass(
+        self,
+        tile_name: str,
+        sub_circuit_map_rules: list[str] | None = None,
+        buffer_wire_insertion: bool = False,
+        change_cell_types: dict[str, list[str]] | None = None,
+        add_liberty_cells: list[str] | None = None,
+        remove_liberty_cells: list[str] | None = None,
+        change_liberty_cell_area: dict[str, float] | None = None,
+    ) -> NetlistTool:
+        """Run a gate-level RTL mapping flow optimized for the Tile.
+
+        Parameters
+        ----------
+        tile_name : str
+            Name of the tile to map.
+        sub_circuit_map_rules : list[str] | None
+            Optional list of mapping rules for sub-circuit mapping. Each rule is a
+            string containing the Verilog code of the sub-circuit to be mapped.
+        buffer_wire_insertion : bool
+            Whether to insert buffers on long wires during mapping.
+        change_cell_types : dict[str, list[str]] | None
+            Optional dict mapping cell type categories to lists of cell types to use
+            in place of the original cells during mapping. For example, a key
+            "mytypes" with value ["sg13g2_or2_1", "sg13g2_nor3_1"] would replace all
+            cells in the "mytypes" category with the specified OR and NOR cells.
+        add_liberty_cells : list[str] | None
+            Optional list of liberty cell names to add to the design for mapping.
+        remove_liberty_cells : list[str] | None
+            Optional list of liberty cell names to remove from the design for mapping.
+        change_liberty_cell_area : dict[str, float] | None
+            Optional dict mapping liberty cell names to new area values for mapping.
+
+        Returns
+        -------
+        NetlistTool
+            The instance of the NetlistTool after mapping, containing the results.
+        """
+        rtl_files = [
+            self.project_context.models_pack,
+            *list((self.project_context.proj_dir / "Tile" / tile_name).glob("*.v")),
+        ]
+
+        config = PdkInputConfig(
+            top_name=tile_name,
+            rtl_files=rtl_files,
+            sub_circuit_map_rules=sub_circuit_map_rules,
+            buffer_wire_insertion=buffer_wire_insertion,
+            change_cell_types=change_cell_types,
+            add_liberty_cells=add_liberty_cells,
+            remove_liberty_cells=remove_liberty_cells,
+            change_liberty_cell_area=change_liberty_cell_area,
+        )
+
+        mapper = NetlistTool(config=config, debug=self.debug)
+
+        # That was missing in models_pack, remove if its there.
+        mapper.netlist_design.read_verilog_string(
+            """
+            module config_latch (input D, E, output reg Q, QN);
+                always @(*) begin
+                    if (E == 1'b1) begin
+                        Q = D;
+                        QN = ~D;
+                    end
+                end
+            endmodule
+            """
+        )
+
+        mapper.map_rtl()
+
+        return mapper
 
     def design_analyzer_pass(
         self,
