@@ -71,10 +71,49 @@ finishes** (`config_done`):
    only genuinely undriven (unused) nets to a constant; a net the configuration
    already drives to a real value is left untouched. This breaks the
    combinational X web without overwriting any configured value.
-2. A momentary `force` of a flip-flop async reset pin to its active level, then
-   `release`, gated on that flop's own `Q` still being X. This clears flop
-   *state* X that no net deposit can reach, while leaving a flop that already
-   holds a defined value alone.
+2. A per-flop clear of flop *state* X that no net deposit can reach (a flop
+   re-drives its own `Q`, so depositing the routing net it feeds does not stick),
+   gated on that flop's own `Q` still being X. The mechanism is **PDK-adaptive**,
+   because OpenROAD does not map the FABulous DFF to the same standard cell for
+   every PDK:
+   - When the mapped flop has an async reset pin (IHP's `sg13g2_dfrbp` has
+     `RESET_B`), a momentary `force` of that pin to its active level, then
+     `release`, drives the flop's state to 0 through its reset input.
+   - When the mapped flop is a plain DFF with no reset pin (sky130 `dfxtp`,
+     gf180 `dffq` — the bitstream configures only the synchronous reset, so
+     OpenROAD keeps a resetless cell), the state is seeded directly with
+     `if (Q === 1'bx) $deposit(Q, 0)`. The flop then captures its now-defined
+     `D` on the next clock.
+
+:::{important}
+The simulation uses the **timing-annotated** cell models (`iverilog -gspecify`).
+Do **not** add `-DFUNCTIONAL`: the FUNCTIONAL cell variants are zero-delay, so
+the unconfigured fabric's combinational routing loops oscillate forever at `t=0`
+— a livelock in which simulation time never advances and the run hangs before it
+reaches `config_done`. The timing variants carry non-zero specify delays that
+break those loops, so the run completes.
+:::
+
+:::{note}
+**Sequential cells are stubbed.** Icarus Verilog does not drive the `$setuphold`
+negative-timing *delayed* nets that the timing models route a flop's/latch's
+clock and data through, so those cells sit at X and no X-init can revive them.
+`run_simulation --gl` therefore runs `gen_gl_seq_stubs.py`, which swaps **only**
+the sequential cells (flops + config latches) for behavioural equivalents and
+emits filtered copies of the PDK libraries (stubbed modules removed, an explicit
+`timescale` forced on — gf180's models ship without one, which otherwise leaves
+switching nets X). The combinational cells keep their timing models, so the
+loop-breaking delays above are preserved. This is automatic; no flags needed.
+:::
+
+:::{note}
+**Relaxed clock for slow fabrics.** The hardened fabric runs on real cell delays,
+so a design clocked faster than its gate-level critical path produces wrong (but
+defined) values — just like the silicon. The testbench therefore widens the clock
+period under `GL_SIM` (`CLK_HALF_PERIOD`, override with
+`-DCLK_HALF_PERIOD=<ps>`). sky130 is fast enough at the RTL period; gf180 (180nm)
+needs the relaxed one. This is orthogonal to X removal.
+:::
 
 The scrub fires *after* config upload by design. The X comes from uninitialised
 state (flops and config-memory latches power up X). During upload the config
@@ -83,22 +122,21 @@ select that re-drives the unused-routing web, and the toggling `UserCLK` makes
 the flops re-capture it each cycle. A one-shot scrub *before* upload is therefore
 undone before `config_done`, with no later pass to clear it. `config_done` is the
 first point where config memory is fully defined, so the deposit holds and the
-flop reset is final. This is verified empirically: firing the scrub before the
+flop clear is final. This is verified empirically: firing the scrub before the
 upload loop instead leaves every fabric output X (the golden comparison fails),
 while firing it at `config_done` passes.
 
 :::{note}
-The reset pulse drives a user flop to its async-reset level (0), but only when
-that flop still holds X. For the current FABulous DFF
-(`LUT4c_frame_config_dffesr`) this is moot, because the bitstream only
-configures the *synchronous* reset target (`c_reset_value`), never the power-up
-runtime value, so every user flop is X at `config_done`.
+The flop clear drives a user flop to 0, but only when that flop still holds X.
+For the current FABulous DFF (`LUT4c_frame_config_dffesr`) this is moot, because
+the bitstream only configures the *synchronous* reset target (`c_reset_value`),
+never the power-up runtime value, so every user flop is X at `config_done`.
 
 A future fabric that adds a true **INIT bit** — letting the bitstream set a
 flop's power-on runtime value — is largely covered by the X-only guard: if that
-value reaches the flop's `Q` by `config_done`, `Q` is no longer X and the pulse
+value reaches the flop's `Q` by `config_done`, `Q` is no longer X and the clear
 skips it. The guard does *not* cover an INIT bit staged in config memory but not
-yet reflected in `Q`; the fix there is to pulse each flop toward its configured
+yet reflected in `Q`; the fix there is to clear each flop toward its configured
 INIT value instead of a hard 0 (moving the scrub before config does not help —
 the X returns during upload regardless).
 :::
@@ -204,16 +242,16 @@ A GL smoke test for the demo design lives in
 `tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py`, is marked
 `@pytest.mark.gl`, and is excluded from the default run. It compiles the demo
 `sequential_16bit_en` design against a hardened project and gate-level simulates
-it through `run_simulation --gl`. Opt in with `--rungl` and point at the
+it through `run_simulation --gl`. Opt in with `--gl` and point at the
 hardened project:
 
 ```bash
 pytest tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py \
-       --rungl --gl-fabric-project=/path/to/hardened/project -v
+       --gl --gl-fabric-project=/path/to/hardened/project -v
 
 # Supply the cell models explicitly (skips PDK auto-resolution)
 pytest tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py \
-       --rungl --gl-fabric-project=/path/to/hardened/project \
+       --gl --gl-fabric-project=/path/to/hardened/project \
        --gl-sim-libs='/path/to/<scl>.v' -v
 ```
 
@@ -224,7 +262,7 @@ original artifact is left untouched.
 
 | Flag | Description |
 |---|---|
-| `--rungl` | Enable the GL-marked test (otherwise skipped via the default `-m 'not gl'` filter). |
+| `--gl` | Enable the GL-marked test (otherwise skipped via the default `-m 'not gl'` filter). |
 | `--gl-fabric-project=<path>` | Path to the hardened FABulous project. Required (or set `FAB_GL_FABRIC_PROJECT`); without it the test skips. |
 | `--gl-sim-libs=<file-or-glob>` | Verilog sim-cell library file or glob. Repeatable. Overrides PDK auto-resolution. |
 
@@ -233,5 +271,5 @@ environment variable:
 
 ```bash
 FAB_GL_FABRIC_PROJECT=/path/to/hardened/project \
-    pytest tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py --rungl -v
+    pytest tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py --gl -v
 ```

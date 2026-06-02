@@ -157,7 +157,7 @@ directory = "coverage_html"
 testpaths = ["tests"]
 markers = [
   "slow: marks tests as slow (use --runslow to include)",
-  "gl: gate-level simulation against a hardened fabric netlist (use --rungl)",
+  "gl: gate-level simulation against a hardened fabric netlist (use --gl)",
 ]
 addopts = "-m 'not slow and not gl'"
 

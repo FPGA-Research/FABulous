@@ -13,6 +13,7 @@ so the existing ``<design>_tb.v`` drives the mixed-level DUT unchanged.
 
 import argparse
 import subprocess as sp
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -173,11 +174,72 @@ def collect_gl_sources(project: Path, sim_lib_overrides: list[str]) -> list[Path
     )
 
     sim_libs = resolve_sim_libs(project, sim_lib_overrides)
+    sim_sources = stub_sequential_cells(project, fabric_netlists[0], sim_libs)
     logger.info(
         f"GL sources: {len(behavioural)} behavioural wrapper + 1 fabric netlist "
-        f"+ {len(tile_netlists)} tile netlists + {len(sim_libs)} PDK sim file(s)"
+        f"+ {len(tile_netlists)} tile netlists + {len(sim_sources)} PDK sim "
+        "file(s) (sequential cells stubbed)"
     )
-    return [*behavioural, *fabric_netlists, *tile_netlists, *sim_libs]
+    return [*behavioural, *fabric_netlists, *tile_netlists, *sim_sources]
+
+
+def stub_sequential_cells(
+    project: Path, fabric_netlist: Path, sim_libs: list[Path]
+) -> list[Path]:
+    """Swap sequential PDK cells for behavioural stubs iverilog can simulate.
+
+    The hardened netlists bind the user flip-flops and configuration latches to
+    timing-annotated PDK cells whose clock/data run through ``$setuphold``
+    negative-timing delayed nets. Icarus Verilog does not drive those, so the
+    cells are stuck X and no X-init can revive them. ``gen_gl_seq_stubs.py``
+    emits behavioural replacements for exactly those cells plus filtered copies
+    of the sim libraries (with the stubbed modules removed, an explicit
+    ``timescale`` forced on), leaving the combinational cells on their timing
+    models so the unconfigured fabric's routing loops do not livelock.
+
+    Parameters
+    ----------
+    project : Path
+        Root of the hardened FABulous project (holds ``Test/gen_gl_seq_stubs.py``).
+    fabric_netlist : Path
+        The post-PnR fabric netlist, scanned for the sequential cells in use.
+    sim_libs : list[Path]
+        PDK sim-cell libraries resolved by :func:`resolve_sim_libs`.
+
+    Returns
+    -------
+    list[Path]
+        Filtered libraries plus the behavioural stub file, to use in place of
+        ``sim_libs``. Falls back to ``sim_libs`` unchanged if the project
+        predates the generator script.
+    """
+    script = project / "Test" / "gen_gl_seq_stubs.py"
+    if not script.exists():
+        logger.warning(
+            f"{script} not found; gate-level simulation will use the raw PDK "
+            "sequential models, which iverilog cannot clock. Update the project "
+            "Test/ from the current template."
+        )
+        return sim_libs
+
+    out_dir = project / "Test" / "build" / "gl_stubs"
+    cmd = [
+        sys.executable or "python3",
+        str(script),
+        "--efpga",
+        str(fabric_netlist),
+        "--tile-dir",
+        str(project / "Tile"),
+        "--out-dir",
+        str(out_dir),
+    ]
+    for lib in sim_libs:
+        cmd += ["--sim-lib", str(lib)]
+    result = sp.run(cmd, capture_output=True, text=True, check=True)
+    if result.stderr.strip():
+        logger.info(result.stderr.strip())
+    sources = [Path(line) for line in result.stdout.split() if line.strip()]
+    return sources or sim_libs
 
 
 run_simulation_parser = Cmd2ArgumentParser()

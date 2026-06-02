@@ -19,10 +19,23 @@ configuration already drives to a defined value is left untouched:
    the combinational X web. The X-only guard means a net the configuration
    drives to a real constant is never overwritten with 0; only genuinely
    undriven (unused) nets are pinned to a defined constant.
-2. A momentary ``force`` of a flip-flop async reset pin to its active level
-   (a reset pulse), then ``release`` -> clears flop *state* X that no net
-   deposit can reach. Gated on that flop's own ``Q`` being X, so a flop already
-   holding a defined value is left alone.
+2. A per-flop clear of flop *state* X that no net deposit can reach (a flop's own
+   ``Q`` is re-driven by the flop, so depositing the routing net it feeds does
+   not stick). Gated on that flop's own ``Q`` being X, so a flop already holding
+   a defined value is left alone. The clear is **PDK-adaptive**, because OpenROAD
+   does not map the FABulous DFF to the same std cell for every PDK:
+
+   - When the mapped flop carries an async reset pin (IHP ``sg13g2_dfrbp`` has
+     ``RESET_B``), a momentary ``force`` of that pin to its active level (a reset
+     pulse), then ``release``, drives the flop's internal state to 0 through the
+     cell's reset input.
+   - When the mapped flop is a plain DFF with no reset pin (sky130 ``dfxtp``,
+     gf180 ``dffq`` -- the bitstream configures only the *synchronous* reset, so
+     OpenROAD keeps a resetless cell), there is no reset pin to pulse, so the
+     state is seeded directly with ``if (Q === 1'bx) $deposit(Q, 0)``. The
+     deposit seeds the flop's state, after which it captures its now-defined
+     ``D`` on the next clock -- verified on the worst case, a self-feedback
+     toggle (``D = ~Q``) the net deposits cannot reach.
 
 Neither action can hide a design bug: the design output is still compared
 against the golden reference, so a wrong value can only cause a visible
@@ -30,8 +43,33 @@ mismatch, never a false pass. Because both actions are X-only, they can only
 *add* definedness where the design left X; they never change a value the
 configuration or datapath already resolved.
 
-The flip-flop async reset pin name is PDK-specific; the three PDKs FABulous
-hardens for all use an active-low async reset, so the pulse drives it to 0.
+Do not compile the cell models with ``-DFUNCTIONAL``
+----------------------------------------------------
+
+The simulation must use the **timing-annotated** cell models (``iverilog
+-gspecify``, *no* ``-DFUNCTIONAL``). The ``FUNCTIONAL`` variants are zero-delay,
+so the unconfigured fabric's combinational routing loops oscillate forever at
+``t=0`` -- a livelock in which simulation time never advances and the run hangs
+before it ever reaches ``config_done``. The timing variants carry non-zero
+specify delays that break those loops, so time advances and the run completes.
+
+The sequential cells are behavioural stubs (see ``gen_gl_seq_stubs.py``)
+--------------------------------------------------------------------------
+
+Icarus Verilog does not drive the ``$setuphold`` negative-timing *delayed* nets
+that the timing models route a flop's / latch's clock and data through, so those
+cells are stuck X and no X-init can revive them (sky130 ``dfxtp`` / ``dlxtp``
+hit this; gf180 ``dffq`` / ``latq`` wire their UDP directly but still misbehave).
+``gen_gl_seq_stubs.py`` replaces just the sequential cells with behavioural
+equivalents (and forces an explicit ``timescale`` -- gf180's models ship without
+one) while leaving the combinational cells on their timing models. This X-init
+seeds those stub flops; the deposits + the stubs together clear the fabric.
+
+The slow process / fabric may also need a relaxed clock: gf180's hardened gates
+do not meet timing at the RTL clock period, so the testbench widens the period
+under ``GL_SIM``. This is orthogonal to X removal but required for a functional
+match (a counter clocked faster than its critical path produces wrong values,
+exactly as the silicon would).
 
 Why both actions fire *after* config upload (``config_done``)
 ------------------------------------------------------------
@@ -44,7 +82,7 @@ meanwhile ``UserCLK`` is toggling, so the user flops re-capture that X each cycl
 A one-shot scrub *before* upload is therefore undone -- the deposit is re-driven
 and the flops re-dirtied before ``config_done``, with no later pass to clear them.
 ``config_done`` is the first point where config memory is fully defined, so the
-deposit holds and the flop reset is final.
+deposit holds and the flop clear is final.
 
 This was verified empirically: triggering the scrub before the upload loop
 instead leaves every fabric output X and the golden comparison fails outright,
@@ -53,21 +91,21 @@ while triggering it at ``config_done`` passes.
 Limitation: bitstream-set power-on flop values
 ----------------------------------------------
 
-The reset pulse drives a user flop to the async-reset level (0), but only when
-that flop still holds X (action 2 is X-only). For the current FABulous DFF
+The flop clear drives a user flop to 0, but only when that flop still holds X
+(action 2 is X-only). For the current FABulous DFF
 (``LUT4c_frame_config_dffesr``) this is moot: the bitstream only configures the
 *synchronous* reset target ``c_reset_value`` (applied by the design's own
 ``SR``), never the power-up runtime value, so every user flop is X at
-``config_done`` and the pulse simply defines it.
+``config_done`` and the clear simply defines it.
 
 A future fabric that adds a true INIT bit -- letting the bitstream set a flop's
 power-on runtime value -- is largely covered by the X-only guard: if that value
 is materialised into the flop's ``Q`` by ``config_done``, ``Q`` is no longer X
-and the pulse skips it, preserving the configured value. The guard does *not*
+and the clear skips it, preserving the configured value. The guard does *not*
 cover an INIT bit staged in config memory but not yet reflected in ``Q`` --
-there the flop is still X and the pulse defaults it to 0. The fix in that case
-is to pulse each flop toward its configured INIT value instead of a hard 0
-(moving the pulse before config does not help -- the X returns during upload,
+there the flop is still X and the clear defaults it to 0. The fix in that case
+is to clear each flop toward its configured INIT value instead of a hard 0
+(moving the clear before config does not help -- the X returns during upload,
 as verified above).
 
 Usage
@@ -88,8 +126,12 @@ import re
 import sys
 from pathlib import Path
 
-# Async reset pin of the flip-flop std cell the hardened netlist binds against,
-# per PDK. All three are active-low, so the reset pulse drives the pin to 0.
+# Async reset pin of the flip-flop std cell the hardened netlist *may* bind
+# against, per PDK. All are active-low, so the reset pulse drives the pin to 0.
+# Whether a flop actually carries this pin is decided per instance: IHP maps to
+# a resettable cell (``sg13g2_dfrbp``, ``RESET_B``); sky130 / gf180 map to plain
+# DFFs with no reset pin, which are cleared by depositing ``Q`` instead. The
+# entry is the pin to look for, not a promise that the netlist contains it.
 _RESET_PIN_BY_PDK: dict[str, str] = {
     "ihp-sg13g2": "RESET_B",
     "sky130A": "RESET_B",
@@ -132,40 +174,49 @@ def collect_efpga_nets(efpga: Path) -> list[str]:
 _INST_RE = re.compile(r"\b\w+\s+\S+\s*\((.*?)\)\s*;", re.DOTALL)
 
 
-def collect_flop_pins(
+def collect_flops(
     tile_dir: Path, reset_pin: str
-) -> dict[str, list[tuple[str, str]]]:
-    """Map each tile type to its flops' ``(reset net, Q net)`` pairs.
+) -> dict[str, list[tuple[str, str | None]]]:
+    """Map each tile type to its flip-flops' ``(Q net, reset net | None)`` pairs.
 
-    Flops are located by the presence of both the async reset pin and a ``Q``
-    output on the same cell instantiation, so this is std-cell-name agnostic.
-    Pairing the reset net with its own ``Q`` lets the X-init pulse a flop only
-    when that flop actually holds X, never overwriting a defined value.
+    A flip-flop is any cell instantiation carrying both a ``Q`` output and a
+    ``CLK`` edge-clock pin. The ``CLK`` requirement is what isolates the
+    edge-triggered user flops from the gate-enabled configuration-memory latches
+    (``latq`` / ``dlxtp``), which also expose a ``Q`` but are enabled by ``E`` /
+    ``GATE`` and have no ``CLK``; it stays std-cell-name agnostic. If the flop
+    also carries the PDK async reset pin its reset net is recorded, otherwise the
+    pair holds ``None`` -- the two get different X-init treatment (a reset pulse
+    vs a ``Q`` deposit). Either way the action is gated on the flop's own ``Q``
+    being X, so a flop already holding a defined value is left alone.
 
     Parameters
     ----------
     tile_dir : Path
         The project ``Tile`` directory.
     reset_pin : str
-        The flip-flop async reset pin name to match (PDK-specific).
+        The flip-flop async reset pin name to match (PDK-specific). A flop whose
+        instantiation lacks it is paired with ``None``.
 
     Returns
     -------
-    dict[str, list[tuple[str, str]]]
+    dict[str, list[tuple[str, str | None]]]
         Tile type (the ``Tile/<type>`` directory name) -> list of
-        ``(reset net, Q net)``, one entry per flop instance.
+        ``(Q net, reset net | None)``, one entry per flop instance.
     """
     rpin = re.compile(rf"\.{re.escape(reset_pin)}\(\s*(.*?)\s*\)")
     qpin = re.compile(r"\.Q\(\s*(.*?)\s*\)")
-    out: dict[str, list[tuple[str, str]]] = {}
+    has_clk = re.compile(r"\.CLK\(")
+    out: dict[str, list[tuple[str, str | None]]] = {}
     for nl in sorted(tile_dir.glob("*/macro/final_views/nl/*.nl.v")):
         ttype = nl.parents[3].name
-        pairs: list[tuple[str, str]] = []
+        pairs: list[tuple[str, str | None]] = []
         for body in _INST_RE.findall(nl.read_text()):
-            rm = rpin.search(body)
             qm = qpin.search(body)
-            if rm and qm:
-                pairs.append((rm.group(1).strip(), qm.group(1).strip()))
+            if not qm or not has_clk.search(body):
+                continue
+            rm = rpin.search(body)
+            reset_net = rm.group(1).strip() if rm else None
+            pairs.append((qm.group(1).strip(), reset_net))
         if pairs:
             out[ttype] = pairs
     return out
@@ -244,7 +295,8 @@ def main() -> None:
         "--pdk",
         required=True,
         choices=sorted(_RESET_PIN_BY_PDK),
-        help="PDK whose flip-flop async reset pin should be pulsed",
+        help="PDK whose flip-flop async reset pin should be pulsed (when its "
+        "mapped flop has one; resetless flops are cleared by depositing Q)",
     )
     ap.add_argument(
         "--top-inst",
@@ -262,18 +314,20 @@ def main() -> None:
     reset_pin = _RESET_PIN_BY_PDK[args.pdk]
 
     nets = collect_efpga_nets(args.efpga)
-    flop_pins = collect_flop_pins(args.tile_dir, reset_pin)
-    instances = collect_flop_tile_instances(args.efpga, sorted(flop_pins))
+    flops = collect_flops(args.tile_dir, reset_pin)
+    instances = collect_flop_tile_instances(args.efpga, sorted(flops))
 
-    flop_pulses: list[tuple[str, str]] = []  # (reset net ref, Q net ref) per flop
+    # Split flops by how their state X is cleared: a reset pulse where the mapped
+    # cell has an async reset pin, a Q deposit where it does not.
+    reset_flops: list[tuple[str, str]] = []  # (Q net ref, reset net ref)
+    deposit_flops: list[str] = []  # Q net ref
     for ttype, inst in instances:
-        for rnet, qnet in flop_pins.get(ttype, []):
-            flop_pulses.append(
-                (
-                    leaf_ref(args.top_inst, inst, rnet),
-                    leaf_ref(args.top_inst, inst, qnet),
-                )
-            )
+        for qnet, rnet in flops.get(ttype, []):
+            qref = leaf_ref(args.top_inst, inst, qnet)
+            if rnet is not None:
+                reset_flops.append((qref, leaf_ref(args.top_inst, inst, rnet)))
+            else:
+                deposit_flops.append(qref)
 
     L: list[str] = []
     L.append("// AUTO-GENERATED by gen_gl_xinit.py -- do not edit by hand.")
@@ -287,26 +341,31 @@ def main() -> None:
     for n in nets:
         ref = net_ref(args.top_inst, n)
         L.append(f"    if ({ref} === 1'bx) $deposit({ref}, 1'b0);")
-    L.append(
-        f"    // 2) async-reset pulse ({reset_pin}, active-low): clear flop state X."
-    )
-    L.append("    //    X-only: a flop already holding a defined value (e.g. a future")
-    L.append("    //    INIT-bit power-on value) is left alone, never forced to 0.")
-    for rnet, qnet in flop_pulses:
-        L.append(f"    if ({qnet} === 1'bx) force {rnet}= 1'b0;")
+    L.append("    // 2) clear flop state X (a net deposit cannot reach it -- the flop")
+    L.append("    //    re-drives its own Q). X-only: a flop already holding a defined")
+    L.append("    //    value (e.g. a future INIT-bit power-on value) is left alone.")
+    if reset_flops:
+        L.append(f"    //    2a) async-reset pulse ({reset_pin}, active-low).")
+        for qref, rref in reset_flops:
+            L.append(f"    if ({qref} === 1'bx) force {rref}= 1'b0;")
+    if deposit_flops:
+        L.append("    //    2b) resetless flops: seed Q directly (needs -DFUNCTIONAL).")
+        for qref in deposit_flops:
+            L.append(f"    if ({qref} === 1'bx) $deposit({qref}, 1'b0);")
     L.append("    #1;")
-    for rnet, _qnet in flop_pulses:
-        L.append(f"    release {rnet};")
+    for _qref, rref in reset_flops:
+        L.append(f"    release {rref};")
     L.append(
-        f'    $display("[gl_xinit] %0d deposits, %0d flop resets @ %0t",'
-        f" {len(nets)}, {len(flop_pulses)}, $time);"
+        f'    $display("[gl_xinit] %0d deposits, %0d flop resets, %0d flop deposits'
+        f' @ %0t", {len(nets)}, {len(reset_flops)}, {len(deposit_flops)}, $time);'
     )
     L.append("end")
 
     args.out.write_text("\n".join(L) + "\n")
     sys.stderr.write(
-        f"wrote {args.out}: {len(nets)} deposits, {len(flop_pulses)} flop async "
-        f"resets ({len(instances)} flop tiles, reset pin {reset_pin})\n"
+        f"wrote {args.out}: {len(nets)} net deposits, {len(reset_flops)} flop "
+        f"reset pulses, {len(deposit_flops)} flop Q deposits "
+        f"({len(instances)} flop tile instances, reset pin {reset_pin})\n"
     )
 
 

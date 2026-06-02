@@ -12,7 +12,7 @@ This mirrors the demo flow in the project ``FABulous.tcl`` (``load_fabric`` →
 ``run_simulation``), differing only in the final ``--gl`` step.
 
 Marked ``@pytest.mark.gl`` and skipped from the default suite. Opt in with
-``pytest --rungl --gl-fabric-project=<path>`` and a Nix toolchain that provides
+``pytest --gl --gl-fabric-project=<path>`` and a Nix toolchain that provides
 iverilog plus the PDK cell models (see the GL fixtures in this directory's
 :mod:`conftest` for layout expectations).
 """

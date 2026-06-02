@@ -225,16 +225,21 @@ jobs:
 
       # Once the fabric is stitched, the project holds the full hardened netlist
       # (tile macros + eFPGA.nl.v), so gate-level simulation runs on the real
-      # gates -- no mocking. compile_design builds the demo bitstream; the --gl
-      # run swaps the fabric core for gates, X-inits it, and checks the counter
-      # against the behavioural golden reference (it $finish-es only on a match).
+      # gates -- no mocking. Drive it through the same pytest test developers run
+      # locally (`test_gl_simulation_demo`, the `run_simulation --gl` path) so CI
+      # and the test suite share one source of truth. The test compiles the demo
+      # bitstream, swaps the fabric core for gates, X-inits it, and checks the
+      # counter against the behavioural golden reference (it $finish-es only on a
+      # match). --gl-fabric-project must be absolute: the test chdirs to a tmp
+      # dir before resolving it.
       - name: Run gate-level simulation
         run: |
           set -o pipefail
+          PROJ="$PWD/test_project"
           nix develop --command bash -c "
             set -e
-            FABulous --project-dir test_project run 'compile_design user_design/sequential_16bit_en.v'
-            FABulous --project-dir test_project run 'run_simulation --gl fst user_design/sequential_16bit_en.bin'
+            pytest tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py \
+              --gl --gl-fabric-project='$PROJ' -s -v
           " 2>&1 | tee gl_sim_output.txt
           if ! grep -q 'finish called' gl_sim_output.txt; then
             echo "FAIL: gate-level simulation did not finish (golden mismatch, or a compile/sim error)"

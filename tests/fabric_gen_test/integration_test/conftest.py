@@ -534,8 +534,8 @@ def compile_user_design(
 # fabric-output-<pdk>.tar.zst). Provide the hardened project either as a CLI
 # option or as an env var:
 #
-#     pytest --rungl --gl-fabric-project=/path/to/test_project
-#     FAB_GL_FABRIC_PROJECT=/path/to/test_project pytest --rungl
+#     pytest --gl --gl-fabric-project=/path/to/test_project
+#     FAB_GL_FABRIC_PROJECT=/path/to/test_project pytest --gl
 #
 # PDK sim-cell libs are resolved from FAB_PDK + (FAB_PDK_ROOT or ciel default).
 # Override with `--gl-sim-libs=<glob>` (repeatable).
@@ -555,7 +555,7 @@ _COMMON_TEMPLATE_TEST_DIR = (
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]
     """Register GL-only knobs.
 
-    ``--rungl`` and ``--gl-fabric-project`` are registered in the repo-level
+    ``--gl`` and ``--gl-fabric-project`` are registered in the repo-level
     ``tests/conftest.py``; ``--gl-sim-libs`` is GL-specific and lives here.
     """
     group = parser.getgroup("FABulous GL simulation")
@@ -597,17 +597,23 @@ def gl_fabric_project(pytestconfig: pytest.Config) -> Path:
     return project
 
 
-def _ignore_heavy_artifacts(_dir: str, names: list[str]) -> set[str]:
+def _ignore_heavy_artifacts(src_dir: str, names: list[str]) -> set[str]:
     """``shutil.copytree`` filter that skips LibreLane run output.
 
     Hardened projects can be tens of GB because every Tile/ holds the full
-    librelane ``runs/`` tree plus ``macro/`` snapshots. None of that is read
-    by ``compile_design`` or by the GL cocotb path — netlists are referenced
-    from the original project — so excluding them keeps the per-test copy
+    librelane ``runs/`` tree plus per-macro snapshots. ``run_simulation --gl``
+    only reads the netlists under each ``macro/final_views/`` (see
+    ``collect_gl_sources``), so keep that subtree and drop the rest of
+    ``macro/`` along with ``runs/`` and ``gds/`` to keep the per-test copy
     cheap.
     """
-    skip = {"macro", "runs", "gds", ".git", "__pycache__"}
-    return {n for n in names if n in skip}
+    skip = {"runs", "gds", ".git", "__pycache__"}
+    ignored = {n for n in names if n in skip}
+    # macro/ holds the final_views netlists the GL flow resolves alongside
+    # heavy intermediate snapshots; keep only final_views.
+    if Path(src_dir).name == "macro":
+        ignored |= {n for n in names if n != "final_views"}
+    return ignored
 
 
 @pytest.fixture
@@ -621,9 +627,10 @@ def hardened_project_copy(
     ``compile_design`` mutates ``user_design/`` and writes intermediate files
     into ``.FABulous/``, so the supplied artifact is copied into a fresh tmp
     dir first to keep it untouched and to allow parallel runs. The copy
-    excludes the heavy librelane artifacts (``macro/``, ``runs/``, ``gds/``):
-    the netlist / sim-lib fixtures read those from the original project path,
-    not the copy.
+    drops the heavy librelane artifacts (``runs/``, ``gds/`` and the
+    non-``final_views`` parts of each ``macro/``) but keeps the
+    ``macro/final_views`` netlists, since ``run_simulation --gl`` resolves
+    the gate-level sources from the copy (see ``collect_gl_sources``).
 
     The Test/ Taskfile is taken from the **current** FABulous template rather
     than what shipped with the artifact, because the compile_design contract

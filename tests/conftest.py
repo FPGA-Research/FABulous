@@ -21,7 +21,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-define
 
     Usage:
         pytest --runslow
-        pytest --rungl --gl-fabric-project=<path>
+        pytest --gl --gl-fabric-project=<path>
 
     Without these flags, tests marked ``@pytest.mark.slow`` /
     ``@pytest.mark.gl`` are excluded via the default ``addopts`` filter in
@@ -34,7 +34,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-define
         help="run tests marked as slow (overrides default '-m not slow')",
     )
     parser.addoption(
-        "--rungl",
+        "--gl",
         action="store_true",
         default=False,
         help="run gate-level (GL) simulation tests; requires a fabric project "
@@ -57,7 +57,7 @@ def pytest_configure(config: pytest.Config) -> None:  # type: ignore[name-define
     parts = [p.strip() for p in markexpr.split(" and ") if p.strip()]
     if config.getoption("runslow"):
         parts = [p for p in parts if p.replace(" ", "") != "notslow"]
-    if config.getoption("rungl"):
+    if config.getoption("gl"):
         parts = [p for p in parts if p.replace(" ", "") != "notgl"]
     config.option.markexpr = " and ".join(parts)
 

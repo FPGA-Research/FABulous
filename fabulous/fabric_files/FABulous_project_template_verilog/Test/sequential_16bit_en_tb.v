@@ -51,7 +51,19 @@ module sequential_16bit_en_tb ();
     localparam integer       MAX_BITBYTES               = 16384;
     reg                [7:0] bitstream   [MAX_BITBYTES]        ;
 
-    always #5000 CLK = (CLK === 1'b0);
+    // Clock half-period. Gate-level (GL_SIM) runs the hardened fabric, whose
+    // real cell delays need far more settling time than the behavioural fabric:
+    // the demo bitstream's counter does not meet timing at the RTL 5ns period on
+    // a slow PDK (e.g. gf180), so GL defaults to a relaxed period. Override with
+    // -DCLK_HALF_PERIOD=<ps> for a specific fabric's achievable frequency.
+`ifndef CLK_HALF_PERIOD
+  `ifdef GL_SIM
+    `define CLK_HALF_PERIOD 50000
+  `else
+    `define CLK_HALF_PERIOD 5000
+  `endif
+`endif
+    always #(`CLK_HALF_PERIOD) CLK = (CLK === 1'b0);
 
     integer i                 ;
     reg     have_errors = 1'b0;
