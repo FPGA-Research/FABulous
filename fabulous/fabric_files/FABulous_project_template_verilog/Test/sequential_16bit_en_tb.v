@@ -51,25 +51,22 @@ module sequential_16bit_en_tb ();
     localparam integer       MAX_BITBYTES               = 16384;
     reg                [7:0] bitstream   [MAX_BITBYTES]        ;
 
-    // Clock half-period. Gate-level (GL_SIM) runs the hardened fabric, whose
-    // real cell delays need far more settling time than the behavioural fabric:
-    // the demo bitstream's counter does not meet timing at the RTL 5ns period on
-    // a slow PDK (e.g. gf180), so GL defaults to a relaxed period. Override with
-    // -DCLK_HALF_PERIOD=<ps> for a specific fabric's achievable frequency.
-`ifndef CLK_HALF_PERIOD
-  `ifdef GL_SIM
-    `define CLK_HALF_PERIOD 50000
-  `else
-    `define CLK_HALF_PERIOD 5000
-  `endif
-`endif
-    always #(`CLK_HALF_PERIOD) CLK = (CLK === 1'b0);
+    // a slower clock to make it easier to meet timing in gate-level sim
+    always #500000 CLK = (CLK === 1'b0);
 
     integer i                 ;
     reg     have_errors = 1'b0;
 
     reg [2047:0] bitstream_hex_arg  ; // 256 bytes for characters
     reg [2047:0] output_waveform_arg; // 256 bytes for characters
+
+    // Gate-level only: the hardened fabric powers up X-pessimistic. The
+    // generated force_block.vh deposits 0 onto every fabric net and pulses the
+    // flop async resets once config_done is high.
+`ifdef GL_SIM
+    `include "force_block.vh"
+`endif
+
     initial begin
 
         if ($value$plusargs("output_waveform=%s", output_waveform_arg)) begin
@@ -123,15 +120,6 @@ module sequential_16bit_en_tb ();
         if (have_errors) $fatal;
         else $finish;
     end
-
-    // Gate-level only: the hardened fabric powers up X-pessimistic (unused
-    // routing forms a combinational X web; flops capture X during upload). The
-    // generated force_block.vh deposits 0 onto every fabric net and pulses the
-    // flop async resets once config_done is high. Guarded so RTL simulation,
-    // which never generates force_block.vh, still compiles.
-`ifdef GL_SIM
-    `include "force_block.vh"
-`endif
 
 endmodule
 `endif

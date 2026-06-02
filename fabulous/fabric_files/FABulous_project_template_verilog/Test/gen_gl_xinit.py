@@ -1,112 +1,25 @@
 #!/usr/bin/env python3
-"""Removes gate-level X-pessimism for FABulous post-PnR (hardened) fabric simulation.
+"""Generate ``force_block.vh`` to remove gate-level X-pessimism in hardened sim.
 
-Background
-----------
+A hardened fabric powers up all-X (OpenROAD resynthesises FABulous's X-optimistic
+cells into X-pessimistic gates), and the X never clears on its own. This script
+emits ``force_block.vh`` (compiled in with ``-DGL_SIM``) with two one-shot actions
+fired at ``config_done``:
 
-After hardening, OpenROAD resynthesises the X-optimistic ``cus_mux161`` LUT/mux
-structures into generic AOI/NAND std cells that are X-pessimistic. Unused fabric
-routing therefore forms a self-sustaining X web that leaks into used logic, and
-the user flip-flops power up / capture X that the synchronous reset cannot scrub
-(the reset path runs through the same X-pessimistic gates; the async reset pin is
-tied off). This is the #252 / #719 flop-X manifestation.
+1. ``$deposit 0`` on every still-X fabric net -- breaks the combinational X web.
+2. A per-flop state clear (a net deposit cannot reach a flop, which re-drives its
+   own ``Q``). It is PDK-adaptive, because OpenROAD maps the FABulous DFF to a
+   different cell per PDK: a reset-pin pulse where the mapped cell has an async
+   reset (IHP ``sg13g2_dfrbpq``, ``RESET_B``), a ``$deposit(Q, 0)`` where it does
+   not (sky130 ``dfxtp``, gf180 ``dffq``).
 
-This generator emits two one-shot actions fired after configuration upload,
-each gated so it touches only state that is still X -- a net or flop the
-configuration already drives to a defined value is left untouched:
+Both actions are **X-only** (gated on the target still being X), so they only add
+definedness where the design left X and can never overwrite a configured value or
+hide a bug -- a wrong value still mismatches the golden reference.
 
-1. ``if (net === 1'bx) $deposit(net, 0)`` on every fabric-level net -> breaks
-   the combinational X web. The X-only guard means a net the configuration
-   drives to a real constant is never overwritten with 0; only genuinely
-   undriven (unused) nets are pinned to a defined constant.
-2. A per-flop clear of flop *state* X that no net deposit can reach (a flop's own
-   ``Q`` is re-driven by the flop, so depositing the routing net it feeds does
-   not stick). Gated on that flop's own ``Q`` being X, so a flop already holding
-   a defined value is left alone. The clear is **PDK-adaptive**, because OpenROAD
-   does not map the FABulous DFF to the same std cell for every PDK:
-
-   - When the mapped flop carries an async reset pin (IHP ``sg13g2_dfrbp`` has
-     ``RESET_B``), a momentary ``force`` of that pin to its active level (a reset
-     pulse), then ``release``, drives the flop's internal state to 0 through the
-     cell's reset input.
-   - When the mapped flop is a plain DFF with no reset pin (sky130 ``dfxtp``,
-     gf180 ``dffq`` -- the bitstream configures only the *synchronous* reset, so
-     OpenROAD keeps a resetless cell), there is no reset pin to pulse, so the
-     state is seeded directly with ``if (Q === 1'bx) $deposit(Q, 0)``. The
-     deposit seeds the flop's state, after which it captures its now-defined
-     ``D`` on the next clock -- verified on the worst case, a self-feedback
-     toggle (``D = ~Q``) the net deposits cannot reach.
-
-Neither action can hide a design bug: the design output is still compared
-against the golden reference, so a wrong value can only cause a visible
-mismatch, never a false pass. Because both actions are X-only, they can only
-*add* definedness where the design left X; they never change a value the
-configuration or datapath already resolved.
-
-Do not compile the cell models with ``-DFUNCTIONAL``
-----------------------------------------------------
-
-The simulation must use the **timing-annotated** cell models (``iverilog
--gspecify``, *no* ``-DFUNCTIONAL``). The ``FUNCTIONAL`` variants are zero-delay,
-so the unconfigured fabric's combinational routing loops oscillate forever at
-``t=0`` -- a livelock in which simulation time never advances and the run hangs
-before it ever reaches ``config_done``. The timing variants carry non-zero
-specify delays that break those loops, so time advances and the run completes.
-
-The sequential cells are behavioural stubs (see ``gen_gl_seq_stubs.py``)
---------------------------------------------------------------------------
-
-Icarus Verilog does not drive the ``$setuphold`` negative-timing *delayed* nets
-that the timing models route a flop's / latch's clock and data through, so those
-cells are stuck X and no X-init can revive them (sky130 ``dfxtp`` / ``dlxtp``
-hit this; gf180 ``dffq`` / ``latq`` wire their UDP directly but still misbehave).
-``gen_gl_seq_stubs.py`` replaces just the sequential cells with behavioural
-equivalents (and forces an explicit ``timescale`` -- gf180's models ship without
-one) while leaving the combinational cells on their timing models. This X-init
-seeds those stub flops; the deposits + the stubs together clear the fabric.
-
-The slow process / fabric may also need a relaxed clock: gf180's hardened gates
-do not meet timing at the RTL clock period, so the testbench widens the period
-under ``GL_SIM``. This is orthogonal to X removal but required for a functional
-match (a counter clocked faster than its critical path produces wrong values,
-exactly as the silicon would).
-
-Why both actions fire *after* config upload (``config_done``)
-------------------------------------------------------------
-
-The X originates from uninitialized state: flops and config-memory latches power
-up X. The deposit is overrideable, so it only sticks where nothing else drives.
-During upload the config-memory latches resolve frame by frame, and every
-not-yet-written bit drives an X mux select that re-drives the unused-routing web;
-meanwhile ``UserCLK`` is toggling, so the user flops re-capture that X each cycle.
-A one-shot scrub *before* upload is therefore undone -- the deposit is re-driven
-and the flops re-dirtied before ``config_done``, with no later pass to clear them.
-``config_done`` is the first point where config memory is fully defined, so the
-deposit holds and the flop clear is final.
-
-This was verified empirically: triggering the scrub before the upload loop
-instead leaves every fabric output X and the golden comparison fails outright,
-while triggering it at ``config_done`` passes.
-
-Limitation: bitstream-set power-on flop values
-----------------------------------------------
-
-The flop clear drives a user flop to 0, but only when that flop still holds X
-(action 2 is X-only). For the current FABulous DFF
-(``LUT4c_frame_config_dffesr``) this is moot: the bitstream only configures the
-*synchronous* reset target ``c_reset_value`` (applied by the design's own
-``SR``), never the power-up runtime value, so every user flop is X at
-``config_done`` and the clear simply defines it.
-
-A future fabric that adds a true INIT bit -- letting the bitstream set a flop's
-power-on runtime value -- is largely covered by the X-only guard: if that value
-is materialised into the flop's ``Q`` by ``config_done``, ``Q`` is no longer X
-and the clear skips it, preserving the configured value. The guard does *not*
-cover an INIT bit staged in config memory but not yet reflected in ``Q`` --
-there the flop is still X and the clear defaults it to 0. The fix in that case
-is to clear each flop toward its configured INIT value instead of a hard 0
-(moving the clear before config does not help -- the X returns during upload,
-as verified above).
+Implication: a future fabric with a power-on INIT bit staged in config memory but
+not yet reflected in ``Q`` would be defaulted to 0 by the flop clear; that case
+needs the clear to target the configured INIT value instead.
 
 Usage
 -----
@@ -126,12 +39,9 @@ import re
 import sys
 from pathlib import Path
 
-# Async reset pin of the flip-flop std cell the hardened netlist *may* bind
-# against, per PDK. All are active-low, so the reset pulse drives the pin to 0.
-# Whether a flop actually carries this pin is decided per instance: IHP maps to
-# a resettable cell (``sg13g2_dfrbp``, ``RESET_B``); sky130 / gf180 map to plain
-# DFFs with no reset pin, which are cleared by depositing ``Q`` instead. The
-# entry is the pin to look for, not a promise that the netlist contains it.
+# Active-low async reset pin to look for, per PDK. Presence is decided per
+# instance: IHP maps to a resettable cell (sg13g2_dfrbpq, RESET_B); sky130 / gf180
+# map to resetless DFFs, cleared by depositing Q instead.
 _RESET_PIN_BY_PDK: dict[str, str] = {
     "ihp-sg13g2": "RESET_B",
     "sky130A": "RESET_B",
@@ -349,7 +259,7 @@ def main() -> None:
         for qref, rref in reset_flops:
             L.append(f"    if ({qref} === 1'bx) force {rref}= 1'b0;")
     if deposit_flops:
-        L.append("    //    2b) resetless flops: seed Q directly (needs -DFUNCTIONAL).")
+        L.append("    //    2b) resetless flops: seed Q directly.")
         for qref in deposit_flops:
             L.append(f"    if ({qref} === 1'bx) $deposit({qref}, 1'b0);")
     L.append("    #1;")

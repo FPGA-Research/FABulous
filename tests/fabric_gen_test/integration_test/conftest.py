@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
+import ciel.common
 import cocotb
 import pytest
 from cocotb.handle import HierarchyObject, LogicObject
@@ -19,6 +20,7 @@ from dotenv import unset_key
 from loguru import logger
 
 import fabulous.fabric_files as _fab_template_pkg
+import fabulous.fabulous_settings
 from fabulous.fabric_definition.define import HDLType
 from tests.conftest import run_cmd
 
@@ -647,9 +649,19 @@ def hardened_project_copy(
     test_dir = dest / "Test"
     test_dir.mkdir(exist_ok=True)
     for src in _VERILOG_TEMPLATE_TEST_DIR.iterdir():
-        shutil.copy2(src, test_dir / src.name)
+        if src.is_file():
+            shutil.copy2(src, test_dir / src.name)
     for src in _COMMON_TEMPLATE_TEST_DIR.iterdir():
-        shutil.copy2(src, test_dir / src.name)
+        if src.is_file():
+            shutil.copy2(src, test_dir / src.name)
+
+    # The repo-level autouse fixture stubs ``get_ciel_home`` to a hermetic tmp
+    # dir (with only an ihp placeholder) so unit tests never touch the real PDK
+    # store. GL simulation needs the real standard-cell models, so restore the
+    # genuine ciel resolver, which froze the real ciel home at import time.
+    monkeypatch.setattr(
+        fabulous.fabulous_settings, "get_ciel_home", ciel.common.get_ciel_home
+    )
 
     monkeypatch.setenv("FAB_PROJ_DIR", str(dest))
     return dest

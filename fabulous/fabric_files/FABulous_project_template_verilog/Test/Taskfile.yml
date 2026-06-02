@@ -175,12 +175,12 @@ tasks:
           `task run-gl-simulation GL_SOURCES="<netlists and cell models>"`.
     cmds:
       # `-gspecify` processes the PDK specify blocks so the cell timing models
-      # have non-zero delays. Do NOT add `-DFUNCTIONAL`: the FUNCTIONAL cell
-      # variants are zero-delay, so the unconfigured fabric's combinational
-      # routing loops oscillate forever at t=0 (a livelock -- simulation time
-      # never advances). `-DGL_SIM` compiles in the force_block.vh X-init.
+      # have non-zero delays. `-DGL_SIM` compiles in the force_block.vh X-init.
+      # The token timing token is only honoured inside an iverilog command file,
+      # so it is written to gl_timescale.f and passed via `-f`.
+      - echo '+timescale+1ns/1ps' > {{.BUILD_DIR}}/gl_timescale.f
       - >-
-        iverilog -g2012 -gspecify -DGL_SIM
+        iverilog -g2012 -gspecify -DGL_SIM -f {{.BUILD_DIR}}/gl_timescale.f
         {{.EXTRA_IVERILOG_FLAGS}}
         -s {{.TESTBENCH}}
         -o {{.BUILD_DIR}}/{{.DESIGN}}_gl.vvp

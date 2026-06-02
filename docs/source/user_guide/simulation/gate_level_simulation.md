@@ -1,168 +1,78 @@
 (gate_level_simulation)=
 # Gate-level simulation
 
-Gate-level (GL) simulation is the post-layout analogue of the
-[RTL simulation](./simulation.md) flow. Instead of exercising the behavioural
-Verilog that FABulous emits, it simulates the **post-place-and-route fabric
-netlist** produced by the [GDS flow](../building_doc/fabric_gds.md): the
-structural `*.nl.v` netlists written by LibreLane, wired up against the PDK
-standard-cell simulation models.
+Gate-level (GL) simulation is the post-layout counterpart of
+[RTL simulation](./simulation.md). It simulates the hardened
+post-place-and-route fabric netlists from the [GDS flow](../building_doc/fabric_gds.md)
+against the PDK standard cells, instead of the behavioural Verilog FABulous emits.
 
-## Mixed-level approach
+It runs *mixed-level*: only the inner `eFPGA` core and its tiles are swapped for
+the hardened netlists. The behavioural wrapper, the configuration controller, and
+the same `<design>_tb.v` are reused, so one testbench drives both RTL and GL. GL
+simulation is opt-in, because it needs a fabric already hardened through the GDS
+flow.
 
-FABulous emits two fabric modules. `eFPGA` is the raw fabric core, configured
-through frame ports (`FrameData` / `FrameStrobe`). `eFPGA_top` wraps that core
-with the configuration controller (`eFPGA_Config`, `Frame_Data_Reg`,
-`Frame_Select`), the block RAMs, and a flattened pad interface, so a bitstream
-can be streamed in over `SelfWriteData` / `SelfWriteStrobe`. The RTL testbench
-drives `eFPGA_top`.
+## Running it
 
-The GDS flow only hardens the **core** `eFPGA` (the configuration controller and
-UART are behavioural glue, not part of the silicon fabric). GL simulation
-therefore runs *mixed-level*: the behavioural wrapper and configuration logic
-are kept, and only the inner `eFPGA` core and its tiles are swapped for the
-hardened netlists plus the PDK cell models. Because the wrapper interface is
-unchanged, **the same testbench drives RTL and GL** with no edits.
-
-:::{important}
-GL simulation needs a fabric that has already been hardened through the GDS
-flow. Producing that artifact takes a long time and is not always wanted, so GL
-simulation is opt-in: you point it at an existing hardened project rather than
-hardening one on the fly.
-:::
-
-## End-to-end at a glance
-
-A gate-level simulation always starts from a fabric that has been **generated**
-and then **hardened**. From a fresh project the full path is:
+Inside the FABulous shell of a hardened project, in the Nix environment:
 
 ```bash
-FABulous --createProject <project>      # scaffold a project
+compile_design ./user_design/sequential_16bit_en.v
+run_simulation --gl fst ./user_design/sequential_16bit_en.bin
 ```
 
-then, inside the FABulous shell (`FABulous start <project>`):
+`run_simulation --gl` resolves the fabric netlist, the tile netlists, and the PDK
+cell models from the project, compiles them with the behavioural wrapper and the
+testbench, and runs it under `iverilog` / `vvp`. The waveform is written to
+`Test/build/<design>_gl.<fst|vcd>`; open it with `task gtkwave` in `Test/`.
+
+From a fresh project the full path is:
 
 ```text
-run_FABulous_fabric                                             # 1. generate the fabric HDL
-gen_tile_macro --parallel                                       # 2. harden it (long; see fabric_gds.md)
-gen_fabric_macro
-compile_design ./user_design/sequential_16bit_en.v              # 3. build a design bitstream
-run_simulation --gl fst ./user_design/sequential_16bit_en.bin   # 4. gate-level simulate
+run_FABulous_fabric                                  # 1. generate the fabric HDL
+gen_all_tile_macros --parallel 
+gen_fabric_macro                                     # 2. harden it (long; see fabric_gds.md)
+compile_design ./user_design/<design>.v              # 3. build a bitstream
+run_simulation --gl fst ./user_design/<design>.bin   # 4. gate-level simulate
 ```
 
-Steps 1-2 are the slow, one-off part (`run_FABulous_eFPGA_macro` is the
-automated equivalent of `gen_all_tile_macros` then `gen_fabric_macro`); steps
-3-4 are repeated per user design. The sections below detail each piece.
 
-## X-pessimism removal
+## What to be aware of
 
-After hardening, OpenROAD resynthesises the X-optimistic LUT/mux
-structures into generic AOI/NAND standard cells that are X-pessimistic. Unused
-fabric routing then forms a self-sustaining X web that leaks into used logic,
-and the user flip-flops power up (and capture during config upload) an X that
-the synchronous reset cannot scrub. This only affects GL simulation; RTL
-simulation is unaffected.
-
-`gen_gl_xinit.py` generates a `force_block.vh` include (compiled in via
-`-DGL_SIM`) that fires two one-shot actions **once configuration upload
-finishes** (`config_done`):
-
-1. `if (net === 1'bx) $deposit 0` on every fabric net. The X-only guard pins
-   only genuinely undriven (unused) nets to a constant; a net the configuration
-   already drives to a real value is left untouched. This breaks the
-   combinational X web without overwriting any configured value.
-2. A per-flop clear of flop *state* X that no net deposit can reach (a flop
-   re-drives its own `Q`, so depositing the routing net it feeds does not stick),
-   gated on that flop's own `Q` still being X. The mechanism is **PDK-adaptive**,
-   because OpenROAD does not map the FABulous DFF to the same standard cell for
-   every PDK:
-   - When the mapped flop has an async reset pin (IHP's `sg13g2_dfrbp` has
-     `RESET_B`), a momentary `force` of that pin to its active level, then
-     `release`, drives the flop's state to 0 through its reset input.
-   - When the mapped flop is a plain DFF with no reset pin (sky130 `dfxtp`,
-     gf180 `dffq` — the bitstream configures only the synchronous reset, so
-     OpenROAD keeps a resetless cell), the state is seeded directly with
-     `if (Q === 1'bx) $deposit(Q, 0)`. The flop then captures its now-defined
-     `D` on the next clock.
-
-:::{important}
-The simulation uses the **timing-annotated** cell models (`iverilog -gspecify`).
-Do **not** add `-DFUNCTIONAL`: the FUNCTIONAL cell variants are zero-delay, so
-the unconfigured fabric's combinational routing loops oscillate forever at `t=0`
-— a livelock in which simulation time never advances and the run hangs before it
-reaches `config_done`. The timing variants carry non-zero specify delays that
-break those loops, so the run completes.
-:::
-
-:::{note}
-**Sequential cells are stubbed.** Icarus Verilog does not drive the `$setuphold`
-negative-timing *delayed* nets that the timing models route a flop's/latch's
-clock and data through, so those cells sit at X and no X-init can revive them.
-`run_simulation --gl` therefore runs `gen_gl_seq_stubs.py`, which swaps **only**
-the sequential cells (flops + config latches) for behavioural equivalents and
-emits filtered copies of the PDK libraries (stubbed modules removed, an explicit
-`timescale` forced on — gf180's models ship without one, which otherwise leaves
-switching nets X). The combinational cells keep their timing models, so the
-loop-breaking delays above are preserved. This is automatic; no flags needed.
-:::
-
-:::{note}
-**Relaxed clock for slow fabrics.** The hardened fabric runs on real cell delays,
-so a design clocked faster than its gate-level critical path produces wrong (but
-defined) values — just like the silicon. The testbench therefore widens the clock
-period under `GL_SIM` (`CLK_HALF_PERIOD`, override with
-`-DCLK_HALF_PERIOD=<ps>`). sky130 is fast enough at the RTL period; gf180 (180nm)
-needs the relaxed one. This is orthogonal to X removal.
-:::
-
-The scrub fires *after* config upload by design. The X comes from uninitialised
-state (flops and config-memory latches power up X). During upload the config
-memory resolves frame by frame, so every not-yet-written bit drives an X mux
-select that re-drives the unused-routing web, and the toggling `UserCLK` makes
-the flops re-capture it each cycle. A one-shot scrub *before* upload is therefore
-undone before `config_done`, with no later pass to clear it. `config_done` is the
-first point where config memory is fully defined, so the deposit holds and the
-flop clear is final. This is verified empirically: firing the scrub before the
-upload loop instead leaves every fabric output X (the golden comparison fails),
-while firing it at `config_done` passes.
-
-:::{note}
-The flop clear drives a user flop to 0, but only when that flop still holds X.
-For the current FABulous DFF (`LUT4c_frame_config_dffesr`) this is moot, because
-the bitstream only configures the *synchronous* reset target (`c_reset_value`),
-never the power-up runtime value, so every user flop is X at `config_done`.
-
-A future fabric that adds a true **INIT bit** — letting the bitstream set a
-flop's power-on runtime value — is largely covered by the X-only guard: if that
-value reaches the flop's `Q` by `config_done`, `Q` is no longer X and the clear
-skips it. The guard does *not* cover an INIT bit staged in config memory but not
-yet reflected in `Q`; the fix there is to clear each flop toward its configured
-INIT value instead of a hard 0 (moving the scrub before config does not help —
-the X returns during upload regardless).
-:::
+- **gf180 runs on real cell delays.** Of the three PDKs, only gf180's Verilog
+   models carry non-zero timing, so its hardened gates have a real critical path:
+   a design clocked faster than it produces wrong but *defined* values. 
+   The testbench clocks at 1 MHz to stay under it. sky130 and IHP ship
+   zero-delay models (their real timing lives in SDF, which this flow does not
+   back-annotate).
+- **X-pessimism is scrubbed automatically.** A hardened fabric powers up all-X.
+   Once config upload finishes (`config_done`), the generated `force_block.vh`
+   deposits 0 onto undriven nets and clears flop state. The scrub is **X-only**,
+   it only adds definedness where the design left X.
+- **Verilog only.** `run_simulation --gl` rejects VHDL projects, because the
+  hardened netlists and PDK models are Verilog and `nvc` / `ghdl` cannot
+  co-simulate them with a VHDL wrapper.
 
 ## Prerequisites
 
-1. **The Nix environment.** GL simulation needs Yosys, nextpnr, and Icarus
-   Verilog from the pinned toolchain. Enter it first:
+1. **The Nix environment** (`FABulous nix-env`) for Yosys, nextpnr, and Icarus
+   Verilog. See the [Nix setup guide](../../getting_started/installation/nix-env.md).
 
-   ```bash
-   FABulous nix-env
+2. **A hardened fabric project** — produced by the GDS flow, or unpacked from the
+   `fabric-output-<pdk>` artifact of `gds-flow-ci.yml`. The layout must be:
+
+   ```text
+   <project>/
+   ├── .FABulous/.env                               # FAB_PDK (+ FAB_PDK_ROOT)
+   ├── Fabric/macro/final_views/nl/eFPGA.nl.v        # exactly one fabric netlist
+   └── Tile/<tile>/macro/final_views/nl/<tile>.nl.v  # one netlist per tile
    ```
 
-   See the [Nix environment setup guide](../../getting_started/installation/nix-env.md)
-   for details and `nix develop` as the manual alternative.
+   Source resolution fails with a clear error if the layout is incomplete.
 
-2. **A generated, then hardened, fabric project.** First generate the fabric
-   HDL with `run_FABulous_fabric`, then run that through the
-   [GDS flow](../building_doc/fabric_gds.md) (`gen_all_tile_macros` then
-   `gen_fabric_macro`, or the automated `run_FABulous_eFPGA_macro`). CI also
-   publishes this as the `fabric-output-<pdk>` artifact from `gds-flow-ci.yml`,
-   which unpacks directly into the expected layout.
-
-3. **PDK standard-cell simulation models.** Resolved automatically from
-   `FAB_PDK` (and `FAB_PDK_ROOT`, or the ciel install) in the project's
-   `.FABulous/.env`. The defaults are known for these PDKs:
+3. **PDK standard-cell models**, auto-resolved (best-effort) from `FAB_PDK`. The
+   library is hard-coded in `_SCL_BY_PDK` (`cmd_run_simulation.py`) for the three
+   PDKs FABulous hardens for:
 
    | PDK | Standard-cell library |
    |---|---|
@@ -170,106 +80,38 @@ the X returns during upload regardless).
    | `sky130A` | `sky130_fd_sc_hd` |
    | `gf180mcuD` | `gf180mcu_fd_sc_mcu7t5v0` |
 
-   For any other PDK, or a non-standard install, pass the cell models explicitly
-   with `--gl-sim-libs` (see below).
+   For any other PDK or variant the auto-resolve raises a clear error; pass the
+   cell models explicitly with `--gl-sim-libs` instead (see below).
 
-### Expected project layout
-
-The hardened project must contain the LibreLane outputs in place:
-
-```text
-<project>/
-├── .FABulous/.env                               # FAB_PDK (+ FAB_PDK_ROOT)
-├── Fabric/macro/final_views/nl/eFPGA.nl.v        # exactly one fabric netlist
-└── Tile/<tile>/macro/final_views/nl/<tile>.nl.v  # one netlist per tile
-```
-
-The fabric netlist is *structural*: it instantiates tile macros by name, so the
-tile netlists are passed to the simulator alongside it. Source resolution fails
-with a clear error (rather than silently skipping) if the layout is incomplete,
-for example if `gen_fabric_macro` has not been run.
-
-## Running from the CLI
-
-Gate-level simulation is the `--gl` mode of `run_simulation`. The flow is
-identical to RTL simulation up to the final step: compile the design to a
-bitstream, then simulate it with `--gl`.
-
-```bash
-# Inside the FABulous shell of a hardened project, in the Nix environment
-compile_design ./user_design/sequential_16bit_en.v
-run_simulation --gl fst ./user_design/sequential_16bit_en.bin
-```
-
-`run_simulation --gl` resolves the fabric netlist, the tile netlists, and the
-PDK cell models from the project, then runs the `run-gl-simulation` Taskfile
-task. That task compiles the behavioural wrapper (everything in `Fabric/` except
-the behavioural `eFPGA.v` core) together with the gate-level sources, the user
-design, and the existing `<design>_tb.v`, and runs it under `iverilog` / `vvp`.
-
-The output waveform is written to `Test/build/<design>_gl.<fst|vcd>` and can be
-opened the same way as the RTL waveform:
-
-```bash
-task gtkwave        # in the project Test/ directory
-```
-
-:::{note}
-GL simulation is Verilog-only. The hardened netlists and PDK cell models are
-Verilog, which `nvc` / `ghdl` cannot co-simulate with a VHDL wrapper, so
-`run_simulation --gl` rejects VHDL projects.
-:::
-
-### Options
+## Options
 
 | Flag | Description |
 |---|---|
 | `--gl` | Run mixed-level gate-level simulation instead of RTL. |
-| `--gl-sim-libs=<file-or-glob>` | Verilog sim-cell library file or glob. Repeatable. Overrides PDK auto-resolution. |
+| `--gl-sim-libs=<file-or-glob>` | Verilog sim-cell library, repeatable and glob-expanded. Overrides PDK auto-resolution. |
 | `fst` / `vcd` | Waveform output format (positional, as for RTL). |
 
-If the PDK is not in the table above, or it is installed in a non-standard
-location, point at the cell models directly:
+`--gl-sim-libs` takes multiple files: repeat the flag and/or pass a glob. Any use
+of it skips PDK auto-resolution entirely.
 
 ```bash
 run_simulation --gl fst ./user_design/sequential_16bit_en.bin \
-    --gl-sim-libs '/path/to/<scl>.v'
+    --gl-sim-libs '/path/to/<scl>.v' \
+    --gl-sim-libs '/path/to/primitives.v'
 ```
 
 ## Running the test suite
 
-A GL smoke test for the demo design lives in
-`tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py`, is marked
-`@pytest.mark.gl`, and is excluded from the default run. It compiles the demo
-`sequential_16bit_en` design against a hardened project and gate-level simulates
-it through `run_simulation --gl`. Opt in with `--gl` and point at the
-hardened project:
+A GL smoke test lives in
+`tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py` (marked
+`@pytest.mark.gl`, skipped by default). It compiles the demo design against a
+hardened project and gate-level simulates it. Opt in with `--gl` and point at the
+project (or set `FAB_GL_FABRIC_PROJECT`):
 
 ```bash
 pytest tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py \
        --gl --gl-fabric-project=/path/to/hardened/project -v
-
-# Supply the cell models explicitly (skips PDK auto-resolution)
-pytest tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py \
-       --gl --gl-fabric-project=/path/to/hardened/project \
-       --gl-sim-libs='/path/to/<scl>.v' -v
 ```
 
-The hardened project is copied per test before `compile_design` runs, so the
-original artifact is left untouched.
-
-### Test options
-
-| Flag | Description |
-|---|---|
-| `--gl` | Enable the GL-marked test (otherwise skipped via the default `-m 'not gl'` filter). |
-| `--gl-fabric-project=<path>` | Path to the hardened FABulous project. Required (or set `FAB_GL_FABRIC_PROJECT`); without it the test skips. |
-| `--gl-sim-libs=<file-or-glob>` | Verilog sim-cell library file or glob. Repeatable. Overrides PDK auto-resolution. |
-
-`--gl-fabric-project` may also be supplied via the `FAB_GL_FABRIC_PROJECT`
-environment variable:
-
-```bash
-FAB_GL_FABRIC_PROJECT=/path/to/hardened/project \
-    pytest tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py --gl -v
-```
+The project is copied per test before `compile_design`, so the original is left
+untouched.
