@@ -69,7 +69,7 @@ A simple working flow will look like:
 
 ```bash
 FABulous create-project demo_test
-FABulous -p demo_test run "run_FABulous_fabric"
+FABulous -p demo_test run "run_fab"
 ```
 
 At this point all rtl files for the tiles were

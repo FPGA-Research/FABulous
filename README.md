@@ -112,7 +112,7 @@ Interacting with FABulous is typically done via its interactive shell or through
 ### Typical Interactive Workflow
 
 ```bash
-FABulous> run_FABulous_fabric
+FABulous> run_fab
 FABulous> compile_design user_design/sequential_16bit_en.v
 FABulous> exit
 ```

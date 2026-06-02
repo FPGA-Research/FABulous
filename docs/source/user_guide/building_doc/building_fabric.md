@@ -7,7 +7,7 @@ The user can run the flow step by step as well (see below for instructions on bu
 :width: 80%
 :::
 
-Other than building the fabric with the `run_FABulous_fabric` command as shown in the [Quick start](#quick-start), the user can
+Other than building the fabric with the `run_fab` command as shown in the [Quick start](#quick-start), the user can
 also build the fabric step by step to suit what they need. We will demonstrate this in the following section from
 creating scratch. The following is assuming your current directory is in `$FAB_ROOT` and all the pre-request set up are
 completed.

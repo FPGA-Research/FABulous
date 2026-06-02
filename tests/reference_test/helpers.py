@@ -282,7 +282,7 @@ def run_fabulous_commands_with_logging(
         # Standard FABulous command sequence
         commands = [
             "load_fabric",
-            # run_FABulous_fabric commands:
+            # run_fab commands:
             "gen_io_fabric",
             "gen_fabric",
             "gen_bitStream_spec",

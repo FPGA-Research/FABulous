@@ -39,7 +39,7 @@ jobs:
             sed -i \"s/FAB_PDK=.*/FAB_PDK='${{ matrix.pdk }}'/\" test_project/.FABulous/.env
             echo 'PDK set to: ${{ matrix.pdk }}'
             cat test_project/.FABulous/.env
-            FABulous --project-dir test_project run 'run_FABulous_fabric'
+            FABulous --project-dir test_project run 'run_fab'
             FABulous --project-dir test_project run 'gen_all_tile_macros' > tile_hardening_output.txt 2>&1
           "
 

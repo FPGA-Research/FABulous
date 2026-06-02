@@ -77,7 +77,7 @@ def simulation_mock(cli: FABulous_CLI, mocker: MockerFixture) -> None:
     (.json, .fasm, .bin), and runs bitstream generation.
     """
     mocker.patch("subprocess.run", return_value=MOCK_COMPLETED_PROCESS)
-    run_cmd(cli, "run_FABulous_fabric")
+    run_cmd(cli, "run_fab")
 
     user_design = cli.projectDir / "user_design"
     for suffix in (".json", ".fasm", ".bin"):

@@ -48,7 +48,7 @@ reference_projects: Header for all reference projects
       A list of glob patterns, which files to exclude from diff
       Default exclude_patterns: [] # None excluded
     fab_commands: (optional) List of FABulous commands to run.
-      Default commands: ["load_fabric", "run_FABulous_fabric"]
+      Default commands: ["load_fabric", "run_fab"]
     pre_fab_commands: (Optional) List of shell command dicts to run before FABulous commands.
       Each dict supports:
         - cmd: str — the shell command to execute
@@ -87,7 +87,7 @@ reference_projects:
       - "Tile/LUT4AB/LUT4AB.v"
     fab_commands: #optional
       - "load_fabric"
-      - "run_FABulous_fabric"
+      - "run_fab"
       - "gen_user_design_wrapper user_design/sequential_16bit_en.v user_design/top_wrapper.v"
       - "compile_design ./user_design/sequential_16bit_en.v"
       - "run_simulation fst ./user_design/sequential_16bit_en.bin"

@@ -24,7 +24,7 @@ tasks:
     cmds:
       - rm -rf demo-smoke-test
       - uv run FABulous c demo-smoke-test
-      - uv run FABulous -p demo-smoke-test run "run_FABulous_fabric"
+      - uv run FABulous -p demo-smoke-test run "run_fab"
       - task --dir ./demo-smoke-test/Test fab-sim
 
   smoke-test-vhdl:
@@ -32,7 +32,7 @@ tasks:
     cmds:
       - rm -rf demo-smoke-test
       - uv run FABulous c demo-smoke-test -w vhdl
-      - uv run FABulous -p demo-smoke-test run "run_FABulous_fabric"
+      - uv run FABulous -p demo-smoke-test run "run_fab"
       - task --dir ./demo-smoke-test/Test fab-sim
 
   ci:

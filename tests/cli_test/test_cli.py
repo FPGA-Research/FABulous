@@ -96,13 +96,23 @@ def test_gen_top_wrapper(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) ->
     assert "Top wrapper generation complete" in log[-1]
 
 
-def test_run_FABulous_fabric(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_run_fab(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
     """Test running FABulous fabric flow."""
-    run_cmd(cli, "run_FABulous_fabric")
+    run_cmd(cli, "run_fab")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Running FABulous" in log[0]
+    assert "FABulous fabric flow complete" in log[-1]
+
+
+def test_run_FABulous_fabric_deprecated(
+    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test the deprecated `run_FABulous_fabric` alias delegates to `run_fab`."""
+    run_cmd(cli, "run_FABulous_fabric")
+
+    assert any("deprecated" in r.message.lower() for r in caplog.records)
+    assert any("run_fab" in r.message for r in caplog.records)
+    log = normalize_and_check_for_errors(caplog.text)
     assert "FABulous fabric flow complete" in log[-1]
 
 
@@ -171,7 +181,7 @@ def test_run_FABulous_bitstream_deprecated(
 ) -> None:
     """Test the deprecated `run_FABulous_bitstream` delegates to compile_design."""
     mocker.patch("subprocess.run", return_value=MOCK_COMPLETED_PROCESS)
-    run_cmd(cli, "run_FABulous_fabric")
+    run_cmd(cli, "run_fab")
 
     run_cmd(cli, "run_FABulous_bitstream ./user_design/sequential_16bit_en.v")
 
@@ -312,7 +322,7 @@ def test_run_tcl_with_fabulous_command(
     assert "TCL script executed" in log[-1]
 
 
-def test_run_FABulous_fabric_sv_extension(
+def test_run_fab_sv_extension(
     project: Path,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
@@ -320,7 +330,7 @@ def test_run_FABulous_fabric_sv_extension(
     """Test running FABulous fabric flow with .sv (SystemVerilog) extension files.
 
     This test verifies that .sv files are correctly handled as Verilog files throughout
-    the fabric generation process, using the same code path as run_FABulous_fabric but
+    the fabric generation process, using the same code path as run_fab but
     with BEL files using .sv extension.
     """
     monkeypatch.setenv("FAB_PROJ_DIR", str(project))
@@ -353,7 +363,7 @@ def test_run_FABulous_fabric_sv_extension(
     caplog.clear()
 
     # Run the fabric flow with .sv files
-    run_cmd(cli, "run_FABulous_fabric")
+    run_cmd(cli, "run_fab")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Running FABulous" in log[0]
     assert "FABulous fabric flow complete" in log[-1]

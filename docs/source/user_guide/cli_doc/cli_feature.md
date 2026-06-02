@@ -197,7 +197,7 @@ Since running a written script or doing automation within a CI is very common, w
 A very common use case is to compile a fabric which can be done by doing the following:
 
 ```bash
-FABulous run "load_fabric; run_FABulous_fabric"
+FABulous run "load_fabric; run_fab"
 ```
 
 Which will load the fabric and generate the fabric RTL code. By default, if any command in the sequence fails, execution stops immediately and returns a non-zero exit code. To continue execution despite errors, use the `--force` flag.

@@ -211,7 +211,7 @@ or
 The shell support tab completion for commands and files
 
 To run the complete FABulous flow with the default project, run the following command:
-    run_FABulous_fabric
+    run_fab
     compile_design ./user_design/sequential_16bit_en.v
     run_simulation fst ./user_design/sequential_16bit_en.bin
 """
@@ -1069,7 +1069,7 @@ class FABulous_CLI(Cmd):
         logger.info("Top wrapper generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_run_FABulous_fabric(self, *_ignored: str) -> None:
+    def do_run_fab(self, *_ignored: str) -> None:
         """Generate the fabric based on the CSV file.
 
         Create bitstream specification of the fabric, top wrapper of the fabric, Nextpnr
@@ -1090,6 +1090,17 @@ class FABulous_CLI(Cmd):
 
         if success:
             logger.info("FABulous fabric flow complete")
+
+    @with_category(CMD_FABRIC_FLOW)
+    def do_run_FABulous_fabric(self, *_ignored: str) -> None:
+        """Generate the fabric based on the CSV file.
+
+        deprecated: Use ``run_fab`` instead.
+        """
+        logger.warning(
+            "The 'run_FABulous_fabric' command is deprecated. Use 'run_fab' instead."
+        )
+        self.do_run_fab()
 
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_model_npnr(self, *_ignored: str) -> None:

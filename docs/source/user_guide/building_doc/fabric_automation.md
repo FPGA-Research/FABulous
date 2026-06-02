@@ -249,7 +249,7 @@ a switch matrix list file will be generated.
 :::{warning}
 As long as the `MATRIX,GENERATE` command is in the tile CSV config,
 the switch matrix list file for the tile gets regenerated every time,
-the fabric is regenerated with `run_FABulous_fabric` or
+the fabric is regenerated with `run_fab` or
 `generate_custom_tile_config` command is called.
 If you want to make manual changes in the list file directly,
 you should remove the `GENERATE` command from the tile CSV config
@@ -418,12 +418,12 @@ ParametersEnd,,,,,,,,,,,,,,,,,,
 We've replaced a row of LUT4AB tiles with our CRC5 tiles and added our custom tile
 config csv in the tile include list.
 
-To generate our fabric, we run the `run_FABulous_fabric` command:
+To generate our fabric, we run the `run_fab` command:
 
 ```console
 (venv)$ FABulous demo
 FABulous> load_fabric
-FABulous> run_FABulous_fabric
+FABulous> run_fab
 ```
 
 This generates our custom fabric, with our new custom tile.
@@ -527,7 +527,7 @@ Afterward, we just run our simulation with the FABulous CLI command `run_simulat
 ```console
 (venv)$ FABulous demo
 FABulous> load_fabric
-FABulous> run_FABulous_fabric
+FABulous> run_fab
 FABulous> compile_design ./user_design/sequential_16bit_en.v
 FABulous> run_simulation fst ./user_design/sequential_16bit_en.bin
 FABulous> exit
@@ -1119,7 +1119,7 @@ This will generate two Bel files, they'll have the same number of IOs and config
 bits as before, but now using our GEN_IO keyword. They will be generated automatically
 in either VHDL or Verilog, depending on the FABulous configuration.
 
-To generate the IO Bel, you can either just run the `run_FABulous_fabric` command
+To generate the IO Bel, you can either just run the `run_fab` command
 in the FABulous CLI, which will generate the IO Bel files automatically, while
 generating the whole farbic. But for debugging purposes, you can also
 use the `` gen_io_tiles` `` command:
