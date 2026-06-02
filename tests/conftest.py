@@ -53,13 +53,15 @@ def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-define
 
 
 def pytest_configure(config: pytest.Config) -> None:  # type: ignore[name-defined]
-    markexpr = getattr(config.option, "markexpr", None) or ""
-    parts = [p.strip() for p in markexpr.split(" and ") if p.strip()]
-    if config.getoption("runslow"):
-        parts = [p for p in parts if p.replace(" ", "") != "notslow"]
-    if config.getoption("gl"):
-        parts = [p for p in parts if p.replace(" ", "") != "notgl"]
-    config.option.markexpr = " and ".join(parts)
+    user_args = config.invocation_params.args
+    if any(a.startswith(("-m", "--markexpr")) for a in user_args):
+        return
+    exclude = []
+    if not config.getoption("runslow"):
+        exclude.append("not slow")
+    if not config.getoption("gl"):
+        exclude.append("not gl")
+    config.option.markexpr = " and ".join(exclude)
 
 
 def normalize(block: str) -> list[str]:
@@ -126,6 +128,19 @@ def fabulous_test_environment(
     reset_context()
 
 
+def make_default_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Create a fresh empty Verilog project and point ``FAB_PROJ_DIR`` at it.
+
+    Shared by the base ``fabulous_project`` fixture and any nested-conftest
+    override that needs to reproduce the default (non-overridden) behaviour
+    without re-entering the fixture by name.
+    """
+    project_dir = tmp_path / "test_project"
+    monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
+    create_project(project_dir)
+    return project_dir
+
+
 @pytest.fixture
 def fabulous_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A FABulous project the ``cli`` fixture should bind to.
@@ -136,10 +151,7 @@ def fabulous_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     per-test copy of a hardened LibreLane project. The override is what lets
     GL tests reuse the global ``cli`` fixture without any further plumbing.
     """
-    project_dir = tmp_path / "test_project"
-    monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
-    create_project(project_dir)
-    return project_dir
+    return make_default_project(tmp_path, monkeypatch)
 
 
 @pytest.fixture

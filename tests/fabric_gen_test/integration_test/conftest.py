@@ -22,7 +22,7 @@ from loguru import logger
 import fabulous.fabric_files as _fab_template_pkg
 import fabulous.fabulous_settings
 from fabulous.fabric_definition.define import HDLType
-from tests.conftest import run_cmd
+from tests.conftest import make_default_project, run_cmd
 
 if TYPE_CHECKING:
     from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
@@ -688,12 +688,4 @@ def fabulous_project(
     if request.node.get_closest_marker("gl"):
         return request.getfixturevalue("hardened_project_copy")
 
-    # Mirror tests/conftest.py's default fabulous_project for non-gl tests.
-    # Inlined rather than delegated because `request.getfixturevalue` cannot
-    # reach the shadowed parent fixture by name (would recurse).
-    from fabulous.fabulous_cli.helper import create_project
-
-    project_dir = tmp_path / "test_project"
-    monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
-    create_project(project_dir)
-    return project_dir
+    return make_default_project(tmp_path, monkeypatch)
