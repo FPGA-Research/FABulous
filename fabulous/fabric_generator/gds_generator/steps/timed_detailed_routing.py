@@ -37,7 +37,8 @@ class _GroupLeaderPopen(subprocess.Popen):
     ``subprocess.Popen`` behaviour.
     """
 
-    def status(self) -> str:  # noqa: D401, D102
+    def status(self) -> str:
+        """Return status."""
         return "dead"
 
 
@@ -55,7 +56,7 @@ class FABulousDetailedRoutingTimed(OpenROAD.DetailedRouting):
             "Maximum wall-clock seconds for Detailed Routing. The OpenROAD "
             "process group is killed when this elapses and the surrounding "
             "tile optimisation loop is aborted.",
-            default=600,
+            default=900,
         ),
     ]
 
