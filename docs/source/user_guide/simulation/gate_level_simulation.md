@@ -30,7 +30,7 @@ From a fresh project the full path is:
 
 ```text
 run_FABulous_fabric                                  # 1. generate the fabric HDL
-gen_all_tile_macros --parallel 
+gen_all_tile_macros --parallel
 gen_fabric_macro                                     # 2. harden it (long; see fabric_gds.md)
 compile_design ./user_design/<design>.v              # 3. build a bitstream
 run_simulation --gl fst ./user_design/<design>.bin   # 4. gate-level simulate
@@ -41,7 +41,7 @@ run_simulation --gl fst ./user_design/<design>.bin   # 4. gate-level simulate
 
 - **gf180 runs on real cell delays.** Of the three PDKs, only gf180's Verilog
    models carry non-zero timing, so its hardened gates have a real critical path:
-   a design clocked faster than it produces wrong but *defined* values. 
+   a design clocked faster than it produces wrong but *defined* values.
    The testbench clocks at 1 MHz to stay under it. sky130 and IHP ship
    zero-delay models (their real timing lives in SDF, which this flow does not
    back-annotate).
@@ -63,7 +63,7 @@ run_simulation --gl fst ./user_design/<design>.bin   # 4. gate-level simulate
 
    ```text
    <project>/
-   ├── .FABulous/.env                               # FAB_PDK (+ FAB_PDK_ROOT)
+   ├── .FABulous/.env                                # FAB_PDK (+ FAB_PDK_ROOT)
    ├── Fabric/macro/final_views/nl/eFPGA.nl.v        # exactly one fabric netlist
    └── Tile/<tile>/macro/final_views/nl/<tile>.nl.v  # one netlist per tile
    ```
