@@ -12,7 +12,6 @@ mapping and optimization stages. This module serves as the central point for def
 the synthesis flow and architecture-specific transformations for FABulous.
 """
 
-from asyncio.log import logger
 from pathlib import Path
 
 from fabulous.fabric_cad.fabxplore.examples.fabr_v2.models import (
@@ -259,7 +258,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "reset_neutral": 0,
                     "reset_kind": "sync",
                     "reset_value": 0,
-                    "attributes": {"FF_USED": 123, "ANOTHER_ATTR": 456},
+                    "attributes": {"FF_USED": 10, "TTTiming": 4545},
                 },
                 {
                     # FF.D -> I1, Q1 replaces FF.Q
@@ -274,7 +273,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                     "reset_neutral": 0,
                     "reset_kind": "sync",
                     "reset_value": 0,
-                    "attributes": {"FF_USED": 1234, "ANOTHER_ATTR": 5678},
+                    "attributes": {"FF_USED": 11, "TTTiming": 3454},
                 },
             ],
             pack_multiple_ffs_per_tile=True,
@@ -383,7 +382,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             seed=1,
             opt=False,
             optimizer="dense",
-            opt_target_pip_reduction=0.8,
+            opt_target_pip_reduction=0.7,
             opt_max_soft_failure_rate=0.8,
             opt_max_hard_failure_rate=0.8,
             opt_use_baseline_failure_rates=True,
@@ -418,42 +417,127 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         o = self.fpga_model.evaluate_fasm(s.fasm_text)
         d = o.used_switch_matrix_for_tile_type("LUT5F", active_pip_value=1)
+        print(d.columns)  # noqa: T201
+        print(d.rows)  # noqa: T201
+        print(d.matrix)  # noqa: T201
 
-        self.fpga_model.set_switch_matrix(
-            "LUT5F",
-            d.columns,
-            d.rows,
-            d.matrix,
-        )
+        mode = False
+        if mode:
+            self.fpga_model.set_switch_matrix(
+                "LUT5F",
+                d.columns,
+                d.rows,
+                d.matrix,
+            )
 
-        s = self.fpga_model.nextpnr_route(
+        print(self.fpga_model.fabric_dimensions())  # noqa: T201
+
+        self.fpga_model.write_tile_sources(tile_types=["LUT5F"])
+        self.pnr_inverse_router_pass(
             nextpnr_exec=Path(
                 "/home/hausding/Documents/FABulous/demo_master_thesis"
                 "/nextpnr/build/nextpnr-generic"
             ),
-            check=False,
-            log_report=True,
-            live_output=True,
-        )
-
-        s = self.fpga_model.nextpnr_batch_test(
-            designs={
+            tile_name="LUT5F",
+            training_benchmarks={
                 "lut32_mixed": Path(
-                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad/fabxplore/examples/fabr_v2/tests/out/lut32_mixed.json"
+                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
+                    "/fabxplore/examples/fabr_v2/tests/out/lut32_mixed.json"
                 ),
                 "or17_chain": Path(
-                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad/fabxplore/examples/fabr_v2/tests/out/or17_chain.json"
+                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
+                    "/fabxplore/examples/fabr_v2/tests/out/or17_chain.json"
                 ),
             },
+            test_benchmarks={
+                "lut32_mixed": Path(
+                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
+                    "/fabxplore/examples/fabr_v2/tests/out/lut32_mixed.json"
+                ),
+            },
+            io_seed_count=2,
+        )
+
+        self.fpga_model.resize_fabric(
+            copy_column_after=(1, 5),
+        )
+
+        print(self.fpga_model.fabric_dimensions())  # noqa: T201
+
+        self.fpga_model.write_tile_sources(tile_types=["LUT5F"])
+
+        self.pnr_inverse_router_pass(
             nextpnr_exec=Path(
                 "/home/hausding/Documents/FABulous/demo_master_thesis"
                 "/nextpnr/build/nextpnr-generic"
             ),
-            live_output=True,
+            tile_name="LUT5F",
+            training_benchmarks={
+                "lut32_mixed": Path(
+                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
+                    "/fabxplore/examples/fabr_v2/tests/out/lut32_mixed.json"
+                ),
+                "or17_chain": Path(
+                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
+                    "/fabxplore/examples/fabr_v2/tests/out/or17_chain.json"
+                ),
+            },
+            test_benchmarks={
+                "lut32_mixed": Path(
+                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
+                    "/fabxplore/examples/fabr_v2/tests/out/lut32_mixed.json"
+                ),
+            },
+            io_seed_count=2,
         )
 
-        for i in s:
-            logger.info(i.passed)
+        a = self.netlist_tool_pass(
+            tile_name="LUT4AB",
+            sub_circuit_map_rules=[
+                """
+                (* extract_order = 0 *)
+                module DLHQ_MUX2_S (
+                    input D,
+                    input GATE,
+                    input A0,
+                    input A1,
+                    output X
+                );
+                    wire q;
+
+                    sg13g2_dlhq_1 latch (
+                        .D(D),
+                        .GATE(GATE),
+                        .Q(q)
+                    );
+
+                    sg13g2_mux2_1 mux (
+                        .A0(A0),
+                        .A1(A1),
+                        .S(q),
+                        .X(X)
+                    );
+                endmodule
+                """
+            ],
+            add_liberty_cells=[
+                """
+                cell (DLHQ_MUX2_S) {
+                    area : 42.0;
+                    pin(D)    { direction : input; }
+                    pin(GATE) { direction : input; }
+                    pin(A0) { direction : input; }
+                    pin(A1) { direction : input; }
+                    pin(X) { direction : output; }
+                }
+                """
+            ],
+        )
+        a.netlist_design.write_verilog_path(self.my_root / "tests" / "out" / "nl.v")
+        print(a.stats)  # noqa: T201
+        print(a.area)  # noqa: T201
+
+        print(self.fpga_model.get_config_bits("LUT5F"))  # noqa: T201
 
     def map_cells(self) -> None:
         """Run final cell-level mapping and legalization passes."""

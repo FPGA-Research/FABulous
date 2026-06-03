@@ -36,12 +36,6 @@ class InverseRouterOptions(BaseModel):
     switch_matrix_active_pip_value : int | None
         Value assigned to kept matrix PIPs. If ``None``, original delays are
         kept where available.
-    optimize_external_pips : bool
-        Whether external logical-track pruning should be applied to the graph.
-    external_remove_unused_ratio : float
-        Ratio of score-zero external tracks to remove.
-    external_remove_used_ratio : float
-        Ratio of score-positive external tracks to remove after unused pruning.
     validate_training : bool
         Whether training benchmarks are rerun after graph updates.
     validate_test : bool
@@ -69,9 +63,6 @@ class InverseRouterOptions(BaseModel):
     switch_matrix_remove_unused_ratio: float = 1.0
     switch_matrix_remove_used_ratio: float = 0.0
     switch_matrix_active_pip_value: int | None = 1
-    optimize_external_pips: bool = False
-    external_remove_unused_ratio: float = 1.0
-    external_remove_used_ratio: float = 0.0
     validate_training: bool = True
     validate_test: bool = True
     nextpnr_exec: Path | str | None = None
@@ -155,8 +146,6 @@ class InverseRouterOptions(BaseModel):
     @field_validator(
         "switch_matrix_remove_unused_ratio",
         "switch_matrix_remove_used_ratio",
-        "external_remove_unused_ratio",
-        "external_remove_used_ratio",
     )
     @classmethod
     def _validate_ratio(cls, value: float) -> float:
@@ -267,14 +256,8 @@ class InverseRouterResult(BaseModel):
         Final kept switch matrix produced by pruning.
     switch_matrix_stats : InverseRouterPruneStats
         Switch-matrix pruning statistics.
-    external_scores : dict[Any, int]
-        Tile-local external logical-track usage counts.
-    final_external_pips : list[Any]
-        External logical tracks kept after pruning.
-    removed_external_pips : list[Any]
-        External logical tracks selected for removal.
-    external_stats : InverseRouterPruneStats
-        External pruning statistics.
+    pruning_skipped_reason : str | None
+        Non-fatal reason why switch-matrix pruning was skipped.
     report_summary : str
         Human-readable report.
     """
@@ -293,10 +276,5 @@ class InverseRouterResult(BaseModel):
     switch_matrix_stats: InverseRouterPruneStats = Field(
         default_factory=InverseRouterPruneStats
     )
-    external_scores: dict[Any, int] = Field(default_factory=dict)
-    final_external_pips: list[Any] = Field(default_factory=list)
-    removed_external_pips: list[Any] = Field(default_factory=list)
-    external_stats: InverseRouterPruneStats = Field(
-        default_factory=InverseRouterPruneStats
-    )
+    pruning_skipped_reason: str | None = None
     report_summary: str = ""

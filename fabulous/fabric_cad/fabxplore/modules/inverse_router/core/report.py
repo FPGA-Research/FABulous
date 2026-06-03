@@ -27,11 +27,6 @@ Configuration
   {{ result.options.switch_matrix_remove_unused_ratio }}
 - switch_matrix_remove_used_ratio:
   {{ result.options.switch_matrix_remove_used_ratio }}
-- optimize_external_pips: {{ result.options.optimize_external_pips }}
-- external_remove_unused_ratio:
-  {{ result.options.external_remove_unused_ratio }}
-- external_remove_used_ratio:
-  {{ result.options.external_remove_used_ratio }}
 
 Training Collection
 - routes: {{ result.training_routes | length }}
@@ -39,6 +34,11 @@ Training Collection
 - failed: {{ result.training_routes | rejectattr("passed") | list | length }}
 - fasm available:
   {{ result.training_routes | selectattr("fasm_available") | list | length }}
+{% if result.pruning_skipped_reason %}
+
+Notes
+- {{ result.pruning_skipped_reason }}
+{% endif %}
 
 Switch Matrix
 - candidates: {{ result.switch_matrix_stats.candidates }}
@@ -47,14 +47,6 @@ Switch Matrix
 - removed unused: {{ result.switch_matrix_stats.removed_unused }}
 - removed used: {{ result.switch_matrix_stats.removed_used }}
 - kept: {{ result.switch_matrix_stats.kept }}
-
-External Tracks
-- candidates: {{ result.external_stats.candidates }}
-- unused candidates: {{ result.external_stats.unused_candidates }}
-- used candidates: {{ result.external_stats.used_candidates }}
-- removed unused: {{ result.external_stats.removed_unused }}
-- removed used: {{ result.external_stats.removed_used }}
-- kept: {{ result.external_stats.kept }}
 
 Training Validation
 - routes: {{ result.training_validation_routes | length }}

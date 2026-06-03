@@ -75,38 +75,32 @@ class InverseRouterProcessTracker:
                 passed,
             )
 
-    def scoring(self, matrix_pips: int, external_pips: int) -> None:
+    def scoring(self, matrix_pips: int) -> None:
         """Log score-collection totals.
 
         Parameters
         ----------
         matrix_pips : int
             Number of matrix candidates with positive score.
-        external_pips : int
-            Number of external candidates with positive score.
         """
         if self.enabled:
             logger.info(
-                "[InverseRouter] Scored matrix_pips={} external_pips={}",
+                "[InverseRouter] Scored matrix_pips={}",
                 matrix_pips,
-                external_pips,
             )
 
-    def applied(self, matrix_removed: int, external_removed: int) -> None:
+    def applied(self, matrix_removed: int) -> None:
         """Log graph update totals.
 
         Parameters
         ----------
         matrix_removed : int
             Number of matrix PIPs selected for removal.
-        external_removed : int
-            Number of external PIPs selected for removal.
         """
         if self.enabled:
             logger.info(
-                "[InverseRouter] Applied matrix_removed={} external_removed={}",
+                "[InverseRouter] Applied matrix_removed={}",
                 matrix_removed,
-                external_removed,
             )
 
     def finish(self, tile_name: str) -> None:

@@ -1,16 +1,16 @@
 # Inverse Router
 
-The inverse router is a benchmark-driven routing-resource learner. It does not
-try to replace nextpnr. Instead, it runs benchmarks through a router that emits
+The inverse router is a benchmark-driven switch-matrix learner. It does not try
+to replace nextpnr. Instead, it runs benchmarks through a router that emits
 FABulous FASM, reads the routed FASM back into the `PnRBridge`, and asks:
 
 ```text
-Which tile-local switch-matrix PIPs and external tracks did the router use?
+Which tile-local switch-matrix PIPs did the router use?
 ```
 
-The result is an importance score for every observed resource of one tile type.
-Those scores can then be used to build a smaller switch matrix, remove unused
-external tracks, and validate the result on training and test benchmarks.
+The result is an importance score for every active switch-matrix PIP of one
+tile type. Those scores can then be used to build a smaller switch matrix and
+validate the result on training and test benchmarks.
 
 The pass works in memory on the PnR bridge graph. It does not write FABulous
 source files. If the result should become source code, that write/update step
@@ -27,7 +27,7 @@ fabric + netlist -> route -> FASM
 The inverse router uses the route result in the opposite direction:
 
 ```text
-FASM + fabric graph -> used routing resources -> optimized tile model
+FASM + fabric graph -> used switch-matrix PIPs -> optimized switch matrix
 ```
 
 As a mathematical analogy, a forward function computes $y = f(x)$. If the output
@@ -40,42 +40,18 @@ in which the original problem is stated.
 For routing, the expensive forward question is:
 
 ```text
-Which subset of millions of possible resources is enough for useful designs?
+Which subset of possible switch-matrix PIPs is enough for useful designs?
 ```
 
 The inverse question is cheaper:
 
 ```text
-Given routed designs, which resources were actually used?
+Given routed designs, which switch-matrix PIPs were actually used?
 ```
 
 That gives a strong first solution quickly. It is not proof that every future
 design will route, so the flow separates training benchmarks from test
 benchmarks, similar to a machine-learning style train/test split.
-
-## What Gets Scored
-
-The inverse router scores two resource classes for one tile type.
-
-Switch-matrix PIPs:
-
-```text
-row <- column
-```
-
-These are internal matrix PIPs of the selected tile type. The score is stored as
-a `RoutingSwitchMatrix`.
-
-External logical tracks:
-
-```text
-(external_resource_key, track_index)
-```
-
-These are individual tracks inside expanded external routing resources owned by
-the selected tile type, for example neighbor-wire or jump-wire vectors that are
-not switch-matrix cells. The score is stored as a dictionary keyed by
-`(RoutingResourceKey, track_index)`.
 
 ## Router Requirement
 
@@ -89,8 +65,8 @@ document = fpga_model.evaluate_fasm(route_result.fasm_text)
 ```
 
 `evaluate_fasm()` parses and annotates the FASM against the current graph. That
-annotation is what makes the algorithm independent from naming guesses: matrix
-PIPs and external logical tracks come from graph metadata.
+annotation is what makes the algorithm independent from naming guesses:
+switch-matrix PIPs come from graph metadata.
 
 ## Training And Test Loop
 
@@ -101,11 +77,10 @@ for seed in configured IO assignment seeds:
     route all training benchmarks
     parse successful FASM
     collect used switch-matrix PIPs
-    collect used external tracks
 
-score resources
-prune resources if enabled
-apply selected graph edits if enabled
+score switch-matrix PIPs
+prune switch-matrix PIPs if enabled
+apply the final switch matrix if enabled
 
 if validate_training:
     route training benchmarks again
@@ -249,166 +224,76 @@ By default, kept cells are written with `switch_matrix_active_pip_value=1`.
 If `switch_matrix_active_pip_value=None`, original delays are kept where they
 are available.
 
-## External-Track Scoring
+## Training-Union Safety
 
-External routing is scored in the same spirit, but the unit is a logical track
-inside an external resource vector rather than a whole vector. This matters for
-FABulous vectors such as `WW4BEG/WW4END`: a FASM PIP like
-`WW4BEG12.WW4END8` means the logical track is `12 % 4 = 0`, not that the whole
-`WW4BEG/WW4END` vector was used.
-
-### FABulous Expansion And Remapping
-
-A FABulous external CSV row describes a vector of routing wires. For example:
-
-```text
-EAST,EE4BEG,4,0,EE4END,4
-```
-
-declares an east-going resource from base wire `EE4BEG` to base wire `EE4END`
-with span class `4` and vector width `W = 4`. FABulous expands this vector into
-concrete wire names by appending integer suffixes. The suffix is not guessed
-from names like `BEG` or `END`; it is sliced after the graph-declared base name,
-so base names containing digits still work.
-
-For a concrete FASM PIP:
-
-```text
-X1Y5.EE4BEG13.EE4END9
-```
-
-the parser resolves the PIP against the graph resource above and extracts the
-source suffix `i_s = 13` and destination suffix `i_d = 9`. The logical track is
-the suffix modulo the vector width:
+The conservative pruning mode is based on a union argument. Let $R_M$ be the
+active matrix cells before pruning. For each successful training route $b$, let
+$U_{M,b} \subseteq R_M$ be the matrix cells that appear in the routed FASM. The
+score for matrix cell $m$ is:
 
 $$
-t_s = i_s \bmod W,\qquad
-t_d = i_d \bmod W,\qquad
-t = t_s = t_d
+s_M(m) = \sum_{b \in B} \mathbf{1}[m \in U_{M,b}]
 $$
 
-For this example, $13 \bmod 4 = 1$ and $9 \bmod 4 = 1$, so the used logical
-track is `(EE4BEG/EE4END, track 1)`. The quotient, for example
-$\lfloor 13 / 4 \rfloor = 3$, describes which expanded segment the concrete
-wire belongs to; it is useful metadata, but the pruning decision is made on the
-logical track $t$.
+The matrix training union is:
 
-If both endpoints can be mapped and the modulo values disagree, the FASM is
-treated as inconsistent for that external resource. If only one endpoint can be
-mapped, as in some cascade PIPs, that endpoint is enough to recover the logical
-track. Multi-track resources with a `NULL` endpoint are skipped because FASM
-does not identify a single removable logical track. Single-track `NULL`
-resources are safe to represent as track `0`.
+$$
+U_M = \bigcup_{b \in B} U_{M,b}
+$$
 
-Example training routes:
+A matrix cell is unused exactly when $s_M(m)=0$, which means:
 
-```text
-route0 uses: N1END0.N1BEG0, EE4BEG13.EE4END9
-route1 uses: N1END0.N1BEG0
-route2 uses: SS1BEG0.SS1END0
-```
+$$
+s_M(m)=0
+\iff
+\forall b \in B:\ m \notin U_{M,b}
+\iff
+m \notin U_M
+$$
 
-The score map becomes:
+If only score-zero matrix cells are removed, every collected training matrix
+route remains inside the kept matrix union.
 
-```text
-(N1, track 0): 2
-(EE4, track 1): 1
-(SS1, track 0): 1
-(EE4, track 0): 0
-(EE4, track 2): 0
-(EE4, track 3): 0
-```
-
-The score-zero entries mean those logical tracks exist in the graph for that
-tile type, but no successful training FASM used them. Multi-track resources
-with a `NULL` endpoint are skipped because FASM cannot identify a single
-logical track for them. Single-track `NULL` resources are scored as track `0`.
-
-External pruning removes unused tracks first, then optionally removes used
-tracks from the lowest score upward:
+With the conservative settings:
 
 ```python
-external_remove_unused_ratio=1.0
-external_remove_used_ratio=0.0
+switch_matrix_remove_unused_ratio=1.0
+switch_matrix_remove_used_ratio=0.0
 ```
 
-keeps all positive-score external tracks and removes score-zero tracks with
-`remove_external_resource_track()` when `optimize_external_pips=True`.
-
-### Training-Union Safety
-
-The conservative pruning mode is based on a simple union argument. Let $R$ be
-the set of active candidate resources for one tile type. For each successful
-training route $b$, let $U_b \subseteq R$ be the resources that appear in the
-routed FASM. The inverse router score for resource $r$ is:
-
-$$
-s(r) = \sum_{b \in B} \mathbf{1}[r \in U_b]
-$$
-
-The training union is:
-
-$$
-U = \bigcup_{b \in B} U_b
-$$
-
-A resource is unused exactly when $s(r) = 0$, which means:
-
-$$
-s(r)=0
-\iff
-\forall b \in B:\ r \notin U_b
-\iff
-r \notin U
-$$
-
-If we remove only score-zero resources, the removed set is
-$Z = R \setminus U$. For every training benchmark $b$:
-
-$$
-U_b \subseteq U = R \setminus Z
-$$
-
-So the concrete route that produced the training FASM still uses only resources
-that remain after pruning. This is the mathematical reason that
-`*_remove_unused_ratio=1.0` with `*_remove_used_ratio=0.0` is conservative: it
-does not remove any resource that appeared in the collected training solutions.
+training validation is expected to pass for every training case that routed
+successfully during collection, provided the validation run sees the same
+fabric, PCF assignment, BEL model, and non-matrix routing resources. If such a
+training route fails after only unused matrix cells were removed, treat that as
+a correctness signal: either the FASM-to-matrix extraction missed a required
+matrix resource, or the routing model used for validation is not equivalent to
+the model used during collection.
 
 The proof is about existence of the collected routes, not about router
 determinism. A later router run may choose a different route, placement choices
-can change, and removing score-positive resources with
-`*_remove_used_ratio > 0.0` intentionally breaks this safety proof. That is why
-training validation and separate test benchmarks are still part of the flow.
+can change, and removing score-positive matrix resources with
+`switch_matrix_remove_used_ratio > 0.0` intentionally breaks this safety proof.
+That is why training validation and separate test benchmarks are still part of
+the flow.
 
 ## Applying Results
 
 The inverse router can run as an evaluator or as an in-memory graph edit pass.
 
-Switch matrix:
+When:
 
 ```python
 optimize_switch_matrix=True
 ```
 
-applies the final matrix with:
+the final matrix is applied with:
 
 ```python
 fpga_model.set_switch_matrix(tile_name, columns, rows, matrix)
 ```
 
-External tracks:
-
-```python
-optimize_external_pips=True
-```
-
-removes selected logical tracks from external resources in the graph. Removing a
-track also compacts the tile-local switch matrix names so the matrix does not
-point at a non-existing wire. When an external resource has only one track,
-removing that track deletes the whole resource.
-
-Neither mode writes tile CSV, list, Verilog, or generated source files. The
-graph is modified in memory. Source writing remains an explicit user action.
+No external routing resources are removed by this pass. The algorithm is
+deliberately focused on the switch matrix.
 
 ## Example Pass
 
@@ -428,9 +313,6 @@ self.pnr_inverse_router_pass(
     switch_matrix_remove_unused_ratio=1.0,
     switch_matrix_remove_used_ratio=0.0,
     switch_matrix_active_pip_value=1,
-    optimize_external_pips=True,
-    external_remove_unused_ratio=1.0,
-    external_remove_used_ratio=0.0,
     validate_training=True,
     validate_test=True,
     nextpnr_exec=Path("/path/to/nextpnr-generic"),
@@ -440,9 +322,8 @@ self.pnr_inverse_router_pass(
 )
 ```
 
-This configuration is conservative: it removes unused switch-matrix cells and
-unused external tracks, but it does not remove any track that appeared in
-training.
+This configuration is conservative: it removes unused switch-matrix cells but
+does not remove score-positive switch-matrix cells.
 
 ## Pass Options
 
@@ -492,21 +373,6 @@ aggressive and should be validated carefully.
 Value assigned to kept matrix cells in the final matrix. If this is an integer,
 all kept cells use that value. If this is `None`, original graph delays are kept
 where available.
-
-`optimize_external_pips`
-
-If `True`, remove selected external logical tracks in the graph. If `False`,
-still compute and report `external_scores`, `final_external_pips`, and
-`removed_external_pips`.
-
-`external_remove_unused_ratio`
-
-Ratio of score-zero external tracks to remove.
-
-`external_remove_used_ratio`
-
-Ratio of score-positive external tracks to remove after unused pruning. Removal
-starts at the lowest score.
 
 `validate_training`
 
@@ -576,29 +442,10 @@ the importance metric for internal matrix PIPs.
 Counts for matrix candidates, unused candidates, used candidates, removed
 unused, removed used, and kept PIPs.
 
-`external_scores`
-
-Dictionary from `(RoutingResourceKey, track_index)` to training usage count.
-
-`final_external_pips`
-
-External logical tracks kept after pruning. This list is useful as an importance
-metric even when external optimization is disabled.
-
-`removed_external_pips`
-
-External logical tracks selected for removal. These are removed when
-`optimize_external_pips=True`.
-
-`external_stats`
-
-Counts for external candidates, unused candidates, used candidates, removed
-unused, removed used, and kept PIPs.
-
 `report_summary`
 
-Human-readable report with configuration, route counts, pruning counts, and
-validation counts.
+Human-readable report with configuration, route counts, matrix pruning counts,
+and validation counts.
 
 ## Practical Guidance
 
@@ -607,7 +454,7 @@ Good default strategy:
 ```text
 1. Start from a generous tile, often produced by pattern/full or another growth pass.
 2. Run inverse routing on several training benchmarks and several IO seeds.
-3. Remove unused resources only.
+3. Remove unused switch-matrix cells only.
 4. Validate with training and held-out test benchmarks.
 5. Increase used-resource pruning only after the conservative run is stable.
 ```

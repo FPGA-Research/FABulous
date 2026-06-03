@@ -43,12 +43,6 @@ class InverseRouterPass(PnRPass):
         Ratio of score-positive matrix PIPs to remove.
     switch_matrix_active_pip_value : int | None
         Value assigned to kept matrix PIPs. ``None`` keeps original delays.
-    optimize_external_pips : bool
-        Whether external PIP pruning is applied to the graph.
-    external_remove_unused_ratio : float
-        Ratio of score-zero external PIPs to remove.
-    external_remove_used_ratio : float
-        Ratio of score-positive external PIPs to remove.
     validate_training : bool
         Whether training benchmarks are rerun after graph updates.
     validate_test : bool
@@ -74,9 +68,6 @@ class InverseRouterPass(PnRPass):
     switch_matrix_remove_unused_ratio: float = 1.0
     switch_matrix_remove_used_ratio: float = 0.0
     switch_matrix_active_pip_value: int | None = 1
-    optimize_external_pips: bool = False
-    external_remove_unused_ratio: float = 1.0
-    external_remove_used_ratio: float = 0.0
     validate_training: bool = True
     validate_test: bool = True
     nextpnr_exec: Path | str | None = None
@@ -105,9 +96,6 @@ class InverseRouterPass(PnRPass):
             switch_matrix_remove_unused_ratio=(self.switch_matrix_remove_unused_ratio),
             switch_matrix_remove_used_ratio=self.switch_matrix_remove_used_ratio,
             switch_matrix_active_pip_value=self.switch_matrix_active_pip_value,
-            optimize_external_pips=self.optimize_external_pips,
-            external_remove_unused_ratio=self.external_remove_unused_ratio,
-            external_remove_used_ratio=self.external_remove_used_ratio,
             validate_training=self.validate_training,
             validate_test=self.validate_test,
             nextpnr_exec=self.nextpnr_exec,
