@@ -432,7 +432,6 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         print(self.fpga_model.fabric_dimensions())  # noqa: T201
 
-        self.fpga_model.write_tile_sources(tile_types=["LUT5F"])
         self.pnr_inverse_router_pass(
             nextpnr_exec=Path(
                 "/home/hausding/Documents/FABulous/demo_master_thesis"
@@ -464,8 +463,6 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         print(self.fpga_model.fabric_dimensions())  # noqa: T201
 
-        self.fpga_model.write_tile_sources(tile_types=["LUT5F"])
-
         self.pnr_inverse_router_pass(
             nextpnr_exec=Path(
                 "/home/hausding/Documents/FABulous/demo_master_thesis"
@@ -492,7 +489,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         )
 
         a = self.netlist_tool_pass(
-            tile_name="LUT4AB",
+            tile_name="LUT5F",
             sub_circuit_map_rules=[
                 """
                 (* extract_order = 0 *)
