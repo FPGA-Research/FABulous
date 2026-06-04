@@ -26,6 +26,20 @@ class IO(Enum):
     NULL = "NULL"
 
 
+class ClockEdge(StrEnum):
+    """Enumeration for the active edge of a clock port.
+
+    Defines which clock transition a clock port is sensitive to:
+    - RISING: Rising-edge triggered
+    - FALLING: Falling-edge triggered
+    - BOTH: Dual-edge (rising and falling) triggered
+    """
+
+    RISING = "rising"
+    FALLING = "falling"
+    BOTH = "both"
+
+
 @total_ordering
 class Direction(Enum):
     """Enumeration for wire and port directions in the fabric.
@@ -154,6 +168,56 @@ class PinSortMode(StrEnum):
     BUS_MAJOR = "bus_major"
     BIT_MINOR = "bit_minor"
     CUSTOM = "custom"
+
+
+class FeatureType(StrEnum):
+    """Enumeration for feature types used in configuration ports.
+
+    Defines how configuration features are encoded:
+    - ENUMERATE: Sequential enumeration
+    - INIT: Initialization value
+    - ONE_HOT: One-hot encoding
+    - FEATURE_MAP: Feature map encoding
+    """
+
+    ENUMERATE = "ENUMERATE"
+    INIT = "INIT"
+    ONE_HOT = "ONE_HOT"
+    FEATURE_MAP = "FEATURE_MAP"
+
+
+class FeatureValue(NamedTuple):
+    """Named tuple representing a feature value for configuration.
+
+    Attributes
+    ----------
+    name : str
+        The name of the feature
+    value : int | None
+        The value of the feature, or None if undefined
+    """
+
+    name: str
+    value: int | None
+
+    def value_as_bitstring(self) -> str:
+        """Convert the feature value to a bitstring representation.
+
+        Returns
+        -------
+        str
+            A bitstring representation of the value, or 'x' if value is None.
+
+        Raises
+        ------
+        ValueError
+            If the value is not None or an integer.
+        """
+        if self.value is None:
+            return "x"
+        if isinstance(self.value, int):
+            return f"{self.value:01b}"
+        raise ValueError(f"Invalid value type: {type(self.value)} for {self.name}")
 
 
 class TileSize(NamedTuple):

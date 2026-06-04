@@ -33,7 +33,7 @@ class TileConfig(NamedTuple):
     """Configuration parameters for tile testing."""
 
     name: str
-    global_config_bits: int
+    globalConfigBits: int
 
 
 @pytest.fixture
@@ -181,7 +181,7 @@ def tile_config(request: pytest.FixtureRequest, mocker: MockerFixture) -> Tile:
     config = request.param
     tile = mocker.create_autospec(Tile, spec_set=False)
     tile.name = config.name
-    tile.globalConfigBits = config.global_config_bits
+    tile.globalConfigBits = config.globalConfigBits
     return tile
 
 

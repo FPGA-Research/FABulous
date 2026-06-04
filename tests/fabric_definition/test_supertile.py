@@ -65,9 +65,9 @@ class TestSuperTileLayout:
 
 
 class TestSuperTilePortQueries:
-    """``getPortsAroundTile`` / ``getInternalConnections`` partition the four edges of
-    every cell into "outer" (boundary or facing a hole) and "inner" (facing another
-    tile).
+    """``getPortsAroundTile`` / ``getInternalConnections`` partition the four
+    edges of every cell into "outer" (boundary or facing a hole) and "inner"
+    (facing another tile).
 
     The implementation calls the side-getter for outer-edges only
     in ``getPortsAroundTile`` and inner-edges only in ``getInternalConnections``.

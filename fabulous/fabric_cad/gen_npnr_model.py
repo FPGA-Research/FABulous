@@ -251,8 +251,8 @@ def genNextpnrModel(
 
             pipStr.append(f"#Tile-external pips on tile X{x}Y{y}:")
             for wire in tile.wireList:
-                xDst = x + wire.xOffset
-                yDst = y + wire.yOffset
+                xDst = x + wire.x_offset
+                yDst = y + wire.y_offset
                 if (not (0 <= xDst <= fabric.numberOfColumns)) or (
                     not (0 <= yDst <= fabric.numberOfRows)
                 ):
@@ -271,7 +271,7 @@ def genNextpnrModel(
                     )
                 pipStr.append(
                     f"X{x}Y{y},{wire.source},"
-                    f"X{x + wire.xOffset}Y{y + wire.yOffset},{wire.destination},"
+                    f"X{x + wire.x_offset}Y{y + wire.y_offset},{wire.destination},"
                     f"{delay},"
                     f"{wire.source}.{wire.destination}"
                 )

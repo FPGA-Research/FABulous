@@ -51,7 +51,7 @@ def _serialize_tile_ports(
     }
 
     for port in tile.getNorthSidePorts():
-        if regex := port.getPortRegex(indexed=True, prefix=prefix):
+        if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.NORTH.name].append(
                 tile.pinOrderConfig[Side.NORTH]([regex]).to_dict()
             )
@@ -61,7 +61,7 @@ def _serialize_tile_ports(
     )
 
     for port in tile.getEastSidePorts():
-        if regex := port.getPortRegex(indexed=True, prefix=prefix):
+        if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.EAST.name].append(
                 tile.pinOrderConfig[Side.EAST]([regex]).to_dict()
             )
@@ -70,7 +70,7 @@ def _serialize_tile_ports(
     )
 
     for port in tile.getSouthSidePorts():
-        if regex := port.getPortRegex(indexed=True, prefix=prefix):
+        if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.SOUTH.name].append(
                 tile.pinOrderConfig[Side.SOUTH]([regex]).to_dict()
             )
@@ -80,7 +80,7 @@ def _serialize_tile_ports(
     )
 
     for port in tile.getWestSidePorts():
-        if regex := port.getPortRegex(indexed=True, prefix=prefix):
+        if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.WEST.name].append(
                 tile.pinOrderConfig[Side.WEST]([regex]).to_dict()
             )
@@ -135,10 +135,10 @@ def _serialize_supertile_ports(
         for port_list in port_lists:
             if not port_list:
                 continue
-            side = port_list[0].sideOfTile
+            side = port_list[0].side_of_tile
             perimeter_sides.add(side)
             for port in port_list:
-                if regex := port.getPortRegex(indexed=True, prefix=tile_prefix):
+                if regex := port.get_port_regex(indexed=True, prefix=tile_prefix):
                     config_payload[tile_key][side.name].append(
                         tile.pinOrderConfig[side]([regex]).to_dict()
                     )

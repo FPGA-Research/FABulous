@@ -36,7 +36,7 @@ def _unconnected_port_diagnostic(ports: list[Port], port_name: str) -> str:
     """Explain an unconnected switch matrix port caused by NULL-wire expansion.
 
     A NULL-terminated spanning wire expands to `wires x distance` nested
-    wires (see `Port.expandPortInfoByName`). When the switch matrix leaves some
+    wires (see `Port.expand_port_info_by_name`). When the switch matrix leaves some
     of those nested wires unconnected, the bare wire name is unhelpful, so this
     traces the wire back to its originating port and explains the expansion.
 
@@ -55,22 +55,22 @@ def _unconnected_port_diagnostic(ports: list[Port], port_name: str) -> str:
         wire.
     """
     for port in ports:
-        expanded = port.expandPortInfoByName()
+        expanded = port.expand_port_info_by_name()
         if port_name not in expanded:
             continue
-        distance = abs(port.xOffset) + abs(port.yOffset)
-        isNullTerminated = port.sourceName == "NULL" or port.destinationName == "NULL"
+        distance = abs(port.x_offset) + abs(port.y_offset)
+        isNullTerminated = port.source_name == "NULL" or port.destination_name == "NULL"
         if not (isNullTerminated and distance > 1):
             return ""
         return (
             f"\n  '{port_name}' is one of {len(expanded)} nested wires expanded "
-            f"from wire spec '{port.name}' (wires={port.wireCount}, "
+            f"from wire spec '{port.name}' (wires={port.wire_count}, "
             f"distance={distance}). A NULL-terminated wire connects all nested "
-            f"wires: wires x distance = {port.wireCount} x {distance} = "
+            f"wires: wires x distance = {port.wire_count} x {distance} = "
             f"{len(expanded)} ({expanded[0]}..{expanded[-1]}). The switch matrix "
             f"connects fewer than {len(expanded)} of them. Either connect all "
             f"{len(expanded)} nested wires, or name both ends of the wire "
-            f"(instead of NULL) for a direct {port.wireCount}-wire "
+            f"(instead of NULL) for a direct {port.wire_count}-wire "
             "point-to-point bus."
         )
     return ""
@@ -144,10 +144,10 @@ def genTileSwitchMatrix(
     # normal wire input (excludes JUMP and SJUMP which are handled separately)
     for i in tile.portsInfo:
         if (
-            i.wireDirection not in (Direction.JUMP, Direction.SJUMP)
-            and i.inOut == IO.INPUT
+            i.wire_direction not in (Direction.JUMP, Direction.SJUMP)
+            and i.io_direction == IO.INPUT
         ):
-            for p in i.expandPortInfoByName():
+            for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
 
     # bel wire input
@@ -157,17 +157,17 @@ def genTileSwitchMatrix(
 
     # jump wire input
     for i in tile.portsInfo:
-        if i.wireDirection == Direction.JUMP and i.inOut == IO.INPUT:
-            for p in i.expandPortInfoByName():
+        if i.wire_direction == Direction.JUMP and i.io_direction == IO.INPUT:
+            for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
 
     # normal wire output (excludes JUMP and SJUMP which are handled separately)
     for i in tile.portsInfo:
         if (
-            i.wireDirection not in (Direction.JUMP, Direction.SJUMP)
-            and i.inOut == IO.OUTPUT
+            i.wire_direction not in (Direction.JUMP, Direction.SJUMP)
+            and i.io_direction == IO.OUTPUT
         ):
-            for p in i.expandPortInfoByName():
+            for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
 
     # bel wire output
@@ -177,20 +177,20 @@ def genTileSwitchMatrix(
 
     # jump wire output
     for i in tile.portsInfo:
-        if i.wireDirection == Direction.JUMP and i.inOut == IO.OUTPUT:
-            for p in i.expandPortInfoByName():
+        if i.wire_direction == Direction.JUMP and i.io_direction == IO.OUTPUT:
+            for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
 
     # sjump wire output - SM drives OUTPUT signals exiting to supertile SM
     for i in tile.portsInfo:
-        if i.wireDirection == Direction.SJUMP and i.inOut == IO.OUTPUT:
-            for p in i.expandPortInfoByName():
+        if i.wire_direction == Direction.SJUMP and i.io_direction == IO.OUTPUT:
+            for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
 
     # sjump wire input - SM receives INPUT signals arriving from supertile SM
     for i in tile.portsInfo:
-        if i.wireDirection == Direction.SJUMP and i.inOut == IO.INPUT:
-            for p in i.expandPortInfoByName():
+        if i.wire_direction == Direction.SJUMP and i.io_direction == IO.INPUT:
+            for p in i.expand_port_info_by_name():
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
 
     writer.addComment("global", onNewLine=True)
@@ -479,7 +479,7 @@ def gen_super_tile_switch_matrix(
         writer.addComment("SJUMP inputs from child tiles", onNewLine=True)
         for lx, ly, p in all_sjump_ports:
             tileName = superTile.tileMap[ly][lx].name
-            for k in range(p.wireCount):
+            for k in range(p.wire_count):
                 writer.addPortScalar(f"{tileName}_{p.name}{k}", IO.INPUT, indentLevel=2)
 
     # Outputs: input ports of supertile BELs (SM drives BEL inputs)
@@ -502,7 +502,7 @@ def gen_super_tile_switch_matrix(
         writer.addComment("Reverse SJUMP outputs (SM -> child tile)", onNewLine=True)
         for lx, ly, p in all_input_sjump:
             tileName = superTile.tileMap[ly][lx].name
-            for k in range(p.wireCount):
+            for k in range(p.wire_count):
                 writer.addPortScalar(
                     f"{tileName}_{p.name}{k}", IO.OUTPUT, indentLevel=2
                 )

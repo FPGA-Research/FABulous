@@ -206,19 +206,19 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             if tile is not None:
                 seenPorts = set()
                 for p in tile.portsInfo:
-                    wireLength = (abs(p.xOffset) + abs(p.yOffset)) * p.wireCount - 1
+                    wireLength = (abs(p.x_offset) + abs(p.y_offset)) * p.wire_count - 1
                     # JUMP/SJUMP ports stay inside the tile (SJUMP routes to the
                     # supertile wrapper), so they need no tile-to-tile fabric wire.
-                    if p.sourceName == "NULL" or p.wireDirection in (
+                    if p.source_name == "NULL" or p.wire_direction in (
                         Direction.JUMP,
                         Direction.SJUMP,
                     ):
                         continue
-                    if p.sourceName in seenPorts:
+                    if p.source_name in seenPorts:
                         continue
-                    seenPorts.add(p.sourceName)
+                    seenPorts.add(p.source_name)
                     writer.addConnectionVector(
-                        f"Tile_X{x}Y{y}_{p.sourceName}", wireLength
+                        f"Tile_X{x}Y{y}_{p.source_name}", wireLength
                     )
     writer.addNewLine()
     # VHDL architecture body
@@ -334,7 +334,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 for (i, j), around in cord:
                     for ports in around:
                         for port in ports:
-                            if port.inOut == IO.OUTPUT and port.name != "NULL":
+                            if port.io_direction == IO.OUTPUT and port.name != "NULL":
                                 portsPairs.append(
                                     (
                                         f"Tile_X{int(i)}Y{int(j)}_{port.name}",
