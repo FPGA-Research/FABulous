@@ -12,8 +12,8 @@ from decimal import Decimal
 from pathlib import Path
 
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, Side
-from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.define import Side
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 
@@ -55,7 +55,7 @@ class SuperTile:
     switch_matrix: SwitchMatrix | None = None
     master_tile_coords: tuple[int, int] | None = None
 
-    def getPortsAroundTile(self) -> dict[str, list[list[Port]]]:
+    def get_ports_around_tile(self) -> dict[str, list[list[TilePort]]]:
         """Return all the ports that are around the supertile.
 
         The dictionary key is the location of where the tile is located in the
@@ -65,7 +65,7 @@ class SuperTile:
 
         Returns
         -------
-        dict[str, list[list[Port]]]
+        dict[str, list[list[TilePort]]]
             The dictionary of the ports around the super tile.
         """
         ports = {}
@@ -91,12 +91,12 @@ class SuperTile:
                 if tile is not None:
                     yield (x, y), tile
 
-    def getInternalConnections(self) -> list[tuple[list[Port], int, int]]:
+    def get_internal_connections(self) -> list[tuple[list[TilePort], int, int]]:
         """Return all the internal connections of the supertile.
 
         Returns
         -------
-        list[tuple[list[Port], int, int]]
+        list[tuple[list[TilePort], int, int]]
             A list of tuples which contains the internal connected port
             and the x and y coordinate of the tile.
         """
@@ -167,14 +167,14 @@ class SuperTile:
             )
         return mx, my
 
-    def get_all_sjump_ports(self) -> list[tuple[int, int, Port]]:
+    def get_all_sjump_ports(self) -> list[tuple[int, int, TilePort]]:
         """Return all SJUMP OUTPUT ports across every child tile.
 
         Returns
         -------
-        list[tuple[int, int, Port]]
+        list[tuple[int, int, TilePort]]
             Each entry is `(local_x, local_y, port)` for every OUTPUT port
-            with `wireDirection == Direction.SJUMP` in any child tile.
+            with `wire_direction == Direction.SJUMP` in any child tile.
         """
         result = []
         for y, row in enumerate(self.tileMap):
@@ -182,18 +182,18 @@ class SuperTile:
                 if tile is None:
                     continue
                 for p in tile.get_sjump_ports():
-                    if p.inOut == IO.OUTPUT:
+                    if p.is_output:
                         result.append((x, y, p))
         return result
 
-    def get_all_input_sjump_ports(self) -> list[tuple[int, int, Port]]:
+    def get_all_input_sjump_ports(self) -> list[tuple[int, int, TilePort]]:
         """Return all SJUMP INPUT ports across every child tile.
 
         Returns
         -------
-        list[tuple[int, int, Port]]
+        list[tuple[int, int, TilePort]]
             Each entry is `(local_x, local_y, port)` for every INPUT port
-            with `wireDirection == Direction.SJUMP` in any child tile.
+            with `wire_direction == Direction.SJUMP` in any child tile.
         """
         result = []
         for y, row in enumerate(self.tileMap):
@@ -201,7 +201,7 @@ class SuperTile:
                 if tile is None:
                     continue
                 for p in tile.get_sjump_ports():
-                    if p.inOut == IO.INPUT:
+                    if p.is_input:
                         result.append((x, y, p))
         return result
 
@@ -228,8 +228,8 @@ class SuperTile:
                 if tile is None:
                     continue
                 for p in tile.get_sjump_ports():
-                    names = {f"{tile.name}_{p.name}{k}" for k in range(p.wireCount)}
-                    if p.inOut == IO.OUTPUT:
+                    names = {f"{tile.name}_{p.name}{k}" for k in range(p.wire_count)}
+                    if p.is_output:
                         valid_sources |= names
                     else:
                         valid_sinks |= names
