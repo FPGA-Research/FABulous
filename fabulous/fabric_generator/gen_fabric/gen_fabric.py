@@ -15,23 +15,24 @@ Key features:
 
 from collections.abc import Generator
 
-from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction
+from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
 
-# (side port getter, neighbour dx, dy) for the four fabric edges. Each side's
-# local INPUT ports pair with the same-side OUTPUT ports of the neighbour at the
-# given offset; dy grows downward (south).
+# (local INPUT side, neighbour OUTPUT side, neighbour dx, dy) for the four fabric
+# edges. A wire ends on the opposite side from where it begins, so the local
+# input side and the neighbour's output side are opposites: a NORTH-direction
+# wire ends on this tile's SOUTH side and begins on the south neighbour's NORTH
+# side; dy grows downward (south).
 _SIDE_INPUT_CONNECTIONS = (
-    (Tile.getNorthPorts, 0, 1),  # north input <- south neighbour
-    (Tile.getEastPorts, -1, 0),  # east input  <- west neighbour
-    (Tile.getSouthPorts, 0, -1),  # south input <- north neighbour
-    (Tile.getWestPorts, 1, 0),  # west input  <- east neighbour
+    (Side.SOUTH, Side.NORTH, 0, 1),  # south input <- south neighbour north output
+    (Side.WEST, Side.EAST, -1, 0),  # west input <- west neighbour east output
+    (Side.NORTH, Side.SOUTH, 0, -1),  # north input <- north neighbour south output
+    (Side.EAST, Side.WEST, 1, 0),  # east input <- east neighbour west output
 )
 
 
@@ -205,7 +206,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
         for x, tile in enumerate(row):
             if tile is not None:
                 seenPorts = set()
-                for p in tile.portsInfo:
+                for p in tile.ports_info:
                     wireLength = (abs(p.x_offset) + abs(p.y_offset)) * p.wire_count - 1
                     # JUMP/SJUMP ports stay inside the tile (SJUMP routes to the
                     # supertile wrapper), so they need no tile-to-tile fabric wire.
@@ -305,11 +306,13 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
                 # input connection from north side of the south tile
                 # (NORTH-direction wires entering this tile from south fabric neighbour)
-                for get_side_ports, dx, dy in _SIDE_INPUT_CONNECTIONS:
+                for local_side, neighbour_side, dx, dy in _SIDE_INPUT_CONNECTIONS:
                     neighbor_x, neighbor_y = x + i + dx, y + j + dy
                     if (neighbor_x, neighbor_y) in superTileLoc:
                         continue
-                    localPorts = _local_names(get_side_ports(here, IO.INPUT))
+                    localPorts = _local_names(
+                        here.get_port_on_side(local_side, IO.INPUT)
+                    )
                     if (
                         0 <= neighbor_y < len(fabric.tile)
                         and 0 <= neighbor_x < len(fabric.tile[0])
@@ -317,9 +320,9 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                     ):
                         neighborInput = [
                             f"Tile_X{neighbor_x}Y{neighbor_y}_{p.name}"
-                            for p in get_side_ports(
-                                fabric.tile[neighbor_y][neighbor_x], IO.OUTPUT
-                            )
+                            for p in fabric.tile[neighbor_y][
+                                neighbor_x
+                            ].get_port_on_side(neighbour_side, IO.OUTPUT)
                         ]
                         portsPairs += list(zip(localPorts, neighborInput, strict=False))
                     else:
@@ -344,7 +347,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                                     )
                                 )
             else:
-                for i in tile.getTileOutputNames():
+                for i in tile.get_tile_output_names():
                     portsPairs.append((i, f"Tile_X{x}Y{y}_{i}"))
 
             writer.addNewLine()

@@ -312,12 +312,13 @@ def _build_fabric(
         name=_TILE_NAME,
         ports=[],
         bels=[bel],
-        tileDir=tile_dir / f"{_TILE_NAME}.csv",
+        tile_dir=tile_dir / f"{_TILE_NAME}.csv",
+        matrix_dir=matrix_path,
         switch_matrix=SwitchMatrix.from_file(matrix_path, _TILE_NAME),
         gen_ios=[],
         userCLK=False,
     )
-    tile.wireList = wires
+    tile.wire_list = wires
 
     fabric = Fabric(fabric_dir=root)
     fabric.tile = [[tile]]

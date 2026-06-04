@@ -144,7 +144,7 @@ class TestSerializeTilePorts:
         tile.getWestSidePorts.return_value = [west_port]
 
         # Pin order config for each side
-        tile.pinOrderConfig = {
+        tile.pin_order_config = {
             Side.NORTH: PinOrderConfig(),
             Side.EAST: PinOrderConfig(),
             Side.SOUTH: PinOrderConfig(),
@@ -233,7 +233,7 @@ class TestSerializeTilePorts:
         tile.getSouthSidePorts.return_value = []
         tile.getWestSidePorts.return_value = []
 
-        tile.pinOrderConfig = {
+        tile.pin_order_config = {
             Side.NORTH: PinOrderConfig(),
             Side.EAST: PinOrderConfig(),
             Side.SOUTH: PinOrderConfig(),
@@ -278,7 +278,7 @@ class TestSerializeSupertilePorts:
 
         # Create a mock tile for the tilemap
         mock_tile = mocker.MagicMock()
-        mock_tile.pinOrderConfig = {
+        mock_tile.pin_order_config = {
             Side.NORTH: PinOrderConfig(),
             Side.EAST: PinOrderConfig(),
             Side.SOUTH: PinOrderConfig(),
@@ -354,7 +354,7 @@ class TestSerializeSupertilePorts:
 
         def _tile() -> Tile:
             t = mocker.MagicMock()
-            t.pinOrderConfig = {s: PinOrderConfig() for s in Side}
+            t.pin_order_config = {s: PinOrderConfig() for s in Side}
             return t
 
         tile_top = _tile()
@@ -480,7 +480,7 @@ class TestGenerateIOPinOrderConfig:
         tile.getSouthSidePorts.return_value = []
         tile.getWestSidePorts.return_value = []
 
-        tile.pinOrderConfig = {
+        tile.pin_order_config = {
             Side.NORTH: PinOrderConfig(),
             Side.EAST: PinOrderConfig(),
             Side.SOUTH: PinOrderConfig(),
@@ -549,7 +549,7 @@ class TestGenerateIOPinOrderConfig:
 
         # Simple tilemap
         mock_tile = mocker.MagicMock(spec=Tile)
-        mock_tile.pinOrderConfig = {
+        mock_tile.pin_order_config = {
             Side.NORTH: PinOrderConfig(),
             Side.EAST: PinOrderConfig(),
             Side.SOUTH: PinOrderConfig(),
@@ -652,7 +652,7 @@ class TestGenerateIOPinOrderConfig:
         mock_supertile.bels = []
 
         mock_tile = mocker.MagicMock(spec=Tile)
-        mock_tile.pinOrderConfig = {
+        mock_tile.pin_order_config = {
             Side.NORTH: PinOrderConfig(),
             Side.EAST: PinOrderConfig(),
             Side.SOUTH: PinOrderConfig(),
@@ -695,7 +695,7 @@ class TestGenerateIOPinOrderConfig:
         mock_supertile.bels = []
 
         mock_tile = mocker.MagicMock(spec=Tile)
-        mock_tile.pinOrderConfig = {
+        mock_tile.pin_order_config = {
             Side.NORTH: PinOrderConfig(),
             Side.EAST: PinOrderConfig(),
             Side.SOUTH: PinOrderConfig(),
