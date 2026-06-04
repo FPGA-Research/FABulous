@@ -242,8 +242,8 @@ class TestSerializeTilePorts:
 
         # BEL with external ports
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = ["ext_out"]
+        bel.external_input = ["ext_in"]
+        bel.external_output = ["ext_out"]
         tile.bels = [bel]
 
         result = _serialize_tile_ports(tile, external_port_side=Side.SOUTH)
@@ -571,8 +571,8 @@ class TestGenerateIOPinOrderConfig:
     ) -> None:
         """Test generation uses SOUTH for external ports by default."""
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
+        bel.external_input = ["ext_in"]
+        bel.external_output = []
         mock_tile.bels = [bel]
 
         outfile = tmp_path / "test_config.yaml"
@@ -593,8 +593,8 @@ class TestGenerateIOPinOrderConfig:
     ) -> None:
         """Test generation without fabric placement context."""
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
+        bel.external_input = ["ext_in"]
+        bel.external_output = []
         mock_tile.bels = [bel]
 
         outfile = tmp_path / "test_config.yaml"
@@ -622,8 +622,8 @@ class TestGenerateIOPinOrderConfig:
     ) -> None:
         """Test that explicit external side is used for external ports."""
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
+        bel.external_input = ["ext_in"]
+        bel.external_output = []
         mock_tile.bels = [bel]
 
         outfile = tmp_path / "test_config.yaml"
@@ -659,8 +659,8 @@ class TestGenerateIOPinOrderConfig:
             Side.WEST: PinOrderConfig(),
         }
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
+        bel.external_input = ["ext_in"]
+        bel.external_output = []
         mock_tile.bels = [bel]
 
         mock_supertile.tileMap = [[mock_tile]]
@@ -702,8 +702,8 @@ class TestGenerateIOPinOrderConfig:
             Side.WEST: PinOrderConfig(),
         }
         bel = mocker.MagicMock()
-        bel.externalInput = ["ext_in"]
-        bel.externalOutput = []
+        bel.external_input = ["ext_in"]
+        bel.external_output = []
         mock_tile.bels = [bel]
 
         mock_supertile.tileMap = [[mock_tile]]

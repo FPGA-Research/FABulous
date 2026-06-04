@@ -30,9 +30,9 @@ class BelGeometry:
         Internal input port names of the bel
     internalOutputs : list[str]
         Internal output port names of the bel
-    externalInputs : list[str]
+    external_inputs : list[str]
         External input port names of the bel
-    externalOutputs : list[str]
+    external_outputs : list[str]
         External output port names of the bel
     internalPortGeoms : list[PortGeometry]
         List of geometries of the internal ports of the bel
@@ -48,8 +48,8 @@ class BelGeometry:
     relY: int
     internalInputs: list[str]
     internalOutputs: list[str]
-    externalInputs: list[str]
-    externalOutputs: list[str]
+    external_inputs: list[str]
+    external_outputs: list[str]
     internalPortGeoms: list[PortGeometry]
     externalPortGeoms: list[PortGeometry]
 
@@ -62,8 +62,8 @@ class BelGeometry:
         self.relY = 0
         self.internalInputs = []
         self.internalOutputs = []
-        self.externalInputs = []
-        self.externalOutputs = []
+        self.external_inputs = []
+        self.external_outputs = []
         self.internalPortGeoms = []
         self.externalPortGeoms = []
 
@@ -83,13 +83,13 @@ class BelGeometry:
         """
         self.name = bel.name
         self.src = bel.src
-        self.internalInputs = bel.inputs
-        self.internalOutputs = bel.outputs
-        self.externalInputs = bel.externalInput
-        self.externalOutputs = bel.externalOutput
+        self.internalInputs = [p.name for p in bel.inputs]
+        self.internalOutputs = [p.name for p in bel.outputs]
+        self.external_inputs = bel.external_input
+        self.external_outputs = bel.external_output
 
         internalPortsAmount = len(self.internalInputs) + len(self.internalOutputs)
-        externalPortsAmount = len(self.externalInputs) + len(self.externalOutputs)
+        externalPortsAmount = len(self.external_inputs) + len(self.external_outputs)
         maxAmountVerticalPorts = max(internalPortsAmount, externalPortsAmount)
 
         self.height = maxAmountVerticalPorts + padding
@@ -145,7 +145,7 @@ class BelGeometry:
 
         externalPortX = self.width
         externalPortY = padding // 2
-        for port in self.externalInputs:
+        for port in self.external_inputs:
             portName = port.removeprefix(bel.prefix)
             portGeom = PortGeometry()
             portGeom.generateGeometry(
@@ -160,7 +160,7 @@ class BelGeometry:
             self.externalPortGeoms.append(portGeom)
             externalPortY += 1
 
-        for port in self.externalOutputs:
+        for port in self.external_outputs:
             portName = port.removeprefix(bel.prefix)
             portGeom = PortGeometry()
             portGeom.generateGeometry(

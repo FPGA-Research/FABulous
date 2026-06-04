@@ -30,7 +30,12 @@ from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.wire import Wire
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
-from tests.conftest import make_empty_tile, make_fabric_from_grid, run_cmd
+from tests.conftest import (
+    make_empty_tile,
+    make_fabric_from_grid,
+    make_yosys_module,
+    run_cmd,
+)
 
 
 def _fabric_from_bits(grid: list[list[int | None]]) -> Fabric:
@@ -196,10 +201,14 @@ _DESTS = ["D0", "D1"]
 # Three BEL features consuming four config bits (F_B is a two-bit feature) plus
 # two switch-matrix sources consuming one control bit each => 6 global config
 # bits, matching matrixConfigBits (2) + bel.configBit (4).
+# BelMap module attributes: feature name -> config-bit index. A multi-bit
+# feature is declared per bit (`F_B_0`, `F_B_1`), which `Bel.bel_feature_map`
+# surfaces as the vector entries `F_B[0]` and `F_B[1]`.
 _FEATURE_MAP = {
-    "F_A": {0: {0: "1"}},
-    "F_B": {0: {0: "0", 1: "1"}},
-    "F_C": {0: {0: "1"}},
+    "F_A": 0,
+    "F_B_0": 1,
+    "F_B_1": 2,
+    "F_C": 3,
 }
 _SOURCES = ["S0", "S1"]
 
@@ -255,7 +264,7 @@ def _natural_wires() -> list[Wire]:
 def _build_fabric(
     root: Path,
     name: str,
-    feature_map: dict[str, dict],
+    feature_map: dict[str, int],
     sources: list[str],
     wires: list[Wire],
 ) -> Fabric:
@@ -268,8 +277,9 @@ def _build_fabric(
         their CSV files do not clobber one another.
     name : str
         Subdirectory name isolating this fabric's CSV files.
-    feature_map : dict[str, dict]
-        BEL feature map populating the single BEL.
+    feature_map : dict[str, int]
+        BelMap module attributes (feature name -> config-bit index) populating
+        the single BEL; its length sets the BEL's config-bit count.
     sources : list[str]
         Switch-matrix source rows, in the desired insertion order.
     wires : list[Wire]
@@ -291,17 +301,11 @@ def _build_fabric(
     bel = Bel(
         src=tile_dir / "LUTA.v",
         prefix="",
+        module=make_yosys_module(
+            config_bits=len(feature_map),
+            module_attributes={"BelMap": 1, **feature_map},
+        ),
         module_name="LUTA",
-        internal=[],
-        external=[],
-        configPort=[],
-        sharedPort=[],
-        configBit=4,
-        belMap=feature_map,
-        userCLK=False,
-        ports_vectors={},
-        carry={},
-        localShared={},
     )
 
     tile = Tile(
@@ -368,9 +372,9 @@ def test_bitstream_spec_assigns_bit_offsets_in_insertion_order(
     tile_spec = generateBitstreamSpec(fabric)["TileSpecs"]["X0Y0"]
 
     assert tile_spec["A.F_A"] == {31: "1"}
-    # F_B is a two-bit feature; only the highest bit survives the per-bit
-    # overwrite, landing on offset 2 -> physical position 29.
-    assert tile_spec["A.F_B"] == {29: "1"}
+    # F_B is a two-bit feature, carried as one entry per bit.
+    assert tile_spec["A.F_B[0]"] == {30: "1"}
+    assert tile_spec["A.F_B[1]"] == {29: "1"}
     assert tile_spec["A.F_C"] == {28: "1"}
     assert tile_spec["D0.S0"] == {27: "0"}
     assert tile_spec["D1.S0"] == {27: "1"}

@@ -16,6 +16,7 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.yosys_obj import YosysModule
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
@@ -78,22 +79,124 @@ def make_empty_tile(
     )
 
 
-def make_muladd_bel(internal: list[tuple[str, IO]], *, prefix: str = "SUPER_") -> Bel:
-    """Build a MULADD-style supertile BEL with only its internal pins populated."""
+def make_yosys_module(
+    ports: dict[str, tuple[IO, int]] | None = None,
+    *,
+    port_attributes: dict[str, dict] | None = None,
+    config_bits: int = 0,
+    user_clk: bool = False,
+    module_attributes: dict | None = None,
+) -> YosysModule:
+    """Build a `YosysModule` in memory for constructing `Bel` objects in tests.
+
+    The module is populated the way Yosys would emit it, so a `Bel` built from it
+    derives the intended ports. Signal bit ids are assigned sequentially and are
+    otherwise unused by the classification.
+
+    Parameters
+    ----------
+    ports : dict[str, tuple[IO, int]] | None, optional
+        Mapping of port name to ``(direction, width)``. Default is no ports.
+    port_attributes : dict[str, dict] | None, optional
+        Mapping of port name to its FABulous net attributes (e.g.
+        ``{"EXTERNAL": 1}``, ``{"SHARED_PORT": 1}``, ``{"CONFIG_BIT": 1}``).
+        Default is no attributes.
+    config_bits : int, optional
+        Width of the aggregate ``ConfigBits`` input port. ``0`` (default) adds no
+        such port.
+    user_clk : bool, optional
+        Whether to add a ``UserCLK`` input port. Default is False.
+    module_attributes : dict | None, optional
+        Module-level attributes carrying the bel map. Default is no attributes.
+
+    Returns
+    -------
+    YosysModule
+        The constructed module.
+    """
+    ports = ports or {}
+    port_attributes = port_attributes or {}
+    yports: dict[str, dict] = {}
+    ynets: dict[str, dict] = {}
+    counter = 2
+
+    def add(name: str, direction: IO, width: int, attrs: dict) -> None:
+        nonlocal counter
+        bits = list(range(counter, counter + width))
+        counter += width
+        yports[name] = {"direction": direction.name.lower(), "bits": bits}
+        ynets[name] = {"hide_name": 0, "bits": bits, "attributes": dict(attrs)}
+
+    for name, (direction, width) in ports.items():
+        add(name, direction, width, port_attributes.get(name, {}))
+    if user_clk:
+        add("UserCLK", IO.INPUT, 1, {})
+    if config_bits:
+        add("ConfigBits", IO.INPUT, config_bits, {})
+
+    return YosysModule(
+        attributes=dict(module_attributes or {}),
+        parameter_default_values={},
+        ports=yports,
+        cells={},
+        memories={},
+        netnames=ynets,
+    )
+
+
+def make_muladd_bel(
+    internal: list[tuple[str, IO]],
+    *,
+    prefix: str = "",
+    name: str = "MULADD",
+    config_ports: list[tuple[str, IO]] | None = None,
+    bel_map: dict[str, dict] | None = None,
+) -> Bel:
+    """Build a MULADD-style supertile BEL with only its internal pins populated.
+
+    The ``internal`` tuples already carry the fully prefixed pin names (e.g.
+    ``SUPER_A0``), so the default ``prefix`` is empty to avoid double-prefixing
+    on the ``BelPort`` model, whose ``name`` is ``prefix + raw_name``.
+
+    Parameters
+    ----------
+    internal : list[tuple[str, IO]]
+        Internal BEL pins as ``(name, direction)`` tuples.
+    prefix : str, optional
+        Pin prefix, by default empty.
+    name : str, optional
+        BEL name, which `Bel.name` derives from the source file stem. Defaults
+        to "MULADD". Pass a nextpnr-timed type (e.g. "LUT4c_frame_config") to
+        exercise the timing arcs.
+    config_ports : list[tuple[str, IO]] | None, optional
+        Config ports as ``(name, direction)`` tuples; their count sets the width
+        of the aggregate ConfigBits port. ``None`` (default) builds a BEL with no
+        config bits.
+    bel_map : dict[str, dict] | None, optional
+        The desired BEL feature map. Each key becomes a bel-map feature at a
+        sequential bit index. ``None`` (default) builds an empty map.
+
+    Returns
+    -------
+    Bel
+        The constructed BEL.
+    """
+    module_attributes: dict = {}
+    if bel_map:
+        module_attributes["BelMap"] = 1
+        for index, feature in enumerate(bel_map):
+            module_attributes[feature] = index
+
+    module = make_yosys_module(
+        ports={name: (direction, 1) for name, direction in internal},
+        config_bits=len(config_ports) if config_ports else 0,
+        module_attributes=module_attributes,
+    )
     return Bel(
-        src=Path("MULADD.v"),
+        src=Path(f"{name}.v"),
         prefix=prefix,
-        module_name="MULADD",
-        internal=internal,
-        external=[],
-        configPort=[],
-        sharedPort=[],
-        configBit=0,
-        belMap={},
-        userCLK=False,
-        ports_vectors={},
-        carry={},
-        localShared={},
+        module=module,
+        module_name=name,
     )
 
 

@@ -306,9 +306,10 @@ class TestGenNpnrModelSupertile:
         tile's fabric coordinates (X0Y1, per the module fixture above).
         """
         bel = make_muladd_bel(
-            [("I0", IO.INPUT), ("I1", IO.INPUT), ("O", IO.OUTPUT)], prefix="LA_"
+            [("I0", IO.INPUT), ("I1", IO.INPUT), ("O", IO.OUTPUT)],
+            prefix="LA_",
+            name="LUT4c_frame_config",
         )
-        bel.name = "LUT4c_frame_config"
 
         top_mat = tmp_path / "DSP_top_switch_matrix.list"
         bot_mat = tmp_path / "DSP_bot_switch_matrix.list"
