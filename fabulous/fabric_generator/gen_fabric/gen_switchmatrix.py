@@ -126,7 +126,7 @@ def genTileSwitchMatrix(
         if not connections[port_name]:
             hint = _unconnected_port_diagnostic(tile.portsInfo, port_name)
             raise ValueError(f"{port_name} not connected to anything!{hint}")
-    noConfigBits = tile.switch_matrix.no_config_bits
+    noConfigBits = tile.switch_matrix.total_config_bits
 
     # we pass the NumberOfConfigBits as a comment in the beginning of the file.
     # This simplifies it to generate the configuration port only if needed later when
@@ -453,7 +453,7 @@ def gen_super_tile_switch_matrix(
     if superTile.switch_matrix is None:
         return
 
-    noConfigBits = superTile.switch_matrix.no_config_bits
+    noConfigBits = superTile.switch_matrix.total_config_bits
     module_name = f"{superTile.name}_switch_matrix"
 
     # Connectivity (destination -> [sources]) held on the supertile.

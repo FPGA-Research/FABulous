@@ -253,7 +253,7 @@ class SuperTile:
     @property
     def supertile_matrix_config_bits(self) -> int:
         """Return the supertile switch matrix config-bit count (0 if no matrix)."""
-        return 0 if self.switch_matrix is None else self.switch_matrix.no_config_bits
+        return 0 if self.switch_matrix is None else self.switch_matrix.total_config_bits
 
     @property
     def max_width(self) -> int:

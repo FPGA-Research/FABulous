@@ -21,8 +21,11 @@ from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
     gen_super_tile_switch_matrix,
     genTileSwitchMatrix,
 )
-from fabulous.fabric_generator.parser.parse_csv import parse_port_line, parseFabricCSV
-from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
+from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV
+from fabulous.fabric_generator.parser.parse_switchmatrix import (
+    parse_port_line,
+    parseMatrix,
+)
 from fabulous.fabulous_settings import init_context
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 from tests.fabric_gen_test.conftest import (
@@ -77,7 +80,7 @@ class TestListExport:
     """to_list_file writes one compact `{N}output,[inputs]` line per mux."""
 
     def test_compact_per_mux_format_round_trips(self, tmp_path: Path) -> None:
-        sm = SwitchMatrix(
+        sm = SwitchMatrix.from_connections(
             matrix_file=Path("x.csv"),
             connections={"A_I": ["X", "Y"], "B_I": ["Z"], "C_I": []},
         )
@@ -98,7 +101,7 @@ class TestListExport:
         bel = make_muladd_bel(
             [("A", IO.INPUT), ("X", IO.OUTPUT), ("Y", IO.OUTPUT), ("Z", IO.OUTPUT)]
         )
-        sm = SwitchMatrix(
+        sm = SwitchMatrix.from_connections(
             matrix_file=Path("x.csv"),
             connections={"A": ["Z", "Y", "X"]},
             preserve_list_order=True,
@@ -128,7 +131,7 @@ class TestCsvExportReaderDecides:
     ) -> None:
         # B's order [X, Y] differs from the global column order [Y, Z, X].
         conns = {"A": ["Y", "Z"], "B": ["X", "Y"]}
-        sm = SwitchMatrix(matrix_file=Path("x.csv"), connections=conns)
+        sm = SwitchMatrix.from_connections(matrix_file=Path("x.csv"), connections=conns)
         out = tmp_path / "m.csv"
         sm.to_csv_file(out, "T")
         # preserve read honours the encoded position -> exact per-mux order
@@ -174,12 +177,12 @@ class TestHdlSwitchMatrix:
         v.write_text("// NumberOfConfigBits: 7\nmodule T(); endmodule\n")
         sm = SwitchMatrix.from_file(v, "T")
         assert sm.connections == {}
-        assert sm.no_config_bits == 7
+        assert sm.total_config_bits == 7
 
     def test_missing_config_bits_defaults_to_zero(self, tmp_path: Path) -> None:
         v = tmp_path / "T_switch_matrix.vhdl"
         v.write_text("entity T is end T;\n")
-        assert SwitchMatrix.from_file(v, "T").no_config_bits == 0
+        assert SwitchMatrix.from_file(v, "T").total_config_bits == 0
 
     def test_generation_skips_hdl_matrix(self, tmp_path: Path) -> None:
         v = tmp_path / "T_switch_matrix.v"
