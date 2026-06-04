@@ -144,7 +144,7 @@ def mock_tile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
 
     mock: MagicMock = mocker.MagicMock(spec=Tile)
     mock.name = "TestTile"
-    mock.tileDir = tile_dir
+    mock.tile_dir = tile_dir
     mock.bels = []
     mock.get_min_die_area.return_value = (Decimal("100.0"), Decimal("100.0"))
 
@@ -164,7 +164,7 @@ def mock_supertile(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
 
     mock: MagicMock = mocker.MagicMock(spec=SuperTile)
     mock.name = "TestSuperTile"
-    mock.tileDir = tile_dir
+    mock.tile_dir = tile_dir
     mock.max_width = 4
     mock.max_height = 3
     mock.bels = []

@@ -3,19 +3,27 @@
 from decimal import Decimal
 from pathlib import Path
 
-from fabulous.fabric_definition.define import IO, Direction, Side
+import pytest
+
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import (
+    IO,
+    Direction,
+    Side,
+)
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 
 
 def _mk_tile(ports: list[TilePort]) -> Tile:
-    """Construct a Tile with only portsInfo set — enough for get_port_count tests."""
+    """Construct a Tile with only ports_info set — enough for port_count tests."""
     return Tile(
         name="T",
         ports=ports,
         bels=[],
-        tileDir=Path(),
+        tile_dir=Path(),
+        matrix_dir=Path(),
         switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
         gen_ios=[],
         userCLK=False,
@@ -61,21 +69,21 @@ def _directional_ports(
 
 
 class TestGetPortCount:
-    """``get_port_count`` must return physical pin count, not 2× the wire count."""
+    """``port_count`` must return physical pin count, not 2× the wire count."""
 
     def test_single_direction_counts_once_per_wire(self) -> None:
         # One NORTH wire produces N1BEG on N edge and N1END on S edge.
         # Each edge should report exactly wire_count pins, not 2× wire_count.
         tile = _mk_tile(_directional_ports("NORTH", "N1BEG", "N1END", 4))
-        assert tile.get_port_count(Side.NORTH) == 4
-        assert tile.get_port_count(Side.SOUTH) == 4
+        assert tile.port_count(Side.NORTH) == 4
+        assert tile.port_count(Side.SOUTH) == 4
 
     def test_distance_multiplies_wire_count(self) -> None:
         # N4 wire with distance 4 and wire_count=4 expands to 16 physical pins
         # per edge in "all" mode (4 tiles of passthrough × 4 wires).
         tile = _mk_tile(_directional_ports("NORTH", "N4BEG", "N4END", 4, y_offset=-4))
-        assert tile.get_port_count(Side.NORTH) == 16
-        assert tile.get_port_count(Side.SOUTH) == 16
+        assert tile.port_count(Side.NORTH) == 16
+        assert tile.port_count(Side.SOUTH) == 16
 
     def test_opposite_directions_sum_on_shared_edge(self) -> None:
         # A north-going wire (N1BEG on N edge) and a south-going wire
@@ -85,8 +93,8 @@ class TestGetPortCount:
             "SOUTH", "S1BEG", "S1END", 4, y_offset=1
         )
         tile = _mk_tile(ports)
-        assert tile.get_port_count(Side.NORTH) == 8  # 4 N1BEG + 4 S1END
-        assert tile.get_port_count(Side.SOUTH) == 8  # 4 N1END + 4 S1BEG
+        assert tile.port_count(Side.NORTH) == 8  # 4 N1BEG + 4 S1END
+        assert tile.port_count(Side.SOUTH) == 8  # 4 N1END + 4 S1BEG
 
     def test_null_ports_excluded(self) -> None:
         # GND/VCC-like ports with NULL source count only the non-NULL side.
@@ -103,11 +111,11 @@ class TestGetPortCount:
             wire_count=1,
         )
         tile = _mk_tile([port])
-        assert tile.get_port_count(Side.ANY) == 1
+        assert tile.port_count(Side.ANY) == 1
 
 
 class TestGetMinDieArea:
-    """``get_min_die_area`` derives pin-limited min dimensions from get_port_count."""
+    """``get_min_die_area`` derives pin-limited min dimensions from port_count."""
 
     def test_pin_min_reflects_physical_pins_only(self) -> None:
         # Without the double-count bug, 4 wires on N should produce pin_min_w
@@ -127,3 +135,78 @@ class TestGetMinDieArea:
         )
         # 4 pins × 2 thickness + 2 offset = 10 tracks × 0.5 pitch = 5.0 um
         assert mw == Decimal("5.0")
+
+
+def _simple_tile(
+    name: str = "T",
+    ports: list[TilePort] | None = None,
+    bels: list[Bel] | None = None,
+) -> Tile:
+    """Build a simple (non-composite) Tile."""
+    return Tile(
+        name=name,
+        ports=ports or [],
+        bels=bels or [],
+        tile_dir=Path(),
+        matrix_dir=Path(),
+        gen_ios=[],
+        userCLK=False,
+        switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
+    )
+
+
+def _composite_tile(name: str, tile_map: list[list[str | None]]) -> Tile:
+    """Build a composite Tile carrying a tile_map."""
+    return Tile(
+        name=name,
+        ports=[],
+        bels=[],
+        tile_dir=Path(),
+        matrix_dir=Path(),
+        gen_ios=[],
+        userCLK=False,
+        switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
+        tile_map=tile_map,
+    )
+
+
+class TestSubTiles:
+    """Tests for sub-tile layout queries added by the tile model extension."""
+
+    def test_get_sub_tiles_simple(self) -> None:
+        """A simple tile reports itself as its only sub-tile."""
+        assert _simple_tile(name="T1").get_sub_tiles() == ["T1"]
+
+    def test_get_sub_tiles_composite(self) -> None:
+        """A composite tile flattens non-None tile_map entries."""
+        tile = _composite_tile("C", [["T0", "T1"], ["T2", None]])
+        assert tile.get_sub_tiles() == ["T0", "T1", "T2"]
+
+    def test_sub_tile_offset_simple_self(self) -> None:
+        """A simple tile is at offset (0, 0)."""
+        assert _simple_tile(name="M").get_sub_tile_offset("M") == (0, 0)
+
+    def test_sub_tile_offset_simple_missing(self) -> None:
+        """Requesting an unknown sub-tile raises."""
+        with pytest.raises(ValueError, match="not found in tile"):
+            _simple_tile(name="M").get_sub_tile_offset("Other")
+
+    def test_sub_tile_offset_composite(self) -> None:
+        """Composite offsets use y=0 at the top row, matching get_master_offset."""
+        tile = _composite_tile("C", [["T0", "T1"], ["T2", "T3"]])
+        assert tile.get_sub_tile_offset("T0") == (0, 0)
+        assert tile.get_sub_tile_offset("T1") == (1, 0)
+        assert tile.get_sub_tile_offset("T2") == (0, 1)
+
+    def test_part_of_tile(self) -> None:
+        """part_of_tile reflects sub-tile membership."""
+        tile = _composite_tile("C", [["T0", "T1"], ["T2", "T3"]])
+        assert tile.part_of_tile("T2") is True
+        assert tile.part_of_tile("X") is False
+
+    def test_is_root_tile(self) -> None:
+        """The bottom-left sub-tile is the root tile."""
+        assert _simple_tile(name="M").is_root_tile("M") is True
+        tile = _composite_tile("C", [["T0", "T1"], ["T2", "T3"]])
+        assert tile.is_root_tile("T2") is True
+        assert tile.is_root_tile("T0") is False

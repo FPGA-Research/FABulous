@@ -26,7 +26,7 @@ class SuperTile:
     ----------
     name : str
         The name of the super tile.
-    tileDir : Path
+    tile_dir : Path
         Path to the tile directory.
     tiles : list[Tile]
         The list of tiles that make up the super tile.
@@ -47,7 +47,7 @@ class SuperTile:
     """
 
     name: str
-    tileDir: Path
+    tile_dir: Path
     tiles: list[Tile]
     tileMap: list[list[Tile]]
     bels: list[Bel] = field(default_factory=list)
@@ -305,10 +305,10 @@ class SuperTile:
         max_east = 0
 
         for subtile in self.tiles:
-            max_north = max(max_north, subtile.get_port_count(Side.NORTH))
-            max_south = max(max_south, subtile.get_port_count(Side.SOUTH))
-            max_west = max(max_west, subtile.get_port_count(Side.WEST))
-            max_east = max(max_east, subtile.get_port_count(Side.EAST))
+            max_north = max(max_north, subtile.port_count(Side.NORTH))
+            max_south = max(max_south, subtile.port_count(Side.SOUTH))
+            max_west = max(max_west, subtile.port_count(Side.WEST))
+            max_east = max(max_east, subtile.port_count(Side.EAST))
 
         x_io_count = Decimal(max(max_north, max_south))
         min_width_io = (x_io_count * x_pin_thickness_mult + edge_offset) * x_pitch

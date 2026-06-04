@@ -133,7 +133,7 @@ class TestGetSuperTileContaining:
         tiles = [make_empty_tile(tile_name) for tile_name in tile_names]
         return SuperTile(
             name=name,
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=tiles,
             tileMap=[tiles],
         )

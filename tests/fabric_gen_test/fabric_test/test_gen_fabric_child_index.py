@@ -47,12 +47,12 @@ def test_supertile_bottom_child_usrclk_connects_to_global(
     bot.partOfSuperTile = True
     supertile = SuperTile(
         name="ST",
-        tileDir=top.tileDir,
+        tile_dir=top.tile_dir,
         tiles=[top, bot],
         tileMap=[[top], [bot]],
     )
     fabric = Fabric(
-        fabric_dir=top.tileDir,
+        fabric_dir=top.tile_dir,
         tile=[[top], [bot]],
         numberOfRows=2,
         numberOfColumns=1,

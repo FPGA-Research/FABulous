@@ -92,12 +92,16 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
         for x, tile in enumerate(row):
             if tile is None:
                 continue
-            if "fabric.csv" in str(tile.tileDir):
-                # Backward compat: in the old fabric.csv-embedded layout the
-                # tile's real location comes from its switch-matrix file path.
-                matrix_file = tile.switch_matrix.matrix_file
-                if matrix_file.is_file():
-                    configMemPath = matrix_file.parent / f"{tile.name}_ConfigMem.csv"
+            if "fabric.csv" in str(tile.tile_dir):
+                # Backward compat: in the old fabric.csv-embedded layout the tile's
+                # real location comes from its matrix file path (== the tile's
+                # switch_matrix.matrix_file).
+                if tile.matrix_dir.is_file():
+                    configMemPath = (
+                        tile.matrix_dir.parent / f"{tile.name}_ConfigMem.csv"
+                    )
+                elif tile.matrix_dir.is_dir():
+                    configMemPath = tile.matrix_dir / f"{tile.name}_ConfigMem.csv"
                 else:
                     configMemPath = (
                         get_context().proj_dir
@@ -110,7 +114,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                         f"Assuming default path: {configMemPath}"
                     )
             else:
-                configMemPath = tile.tileDir.parent.joinpath(
+                configMemPath = tile.tile_dir.parent.joinpath(
                     f"{tile.name}_ConfigMem.csv"
                 )
             logger.info(f"ConfigMemPath: {configMemPath}")
@@ -194,7 +198,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
 
             # And now we add empty config bit mappings for immutable connections
             # (i.e. wires), as nextpnr sees these the same as normal pips
-            for wire in tile.wireList:
+            for wire in tile.wire_list:
                 curTileMap[f"{wire.source}.{wire.destination}"] = {}
                 curTileMapNoMask[f"{wire.source}.{wire.destination}"] = {}
 
@@ -218,7 +222,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
         st_mask_dic: dict[int, str] = {}
         if st_config_bits > 0:
             st_config_mem_list = parseConfigMem(
-                super_tile.tileDir.parent / f"{super_tile.name}_ConfigMem.csv",
+                super_tile.tile_dir.parent / f"{super_tile.name}_ConfigMem.csv",
                 fabric.maxFramesPerCol,
                 fabric.frameBitsPerRow,
                 st_config_bits,

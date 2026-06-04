@@ -206,14 +206,14 @@ def make_empty_tile(
     name: str,
     ports: list[TilePort] | None = None,
     *,
-    tileDir: Path = Path(),
-    matrixDir: Path = Path(),
-    pinOrderConfig: dict | None = None,
+    tile_dir: Path = Path(),
+    matrix_dir: Path = Path(),
+    pin_order_config: dict | None = None,
     config_bits: int = 0,
 ) -> Tile:
     """Build a minimal Tile usable inside a SuperTile.tileMap.
 
-    Passing `pinOrderConfig={}` skips the GDS pin-order import; the `None`
+    Passing `pin_order_config={}` skips the GDS pin-order import; the `None`
     default preserves the original behaviour for callers that don't care.
     `config_bits` sets the switch matrix's declared config-bit count so the
     tile reports it via `globalConfigBits`.
@@ -222,13 +222,14 @@ def make_empty_tile(
         name=name,
         ports=ports or [],
         bels=[],
-        tileDir=tileDir,
-        switch_matrix=SwitchMatrix(
-            matrix_file=matrixDir, connections={}, hdl_config_bits=config_bits or None
-        ),
+        tile_dir=tile_dir,
+        matrix_dir=matrix_dir,
         gen_ios=[],
+        switch_matrix=SwitchMatrix(
+            matrix_file=matrix_dir, connections={}, hdl_config_bits=config_bits or None
+        ),
         userCLK=False,
-        pinOrderConfig=pinOrderConfig,
+        pin_order_config=pin_order_config,
     )
 
 
