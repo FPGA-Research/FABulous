@@ -343,7 +343,8 @@ def parseTilesCSV(
                 name=tileName,
                 ports=ports,
                 bels=bels,
-                tileDir=fileName,
+                tile_dir=fileName,
+                matrix_dir=matrixDir,
                 switch_matrix=SwitchMatrix.from_file(
                     matrixDir,
                     tileName,
@@ -514,8 +515,8 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
             tileMap.append(row)
 
         withUserCLK = any(bel.with_user_clock for bel in bels)
-        # tileDir is the supertile CSV file path (matching Tile.tileDir), so
-        # consumers use `tileDir.parent` for the supertile's directory.
+        # tile_dir is the supertile CSV file path (matching Tile.tile_dir), so
+        # consumers use `tile_dir.parent` for the supertile's directory.
         super_tile = SuperTile(
             name, fileName.absolute(), tiles, tileMap, bels, withUserCLK
         )

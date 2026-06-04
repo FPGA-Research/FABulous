@@ -316,12 +316,12 @@ class TestSuperTileMatrixValidation:
                 sjump_port("A", IO.OUTPUT, wire_count=1),
                 sjump_port("Q", IO.INPUT, wire_count=1),
             ],
-            pinOrderConfig={},
+            pin_order_config={},
         )
         bel = make_muladd_bel([("SUPER_A0", IO.INPUT), ("SUPER_Q0", IO.OUTPUT)])
         return SuperTile(
             name="DSP",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[bot],
             tileMap=[[bot]],
             bels=[bel],

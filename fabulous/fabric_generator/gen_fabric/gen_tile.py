@@ -16,7 +16,7 @@ Key features:
 from collections import defaultdict
 from pathlib import Path
 
-from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction
+from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -233,13 +233,15 @@ def generateTile(
     repeatDeclaration = set()
     for bel in tile.bels:
         for i in bel.inputs + bel.outputs:
-            if f"{i.name}" not in repeatDeclaration:
+            # ``BelPort.name`` already includes ``bel.prefix``; the dedup key and
+            # the stored key must be identical for the check to ever fire.
+            if i.name not in repeatDeclaration:
                 writer.addConnectionScalar(i.name)
-                repeatDeclaration.add(f"{bel.prefix}{i.name}")
+                repeatDeclaration.add(i.name)
 
     # Jump wires
     writer.addComment("Jump wires", onNewLine=True)
-    for p in tile.portsInfo:
+    for p in tile.ports_info:
         if p.wire_direction == Direction.JUMP:
             if p.source_name != "NULL" and p.destination_name != "NULL" and p.is_output:
                 writer.addConnectionVector(p.name, f"{p.wire_count}-1")
@@ -283,7 +285,7 @@ def generateTile(
     writer.addConnectionVector("FrameStrobe_O_i", "MaxFramesPerCol-1", 0)
 
     added = set()
-    for port in tile.portsInfo:
+    for port in tile.ports_info:
         span = abs(port.x_offset) + abs(port.y_offset)
         if (port.source_name, port.destination_name) in added:
             continue
@@ -338,7 +340,7 @@ def generateTile(
         )
 
     added = set()
-    for port in tile.portsInfo:
+    for port in tile.ports_info:
         span = abs(port.x_offset) + abs(port.y_offset)
         if (port.source_name, port.destination_name) in added:
             continue
@@ -488,7 +490,7 @@ def generateTile(
     ports_pairs = []
     # normal input wire (excludes JUMP and SJUMP, which are handled separately;
     # otherwise SJUMP inputs would be bound twice in the switch-matrix instance)
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction not in (Direction.JUMP, Direction.SJUMP) and i.is_input:
             ports_pairs += list(
                 zip(
@@ -504,7 +506,7 @@ def generateTile(
 
     # jump input wire
     port, signal = [], []
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction == Direction.JUMP and i.is_input:
             port += i.expand_port_info_by_name()
         if i.wire_direction == Direction.JUMP and i.is_output:
@@ -513,7 +515,7 @@ def generateTile(
     ports_pairs += list(zip(port, signal, strict=False))
 
     # normal output wire (excludes JUMP and SJUMP which are handled separately)
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction not in (Direction.JUMP, Direction.SJUMP) and i.is_output:
             ports_pairs += list(
                 zip(
@@ -530,7 +532,7 @@ def generateTile(
 
     # jump output wire
     port, signal = [], []
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction == Direction.JUMP and i.is_output:
             port += i.expand_port_info_by_name()
         if i.wire_direction == Direction.JUMP and i.is_output:
@@ -540,7 +542,7 @@ def generateTile(
 
     # sjump output wire - SM drives SJUMP OUTPUT signals exiting to supertile SM
     port, signal = [], []
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction == Direction.SJUMP and i.is_output:
             port += i.expand_port_info_by_name()
             signal += i.expand_port_info_by_name(indexed=True)
@@ -551,7 +553,7 @@ def generateTile(
     # The tile port is a vector, so index into it (Q[0]) rather than using the
     # scalar SM-port name (Q0), which would be a floating implicit wire.
     port, signal = [], []
-    for i in tile.portsInfo:
+    for i in tile.ports_info:
         if i.wire_direction == Direction.SJUMP and i.is_input:
             port += i.expand_port_info_by_name()
             signal += i.expand_port_info_by_name(indexed=True)
@@ -888,65 +890,73 @@ def generateSuperTile(
                 continue
 
             # north direction input connection
-            north_port = [i.name for i in tile.getNorthPorts(IO.INPUT)]
+            north_port = [i.name for i in tile.get_port_on_side(Side.SOUTH, IO.INPUT)]
             if (
                 0 <= y + 1 < len(superTile.tileMap)
                 and superTile.tileMap[y + 1][x] is not None
             ):
-                for p in superTile.tileMap[y + 1][x].getNorthPorts(IO.OUTPUT):
+                for p in superTile.tileMap[y + 1][x].get_port_on_side(
+                    Side.NORTH, IO.OUTPUT
+                ):
                     north_input.append(f"Tile_X{x}Y{y + 1}_{p.name}")
             else:
-                for p in tile.getNorthPorts(IO.INPUT):
+                for p in tile.get_port_on_side(Side.SOUTH, IO.INPUT):
                     north_input.append(f"Tile_X{x}Y{y}_{p.name}")
 
             ports_pairs += list(zip(north_port, north_input, strict=False))
             # east direction input connection
-            east_port = [i.name for i in tile.getEastPorts(IO.INPUT)]
+            east_port = [i.name for i in tile.get_port_on_side(Side.WEST, IO.INPUT)]
             if (
                 0 <= x - 1 < len(superTile.tileMap[0])
                 and superTile.tileMap[y][x - 1] is not None
             ):
-                for p in superTile.tileMap[y][x - 1].getEastPorts(IO.OUTPUT):
+                for p in superTile.tileMap[y][x - 1].get_port_on_side(
+                    Side.EAST, IO.OUTPUT
+                ):
                     east_input.append(f"Tile_X{x - 1}Y{y}_{p.name}")
             else:
-                for p in tile.getEastPorts(IO.INPUT):
+                for p in tile.get_port_on_side(Side.WEST, IO.INPUT):
                     east_input.append(f"Tile_X{x}Y{y}_{p.name}")
 
             ports_pairs += list(zip(east_port, east_input, strict=False))
 
             # south direction input connection
-            south_port = [i.name for i in tile.getSouthPorts(IO.INPUT)]
+            south_port = [i.name for i in tile.get_port_on_side(Side.NORTH, IO.INPUT)]
             if (
                 0 <= y - 1 < len(superTile.tileMap)
                 and superTile.tileMap[y - 1][x] is not None
             ):
-                for p in superTile.tileMap[y - 1][x].getSouthPorts(IO.OUTPUT):
+                for p in superTile.tileMap[y - 1][x].get_port_on_side(
+                    Side.SOUTH, IO.OUTPUT
+                ):
                     south_input.append(f"Tile_X{x}Y{y - 1}_{p.name}")
             else:
-                for p in tile.getSouthPorts(IO.INPUT):
+                for p in tile.get_port_on_side(Side.NORTH, IO.INPUT):
                     south_input.append(f"Tile_X{x}Y{y}_{p.name}")
 
             ports_pairs += list(zip(south_port, south_input, strict=False))
 
             # west direction input connection
-            west_port = [i.name for i in tile.getWestPorts(IO.INPUT)]
+            west_port = [i.name for i in tile.get_port_on_side(Side.EAST, IO.INPUT)]
             if (
                 0 <= x + 1 < len(superTile.tileMap[0])
                 and superTile.tileMap[y][x + 1] is not None
             ):
-                for p in superTile.tileMap[y][x + 1].getWestPorts(IO.OUTPUT):
+                for p in superTile.tileMap[y][x + 1].get_port_on_side(
+                    Side.WEST, IO.OUTPUT
+                ):
                     west_input.append(f"Tile_X{x + 1}Y{y}_{p.name}")
             else:
-                for p in tile.getWestPorts(IO.INPUT):
+                for p in tile.get_port_on_side(Side.EAST, IO.INPUT):
                     west_input.append(f"Tile_X{x}Y{y}_{p.name}")
 
             ports_pairs += list(zip(west_port, west_input, strict=False))
 
             for p in (
-                tile.getNorthPorts(IO.OUTPUT)
-                + tile.getEastPorts(IO.OUTPUT)
-                + tile.getSouthPorts(IO.OUTPUT)
-                + tile.getWestPorts(IO.OUTPUT)
+                tile.get_port_on_side(Side.NORTH, IO.OUTPUT)
+                + tile.get_port_on_side(Side.EAST, IO.OUTPUT)
+                + tile.get_port_on_side(Side.SOUTH, IO.OUTPUT)
+                + tile.get_port_on_side(Side.WEST, IO.OUTPUT)
             ):
                 ports_pairs.append((p.name, f"Tile_X{x}Y{y}_{p.name}"))
 

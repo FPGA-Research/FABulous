@@ -447,7 +447,7 @@ class TestFABulousTileVerilogMacroFlowInit:
             mock_pdk_root=mock_pdk_root,
         )
 
-        expected_dir: Path = mock_tile.tileDir.parent / "macro" / "find_min_width"
+        expected_dir: Path = mock_tile.tile_dir.parent / "macro" / "find_min_width"
         assert expected_dir.exists()
 
     def test_design_dir_custom(

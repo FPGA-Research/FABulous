@@ -41,7 +41,7 @@ def switch_matrix_signal_order(
     Parameters
     ----------
     ports : list[Port]
-        The tile's ports (`tile.portsInfo`).
+        The tile's ports (`tile.ports_info`).
     bels : list[Bel]
         The tile's BELs (`tile.bels`).
 

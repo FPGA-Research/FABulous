@@ -26,7 +26,7 @@ class SuperTile:
     ----------
     name : str
         The name of the super tile.
-    tileDir : Path
+    tile_dir : Path
         Path to the tile directory.
     tiles : list[Tile]
         The list of tiles that make up the super tile.
@@ -47,7 +47,7 @@ class SuperTile:
     """
 
     name: str
-    tileDir: Path
+    tile_dir: Path
     tiles: list[Tile]
     tileMap: list[list[Tile]]
     bels: list[Bel] = field(default_factory=list)
