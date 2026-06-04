@@ -13,7 +13,7 @@ import fabulous.fabulous_settings
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, Direction, HDLType, Side
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
@@ -23,33 +23,34 @@ from fabulous.fabulous_settings import init_context, reset_context
 
 def sjump_port(
     name: str,
-    inOut: IO,
-    wireCount: int = 2,
-    xOffset: int = 0,
-    yOffset: int = 0,
-) -> Port:
+    in_out: IO,
+    wire_count: int = 2,
+    x_offset: int = 0,
+    y_offset: int = 0,
+) -> TilePort:
     """Build an SJUMP port.
 
-    OUTPUT ports drive `sourceName`; INPUT ports terminate at
-    `destinationName`. SJUMP ports carry zero offsets, which is exactly the
-    case the width fix in `expandPortInfo*` has to handle.
+    OUTPUT ports drive `source_name`; INPUT ports terminate at
+    `destination_name`. SJUMP ports carry zero offsets, which is exactly the
+    case the width fix in `expand_port_info*` has to handle.
     """
-    return Port(
-        wireDirection=Direction.SJUMP,
-        sourceName=name if inOut == IO.OUTPUT else "NULL",
-        xOffset=xOffset,
-        yOffset=yOffset,
-        destinationName=name if inOut == IO.INPUT else "NULL",
-        wireCount=wireCount,
+    return TilePort(
         name=name,
-        inOut=inOut,
-        sideOfTile=Side.ANY,
+        io_direction=in_out,
+        width=wire_count,
+        side_of_tile=Side.ANY,
+        wire_direction=Direction.SJUMP,
+        source_name=name if in_out == IO.OUTPUT else "NULL",
+        x_offset=x_offset,
+        y_offset=y_offset,
+        destination_name=name if in_out == IO.INPUT else "NULL",
+        wire_count=wire_count,
     )
 
 
 def make_empty_tile(
     name: str,
-    ports: list[Port] | None = None,
+    ports: list[TilePort] | None = None,
     *,
     tileDir: Path = Path(),
     matrixDir: Path = Path(),
