@@ -1,7 +1,7 @@
 TILE,LUT4AB,,,,,#carry out,,,,,,,,,,,,
 INCLUDE,../include/Base.csv
 #direction,source_name,X-offset,Y-offset,destination_name,wires,,,,,,,,,,,,,
-NORTH,Co,0,-1,Ci,1,# carry,,,,,,,,,,,,
+NORTH,Co,0,1,Ci,1,# carry,,,,,,,,,,,,
 JUMP,J_SR_BEG,0,0,J_SR_END,1,,,,,,,,,,,,,
 JUMP,J_EN_BEG,0,0,J_EN_END,1,,,,,,,,,,,,,
 BEL,./LUT4c_frame_config_dffesr.{HDL_SUFFIX},LA_,,,,,,,,,,,,,,,,
