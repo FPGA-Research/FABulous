@@ -257,10 +257,10 @@ class FabricGeometry:
 
         # this step is for figuring out the fabric dimensions
         # as tile dimensions are fixed by now.
-        # Because of the top left point of the fabric being
+        # Because of the bottom left point of the fabric being
         # the origin (0, 0), the fabrics dimensions can be
         # figured out by determining the rightmost and
-        # bottommost points of the fabric.
+        # topmost points of the fabric.
         rightMostX = 0
         bottomMostY = 0
         for i in range(self.fabric.numberOfRows):

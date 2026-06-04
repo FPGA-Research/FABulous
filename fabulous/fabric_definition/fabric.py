@@ -651,9 +651,14 @@ class Fabric:
             The border side (NORTH, SOUTH, EAST, or WEST) if the position is on
             a border, None otherwise. If on a corner, returns the vertical side
             (NORTH or SOUTH) as priority.
+
+        Note
+        ----
+        Uses bottom-left origin: y=0 is bottom (SOUTH), y=max is top (NORTH).
         """
-        is_north = y == 0
-        is_south = y == self.numberOfRows - 1
+        # Bottom-left origin: y=0 is bottom (SOUTH), y=max is top (NORTH)
+        is_south = y == 0
+        is_north = y == self.numberOfRows - 1
         is_east = x == self.numberOfColumns - 1
         is_west = x == 0
 

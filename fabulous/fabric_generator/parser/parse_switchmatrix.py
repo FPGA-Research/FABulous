@@ -247,6 +247,56 @@ def parseList(
     return unique_pairs
 
 
+def _canonical_offset(
+    direction: Direction, raw_x: int, raw_y: int, line: str
+) -> tuple[int, int]:
+    """Derive a wire's canonical bottom-left offset from its direction and reach.
+
+    A cardinal wire's orientation is fixed by its direction token, so only the
+    reach magnitude of the authored offsets is meaningful; the sign is derived
+    here. The reach lies on the direction's own axis, and the orthogonal offset
+    must be zero.
+
+    Parameters
+    ----------
+    direction : Direction
+        The wire's cardinal direction (NORTH, SOUTH, EAST or WEST).
+    raw_x : int
+        The authored x offset.
+    raw_y : int
+        The authored y offset.
+    line : str
+        The originating CSV line, used in the error message.
+
+    Raises
+    ------
+    InvalidSwitchMatrixDefinition
+        If the offset orthogonal to the direction is non-zero, i.e. the wire is
+        diagonal and has no unambiguous cardinal reach.
+
+    Returns
+    -------
+    tuple[int, int]
+        The canonical ``(x_offset, y_offset)`` under the bottom-left origin.
+    """
+    match direction:
+        case Direction.NORTH:
+            off_axis, x, y = raw_x, 0, abs(raw_y)
+        case Direction.SOUTH:
+            off_axis, x, y = raw_x, 0, -abs(raw_y)
+        case Direction.EAST:
+            off_axis, x, y = raw_y, abs(raw_x), 0
+        case Direction.WEST:
+            off_axis, x, y = raw_y, -abs(raw_x), 0
+    if off_axis != 0:
+        raise InvalidSwitchMatrixDefinition(
+            f"Invalid port definition line {line!r}: a {direction.value} wire "
+            f"must have a zero offset on the orthogonal axis, got ({raw_x}, "
+            f"{raw_y})."
+        )
+    return x, y
+
+
 def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
     """Parse a single line of the port configuration from the CSV file.
 
@@ -290,10 +340,17 @@ def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
         # Parse: DIRECTION, source_name, x_offset, y_offset, dest_name, wire_count
         direction = Direction[temp[0]]
         source_name = temp[1]
-        x_offset = int(temp[2])
-        y_offset = int(temp[3])
+        raw_x = int(temp[2])
+        raw_y = int(temp[3])
         destination_name = temp[4]
         wire_count = int(temp[5])
+
+        # The direction token is authoritative for the wire's orientation and
+        # sign; the offsets contribute only reach (magnitude). Deriving the sign
+        # here rather than trusting the authored one lets both the top-first
+        # (pre-bottom-left origin) and the current bottom-left CSV conventions
+        # parse to the same model, so existing fabric definitions keep working.
+        x_offset, y_offset = _canonical_offset(direction, raw_x, raw_y, line)
 
         # Output port (source side)
         ports.append(
