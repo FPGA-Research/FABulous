@@ -70,7 +70,7 @@ def make_empty_tile(
         ports=ports or [],
         bels=[],
         tileDir=tileDir,
-        switch_matrix=SwitchMatrix(
+        switch_matrix=SwitchMatrix.from_connections(
             matrix_file=matrixDir, connections={}, hdl_config_bits=config_bits or None
         ),
         gen_ios=[],
