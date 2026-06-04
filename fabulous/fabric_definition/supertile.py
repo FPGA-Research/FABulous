@@ -235,15 +235,15 @@ class SuperTile:
                         valid_sinks |= names
 
         for bel in self.bels:
-            valid_sinks.update(bel.inputs)
-            valid_sources.update(bel.outputs)
+            valid_sinks.update(p.name for p in bel.inputs)
+            valid_sources.update(p.name for p in bel.outputs)
 
         return valid_sources, valid_sinks
 
     @property
     def total_config_bits(self) -> int:
         """Return the supertile's config bits: switch matrix bits plus BEL bits."""
-        return self.supertile_matrix_config_bits + sum(b.configBit for b in self.bels)
+        return self.supertile_matrix_config_bits + sum(b.config_bit for b in self.bels)
 
     @property
     def supertile_matrix_dir(self) -> Path | None:

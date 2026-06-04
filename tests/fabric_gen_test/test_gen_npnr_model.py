@@ -7,8 +7,9 @@ from fabulous.fabric_cad.gen_npnr_model import (
     belLines,
     genNextpnrModel,
 )
-from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import IO
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
+from tests.conftest import make_muladd_bel
 
 
 def test_gen_routing_model_returns_five_with_timing(cli: FABulousREPL) -> None:
@@ -43,13 +44,16 @@ def test_gen_routing_model_returns_five_with_timing(cli: FABulousREPL) -> None:
 
 def test_belLines_unknown_type_emits_no_timing_arcs() -> None:
     """BEL types that nextpnr does not time produce no timing arcs in bel.v3."""
-    bel = Bel.__new__(Bel)
-    bel.name = "IO_1_bidirectional_frame_config_pass"
-    bel.prefix = "A_"
-    bel.inputs = ["A_I", "A_T"]
-    bel.outputs = ["A_O", "A_Q"]
-    bel.belFeatureMap = {}
-    bel.withUserCLK = False
+    bel = make_muladd_bel(
+        [
+            ("I", IO.INPUT),
+            ("T", IO.INPUT),
+            ("O", IO.OUTPUT),
+            ("Q", IO.OUTPUT),
+        ],
+        prefix="A_",
+        name="IO_1_bidirectional_frame_config_pass",
+    )
 
     _, _, v3_lines, _ = belLines(bel, "A", 0, 0)
 

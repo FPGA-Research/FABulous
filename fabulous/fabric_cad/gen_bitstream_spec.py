@@ -159,7 +159,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             curTileMapNoMask = {}
 
             for i, bel in enumerate(tile.bels):
-                for featureKey, keyDict in bel.belFeatureMap.items():
+                for featureKey, keyDict in bel.bel_feature_map.items():
                     for entry in (k for k in keyDict if isinstance(k, int)):
                         for v in keyDict[entry]:
                             curTileMap[f"{string.ascii_uppercase[i]}.{featureKey}"] = {
@@ -281,7 +281,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             bel_offset = len(master_tile.bels) + st_bel_count.get(bel_coord, 0)
             for i, bel in enumerate(super_tile.bels):
                 letter = string.ascii_uppercase[bel_offset + i]
-                for featureKey, keyDict in bel.belFeatureMap.items():
+                for featureKey, keyDict in bel.bel_feature_map.items():
                     for entry in keyDict:
                         if not isinstance(entry, int):
                             continue

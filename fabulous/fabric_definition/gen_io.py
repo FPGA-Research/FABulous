@@ -25,7 +25,7 @@ class Gen_IO:
     IO : IO
         Direction of the IOs, either INPUT or OUTPUT, seen from the fabric side.
         This means a fabric INPUT is an OUTPUT globally and vice versa.
-    configBit : int
+    config_bit : int
         The number of accessible config bits for config access GEN_IO.
     configAccess : bool
         Whether the GEN_IO is config access.
@@ -54,7 +54,7 @@ class Gen_IO:
     prefix: str
     pins: int
     IO: IO
-    configBit: int = 0
+    config_bit: int = 0
 
     # Parameters for GEN_IO:
     configAccess: bool = False

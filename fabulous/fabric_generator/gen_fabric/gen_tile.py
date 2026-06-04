@@ -147,17 +147,17 @@ def generateTile(
     # because they have to be exported to the tile entity
     externalPorts = []
     for i in tile.bels:
-        for p in i.externalInput:
+        for p in i.external_input:
             writer.addPortScalar(p, IO.INPUT, indentLevel=2)
-        for p in i.externalOutput:
+        for p in i.external_output:
             writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
-        externalPorts += i.externalInput
-        externalPorts += i.externalOutput
+        externalPorts += i.external_input
+        externalPorts += i.external_output
 
     # if we found BELs with top-level IO ports, we just pass them through
     sharedExternalPorts = set()
     for i in tile.bels:
-        sharedExternalPorts.update(i.sharedPort)
+        sharedExternalPorts.update(i.shared_port)
 
     writer.addComment("Tile IO ports from BELs", onNewLine=True, indentLevel=1)
 
@@ -233,9 +233,9 @@ def generateTile(
     repeatDeclaration = set()
     for bel in tile.bels:
         for i in bel.inputs + bel.outputs:
-            if f"{i}" not in repeatDeclaration:
-                writer.addConnectionScalar(i)
-                repeatDeclaration.add(f"{bel.prefix}{i}")
+            if f"{i.name}" not in repeatDeclaration:
+                writer.addConnectionScalar(i.name)
+                repeatDeclaration.add(f"{bel.prefix}{i.name}")
 
     # Jump wires
     writer.addComment("Jump wires", onNewLine=True)
@@ -433,12 +433,12 @@ def generateTile(
                         ]
 
         # Shared ports
-        for port in bel.sharedPort:
-            if port[0] == "UserCLK":
+        for port in bel.shared_port:
+            if port.name == "UserCLK":
                 if not disable_user_clk:
-                    userclk_pair = (port[0], port[0])
+                    userclk_pair = (port.name, port.name)
             else:
-                portsPairs.append((port[0], port[0]))
+                portsPairs.append((port.name, port.name))
 
         for portname, ports in port_dict.items():
             if len(ports) > 1:
@@ -457,11 +457,11 @@ def generateTile(
             portsPairs.append(userclk_pair)
 
         if config_bit_mode == ConfigBitMode.FRAME_BASED:
-            if bel.configBit > 0:
+            if bel.config_bit > 0:
                 portsPairs.append(
                     (
                         "ConfigBits",
-                        f"ConfigBits[{belConfigBitsCounter + bel.configBit}-1:"
+                        f"ConfigBits[{belConfigBitsCounter + bel.config_bit}-1:"
                         f"{belConfigBitsCounter}]",
                     )
                 )
@@ -479,7 +479,7 @@ def generateTile(
 
         # FIXME: Why is the belCounter increased here by 2 and afterwards by 1?
         belCounter += 2
-        belConfigBitsCounter += bel.configBit
+        belConfigBitsCounter += bel.config_bit
 
         # for the next BEL (if any) for cascading configuration chain
         # (this information is also needed for chaining the switch matrix)
@@ -500,7 +500,7 @@ def generateTile(
     # bel input wire (bel output is input to switch matrix)
     for bel in tile.bels:
         for p in bel.outputs:
-            portsPairs.append((p, p))
+            portsPairs.append((p.name, p.name))
 
     # jump input wire
     port, signal = [], []
@@ -526,7 +526,7 @@ def generateTile(
     # bel output wire (bel input is input to switch matrix)
     for bel in tile.bels:
         for p in bel.inputs:
-            portsPairs.append((p, p))
+            portsPairs.append((p.name, p.name))
 
     # jump output wire
     port, signal = [], []
@@ -677,22 +677,22 @@ def generateSuperTile(
     writer.addComment("Tile IO ports from BELs", onNewLine=True, indentLevel=1)
     for i in superTile.tiles:
         for b in i.bels:
-            for p in b.externalInput:
+            for p in b.external_input:
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
-            for p in b.externalOutput:
+            for p in b.external_output:
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
-            for p in b.sharedPort:
-                if p[0] == "UserCLK":
+            for p in b.shared_port:
+                if p.name == "UserCLK":
                     continue
-                writer.addPortScalar(p[0], p[1], indentLevel=2)
+                writer.addPortScalar(p.name, p.io_direction, indentLevel=2)
 
     # add supertile-level BEL external ports
     if superTile.bels:
         writer.addComment("SuperTile BEL IO ports", onNewLine=True, indentLevel=1)
         for b in superTile.bels:
-            for p in b.externalInput:
+            for p in b.external_input:
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
-            for p in b.externalOutput:
+            for p in b.external_output:
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
 
     st_config_bits = superTile.total_config_bits
@@ -830,7 +830,7 @@ def generateSuperTile(
     if bel_pin_signals:
         writer.addComment("BEL pin signals (BEL <-> supertile SM)", onNewLine=True)
         for pin in bel_pin_signals:
-            writer.addConnectionScalar(pin, indentLevel=1)
+            writer.addConnectionScalar(pin.name, indentLevel=1)
 
     for i, x, y in internalConnections:
         if i:
@@ -951,16 +951,16 @@ def generateSuperTile(
                 portsPairs.append((p.name, f"Tile_X{x}Y{y}_{p.name}"))
 
             for b in tile.bels:
-                for p in b.externalInput:
+                for p in b.external_input:
                     portsPairs.append((p, p))
 
-                for p in b.externalOutput:
+                for p in b.external_output:
                     portsPairs.append((p, p))
 
                 if not disable_user_clk:
-                    for p in b.sharedPort:
-                        if "UserCLK" not in p[0]:
-                            portsPairs.append(("UserCLK", p[0]))
+                    for p in b.shared_port:
+                        if "UserCLK" not in p.name:
+                            portsPairs.append(("UserCLK", p.name))
 
             # connect SJUMP ports to supertile-level signals
             for p in tile.get_sjump_ports():
@@ -1058,11 +1058,11 @@ def generateSuperTile(
         # SM outputs drive BEL input signals (signals named after the BEL ports)
         for bel in superTile.bels:
             for ip in bel.inputs:
-                sm_ports_pairs.append((ip, ip))
+                sm_ports_pairs.append((ip.name, ip.name))
         # BEL output signals feed back into the SM (routed to reverse SJUMP wires)
         for bel in superTile.bels:
             for op in bel.outputs:
-                sm_ports_pairs.append((op, op))
+                sm_ports_pairs.append((op.name, op.name))
         # SM outputs also drive reverse SJUMP signals into child tiles
         for _ly, row in enumerate(superTile.tileMap):
             for _lx, st_tile in enumerate(row):
@@ -1125,7 +1125,7 @@ def generateSuperTile(
                 bel_ports_pairs.append((portname, f"{{{concatenated}}}"))
             else:
                 bel_ports_pairs.append((portname, ports[0][0]))
-        if not disable_user_clk and bel.withUserCLK:
+        if not disable_user_clk and bel.with_user_clock:
             # The supertile wrapper has no bare "UserCLK"; the BEL shares the
             # master tile's clock net (same selection the master tile uses: the
             # chained UserCLKo from the tile below, or its own UserCLK input).
@@ -1138,15 +1138,15 @@ def generateSuperTile(
             else:
                 bel_user_clk = f"Tile_X{mx}Y{my}_UserCLK"
             bel_ports_pairs.append(("UserCLK", bel_user_clk))
-        if bel.configBit > 0 and config_bit_mode == ConfigBitMode.FRAME_BASED:
+        if bel.config_bit > 0 and config_bit_mode == ConfigBitMode.FRAME_BASED:
             bel_ports_pairs.append(
                 (
                     "ConfigBits",
-                    f"ST_ConfigBits[{st_bel_config_offset + bel.configBit}"
+                    f"ST_ConfigBits[{st_bel_config_offset + bel.config_bit}"
                     f"-1:{st_bel_config_offset}]",
                 )
             )
-        st_bel_config_offset += bel.configBit
+        st_bel_config_offset += bel.config_bit
         writer.addInstantiation(
             compName=bel.name,
             compInsName=f"Inst_ST_{bel.prefix}{bel.name}",

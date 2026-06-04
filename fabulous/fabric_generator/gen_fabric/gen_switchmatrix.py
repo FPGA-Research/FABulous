@@ -150,7 +150,7 @@ def genTileSwitchMatrix(
     # bel wire input
     for b in tile.bels:
         for p in b.outputs:
-            writer.addPortScalar(p, IO.INPUT, indentLevel=2)
+            writer.addPortScalar(p.name, IO.INPUT, indentLevel=2)
 
     # jump wire input
     for i in tile.portsInfo:
@@ -167,7 +167,7 @@ def genTileSwitchMatrix(
     # bel wire output
     for b in tile.bels:
         for p in b.inputs:
-            writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+            writer.addPortScalar(p.name, IO.OUTPUT, indentLevel=2)
 
     # jump wire output
     for i in tile.portsInfo:
@@ -481,14 +481,14 @@ def gen_super_tile_switch_matrix(
         writer.addComment("BEL input ports (SM outputs)", onNewLine=True)
     for bel in superTile.bels:
         for p in bel.inputs:
-            writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+            writer.addPortScalar(p.name, IO.OUTPUT, indentLevel=2)
 
     # Inputs: output ports of supertile BELs (SM routes them back to child tiles)
     if any(bel.outputs for bel in superTile.bels):
         writer.addComment("BEL output ports (SM inputs)", onNewLine=True)
     for bel in superTile.bels:
         for p in bel.outputs:
-            writer.addPortScalar(p, IO.INPUT, indentLevel=2)
+            writer.addPortScalar(p.name, IO.INPUT, indentLevel=2)
 
     # Outputs: reverse SJUMP signals driven back into child tiles
     all_input_sjump = superTile.get_all_input_sjump_ports()
