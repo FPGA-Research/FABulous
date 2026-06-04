@@ -53,7 +53,7 @@ def _serialize_tile_ports(
     for port in tile.getNorthSidePorts():
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.NORTH.name].append(
-                tile.pinOrderConfig[Side.NORTH]([regex]).to_dict()
+                tile.pin_order_config[Side.NORTH]([regex]).to_dict()
             )
     port_dict[Side.NORTH.name].append(PinOrderConfig()([f"{prefix}UserCLKo"]).to_dict())
     port_dict[Side.NORTH.name].append(
@@ -63,7 +63,7 @@ def _serialize_tile_ports(
     for port in tile.getEastSidePorts():
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.EAST.name].append(
-                tile.pinOrderConfig[Side.EAST]([regex]).to_dict()
+                tile.pin_order_config[Side.EAST]([regex]).to_dict()
             )
     port_dict[Side.EAST.name].append(
         PinOrderConfig()([rf"{prefix}FrameData_O\[\d+\]"]).to_dict()
@@ -72,7 +72,7 @@ def _serialize_tile_ports(
     for port in tile.getSouthSidePorts():
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.SOUTH.name].append(
-                tile.pinOrderConfig[Side.SOUTH]([regex]).to_dict()
+                tile.pin_order_config[Side.SOUTH]([regex]).to_dict()
             )
     port_dict[Side.SOUTH.name].append(PinOrderConfig()([f"{prefix}UserCLK"]).to_dict())
     port_dict[Side.SOUTH.name].append(
@@ -82,7 +82,7 @@ def _serialize_tile_ports(
     for port in tile.getWestSidePorts():
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.WEST.name].append(
-                tile.pinOrderConfig[Side.WEST]([regex]).to_dict()
+                tile.pin_order_config[Side.WEST]([regex]).to_dict()
             )
     port_dict[Side.WEST.name].append(
         PinOrderConfig()([rf"{prefix}FrameData\[\d+\]"]).to_dict()
@@ -95,7 +95,7 @@ def _serialize_tile_ports(
         ]
         if pin_regexes:
             port_dict[external_port_side.name].append(
-                tile.pinOrderConfig[external_port_side](pin_regexes).to_dict()
+                tile.pin_order_config[external_port_side](pin_regexes).to_dict()
             )
 
     return port_dict
@@ -140,7 +140,7 @@ def _serialize_supertile_ports(
             for port in port_list:
                 if regex := port.get_port_regex(indexed=True, prefix=tile_prefix):
                     config_payload[tile_key][side.name].append(
-                        tile.pinOrderConfig[side]([regex]).to_dict()
+                        tile.pin_order_config[side]([regex]).to_dict()
                     )
 
         # Frame-chain signals are present on every perimeter side, even when no
@@ -198,7 +198,7 @@ def _serialize_supertile_ports(
                         external_side = Side.SOUTH
 
                     config_payload[tile_key][external_side.name].append(
-                        tile.pinOrderConfig[external_side](pin_regexes).to_dict()
+                        tile.pin_order_config[external_side](pin_regexes).to_dict()
                     )
 
     # Supertile-level BEL external ports live on the wrapper itself (named e.g.
@@ -220,7 +220,7 @@ def _serialize_supertile_ports(
             else:
                 master_side = Side.SOUTH
             config_payload[master_key][master_side.name].append(
-                master_tile.pinOrderConfig[master_side](st_pin_regexes).to_dict()
+                master_tile.pin_order_config[master_side](st_pin_regexes).to_dict()
             )
 
     return config_payload

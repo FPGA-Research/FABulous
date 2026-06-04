@@ -50,9 +50,9 @@ def _supertile(tmp_path: Path) -> SuperTile:
         return make_empty_tile(
             name,
             ports,
-            tileDir=tmp_path,
-            matrixDir=tmp_path / f"{name}_switch_matrix.list",
-            pinOrderConfig={},
+            tile_dir=tmp_path,
+            matrix_dir=tmp_path / f"{name}_switch_matrix.list",
+            pin_order_config={},
         )
 
     top = mk("DSP_top", [sjump_port("top2bot", IO.OUTPUT)])
@@ -60,7 +60,7 @@ def _supertile(tmp_path: Path) -> SuperTile:
     bel = make_muladd_bel([("SUPER_A0", IO.INPUT)])
     return SuperTile(
         name="DSP",
-        tileDir=tmp_path,
+        tile_dir=tmp_path,
         tiles=[top, bot],
         tileMap=[[top], [bot]],
         bels=[bel],

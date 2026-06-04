@@ -23,19 +23,19 @@ from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 
 
 def _tile(name: str, ports: list[TilePort]) -> Tile:
-    """Build a minimal real Tile (``pinOrderConfig={}`` skips the GDS import).
+    """Build a minimal real Tile (``pin_order_config={}`` skips the GDS import).
 
     These tests never read the tile's files, so the dir/matrix paths are left at
     their defaults; tests that do touch disk use the `tmp_path` fixture.
     """
-    return make_empty_tile(name, ports, pinOrderConfig={})
+    return make_empty_tile(name, ports, pin_order_config={})
 
 
 def _sjump_wires(tile: Tile) -> set[tuple[str, str, int, int]]:
     """Return (source, destination, x_offset, y_offset) for the tile's SJUMP wires."""
     return {
         (w.source, w.destination, w.x_offset, w.y_offset)
-        for w in tile.wireList
+        for w in tile.wire_list
         if w.direction == Direction.SJUMP
     }
 
@@ -113,7 +113,7 @@ class TestSuperTileHelpers:
         bot = _tile("DSP_bot", [sjump_port("A", IO.OUTPUT)])
         defaults: dict = {
             "name": "DSP",
-            "tileDir": Path(),
+            "tile_dir": Path(),
             "tiles": [top, bot],
             "tileMap": [[top], [bot]],
         }
@@ -141,7 +141,7 @@ class TestSuperTileHelpers:
         )
         st = SuperTile(
             name="DSP",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[top, bot],
             tileMap=[[top], [bot]],
         )
@@ -170,7 +170,7 @@ class TestFabricSJumpWirePass:
         )
         supertile = SuperTile(
             name="DSP",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[top, bot],
             tileMap=[[top], [bot]],
         )
@@ -202,7 +202,7 @@ class TestFabricSJumpWirePass:
     def test_no_duplicate_sjump_wires(self, fabric: Fabric) -> None:
         for row in fabric.tile:
             for tile in row:
-                sjump = [w for w in tile.wireList if w.direction == Direction.SJUMP]
+                sjump = [w for w in tile.wire_list if w.direction == Direction.SJUMP]
                 assert len(sjump) == len(set(sjump))
 
 
@@ -223,7 +223,7 @@ class TestSJumpRequiresSupertile:
         bot.partOfSuperTile = True  # set by the parser for supertile members
         supertile = SuperTile(
             name="DSP",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[bot],
             tileMap=[[bot]],
         )
@@ -256,9 +256,9 @@ class TestGenNpnrModelSupertile:
         top = make_empty_tile(
             "DSP_top",
             [sjump_port("top2bot", IO.OUTPUT)],
-            tileDir=tmp_path,
-            matrixDir=top_mat,
-            pinOrderConfig={},
+            tile_dir=tmp_path,
+            matrix_dir=top_mat,
+            pin_order_config={},
         )
         bot = make_empty_tile(
             "DSP_bot",
@@ -266,13 +266,13 @@ class TestGenNpnrModelSupertile:
                 sjump_port("A", IO.OUTPUT, wire_count=1),
                 sjump_port("Q", IO.INPUT, wire_count=1),
             ],
-            tileDir=tmp_path,
-            matrixDir=bot_mat,
-            pinOrderConfig={},
+            tile_dir=tmp_path,
+            matrix_dir=bot_mat,
+            pin_order_config={},
         )
         supertile = SuperTile(
             name="DSP",
-            tileDir=tmp_path,
+            tile_dir=tmp_path,
             tiles=[top, bot],
             tileMap=[[top], [bot]],
             switch_matrix=SwitchMatrix.from_file(st_mat, "DSP"),
@@ -315,11 +315,11 @@ class TestGenNpnrModelSupertile:
         bot_mat = tmp_path / "DSP_bot_switch_matrix.list"
         top_mat.write_text("# DSP_top\n")
         bot_mat.write_text("# DSP_bot\n")
-        top = make_empty_tile("DSP_top", tileDir=tmp_path, matrixDir=top_mat)
-        bot = make_empty_tile("DSP_bot", tileDir=tmp_path, matrixDir=bot_mat)
+        top = make_empty_tile("DSP_top", tile_dir=tmp_path, matrix_dir=top_mat)
+        bot = make_empty_tile("DSP_bot", tile_dir=tmp_path, matrix_dir=bot_mat)
         supertile = SuperTile(
             name="DSP",
-            tileDir=tmp_path,
+            tile_dir=tmp_path,
             tiles=[top, bot],
             tileMap=[[top], [bot]],
             bels=[bel],
@@ -381,9 +381,9 @@ class TestGenBitstreamSpecSupertileMux:
         bot.switch_matrix = SwitchMatrix.from_file(bot_mat, "DSP_bot")
         supertile = SuperTile(
             name="DSP",
-            # tileDir is the supertile CSV file; consumers read sibling files via
-            # tileDir.parent (here tmp_path, where the ConfigMem CSV is written).
-            tileDir=tmp_path / "DSP.csv",
+            # tile_dir is the supertile CSV file; consumers read sibling files via
+            # tile_dir.parent (here tmp_path, where the ConfigMem CSV is written).
+            tile_dir=tmp_path / "DSP.csv",
             tiles=[top, bot],
             tileMap=[[top], [bot]],
             switch_matrix=SwitchMatrix.from_file(st_mat, "DSP"),

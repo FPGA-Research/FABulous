@@ -514,7 +514,7 @@ def generate_super_tile_config_mem(
     if st_config_bits <= 0:
         return
 
-    output_csv = superTile.tileDir.parent / f"{superTile.name}_ConfigMem.csv"
+    output_csv = superTile.tile_dir.parent / f"{superTile.name}_ConfigMem.csv"
     build_super_tile_config_mem_csv(
         master_config_mem_csv,
         st_config_bits,

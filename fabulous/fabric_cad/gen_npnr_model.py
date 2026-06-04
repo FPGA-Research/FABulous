@@ -251,7 +251,7 @@ def genNextpnrModel(
                     )
 
             pipStr.append(f"#Tile-external pips on tile X{x}Y{y}:")
-            for wire in tile.wireList:
+            for wire in tile.wire_list:
                 xDst = x + wire.x_offset
                 yDst = y + wire.y_offset
                 if (not (0 <= xDst <= fabric.numberOfColumns)) or (
@@ -292,7 +292,7 @@ def genNextpnrModel(
                 constrainStr.extend(constrain_lines)
 
     # Supertile BEL and switch-matrix PIP emission.
-    # SJUMP PIPs live in tile.wireList (added by Fabric.__post_init__) and are
+    # SJUMP PIPs live in tile.wire_list (added by Fabric.__post_init__) and are
     # already emitted by the per-tile loop above.
     for base_fx, base_fy, super_tile in fabric.iter_super_tile_placements():
         if not super_tile.bels and super_tile.supertile_matrix_dir is None:
