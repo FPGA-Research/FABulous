@@ -2,6 +2,7 @@
 
 import re
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from pytest_mock import MockerFixture
@@ -119,8 +120,10 @@ def _vhdl_supertile(tmp_path: Path) -> SuperTile:
 
     top = mk("DSP_top", [sjump_port("top2bot", IO.OUTPUT)])
     bot = mk("DSP_bot", [sjump_port("A", IO.OUTPUT)])
-    bel = make_muladd_bel([("SUPER_A0", IO.INPUT)])
-    bel.src = tmp_path / "MULADD.vhdl"
+    # Bel is frozen, so point its src at the on-disk stub via a replaced copy.
+    bel = replace(
+        make_muladd_bel([("SUPER_A0", IO.INPUT)]), src=tmp_path / "MULADD.vhdl"
+    )
 
     _stub_entity(bel.src, "MULADD")
     _stub_entity(tmp_path / "DSP_switch_matrix.vhdl", "DSP_switch_matrix")

@@ -14,8 +14,8 @@ from cmd2.annotated import Argument, Option
 from loguru import logger
 
 from fabulous.custom_exception import CommandError
+from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_generator.gen_fabric.fabric_automation import addBelsToPrim
-from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabulous_repl.command_set_base import CMD_HELPER, ReplCommandSet
 
 
@@ -116,7 +116,7 @@ class HelperCommandSet(ReplCommandSet):
         prims_file = repl.projectDir / "user_design" / "custom_prims.v"
         addBelsToPrim(
             prims_file,
-            [parseBelFile(f) for f in rtl_files],
+            [Bel.from_hdl(f) for f in rtl_files],
             support_vectors,
             overwrite,
         )

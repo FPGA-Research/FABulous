@@ -29,7 +29,13 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
+from fabulous.fabric_definition.define import (
+    IO,
+    ConfigBitMode,
+    Direction,
+    FABulousAttribute,
+    Side,
+)
 from fabulous.fabric_definition.port import TilePort
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
@@ -38,6 +44,7 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
 from fabulous.fabric_generator.gen_fabric.gen_tile import generateSuperTile
+from tests.conftest import make_yosys_module
 from tests.fabric_definition.conftest import make_empty_tile
 from tests.fabric_gen_test.conftest import GridConnectivity, Netlist
 
@@ -98,8 +105,8 @@ def _tile_stub(tile: Tile) -> str:
         direction = "input" if p.io_direction == IO.INPUT else "output"
         decls.append(f"    {direction} [{width}:0] {p.name}")
     for bel in tile.bels:
-        decls += [f"    input {p}" for p in bel.externalInput]
-        decls += [f"    output {p}" for p in bel.externalOutput]
+        decls += [f"    input {p}" for p in bel.external_input]
+        decls += [f"    output {p}" for p in bel.external_output]
     decls += [
         "    input  UserCLK",
         "    output UserCLKo",
@@ -313,17 +320,14 @@ class TestBelExternalPorts:
         bel = Bel(
             src=Path("MyBel.v"),
             prefix="",
+            module=make_yosys_module(
+                ports={"io_in": (IO.INPUT, 1), "io_out": (IO.OUTPUT, 1)},
+                port_attributes={
+                    "io_in": {FABulousAttribute.EXTERNAL: 1},
+                    "io_out": {FABulousAttribute.EXTERNAL: 1},
+                },
+            ),
             module_name="MyBel",
-            internal=[],
-            external=[("io_in", IO.INPUT), ("io_out", IO.OUTPUT)],
-            configPort=[],
-            sharedPort=[],
-            configBit=0,
-            belMap={},
-            userCLK=False,
-            ports_vectors={},
-            carry={},
-            localShared={},
         )
         tile = Tile(
             name="BelTile",

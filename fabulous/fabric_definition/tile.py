@@ -337,7 +337,7 @@ class Tile:
         ret = self.switch_matrix.no_config_bits
 
         for b in self.bels:
-            ret += b.configBit
+            ret += b.config_bit
 
         return ret
 
