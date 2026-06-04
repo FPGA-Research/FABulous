@@ -514,6 +514,10 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                 master_set = True
             tileMap.append(row)
 
+        # Reverse tileMap to use bottom-left origin coordinate system
+        # After this: tileMap[0] = bottom row, tileMap[-1] = top row
+        tileMap.reverse()
+
         withUserCLK = any(bel.with_user_clock for bel in bels)
         # tile_dir is the supertile CSV file path (matching Tile.tile_dir), so
         # consumers use `tile_dir.parent` for the supertile's directory.
@@ -835,6 +839,10 @@ def parseFabricCSV(fileName: str) -> Fabric:
             )
             unusedSuperTileDic[i] = superTileDic[i]
             del superTileDic[i]
+
+    # Reverse rows to use bottom-left origin coordinate system
+    # After this: fabricTiles[0] = bottom row (y=0), fabricTiles[-1] = top row
+    fabricTiles.reverse()
 
     height = len(fabricTiles)
     width = len(fabricTiles[0])

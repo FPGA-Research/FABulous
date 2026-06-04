@@ -11,8 +11,9 @@ signals. The directions:
 - _FrameData_ flows West to East: tile `(x, y)` consumes the `FrameData_O`
   of tile `(x-1, y)`; the first column reads a boundary input port and the
   last column drives a boundary output port.
-- _FrameStrobe_ / _UserCLK_ flow vertically: tile `(x, y)` consumes the
-  `FrameStrobe_O` / `UserCLKo` of tile `(x, y+1)`.
+- _FrameStrobe_ and _UserCLK_ flow vertically, in opposite directions. With the
+  bottom-left origin, tile `(x, y)` consumes the `FrameStrobe_O` of the tile
+  below it, `(x, y-1)`, and the `UserCLKo` of the tile above it, `(x, y+1)`.
 
 A tile's output is wired to a neighbour when that neighbour exists inside the
 grid, otherwise to the matching supertile boundary port. Issue #875 was a
@@ -199,20 +200,23 @@ class TestConfigChainConnectivity:
                 else:
                     assert fd_out == net.top_port_net(f"Tile_X{x}Y{y}_FrameData_O")
 
-                # FrameStrobe flows vertically (consumer at y-1).
+                # FrameStrobe flows vertically (consumer at y+1); with the
+                # bottom-left origin row 0 is the bottom row, so the producer of
+                # a tile's FrameStrobe sits at y-1.
                 fs_in = net.cell_net(x, y, "FrameStrobe")
-                if net.exists(x, y + 1):
-                    assert fs_in == net.cell_net(x, y + 1, "FrameStrobe_O")
+                if net.exists(x, y - 1):
+                    assert fs_in == net.cell_net(x, y - 1, "FrameStrobe_O")
                 else:
                     assert fs_in == net.top_port_net(f"Tile_X{x}Y{y}_FrameStrobe")
 
                 fs_out = net.cell_net(x, y, "FrameStrobe_O")
-                if net.exists(x, y - 1):
-                    assert fs_out == net.cell_net(x, y - 1, "FrameStrobe")
+                if net.exists(x, y + 1):
+                    assert fs_out == net.cell_net(x, y + 1, "FrameStrobe")
                 else:
                     assert fs_out == net.top_port_net(f"Tile_X{x}Y{y}_FrameStrobe_O")
 
-                # UserCLK is buffered vertically (consumer at y-1).
+                # UserCLK runs the other way, downwards, so its producer is the
+                # tile above (y+1).
                 clk_in = net.cell_net(x, y, "UserCLK")
                 if net.exists(x, y + 1):
                     assert clk_in == net.cell_net(x, y + 1, "UserCLKo")
@@ -263,13 +267,14 @@ class TestCrossBoundaryDriverSinks:
     def test_cross_row_framestrobe_net(
         self, supertile_netlist: Callable[..., GridConnectivity]
     ) -> None:
+        # Bottom-left origin: the strobe climbs from row 0 to row 1.
         net = supertile_netlist(grid(2, 1))
-        fs_out = net.cell_net(0, 1, "FrameStrobe_O")
+        fs_out = net.cell_net(0, 0, "FrameStrobe_O")
         assert len(fs_out) == 20
 
         for bit in fs_out:
-            assert net.driver(bit) == ("Tile_X0Y1_T_X0Y1", "FrameStrobe_O")
-            assert ("Tile_X0Y0_T_X0Y0", "FrameStrobe") in net.sinks(bit)
+            assert net.driver(bit) == ("Tile_X0Y0_T_X0Y0", "FrameStrobe_O")
+            assert ("Tile_X0Y1_T_X0Y1", "FrameStrobe") in net.sinks(bit)
 
 
 class TestNoPhantomCells:

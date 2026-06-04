@@ -580,15 +580,14 @@ class FABulousFabricMacroFlow(Classic):
         tile_spacing_x = round_up_decimal(tile_spacing_x, pitch_x)
         tile_spacing_y = round_up_decimal(tile_spacing_y, pitch_y)
 
-        # Place macros
+        # Place macros (using bottom-left origin: y=0 is bottom row)
         cur_y = 0
-        for y, row in enumerate(reversed(self.fabric.tile)):
+        for y, row in enumerate(self.fabric.tile):
             cur_x = 0
-            flipped_y = self.fabric.numberOfRows - 1 - y
 
             for x, tile in enumerate(row):
                 tile_name = tile.name if tile is not None else None
-                prefix = f"Tile_X{x}Y{flipped_y}_"
+                prefix = f"Tile_X{x}Y{y}_"
 
                 for supertile_name, supertile in self.fabric.superTileDic.items():
                     subtiles = [tile.name for tile in supertile.tiles]
@@ -599,17 +598,13 @@ class FABulousFabricMacroFlow(Classic):
                     if tile_name in subtiles:
                         if tile_name == anchor.name:
                             tile_name = supertile_name
-
-                            # While the physical anchor is at the bottom left,
-                            # the anchor in FABulous is at the top left
-                            prefix = (
-                                f"Tile_X{x}Y{flipped_y - (len(supertile.tileMap) - 1)}_"
-                            )
+                            # The anchor is at the bottom-left of the supertile
+                            prefix = f"Tile_X{x}Y{y}_"
                         else:
                             tile_name = None
 
                 if tile_name is None:
-                    info(f"Skipping Null tile at X{x}Y{flipped_y}")
+                    info(f"Skipping Null tile at X{x}Y{y}")
                 else:
                     if tile_name not in self.macros:
                         raise FlowException(
@@ -632,7 +627,7 @@ class FABulousFabricMacroFlow(Classic):
                 cur_x += column_widths[x] + tile_spacing_x
 
             # Add row height only (spacing is included in DIE_AREA calculation)
-            cur_y += row_heights[flipped_y] + tile_spacing_y
+            cur_y += row_heights[y] + tile_spacing_y
 
         # Validate that no macros overlap before proceeding
         info("Validating macro placements for overlaps...")
