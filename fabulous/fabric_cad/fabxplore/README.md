@@ -980,7 +980,9 @@ Important features:
 - Liberty text editing to add, remove, or resize cell areas in memory;
 - sub-circuit extraction with Yosys graph-isomorphic matching;
 - optional cell-type remapping;
-- `stat -liberty` reporting and parsed area feedback.
+- `stat -liberty` reporting and parsed area feedback;
+- full STA on the mapped gate-level tile netlist;
+- parsed worst hold/setup slack values.
 
 This is useful for experiments such as:
 
@@ -988,12 +990,33 @@ This is useful for experiments such as:
 What happens if this mux+latch pattern becomes one custom cell?
 How much area does a factored switch matrix save?
 Does a custom compound mux cell make this tile cheaper?
+Does a denser or factorized switch matrix improve or damage real tile timing?
 ```
 
 The key point is that `techmap` alone is not enough for many backend
 experiments. Sometimes the interesting object is a multi-cell pattern after
 standard-cell mapping. The netlist tool can let Yosys extract that pattern and
 replace it with a custom cell while still giving direct area feedback.
+
+It can also run STA after mapping. This connects the graph DSE loop to real
+gate-level timing: change a switch matrix in `self.fpga_model`, write the
+current tile sources, map that tile through the netlist tool, run STA, and read
+area plus hold/setup slack.
+
+```python
+self.fpga_model.write_tile_sources(tile_types=["LUT5F"] generate_rtl=True)
+
+mapper = self.netlist_tool_pass(tile_name="LUT5F")
+mapper.run_sta(
+    clk_ports=["UserCLK"],
+    period_ns=10.0,
+    sta_exec="sta",
+)
+
+print(mapper.area)          # noqa: T201
+print(mapper.slacks.setup)  # noqa: T201
+print(mapper.slacks.hold)   # noqa: T201
+```
 
 ## A Practical DSE Loop
 
@@ -1024,8 +1047,17 @@ for columns in [10, 12, 14, 16]:
         opt=False,
     )
 
+    self.fpga_model.write_tile_sources(tile_types=["LUT5F"])
+    backend = self.netlist_tool_pass(tile_name="LUT5F")
+    backend.run_sta(
+        clk_ports=["UserCLK"],
+        period_ns=10.0,
+        sta_exec="sta",
+    )
+
     print(columns, route_result.result_data.switch_matrix_stats)  # noqa: T201
     print(demand.report_summary)  # noqa: T201
+    print(backend.area, backend.slacks.setup, backend.slacks.hold)  # noqa: T201
 ```
 
 Nothing forces this loop to be only PnR. You can move between:
@@ -1034,11 +1066,12 @@ Nothing forces this loop to be only PnR. You can move between:
 - `self.fpga_model`: edit the FABulous graph, resize the fabric, route
   benchmarks, parse FASM;
 - tile/source writers: emit FABulous CSV/list/RTL/routing metadata;
-- netlist tool: map generated RTL to gate-level libraries and read area.
+- netlist tool: map generated RTL to gate-level libraries, read area, and run
+  full STA.
 
 That is the central reason fabxplore exists: it lets architecture exploration
 use synthesis results, routing results, graph queries, FASM evidence, and
-backend area feedback in one programmable loop.
+backend area/timing feedback in one programmable loop.
 
 ## Readme-By-Readme Summary
 
@@ -1183,5 +1216,6 @@ safety argument, so training validation failures are diagnostic.
 The netlist tool maps tile RTL through a Yosys/ABC/Liberty backend flow tuned
 for FPGA tiles and custom-cell experiments.
 
-Most important detail: it gives area feedback for architecture RTL and custom
-compound-cell ideas, not only user RTL.
+Most important detail: it gives area and STA feedback for architecture RTL and
+custom compound-cell ideas, so switch-matrix graph edits can be judged by real
+gate-level tile timing, not only PIP counts.

@@ -14,6 +14,8 @@ The tool currently provides:
 - optional cell type remapping with Yosys `chtype`
 - direct access to the underlying pyosys pass interface
 - final Yosys `stat -liberty` output and parsed chip area
+- full static timing analysis on the mapped gate-level tile netlist
+- parsed worst hold/setup slacks from the STA report
 
 ## Main Flow
 
@@ -40,6 +42,88 @@ extraction opportunities, high-level arithmetic datapaths, or deep module
 hierarchies. Removing those unrelated synthesis stages keeps the tile mapper
 focused on the logic that actually appears in mux networks, latches, tie cells,
 and local configuration structures.
+
+## STA On Graph-Generated Tiles
+
+The netlist tool can now close the loop between the in-memory FABulous graph and
+backend timing. A PnR or graph pass can modify a tile switch matrix, factorize
+muxes, add hierarchy, or resize resources in `self.fpga_model`. The graph can
+then write the current tile RTL, and `netlist_tool_pass(...)` maps that exact
+tile implementation to a gate-level netlist.
+
+That makes a real switch-matrix timing DSE loop possible:
+
+```text
+FabGraph tile edit
+  -> write current tile RTL
+  -> gate-level mapping
+  -> full STA
+  -> area + hold/setup slack
+  -> choose next matrix edit
+```
+
+Example:
+
+```python
+self.pnr_switch_matrix_pattern_pass(
+    tile_name="LUT5F",
+    routing_pip_pattern="full",
+    replace_existing_matrix=True,
+)
+
+self.pnr_switch_block_factorizer_pass(
+    tile_name="LUT5F",
+    global_reduction=2,
+    reduction_rules=[
+        {"from_fanin": 16, "to_fanin": 8},
+        {"from_fanin": 8, "to_fanin": 4},
+    ],
+)
+
+# Persist the current in-memory graph tile state as RTL.
+self.fpga_model.write_tile_sources(tile_types=["LUT5F"], generate_rtl=True)
+
+mapper = self.netlist_tool_pass(
+    tile_name="LUT5F",
+    sub_circuit_map_rules=[custom_mux_rule],
+    add_liberty_cells=[custom_mux_liberty],
+)
+
+mapper.run_sta(
+    clk_ports=["UserCLK"],
+    period_ns=10.0,
+    sta_exec="sta",
+)
+
+print(mapper.area)          # noqa: T201
+print(mapper.slacks.setup)  # noqa: T201
+print(mapper.slacks.hold)   # noqa: T201
+```
+
+`run_sta(...)` writes the mapped netlist and modified Liberty text to temporary
+files, runs the configured STA executable, and stores the full report in
+`mapper.sta_report`. The generated default STA script performs:
+
+```text
+read_liberty <modified liberty>
+read_verilog <mapped tile netlist>
+link_design <tile top>
+create_clock -name clk -period <period_ns> <clk ports>
+report_checks -path_delay min_max
+```
+
+`mapper.slacks` parses the resulting report and returns worst hold/setup slack
+values:
+
+```python
+slacks = mapper.slacks
+print(slacks.hold, slacks.setup)  # noqa: T201
+```
+
+The important consequence is that routing-architecture edits are no longer only
+counted as graph PIPs or config bits. A DSE loop can ask how a concrete
+switch-matrix structure affects the real gate-level timing of the generated
+tile.
 
 ## ABC Optimization
 
