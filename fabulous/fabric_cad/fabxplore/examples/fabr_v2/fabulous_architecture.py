@@ -10,6 +10,10 @@ and switch-matrix resources. The `synthesize` method orchestrates the entire syn
 process, producing an `ArchitectureMapResult` that encapsulates the results of the
 mapping and optimization stages. This module serves as the central point for defining
 the synthesis flow and architecture-specific transformations for FABulous.
+
+That is a a full test flow including mots of the options, in production
+normally less options would be used and the flow would be more streamlined, but this
+serves as a comprehensive example of how to use the various passes.
 """
 
 from pathlib import Path
@@ -159,6 +163,31 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             mux_select_inputs=["S0", "S1", "S2", "S3"],
             mux_outputs=["M_AB", "M_AD", "M_AH", "M_EF"],
             mux_config_prefixes=["ConfigBits"],
+            progress_chunk_size=5,
+            conf2bel=True,
+        )
+
+        self.design_morph_tile_pass(
+            tile_verilog_path=self.my_root / "arch_rtl" / "FLUT5_1P_2PS.v",
+            tile_top_name="FLUT5_1P_2PS",
+            tile_inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
+            tile_outputs=["O0", "O1", "Co"],
+            enabled_circuits=["multi_map"],
+            circuit_options={
+                "multi_map": {
+                    "luts_per_group": 3,
+                    "min_boundary_inputs": 3,
+                    "max_boundary_inputs": 5,
+                    "min_boundary_outputs": 2,
+                    "max_boundary_outputs": 2,
+                    "max_iterations": 10000,
+                    "pure_random_match": 0,
+                    "random_seed": 4,
+                    "max_graph_frontier": 16,
+                    "max_graph_hops": None,
+                }
+            },
+            tile_config_prefixes=["ConfigBits"],
             progress_chunk_size=5,
             conf2bel=True,
         )
@@ -599,7 +628,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         # TODO: Explain how to do simulation and verification.
         # TODO: sequential pattern graph.
 
-        sel_test: int = 2
+        sel_test: int = 1
         config: FabulousArchitectureConfig = None
         match sel_test:
             case 0:

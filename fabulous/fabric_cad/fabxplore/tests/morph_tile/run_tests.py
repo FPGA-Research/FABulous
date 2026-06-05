@@ -4,6 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pyosys.libyosys as ys
+from pydantic import ValidationError
 
 from fabulous.fabric_cad.fabxplore.flow.architecture_synthesizer import (
     ArchitectureSynthesizer,
@@ -14,6 +15,12 @@ from fabulous.fabric_cad.fabxplore.modules.lut_combinator.core.verilog_model imp
 from fabulous.fabric_cad.fabxplore.modules.morph_tile import CutSolver
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.base import (
     MorphCircuitKind,
+    MorphSolveOptions,
+)
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.models import (
+    CutSolveResult,
+    MorphTileDesign,
+    MorphTileNetlistCell,
 )
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.permute_cache import (
     canonicalize_truth_table,
@@ -21,6 +28,39 @@ from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.permute_cache import 
 )
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.reader import (
     MorphTileReader,
+)
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.multi_map.extractor import (
+    extract_lut_graph,
+)
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.multi_map.group_finder import (
+    iter_group_candidates,
+)
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.multi_map.models import (
+    LutGraph,
+    LutGroupCandidate,
+    LutGroupTruth,
+    LutNode,
+    MultiMapMatch,
+    MultiMapResult,
+    MultiMapStats,
+    PortBitRef,
+)
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.multi_map.options import (
+    MultiMapOptions,
+)
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.multi_map.report import (
+    render_multi_map_report,
+)
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.multi_map.selector import (
+    CpSatSetPackingSelector,
+    GreedyDisjointSelector,
+    LocalImprovementDisjointSelector,
+    select_disjoint_matches,
+    select_disjoint_matches_with_report,
+)
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.multi_map.truth import (
+    CyclicGroupError,
+    build_group_truth,
 )
 from fabulous.fabric_cad.fabxplore.modules.sat_fab.circuit import Circuit
 from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.morph_tile_pass import (
@@ -43,6 +83,9 @@ class _MorphTileTestSynthesizer(ArchitectureSynthesizer):
 
     def generate_switch_matrix(self) -> None:
         """No-op switch-matrix generation for tests."""
+
+    def run_flow(self) -> None:
+        """No-op full-flow entry point for tests."""
 
 
 def test_cut_solver_simple_and() -> None:
@@ -1135,6 +1178,22 @@ def test_morph_tile_pass_disallows_output_reuse_for_multi_output() -> None:
         assert pass_.result_data.stats.failed_luts == 1
 
 
+def test_morph_tile_rejects_output_reuse_option() -> None:
+    """Test morph-tile rejects output reuse until writers can preserve all nets."""
+    try:
+        MorphSolveOptions(
+            allow_input_reuse=True,
+            allow_input_constants=False,
+            allow_output_reuse=True,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        assert "allow_output_reuse=True is currently not supported" in message
+        assert "overwrite output connections" in message
+        return
+    raise AssertionError("allow_output_reuse=True must be rejected")
+
+
 def test_synthesizer_morph_tile_pass_smoke() -> None:
     """Test the synthesizer convenience wrapper runs the morph-tile pass."""
     with TemporaryDirectory(prefix="morph_tile_synth_") as td:
@@ -1160,6 +1219,882 @@ def test_synthesizer_morph_tile_pass_smoke() -> None:
         assert "Morph Tile Mapping Report" in pass_.report_summary
 
 
+def test_morph_tile_multi_map_replaces_two_luts_eq() -> None:
+    """Test multi-map replaces two LUTs with one multi-output tile."""
+    with TemporaryDirectory(prefix="morph_tile_multi_map_") as td:
+        tmp_dir = Path(td)
+        base = _write_multi_lut_shared_base(tmp_dir)
+        tile = _write_dual_logic_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="dual_logic_tile",
+            tile_inputs=["I0", "I1", "I2"],
+            tile_outputs=["T0", "T1"],
+            enabled_circuits=["multi_map"],
+            circuit_options={
+                "multi_map": {
+                    "luts_per_group": 2,
+                    "min_boundary_inputs": 3,
+                    "max_boundary_inputs": 3,
+                    "min_boundary_outputs": 2,
+                    "max_boundary_outputs": 2,
+                    "max_iterations": 20,
+                    "random_seed": 4,
+                }
+            },
+            top_name="base",
+            track_progress=True,
+            progress_chunk_size=1,
+        )
+        pass_.run_on(bridge)
+
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        assert "lut_and" not in cells
+        assert "lut_or" not in cells
+        assert len(cells) == 1
+        replacement = next(iter(cells.values()))
+        assert replacement["type"] == "dual_logic_tile"
+
+        gate = tmp_dir / "gate.v"
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
+def test_morph_tile_multi_map_wires_permuted_inputs_eq() -> None:
+    """Test multi-map preserves input-order-sensitive LUT functions."""
+    with TemporaryDirectory(prefix="morph_tile_multi_map_permuted_") as td:
+        tmp_dir = Path(td)
+        base = _write_multi_map_permuted_base(tmp_dir)
+        tile = _write_dual_asymmetric_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="dual_asymmetric_tile",
+            tile_inputs=["I0", "I1", "I2", "I3"],
+            tile_outputs=["T0", "T1"],
+            enabled_circuits=["multi_map"],
+            circuit_options={
+                "multi_map": {
+                    "luts_per_group": 2,
+                    "min_boundary_inputs": 4,
+                    "max_boundary_inputs": 4,
+                    "min_boundary_outputs": 2,
+                    "max_boundary_outputs": 2,
+                    "max_iterations": 20,
+                    "random_seed": 7,
+                }
+            },
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        result = pass_.result_data
+        assert result is not None
+        assert "- replaced LUTs: 2" in result.report_summary
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        assert "lut_left" not in cells
+        assert "lut_right" not in cells
+        assert next(iter(cells.values()))["type"] == "dual_asymmetric_tile"
+
+        gate = tmp_dir / "gate.v"
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
+def test_morph_tile_multi_map_wires_exposed_internal_output_eq() -> None:
+    """Test replacing a cascade preserves an internal net used outside LUTs."""
+    with TemporaryDirectory(prefix="morph_tile_multi_map_internal_output_") as td:
+        tmp_dir = Path(td)
+        base = _write_multi_map_internal_output_base(tmp_dir)
+        tile = _write_cascade_with_internal_output_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="cascade_with_internal_output_tile",
+            tile_inputs=["I0", "I1", "I2"],
+            tile_outputs=["MID", "OUT"],
+            enabled_circuits=["multi_map"],
+            circuit_options={
+                "multi_map": {
+                    "luts_per_group": 2,
+                    "min_boundary_inputs": 3,
+                    "max_boundary_inputs": 3,
+                    "min_boundary_outputs": 2,
+                    "max_boundary_outputs": 2,
+                    "max_iterations": 20,
+                    "connected_only": True,
+                }
+            },
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        result = pass_.result_data
+        assert result is not None
+        assert "- replaced LUTs: 2" in result.report_summary
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        assert "lut_mid" not in cells
+        assert "lut_out" not in cells
+        replacement = next(
+            cell
+            for cell in cells.values()
+            if cell["type"] == "cascade_with_internal_output_tile"
+        )
+        assert {"MID", "OUT"} <= set(replacement["connections"])
+        assert "u_side" in cells
+
+        gate = tmp_dir / "gate.v"
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
+def test_morph_tile_multi_map_mixed_group_sizes_eq() -> None:
+    """Test mixed one- and two-LUT replacements keep the mapped netlist equal."""
+    with TemporaryDirectory(prefix="morph_tile_multi_map_mixed_sizes_") as td:
+        tmp_dir = Path(td)
+        base = _write_multi_map_mixed_sizes_base(tmp_dir)
+        tile = _write_configurable_mixed_logic_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="configurable_mixed_logic_tile",
+            tile_inputs=["I0", "I1", "I2"],
+            tile_outputs=["T0", "T1"],
+            tile_configs=["CFG"],
+            enabled_circuits=["multi_map"],
+            circuit_options={
+                "multi_map": {
+                    "luts_per_group": [1, 2],
+                    "min_boundary_inputs": 2,
+                    "max_boundary_inputs": 3,
+                    "min_boundary_outputs": 1,
+                    "max_boundary_outputs": 2,
+                    "max_iterations": 20,
+                    "random_seed": 3,
+                }
+            },
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        result = pass_.result_data
+        assert result is not None
+        assert "- selected groups: 2" in result.report_summary
+        assert "- replaced LUTs: 3" in result.report_summary
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        assert "lut_and" not in cells
+        assert "lut_or" not in cells
+        assert "lut_xor" not in cells
+        assert len(cells) == 2
+        assert {cell["type"] for cell in cells.values()} == {
+            "configurable_mixed_logic_tile"
+        }
+
+        gate = tmp_dir / "gate.v"
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
+def test_morph_tile_multi_map_rejects_outputs_option() -> None:
+    """Test multi-map rejects the removed legacy outputs option."""
+    try:
+        MultiMapOptions.model_validate({"outputs": 2})
+    except ValidationError as exc:
+        if "outputs" not in str(exc):
+            raise AssertionError("validation error should name outputs") from exc
+    else:
+        raise AssertionError("legacy outputs option must be rejected")
+
+
+def test_morph_tile_multi_map_local_selector_improves_greedy() -> None:
+    """Test local selector replaces one greedy match with two better matches."""
+    matches = [
+        _fake_multi_map_match(("a", "b"), score=30),
+        _fake_multi_map_match(("a", "c"), score=20),
+        _fake_multi_map_match(("b", "d"), score=20),
+    ]
+    options = MultiMapOptions()
+
+    greedy = GreedyDisjointSelector().select(matches, options)
+    improved = LocalImprovementDisjointSelector().select(matches, options)
+    public = select_disjoint_matches(matches, options)
+
+    assert [match.candidate.lut_ids for match in greedy] == [("a", "b")]
+    assert {match.candidate.lut_ids for match in improved} == {
+        ("a", "c"),
+        ("b", "d"),
+    }
+    assert public == improved
+
+
+def test_morph_tile_multi_map_cp_sat_selector_looks_past_local_swap() -> None:
+    """Test CP-SAT selector improves cases requiring two greedy removals."""
+    matches = [
+        _fake_multi_map_match(("a", "b"), score=100),
+        _fake_multi_map_match(("c", "d"), score=100),
+        _fake_multi_map_match(("a", "c"), score=90),
+        _fake_multi_map_match(("b", "e"), score=90),
+        _fake_multi_map_match(("d", "f"), score=90),
+    ]
+    options = MultiMapOptions()
+
+    greedy = GreedyDisjointSelector().select(matches, options)
+    local = LocalImprovementDisjointSelector().select(matches, options)
+    cp_sat = CpSatSetPackingSelector(max_time_seconds=10).select(matches, options)
+
+    assert {match.candidate.lut_ids for match in greedy} == {
+        ("a", "b"),
+        ("c", "d"),
+    }
+    assert local == greedy
+    assert {match.candidate.lut_ids for match in cp_sat} == {
+        ("a", "c"),
+        ("b", "e"),
+        ("d", "f"),
+    }
+
+
+def test_morph_tile_multi_map_cp_sat_prefers_fewer_replacements_on_tie() -> None:
+    """Test same LUT coverage prefers fewer replacement instances."""
+    matches = [
+        _fake_multi_map_match(("a", "b", "c", "d"), score=1),
+        _fake_multi_map_match(("a", "b"), score=1_000),
+        _fake_multi_map_match(("c", "d"), score=1_000),
+    ]
+    options = MultiMapOptions(
+        luts_per_group=[2, 4],
+        min_boundary_outputs=1,
+    )
+
+    selected = CpSatSetPackingSelector(max_time_seconds=10).select(matches, options)
+
+    assert [match.candidate.lut_ids for match in selected] == [("a", "b", "c", "d")]
+
+
+def test_morph_tile_multi_map_cp_sat_reports_selector_metadata() -> None:
+    """Test CP-SAT selector returns report metadata and progress events."""
+    matches = [
+        _fake_multi_map_match(("a", "b"), score=100),
+        _fake_multi_map_match(("c", "d"), score=100),
+        _fake_multi_map_match(("a", "c"), score=90),
+        _fake_multi_map_match(("b", "e"), score=90),
+        _fake_multi_map_match(("d", "f"), score=90),
+    ]
+    events: list[dict[str, object]] = []
+
+    selected, metadata = select_disjoint_matches_with_report(
+        matches,
+        MultiMapOptions(),
+        progress=events.append,
+    )
+
+    assert {match.candidate.lut_ids for match in selected} == {
+        ("a", "c"),
+        ("b", "e"),
+        ("d", "f"),
+    }
+    assert metadata["selector"] == "cp_sat_set_packing"
+    assert metadata["status"] in {"OPTIMAL", "FEASIBLE"}
+    assert metadata["fallback_used"] is False
+    assert metadata["input_matches"] == len(matches)
+    assert metadata["selected_groups"] == 3
+    assert metadata["replaced_luts"] == 6
+    assert any(event["event"] == "start" for event in events)
+    assert any(event["event"] == "finish" for event in events)
+
+
+def test_morph_tile_multi_map_report_shows_selector_and_stored_matches() -> None:
+    """Test multi-map report distinguishes total and retained SAT matches."""
+    result = MultiMapResult(
+        top_name="top",
+        tile_top_name="tile",
+        options_summary={},
+        stats=MultiMapStats(
+            total_groups=10,
+            checked_groups=10,
+            sat_matches_total=7,
+            matched_groups=3,
+            selected_groups=2,
+            replaced_luts=4,
+            cache_hits=5,
+            cache_misses=5,
+        ),
+        replacements=(),
+        metadata={
+            "selector": {
+                "selector": "cp_sat_set_packing",
+                "status": "OPTIMAL",
+                "fallback_used": False,
+                "wall_time_s": 1.25,
+            }
+        },
+    )
+
+    report = render_multi_map_report(result)
+
+    assert "- SAT matches total: 7" in report
+    assert "- SAT matches stored: 3" in report
+    assert "- selector: cp_sat_set_packing" in report
+    assert "- selector status: OPTIMAL" in report
+    assert "- selector fallback used: False" in report
+    assert "- selector time: 1.250s" in report
+
+
+def test_morph_tile_multi_map_validates_luts_per_group_choices() -> None:
+    """Test LUT group sizes can be one value or a normalized list."""
+    assert MultiMapOptions(luts_per_group=3).group_sizes() == (3,)
+    assert MultiMapOptions(luts_per_group=[3, 2, 2]).group_sizes() == (2, 3)
+    for value in (0, [], [2, 0]):
+        try:
+            MultiMapOptions(luts_per_group=value)
+        except (TypeError, ValidationError, ValueError):
+            continue
+        raise AssertionError("luts_per_group choices must be positive and non-empty")
+
+
+def test_morph_tile_multi_map_generates_multiple_group_sizes() -> None:
+    """Test group finder merges candidates from multiple exact group sizes."""
+    nodes = {
+        "l0": LutNode(
+            cell_id="l0",
+            width=2,
+            init=0x8,
+            input_tokens=("a", "b"),
+            output_token="n0",
+            input_refs=(PortBitRef("l0", "A", 0), PortBitRef("l0", "A", 1)),
+            output_ref=PortBitRef("l0", "Y", 0),
+        ),
+        "l1": LutNode(
+            cell_id="l1",
+            width=2,
+            init=0xE,
+            input_tokens=("c", "d"),
+            output_token="n1",
+            input_refs=(PortBitRef("l1", "A", 0), PortBitRef("l1", "A", 1)),
+            output_ref=PortBitRef("l1", "Y", 0),
+        ),
+    }
+    graph = LutGraph(
+        nodes=nodes,
+        driver_by_token={"n0": "l0", "n1": "l1"},
+        users_by_token={},
+    )
+
+    candidates = iter_group_candidates(
+        graph,
+        MultiMapOptions(
+            luts_per_group=[1, 2],
+            min_boundary_inputs=2,
+            max_boundary_inputs=4,
+            min_boundary_outputs=1,
+            max_boundary_outputs=2,
+            max_iterations=1,
+        ),
+    )
+
+    assert {len(candidate.lut_ids) for candidate in candidates} == {1, 2}
+
+
+def test_morph_tile_multi_map_validates_pure_random_match() -> None:
+    """Test pure random match ratio must stay within probability bounds."""
+    assert MultiMapOptions(pure_random_match=0.25).pure_random_match == 0.25
+    for value in (-0.1, 1.1):
+        try:
+            MultiMapOptions(pure_random_match=value)
+        except ValidationError:
+            continue
+        raise AssertionError("pure_random_match must be in [0, 1]")
+
+
+def test_morph_tile_multi_map_validates_max_graph_hops() -> None:
+    """Test graph hop override must be positive when set."""
+    assert MultiMapOptions(max_graph_hops=2).max_graph_hops == 2
+    try:
+        MultiMapOptions(max_graph_hops=0)
+    except ValidationError:
+        return
+    raise AssertionError("max_graph_hops must be positive when set")
+
+
+def test_morph_tile_multi_map_max_graph_hops_reaches_far_partner() -> None:
+    """Test graph hop override can find a farther local cone partner."""
+    nodes = {
+        "l0": LutNode(
+            cell_id="l0",
+            width=2,
+            init=0x8,
+            input_tokens=("a", "b"),
+            output_token="n0",
+            input_refs=(PortBitRef("l0", "A", 0), PortBitRef("l0", "A", 1)),
+            output_ref=PortBitRef("l0", "Y", 0),
+        ),
+        "l1": LutNode(
+            cell_id="l1",
+            width=3,
+            init=0xE8,
+            input_tokens=("n0", "b", "c"),
+            output_token="n1",
+            input_refs=(
+                PortBitRef("l1", "A", 0),
+                PortBitRef("l1", "A", 1),
+                PortBitRef("l1", "A", 2),
+            ),
+            output_ref=PortBitRef("l1", "Y", 0),
+        ),
+        "l2": LutNode(
+            cell_id="l2",
+            width=3,
+            init=0x96,
+            input_tokens=("n1", "c", "d"),
+            output_token="y",
+            input_refs=(
+                PortBitRef("l2", "A", 0),
+                PortBitRef("l2", "A", 1),
+                PortBitRef("l2", "A", 2),
+            ),
+            output_ref=PortBitRef("l2", "Y", 0),
+        ),
+    }
+    graph = LutGraph(
+        nodes=nodes,
+        driver_by_token={"n0": "l0", "n1": "l1", "y": "l2"},
+        users_by_token={"n0": ("l1",), "n1": ("l2",)},
+    )
+    base_options = {
+        "luts_per_group": 2,
+        "min_boundary_inputs": 5,
+        "max_boundary_inputs": 5,
+        "min_boundary_outputs": 2,
+        "max_boundary_outputs": 2,
+        "max_graph_frontier": 2,
+        "max_iterations": 1,
+        "random_seed": 1,
+    }
+
+    default_candidates = iter_group_candidates(graph, MultiMapOptions(**base_options))
+    assert all(candidate.lut_ids != ("l0", "l2") for candidate in default_candidates)
+
+    deep_candidates = iter_group_candidates(
+        graph,
+        MultiMapOptions(**base_options, max_graph_hops=2),
+    )
+    far = next(
+        candidate for candidate in deep_candidates if candidate.lut_ids == ("l0", "l2")
+    )
+    assert far.boundary_tokens == ("a", "b", "n1", "c", "d")
+    assert list(far.output_refs) == ["Y0", "Y1"]
+
+
+def test_morph_tile_multi_map_rejects_cyclic_group_truth() -> None:
+    """Test cyclic LUT groups are classified with a dedicated exception."""
+    nodes = {
+        "l0": LutNode(
+            cell_id="l0",
+            width=2,
+            init=0x8,
+            input_tokens=("n1", "a"),
+            output_token="n0",
+            input_refs=(PortBitRef("l0", "A", 0), PortBitRef("l0", "A", 1)),
+            output_ref=PortBitRef("l0", "Y", 0),
+        ),
+        "l1": LutNode(
+            cell_id="l1",
+            width=2,
+            init=0xE,
+            input_tokens=("n0", "b"),
+            output_token="n1",
+            input_refs=(PortBitRef("l1", "A", 0), PortBitRef("l1", "A", 1)),
+            output_ref=PortBitRef("l1", "Y", 0),
+        ),
+    }
+    graph = LutGraph(
+        nodes=nodes,
+        driver_by_token={"n0": "l0", "n1": "l1"},
+        users_by_token={"n0": ("l1",), "n1": ("l0",)},
+    )
+    candidate = LutGroupCandidate(
+        lut_ids=("l0", "l1"),
+        boundary_tokens=("a", "b"),
+        boundary_refs={
+            "a": PortBitRef("l0", "A", 1),
+            "b": PortBitRef("l1", "A", 1),
+        },
+        output_refs={"Y0": PortBitRef("l0", "Y", 0)},
+    )
+
+    error_text = ""
+    try:
+        build_group_truth(graph, candidate)
+    except CyclicGroupError as exc:
+        error_text = str(exc)
+    assert "group contains a cycle" in error_text
+
+
+def test_morph_tile_multi_map_graph_growth_finds_cascade_group() -> None:
+    """Test deterministic graph growth finds a small LUT cascade group."""
+    nodes = {
+        "l0": LutNode(
+            cell_id="l0",
+            width=2,
+            init=0x8,
+            input_tokens=("a", "b"),
+            output_token="n0",
+            input_refs=(PortBitRef("l0", "A", 0), PortBitRef("l0", "A", 1)),
+            output_ref=PortBitRef("l0", "Y", 0),
+        ),
+        "l1": LutNode(
+            cell_id="l1",
+            width=2,
+            init=0xE,
+            input_tokens=("a", "c"),
+            output_token="n1",
+            input_refs=(PortBitRef("l1", "A", 0), PortBitRef("l1", "A", 1)),
+            output_ref=PortBitRef("l1", "Y", 0),
+        ),
+        "l2": LutNode(
+            cell_id="l2",
+            width=2,
+            init=0x6,
+            input_tokens=("b", "c"),
+            output_token="n2",
+            input_refs=(PortBitRef("l2", "A", 0), PortBitRef("l2", "A", 1)),
+            output_ref=PortBitRef("l2", "Y", 0),
+        ),
+        "l3": LutNode(
+            cell_id="l3",
+            width=3,
+            init=0x80,
+            input_tokens=("n0", "n1", "n2"),
+            output_token="y",
+            input_refs=(
+                PortBitRef("l3", "A", 0),
+                PortBitRef("l3", "A", 1),
+                PortBitRef("l3", "A", 2),
+            ),
+            output_ref=PortBitRef("l3", "Y", 0),
+        ),
+    }
+    graph = LutGraph(
+        nodes=nodes,
+        driver_by_token={"n0": "l0", "n1": "l1", "n2": "l2", "y": "l3"},
+        users_by_token={"n0": ("l3",), "n1": ("l3",), "n2": ("l3",)},
+    )
+
+    candidates = iter_group_candidates(
+        graph,
+        MultiMapOptions(
+            luts_per_group=4,
+            min_boundary_inputs=3,
+            max_boundary_inputs=3,
+            min_boundary_outputs=1,
+            max_boundary_outputs=1,
+            max_graph_frontier=2,
+            max_iterations=1,
+            connected_only=True,
+        ),
+    )
+
+    cascade = next(
+        candidate
+        for candidate in candidates
+        if candidate.lut_ids == ("l0", "l1", "l2", "l3")
+    )
+    assert cascade.boundary_tokens == ("a", "b", "c")
+    assert list(cascade.output_refs) == ["Y0"]
+    assert cascade.output_refs["Y0"].cell_id == "l3"
+
+
+def test_morph_tile_multi_map_extracts_non_lut_output_use() -> None:
+    """Test extractor marks LUT outputs touched by non-LUT cells."""
+    design = MorphTileDesign(
+        top_name="top",
+        cells=(
+            MorphTileNetlistCell(
+                cell_id="l0",
+                cell_type="$lut",
+                parameters={"LUT": "8"},
+                connections={"A": ("a", "b"), "Y": ("n0",)},
+            ),
+            MorphTileNetlistCell(
+                cell_id="l1",
+                cell_type="$lut",
+                parameters={"LUT": "14"},
+                connections={"A": ("n0", "c"), "Y": ("y",)},
+            ),
+            MorphTileNetlistCell(
+                cell_id="ff0",
+                cell_type="$dff",
+                parameters={},
+                connections={"D": ("n0",), "Q": ("q",), "CLK": ("clk",)},
+            ),
+        ),
+    )
+
+    graph = extract_lut_graph(design)
+
+    assert graph.users_by_token["n0"] == ("l1",)
+    assert graph.external_user_tokens == frozenset({"n0"})
+
+
+def test_morph_tile_multi_map_exposes_internal_net_with_non_lut_use() -> None:
+    """Test non-LUT users turn an internal cascade net into an output."""
+    nodes = {
+        "l0": LutNode(
+            cell_id="l0",
+            width=2,
+            init=0x8,
+            input_tokens=("a", "b"),
+            output_token="n0",
+            input_refs=(PortBitRef("l0", "A", 0), PortBitRef("l0", "A", 1)),
+            output_ref=PortBitRef("l0", "Y", 0),
+        ),
+        "l1": LutNode(
+            cell_id="l1",
+            width=2,
+            init=0xE,
+            input_tokens=("n0", "c"),
+            output_token="y",
+            input_refs=(PortBitRef("l1", "A", 0), PortBitRef("l1", "A", 1)),
+            output_ref=PortBitRef("l1", "Y", 0),
+        ),
+    }
+    graph = LutGraph(
+        nodes=nodes,
+        driver_by_token={"n0": "l0", "y": "l1"},
+        users_by_token={"n0": ("l1",)},
+        external_user_tokens=frozenset({"n0"}),
+    )
+
+    candidates = iter_group_candidates(
+        graph,
+        MultiMapOptions(
+            luts_per_group=2,
+            min_boundary_inputs=3,
+            max_boundary_inputs=3,
+            min_boundary_outputs=2,
+            max_boundary_outputs=2,
+            max_iterations=1,
+            connected_only=True,
+        ),
+    )
+
+    cascade = next(
+        candidate for candidate in candidates if candidate.lut_ids == ("l0", "l1")
+    )
+    assert cascade.boundary_tokens == ("a", "b", "c")
+    assert list(cascade.output_refs) == ["Y0", "Y1"]
+    assert cascade.output_refs["Y0"].cell_id == "l0"
+    assert cascade.output_refs["Y1"].cell_id == "l1"
+
+
+def test_morph_tile_multi_map_rejects_extra_non_lut_output_when_not_allowed() -> None:
+    """Test boundary output limits reject exposed non-LUT side uses."""
+    nodes = {
+        "l0": LutNode(
+            cell_id="l0",
+            width=2,
+            init=0x8,
+            input_tokens=("a", "b"),
+            output_token="n0",
+            input_refs=(PortBitRef("l0", "A", 0), PortBitRef("l0", "A", 1)),
+            output_ref=PortBitRef("l0", "Y", 0),
+        ),
+        "l1": LutNode(
+            cell_id="l1",
+            width=2,
+            init=0xE,
+            input_tokens=("n0", "c"),
+            output_token="y",
+            input_refs=(PortBitRef("l1", "A", 0), PortBitRef("l1", "A", 1)),
+            output_ref=PortBitRef("l1", "Y", 0),
+        ),
+    }
+    graph = LutGraph(
+        nodes=nodes,
+        driver_by_token={"n0": "l0", "y": "l1"},
+        users_by_token={"n0": ("l1",)},
+        external_user_tokens=frozenset({"n0"}),
+    )
+
+    candidates = iter_group_candidates(
+        graph,
+        MultiMapOptions(
+            luts_per_group=2,
+            min_boundary_inputs=3,
+            max_boundary_inputs=3,
+            min_boundary_outputs=1,
+            max_boundary_outputs=1,
+            max_iterations=1,
+            connected_only=True,
+        ),
+    )
+
+    assert all(candidate.lut_ids != ("l0", "l1") for candidate in candidates)
+
+
+def test_morph_tile_multi_map_keeps_pure_internal_cascade_internal() -> None:
+    """Test LUT-only cascade nets are not exposed unnecessarily."""
+    nodes = {
+        "l0": LutNode(
+            cell_id="l0",
+            width=2,
+            init=0x8,
+            input_tokens=("a", "b"),
+            output_token="n0",
+            input_refs=(PortBitRef("l0", "A", 0), PortBitRef("l0", "A", 1)),
+            output_ref=PortBitRef("l0", "Y", 0),
+        ),
+        "l1": LutNode(
+            cell_id="l1",
+            width=2,
+            init=0xE,
+            input_tokens=("n0", "c"),
+            output_token="y",
+            input_refs=(PortBitRef("l1", "A", 0), PortBitRef("l1", "A", 1)),
+            output_ref=PortBitRef("l1", "Y", 0),
+        ),
+    }
+    graph = LutGraph(
+        nodes=nodes,
+        driver_by_token={"n0": "l0", "y": "l1"},
+        users_by_token={"n0": ("l1",)},
+    )
+
+    candidates = iter_group_candidates(
+        graph,
+        MultiMapOptions(
+            luts_per_group=2,
+            min_boundary_inputs=3,
+            max_boundary_inputs=3,
+            min_boundary_outputs=1,
+            max_boundary_outputs=1,
+            max_iterations=1,
+            connected_only=True,
+        ),
+    )
+
+    cascade = next(
+        candidate for candidate in candidates if candidate.lut_ids == ("l0", "l1")
+    )
+    assert list(cascade.output_refs) == ["Y0"]
+    assert cascade.output_refs["Y0"].cell_id == "l1"
+
+
+def test_morph_tile_multi_map_shared_input_fallback_keeps_unrelated_group() -> None:
+    """Test shared-input grouping falls back to zero-shared LUT partners."""
+    nodes = {
+        "l0": LutNode(
+            cell_id="l0",
+            width=2,
+            init=0x8,
+            input_tokens=("a", "b"),
+            output_token="n0",
+            input_refs=(PortBitRef("l0", "A", 0), PortBitRef("l0", "A", 1)),
+            output_ref=PortBitRef("l0", "Y", 0),
+        ),
+        "l1": LutNode(
+            cell_id="l1",
+            width=2,
+            init=0xE,
+            input_tokens=("c", "d"),
+            output_token="n1",
+            input_refs=(PortBitRef("l1", "A", 0), PortBitRef("l1", "A", 1)),
+            output_ref=PortBitRef("l1", "Y", 0),
+        ),
+    }
+    graph = LutGraph(
+        nodes=nodes,
+        driver_by_token={"n0": "l0", "n1": "l1"},
+        users_by_token={},
+    )
+
+    candidates = iter_group_candidates(
+        graph,
+        MultiMapOptions(
+            luts_per_group=2,
+            min_boundary_inputs=4,
+            max_boundary_inputs=4,
+            min_boundary_outputs=2,
+            max_boundary_outputs=2,
+            max_iterations=1,
+        ),
+    )
+
+    fallback = next(
+        candidate for candidate in candidates if candidate.lut_ids == ("l0", "l1")
+    )
+    assert fallback.boundary_tokens == ("a", "b", "c", "d")
+    assert list(fallback.output_refs) == ["Y0", "Y1"]
+
+
+def test_morph_tile_multi_map_wires_constant_input_route_eq() -> None:
+    """Test multi-map emits constant-routed tile inputs."""
+    with TemporaryDirectory(prefix="morph_tile_multi_map_const_") as td:
+        tmp_dir = Path(td)
+        base = _write_identity_pair_base(tmp_dir)
+        tile = _write_const_route_dual_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="const_route_dual_tile",
+            tile_inputs=["D0", "D1", "ONE"],
+            tile_outputs=["O0", "O1"],
+            enabled_circuits=["multi_map"],
+            circuit_options={
+                "multi_map": {
+                    "luts_per_group": 2,
+                    "min_boundary_inputs": 2,
+                    "max_boundary_inputs": 2,
+                    "min_boundary_outputs": 2,
+                    "max_boundary_outputs": 2,
+                    "max_iterations": 20,
+                }
+            },
+            allow_input_constants=True,
+            top_name="base",
+            track_progress=False,
+        )
+        pass_.run_on(bridge)
+
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        replacement = next(iter(cells.values()))
+        assert replacement["type"] == "const_route_dual_tile"
+        assert replacement["connections"]["ONE"] == ["1"]
+
+        gate = tmp_dir / "gate.v"
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
+def _fake_multi_map_match(lut_ids: tuple[str, ...], score: int) -> MultiMapMatch:
+    """Build a lightweight selector-only multi-map match."""
+    return MultiMapMatch(
+        candidate=LutGroupCandidate(
+            lut_ids=lut_ids,
+            boundary_tokens=(),
+            boundary_refs={},
+            output_refs={},
+        ),
+        truth=LutGroupTruth(input_names=[], output_inits={}),
+        result=CutSolveResult(sat=True),
+        score=score,
+    )
+
+
 def _write_and_base(tmp_dir: Path) -> Path:
     """Write a one-LUT AND base design."""
     base = tmp_dir / "base.v"
@@ -1172,6 +2107,187 @@ endmodule
         encoding="utf-8",
     )
     return base
+
+
+def _write_multi_lut_shared_base(tmp_dir: Path) -> Path:
+    """Write two LUTs with one shared source input."""
+    base = tmp_dir / "multi_lut_shared_base.v"
+    base.write_text(
+        """
+module base(input a, input b, input c, output y0, output y1);
+  \\$lut #(.LUT(4'h8), .WIDTH(32'd2)) lut_and (.A({b, a}), .Y(y0));
+  \\$lut #(.LUT(4'he), .WIDTH(32'd2)) lut_or (.A({c, a}), .Y(y1));
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return base
+
+
+def _write_dual_logic_tile(tmp_dir: Path) -> Path:
+    """Write a two-output tile that can implement the shared-base test."""
+    tile = tmp_dir / "dual_logic_tile.v"
+    tile.write_text(
+        """
+module dual_logic_tile(input I0, input I1, input I2, output T0, output T1);
+  assign T0 = I0 & I1;
+  assign T1 = I0 | I2;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
+def _write_multi_map_permuted_base(tmp_dir: Path) -> Path:
+    """Write two input-order-sensitive LUTs for multi-map wiring tests."""
+    base = tmp_dir / "multi_map_permuted_base.v"
+    base.write_text(
+        """
+module base(input a, input b, input c, input d, output y0, output y1);
+  \\$lut #(.LUT(4'h2), .WIDTH(32'd2)) lut_left (.A({b, a}), .Y(y0));
+  \\$lut #(.LUT(4'h4), .WIDTH(32'd2)) lut_right (.A({d, c}), .Y(y1));
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return base
+
+
+def _write_dual_asymmetric_tile(tmp_dir: Path) -> Path:
+    """Write a dual-output tile with input-order-sensitive logic."""
+    tile = tmp_dir / "dual_asymmetric_tile.v"
+    tile.write_text(
+        """
+module dual_asymmetric_tile(
+  input I0,
+  input I1,
+  input I2,
+  input I3,
+  output T0,
+  output T1
+);
+  assign T0 = I0 & ~I1;
+  assign T1 = I2 & ~I3;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
+def _write_multi_map_internal_output_base(tmp_dir: Path) -> Path:
+    """Write a cascade whose internal net also feeds a non-LUT cell."""
+    base = tmp_dir / "multi_map_internal_output_base.v"
+    base.write_text(
+        """
+module side_consumer(input A, input B, output Y);
+  assign Y = A ^ B;
+endmodule
+
+module base(input a, input b, input c, output y, output side);
+  wire n_mid;
+  \\$lut #(.LUT(4'h8), .WIDTH(32'd2)) lut_mid (.A({b, a}), .Y(n_mid));
+  \\$lut #(.LUT(4'he), .WIDTH(32'd2)) lut_out (.A({c, n_mid}), .Y(y));
+  side_consumer u_side (.A(n_mid), .B(c), .Y(side));
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return base
+
+
+def _write_cascade_with_internal_output_tile(tmp_dir: Path) -> Path:
+    """Write a tile that exposes both cascade middle and final outputs."""
+    tile = tmp_dir / "cascade_with_internal_output_tile.v"
+    tile.write_text(
+        """
+module cascade_with_internal_output_tile(
+  input I0,
+  input I1,
+  input I2,
+  output MID,
+  output OUT
+);
+  wire middle = I0 & I1;
+  assign MID = middle;
+  assign OUT = middle | I2;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
+def _write_multi_map_mixed_sizes_base(tmp_dir: Path) -> Path:
+    """Write a small design that benefits from mixed-size multi-map groups."""
+    base = tmp_dir / "multi_map_mixed_sizes_base.v"
+    base.write_text(
+        """
+module base(
+  input a, input b, input c, input d, input e,
+  output y0, output y1, output y2
+);
+  \\$lut #(.LUT(4'h8), .WIDTH(32'd2)) lut_and (.A({b, a}), .Y(y0));
+  \\$lut #(.LUT(4'he), .WIDTH(32'd2)) lut_or (.A({c, a}), .Y(y1));
+  \\$lut #(.LUT(4'h6), .WIDTH(32'd2)) lut_xor (.A({e, d}), .Y(y2));
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return base
+
+
+def _write_configurable_mixed_logic_tile(tmp_dir: Path) -> Path:
+    """Write a tile usable as a dual AND/OR group or a single XOR group."""
+    tile = tmp_dir / "configurable_mixed_logic_tile.v"
+    tile.write_text(
+        """
+module configurable_mixed_logic_tile(
+  input I0,
+  input I1,
+  input I2,
+  input CFG,
+  output T0,
+  output T1
+);
+  assign T0 = CFG ? (I0 ^ I1) : (I0 & I1);
+  assign T1 = I0 | I2;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
+
+
+def _write_identity_pair_base(tmp_dir: Path) -> Path:
+    """Write two independent identity LUTs."""
+    base = tmp_dir / "identity_pair_base.v"
+    base.write_text(
+        """
+module base(input a, input b, output y0, output y1);
+  \\$lut #(.LUT(2'h2), .WIDTH(32'd1)) lut_a (.A(a), .Y(y0));
+  \\$lut #(.LUT(2'h2), .WIDTH(32'd1)) lut_b (.A(b), .Y(y1));
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return base
+
+
+def _write_const_route_dual_tile(tmp_dir: Path) -> Path:
+    """Write a dual tile that requires a constant-one input for identity."""
+    tile = tmp_dir / "const_route_dual_tile.v"
+    tile.write_text(
+        """
+module const_route_dual_tile(input D0, input D1, input ONE, output O0, output O1);
+  assign O0 = D0 & ONE;
+  assign O1 = D1 & ONE;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return tile
 
 
 def _write_and_tile(tmp_dir: Path) -> Path:
@@ -1892,7 +3008,31 @@ def main() -> None:
     test_morph_tile_pass_duplicate_input_reuse_flag()
     test_morph_tile_pass_extra_inputs_and_output_choice()
     test_morph_tile_pass_disallows_output_reuse_for_multi_output()
+    test_morph_tile_rejects_output_reuse_option()
     test_synthesizer_morph_tile_pass_smoke()
+    test_morph_tile_multi_map_replaces_two_luts_eq()
+    test_morph_tile_multi_map_wires_permuted_inputs_eq()
+    test_morph_tile_multi_map_wires_exposed_internal_output_eq()
+    test_morph_tile_multi_map_mixed_group_sizes_eq()
+    test_morph_tile_multi_map_rejects_outputs_option()
+    test_morph_tile_multi_map_local_selector_improves_greedy()
+    test_morph_tile_multi_map_cp_sat_selector_looks_past_local_swap()
+    test_morph_tile_multi_map_cp_sat_prefers_fewer_replacements_on_tie()
+    test_morph_tile_multi_map_cp_sat_reports_selector_metadata()
+    test_morph_tile_multi_map_report_shows_selector_and_stored_matches()
+    test_morph_tile_multi_map_validates_luts_per_group_choices()
+    test_morph_tile_multi_map_generates_multiple_group_sizes()
+    test_morph_tile_multi_map_validates_pure_random_match()
+    test_morph_tile_multi_map_validates_max_graph_hops()
+    test_morph_tile_multi_map_max_graph_hops_reaches_far_partner()
+    test_morph_tile_multi_map_rejects_cyclic_group_truth()
+    test_morph_tile_multi_map_graph_growth_finds_cascade_group()
+    test_morph_tile_multi_map_extracts_non_lut_output_use()
+    test_morph_tile_multi_map_exposes_internal_net_with_non_lut_use()
+    test_morph_tile_multi_map_rejects_extra_non_lut_output_when_not_allowed()
+    test_morph_tile_multi_map_keeps_pure_internal_cascade_internal()
+    test_morph_tile_multi_map_shared_input_fallback_keeps_unrelated_group()
+    test_morph_tile_multi_map_wires_constant_input_route_eq()
 
 
 if __name__ == "__main__":

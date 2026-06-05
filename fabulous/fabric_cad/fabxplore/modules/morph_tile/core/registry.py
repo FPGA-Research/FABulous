@@ -5,7 +5,9 @@ concrete circuit adapters. New cut kinds should be added here without changing t
 mapper orchestration loop.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from fabulous.fabric_cad.fabxplore.modules.morph_tile.circuits.chain import (
     ChainCircuit,
@@ -24,11 +26,21 @@ from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.base import (
     MorphCircuitEnvironment,
     MorphCircuitKind,
 )
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.multi_map.circuit import (
+    MultiMapCircuit,
+)
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.multi_map.options import (
+    MultiMapOptions,
+)
+
+if TYPE_CHECKING:
+    from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 
 
 def build_morph_circuits(
     env: MorphCircuitEnvironment,
     enabled_circuits: list[str | MorphCircuitKind] | None,
+    design: PyosysBridge | None = None,
 ) -> list[MorphCircuitAdapter[Any]]:
     """Instantiate circuit adapters requested by public pass options.
 
@@ -38,6 +50,9 @@ def build_morph_circuits(
         Shared runtime services and options for all adapters.
     enabled_circuits : list[str | MorphCircuitKind] | None
         Circuit kinds to enable. ``None`` enables only normal ``$lut`` support.
+    design : PyosysBridge | None
+        Live pyosys design. This is required by the side-effect ``multi_map``
+        adapter and ignored by normal single-candidate adapters.
 
     Returns
     -------
@@ -79,6 +94,15 @@ def build_morph_circuits(
                     options=ChainCircuitOptions.model_validate(
                         _circuit_options(env, kind)
                     ),
+                )
+            )
+            continue
+        if kind is MorphCircuitKind.MULTI_MAP:
+            circuits.append(
+                MultiMapCircuit(
+                    env=env,
+                    design=design,
+                    options=MultiMapOptions.model_validate(_circuit_options(env, kind)),
                 )
             )
             continue

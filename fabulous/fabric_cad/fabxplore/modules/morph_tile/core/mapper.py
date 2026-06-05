@@ -139,6 +139,8 @@ class MorphTileMapper:
         self.progress_chunk_size = progress_chunk_size
         self.debug = debug
 
+        self._design: PyosysBridge | None = None
+
     def map_from_design(
         self,
         design: PyosysBridge,
@@ -163,6 +165,8 @@ class MorphTileMapper:
         ValueError
             If optional LUT mapping is requested without ``lut_map_size``.
         """
+        self._design = design
+
         selected_top = top_name or design.top_name()
         if self.map_luts_first:
             if self.lut_map_size is None:
@@ -221,6 +225,9 @@ class MorphTileMapper:
             solve_options=solve_options,
             tile_inputs=self.tile_inputs,
             tile_outputs=self.tile_outputs,
+            include_unused_inputs=self.include_unused_inputs,
+            track_progress=self.track_progress,
+            progress_chunk_size=self.progress_chunk_size,
             options={
                 "enabled_circuits": self.enabled_circuits,
                 "circuit_options": self.circuit_options,
@@ -229,10 +236,17 @@ class MorphTileMapper:
         circuits = build_morph_circuits(
             env=env,
             enabled_circuits=self.enabled_circuits,
+            design=self._design,
         )
         context = MorphTileContext(design=morph_design)
         candidate_groups = [
             (circuit, tuple(circuit.iter_candidates(context))) for circuit in circuits
+        ]
+        side_effect_reports = [
+            result.report_summary
+            for circuit in circuits
+            if (result := circuit.side_effect_result()) is not None
+            and hasattr(result, "report_summary")
         ]
         total_candidates = sum(
             len(candidates) for _circuit, candidates in candidate_groups
@@ -329,7 +343,12 @@ class MorphTileMapper:
             stats=stats,
             replacements=tuple(replacements),
         )
-        result = replace(result, report_summary=render_morph_tile_report(result))
+        report_summary = (
+            "\n\n".join(side_effect_reports)
+            if side_effect_reports
+            else render_morph_tile_report(result)
+        )
+        result = replace(result, report_summary=report_summary)
         tracker.finish(result)
         return result
 

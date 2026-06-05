@@ -535,7 +535,7 @@ Important options:
   simplify away logic that is disabled by that bit and guarantees the final
   netlist contains `ConfigBits[0] = 0`.
 - `enabled_circuits`: registered source-cell adapters to run. Today this can
-  include `lut`, `frac_lut`, and `chain`.
+  include `lut`, `frac_lut`, `chain`, and the dedicated `multi_map` mode.
 - `circuit_options`: adapter-specific options keyed by circuit name. For
   `frac_lut`, useful keys are `modes`, `cell_types`, and
   `enable_permute_cache`. For `lut`, useful keys are `widths` and
@@ -546,7 +546,492 @@ Important options:
 - `max_replacements`: optional cap for testing or partial morphing.
 - `map_luts_first`: optionally LUT-map the design before morphing.
 - `track_progress`: enable progress logging.
-- `progress_chunk_size`: print progress every N processed candidates.
+- `progress_chunk_size`: print progress every N processed candidates. In
+  `multi_map` mode this means every N checked LUT groups.
+
+For `multi_map`, progress lines use the same loguru-based style as normal
+morph-tile mapping, but the counters are group-oriented:
+
+```text
+[MultiMapMapper] Start multi-map mapping: top=base, luts=42, sampled_groups=1000, options=...
+[MultiMapMapper] Groups: 100/1000 (10.0%), sat=12, unsat=88, stored_matches=12, cache_hits=31, unique_solves=69
+[MultiMapMapper] Done multi-map mapping: selected_groups=7, replaced_luts=14, sat_matches=22, cache_hits=310, unique_solves=690
+```
+
+## Multi Mapper
+
+The `multi_map` mode is a dedicated mapper for LUT-mapped designs. Instead of
+checking one source LUT at a time, it tries to pack groups of LUTs into one
+candidate architecture tile. This is useful for fracturable LUTs, small local
+clusters, or tiles where several LUT functions can share some inputs and config
+state.
+
+The main options are:
+
+```python
+circuit_options={
+    "multi_map": {
+        "luts_per_group": [2, 3],
+        "min_boundary_inputs": 3,
+        "max_boundary_inputs": 7,
+        "min_boundary_outputs": 2,
+        "max_boundary_outputs": 2,
+        "max_graph_frontier": 16,
+        "max_graph_hops": None,
+        "max_iterations": 100,
+        "random_seed": 4,
+        "pure_random_match": 0.0,
+        "connected_only": False,
+        "max_stored_matches": 10_000,
+        "max_selected_groups": None,
+        "enable_permute_cache": True,
+    }
+}
+```
+
+Here `luts_per_group` is the exact number, or list of exact numbers, of source
+LUTs in one proposed group. If a list is used, the mapper runs group generation
+once per size, merges and deduplicates all candidates, checks the combined list
+with SAT, and lets the final disjoint selector choose the best mix. This is
+useful when the architecture has multiple useful replacement shapes.
+
+The input and output boundary options filter which groups are worth sending to
+SAT. For a group $G$:
+
+$I(G) = \left(\bigcup_{\ell \in G} inputs(\ell)\right) \setminus internal(G)$
+
+where `internal(G)` contains LUT-to-LUT nets driven and consumed inside the
+group. Constants are also ignored. The output boundary is:
+
+$O(G) = \{ output(\ell) \mid \ell \in G \land output(\ell) \text{ leaves } G \}$
+
+A group is kept only if:
+
+$|G| \in \text{luts\_per\_group}$
+
+$\text{min\_boundary\_inputs} \le |I(G)| \le \text{max\_boundary\_inputs}$
+
+$\text{min\_boundary\_outputs} \le |O(G)| \le \text{max\_boundary\_outputs}$
+
+If `connected_only=True`, the grouped LUTs must also be connected through the
+LUT-to-LUT graph.
+
+`max_stored_matches` caps how many SAT-positive matches are kept in memory
+before final selection. If more matches are found, the mapper keeps the
+highest-scoring ones. `max_selected_groups` optionally caps the number of final
+disjoint replacements emitted after the CP-SAT selector runs. Leaving it as
+`None` means there is no explicit final-group cap.
+
+`enable_permute_cache` controls whether multi-output group truth tables may
+reuse SAT results when they are equivalent up to input permutation. This should
+usually stay enabled because it avoids solving the same functional problem
+again with renamed inputs.
+
+### Group Generation
+
+Candidate groups come from deterministic search plus randomized sampling.
+
+When `luts_per_group` contains multiple sizes, the whole generation flow below
+is repeated independently for each size. For example, with
+`luts_per_group=[2, 3]`, the mapper first samples valid LUT pairs, then samples
+valid LUT triples, merges both candidate lists, and removes duplicate LUT-id
+tuples before SAT:
+
+```text
+group size 2 -> candidate pairs
+group size 3 -> candidate triples
+
+merged candidates -> SAT check -> disjoint selector chooses mixed replacements
+```
+
+This means the SAT and selection phases see one mixed candidate pool. The final
+selector is therefore allowed to choose, for example, one 3-LUT replacement in
+one part of the design and several 2-LUT replacements elsewhere. The generator
+does not run the mapper sequentially on the design for each size; it only builds
+one combined list of candidate groups before anything is written.
+
+The deterministic part has global seed coverage: every LUT in the extracted LUT
+graph is used as a seed once. Around each seed, the mapper builds only a small
+bounded neighborhood and searches inside that neighborhood:
+
+```text
+whole LUT graph:
+
+  lut_0   lut_1 -> lut_2        lut_8 -> lut_9
+    |       |        |             |
+  lut_3   lut_4 -> lut_5        lut_10
+
+deterministic search:
+
+  seed = lut_0   -> build a small local subgraph around lut_0
+  seed = lut_1   -> build a small local subgraph around lut_1
+  seed = lut_2   -> build a small local subgraph around lut_2
+  ...
+  seed = lut_10  -> build a small local subgraph around lut_10
+```
+
+So the pass is global in where it starts searching, but local in what it tries
+for each start point. This avoids enumerating all possible
+`luts_per_group`-sized combinations while still giving every LUT a chance to
+anchor a candidate group.
+
+The deterministic search uses every LUT as a seed in stable sorted order. For
+each seed it proposes groups in three ways:
+
+- Local graph growth: grow from the seed through LUT-to-LUT neighbors until the
+  group has `luts_per_group` LUTs. By default, the hop depth is derived from the
+  group size: at most `luts_per_group - 1` expansions. If `max_graph_hops` is
+  set, the mapper instead searches that many LUT-to-LUT hops around the seed and
+  emits fixed-size groups from the bounded local cone. This can find partners
+  farther upstream or downstream while still selecting exactly `luts_per_group`
+  LUTs. At each step, local neighbor choices are ranked by connection count to
+  the current neighborhood and by shared input count. Only `max_graph_frontier`
+  expansion candidates are considered per hop, so the search stays bounded.
+- Shared-input heuristic: score every other LUT by how many input nets it shares
+  with the seed, then take the best `luts_per_group - 1` LUTs.
+- One-hop neighbor heuristic: take immediate LUT-to-LUT graph neighbors of the
+  seed when enough are available.
+
+Each proposed group is normalized as a sorted LUT tuple, checked against the
+boundary filter, and then deduplicated. Only groups that survive these cheap
+structural checks are added to the candidate list.
+
+The boundary filter understands cascaded LUTs. If one selected LUT drives
+another selected LUT, that internal net is not counted as an external boundary
+input:
+
+```text
+selected group:
+
+  a,b,c ---> lut_a ---+
+                      v
+  a,b,d ---> lut_b -> lut_c ---> y
+
+external boundary inputs:  {a, b, c, d}
+internal group net:        output(lut_a), output(lut_b)
+external boundary output:  y
+```
+
+Likewise, shared inputs are counted once. This is why groups with cascades or
+shared fan-in can fit tighter `max_boundary_inputs` limits than unrelated LUTs.
+
+An internal-looking net must still become a boundary output if it is also used
+outside the selected group. Otherwise the replacement tile would remove the
+only driver for that outside cell. For example:
+
+```text
+selected group:
+
+  a,b,c ---> lut_a --- x ---> lut_b ---> y
+                       |
+                       +---> other_cell_outside_group
+
+boundary outputs before outside-use check: { y }
+boundary outputs after outside-use check:  { x, y }
+```
+
+If the output boundary allows two outputs, the mapper keeps the group and asks
+SAT whether the tile can expose both `x` and `y`. If the boundary only allows
+one output, the group is rejected before SAT. This prevents a replacement from
+silently hiding a LUT net that still feeds logic outside the group.
+
+The random sampler runs after deterministic generation. It performs at most
+`max_iterations` attempts. Each attempt chooses a random seed LUT using
+`random_seed`, builds a partner pool biased toward neighbors and shared-input
+LUTs, and falls back to unrelated LUTs if the local pool is too small. The same
+boundary filters and duplicate checks are applied before the group is kept.
+
+`pure_random_match` controls how much of this random phase ignores the local
+partner heuristic. With the default `0.0`, every random attempt uses the
+neighbor/shared-input-biased behavior above, with the existing unrelated-LUT
+fallback when needed. With a value $p \in [0,1]$, each random attempt has
+probability $p$ of choosing `luts_per_group` LUTs uniformly from the whole LUT
+set before applying the same boundary and duplicate filters. For example,
+`pure_random_match=0.25` makes about one quarter of random attempts pure global
+samples, while `pure_random_match=1.0` makes the whole random phase pure global
+sampling.
+
+Pure random sampling is most useful when the number of grouped LUTs matches the
+required output boundary. If `luts_per_group = 2` and
+`min_boundary_outputs = max_boundary_outputs = 2`, then two unrelated random
+LUTs naturally have two outputs leaving the group:
+
+```text
+random group:      { lut_a, lut_b }
+boundary outputs:  { output(lut_a), output(lut_b) }
+|O(G)|:            2
+```
+
+In that shape, pure random can discover many independent LUT pairs that still
+fit one multi-output tile, and the remaining cheap filter is mostly whether the
+union of their input nets fits the input boundary.
+
+Pure random is usually weak when `luts_per_group` is larger than the required
+output boundary. For example, with `luts_per_group = 3` and
+`min_boundary_outputs = max_boundary_outputs = 2`, three unrelated LUTs usually
+produce three boundary outputs:
+
+```text
+random group:      { lut_a, lut_b, lut_c }
+boundary outputs:  { output(lut_a), output(lut_b), output(lut_c) }
+|O(G)|:            3
+required:          2
+```
+
+To pass the output filter, one selected LUT output normally needs to be consumed
+inside the group:
+
+```text
+structured group:  lut_a -> lut_c, lut_b independent
+boundary outputs:  { output(lut_b), output(lut_c) }
+|O(G)|:            2
+```
+
+That is exactly what the local graph-growth and neighbor-biased samplers are
+better at finding. As a practical rule:
+
+```text
+luts_per_group == boundary_outputs  -> pure random can be productive
+luts_per_group >  boundary_outputs  -> prefer graph/local sampling
+luts_per_group <  boundary_outputs  -> usually impossible to satisfy
+```
+
+Thus the reported `sampled_groups` count means:
+
+```text
+sampled_groups =
+    deterministic groups that passed filtering
+  + random groups that passed filtering
+  - duplicates
+```
+
+Those `sampled_groups` are the groups sent to SAT. It is not the theoretical
+number of possible groups. For example, with $n$ LUTs and
+`luts_per_group = 2`, the full pair space would be $\binom{n}{2}$, which is far
+too large to enumerate for big designs.
+
+### SAT Check
+
+For every candidate group, the mapper simulates the grouped LUT subgraph over
+its boundary inputs and builds a multi-output truth table:
+
+$F_G : \{0,1\}^{|I(G)|} \rightarrow \{0,1\}^{|O(G)|}$
+
+Then `sat_fab` asks whether the architecture tile can implement that function:
+
+$\exists \rho, r, q \; . \; \forall a,\; T_r(\rho(a), q) = F_G(a)$
+
+Here $\rho$ is the input routing from group boundary inputs to tile inputs, $r$
+is the selected tile output routing, and $q$ is the tile configuration. If SAT
+finds such values, the result stores the tile config bits, input mapping, and
+output mapping needed by the writer.
+
+### Final Selection
+
+Many SAT-passing groups may overlap. A LUT cannot be replaced twice, so the
+mapper selects a disjoint set of matches. Formally, for selected groups
+$S = \{G_0,\ldots,G_k\}$:
+
+$G_i \cap G_j = \emptyset \quad \text{for all } i \ne j$
+
+The final selector encodes this as a small CP-SAT optimization problem with
+OR-Tools. Here `CP` means constraint programming: we describe the legal shape of
+the selection with constraints, and CP-SAT searches for the best assignment of
+Boolean decision variables. It is SAT-like because each decision is still a
+Boolean choice, but it also has an optimization objective.
+
+For every SAT-passing match $m$, the selector creates one Boolean variable:
+
+$x_m \in \{0,1\}$
+
+where $x_m = 1$ means "emit this replacement". For each original LUT $\ell$,
+the selector collects all matches that contain that LUT and adds:
+
+$\sum_{m : \ell \in G_m} x_m \le 1$
+
+This is the disjointness rule. It says that at most one selected replacement may
+consume any particular LUT.
+
+For example, suppose the SAT check found these valid matches:
+
+```text
+match A covers {lut0, lut1}
+match B covers {lut1, lut2}
+match C covers {lut3, lut4}
+match D covers {lut2, lut5}
+```
+
+The variables are:
+
+```text
+x_A, x_B, x_C, x_D
+```
+
+Because `A` and `B` both use `lut1`, CP-SAT receives:
+
+```text
+x_A + x_B <= 1
+```
+
+Because `B` and `D` both use `lut2`, it also receives:
+
+```text
+x_B + x_D <= 1
+```
+
+Then the selector maximizes a weighted objective. The priority order is:
+
+```text
+1. replace as many LUTs as possible
+2. if tied, prefer fewer replacement instances
+3. if still tied, prefer higher match score
+```
+
+This priority order is important when multiple group sizes are enabled. If the
+first priority alone were used, replacing four LUTs with one 4-LUT tile and
+replacing the same four LUTs with two 2-LUT tiles would look equally good. The
+second priority breaks that tie toward the larger replacement, so the mapper
+covers as much of the design as possible while using fewer emitted tile
+instances where it can.
+
+The per-match score used as the final tie-breaker is:
+
+$score(m) = 10000 \cdot |G_m| + 100 \cdot reuse(m) - 10 \cdot |I(G_m)|$
+
+where:
+
+- $|G_m|$ is the number of source LUTs in the candidate group.
+- $reuse(m)$ is the number of repeated logical sources in the solved tile input
+  mapping. It rewards cases where the tile can reuse a shared group input.
+- $|I(G_m)|$ is the external boundary input count. It mildly penalizes wider
+  groups because they consume more tile input routing.
+
+For example:
+
+```text
+group A: 3 LUTs, 1 reused input, 5 boundary inputs
+score(A) = 10000 * 3 + 100 * 1 - 10 * 5 = 30050
+
+group B: 2 LUTs, 2 reused inputs, 3 boundary inputs
+score(B) = 10000 * 2 + 100 * 2 - 10 * 3 = 20170
+```
+
+This score is not the main global objective. It is a quality tie-breaker after
+the selector has already maximized total LUT coverage and minimized the number
+of replacement instances.
+
+In mathematical form, the CP-SAT objective is:
+
+$\max \sum_m w_m x_m$
+
+where each weight is built as:
+
+$w_m = |G_m| \cdot W_{cover} - W_{inst} + score(m)$
+
+The constants are chosen so that one extra covered LUT is always more important
+than any possible difference in replacement count or match score, and one fewer
+replacement instance is always more important than any possible score
+difference:
+
+$W_{inst} = 2 \cdot \sum_m |score(m)| + 1$
+
+$W_{cover} = |M| \cdot W_{inst} + 2 \cdot \sum_m |score(m)| + 1$
+
+Here $M$ is the set of stored SAT-positive matches. Since each selected match
+adds one emitted replacement instance, the `- W_inst` term makes CP-SAT prefer
+fewer instances when LUT coverage is tied.
+
+The progress log prints this packed objective directly:
+
+```text
+objective=2316376315691465.000, best_bound=2349078098975457.000
+```
+
+Those large values are solver scores, not counts of LUTs, groups, or nets. The
+objective is intentionally huge because the selector packs three priorities
+into one integer value: covered LUTs first, emitted replacement count second,
+and match score last. `objective` is the best feasible score CP-SAT has found
+so far. `best_bound` is the best score that CP-SAT can still prove might be
+reachable. When `objective == best_bound`, OR-Tools has proved the current
+selection is globally optimal for the stored SAT-positive matches. When
+`best_bound` is larger, the current solution is valid, but the solver has not
+yet fully ruled out a better disjoint selection.
+
+For humans, the useful progress counters are therefore still the decoded values:
+
+```text
+selected_groups=1275, replaced_luts=2550
+```
+
+For example:
+
+```text
+candidate A covers {lut0, lut1, lut2, lut3}       -> 4 LUTs, 1 replacement
+candidate B covers {lut0, lut1}
+candidate C covers {lut2, lut3}                   -> 4 LUTs, 2 replacements
+```
+
+Both choices cover four LUTs, so the selector prefers `A` because it uses one
+replacement instance instead of two. A choice that covers five LUTs would still
+win over `A`, because the first priority is always maximum LUT coverage.
+
+With mixed group sizes, this lets CP-SAT make choices such as:
+
+```text
+SAT-positive matches:
+
+  A = {lut0, lut1, lut2}      size 3
+  B = {lut0, lut1}            size 2
+  C = {lut2, lut3}            size 2
+  D = {lut4, lut5}            size 2
+
+possible selections:
+
+  {A, D} covers 5 LUTs with 2 replacements
+  {B, C, D} covers 6 LUTs with 3 replacements
+
+selected: {B, C, D}
+```
+
+Even though `{A, D}` uses fewer instances, `{B, C, D}` covers more source LUTs,
+so it wins. If two selections both covered six LUTs, CP-SAT would then prefer
+the one with fewer replacements.
+
+The CP-SAT selector only runs after `sat_fab` has proved that each match is
+functionally valid. It does not prove circuit equivalence itself; it solves the
+global packing question:
+
+```text
+Given all SAT-positive local replacements, which non-overlapping subset should
+we actually emit?
+```
+
+If the CP-SAT solver proves `OPTIMAL` within its time limit, the selected set is
+globally best for the stored SAT-positive matches. If the time limit expires
+after CP-SAT has found a solution, OR-Tools can still return `FEASIBLE`: the
+solution is valid, but not proven optimal. The mapper compares that feasible
+CP-SAT result against the local-improvement fallback and keeps whichever wins
+by the same priorities:
+
+```text
+1. more replaced LUTs
+2. fewer replacement instances
+3. higher total match score
+```
+
+So a timeout is not automatically a failure. It only falls back if CP-SAT finds
+no usable solution, OR-Tools is unavailable, or the CP-SAT solution is worse
+than the deterministic local-improvement result.
+
+Internally, the module also keeps simpler selectors:
+
+- `GreedyDisjointSelector` is the fastest baseline. It sorts matches by
+  per-match score and keeps the first non-overlapping matches it sees.
+- `LocalImprovementDisjointSelector` starts from greedy and tries local swaps
+  that improve the whole selected set according to the same coverage, instance
+  count, and score priorities.
+- `CpSatSetPackingSelector` is the default strongest selector. It solves the
+  disjoint set-packing optimization for the stored SAT-positive matches.
 
 ## Replacement Example
 

@@ -22,6 +22,11 @@ from fabulous.fabric_cad.fabxplore.modules.morph_tile.core import (
     permute_truth_init,
     remap_permuted_solve_result,
 )
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.multi_map import (
+    MultiMapMapper,
+    MultiMapOptions,
+    MultiMapResult,
+)
 
 __all__ = [
     "CutSolveResult",
@@ -40,6 +45,9 @@ __all__ = [
     "MorphTileResult",
     "MorphTileStats",
     "MorphTileWriter",
+    "MultiMapMapper",
+    "MultiMapOptions",
+    "MultiMapResult",
     "PermutedTruthTable",
     "canonicalize_truth_table",
     "permute_truth_init",

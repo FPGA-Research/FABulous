@@ -48,11 +48,14 @@ class MorphCircuitKind(StrEnum):
         LUT-combinator fractional LUT cells.
     CHAIN
         Generic ``__chain`` cells emitted by the chain mapper.
+    MULTI_MAP
+        Multi-LUT group mapper that packs several LUT cells into one tile.
     """
 
     LUT = "lut"
     FRAC_LUT = "frac_lut"
     CHAIN = "chain"
+    MULTI_MAP = "multi_map"
 
 
 @dataclass(frozen=True)
@@ -66,12 +69,33 @@ class MorphSolveOptions:
     allow_input_constants : bool
         Whether SAT may tie tile inputs to constants.
     allow_output_reuse : bool
-        Whether SAT may reuse tile outputs for routed output matching.
+        Whether SAT may reuse tile outputs for routed output matching. This is
+        currently rejected for morph-tile rewriting because replacement writers
+        connect each tile output to only one original output net.
     """
 
     allow_input_reuse: bool
     allow_input_constants: bool
     allow_output_reuse: bool
+
+    def __post_init__(self) -> None:
+        """Validate solve options supported by the replacement writers.
+
+        Raises
+        ------
+        ValueError
+            If output reuse is enabled. SAT-fab can solve that routing problem,
+            but the current morph-tile writers cannot safely connect one tile
+            output to several original output nets.
+        """
+        if self.allow_output_reuse:
+            raise ValueError(
+                "allow_output_reuse=True is currently not supported by "
+                "morph-tile rewriting. SAT can map multiple logical outputs "
+                "to one tile output, but the writers connect each tile output "
+                "to only one original output net; enabling this could drop or "
+                "overwrite output connections."
+            )
 
 
 @dataclass(frozen=True)
@@ -106,6 +130,12 @@ class MorphCircuitEnvironment:
         Candidate tile input ports.
     tile_outputs : list[str]
         Candidate tile output ports.
+    include_unused_inputs : bool
+        Whether adapters should connect otherwise unused tile inputs.
+    track_progress : bool
+        Whether adapters should log progress updates.
+    progress_chunk_size : int
+        Number of processed candidates between progress updates.
     options : dict[str, object]
         Public pass options and adapter-specific options.
     """
@@ -114,6 +144,9 @@ class MorphCircuitEnvironment:
     solve_options: MorphSolveOptions
     tile_inputs: list[str]
     tile_outputs: list[str]
+    include_unused_inputs: bool = False
+    track_progress: bool = True
+    progress_chunk_size: int = 50
     options: dict[str, object] = field(default_factory=dict)
 
 
@@ -263,6 +296,16 @@ class MorphCircuitAdapter[CandidateT](ABC):
         str
             Human-readable INIT label.
         """
+
+    def side_effect_result(self) -> object | None:
+        """Return an adapter-owned result created outside the normal loop.
+
+        Returns
+        -------
+        object | None
+            Optional result object produced by a side-effecting adapter.
+        """
+        return None
 
     def solve_spec(
         self,
