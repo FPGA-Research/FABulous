@@ -11,6 +11,8 @@ from fabulous.fabric_generator.code_generator.code_generator import CodeGenerato
 class VerilogCodeGenerator(CodeGenerator):
     """The writer class for generating Verilog code."""
 
+    file_extension = ".v"
+
     def addComment(
         self, comment: str, onNewLine: bool = False, end: str = "", indentLevel: int = 0
     ) -> None:
