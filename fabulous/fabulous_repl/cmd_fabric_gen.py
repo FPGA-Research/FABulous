@@ -13,7 +13,6 @@ from cmd2.annotated import Argument, Option
 from loguru import logger
 
 from fabulous.custom_exception import CommandError
-from fabulous.fabric_cad.gen_npnr_model import PLACEMENT_ESTIMATE_TEXT
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
 )
@@ -27,6 +26,7 @@ from fabulous.fabulous_repl.command_set_base import (
 from fabulous.fabulous_repl.helper import (
     CommandPipeline,
     allow_blank,
+    write_pnr_model,
 )
 
 
@@ -314,7 +314,7 @@ class FabricGenCommandSet(ReplCommandSet):
             .add_step("gen_fabric", "Fabric generation failed")
             .add_step("gen_bitStream_spec", "Bitstream specification generation failed")
             .add_step("gen_top_wrapper", "Top wrapper generation failed")
-            .add_step("gen_model_npnr", "Nextpnr model generation failed")
+            .add_step("gen_pnr_model", "Place and route model generation failed")
             .add_step("gen_geometry", "Geometry generation failed")
             .execute()
         )
@@ -335,45 +335,32 @@ class FabricGenCommandSet(ReplCommandSet):
         repl.do_run_fab()
 
     @with_category(CMD_FABRIC_FLOW)
-    def do_gen_model_npnr(self, *_ignored: str) -> None:
-        """Generate Nextpnr model of fabric.
+    @with_annotated
+    def do_gen_pnr_model(
+        self,
+        backend: Annotated[
+            str | None,
+            Option(
+                "--backend",
+                help_text="Place-and-route backend to generate the model for. "
+                "Defaults to the project's 'pnr_backend' setting.",
+            ),
+        ] = None,
+    ) -> None:
+        """Generate the place-and-route model of the fabric.
 
-        By parsing various required files for place and route such as `pips.txt`,
-        `bel.txt`, `bel.v2.txt` and `template.pcf`. Output files are written to the
-        directory specified by `metaDataDir` within `projectDir`.
+        The selected backend decides which files it emits; every one of them is
+        written to the directory specified by `metaDataDir` within `projectDir`.
+        For nextpnr these are `pips.txt`, `bel.txt`, `bel.v2.txt`, `bel.v3.txt`,
+        `template.pcf` and `placement_estimate.txt`.
 
         Logs output file directories.
         """
         repl = self._cmd
-        logger.info("Generating npnr model")
-        npnr_model = repl.fabulousAPI.gen_routing_model()
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/pips.txt")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/pips.txt").open("w") as f:
-            f.write(npnr_model[0])
-
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/bel.txt")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/bel.txt").open("w") as f:
-            f.write(npnr_model[1])
-
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/bel.v2.txt")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/bel.v2.txt").open("w") as f:
-            f.write(npnr_model[2])
-
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/bel.v3.txt")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/bel.v3.txt").open("w") as f:
-            f.write(npnr_model[3])
-
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/template.pcf")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/template.pcf").open("w") as f:
-            f.write(npnr_model[4])
-
-        estimate_path = Path(
-            f"{repl.projectDir}/{META_DATA_DIR}/placement_estimate.txt"
-        )
-        logger.info(f"output file: {estimate_path}")
-        estimate_path.write_text(PLACEMENT_ESTIMATE_TEXT)
-
-        logger.info("Generated npnr model")
+        logger.info("Generating place and route model")
+        artifacts = repl.fabulousAPI.gen_pnr_model(tool=backend)
+        write_pnr_model(artifacts, repl.projectDir / META_DATA_DIR)
+        logger.info("Generated place and route model")
 
     @with_category(CMD_FABRIC_FLOW)
     @with_annotated

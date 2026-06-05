@@ -5,22 +5,57 @@ from pytest_mock import MockerFixture
 from fabulous.fabric_cad.gen_npnr_model import (
     PLACEMENT_ESTIMATE_TEXT,
     belLines,
+    generate_nextpnr_model,
     genNextpnrModel,
 )
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
+NEXTPNR_ARTIFACTS = (
+    "pips.txt",
+    "bel.txt",
+    "bel.v2.txt",
+    "bel.v3.txt",
+    "template.pcf",
+    "placement_estimate.txt",
+)
 
-def test_gen_routing_model_returns_five_with_timing(cli: FABulousREPL) -> None:
-    """gen_routing_model emits a bel.v3 string with timing arcs alongside bel.v2.
+
+def test_generate_nextpnr_model_emits_the_full_artifact_set(cli: FABulousREPL) -> None:
+    """The nextpnr backend emits exactly its six model files, all non-empty.
+
+    This is the contract the CLI writes out verbatim, so a backend dropping or
+    renaming a file is a breaking change for downstream nextpnr invocations.
+    """
+    artifacts = generate_nextpnr_model(cli.fabulousAPI.fabric)
+
+    assert tuple(artifacts) == NEXTPNR_ARTIFACTS
+    assert all(artifacts.values())
+    assert artifacts["placement_estimate.txt"] == PLACEMENT_ESTIMATE_TEXT
+
+
+def test_generate_nextpnr_model_matches_gen_nextpnr_model(cli: FABulousREPL) -> None:
+    """The artifact dict carries `genNextpnrModel`'s strings unaltered."""
+    fabric = cli.fabulousAPI.fabric
+    pips, bel, bel_v2, bel_v3, constraints = genNextpnrModel(fabric)
+    artifacts = generate_nextpnr_model(fabric)
+
+    assert artifacts["pips.txt"] == pips
+    assert artifacts["bel.txt"] == bel
+    assert artifacts["bel.v2.txt"] == bel_v2
+    assert artifacts["bel.v3.txt"] == bel_v3
+    assert artifacts["template.pcf"] == constraints
+
+
+def test_gen_pnr_model_returns_bel_v3_with_timing(cli: FABulousREPL) -> None:
+    """gen_pnr_model emits a bel.v3 file with timing arcs alongside bel.v2.
 
     The bel.v3 block must mirror the bel.v2 structural lines and additionally
     carry the FABULOUS_LC timing arcs, while bel.v2 stays free of timing lines.
     """
-    model = cli.fabulousAPI.gen_routing_model()
-    assert len(model) == 5
+    model = cli.fabulousAPI.gen_pnr_model()
 
-    belv2, belv3 = model[2], model[3]
+    belv2, belv3 = model["bel.v2.txt"], model["bel.v3.txt"]
 
     # The structural definition is shared between v2 and v3.
     assert "BelBegin,X1Y1,A,FABULOUS_LC,LA_" in belv2

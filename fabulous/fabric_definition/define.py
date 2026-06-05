@@ -130,6 +130,20 @@ class HDLType(StrEnum):
     SYSTEM_VERILOG = "system_verilog"
 
 
+class PnRTool(StrEnum):
+    """Enumeration for the place-and-route tools FABulous can model.
+
+    These are the canonical names of the built-in place-and-route model
+    backends. The plugin registry is keyed by plain `str`, so a plugin may
+    register a backend whose name is not listed here.
+
+    This enumeration includes the following values:
+    - NEXTPNR: nextpnr's generic/viaduct FABulous architecture
+    """
+
+    NEXTPNR = "nextpnr"
+
+
 class FABulousAttribute(StrEnum):
     """Enumeration for FABulous attributes in the HDL.
 
