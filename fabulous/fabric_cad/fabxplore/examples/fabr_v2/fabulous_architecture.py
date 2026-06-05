@@ -559,9 +559,19 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                 """
             ],
         )
-        a.netlist_design.write_verilog_path(self.my_root / "tests" / "out" / "nl.v")
+
+        a.run_sta(
+            clk_ports=["UserCLK"],
+            period_ns=10.0,
+            sta_exec="/home/hausding/Documents/FABulous/demo_master_thesis/sta/sta",
+        )
+
         print(a.stats)  # noqa: T201
         print(a.area)  # noqa: T201
+
+        print(a.sta_report)  # noqa: T201
+        print("\nExtracted slacks:")  # noqa: T201
+        print(a.slacks)  # noqa: T201
 
         print(self.fpga_model.get_config_bits("LUT5F"))  # noqa: T201
 

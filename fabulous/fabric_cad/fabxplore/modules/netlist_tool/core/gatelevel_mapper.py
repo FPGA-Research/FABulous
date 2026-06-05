@@ -7,6 +7,7 @@ design.
 """
 
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -15,6 +16,10 @@ from fabulous.fabric_cad.fabxplore.modules.netlist_tool.core.liberty import (
 )
 from fabulous.fabric_cad.fabxplore.modules.netlist_tool.core.models import (
     PdkInputConfig,
+)
+from fabulous.fabric_cad.fabxplore.modules.netlist_tool.core.sta_utils import (
+    StaSlacks,
+    extract_sta_slacks,
 )
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 
@@ -42,7 +47,74 @@ class NetlistTool:
         )
 
         self._area: float | None = None
+        self._hold_slack: float | None = None
+        self._setup_slack: float | None = None
         self._stats: str | None = None
+        self._netlist: str | None = None
+        self._sta_report: str | None = None
+
+    @property
+    def slacks(self) -> StaSlacks:
+        """Return the worst hold and setup slack values extracted from the STA report.
+
+        Returns
+        -------
+        StaSlacks
+            Dictionary containing the worst hold and setup slack values.
+
+            ``"hold"``
+                Worst slack from ``Path Type: min`` paths. Returns ``None`` if no
+                min path is found.
+
+            ``"setup"``
+                Worst slack from ``Path Type: max`` paths. Returns ``None`` if no
+                max path is found.
+
+        Raises
+        ------
+        ValueError
+            If the STA report has not been generated yet.
+        """
+        if self._sta_report is None:
+            raise ValueError("STA report has not been generated. Call run_sta() first.")
+
+        return extract_sta_slacks(self._sta_report)
+
+    @property
+    def sta_report(self) -> str:
+        """Return the STA report from the last mapping run.
+
+        Returns
+        -------
+        str
+            The STA report as a text string.
+
+        Raises
+        ------
+        ValueError
+            If :meth:`run_sta` has not been called yet.
+        """
+        if self._sta_report is None:
+            raise ValueError("STA report has not been generated. Call run_sta() first.")
+        return self._sta_report
+
+    @property
+    def netlist(self) -> str:
+        """Return the final mapped netlist in Yosys's internal format.
+
+        Returns
+        -------
+        str
+            The mapped netlist as a text string.
+
+        Raises
+        ------
+        ValueError
+            If :meth:`map_rtl` has not been called yet.
+        """
+        if self._netlist is None:
+            raise ValueError("Netlist has not been generated. Call map_rtl() first.")
+        return self._netlist
 
     @property
     def stats(self) -> str:
@@ -179,6 +251,8 @@ class NetlistTool:
             tmp_lib.write_text(self.liberty_corner_text)
             self.netlist_design.run_pass(f"stat -liberty {tmp_lib}")
 
+        self._netlist = self.netlist_design.to_verilog_string()
+
     def _tmp_stats(self) -> None:
         """Run the final statistics pass and cache its results.
 
@@ -208,6 +282,50 @@ class NetlistTool:
             if match:
                 self._area = float(match.group(1))
 
+    def run_sta(
+        self,
+        clk_ports: list[str],
+        period_ns: float,
+        sta_exec: str = "sta",
+        custom_sta_script: str | None = None,
+    ) -> None:
+        """Run static timing analysis on the mapped design.
+
+        Parameters
+        ----------
+        clk_ports : list[str]
+            List of clock port names to create in the STA tool.
+        period_ns : float
+            Clock period in nanoseconds to use for timing analysis.
+        sta_exec : str
+            Path to the STA executable to run.
+        custom_sta_script : str | None
+            Optional custom STA script to run instead of the default generated one.
+            If provided, this script will be passed directly to the STA tool's stdin.
+        """
+        with tempfile.TemporaryDirectory() as tmpdir_obj:
+            tempdir = Path(tmpdir_obj)
+            tmp_netlist: Path = tempdir / "netlist_tmp.v"
+            tmp_lib: Path = tempdir / "liberty_tmp.lib"
+            tmp_report: Path = tempdir / "report_tmp.txt"
+
+            tmp_netlist.write_text(self.netlist)
+            tmp_lib.write_text(self.liberty_corner_text)
+
+            sta_script = (
+                custom_sta_script
+                or f"""
+                read_liberty {tmp_lib}
+                read_verilog {tmp_netlist}
+                link_design {self.config.top_name}
+                create_clock -name clk -period {period_ns} {" ".join(clk_ports)}
+                report_checks -path_delay min_max > {tmp_report}
+            """
+            )
+
+            self._call_external(sta_exec, stdin_data=sta_script, debug=self.debug)
+            self._sta_report = tmp_report.read_text()
+
     def map_rtl(self) -> None:
         """Run the full RTL-to-gate-level mapping flow.
 
@@ -224,3 +342,60 @@ class NetlistTool:
         self._read_rtl_files()
         self._synth()
         self._tmp_stats()
+
+    def _call_external(
+        self,
+        executable: str,
+        args: list[str] | None = None,
+        stdin_data: str = "",
+        debug: bool = False,
+    ) -> subprocess.CompletedProcess:
+        """Call an external executable with given arguments and stdin data.
+
+        Captures the output and checks for errors.
+
+        Parameters
+        ----------
+        executable : str
+            The path to the executable to run.
+        args : list[str] | None
+            List of arguments to pass to the executable.
+        stdin_data : str
+            Data to send to the executable's stdin.
+        debug : bool
+            Flag to enable debug mode, which will print additional information.
+
+        Returns
+        -------
+        subprocess.CompletedProcess
+            The result of the subprocess call.
+
+        Raises
+        ------
+        RuntimeError
+            If the external command fails.
+        """
+        if args is None:
+            args = []
+
+        if debug:
+            result = subprocess.run(
+                [executable, *args],
+                input=stdin_data,
+                text=True,
+            )
+        else:
+            result = subprocess.run(
+                [executable, *args],
+                input=stdin_data,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"Command '{' '.join([executable, *args])}' "
+                f"failed with error: {result.stderr}"
+            )
+        return result

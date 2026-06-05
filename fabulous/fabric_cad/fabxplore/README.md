@@ -415,6 +415,203 @@ The most important detail is that morph tile is generic. It can map to whatever
 configurable Verilog circuit the architecture designer provides, as long as the
 SAT problem is bounded enough to solve.
 
+### Morph Tile Modes
+
+`design_morph_tile_pass(...)` is not tied to one source-cell kind. The pass has
+small adapters that turn different source representations into SAT-fab
+specifications:
+
+- `lut`: replace ordinary single-output Yosys `$lut` cells.
+- `frac_lut`: replace LUT-combinator `__frac_lut` cells as fixed multi-output
+  cuts.
+- `chain`: replace chain-mapper `__chain` cells such as carry or reduction
+  steps.
+- `multi_map`: find groups of LUTs and replace each selected group with one
+  configured tile instance.
+
+The common idea is always the same:
+
+```text
+source logic/cut
+      |
+      v
+fixed truth-table spec
+      |
+      v
+SAT-fab asks whether the architecture tile can implement that spec
+      |
+      v
+real tile instance with solved routing and config bits
+```
+
+This makes morph tile useful both for ordinary LUT replacement and for testing
+whether richer architecture tiles can absorb already-packed fractional LUTs,
+carry-like logic, or small local LUT clusters.
+
+### Multi Mapper
+
+The `multi_map` mode is the grouped LUT mapper. Instead of asking whether one
+source LUT fits in one tile, it asks whether a small set of LUTs can be replaced
+by one architecture tile. The candidate spec can have any bounded number of
+logical inputs and outputs: the user configures ranges such as
+`min_boundary_inputs`, `max_boundary_inputs`, `min_boundary_outputs`, and
+`max_boundary_outputs`, and the mapper keeps only groups whose external
+boundary lies in those ranges.
+
+For example:
+
+```python
+self.design_morph_tile_pass(
+    tile_verilog_path=Path("FLUT5_1P_2PS.v"),
+    tile_top_name="FLUT5_1P_2PS",
+    tile_inputs=["I0", "I1", "I2", "A0", "B0", "S", "Ci"],
+    tile_outputs=["O0", "O1", "Co"],
+    enabled_circuits=["multi_map"],
+    circuit_options={
+        "multi_map": {
+            "luts_per_group": [1, 2, 3],
+            "min_boundary_inputs": 3,
+            "max_boundary_inputs": 7,
+            "min_boundary_outputs": 1,
+            "max_boundary_outputs": 2,
+            "max_graph_frontier": 16,
+            "max_graph_hops": None,
+            "max_iterations": 10000,
+            "pure_random_match": 0.0,
+        },
+    },
+)
+```
+
+The boundary model is what makes cascading and shared inputs work:
+
+```text
+external inputs: a b c d
+                 | | | |
+                 v v v v
+              +-----------+
+              |  LUT_A    |---- internal net ----+
+              +-----------+                       |
+                                                  v
+              +-----------+                 +-----------+
+external e -->|  LUT_B    |---------------->|  LUT_C    |--> external y
+              +-----------+                 +-----------+
+```
+
+For a group $G$, the mapper computes:
+
+$boundary\_inputs(G) = inputs(G) \setminus internal(G)$
+
+$boundary\_outputs(G) = \text{outputs of }G\text{ that leave }G$
+
+where `internal(G)` are nets driven and consumed entirely inside the selected
+LUT group. If an internal net also feeds logic outside the group, the mapper
+tries to expose that net as an additional group output. If the output boundary
+range cannot fit that extra output, the group is rejected rather than silently
+hiding a still-used net.
+
+Candidate generation has both local and random pieces. The deterministic pass
+uses every LUT as a seed, builds a bounded LUT-to-LUT neighborhood around that
+seed, ranks nearby LUTs by graph connection and shared inputs, removes duplicate
+groups, and adds groups that pass the boundary filter:
+
+```text
+for every seed LUT:
+    expand local LUT graph around the seed
+    rank local choices by connectivity and shared inputs
+    form size-luts_per_group candidates
+    keep candidates whose boundary input/output counts fit
+```
+
+`max_graph_frontier` bounds how many local neighbor choices are considered while
+expanding, and `max_graph_hops` can optionally search a larger fan-in/fan-out
+neighborhood than the default derived from `luts_per_group`. The random sampler
+then tries additional groups up to `max_iterations`. With
+`pure_random_match > 0`, some attempts choose all LUTs uniformly from the whole
+graph. That can help when unrelated LUTs are still likely to satisfy the
+boundary/output shape, for example when two independent LUT outputs fit a
+two-output tile.
+
+Each kept group becomes a multi-output truth-table target for SAT-fab. This is
+why multi-map can replace more LUTs than the tile has output ports when some
+LUTs cascade internally:
+
+```text
+three source LUTs, two visible outputs
+
+  LUT_A ----+
+            v
+          LUT_B ----> O0
+  LUT_C ------------> O1
+
+candidate size: 3 LUTs
+boundary outputs: 2
+```
+
+SAT-fab then decides whether the real architecture tile can implement the
+group's exact truth tables by choosing tile input routing, output routing, and
+configuration bits.
+
+After SAT, many legal matches may overlap. A source LUT cannot be consumed by
+two replacement instances, so multi-map must select a disjoint set:
+
+```text
+candidates after SAT:
+
+  A = {lut0, lut1, lut2}
+  B = {lut2, lut3}
+  C = {lut4, lut5}
+
+valid selections: {A, C} or {B, C}
+invalid:          {A, B, C} because A and B both use lut2
+```
+
+Internally there are three selectors:
+
+- Greedy: fast deterministic packing.
+- Local improvement: starts from greedy and tries one-removal improvements.
+- CP-SAT set packing: the strongest selector, using OR-Tools.
+
+`CP` means **constraint programming**: the problem is described with variables,
+constraints, and an objective. `SAT` means the OR-Tools backend uses Boolean SAT
+and integer reasoning to search that constrained space. For each SAT-positive
+candidate $m$, the selector creates a Boolean variable:
+
+$x_m \in \{0,1\}$
+
+where $x_m = 1$ means "emit this replacement". For every source LUT $\ell$, it
+adds one disjointness constraint:
+
+$\sum_{m:\ell \in G_m} x_m \le 1$
+
+The objective is lexicographic:
+
+1. maximize the number of replaced source LUTs,
+2. if tied, minimize the number of emitted replacement instances,
+3. if tied, prefer higher heuristic match score.
+
+Equivalently, the first priority prevents the trivial "emit nothing" solution,
+while the second priority avoids the opposite trivial solution of replacing
+every single LUT with its own tile when larger legal groups exist. A compact
+example:
+
+```text
+A covers {lut0, lut1, lut2, lut3}       -> 4 LUTs, 1 replacement
+B covers {lut0, lut1}
+C covers {lut2, lut3}                   -> 4 LUTs, 2 replacements
+D covers {lut4}
+
+{A, D} covers 5 LUTs with 2 replacements
+{B, C, D} covers 5 LUTs with 3 replacements
+
+CP-SAT prefers {A, D}: same LUT coverage, fewer replacement instances.
+```
+
+The CP-SAT selector can also use a time limit. If the solver returns only a
+feasible result before proving optimality, the mapper compares that result
+against the local-improvement fallback and keeps the better selection under the
+same objective order.
+
 ## LUT Mapping, Combination, Decomposition, And Layering
 
 [LUT mapper README](modules/lut_mapper/README.md)
