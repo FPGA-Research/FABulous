@@ -43,12 +43,7 @@ from cmd2.annotated import Argument
 from loguru import logger
 
 from fabulous.custom_exception import CommandError
-from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
-    VerilogCodeGenerator,
-)
-from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
-    VHDLCodeGenerator,
-)
+from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_api import FABulous_API
 from fabulous.fabulous_repl.cmd_fabric_gen import FabricGenCommandSet
 from fabulous.fabulous_repl.cmd_gui import GuiCommandSet
@@ -71,6 +66,8 @@ from fabulous.fabulous_repl.helper import (
     wrap_with_except_handling,
 )
 from fabulous.fabulous_settings import get_context
+from fabulous.plugins.management import PluginCommands
+from fabulous.plugins.manager import PluginManager
 
 INTO_STRING = rf"""
      ______      ____        __
@@ -126,6 +123,12 @@ class FABulousREPL(Cmd):
         If True, enable debug logging, by default False
     max_job : int
         Maximum number of parallel jobs, -1 to use all CPU cores, by default 4
+    extra_plugins : list[str] | None
+        Tier-4 session plugin names to load in addition to discovery, by
+        default None
+    skip_broken_plugins : bool
+        If True, skip plugins that fail to load instead of raising, by
+        default False
 
     Attributes
     ----------
@@ -141,6 +144,8 @@ class FABulousREPL(Cmd):
         List of all tile names in the current fabric
     csvFile : Path
         Path to the fabric CSV definition file
+    plugin_manager : PluginManager
+        Manager owning plugin discovery, registries, and lifecycle hooks
     extension : str
         File extension for HDL files ("v" for Verilog, "vhd" for VHDL)
     fabric_loaded : bool
@@ -166,6 +171,7 @@ class FABulousREPL(Cmd):
     projectDir: Path
     all_tile: list[str]
     csvFile: Path
+    plugin_manager: PluginManager
     extension: str = "v"
     fabric_loaded: bool = False
     force: bool = False
@@ -180,7 +186,14 @@ class FABulousREPL(Cmd):
         verbose: bool = False,
         debug: bool = False,
         max_job: int = 4,
+        extra_plugins: list[str] | None = None,
+        skip_broken_plugins: bool = False,
     ) -> None:
+        self.plugin_manager = PluginManager.create(
+            extra_plugins=extra_plugins or (), skip_broken=skip_broken_plugins
+        )
+        self.plugin_manager.notify_startup()
+
         super().__init__(
             persistent_history_file=f"{get_context().proj_dir}/{META_DATA_DIR}/.fabulous_history",
             allow_cli_args=False,
@@ -209,16 +222,16 @@ class FABulousREPL(Cmd):
         else:
             self.max_job = max_job
 
-        if writerType == "verilog":
-            self.fabulousAPI = FABulous_API(VerilogCodeGenerator())
-        elif writerType == "vhdl":
-            self.fabulousAPI = FABulous_API(VHDLCodeGenerator())
-        else:
+        try:
+            hdl_type = HDLType(writerType)
+        except ValueError:
+            valid = ", ".join(h.value for h in HDLType)
             logger.critical(
-                f"Invalid writer type: {writerType}\n"
-                "Valid options are 'verilog' or 'vhdl'"
+                f"Invalid writer type: {writerType!r}. Valid options are: {valid}"
             )
             sys.exit(1)
+        writer = self.plugin_manager.make_writer(hdl_type)
+        self.fabulousAPI = FABulous_API(writer, plugin_manager=self.plugin_manager)
 
         self.projectDir = get_context().proj_dir
         self.add_settable(
@@ -244,10 +257,7 @@ class FABulousREPL(Cmd):
             logger.info("Setting to use editor from .FABulous/.env file")
             self.editor = e
 
-        if isinstance(self.fabulousAPI.writer, VHDLCodeGenerator):
-            self.extension = "vhdl"
-        else:
-            self.extension = "v"
+        self.extension = self.fabulousAPI.writer.file_extension.removeprefix(".")
 
         # cmd2's own builtins cannot be decorated at definition time, so they are
         # categorized here. FABulous commands live in CommandSets and take their
@@ -287,6 +297,10 @@ class FABulousREPL(Cmd):
         self.disable_category(
             CMD_HELPER, "Helper commands are disabled until fabric is loaded"
         )
+
+        self.register_command_set(PluginCommands())
+        for command_set in self.plugin_manager.collect_command_sets():
+            self.register_command_set(command_set)
 
     def onecmd(
         self, statement: Statement | str, *, add_to_history: bool = True
