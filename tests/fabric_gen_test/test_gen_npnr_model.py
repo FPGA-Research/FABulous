@@ -8,6 +8,7 @@ from pytest_mock import MockerFixture
 from fabulous.fabric_cad.gen_npnr_model import (
     PLACEMENT_ESTIMATE_TEXT,
     belLines,
+    generate_nextpnr_model,
     genNextpnrModel,
     write_nextpnr_timing_files,
 )
@@ -22,6 +23,15 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import BelPort
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from tests.conftest import make_empty_tile, make_fabric_from_grid
+
+NEXTPNR_ARTIFACTS = (
+    "pips.txt",
+    "bel.txt",
+    "bel.v2.txt",
+    "bel.v3.txt",
+    "template.pcf",
+    "placement_estimate.txt",
+)
 
 
 @pytest.fixture
@@ -67,16 +77,40 @@ def lut_fabric() -> Fabric:
     return make_fabric_from_grid([[tile]])
 
 
-def test_gen_routing_model_returns_five_with_timing(lut_fabric: Fabric) -> None:
-    """gen_routing_model emits a bel.v3 string with timing arcs alongside bel.v2.
+def test_generate_nextpnr_model_emits_the_full_artifact_set(lut_fabric: Fabric) -> None:
+    """The nextpnr backend emits exactly its six model files, all non-empty.
+
+    This is the contract the CLI writes out verbatim, so a backend dropping or
+    renaming a file is a breaking change for downstream nextpnr invocations.
+    """
+    artifacts = generate_nextpnr_model(lut_fabric)
+
+    assert tuple(artifacts) == NEXTPNR_ARTIFACTS
+    assert all(artifacts.values())
+    assert artifacts["placement_estimate.txt"] == PLACEMENT_ESTIMATE_TEXT
+
+
+def test_generate_nextpnr_model_matches_gen_nextpnr_model(lut_fabric: Fabric) -> None:
+    """The artifact dict carries `genNextpnrModel`'s strings unaltered."""
+    pips, bel, bel_v2, bel_v3, constraints = genNextpnrModel(lut_fabric)
+    artifacts = generate_nextpnr_model(lut_fabric)
+
+    assert artifacts["pips.txt"] == pips
+    assert artifacts["bel.txt"] == bel
+    assert artifacts["bel.v2.txt"] == bel_v2
+    assert artifacts["bel.v3.txt"] == bel_v3
+    assert artifacts["template.pcf"] == constraints
+
+
+def test_generate_nextpnr_model_returns_bel_v3_with_timing(lut_fabric: Fabric) -> None:
+    """The nextpnr model emits a bel.v3 file with timing arcs alongside bel.v2.
 
     The bel.v3 block must mirror the bel.v2 structural lines and additionally
     carry the FABULOUS_LC timing arcs, while bel.v2 stays free of timing lines.
     """
-    model = genNextpnrModel(lut_fabric)
-    assert len(model) == 5
+    model = generate_nextpnr_model(lut_fabric)
 
-    belv2, belv3 = model[2], model[3]
+    belv2, belv3 = model["bel.v2.txt"], model["bel.v3.txt"]
 
     # The structural definition is shared between v2 and v3.
     assert "BelBegin,X0Y0,A,FABULOUS_LC,LA_" in belv2
