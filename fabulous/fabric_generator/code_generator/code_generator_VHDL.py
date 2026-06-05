@@ -15,6 +15,8 @@ class VHDLCodeGenerator(CodeGenerator):
     This is the template for generating VHDL code.
     """
 
+    fileExtension = ".vhdl"
+
     def addComment(
         self, comment: str, onNewLine: bool = False, end: str = "", indentLevel: int = 0
     ) -> None:

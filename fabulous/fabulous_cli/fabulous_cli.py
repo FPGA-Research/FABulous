@@ -35,12 +35,13 @@ import traceback
 from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import yaml
 from cmd2 import (
     Cmd,
     Cmd2ArgumentParser,
+    CommandSet,
     Settable,
     Statement,
     categorize,
@@ -55,12 +56,7 @@ from fabulous.fabric_cad.timing_model.models import (
     TimingModelMode,
     TimingModelTileSourceFiles,
 )
-from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
-    VerilogCodeGenerator,
-)
-from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
-    VHDLCodeGenerator,
-)
+from fabulous.fabric_definition.define import HDLType
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
@@ -82,6 +78,9 @@ from fabulous.fabulous_cli.helper import (
     wrap_with_except_handling,
 )
 from fabulous.fabulous_settings import get_context, is_pdk_config_set
+
+if TYPE_CHECKING:
+    from fabulous.plugins.manager import FABulousPluginManager
 
 META_DATA_DIR = ".FABulous"
 
@@ -106,6 +105,27 @@ KLAYOUT_LAYER_FILE_NAMES: dict[str, str] = {
     "gf180mcuC": "gf180mcu.lyp",
     "gf180mcuD": "gf180mcu.lyp",
 }
+
+
+def _as_command_sets(result: object) -> list[CommandSet]:
+    """Normalize a ``fabulous_register_commands`` result into a list.
+
+    Parameters
+    ----------
+    result : object
+        The value returned by a single plugin's hookimpl: a ``CommandSet``, a
+        list of them, or ``None``.
+
+    Returns
+    -------
+    list[CommandSet]
+        Zero or more command sets to register.
+    """
+    if result is None:
+        return []
+    if isinstance(result, (list, tuple)):
+        return list(result)
+    return [result]
 
 
 def _require_directional_mode(
@@ -230,6 +250,8 @@ class FABulous_CLI(Cmd):
     ----------
     writerType : str | None
         The writer type to use for generating fabric.
+    plugin_manager : FABulousPluginManager
+        The plugin manager resolving the writer and contributing commands.
     force : bool
         If True, force operations without confirmation, by default False
     interactive : bool
@@ -326,6 +348,7 @@ class FABulous_CLI(Cmd):
     def __init__(
         self,
         writerType: str | None,
+        plugin_manager: "FABulousPluginManager",
         force: bool = False,
         interactive: bool = False,
         verbose: bool = False,
@@ -348,16 +371,9 @@ class FABulous_CLI(Cmd):
         else:
             self.max_job = max_job
 
-        if writerType == "verilog":
-            self.fabulousAPI = FABulous_API(VerilogCodeGenerator())
-        elif writerType == "vhdl":
-            self.fabulousAPI = FABulous_API(VHDLCodeGenerator())
-        else:
-            logger.critical(
-                f"Invalid writer type: {writerType}\n"
-                "Valid options are 'verilog' or 'vhdl'"
-            )
-            sys.exit(1)
+        self.pluginManager = plugin_manager
+        writer = plugin_manager.get_code_generator(HDLType(writerType))
+        self.fabulousAPI = FABulous_API(writer, plugin_manager=plugin_manager)
 
         self.projectDir = get_context().proj_dir
         self.add_settable(
@@ -385,10 +401,7 @@ class FABulous_CLI(Cmd):
             logger.info("Setting to use editor from .FABulous/.env file")
             self.editor = e
 
-        if isinstance(self.fabulousAPI.writer, VHDLCodeGenerator):
-            self.extension = "vhdl"
-        else:
-            self.extension = "v"
+        self.extension = self.fabulousAPI.writer.fileExtension.lstrip(".")
 
         categorize(self.do_alias, CMD_OTHER)
         categorize(self.do_edit, CMD_OTHER)
@@ -424,6 +437,10 @@ class FABulous_CLI(Cmd):
         self.disable_category(
             CMD_HELPER, "Helper commands are disabled until fabric is loaded"
         )
+
+        for result in self.pluginManager.pm.hook.fabulous_register_commands(cli=self):
+            for command_set in _as_command_sets(result):
+                self.register_command_set(command_set)
 
     def onecmd(
         self, statement: Statement | str, *, add_to_history: bool = True

@@ -26,6 +26,7 @@ dependencies = [
   'loguru>=0.7.0',
   'requests>=2.0.0',
   'cmd2>=2',
+  'pluggy>=1.5.0',
   'bitarray>=3.3.0',
   "pydantic>=2.12.1",
   "pydantic-settings>=2.10.1",

@@ -37,6 +37,7 @@ from fabulous.fabulous_settings import (
     get_context,
     init_context,
 )
+from fabulous.plugins.manager import FABulousPluginManager
 
 APP_NAME = "FABulous"
 
@@ -48,6 +49,63 @@ app = typer.Typer(
     ),
     no_args_is_help=True,
 )
+
+plugins_app = typer.Typer(help="Manage FABulous plugins.", no_args_is_help=True)
+app.add_typer(plugins_app, name="plugins")
+
+
+@plugins_app.command("list")
+def plugins_list_cmd() -> None:
+    """List discovered plugins."""
+    from fabulous.plugins.management import format_plugin_list
+
+    manager = FABulousPluginManager.core_only()
+    typer.echo(format_plugin_list(manager))
+
+
+@plugins_app.command("info")
+def plugins_info_cmd(name: str) -> None:
+    """Show detail for a single plugin."""
+    from fabulous.plugins.management import format_plugin_info
+
+    manager = FABulousPluginManager.core_only()
+    typer.echo(format_plugin_info(manager, name))
+
+
+@plugins_app.command("enable")
+def plugins_enable_cmd(name: str) -> None:
+    """Enable a plugin (restart to apply)."""
+    from fabulous.plugins.management import set_plugin_enabled
+
+    set_plugin_enabled(FABulousPluginManager.core_only(), name, enabled=True)
+    typer.echo(f"Enabled '{name}'. Restart to apply.")
+
+
+@plugins_app.command("disable")
+def plugins_disable_cmd(name: str) -> None:
+    """Disable a plugin (restart to apply)."""
+    from fabulous.plugins.management import set_plugin_enabled
+
+    set_plugin_enabled(FABulousPluginManager.core_only(), name, enabled=False)
+    typer.echo(f"Disabled '{name}'. Restart to apply.")
+
+
+@plugins_app.command("install")
+def plugins_install_cmd(spec: str) -> None:
+    """Install a plugin package via uv."""
+    from fabulous.plugins.management import install_plugin
+
+    install_plugin(spec)
+    typer.echo("Installed. Restart FABulous to load the plugin.")
+
+
+@plugins_app.command("uninstall")
+def plugins_uninstall_cmd(name: str) -> None:
+    """Uninstall a plugin package via uv."""
+    from fabulous.plugins.management import uninstall_plugin
+
+    uninstall_plugin(name)
+    typer.echo("Uninstalled. Restart FABulous to apply.")
 
 
 def version_callback(value: bool) -> None:
@@ -88,6 +146,45 @@ WriterType = Annotated[
 ]
 
 ForceType = Annotated[bool, typer.Option("--force", help="Enable force mode")]
+
+PluginOptType = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--plugin",
+        "-m",
+        help="Load a session plugin (dotted module or directory). Repeatable.",
+    ),
+]
+
+SkipBrokenType = Annotated[
+    bool,
+    typer.Option(
+        "--skip-broken-plugins",
+        help="Warn and continue when an optional plugin fails to load.",
+    ),
+]
+
+
+def build_plugin_manager(
+    plugins: list[str] | None, skip_broken: bool
+) -> FABulousPluginManager:
+    """Build the plugin manager for a shell-backed command.
+
+    Parameters
+    ----------
+    plugins : list[str] | None
+        Session plugins to load (``-m/--plugin`` values).
+    skip_broken : bool
+        Whether to warn and continue when an optional plugin fails to load.
+
+    Returns
+    -------
+    FABulousPluginManager
+        The fully discovered manager.
+    """
+    return FABulousPluginManager.create(
+        extra_plugins=tuple(plugins or ()), skip_broken=skip_broken
+    )
 
 
 class NixShell(StrEnum):
@@ -140,6 +237,7 @@ def reorder_options(argv: list[str]) -> list[str]:
         return argv
 
     command_names = {c.name for c in app.registered_commands}
+    command_names |= {g.name for g in app.registered_groups}
 
     # Find first subcommand occurrence
     cmd_index = None
@@ -507,6 +605,7 @@ def script_cmd(
     script_file = script_file.absolute()
     fab_CLI = FABulous_CLI(
         writerType=get_context().proj_lang,
+        plugin_manager=build_plugin_manager(None, False),
         force=force,
         debug=get_context().debug,
     )
@@ -550,7 +649,11 @@ def script_cmd(
 
 @app.command("start")
 @app.command("s", hidden=True)
-def start_cmd(force: ForceType = False) -> None:
+def start_cmd(
+    force: ForceType = False,
+    plugin: PluginOptType = None,
+    skip_broken_plugins: SkipBrokenType = False,
+) -> None:
     """Start FABulous in interactive mode. Alias: s.
 
     This is the main command for running FABulous in interactive mode or with scripts.
@@ -558,6 +661,7 @@ def start_cmd(force: ForceType = False) -> None:
     """
     fab_CLI = FABulous_CLI(
         get_context().proj_lang,
+        plugin_manager=build_plugin_manager(plugin, skip_broken_plugins),
         force=force,
         interactive=True,
         verbose=get_context().verbose >= 2,
@@ -584,6 +688,8 @@ def run_cmd(
         ),
     ] = None,
     force: ForceType = False,
+    plugin: PluginOptType = None,
+    skip_broken_plugins: SkipBrokenType = False,
 ) -> None:
     """Run commands directly in a FABulous project.
 
@@ -591,6 +697,7 @@ def run_cmd(
     """
     fab_CLI = FABulous_CLI(
         get_context().proj_lang,
+        plugin_manager=build_plugin_manager(plugin, skip_broken_plugins),
         force=force,
         interactive=True,
         verbose=get_context().verbose >= 2,
@@ -694,8 +801,10 @@ def main() -> None:
         if len(sys.argv) == 1:
             app()
         sys.argv = reorder_options(sys.argv)
+        known = [c.name for c in app.registered_commands]
+        known += [g.name for g in app.registered_groups]
         for i in sys.argv[1:]:
-            if i in [i.name for i in app.registered_commands] or i == "--help":
+            if i in known or i == "--help":
                 app()
                 break
         else:

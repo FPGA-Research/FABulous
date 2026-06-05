@@ -20,6 +20,7 @@ from librelane.common.misc import get_pdk_hash
 from loguru import logger
 from packaging.version import Version
 from pydantic import (
+    BaseModel,
     Field,
     ValidationError,
     ValidationInfo,
@@ -46,6 +47,25 @@ MODELS_PACK_REQUIRED_MODULES: list[str] = [
 ]
 
 
+class PluginSettings(BaseModel):
+    """Settings controlling plugin discovery and loading.
+
+    Attributes
+    ----------
+    dir : Path
+        Directory scanned for tier-2 sub-plugins (relative paths resolve against
+        the project directory).
+    disabled : list[str]
+        Plugin names blocked from registering.
+    skip_broken : bool
+        Downgrade broken optional plugins to warnings instead of aborting.
+    """
+
+    dir: Path = Path("plugins")
+    disabled: list[str] = []
+    skip_broken: bool = False
+
+
 class FABulousSettings(BaseSettings):
     """FABulous settings.
 
@@ -53,7 +73,9 @@ class FABulousSettings(BaseSettings):
     (including PATH updates for oss-cad-suite) can occur beforehand.
     """
 
-    model_config = SettingsConfigDict(env_prefix="FAB_", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_prefix="FAB_", case_sensitive=False, env_nested_delimiter="__"
+    )
 
     user_config_dir: Path = Field(default_factory=lambda: FAB_USER_CONFIG_DIR)
 
@@ -70,6 +92,7 @@ class FABulousSettings(BaseSettings):
 
     proj_dir: Path = Field(default_factory=Path.cwd)
     proj_lang: HDLType = HDLType.VERILOG
+    plugins: PluginSettings = PluginSettings()
     models_pack: Path | None = None
     switch_matrix_debug_signal: bool = False
     proj_version_created: Version = Version("0.0.1")
@@ -648,6 +671,23 @@ def add_var_to_global_env(key: str, value: str) -> None:
         user_config_dir.mkdir(parents=True, exist_ok=True)
 
     env_file = user_config_dir / ".env"
+    if not env_file.exists():
+        env_file.touch()
+    set_key(env_file, key, value)
+
+
+def add_var_to_project_env(key: str, value: str) -> None:
+    """Add or update a key-value pair in the project ``.FABulous/.env`` file.
+
+    Parameters
+    ----------
+    key: str
+        The environment variable key to add or update.
+    value: str
+        The value to set for the environment variable.
+    """
+    env_file = get_context().proj_dir / ".FABulous" / ".env"
+    env_file.parent.mkdir(parents=True, exist_ok=True)
     if not env_file.exists():
         env_file.touch()
     set_key(env_file, key, value)

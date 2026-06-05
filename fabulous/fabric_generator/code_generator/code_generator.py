@@ -11,6 +11,8 @@ from fabulous.fabric_definition.define import IO
 class CodeGenerator(abc.ABC):
     """The base class for all code generators."""
 
+    fileExtension: str  # set by each concrete generator, e.g. ".v" / ".vhdl"
+
     @property
     def outFileName(self) -> Path:
         """Get the output file path.

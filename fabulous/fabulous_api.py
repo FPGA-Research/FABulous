@@ -8,11 +8,14 @@ various fabric-related operations.
 import shutil
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
+if TYPE_CHECKING:
+    from fabulous.plugins.manager import FABulousPluginManager
+
 import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
-import fabulous.fabric_generator.parser.parse_csv as fileParser
 from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
@@ -32,9 +35,6 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator import CodeGenerator
-from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
-    VHDLCodeGenerator,
-)
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
 )
@@ -81,6 +81,8 @@ class FABulous_API:
     ----------
     writer : CodeGenerator
         Object responsible for generating code from code_generator.py
+    plugin_manager : FABulousPluginManager
+        The plugin manager resolving parsers and firing lifecycle hooks.
     fabricCSV : str, optional
         Path to the CSV file containing fabric data, by default ""
 
@@ -96,15 +98,19 @@ class FABulous_API:
 
     geometryGenerator: GeometryGenerator
     fabric: Fabric
-    fileExtension: str = ".v"
+    fileExtension: str
 
-    def __init__(self, writer: CodeGenerator, fabricCSV: str = "") -> None:
+    def __init__(
+        self,
+        writer: CodeGenerator,
+        plugin_manager: "FABulousPluginManager",
+        fabricCSV: str = "",
+    ) -> None:
         self.writer = writer
+        self.fileExtension = writer.fileExtension
+        self.pluginManager = plugin_manager
         if fabricCSV != "":
-            self.fabric = fileParser.parseFabricCSV(fabricCSV)
-            self.geometryGenerator = GeometryGenerator(self.fabric)
-        if isinstance(self.writer, VHDLCodeGenerator):
-            self.fileExtension = ".vhdl"
+            self.loadFabric(Path(fabricCSV))
 
     def setWriterOutputFile(self, outputDir: Path) -> None:
         """Set the output file directory for the write object.
@@ -118,24 +124,23 @@ class FABulous_API:
         self.writer.outFileName = outputDir
 
     def loadFabric(self, fabric_dir: Path) -> None:
-        """Load fabric data from 'fabric.csv'.
+        """Load fabric data from a file, dispatching on its suffix.
+
+        The file suffix selects a parser provider from the plugin manager. After
+        the fabric is built, the ``fabulous_after_fabric_loaded`` hook fires.
+
+        The plugin manager raises ``PluginError`` if no parser is registered for
+        the file's suffix.
 
         Parameters
         ----------
         fabric_dir : Path
-            Path to CSV file containing fabric data.
-
-        Raises
-        ------
-        ValueError
-            If 'fabric_dir' does not end with '.csv'
+            Path to the fabric file.
         """
-        if fabric_dir.suffix == ".csv":
-            self.fabric = fileParser.parseFabricCSV(fabric_dir)
-            self.geometryGenerator = GeometryGenerator(self.fabric)
-        else:
-            logger.error("Only .csv files are supported for fabric loading")
-            raise ValueError
+        parse = self.pluginManager.get_parser(fabric_dir.suffix)
+        self.fabric = parse(fabric_dir)
+        self.geometryGenerator = GeometryGenerator(self.fabric)
+        self.pluginManager.pm.hook.fabulous_after_fabric_loaded(api=self)
 
     def bootstrapSwitchMatrix(self, tileName: str, outputDir: Path) -> None:
         """Bootstrap the switch matrix for the specified tile.
@@ -508,7 +513,7 @@ class FABulous_API:
             logger.error(f"Tile {tile_name} not found in fabric.")
             raise ValueError
 
-        suffix = "vhdl" if isinstance(self.writer, VHDLCodeGenerator) else "v"
+        suffix = self.writer.fileExtension.lstrip(".")
 
         gios = [gio for gio in tile.gen_ios if not gio.configAccess]
         gio_config_access = [gio for gio in tile.gen_ios if gio.configAccess]
