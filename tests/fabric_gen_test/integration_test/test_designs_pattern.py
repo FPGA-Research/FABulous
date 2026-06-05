@@ -16,6 +16,7 @@ from cocotb.types import Logic, LogicArray
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_settings import init_context
+from fabulous.plugins.manager import PluginManager
 from tests.conftest import run_cmd
 from tests.fabric_gen_test.integration_test.conftest import (
     FabricClockedDUT,
@@ -221,6 +222,7 @@ def test_design_pattern(
     testcase: str,
     project_factory: Callable[..., Path],
     cocotb_runner: Callable[..., None],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Compile `design_name` for `lang` + `mux_style` and dispatch its cocotb test."""
     hdl_lang = HDLType(lang)
@@ -229,6 +231,9 @@ def test_design_pattern(
     # Bootstrap a lang-specific CLI inline. The global `cli` fixture is
     # verilog-only, so we can't reuse it across this test's lang parametrize.
     init_context(project_dir)
+    monkeypatch.setattr(
+        PluginManager, "create", lambda *_a, **_kw: PluginManager.core_only()
+    )
     cli = FABulousREPL(lang, force=False, interactive=False, verbose=False, debug=True)
     cli.debug = True
     run_cmd(cli, "load_fabric")

@@ -16,6 +16,7 @@ from loguru import logger
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import setup_logger
 from fabulous.fabulous_settings import init_context
+from fabulous.plugins.manager import PluginManager
 from tests.conftest import normalize, run_cmd
 
 
@@ -270,6 +271,9 @@ def run_fabulous_commands_with_logging(
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_path))
     monkeypatch.setenv("FAB_PROJ_LANG", language.upper())
     init_context(project_path)
+    monkeypatch.setattr(
+        PluginManager, "create", lambda *_a, **_kw: PluginManager.core_only()
+    )
     cli = FABulousREPL(
         language,
         force=False,
@@ -287,7 +291,7 @@ def run_fabulous_commands_with_logging(
             "gen_fabric",
             "gen_bitStream_spec",
             "gen_top_wrapper",
-            "gen_model_npnr",
+            "gen_pnr_model",
             "gen_geometry",
         ]
 
