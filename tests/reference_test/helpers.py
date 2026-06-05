@@ -16,6 +16,7 @@ from loguru import logger
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from fabulous.fabulous_cli.helper import setup_logger
 from fabulous.fabulous_settings import init_context
+from fabulous.plugins.manager import FABulousPluginManager
 from tests.conftest import normalize, run_cmd
 
 
@@ -272,6 +273,7 @@ def run_fabulous_commands_with_logging(
     init_context(project_path)
     cli = FABulous_CLI(
         language,
+        plugin_manager=FABulousPluginManager.core_only(),
         force=False,
         interactive=False,
         verbose=False,

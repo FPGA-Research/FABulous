@@ -15,6 +15,7 @@ from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI, _resolve_directional_fix
 from fabulous.fabulous_cli.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
+from fabulous.plugins.manager import FABulousPluginManager
 from tests.cli_test.conftest import MOCK_COMPLETED_PROCESS, TILE, find_task_calls
 from tests.conftest import (
     normalize_and_check_for_errors,
@@ -341,6 +342,7 @@ def test_run_FABulous_fabric_sv_extension(
     init_context(project)
     cli = FABulous_CLI(
         "verilog",
+        plugin_manager=FABulousPluginManager.core_only(),
         force=False,
         interactive=False,
         verbose=False,
@@ -446,7 +448,12 @@ def test_start_klayout_gui_layer_file(
     init_context(project_dir)
     setup_logger(0, False)
     cli = FABulous_CLI(
-        "verilog", force=False, interactive=False, verbose=False, debug=True
+        "verilog",
+        plugin_manager=FABulousPluginManager.core_only(),
+        force=False,
+        interactive=False,
+        verbose=False,
+        debug=True,
     )
     run_cmd(cli, f"start_klayout_gui {gds_file}")
 

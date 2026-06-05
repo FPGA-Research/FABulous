@@ -14,6 +14,7 @@ from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from fabulous.fabulous_cli.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
+from fabulous.plugins.manager import FABulousPluginManager
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]
@@ -110,6 +111,7 @@ def cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FABulous_CLI:
     init_context(project_dir)
     cli = FABulous_CLI(
         "verilog",
+        plugin_manager=FABulousPluginManager.core_only(),
         force=False,
         interactive=False,
         verbose=False,
