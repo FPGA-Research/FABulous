@@ -166,6 +166,17 @@ class MacroFlowCommandSet(ReplCommandSet):
                 help_text="Path to a custom IO pin config YAML file",
             ),
         ] = None,
+        flow: Annotated[
+            str | None,
+            Option(
+                "--flow",
+                help_text=(
+                    "Run a registered flow instead of the one the "
+                    "gds_config.yaml selects"
+                ),
+                completer=lambda self: self._cmd.plugin_manager.gds_flow_names(),
+            ),
+        ] = None,
     ) -> None:
         """Generate GDSII files for a specific tile.
 
@@ -228,6 +239,7 @@ class MacroFlowCommandSet(ReplCommandSet):
             base_config_path=repl.projectDir / "Tile" / "include" / "gds_config.yaml",
             config_override_path=tile_dir / "gds_config.yaml",
             custom_config_overrides=custom_overrides or None,
+            flow=flow,
         )
 
     @with_annotated
@@ -264,7 +276,21 @@ class MacroFlowCommandSet(ReplCommandSet):
         else:
             commands.execute_parallel()
 
-    def do_gen_fabric_macro(self, *_args: str) -> None:
+    @with_annotated
+    def do_gen_fabric_macro(
+        self,
+        flow: Annotated[
+            str | None,
+            Option(
+                "--flow",
+                help_text=(
+                    "Run a registered flow instead of the one the "
+                    "gds_config.yaml selects"
+                ),
+                completer=lambda self: self._cmd.plugin_manager.gds_flow_names(),
+            ),
+        ] = None,
+    ) -> None:
         """Generate GDSII files for the entire fabric."""
         repl = self._cmd
         if not is_pdk_config_set():
@@ -301,6 +327,7 @@ class MacroFlowCommandSet(ReplCommandSet):
             cast("str", get_context().pdk),
             cast("Path", get_context().pdk_root),
             base_config_path=repl.projectDir / "Fabric" / "gds_config.yaml",
+            flow=flow,
         )
 
     @with_annotated
@@ -327,6 +354,17 @@ class MacroFlowCommandSet(ReplCommandSet):
                 help_text="Area margin for NLP constraint (default: 0.05 = 5%%)",
             ),
         ] = 0.05,
+        flow: Annotated[
+            str | None,
+            Option(
+                "--flow",
+                help_text=(
+                    "Run a registered flow instead of the one the "
+                    "gds_config.yaml selects"
+                ),
+                completer=lambda self: self._cmd.plugin_manager.gds_flow_names(),
+            ),
+        ] = None,
     ) -> None:
         """Run the full FABulous eFPGA macro generation flow."""
         repl = self._cmd
@@ -348,4 +386,5 @@ class MacroFlowCommandSet(ReplCommandSet):
             tile_opt_config=tile_opt_config,
             nlp_only=nlp_only,
             nlp_area_margin=nlp_area_margin,
+            flow=flow,
         )

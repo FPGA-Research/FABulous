@@ -287,6 +287,79 @@ If no feasible solution can be found after all iterations, the flow will raise a
 - `IGNORE_ANTENNA_VIOLATIONS`: If `true`, antenna violations won't trigger size increases
 - `IGNORE_DEFAULT_DIE_AREA`: If `true`, ignores provided die area and starts from instance area
 
+(custom-flows)=
+
+## Customising the flow
+
+A custom PDK may need steps the shipped flows do not have, or need one of the
+shipped steps replaced. Rather than patching the FABulous core, the `meta` block
+of a `gds_config.yaml` points the run somewhere else.
+
+### Selecting a flow
+
+```yaml
+meta:
+  flow: MyTileFlow
+```
+
+The name is a flow's class name, resolved through the plugin system, so
+`MyTileFlow` has to come from a plugin's `fabulous_register_gds_flows` hook —
+see [Writing a FABulous plugin](#writing-a-plugin) for the plugin side,
+including which class your flow must subclass for each command. The built-in
+flows are registered the same way, so `meta.flow` can also pin a specific
+shipped flow rather than the one the project's HDL language selects.
+
+The usual layering applies: the base `Tile/include/gds_config.yaml` sets the
+flow for every tile and a per-tile `gds_config.yaml` overrides it for that tile.
+`Fabric/gds_config.yaml` does the same for `gen_fabric_macro` and
+`run_FABulous_eFPGA_macro`.
+
+### Selecting a flow for one run
+
+`--flow` overrides whatever the configs say, for a single command:
+
+```text
+fabulous> gen_tile_macro LUT4AB --flow MyTileFlow
+fabulous> gen_fabric_macro --flow MyFabricFlow
+fabulous> run_FABulous_eFPGA_macro --flow MyAutomationFlow
+```
+
+Tab completion lists the registered flows. This is the quickest way to try a
+flow against one tile before committing it to a `gds_config.yaml`, and it is
+the only selector that beats the config files. Step substitutions stay
+config-level, so a `meta.substituting_steps` still applies on top of whichever
+flow `--flow` picked.
+
+Check what a plugin registered with:
+
+```bash
+FABulous plugins info my_plugin
+```
+
+### Substituting steps
+
+For a change that does not need a whole flow class, `meta.substituting_steps`
+edits the step list in place. It takes LibreLane's
+[substitution syntax](https://librelane.readthedocs.io/en/stable/usage/writing_custom_flows.html):
+a replacement ID, `null` to remove a step, or a `+`/`-` prefix to insert after
+or before one.
+
+```yaml
+meta:
+  substituting_steps:
+    "Magic.DRC": "MyPDK.DRC"        # replace
+    "OpenROAD.IRDropReport": null   # remove
+    "+OpenROAD.DetailedRouting": "MyPDK.PostRouteFixup"  # insert after
+```
+
+Substitutions from the base config and the per-tile config are combined; when
+both set the same step ID, the per-tile value wins. They apply to the top-level
+step list of the flow — steps nested inside another step, such as the ones the
+tile optimisation loop runs, are not reachable this way.
+
+A replacement step must itself be registered with LibreLane, which a plugin does
+with `@Step.factory.register()`.
+
 ## Output Structure
 
 After successful compilation, the output is organized as follows:

@@ -10,7 +10,6 @@ placement and routing for user designs.
 """
 
 import string
-from pathlib import Path
 
 from fabulous.custom_exception import InvalidState
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
@@ -334,21 +333,38 @@ def genNextpnrModel(
     )
 
 
-def writeNextpnrPipFile(
+def generate_nextpnr_model(
     fabric: Fabric,
-    outputFile: Path,
-    delay_model: FABulousTimingModelInterface = None,
-) -> None:
-    """Write the nextpnr pip file for the given fabric.
+    delay_model: FABulousTimingModelInterface | None = None,
+) -> dict[str, str | bytes]:
+    """Build the nextpnr model as a mapping of file name to file content.
+
+    This is the `PnRModelProvider.generate` entry point for the nextpnr
+    backend. Pip delays come from `delay_model` when one is supplied and from
+    `DUMMY_PIP_DELAY` otherwise; every other artifact is identical either way.
 
     Parameters
     ----------
     fabric : Fabric
         Fabric object containing tile information.
-    outputFile : Path
-        File to write the pip information to.
-    delay_model : FABulousTimingModelInterface, optional
-        Timing model interface to provide delay information, by default None.
+    delay_model : FABulousTimingModelInterface | None
+        Timing model interface providing real pip delays. Defaults to None,
+        which generates an untimed model.
+
+    Returns
+    -------
+    dict[str, str | bytes]
+        The model's file names, relative to the output directory, mapped to
+        their content.
     """
-    pip_str, *_ = genNextpnrModel(fabric, delay_model)
-    outputFile.write_text(pip_str, encoding="utf-8")
+    pip_str, bel_str, bel_v2_str, bel_v3_str, constrain_str = genNextpnrModel(
+        fabric, delay_model
+    )
+    return {
+        "pips.txt": pip_str,
+        "bel.txt": bel_str,
+        "bel.v2.txt": bel_v2_str,
+        "bel.v3.txt": bel_v3_str,
+        "template.pcf": constrain_str,
+        "placement_estimate.txt": PLACEMENT_ESTIMATE_TEXT,
+    }
