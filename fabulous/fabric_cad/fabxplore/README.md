@@ -335,19 +335,35 @@ contracts are described in Python.
 
 [sat_fab README](modules/sat_fab/README.md)
 
-`sat_fab` is a small standalone SAT framework for configurable Boolean
-circuits. It answers questions of the form:
+`sat_fab` is a standalone SAT framework for configurable Boolean circuits,
+configuration synthesis, and routing/permutation synthesis around those
+circuits. It does not only choose LUT INIT or config bits. Depending on the
+query, it can also synthesize how candidate inputs are connected to a source
+pool and which candidate outputs should be compared against target outputs.
 
-$\exists cfg_2\ .\ \forall inputs\ .\ C_1(fixed\_cfg_1, inputs) = C_2(cfg_2, inputs)$
+A useful high-level form is:
 
-In words: can a configurable candidate circuit be configured so that it behaves
-like a target circuit for every input assignment?
+$\exists c,\mu,\rho\ .\ \forall x\ .\ \bigwedge_i C_{target,i}(x) = C_{candidate,\rho(i)}(\mu(x), c)$
 
-It provides circuit builders for LUTs, gates, muxes, routes, truth-table
-targets, routed inputs, output choices, fixed config, symbolic config, BLIF
-import, CEGIS solving, brute-force checks for small spaces, SAT miter
-verification for larger spaces, and result helpers such as INIT extraction and
-route/pin mapping.
+where:
+
+- $c$ is the symbolic configuration of the candidate circuit;
+- $\mu$ is an optional input routing/permutation function from candidate input
+  ports to a source pool, possibly including constants and shared inputs;
+- $\rho$ is an optional output routing function from target outputs to
+  candidate output choices;
+- $x$ is the environment input vector.
+
+In words: can the candidate circuit be configured, have its inputs wired or
+permuted, and optionally have one of several outputs selected so that it behaves
+like the target for every input assignment?
+
+It provides circuit builders for LUTs, gates, muxes, routes, mux trees,
+reductions, fixed truth-table targets, routed inputs, output choices, fixed
+config, symbolic config, BLIF import, CEGIS solving, brute-force checks for
+small spaces, SAT miter verification for larger spaces, truth-table symmetry
+helpers, and result helpers such as INIT extraction, decoded input mappings,
+output mappings, and route/pin mapping.
 
 Example:
 
@@ -1096,12 +1112,12 @@ analysis and inverse routing possible.
 
 ### [SAT-FAB](modules/sat_fab/README.md)
 
-SAT-FAB is a standalone configurable-circuit equivalence engine. It supports
-truth-table targets, symbolic LUT/config bits, routed inputs and outputs,
-CEGIS, and result extraction.
+SAT-FAB is a standalone configurable-circuit equivalence and synthesis engine.
+It supports truth-table targets, symbolic LUT/config bits, SAT-discovered input
+routing/permutation, optional output routing, CEGIS, and result extraction.
 
-Most important detail: it answers exact configuration questions, not heuristic
-pattern guesses.
+Most important detail: it answers exact configuration and routing/permutation
+questions, not heuristic pattern guesses.
 
 ### [Morph Tile](modules/morph_tile/README.md)
 
