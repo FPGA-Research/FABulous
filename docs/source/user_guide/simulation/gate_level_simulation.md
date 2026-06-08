@@ -17,8 +17,8 @@ flow.
 Inside the FABulous shell of a hardened project, in the Nix environment:
 
 ```bash
-compile_design ./user_design/sequential_16bit_en.v
-run_simulation --gl fst ./user_design/sequential_16bit_en.bin
+FABulous> compile_design ./user_design/sequential_16bit_en.v
+FABulous> run_simulation --gl fst ./user_design/sequential_16bit_en.bin
 ```
 
 `run_simulation --gl` resolves the fabric netlist, the tile netlists, and the PDK
@@ -95,7 +95,7 @@ run_simulation --gl fst ./user_design/<design>.bin   # 4. gate-level simulate
 of it skips PDK auto-resolution entirely.
 
 ```bash
-run_simulation --gl fst ./user_design/sequential_16bit_en.bin \
+FABulous> run_simulation --gl fst ./user_design/sequential_16bit_en.bin \
     --gl-sim-libs '/path/to/<scl>.v' \
     --gl-sim-libs '/path/to/primitives.v'
 ```
@@ -109,7 +109,7 @@ hardened project and gate-level simulates it. Opt in with `--gl` and point at th
 project (or set `FAB_GL_FABRIC_PROJECT`):
 
 ```bash
-pytest tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py \
+$ pytest tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py \
        --gl --gl-fabric-project=/path/to/hardened/project -v
 ```
 

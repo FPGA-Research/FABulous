@@ -1,8 +1,5 @@
 """Shared fixtures and cocotb-time helpers for FABulous integration tests."""
 
-# cspell:words tilex tiley netlist Gtkw gtkw cocotb noqa hdl pnr bitgen sg13g2
-# cspell:words stdcell ihp sg13 udp PDK pdk dotenv
-
 import os
 import re
 import shutil

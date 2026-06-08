@@ -8,8 +8,6 @@ end-to-end gate-level run lives in
 ``@pytest.mark.gl``.
 """
 
-# cspell:words netlist netlists pnr hdl stdcell sg13g2 ihp udp pdk
-
 from collections.abc import Callable
 from pathlib import Path
 
@@ -28,11 +26,6 @@ def _make_bitstream(cli: FABulous_CLI) -> Path:
     bitstream = cli.projectDir / "sequential_16bit_en.bin"
     bitstream.write_bytes(b"\x00\x00\x00\x00")
     return bitstream
-
-
-# ---------------------------------------------------------------------------
-# Command wiring
-# ---------------------------------------------------------------------------
 
 
 def test_run_simulation_uses_plain_task(
@@ -114,11 +107,6 @@ def test_gl_rejects_vhdl(
     assert "Verilog-only" in caplog.text
     run_task.assert_not_called()
     collect.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# Gate-level source resolution
-# ---------------------------------------------------------------------------
 
 
 def _make_fabric_netlist(project: Path, name: str = "eFPGA") -> Path:

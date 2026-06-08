@@ -8,9 +8,6 @@ behavioural wrapper ``eFPGA_top`` (with its configuration controller) is kept,
 so the existing ``<design>_tb.v`` drives the mixed-level DUT unchanged.
 """
 
-# cspell:words netlist netlists iverilog ghdl nvc bitstream pnr stdcell hdl
-# cspell:words sg13g2 ihp sg13 udp pdk dotenv ciel
-
 import argparse
 import subprocess as sp
 from pathlib import Path
