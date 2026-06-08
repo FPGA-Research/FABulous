@@ -513,10 +513,7 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-        Verilog
-        -------
-        ::
-
+        Verilog:
             **compName** **compInsName** # (
                 . **paramPairs[0]** (**paramSignals[0]**),
                 . **paramPairs[1]** (**paramSignals[1]**),
@@ -529,10 +526,7 @@ class CodeGenerator(abc.ABC):
                 . **compPorts[n]** (**signals[n]**)
             );
 
-        VHDL
-        ----
-        ::
-
+        VHDL:
             **compInsName** : **compName**
                 generic map (
                     **paramPairs[0]** => **paramSignals[0]**,
@@ -663,12 +657,10 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-            Verilog
-            -------
+        Verilog:
             assign **left** = **right**;
 
-            VHDL
-            ----
+        VHDL:
             **left** <= **right** after **delay** ps;
         """
 
@@ -701,13 +693,11 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-        Verilog
-        -------
-        assign **left** = **right** [**widthL**:**widthR**];
+        Verilog:
+            assign **left** = **right** [**widthL**:**widthR**];
 
-        VHDL
-        ----
-        **left** <= **right** ( **widthL** downto *widthR* );
+        VHDL:
+            **left** <= **right** ( **widthL** downto *widthR* );
         """
 
     @abc.abstractmethod
@@ -723,12 +713,10 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-            Verilog
-            -------
+        Verilog:
             \`ifdef **macro**
 
-            VHDL
-            ----
+        VHDL:
             unsupported
         """
 
@@ -745,12 +733,10 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-            Verilog
-            -------
+        Verilog:
             \`ifndef **macro**
 
-            VHDL
-            ----
+        VHDL:
             unsupported
         """
 
@@ -765,13 +751,11 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-        Verilog
-        -------
-        \`else
+        Verilog:
+            \`else
 
-        VHDL
-        ----
-        unsupported
+        VHDL:
+            unsupported
         """
 
     @abc.abstractmethod
@@ -785,13 +769,11 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-        Verilog
-        -------
-        \`endif
+        Verilog:
+            \`endif
 
-        VHDL
-        ----
-        unsupported
+        VHDL:
+            unsupported
         """
 
     @abc.abstractmethod

@@ -76,13 +76,6 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
 
         Returns a list of hierarchical pin paths (strings).
 
-        Limitations
-        -----------
-        - Expects gate-level, structural Verilog: module/endmodule + simple instances
-            of the form: CellType inst_name ( .PIN(net), ... );
-        - Ignores assign statements, generate blocks, functions, etc.
-        - Assumes module port names are used as net names inside the module.
-
         Parameters
         ----------
         hier_pin_path : str
@@ -100,6 +93,13 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             instances are not found.
         KeyError
             If the target pin is not found on the last instance in the path.
+
+        Notes
+        -----
+        - Expects gate-level, structural Verilog: module/endmodule + simple instances
+            of the form: CellType inst_name ( .PIN(net), ... );
+        - Ignores assign statements, generate blocks, functions, etc.
+        - Assumes module port names are used as net names inside the module.
         """
         sep = self.hier_sep
         hier_pin_path: str = f"{self.top_name}{sep}{hier_pin_path}"

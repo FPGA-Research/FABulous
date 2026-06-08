@@ -22,8 +22,8 @@ class ExtractPDKInfo(Floorplan):
     placement site dimensions (width and height in database units) from
     the loaded technology LEF file.
 
-    Outputs
-    -------
+    Notes
+    -----
     Metrics:
         pdk__site_width_dbu : int
             Placement site width in database units
