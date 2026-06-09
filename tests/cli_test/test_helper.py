@@ -12,6 +12,7 @@ from fabulous.fabric_definition.define import HDLType
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from fabulous.fabulous_cli.helper import (
     create_project,
+    gather_project_verilog_files,
     register_tile_in_fabric_csv,
     run_task,
     update_project_version,
@@ -400,3 +401,24 @@ def test_clone_tile_no_register_skips_fabric_csv(
     csv_after = cli.csvFile.read_text(encoding="utf-8")
     assert csv_after == csv_before
     assert "MY_TILE" not in csv_after
+
+
+def test_gather_project_verilog_files_skips_non_source_dirs(tmp_path: Path) -> None:
+    """Only fabric RTL is gathered; macro/user_design/Test dirs are skipped."""
+    keep_dir = tmp_path / "Tile"
+    skip_macro = tmp_path / "macro"
+    skip_user = tmp_path / "user_design"
+    skip_test = tmp_path / "Test"
+    for directory in (keep_dir, skip_macro, skip_user, skip_test):
+        directory.mkdir()
+
+    (tmp_path / "top.v").write_text("module top; endmodule")
+    (keep_dir / "a.v").write_text("module a; endmodule")
+    (keep_dir / "b.txt").write_text("not verilog")
+    (skip_macro / "macro.v").write_text("module m; endmodule")
+    (skip_user / "user.v").write_text("module u; endmodule")
+    (skip_test / "test.v").write_text("module t; endmodule")
+
+    result = gather_project_verilog_files(tmp_path)
+
+    assert sorted(result) == sorted([tmp_path / "top.v", keep_dir / "a.v"])

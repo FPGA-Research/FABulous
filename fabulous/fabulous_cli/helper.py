@@ -281,6 +281,44 @@ def copy_verilog_files(src: Path, dst: Path) -> None:
         shutil.copy(file_path, destination_path)
 
 
+_NON_SOURCE_DIR_PATTERNS = ("macro", "user_design", "Test")
+"""Directory-name substrings skipped when gathering fabric Verilog sources.
+
+These hold Verilog that is not fabric RTL: post-layout macros, the user design,
+and testbenches.
+"""
+
+
+def gather_project_verilog_files(project_dir: Path) -> list[Path]:
+    """Gather the fabric's Verilog source files from a project directory.
+
+    Recursively walks ``project_dir`` and collects every ``.v`` file, skipping
+    any directory whose name contains a :data:`_NON_SOURCE_DIR_PATTERNS`
+    substring.
+
+    Parameters
+    ----------
+    project_dir : Path
+        Project directory to search for Verilog sources.
+
+    Returns
+    -------
+    list[Path]
+        Paths of the matched Verilog source files.
+    """
+    verilog_files: list[Path] = []
+    for dirpath, dirnames, filenames in project_dir.walk():
+        dirnames[:] = [
+            name
+            for name in dirnames
+            if not any(pattern in name for pattern in _NON_SOURCE_DIR_PATTERNS)
+        ]
+        verilog_files.extend(
+            dirpath / name for name in filenames if name.endswith(".v")
+        )
+    return verilog_files
+
+
 _TEXT_CLONE_EXTENSIONS = {
     ".csv",
     ".list",
