@@ -1119,7 +1119,7 @@ This will generate two Bel files, they'll have the same number of IOs and config
 bits as before, but now using our GEN_IO keyword. They will be generated automatically
 in either VHDL or Verilog, depending on the FABulous configuration.
 
-To generate the IO Bel, you can either just run the `run_fab` command
+To generate the IO BEL, you can either just run the `run_fab` command
 in the FABulous CLI, which will generate the IO Bel files automatically, while
 generating the whole farbic. But for debugging purposes, you can also
 use the `` gen_io_tiles` `` command:

@@ -61,7 +61,8 @@ Inside the FABulous shell:
 
 ```
 fabulous> run_fab
-fabulous> compile_design user_design/sequential_16bit_en.v
+FABulous> run_fab
+FABulous> compile_design user_design/sequential_16bit_en.v
 ```
 
 **Option B -- Command line (batch mode):**

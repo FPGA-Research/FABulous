@@ -56,8 +56,8 @@ fabulous start
 Inside the FABulous shell:
 
 ```bash
-fabulous>run_fab
-fabulous>compile_design user_design/sequential_16bit_en.v
+FABulous>run_fab
+FABulous>compile_design user_design/sequential_16bit_en.v
 ```
 
 ### Using GUI Tools
