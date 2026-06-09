@@ -656,7 +656,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "requests" },
-    { name = "sdf-timing" },
+    { name = "sdf-toolkit" },
     { name = "typer" },
 ]
 
@@ -697,7 +697,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "requests", specifier = ">=2.0.0" },
-    { name = "sdf-timing", git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git" },
+    { name = "sdf-toolkit", specifier = ">=0.1.1" },
     { name = "typer", specifier = ">=0.20.0" },
 ]
 
@@ -1039,6 +1039,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/35/7b49e4e061c98cf38b5d5bce2152eb94511d6a9fd5f49bbe505201f5adcd/klayout-0.30.8-cp314-cp314t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9118704d937dd8a2e4245c91f35ae8aacf7a23742538cbc06145bbd96bd25e66", size = 25151246, upload-time = "2026-04-16T22:15:49.269Z" },
     { url = "https://files.pythonhosted.org/packages/02/91/17eac94077f936269730a1fa697035f57798b2b5a019f852bcb68ecb35c2/klayout-0.30.8-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:86ef6028750759f7ef1977d1f066d3c111289942e739e8285b0f10962a36aa16", size = 27138304, upload-time = "2026-04-16T22:15:52.866Z" },
     { url = "https://files.pythonhosted.org/packages/6d/bb/df6a9fd58418835beb36e64b89aaed718cc7b195bc2324b5fbba26192740/klayout-0.30.8-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:6171ac11d43a7237bcfaef33b3f2d78d510ecea045c1b6ca03eb773a8f797744", size = 28695360, upload-time = "2026-04-16T22:15:57.071Z" },
+]
+
+[[package]]
+name = "lark"
+version = "1.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/da/34/28fff3ab31ccff1fd4f6c7c7b0ceb2b6968d8ea4950663eadcb5720591a0/lark-1.3.1.tar.gz", hash = "sha256:b426a7a6d6d53189d318f2b6236ab5d6429eaf09259f1ca33eb716eed10d2905", size = 382732, upload-time = "2025-10-27T18:25:56.653Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/3d/14ce75ef66813643812f3093ab17e46d3a206942ce7376d31ec2d36229e7/lark-1.3.1-py3-none-any.whl", hash = "sha256:c629b661023a014c37da873b4ff58a817398d12635d3bbb2c5a03be7fe5d1e12", size = 113151, upload-time = "2025-10-27T18:25:54.882Z" },
 ]
 
 [[package]]
@@ -1527,15 +1536,6 @@ wheels = [
 ]
 
 [[package]]
-name = "ply"
-version = "3.11"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e5/69/882ee5c9d017149285cab114ebeab373308ef0f874fcdac9beb90e0ac4da/ply-3.11.tar.gz", hash = "sha256:00c7c1aaa88358b9c765b6d3000c6eec0ba42abca5351b095321aef446081da3", size = 159130, upload-time = "2018-02-15T19:01:31.097Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/58/35da89ee790598a0700ea49b2a66594140f44dec458c07e8e3d4979137fc/ply-3.11-py2.py3-none-any.whl", hash = "sha256:096f9b8350b65ebd2fd1346b12452efe5b9607f7482813ffca50c22722a807ce", size = 49567, upload-time = "2018-02-15T19:01:27.172Z" },
-]
-
-[[package]]
 name = "pre-commit"
 version = "4.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1708,15 +1708,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c3/b2/bc9c9196916376152d655522fdcebac55e66de6603a76a02bca1b6414f6c/pygments-2.20.0.tar.gz", hash = "sha256:6757cd03768053ff99f3039c1a36d6c0aa0b263438fcab17520b30a303a82b5f", size = 4955991, upload-time = "2026-03-29T13:29:33.898Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176", size = 1231151, upload-time = "2026-03-29T13:29:30.038Z" },
-]
-
-[[package]]
-name = "pyjson"
-version = "1.4.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c3/77/6111496bbe0d1ff062c0dc6e4dbde591719ae02ec6d5e289c9c4d0c9540e/pyjson-1.4.1.tar.gz", hash = "sha256:79ebe55cccb6224302baca9f7119927c73dcb1c18c3fed193db80cfb320d0ca6", size = 3914, upload-time = "2023-09-21T23:44:06.939Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/54/f9/e06a583d0c6911f7aa0a9c0bb44f8537ef83100e91deab32e8364ddf56a0/pyjson-1.4.1-py3-none-any.whl", hash = "sha256:625ee332ca09056216595e232b562a8d42e1cba8b6695fc169b0a0c61587d56d", size = 4568, upload-time = "2023-09-21T23:44:04.96Z" },
 ]
 
 [[package]]
@@ -2121,12 +2112,19 @@ wheels = [
 ]
 
 [[package]]
-name = "sdf-timing"
-version = "0.0.post136"
-source = { git = "https://github.com/FPGA-Research/f4pga-sdf-timing.git#5df8fd077daeb42682842f93f9c2860f9eaa0350" }
+name = "sdf-toolkit"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ply" },
-    { name = "pyjson" },
+    { name = "jinja2" },
+    { name = "lark" },
+    { name = "networkx" },
+    { name = "rich" },
+    { name = "typer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7a/a1/395825e19e4ffc17d247590592727da54ed79cad1aae328466bf999bcbeb/sdf_toolkit-0.1.1.tar.gz", hash = "sha256:b390fa4e2b5f464fbb43a5518808451be0f4cd0364ab1fa09cc511c6b40a1b57", size = 135240, upload-time = "2026-03-04T10:37:04.579Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/43/6f/0df41e6bd17d384cb57eaa132d4bacf7842358bf18f9a9547a702eaeb793/sdf_toolkit-0.1.1-py3-none-any.whl", hash = "sha256:11d3b7ea7455ea7aca33df384c32c93f3ac0824bb7ed5d4ed4930eb590dbf507", size = 66071, upload-time = "2026-03-04T10:37:05.469Z" },
 ]
 
 [[package]]
