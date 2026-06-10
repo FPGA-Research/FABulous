@@ -11,7 +11,9 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
+from fabulous.tools.ghdl import GhdlTool
 from fabulous.tools.opensta import OpenStaTool
+from fabulous.tools.tool import Tool
 from fabulous.tools.yosys import YosysTool
 
 
@@ -161,3 +163,10 @@ def test_analyze_empty_sdf_raises(mocker: MockerFixture, tmp_path: Path) -> None
     with pytest.raises(RuntimeError, match="No content in SDF file"):
         OpenStaTool.analyze(tmp_path / "n.v", tmp_path / "x.lib", "EMPTY")
     assert not sdf.exists()
+
+
+@pytest.mark.parametrize("tool_cls", [Tool, YosysTool, GhdlTool, OpenStaTool])
+def test_tool_cannot_be_instantiated(tool_cls: type[Tool]) -> None:
+    """Tool wrappers are classmethod-only singletons and reject instantiation."""
+    with pytest.raises(TypeError, match="cannot be instantiated"):
+        tool_cls()
