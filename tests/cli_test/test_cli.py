@@ -106,12 +106,38 @@ def test_run_FABulous_fabric(
     assert "FABulous fabric flow complete" in log[-1]
 
 
-def test_gen_model_npnr(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating nextpnr model."""
-    run_cmd(cli, "gen_model_npnr")
+def test_gen_routing_model(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+    """Test generating the nextpnr routing model."""
+    run_cmd(cli, "gen_routing_model")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Generating npnr model" in log[0]
     assert "Generated npnr model" in log[-1]
+
+
+def test_gen_model_npnr_deprecated_forwards_to_gen_routing_model(
+    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The deprecated gen_model_npnr command warns and forwards to gen_routing_model."""
+    run_cmd(cli, "gen_model_npnr")
+    log = normalize_and_check_for_errors(caplog.text)
+
+    assert "deprecated" in caplog.text.lower()
+    # Forwarded to gen_routing_model, which generated the model.
+    assert "Generated npnr model" in log[-1]
+    assert (cli.projectDir / ".FABulous" / "pips.txt").exists()
+
+
+def test_routing_model_deprecated_forwards_to_gen_routing_model(
+    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
+) -> None:
+    """The deprecated routing_model command warns and forwards to gen_routing_model."""
+    forwarded = mocker.patch.object(cli, "do_gen_routing_model")
+
+    run_cmd(cli, "routing_model --mode structural")
+
+    assert "deprecated" in caplog.text.lower()
+    forwarded.assert_called_once()
+    assert "--timing structural" in str(forwarded.call_args)
 
 
 def test_gen_io_pin_config(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:

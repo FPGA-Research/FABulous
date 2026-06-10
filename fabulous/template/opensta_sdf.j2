@@ -1,0 +1,12 @@
+{% for lib in liberty_files %}
+read_liberty {{ lib }}
+{% endfor %}
+read_verilog {{ verilog_netlist }}
+link_design {{ top_name }}
+{% if spef_files %}
+{% for spef in spef_files %}
+read_spef {{ spef }}
+{% endfor %}
+{% endif %}
+write_sdf {{ sdf_path }}
+exit

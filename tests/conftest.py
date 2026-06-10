@@ -29,6 +29,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-define
         default=False,
         help="run tests marked as slow (overrides default '-m not slow')",
     )
+    parser.addoption(
+        "--update-goldens",
+        action="store_true",
+        default=False,
+        help="regenerate golden reference files instead of comparing against them",
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:  # type: ignore[name-defined]
@@ -86,6 +92,13 @@ def fabulous_test_environment(
     monkeypatch.setattr(
         fabulous.fabulous_settings.ciel.manage,
         "enable",
+        lambda *_args, **_kwargs: None,
+    )
+    # StaticWebDataSource opens an httpx client at construction time; it is only
+    # ever passed to the (no-op'd) ciel enable above, so stub it out too.
+    monkeypatch.setattr(
+        fabulous.fabulous_settings,
+        "StaticWebDataSource",
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(

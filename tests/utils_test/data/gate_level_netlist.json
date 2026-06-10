@@ -1,0 +1,339 @@
+{
+  "creator": "Yosys 0.62 (git sha1 7326bb7d6641500ecb285c291a54a662cb1e76cf, clang++ 21.1.2 -fPIC -O3)",
+  "modules": {
+    "LeafWrap": {
+      "attributes": {
+        "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:2.1-4.10"
+      },
+      "ports": {
+        "IN": {
+          "direction": "input",
+          "bits": [
+            2
+          ]
+        },
+        "OUT": {
+          "direction": "output",
+          "bits": [
+            3
+          ]
+        }
+      },
+      "cells": {
+        "leafbuf": {
+          "hide_name": 0,
+          "type": "BUF",
+          "parameters": {},
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:3.9-3.36"
+          },
+          "connections": {
+            "A": [
+              2
+            ],
+            "Y": [
+              3
+            ]
+          }
+        }
+      },
+      "netnames": {
+        "IN": {
+          "hide_name": 0,
+          "bits": [
+            2
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:2.34-2.36"
+          }
+        },
+        "OUT": {
+          "hide_name": 0,
+          "bits": [
+            3
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:2.45-2.48"
+          }
+        }
+      }
+    },
+    "Mid": {
+      "attributes": {
+        "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:5.1-9.10"
+      },
+      "ports": {
+        "A": {
+          "direction": "input",
+          "bits": [
+            2
+          ]
+        },
+        "B": {
+          "direction": "input",
+          "bits": [
+            3
+          ]
+        },
+        "C": {
+          "direction": "output",
+          "bits": [
+            4
+          ]
+        }
+      },
+      "cells": {
+        "u_leaf1": {
+          "hide_name": 0,
+          "type": "LeafWrap",
+          "parameters": {},
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:7.14-7.42"
+          },
+          "port_directions": {
+            "IN": "input",
+            "OUT": "output"
+          },
+          "connections": {
+            "IN": [
+              2
+            ],
+            "OUT": [
+              5
+            ]
+          }
+        },
+        "u_nand1": {
+          "hide_name": 0,
+          "type": "NAND2",
+          "parameters": {},
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:8.13-8.45"
+          },
+          "connections": {
+            "A": [
+              5
+            ],
+            "B": [
+              3
+            ],
+            "Y": [
+              4
+            ]
+          }
+        }
+      },
+      "netnames": {
+        "A": {
+          "hide_name": 0,
+          "bits": [
+            2
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:5.29-5.30"
+          }
+        },
+        "B": {
+          "hide_name": 0,
+          "bits": [
+            3
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:5.32-5.33"
+          }
+        },
+        "C": {
+          "hide_name": 0,
+          "bits": [
+            4
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:5.42-5.43"
+          }
+        },
+        "n1": {
+          "hide_name": 0,
+          "bits": [
+            5
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:6.10-6.12"
+          }
+        }
+      }
+    },
+    "Top": {
+      "attributes": {
+        "top": 1,
+        "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:10.1-16.10"
+      },
+      "ports": {
+        "IN1": {
+          "direction": "input",
+          "bits": [
+            2
+          ]
+        },
+        "IN2": {
+          "direction": "input",
+          "bits": [
+            3
+          ]
+        },
+        "OUT1": {
+          "direction": "output",
+          "bits": [
+            4
+          ]
+        },
+        "OUT2": {
+          "direction": "output",
+          "bits": [
+            5
+          ]
+        }
+      },
+      "cells": {
+        "u_buf0": {
+          "hide_name": 0,
+          "type": "BUF",
+          "parameters": {},
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:14.14-14.45"
+          },
+          "connections": {
+            "A": [
+              6
+            ],
+            "Y": [
+              4
+            ]
+          }
+        },
+        "u_buf1": {
+          "hide_name": 0,
+          "type": "BUF",
+          "parameters": {},
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:15.14-15.45"
+          },
+          "connections": {
+            "A": [
+              3
+            ],
+            "Y": [
+              5
+            ]
+          }
+        },
+        "u_leaf2": {
+          "hide_name": 0,
+          "type": "LeafWrap",
+          "parameters": {},
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:13.14-13.49"
+          },
+          "port_directions": {
+            "IN": "input",
+            "OUT": "output"
+          },
+          "connections": {
+            "IN": [
+              7
+            ],
+            "OUT": [
+              6
+            ]
+          }
+        },
+        "u_mid": {
+          "hide_name": 0,
+          "type": "Mid",
+          "parameters": {},
+          "attributes": {
+            "module_not_derived": 1,
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:12.14-12.53"
+          },
+          "port_directions": {
+            "A": "input",
+            "B": "input",
+            "C": "output"
+          },
+          "connections": {
+            "A": [
+              2
+            ],
+            "B": [
+              3
+            ],
+            "C": [
+              7
+            ]
+          }
+        }
+      },
+      "netnames": {
+        "IN1": {
+          "hide_name": 0,
+          "bits": [
+            2
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:10.42-10.45"
+          }
+        },
+        "IN2": {
+          "hide_name": 0,
+          "bits": [
+            3
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:10.47-10.50"
+          }
+        },
+        "OUT1": {
+          "hide_name": 0,
+          "bits": [
+            4
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:10.59-10.63"
+          }
+        },
+        "OUT2": {
+          "hide_name": 0,
+          "bits": [
+            5
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:10.65-10.69"
+          }
+        },
+        "n_mid": {
+          "hide_name": 0,
+          "bits": [
+            6
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:11.22-11.27"
+          }
+        },
+        "n_top": {
+          "hide_name": 0,
+          "bits": [
+            7
+          ],
+          "attributes": {
+            "src": "/tmp/claude-1000/tmp7ptufhe9/nl.v:11.10-11.15"
+          }
+        }
+      }
+    }
+  }
+}

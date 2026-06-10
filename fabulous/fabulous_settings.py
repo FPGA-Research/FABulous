@@ -35,6 +35,8 @@ from fabulous.fabric_definition.define import HDLType
 
 # User configuration directory for FABulous
 FAB_USER_CONFIG_DIR = Path(typer.get_app_dir("FABulous", force_posix=True))
+
+
 MODELS_PACK_REQUIRED_MODULES: list[str] = [
     "config_latch",
     "my_buf",
