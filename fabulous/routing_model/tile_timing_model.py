@@ -23,7 +23,7 @@ from fabulous.routing_model.graph_algorithms import (
     DelayType,
     earliest_common_nodes,
     follow_first_fanout_from_pins,
-    path_to_nearest_target_sentinel,
+    nearest_targets,
     single_delay,
 )
 from fabulous.routing_model.netlist_timing_model import NetlistTimingModel
@@ -38,6 +38,8 @@ class TimingModelMode(StrEnum):
         Built from the non-routed netlist; use when no post-layout netlist exists.
     PHYSICAL
         Built from the routed, post-layout netlist for layout-accurate timing.
+    PLACEHOLDER
+        No timing model at all; every pip carries a constant placeholder delay.
     """
 
     STRUCTURAL = "structural"
@@ -287,31 +289,14 @@ class FABulousTileTimingModel:
             )
             return
 
-        if self.is_in_which_super_tile is None:
-            if (
-                len(self.switch_matrix_instance) > 1
-                or len(self.switch_matrix_module_name) > 1
-            ):
-                raise ValueError(
-                    "Multiple switch matrix instances or modules found "
-                    "for a non-SuperTile."
-                )
-
-            self.switch_matrix_instance = self.switch_matrix_instance[0]
-            self.switch_matrix_module_name = self.switch_matrix_module_name[0]
-
-            logger.info(
-                f"Using switch matrix instance: {self.switch_matrix_instance.path}, "
-                f"module: {self.switch_matrix_module_name}"
-            )
-
-        else:
+        # A SuperTile netlist contains one switch matrix per member tile; narrow
+        # to this tile's by name before the shared single-match validation.
+        if self.is_in_which_super_tile is not None:
             self.switch_matrix_instance = [
                 inst
                 for inst in self.switch_matrix_instance
                 if self.tile_name in inst.path
             ]
-
             self.switch_matrix_module_name = [
                 m for m in self.switch_matrix_module_name if self.tile_name in m
             ]
@@ -325,18 +310,29 @@ class FABulousTileTimingModel:
                     f"{self.unique_tile_name}"
                 )
 
-            if (
-                len(self.switch_matrix_instance) > 1
-                or len(self.switch_matrix_module_name) > 1
-            ):
+        if (
+            len(self.switch_matrix_instance) > 1
+            or len(self.switch_matrix_module_name) > 1
+        ):
+            if self.is_in_which_super_tile is None:
                 raise ValueError(
-                    f"Multiple switch matrix instances or modules found Tile "
-                    f"{self.tile_name} in SuperTile {self.unique_tile_name}."
+                    "Multiple switch matrix instances or modules found "
+                    "for a non-SuperTile."
                 )
+            raise ValueError(
+                f"Multiple switch matrix instances or modules found Tile "
+                f"{self.tile_name} in SuperTile {self.unique_tile_name}."
+            )
 
-            self.switch_matrix_instance = self.switch_matrix_instance[0]
-            self.switch_matrix_module_name = self.switch_matrix_module_name[0]
+        self.switch_matrix_instance = self.switch_matrix_instance[0]
+        self.switch_matrix_module_name = self.switch_matrix_module_name[0]
 
+        if self.is_in_which_super_tile is None:
+            logger.info(
+                f"Using switch matrix instance: {self.switch_matrix_instance.path}, "
+                f"module: {self.switch_matrix_module_name}"
+            )
+        else:
             logger.info(
                 f"Tile {self.tile_name} is part of super tile {self.unique_tile_name}."
             )
@@ -389,13 +385,14 @@ class FABulousTileTimingModel:
         return False
 
     def _resolve_swm_mux(
-        self, pip_src: str, pip_dst: str, pip_cache: InternalPipCacheEntry | None
-    ) -> list[InstanceRef]:
+        self, pip_src: str, pip_dst: str
+    ) -> tuple[InternalPipCacheEntry | None, list[InstanceRef]]:
         """Find the switch-matrix mux instance(s) carrying both pips.
 
-        Reuses the cached lookup on a cache hit, otherwise queries the
-        synthesis-level model. Warns (but does not fail) when more than one mux
-        matches, in which case the first is used downstream.
+        Looks up the pip cache for ``pip_dst`` and reuses the cached lookup on a
+        hit, otherwise queries the synthesis-level model. Warns (but does not
+        fail) when more than one mux matches, in which case the first is used
+        downstream.
 
         Parameters
         ----------
@@ -403,15 +400,28 @@ class FABulousTileTimingModel:
             Source PIP port name.
         pip_dst : str
             Destination PIP port name.
-        pip_cache : InternalPipCacheEntry | None
-            The cached entry for ``pip_dst``, or None on a cache miss.
 
         Returns
         -------
-        list[InstanceRef]
-            The matching switch-matrix mux instances.
+        tuple[InternalPipCacheEntry | None, list[InstanceRef]]
+            The cached entry for ``pip_dst`` (None on a cache miss) and the
+            matching switch-matrix mux instances.
+
+        Raises
+        ------
+        ValueError
+            If no switch-matrix mux carries both pips.
         """
+        logger.info(
+            f"Finding synthesis-level switch matrix mux for PIPs {pip_src} -> {pip_dst}"
+        )
+
+        pip_cache = self.internal_pip_cache.get(pip_dst)
         if pip_cache is not None:
+            logger.info(
+                f"Cache hit for internal PIP {pip_src} -> {pip_dst}. "
+                f"Using cached information."
+            )
             swm_mux_for_pips = pip_cache.swm_mux_for_pips
         else:
             # A switch-matrix mux is a direct instance of the switch-matrix module
@@ -449,7 +459,7 @@ class FABulousTileTimingModel:
             )
 
         logger.info(f"  Found switch matrix mux instance: {swm_mux_for_pips[0].path}")
-        return swm_mux_for_pips
+        return pip_cache, swm_mux_for_pips
 
     def internal_pip_delay_structural(self, pip_src: str, pip_dst: str) -> float:
         """Calculate delay between two PIPs in the switch matrix.
@@ -469,26 +479,10 @@ class FABulousTileTimingModel:
         float
             Delay in nanoseconds between the two PIPs.
         """
-        logger.info(
-            f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
-        )
-
         synth_model = self.netlist_tm_synth
 
-        pip_cache: InternalPipCacheEntry | None = self.internal_pip_cache.get(pip_dst)
-
-        if pip_cache is not None:
-            logger.info(
-                f"Cache hit for internal PIP {pip_src} -> {pip_dst}. "
-                f"Using cached synthesis-level information."
-            )
-
-        logger.info(
-            f"Finding synthesis-level switch matrix mux for PIPs {pip_src} -> {pip_dst}"
-        )
-
         # Are pip_src and pip_dst connected through the same switch matrix multiplexer?
-        swm_mux_for_pips = self._resolve_swm_mux(pip_src, pip_dst, pip_cache)
+        pip_cache, swm_mux_for_pips = self._resolve_swm_mux(pip_src, pip_dst)
 
         # Get the resolved pins for the switch matrix mux instance.
         swm_mux_resolved = (
@@ -572,37 +566,21 @@ class FABulousTileTimingModel:
         float
             Delay in nanoseconds between the two PIPs.
         """
-        logger.info(
-            f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
-        )
-
         synth_model: NetlistTimingModel = self.netlist_tm_synth
         phys_model: NetlistTimingModel = self.netlist_tm_phys
-        pip_cache: InternalPipCacheEntry | None = self.internal_pip_cache.get(pip_dst)
 
         # Reference output ports for convergence checks.
         ref_output_port: str | None = None
         swm_nearest_ports_out: tuple[dict[str, list[str]], list[str]] | None = None
 
-        # Skip algorithms if we have a cache hit for the internal PIP, which means
-        # we have already resolved the switch matrix mux for a BEG pin.
-        if pip_cache is not None:
-            logger.info(
-                f"Cache hit for internal PIP {pip_src} -> {pip_dst}. "
-                f"Using cached physical-level information."
-            )
-
         # ----------------------------#
         # Synthesis-level resolution #
         # ----------------------------#
 
-        logger.info(
-            f"Finding synthesis-level switch matrix mux for PIPs {pip_src} -> {pip_dst}"
-        )
-
         # Algorithm_1: Are pip_src and pip_dst connected through the same
-        # switch matrix multiplexer?
-        swm_mux_for_pips = self._resolve_swm_mux(pip_src, pip_dst, pip_cache)
+        # switch matrix multiplexer? On a cache hit the algorithms below reuse
+        # the cached resolution for this BEG pin.
+        pip_cache, swm_mux_for_pips = self._resolve_swm_mux(pip_src, pip_dst)
 
         logger.info(
             "Finding synthesis-level top-level ports connected "
@@ -713,9 +691,6 @@ class FABulousTileTimingModel:
         float
             Estimated delay in nanoseconds for the external PIP.
         """
-        logger.info(
-            f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
-        )
         logger.info(f"Calculating delay for external PIP from {pip_src} to {pip_dst}")
 
         physical = self.mode == TimingModelMode.PHYSICAL
@@ -738,9 +713,10 @@ class FABulousTileTimingModel:
 
         # Tile input to nearest output (twist to the next tile input)
         if pip_src_port in model.netlist.input_ports:
-            _, out_port = path_to_nearest_target_sentinel(
+            out_ports = nearest_targets(
                 model.graph, pip_src_port, model.netlist.output_ports
             )
+            out_port = out_ports[0] if out_ports else None
 
             logger.info(f"Port twist detected for {pip_src_port} to {pip_dst_port}:")
 
@@ -837,6 +813,9 @@ class FABulousTileTimingModel:
         float
             Calculated delay in nanoseconds for the PIP.
         """
+        logger.info(
+            f"Timing extraction for tile: {self.tile_name}, PIP: {pip_src} -> {pip_dst}"
+        )
         d_scale: float = self.delay_scaling_factor
 
         if self.is_tile_internal_pip(pip_src, pip_dst):

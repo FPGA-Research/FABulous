@@ -30,42 +30,33 @@ def ntm() -> NetlistTimingModel:
 def test_nearest_port_from_pin_rejects_invalid_num_ports(
     ntm: NetlistTimingModel,
 ) -> None:
+    ntm.graph.add_node("X")
     with pytest.raises(
         ValueError,
-        match=r"num_ports must be at least 1",
+        match=r"num must be at least 1",
     ):
         ntm.nearest_port_from_pin("X", num_ports=0)
 
 
 def test_nearest_port_from_pin_single_port(
     ntm: NetlistTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _path_to_nearest_target_sentinel(
-        _graph: nx.DiGraph, _pin: str, _targets: set[str]
-    ) -> tuple[list[str], str]:
-        return ["dummy"], "OUT1"
-
-    monkeypatch.setattr(
-        "fabulous.routing_model.netlist_timing_model.path_to_nearest_target_sentinel",
-        _path_to_nearest_target_sentinel,
+    # OUT1 is the nearer of the two output ports.
+    ntm.graph.add_edges_from(
+        [
+            ("u_buf0/A", "OUT1"),
+            ("u_buf0/A", "N1"),
+            ("N1", "OUT2"),
+        ]
     )
     assert ntm.nearest_port_from_pin("u_buf0/A", reverse=False, num_ports=1) == ["OUT1"]
 
 
 def test_nearest_port_from_pin_single_port_none(
     ntm: NetlistTimingModel,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def _path_to_nearest_target_sentinel(
-        _graph: nx.DiGraph, _pin: str, _targets: set[str]
-    ) -> tuple[list[str], None]:
-        return [], None
-
-    monkeypatch.setattr(
-        "fabulous.routing_model.netlist_timing_model.path_to_nearest_target_sentinel",
-        _path_to_nearest_target_sentinel,
-    )
+    # No output port is reachable from the pin.
+    ntm.graph.add_edge("u_buf0/A", "N1")
     assert ntm.nearest_port_from_pin("u_buf0/A", num_ports=1) == []
 
 

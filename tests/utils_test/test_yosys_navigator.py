@@ -121,8 +121,8 @@ def test_find_instances_by_regex_matches_recursive_paths(
     assert "u_buf1" in paths
 
 
-def test_find_instances_by_regex_with_filter(nav: YosysJson) -> None:
-    paths = [r.path for r in nav.find_instances_by_regex(r"u_", filter_regex=r"leaf")]
+def test_find_instances_by_regex_narrows_by_pattern(nav: YosysJson) -> None:
+    paths = [r.path for r in nav.find_instances_by_regex(r"u_.*leaf")]
     assert "u_mid/u_leaf1" in paths
     assert "u_mid/u_leaf1/leafbuf" in paths
     assert "u_leaf2" in paths

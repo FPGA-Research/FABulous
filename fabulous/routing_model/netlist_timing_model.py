@@ -9,16 +9,19 @@ owns the timing-graph side of the model.
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import networkx as nx
 from sdf_toolkit import TimingGraph, parse
+
+if TYPE_CHECKING:
+    import networkx as nx
 
 from fabulous.fabric_definition.cell_spec import StdCellLibrary
 from fabulous.fabric_definition.yosys_obj import InstanceRef, YosysJson
 from fabulous.fabulous_settings import get_context
 from fabulous.routing_model.graph_algorithms import (
     DelayType,
-    path_to_nearest_target_sentinel,
+    nearest_targets,
 )
 from fabulous.tools.opensta import OpenStaTool
 from fabulous.tools.yosys import YosysTool
@@ -98,7 +101,8 @@ class NetlistTimingModel:
         self.timing_graph = TimingGraph(sdf_object, traverse_registers=True)
         self.hier_sep = sdf_object.header.divider or "/"
         self.graph: nx.MultiDiGraph = self.timing_graph.graph
-        self.reverse_graph: nx.MultiDiGraph = self.graph.reverse(copy=True)
+        # A view is enough: the queries only ever read the reversed graph.
+        self.reverse_graph: nx.MultiDiGraph = self.graph.reverse(copy=False)
 
         self.netlist = YosysJson(
             netlist_file, top_name=top_name, hier_sep=self.hier_sep
@@ -130,41 +134,10 @@ class NetlistTimingModel:
         -------
         list[str]
             Hierarchical paths of the nearest top-level ports.
-
-        Raises
-        ------
-        ValueError
-            If num_ports is less than 1.
         """
-        if num_ports < 1:
-            raise ValueError("num_ports must be at least 1")
-        if num_ports == 1:
-            graph = self.reverse_graph if reverse else self.graph
-            targets = self.netlist.input_ports if reverse else self.netlist.output_ports
-            _, closest_target = path_to_nearest_target_sentinel(
-                graph, hier_pin_path, targets
-            )
-            return [closest_target] if closest_target is not None else []
-        if reverse:
-            dist = nx.single_source_shortest_path_length(
-                self.reverse_graph, hier_pin_path
-            )
-            leaf_dists = [
-                (v, d) for v, d in dist.items() if v in self.netlist.input_ports
-            ]
-        else:
-            dist = nx.single_source_shortest_path_length(self.graph, hier_pin_path)
-            leaf_dists = [
-                (v, d) for v, d in dist.items() if v in self.netlist.output_ports
-            ]
-
-        if len(leaf_dists) == 0:
-            return []
-
-        # Sort by distance, then port name, so ties between equally-near ports
-        # do not depend on graph iteration order.
-        leaf_dists.sort(key=lambda port_dist: (port_dist[1], port_dist[0]))
-        return [port for port, _ in leaf_dists[:num_ports]]
+        graph = self.reverse_graph if reverse else self.graph
+        targets = self.netlist.input_ports if reverse else self.netlist.output_ports
+        return nearest_targets(graph, hier_pin_path, targets, num=num_ports)
 
     def nearest_ports_from_instance_pin_nets(
         self, instance: InstanceRef, reverse: bool = False, num_ports: int = 1
@@ -195,7 +168,7 @@ class NetlistTimingModel:
         pin_to_nearest_ports: dict[str, list[str]] = {}
         pin_to_nearest_ports_list: list[str] = []
         for net, pin_paths in net_to_pin.items():
-            if pin_paths is None or len(pin_paths) == 0:
+            if not pin_paths:
                 continue
             nearest_ports = self.nearest_port_from_pin(
                 pin_paths[0], reverse=reverse, num_ports=num_ports

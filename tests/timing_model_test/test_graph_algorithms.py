@@ -3,7 +3,7 @@
 Covers the corner-projection policy (`DelayType` / `project_delay`), the
 delay-aware `single_delay` critical-path query, and the structural graph queries
 that run on a plain `networkx` directed graph: earliest-common-node convergence,
-fan-out following, and nearest-target search via the sentinel trick.
+fan-out following, and nearest-target search.
 """
 
 import networkx as nx
@@ -15,7 +15,7 @@ from fabulous.routing_model.graph_algorithms import (
     DelayType,
     earliest_common_nodes,
     follow_first_fanout_from_pins,
-    path_to_nearest_target_sentinel,
+    nearest_targets,
     project_delay,
     single_delay,
 )
@@ -281,88 +281,50 @@ def test_follow_first_fanout_from_pins_zero_hops_returns_same_pin(
     assert follow_first_fanout_from_pins(timing_graph, "A", num_follow=0) == "A"
 
 
-def test_path_to_nearest_target_sentinel_unweighted_forward(
+def test_nearest_targets_forward(timing_graph: nx.DiGraph) -> None:
+    # D is 2 hops from A, E is 3.
+    assert nearest_targets(timing_graph, "A", ["D", "E"]) == ["D"]
+
+
+def test_nearest_targets_reverse_uses_reversed_graph(
     timing_graph: nx.DiGraph,
 ) -> None:
-    path, closest = path_to_nearest_target_sentinel(
-        timing_graph, "A", ["D", "E"], weight=None
-    )
-
-    assert path == ["A", "B", "D"]
-    assert closest == "D"
-    assert all("_sentinel_" not in node for node in path)
-    assert not any("_sentinel_" in str(node) for node in timing_graph.nodes)
+    # In the reversed graph B is 2 hops from E, A is 3.
+    reverse_graph = timing_graph.reverse(copy=False)
+    assert nearest_targets(reverse_graph, "E", ["A", "B"]) == ["B"]
 
 
-def test_path_to_nearest_target_sentinel_weighted_forward(
+def test_nearest_targets_returns_num_nearest_first(timing_graph: nx.DiGraph) -> None:
+    assert nearest_targets(timing_graph, "A", ["B", "D", "E"], num=2) == ["B", "D"]
+
+
+def test_nearest_targets_no_reachable_target_returns_empty(
     timing_graph: nx.DiGraph,
 ) -> None:
-    path, closest = path_to_nearest_target_sentinel(
-        timing_graph, "A", ["D", "E"], weight="weight"
-    )
-
-    assert path == ["A", "C", "D"]
-    assert closest == "D"
-    assert not any("_sentinel_" in str(node) for node in timing_graph.nodes)
+    assert nearest_targets(timing_graph, "A", ["H"]) == []
 
 
-def test_path_to_nearest_target_sentinel_reverse_uses_reversed_graph(
-    timing_graph: nx.DiGraph,
-) -> None:
-    # E->D->C->A (4+1+2) and E->D->B (4+3) tie at cost 7; the deterministic
-    # tie-break picks the lexicographically smaller target "A".
-    reverse_graph = timing_graph.reverse(copy=True)
-    path, closest = path_to_nearest_target_sentinel(
-        reverse_graph, "E", ["A", "B"], weight="weight"
-    )
-
-    assert path == ["E", "D", "C", "A"]
-    assert closest == "A"
-    assert not any("_sentinel_" in str(node) for node in reverse_graph.nodes)
-
-
-def test_path_to_nearest_target_sentinel_no_reachable_target_returns_none(
-    timing_graph: nx.DiGraph,
-) -> None:
-    path, closest = path_to_nearest_target_sentinel(
-        timing_graph, "A", ["H"], weight="weight"
-    )
-
-    assert path is None
-    assert closest is None
-    assert not any("_sentinel_" in str(node) for node in timing_graph.nodes)
-
-
-def test_path_to_nearest_target_sentinel_empty_targets_raises_valueerror(
+def test_nearest_targets_empty_targets_raises_valueerror(
     timing_graph: nx.DiGraph,
 ) -> None:
     with pytest.raises(
         ValueError, match="targets must be a non-empty iterable of nodes"
     ):
-        path_to_nearest_target_sentinel(timing_graph, "A", [], weight="weight")
+        nearest_targets(timing_graph, "A", [])
 
 
-def test_path_to_nearest_target_sentinel_custom_prefix_is_cleaned_up(
+def test_nearest_targets_invalid_num_raises_valueerror(
     timing_graph: nx.DiGraph,
 ) -> None:
-    path, closest = path_to_nearest_target_sentinel(
-        timing_graph, "A", ["D"], sentinel_prefix="custom_prefix", weight=None
-    )
-
-    assert path == ["A", "B", "D"]
-    assert closest == "D"
-    assert not any("custom_prefix" in str(node) for node in timing_graph.nodes)
+    with pytest.raises(ValueError, match="num must be at least 1"):
+        nearest_targets(timing_graph, "A", ["D"], num=0)
 
 
-def test_path_to_nearest_target_sentinel_ignores_missing_target_nodes(
+def test_nearest_targets_ignores_missing_target_nodes(
     timing_graph: nx.DiGraph,
 ) -> None:
-    path, closest = path_to_nearest_target_sentinel(
-        timing_graph, "A", ["DOES_NOT_EXIST", "D"], weight="weight"
-    )
-
-    assert path == ["A", "C", "D"]
-    assert closest == "D"
+    assert nearest_targets(timing_graph, "A", ["DOES_NOT_EXIST", "D"]) == ["D"]
+    assert "DOES_NOT_EXIST" not in timing_graph
 
 
 # ------------------------------ project_delay -----------------------------
@@ -497,7 +459,7 @@ def test_single_delay_collapses_parallel_cond_arcs_per_delay_type() -> None:
     assert single_delay(graph, "sel", "out", DelayType.MIN_ALL) == pytest.approx(0.1)
 
 
-def test_path_to_nearest_target_sentinel_breaks_ties_lexicographically() -> None:
+def test_nearest_targets_breaks_ties_lexicographically() -> None:
     # Both targets sit at hop distance 2; "Z_OUT" is inserted first so an
     # iteration-order pick would return it, but the tie-break must pick the
     # lexicographically smaller "E_OUT".
@@ -507,24 +469,7 @@ def test_path_to_nearest_target_sentinel_breaks_ties_lexicographically() -> None
     g.add_edge("A", "M2")
     g.add_edge("M2", "E_OUT")
 
-    path, closest = path_to_nearest_target_sentinel(g, "A", ["Z_OUT", "E_OUT"])
-
-    assert closest == "E_OUT"
-    assert path == ["A", "M2", "E_OUT"]
-
-
-def test_path_to_nearest_target_sentinel_weighted_breaks_ties_lexicographically() -> (
-    None
-):
-    g = nx.DiGraph()
-    g.add_edge("A", "Z_OUT", weight=1.0)
-    g.add_edge("A", "E_OUT", weight=1.0)
-
-    _, closest = path_to_nearest_target_sentinel(
-        g, "A", ["Z_OUT", "E_OUT"], weight="weight"
-    )
-
-    assert closest == "E_OUT"
+    assert nearest_targets(g, "A", ["Z_OUT", "E_OUT"]) == ["E_OUT"]
 
 
 def test_follow_first_fanout_from_pins_picks_smallest_successor() -> None:

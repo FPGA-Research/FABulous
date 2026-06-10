@@ -434,23 +434,15 @@ def follow_first_fanout_from_pins(
     return current_pin
 
 
-def path_to_nearest_target_sentinel(
-    graph: nx.DiGraph,
-    source: str,
-    targets: list[str],
-    weight: str | None = None,
-    sentinel_prefix: str = "_sentinel_",
-) -> tuple[list[str] | None, str | None]:
-    """Shortest path to the nearest target using the sentinel-node trick.
+def nearest_targets(
+    graph: nx.DiGraph, source: str, targets: Iterable[str], num: int = 1
+) -> list[str]:
+    """Find the nearest target node(s) from a source by hop distance.
 
-    Find the shortest path from `source` to the nearest node in `targets` in a
-    directed NetworkX graph by attaching a temporary sentinel node that every
-    target points to with a zero-cost edge.
-    https://networkx.org/documentation/stable/reference/algorithms/shortest_paths.html
-
-    When several targets tie at the minimal distance, the lexicographically
-    smallest target is chosen, so the result does not depend on graph
-    iteration order.
+    Runs a single breadth-first search from `source` and ranks the reachable
+    targets by (distance, name), so ties between equally near targets resolve
+    to the lexicographically smallest and the result does not depend on graph
+    iteration order. Targets missing from the graph are ignored.
 
     To search towards inputs instead of outputs, pass a reversed graph as
     `graph`.
@@ -461,73 +453,28 @@ def path_to_nearest_target_sentinel(
         The timing graph to traverse.
     source : str
         Source node.
-    targets : list[str]
+    targets : Iterable[str]
         Candidate target nodes.
-    weight : str | None
-        Edge attribute name to use as weight. If None, the graph is treated as
-        unweighted (hop count).
-    sentinel_prefix : str
-        Base name for the temporary sentinel node.
+    num : int
+        Number of nearest targets to return. If fewer are reachable, all
+        reachable ones are returned.
 
     Returns
     -------
-    tuple[list[str] | None, str | None]
-        - path: list of nodes from `source` to the closest target (no sentinel),
-          or None if no target is reachable.
-        - closest_target: the closest target node, or None if none is reachable.
+    list[str]
+        The nearest target nodes, nearest first; empty when none is reachable.
 
     Raises
     ------
     ValueError
-        If `targets` is empty.
+        If `targets` is empty or `num` is less than 1.
     """
     target_set = set(targets)
     if not target_set:
         raise ValueError("targets must be a non-empty iterable of nodes")
+    if num < 1:
+        raise ValueError("num must be at least 1")
 
-    # Pick a sentinel name that does not collide with existing nodes.
-    sentinel = f"{sentinel_prefix}_i89f9j9g58f7g6e5d4c3b2a1"
-
-    graph.add_node(sentinel)
-
-    # Add zero-cost edges from each target to the sentinel.
-    if weight is None:
-        for t in target_set:
-            graph.add_edge(t, sentinel)
-    else:
-        for t in target_set:
-            graph.add_edge(t, sentinel, **{weight: 0})
-    try:
-        # The sentinel search yields the minimal distance; collecting all
-        # targets at that distance and taking the lexicographic minimum makes
-        # the pick deterministic when several targets tie.
-        if weight is None:
-            target_distance = nx.shortest_path_length(graph, source, sentinel) - 1
-            dist = nx.single_source_shortest_path_length(
-                graph, source, cutoff=target_distance
-            )
-            candidates = [t for t in target_set if dist.get(t) == target_distance]
-        else:
-            target_distance = nx.shortest_path_length(
-                graph, source, sentinel, weight=weight
-            )
-            dist = nx.single_source_dijkstra_path_length(
-                graph, source, cutoff=target_distance, weight=weight
-            )
-            candidates = [
-                t
-                for t in target_set
-                if t in dist
-                and isclose(dist[t], target_distance, rel_tol=1e-12, abs_tol=1e-12)
-            ]
-    except nx.NetworkXNoPath:
-        return None, None
-    finally:
-        # Remove the sentinel whether or not a path was found.
-        if sentinel in graph:
-            graph.remove_node(sentinel)
-
-    closest_target = min(candidates)
-    path = nx.shortest_path(graph, source=source, target=closest_target, weight=weight)
-
-    return path, closest_target
+    dist = nx.single_source_shortest_path_length(graph, source)
+    ranked = sorted((d, node) for node, d in dist.items() if node in target_set)
+    return [node for _, node in ranked[:num]]
