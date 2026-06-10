@@ -682,6 +682,25 @@ class Fabric:
 
         return result
 
+    def get_super_tile_containing(self, tile_name: str) -> SuperTile | None:
+        """Return the SuperTile that contains the named tile, if any.
+
+        Parameters
+        ----------
+        tile_name : str
+            Name of the (sub-)tile to look up.
+
+        Returns
+        -------
+        SuperTile | None
+            The SuperTile whose constituent tiles include ``tile_name``, or None
+            if the tile is not part of any SuperTile.
+        """
+        for super_tile in self.superTileDic.values():
+            if any(tile.name == tile_name for tile in super_tile.tiles):
+                return super_tile
+        return None
+
     def get_tile_row_column_indices(self, tile_name: str) -> tuple[set[int], set[int]]:
         """Get all row and column indices where a tile type appears.
 

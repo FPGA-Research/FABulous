@@ -1,12 +1,15 @@
 """Tests for hardcoded validation checks in Fabric.__post_init__."""
 
 from collections.abc import Callable
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
+from tests.fabric_definition.conftest import make_empty_tile
 
 
 class TestFabricValidation:
@@ -120,3 +123,41 @@ class TestFabricValidation:
         else:
             fabric = make_fabric(tileDic={"test_tile": tile})
             assert len(fabric.tileDic["test_tile"].bels) == num_bels
+
+
+class TestGetSuperTileContaining:
+    """Resolve which SuperTile (if any) a tile belongs to."""
+
+    @staticmethod
+    def _make_super_tile(name: str, tile_names: list[str]) -> SuperTile:
+        tiles = [make_empty_tile(tile_name) for tile_name in tile_names]
+        return SuperTile(
+            name=name,
+            tileDir=Path(),
+            tiles=tiles,
+            tileMap=[tiles],
+        )
+
+    def test_returns_supertile_for_member_tile(
+        self, make_fabric: Callable[..., Fabric]
+    ) -> None:
+        super_tile = self._make_super_tile("SUPER_X", ["SUB_A", "SUB_B"])
+        fabric = make_fabric(superTileDic={"SUPER_X": super_tile})
+
+        assert fabric.get_super_tile_containing("SUB_A") is super_tile
+        assert fabric.get_super_tile_containing("SUB_B") is super_tile
+
+    def test_returns_none_for_non_member_tile(
+        self, make_fabric: Callable[..., Fabric]
+    ) -> None:
+        super_tile = self._make_super_tile("SUPER_X", ["SUB_A"])
+        fabric = make_fabric(superTileDic={"SUPER_X": super_tile})
+
+        assert fabric.get_super_tile_containing("OTHER") is None
+
+    def test_returns_none_without_supertiles(
+        self, make_fabric: Callable[..., Fabric]
+    ) -> None:
+        fabric = make_fabric()
+
+        assert fabric.get_super_tile_containing("ANY") is None

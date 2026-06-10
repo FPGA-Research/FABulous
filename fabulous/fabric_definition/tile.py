@@ -9,6 +9,7 @@ from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, Direction, PinSortMode, Side
 from fabulous.fabric_definition.gen_io import Gen_IO
 from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.wire import Wire
 
 if TYPE_CHECKING:
@@ -310,6 +311,17 @@ class Tile:
             and p.wireDirection not in (Direction.JUMP, Direction.SJUMP)
             and p.inOut == IO.OUTPUT
         ]
+
+    @property
+    def switch_matrix(self) -> SwitchMatrix:
+        """Get the tile's switch matrix as a fabric-model construct.
+
+        Returns
+        -------
+        SwitchMatrix
+            The switch matrix wrapping this tile's matrix file and config bits.
+        """
+        return SwitchMatrix(self.name, self.matrixDir, self.matrixConfigBits)
 
     @property
     def globalConfigBits(self) -> int:

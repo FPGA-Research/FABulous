@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/FPGA-Research/FABulous/main/schema/std_cell_library.schema.json
+#
+# Standard-cell library for timing characterization, per PDK variant.
+#
+# Each `pdk::<variant>` section is a standard-cell library: the liberty + techmap
+# files the timing flow needs, and the cells the synthesizer maps onto, grouped
+# by function. Add a section to characterize another PDK.
+#
+#   liberty_files : paths to the liberty (.lib) timing files (required).
+#   techmap_files : paths to the Yosys techmap files (optional).
+#   cells         : standard cells grouped by function. A function may list more
+#                   than one cell; the first is used. Each cell has a `cell` name
+#                   and its `input_ports` / `output_ports` lists (extend with more
+#                   fields as further cell metadata is needed). Recognized
+#                   functions: buffer (required), tie_high, tie_low.
+#
+# Paths may be absolute, relative to the project directory, or use ${VAR}
+# placeholders resolved from the active FABulous settings:
+#   ${PDK_ROOT} -> FAB_PDK_ROOT (the PDK family directory)
+#   ${PDK}      -> FAB_PDK       (the active PDK variant)
+#   ${PROJ_DIR} -> the project directory
+# The defaults below point into the PDK install via ${PDK_ROOT}/${PDK}.
+
+pdk::sky130A:
+  liberty_files:
+    - ${PDK_ROOT}/${PDK}/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+  techmap_files:
+    - ${PDK_ROOT}/${PDK}/libs.tech/openlane/sky130_fd_sc_hd/latch_map.v
+    - ${PDK_ROOT}/${PDK}/libs.tech/openlane/sky130_fd_sc_hd/tribuff_map.v
+  cells:
+    buffer:
+      - cell: sky130_fd_sc_hd__buf_1
+        input_ports: [A]
+        output_ports: [X]
+    tie_high:
+      - cell: sky130_fd_sc_hd__conb_1
+        output_ports: [HI]
+    tie_low:
+      - cell: sky130_fd_sc_hd__conb_1
+        output_ports: [LO]
+
+pdk::sky130B:
+  liberty_files:
+    - ${PDK_ROOT}/${PDK}/libs.ref/sky130_fd_sc_hd/lib/sky130_fd_sc_hd__tt_025C_1v80.lib
+  techmap_files:
+    - ${PDK_ROOT}/${PDK}/libs.tech/openlane/sky130_fd_sc_hd/latch_map.v
+    - ${PDK_ROOT}/${PDK}/libs.tech/openlane/sky130_fd_sc_hd/tribuff_map.v
+  cells:
+    buffer:
+      - cell: sky130_fd_sc_hd__buf_1
+        input_ports: [A]
+        output_ports: [X]
+    tie_high:
+      - cell: sky130_fd_sc_hd__conb_1
+        output_ports: [HI]
+    tie_low:
+      - cell: sky130_fd_sc_hd__conb_1
+        output_ports: [LO]
+
+pdk::ihp-sg13g2:
+  liberty_files:
+    - ${PDK_ROOT}/${PDK}/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib
+  techmap_files:
+    - ${PDK_ROOT}/${PDK}/libs.tech/librelane/sg13g2_stdcell/latch_map.v
+    - ${PDK_ROOT}/${PDK}/libs.tech/librelane/sg13g2_stdcell/tribuff_map.v
+  cells:
+    buffer:
+      - cell: sg13g2_buf_1
+        input_ports: [A]
+        output_ports: [X]
+    tie_high:
+      - cell: sg13g2_tiehi
+        output_ports: [L_HI]
+    tie_low:
+      - cell: sg13g2_tielo
+        output_ports: [L_LO]
+
+pdk::gf180mcuD:
+  liberty_files:
+    - ${PDK_ROOT}/${PDK}/libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__tt_025C_5v00.lib
+  # The gf180mcu PDK ships no Yosys latch techmap and dfflibmap maps
+  # flip-flops only, so the project provides one for the config latches
+  # (shared with the GDS flow's SYNTH_LATCH_MAP).
+  techmap_files:
+    - ${PROJ_DIR}/Tile/include/gf180mcuD_latchmap.v
+  cells:
+    buffer:
+      - cell: gf180mcu_fd_sc_mcu7t5v0__buf_1
+        input_ports: [I]
+        output_ports: [Z]
+    tie_high:
+      - cell: gf180mcu_fd_sc_mcu7t5v0__tieh
+        output_ports: [Z]
+    tie_low:
+      - cell: gf180mcu_fd_sc_mcu7t5v0__tiel
+        output_ports: [ZN]
