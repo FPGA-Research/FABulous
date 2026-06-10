@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 
 from fabulous.fabric_definition.cell_spec import StdCellLibrary
 from fabulous.fabric_definition.yosys_obj import InstanceRef, YosysJson
-from fabulous.fabulous_settings import get_context
 from fabulous.routing_model.graph_algorithms import (
     DelayType,
     nearest_targets,
@@ -42,8 +41,7 @@ class NetlistTimingModel:
     netlist and SDF files are cleaned up afterwards.
 
     The standard-cell inputs (liberty and techmap files, the buffer/tie cells)
-    come from the `library`; the debug flag is sourced from the active
-    :func:`get_context`.
+    come from the `library`.
 
     Parameters
     ----------
@@ -75,16 +73,12 @@ class NetlistTimingModel:
         self.top_name: str = top_name
         self.delay_type_str: DelayType = delay_type_str
 
-        ctx = get_context()
-        self.debug: bool = ctx.debug
-
         netlist_file = YosysTool.synthesize(
             verilog_files=verilog_files,
             top_name=top_name,
             library=library,
             is_gate_level=is_gate_level,
             flat=False,
-            debug=self.debug,
         )
 
         sdf_file = OpenStaTool.analyze(
@@ -92,7 +86,6 @@ class NetlistTimingModel:
             liberty_files=library.liberty_files,
             top_name=top_name,
             spef_files=spef_files,
-            debug=self.debug,
         )
 
         sdf_object = parse(sdf_file.read_text())
