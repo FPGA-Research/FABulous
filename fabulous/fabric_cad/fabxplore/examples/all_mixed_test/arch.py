@@ -18,14 +18,11 @@ serves as a comprehensive example of how to use the various passes.
 
 from pathlib import Path
 
-from fabulous.fabric_cad.fabxplore.examples.fabr_v2.models import (
-    FabulousArchitectureConfig,
+from fabulous.fabric_cad.fabxplore.examples.benchmark_generator import (
+    BenchmarkGenerator,
 )
-from fabulous.fabric_cad.fabxplore.examples.fabr_v2.tests.run_tests import (
-    test_aes_like_sboxes_benchmark,
-    test_basic_large_or_benchmark,
-    test_basic_synth_flow,
-    test_lut32_mixed_benchmark,
+from fabulous.fabric_cad.fabxplore.examples.models import (
+    FabulousArchitectureConfig,
 )
 from fabulous.fabric_cad.fabxplore.flow.architecture_synthesizer import (
     ArchitectureSynthesizer,
@@ -49,7 +46,15 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         super().__init__(debug=debug)
 
         self.x_root = Path(__file__).resolve().parents[2]
-        self.my_root = self.x_root / "examples" / "fabr_v2"
+        self.my_root: Path = self.x_root / "examples" / "all_mixed_test"
+        self.bench_out_dir: Path = self.my_root / "out"
+        self.nextpnr_exec: Path = Path(
+            "/home/hausding/Documents/FABulous/demo_master_thesis/"
+            "nextpnr/build/nextpnr-generic"
+        )
+        self.sta_exec: Path = Path(
+            "/home/hausding/Documents/FABulous/demo_master_thesis/sta/sta"
+        )
 
     def read_hdl(self, config: FabulousArchitectureConfig) -> None:
         """Read the input HDL design into the PyosysBridge."""
@@ -435,10 +440,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         )
 
         s = self.fpga_model.nextpnr_route(
-            nextpnr_exec=Path(
-                "/home/hausding/Documents/FABulous/demo_master_thesis"
-                "/nextpnr/build/nextpnr-generic"
-            ),
+            nextpnr_exec=self.nextpnr_exec,
             check=False,
             log_report=True,
             live_output=True,
@@ -462,26 +464,14 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         print(self.fpga_model.fabric_dimensions())  # noqa: T201
 
         self.pnr_inverse_router_pass(
-            nextpnr_exec=Path(
-                "/home/hausding/Documents/FABulous/demo_master_thesis"
-                "/nextpnr/build/nextpnr-generic"
-            ),
+            nextpnr_exec=self.nextpnr_exec,
             tile_name="LUT5F",
             training_benchmarks={
-                "lut32_mixed": Path(
-                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
-                    "/fabxplore/examples/fabr_v2/tests/out/lut32_mixed.json"
-                ),
-                "or17_chain": Path(
-                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
-                    "/fabxplore/examples/fabr_v2/tests/out/or17_chain.json"
-                ),
+                "lut32_mixed": self.bench_out_dir / "lut32_mixed" / "lut32_mixed.json",
+                "or17_chain": self.bench_out_dir / "or17_chain" / "or17_chain.json",
             },
             test_benchmarks={
-                "lut32_mixed": Path(
-                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
-                    "/fabxplore/examples/fabr_v2/tests/out/lut32_mixed.json"
-                ),
+                "lut32_mixed": self.bench_out_dir / "lut32_mixed" / "lut32_mixed.json",
             },
             io_seed_count=2,
         )
@@ -493,26 +483,14 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         print(self.fpga_model.fabric_dimensions())  # noqa: T201
 
         self.pnr_inverse_router_pass(
-            nextpnr_exec=Path(
-                "/home/hausding/Documents/FABulous/demo_master_thesis"
-                "/nextpnr/build/nextpnr-generic"
-            ),
+            nextpnr_exec=self.nextpnr_exec,
             tile_name="LUT5F",
             training_benchmarks={
-                "lut32_mixed": Path(
-                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
-                    "/fabxplore/examples/fabr_v2/tests/out/lut32_mixed.json"
-                ),
-                "or17_chain": Path(
-                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
-                    "/fabxplore/examples/fabr_v2/tests/out/or17_chain.json"
-                ),
+                "lut32_mixed": self.bench_out_dir / "lut32_mixed" / "lut32_mixed.json",
+                "or17_chain": self.bench_out_dir / "or17_chain" / "or17_chain.json",
             },
             test_benchmarks={
-                "lut32_mixed": Path(
-                    "/home/hausding/Documents/FABulous/fabulous/fabric_cad"
-                    "/fabxplore/examples/fabr_v2/tests/out/lut32_mixed.json"
-                ),
+                "lut32_mixed": self.bench_out_dir / "lut32_mixed" / "lut32_mixed.json",
             },
             io_seed_count=2,
         )
@@ -563,7 +541,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         a.run_sta(
             clk_ports=["UserCLK"],
             period_ns=10.0,
-            sta_exec="/home/hausding/Documents/FABulous/demo_master_thesis/sta/sta",
+            sta_exec=self.sta_exec,
         )
 
         print(a.stats)  # noqa: T201
@@ -586,24 +564,15 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design.run_pass("stat")
         self.design_analyzer_pass()
 
-    def write_verilog_path(self, config: FabulousArchitectureConfig) -> None:
-        """Write the synthesized design to a Verilog file."""
-        config.user_design_out_dir.mkdir(parents=True, exist_ok=True)
+    def write_design(self, config: FabulousArchitectureConfig) -> None:
+        """Write the synthesized design to a file."""
         self.design.write_verilog_path(
             config.user_design_out_dir / f"{config.top_module}.v",
             include_attributes=True,
         )
-
-    def write_json_path(self, config: FabulousArchitectureConfig) -> None:
-        """Write a JSON report of the synthesis results."""
-        config.user_design_out_dir.mkdir(parents=True, exist_ok=True)
         self.design.write_json_path(
             config.user_design_out_dir / f"{config.top_module}.json"
         )
-
-    def write_report_path(self, config: FabulousArchitectureConfig) -> None:
-        """Write a report summarizing the results."""
-        config.user_design_out_dir.mkdir(parents=True, exist_ok=True)
         self.design_report_summary_pass(
             path=config.user_design_out_dir / f"{config.top_module}.rpt",
             log_report=False,
@@ -627,27 +596,22 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.check(config)
         self.build_tile()
 
-        self.write_verilog_path(config)
-        self.write_json_path(config)
-        self.write_report_path(config)
+        self.write_design(config)
 
     def run_flow(self) -> None:
         """Run the entire synthesis flow."""
-        # TODO: Implement timing driven optimizations (weight match) subgraph
-        # matching for critical path optimization
-        # TODO: Explain how to do simulation and verification.
-        # TODO: sequential pattern graph.
-
         sel_test: int = 1
+        bg = BenchmarkGenerator(out_dir=self.bench_out_dir)
         config: FabulousArchitectureConfig = None
+
         match sel_test:
             case 0:
-                config = test_basic_synth_flow()
+                config = bg.test_basic_synth_flow("ode")
             case 1:
-                config = test_basic_large_or_benchmark()
+                config = bg.test_basic_large_or_benchmark("or17_chain")
             case 2:
-                config = test_lut32_mixed_benchmark()
+                config = bg.test_lut32_mixed_benchmark("lut32_mixed")
             case 3:
-                config = test_aes_like_sboxes_benchmark()
+                config = bg.test_aes_like_sboxes_benchmark("aes_like_sboxes")
 
         self.synthesize(config)
