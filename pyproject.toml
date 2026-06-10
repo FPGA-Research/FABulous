@@ -119,6 +119,7 @@ exclude = [
   "AGENTS.md",
   "fabulous_nix",
   "ttsim*",
+  "benchmarks",
 ]
 
 [dependency-groups]

@@ -17,6 +17,7 @@ AGENTS.md
 fabulous_nix
 build
 out
+benchmarks
 
 # Documentation build artifacts (auto-generated in CI)
 docs/build/
