@@ -19,8 +19,10 @@ def setup_mocks(
     """Set up mocks."""
     monkeypatch.setattr(
         "subprocess.run",
-        lambda cmd, check=False, capture_output=False: type(  # noqa: ARG005
-            "MockResult", (), {"stdout": b"mock output", "stderr": b""}
+        lambda *args, **kwargs: type(  # noqa: ARG005
+            "MockResult",
+            (),
+            {"stdout": "mock output", "stderr": "", "returncode": 0},
         )(),
     )
     monkeypatch.setattr("json.load", lambda _: json_data)
@@ -98,7 +100,9 @@ def test_yosys_json_initialization_parametric(
     m = mocker.patch(
         "subprocess.run",
         return_value=type(
-            "MockResult", (), {"stdout": b"mock output", "stderr": b""}
+            "MockResult",
+            (),
+            {"stdout": "mock output", "stderr": "", "returncode": 0},
         )(),
     )
 
