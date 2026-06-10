@@ -309,13 +309,15 @@ def test_path_to_nearest_target_sentinel_weighted_forward(
 def test_path_to_nearest_target_sentinel_reverse_uses_reversed_graph(
     timing_graph: nx.DiGraph,
 ) -> None:
+    # E->D->C->A (4+1+2) and E->D->B (4+3) tie at cost 7; the deterministic
+    # tie-break picks the lexicographically smaller target "A".
     reverse_graph = timing_graph.reverse(copy=True)
     path, closest = path_to_nearest_target_sentinel(
         reverse_graph, "E", ["A", "B"], weight="weight"
     )
 
-    assert path == ["E", "D", "B"]
-    assert closest == "B"
+    assert path == ["E", "D", "C", "A"]
+    assert closest == "A"
     assert not any("_sentinel_" in str(node) for node in reverse_graph.nodes)
 
 
@@ -466,3 +468,94 @@ def test_single_delay_defaults_to_max_all(sdf_timing_graph: TimingGraph) -> None
     assert single_delay(sdf_timing_graph, "din", "dout") == pytest.approx(
         single_delay(sdf_timing_graph, "din", "dout", DelayType.MAX_ALL)
     )
+
+
+# A mux-like cell whose S->X arc appears once unconditionally and twice under
+# COND, as liberty-generated SDF emits it. All three are parallel arcs of the
+# same pin pair, so the collapse must follow the delay type; a positional
+# policy (e.g. last-entry-wins) would report 0.1 for every delay type here.
+COND_SDF_TEXT = """(DELAYFILE
+ (DIVIDER /)
+ (TIMESCALE 1ns)
+ (CELL (CELLTYPE "MUX") (INSTANCE m0)
+   (DELAY (ABSOLUTE
+     (COND A == 1'b1 (IOPATH S X (0.3::0.3)))
+     (IOPATH S X (0.2::0.2))
+     (COND A == 1'b0 (IOPATH S X (0.1::0.1)))
+   )))
+ (CELL (CELLTYPE "top") (INSTANCE)
+   (DELAY (ABSOLUTE
+     (INTERCONNECT sel m0/S (0.0::0.0))
+     (INTERCONNECT m0/X out (0.0::0.0))
+   )))
+)"""
+
+
+def test_single_delay_collapses_parallel_cond_arcs_per_delay_type() -> None:
+    graph = TimingGraph(parse(COND_SDF_TEXT))
+    assert single_delay(graph, "sel", "out", DelayType.MAX_ALL) == pytest.approx(0.3)
+    assert single_delay(graph, "sel", "out", DelayType.MIN_ALL) == pytest.approx(0.1)
+
+
+def test_path_to_nearest_target_sentinel_breaks_ties_lexicographically() -> None:
+    # Both targets sit at hop distance 2; "Z_OUT" is inserted first so an
+    # iteration-order pick would return it, but the tie-break must pick the
+    # lexicographically smaller "E_OUT".
+    g = nx.DiGraph()
+    g.add_edge("A", "M1")
+    g.add_edge("M1", "Z_OUT")
+    g.add_edge("A", "M2")
+    g.add_edge("M2", "E_OUT")
+
+    path, closest = path_to_nearest_target_sentinel(g, "A", ["Z_OUT", "E_OUT"])
+
+    assert closest == "E_OUT"
+    assert path == ["A", "M2", "E_OUT"]
+
+
+def test_path_to_nearest_target_sentinel_weighted_breaks_ties_lexicographically() -> (
+    None
+):
+    g = nx.DiGraph()
+    g.add_edge("A", "Z_OUT", weight=1.0)
+    g.add_edge("A", "E_OUT", weight=1.0)
+
+    _, closest = path_to_nearest_target_sentinel(
+        g, "A", ["Z_OUT", "E_OUT"], weight="weight"
+    )
+
+    assert closest == "E_OUT"
+
+
+def test_follow_first_fanout_from_pins_picks_smallest_successor() -> None:
+    # Successors are inserted in non-lexicographic order at each hop; the walk
+    # must still take the smallest one.
+    g = nx.DiGraph()
+    g.add_edge("A", "Z")
+    g.add_edge("A", "B")
+    g.add_edge("B", "Y")
+    g.add_edge("B", "C")
+
+    assert follow_first_fanout_from_pins(g, "A", num_follow=2) == "C"
+
+
+def test_earliest_common_nodes_single_source_sentinel_walk_is_deterministic() -> None:
+    # Two equal-length shortest paths to the sentinel; the walk must take the
+    # lexicographically smallest successor ("A1"), not the insertion-order
+    # first ("Z1").
+    g = nx.DiGraph()
+    g.add_edge("SRC", "Z1")
+    g.add_edge("Z1", "OUT")
+    g.add_edge("SRC", "A1")
+    g.add_edge("A1", "OUT")
+
+    best_nodes, best_cost, _ = earliest_common_nodes(
+        g,
+        ["SRC"],
+        sentinel="OUT",
+        prefer_sentinel_for_single_source=True,
+        follow_steps_to_sentinel=1,
+    )
+
+    assert best_nodes == ["A1"]
+    assert best_cost == 1

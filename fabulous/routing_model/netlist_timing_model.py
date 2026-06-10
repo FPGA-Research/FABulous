@@ -31,7 +31,9 @@ class NetlistTimingModel:
     an existing gate-level netlist when `is_gate_level` is True), generates an SDF
     file from that netlist with `OpenStaTool`, and parses it into sdf_toolkit's
     native timing graph (`self.timing_graph`, with the backing
-    `networkx.MultiDiGraph` exposed as ``self.graph``). The structural netlist is
+    `networkx.MultiDiGraph` exposed as ``self.graph``). The graph is built with
+    ``traverse_registers=True``, which adds setup-delay data->clock register
+    edges so navigation queries can traverse registers. The structural netlist is
     parsed into a `YosysJson` (`self.netlist`) for hierarchy queries; the
     top-level `input_ports` / `output_ports` are read from it. The temporary
     netlist and SDF files are cleaned up afterwards.
@@ -91,7 +93,9 @@ class NetlistTimingModel:
         )
 
         sdf_object = parse(sdf_file.read_text())
-        self.timing_graph = TimingGraph(sdf_object)
+        # traverse_registers adds setup-delay data->clock edges so navigation
+        # and delay queries can cross register boundaries at their real cost.
+        self.timing_graph = TimingGraph(sdf_object, traverse_registers=True)
         self.hier_sep = sdf_object.header.divider or "/"
         self.graph: nx.MultiDiGraph = self.timing_graph.graph
         self.reverse_graph: nx.MultiDiGraph = self.graph.reverse(copy=True)
@@ -157,8 +161,10 @@ class NetlistTimingModel:
         if len(leaf_dists) == 0:
             return []
 
-        # already sorted by distance from NetworkX
-        return [leaf_dists[i][0] for i in range(min(num_ports, len(leaf_dists)))]
+        # Sort by distance, then port name, so ties between equally-near ports
+        # do not depend on graph iteration order.
+        leaf_dists.sort(key=lambda port_dist: (port_dist[1], port_dist[0]))
+        return [port for port, _ in leaf_dists[:num_ports]]
 
     def nearest_ports_from_instance_pin_nets(
         self, instance: InstanceRef, reverse: bool = False, num_ports: int = 1

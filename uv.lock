@@ -699,7 +699,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
     { name = "requests", specifier = ">=2.0.0" },
-    { name = "sdf-toolkit", specifier = ">=0.1.1" },
+    { name = "sdf-toolkit", specifier = ">=0.3.0" },
     { name = "typer", specifier = ">=0.20.0" },
 ]
 
@@ -2125,7 +2125,7 @@ wheels = [
 
 [[package]]
 name = "sdf-toolkit"
-version = "0.1.1"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jinja2" },
@@ -2134,9 +2134,9 @@ dependencies = [
     { name = "rich" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7a/a1/395825e19e4ffc17d247590592727da54ed79cad1aae328466bf999bcbeb/sdf_toolkit-0.1.1.tar.gz", hash = "sha256:b390fa4e2b5f464fbb43a5518808451be0f4cd0364ab1fa09cc511c6b40a1b57", size = 135240, upload-time = "2026-03-04T10:37:04.579Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/4b/e5cdda4aae5c94affa2d7be20e9042334e2be117e5c43aafe0b581b6a2d0/sdf_toolkit-0.3.0.tar.gz", hash = "sha256:413b4e626d480a72d74dd0d4e51cb748be9a4b4ec1e9905b3917ad54534d61df", size = 141087, upload-time = "2026-06-10T09:07:31.052Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/6f/0df41e6bd17d384cb57eaa132d4bacf7842358bf18f9a9547a702eaeb793/sdf_toolkit-0.1.1-py3-none-any.whl", hash = "sha256:11d3b7ea7455ea7aca33df384c32c93f3ac0824bb7ed5d4ed4930eb590dbf507", size = 66071, upload-time = "2026-03-04T10:37:05.469Z" },
+    { url = "https://files.pythonhosted.org/packages/1c/df/6544970ee16cd4bc64d62f4fbe259d1d2f5fa54cc012547021986f051468/sdf_toolkit-0.3.0-py3-none-any.whl", hash = "sha256:ac9c0accfa7d732fe9dc7915b2e8159afd39526a1520d5f627c3ee494e33b2e5", size = 67773, upload-time = "2026-06-10T09:07:29.817Z" },
 ]
 
 [[package]]

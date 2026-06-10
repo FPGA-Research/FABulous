@@ -60,7 +60,9 @@ pdk::sky130B:
 pdk::ihp-sg13g2:
   liberty_files:
     - ${PDK_ROOT}/${PDK}/libs.ref/sg13g2_stdcell/lib/sg13g2_stdcell_typ_1p20V_25C.lib
-  techmap_files: []
+  techmap_files:
+    - ${PDK_ROOT}/${PDK}/libs.tech/librelane/sg13g2_stdcell/latch_map.v
+    - ${PDK_ROOT}/${PDK}/libs.tech/librelane/sg13g2_stdcell/tribuff_map.v
   cells:
     buffer:
       - cell: sg13g2_buf_1
@@ -76,7 +78,11 @@ pdk::ihp-sg13g2:
 pdk::gf180mcuD:
   liberty_files:
     - ${PDK_ROOT}/${PDK}/libs.ref/gf180mcu_fd_sc_mcu7t5v0/lib/gf180mcu_fd_sc_mcu7t5v0__tt_025C_5v00.lib
-  techmap_files: []
+  # The gf180mcu PDK ships no Yosys latch techmap and dfflibmap maps
+  # flip-flops only, so the project provides one for the config latches
+  # (shared with the GDS flow's SYNTH_LATCH_MAP).
+  techmap_files:
+    - ${PROJ_DIR}/Tile/include/gf180mcuD_latchmap.v
   cells:
     buffer:
       - cell: gf180mcu_fd_sc_mcu7t5v0__buf_1

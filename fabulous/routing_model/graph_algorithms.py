@@ -15,6 +15,7 @@ remaining queries are purely structural (reachability, hop distance, fan-out) an
 ignore edge delays.
 """
 
+from collections.abc import Callable, Iterable
 from enum import StrEnum
 from math import isclose
 from statistics import fmean
@@ -79,6 +80,35 @@ def _present_endpoints(values: Values | None) -> list[float]:
     return [float(v) for v in (values.min, values.max) if v is not None]
 
 
+def _delay_type_reducer(delay_type: DelayType) -> Callable[[Iterable[float]], float]:
+    """Return the aggregation a delay type implies over alternative delays.
+
+    Parameters
+    ----------
+    delay_type : DelayType
+        The corner combination being extracted.
+
+    Returns
+    -------
+    Callable[[Iterable[float]], float]
+        ``min`` for MIN_* types, ``max`` for MAX_* types, ``fmean`` for AVG_*.
+
+    Raises
+    ------
+    ValueError
+        If `delay_type` is not a known `DelayType`.
+    """
+    match delay_type:
+        case DelayType.MIN_ALL | DelayType.MIN_FAST | DelayType.MIN_SLOW:
+            return min
+        case DelayType.MAX_ALL | DelayType.MAX_FAST | DelayType.MAX_SLOW:
+            return max
+        case DelayType.AVG_ALL | DelayType.AVG_FAST | DelayType.AVG_SLOW:
+            return fmean
+        case _:
+            raise ValueError(f"Unknown delay type: {delay_type!r}")
+
+
 def project_delay(delay: DelayPaths, delay_type: DelayType) -> float:
     """Collapse a multi-corner `DelayPaths` into a single scalar delay.
 
@@ -114,30 +144,18 @@ def project_delay(delay: DelayPaths, delay_type: DelayType) -> float:
     slow = _present_endpoints(delay.slow)
 
     match delay_type:
-        case DelayType.MIN_ALL:
-            values, reducer = fast + slow, min
-        case DelayType.MAX_ALL:
-            values, reducer = fast + slow, max
-        case DelayType.AVG_ALL:
-            values, reducer = fast + slow, fmean
-        case DelayType.AVG_FAST:
-            values, reducer = fast, fmean
-        case DelayType.AVG_SLOW:
-            values, reducer = slow, fmean
-        case DelayType.MAX_FAST:
-            values, reducer = fast, max
-        case DelayType.MAX_SLOW:
-            values, reducer = slow, max
-        case DelayType.MIN_FAST:
-            values, reducer = fast, min
-        case DelayType.MIN_SLOW:
-            values, reducer = slow, min
+        case DelayType.MIN_ALL | DelayType.MAX_ALL | DelayType.AVG_ALL:
+            values = fast + slow
+        case DelayType.MIN_FAST | DelayType.MAX_FAST | DelayType.AVG_FAST:
+            values = fast
+        case DelayType.MIN_SLOW | DelayType.MAX_SLOW | DelayType.AVG_SLOW:
+            values = slow
         case _:
             raise ValueError(f"Unknown delay type: {delay_type!r}")
 
     if not values:
         raise ValueError(f"SDF delay specifies no value for {delay_type!r}: {delay!r}")
-    return reducer(values)
+    return _delay_type_reducer(delay_type)(values)
 
 
 def single_delay(
@@ -146,18 +164,29 @@ def single_delay(
     target: str,
     delay_type: DelayType = DelayType.MAX_ALL,
 ) -> float:
-    """Return the worst-case path delay between two pins.
+    """Return the delay of the shortest path between two pins.
 
-    Uses sdf_toolkit's native path enumeration (`TimingGraph.find_paths`) to find
-    every simple path from `source` to `target`. Each arc's multi-corner delay is
-    collapsed to a scalar with `project_delay` and summed along the path; the
-    largest path total (the critical path) is returned.
+    The delay is the smallest total over the paths from `source` to `target`,
+    where each arc contributes the scalar `project_delay` of its multi-corner
+    delay. It is found with Dijkstra's algorithm, so it is efficient and copes
+    natively with the switch-matrix cycles: analysed unconfigured, every mux
+    input coexists, so mux outputs feed back into other mux inputs and form large
+    strongly connected components, and a shortest-path search walks the direct
+    route between the two pins without being trapped by that feedback.
 
-    Each arc is projected to a scalar before summing rather than composing the
-    multi-corner `DelayPaths` first, because arcs in an SDF need not populate the
-    same corners (an interconnect may carry only a nominal delay while an IOPATH
-    carries fast/slow), and field-wise `DelayPaths` addition drops any corner that
-    is missing on either arc.
+    Each arc is projected to a scalar rather than composing the multi-corner
+    `DelayPaths` first, because arcs in an SDF need not populate the same corners
+    (an interconnect may carry only a nominal delay while an IOPATH carries
+    fast/slow), and field-wise `DelayPaths` addition drops any corner that is
+    missing on either arc. Parallel arcs between the same pair of nodes (e.g.
+    conditional IOPATH variants of the same pin-to-pin arc) collapse with the
+    aggregation the delay type implies — the worst variant for MAX_*, the best
+    for MIN_*, the mean for AVG_* — so a worst-case analysis is not
+    short-circuited by a fast conditional variant.
+
+    The underlying Dijkstra search lets ``nx.NodeNotFound`` propagate when
+    `source` or `target` is not in the graph, and ``nx.NetworkXNoPath`` when no
+    path exists between them.
 
     Parameters
     ----------
@@ -173,18 +202,19 @@ def single_delay(
     Returns
     -------
     float
-        The worst-case delay between `source` and `target`.
-
-    Raises
-    ------
-    nx.NetworkXNoPath
-        If no path exists between `source` and `target`.
+        The shortest-path delay between `source` and `target`.
     """
-    paths = timing_graph.find_paths(source, target)
-    if not paths:
-        raise nx.NetworkXNoPath(f"No path from {source!r} to {target!r}")
-    return max(
-        sum(project_delay(edge.delay, delay_type) for edge in path) for path in paths
+    collapse_arcs = _delay_type_reducer(delay_type)
+
+    def edge_weight(
+        _source: str, _sink: str, parallel_arcs: dict[object, dict]
+    ) -> float:
+        return collapse_arcs(
+            project_delay(arc["delay"], delay_type) for arc in parallel_arcs.values()
+        )
+
+    return nx.dijkstra_path_length(
+        timing_graph.graph, source, target, weight=edge_weight
     )
 
 
@@ -213,8 +243,10 @@ def earliest_common_nodes(
 
     For a single source, the earliest common node is normally the source itself.
     If `prefer_sentinel_for_single_source` is True and the source can reach the
-    sentinel, we follow the shortest path to the sentinel and return the node we
-    walk `follow_steps_to_sentinel` edges along that path.
+    sentinel, we follow a shortest path to the sentinel and return the node we
+    walk `follow_steps_to_sentinel` edges along that path; when several shortest
+    paths exist, the walk takes the lexicographically smallest successor at each
+    step so the result does not depend on graph iteration order.
 
     Parameters
     ----------
@@ -276,9 +308,21 @@ def earliest_common_nodes(
             and sentinel in graph
             and sentinel in dists[source]
         ):
-            path = nx.shortest_path(graph, source=source, target=sentinel)
-            step_idx = min(max(follow_steps_to_sentinel, 0), len(path) - 1)
-            chosen = path[step_idx]
+            # Walk towards the sentinel along shortest-path nodes only,
+            # taking the lexicographically smallest successor at each step so
+            # the chosen node does not depend on graph iteration order.
+            sentinel_distance = dists[source][sentinel]
+            dist_to_sentinel = nx.single_source_shortest_path_length(
+                graph.reverse(copy=False), sentinel, cutoff=sentinel_distance
+            )
+            steps = min(max(follow_steps_to_sentinel, 0), sentinel_distance)
+            chosen = source
+            for _ in range(steps):
+                chosen = min(
+                    succ
+                    for succ in graph.successors(chosen)
+                    if dist_to_sentinel.get(succ) == dist_to_sentinel[chosen] - 1
+                )
             return [chosen], dists[source][chosen], dists
         return [source], 0.0, dists
 
@@ -364,7 +408,8 @@ def follow_first_fanout_from_pins(
     """Follow the first fan-out path from a given hierarchical pin path.
 
     Can do multiple hops if `num_follow > 1`, following the first fan-out at each
-    step.
+    step. "First" means the lexicographically smallest successor, so the walk
+    does not depend on graph iteration order.
 
     Parameters
     ----------
@@ -382,7 +427,7 @@ def follow_first_fanout_from_pins(
     """
     current_pin = hier_pin_path
     for _ in range(num_follow):
-        successor = next(graph.successors(current_pin), None)
+        successor = min(graph.successors(current_pin), default=None)
         if successor is None:
             break
         current_pin = successor
@@ -402,6 +447,10 @@ def path_to_nearest_target_sentinel(
     directed NetworkX graph by attaching a temporary sentinel node that every
     target points to with a zero-cost edge.
     https://networkx.org/documentation/stable/reference/algorithms/shortest_paths.html
+
+    When several targets tie at the minimal distance, the lexicographically
+    smallest target is chosen, so the result does not depend on graph
+    iteration order.
 
     To search towards inputs instead of outputs, pass a reversed graph as
     `graph`.
@@ -449,7 +498,28 @@ def path_to_nearest_target_sentinel(
         for t in target_set:
             graph.add_edge(t, sentinel, **{weight: 0})
     try:
-        path = nx.shortest_path(graph, source=source, target=sentinel, weight=weight)
+        # The sentinel search yields the minimal distance; collecting all
+        # targets at that distance and taking the lexicographic minimum makes
+        # the pick deterministic when several targets tie.
+        if weight is None:
+            target_distance = nx.shortest_path_length(graph, source, sentinel) - 1
+            dist = nx.single_source_shortest_path_length(
+                graph, source, cutoff=target_distance
+            )
+            candidates = [t for t in target_set if dist.get(t) == target_distance]
+        else:
+            target_distance = nx.shortest_path_length(
+                graph, source, sentinel, weight=weight
+            )
+            dist = nx.single_source_dijkstra_path_length(
+                graph, source, cutoff=target_distance, weight=weight
+            )
+            candidates = [
+                t
+                for t in target_set
+                if t in dist
+                and isclose(dist[t], target_distance, rel_tol=1e-12, abs_tol=1e-12)
+            ]
     except nx.NetworkXNoPath:
         return None, None
     finally:
@@ -457,8 +527,7 @@ def path_to_nearest_target_sentinel(
         if sentinel in graph:
             graph.remove_node(sentinel)
 
-    # The real closest target is the node before the sentinel.
-    closest_target = path[-2]
-    path_without_sentinel = path[:-1]
+    closest_target = min(candidates)
+    path = nx.shortest_path(graph, source=source, target=closest_target, weight=weight)
 
-    return path_without_sentinel, closest_target
+    return path, closest_target
