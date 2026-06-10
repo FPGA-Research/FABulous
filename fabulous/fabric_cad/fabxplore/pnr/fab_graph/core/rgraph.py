@@ -1408,6 +1408,23 @@ class RoutingFabricGraph:
         str
             Rendered routing model.
         """
+        mode: int = 2
+
+        if mode == 1:
+            return self.render_pips_txt1()
+        if mode == 2:
+            return self.render_pips_txt2()
+
+        return self.render_pips_txt2()
+
+    def render_pips_txt1(self) -> str:
+        """Render active PIPs in nextpnr ``pips.txt`` format.
+
+        Returns
+        -------
+        str
+            Rendered routing model.
+        """
         lines: list[str] = []
         for y in range(self.rows):
             for x in range(self.columns):
@@ -1436,6 +1453,107 @@ class RoutingFabricGraph:
                         y,
                     ):
                         lines.append(pip.render())
+        return "\n".join(lines)
+
+    def render_pips_txt2(self) -> str:
+        """Render active PIPs using precomputed tile-type templates.
+
+        This renderer preserves the exact tile/comment/resource order of the
+        original implementation, but avoids materializing ``RoutingPip`` and
+        ``RoutingEndpoint`` objects for every concrete PIP line.  Matrix and
+        external resource templates are computed once per tile type, then reused
+        for every placed instance of that tile type.
+
+        Returns
+        -------
+        str
+            Rendered routing model.
+        """
+
+        def format_delay(delay: float) -> str:
+            if isinstance(delay, float) and delay.is_integer():
+                return str(int(delay))
+            return str(delay)
+
+        matrix_templates: dict[str, list[tuple[str, str, str, str]]] = {}
+        for tile_type, states in self._matrix_by_tile.items():
+            matrix_templates[tile_type] = [
+                (
+                    state.key.destination_name,
+                    state.key.source_name,
+                    format_delay(state.delay),
+                    f"{state.key.destination_name}.{state.key.source_name}",
+                )
+                for state in states.values()
+                if state.active
+            ]
+
+        common_wire_pairs = self._common_wire_pairs()
+        external_templates: dict[str, list[tuple[str, int, int, str, str, str]]] = {}
+        for tile_type, states in self._external_by_tile.items():
+            templates: list[tuple[str, int, int, str, str, str]] = []
+            for state in states.values():
+                if not state.active:
+                    continue
+                delay = format_delay(state.delay)
+                for (
+                    source,
+                    x_offset,
+                    y_offset,
+                    destination,
+                ) in _external_wire_specs_for_key(
+                    state.key,
+                    common_wire_pairs=common_wire_pairs,
+                ):
+                    templates.append(
+                        (
+                            source,
+                            x_offset,
+                            y_offset,
+                            destination,
+                            delay,
+                            f"{source}.{destination}",
+                        )
+                    )
+            external_templates[tile_type] = templates
+
+        lines: list[str] = []
+        columns = self.columns
+        rows = self.rows
+        for y in range(self.rows):
+            for x in range(self.columns):
+                tile_type = self.tile_types_by_xy.get((x, y))
+                if tile_type is None:
+                    continue
+                lines.append(f"#Tile-internal pips on tile X{x}Y{y}:")
+                tile = f"X{x}Y{y}"
+                for source, destination, delay, name in matrix_templates.get(
+                    tile_type,
+                    (),
+                ):
+                    lines.append(f"{tile},{source},{tile},{destination},{delay},{name}")
+                lines.append(f"#Tile-external pips on tile X{x}Y{y}:")
+                for (
+                    source,
+                    x_offset,
+                    y_offset,
+                    destination,
+                    delay,
+                    name,
+                ) in external_templates.get(tile_type, ()):
+                    destination_x = x + x_offset
+                    destination_y = y + y_offset
+                    if (
+                        destination_x < 0
+                        or destination_x > columns
+                        or destination_y < 0
+                        or destination_y > rows
+                    ):
+                        continue
+                    lines.append(
+                        f"{tile},{source},X{destination_x}Y{destination_y},"
+                        f"{destination},{delay},{name}"
+                    )
         return "\n".join(lines)
 
     def render_bel_txt(self) -> str:

@@ -378,10 +378,10 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         self.pnr_switch_matrix_pattern_pass(
             tile_name="LUT5F",
-            input_fanin=4,
+            input_fanin=6,
             include_bel_output_sources=True,
             include_constant_sources=True,
-            output_fanin=3,
+            output_fanin=4,
             cover_unconnected_matrix_rows=True,
             routing_pip_pattern="full",
             routing_pip_fs=4,
@@ -397,7 +397,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         self.pnr_switch_block_factorizer_pass(
             tile_name="LUT5F",
-            global_reduction=2,
+            global_reduction=None,
             reduction_rules=[
                 {"from_fanin": 16, "to_fanin": 8},
                 {"from_fanin": 8, "to_fanin": 4},
@@ -414,9 +414,9 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             demand_iterations=1000,
             random_demand_ratio=0.25,
             seed=1,
-            opt=False,
+            opt=True,
             optimizer="dense",
-            opt_target_pip_reduction=0.7,
+            opt_target_pip_reduction=0.4,
             opt_max_soft_failure_rate=0.8,
             opt_max_hard_failure_rate=0.8,
             opt_use_baseline_failure_rates=True,
@@ -476,6 +476,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             io_seed_count=2,
         )
 
+        # Test the effect of up-scaling the fabric after training.
         self.fpga_model.resize_fabric(
             copy_column_after=(1, 5),
         )
