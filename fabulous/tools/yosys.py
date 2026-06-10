@@ -58,7 +58,6 @@ class YosysTool(Tool):
         library: StdCellLibrary,
         is_gate_level: bool = False,
         flat: bool = False,
-        debug: bool = False,
     ) -> Path:
         """Synthesize Verilog RTL into a gate-level netlist and return its path.
 
@@ -80,8 +79,6 @@ class YosysTool(Tool):
             Whether `verilog_files` is already a gate-level netlist.
         flat : bool
             Whether to flatten the hierarchy during synthesis.
-        debug : bool
-            Forwarded to `Tool.run` to log the invocation.
 
         Returns
         -------

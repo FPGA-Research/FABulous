@@ -39,7 +39,6 @@ class OpenStaTool(Tool):
         liberty_files: list[Path] | Path,
         top_name: str,
         spef_files: list[Path] | Path | None = None,
-        debug: bool = False,
     ) -> Path:
         """Generate an SDF file from a Verilog gate-level netlist and return it.
 
@@ -53,8 +52,6 @@ class OpenStaTool(Tool):
             The name of the top-level design to analyze.
         spef_files : list[Path] | Path | None
             The SPEF RC extraction file(s) to use, or None.
-        debug : bool
-            Forwarded to `Tool.run` to log the invocation.
 
         Returns
         -------

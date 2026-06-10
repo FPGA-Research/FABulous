@@ -29,7 +29,7 @@ class GhdlTool(Tool):
 
     @classmethod
     def synthesize_to_verilog(
-        cls, vhdl_file: Path, models_pack: Path, std: str = "08", debug: bool = False
+        cls, vhdl_file: Path, models_pack: Path, std: str = "08"
     ) -> str:
         """Elaborate a VHDL file into Verilog and return the Verilog text.
 
@@ -42,8 +42,6 @@ class GhdlTool(Tool):
             The FABulous models package GHDL needs on its analysis path.
         std : str
             The VHDL standard passed to ``--std`` (default "08").
-        debug : bool
-            Forwarded to `Tool.run` to log the invocation.
 
         Returns
         -------

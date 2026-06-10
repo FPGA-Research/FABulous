@@ -19,7 +19,7 @@ from fabulous.custom_exception import InvalidFileType
 class SwitchMatrix:
     """A tile's switch matrix: its programmable interconnect connectivity.
 
-    Parameters
+    Attributes
     ----------
     name : str
         Tile name. Must match the top-left header cell of a ``.csv`` matrix.

@@ -91,11 +91,6 @@ class Tool(ABC):
             Arguments passed to the executable.
         stdin_data : str
             Data piped to the executable's stdin.
-        debug : bool
-            When True, log the invocation together with its stdin and the
-            captured stdout/stderr. Output is always captured so callers that
-            consume stdout (e.g. `GhdlTool`) and the failure message below keep
-            working in debug mode.
 
         Returns
         -------

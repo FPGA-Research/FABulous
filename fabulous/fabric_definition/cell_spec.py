@@ -215,9 +215,10 @@ class StdCellLibrary(BaseModel):
                 f"No 'pdk::{pdk}' section in {config_path}. "
                 "Add a section for this PDK to characterize its timing."
             )
+        resolved_vars = {"PROJ_DIR": str(project_dir), **(variables or {})}
         return cls.model_validate(
             section,
-            context={"variables": variables or {}, "base_dir": project_dir},
+            context={"variables": resolved_vars, "base_dir": project_dir},
         )
 
 
