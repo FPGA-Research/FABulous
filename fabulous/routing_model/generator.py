@@ -29,6 +29,9 @@ from fabulous.routing_model.tile_timing_model import (
 PLACEHOLDER_PIP_DELAY = 8
 """Arbitrary pip delay used when no timing model is configured."""
 
+LC_BEL_NAMES = frozenset({"LUT4c_frame_config", "LUT4c_frame_config_dffesr"})
+"""BEL names nextpnr models as the generic FABULOUS_LC logic cell."""
+
 
 class RoutingModelGenerator:
     """Generate the nextpnr routing model for a fabric, optionally with timing.
@@ -226,12 +229,7 @@ class RoutingModelGenerator:
                 belStr.append(f"#Tile_X{x}Y{y}")
                 for i, bel in enumerate(tile.bels):
                     belPort = bel.inputs + bel.outputs
-                    cType = bel.name
-                    if (
-                        bel.name == "LUT4c_frame_config"
-                        or bel.name == "LUT4c_frame_config_dffesr"
-                    ):
-                        cType = "FABULOUS_LC"
+                    cType = "FABULOUS_LC" if bel.name in LC_BEL_NAMES else bel.name
                     letter = string.ascii_uppercase[i]
                     belStr.append(
                         f"X{x}Y{y},X{x},Y{y},{letter},{cType},{','.join(belPort)}"
@@ -250,12 +248,7 @@ class RoutingModelGenerator:
                 # New style bel definition
                 belv2Str.append(f"#Tile_X{x}Y{y}")
                 for i, bel in enumerate(tile.bels):
-                    cType = bel.name
-                    if (
-                        bel.name == "LUT4c_frame_config"
-                        or bel.name == "LUT4c_frame_config_dffesr"
-                    ):
-                        cType = "FABULOUS_LC"
+                    cType = "FABULOUS_LC" if bel.name in LC_BEL_NAMES else bel.name
                     letter = string.ascii_uppercase[i]
                     belv2Str.append(f"BelBegin,X{x}Y{y},{letter},{cType},{bel.prefix}")
 

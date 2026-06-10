@@ -615,79 +615,6 @@ class YosysJson:
                 return name, module
         raise ValueError("No top module found in Yosys JSON")
 
-    def isTopModuleNet(self, net: int) -> bool:
-        """Check if a net ID corresponds to a top-level module port.
-
-        Parameters
-        ----------
-        net : int
-            Net ID to check.
-
-        Returns
-        -------
-        bool
-            True if the net is connected to a top module port, False otherwise.
-        """
-        for module in self.modules.values():
-            for pDetail in module.ports.values():
-                if net in pDetail.bits:
-                    return True
-        return False
-
-    def getNetPortSrcSinks(
-        self, net: int
-    ) -> tuple[tuple[str, str], list[tuple[str, str]]]:
-        """Find the source and sink connections for a given net.
-
-        This method analyzes the netlist to determine what drives a net (source)
-        and what it connects to (sinks).
-
-        Parameters
-        ----------
-        net : int
-            Net ID to analyze.
-
-        Returns
-        -------
-        tuple[tuple[str, str], list[tuple[str, str]]]
-            A tuple containing:
-            - Source: (cell_name, port_name) tuple for the driving cell/port
-            - Sinks: List of (cell_name, port_name) tuples for driven cells/ports
-
-        Raises
-        ------
-        ValueError
-            If net is not found or has multiple drivers.
-
-        Notes
-        -----
-        If no driver is found, the source will be ("", "z") indicating
-        a high-impedance or undriven net.
-        """
-        src: list[tuple[str, str]] = []
-        sinks: list[tuple[str, str]] = []
-        for module in self.modules.values():
-            for cell_name, cell_details in module.cells.items():
-                for conn_name, conn_details in cell_details.connections.items():
-                    if net in conn_details:
-                        if cell_details.port_directions[conn_name] == "output":
-                            src.append((cell_name, conn_name))
-                        else:
-                            sinks.append((cell_name, conn_name))
-
-        if len(sinks) == 0:
-            raise ValueError(
-                f"Net {net} not found in Yosys JSON or is a top module port output"
-            )
-
-        if len(src) == 0:
-            src.append(("", "z"))
-
-        if len(src) > 1:
-            raise ValueError(f"Multiple driver found for net {net}: {src}")
-
-        return src[0], sinks
-
     def find_verilog_modules_regex(self, name_pattern: str) -> list[str]:
         """Find Verilog module names matching a regex pattern.
 
@@ -736,21 +663,17 @@ class YosysJson:
             if cell.type in self.modules:
                 yield from self.walk_instances(cell.type, path)
 
-    def find_instances_by_regex(
-        self, inst_regex: str, filter_regex: str | None = None
-    ) -> list[InstanceRef]:
+    def find_instances_by_regex(self, inst_regex: str) -> list[InstanceRef]:
         """Find instances whose hierarchical path matches a regex.
 
         Walk the hierarchy from `top_name` and return an `InstanceRef`
         for every instance whose path (without the top module name) matches
-        `inst_regex`, optionally narrowed by `filter_regex`.
+        `inst_regex`.
 
         Parameters
         ----------
         inst_regex : str
             Regular expression to match hierarchical instance paths.
-        filter_regex : str | None
-            Optional regular expression to further filter the matched paths.
 
         Returns
         -------
@@ -758,13 +681,7 @@ class YosysJson:
             One reference per matching instance.
         """
         pattern = re.compile(inst_regex)
-        filter_pattern = re.compile(filter_regex) if filter_regex is not None else None
-        return [
-            ref
-            for ref in self.walk_instances()
-            if pattern.search(ref.path)
-            and (filter_pattern is None or filter_pattern.search(ref.path))
-        ]
+        return [ref for ref in self.walk_instances() if pattern.search(ref.path)]
 
     def net_to_pin_paths_for_instance_resolved(
         self, instance: InstanceRef

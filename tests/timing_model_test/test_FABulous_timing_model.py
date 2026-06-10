@@ -107,10 +107,7 @@ class DummyNetlistTM:
     # Netlist (YosysJson) query surface used by the generator. ``modules`` (set in
     # __init__) backs the inlined switch-matrix net grouping; walk_instances backs
     # the inlined swm-mux search. Tests override these as needed.
-    def find_instances_by_regex(
-        self, _regex: object, filter_regex: object = None
-    ) -> list[object]:
-        _ = filter_regex
+    def find_instances_by_regex(self, _regex: object) -> list[object]:
         return []
 
     def find_verilog_modules_regex(self, _regex: object) -> list[object]:
@@ -157,10 +154,8 @@ class DummyNetlistTM:
         assert hier_pin_path == "X"
         return "X"
 
-    def path_to_nearest_target_sentinel(
-        self, _src: object, _targets: object
-    ) -> tuple[list[str], object | None]:
-        return [], None
+    def nearest_targets(self, _src: object, _targets: object) -> list[str]:
+        return []
 
 
 @pytest.fixture(autouse=True)
@@ -192,8 +187,8 @@ def _delegate_graph_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         tm_mod,
-        "path_to_nearest_target_sentinel",
-        lambda graph, src, targets: graph.path_to_nearest_target_sentinel(src, targets),
+        "nearest_targets",
+        lambda graph, src, targets: graph.nearest_targets(src, targets),
     )
 
 
@@ -947,12 +942,10 @@ def test_external_pip_delay_structural_input_port_no_nearest_returns_default_rea
             self.input_ports = {"NN2BEG[3]"}
             self.output_ports = {"OUT0"}
 
-        def path_to_nearest_target_sentinel(
-            self, src: object, targets: object
-        ) -> tuple[list[str], object | None]:
+        def nearest_targets(self, src: object, targets: object) -> list[str]:
             assert src == "NN2BEG[3]"
             assert targets == {"OUT0"}
-            return [], None
+            return []
 
     bare_model.netlist_tm_synth = Synth()
 
@@ -968,10 +961,8 @@ def test_external_pip_delay_structural_input_port_uses_single_delay(
             self.input_ports = {"NN2BEG[3]"}
             self.output_ports = {"OUT0"}
 
-        def path_to_nearest_target_sentinel(
-            self, _src: object, _targets: object
-        ) -> tuple[list[str], object | None]:
-            return ["NN2BEG[3]", "OUT0"], "OUT0"
+        def nearest_targets(self, _src: object, _targets: object) -> list[str]:
+            return ["OUT0"]
 
         def single_delay(self, _src: object, _dst: object) -> float:
             return 0.222
@@ -1071,12 +1062,10 @@ def test_external_pip_delay_physical_input_port_no_nearest_returns_default_real_
             self.input_ports = {"NN2BEG[3]"}
             self.output_ports = {"OUT0"}
 
-        def path_to_nearest_target_sentinel(
-            self, src: object, targets: object
-        ) -> tuple[list[str], object | None]:
+        def nearest_targets(self, src: object, targets: object) -> list[str]:
             assert src == "NN2BEG[3]"
             assert targets == {"OUT0"}
-            return [], None
+            return []
 
     bare_model.netlist_tm_phys = Phys()
 
@@ -1093,10 +1082,8 @@ def test_external_pip_delay_physical_input_port_uses_single_delay(
             self.input_ports = {"NN2BEG[3]"}
             self.output_ports = {"OUT0"}
 
-        def path_to_nearest_target_sentinel(
-            self, _src: object, _targets: object
-        ) -> tuple[list[str], object | None]:
-            return ["NN2BEG[3]", "OUT0"], "OUT0"
+        def nearest_targets(self, _src: object, _targets: object) -> list[str]:
+            return ["OUT0"]
 
         def single_delay(self, _src: object, _dst: object) -> float:
             return 0.333
@@ -1216,10 +1203,8 @@ def test_external_pip_delay_selects_model_by_mode(
             self.output_ports = {"OUT0"}
             self._delay = delay
 
-        def path_to_nearest_target_sentinel(
-            self, _src: object, _targets: object
-        ) -> tuple[list[str], object | None]:
-            return ["NN2BEG[3]", "OUT0"], "OUT0"
+        def nearest_targets(self, _src: object, _targets: object) -> list[str]:
+            return ["OUT0"]
 
         def single_delay(self, _src: object, _dst: object) -> float:
             return self._delay
