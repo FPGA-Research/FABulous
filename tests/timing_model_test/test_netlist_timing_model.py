@@ -1,7 +1,9 @@
 """Tests for NetlistTimingModel's timing-graph queries.
 
 Only the graph-based queries live here (nearest-port search over the timing
-graph). The structural netlist navigation is covered separately in
+graph). Register pass-through edges are provided natively by sdf_toolkit's
+``TimingGraph(..., traverse_registers=True)`` and tested there. The structural
+netlist navigation is covered separately in
 `tests/utils_test/test_yosys_navigator.py`; this fixture stubs `.netlist` and
 the port lists so the graph methods can be exercised in isolation.
 """
@@ -98,6 +100,26 @@ def test_nearest_port_from_pin_multiple_reverse(
     )
     ntm.netlist.input_ports = {"IN1", "IN2"}
     assert ntm.nearest_port_from_pin("PIN", reverse=True, num_ports=2) == ["IN1", "IN2"]
+
+
+def test_nearest_port_from_pin_multiple_breaks_ties_lexicographically(
+    ntm: NetlistTimingModel,
+) -> None:
+    # Both ports sit at hop distance 2; insertion order favours OUT2, but the
+    # deterministic tie-break must order equally-near ports by name.
+    ntm.graph.add_edges_from(
+        [
+            ("PIN", "N2"),
+            ("N2", "OUT2"),
+            ("PIN", "N1"),
+            ("N1", "OUT1"),
+        ]
+    )
+    ntm.netlist.output_ports = {"OUT1", "OUT2"}
+    assert ntm.nearest_port_from_pin("PIN", reverse=False, num_ports=2) == [
+        "OUT1",
+        "OUT2",
+    ]
 
 
 def test_nearest_port_from_pin_multiple_no_ports(
