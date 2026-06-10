@@ -1,0 +1,34 @@
+yosys -import
+{% for lib in liberty_files %}
+read_liberty -lib {{ lib }}
+{% endfor %}
+{% for vf in verilog_files %}
+read_verilog -overwrite -sv {{ vf }}
+{% endfor %}
+{% if flat %}
+synth -flatten -top {{ top_name }}
+{% else %}
+synth -top {{ top_name }}
+{% endif %}
+renames -top {{ top_name }}
+renames -wire
+{% if techmap_files %}
+{% for tm in techmap_files %}
+techmap -map {{ tm }}
+{% endfor %}
+simplemap
+{% endif %}
+clockgate -liberty {{ liberty_files[0] }}
+dfflibmap -liberty {{ liberty_files[0] }}
+setundef -zero
+splitnets
+{% if tiehi_cell_and_port and tielo_cell_and_port %}
+hilomap -hicell {{ tiehi_cell_and_port }} -locell {{ tielo_cell_and_port }}
+{% endif %}
+{% if min_buf_cell_and_ports %}
+insbuf -buf {{ min_buf_cell_and_ports }}
+{% endif %}
+tribuf
+abc -liberty {{ liberty_files[0] }}
+opt -purge -full
+write_verilog -noattr -noexpr {{ netlist_path }}
