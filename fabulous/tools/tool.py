@@ -13,6 +13,7 @@ import subprocess
 from abc import ABC, abstractmethod
 from functools import cache
 from pathlib import Path
+from typing import NoReturn
 
 from jinja2 import Environment, PackageLoader, StrictUndefined
 from loguru import logger
@@ -43,10 +44,31 @@ def _template_env() -> Environment:
 class Tool(ABC):
     """Abstract base for every external tool wrapper.
 
-    Tools are singletons used through classmethods only; `Tool` itself cannot be
-    instantiated. A subclass implements `executable` to resolve its command, then
-    builds its argument list and stdin and calls `run`.
+    Tools are stateless singletons used through classmethods only; neither `Tool`
+    nor any subclass can be instantiated (see `__new__`). A subclass implements
+    `executable` to resolve its command, then builds its argument list and stdin
+    and calls `run`.
     """
+
+    def __new__(cls, *_args: object, **_kwargs: object) -> NoReturn:
+        """Reject instantiation; tools are used only through their classmethods.
+
+        Parameters
+        ----------
+        *_args : object
+            Ignored positional arguments from the rejected constructor call.
+        **_kwargs : object
+            Ignored keyword arguments from the rejected constructor call.
+
+        Raises
+        ------
+        TypeError
+            Always, because tool wrappers are stateless singletons.
+        """
+        raise TypeError(
+            f"{cls.__name__} is a stateless tool wrapper used through its "
+            f"classmethods and cannot be instantiated."
+        )
 
     @classmethod
     def render_template(cls, template_name: str, **context: object) -> str:
