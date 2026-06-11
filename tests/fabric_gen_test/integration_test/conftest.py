@@ -1,12 +1,13 @@
 """Shared fixtures and cocotb-time helpers for FABulous integration tests."""
 
-# cspell:words tilex tiley netlist Gtkw gtkw cocotb noqa hdl pnr bitgen
-
+import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
+import ciel.common
 import cocotb
 import pytest
 from cocotb.handle import HierarchyObject, LogicObject
@@ -15,9 +16,30 @@ from cocotb.types import Logic, LogicArray
 from dotenv import unset_key
 from loguru import logger
 
+import fabulous.fabric_files as _fab_template_pkg
+import fabulous.fabulous_settings
+from fabulous.fabric_definition.define import HDLType
+from tests.conftest import make_default_project, run_cmd
+
+if TYPE_CHECKING:
+    from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+
 
 @pytest.fixture(autouse=True)
-def _disable_pdk_download(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def _disable_pdk_download(
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Strip FAB_PDK / FAB_PDK_ROOT so RTL tests don't trigger PDK downloads.
+
+    Gate-level (``@pytest.mark.gl``) tests are exempt — they consume an
+    already-hardened project and explicitly need the PDK env vars to resolve
+    standard-cell sim libraries.
+    """
+    if request.node.get_closest_marker("gl"):
+        return
+
     monkeypatch.delenv("FAB_PDK", raising=False)
     monkeypatch.delenv("FAB_PDK_ROOT", raising=False)
 
@@ -399,3 +421,268 @@ def _collect_fabric_sources(project_dir: Path, suffix: str) -> list[Path]:
 
 _USER_DESIGNS_DIR = Path(__file__).resolve().parent / "user_designs"
 _USER_DESIGNS_PCF = _USER_DESIGNS_DIR / "constraints.pcf"
+
+_USER_DESIGN_SUFFIXES: dict[HDLType, tuple[str, ...]] = {
+    HDLType.VERILOG: (".v", ".sv"),
+    HDLType.VHDL: (".vhdl", ".vhd"),
+}
+
+
+def stage_user_design(
+    project_dir: Path,
+    design_name: str,
+    lang: HDLType = HDLType.VERILOG,
+) -> tuple[Path, Path]:
+    """Copy a packaged user design + PCF into ``project_dir/user_design/``.
+
+    Looks for ``user_designs/<design_name>.<ext>`` (extension chosen from
+    ``lang``), copies it next to a fresh empty ``top_wrapper.v`` and a copy
+    of the shared ``constraints.pcf`` renamed to ``<design_name>.pcf``.
+
+    Parameters
+    ----------
+    project_dir : Path
+        The project directory to stage the user design into.
+    design_name : str
+        Basename of the packaged design under ``user_designs/``.
+    lang : HDLType, optional
+        Source language to select the file extension. Default
+        ``HDLType.VERILOG``.
+
+    Returns
+    -------
+    tuple[Path, Path]
+        ``(user_design_path, pcf_path)`` inside the project — both ready to
+        be passed to :func:`compile_user_design`.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no source file matching ``design_name`` and ``lang`` exists.
+    """
+    suffixes = _USER_DESIGN_SUFFIXES[lang]
+    candidates = [_USER_DESIGNS_DIR / f"{design_name}{ext}" for ext in suffixes]
+    source_file = next((p for p in candidates if p.exists()), None)
+    if source_file is None:
+        tried = ", ".join(c.name for c in candidates)
+        raise FileNotFoundError(
+            f"No {lang.value} source for design '{design_name}' (tried: {tried})"
+        )
+
+    user_design_dir = project_dir / "user_design"
+    user_design_dir.mkdir(exist_ok=True)
+    user_design = user_design_dir / source_file.name
+    pcf = user_design_dir / f"{design_name}.pcf"
+
+    shutil.copy(source_file, user_design)
+    shutil.copy(_USER_DESIGNS_PCF, pcf)
+    (user_design_dir / "top_wrapper.v").write_text("")
+    return user_design, pcf
+
+
+def compile_user_design(
+    cli: "FABulous_CLI",
+    user_design: Path,
+    design_name: str,
+    pcf: Path,
+) -> Path:
+    """Drive ``compile_design`` through Yosys + nextpnr + bitgen.
+
+    Mirrors what ``test_design_pattern`` (RTL) and ``test_design_pattern_gl``
+    (GL) both need: synthesise the user design against the loaded fabric,
+    place-and-route under the supplied PCF, generate the bitstream binary,
+    and surface a clear failure if the binary is missing.
+
+    Parameters
+    ----------
+    cli : FABulous_CLI
+        The CLI instance with the target fabric already loaded.
+    user_design : Path
+        Path to the staged user design source to compile.
+    design_name : str
+        Top-level module name passed to ``compile_design``.
+    pcf : Path
+        Pin constraints file forwarded to nextpnr.
+
+    Returns
+    -------
+    Path
+        The ``.bin`` bitstream produced next to ``user_design``.
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``compile_design`` does not produce the expected bitstream.
+    """
+    run_cmd(
+        cli,
+        f"compile_design {user_design} -top {design_name} "
+        f'--synth-extra-args=-iopad --nextpnr-extra-args "-o pcf={pcf}"',
+    )
+    bitstream = user_design.with_suffix(".bin")
+    if not bitstream.exists():
+        raise FileNotFoundError(f"compile_design did not produce {bitstream}")
+    return bitstream
+
+
+# ---------------------------------------------------------------------------
+# Gate-level (GL) simulation fixtures
+# ---------------------------------------------------------------------------
+# GL tests consume a fabric that has already been hardened by the FABulous
+# LibreLane flow (the same flow that gds-flow-ci.yml publishes as
+# fabric-output-<pdk>.tar.zst). Provide the hardened project either as a CLI
+# option or as an env var:
+#
+#     pytest --gl --gl-fabric-project=/path/to/test_project
+#     FAB_GL_FABRIC_PROJECT=/path/to/test_project pytest --gl
+#
+# PDK sim-cell libs are resolved from FAB_PDK + (FAB_PDK_ROOT or ciel default).
+# Override with `--gl-sim-libs=<glob>` (repeatable).
+
+_VERILOG_TEMPLATE_TEST_DIR = (
+    Path(_fab_template_pkg.__file__).resolve().parent
+    / "FABulous_project_template_verilog"
+    / "Test"
+)
+_COMMON_TEMPLATE_TEST_DIR = (
+    Path(_fab_template_pkg.__file__).resolve().parent
+    / "FABulous_project_template_common"
+    / "Test"
+)
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]
+    """Register GL-only knobs.
+
+    ``--gl`` and ``--gl-fabric-project`` are registered in the repo-level
+    ``tests/conftest.py``; ``--gl-sim-libs`` is GL-specific and lives here.
+    """
+    group = parser.getgroup("FABulous GL simulation")
+    group.addoption(
+        "--gl-sim-libs",
+        action="append",
+        default=[],
+        help="Verilog sim-cell library file or glob (repeatable). When unset "
+        "the test resolves the PDK std-cell models from FAB_PDK / FAB_PDK_ROOT "
+        "in the project .env.",
+    )
+
+
+@pytest.fixture
+def gl_fabric_project(pytestconfig: pytest.Config) -> Path:
+    """Resolve the hardened FABulous project supplied via CLI or env var.
+
+    Skips the test (rather than failing) when neither is set, so the suite is
+    safe to schedule unconditionally.
+    """
+    raw: str | None = pytestconfig.getoption("gl_fabric_project") or os.environ.get(
+        "FAB_GL_FABRIC_PROJECT"
+    )
+    if not raw:
+        pytest.skip(
+            "GL simulation needs a hardened fabric project: pass "
+            "--gl-fabric-project=<path> or set FAB_GL_FABRIC_PROJECT. The "
+            "fabric-output-<pdk> artifact published by gds-flow-ci.yml unpacks "
+            "into the expected layout."
+        )
+    project = Path(raw).expanduser().resolve()
+    if not project.is_dir():
+        pytest.fail(f"--gl-fabric-project={project} is not a directory")
+    if not (project / ".FABulous").is_dir():
+        pytest.fail(
+            f"{project} is not a FABulous project (missing .FABulous/). Did "
+            "you point at the right unpacked artifact?"
+        )
+    return project
+
+
+def _ignore_heavy_artifacts(src_dir: str, names: list[str]) -> set[str]:
+    """``shutil.copytree`` filter that skips LibreLane run output.
+
+    Hardened projects can be tens of GB because every Tile/ holds the full
+    librelane ``runs/`` tree plus per-macro snapshots. ``run_simulation --gl``
+    only reads the netlists under each ``macro/final_views/`` (see
+    ``collect_gl_sources``), so keep that subtree and drop the rest of
+    ``macro/`` along with ``runs/`` and ``gds/`` to keep the per-test copy
+    cheap.
+    """
+    skip = {"runs", "gds", ".git", "__pycache__"}
+    ignored = {n for n in names if n in skip}
+    # macro/ holds the final_views netlists the GL flow resolves alongside
+    # heavy intermediate snapshots; keep only final_views.
+    if Path(src_dir).name == "macro":
+        ignored |= {n for n in names if n != "final_views"}
+    return ignored
+
+
+@pytest.fixture
+def hardened_project_copy(
+    gl_fabric_project: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    """Per-test copy of the hardened project, with Test/ refreshed.
+
+    ``compile_design`` mutates ``user_design/`` and writes intermediate files
+    into ``.FABulous/``, so the supplied artifact is copied into a fresh tmp
+    dir first to keep it untouched and to allow parallel runs. The copy
+    drops the heavy librelane artifacts (``runs/``, ``gds/`` and the
+    non-``final_views`` parts of each ``macro/``) but keeps the
+    ``macro/final_views`` netlists, since ``run_simulation --gl`` resolves
+    the gate-level sources from the copy (see ``collect_gl_sources``).
+
+    The Test/ Taskfile is taken from the **current** FABulous template rather
+    than what shipped with the artifact, because the compile_design contract
+    evolves with the Python code.
+    """
+    dest = tmp_path / "fabric_project"
+    shutil.copytree(
+        gl_fabric_project,
+        dest,
+        symlinks=False,
+        ignore=_ignore_heavy_artifacts,
+    )
+
+    test_dir = dest / "Test"
+    test_dir.mkdir(exist_ok=True)
+    for src in _VERILOG_TEMPLATE_TEST_DIR.iterdir():
+        if src.is_file():
+            shutil.copy2(src, test_dir / src.name)
+    for src in _COMMON_TEMPLATE_TEST_DIR.iterdir():
+        if src.is_file():
+            shutil.copy2(src, test_dir / src.name)
+
+    # The repo-level autouse fixture stubs ``get_ciel_home`` to a hermetic tmp
+    # dir (with only an ihp placeholder) so unit tests never touch the real PDK
+    # store. GL simulation needs the real standard-cell models, so restore the
+    # genuine ciel resolver, which froze the real ciel home at import time.
+    monkeypatch.setattr(
+        fabulous.fabulous_settings, "get_ciel_home", ciel.common.get_ciel_home
+    )
+
+    monkeypatch.setenv("FAB_PROJ_DIR", str(dest))
+    return dest
+
+
+@pytest.fixture
+def fabulous_project(
+    request: pytest.FixtureRequest,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    """Marker-aware override of the global ``fabulous_project`` fixture.
+
+    ``@pytest.mark.gl`` tests get the per-test copy of the user's hardened
+    LibreLane project (so the ``cli`` fixture binds to it transparently);
+    every other test in this directory falls back to a fresh empty project,
+    matching the global behaviour from ``tests/conftest.py``.
+
+    The override has to live here (rather than as a ``cli`` override) because
+    the ``cli`` fixture is verilog-only and the lookup happens via
+    ``fabulous_project``; intercepting at that hop lets GL tests reuse ``cli``
+    without further wiring.
+    """
+    if request.node.get_closest_marker("gl"):
+        return request.getfixturevalue("hardened_project_copy")
+
+    return make_default_project(tmp_path, monkeypatch)

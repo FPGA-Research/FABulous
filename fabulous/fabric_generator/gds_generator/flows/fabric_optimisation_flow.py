@@ -27,14 +27,18 @@ from librelane.state.state import State
 from librelane.steps.openroad import Floorplan
 from librelane.steps.step import Step
 
+from fabulous.fabric_definition.define import HDLType
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
+    FABulousFabricVHDLMacroFlow,
 )
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
+    FABulousTileMacroFlow,
     FABulousTileVerilogMacroFlow,
+    FABulousTileVHDLMacroFlow,
 )
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
@@ -72,7 +76,7 @@ configs = (
 WorkerResult = tuple[State | None, str | None, dict[str, float] | None]
 
 
-def _extract_pin_min(flow: FABulousTileVerilogMacroFlow) -> dict[str, float]:
+def _extract_pin_min(flow: FABulousTileMacroFlow) -> dict[str, float]:
     """Extract pin minimum dimensions from flow config."""
     return {
         "fabulous__pin_min_width": float(flow.config["FABULOUS_PIN_MIN_WIDTH"]),
@@ -89,6 +93,7 @@ def _run_tile_flow_worker(
     pdk: str,
     pdk_root: Path,
     models_pack: Path | None,
+    hdl_type: HDLType,
     design_dir: Path | None = None,
     **custom_config_overrides: dict,
 ) -> WorkerResult:
@@ -115,6 +120,10 @@ def _run_tile_flow_worker(
         The root directory of the PDK.
     models_pack : Path | None
         Optional path to the models pack file required for compilation.
+    hdl_type : HDLType
+        The project's HDL language, used to select the Verilog or VHDL tile
+        flow. Passed explicitly because the worker process cannot read the
+        parent's context.
     design_dir : Path | None
         Override the flow's design directory. When ``None``, the default
         ``<tile>/macro/<opt_mode>`` location is used.
@@ -126,10 +135,17 @@ def _run_tile_flow_worker(
     WorkerResult
         (compiled_state, error_trace, pin_min) for result processing.
     """
-    flow: FABulousTileVerilogMacroFlow | None = None
+    flow: FABulousTileMacroFlow | None = None
     try:
-        # Reconstruct the flow in the worker process with serializable data
-        flow = FABulousTileVerilogMacroFlow(
+        # Reconstruct the flow in the worker process with serializable data, picking the
+        # tile flow that matches the project's HDL language. The language is passed in
+        # explicitly because the worker process has no access to the parent's context.
+        tile_flow_cls: type[FABulousTileMacroFlow] = (
+            FABulousTileVHDLMacroFlow
+            if hdl_type == HDLType.VHDL
+            else FABulousTileVerilogMacroFlow
+        )
+        flow = tile_flow_cls(
             tile_type,
             io_pin_config,
             optimisation,
@@ -333,6 +349,7 @@ class FABulousFabricOptimisationFlow(Flow):
                     get_context().pdk,
                     get_context().pdk_root,
                     get_context().models_pack,
+                    get_context().proj_lang,
                     FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
                 )
                 handlers.append((result, opt_mode, tile_type))
@@ -496,6 +513,7 @@ class FABulousFabricOptimisationFlow(Flow):
                     get_context().pdk,
                     get_context().pdk_root,
                     get_context().models_pack,
+                    get_context().proj_lang,
                     design_dir=optimised_design_dir,
                     DIE_AREA=die_area,
                 )
@@ -568,9 +586,17 @@ class FABulousFabricOptimisationFlow(Flow):
         # Step 5: Run fabric stitching
         self.progress_bar.start_stage("Fabric Stitching")
 
-        stitching_flow: FABulousFabricMacroFlow = FABulousFabricMacroFlow(
+        if get_context().proj_lang == HDLType.VHDL:
+            stitching_flow_cls: type[FABulousFabricMacroFlow] = (
+                FABulousFabricVHDLMacroFlow
+            )
+            fabric_ext = "vhdl"
+        else:
+            stitching_flow_cls = FABulousFabricMacroFlow
+            fabric_ext = "v"
+        stitching_flow: FABulousFabricMacroFlow = stitching_flow_cls(
             fabric,
-            fabric_verilog_paths=[proj_dir / "Fabric" / f"{fabric.name}.v"],
+            fabric_hdl_paths=[proj_dir / "Fabric" / f"{fabric.name}.{fabric_ext}"],
             tile_macro_dirs={
                 k.name: (proj_dir / "Tile" / k.name / "macro" / "final_views")
                 for k in fabric.get_all_unique_tiles()

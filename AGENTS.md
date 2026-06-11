@@ -39,6 +39,7 @@ Rules that make changes feel native. Follow them even when a tool's defaults dis
 - **Paths**: `pathlib.Path`. Never `os.path` or string concatenation.
 - **Logging**: `loguru` (`from loguru import logger`). Not `print`, not stdlib `logging`.
 - **Docstrings**: NumPy style — `pydoclint` + `interrogate` (≥95% coverage) enforce this.
+- **Inline code in docstrings/comments**: use a single backtick (`` `models_pack` ``, `` `None` ``), not double (`` ``models_pack`` ``).
 - **Naming**: this repo uses `camelCase` for variables/functions, `PascalCase` for classes, `CONSTANT_CASE` for module constants. Match existing files, don't "fix" to PEP 8.
 - Formatting (line length, quotes, etc.) is whatever `ruff format` produces.
 

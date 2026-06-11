@@ -16,8 +16,14 @@ bitstream is hardwired into the design at synthesis time. This provides a way
 to test the fabric in actual hardware without needing a configuration
 controller.
 
+**Gate-level simulation** is the post-layout counterpart of simulation. It
+exercises the hardened fabric netlist produced by the GDS flow against the PDK
+standard cells, verifying the fabric all the way down to the placed-and-routed
+cells.
+
 
 ```{toctree}
 simulation
+gate_level_simulation
 emulation
 ```

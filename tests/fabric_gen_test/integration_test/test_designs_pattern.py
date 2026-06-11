@@ -4,7 +4,6 @@
 
 import random
 import re
-import shutil
 from collections.abc import Callable
 from pathlib import Path
 
@@ -19,18 +18,14 @@ from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from fabulous.fabulous_settings import init_context
 from tests.conftest import run_cmd
 from tests.fabric_gen_test.integration_test.conftest import (
-    _USER_DESIGNS_DIR,
-    _USER_DESIGNS_PCF,
     FabricClockedDUT,
     FabricConfigDUT,
     _collect_fabric_sources,
+    compile_user_design,
     setup_fabric,
+    stage_user_design,
 )
 
-_USER_DESIGN_SUFFIXES: dict[str, tuple[str, ...]] = {
-    "verilog": (".v", ".sv"),
-    "vhdl": (".vhdl", ".vhd"),
-}
 _FABRIC_SUFFIX: dict[str, str] = {"verilog": ".v", "vhdl": ".vhdl"}
 
 # Fabric → pad outputs; after bitstream upload these should leave X/Z.
@@ -225,39 +220,18 @@ def test_design_pattern(
     cocotb_runner: Callable[..., None],
 ) -> None:
     """Compile `design_name` for `lang` and dispatch its cocotb test."""
-    project_dir = project_factory(lang=HDLType(lang))
+    hdl_lang = HDLType(lang)
+    project_dir = project_factory(lang=hdl_lang)
+    # Bootstrap a lang-specific CLI inline. The global `cli` fixture is
+    # verilog-only, so we can't reuse it across this test's lang parametrize.
     init_context(project_dir)
     cli = FABulous_CLI(lang, force=False, interactive=False, verbose=False, debug=True)
     cli.debug = True
     run_cmd(cli, "load_fabric")
 
-    candidates = [
-        _USER_DESIGNS_DIR / f"{design_name}{ext}" for ext in _USER_DESIGN_SUFFIXES[lang]
-    ]
-    source_file = next((p for p in candidates if p.exists()), None)
-    if source_file is None:
-        tried = ", ".join(c.name for c in candidates)
-        raise FileNotFoundError(
-            f"No {lang} source for design '{design_name}' (tried: {tried})"
-        )
-    user_design = project_dir / "user_design" / source_file.name
-    top_wrapper = project_dir / "user_design" / "top_wrapper.v"
-
-    pcf = project_dir / "user_design" / f"{design_name}.pcf"
-    shutil.copy(source_file, user_design)
-    shutil.copy(_USER_DESIGNS_PCF, pcf)
-    top_wrapper.write_text("")
-
+    user_design, pcf = stage_user_design(project_dir, design_name, lang=hdl_lang)
     run_cmd(cli, "run_FABulous_fabric")
-    run_cmd(
-        cli,
-        f"compile_design {user_design} -top {design_name} "
-        f'--synth-extra-args=-iopad --nextpnr-extra-args "-o pcf={pcf}"',
-    )
-
-    bitstream = user_design.with_suffix(".bin")
-    if not bitstream.exists():
-        raise FileNotFoundError(f"compile_design did not produce {bitstream}")
+    bitstream = compile_user_design(cli, user_design, design_name, pcf)
 
     cocotb_runner(
         sources=_collect_fabric_sources(project_dir, suffix=_FABRIC_SUFFIX[lang]),

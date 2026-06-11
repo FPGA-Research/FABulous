@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
+from fabulous.fabric_definition.define import HDLType
 from fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow import (
     FABulousFabricOptimisationFlow,
     WorkerResult,
@@ -189,6 +190,7 @@ class TestRunTileFlowWorker:
                 "test_pdk",
                 tmp_path,
                 tmp_path / "models_pack.v",
+                HDLType.VERILOG,
             )
 
     def test_worker_recovers_state_on_deferred_flow_error(
@@ -230,6 +232,7 @@ class TestRunTileFlowWorker:
             "test_pdk",
             tmp_path,
             tmp_path / "models_pack.v",
+            HDLType.VERILOG,
         )
 
         assert state is recovered_state
@@ -263,6 +266,7 @@ class TestRunTileFlowWorker:
             "test_pdk",
             tmp_path,
             tmp_path / "models_pack.v",
+            HDLType.VERILOG,
         )
 
         state, error_trace, pin_min = result
@@ -300,6 +304,7 @@ class TestWorkerCustomOverrides:
             "test_pdk",
             tmp_path,
             tmp_path / "models_pack.v",
+            HDLType.VERILOG,
             CUSTOM_KEY="custom_value",
         )
 

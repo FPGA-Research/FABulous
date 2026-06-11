@@ -17,11 +17,15 @@ from fabulous.fabulous_settings import init_context, reset_context
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]
-    """Add command line option to include slow tests explicitly.
+    """Register opt-in flags for the marker-gated test buckets.
 
-    Usage: pytest --runslow
-    Without this flag, tests marked with @pytest.mark.slow are skipped via
-    addopts filter.
+    Usage:
+        pytest --runslow
+        pytest --gl --gl-fabric-project=<path>
+
+    Without these flags, tests marked ``@pytest.mark.slow`` /
+    ``@pytest.mark.gl`` are excluded via the default ``addopts`` filter in
+    ``pyproject.toml``.
     """
     parser.addoption(
         "--runslow",
@@ -29,14 +33,35 @@ def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-define
         default=False,
         help="run tests marked as slow (overrides default '-m not slow')",
     )
+    parser.addoption(
+        "--gl",
+        action="store_true",
+        default=False,
+        help="run gate-level (GL) simulation tests; requires a fabric project "
+        "hardened by the GDS flow (see --gl-fabric-project)",
+    )
+    parser.addoption(
+        "--gl-fabric-project",
+        action="store",
+        default=None,
+        help="path to a FABulous project that has been run through "
+        "`gen_fabric_macro` (must contain Fabric/macro/final_views/). "
+        "May also be supplied via the FAB_GL_FABRIC_PROJECT env var. "
+        "Typically the unpacked `fabric-output-<pdk>` artifact from "
+        "gds-flow-ci.yml.",
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:  # type: ignore[name-defined]
-    if (
-        config.getoption("runslow")
-        and getattr(config.option, "markexpr", None) == "not slow"
-    ):
-        config.option.markexpr = ""
+    user_args = config.invocation_params.args
+    if any(a.startswith(("-m", "--markexpr")) for a in user_args):
+        return
+    exclude = []
+    if not config.getoption("runslow"):
+        exclude.append("not slow")
+    if not config.getoption("gl"):
+        exclude.append("not gl")
+    config.option.markexpr = " and ".join(exclude)
 
 
 def normalize(block: str) -> list[str]:
@@ -69,8 +94,10 @@ def fabulous_test_environment(
     """Set up global test environment for FABulous tests."""
     fabulous_root = str(Path(__file__).resolve().parent.parent / "FABulous")
 
+    # FAB_GL_FABRIC_PROJECT selects the hardened project for the GL suite; it
+    # is test-control input, not project state, so it must survive the scrub.
     for key in list(os.environ.keys()):
-        if key.startswith("FAB_"):
+        if key.startswith("FAB_") and key != "FAB_GL_FABRIC_PROJECT":
             monkeypatch.delenv(key, raising=False)
 
     fake_user_config_dir = tmp_path / ".fabulous"
@@ -101,13 +128,36 @@ def fabulous_test_environment(
     reset_context()
 
 
-@pytest.fixture
-def cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> FABulous_CLI:
-    """Create a FABulous CLI instance for testing with a temporary project."""
+def make_default_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Create a fresh empty Verilog project and point ``FAB_PROJ_DIR`` at it.
+
+    Shared by the base ``fabulous_project`` fixture and any nested-conftest
+    override that needs to reproduce the default (non-overridden) behaviour
+    without re-entering the fixture by name.
+    """
     project_dir = tmp_path / "test_project"
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_dir))
     create_project(project_dir)
-    init_context(project_dir)
+    return project_dir
+
+
+@pytest.fixture
+def fabulous_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A FABulous project the ``cli`` fixture should bind to.
+
+    Default behaviour creates a fresh empty Verilog project under
+    ``tmp_path``. Override this fixture in a nested conftest to point ``cli``
+    at a different project — e.g. the GL suite overrides it to return the
+    per-test copy of a hardened LibreLane project. The override is what lets
+    GL tests reuse the global ``cli`` fixture without any further plumbing.
+    """
+    return make_default_project(tmp_path, monkeypatch)
+
+
+@pytest.fixture
+def cli(fabulous_project: Path) -> FABulous_CLI:
+    """Create a FABulous CLI instance bound to ``fabulous_project``."""
+    init_context(fabulous_project)
     cli = FABulous_CLI(
         "verilog",
         force=False,

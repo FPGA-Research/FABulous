@@ -417,8 +417,10 @@ class FABulousSettings(BaseSettings):
         provided, this validator resolves the recommended hash from librelane
         and auto-installs/activates the PDK via ciel.
 
-        Validation rules
-        ----------------
+        Notes
+        -----
+        Validation rules:
+
         1. Both ``pdk`` and ``pdk_root`` are None  -> warn, return (GDS unavailable)
         2. ``pdk_root`` set but ``pdk`` is None    -> raise ValueError
         3. ``pdk`` set, ``pdk_root`` None, ciel family   -> auto-resolve pdk_root

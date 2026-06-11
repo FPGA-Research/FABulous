@@ -396,17 +396,20 @@ def test_force_flag(
             ["FABulous", "{project}", "--install_oss_cad_suite"], 2, 0, id="legacy"
         ),
         pytest.param(
-            ["FABulous", "install-oss-cad-suite", "{project}"], 2, 0, id="typer-project"
+            ["FABulous", "install", "oss-cad-suite", "{project}"],
+            2,
+            0,
+            id="typer-project",
         ),
-        pytest.param(["FABulous", "install-oss-cad-suite"], 2, 0, id="default-dir"),
+        pytest.param(["FABulous", "install", "oss-cad-suite"], 2, 0, id="default-dir"),
         pytest.param(
-            ["FABulous", "install-oss-cad-suite", "{install_dir}"],
+            ["FABulous", "install", "oss-cad-suite", "{install_dir}"],
             2,
             0,
             id="explicit-dir",
         ),
         pytest.param(
-            ["FABulous", "install-oss-cad-suite", "{install_dir}"],
+            ["FABulous", "install", "oss-cad-suite", "{install_dir}"],
             1,
             1,
             id="error",
@@ -914,18 +917,21 @@ def test_short_dotenv_flags(
 @pytest.mark.parametrize(
     ("subcmd", "expected_code"),
     [
-        pytest.param("script", 0, id="script"),
-        pytest.param("run", 0, id="run"),
-        pytest.param("start", 0, id="start"),
-        pytest.param("create-project", 0, id="create-project"),
-        pytest.param("install-oss-cad-suite", 0, id="install-oss-cad-suite"),
-        pytest.param("update-project-version", 0, id="update-project-version"),
+        pytest.param(["script"], 0, id="script"),
+        pytest.param(["run"], 0, id="run"),
+        pytest.param(["start"], 0, id="start"),
+        pytest.param(["create-project"], 0, id="create-project"),
+        pytest.param(["install"], 0, id="install"),
+        pytest.param(["install", "oss-cad-suite"], 0, id="install-oss-cad-suite"),
+        pytest.param(["install", "fabulator"], 0, id="install-fabulator"),
+        pytest.param(["install", "nix"], 0, id="install-nix"),
+        pytest.param(["update-project-version"], 0, id="update-project-version"),
     ],
 )
 def test_subcommand_help(
-    monkeypatch: pytest.MonkeyPatch, subcmd: str, expected_code: int
+    monkeypatch: pytest.MonkeyPatch, subcmd: list[str], expected_code: int
 ) -> None:
-    argv = ["FABulous", subcmd, "--help"]
+    argv = ["FABulous", *subcmd, "--help"]
     monkeypatch.setattr(sys, "argv", argv)
     with pytest.raises(SystemExit) as exc_info:
         main()
@@ -1209,7 +1215,7 @@ def test_install_nix(
     tmp_path: Path,
 ) -> None:
     """Test install-nix on unsupported NixOS platform."""
-    test_argv = ["FABulous", "install-nix"]
+    test_argv = ["FABulous", "install", "nix"]
 
     # Patch Path.home so the FABulous code picks up the mocked home
     mocker.patch("pathlib.Path.home", return_value=tmp_path)
@@ -1230,7 +1236,7 @@ def test_install_nix_skip(
     mocker: MockerFixture,
 ) -> None:
     """Test install-nix when Nix is already installed."""
-    test_argv = ["FABulous", "install-nix"]
+    test_argv = ["FABulous", "install", "nix"]
 
     mocker.patch("shutil.which", return_value="nix")
     monkeypatch.setattr(sys, "argv", test_argv)
@@ -1247,7 +1253,7 @@ def test_install_nix_failure(
     capsys: pytest.CaptureFixture,
 ) -> None:
     """Test install-nix when Nix is not installed."""
-    test_argv = ["FABulous", "install-nix"]
+    test_argv = ["FABulous", "install", "nix"]
 
     # Patch Path.home so the FABulous code picks up the mocked home
     mocker.patch("pathlib.Path.home", return_value=tmp_path)

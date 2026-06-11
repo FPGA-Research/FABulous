@@ -18,6 +18,7 @@ from fabulous.fabric_generator.gds_generator.flows.flow_define import (
     check_steps,
     physical_steps,
     prep_steps,
+    vhdl_prep_steps,
     write_out_steps,
 )
 from fabulous.fabric_generator.gds_generator.helper import (
@@ -30,6 +31,7 @@ from fabulous.fabric_generator.gds_generator.steps.fabric_IO_placement import (
 from fabulous.fabric_generator.gds_generator.steps.odb_connect_pdn import (
     FABulousPDN,
 )
+from fabulous.fabulous_settings import get_context
 
 subs = {
     "OpenROAD.CutRows": None,
@@ -104,10 +106,15 @@ class FABulousFabricMacroFlow(Classic):
     Substitutions = subs
     config_vars = configs
 
+    # HDL source collection (Verilog defaults).
+    _hdl_files_config_key: str = "VERILOG_FILES"
+    _extra_synth_config: dict[str, object] = {}
+    _models_pack_first: bool = False
+
     def __init__(
         self,
         fabric: Fabric,
-        fabric_verilog_paths: list[Path],
+        fabric_hdl_paths: list[Path],
         tile_macro_dirs: dict[str, Path],
         *,
         base_config_path: Path | None = None,
@@ -120,9 +127,19 @@ class FABulousFabricMacroFlow(Classic):
         self.fabric = fabric
         self.macros, self.tile_sizes = _build_macros(tile_macro_dirs)
 
-        final_config = {}
-        final_config["VERILOG_FILES"] = [str(i) for i in fabric_verilog_paths]
-        final_config["DESIGN_NAME"] = fabric.name
+        # The fabric-level VHDL top uses `work.my_package` from `models_pack`, so it
+        # must be analysed first by GHDL.
+        hdl_files: list[str] = []
+        models_pack = get_context().models_pack
+        if self._models_pack_first and models_pack:
+            hdl_files.append(str(models_pack.resolve()))
+        hdl_files += [str(i) for i in fabric_hdl_paths]
+
+        final_config = {
+            self._hdl_files_config_key: hdl_files,
+            "DESIGN_NAME": fabric.name,
+            **self._extra_synth_config,
+        }
 
         if design_dir is not None:
             final_design_dir = str(design_dir.resolve())
@@ -623,6 +640,26 @@ class FABulousFabricMacroFlow(Classic):
         info(f"Setting MACROS to {self.config['MACROS']}")
 
         return super().run(initial_state, **kwargs)
+
+
+@Flow.factory.register()
+class FABulousFabricVHDLMacroFlow(FABulousFabricMacroFlow):
+    """Fabric stitching flow for a VHDL project.
+
+    Identical to `FABulousFabricMacroFlow` apart from the GHDL-based
+    synthesis/prep steps and reading the fabric-level `.vhdl` source.
+    `Substitutions` is re-declared because `SequentialFlow` clears a parent
+    flow's substitutions after applying them.
+    """
+
+    Steps = vhdl_prep_steps + physical_steps + write_out_steps + check_steps
+    Substitutions = subs
+
+    _hdl_files_config_key = "VHDL_FILES"
+    # `--latches`: `models_pack` defines a transparent latch primitive; GHDL errors
+    # on inferred latches by default (Verilog synthesis tolerates them).
+    _extra_synth_config = {"GHDL_ARGUMENTS": ["--std=08", "-fexplicit", "--latches"]}
+    _models_pack_first = True
 
 
 def _build_macros(

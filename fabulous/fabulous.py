@@ -49,6 +49,12 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+install_app = typer.Typer(
+    help="Install external tools and dependencies.",
+    no_args_is_help=True,
+)
+app.add_typer(install_app, name="install")
+
 
 def version_callback(value: bool) -> None:
     """Print version information and exit."""
@@ -296,7 +302,7 @@ def create_project_cmd(
     logger.info(f"FABulous project created successfully at {project_dir}")
 
 
-@app.command("install-oss-cad-suite")
+@install_app.command("oss-cad-suite")
 def install_oss_cad_suite_cmd(
     directory: Annotated[
         Path | None, typer.Argument(help="Directory to install oss-cad-suite in")
@@ -315,7 +321,7 @@ def install_oss_cad_suite_cmd(
     logger.info(f"oss-cad-suite installed successfully at {directory}")
 
 
-@app.command("install-fabulator")
+@install_app.command("fabulator")
 def install_fabulator_cmd(
     directory: Annotated[
         Path | None, typer.Argument(help="Directory to install FABulator in")
@@ -335,7 +341,7 @@ def install_fabulator_cmd(
     logger.info(f"FABulator installed successfully at {directory}")
 
 
-@app.command("install-nix")
+@install_app.command("nix")
 def install_nix_cmd() -> None:
     """Install Nix."""
     import shutil
@@ -695,7 +701,11 @@ def main() -> None:
             app()
         sys.argv = reorder_options(sys.argv)
         for i in sys.argv[1:]:
-            if i in [i.name for i in app.registered_commands] or i == "--help":
+            if (
+                i in [i.name for i in app.registered_commands]
+                or i in [g.name for g in app.registered_groups if g.name]
+                or i == "--help"
+            ):
                 app()
                 break
         else:
@@ -876,7 +886,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         "Please migrate to the new typer-based commands:\n"
         r"  FABulous --createProject \<dir> → FABulous create-project \<dir>"
         "\n"
-        r"  FABulous --install_oss_cad_suite → FABulous install-oss-cad-suite \<dir>"
+        r"  FABulous --install_oss_cad_suite → FABulous install oss-cad-suite \<dir>"
         "\n"
         r"  FABulous \<project_dir> --commands \<cmd> → FABulous -p \<project_dir> run "
         r"\<cmd>"
@@ -899,7 +909,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         sys.exit(0)
 
     if args.install_oss_cad_suite:
-        # Convert to: FABulous install-oss-cad-suite <directory> [options]
+        # Convert to: FABulous install oss-cad-suite <directory> [options]
         install_oss_cad_suite_cmd(project_dir)
         sys.exit(0)
 

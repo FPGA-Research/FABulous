@@ -81,7 +81,7 @@ tasks:
         vars:
           YOSYS_PATH: '{{.YOSYS_PATH | default .FAB_YOSYS_PATH | default "yosys"}}'
           YOSYS_EXTRA_ARGS: '{{.YOSYS_EXTRA_ARGS | default ""}}'
-          SYNTH_CMD: "synth_fabulous -top {{.TOP_WRAPPER}} -json {{.RESOLVED_JSON_FILE}} {{.CUSTOM_PRIMS}} {{.SYNTH_EXTRA_ARGS | default \"\"}}"
+          SYNTH_CMD: 'synth_fabulous -top {{.TOP_WRAPPER}} -json {{.RESOLVED_JSON_FILE}} {{.CUSTOM_PRIMS}} {{.SYNTH_EXTRA_ARGS | default ""}}'
           DESIGN_FILES: "{{.RESOLVED_DESIGN_FILES}}"
           TOP_WRAPPER_FILE: "{{.RESOLVED_TOP_WRAPPER_FILE}}"
 
@@ -139,6 +139,57 @@ tasks:
       - >-
         vvp {{.BUILD_DIR}}/{{.DESIGN}}.vvp
         +output_waveform={{.BUILD_DIR}}/{{.DESIGN}}.{{.WAVEFORM_TYPE}}
+        +bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
+        {{if eq .WAVEFORM_TYPE "fst"}}-fst{{end}}
+
+  gen-force-block:
+    desc: Generate force_block.vh (gate-level X-init) from the hardened netlists
+    deps: [mkdir-build]
+    cmds:
+      # gen_gl_xinit.py emits one $deposit per fabric net plus an async-reset
+      # pulse per flop; the reset pin is chosen from FAB_PDK. Requires the
+      # hardened netlists to be present (run the GDS flow, or `mock-macros`).
+      - >-
+        python3 gen_gl_xinit.py
+        --efpga {{.FAB_PROJ_ROOT}}/Fabric/macro/final_views/nl/eFPGA.nl.v
+        --tile-dir {{.FAB_PROJ_ROOT}}/Tile
+        --pdk {{.FAB_PDK}}
+        --top-inst top_i.eFPGA_inst
+        --trigger config_done
+        --out force_block.vh
+
+  run-gl-simulation:
+    desc: Gate-level (mixed-level) simulation against the hardened fabric netlist
+    deps: [mkdir-build, gen-force-block]
+    # GL_SOURCES -- the complete gate-level source list (behavioural wrapper with
+    # the eFPGA.v core excluded, the fabric netlist eFPGA.nl.v, the tile
+    # netlists, and the PDK standard-cell models) -- it is populated only by the
+    # `run_simulation --gl` CLI command, not by the Taskfile.
+    preconditions:
+      - sh: 'test -n "{{.GL_SOURCES}}"'
+        msg: >-
+          GL_SOURCES is not set. It is normally populated by the FABulous CLI
+          (`run_simulation fst <bitstream>.bin --gl`), which resolves the
+          hardened netlists and PDK cell models for you. To run this task on its
+          own, set GL_SOURCES yourself to the gate-level source list, e.g.
+          `task run-gl-simulation GL_SOURCES="<netlists and cell models>"`.
+    cmds:
+      # `-gspecify` processes the PDK specify blocks so the cell timing models
+      # have non-zero delays. `-DGL_SIM` compiles in the force_block.vh X-init.
+      # The token timing token is only honoured inside an iverilog command file,
+      # so it is written to gl_timescale.f and passed via `-f`.
+      - echo '+timescale+1ns/1ps' > {{.BUILD_DIR}}/gl_timescale.f
+      - >-
+        iverilog -g2012 -gspecify -DGL_SIM -f {{.BUILD_DIR}}/gl_timescale.f
+        {{.EXTRA_IVERILOG_FLAGS}}
+        -s {{.TESTBENCH}}
+        -o {{.BUILD_DIR}}/{{.DESIGN}}_gl.vvp
+        {{.GL_SOURCES}}
+        {{.USER_DESIGN_DIR}}/{{.DESIGN}}.v
+        {{.TESTBENCH}}.v
+      - >-
+        vvp {{.BUILD_DIR}}/{{.DESIGN}}_gl.vvp
+        +output_waveform={{.BUILD_DIR}}/{{.DESIGN}}_gl.{{.WAVEFORM_TYPE}}
         +bitstream_hex={{.BUILD_DIR}}/{{.DESIGN}}.hex
         {{if eq .WAVEFORM_TYPE "fst"}}-fst{{end}}
 

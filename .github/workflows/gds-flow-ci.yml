@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pdk: [ ihp-sg13g2, sky130A, gf180mcuD ]
+        pdk: [ihp-sg13g2, sky130A, gf180mcuD]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -161,7 +161,7 @@ jobs:
 
       # skipping sky130A for now since it will get kill by github
       matrix:
-        pdk: [ ihp-sg13g2, gf180mcuD ]
+        pdk: [ihp-sg13g2, gf180mcuD]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -223,15 +223,41 @@ jobs:
           fi
           echo "Fabric passed all manufacturability checks"
 
+      # Once the fabric is stitched, the project holds the full hardened netlist
+      # (tile macros + eFPGA.nl.v), so gate-level simulation runs on the real
+      # gates -- no mocking. Drive it through the same pytest test developers run
+      # locally (`test_gl_simulation_demo`, the `run_simulation --gl` path) so CI
+      # and the test suite share one source of truth. The test compiles the demo
+      # bitstream, swaps the fabric core for gates, X-inits it, and checks the
+      # counter against the behavioural golden reference (it $finish-es only on a
+      # match). --gl-fabric-project must be absolute: the test chdirs to a tmp
+      # dir before resolving it.
+      - name: Run gate-level simulation
+        run: |
+          set -o pipefail
+          PROJ="$PWD/test_project"
+          nix develop --command bash -c "
+            set -e
+            pytest tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py \
+              --gl --gl-fabric-project='$PROJ' -s -v
+          " 2>&1 | tee gl_sim_output.txt
+          if ! grep -q 'finish called' gl_sim_output.txt; then
+            echo "FAIL: gate-level simulation did not finish (golden mismatch, or a compile/sim error)"
+            exit 1
+          fi
+          echo "OK: gate-level simulation matched the golden reference"
+
       - name: Package fabric output
         if: always()
         run: |
           tar --zstd -cf fabric-output.tar.zst \
             --ignore-failed-read \
             test_project/Fabric \
+            test_project/Tile \
             test_project/.FABulous \
             fabric_stitching_output.txt \
-            fabric_report.txt
+            fabric_report.txt \
+            gl_sim_output.txt
 
       - name: Upload fabric artifacts
         if: always()
@@ -254,10 +280,15 @@ jobs:
             FABRIC_OUTPUT=$(tail -100 fabric_stitching_output.txt)
           fi
 
+          GL_OUTPUT="No gate-level simulation output captured (failed before GL sim)"
+          if [ -f gl_sim_output.txt ] && [ -s gl_sim_output.txt ]; then
+            GL_OUTPUT=$(tail -60 gl_sim_output.txt)
+          fi
+
           DATE=$(date -u +%Y-%m-%d)
           PDK="${{ matrix.pdk }}"
 
-          echo "title=Fabric Stitching CI Failed - ${PDK} - ${DATE}" >> "$GITHUB_OUTPUT"
+          echo "title=Fabric Stitching / GL Sim CI Failed - ${PDK} - ${DATE}" >> "$GITHUB_OUTPUT"
 
           {
             echo 'body<<ISSUE_BODY_EOF'
@@ -275,9 +306,18 @@ jobs:
           \`\`\`
           </details>
 
+          ### Gate-Level Simulation Output
+          <details><summary>Click to expand</summary>
+
+          \`\`\`
+          ${GL_OUTPUT}
+          \`\`\`
+          </details>
+
           ### Action Items
           - [ ] Review EDA tool logs for DRC/timing violations
           - [ ] Check if PDK or librelane updates caused regression
+          - [ ] If only the gate-level sim failed, check for X-pessimism / cell-model issues
 
           ---
           *Automatically created by GDS Flow CI*

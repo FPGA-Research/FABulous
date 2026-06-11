@@ -55,7 +55,7 @@ See the [Chip Gallery](https://fabulous.readthedocs.io/en/latest/gallery/index.h
 
 To run FABulous, you need Python 3.12 or later. The framework is fully supported on Linux and macOS. Windows users must utilise the Windows Subsystem for Linux (WSL) for compatibility.
 
-For the complete toolchain experience, you will need synthesis and place-and-route tools. We recommend installing the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build), which bundles Yosys and nextpnr, using the provided `FABulous install-oss-cad-suite` command. Additionally, using `uv` is highly recommended for faster Python package management.
+For the complete toolchain experience, you will need synthesis and place-and-route tools. We recommend installing the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build), which bundles Yosys and nextpnr, using the provided `FABulous install oss-cad-suite` command. Additionally, using `uv` is highly recommended for faster Python package management.
 
 ## Installation
 
@@ -81,7 +81,7 @@ FABulous create-project demo
 cd demo && FABulous start
 ```
 
-Once installed, you can automatically install the recommended CAD tools by running `FABulous install-oss-cad-suite` in your terminal.
+Once installed, you can automatically install the recommended CAD tools by running `FABulous install oss-cad-suite` in your terminal.
 
 ### Codespaces and Dev Container (quick use)
 

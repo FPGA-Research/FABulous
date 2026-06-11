@@ -26,6 +26,9 @@ from fabulous.fabric_generator.gds_generator.steps.magic_streamout import (
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import (
     TileAreaOptimisation,
 )
+from fabulous.fabric_generator.gds_generator.steps.vhdl_json_header import (
+    FABulousVHDLJsonHeader,
+)
 
 prep_steps: list[type[Step]] = [
     Verilator.Lint,
@@ -34,6 +37,21 @@ prep_steps: list[type[Step]] = [
     Checker.LintWarnings,
     pyYosys.JsonHeader,
     pyYosys.Synthesis,
+    Checker.YosysUnmappedCells,
+    Checker.YosysSynthChecks,
+    Checker.NetlistAssignStatements,
+    OpenROAD.CheckSDCFiles,
+    OpenROAD.CheckMacroInstances,
+    ExtractPDKInfo,
+]
+
+# VHDL prep mirrors `prep_steps` but reads the design through GHDL: the Verilator
+# linting steps are dropped (they cannot parse VHDL), `Yosys.Synthesis` becomes
+# `Yosys.VHDLSynthesis`, and `Yosys.JsonHeader` becomes the GHDL-backed
+# `FABulousVHDLJsonHeader` so the `JSON_HEADER` view is still produced.
+vhdl_prep_steps: list[type[Step]] = [
+    FABulousVHDLJsonHeader,
+    pyYosys.VHDLSynthesis,
     Checker.YosysUnmappedCells,
     Checker.YosysSynthChecks,
     Checker.NetlistAssignStatements,

@@ -37,12 +37,14 @@ from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
 )
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
+    FABulousFabricVHDLMacroFlow,
 )
 from fabulous.fabric_generator.gds_generator.flows.fabric_optimisation_flow import (
     FABulousFabricOptimisationFlow,
 )
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
     FABulousTileVerilogMacroFlow,
+    FABulousTileVHDLMacroFlow,
 )
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
@@ -597,11 +599,16 @@ class FABulous_API:
         config_override_path: Path | None = None,
         custom_config_overrides: dict | None = None,
     ) -> None:
-        """Run the macro flow to generate the macro Verilog files."""
+        """Run the macro flow to harden a tile, in the project's HDL language."""
         logger.info(f"PDK root: {pdk_root}")
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
-        flow = FABulousTileVerilogMacroFlow(
+        tile_flow_cls = (
+            FABulousTileVHDLMacroFlow
+            if isinstance(self.writer, VHDLCodeGenerator)
+            else FABulousTileVerilogMacroFlow
+        )
+        flow = tile_flow_cls(
             self.fabric.getTileByName(tile_dir.name),
             io_pin_config,
             OptMode(optimisation),
@@ -641,7 +648,7 @@ class FABulous_API:
         tile_macro_paths : dict[str, Path]
             Dictionary mapping tile names to their macro output directories.
         fabric_path : Path
-            Path to the fabric-level Verilog file.
+            Path to the fabric-level HDL file.
         out_folder : Path
             Output directory for the stitched fabric.
         pdk : str
@@ -659,9 +666,14 @@ class FABulous_API:
         logger.info(f"PDK: {pdk}")
         logger.info(f"Output folder: {out_folder.resolve()}")
 
-        flow = FABulousFabricMacroFlow(
+        fabric_flow_cls = (
+            FABulousFabricVHDLMacroFlow
+            if isinstance(self.writer, VHDLCodeGenerator)
+            else FABulousFabricMacroFlow
+        )
+        flow = fabric_flow_cls(
             fabric=self.fabric,
-            fabric_verilog_paths=[fabric_path],
+            fabric_hdl_paths=[fabric_path],
             tile_macro_dirs=tile_macro_paths,
             base_config_path=base_config_path,
             config_override_path=config_override_path,

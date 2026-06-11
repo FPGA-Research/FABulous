@@ -2,25 +2,22 @@
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 
 from librelane.common import GenericDict
 from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
 from librelane.flows.flow import Flow, FlowException
 from librelane.flows.sequential import SequentialFlow
-from librelane.logging.logger import err, info, warn
-from librelane.state.state import State
-from librelane.steps.step import Step
+from librelane.logging.logger import err, info
 
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.flows.flow_define import (
     check_steps,
     classic_gating_config_vars,
-    physical_steps,
     prep_steps,
     tile_optimisation_physical_steps,
+    vhdl_prep_steps,
     write_out_steps,
 )
 from fabulous.fabric_generator.gds_generator.helper import (
@@ -29,29 +26,8 @@ from fabulous.fabric_generator.gds_generator.helper import (
     get_routing_obstructions,
     round_die_area,
 )
-from fabulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
-from fabulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import (
-    OptMode,
-)
-from fabulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
-    FABulousTileIOPlacement,
-)
+from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabulous_settings import get_context
-
-subs = {
-    # Disable STA
-    "OpenROAD.STAPrePNR*": None,
-    "OpenROAD.STAMidPNR*": None,
-    "OpenROAD.STAPostPNR*": None,
-    # IO placement
-    "Odb.CustomIOPlacement": FABulousTileIOPlacement,
-    # Power
-    "OpenROAD.GeneratePDN": CustomGeneratePDN,
-    "OpenROAD.Resize*": None,
-    "OpenROAD.RepairDesign*": None,
-    "+OpenROAD.GlobalPlacement": AddBuffers,
-}
 
 configs = Classic.config_vars + [
     Variable(
@@ -64,17 +40,27 @@ configs = Classic.config_vars + [
 ]
 
 
-@Flow.factory.register()
-class FABulousTileVerilogMacroFlow(SequentialFlow):
-    """A tile optimisation flow for FABulous fabric generation from Verilog."""
+class FABulousTileMacroFlow(SequentialFlow):
+    """Base tile macro flow for FABulous fabric generation.
+
+    Concrete subclasses pick the HDL language by overriding `Steps` (the
+    synthesis/prep portion) and the file-collection class attributes. The Verilog
+    variant is the canonical configuration; the VHDL variant swaps in the GHDL-based
+    prep steps and reads `.vhdl` sources.
+    """
 
     Steps = (
         prep_steps + tile_optimisation_physical_steps + write_out_steps + check_steps
     )
 
     config_vars = configs
-
     gating_config_vars = classic_gating_config_vars
+
+    # HDL source collection (Verilog defaults).
+    _hdl_glob_patterns: tuple[str, ...] = ("**/*.v",)
+    _hdl_files_config_key: str = "VERILOG_FILES"
+    _models_pack_first: bool = False
+    _extra_synth_config: dict[str, object] = {}
 
     def __init__(
         self,
@@ -89,19 +75,25 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
         design_dir: Path | None = None,
         **custom_config_overrides: dict,
     ) -> None:
-        # Build file list
-        file_list = [
-            str(f)
-            for f in tile_type.tileDir.parent.glob("**/*.v")
-            if "macro" not in f.parts
-        ]
+        # Build the HDL source list. `models_pack` lives under Fabric/ (outside the
+        # tile glob); for VHDL it must be analysed before the tile sources, so it is
+        # prepended rather than appended.
         models_pack = models_pack_path or get_context().models_pack
-        if models_pack is not None:
-            file_list.append(str(models_pack.resolve()))
-        else:
+        if models_pack is None:
             raise FlowException(
                 "models_pack is not set in the context, cannot proceed."
             )
+        file_list: list[str] = []
+        if self._models_pack_first:
+            file_list.append(str(models_pack.resolve()))
+        file_list += [
+            str(f)
+            for pattern in self._hdl_glob_patterns
+            for f in tile_type.tileDir.parent.glob(pattern)
+            if "macro" not in f.parts
+        ]
+        if not self._models_pack_first:
+            file_list.append(str(models_pack.resolve()))
 
         # Determine logical dimensions
         if isinstance(tile_type, SuperTile):
@@ -118,8 +110,9 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
         tile_config_dict = {
             "DESIGN_NAME": tile_type.name,
             "FABULOUS_IO_PIN_ORDER_CFG": str(io_pin_config),
-            "VERILOG_FILES": file_list,
+            self._hdl_files_config_key: file_list,
             "FABULOUS_OPT_MODE": OptMode(opt_mode),
+            **self._extra_synth_config,
         }
 
         if "FABULOUS_OPT_MODE" in custom_config_overrides:
@@ -197,6 +190,34 @@ class FABulousTileVerilogMacroFlow(SequentialFlow):
             )
 
 
+@Flow.factory.register()
+class FABulousTileVerilogMacroFlow(FABulousTileMacroFlow):
+    """Tile macro flow for FABulous fabric generation from Verilog."""
+
+
+@Flow.factory.register()
+class FABulousTileVHDLMacroFlow(FABulousTileMacroFlow):
+    """Tile macro flow for FABulous fabric generation from VHDL.
+
+    Identical to the Verilog flow apart from the GHDL-based synthesis/prep steps and
+    reading `.vhdl` sources (`models_pack` analysed first).
+    """
+
+    Steps = (
+        vhdl_prep_steps
+        + tile_optimisation_physical_steps
+        + write_out_steps
+        + check_steps
+    )
+
+    _hdl_glob_patterns = ("**/*.vhdl", "**/*.vhd")
+    _hdl_files_config_key = "VHDL_FILES"
+    _models_pack_first = True
+    # `--latches`: `models_pack` defines a transparent latch primitive; GHDL errors
+    # on inferred latches by default (Verilog synthesis tolerates them).
+    _extra_synth_config = {"GHDL_ARGUMENTS": ["--std=08", "-fexplicit", "--latches"]}
+
+
 def _apply_tile_die_area_config(
     config: GenericDict[str, object],
     tile_type: Tile | SuperTile,
@@ -254,31 +275,3 @@ def _validate_fixed_axis(
             f"{axis} ({minimum}) to fit the IO pins of tile {tile_name}. "
             f"Increase the DIE_AREA {axis} or pick a different optimisation mode."
         )
-
-
-@Flow.factory.register()
-class FABulousTileVHDLMacroFlowClassic(SequentialFlow):
-    """Classic LibreLane flow for FABulous fabric generation from VHDL."""
-
-    Steps = prep_steps + physical_steps + write_out_steps + check_steps
-    Substitutions = subs
-    config_vars = configs
-    gating_config_vars = classic_gating_config_vars
-
-    def run(
-        self,
-        initial_state: State,
-        *args: Any,  # noqa: ANN401
-        **kwargs: dict,
-    ) -> tuple[State, list[Step]]:  # noqa: ANN401
-        """Run the FABulous tile VHDL flow."""
-        warn("Linting and equivalence checking for VHDL files is disabled")
-        round_die_area(self.config)
-        if (
-            "ROUTING_OBSTRUCTIONS" not in self.config
-            or self.config["ROUTING_OBSTRUCTIONS"] is None
-        ) and self.config["ROUTING_OBSTRUCTIONS"] is not False:
-            self.config = self.config.copy(
-                ROUTING_OBSTRUCTIONS=get_routing_obstructions(self.config)
-            )
-        return super().run(initial_state, *args, **kwargs)

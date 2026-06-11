@@ -155,8 +155,11 @@ directory = "coverage_html"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["slow: marks tests as slow (use --runslow to include)"]
-addopts = "-m 'not slow'"
+markers = [
+  "slow: marks tests as slow (use --runslow to include)",
+  "gl: gate-level simulation against a hardened fabric netlist (use --gl)",
+]
+addopts = "-m 'not slow and not gl'"
 
 [tool.deptry]
 # Ignore platform-specific readline dependencies for DEP002 (defined but not used)

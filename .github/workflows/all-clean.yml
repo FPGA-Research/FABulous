@@ -1,0 +1,23 @@
+name: All clean
+
+on:
+  pull_request:
+
+permissions:
+  checks: read
+
+jobs:
+  all-clean:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for all other checks
+        uses: poseidon/wait-for-status-checks@v0.6.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Let other workflows register their check runs before the first poll
+          # so a fast PR can't report clean before the slow ones even appear.
+          delay: 30s
+          interval: 15s
+          # Must exceed the slowest check (a cold Nix build); 3600s is the
+          # action default, set explicitly so the bound is visible.
+          timeout: 3600s

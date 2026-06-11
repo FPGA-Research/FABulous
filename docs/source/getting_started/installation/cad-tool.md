@@ -6,7 +6,7 @@ We use [yosys](https://github.com/YosysHQ/yosys) for Verilog file parsing and [g
 You can automatically install the above packages with the following command:
 
 ```bash
-FABulous install-oss-cad-suite
+FABulous install oss-cad-suite
 ```
 
 This will install the [`oss-cad-suit`](https://github.com/YosysHQ/oss-cad-suite-build) for you which will install all the non-required CAD tools, such as `nextpnr-generic` and simulators, which save you the trouble of installing other tools.
@@ -32,7 +32,7 @@ To perform synthesis, place and route and simulation you will need the following
   - [nextnpr-generic](https://github.com/YosysHQ/nextpnr?tab=readme-ov-file#nextpnr-generic)
   - [nvc](https://github.com/nickg/nvc) (for simulation, recommended) or [ghdl](https://github.com/ghdl/ghdl/releases/tag/nightly) (fallback simulator)
 
-As mentioned in the previous section, using the `FABulous install-oss-cad-suite` will install all the required software.
+As mentioned in the previous section, using the `FABulous install oss-cad-suite` will install all the required software.
 
 :::{note}
 For VHDL simulation, **NVC is significantly faster than GHDL** and is the recommended simulator. If NVC is not available, GHDL can be used as a fallback.
