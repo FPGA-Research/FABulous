@@ -260,25 +260,31 @@ class PyosysBridge:
         """Replace the active design with a fresh empty pyosys design."""
         self.design = self._ys.Design()
 
-    def run_pass(self, cmd: str) -> None:
+    def run_pass(self, cmd: str, no_quiet: bool = False) -> None:
         """Execute an arbitrary pyosys pass command on the active design.
 
         Parameters
         ----------
         cmd : str
             pyosys pass command string.
+        no_quiet : bool
+            If True, run the command without quiet tee wrapping so command output
+            remains visible for debugging.
         """
-        self._run(cmd)
+        self._run(cmd, no_quiet=no_quiet)
 
-    def _run(self, cmd: str) -> None:
+    def _run(self, cmd: str, no_quiet: bool = False) -> None:
         """Run one pyosys pass command against the current design.
 
         Parameters
         ----------
         cmd : str
             pyosys pass command string.
+        no_quiet : bool
+            If True, run the command without quiet tee wrapping so command output
+            remains visible for debugging.
         """
-        if self.debug:
+        if self.debug or no_quiet:
             self._ys.run_pass(cmd, self.design)
         else:
             self._ys.run_pass(f"tee -q {cmd}", self.design)
