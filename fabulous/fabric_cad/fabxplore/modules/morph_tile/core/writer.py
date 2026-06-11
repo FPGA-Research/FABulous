@@ -14,6 +14,9 @@ from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.models import (
     MorphTileResult,
     ReplacementPortRef,
 )
+from fabulous.fabric_cad.fabxplore.modules.morph_tile.core.process_tracker import (
+    MorphTileProcessTracker,
+)
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 
 _CONFIG_INDEX_RE = re.compile(r"^(?P<base>.+)\[(?P<index>\d+)\]$")
@@ -30,6 +33,8 @@ class MorphTileWriter:
         Tile input ports that may need explicit zero ties when unused.
     include_unused_inputs : bool
         Whether unused tile input ports are tied to zero.
+    tracker : MorphTileProcessTracker | None
+        Optional progress tracker.
     """
 
     def __init__(
@@ -37,10 +42,12 @@ class MorphTileWriter:
         tile_top_name: str,
         tile_inputs: list[str],
         include_unused_inputs: bool = False,
+        tracker: MorphTileProcessTracker | None = None,
     ) -> None:
         self.tile_top_name = tile_top_name
         self.tile_inputs = tile_inputs
         self.include_unused_inputs = include_unused_inputs
+        self.tracker = tracker
 
     def apply(self, design: PyosysBridge, result: MorphTileResult) -> None:
         """Apply all replacements in ``result`` to ``design``.
@@ -53,14 +60,22 @@ class MorphTileWriter:
             Replacement plan produced by the mapper.
         """
         module = _find_module(design, result.top_name)
+        cell_index = _build_cell_index(module)
+        if self.tracker is not None:
+            self.tracker.start_apply(len(result.replacements))
         for replacement in result.replacements:
-            self._apply_one(module, replacement)
+            self._apply_one(module, replacement, cell_index)
+            if self.tracker is not None:
+                self.tracker.applied()
         module.fixup_ports()
+        if self.tracker is not None:
+            self.tracker.finish_apply()
 
     def _apply_one(
         self,
         module: ys.Module,
         replacement: MorphTileReplacement,
+        cell_index: dict[str, ys.Cell],
     ) -> None:
         """Apply one replacement to a pyosys module.
 
@@ -70,8 +85,14 @@ class MorphTileWriter:
             Module containing the original LUT.
         replacement : MorphTileReplacement
             Replacement to apply.
+        cell_index : dict[str, ys.Cell]
+            Original cells keyed by clean name.
         """
-        old_cell = _find_cell(module, replacement.original_cell_id)
+        old_cell = _find_indexed_cell(
+            module,
+            cell_index,
+            replacement.original_cell_id,
+        )
         new_cell = module.addCell(
             _id(f"\\{replacement.replacement_cell_id}"),
             _id(f"\\{self.tile_top_name}"),
@@ -91,6 +112,7 @@ class MorphTileWriter:
 
         _add_config_ports(new_cell, replacement.config_bits)
         module.remove(old_cell)
+        del cell_index[replacement.original_cell_id]
 
 
 def _find_module(design: PyosysBridge, top_name: str) -> ys.Module:
@@ -119,13 +141,35 @@ def _find_module(design: PyosysBridge, top_name: str) -> ys.Module:
     raise RuntimeError(f"Top module '{top_name}' not found")
 
 
-def _find_cell(module: ys.Module, cell_id: str) -> ys.Cell:
-    """Find a cell by clean name.
+def _build_cell_index(module: ys.Module) -> dict[str, ys.Cell]:
+    """Build a clean-name lookup for cells in a module.
+
+    Parameters
+    ----------
+    module : ys.Module
+        Module containing cells.
+
+    Returns
+    -------
+    dict[str, ys.Cell]
+        Cells keyed by clean Yosys cell name.
+    """
+    return {_clean_name(cell.name): cell for cell in module.cells_.values()}
+
+
+def _find_indexed_cell(
+    module: ys.Module,
+    cell_index: dict[str, ys.Cell],
+    cell_id: str,
+) -> ys.Cell:
+    """Find a cell in a prebuilt clean-name index.
 
     Parameters
     ----------
     module : ys.Module
         Module containing the cell.
+    cell_index : dict[str, ys.Cell]
+        Cells keyed by clean Yosys cell name.
     cell_id : str
         Clean cell name without a leading backslash.
 
@@ -139,10 +183,12 @@ def _find_cell(module: ys.Module, cell_id: str) -> ys.Cell:
     RuntimeError
         If no cell matches.
     """
-    for cell in module.cells_.values():
-        if _clean_name(cell.name) == cell_id:
-            return cell
-    raise RuntimeError(f"Cell '{cell_id}' not found in module '{module.name}'")
+    try:
+        return cell_index[cell_id]
+    except KeyError as exc:
+        raise RuntimeError(
+            f"Cell '{cell_id}' not found in module '{module.name}'"
+        ) from exc
 
 
 def _ref_to_signal(cell: ys.Cell, ref: ReplacementPortRef) -> ys.SigSpec:

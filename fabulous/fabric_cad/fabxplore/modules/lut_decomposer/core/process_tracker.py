@@ -21,6 +21,8 @@ class LutDecomposerProcessTracker:
         self.processed = 0
         self.replaced = 0
         self.failed = 0
+        self.apply_total = 0
+        self.applied = 0
 
     def start(self, total: int) -> None:
         """Start tracking a run.
@@ -66,4 +68,36 @@ class LutDecomposerProcessTracker:
             logger.info(
                 "[LutDecomposer] Done LUT decomposition: "
                 f"decomposed={self.replaced}, failed={self.failed}"
+            )
+
+    def start_apply(self, total: int) -> None:
+        """Start tracking live-design mutation.
+
+        Parameters
+        ----------
+        total : int
+            Number of decompositions that will be applied.
+        """
+        self.apply_total = total
+        self.applied = 0
+        if self.enabled:
+            logger.info(f"[LutDecomposer] Start applying decompositions: total={total}")
+
+    def record_apply(self) -> None:
+        """Record one applied decomposition."""
+        self.applied += 1
+        if self.enabled and (
+            self.applied % self.chunk_size == 0 or self.applied == self.apply_total
+        ):
+            pct = 100.0 * self.applied / self.apply_total if self.apply_total else 100.0
+            logger.info(
+                "[LutDecomposer] "
+                f"Applied {self.applied}/{self.apply_total} ({pct:.1f}%)"
+            )
+
+    def done_apply(self) -> None:
+        """Emit a final live-design mutation progress message."""
+        if self.enabled:
+            logger.info(
+                f"[LutDecomposer] Done applying decompositions: applied={self.applied}"
             )

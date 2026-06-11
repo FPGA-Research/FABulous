@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 import pyosys.libyosys as ys
@@ -16,8 +15,6 @@ from fabulous.fabric_cad.fabxplore.modules.reg_absorber.core.models import (
 
 if TYPE_CHECKING:
     from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
-
-_INDEXED_PORT_RE = re.compile(r"^(?P<base>.+)\[(?P<index>\d+)\]$")
 
 
 class RegAbsorberWriter:
@@ -34,11 +31,17 @@ class RegAbsorberWriter:
             Absorption plan.
         """
         module = _find_module(design, result.top_name)
+        cell_index = _build_cell_index(module)
         for absorption in result.absorptions:
-            self._apply_one(module, absorption)
+            self._apply_one(module, absorption, cell_index)
         module.fixup_ports()
 
-    def _apply_one(self, module: ys.Module, absorption: RegAbsorption) -> None:
+    def _apply_one(
+        self,
+        module: ys.Module,
+        absorption: RegAbsorption,
+        cell_index: dict[str, ys.Cell],
+    ) -> None:
         """Apply one absorption.
 
         Parameters
@@ -47,9 +50,19 @@ class RegAbsorberWriter:
             Module containing the primitive and FF.
         absorption : RegAbsorption
             Absorption to apply.
+        cell_index : dict[str, ys.Cell]
+            Live cells keyed by clean instance name.
         """
-        primitive = _find_cell(module, absorption.primitive_cell_id)
-        ff = _find_cell(module, absorption.ff_cell_id)
+        primitive = _indexed_cell(
+            cell_index=cell_index,
+            cell_id=absorption.primitive_cell_id,
+            module=module,
+        )
+        ff = _indexed_cell(
+            cell_index=cell_index,
+            cell_id=absorption.ff_cell_id,
+            module=module,
+        )
         rule = absorption.rule
 
         if absorption.side == RegisterAbsorptionSide.OUTPUT:
@@ -99,6 +112,7 @@ class RegAbsorberWriter:
         _add_config_ports(primitive, rule.config)
         _add_attributes(primitive, rule.attributes)
         module.remove(ff)
+        cell_index.pop(_clean_name(absorption.ff_cell_id), None)
 
 
 def _connect_optional_control(
@@ -158,15 +172,37 @@ def _find_module(design: PyosysBridge, top_name: str) -> ys.Module:
     raise RuntimeError(f"Top module '{top_name}' not found")
 
 
-def _find_cell(module: ys.Module, cell_id: str) -> ys.Cell:
-    """Find one cell by clean name.
+def _build_cell_index(module: ys.Module) -> dict[str, ys.Cell]:
+    """Return live pyosys cells keyed by clean instance name.
 
     Parameters
     ----------
     module : ys.Module
-        Module containing the cell.
+        Module containing cells to index.
+
+    Returns
+    -------
+    dict[str, ys.Cell]
+        Cell lookup table by clean instance name.
+    """
+    return {_clean_name(cell.name): cell for cell in module.cells_.values()}
+
+
+def _indexed_cell(
+    cell_index: dict[str, ys.Cell],
+    cell_id: str,
+    module: ys.Module,
+) -> ys.Cell:
+    """Return one indexed cell or raise the legacy lookup error.
+
+    Parameters
+    ----------
+    cell_index : dict[str, ys.Cell]
+        Cell lookup table by clean instance name.
     cell_id : str
-        Clean cell name.
+        Clean cell instance name.
+    module : ys.Module
+        Module used for the error message.
 
     Returns
     -------
@@ -178,11 +214,10 @@ def _find_cell(module: ys.Module, cell_id: str) -> ys.Cell:
     RuntimeError
         If the cell is absent.
     """
-    clean_cell_id = _clean_name(cell_id)
-    for cell in module.cells_.values():
-        if _clean_name(cell.name) == clean_cell_id:
-            return cell
-    raise RuntimeError(f"Cell '{cell_id}' not found in module '{module.name}'")
+    cell = cell_index.get(_clean_name(cell_id))
+    if cell is None:
+        raise RuntimeError(f"Cell '{cell_id}' not found in module '{module.name}'")
+    return cell
 
 
 def _add_config_ports(cell: ys.Cell, config_bits: dict[str, int | bool]) -> None:

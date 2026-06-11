@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from fabulous.fabric_cad.fabxplore.modules.reg_absorber.core.models import (
@@ -125,6 +125,7 @@ class RegAbsorber:
             for cell in design.cells
             if cell.cell_type in self.ff_ports
         }
+        ff_match_index = _build_ff_match_index(ff_cells, self.ff_ports)
         stats = _MutableStats(
             primitive_cells=len(primitives),
             ff_cells=len(ff_cells),
@@ -157,7 +158,7 @@ class RegAbsorber:
                 match = self._try_rule(
                     primitive=primitive,
                     rule=rule,
-                    ff_cells=ff_cells,
+                    ff_match_index=ff_match_index,
                     fanout=fanout,
                     module_output_bits=design.module_output_bits,
                     used_ffs=used_ffs,
@@ -196,7 +197,7 @@ class RegAbsorber:
         self,
         primitive: RegAbsorberCell,
         rule: RegisterAbsorptionRule,
-        ff_cells: dict[str, RegAbsorberCell],
+        ff_match_index: _FfMatchIndex,
         fanout: dict[str, set[tuple[str, str]]],
         module_output_bits: frozenset[str],
         used_ffs: set[str],
@@ -211,8 +212,8 @@ class RegAbsorber:
             Candidate primitive cell.
         rule : RegisterAbsorptionRule
             Rule to test.
-        ff_cells : dict[str, RegAbsorberCell]
-            Supported FF cells keyed by instance name.
+        ff_match_index : _FfMatchIndex
+            Supported FF cells indexed by data and output bits.
         fanout : dict[str, set[tuple[str, str]]]
             Signal-bit fanout map.
         module_output_bits : frozenset[str]
@@ -240,7 +241,7 @@ class RegAbsorber:
             return self._try_output_rule(
                 primitive=primitive,
                 rule=rule,
-                ff_cells=ff_cells,
+                ff_match_index=ff_match_index,
                 fanout=fanout,
                 module_output_bits=module_output_bits,
                 used_ffs=used_ffs,
@@ -249,7 +250,7 @@ class RegAbsorber:
         return self._try_input_rule(
             primitive=primitive,
             rule=rule,
-            ff_cells=ff_cells,
+            ff_match_index=ff_match_index,
             fanout=fanout,
             module_output_bits=module_output_bits,
             used_ffs=used_ffs,
@@ -260,7 +261,7 @@ class RegAbsorber:
         self,
         primitive: RegAbsorberCell,
         rule: RegisterAbsorptionRule,
-        ff_cells: dict[str, RegAbsorberCell],
+        ff_match_index: _FfMatchIndex,
         fanout: dict[str, set[tuple[str, str]]],
         module_output_bits: frozenset[str],
         used_ffs: set[str],
@@ -274,8 +275,8 @@ class RegAbsorber:
             Candidate primitive cell.
         rule : RegisterAbsorptionRule
             Output-side rule.
-        ff_cells : dict[str, RegAbsorberCell]
-            Supported FF cells.
+        ff_match_index : _FfMatchIndex
+            Supported FF cells indexed by data and output bits.
         fanout : dict[str, set[tuple[str, str]]]
             Signal-bit fanout map.
         module_output_bits : frozenset[str]
@@ -294,13 +295,7 @@ class RegAbsorber:
         if comb_bit is None:
             stats.skipped_no_match += 1
             return None
-        matches = []
-        for ff in ff_cells.values():
-            if ff.cell_id in used_ffs:
-                continue
-            spec = self.ff_ports[ff.cell_type]
-            if one_bit(ff.connections.get(spec.data)) == comb_bit:
-                matches.append((ff, spec))
+        matches = _available_matches(ff_match_index.by_data_bit, comb_bit, used_ffs)
         if len(matches) != 1:
             stats.skipped_no_match += 1
             return None
@@ -334,7 +329,7 @@ class RegAbsorber:
         self,
         primitive: RegAbsorberCell,
         rule: RegisterAbsorptionRule,
-        ff_cells: dict[str, RegAbsorberCell],
+        ff_match_index: _FfMatchIndex,
         fanout: dict[str, set[tuple[str, str]]],
         module_output_bits: frozenset[str],
         used_ffs: set[str],
@@ -348,8 +343,8 @@ class RegAbsorber:
             Candidate primitive cell.
         rule : RegisterAbsorptionRule
             Input-side rule.
-        ff_cells : dict[str, RegAbsorberCell]
-            Supported FF cells.
+        ff_match_index : _FfMatchIndex
+            Supported FF cells indexed by data and output bits.
         fanout : dict[str, set[tuple[str, str]]]
             Signal-bit fanout map.
         module_output_bits : frozenset[str]
@@ -368,13 +363,7 @@ class RegAbsorber:
         if comb_bit is None:
             stats.skipped_no_match += 1
             return None
-        matches = []
-        for ff in ff_cells.values():
-            if ff.cell_id in used_ffs:
-                continue
-            spec = self.ff_ports[ff.cell_type]
-            if one_bit(ff.connections.get(spec.output)) == comb_bit:
-                matches.append((ff, spec))
+        matches = _available_matches(ff_match_index.by_output_bit, comb_bit, used_ffs)
         if len(matches) != 1:
             stats.skipped_no_match += 1
             return None
@@ -497,6 +486,89 @@ class RegAbsorber:
         """
         if self.strict:
             raise RuntimeError(message)
+
+
+_FfMatch = tuple[RegAbsorberCell, FfPortSpec]
+
+
+@dataclass(frozen=True)
+class _FfMatchIndex:
+    """Index supported FF cells by the scalar bits used in absorption matching.
+
+    Attributes
+    ----------
+    by_data_bit : dict[str, tuple[_FfMatch, ...]]
+        FFs keyed by their one-bit data input.
+    by_output_bit : dict[str, tuple[_FfMatch, ...]]
+        FFs keyed by their one-bit registered output.
+    """
+
+    by_data_bit: dict[str, tuple[_FfMatch, ...]]
+    by_output_bit: dict[str, tuple[_FfMatch, ...]]
+
+
+def _build_ff_match_index(
+    ff_cells: dict[str, RegAbsorberCell],
+    ff_ports: dict[str, FfPortSpec],
+) -> _FfMatchIndex:
+    """Build data/output-bit indexes for supported FF cells.
+
+    Parameters
+    ----------
+    ff_cells : dict[str, RegAbsorberCell]
+        Supported FF cells keyed by instance name.
+    ff_ports : dict[str, FfPortSpec]
+        Supported FF port descriptions keyed by FF cell type.
+
+    Returns
+    -------
+    _FfMatchIndex
+        FF lookup tables used by rule checks.
+    """
+    by_data_bit: dict[str, list[_FfMatch]] = {}
+    by_output_bit: dict[str, list[_FfMatch]] = {}
+
+    for ff in ff_cells.values():
+        spec = ff_ports[ff.cell_type]
+        data_bit = one_bit(ff.connections.get(spec.data))
+        if data_bit is not None:
+            by_data_bit.setdefault(data_bit, []).append((ff, spec))
+        output_bit = one_bit(ff.connections.get(spec.output))
+        if output_bit is not None:
+            by_output_bit.setdefault(output_bit, []).append((ff, spec))
+
+    return _FfMatchIndex(
+        by_data_bit={bit: tuple(matches) for bit, matches in by_data_bit.items()},
+        by_output_bit={bit: tuple(matches) for bit, matches in by_output_bit.items()},
+    )
+
+
+def _available_matches(
+    match_index: dict[str, tuple[_FfMatch, ...]],
+    bit: str,
+    used_ffs: set[str],
+) -> list[_FfMatch]:
+    """Return indexed FF matches that have not been consumed yet.
+
+    Parameters
+    ----------
+    match_index : dict[str, tuple[_FfMatch, ...]]
+        FF match index keyed by a signal bit.
+    bit : str
+        Signal bit to look up.
+    used_ffs : set[str]
+        FF instance names already consumed by earlier absorptions.
+
+    Returns
+    -------
+    list[_FfMatch]
+        Available matches in original reader order.
+    """
+    return [
+        (ff, spec)
+        for ff, spec in match_index.get(bit, ())
+        if ff.cell_id not in used_ffs
+    ]
 
 
 def _build_fanout(

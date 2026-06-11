@@ -140,6 +140,10 @@ class MorphTileMapper:
         self.debug = debug
 
         self._design: PyosysBridge | None = None
+        self._tracker = MorphTileProcessTracker(
+            enabled=self.track_progress,
+            chunk_size=self.progress_chunk_size,
+        )
 
     def map_from_design(
         self,
@@ -186,6 +190,7 @@ class MorphTileMapper:
             tile_top_name=self.tile_top_name,
             tile_inputs=self.tile_inputs,
             include_unused_inputs=self.include_unused_inputs,
+            tracker=self._tracker,
         ).apply(design, result)
         return result
 
@@ -261,11 +266,7 @@ class MorphTileMapper:
             circuit.filter_summary() for circuit in circuits
         )
 
-        tracker = MorphTileProcessTracker(
-            enabled=self.track_progress,
-            chunk_size=self.progress_chunk_size,
-        )
-        tracker.start(
+        self._tracker.start(
             top_name=morph_design.top_name,
             total_candidates=total_candidates,
             checked_candidates=checked_candidate_count,
@@ -289,7 +290,7 @@ class MorphTileMapper:
                 if not circuit.is_enabled_candidate(candidate):
                     skipped_candidates += 1
                     skipped_filter_candidates += 1
-                    tracker.skipped_filter()
+                    self._tracker.skipped_filter()
                     continue
                 if (
                     self.max_replacements is not None
@@ -297,29 +298,29 @@ class MorphTileMapper:
                 ):
                     skipped_candidates += 1
                     skipped_limit_candidates += 1
-                    tracker.skipped_limit()
+                    self._tracker.skipped_limit()
                     continue
 
                 checked_candidates += 1
                 outcome = circuit.solve(candidate)
                 if outcome.cache_hit:
                     cache_hits += 1
-                    tracker.cache_hit()
+                    self._tracker.cache_hit()
                 else:
                     cache_misses += 1
-                    tracker.cache_miss()
+                    self._tracker.cache_miss()
 
                 if not outcome.result.sat:
                     failed_candidates += 1
                     _increment(failures_by_width, circuit.width_label(candidate))
-                    tracker.solved(sat=False)
+                    self._tracker.solved(sat=False)
                     continue
 
                 replacement = circuit.make_replacement(candidate, outcome.result)
                 replacements.append(replacement)
                 _increment(replacements_by_width, circuit.width_label(candidate))
                 _increment(mapped_init_count, circuit.init_label(candidate))
-                tracker.solved(sat=True)
+                self._tracker.solved(sat=True)
 
         stats = MorphTileStats(
             total_candidates=total_candidates,
@@ -349,7 +350,7 @@ class MorphTileMapper:
             else render_morph_tile_report(result)
         )
         result = replace(result, report_summary=report_summary)
-        tracker.finish(result)
+        self._tracker.finish(result)
         return result
 
 

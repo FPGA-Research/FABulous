@@ -719,6 +719,41 @@ endmodule
         assert pass_.result_data.stats.cache_hits == 1
 
 
+def test_morph_tile_pass_bulk_apply_uses_indexed_cells_eq() -> None:
+    """Test bulk morph-tile apply preserves logic with many replacements."""
+    with TemporaryDirectory(prefix="morph_tile_bulk_apply_") as td:
+        tmp_dir = Path(td)
+        base = _write_many_and_luts_base(tmp_dir, count=12)
+        tile = _write_and_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        pass_ = MorphTilePass(
+            tile_verilog_path=tile,
+            tile_top_name="and_tile",
+            tile_inputs=["I0", "I1"],
+            tile_outputs=["O"],
+            circuit_options={"lut": {"widths": [2]}},
+            top_name="base",
+            track_progress=True,
+            progress_chunk_size=5,
+        )
+        pass_.run_on(bridge)
+
+        assert pass_.result_data is not None
+        assert pass_.result_data.stats.replaced_luts == 12
+        assert pass_.result_data.stats.cache_misses == 1
+        assert pass_.result_data.stats.cache_hits == 11
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        for index in range(12):
+            assert f"lut{index}" not in cells
+            assert cells[f"lut{index}__morph_tile"]["type"] == "and_tile"
+
+        gate = tmp_dir / "gate.v"
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, tile, "base")
+
+
 def test_morph_tile_pass_uses_permute_solver_cache() -> None:
     """Test input-permuted LUT functions share one cached SAT result."""
     with TemporaryDirectory(prefix="morph_tile_permute_cache_") as td:
@@ -2304,6 +2339,38 @@ endmodule
     return tile
 
 
+def _write_many_and_luts_base(tmp_dir: Path, count: int) -> Path:
+    """Write a base design with many independent two-input AND LUTs.
+
+    Parameters
+    ----------
+    tmp_dir : Path
+        Directory for the generated file.
+    count : int
+        Number of LUT cells to emit.
+
+    Returns
+    -------
+    Path
+        Verilog file path.
+    """
+    path = tmp_dir / "many_and_luts.v"
+    body = "\n".join(
+        f"  \\$lut #(.LUT(4'h8), .WIDTH(32'd2)) "
+        f"lut{index} (.A({{b[{index}], a[{index}]}}), .Y(y[{index}]));"
+        for index in range(count)
+    )
+    path.write_text(
+        f"""
+module base(input [{count - 1}:0] a, input [{count - 1}:0] b, output [{count - 1}:0] y);
+{body}
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
 def _write_seq_config_and_tile(tmp_dir: Path) -> Path:
     """Write a tile with config-selectable combinational/sequential output."""
     tile = tmp_dir / "seq_config_and_tile.v"
@@ -2994,6 +3061,7 @@ def main() -> None:
     test_morph_tile_lut_adapter_rejects_malformed_lut_output()
     test_morph_tile_pass_leaves_unsupported_lut()
     test_morph_tile_pass_uses_solver_cache()
+    test_morph_tile_pass_bulk_apply_uses_indexed_cells_eq()
     test_morph_tile_pass_uses_permute_solver_cache()
     test_morph_tile_pass_can_disable_permute_solver_cache()
     test_morph_tile_pass_uses_frac_lut_permute_cache()

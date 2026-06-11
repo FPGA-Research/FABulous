@@ -8,6 +8,9 @@ from typing import TYPE_CHECKING
 import pyosys.libyosys as ys
 
 if TYPE_CHECKING:
+    from fabulous.fabric_cad.fabxplore.modules.lut_decomposer.core import (
+        process_tracker as process_tracker_models,
+    )
     from fabulous.fabric_cad.fabxplore.modules.lut_decomposer.core.models import (
         LutDecomposerResult,
         LutDecomposition,
@@ -31,6 +34,8 @@ class LutDecomposerWriter:
         Mux input port names used for optional unused-input tying.
     include_unused_mux_inputs : bool
         Whether unused mux inputs are tied to zero.
+    tracker : process_tracker_models.LutDecomposerProcessTracker | None
+        Optional progress tracker.
     """
 
     def __init__(
@@ -38,10 +43,12 @@ class LutDecomposerWriter:
         mux_top_name: str,
         mux_inputs: list[str],
         include_unused_mux_inputs: bool = False,
+        tracker: process_tracker_models.LutDecomposerProcessTracker | None = None,
     ) -> None:
         self.mux_top_name = mux_top_name
         self.mux_inputs = mux_inputs
         self.include_unused_mux_inputs = include_unused_mux_inputs
+        self.tracker = tracker
 
     def apply(self, design: PyosysBridge, result: LutDecomposerResult) -> None:
         """Apply all decompositions in ``result`` to ``design``.
@@ -54,14 +61,22 @@ class LutDecomposerWriter:
             Decomposition plan.
         """
         module = _find_module(design, result.top_name)
+        cell_index = _build_cell_index(module)
+        if self.tracker is not None:
+            self.tracker.start_apply(len(result.decompositions))
         for decomposition in result.decompositions:
-            self._apply_one(module, decomposition)
+            self._apply_one(module, decomposition, cell_index)
+            if self.tracker is not None:
+                self.tracker.record_apply()
         module.fixup_ports()
+        if self.tracker is not None:
+            self.tracker.done_apply()
 
     def _apply_one(
         self,
         module: ys.Module,
         decomposition: LutDecomposition,
+        cell_index: dict[str, ys.Cell],
     ) -> None:
         """Apply one decomposition to a pyosys module.
 
@@ -71,8 +86,14 @@ class LutDecomposerWriter:
             Module containing the original LUT.
         decomposition : LutDecomposition
             Decomposition to apply.
+        cell_index : dict[str, ys.Cell]
+            Original cells keyed by clean name.
         """
-        old_cell = _find_cell(module, decomposition.original_cell_id)
+        old_cell = _find_indexed_cell(
+            module,
+            cell_index,
+            decomposition.original_cell_id,
+        )
         cofactor_outputs = self._add_leaf_luts(module, old_cell, decomposition)
         mux_cell = module.addCell(
             _id(f"\\{decomposition.mux_cell_id}"),
@@ -83,6 +104,7 @@ class LutDecomposerWriter:
         for mux_output, ref in decomposition.mux_output_ports.items():
             mux_cell.setPort(_id(f"\\{mux_output}"), _ref_to_signal(old_cell, ref))
         module.remove(old_cell)
+        del cell_index[decomposition.original_cell_id]
 
     def _add_leaf_luts(
         self,
@@ -192,13 +214,35 @@ def _find_module(design: PyosysBridge, top_name: str) -> ys.Module:
     raise RuntimeError(f"Top module '{top_name}' not found")
 
 
-def _find_cell(module: ys.Module, cell_id: str) -> ys.Cell:
-    """Find one cell by clean name.
+def _build_cell_index(module: ys.Module) -> dict[str, ys.Cell]:
+    """Build a clean-name lookup for cells in a module.
+
+    Parameters
+    ----------
+    module : ys.Module
+        Module containing cells.
+
+    Returns
+    -------
+    dict[str, ys.Cell]
+        Cells keyed by clean Yosys cell name.
+    """
+    return {_clean_name(cell.name): cell for cell in module.cells_.values()}
+
+
+def _find_indexed_cell(
+    module: ys.Module,
+    cell_index: dict[str, ys.Cell],
+    cell_id: str,
+) -> ys.Cell:
+    """Find one cell in a prebuilt clean-name index.
 
     Parameters
     ----------
     module : ys.Module
         Module containing the cell.
+    cell_index : dict[str, ys.Cell]
+        Cells keyed by clean Yosys cell name.
     cell_id : str
         Clean cell name.
 
@@ -212,10 +256,12 @@ def _find_cell(module: ys.Module, cell_id: str) -> ys.Cell:
     RuntimeError
         If the cell is absent.
     """
-    for cell in module.cells_.values():
-        if _clean_name(cell.name) == cell_id:
-            return cell
-    raise RuntimeError(f"Cell '{cell_id}' not found in module '{module.name}'")
+    try:
+        return cell_index[cell_id]
+    except KeyError as exc:
+        raise RuntimeError(
+            f"Cell '{cell_id}' not found in module '{module.name}'"
+        ) from exc
 
 
 def _ref_to_signal(

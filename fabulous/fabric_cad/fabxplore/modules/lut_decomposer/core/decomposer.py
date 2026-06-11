@@ -145,6 +145,7 @@ class LutDecomposer:
             mux_top_name=self.mux_top_name,
             mux_inputs=[*self.mux_data_inputs, *self.mux_select_inputs],
             include_unused_mux_inputs=self.include_unused_mux_inputs,
+            tracker=self._tracker,
         ).apply(design, result)
         return result
 

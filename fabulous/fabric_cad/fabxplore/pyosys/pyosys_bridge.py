@@ -10,6 +10,7 @@ import shlex
 import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
+from itertools import zip_longest
 from pathlib import Path
 
 import pyosys.libyosys as ys
@@ -48,6 +49,7 @@ class PyosysBridge:
     def read_verilog_paths(
         self,
         paths: list[Path],
+        defines: list[str] | None = None,
         replace_design: bool = False,
     ) -> None:
         """Read one or more Verilog files into the active design.
@@ -56,6 +58,11 @@ class PyosysBridge:
         ----------
         paths : list[Path]
             Verilog source or netlist paths to read.
+        defines : list[str] | None
+            Optional list of Verilog defines to pass with the -D option.
+            For each design the string should contain -Dname[=definition]
+            entries separated by spaces, e.g. ["-DWIDTH=8 -DDEBUG"].
+            If None, no defines are passed.
         replace_design : bool
             If True, replace the current design before reading the files.
             If False, add the files to the current design.
@@ -71,8 +78,8 @@ class PyosysBridge:
         if replace_design:
             self.reset_design()
 
-        for path in paths:
-            self._run(f"read_verilog {self._quote_path(path)}")
+        for path, defs in zip_longest(paths, defines or []):
+            self._run(f"read_verilog {defs or ''} {self._quote_path(path)}")
 
     def read_verilog_string(
         self,

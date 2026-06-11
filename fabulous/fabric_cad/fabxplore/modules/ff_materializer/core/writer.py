@@ -41,14 +41,16 @@ class FfMaterializerWriter:
             Materialization plan.
         """
         module = _find_module(design, result.top_name)
+        cell_index = _build_cell_index(module)
         for materialization in result.materializations:
-            self._apply_one(module, materialization)
+            self._apply_one(module, materialization, cell_index)
         module.fixup_ports()
 
     def _apply_one(
         self,
         module: ys.Module,
         materialization: FfMaterialization,
+        cell_index: dict[str, ys.Cell],
     ) -> None:
         """Apply one materialization.
 
@@ -58,20 +60,25 @@ class FfMaterializerWriter:
             Module containing the FFs.
         materialization : FfMaterialization
             Materialization to apply.
+        cell_index : dict[str, ys.Cell]
+            Clean cell-name index for fast lookup.
         """
         new_cell = module.addCell(
             _id(f"\\{materialization.replacement_cell_id}"),
             _id(f"\\{materialization.tile_type}"),
         )
+        cell_index[_clean_name(materialization.replacement_cell_id)] = new_cell
         for binding in materialization.bindings:
-            first_ff = _find_cell(module, binding.ff_cell_ids[0])
-            last_ff = _find_cell(module, binding.ff_cell_ids[-1])
+            first_ff = _indexed_cell(cell_index, binding.ff_cell_ids[0], module)
+            last_ff = _indexed_cell(cell_index, binding.ff_cell_ids[-1], module)
             self._connect_binding(new_cell, first_ff, last_ff, binding)
         _add_config_ports(new_cell, materialization.config, self.tile)
         _add_attributes(new_cell, materialization.attributes)
         for binding in materialization.bindings:
             for ff_cell_id in binding.ff_cell_ids:
-                module.remove(_find_cell(module, ff_cell_id))
+                ff_cell = _indexed_cell(cell_index, ff_cell_id, module)
+                module.remove(ff_cell)
+                cell_index.pop(_clean_name(ff_cell_id), None)
 
     def _connect_binding(
         self,
@@ -180,15 +187,37 @@ def _find_module(design: PyosysBridge, top_name: str) -> ys.Module:
     raise RuntimeError(f"Top module '{top_name}' not found")
 
 
-def _find_cell(module: ys.Module, cell_id: str) -> ys.Cell:
-    """Find one cell by clean name.
+def _build_cell_index(module: ys.Module) -> dict[str, ys.Cell]:
+    """Build a clean cell-name lookup for one module.
 
     Parameters
     ----------
     module : ys.Module
-        Module containing the cell.
+        Module containing cells.
+
+    Returns
+    -------
+    dict[str, ys.Cell]
+        Cell lookup keyed by clean cell name.
+    """
+    return {_clean_name(cell.name): cell for cell in module.cells_.values()}
+
+
+def _indexed_cell(
+    cell_index: dict[str, ys.Cell],
+    cell_id: str,
+    module: ys.Module,
+) -> ys.Cell:
+    """Return one cell from a clean cell-name lookup.
+
+    Parameters
+    ----------
+    cell_index : dict[str, ys.Cell]
+        Cell lookup keyed by clean cell name.
     cell_id : str
-        Clean cell name.
+        Cell name to find.
+    module : ys.Module
+        Module used for error context.
 
     Returns
     -------
@@ -201,9 +230,8 @@ def _find_cell(module: ys.Module, cell_id: str) -> ys.Cell:
         If the cell is absent.
     """
     clean_cell_id = _clean_name(cell_id)
-    for cell in module.cells_.values():
-        if _clean_name(cell.name) == clean_cell_id:
-            return cell
+    if clean_cell_id in cell_index:
+        return cell_index[clean_cell_id]
     raise RuntimeError(f"Cell '{cell_id}' not found in module '{module.name}'")
 
 

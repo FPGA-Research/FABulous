@@ -781,6 +781,47 @@ def test_escaped_generated_cell_name_absorption() -> None:
         assert result.result_data.stats.output_absorptions == 1
 
 
+def test_many_output_absorptions_use_indexed_planner_and_writer_eq() -> None:
+    """Test many output absorptions preserve behavior through indexed paths."""
+    width = 32
+    with TemporaryDirectory(prefix="reg_abs_many_output_") as td:
+        tmp_dir = Path(td)
+        base = _write_many_output_base(tmp_dir, width=width)
+        tile = _write_output_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([tile, base])
+        bridge.run_pass("proc")
+        result = RegAbsorberPass(
+            cell_types=["seq_output_tile"],
+            rules=[
+                {
+                    "side": "output",
+                    "cell_type": "seq_output_tile",
+                    "comb_port": "O",
+                    "seq_port": "OQ",
+                    "clock_port": "CLK",
+                    "config": {"ConfigBits[0]": 1},
+                    "remove_disconnected_comb_port": True,
+                }
+            ],
+            ff_ports={"$dff": {"clock": "CLK", "data": "D", "output": "Q"}},
+            top_name="base",
+            track_progress=False,
+        )
+        result.run_on(bridge)
+
+        assert result.result_data is not None
+        assert result.result_data.stats.output_absorptions == width
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        assert not _has_cell_type(cells, "$dff")
+
+        bridge.run_pass("hierarchy -top base -check")
+        gate = tmp_dir / "gate_many_output.v"
+        bridge.run_pass(f"write_verilog {gate}")
+        _assert_equiv(base, gate, tile, "base")
+
+
 def _write_output_tile(tmp_dir: Path) -> Path:
     """Write a tile with separate combinational and sequential outputs."""
     path = tmp_dir / "seq_output_tile.v"
@@ -1101,6 +1142,59 @@ module base(input clki, input clko, input a, output reg y);
   always @(posedge clki) in_q <= a;
   multi_clock_io_tile u_tile(.CLKI(clki), .CLKO(clko), .I0(in_q), .O0(o0));
   always @(posedge clko) y <= o0;
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
+def _write_many_output_base(tmp_dir: Path, width: int) -> Path:
+    """Write many independent output-side FF absorption opportunities.
+
+    Parameters
+    ----------
+    tmp_dir : Path
+        Directory for the generated file.
+    width : int
+        Number of independent tile/FF pairs to emit.
+
+    Returns
+    -------
+    Path
+        Generated Verilog path.
+    """
+    path = tmp_dir / "base_many_output.v"
+    tile_lines = []
+    ff_lines = []
+    for index in range(width):
+        tile_lines.append(
+            f"""
+  seq_output_tile u_tile_{index}(
+    .CLK(clock),
+    .I(a[{index}]),
+    .ConfigBits(1'b1),
+    .O(comb[{index}])
+  );"""
+        )
+        ff_lines.append(
+            f"""
+  \\$dff #(
+    .WIDTH(1),
+    .CLK_POLARITY(1'b1)
+  ) u_ff_{index} (
+    .CLK(clock),
+    .D(comb[{index}]),
+    .Q(y[{index}])
+  );"""
+        )
+
+    path.write_text(
+        f"""
+module base(input clock, input [{width - 1}:0] a, output [{width - 1}:0] y);
+  wire [{width - 1}:0] comb;
+{"".join(tile_lines)}
+{"".join(ff_lines)}
 endmodule
 """,
         encoding="utf-8",
@@ -1436,6 +1530,7 @@ def main() -> None:
     test_multi_clock_input_and_output_absorption()
     test_rule_without_clock_port_does_not_wire_clock()
     test_escaped_generated_cell_name_absorption()
+    test_many_output_absorptions_use_indexed_planner_and_writer_eq()
 
 
 if __name__ == "__main__":

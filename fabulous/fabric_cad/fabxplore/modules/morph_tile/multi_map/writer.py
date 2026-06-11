@@ -80,8 +80,9 @@ class MultiMapWriter:
             },
         )
         applied_removed_luts = 0
+        cell_index = _build_cell_index(module)
         for index, replacement in enumerate(replacements, start=1):
-            self._apply_one(module, replacement)
+            self._apply_one(module, replacement, cell_index)
             applied_removed_luts += len(replacement.original_cell_ids)
             _emit_writer_event(
                 progress,
@@ -107,6 +108,7 @@ class MultiMapWriter:
         self,
         module: ys.Module,
         replacement: MultiMapReplacement,
+        cell_index: dict[str, ys.Cell],
     ) -> None:
         """Apply one multi-cell replacement.
 
@@ -117,13 +119,18 @@ class MultiMapWriter:
         replacement : MultiMapReplacement
             Replacement record containing original cells, tile ports, and
             solved config bits.
+        cell_index : dict[str, ys.Cell]
+            Original cells keyed by clean name.
         """
         new_cell = module.addCell(
             _id(f"\\{replacement.replacement_cell_id}"),
             _id(f"\\{self.tile_top_name}"),
         )
         for tile_input, ref in replacement.input_ports.items():
-            new_cell.setPort(_id(f"\\{tile_input}"), _ref_to_signal(module, ref))
+            new_cell.setPort(
+                _id(f"\\{tile_input}"),
+                _ref_to_signal(module, cell_index, ref),
+            )
 
         if self.include_unused_inputs:
             zero = _const_signal(0, 1)
@@ -133,11 +140,15 @@ class MultiMapWriter:
                     new_cell.setPort(port_id, zero)
 
         for tile_output, ref in replacement.output_ports.items():
-            new_cell.setPort(_id(f"\\{tile_output}"), _ref_to_signal(module, ref))
+            new_cell.setPort(
+                _id(f"\\{tile_output}"),
+                _ref_to_signal(module, cell_index, ref),
+            )
 
         _add_config_ports(new_cell, replacement.config_bits)
         for cell_id in replacement.original_cell_ids:
-            module.remove(_find_cell(module, cell_id))
+            module.remove(_find_indexed_cell(module, cell_index, cell_id))
+            del cell_index[cell_id]
 
 
 def _find_module(design: PyosysBridge, top_name: str) -> ys.Module:
@@ -187,13 +198,35 @@ def _emit_writer_event(
     progress({"event": event, **payload})
 
 
-def _find_cell(module: ys.Module, cell_id: str) -> ys.Cell:
-    """Find one cell by clean name.
+def _build_cell_index(module: ys.Module) -> dict[str, ys.Cell]:
+    """Build a clean-name lookup for cells in a module.
+
+    Parameters
+    ----------
+    module : ys.Module
+        Module containing cells.
+
+    Returns
+    -------
+    dict[str, ys.Cell]
+        Cells keyed by clean Yosys cell name.
+    """
+    return {_clean_name(cell.name): cell for cell in module.cells_.values()}
+
+
+def _find_indexed_cell(
+    module: ys.Module,
+    cell_index: dict[str, ys.Cell],
+    cell_id: str,
+) -> ys.Cell:
+    """Find one cell in a prebuilt clean-name index.
 
     Parameters
     ----------
     module : ys.Module
         Live pyosys module.
+    cell_index : dict[str, ys.Cell]
+        Cells keyed by clean Yosys cell name.
     cell_id : str
         Cell name without a leading Yosys escape.
 
@@ -207,19 +240,27 @@ def _find_cell(module: ys.Module, cell_id: str) -> ys.Cell:
     RuntimeError
         If the cell is not present in the module.
     """
-    for cell in module.cells_.values():
-        if _clean_name(cell.name) == cell_id:
-            return cell
-    raise RuntimeError(f"Cell '{cell_id}' not found in module '{module.name}'")
+    try:
+        return cell_index[cell_id]
+    except KeyError as exc:
+        raise RuntimeError(
+            f"Cell '{cell_id}' not found in module '{module.name}'"
+        ) from exc
 
 
-def _ref_to_signal(module: ys.Module, ref: InputPortSource) -> ys.SigSpec:
+def _ref_to_signal(
+    module: ys.Module,
+    cell_index: dict[str, ys.Cell],
+    ref: InputPortSource,
+) -> ys.SigSpec:
     """Convert a port-bit reference into a one-bit signal.
 
     Parameters
     ----------
     module : ys.Module
         Live pyosys module containing referenced cells.
+    cell_index : dict[str, ys.Cell]
+        Cells keyed by clean Yosys cell name.
     ref : InputPortSource
         Original-cell port reference or integer constant.
 
@@ -235,7 +276,7 @@ def _ref_to_signal(module: ys.Module, ref: InputPortSource) -> ys.SigSpec:
     """
     if isinstance(ref, int):
         return _const_signal(ref, 1)
-    cell = _find_cell(module, ref.cell_id)
+    cell = _find_indexed_cell(module, cell_index, ref.cell_id)
     signal = cell.getPort(_id(f"\\{ref.port}"))
     if ref.index >= signal.size():
         raise RuntimeError(

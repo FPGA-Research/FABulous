@@ -35,6 +35,8 @@ class MorphTileProcessTracker:
         self._failed_candidates = 0
         self._cache_hits = 0
         self._cache_misses = 0
+        self._apply_total = 0
+        self._applied_replacements = 0
 
     def start(
         self,
@@ -119,6 +121,36 @@ class MorphTileProcessTracker:
             f"unique_solves={stats.cache_misses}"
         )
 
+    def start_apply(self, total_replacements: int) -> None:
+        """Start progress tracking for applying replacements.
+
+        Parameters
+        ----------
+        total_replacements : int
+            Number of replacements that will be applied to the live design.
+        """
+        self._apply_total = total_replacements
+        self._applied_replacements = 0
+        self._print(
+            f"Start applying morph-tile replacements: total={total_replacements}"
+        )
+
+    def applied(self) -> None:
+        """Record one applied replacement and emit progress when due."""
+        self._applied_replacements += 1
+        if (
+            self._applied_replacements % self.chunk_size == 0
+            or self._applied_replacements == self._apply_total
+        ):
+            self._print_apply_progress()
+
+    def finish_apply(self) -> None:
+        """Emit a final replacement-apply progress summary."""
+        self._print(
+            "Done applying morph-tile replacements: "
+            f"applied={self._applied_replacements}"
+        )
+
     def _print_progress(self) -> None:
         """Print one candidate-progress update."""
         if self._checked_candidates <= 0:
@@ -135,6 +167,18 @@ class MorphTileProcessTracker:
             f"skipped_limit={self._skipped_limit_candidates}, "
             f"cache_hits={self._cache_hits}, "
             f"unique_solves={self._cache_misses}"
+        )
+
+    def _print_apply_progress(self) -> None:
+        """Print one replacement-apply progress update."""
+        pct = (
+            100.0 * self._applied_replacements / self._apply_total
+            if self._apply_total
+            else 100.0
+        )
+        self._print(
+            "Applied replacements: "
+            f"{self._applied_replacements}/{self._apply_total} ({pct:.1f}%)"
         )
 
     def _should_emit(self) -> bool:

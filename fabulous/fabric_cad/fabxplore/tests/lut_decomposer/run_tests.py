@@ -107,6 +107,42 @@ def test_mux_shape_cache_is_used() -> None:
         assert result.result_data.stats.mux_cache_hits == 1
 
 
+def test_many_luts_decompose_with_indexed_apply_and_equiv() -> None:
+    """Test bulk decomposition uses stable cell names and preserves behavior."""
+    with TemporaryDirectory(prefix="lut_decomposer_many_") as td:
+        tmp_dir = Path(td)
+        base = _write_many_lut3_base(tmp_dir, count=12)
+        mux = _write_mux4_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        result = LutDecomposerPass(
+            source_lut_widths=[3],
+            leaf_lut_width=2,
+            mux_verilog_path=mux,
+            mux_top_name="mux4_tile",
+            mux_data_inputs=["A", "B", "C", "D"],
+            mux_select_inputs=["S"],
+            mux_outputs=["Y2", "Y4"],
+            mux_configs=["cfg"],
+            top_name="base",
+            track_progress=True,
+            progress_chunk_size=5,
+        )
+        result.run_on(bridge)
+
+        assert result.result_data is not None
+        assert result.result_data.stats.decomposed_luts == 12
+        assert result.result_data.stats.generated_leaf_luts == 24
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        for index in range(12):
+            assert f"lut{index}" not in cells
+
+        gate = tmp_dir / "gate.v"
+        bridge.write_verilog_path(gate)
+        _assert_equiv(base, gate, mux, "base")
+
+
 def test_unsupported_width_is_skipped() -> None:
     """Test unselected LUT widths remain untouched."""
     with TemporaryDirectory(prefix="lut_decomposer_skip_") as td:
@@ -278,6 +314,38 @@ endmodule
     return path
 
 
+def _write_many_lut3_base(tmp_dir: Path, count: int) -> Path:
+    """Write a base design with many independent LUT3 cells.
+
+    Parameters
+    ----------
+    tmp_dir : Path
+        Directory for the generated file.
+    count : int
+        Number of LUT3 cells to emit.
+
+    Returns
+    -------
+    Path
+        Verilog file path.
+    """
+    path = tmp_dir / "base_many_lut3.v"
+    body = "\n".join(
+        f"  $lut #(.LUT(8'h{(0x96 ^ index) & 0xFF:02x}), .WIDTH(32'd3)) "
+        f"lut{index} (.A(a[{3 * index + 2}:{3 * index}]), .Y(y[{index}]));"
+        for index in range(count)
+    )
+    path.write_text(
+        f"""
+module base(input [{3 * count - 1}:0] a, output [{count - 1}:0] y);
+{body}
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
 def _assert_equiv(gold: Path, gate: Path, mux: Path, top_name: str) -> None:
     """Run a Yosys equivalence check.
 
@@ -322,6 +390,7 @@ def main() -> None:
     test_lut3_decomposes_to_two_lut2_and_equiv()
     test_lut4_decomposes_to_four_lut2_and_equiv()
     test_mux_shape_cache_is_used()
+    test_many_luts_decompose_with_indexed_apply_and_equiv()
     test_unsupported_width_is_skipped()
     test_decomposed_design_passes_hierarchy_check()
 
