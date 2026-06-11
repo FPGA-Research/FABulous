@@ -18,14 +18,12 @@ serves as a comprehensive example of how to use the various passes.
 
 from pathlib import Path
 
-from fabulous.fabric_cad.fabxplore.examples.benchmark_generator import (
-    BenchmarkGenerator,
-)
-from fabulous.fabric_cad.fabxplore.examples.models import (
-    FabulousArchitectureConfig,
-)
 from fabulous.fabric_cad.fabxplore.flow.architecture_synthesizer import (
     ArchitectureSynthesizer,
+)
+from fabulous.fabric_cad.fabxplore.utils.benchmark_generator import (
+    BenchmarkGenerator,
+    FabulousArchitectureConfig,
 )
 
 

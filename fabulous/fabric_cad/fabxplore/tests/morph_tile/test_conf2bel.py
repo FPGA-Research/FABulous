@@ -10,6 +10,7 @@ import pytest  # deptry: ignore[DEP004]
 
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 from fabulous.fabric_cad.fabxplore.utils.conf2bel import (
+    CLK_PORT,
     Conf2BelModel,
     apply_conf2bel_to_design,
     derive_conf2bel_from_verilog,
@@ -73,6 +74,38 @@ endmodule
     assert cell.getParam(ys.IdString("\\INIT0")).as_int() == 2
     assert cell.getParam(ys.IdString("\\CFG")).as_int() == 1
     assert cell.getParam(ys.IdString("\\MODE")).as_int() == 1
+
+
+def test_conf2bel_renames_userclk_to_configured_clock_port() -> None:
+    """Rename FABulous UserCLK to the configured routing-model clock port."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        bel_path = Path(tmpdir) / "clocked_bel.v"
+        bel_path.write_text(_clocked_bel_verilog(), encoding="utf-8")
+        model = derive_conf2bel_from_verilog(bel_path)
+
+    assert f"input {CLK_PORT}" in model.blackbox_verilog
+    if CLK_PORT != "UserCLK":
+        assert "UserCLK" not in model.blackbox_verilog
+
+    bridge = PyosysBridge()
+    bridge.read_verilog_string(
+        """
+module clocked_bel(input I, input UserCLK, output O, input [0:0] Cfg);
+endmodule
+
+module top(input I, input clk, output O);
+  clocked_bel u0 (.I(I), .UserCLK(clk), .O(O), .Cfg(1'b1));
+endmodule
+""",
+        replace_design=True,
+    )
+
+    apply_conf2bel_to_design(bridge, model)
+
+    cell = _only_top_cell(bridge)
+    assert cell.hasPort(ys.IdString(f"\\{CLK_PORT}"))
+    if CLK_PORT != "UserCLK":
+        assert not cell.hasPort(ys.IdString("\\UserCLK"))
 
 
 def test_apply_conf2bel_skips_already_converted_cells() -> None:
@@ -165,6 +198,7 @@ def main() -> None:
         test_normalize_belmap_feature,
         test_derive_conf2bel_from_verilog_groups_attributes,
         test_apply_conf2bel_to_design_sets_params_and_removes_config_port,
+        test_conf2bel_renames_userclk_to_configured_clock_port,
         test_apply_conf2bel_skips_already_converted_cells,
         test_apply_conf2bel_rejects_partial_config_ports,
         test_apply_conf2bel_rejects_non_constant_config_bits,
@@ -214,6 +248,20 @@ def _tiny_bel_verilog() -> str:
     return """
 (* FABulous, BelMap, INIT0_0=0, INIT0_1=1, CFG_0=2, CFG_1=3, MODE=4 *)
 module tiny_bel(input I, output O, (* FABulous, GLOBAL *) input [4:0] Cfg);
+  assign O = I;
+endmodule
+"""
+
+
+def _clocked_bel_verilog() -> str:
+    return """
+(* FABulous, BelMap, MODE=0 *)
+module clocked_bel(
+  input I,
+  (* FABulous, EXTERNAL, SHARED_PORT *) input UserCLK,
+  output O,
+  (* FABulous, GLOBAL *) input [0:0] Cfg
+);
   assign O = I;
 endmodule
 """

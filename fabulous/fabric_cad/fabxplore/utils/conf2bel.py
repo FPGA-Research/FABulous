@@ -10,6 +10,9 @@ import pyosys.libyosys as ys
 
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import PyosysBridge
 
+FABULOUS_USER_CLK_PORT = "UserCLK"
+CLK_PORT = "CLK"
+
 
 @dataclass(frozen=True)
 class Conf2BelParameter:
@@ -146,10 +149,11 @@ def derive_conf2bel_from_verilog(verilog_path: Path) -> Conf2BelModel:
             direction = "output"
         else:
             direction = "input"
+        port_name = _conf2bel_port_name(wire_name)
         if wire.width == 1:
-            port_lines.append(f"{direction} {wire_name}")
+            port_lines.append(f"{direction} {port_name}")
         else:
-            port_lines.append(f"{direction} [{wire.width - 1}:0] {wire_name}")
+            port_lines.append(f"{direction} [{wire.width - 1}:0] {port_name}")
 
     if not config_ports:
         raise ValueError(f"BEL module {module_name} has no FABulous GLOBAL port.")
@@ -283,6 +287,12 @@ def apply_conf2bel_to_design(bridge: PyosysBridge, model: Conf2BelModel) -> None
             if str(cell.type).removeprefix("\\") != model.module_name:
                 continue
 
+            _rename_cell_port(
+                cell=cell,
+                old_port=FABULOUS_USER_CLK_PORT,
+                new_port=CLK_PORT,
+            )
+
             present_config_ports = [
                 port_name
                 for port_name in model.config_ports
@@ -335,3 +345,46 @@ def apply_conf2bel_to_design(bridge: PyosysBridge, model: Conf2BelModel) -> None
                 )
             for port_name in model.config_ports:
                 cell.unsetPort(ys.IdString(f"\\{port_name}"))
+
+
+def _conf2bel_port_name(port_name: str) -> str:
+    """Return the nextpnr-facing port name for one BEL RTL port.
+
+    Parameters
+    ----------
+    port_name : str
+        Port name from the FABulous BEL RTL.
+
+    Returns
+    -------
+    str
+        Port name used in the derived blackbox and converted cells.
+    """
+    if port_name == FABULOUS_USER_CLK_PORT:
+        return CLK_PORT
+    return port_name
+
+
+def _rename_cell_port(cell: ys.Cell, old_port: str, new_port: str) -> None:
+    """Rename one cell port while preserving its connected signal.
+
+    Parameters
+    ----------
+    cell : ys.Cell
+        Cell to mutate.
+    old_port : str
+        Existing port name to move from.
+    new_port : str
+        Replacement port name to move to.
+    """
+    if old_port == new_port:
+        return
+
+    old_port_id = ys.IdString(f"\\{old_port}")
+    if not cell.hasPort(old_port_id):
+        return
+
+    new_port_id = ys.IdString(f"\\{new_port}")
+    signal = cell.getPort(old_port_id)
+    cell.setPort(new_port_id, signal)
+    cell.unsetPort(old_port_id)
