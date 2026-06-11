@@ -8,8 +8,8 @@ module fsm_test (
   always @(posedge clk) begin
     if (rst) state <= 0;
     else case (state)
-      0: begin out <= 0; if (in) state <= 1; end
-      1: begin out <= 1; if (!in) state <= 0; end
+      1'b0: begin out <= 0; if (in) state <= 1'b1; end
+      1'b1: begin out <= 1; if (!in) state <= 1'b0; end
     endcase
   end
 endmodule
