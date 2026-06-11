@@ -5,6 +5,6 @@ module binary_counter (
 );
   always @(posedge clk) begin
     if (rst) count <= 4'b0000;
-    else count <= count + 1;
+    else count <= count + 4'b1;
   end
 endmodule
