@@ -1059,6 +1059,21 @@ class FABulous_CLI(Cmd):
         logger.info("Bitstream specification generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
+    def do_gen_fabric_metadata(self, *_ignored: str) -> None:
+        """Generate machine-readable fabric metadata files.
+
+        Writes ``<fabric>.yaml``, ``<fabric>_defines.v`` and ``<fabric>_pkg.sv``
+        into ``<project>/.FABulous`` describing the fabric's geometry,
+        bitstream sizing, tile counts and primitive (BEL) counts.
+        """
+        logger.info("Generating fabric metadata")
+        out_dir = Path(self.projectDir) / META_DATA_DIR
+        written = self.fabulousAPI.genFabricMetadata(out_dir)
+        for fmt, path in written.items():
+            logger.info(f"output file ({fmt}): {path}")
+        logger.info("Fabric metadata generation complete")
+
+    @with_category(CMD_FABRIC_FLOW)
     def do_gen_top_wrapper(self, *_ignored: str) -> None:
         """Generate top wrapper of the fabric by calling `genTopWrapper`."""
         logger.info("Generating top wrapper")
@@ -1082,6 +1097,7 @@ class FABulous_CLI(Cmd):
             .add_step("gen_io_fabric")
             .add_step("gen_fabric", "Fabric generation failed")
             .add_step("gen_bitStream_spec", "Bitstream specification generation failed")
+            .add_step("gen_fabric_metadata", "Fabric metadata generation failed")
             .add_step("gen_top_wrapper", "Top wrapper generation failed")
             .add_step("gen_model_npnr", "Nextpnr model generation failed")
             .add_step("gen_geometry", "Geometry generation failed")
