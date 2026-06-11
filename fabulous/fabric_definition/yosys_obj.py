@@ -2,8 +2,6 @@
 
 import json
 import re
-import subprocess
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -12,6 +10,8 @@ from loguru import logger
 
 from fabulous.custom_exception import InvalidFileType
 from fabulous.fabulous_settings import get_context
+from fabulous.tools.ghdl import GhdlTool
+from fabulous.tools.yosys import YosysTool
 
 """
 Type alias for Yosys bit vectors containing integers or logic values.
@@ -237,8 +237,6 @@ class YosysJson:
         If the JSON file doesn't exist.
     InvalidFileType
         If the file type is not .vhd, .vhdl, .v, or .sv.
-    RuntimeError
-        If Yosys or GHDL fails to process the file.
     ValueError
         If there is a miss match in the VHDL entity and the Yosys top module.
     """
@@ -258,62 +256,19 @@ class YosysJson:
             )
 
         self.srcPath = path.absolute()
-        yosys = get_context().yosys_path
-        ghdl = get_context().ghdl_path
         json_file = self.srcPath.with_suffix(".json")
 
-        # VHDL files are converted to Verilog by GHDL, so use .v suffix for yosys
-        # Verilog/SystemVerilog files use their original suffix
+        # VHDL is elaborated to Verilog by GHDL first; Verilog/SystemVerilog is
+        # read by Yosys directly.
         if self.srcPath.suffix in {".vhd", ".vhdl"}:
-            # FIXME: a fake stub package required by 1.3 -- unique per-invocation
-            # to avoid collisions when multiple users run FABulous on the same machine.
-            with tempfile.NamedTemporaryFile(
-                suffix=".vhd", mode="w", delete=False
-            ) as _tf:
-                _tf.write("package my_package is\nend package;\n")
-                temp = Path(_tf.name)
-            try:
-                runCmd = [
-                    f"{ghdl!s}",
-                    "--synth",
-                    "--std=08",
-                    "--out=verilog",
-                    str(temp),
-                    f"{get_context().models_pack!s}",
-                    f"{self.srcPath}",
-                    "-e",
-                    f"{self.srcPath.stem}",
-                ]
-                try:
-                    r = subprocess.run(runCmd, check=True, capture_output=True)
-                    self.srcPath.with_suffix(".v").write_text(r.stdout.decode())
-                except subprocess.CalledProcessError as e:
-                    raise RuntimeError(
-                        f"Failed to run GHDL on {self.srcPath}: {e.stderr.decode()} "
-                        f"run cmd: {' '.join(runCmd)}"
-                    ) from e
-            finally:
-                temp.unlink(missing_ok=True)
+            verilog = GhdlTool.synthesize_to_verilog(
+                self.srcPath, get_context().models_pack
+            )
             yosys_src = self.srcPath.with_suffix(".v")
+            yosys_src.write_text(verilog)
         else:
             yosys_src = self.srcPath
-        runCmd = [
-            f"{yosys!s}",
-            "-q",
-            (
-                "-p "
-                f"read_verilog -sv {yosys_src}; "
-                "hierarchy -auto-top; "
-                "proc -noopt; "
-                f"write_json -compat-int {json_file}"
-            ),
-        ]
-        try:
-            subprocess.run(runCmd, check=True, capture_output=True)
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(
-                f"Failed to run Yosys on {self.srcPath}: {e.stderr.decode()}"
-            ) from e
+        YosysTool.convert_to_json(yosys_src, json_file)
         with json_file.open() as f:
             o = json.load(f)
         self.creator = o.get("creator", "")  # Use .get() for safety
