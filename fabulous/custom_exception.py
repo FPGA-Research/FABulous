@@ -58,6 +58,10 @@ class InvalidBelDefinition(Exception):
     """Exception raised for invalid BEL definitions."""
 
 
+class InvalidTileLibraryDefinition(Exception):
+    """Exception raised for invalid tile library definitions."""
+
+
 class PipelineCommandError(Exception):
     """Exception raised for errors in command line arguments."""
 
