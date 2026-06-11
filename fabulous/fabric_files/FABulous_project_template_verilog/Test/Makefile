@@ -61,8 +61,8 @@ run_bitgen: mkdir_build
 	python3 makehex.py ${BUILD_DIR}/${DESIGN}.bin ${MAX_BITBYTES} ${BUILD_DIR}/${DESIGN}.hex
 
 copy_files: mkdir_build
-	find ${FAB_PROJ_ROOT}/Tile/ -name '*.v' -type f -exec cp -n {} ${FABRIC_FILES_DIR}/ \;
-	find ${FAB_PROJ_ROOT}/Fabric/ -name '*.v' -type f -exec cp -n {} ${FABRIC_FILES_DIR}/ \;
+	find ${FAB_PROJ_ROOT}/Tile/ -name '*.v' -type f -exec cp {} ${FABRIC_FILES_DIR}/ \;
+	find ${FAB_PROJ_ROOT}/Fabric/ -name '*.v' -type f -exec cp {} ${FABRIC_FILES_DIR}/ \;
 
 mkdir_build:
 	mkdir -p ${BUILD_DIR}
