@@ -34,6 +34,7 @@ class Direction(Enum):
     - EAST: Eastward direction
     - WEST: Westward direction
     - JUMP: Local connections within a tile
+    - SJUMP: One-way connections from a tile up to a supertile BEL
     """
 
     NORTH = "NORTH"
@@ -41,6 +42,7 @@ class Direction(Enum):
     EAST = "EAST"
     WEST = "WEST"
     JUMP = "JUMP"
+    SJUMP = "SJUMP"
 
 
 class Side(StrEnum):
@@ -147,3 +149,15 @@ class TileSize(NamedTuple):
 
     width: Decimal
     height: Decimal
+
+
+# Constant sources a switch matrix always declares as mux inputs. Names starting
+# with "GND" tie to logic 0, the rest to logic 1.
+SWITCH_MATRIX_CONSTANTS: tuple[str, ...] = (
+    "GND0",
+    "GND",
+    "VCC0",
+    "VCC",
+    "VDD0",
+    "VDD",
+)

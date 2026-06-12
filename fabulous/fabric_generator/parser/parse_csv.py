@@ -13,10 +13,12 @@ from fabulous.custom_exception import (
     InvalidFileType,
     InvalidPortType,
     InvalidSupertileDefinition,
+    InvalidSwitchMatrixDefinition,
     InvalidTileDefinition,
 )
 from fabulous.fabric_definition.define import (
     IO,
+    SWITCH_MATRIX_CONSTANTS,
     ConfigBitMode,
     Direction,
     MultiplexerStyle,
@@ -81,6 +83,44 @@ def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
             Port(Direction.JUMP, start, x, y, end, count, start, IO.OUTPUT, Side.ANY),
             Port(Direction.JUMP, start, x, y, end, count, end, IO.INPUT, Side.ANY),
         ]
+        return ports, None
+
+    if kind == "SJUMP":
+        # SJUMP,source,0,0,NULL,n  -> OUTPUT: signal exits tile toward supertile SM
+        # SJUMP,NULL,0,0,dest,n    -> INPUT: signal enters tile from supertile SM
+        # An SJUMP line is one-way: exactly one of source/destination must be NULL.
+        if (start == "NULL") == (end == "NULL"):
+            raise InvalidPortType(
+                f"Invalid SJUMP line '{line.strip()}': exactly one of source and "
+                "destination must be NULL (use 'SJUMP,src,0,0,NULL,n' for an output "
+                "or 'SJUMP,NULL,0,0,dst,n' for an input)."
+            )
+        # SJUMP wires terminate at the supertile switch matrix and carry no
+        # spatial offset; a nonzero offset is a definition error, not silently 0.
+        if x != 0 or y != 0:
+            raise InvalidPortType(
+                f"Invalid SJUMP line '{line.strip()}': X/Y offset must be 0,0 "
+                f"(got {x},{y})."
+            )
+        ports = []
+        if start != "NULL":
+            ports.append(
+                Port(
+                    Direction.SJUMP,
+                    start,
+                    0,
+                    0,
+                    "NULL",
+                    count,
+                    start,
+                    IO.OUTPUT,
+                    Side.ANY,
+                )
+            )
+        if end != "NULL":
+            ports.append(
+                Port(Direction.SJUMP, "NULL", 0, 0, end, count, end, IO.INPUT, Side.ANY)
+            )
         return ports, None
 
     raise InvalidPortType(f"Unknown port type: {kind}")
@@ -156,7 +196,7 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
             temp = [i.strip() for i in temp]
             if not temp or temp[0] == "":
                 continue
-            if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST", "JUMP"]:
+            if temp[0] in ["NORTH", "SOUTH", "EAST", "WEST", "JUMP", "SJUMP"]:
                 port, commonWirePair = parsePortLine(item)
                 if "CARRY" in temp[6]:
                     # For prefix after carry
@@ -390,8 +430,8 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
             else:
                 raise InvalidTileDefinition(
                     f"Unknown tile description {temp[0]} in tile {tileName}. "
-                    "Valid descriptions are NORTH, SOUTH, EAST, WEST, JUMP, BEL, "
-                    "GEN_IO, MATRIX, and INCLUDE."
+                    "Valid descriptions are NORTH, SOUTH, EAST, WEST, JUMP, SJUMP, "
+                    "BEL, GEN_IO, MATRIX, and INCLUDE."
                 )
 
         withUserCLK = any(bel.withUserCLK for bel in bels)
@@ -419,6 +459,51 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
         )
 
     return (new_tiles, commonWirePairs)
+
+
+def validate_super_tile_matrix(
+    superTile: SuperTile,
+    connections: dict[str, list[str]],
+    matrix_path: Path,
+) -> None:
+    """Check that a supertile switch matrix only references known names.
+
+    Every mux output (sink) must be a BEL input or a child-tile INPUT SJUMP wire,
+    and every mux input (source) must be a BEL output, a child-tile OUTPUT SJUMP
+    wire, or a switch-matrix constant. An unknown name is almost always a typo and
+    would otherwise emit RTL referencing an undeclared signal.
+
+    Parameters
+    ----------
+    superTile : SuperTile
+        The supertile whose ports and BELs define the legal names.
+    connections : dict[str, list[str]]
+        Parsed matrix, mapping each sink (destination) to its sources.
+    matrix_path : Path
+        Path to the matrix file, used in the error message.
+
+    Raises
+    ------
+    InvalidSwitchMatrixDefinition
+        If any sink or source is not a known port, BEL pin, or constant.
+    """
+    valid_sources, valid_sinks = superTile.get_matrix_port_names()
+    valid_sources |= set(SWITCH_MATRIX_CONSTANTS)
+
+    unknown_sinks = sorted(s for s in connections if s not in valid_sinks)
+    unknown_sources = sorted(
+        {src for sources in connections.values() for src in sources} - valid_sources
+    )
+
+    if unknown_sinks or unknown_sources:
+        raise InvalidSwitchMatrixDefinition(
+            f"Supertile '{superTile.name}' switch matrix {matrix_path} references "
+            f"undefined names: sinks={unknown_sinks}, sources={unknown_sources}.\n"
+            "Sinks must be BEL inputs or child-tile INPUT SJUMP wires; sources "
+            "must be BEL outputs, child-tile OUTPUT SJUMP wires, or a constant.\n"
+            f"Available sinks: {sorted(valid_sinks)}\n"
+            f"Available sources: {sorted(valid_sources)}"
+        )
 
 
 def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]:
@@ -473,6 +558,9 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
         tiles = []
         bels = []
         withUserCLK = False
+        master_set = False
+        master_coords: tuple[int, int] | None = None
+        matrix_line_path: Path | None = None
         for i in description[1:-1]:
             line = i.split(",")
             line = [i for i in line if i != "" and i != " "]
@@ -480,28 +568,84 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
             if line[0] == "BEL":
                 belFilePath = filePath.joinpath(line[1])
-                bels.append(parseBelFile(belFilePath, line[2]))
+                bels.append(parseBelFile(belFilePath, line[2] if len(line) > 2 else ""))
+                continue
+            if line[0] == "MATRIX":
+                # The supertile switch matrix is given by this line's path,
+                # resolved relative to the supertile CSV.
+                if len(line) > 1:
+                    matrix_line_path = filePath / line[1]
+                continue
+
+            row_master = False
             for j in line:
+                if j == "MASTER":
+                    if len(row) == 0 or row[-1] is None:
+                        raise InvalidSupertileDefinition(
+                            f"Supertile '{name}': MASTER must follow a valid tile name."
+                        )
+                    row_master = True
+                    continue
                 if j in tileDic:
-                    # mark the tile as part of super tile
                     tileDic[j].partOfSuperTile = True
                     t = deepcopy(tileDic[j])
                     row.append(t)
                     if t not in tiles:
                         tiles.append(t)
-                elif j == "Null" or j == "NULL" or j == "None":
+                elif j in ("Null", "NULL", "None"):
                     row.append(None)
                 else:
                     raise InvalidSupertileDefinition(
                         f"The super tile {name} contains definitions that are not "
                         "tiles or Null."
                     )
+            if row_master:
+                if len(row) > 1:
+                    raise InvalidSupertileDefinition(
+                        f"Supertile '{name}': MASTER cannot be used on a row "
+                        "with multiple tiles."
+                    )
+                row_index = len(tileMap)
+                col_index = len(row) - 1
+                if master_set:
+                    raise InvalidSupertileDefinition(
+                        f"Supertile '{name}': multiple MASTER tokens found."
+                    )
+                master_coords = (col_index, row_index)
+                master_set = True
             tileMap.append(row)
 
         withUserCLK = any(bel.withUserCLK for bel in bels)
-        new_supertiles.append(
-            SuperTile(name, fileName.absolute(), tiles, tileMap, bels, withUserCLK)
+        # tileDir is the supertile CSV file path (matching Tile.tileDir), so
+        # consumers use ``tileDir.parent`` for the supertile's directory.
+        superTile = SuperTile(
+            name, fileName.absolute(), tiles, tileMap, bels, withUserCLK
         )
+        superTile.master_tile_coords = master_coords
+
+        # The supertile switch matrix is taken from the MATRIX line (resolved
+        # relative to the CSV). There is no auto-discovery: a supertile without a
+        # MATRIX line simply has no switch matrix.
+        st_matrix_config_bits = 0
+        st_matrix_dir: Path | None = matrix_line_path
+        if st_matrix_dir is not None:
+            if not st_matrix_dir.exists():
+                raise InvalidSupertileDefinition(
+                    f"Supertile '{name}': MATRIX file {st_matrix_dir} does not exist."
+                )
+            if st_matrix_dir.suffix == ".list":
+                connections = parseList(st_matrix_dir, "source")
+            else:
+                connections = parseMatrix(st_matrix_dir, name)
+            validate_super_tile_matrix(superTile, connections, st_matrix_dir)
+            for v in connections.values():
+                muxSize = len(v)
+                if muxSize > 1:
+                    st_matrix_config_bits += (muxSize - 1).bit_length()
+
+        superTile.supertile_matrix_dir = st_matrix_dir
+        superTile.supertile_matrix_config_bits = st_matrix_config_bits
+        new_supertiles.append(superTile)
 
     return new_supertiles
 

@@ -20,10 +20,12 @@ from loguru import logger
 from fabulous.custom_exception import InvalidFileType
 from fabulous.fabric_definition.define import (
     IO,
+    SWITCH_MATRIX_CONSTANTS,
     ConfigBitMode,
     Direction,
     MultiplexerStyle,
 )
+from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
@@ -33,7 +35,7 @@ from fabulous.fabric_generator.gen_fabric.gen_helper import (
     bootstrapSwitchMatrix,
     list2CSV,
 )
-from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
 
 def genTileSwitchMatrix(
@@ -141,9 +143,12 @@ def genTileSwitchMatrix(
         writer.addParameterEnd(indentLevel=1)
     writer.addPortStart(indentLevel=1)
 
-    # normal wire input
+    # normal wire input (excludes JUMP and SJUMP which are handled separately)
     for i in tile.portsInfo:
-        if i.wireDirection != Direction.JUMP and i.inOut == IO.INPUT:
+        if (
+            i.wireDirection not in (Direction.JUMP, Direction.SJUMP)
+            and i.inOut == IO.INPUT
+        ):
             for p in i.expandPortInfoByName():
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
 
@@ -158,9 +163,12 @@ def genTileSwitchMatrix(
             for p in i.expandPortInfoByName():
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
 
-    # normal wire output
+    # normal wire output (excludes JUMP and SJUMP which are handled separately)
     for i in tile.portsInfo:
-        if i.wireDirection != Direction.JUMP and i.inOut == IO.OUTPUT:
+        if (
+            i.wireDirection not in (Direction.JUMP, Direction.SJUMP)
+            and i.inOut == IO.OUTPUT
+        ):
             for p in i.expandPortInfoByName():
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
 
@@ -174,6 +182,18 @@ def genTileSwitchMatrix(
         if i.wireDirection == Direction.JUMP and i.inOut == IO.OUTPUT:
             for p in i.expandPortInfoByName():
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+
+    # sjump wire output - SM drives OUTPUT signals exiting to supertile SM
+    for i in tile.portsInfo:
+        if i.wireDirection == Direction.SJUMP and i.inOut == IO.OUTPUT:
+            for p in i.expandPortInfoByName():
+                writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+
+    # sjump wire input - SM receives INPUT signals arriving from supertile SM
+    for i in tile.portsInfo:
+        if i.wireDirection == Direction.SJUMP and i.inOut == IO.INPUT:
+            for p in i.expandPortInfoByName():
+                writer.addPortScalar(p, IO.INPUT, indentLevel=2)
 
     writer.addComment("global", onNewLine=True)
     if noConfigBits > 0:
@@ -193,35 +213,69 @@ def genTileSwitchMatrix(
     writer.addPortEnd()
     writer.addHeaderEnd(f"{tile.name}_switch_matrix")
     writer.addDesignDescriptionStart(f"{tile.name}_switch_matrix")
+    _genSwitchMatrixBody(
+        writer,
+        tile.name,
+        connections,
+        noConfigBits,
+        config_bit_mode,
+        multiplexer_style,
+        default_pip_delay,
+        switch_matrix_debug_signal,
+    )
 
-    # constant declaration
-    # we may use the following in the switch matrix for providing
-    # '0' and '1' to a mux input:
-    if isinstance(writer, VHDLCodeGenerator):
-        writer.addConstant("GND0", "0")
-        writer.addConstant("GND", "0")
-        writer.addConstant("VCC0", "1")
-        writer.addConstant("VCC", "1")
-        writer.addConstant("VDD0", "1")
-        writer.addConstant("VDD", "1")
-    else:
-        writer.addConstant("GND0", "1'b0")
-        writer.addConstant("GND", "1'b0")
-        writer.addConstant("VCC0", "1'b1")
-        writer.addConstant("VCC", "1'b1")
-        writer.addConstant("VDD0", "1'b1")
-        writer.addConstant("VDD", "1'b1")
+
+def _genSwitchMatrixBody(
+    writer: CodeGenerator,
+    name: str,
+    connections: dict[str, list[str]],
+    noConfigBits: int,
+    config_bit_mode: ConfigBitMode,
+    multiplexer_style: MultiplexerStyle,
+    default_pip_delay: int,
+    switch_matrix_debug_signal: bool,
+) -> None:
+    """Emit the body of a switch matrix module (constants, signals, mux logic).
+
+    Called after the port list has been written. Handles constant declarations,
+    signal declarations, mux instantiation, optional debug signals, and the
+    closing ``addDesignDescriptionEnd`` / ``writeToFile`` calls.
+
+    Parameters
+    ----------
+    writer : CodeGenerator
+        Code generator instance for RTL output.
+    name : str
+        Module/tile name used in log messages.
+    connections : dict[str, list[str]]
+        Mapping from sink port name to list of source port names.
+    noConfigBits : int
+        Total number of configuration bits for this matrix.
+    config_bit_mode : ConfigBitMode
+        Frame-based or flip-flop chain configuration.
+    multiplexer_style : MultiplexerStyle
+        Custom or generic multiplexer implementation.
+    default_pip_delay : int
+        Per-mux delay (ps) emitted on assign statements.
+    switch_matrix_debug_signal : bool
+        Whether to generate debug signals.
+    """
+    # constant declaration - provides '0'/'1' as padding inputs to muxes
+    vhdl = isinstance(writer, VHDLCodeGenerator)
+    for const in SWITCH_MATRIX_CONSTANTS:
+        if const.startswith("GND"):
+            writer.addConstant(const, "0" if vhdl else "1'b0")
+        else:
+            writer.addConstant(const, "1" if vhdl else "1'b1")
     writer.addNewLine()
 
-    # signal declaration
+    # signal declaration - one input-concat vector per multi-input mux
     for portName in connections:
-        # ports with single connections are directly assigned
         if len(connections[portName]) > 1:
             writer.addConnectionVector(
                 f"{portName}_input", f"{len(connections[portName])}-1"
             )
 
-    ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
     ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
     if switch_matrix_debug_signal:
         writer.addNewLine()
@@ -233,8 +287,6 @@ def genTileSwitchMatrix(
                     f"DEBUG_select_{portName}",
                     f"{paddedMuxSize.bit_length() - 1}",
                 )
-    ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
-    ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
     writer.addComment(
         "The configuration bits (if any) are just a long shift register",
         onNewLine=True,
@@ -244,14 +296,10 @@ def genTileSwitchMatrix(
         onNewLine=True,
     )
 
-    # we are only generate configuration bits, if we really need configurations bits
-    # for example in terminating switch matrices at the fabric borders,
-    # we may just change direction without any switching
     if noConfigBits > 0:
         if config_bit_mode == "ff_chain":
             writer.addConnectionVector("ConfigBits", noConfigBits)
         if config_bit_mode == "FlipFlopChain":
-            # we pad to an even number of bits: (int(math.ceil(ConfigBitCounter/2.0))*2)
             writer.addConnectionVector(
                 "ConfigBits", int(math.ceil(noConfigBits / 2.0)) * 2
             )
@@ -259,11 +307,8 @@ def genTileSwitchMatrix(
                 "ConfigBitsInput", int(math.ceil(noConfigBits / 2.0)) * 2
             )
 
-    # begin architecture
     writer.addLogicStart()
 
-    # the configuration bits shift register
-    # again, we add this only if needed
     # TODO Should ff_chain be the same as FlipFlopChain?
     if noConfigBits > 0:
         if config_bit_mode == "ff_chain":
@@ -284,19 +329,12 @@ def genTileSwitchMatrix(
         )
         if muxSize == 0:
             logger.warning(
-                f"Input port {portName} of switch matrix in Tile {tile.name} is unused"
+                f"Input port {portName} of switch matrix in {name} is unused"
             )
             writer.addComment(
                 f"WARNING unused multiplexer MUX-{portName}", onNewLine=True
             )
-
         elif muxSize == 1:
-            # just route through : can be used for auxiliary wires or diagonal routing
-            # (Manhattan, just go to a switch matrix when turning
-            # can also be used to tap a wire.
-            # A double with a mid is nothing else as a single cascaded with another
-            # single where the second single has only one '1' to cascade
-            # from the first single
             if connections[portName][0] == "0":
                 writer.addAssignScalar(portName, 0)
             elif connections[portName][0] == "1":
@@ -309,19 +347,13 @@ def genTileSwitchMatrix(
                 )
             writer.addNewLine()
         elif muxSize >= 2:
-            # this is the case for a configurable switch matrix multiplexer
-            old_ConfigBitstreamPosition = configBitstreamPosition
-
-            # Pad mux size to the next power of 2
             paddedMuxSize = 2 ** (muxSize - 1).bit_length()
-
             muxComponentName = f"cus_mux{paddedMuxSize}1"
 
             portsPairs = []
             start = 0
             for start in range(muxSize):
                 portsPairs.append((f"A{start}", f"{portName}_input[{start}]"))
-
             for end in range(start + 1, paddedMuxSize):
                 portsPairs.append((f"A{end}", "GND0"))
 
@@ -343,11 +375,6 @@ def genTileSwitchMatrix(
             portsPairs.append(("X", f"{portName}"))
 
             if multiplexer_style == MultiplexerStyle.CUSTOM:
-                # we add the input signal in reversed order
-                # Changed it such that the left-most entry is located at the end of the
-                # concatenated vector for the multiplexing
-                # This was done such that the index from left-to-right in the adjacency
-                # matrix corresponds with the multiplexer select input (index)
                 writer.addAssignScalar(
                     f"{portName}_input",
                     connections[portName][::-1],
@@ -358,26 +385,22 @@ def genTileSwitchMatrix(
                     compInsName=f"inst_{muxComponentName}_{portName}",
                     portsPairs=portsPairs,
                 )
-                if muxSize != 2 and muxSize != 4 and muxSize != 8 and muxSize != 16:
+                if muxSize not in (2, 4, 8, 16):
                     logger.warning(
                         f"creating a MUX-{muxSize} for port {portName} using "
-                        f"MUX-{muxSize} in switch matrix for tile {tile.name}"
+                        f"MUX-{muxSize} in switch matrix for {name}"
                     )
             else:
-                # generic multiplexer
                 writer.addAssignScalar(
                     portName,
                     f"{portName}_input[ConfigBits[{configBitstreamPosition - 1}:"
                     f"{configBitstreamPosition}]]",
                 )
 
-            # update the configuration bitstream position
             configBitstreamPosition += paddedMuxSize.bit_length() - 1
 
-    ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
-    ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
     if switch_matrix_debug_signal:
-        logger.info(f"Generate debug signals for switch matrix in tile {tile.name}")
+        logger.info(f"Generate debug signals for switch matrix in {name}")
         writer.addNewLine()
         configBitstreamPosition = 0
         old_ConfigBitstreamPosition = 0
@@ -393,10 +416,121 @@ def genTileSwitchMatrix(
                     old_ConfigBitstreamPosition,
                 )
                 old_ConfigBitstreamPosition = configBitstreamPosition
-
-    ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
     ### SwitchMatrixDebugSignals ### SwitchMatrixDebugSignals ###
 
-    # just the final end of architecture
     writer.addDesignDescriptionEnd()
     writer.writeToFile()
+
+
+def gen_super_tile_switch_matrix(
+    writer: CodeGenerator,
+    superTile: SuperTile,
+    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
+    multiplexer_style: MultiplexerStyle = MultiplexerStyle.CUSTOM,
+    default_pip_delay: int = 80,
+) -> None:
+    """Generate the switch matrix RTL for a supertile.
+
+    The supertile switch matrix routes SJUMP output signals from child tiles to
+    the input ports of supertile-level BELs. Its connectivity is described by
+    ``superTile.supertile_matrix_dir`` (a ``.list`` or ``.csv`` file using the same
+    format as tile switch matrices).
+
+    Parameters
+    ----------
+    writer : CodeGenerator
+        Code generator instance for RTL output.
+    superTile : SuperTile
+        The supertile whose BELs and SJUMP ports drive this matrix.
+    config_bit_mode : ConfigBitMode
+        Frame-based or flipflop-chain configuration.
+    multiplexer_style : MultiplexerStyle
+        Custom or generic multiplexer implementation.
+    default_pip_delay : int
+        Default PIP delay value for timing annotation.
+    """
+    if superTile.supertile_matrix_dir is None:
+        return
+
+    noConfigBits = superTile.supertile_matrix_config_bits
+    module_name = f"{superTile.name}_switch_matrix"
+
+    # Parse connectivity (destination -> [sources]).
+    matrix_path = superTile.supertile_matrix_dir
+    if matrix_path.suffix == ".list":
+        raw_pairs = parseList(matrix_path)
+        connections: dict[str, list[str]] = {}
+        for dest, src in raw_pairs:
+            connections.setdefault(dest, []).append(src)
+    else:
+        connections = parseMatrix(matrix_path, superTile.name)
+
+    writer.addComment(f"NumberOfConfigBits: {noConfigBits}")
+    writer.addHeader(module_name)
+    if noConfigBits > 0:
+        writer.addParameterStart(indentLevel=1)
+        writer.addParameter("NoConfigBits", "integer", noConfigBits, indentLevel=2)
+        writer.addParameterEnd(indentLevel=1)
+    writer.addPortStart(indentLevel=1)
+
+    # Inputs: SJUMP OUTPUT signals from each child tile ({tileName}_{portName}{i})
+    all_sjump_ports = superTile.get_all_sjump_ports()
+    if all_sjump_ports:
+        writer.addComment("SJUMP inputs from child tiles", onNewLine=True)
+        for lx, ly, p in all_sjump_ports:
+            tileName = superTile.tileMap[ly][lx].name
+            for k in range(p.wireCount):
+                writer.addPortScalar(f"{tileName}_{p.name}{k}", IO.INPUT, indentLevel=2)
+
+    # Outputs: input ports of supertile BELs (SM drives BEL inputs)
+    if superTile.bels:
+        writer.addComment("BEL input ports (SM outputs)", onNewLine=True)
+    for bel in superTile.bels:
+        for p in bel.inputs:
+            writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
+
+    # Inputs: output ports of supertile BELs (SM routes them back to child tiles)
+    if any(bel.outputs for bel in superTile.bels):
+        writer.addComment("BEL output ports (SM inputs)", onNewLine=True)
+    for bel in superTile.bels:
+        for p in bel.outputs:
+            writer.addPortScalar(p, IO.INPUT, indentLevel=2)
+
+    # Outputs: reverse SJUMP signals driven back into child tiles
+    all_input_sjump = superTile.get_all_input_sjump_ports()
+    if all_input_sjump:
+        writer.addComment("Reverse SJUMP outputs (SM -> child tile)", onNewLine=True)
+        for lx, ly, p in all_input_sjump:
+            tileName = superTile.tileMap[ly][lx].name
+            for k in range(p.wireCount):
+                writer.addPortScalar(
+                    f"{tileName}_{p.name}{k}", IO.OUTPUT, indentLevel=2
+                )
+
+    writer.addComment("global", onNewLine=True)
+    if noConfigBits > 0:
+        if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+            writer.addPortScalar("MODE", IO.INPUT, indentLevel=2)
+            writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
+            writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
+            writer.addPortScalar("CLK", IO.INPUT, indentLevel=2)
+        if config_bit_mode == ConfigBitMode.FRAME_BASED:
+            writer.addPortVector(
+                "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
+            )
+            writer.addPortVector(
+                "ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2
+            )
+    writer.addPortEnd()
+    writer.addHeaderEnd(module_name)
+    writer.addDesignDescriptionStart(module_name)
+    _genSwitchMatrixBody(
+        writer,
+        superTile.name,
+        connections,
+        noConfigBits,
+        config_bit_mode,
+        multiplexer_style,
+        default_pip_delay,
+        switch_matrix_debug_signal=False,
+    )

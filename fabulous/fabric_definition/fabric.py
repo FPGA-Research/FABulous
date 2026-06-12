@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import (
+    IO,
     ConfigBitMode,
     Direction,
     MultiplexerStyle,
@@ -168,6 +169,37 @@ class Fabric:
                     f"tile {tile.name} cannot have more than 26 BELs."
                 )
 
+        # A supertile's BELs are emitted at its master tile, sharing the BEL
+        # letter space (A, B, ...) with the master tile's own BELs, so the two
+        # together must fit in 26 letters.
+        for superTile in self.superTileDic.values():
+            mx, my = superTile.get_master_tile_coords()
+            master_tile = superTile.tileMap[my][mx]
+            if (
+                master_tile is not None
+                and len(master_tile.bels) + len(superTile.bels) > 26
+            ):
+                raise ValueError(
+                    "Due to naming limitations, supertile "
+                    f"{superTile.name} and its master tile {master_tile.name} "
+                    "together cannot have more than 26 BELs."
+                )
+
+        # SJUMP wires route a basic tile to a BEL hosted in its supertile's
+        # master tile; they are only meaningful inside a supertile. A tile that
+        # belongs to a supertile carries partOfSuperTile (set by the parser), so
+        # reject any SJUMP-declaring tile that is not flagged as such.
+        for row in self.tile:
+            for tile in row:
+                if tile is None:
+                    continue
+                if tile.get_sjump_ports() and not tile.partOfSuperTile:
+                    raise ValueError(
+                        f"Tile '{tile.name}' declares SJUMP wires but is not part "
+                        "of any supertile. SJUMP wires route to a supertile-hosted "
+                        "BEL and are only valid inside a supertile's tiles."
+                    )
+
         for row in self.tile:
             for tile in row:
                 if tile is None:
@@ -303,6 +335,112 @@ class Fabric:
                             )
                 tile.wireList = list(dict.fromkeys(tile.wireList))
 
+        # SJUMP wire pass: for every supertile placement, add SJUMP wires from the
+        # child tiles to the master tile (forward) and back (reverse).
+        touched: set[tuple[int, int]] = set()
+        for base_fx, base_fy, superTile in self.iter_super_tile_placements():
+            tx_local, ty_local = superTile.get_master_tile_coords()
+            ftx = base_fx + tx_local
+            fty = base_fy + ty_local
+            master_tile = self.tile[fty][ftx]
+            if master_tile is None:
+                continue
+
+            for ly, st_row in enumerate(superTile.tileMap):
+                for lx, st_tile in enumerate(st_row):
+                    if st_tile is None:
+                        continue
+                    fy = base_fy + ly
+                    fx = base_fx + lx
+                    grid_tile = self.tile[fy][fx]
+
+                    for p in grid_tile.get_sjump_ports():
+                        if p.inOut != IO.OUTPUT:
+                            continue
+                        for i in range(p.wireCount):
+                            grid_tile.wireList.append(
+                                Wire(
+                                    direction=Direction.SJUMP,
+                                    source=f"{p.name}{i}",
+                                    xOffset=ftx - fx,
+                                    yOffset=fty - fy,
+                                    destination=f"{st_tile.name}_{p.name}{i}",
+                                    sourceTile=f"X{fx}Y{fy}",
+                                    destinationTile=f"X{ftx}Y{fty}",
+                                )
+                            )
+
+                    # Reverse: supertile SM output ({child_name}_{port}) back down to
+                    # the child tile's INPUT port. The source lives in the wrapper at
+                    # the master tile, so the wire is owned by the master.
+                    for p in grid_tile.get_sjump_ports():
+                        if p.inOut != IO.INPUT:
+                            continue
+                        for i in range(p.wireCount):
+                            master_tile.wireList.append(
+                                Wire(
+                                    direction=Direction.SJUMP,
+                                    source=f"{st_tile.name}_{p.name}{i}",
+                                    xOffset=fx - ftx,
+                                    yOffset=fy - fty,
+                                    destination=f"{p.name}{i}",
+                                    sourceTile=f"X{ftx}Y{fty}",
+                                    destinationTile=f"X{fx}Y{fy}",
+                                )
+                            )
+                    touched.add((fx, fy))
+                    touched.add((ftx, fty))
+
+        for fx, fy in touched:
+            tile = self.tile[fy][fx]
+            tile.wireList = list(dict.fromkeys(tile.wireList))
+
+    def iter_super_tile_placements(
+        self, superTile: SuperTile | None = None
+    ) -> Generator[tuple[int, int, SuperTile], None, None]:
+        """Yield ``(base_fx, base_fy, superTile)`` for every supertile placement.
+
+        Each supertile type's ``tileMap`` pattern is matched against the fabric
+        grid; ``(base_fx, base_fy)`` is the top-left corner of a match. Shared by
+        the SJUMP wire pass, the nextpnr model, and the bitstream spec so they all
+        locate supertile instances identically.
+
+        Parameters
+        ----------
+        superTile : SuperTile | None, optional
+            If given, only placements of this supertile are yielded; otherwise
+            every supertile type in the fabric is scanned.
+
+        Yields
+        ------
+        tuple[int, int, SuperTile]
+            The placement's top-left grid coordinates and the supertile there.
+        """
+        candidates = (
+            [superTile] if superTile is not None else list(self.superTileDic.values())
+        )
+        for st in candidates:
+            for base_fy in range(len(self.tile) - st.max_height + 1):
+                for base_fx in range(len(self.tile[base_fy]) - st.max_width + 1):
+                    if self._matchesSuperTile(st, base_fx, base_fy):
+                        yield base_fx, base_fy, st
+
+    def _matchesSuperTile(
+        self, superTile: SuperTile, base_fx: int, base_fy: int
+    ) -> bool:
+        """Return whether ``superTile``'s tileMap matches the grid at the base."""
+        for ly, st_row in enumerate(superTile.tileMap):
+            for lx, st_tile in enumerate(st_row):
+                fy = base_fy + ly
+                fx = base_fx + lx
+                grid_tile = self.tile[fy][fx]
+                if st_tile is None:
+                    if grid_tile is not None:
+                        return False
+                elif grid_tile is None or grid_tile.name != st_tile.name:
+                    return False
+        return True
+
     def __repr__(self) -> str:
         """Return the string representation of the fabric.
 
@@ -408,16 +546,18 @@ class Fabric:
         return ret
 
     def getAllUniqueBels(self) -> list[Bel]:
-        """Get all unique BELs from all tiles in the fabric.
+        """Get all unique BELs from all tiles and supertiles in the fabric.
 
         Returns
         -------
         list[Bel]
-            A list of all unique BELs across all tiles.
+            A list of all unique BELs across all tiles and supertiles.
         """
         bels = list()
         for tile in self.tileDic.values():
             bels.extend(tile.bels)
+        for superTile in self.superTileDic.values():
+            bels.extend(superTile.bels)
         return bels
 
     def getBelsByTileXY(self, x: int, y: int) -> list[Bel]:

@@ -12,7 +12,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import Side
+from fabulous.fabric_definition.define import IO, Side
 from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.tile import Tile
 
@@ -35,6 +35,16 @@ class SuperTile:
         The list of bels of that the super tile contains
     withUserCLK : bool
         Whether the super tile has a userCLK port. Default is False.
+    supertile_matrix_dir : Path | None
+        Path to the supertile switch matrix file (.list or .csv), or None if
+        no supertile switch matrix exists.
+    supertile_matrix_config_bits : int
+        Number of configuration bits required by the supertile switch matrix.
+    master_tile_coords : tuple[int, int] | None
+        Local (x, y) of the master tile. Explicitly set via the ``MASTER`` token
+        in the supertile CSV, or computed as the last non-None tile in row-major
+        order if no MASTER is present.  All supertile config bits and BELs are
+        anchored to this tile.
     """
 
     name: str
@@ -43,6 +53,9 @@ class SuperTile:
     tileMap: list[list[Tile]]
     bels: list[Bel] = field(default_factory=list)
     withUserCLK: bool = False
+    supertile_matrix_dir: Path | None = None
+    supertile_matrix_config_bits: int = 0
+    master_tile_coords: tuple[int, int] | None = None
 
     def getPortsAroundTile(self) -> dict[str, list[list[Port]]]:
         """Return all the ports that are around the supertile.
@@ -115,6 +128,124 @@ class SuperTile:
                 ):
                     internalConnections.append((tile.getWestSidePorts(), x, y))
         return internalConnections
+
+    def get_master_tile_coords(self) -> tuple[int, int]:
+        """Return the (x, y) coordinates of the master tile in local space.
+
+        The master tile is either:
+        - The tile explicitly marked with ``MASTER`` in the supertile CSV
+          (stored in ``master_tile_coords``), or
+        - The last non-None tile in row-major order if no MASTER was specified.
+
+        Config bits for the supertile switch matrix and BELs are chained
+        through this tile's frame path, and the BEL placement (nextpnr model,
+        bitstream spec) is anchored here. This is distinct from the supertile's
+        structural *anchor* tile (the top-left tile, where ``gen_fabric`` places
+        the wrapper instance); the master and the anchor are usually different
+        tiles (e.g. DSP master = ``DSP_bot``, anchor = ``DSP_top``).
+
+        Returns
+        -------
+        tuple[int, int]
+            ``(x, y)`` in local supertile coordinates.
+
+        Raises
+        ------
+        ValueError
+            If the supertile contains no tiles.
+        """
+        if self.master_tile_coords is not None:
+            return self.master_tile_coords
+        mx, my = 0, 0
+        found = False
+        for y, row in enumerate(self.tileMap):
+            for x, tile in enumerate(row):
+                if tile is not None:
+                    mx, my = x, y
+                    found = True
+        if not found:
+            raise ValueError(
+                f"SuperTile '{self.name}' has no tiles; cannot determine master tile"
+            )
+        return mx, my
+
+    def get_all_sjump_ports(self) -> list[tuple[int, int, "Port"]]:
+        """Return all SJUMP OUTPUT ports across every child tile.
+
+        Returns
+        -------
+        list[tuple[int, int, Port]]
+            Each entry is ``(local_x, local_y, port)`` for every OUTPUT port
+            with ``wireDirection == Direction.SJUMP`` in any child tile.
+        """
+        result = []
+        for y, row in enumerate(self.tileMap):
+            for x, tile in enumerate(row):
+                if tile is None:
+                    continue
+                for p in tile.get_sjump_ports():
+                    if p.inOut == IO.OUTPUT:
+                        result.append((x, y, p))
+        return result
+
+    def get_all_input_sjump_ports(self) -> list[tuple[int, int, "Port"]]:
+        """Return all SJUMP INPUT ports across every child tile.
+
+        Returns
+        -------
+        list[tuple[int, int, Port]]
+            Each entry is ``(local_x, local_y, port)`` for every INPUT port
+            with ``wireDirection == Direction.SJUMP`` in any child tile.
+        """
+        result = []
+        for y, row in enumerate(self.tileMap):
+            for x, tile in enumerate(row):
+                if tile is None:
+                    continue
+                for p in tile.get_sjump_ports():
+                    if p.inOut == IO.INPUT:
+                        result.append((x, y, p))
+        return result
+
+    def get_matrix_port_names(self) -> tuple[set[str], set[str]]:
+        """Return the valid source and sink names for the supertile switch matrix.
+
+        The names mirror what :func:`gen_super_tile_switch_matrix` declares as matrix
+        ports, so they form the authoritative set against which a
+        ``supertile_matrix`` file is validated. Constant sources (``GND0`` etc.)
+        are not included here; callers add them separately.
+
+        Returns
+        -------
+        tuple[set[str], set[str]]
+            ``(valid_sources, valid_sinks)`` where sources drive the matrix muxes
+            (child OUTPUT SJUMP wires and BEL outputs) and sinks are the mux
+            outputs (BEL inputs and child INPUT SJUMP wires).
+        """
+        valid_sources: set[str] = set()
+        valid_sinks: set[str] = set()
+
+        for row in self.tileMap:
+            for tile in row:
+                if tile is None:
+                    continue
+                for p in tile.get_sjump_ports():
+                    names = {f"{tile.name}_{p.name}{k}" for k in range(p.wireCount)}
+                    if p.inOut == IO.OUTPUT:
+                        valid_sources |= names
+                    else:
+                        valid_sinks |= names
+
+        for bel in self.bels:
+            valid_sinks.update(bel.inputs)
+            valid_sources.update(bel.outputs)
+
+        return valid_sources, valid_sinks
+
+    @property
+    def totalConfigBits(self) -> int:
+        """Return the supertile's config bits: switch matrix bits plus BEL bits."""
+        return self.supertile_matrix_config_bits + sum(b.configBit for b in self.bels)
 
     @property
     def max_width(self) -> int:

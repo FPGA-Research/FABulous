@@ -900,6 +900,22 @@ class FABulous_CLI(Cmd):
                     self.fabulousAPI.genTile(st)
                     logger.info(f"Generated subtile {st}")
 
+                # Gen supertile switch matrix (no-op if no supertile_matrix file)
+                logger.info(f"Generating switch matrix for super tile {t}")
+                self.fabulousAPI.setWriterOutputFile(
+                    f"{self.projectDir}/Tile/{t}/{t}_switch_matrix.{self.extension}"
+                )
+                self.fabulousAPI.gen_super_tile_switch_matrix(t)
+                logger.info(f"Generated switch matrix for super tile {t}")
+
+                # Gen supertile ConfigMem (no-op if no ST config bits)
+                logger.info(f"Generating ConfigMem for super tile {t}")
+                self.fabulousAPI.setWriterOutputFile(
+                    f"{self.projectDir}/Tile/{t}/{t}_ConfigMem.{self.extension}"
+                )
+                self.fabulousAPI.gen_super_tile_config_mem(t)
+                logger.info(f"Generated ConfigMem for super tile {t}")
+
                 # Gen super tile
                 logger.info(f"Generating super tile {t}")
                 self.fabulousAPI.setWriterOutputFile(

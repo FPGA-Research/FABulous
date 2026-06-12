@@ -132,7 +132,9 @@ class Port:
         list[str]
             List of individual wire names for this port.
         """
-        if self.sourceName == "NULL" or self.destinationName == "NULL":
+        if (
+            self.sourceName == "NULL" or self.destinationName == "NULL"
+        ) and self.wireDirection != Direction.SJUMP:
             wireCount = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
         else:
             wireCount = self.wireCount
@@ -180,12 +182,15 @@ class Port:
         list[str]
             List of individual wire names for top-level connections.
         """
-        if self.sourceName == "NULL" or self.destinationName == "NULL":
+        if self.wireDirection == Direction.SJUMP:
             startIndex = 0
+            wireCount = self.wireCount
+        elif self.sourceName == "NULL" or self.destinationName == "NULL":
+            startIndex = 0
+            wireCount = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
         else:
             startIndex = ((abs(self.xOffset) + abs(self.yOffset)) - 1) * self.wireCount
-
-        wireCount = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
+            wireCount = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount
 
         if not indexed:
             return [
@@ -238,7 +243,9 @@ class Port:
         if mode == "SwitchMatrix" or mode == "SwitchMatrixIndexed":
             thisRange = self.wireCount
         elif mode == "AutoSwitchMatrix" or mode == "AutoSwitchMatrixIndexed":
-            if self.sourceName == "NULL" or self.destinationName == "NULL":
+            if self.wireDirection == Direction.SJUMP:
+                thisRange = self.wireCount
+            elif self.sourceName == "NULL" or self.destinationName == "NULL":
                 # the following line connects all wires to the switch matrix in the case
                 # one port is NULL (typically termination)
                 thisRange = (abs(self.xOffset) + abs(self.yOffset)) * self.wireCount

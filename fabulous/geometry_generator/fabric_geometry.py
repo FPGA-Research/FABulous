@@ -167,10 +167,21 @@ class FabricGeometry:
             else:
                 outerTileNames.append(tileName)
 
+        # A supertile-level BEL is drawn in the supertile's master tile, so map
+        # each master tile name to the supertile BELs it hosts.
+        master_bels: dict[str, list] = {}
+        for superTile in self.fabric.superTileDic.values():
+            mx, my = superTile.get_master_tile_coords()
+            master_tile = superTile.tileMap[my][mx]
+            if master_tile is not None:
+                master_bels.setdefault(master_tile.name, []).extend(superTile.bels)
+
         for tileName in self.tileNames:
             tile = self.fabric.getTileByName(tileName)
             tileGeom = self.tileGeomMap[tileName]
-            tileGeom.generateGeometry(tile, self.padding)
+            tileGeom.generateGeometry(
+                tile, self.padding, extra_bels=master_bels.get(tileName)
+            )
 
         # This step is for figuring out, which tile
         # is the widest/tallest in each column/row

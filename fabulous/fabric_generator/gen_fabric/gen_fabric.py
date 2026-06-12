@@ -13,14 +13,46 @@ Key features:
 - Configuration data distribution and management
 """
 
+from collections.abc import Generator
 from pathlib import Path
 
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
+
+
+def iter_super_tile_anchors(
+    fabric: Fabric,
+) -> Generator[tuple[int, int, SuperTile], None, None]:
+    """Yield ``(anchor_x, anchor_y, superTile)`` for every supertile placement.
+
+    The anchor is the first non-NULL child tile in row-major order for each
+    placement -- the same position at which ``generateFabric`` instantiates the
+    supertile wrapper.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric whose grid is scanned for supertile placements.
+
+    Yields
+    ------
+    tuple[int, int, SuperTile]
+        The anchor ``(x, y)`` and the ``SuperTile`` placed there.
+    """
+    for base_fx, base_fy, superTile in fabric.iter_super_tile_placements():
+        for ly, row in enumerate(superTile.tileMap):
+            for lx, tile in enumerate(row):
+                if tile is not None:
+                    yield base_fx + lx, base_fy + ly, superTile
+                    break
+            else:
+                continue
+            break
 
 
 def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
@@ -59,6 +91,17 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                             f"Tile_X{x}Y{y}_{i}", IO.OUTPUT, indentLevel=2
                         )
                         writer.addComment("EXTERNAL", onNewLine=False)
+
+    # supertile-level BEL external ports (the BEL lives in the wrapper, not a
+    # child tile); declare them at the wrapper's anchor coordinates.
+    for ax, ay, superTile in iter_super_tile_anchors(fabric):
+        for bel in superTile.bels:
+            for i in bel.externalInput:
+                writer.addPortScalar(f"Tile_X{ax}Y{ay}_{i}", IO.INPUT, indentLevel=2)
+                writer.addComment("EXTERNAL", onNewLine=False)
+            for i in bel.externalOutput:
+                writer.addPortScalar(f"Tile_X{ax}Y{ay}_{i}", IO.OUTPUT, indentLevel=2)
+                writer.addComment("EXTERNAL", onNewLine=False)
 
     if fabric.configBitMode == ConfigBitMode.FRAME_BASED:
         writer.addPortVector(
@@ -151,7 +194,12 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                 seenPorts = set()
                 for p in tile.portsInfo:
                     wireLength = (abs(p.xOffset) + abs(p.yOffset)) * p.wireCount - 1
-                    if p.sourceName == "NULL" or p.wireDirection == Direction.JUMP:
+                    # JUMP/SJUMP ports stay inside the tile (SJUMP routes to the
+                    # supertile wrapper), so they need no tile-to-tile fabric wire.
+                    if p.sourceName == "NULL" or p.wireDirection in (
+                        Direction.JUMP,
+                        Direction.SJUMP,
+                    ):
                         continue
                     if p.sourceName in seenPorts:
                         continue
@@ -360,6 +408,15 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                             if "UserCLK" not in p[0]:
                                 portsPairs.append(("UserCLK", p[0]))
 
+            # supertile-level BEL external ports: connect the wrapper's external
+            # ports to the top-level nets declared at the anchor coordinates.
+            if superTile:
+                for b in superTile.bels:
+                    for p in b.externalInput:
+                        portsPairs.append((p, f"Tile_X{x}Y{y}_{p}"))
+                    for p in b.externalOutput:
+                        portsPairs.append((p, f"Tile_X{x}Y{y}_{p}"))
+
             if not fabric.disableUserCLK:
                 if not superTile:
                     # for userCLK
@@ -379,16 +436,16 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         pre = f"Tile_X{i}Y{j}_"
 
                         # UserCLK signal
-                        nextRow = y + j + 1
+                        next_row = y + j + 1
                         if (
-                            nextRow >= fabric.numberOfRows
-                            or fabric.tile[nextRow][x + i] is None
+                            next_row >= fabric.numberOfRows
+                            or fabric.tile[next_row][x + i] is None
                         ):
                             portsPairs.append((f"{pre}UserCLK", "UserCLK"))
 
-                        elif (x + i, nextRow) not in superTileLoc:
+                        elif (x + i, next_row) not in superTileLoc:
                             portsPairs.append(
-                                (f"{pre}UserCLK", f"Tile_X{x + i}Y{nextRow}_UserCLKo")
+                                (f"{pre}UserCLK", f"Tile_X{x + i}Y{next_row}_UserCLKo")
                             )
 
                         # UserCLKo signal

@@ -169,6 +169,62 @@ def genNextpnrModel(
                 if bel.withUserCLK:
                     belv2Str.append("GlobalClk")
                 belv2Str.append("BelEnd")
+
+    # Supertile BEL and switch-matrix PIP emission.
+    # SJUMP PIPs live in tile.wireList (added by Fabric.__post_init__) and are
+    # already emitted by the per-tile loop above.
+    for base_fx, base_fy, superTile in fabric.iter_super_tile_placements():
+        if not superTile.bels and superTile.supertile_matrix_dir is None:
+            continue
+
+        tx_local, ty_local = superTile.get_master_tile_coords()
+        ftx = base_fx + tx_local
+        fty = base_fy + ty_local
+
+        bel_offset = len(fabric.tile[fty][ftx].bels)
+        belStr.append(f"#SuperTile_{superTile.name}_X{ftx}Y{fty}")
+        belv2Str.append(f"#SuperTile_{superTile.name}_X{ftx}Y{fty}")
+        for i, bel in enumerate(superTile.bels):
+            letter = string.ascii_uppercase[bel_offset + i]
+            cType = bel.name
+            belPort = bel.inputs + bel.outputs
+            belStr.append(
+                f"X{ftx}Y{fty},X{ftx},Y{fty},{letter},{cType},{','.join(belPort)}"
+            )
+            if bel.externalInput or bel.externalOutput:
+                constrainStr.append(
+                    f"set_io Tile_X{ftx}Y{fty}_{letter} Tile_X{ftx}Y{fty}.{letter}"
+                )
+            belv2Str.append(f"BelBegin,X{ftx}Y{fty},{letter},{cType},{bel.prefix}")
+            for inp in bel.inputs:
+                belv2Str.append(f"I,{inp.removeprefix(bel.prefix)},X{ftx}Y{fty}.{inp}")
+            for outp in bel.outputs:
+                belv2Str.append(
+                    f"O,{outp.removeprefix(bel.prefix)},X{ftx}Y{fty}.{outp}"
+                )
+            for feat, _cfg in sorted(bel.belFeatureMap.items(), key=lambda x: x[0]):
+                belv2Str.append(f"CFG,{feat}")
+            if bel.withUserCLK:
+                belv2Str.append("GlobalClk")
+            belv2Str.append("BelEnd")
+
+        if superTile.supertile_matrix_dir is not None:
+            mat_path = superTile.supertile_matrix_dir
+            if mat_path.suffix == ".list":
+                sm_connections: dict[str, list[str]] = {}
+                for dest, src in parseList(mat_path):
+                    sm_connections.setdefault(dest, []).append(src)
+            else:
+                sm_connections = parseMatrix(mat_path, superTile.name)
+            for sink, sources in sm_connections.items():
+                for src in sources:
+                    delay: float = 8
+                    if delay_model is not None:
+                        delay = delay_model.pip_delay(superTile.name, sink, src)
+                    pipStr.append(
+                        f"X{ftx}Y{fty},{src},X{ftx}Y{fty},{sink},{delay},{src}.{sink}"
+                    )
+
     return (
         "\n".join(pipStr),
         "\n".join(belStr),

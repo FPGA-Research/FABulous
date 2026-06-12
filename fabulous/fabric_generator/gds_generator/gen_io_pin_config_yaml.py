@@ -201,8 +201,8 @@ def _serialize_supertile_ports(
                     )
 
     # Supertile-level BEL external ports live on the wrapper itself (named e.g.
-    # ``SUPER_out_ext``, without a ``Tile_X..`` prefix). Place them on every
-    # perimeter sub-tile that already has a config_payload entry.
+    # ``SUPER_out_ext``, without a ``Tile_X..`` prefix) and are anchored at the
+    # master tile. Place them on the master tile's external side.
     # NOTE: not verified end-to-end against the GDS flow.
     if super_tile.bels:
         st_pin_regexes = [
@@ -210,21 +210,17 @@ def _serialize_supertile_ports(
             for bel in super_tile.bels
             for name in bel.externalInput + bel.externalOutput
         ]
-        if st_pin_regexes:
-            for y_st, row in enumerate(super_tile.tileMap):
-                for x_st, st_tile in enumerate(row):
-                    if st_tile is None:
-                        continue
-                    st_key = f"X{x_st}Y{y_st}"
-                    if st_key not in config_payload:
-                        continue
-                    if external_port_sides and (x_st, y_st) in external_port_sides:
-                        st_side = external_port_sides[(x_st, y_st)]
-                    else:
-                        st_side = Side.SOUTH
-                    config_payload[st_key][st_side.name].append(
-                        st_tile.pinOrderConfig[st_side](st_pin_regexes).to_dict()
-                    )
+        mx, my = super_tile.get_master_tile_coords()
+        master_key = f"X{mx}Y{my}"
+        master_tile = super_tile.tileMap[my][mx]
+        if st_pin_regexes and master_tile is not None and master_key in config_payload:
+            if external_port_sides and (mx, my) in external_port_sides:
+                master_side = external_port_sides[(mx, my)]
+            else:
+                master_side = Side.SOUTH
+            config_payload[master_key][master_side.name].append(
+                master_tile.pinOrderConfig[master_side](st_pin_regexes).to_dict()
+            )
 
     return config_payload
 

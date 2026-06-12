@@ -13,7 +13,7 @@ from loguru import logger
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
-from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
@@ -185,5 +185,102 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
 
             specData["TileSpecs"][f"X{x}Y{y}"] = curTileMap
             specData["TileSpecs_No_Mask"][f"X{x}Y{y}"] = curTileMapNoMask
+
+    # Supertile bitstream features. A supertile's config bits physically live in
+    # its master tile's frame column (the master tile's own ConfigMem leaves those
+    # bits free). Within the supertile config space the bit order is
+    # [switch-matrix bits][BEL bits], matching genSuperTile()'s ST_ConfigBits
+    # slicing. The BEL and switch-matrix features are added to the master tile's
+    # TileSpecs entry alongside the master tile's own features.
+    st_bel_count: dict[tuple[int, int], int] = {}
+    for superTile in fabric.superTileDic.values():
+        if not superTile.bels and superTile.supertile_matrix_dir is None:
+            continue
+
+        st_config_bits = superTile.totalConfigBits
+
+        st_encode_dict = [-1] * (fabric.maxFramesPerCol * fabric.frameBitsPerRow)
+        st_mask_dic: dict[int, str] = {}
+        if st_config_bits > 0:
+            st_config_mem_list = parseConfigMem(
+                superTile.tileDir.parent / f"{superTile.name}_ConfigMem.csv",
+                fabric.maxFramesPerCol,
+                fabric.frameBitsPerRow,
+                st_config_bits,
+            )
+            for cfm in st_config_mem_list:
+                st_mask_dic[cfm.frameIndex] = cfm.usedBitMask
+                for i, char in enumerate(cfm.usedBitMask):
+                    if char == "1":
+                        st_encode_dict[cfm.configBitRanges.pop(0)] = (
+                            fabric.frameBitsPerRow - 1 - i
+                        ) + fabric.frameBitsPerRow * cfm.frameIndex
+
+        sm_connections: dict[str, list[str]] = {}
+        if superTile.supertile_matrix_dir is not None:
+            mat_path = superTile.supertile_matrix_dir
+            if mat_path.suffix == ".list":
+                for dest, src in parseList(mat_path):
+                    sm_connections.setdefault(dest, []).append(src)
+            else:
+                sm_connections = parseMatrix(mat_path, superTile.name)
+
+        tx_local, ty_local = superTile.get_master_tile_coords()
+
+        for base_fx, base_fy, _ in fabric.iter_super_tile_placements(superTile):
+            ftx = base_fx + tx_local
+            fty = base_fy + ty_local
+            master_tile = fabric.tile[fty][ftx]
+
+            frame_map = specData["FrameMap"].setdefault(master_tile.name, {})
+            for frame_idx, mask in st_mask_dic.items():
+                existing = frame_map.get(frame_idx, "0" * fabric.frameBitsPerRow)
+                frame_map[frame_idx] = "".join(
+                    "1" if a == "1" or b == "1" else "0"
+                    for a, b in zip(existing, mask, strict=True)
+                )
+
+            curTileMap = specData["TileSpecs"].setdefault(f"X{ftx}Y{fty}", {})
+            curTileMapNoMask = specData["TileSpecs_No_Mask"].setdefault(
+                f"X{ftx}Y{fty}", {}
+            )
+
+            curBitOffset = 0
+            for source, sinkList in sm_connections.items():
+                controlWidth = (len(sinkList) - 1).bit_length()
+                if st_config_bits == 0:
+                    # No config bits — all connections are passthrough.
+                    for sink in sinkList:
+                        for t in (curTileMap, curTileMapNoMask):
+                            t[f"{sink}.{source}"] = {}
+                    continue
+                for i, sink in enumerate(reversed(sinkList)):
+                    pip = f"{sink}.{source}"
+                    if len(sinkList) < 2:
+                        for t in (curTileMap, curTileMapNoMask):
+                            t[pip] = {}
+                        continue
+                    controlValue = f"{len(sinkList) - 1 - i:0{controlWidth}b}"
+                    for c, curChar in enumerate(controlValue[::-1]):
+                        for t in (curTileMap, curTileMapNoMask):
+                            t.setdefault(pip, {})
+                            t[pip][st_encode_dict[curBitOffset + c]] = curChar
+                curBitOffset += controlWidth
+
+            bel_coord = (ftx, fty)
+            bel_offset = len(master_tile.bels) + st_bel_count.get(bel_coord, 0)
+            for i, bel in enumerate(superTile.bels):
+                letter = string.ascii_uppercase[bel_offset + i]
+                for featureKey, keyDict in bel.belFeatureMap.items():
+                    for entry in keyDict:
+                        if not isinstance(entry, int):
+                            continue
+                        for v in keyDict[entry]:
+                            for t in (curTileMap, curTileMapNoMask):
+                                t[f"{letter}.{featureKey}"] = {
+                                    st_encode_dict[curBitOffset + v]: keyDict[entry][v]
+                                }
+                        curBitOffset += len(keyDict[entry])
+            st_bel_count[bel_coord] = bel_offset + len(superTile.bels)
 
     return specData

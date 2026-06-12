@@ -68,12 +68,23 @@ def generateUserDesignTopWrapper(
     bel_inputs: dict[str, list[str]] = {}
     bel_outputs: dict[str, list[str]] = {}
 
+    # Supertile BELs are placed by nextpnr at the supertile's master tile, after
+    # that tile's own BELs. Collect them per master-tile coordinate so that
+    # appending them to the master tile's BEL list yields the same BEL letters
+    # the nextpnr model uses.
+    super_tile_bels: dict[tuple[int, int], list] = {}
+    for base_fx, base_fy, superTile in fabric.iter_super_tile_placements():
+        mx, my = superTile.get_master_tile_coords()
+        super_tile_bels.setdefault((base_fx + mx, base_fy + my), []).extend(
+            superTile.bels
+        )
+
     # generate component instantioations
     for x in range(fabric.numberOfColumns):
         # we walk backwards through the Y list, since there is something mixed up with
         # the coordinate system
         for y in range(fabric.numberOfRows - 1, -1, -1):
-            bels = fabric.getBelsByTileXY(x, y)
+            bels = fabric.getBelsByTileXY(x, y) + super_tile_bels.get((x, y), [])
             if not bels:
                 continue
             for i, bel in enumerate(

@@ -258,20 +258,39 @@ class Tile:
             if p.wireDirection == Direction.WEST and p.name != "NULL" and p.inOut == io
         ]
 
+    def get_sjump_ports(self) -> list[Port]:
+        """Get all ports with SJUMP wire direction.
+
+        SJUMP ports are one-way connections between the tile and a supertile
+        BEL: OUTPUT ports exit toward the supertile switch matrix, INPUT ports
+        receive results back. Both directions are returned; callers filter by
+        ``inOut`` as needed.
+
+        Returns
+        -------
+        list[Port]
+            List of SJUMP-direction ports, excluding NULL ports.
+        """
+        return [
+            p
+            for p in self.portsInfo
+            if p.wireDirection == Direction.SJUMP and p.name != "NULL"
+        ]
+
     def getTileInputNames(self) -> list[str]:
         """Get all input port destination names for the tile.
 
         Returns
         -------
         list[str]
-            List of destination names for input ports, excluding NULL and
-            JUMP direction ports.
+            List of destination names for input ports, excluding NULL, JUMP,
+            and SJUMP direction ports.
         """
         return [
             p.destinationName
             for p in self.portsInfo
             if p.destinationName != "NULL"
-            and p.wireDirection != Direction.JUMP
+            and p.wireDirection not in (Direction.JUMP, Direction.SJUMP)
             and p.inOut == IO.INPUT
         ]
 
@@ -281,14 +300,14 @@ class Tile:
         Returns
         -------
         list[str]
-            List of source names for output ports, excluding NULL and
-            JUMP direction ports.
+            List of source names for output ports, excluding NULL, JUMP, and
+            SJUMP direction ports.
         """
         return [
             p.sourceName
             for p in self.portsInfo
             if p.sourceName != "NULL"
-            and p.wireDirection != Direction.JUMP
+            and p.wireDirection not in (Direction.JUMP, Direction.SJUMP)
             and p.inOut == IO.OUTPUT
         ]
 

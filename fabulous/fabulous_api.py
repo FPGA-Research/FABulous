@@ -51,13 +51,19 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
-from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
+from fabulous.fabric_generator.gen_fabric.gen_configmem import (
+    generate_super_tile_config_mem,
+    generateConfigMem,
+)
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 from fabulous.fabric_generator.gen_fabric.gen_helper import (
     bootstrapSwitchMatrix,
     list2CSV,
 )
-from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
+from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
+    gen_super_tile_switch_matrix,
+    genTileSwitchMatrix,
+)
 from fabulous.fabric_generator.gen_fabric.gen_tile import (
     generateSuperTile,
     generateTile,
@@ -193,7 +199,8 @@ class FABulous_API:
         if tile := self.fabric.getTileByName(tileName):
             generateConfigMem(
                 self.writer,
-                tile,
+                tile.name,
+                tile.globalConfigBits,
                 configMem,
                 frame_bits_per_row=self.fabric.frameBitsPerRow,
                 max_frame_per_col=self.fabric.maxFramesPerCol,
@@ -329,6 +336,67 @@ class FABulous_API:
                 max_frame_per_col or self.fabric.maxFramesPerCol,
                 disable_user_clk or self.fabric.disableUserCLK,
                 config_bit_mode or self.fabric.configBitMode,
+            )
+        else:
+            raise ValueError(f"SuperTile {tileName} not found")
+
+    def gen_super_tile_switch_matrix(self, tileName: str) -> None:
+        """Generate the switch matrix RTL for a supertile.
+
+        Only has an effect when the supertile directory contains a
+        ``supertile_matrix.csv`` or ``supertile_matrix.list`` file.  If no such
+        file exists the call is a no-op.
+
+        Parameters
+        ----------
+        tileName : str
+            Name of the super tile.
+
+        Raises
+        ------
+        ValueError
+            If the super tile is not found in the fabric.
+        """
+        if tile := self.fabric.getSuperTileByName(tileName):
+            gen_super_tile_switch_matrix(
+                self.writer,
+                tile,
+                config_bit_mode=self.fabric.configBitMode,
+                multiplexer_style=self.fabric.multiplexerStyle,
+                default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
+            )
+        else:
+            raise ValueError(f"SuperTile {tileName} not found")
+
+    def gen_super_tile_config_mem(self, tileName: str) -> None:
+        """Generate the ConfigMem RTL for a supertile.
+
+        Uses the free slots in the master tile's frame space to place the
+        supertile SM and BEL config bits.  No-op when the supertile has no
+        config bits.
+
+        Parameters
+        ----------
+        tileName : str
+            Name of the super tile.
+
+        Raises
+        ------
+        ValueError
+            If the super tile is not found in the fabric.
+        """
+        if tile := self.fabric.getSuperTileByName(tileName):
+            mx, my = tile.get_master_tile_coords()
+            master_tile = tile.tileMap[my][mx]
+            master_config_mem_csv = (
+                master_tile.tileDir.parent / f"{master_tile.name}_ConfigMem.csv"
+            )
+            generate_super_tile_config_mem(
+                self.writer,
+                tile,
+                master_config_mem_csv,
+                frame_bits_per_row=self.fabric.frameBitsPerRow,
+                max_frame_per_col=self.fabric.maxFramesPerCol,
             )
         else:
             raise ValueError(f"SuperTile {tileName} not found")
