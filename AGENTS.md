@@ -16,19 +16,6 @@ user design → Yosys (synth) → nextpnr (P&R) → FASM → bitstream
 - **Tasks**: `Taskfile.yml` is the canonical runner. The ones you'll use most: `task test` (forwards args after `--`; pass `--runslow` for slow tests), `task ci` (run before pushing), `task smoke-test` (end-to-end). `task --list` for the rest.
 - **Pre-commit is enforced** (ruff, docstring linting, dependency hygiene, etc.). If a hook fails, fix the cause — don't `--no-verify`.
 
-## Repository Layout
-
-The package lives at `fabulous/` (lowercase — older docs may say `FABulous/`).
-
-- `fabric_definition/` — dataclass-based fabric model (`Fabric`, `Tile`, `Bel`, `SwitchMatrix`, `Port` hierarchy, …).
-- `file_parser/` — CSV/YAML, BEL HDL, FASM, and Python mux readers.
-- `fabric_generator/` — emits Verilog/VHDL via `hdlgen`; also houses the GDS generator.
-- `fabric_cad/` — bitstream spec, FASM→binary, nextpnr chip database. Bitstream binary I/O is in the external `FABulous-bit-gen` package.
-- `geometry_generator/` — FABulator visualizer geometry.
-- `fabulous_cli/` — interactive `cmd2` shell; new features usually need a shell command.
-- `fabulous_api.py` — programmatic API used by CLI and tests.
-- `tests/` — pytest suites; shared fixtures in `tests/conftest.py`.
-
 ## Coding Taste
 
 Rules that make changes feel native. Follow them even when a tool's defaults disagree.
@@ -39,8 +26,8 @@ Rules that make changes feel native. Follow them even when a tool's defaults dis
 - **Paths**: `pathlib.Path`. Never `os.path` or string concatenation.
 - **Logging**: `loguru` (`from loguru import logger`). Not `print`, not stdlib `logging`.
 - **Docstrings**: NumPy style — `pydoclint` + `interrogate` (≥95% coverage) enforce this.
-- **Inline code in docstrings/comments**: use a single backtick (`` `models_pack` ``, `` `None` ``), not double (`` ``models_pack`` ``).
-- **Naming**: this repo uses `camelCase` for variables/functions, `PascalCase` for classes, `CONSTANT_CASE` for module constants. Match existing files, don't "fix" to PEP 8.
+- **Inline code in docstrings/comments**: We use MyST for documentation. We use single "`" for raw text and "_" for italic.
+- **Naming**: this repo right now uses `camelCase` for variables/functions, `PascalCase` for classes, `CONSTANT_CASE` for module constants. Use snake case for all newly created methods and variables as we slow transition to meet PEP 8.  
 - Formatting (line length, quotes, etc.) is whatever `ruff format` produces.
 
 ### Design
@@ -58,7 +45,8 @@ Rules that make changes feel native. Follow them even when a tool's defaults dis
 - `pytest` + `pytest-mock` (use the `mocker` fixture; don't import `unittest.mock`).
 - Mark slow tests `@pytest.mark.slow` so default `task test` stays fast.
 - Prefer real in-memory fabric fixtures over heavy mocks.
-- `cocotb` is available for HDL-level verification, not for Python logic.
+- `cocotb` is available for RTL-level verification, not for Python logic.
+- Try to reuse fixture as much as possible.
 
 ## House Rules
 
