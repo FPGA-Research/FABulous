@@ -123,26 +123,42 @@ def _serialize_supertile_ports(
             Side.WEST.name: [],
         }
 
-        tile = super_tile.tileMap[int(y)][int(x)]
+        x_int, y_int = int(x), int(y)
+        tile = super_tile.tileMap[y_int][x_int]
         if tile is None:
             continue
 
         tile_prefix = f"Tile_{tile_key}_{prefix}"
-        perimeter_sides = set()
+
+        # Routing ports: only present for sides that actually have wires.
+        perimeter_sides: set[Side] = set()
         for port_list in port_lists:
             if not port_list:
                 continue
-
             side = port_list[0].sideOfTile
             perimeter_sides.add(side)
-
             for port in port_list:
                 if regex := port.getPortRegex(indexed=True, prefix=tile_prefix):
                     config_payload[tile_key][side.name].append(
                         tile.pinOrderConfig[side]([regex]).to_dict()
                     )
 
-            # Add frame signals based on side
+        # Frame-chain signals are present on every perimeter side, even when no
+        # routing wires cross that side (e.g. an IO tile without WEST wires still
+        # carries FrameData on its WEST edge). Derive the full perimeter set from
+        # the supertile layout instead of relying on the routing-port list.
+        all_perimeter_sides: set[Side] = set()
+        tm = super_tile.tileMap
+        if y_int == 0 or tm[y_int - 1][x_int] is None:
+            all_perimeter_sides.add(Side.NORTH)
+        if x_int + 1 >= len(tm[y_int]) or tm[y_int][x_int + 1] is None:
+            all_perimeter_sides.add(Side.EAST)
+        if y_int + 1 >= len(tm) or tm[y_int + 1][x_int] is None:
+            all_perimeter_sides.add(Side.SOUTH)
+        if x_int == 0 or tm[y_int][x_int - 1] is None:
+            all_perimeter_sides.add(Side.WEST)
+
+        for side in all_perimeter_sides:
             if side == Side.NORTH:
                 config_payload[tile_key][side.name].append(
                     PinOrderConfig()([f"{tile_prefix}UserCLKo"]).to_dict()
@@ -183,6 +199,28 @@ def _serialize_supertile_ports(
                     config_payload[tile_key][external_side.name].append(
                         tile.pinOrderConfig[external_side](pin_regexes).to_dict()
                     )
+
+    # Supertile-level BEL external ports live on the wrapper itself (named e.g.
+    # ``SUPER_out_ext``, without a ``Tile_X..`` prefix) and are anchored at the
+    # master tile. Place them on the master tile's external side.
+    # NOTE: not verified end-to-end against the GDS flow.
+    if super_tile.bels:
+        st_pin_regexes = [
+            name
+            for bel in super_tile.bels
+            for name in bel.externalInput + bel.externalOutput
+        ]
+        mx, my = super_tile.getMasterTileCoords()
+        master_key = f"X{mx}Y{my}"
+        master_tile = super_tile.tileMap[my][mx]
+        if st_pin_regexes and master_tile is not None and master_key in config_payload:
+            if external_port_sides and (mx, my) in external_port_sides:
+                master_side = external_port_sides[(mx, my)]
+            else:
+                master_side = Side.SOUTH
+            config_payload[master_key][master_side.name].append(
+                master_tile.pinOrderConfig[master_side](st_pin_regexes).to_dict()
+            )
 
     return config_payload
 
