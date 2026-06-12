@@ -365,10 +365,17 @@ def genTileSwitchMatrix(
                     )
             else:
                 # generic multiplexer
+                select_width = paddedMuxSize.bit_length() - 1
+                if select_width == 1:
+                    select_index = f"ConfigBits[{configBitstreamPosition}]"
+                else:
+                    select_index = (
+                        f"ConfigBits[{configBitstreamPosition + select_width - 1}:"
+                        f"{configBitstreamPosition}]"
+                    )
                 writer.addAssignScalar(
                     portName,
-                    f"{portName}_input[ConfigBits[{configBitstreamPosition - 1}:"
-                    f"{configBitstreamPosition}]]",
+                    f"{portName}_input[{select_index}]",
                 )
 
             # update the configuration bitstream position
