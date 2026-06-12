@@ -274,6 +274,7 @@ class TestSerializeSupertilePorts:
     def mock_supertile(self, mocker: MockerFixture) -> SuperTile:
         """Create a mock supertile for testing."""
         supertile = mocker.MagicMock(spec=SuperTile)
+        supertile.bels = []
 
         # Create a mock tile for the tilemap
         mock_tile = mocker.MagicMock()
@@ -320,6 +321,7 @@ class TestSerializeSupertilePorts:
     ) -> None:
         """Test handling of empty port lists."""
         supertile = mocker.MagicMock()
+        supertile.bels = []
         supertile.getPortsAroundTile.return_value = {}
 
         result = _serialize_supertile_ports(supertile)
@@ -335,9 +337,109 @@ class TestSerializeSupertilePorts:
         # Result should contain tile coordinates
         assert isinstance(result, dict)
 
+    def test_frame_signals_on_perimeter_sides_without_routing_ports(
+        self, mocker: MockerFixture
+    ) -> None:
+        """Frame-chain signals must appear on every perimeter side even when that
+        side carries no routing wires.
+
+        Regression: W2_IO is a 1-wide 2-tall supertile where NORTH/WEST of the
+        top tile and SOUTH/WEST of the bottom tile have no routing ports.  The
+        old code only emitted frame signals inside the routing-port loop, so
+        those sides were silently omitted from the YAML, causing the GDS flow
+        to fail with "not found in config but found in design" errors.
+        """
+        supertile = mocker.MagicMock(spec=SuperTile)
+        supertile.bels = []
+
+        def _tile() -> Tile:
+            t = mocker.MagicMock()
+            t.pinOrderConfig = {s: PinOrderConfig() for s in Side}
+            t.bels = []
+            return t
+
+        tile_top = _tile()
+        tile_bot = _tile()
+        # 1-wide, 2-tall layout — tile_top above tile_bot
+        supertile.tileMap = [[tile_top], [tile_bot]]
+
+        # tile_top (0,0): only EAST has routing ports; NORTH and WEST do not
+        east_port_top = mocker.MagicMock()
+        east_port_top.sideOfTile = Side.EAST
+        east_port_top.getPortRegex.return_value = r"Tile_X0Y0_E1BEG\[\d+\]"
+
+        # tile_bot (0,1): only EAST has routing ports; SOUTH and WEST do not
+        east_port_bot = mocker.MagicMock()
+        east_port_bot.sideOfTile = Side.EAST
+        east_port_bot.getPortRegex.return_value = r"Tile_X0Y1_E1BEG\[\d+\]"
+
+        # getPortsAroundTile() mirrors the real function:
+        #   tile_top (0,0) perimeter: NORTH, EAST, WEST  (SOUTH is interior)
+        #   tile_bot (0,1) perimeter: EAST, SOUTH, WEST  (NORTH is interior)
+        # Empty lists represent perimeter sides with no routing ports.
+        supertile.getPortsAroundTile.return_value = {
+            "0,0": [[], [east_port_top], []],  # NORTH=[], EAST=[port], WEST=[]
+            "0,1": [[east_port_bot], [], []],  # EAST=[port], SOUTH=[], WEST=[]
+        }
+
+        result = _serialize_supertile_ports(supertile)
+
+        def pins_for(tile_key: str, side: str) -> list[str]:
+            return [p for entry in result[tile_key][side] for p in entry["pins"]]
+
+        # ── tile_top (X0Y0) ──────────────────────────────────────────────────
+        # EAST: routing port present + FrameData_O
+        east_top = pins_for("X0Y0", "EAST")
+        assert any(r"E1BEG" in p for p in east_top), "routing port missing from EAST"
+        assert any("FrameData_O" in p for p in east_top), (
+            "FrameData_O missing from EAST"
+        )
+
+        # NORTH: no routing port, but FrameStrobe_O must still be present
+        north_top = pins_for("X0Y0", "NORTH")
+        assert any("FrameStrobe_O" in p for p in north_top), (
+            "FrameStrobe_O missing from NORTH of top tile (no routing ports there)"
+        )
+
+        # WEST: no routing port, but FrameData must still be present
+        west_top = pins_for("X0Y0", "WEST")
+        assert any("FrameData" in p and "FrameData_O" not in p for p in west_top), (
+            "FrameData missing from WEST of top tile (no routing ports there)"
+        )
+
+        # ── tile_bot (X0Y1) ──────────────────────────────────────────────────
+        east_bot = pins_for("X0Y1", "EAST")
+        assert any("FrameData_O" in p for p in east_bot), (
+            "FrameData_O missing from EAST"
+        )
+
+        # SOUTH: no routing port, but FrameStrobe must still be present
+        south_bot = pins_for("X0Y1", "SOUTH")
+        assert any(
+            "FrameStrobe" in p and "FrameStrobe_O" not in p for p in south_bot
+        ), "FrameStrobe missing from SOUTH of bottom tile (no routing ports there)"
+
+        # WEST: no routing port, but FrameData must still be present
+        west_bot = pins_for("X0Y1", "WEST")
+        assert any("FrameData" in p and "FrameData_O" not in p for p in west_bot), (
+            "FrameData missing from WEST of bottom tile (no routing ports there)"
+        )
+
+        # ── interior sides must not carry frame signals ───────────────────────
+        # tile_top SOUTH and tile_bot NORTH are shared interior sides
+        south_top = pins_for("X0Y0", "SOUTH")
+        assert not any("Frame" in p for p in south_top), (
+            "interior SOUTH of top tile must not have frame signals"
+        )
+        north_bot = pins_for("X0Y1", "NORTH")
+        assert not any("Frame" in p for p in north_bot), (
+            "interior NORTH of bottom tile must not have frame signals"
+        )
+
     def test_serialize_supertile_ports_none_tile(self, mocker: MockerFixture) -> None:
         """Test handling when tileMap has None entries."""
         supertile = mocker.MagicMock()
+        supertile.bels = []
 
         # TileMap with None
         supertile.tileMap = [[None]]
@@ -444,6 +546,7 @@ class TestGenerateIOPinOrderConfig:
         """Test generation for a SuperTile."""
         # Create mock supertile
         mock_supertile = mocker.MagicMock(spec=SuperTile)
+        mock_supertile.bels = []
 
         # Simple tilemap
         mock_tile = mocker.MagicMock(spec=Tile)
@@ -547,6 +650,7 @@ class TestGenerateIOPinOrderConfig:
     ) -> None:
         """SuperTile subtile sides come from fabric placement when given."""
         mock_supertile = mocker.MagicMock(spec=SuperTile)
+        mock_supertile.bels = []
 
         mock_tile = mocker.MagicMock(spec=Tile)
         mock_tile.pinOrderConfig = {
@@ -589,6 +693,7 @@ class TestGenerateIOPinOrderConfig:
     ) -> None:
         """Test SuperTile generation without fabric placement context."""
         mock_supertile = mocker.MagicMock(spec=SuperTile)
+        mock_supertile.bels = []
 
         mock_tile = mocker.MagicMock(spec=Tile)
         mock_tile.pinOrderConfig = {
