@@ -230,7 +230,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             for i, j in tileLocationOffset:
                 # input connection from north side of the south tile
                 if (
-                    0 <= y + 1 < len(fabric.tile)
+                    0 <= y + j + 1 < len(fabric.tile)
                     and fabric.tile[y + j + 1][x + i] is not None
                     and (x + i, y + j + 1) not in superTileLoc
                 ):
@@ -253,7 +253,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
                 # input connection from east side of the west tile
                 if (
-                    0 <= x - 1 < len(fabric.tile[0])
+                    0 <= x + i - 1 < len(fabric.tile[0])
                     and fabric.tile[y + j][x + i - 1] is not None
                     and (x + i - 1, y + j) not in superTileLoc
                 ):
@@ -276,7 +276,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
                 # input connection from south side of the north tile
                 if (
-                    0 <= y - 1 < len(fabric.tile)
+                    0 <= y + j - 1 < len(fabric.tile)
                     and fabric.tile[y + j - 1][x + i] is not None
                     and (x + i, y + j - 1) not in superTileLoc
                 ):
@@ -299,7 +299,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
                 # input connection from west side of the east tile
                 if (
-                    0 <= x + 1 < len(fabric.tile[0])
+                    0 <= x + i + 1 < len(fabric.tile[0])
                     and fabric.tile[y + j][x + i + 1] is not None
                     and (x + i + 1, y + j) not in superTileLoc
                 ):
@@ -379,16 +379,16 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
                         pre = f"Tile_X{i}Y{j}_"
 
                         # UserCLK signal
+                        nextRow = y + j + 1
                         if (
-                            y + 1 >= fabric.numberOfRows
-                            or y + 1 < fabric.numberOfRows
-                            and fabric.tile[y + 1][x] is None
+                            nextRow >= fabric.numberOfRows
+                            or fabric.tile[nextRow][x + i] is None
                         ):
                             portsPairs.append((f"{pre}UserCLK", "UserCLK"))
 
-                        elif (x + i, y + j + 1) not in superTileLoc:
+                        elif (x + i, nextRow) not in superTileLoc:
                             portsPairs.append(
-                                (f"{pre}UserCLK", f"Tile_X{x + i}Y{y + j + 1}_UserCLKo")
+                                (f"{pre}UserCLK", f"Tile_X{x + i}Y{nextRow}_UserCLKo")
                             )
 
                         # UserCLKo signal
