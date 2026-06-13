@@ -682,6 +682,64 @@ def test_demo_opt_resized_fabric_writes_larger_routing_model(
     ).stat().st_size
 
 
+def test_demo_opt_resize_copies_dsp_column_block(tmp_path: Path) -> None:
+    """Copy a real demo_opt column block containing DSP tiles."""
+    source_project = _copy_demo_opt_project_or_skip(tmp_path)
+    output_dir = tmp_path / "demo_opt_dsp_block_resize"
+    graph = _load_fab_graph(source_project)
+    baseline_columns = graph.routing_graph.columns
+    baseline_rows = graph.routing_graph.rows
+    dsp_columns = sorted(
+        {
+            x
+            for (x, _y), tile_type in graph.routing_graph.tile_types_by_xy.items()
+            if tile_type in {"DSP_top", "DSP_bot"}
+        }
+    )
+
+    if not dsp_columns:
+        pytest.skip("demo_opt has no placed DSP column")
+
+    dsp_column = dsp_columns[0]
+    block_start = max(0, dsp_column - 1)
+    block_width = 2
+    if block_start + block_width > baseline_columns:
+        pytest.skip("demo_opt DSP column cannot form a two-column block")
+    source_block = [
+        [
+            graph.tile_type_at(x, y)
+            for x in range(block_start, block_start + block_width)
+        ]
+        for y in range(baseline_rows)
+    ]
+
+    graph.resize_fabric(
+        insert_column_block_after=(
+            block_start,
+            block_width,
+            baseline_columns - 1,
+            2,
+        )
+    )
+    resized_model = graph.render_routing_model()
+    graph.write_routing_model(output_dir)
+
+    assert graph.routing_graph.rows == baseline_rows
+    assert graph.routing_graph.columns == baseline_columns + (block_width * 2)
+    assert any(
+        tile_type in {"DSP_top", "DSP_bot"} for row in source_block for tile_type in row
+    )
+    for repeat_index in range(2):
+        inserted_start = baseline_columns + (repeat_index * block_width)
+        for y, row in enumerate(source_block):
+            for offset, expected_tile_type in enumerate(row):
+                assert graph.tile_type_at(inserted_start + offset, y) == (
+                    expected_tile_type
+                )
+    assert _active_pip_line_count(resized_model.pips) == graph.stats().active_pips
+    _assert_routing_model_files_match(output_dir, resized_model)
+
+
 def test_demo_opt_resize_remove_and_restore_lut4ab_column_routing_model(
     tmp_path: Path,
 ) -> None:

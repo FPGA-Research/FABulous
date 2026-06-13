@@ -355,6 +355,89 @@ def test_resize_fabric_removes_before_copying_rows_and_columns(
     graph.validate()
 
 
+def test_resize_fabric_inserts_row_block_from_snapshot(tmp_path: Path) -> None:
+    """Insert repeated row-block snapshots without mutating the source block."""
+    tile_types_by_xy = {(x, y): f"R{y}C{x}" for y in range(4) for x in range(3)}
+    graph = RoutingFabricGraph(
+        rows=4,
+        columns=3,
+        tile_types_by_xy=tile_types_by_xy,
+        tile_models={
+            tile_type: _empty_tile_model(tmp_path, tile_type)
+            for tile_type in tile_types_by_xy.values()
+        },
+    )
+
+    graph.resize_fabric(insert_row_block_after=(1, 2, 0, 2))
+
+    assert graph.rows == 8
+    assert graph.columns == 3
+    assert [
+        [graph.tile_type_at(x, y) for x in range(graph.columns)]
+        for y in range(graph.rows)
+    ] == [
+        ["R0C0", "R0C1", "R0C2"],
+        ["R1C0", "R1C1", "R1C2"],
+        ["R2C0", "R2C1", "R2C2"],
+        ["R1C0", "R1C1", "R1C2"],
+        ["R2C0", "R2C1", "R2C2"],
+        ["R1C0", "R1C1", "R1C2"],
+        ["R2C0", "R2C1", "R2C2"],
+        ["R3C0", "R3C1", "R3C2"],
+    ]
+    graph.validate()
+
+
+def test_resize_fabric_inserts_overlapping_column_block_after_itself(
+    tmp_path: Path,
+) -> None:
+    """Copy a column block after itself using a snapshot before insertion."""
+    tile_types_by_xy = {(x, y): f"R{y}C{x}" for y in range(2) for x in range(6)}
+    graph = RoutingFabricGraph(
+        rows=2,
+        columns=6,
+        tile_types_by_xy=tile_types_by_xy,
+        tile_models={
+            tile_type: _empty_tile_model(tmp_path, tile_type)
+            for tile_type in tile_types_by_xy.values()
+        },
+    )
+
+    graph.resize_fabric(insert_column_block_after=(2, 3, 4, 2))
+
+    assert graph.rows == 2
+    assert graph.columns == 12
+    assert [graph.tile_type_at(x, 0) for x in range(graph.columns)] == [
+        "R0C0",
+        "R0C1",
+        "R0C2",
+        "R0C3",
+        "R0C4",
+        "R0C2",
+        "R0C3",
+        "R0C4",
+        "R0C2",
+        "R0C3",
+        "R0C4",
+        "R0C5",
+    ]
+    assert [graph.tile_type_at(x, 1) for x in range(graph.columns)] == [
+        "R1C0",
+        "R1C1",
+        "R1C2",
+        "R1C3",
+        "R1C4",
+        "R1C2",
+        "R1C3",
+        "R1C4",
+        "R1C2",
+        "R1C3",
+        "R1C4",
+        "R1C5",
+    ]
+    graph.validate()
+
+
 def test_resize_fabric_rejects_invalid_copy_requests(tmp_path: Path) -> None:
     """Reject invalid row and column duplication requests."""
     graph = RoutingFabricGraph.from_fabric(_write_and_parse_project(tmp_path))
@@ -365,6 +448,34 @@ def test_resize_fabric_rejects_invalid_copy_requests(tmp_path: Path) -> None:
         graph.resize_fabric(copy_column_after=(2, 1))
     with pytest.raises(ValueError, match="copy count"):
         graph.resize_fabric(copy_row_after=(0, 0))
+    with pytest.raises(ValueError, match="only one row insertion"):
+        graph.resize_fabric(
+            copy_row_after=(0, 1),
+            insert_row_block_after=(0, 1, 0, 1),
+        )
+    with pytest.raises(ValueError, match="only one column insertion"):
+        graph.resize_fabric(
+            copy_column_after=(0, 1),
+            insert_column_block_after=(0, 1, 0, 1),
+        )
+
+
+def test_resize_fabric_rejects_invalid_block_insert_requests(
+    tmp_path: Path,
+) -> None:
+    """Reject malformed, out-of-range, or empty block insertions."""
+    graph = RoutingFabricGraph.from_fabric(_write_and_parse_project(tmp_path))
+
+    with pytest.raises(TypeError, match="row block insertion"):
+        graph.resize_fabric(insert_row_block_after=[0, 1, 0, 1])  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="row block height"):
+        graph.resize_fabric(insert_row_block_after=(0, 0, 0, 1))
+    with pytest.raises(ValueError, match="column block repeat"):
+        graph.resize_fabric(insert_column_block_after=(0, 1, 0, 0))
+    with pytest.raises(ValueError, match="row block .*exceeds"):
+        graph.resize_fabric(insert_row_block_after=(0, 2, 0, 1))
+    with pytest.raises(ValueError, match="column block insertion position"):
+        graph.resize_fabric(insert_column_block_after=(0, 1, 2, 1))
 
 
 def test_resize_fabric_rejects_invalid_remove_requests(tmp_path: Path) -> None:

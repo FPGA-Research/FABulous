@@ -1,4 +1,4 @@
-module or17_chain (
+module or17_chain_core (
     input  wire        clk,
     input  wire [16:0] a,
     output reg         y
@@ -28,4 +28,21 @@ module or17_chain (
         y <= s[16];
     end
 
+endmodule
+
+module or17_chain (
+    input  wire [16:0] a,
+    output wire        y
+);
+    wire clk;
+
+    (* keep *) Global_Clock clk_i (
+        .CLK(clk)
+    );
+
+    or17_chain_core core (
+        .clk(clk),
+        .a(a),
+        .y(y)
+    );
 endmodule

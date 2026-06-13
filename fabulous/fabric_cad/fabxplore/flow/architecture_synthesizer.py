@@ -7,11 +7,15 @@ serves as a blueprint for synthesizers that generate FPGA architectures.
 from __future__ import annotations
 
 import csv
+import math
 import pickle
+import re
+import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import pyosys.libyosys as ys
 from loguru import logger
 
 from fabulous.fabric_cad.fabxplore.modules.chain_mapper.core.models import (
@@ -75,6 +79,8 @@ from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
 from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from fabulous.fabric_cad.fabxplore.modules.ff_materializer.core.models import (
         FfPortsInputAlias,
         LaneInput,
@@ -133,6 +139,16 @@ class ArchitectureSynthesizer(ABC):
 
         self._fabulous_api: FABulous_API | None = None
         self.project_context = get_context()
+
+    def clear_flow(self) -> None:
+        """Clear the current design and FPGA model to reset the flow state."""
+        self.design = PyosysBridge(debug=self.debug)
+        self.generate_fpga_model()
+        self.primitives.clear()
+        self._pass_history.clear()
+        self._latest_lut_mapping_result = None
+        self._latest_frac_lut_architecture = None
+        self._lut_layering_count = 0
 
     def attach_fabulous_api(self, api: FABulous_API) -> None:
         """Attach the loaded FABulous project API to this architecture flow.
@@ -237,6 +253,199 @@ class ArchitectureSynthesizer(ABC):
             The message to log.
         """
         logger.info(message)
+
+    def design_auto_techmap(
+        self,
+        cell_type: str,
+        techmap_file: Path,
+        min_replacements: int = 0,
+        max_replacements: int | None = None,
+        ratio: float = 1.0,
+        enable_techmap_only_for_count: Callable[[int], bool] | None = None,
+        enable_techmap: bool = True,
+        map_cmd: str = "techmap",
+    ) -> int | None:
+        """Techmap a bounded ratio of cells of a given Yosys cell type.
+
+        The function first counts all matching cells over all modules using the
+        Yosys selection ``*/t:<cell_type>``. It then computes the number of cells
+        to replace as ``ceil(count * ratio)`` and clamps that value according to
+        the requested minimum and maximum replacement bounds.
+
+        The effective rule is:
+
+        - if no cells are found, replace zero cells;
+        - if fewer than ``min_replacements`` cells exist, replace all existing cells;
+        - otherwise replace at least ``min_replacements`` cells;
+        - replace at most ``max_replacements`` cells;
+        - never replace more cells than actually exist.
+
+        Parameters
+        ----------
+        cell_type : str
+            Yosys cell type or type pattern to select. For example,
+            ``"$__REGFILE_[AS][AS]_"`` or ``"sg13g2_mux2_1"``.
+            The function automatically prepends ``*/t:``.
+        techmap_file : Path
+            Path to the Yosys techmap file.
+        min_replacements : int
+            Minimum number of cells to replace when enough cells exist.
+        max_replacements : int | None
+            Maximum number of cells to replace.
+        ratio : float
+            Fraction of counted cells to replace. For example, ``0.10`` means 10%.
+        enable_techmap_only_for_count : Callable[[int], bool] | None
+            Optional function that takes the cell count as input and returns a boolean
+            indicating whether to run the techmap. If ``None``, always run the techmap.
+        enable_techmap : bool
+            Whether to run the techmap.
+        map_cmd : str
+            Yosys mapping command to use, e.g. ``"techmap"``, ``"dffmap"``, etc.
+
+        Returns
+        -------
+        int | None
+            Number of cells selected for replacement, or
+            ``None`` if the techmap was not run.
+
+        Raises
+        ------
+        ValueError
+            If ``cell_type``, the replacement bounds, or ``ratio`` are invalid.
+        TypeError
+            If ``techmap_file`` is not a ``pathlib.Path`` object.
+        RuntimeError
+            If the Yosys count output does not contain an integer.
+        """
+        if not cell_type:
+            raise ValueError("cell_type must not be empty")
+
+        if min_replacements < 0:
+            raise ValueError("min_replacements must be >= 0")
+
+        if max_replacements is not None and max_replacements < min_replacements:
+            raise ValueError("max_replacements must be >= min_replacements")
+
+        if ratio < 0.0:
+            raise ValueError("ratio must be >= 0.0")
+
+        if not isinstance(techmap_file, Path):
+            raise TypeError("techmap_file must be a pathlib.Path object")
+
+        cell_selection = f"*/t:{cell_type}"
+
+        with tempfile.TemporaryDirectory() as tmp_dir_name:
+            tmp_dir = Path(tmp_dir_name)
+            count_file = tmp_dir / "yosys_count.txt"
+
+            self.design.run_pass(
+                f"tee -q -o {count_file.as_posix()} select -count {cell_selection}"
+            )
+
+            count_text = count_file.read_text(encoding="utf-8")
+
+        match = re.search(r"\d+", count_text)
+
+        if match is None:
+            raise RuntimeError(
+                f"Could not parse first integer from Yosys count output: {count_text!r}"
+            )
+
+        cell_count = int(match.group(0))
+
+        if not enable_techmap:
+            return None
+
+        if enable_techmap_only_for_count is not None and not (
+            enable_techmap_only_for_count(cell_count)
+        ):
+            return None
+
+        if cell_count == 0:
+            return 0
+
+        if max_replacements is None:
+            max_replacements = cell_count
+
+        if cell_count < min_replacements:
+            num_replacements = cell_count
+        else:
+            raw_replacements = math.ceil(cell_count * ratio)
+
+            num_replacements = max(raw_replacements, min_replacements)
+            num_replacements = min(num_replacements, max_replacements)
+            num_replacements = min(num_replacements, cell_count)
+
+        if num_replacements == 0:
+            return 0
+
+        try:
+            self.design.run_pass(
+                f"select -set techmap_repl {cell_selection} %R{num_replacements}"
+            )
+
+            self.design.run_pass("select -count @techmap_repl")
+
+            map_id = (
+                "-map"
+                if (
+                    not str(techmap_file).lstrip().startswith("-map")
+                    and map_cmd == "techmap"
+                )
+                else ""
+            )
+            self.design.run_pass(
+                f"{map_cmd} {map_id} {techmap_file.as_posix()} @techmap_repl"
+            )
+
+        finally:
+            self.design.run_pass("select -clear")
+
+        return num_replacements
+
+    def design_connect_clock(self, cell_type: str, clock_port: str) -> None:
+        """Connect all cells of ``cell_type`` to the FABulous global clock.
+
+        Parameters
+        ----------
+        cell_type : str
+            Yosys cell type to connect.
+        clock_port : str
+            Port name on the cell type to connect to
+            the global clock. For example, ``"CLK"``.
+
+        Raises
+        ------
+        RuntimeError
+            If no usable ``Global_Clock.CLK`` connection exists.
+        """
+        design = self.design
+        top = design.design.top_module()
+        global_clk_signal = None
+        global_clock_port = ys.IdString("\\CLK")
+
+        for cell in top.cells_.values():
+            if str(cell.type).lstrip("\\") != "Global_Clock":
+                continue
+            if (
+                not cell.hasPort(global_clock_port)
+                or cell.getPort(global_clock_port).size() == 0
+            ):
+                continue
+            global_clk_signal = cell.getPort(global_clock_port)
+            break
+
+        if global_clk_signal is None:
+            raise RuntimeError("No Global_Clock cell found in top module.")
+
+        clean_cell_type = cell_type.lstrip("\\")
+        clean_clock_port = clock_port.lstrip("\\")
+        clock_port_id = ys.IdString(f"\\{clean_clock_port}")
+        for cell in top.cells_.values():
+            if str(cell.type).lstrip("\\") != clean_cell_type:
+                continue
+            cell.setPort(clock_port_id, global_clk_signal)
+        top.fixup_ports()
 
     def design_report_summary_pass(
         self,

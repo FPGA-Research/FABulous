@@ -340,12 +340,16 @@ class FabGraph:
         remove_columns: tuple[int, ...] | None = None,
         copy_row_after: tuple[int, int] | None = None,
         copy_column_after: tuple[int, int] | None = None,
+        insert_row_block_after: tuple[int, int, int, int] | None = None,
+        insert_column_block_after: tuple[int, int, int, int] | None = None,
     ) -> None:
         """Resize the placed fabric by removing or copying rows and columns.
 
         When multiple options are provided, removals run first on the current
-        layout, then copies run on the reduced layout: remove rows, remove
-        columns, copy row, copy column.
+        layout, then insertions run on the reduced layout: remove rows, remove
+        columns, insert row block, insert column block.  The existing single
+        row/column copy requests are shorthand for inserting a width-one block
+        after itself.
 
         Parameters
         ----------
@@ -361,12 +365,22 @@ class FabGraph:
             Optional ``(column_index, copy_count)`` request.  The selected
             existing column is copied ``copy_count`` times directly after
             ``column_index`` in the layout after removals.
+        insert_row_block_after : tuple[int, int, int, int] | None
+            Optional ``(start_row, height, after_row, repeat)`` request.  The
+            source row block is snapshotted from the layout after removals and
+            inserted ``repeat`` times after ``after_row``.
+        insert_column_block_after : tuple[int, int, int, int] | None
+            Optional ``(start_column, width, after_column, repeat)`` request.
+            The source column block is snapshotted from the layout after removals
+            and inserted ``repeat`` times after ``after_column``.
         """
         self._graph.resize_fabric(
             remove_rows=remove_rows,
             remove_columns=remove_columns,
             copy_row_after=copy_row_after,
             copy_column_after=copy_column_after,
+            insert_row_block_after=insert_row_block_after,
+            insert_column_block_after=insert_column_block_after,
         )
 
     def reset_fabric_layout(self) -> None:

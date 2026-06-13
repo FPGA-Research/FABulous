@@ -103,6 +103,13 @@ class MuxShapeSolver:
                 cache_hit=True,
             )
 
+        if num_data_inputs > len(self.mux_data_inputs) or num_select_inputs > len(
+            self._candidate_inputs
+        ) - len(self.mux_data_inputs):
+            result = MuxSolveResult(sat=False)
+            self._cache[key] = result
+            return result
+
         self.solve_count += 1
         spec_inputs = _spec_inputs(num_data_inputs, num_select_inputs)
         spec = Circuit.fast_lut(

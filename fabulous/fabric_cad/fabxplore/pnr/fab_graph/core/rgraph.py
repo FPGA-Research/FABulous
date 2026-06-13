@@ -352,6 +352,8 @@ class RoutingFabricGraph:
         remove_columns: tuple[int, ...] | None = None,
         copy_row_after: tuple[int, int] | None = None,
         copy_column_after: tuple[int, int] | None = None,
+        insert_row_block_after: tuple[int, int, int, int] | None = None,
+        insert_column_block_after: tuple[int, int, int, int] | None = None,
     ) -> None:
         """Resize the placed fabric by removing or copying rows and columns.
 
@@ -360,8 +362,10 @@ class RoutingFabricGraph:
         Tile models, switch matrices, BEL metadata, and external resources stay
         shared by tile type and continue to materialize lazily at the new
         coordinates.  When multiple options are provided, removals run first on
-        the current layout, then copies run on the reduced layout:
-        remove rows, remove columns, copy row, copy column.
+        the current layout, then insertions run on the reduced layout:
+        remove rows, remove columns, insert row block, insert column block.
+        The existing single row/column copy requests are shorthand for inserting
+        a width-one block after itself.
 
         Parameters
         ----------
@@ -377,10 +381,35 @@ class RoutingFabricGraph:
             Optional ``(column_index, copy_count)`` request.  The selected
             existing column is copied ``copy_count`` times directly after
             ``column_index`` in the layout after removals.
+        insert_row_block_after : tuple[int, int, int, int] | None
+            Optional ``(start_row, height, after_row, repeat)`` request.  The
+            source row block is snapshotted from the layout after removals and
+            inserted ``repeat`` times after ``after_row``.
+        insert_column_block_after : tuple[int, int, int, int] | None
+            Optional ``(start_column, width, after_column, repeat)`` request.
+            The source column block is snapshotted from the layout after removals
+            and inserted ``repeat`` times after ``after_column``.
+
+        Raises
+        ------
+        ValueError
+            If any request is invalid or if multiple conflicting requests are
+            provided.
         """
         tile_types_by_xy = self.tile_types_by_xy
         rows = self.rows
         columns = self.columns
+
+        if copy_row_after is not None and insert_row_block_after is not None:
+            raise ValueError(
+                "provide only one row insertion request: copy_row_after or "
+                "insert_row_block_after"
+            )
+        if copy_column_after is not None and insert_column_block_after is not None:
+            raise ValueError(
+                "provide only one column insertion request: copy_column_after or "
+                "insert_column_block_after"
+            )
 
         if remove_rows is not None:
             row_indexes = _validate_resize_remove_request(
@@ -406,12 +435,25 @@ class RoutingFabricGraph:
                 rows,
                 "row",
             )
-            tile_types_by_xy = _copy_row_after(
+            insert_row_block_after = (row_index, 1, row_index, copy_count)
+
+        if insert_row_block_after is not None:
+            row_index, height, after_row, repeat = (
+                _validate_resize_insert_block_request(
+                    insert_row_block_after,
+                    rows,
+                    "row",
+                    "height",
+                )
+            )
+            tile_types_by_xy = _insert_row_block_after(
                 tile_types_by_xy,
                 row_index,
-                copy_count,
+                height,
+                after_row,
+                repeat,
             )
-            rows += copy_count
+            rows += height * repeat
 
         if copy_column_after is not None:
             column_index, copy_count = _validate_resize_copy_request(
@@ -419,12 +461,25 @@ class RoutingFabricGraph:
                 columns,
                 "column",
             )
-            tile_types_by_xy = _copy_column_after(
+            insert_column_block_after = (column_index, 1, column_index, copy_count)
+
+        if insert_column_block_after is not None:
+            column_index, width, after_column, repeat = (
+                _validate_resize_insert_block_request(
+                    insert_column_block_after,
+                    columns,
+                    "column",
+                    "width",
+                )
+            )
+            tile_types_by_xy = _insert_column_block_after(
                 tile_types_by_xy,
                 column_index,
-                copy_count,
+                width,
+                after_column,
+                repeat,
             )
-            columns += copy_count
+            columns += width * repeat
 
         self.rows = rows
         self.columns = columns
@@ -2719,6 +2774,73 @@ def _validate_resize_copy_request(
     return index, copy_count
 
 
+def _validate_resize_insert_block_request(
+    request: tuple[int, int, int, int],
+    limit: int,
+    axis: str,
+    size_name: str,
+) -> tuple[int, int, int, int]:
+    """Validate a row or column block insertion request.
+
+    Parameters
+    ----------
+    request : tuple[int, int, int, int]
+        ``(start, size, after_pos, repeat)`` request.
+    limit : int
+        Current size of the selected axis.
+    axis : str
+        Human-readable axis name for errors.
+    size_name : str
+        Human-readable block size name, such as ``width`` or ``height``.
+
+    Returns
+    -------
+    tuple[int, int, int, int]
+        Validated start, size, insertion position, and repeat count.
+
+    Raises
+    ------
+    TypeError
+        If the request is not a tuple or contains non-integer values.
+    ValueError
+        If the request is malformed, out of range, or has a non-positive size or
+        repeat count.
+    """
+    request_shape = f"(start_{axis}, {size_name}, after_{axis}, repeat)"
+    if not isinstance(request, tuple):
+        raise TypeError(f"{axis} block insertion request must be {request_shape}")
+
+    try:
+        start, size, after_pos, repeat = request
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f"{axis} block insertion request must be {request_shape}"
+        ) from exc
+
+    if not all(isinstance(value, int) for value in (start, size, after_pos, repeat)):
+        raise TypeError(f"{axis} block insertion request must contain integer values")
+    if size <= 0:
+        raise ValueError(f"{axis} block {size_name} must be positive: {size}")
+    if repeat <= 0:
+        raise ValueError(f"{axis} block repeat must be positive: {repeat}")
+    if start < 0 or start >= limit:
+        raise ValueError(
+            f"{axis} block start {start} is outside the current fabric range "
+            f"0..{limit - 1}"
+        )
+    if start + size > limit:
+        raise ValueError(
+            f"{axis} block {size_name} {size} from start {start} exceeds the "
+            f"current fabric range 0..{limit - 1}"
+        )
+    if after_pos < 0 or after_pos >= limit:
+        raise ValueError(
+            f"{axis} block insertion position {after_pos} is outside the current "
+            f"fabric range 0..{limit - 1}"
+        )
+    return start, size, after_pos, repeat
+
+
 def _validate_resize_remove_request(
     request: tuple[int, ...],
     limit: int,
@@ -2825,21 +2947,27 @@ def _remove_columns(
     return compacted
 
 
-def _copy_row_after(
+def _insert_row_block_after(
     tile_types_by_xy: dict[tuple[int, int], str],
-    row_index: int,
-    copy_count: int,
+    start_row: int,
+    height: int,
+    after_row: int,
+    repeat: int,
 ) -> dict[tuple[int, int], str]:
-    """Return a placement map with one row copied after itself.
+    """Return a placement map with a snapshotted row block inserted.
 
     Parameters
     ----------
     tile_types_by_xy : dict[tuple[int, int], str]
         Current placed tile-type lookup.
-    row_index : int
-        Existing row to duplicate.
-    copy_count : int
-        Number of row copies to insert.
+    start_row : int
+        First source row in the block to duplicate.
+    height : int
+        Number of rows in the source block.
+    after_row : int
+        Existing row after which repeated source-block copies are inserted.
+    repeat : int
+        Number of block copies to insert.
 
     Returns
     -------
@@ -2847,34 +2975,43 @@ def _copy_row_after(
         Resized placement map.
     """
     copied: dict[tuple[int, int], str] = {}
-    row_entries: list[tuple[int, str]] = []
+    row_entries: list[tuple[int, int, str]] = []
+    inserted_height = height * repeat
     for (x, y), tile_type in tile_types_by_xy.items():
-        if y == row_index:
-            row_entries.append((x, tile_type))
-        shifted_y = y if y <= row_index else y + copy_count
+        if start_row <= y < start_row + height:
+            row_entries.append((x, y - start_row, tile_type))
+        shifted_y = y if y <= after_row else y + inserted_height
         copied[(x, shifted_y)] = tile_type
 
-    for offset in range(1, copy_count + 1):
-        for x, tile_type in row_entries:
-            copied[(x, row_index + offset)] = tile_type
+    insert_start = after_row + 1
+    for copy_index in range(repeat):
+        base_y = insert_start + (copy_index * height)
+        for x, row_offset, tile_type in row_entries:
+            copied[(x, base_y + row_offset)] = tile_type
     return copied
 
 
-def _copy_column_after(
+def _insert_column_block_after(
     tile_types_by_xy: dict[tuple[int, int], str],
-    column_index: int,
-    copy_count: int,
+    start_column: int,
+    width: int,
+    after_column: int,
+    repeat: int,
 ) -> dict[tuple[int, int], str]:
-    """Return a placement map with one column copied after itself.
+    """Return a placement map with a snapshotted column block inserted.
 
     Parameters
     ----------
     tile_types_by_xy : dict[tuple[int, int], str]
         Current placed tile-type lookup.
-    column_index : int
-        Existing column to duplicate.
-    copy_count : int
-        Number of column copies to insert.
+    start_column : int
+        First source column in the block to duplicate.
+    width : int
+        Number of columns in the source block.
+    after_column : int
+        Existing column after which repeated source-block copies are inserted.
+    repeat : int
+        Number of block copies to insert.
 
     Returns
     -------
@@ -2882,16 +3019,19 @@ def _copy_column_after(
         Resized placement map.
     """
     copied: dict[tuple[int, int], str] = {}
-    column_entries: list[tuple[int, str]] = []
+    column_entries: list[tuple[int, int, str]] = []
+    inserted_width = width * repeat
     for (x, y), tile_type in tile_types_by_xy.items():
-        if x == column_index:
-            column_entries.append((y, tile_type))
-        shifted_x = x if x <= column_index else x + copy_count
+        if start_column <= x < start_column + width:
+            column_entries.append((x - start_column, y, tile_type))
+        shifted_x = x if x <= after_column else x + inserted_width
         copied[(shifted_x, y)] = tile_type
 
-    for offset in range(1, copy_count + 1):
-        for y, tile_type in column_entries:
-            copied[(column_index + offset, y)] = tile_type
+    insert_start = after_column + 1
+    for copy_index in range(repeat):
+        base_x = insert_start + (copy_index * width)
+        for column_offset, y, tile_type in column_entries:
+            copied[(base_x + column_offset, y)] = tile_type
     return copied
 
 

@@ -206,13 +206,13 @@ class PnRBridge(FabGraph):
             if log_report:
                 logger.info(result.report_summary)
 
-            s_dir: Path = (
-                out_dir
+            summary_path = (
+                Path(out_dir) / "summary.txt"
                 if out_dir is not None
-                else (route_project_dir / "user_design" / "fabxplore" / "summary.txt")
+                else route_project_dir / "user_design" / "fabxplore" / "summary.txt"
             )
-            s_dir.parent.mkdir(parents=True, exist_ok=True)
-            s_dir.write_text(result.report_summary)
+            summary_path.parent.mkdir(parents=True, exist_ok=True)
+            summary_path.write_text(result.report_summary, encoding="utf-8")
 
             return result
 

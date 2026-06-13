@@ -173,6 +173,38 @@ def test_unsupported_width_is_skipped() -> None:
         assert "u_lut" in cells
 
 
+def test_oversized_mux_shape_is_rejected_without_sat() -> None:
+    """Test impossible cofactor counts do not enter SAT solving."""
+    with TemporaryDirectory(prefix="lut_decomposer_oversized_") as td:
+        tmp_dir = Path(td)
+        base = _write_lut5_base(tmp_dir)
+        mux = _write_mux4_tile(tmp_dir)
+
+        bridge = PyosysBridge(debug=False)
+        bridge.read_verilog_paths([base])
+        result = LutDecomposerPass(
+            source_lut_widths=[5],
+            leaf_lut_width=2,
+            mux_verilog_path=mux,
+            mux_top_name="mux4_tile",
+            mux_data_inputs=["A", "B", "C", "D"],
+            mux_select_inputs=["S"],
+            mux_outputs=["Y2", "Y4"],
+            mux_configs=["cfg"],
+            top_name="base",
+            track_progress=False,
+        )
+        result.run_on(bridge)
+
+        assert result.result_data is not None
+        assert result.result_data.stats.candidate_luts == 1
+        assert result.result_data.stats.decomposed_luts == 0
+        assert result.result_data.stats.failed_luts == 1
+        assert result.result_data.stats.mux_solves == 0
+        cells = bridge.to_netlist_dict()["modules"]["base"]["cells"]
+        assert "u_lut" in cells
+
+
 def test_decomposed_design_passes_hierarchy_check() -> None:
     """Test generated internal cell types are valid in the live design."""
     with TemporaryDirectory(prefix="lut_decomposer_hierarchy_") as td:
@@ -286,6 +318,31 @@ endmodule
     return path
 
 
+def _write_lut5_base(tmp_dir: Path) -> Path:
+    """Write a base design with one LUT5.
+
+    Parameters
+    ----------
+    tmp_dir : Path
+        Directory for the generated file.
+
+    Returns
+    -------
+    Path
+        Verilog file path.
+    """
+    path = tmp_dir / "base_lut5.v"
+    path.write_text(
+        """
+module base(input [4:0] a, output y);
+  $lut #(.LUT(32'h69969669), .WIDTH(32'd5)) u_lut (.A(a), .Y(y));
+endmodule
+""",
+        encoding="utf-8",
+    )
+    return path
+
+
 def _write_two_lut3_base(tmp_dir: Path) -> Path:
     """Write a base design with two LUT3 cells.
 
@@ -392,6 +449,7 @@ def main() -> None:
     test_mux_shape_cache_is_used()
     test_many_luts_decompose_with_indexed_apply_and_equiv()
     test_unsupported_width_is_skipped()
+    test_oversized_mux_shape_is_rejected_without_sat()
     test_decomposed_design_passes_hierarchy_check()
 
 

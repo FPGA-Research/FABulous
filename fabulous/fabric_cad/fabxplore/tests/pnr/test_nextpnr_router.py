@@ -466,6 +466,47 @@ def test_pnr_bridge_routes_with_temporary_graph_routing_model(
     assert _read_routing_model_metadata(tmp_path) == original_metadata
 
 
+def test_pnr_bridge_writes_summary_under_explicit_out_dir(tmp_path: Path) -> None:
+    """Write route artifacts and summary report under an explicit output directory."""
+    _write_project_metadata(
+        tmp_path,
+        template_pcf="# original template is intentionally unusable\n",
+    )
+    original_metadata = _read_routing_model_metadata(tmp_path)
+
+    design = _bridge_from_verilog(
+        "module top(input a, output y); assign y = a; endmodule"
+    )
+    bridge = _FakePnRBridge(
+        project_dir=tmp_path,
+        fabulous_api=_FakeFab(_template_pcf(site_count=2)),
+        pyosys_bridge=design,
+    )
+    bridge.write_routing_model = lambda path=None: _write_candidate_routing_model(
+        path,
+        site_count=2,
+    )
+    out_dir = tmp_path / "route_out"
+
+    result = bridge.nextpnr_route(
+        out_dir=out_dir,
+        nextpnr_exec=_fake_nextpnr(tmp_path),
+        check=True,
+        log_report=False,
+    )
+
+    assert result.passed
+    assert result.paths.out_dir == out_dir
+    assert result.paths.json_path == out_dir / "top.json"
+    assert result.paths.pcf_path == out_dir / "top.pcf"
+    assert result.paths.fasm_path == out_dir / "top.fasm"
+    assert result.paths.report_path == out_dir / "top_nextpnr_report.json"
+    assert (out_dir / "summary.txt").read_text(
+        encoding="utf-8"
+    ) == result.report_summary
+    assert _read_routing_model_metadata(tmp_path) == original_metadata
+
+
 def test_pnr_bridge_prefers_input_json_over_bridge_design(tmp_path: Path) -> None:
     """Keep PnRBridge top and auto-PCF based on explicit input JSON."""
     _write_project_metadata(tmp_path)

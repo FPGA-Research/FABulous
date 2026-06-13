@@ -1,7 +1,7 @@
 // DEFINES
 `define BITS 32         // Bit width of the operands
 
-module  ode(clock,
+module  ode_core(clock,
         reset,
         select,
         h,
@@ -160,6 +160,49 @@ begin
     y_pi_reg12 <= y_pi_reg11;
 
 end
+endmodule
+
+module  ode(
+        reset,
+        select,
+        h,
+        half,
+        y_pi_in,
+        t_pi_in,
+        y_pi_out,
+        t_pi_out,
+        x1_control
+);
+
+input   reset;
+input select;
+input [`BITS-1:0] h;
+input [`BITS-1:0] half;
+input [`BITS-1:0] y_pi_in;
+input [`BITS-1:0] t_pi_in;
+
+output [`BITS-1:0] y_pi_out;
+output [`BITS-1:0] t_pi_out;
+output [7:0] x1_control;
+
+wire clock;
+
+(* keep *) Global_Clock clock_global (
+    .CLK(clock)
+);
+
+ode_core core (
+    .clock(clock),
+    .reset(reset),
+    .select(select),
+    .h(h),
+    .half(half),
+    .y_pi_in(y_pi_in),
+    .t_pi_in(t_pi_in),
+    .y_pi_out(y_pi_out),
+    .t_pi_out(t_pi_out),
+    .x1_control(x1_control)
+);
 endmodule
 
 
