@@ -7,6 +7,9 @@ on:
       - "tests/**"
       - "pyproject.toml"
       - "uv.lock"
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
       - ".github/workflows/pytest_testing.yml"
       - ".github/actions/**"
   pull_request:
@@ -15,6 +18,9 @@ on:
       - "tests/**"
       - "pyproject.toml"
       - "uv.lock"
+      - "flake.nix"
+      - "flake.lock"
+      - "nix/**"
       - ".github/workflows/pytest_testing.yml"
       - ".github/actions/**"
 
@@ -62,6 +68,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Run the same split in both the apt/oss-cad-suite container env and the
+        # Nix devshell so behavioural drift between them is caught per-PR.
+        environment: [container, nix]
         job-index: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       # These two steps will be executed only when there IS a cache hit (exact match or not).
@@ -91,9 +100,15 @@ jobs:
             echo ".test_durations_fallback does not exist! Run with default even splits."
           fi
 
-      - uses: ./.github/actions/prepare_FABulous_container
+      - name: Prepare container environment
+        if: matrix.environment == 'container'
+        uses: ./.github/actions/prepare_FABulous_container
         with:
           additional_system_packages: "iverilog"
+
+      - name: Prepare Nix environment
+        if: matrix.environment == 'nix'
+        uses: ./.github/actions/prepare_nix_environment
 
       # When running pytest, we write the new test durations using options
       # `--store-durations --clean-durations`.
@@ -104,17 +119,18 @@ jobs:
         env:
           COVERAGE_FILE: .coverage.${{ matrix.job-index }}
         run: |
-          echo "Running at PATH=$PATH"
-          which nvc
-          which ghdl
-          which iverilog
+          echo "Running pytest in '${{ matrix.environment }}' environment"
           # Ensure no stale coverage data from previous attempts (no coverage module needed)
           rm -f .coverage* || true
-          uv run pytest \
-            --splits ${{ strategy.job-total }} --group ${{ matrix.job-index }} \
+          pytest_args="--splits 8 --group ${{ matrix.job-index }} \
             --store-durations --clean-durations -v -x --runslow \
-            --cov=fabulous --cov-branch --cov-config=pyproject.toml --cov-report= \
-            || {
+            --cov=fabulous --cov-branch --cov-config=pyproject.toml --cov-report="
+          if [ "${{ matrix.environment }}" = "nix" ]; then
+            # pytest (and all simulators) live on PATH inside the devshell.
+            nix develop --command pytest $pytest_args
+          else
+            uv run pytest $pytest_args
+          fi || {
             exit_code=$?
             if [ $exit_code -eq 5 ]; then
               echo "No tests were collected (exit code 5). This is expected for some groups."
@@ -137,7 +153,7 @@ jobs:
         if: github.run_attempt == 1
         uses: actions/upload-artifact@v7
         with:
-          name: test-durations-after-partial-${{ matrix.job-index }}
+          name: test-durations-after-partial-${{ matrix.environment }}-${{ matrix.job-index }}
           path: .test_durations
           if-no-files-found: error
           include-hidden-files: true
@@ -145,7 +161,7 @@ jobs:
       - name: Upload coverage data
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-after-partial-attempt-${{ github.run_attempt }}-${{ matrix.job-index }}
+          name: coverage-after-partial-${{ matrix.environment }}-attempt-${{ github.run_attempt }}-${{ matrix.job-index }}
           path: .coverage*
           if-no-files-found: warn
           include-hidden-files: true
@@ -159,12 +175,12 @@ jobs:
       - name: Download all partial test durations
         uses: actions/download-artifact@v8
         with:
-          pattern: test-durations-after-partial-*
+          pattern: test-durations-after-partial-container-*
 
       # This step regroups the 8 partial files and sorts keys alphabetically:
       - name: Merge all partial test durations
         run: |
-          jq -s 'add' test-durations-after-partial-*/.test_durations \
+          jq -s 'add' test-durations-after-partial-container-*/.test_durations \
           | jq 'to_entries | sort_by(.key) | from_entries' \
           > /tmp/.test_durations_cached
 
@@ -203,7 +219,7 @@ jobs:
       - name: Download all partial coverage artifacts
         uses: actions/download-artifact@v8
         with:
-          pattern: coverage-after-partial-*
+          pattern: coverage-after-partial-container-*
           merge-multiple: false
 
       - name: Set up Python for coverage
