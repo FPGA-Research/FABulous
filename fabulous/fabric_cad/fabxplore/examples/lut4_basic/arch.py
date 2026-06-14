@@ -1,6 +1,8 @@
 """FABulous Architecture Synthesizer.
 
-Simple basic LUT4 flow
+Simple basic LUT4 flow with that flow FABilous supports, DSP, FABULOUS MUX8, MUX4, MUX2,
+RegFile, and Carry. Also Switch-Matrix was improved to support large fabrics up to 15000
+Tiles and 80K LUT4 Primitives.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from fabulous.fabric_cad.fabxplore.utils.benchmark_generator import (
     BenchmarkGenerator,
     FabulousArchitectureConfig,
 )
+from fabulous.fabric_definition.define import Direction
 
 
 class FabulousArchitecture(ArchitectureSynthesizer):
@@ -112,6 +115,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
         self.design.run_pass("techmap -map +/techmap.v")
         self.design.run_pass("opt -fast")
 
+        # IO PAD MAP
         self.design.run_pass(
             "iopadmap -bits -outpad $__FABULOUS_OBUF I:PAD "
             "-inpad $__FABULOUS_IBUF O:PAD "
@@ -189,8 +193,268 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
     def build_tile(self, config: FabulousArchitectureConfig) -> None:
         """Run the tile generation, placement, and routing stages."""
+        # Generate switch matrix pattern image for LUT4AB.
+        self.write_switch_matrix_pattern_image(
+            "LUT4AB",
+            config.user_design_out_dir / "lut4ab_swm_before.png",
+            mode="binary",
+            pixel_size=4,
+            grid_every=16,
+        )
+
+        # Find out potential routing congestion and optimize
+        # the switch matrix accordingly.
+        self.pnr_routing_demand_evaluator_pass(
+            tile_name="LUT4AB",
+            demand_profile="full",
+            demand_iterations=1000,
+            random_demand_ratio=0.25,
+            seed=1,
+            opt=False,
+            optimizer="dense",
+            opt_target_pip_reduction=0.4,
+            opt_max_soft_failure_rate=0.8,
+            opt_max_hard_failure_rate=0.8,
+            opt_use_baseline_failure_rates=True,
+            opt_clean_mux=True,
+            opt_power_of_two_muxes=False,
+            apply_to_tile_model=True,
+            opt_max_iterations=40,
+            report_max_soft_failure_rate=0.1,
+            router="pathfinder",
+            router_max_iterations=30,
+            router_present_cost_multiplier=1.3,
+            router_history_cost_increment=1.0,
+            router_base_resource_capacity=1,
+            fanout_targets=[2, 4, 8],
+            max_net_sinks=8,
+            config_bit_margin=0,
+            track_progress=True,
+            progress_chunk_size=5,
+            repair_unreachable_demands=True,
+            relax_congestion=True,
+        )
+
+        # For large fabrics, we need to add long wire connections to the switch matrix.
+        # We add 32 and 16 tile long wires to the switch matrix of the LUT4AB,
+        # DSP_bot, DSP_top, and RegFile tiles.
+        def long_wire_input_rows(tile_name: str) -> list[str]:
+            """Get the rows of the switch matrix that have long wire inputs."""
+            switch_matrix = self.fpga_model.switch_matrix(tile_name)
+            local_source_prefixes = ("J2MID_", "J2END_", "J_l_")
+            rows: list[str] = []
+            for row_index, row_name in enumerate(switch_matrix.rows):
+                if row_name == "#":
+                    continue
+                if "BEG" in row_name:
+                    continue
+                if any(
+                    delay != 0.0
+                    and switch_matrix.columns[column_index].startswith(
+                        local_source_prefixes
+                    )
+                    for column_index, delay in enumerate(
+                        switch_matrix.matrix[row_index]
+                    )
+                ):
+                    rows.append(row_name)
+            return rows
+
+        long_wire_sinks = [
+            "NN16END0",
+            "NN16END1",
+            "EE16END0",
+            "EE16END1",
+            "SS16END0",
+            "SS16END1",
+            "WW16END0",
+            "WW16END1",
+            "NN32END0",
+            "EE32END0",
+            "SS32END0",
+            "WW32END0",
+        ]
+        long_wire_input_tiles = ("LUT4AB", "DSP_bot", "DSP_top", "RegFile")
+
+        # Apply the long wire connections to the switch matrix of the tiles.
+        # The in-memory Fabulous FPGA model is updated with the
+        # new long wire connections.
+        for tile_name in ("LUT4AB", "DSP_bot", "DSP_top", "RegFile", "E_IO", "WEX_IO"):
+            self.fpga_model.add_external_resource(
+                tile_name,
+                Direction.NORTH,
+                "NN16BEG",
+                0,
+                -16,
+                "NN16END",
+                2,
+            )
+            self.fpga_model.add_external_resource(
+                tile_name,
+                Direction.EAST,
+                "EE16BEG",
+                16,
+                0,
+                "EE16END",
+                2,
+            )
+            self.fpga_model.add_external_resource(
+                tile_name,
+                Direction.SOUTH,
+                "SS16BEG",
+                0,
+                16,
+                "SS16END",
+                2,
+            )
+            self.fpga_model.add_external_resource(
+                tile_name,
+                Direction.WEST,
+                "WW16BEG",
+                -16,
+                0,
+                "WW16END",
+                2,
+            )
+            self.fpga_model.add_external_resource(
+                tile_name,
+                Direction.NORTH,
+                "NN32BEG",
+                0,
+                -32,
+                "NN32END",
+                1,
+            )
+            self.fpga_model.add_external_resource(
+                tile_name,
+                Direction.EAST,
+                "EE32BEG",
+                32,
+                0,
+                "EE32END",
+                1,
+            )
+            self.fpga_model.add_external_resource(
+                tile_name,
+                Direction.SOUTH,
+                "SS32BEG",
+                0,
+                32,
+                "SS32END",
+                1,
+            )
+            self.fpga_model.add_external_resource(
+                tile_name,
+                Direction.WEST,
+                "WW32BEG",
+                -32,
+                0,
+                "WW32END",
+                1,
+            )
+
+            if tile_name in long_wire_input_tiles:
+                rows = long_wire_input_rows(tile_name)
+                self.fpga_model.add_matrix_rows(
+                    tile_name,
+                    [(row, sink, 8.0) for row in rows for sink in long_wire_sinks],
+                )
+                if tile_name == "LUT4AB":
+                    self.fpga_model.add_matrix_rows(
+                        tile_name,
+                        [("J_SR_BEG0", sink, 8.0) for sink in long_wire_sinks],
+                    )
+
+        # Connect the long wire inputs to the switch matrix of the tiles.
+        # Pattern pass auto-connects those new wires wit the specified
+        # pattern and fanin/fanout constraints.
+        self.pnr_switch_matrix_pattern_pass(
+            tile_name="LUT4AB",
+            input_fanin=8,
+            include_bel_output_sources=True,
+            include_constant_sources=True,
+            output_fanin=4,
+            cover_unconnected_matrix_rows=True,
+            routing_pip_pattern="wilton",
+            routing_pip_fs=5,
+            generate_straight_routing_pips=True,
+            generate_turn_routing_pips=True,
+            hierarchy_enabled=False,
+            hierarchy_levels=[2, 2],
+            hierarchy_jump_prefix="J_LOCAL",
+            hierarchy_replace_direct_input_pips=True,
+            delay=8.0,
+            progress_chunk_size=5,
+        )
+        self.pnr_switch_matrix_pattern_pass(
+            tile_name="DSP_bot",
+            input_fanin=8,
+            include_bel_output_sources=True,
+            include_constant_sources=True,
+            output_fanin=4,
+            cover_unconnected_matrix_rows=True,
+            routing_pip_pattern="wilton",
+            routing_pip_fs=5,
+            generate_straight_routing_pips=True,
+            generate_turn_routing_pips=True,
+            hierarchy_enabled=False,
+            hierarchy_levels=[2, 2],
+            hierarchy_jump_prefix="J_LOCAL",
+            hierarchy_replace_direct_input_pips=True,
+            delay=8.0,
+            progress_chunk_size=5,
+        )
+        self.pnr_switch_matrix_pattern_pass(
+            tile_name="DSP_top",
+            input_fanin=8,
+            include_bel_output_sources=True,
+            include_constant_sources=True,
+            output_fanin=4,
+            cover_unconnected_matrix_rows=True,
+            routing_pip_pattern="wilton",
+            routing_pip_fs=5,
+            generate_straight_routing_pips=True,
+            generate_turn_routing_pips=True,
+            hierarchy_enabled=False,
+            hierarchy_levels=[2, 2],
+            hierarchy_jump_prefix="J_LOCAL",
+            hierarchy_replace_direct_input_pips=True,
+            delay=8.0,
+            progress_chunk_size=5,
+        )
+        self.pnr_switch_matrix_pattern_pass(
+            tile_name="RegFile",
+            input_fanin=8,
+            include_bel_output_sources=True,
+            include_constant_sources=True,
+            output_fanin=4,
+            cover_unconnected_matrix_rows=True,
+            routing_pip_pattern="wilton",
+            routing_pip_fs=5,
+            generate_straight_routing_pips=True,
+            generate_turn_routing_pips=True,
+            hierarchy_enabled=False,
+            hierarchy_levels=[2, 2],
+            hierarchy_jump_prefix="J_LOCAL",
+            hierarchy_replace_direct_input_pips=True,
+            delay=8.0,
+            progress_chunk_size=5,
+        )
+
+        # Generate switch matrix pattern image for LUT4AB
+        # after adding long wire connections.
+        self.write_switch_matrix_pattern_image(
+            "LUT4AB",
+            config.user_design_out_dir / "lut4ab_swm_after.png",
+            mode="binary",
+            pixel_size=4,
+            grid_every=16,
+        )
+
         print(self.fpga_model.fabric_dimensions())  # noqa: T201
 
+        # Resize the fabric to a larger size for testing
+        # the routing and placement of large designs.
         # columns=100, rows=150, 15000 Tiles
         self.fpga_model.resize_fabric(
             insert_row_block_after=(1, 2, 2, 67),
@@ -199,6 +463,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         print(self.fpga_model.fabric_dimensions())  # noqa: T201
 
+        # Route the in-memory design using nextpnr with the specified parameters.
         self.fpga_model.nextpnr_route(
             nextpnr_exec=self.nextpnr_exec,
             check=False,
@@ -206,8 +471,11 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             live_output=True,
             out_dir=config.user_design_out_dir / "pnr",
             extra_args=["--freq", "1.0", "--router", "router2"],
+            pcf_assignment_seed=47,  # was 42
         )
 
+        # Do backend timing analysis using the specified STA executable.
+        # Optimize area and timing of the design using the netlist tool pass.
         a = self.netlist_tool_pass(
             tile_name="LUT4AB",
             sub_circuit_map_rules=[
@@ -305,13 +573,13 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         self.synth_fabulous(config)
 
-        self.write_design(config)
-
         self.log_info(f"Synthesis completed for top module: {config.top_module}")
 
         if pnr:
             self.log_info("Starting placement and routing stages.")
             self.build_tile(config)
+
+        self.write_design(config)
 
     def dse_flow(
         self, benchmark_id: int, syth_coarse_only: bool = False, pnr: bool = True
@@ -323,7 +591,8 @@ class FabulousArchitecture(ArchitectureSynthesizer):
 
         match sel_test:
             case 0:
-                config = bg.test_basic_synth_flow("ode")
+                config = bg.test_swm_micro24_benchmark("swm_micro24")
+                config.defines = ["-DIOS=0 -DCASCADES=0"]
             case 1:
                 config = bg.test_basic_large_or_benchmark("or17_chain")
             case 2:
@@ -332,7 +601,7 @@ class FabulousArchitecture(ArchitectureSynthesizer):
                 config = bg.test_aes_like_sboxes_benchmark("aes_like_sboxes")
             case 4:
                 config = bg.test_swm_micro24_benchmark("swm_micro24")
-                config.defines = ["-DIOS=0 -DCASCADES=0"]
+                config.defines = ["-DIOS=10 -DCASCADES=4"]
             case 5:
                 config = bg.test_vtr_riscv_core_benchmark("riscv_core")
             case 6:
@@ -346,30 +615,30 @@ class FabulousArchitecture(ArchitectureSynthesizer):
             case 10:
                 config = bg.test_vtr_mm3_benchmark("mm3")
             case 11:
-                config = bg.test_titan_wb_conmax_top_benchmark("wb_conmax_top")
-            case 12:
-                config = bg.test_titan_ucsb_152_tap_fir_benchmark("ucsb_152_tap_fir")
-            case 13:
-                config = bg.test_titan_sudoku_check_benchmark("sudoku_check")
-            case 14:
-                config = bg.test_koios_attention_layer_benchmark("attention_layer")
-                config.defines = ["-DVECTOR_DEPTH=32 -DVECTOR_BITS=512 -DNUM_WORDS=16"]
-            case 15:
                 config = bg.test_koios_conv_layer_benchmark("conv_layer")
                 config.defines = [
                     "-DDWIDTH=4 -DAWIDTH=6 -DMEM_SIZE=64 "
                     "-DDESIGN_SIZE=2 -DMAT_MUL_SIZE=2 "
                     "-DMASK_WIDTH=2 -DLOG2_MAT_MUL_SIZE=1"
                 ]
-            case 16:
+            case 12:
                 config = bg.test_koios_tpu_like_small_os_benchmark("tpu_like_small_os")
                 config.defines = ["-DDWIDTH=2 -DAWIDTH=6"]
+            case 13:
+                config = bg.test_koios_attention_layer_benchmark("attention_layer")
+                config.defines = ["-DVECTOR_DEPTH=32 -DVECTOR_BITS=512 -DNUM_WORDS=16"]
+            case 14:
+                config = bg.test_titan_ucsb_152_tap_fir_benchmark("ucsb_152_tap_fir")
+            case 15:
+                config = bg.test_titan_wb_conmax_top_benchmark("wb_conmax_top")
+            case 16:
+                config = bg.test_titan_sudoku_check_benchmark("sudoku_check")
 
         self.synthesize(config, syth_coarse_only=syth_coarse_only, pnr=pnr)
         self.clear_flow()
 
     def run_flow(self) -> None:
         """Run the DSE loop over multiple benchmarks."""
-        b = 10
-        for benchmark_id in range(b, b + 1):
+        b = 0
+        for benchmark_id in range(b, b + 17):
             self.dse_flow(benchmark_id=benchmark_id, syth_coarse_only=False, pnr=True)

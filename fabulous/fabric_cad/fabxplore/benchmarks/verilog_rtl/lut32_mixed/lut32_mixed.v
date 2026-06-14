@@ -15,6 +15,48 @@ module lut32_mixed(
   output wire y1
 );
 
+  wire clock;
+
+  (* keep *) Global_Clock clock_global (
+    .CLK(clock)
+  );
+
+  lut32_mixed_core core (
+    .a0(a0),
+    .a1(a1),
+    .a2(a2),
+    .a3(a3),
+    .a4(a4),
+    .a5(a5),
+    .a6(a6),
+    .a7(a7),
+    .a8(a8),
+    .a9(a9),
+    .a10(a10),
+    .a11(a11),
+    .y0(y0),
+    .y1(y1)
+  );
+
+endmodule
+
+module lut32_mixed_core(
+  input  wire a0,
+  input  wire a1,
+  input  wire a2,
+  input  wire a3,
+  input  wire a4,
+  input  wire a5,
+  input  wire a6,
+  input  wire a7,
+  input  wire a8,
+  input  wire a9,
+  input  wire a10,
+  input  wire a11,
+  output wire y0,
+  output wire y1
+);
+
   function lut2;
     input [3:0] init;
     input i0, i1;

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
+        RoutingResourceKey,
         RoutingSwitchMatrix,
         RoutingTileModel,
     )
@@ -102,9 +103,11 @@ def routing_track_groups(
     list[RoutingTrackGroup]
         Routing-resource groups discovered from the tile model.
     """
-    tile_model = fpga_model.tile_model(tile_name)
     available_wires = fpga_model.matrix_sources(tile_name)
-    return _routing_track_groups(tile_model, available_wires)
+    return _routing_track_groups(
+        fpga_model.external_resources(tile_name, active_only=True),
+        available_wires,
+    )
 
 
 def routable_groups(groups: list[RoutingTrackGroup]) -> list[RoutingTrackGroup]:
@@ -436,15 +439,15 @@ def _active_pairs_by_row(pairs: list[MatrixPair]) -> dict[str, set[str]]:
 
 
 def _routing_track_groups(
-    tile_model: RoutingTileModel,
+    resources: Iterable[RoutingResourceKey],
     available_wires: list[str],
 ) -> list[RoutingTrackGroup]:
-    """Build routing groups from tile ports visible in the switch matrix.
+    """Build routing groups from active graph resources visible to the matrix.
 
     Parameters
     ----------
-    tile_model : RoutingTileModel
-        Tile model containing FABulous routing port declarations.
+    resources : Iterable[RoutingResourceKey]
+        Active graph external resources containing FABulous routing metadata.
     available_wires : list[str]
         Switch-matrix rows and columns currently present in the graph.
 
@@ -456,16 +459,18 @@ def _routing_track_groups(
     """
     available = set(available_wires)
     groups: list[RoutingTrackGroup] = []
-    for port in tile_model.ports:
+    for resource in resources:
+        if resource.direction is None or resource.wire_count is None:
+            continue
         destination_rows = [
             wire
             for wire in _declared_wire_names(
-                source_name=port.source_name,
+                source_name=resource.source_name,
                 destination_name="NULL",
-                direction=port.direction,
-                x_offset=port.x_offset,
-                y_offset=port.y_offset,
-                wire_count=port.wire_count,
+                direction=resource.direction,
+                x_offset=resource.x_offset,
+                y_offset=resource.y_offset,
+                wire_count=resource.wire_count,
             )
             if wire in available
         ]
@@ -473,23 +478,23 @@ def _routing_track_groups(
             wire
             for wire in _declared_wire_names(
                 source_name="NULL",
-                destination_name=port.destination_name,
-                direction=port.direction,
-                x_offset=port.x_offset,
-                y_offset=port.y_offset,
-                wire_count=port.wire_count,
+                destination_name=resource.destination_name,
+                direction=resource.direction,
+                x_offset=resource.x_offset,
+                y_offset=resource.y_offset,
+                wire_count=resource.wire_count,
             )
             if wire in available
         ]
         if destination_rows or selectable_sources:
             groups.append(
                 RoutingTrackGroup(
-                    direction=port.direction,
-                    source_name=port.source_name,
-                    x_offset=port.x_offset,
-                    y_offset=port.y_offset,
-                    destination_name=port.destination_name,
-                    wire_count=port.wire_count,
+                    direction=resource.direction,
+                    source_name=resource.source_name,
+                    x_offset=resource.x_offset,
+                    y_offset=resource.y_offset,
+                    destination_name=resource.destination_name,
+                    wire_count=resource.wire_count,
                     destination_rows=destination_rows,
                     selectable_sources=selectable_sources,
                 )

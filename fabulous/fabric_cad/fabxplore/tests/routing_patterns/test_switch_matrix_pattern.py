@@ -23,6 +23,8 @@ from fabulous.fabric_cad.fabxplore.pnr.custom_passes import SwitchMatrixPatternP
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core import FabGraph
 from fabulous.fabric_cad.fabxplore.pnr.fab_graph.core.models import (
     RoutingConfigBits,
+    RoutingPipKind,
+    RoutingResourceKey,
     RoutingSwitchMatrix,
     RoutingTileBelModel,
     RoutingTileModel,
@@ -401,6 +403,42 @@ def test_routing_track_groups_keep_port_metadata() -> None:
     assert east.wire_count == 4
 
 
+def test_routing_track_groups_use_graph_external_resources() -> None:
+    """Discover routing groups added directly to the active graph."""
+    graph = _FakePnRBridge()
+    graph.add_external_resource(
+        "Toy",
+        Direction.SOUTH,
+        "SBEG",
+        0,
+        1,
+        "SEND",
+        2,
+    )
+
+    groups = routing_track_groups(graph, "Toy")
+    south = next(group for group in groups if group.direction is Direction.SOUTH)
+
+    assert south.source_name == "SBEG"
+    assert south.destination_name == "SEND"
+    assert south.destination_rows == ["SBEG0", "SBEG1"]
+    assert south.selectable_sources == ["SEND0", "SEND1"]
+
+    SwitchMatrixPattern(
+        SwitchMatrixPatternOptions(
+            tile_name="Toy",
+            input_fanin=1,
+            output_fanin=1,
+            routing_pip_pattern="wilton",
+            routing_pip_fs=3,
+            track_progress=False,
+        )
+    ).run(graph)
+
+    assert any(row in {"SBEG0", "SBEG1"} for row, _source in graph.active_pairs)
+    assert any(source in {"SEND0", "SEND1"} for _row, source in graph.active_pairs)
+
+
 def test_switch_matrix_pattern_pass_wrapper_uses_pnr_bridge() -> None:
     """Run the PnR wrapper against the bridge-shaped graph object."""
     graph = _FakePnRBridge()
@@ -452,6 +490,20 @@ class _FakePnRBridge:
     def __init__(self) -> None:
         self.model = _tile_model()
         self.available_wires = set(_base_available_wires())
+        self.external_resource_keys = [
+            RoutingResourceKey(
+                tile_type="Toy",
+                kind=RoutingPipKind.EXTERNAL_WIRE,
+                source_name=port.source_name,
+                destination_name=port.destination_name,
+                direction=port.direction,
+                x_offset=port.x_offset,
+                y_offset=port.y_offset,
+                wire_count=port.wire_count,
+                wire_class=abs(port.x_offset) + abs(port.y_offset),
+            )
+            for port in self.model.ports
+        ]
         self.active_pairs: set[tuple[str, str]] = {("A_I0", "NEND0")}
         self.added_external_resources: list[tuple[str, str]] = []
         self.set_switch_matrix_called = False
@@ -466,6 +518,17 @@ class _FakePnRBridge:
         """Return matrix-visible wires."""
         assert tile_name == "Toy"
         return sorted(self.available_wires)
+
+    def external_resources(
+        self,
+        tile_name: str,
+        *,
+        active_only: bool = True,
+    ) -> list[RoutingResourceKey]:
+        """Return fake active external resources."""
+        assert tile_name == "Toy"
+        assert active_only
+        return list(self.external_resource_keys)
 
     def switch_matrix(self, tile_name: str) -> RoutingSwitchMatrix:
         """Return active matrix pairs as a delay matrix."""
@@ -543,11 +606,28 @@ class _FakePnRBridge:
         *,
         delay: float = 8.0,
     ) -> None:
-        """Add a fake local JUMP resource."""
+        """Add a fake external resource."""
         assert tile_name == "Toy"
-        assert direction is Direction.JUMP
-        assert (x_offset, y_offset, wire_count, delay) == (0, 0, 1, 8.0)
-        self.available_wires.update((f"{source_name}0", f"{destination_name}0"))
+        assert delay == 8.0
+        self.available_wires.update(
+            f"{wire}{index}"
+            for index in range(wire_count)
+            for wire in (source_name, destination_name)
+            if wire != "NULL"
+        )
+        self.external_resource_keys.append(
+            RoutingResourceKey(
+                tile_type=tile_name,
+                kind=RoutingPipKind.EXTERNAL_WIRE,
+                source_name=source_name,
+                destination_name=destination_name,
+                direction=direction,
+                x_offset=x_offset,
+                y_offset=y_offset,
+                wire_count=wire_count,
+                wire_class=abs(x_offset) + abs(y_offset),
+            )
+        )
         self.added_external_resources.append((source_name, destination_name))
 
     def get_config_bits(self, tile_name: str) -> RoutingConfigBits:

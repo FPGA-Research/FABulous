@@ -76,6 +76,11 @@ from fabulous.fabric_cad.fabxplore.pyosys.custom_passes.reg_absorber_pass import
 from fabulous.fabric_cad.fabxplore.pyosys.pyosys_bridge import (
     PyosysBridge,
 )
+from fabulous.fabric_cad.fabxplore.utils.swm_image import (
+    SwmImageMode,
+    SwmImageResult,
+    gen_swm_pattern_image,
+)
 from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
@@ -243,6 +248,66 @@ class ArchitectureSynthesizer(ABC):
                     writer.writerow([key, value])
 
         return metadata_dir
+
+    def write_switch_matrix_pattern_image(
+        self,
+        tile_name: str,
+        out_path: str | Path,
+        *,
+        mode: SwmImageMode = "heat",
+        pixel_size: int = 1,
+        grid_every: int = 0,
+        write_labels: bool = True,
+        labels_path: str | Path | None = None,
+        max_value: float | None = None,
+    ) -> SwmImageResult:
+        """Write a PNG visualization of a tile switch matrix.
+
+        Parameters
+        ----------
+        tile_name : str
+            Tile type whose switch matrix should be rendered.
+        out_path : str | Path
+            PNG path to write.
+        mode : SwmImageMode
+            ``"heat"`` maps low non-zero values to blue and high values through
+            red toward black. ``"binary"`` renders every non-zero entry black.
+        pixel_size : int
+            Output pixel size for each matrix entry.
+        grid_every : int
+            Draw a subtle grid every N matrix rows/columns. Use zero to disable it.
+        write_labels : bool
+            Whether to write a TSV sidecar mapping pixel indices to wire names.
+        labels_path : str | Path | None
+            Optional explicit labels sidecar path.
+        max_value : float | None
+            Optional heat-map maximum. If ``None``, use the largest active value.
+
+        Returns
+        -------
+        SwmImageResult
+            Metadata for the generated image and optional label sidecar.
+
+        Raises
+        ------
+        RuntimeError
+            If no FABulous PnR model can be attached to the architecture flow.
+        """
+        if self.fpga_model is None:
+            self.generate_fpga_model()
+        if self.fpga_model is None:
+            raise RuntimeError("FABulous PnR model not attached to architecture flow.")
+
+        return gen_swm_pattern_image(
+            self.fpga_model.switch_matrix(tile_name),
+            out_path,
+            mode=mode,
+            pixel_size=pixel_size,
+            grid_every=grid_every,
+            write_labels=write_labels,
+            labels_path=labels_path,
+            max_value=max_value,
+        )
 
     def log_info(self, message: str) -> None:
         """Log an informational message.

@@ -33,6 +33,25 @@ def test_write_routingmodel_bitreamspec_uses_graph_routing_model(
     )
 
 
+def test_write_switch_matrix_pattern_image_uses_fpga_model(
+    tmp_path: Path,
+) -> None:
+    """Write a switch-matrix image from the attached PnR model."""
+    synthesizer = _RoutingMetadataSynthesizer()
+    synthesizer.attach_fabulous_api(_FakeFab())  # type: ignore[arg-type]
+
+    result = synthesizer.write_switch_matrix_pattern_image(
+        "TEST_TILE",
+        tmp_path / "test_tile.png",
+        mode="binary",
+    )
+
+    assert result.image_path.exists()
+    assert result.labels_path is not None
+    assert result.labels_path.exists()
+    assert result.active_pips == 1
+
+
 class _RoutingMetadataSynthesizer(ArchitectureSynthesizer):
     """Concrete synthesizer with a fake graph-backed PnR model."""
 
@@ -46,6 +65,28 @@ class _RoutingMetadataSynthesizer(ArchitectureSynthesizer):
 
 class _FakePnRModel:
     """Small graph-backed routing-model writer test double."""
+
+    def switch_matrix(self, tile_name: str) -> _FakeSwitchMatrix:
+        """Return a fake switch matrix for image-rendering tests.
+
+        Parameters
+        ----------
+        tile_name : str
+            Tile name to fetch.
+
+        Returns
+        -------
+        _FakeSwitchMatrix
+            Small fake switch-matrix object.
+
+        Raises
+        ------
+        ValueError
+            If the requested tile name is not known.
+        """
+        if tile_name != "TEST_TILE":
+            raise ValueError(f"Unknown fake tile: {tile_name}")
+        return _FakeSwitchMatrix()
 
     def write_routing_model(self, path: Path | str | None = None) -> None:
         """Write fake graph routing metadata.
@@ -75,6 +116,14 @@ class _FakePnRModel:
             "# graph template pcf\n",
             encoding="utf-8",
         )
+
+
+class _FakeSwitchMatrix:
+    """Small switch-matrix object with the graph-facing matrix attribute."""
+
+    rows = ["ROW0", "ROW1"]
+    columns = ["COL0", "COL1"]
+    matrix = [[0, 1], ["#", 0]]
 
 
 class _FakeFab:

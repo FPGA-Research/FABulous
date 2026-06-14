@@ -8,6 +8,24 @@ module aes_like_sboxes (
     input [47:0] key,
     output [47:0] out
 );
+    wire clock;
+
+    (* keep *) Global_Clock clock_global (
+        .CLK(clock)
+    );
+
+    aes_like_sboxes_core core (
+        .data(data),
+        .key(key),
+        .out(out)
+    );
+endmodule
+
+module aes_like_sboxes_core (
+    input [47:0] data,
+    input [47:0] key,
+    output [47:0] out
+);
     wire [7:0] x0 = data[7:0] ^ key[7:0];
     wire [7:0] x1 = data[15:8] ^ {key[8], key[15:9]};
     wire [7:0] x2 = data[23:16] ^ key[23:16] ^ x0;
