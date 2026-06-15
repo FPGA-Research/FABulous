@@ -324,9 +324,12 @@ Wires are defined by 5-tuples:
 
 specifying:
 
-- `direction`, `[NORTH|EAST|SOUTH|WEST|JUMP]`
+- `direction`, `[NORTH|EAST|SOUTH|WEST|JUMP|SJUMP]`
 
   The keyword `JUMP` specifies a stop-over at the switch matrix, which is a logical wire that starts and ends at the same switch matrix (i.e. `X-offset` = 0 and `Y-offset` = 0).
+
+  The keyword `SJUMP` ("supertile jump") routes a basic tile's ports to a BEL hosted in the master tile of a {ref}`supertile <supertiles>`, through a dedicated supertile switch matrix.
+  It is only meaningful for tiles that are part of a supertile; see {ref}`supertile-bel-routing`.
 
   Jump wires are useful to model hierarchies, some sharing of multiplexers or tapping into routing paths, as shown in the examples below.
 
@@ -1175,15 +1178,20 @@ Verilog example:
 
 ### Supertile Functionality
 
-With the instantiation of multiple basic tiles, we define mostly the part related to the routing fabric. The actual functionality of a tile can be either concentrated in one basic tile or inside the supertile wrapper or as a combination of both. The following figure shows this for a simple DSP block example:
+With the instantiation of multiple basic tiles, we define mostly the part related to the routing fabric. The actual functionality of a supertile can be hosted in one of two ways:
+
+- **Approach A -- BEL in a basic tile:** the functionality is concentrated in a single basic tile, whose BEL reaches the other basic tiles through ordinary directional wires (NORTH/EAST/SOUTH/WEST).
+- **Approach B -- BEL on the supertile:** the BEL is declared on the `SuperTILE` block and lives in the supertile's master tile, reaching every basic tile through `SJUMP` wires and a dedicated supertile switch matrix (see {ref}`supertile-bel-routing`).
+
+The following figure contrasts the two for a simple DSP block example:
 
 :::{figure} figs/SuperTILE_functionality.*
 :align: center
-:alt: An illustration comparing having the Supertile functionality in one basic tile to having it in a Supertile wrapper.
+:alt: Two supertile approaches side by side. Approach A hosts the BEL inside a basic tile, wired to the other tile by ordinary directional wires. Approach B hosts the BEL on the supertile's master tile, fed from every basic tile through SJUMP wires and a dedicated supertile switch matrix, with the supertile config bits held in the master tile.
 :width: 90%
 :::
 
-The left example concentrates the DSP functionality in the bottom tile and is modelled as shown in the next code block.
+**Approach A (BEL in a basic tile).** The left example concentrates the DSP functionality in the bottom tile and is modelled as shown in the next code block.
 (Note the two extra NORTH and SOUTH wires that provide the connections between the DSP BEL (located bot) and the top basic tile).
 
 ```{code-block} python
@@ -1228,8 +1236,26 @@ DSP_bot
 EndTILE
 ```
 
-The right example provides the tile functionality in the supertile wrapper and is modelled as shown in the next code block.
-(Note the two wire entries with the LOCAL attribute in each basic tile to define that these wires are usable in the supertile wrapper. Furthermore, configuration bits for the DSP primitive will be provided through a ConfigBits BEL. This allows it to distribute the number of configuration bits among the basic tiles as needed. Note that configuration bits are organized at basic tile level.)
+**Approach B (BEL on the supertile).** The right example hosts the functionality in the supertile wrapper: the BEL is declared on the `SuperTILE` block and lives in the supertile's master tile. The recommended way to wire it is with `SJUMP` wires and a dedicated supertile switch matrix; the supertile declaration carries both the `BEL` and a `MATRIX` line pointing at that switch matrix:
+
+```{code-block} python
+:emphasize-lines: 1,4,5
+
+SuperTILE   DSP     # declare supertile DSP
+DSP_top
+DSP_bot
+BEL,        MULADD.vhdl
+MATRIX,     DSP_supertile_matrix.list
+EndTILE
+```
+
+The basic tiles declare their `SJUMP` ports and the supertile switch matrix is written as described in {ref}`supertile-bel-routing`.
+
+```{admonition} Legacy modelling: LOCAL wires + ConfigBits BEL
+:class: note
+
+Before `SJUMP` routing existed, wrapper functionality was modelled with `LOCAL` wires and a per-tile `ConfigBits` BEL, distributing the configuration bits across the basic tiles (configuration bits organized at basic-tile level). This still parses, but is superseded by the `SJUMP` approach above. The legacy form looks like this:
+```
 
 ```{code-block} python
 :emphasize-lines: 1,8,9,12,14,21,22,25
@@ -1269,4 +1295,90 @@ DSP_top
 DSP_bot
 BEL,        MULADD.vhdl
 EndTILE
+```
+
+(supertile-bel-routing)=
+
+### Supertile BEL routing with SJUMP wires
+
+```{admonition} Anchor tile vs. master tile
+:class: note
+
+A supertile has two independent reference tiles, and they are easy to confuse:
+
+- The **anchor tile** ({ref}`above <supertiles>`) is the first non-NULL tile in a
+  row-by-row scan (the top-left tile). It fixes where the supertile is *placed* in the
+  fabric and is purely structural.
+- The **master tile** is where a supertile BEL and its configuration bits *live*. By
+  default it is the **last** non-NULL tile in row-major order; an explicit `MASTER` token
+  in the supertile CSV overrides this.
+
+These are usually **different** tiles. In the DSP example the anchor is `DSP_top` (top)
+while the master is `DSP_bot` (bottom), so the BEL, its ConfigMem, and the supertile
+switch matrix all live in `DSP_bot` even though the wrapper is placed at `DSP_top`.
+```
+
+A BEL declared on the supertile (such as the `MULADD` block above) lives in the supertile's **master tile**,
+but its operands and results usually need to reach the routing fabric of *every* basic tile in the supertile - a multiplier,
+for instance, may take its operands from the top tile and write its result back through the bottom tile.
+
+Pins of a supertile BEL marked `EXTERNAL` behave exactly like those of a normal tile BEL: they are
+exported through the supertile wrapper and become top-level ports of the fabric (named
+`Tile_X{x}Y{y}_{pin}` at the supertile's anchor coordinates). A pin marked `EXTERNAL, SHARED_PORT`
+(for example a shared `UserCLK`) is wired to the master tile's clock instead of being exported.
+
+FABulous routes these BEL pins with **`SJUMP`** ("supertile jump") wires.
+An `SJUMP` wire connects a basic tile's switch matrix to the BEL pins through a dedicated **supertile switch matrix**,
+which lives alongside the supertile and is anchored at the master tile.
+The wire's routing direction (which child tile connects to the master) is derived from the supertile layout,
+so an `SJUMP` line carries **no spatial offset** - its `X-offset` and `Y-offset` must both be `0`.
+
+A basic tile declares its `SJUMP` ports the same way as any other wire, but each line is **one-way**:
+exactly one of `source_name`/`destination_name` must be `NULL`.
+An `OUTPUT` direction (a non-`NULL` `source_name`, `NULL` destination) drives a signal *up* to the supertile BEL;
+an `INPUT` direction (`NULL` source, a non-`NULL` `destination_name`) receives a result *back* from the BEL:
+
+```{code-block} python
+:emphasize-lines: 4,6
+
+TILE,       DSP_bot
+#direction  source   X-offset  Y-offset  destination  wires
+# operand A leaves the tile for the supertile BEL
+SJUMP,      A,       0,        0,        NULL,        8
+# result Q returns from the supertile BEL into the tile
+SJUMP,      NULL,    0,        0,        Q,           8
+MATRIX,     DSP_bot_switch_matrix.list
+EndTILE
+```
+
+The supertile switch matrix itself is described in a `.list` file (a `.csv` adjacency matrix is also accepted), referenced by a `MATRIX` line in the `SuperTILE` definition (the path is resolved relative to the supertile CSV). A supertile without a `MATRIX` line simply has no supertile switch matrix.
+Each entry follows the usual `<destination>,<sources>` list convention, keying connections by destination:
+
+```{code-block} text
+# passthrough: a single source wired straight to a BEL input (no config bit)
+SUPER_A0,           DSP_bot_A0
+# multiplexed: pick one of four sources for a BEL input (2 mux-select bits)
+{4}SUPER_B0,        [DSP_bot_B0|DSP_top_B0|DSP_bot_C0|DSP_top_C0]
+# constant tie-off: drive a BEL input from a constant, or offer it as a mux input
+SUPER_C0,           GND0
+{2}SUPER_D0,        [VCC0|DSP_bot_D0]
+# reverse path: a BEL output driving a tile's return wire
+DSP_bot_Q0,       SUPER_Q0
+```
+
+Like a normal tile switch matrix, the supertile switch matrix declares the constant sources `GND0`/`GND` (`1'b0`) and `VCC0`/`VCC`/`VDD0`/`VDD` (`1'b1`), so they can be used as a source anywhere in the matrix - either as a fixed tie-off (one source) or as one option in a multiplexed input.
+
+Every name in the matrix is validated when the supertile is parsed:
+each sink (destination) must be a BEL input or a child-tile INPUT `SJUMP` wire, and each source must be a BEL output,
+a child-tile OUTPUT `SJUMP` wire, or one of the constants above.
+
+A passthrough connection (one source) consumes no configuration bits; a multiplexed connection adds the required mux-select bits.
+These supertile configuration bits are organized in the supertile's own ConfigMem and physically programmed through the **master tile's** config frame.
+This means that the master tile's configuration logic is left untouched,
+so the master tile's own ConfigMem leaves them free.
+
+```{admonition} Pin-name collisions
+:class: note
+
+If a supertile BEL exposes pin names that clash with a child tile's `SJUMP` port names, give the BEL a prefix in the tile CSV (for example `SUPER_`) so the master-tile nodes stay distinct. Use the prefixed names when wiring the supertile switch matrix.
 ```
