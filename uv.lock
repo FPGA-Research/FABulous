@@ -637,7 +637,6 @@ source = { editable = "." }
 dependencies = [
     { name = "bitarray" },
     { name = "ciel" },
-    { name = "click" },
     { name = "cmd2" },
     { name = "dill" },
     { name = "fabulous-bit-gen" },
@@ -678,7 +677,6 @@ dev = [
 requires-dist = [
     { name = "bitarray", specifier = ">=3.3.0" },
     { name = "ciel", specifier = ">=2.4.0" },
-    { name = "click", specifier = ">=8.0.0" },
     { name = "cmd2", specifier = ">=2" },
     { name = "dill", specifier = ">=0.4.0" },
     { name = "fabulous-bit-gen", specifier = ">=0.2.0" },

@@ -33,7 +33,6 @@ dependencies = [
   "typer>=0.20.0",
   "FABulous-bit-gen>=0.2.0",
   'PyYAML>=6.0.0',
-  'click>=8.0.0',
   # OS-aware readline dependencies
   'pyreadline3>=3.4.0; sys_platform == "win32"',
   'gnureadline>=8.2.0; sys_platform != "win32"',
