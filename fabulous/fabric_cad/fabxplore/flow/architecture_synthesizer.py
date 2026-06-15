@@ -554,8 +554,10 @@ class ArchitectureSynthesizer(ABC):
         buffer_wire_insertion: bool = False,
         change_cell_types: dict[str, list[str]] | None = None,
         add_liberty_cells: list[str] | None = None,
+        inject_liberty_fragments: list[str] | None = None,
         remove_liberty_cells: list[str] | None = None,
         change_liberty_cell_area: dict[str, float] | None = None,
+        gates: str = "cmos",
     ) -> NetlistTool:
         """Run a gate-level RTL mapping flow optimized for the Tile.
 
@@ -574,11 +576,19 @@ class ArchitectureSynthesizer(ABC):
             "mytypes" with value ["sg13g2_or2_1", "sg13g2_nor3_1"] would replace all
             cells in the "mytypes" category with the specified OR and NOR cells.
         add_liberty_cells : list[str] | None
-            Optional list of liberty cell names to add to the design for mapping.
+            Optional list of Liberty cell blocks to add to the design for mapping.
+        inject_liberty_fragments : list[str] | None
+            Optional list of library-level Liberty fragments to inject into the
+            selected Liberty corner. These fragments may include supporting
+            groups such as ``lu_table_template``.
         remove_liberty_cells : list[str] | None
             Optional list of liberty cell names to remove from the design for mapping.
         change_liberty_cell_area : dict[str, float] | None
             Optional dict mapping liberty cell names to new area values for mapping.
+        gates : str
+            String identifier for the type of gates used in the design.
+            https://yosyshq.readthedocs.io/projects/yosys/en/latest/cmd/
+            index_passes_techmap.html#cmd-abc
 
         Returns
         -------
@@ -597,8 +607,10 @@ class ArchitectureSynthesizer(ABC):
             buffer_wire_insertion=buffer_wire_insertion,
             change_cell_types=change_cell_types,
             add_liberty_cells=add_liberty_cells,
+            inject_liberty_fragments=inject_liberty_fragments,
             remove_liberty_cells=remove_liberty_cells,
             change_liberty_cell_area=change_liberty_cell_area,
+            gates=gates,
         )
 
         mapper = NetlistTool(config=config, debug=self.debug)

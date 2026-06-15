@@ -195,7 +195,7 @@ class NetlistTool:
         self.netlist_design.run_pass("techmap -map +/techmap.v")
         self.netlist_design.run_pass("opt")
         self.netlist_design.run_pass(
-            'abc -g cmos -script "+strash;&get,-n;&fraig,-x;&put;scorr;'
+            f'abc -g {self.config.gates} -script "+strash;&get,-n;&fraig,-x;&put;scorr;'
             "balance,-l;resub,-K,6,-l;rewrite,-l;resub,-K,6,-N,2,-l;refactor,-l;"
             "resub,-K,8,-l;balance,-l;resub,-K,8,-N,2,-l;rewrite,-l;resub,-K,10,-l;"
             "rewrite,-z,-l;resub,-K,10,-N,2,-l;balance,-l;resub,-K,12,-l;"

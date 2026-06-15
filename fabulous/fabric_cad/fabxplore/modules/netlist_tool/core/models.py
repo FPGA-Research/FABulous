@@ -33,10 +33,19 @@ class PdkInputConfig(BaseModel):
     add_liberty_cells : list[str] | None
         Optional Liberty text fragments containing one or more ``cell`` blocks
         to append to the selected Liberty corner.
+    inject_liberty_fragments : list[str] | None
+        Optional library-level Liberty text fragments to inject into the
+        selected Liberty corner. Unlike ``add_liberty_cells``, these fragments
+        may contain supporting groups such as ``lu_table_template`` in addition
+        to ``cell`` blocks.
     remove_liberty_cells : list[str] | None
         Optional Liberty cell names to remove from the selected Liberty corner.
     change_liberty_cell_area : dict[str, float] | None
         Optional mapping from Liberty cell name to replacement area value.
+    gates : str
+        String identifier for the type of gates used in the design.
+        https://yosyshq.readthedocs.io/projects/yosys/en/latest/cmd/
+        index_passes_techmap.html#cmd-abc
     """
 
     top_name: str
@@ -45,8 +54,10 @@ class PdkInputConfig(BaseModel):
     buffer_wire_insertion: bool = False
     change_cell_types: dict[str, list[str]] | None = None
     add_liberty_cells: list[str] | None = None
+    inject_liberty_fragments: list[str] | None = None
     remove_liberty_cells: list[str] | None = None
     change_liberty_cell_area: dict[str, float] | None = None
+    gates: str = "cmos"
 
     @computed_field
     @property

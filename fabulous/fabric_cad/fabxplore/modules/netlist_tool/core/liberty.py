@@ -2,7 +2,8 @@
 
 This module modifies Liberty library text before Yosys consumes it. The handler
 supports removing standard-cell blocks, changing direct cell ``area`` values,
-and appending additional cell definitions from Liberty fragments.
+injecting library-level fragments, and appending additional cell definitions
+from Liberty fragments.
 """
 
 import re
@@ -63,6 +64,7 @@ class LibertyHandler:
         """
         liberty_text = self._remove_cells(liberty_text)
         liberty_text = self._change_cell_areas(liberty_text)
+        liberty_text = self._inject_fragments(liberty_text)
         return self._add_cells(liberty_text)
 
     def _remove_cells(self, liberty_text: str) -> str:
@@ -207,6 +209,39 @@ class LibertyHandler:
             self._indent_cell_block(block) for block in added_blocks
         )
         insertion = f"\n\n{cells_text}\n"
+        return liberty_text[:library_close] + insertion + liberty_text[library_close:]
+
+    def _inject_fragments(self, liberty_text: str) -> str:
+        """Inject configured library-level Liberty fragments.
+
+        Parameters
+        ----------
+        liberty_text : str
+            Liberty library text to modify.
+
+        Returns
+        -------
+        str
+            Liberty text with configured fragments inserted before the library
+            closing brace.
+
+        Raises
+        ------
+        ValueError
+            If an injected fragment is empty or comment-only.
+        """
+        fragments = self.config.inject_liberty_fragments or []
+        if not fragments:
+            return liberty_text
+
+        injected_fragments: list[str] = []
+        for fragment in fragments:
+            if not self._has_meaningful_text(fragment):
+                raise ValueError("Injected Liberty fragment is empty")
+            injected_fragments.append(self._indent_liberty_fragment(fragment.strip()))
+
+        library_close = self._find_library_close(liberty_text)
+        insertion = "\n\n" + "\n\n".join(injected_fragments) + "\n"
         return liberty_text[:library_close] + insertion + liberty_text[library_close:]
 
     def _extract_add_cell_blocks(self, fragment: str) -> list[LibertyCellBlock]:
@@ -871,9 +906,25 @@ class LibertyHandler:
             Cell block dedented to its minimum indentation and reindented by two
             spaces.
         """
-        lines = cell_block.splitlines()
+        return self._indent_liberty_fragment(cell_block)
+
+    def _indent_liberty_fragment(self, fragment: str) -> str:
+        """Normalize a Liberty fragment to library indentation.
+
+        Parameters
+        ----------
+        fragment : str
+            Liberty fragment text.
+
+        Returns
+        -------
+        str
+            Fragment dedented to its minimum indentation and reindented by two
+            spaces.
+        """
+        lines = fragment.splitlines()
         if not lines:
-            return cell_block
+            return fragment
 
         non_empty_lines = [line for line in lines if line.strip()]
         min_indent = min(len(line) - len(line.lstrip()) for line in non_empty_lines)
