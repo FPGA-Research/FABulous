@@ -32,6 +32,28 @@ class TileConfig(NamedTuple):
 
 
 @pytest.fixture
+def mk_tile(tmp_path: Path) -> Callable[[str], Tile]:
+    """Factory fixture that creates minimal real Tile instances.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Pytest-provided temporary directory used to root the tile files.
+
+    Returns
+    -------
+    Callable[[str], Tile]
+        A factory that accepts a tile name and returns a ``Tile`` with no
+        ports, no BELs, and files rooted under ``tmp_path``.
+    """
+
+    def _create(name: str) -> Tile:
+        return Tile(name, [], [], tmp_path, tmp_path / f"{name}.list", [], False)
+
+    return _create
+
+
+@pytest.fixture
 def default_fabric(mocker: MockerFixture) -> Fabric:
     """Create a Fabric instance with given parameters."""
     fabric = mocker.create_autospec(Fabric, spec_set=False)

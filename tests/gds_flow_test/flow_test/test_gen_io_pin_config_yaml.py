@@ -274,6 +274,8 @@ class TestSerializeSupertilePorts:
     def mock_supertile(self, mocker: MockerFixture) -> SuperTile:
         """Create a mock supertile for testing."""
         supertile = mocker.MagicMock(spec=SuperTile)
+        # `bels` is a default_factory field, absent from the class spec, so it
+        # must be set explicitly or attribute access on the spec'd mock raises.
         supertile.bels = []
 
         # Create a mock tile for the tilemap
@@ -321,7 +323,6 @@ class TestSerializeSupertilePorts:
     ) -> None:
         """Test handling of empty port lists."""
         supertile = mocker.MagicMock()
-        supertile.bels = []
         supertile.getPortsAroundTile.return_value = {}
 
         result = _serialize_supertile_ports(supertile)
@@ -355,7 +356,6 @@ class TestSerializeSupertilePorts:
         def _tile() -> Tile:
             t = mocker.MagicMock()
             t.pinOrderConfig = {s: PinOrderConfig() for s in Side}
-            t.bels = []
             return t
 
         tile_top = _tile()
@@ -439,7 +439,6 @@ class TestSerializeSupertilePorts:
     def test_serialize_supertile_ports_none_tile(self, mocker: MockerFixture) -> None:
         """Test handling when tileMap has None entries."""
         supertile = mocker.MagicMock()
-        supertile.bels = []
 
         # TileMap with None
         supertile.tileMap = [[None]]

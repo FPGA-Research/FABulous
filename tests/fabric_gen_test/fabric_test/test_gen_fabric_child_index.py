@@ -17,7 +17,6 @@ multi-row or multi-column supertile in the legacy flow:
 """
 
 from collections.abc import Callable
-from pathlib import Path
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
@@ -26,13 +25,8 @@ from fabulous.fabric_generator.code_generator.code_generator import CodeGenerato
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 
 
-def _mk_tile(name: str, tmp_path: Path) -> Tile:
-    """Return a minimal tile with no ports, no BELs."""
-    return Tile(name, [], [], tmp_path, tmp_path / f"{name}.list", [], False)
-
-
 def test_supertile_bottom_child_usrclk_connects_to_global(
-    tmp_path: Path,
+    mk_tile: Callable[[str], Tile],
     code_generator_factory: Callable[[str, str], CodeGenerator],
 ) -> None:
     """Bottom child of a 2-tall supertile at the fabric edge uses the global UserCLK.
@@ -47,18 +41,18 @@ def test_supertile_bottom_child_usrclk_connects_to_global(
     the other child (present), so the code emitted ``Tile_X0Y2_UserCLKo`` — a
     wire that does not exist — triggering the OpenROAD GRT-0010 error.
     """
-    top = _mk_tile("ST_top", tmp_path)
-    bot = _mk_tile("ST_bot", tmp_path)
+    top = mk_tile("ST_top")
+    bot = mk_tile("ST_bot")
     top.partOfSuperTile = True
     bot.partOfSuperTile = True
     supertile = SuperTile(
         name="ST",
-        tileDir=tmp_path,
+        tileDir=top.tileDir,
         tiles=[top, bot],
         tileMap=[[top], [bot]],
     )
     fabric = Fabric(
-        fabric_dir=tmp_path,
+        fabric_dir=top.tileDir,
         tile=[[top], [bot]],
         numberOfRows=2,
         numberOfColumns=1,
