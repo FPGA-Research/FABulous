@@ -329,7 +329,7 @@ wheels = [
 
 [[package]]
 name = "ciel"
-version = "2.4.1"
+version = "2.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -339,9 +339,9 @@ dependencies = [
     { name = "rich" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/19/58/8547eb10754bcefda8284f2120703a8dd2e3b5e563701ae4827e9ed25df3/ciel-2.4.1.tar.gz", hash = "sha256:01e0d8e6f5b3411712110feea0b4a29dd59b2eff2042b1b08bf1536e3f5fb403", size = 26581, upload-time = "2026-04-16T19:35:44.244Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a6/02/f91e7fc1b6ece6a869d0727ec5c72cb4736f34cf5f5ce1e36b5d424e56d3/ciel-2.5.0.tar.gz", hash = "sha256:c0f3bc47702ea7961c664912d27eec8a78d6adfd35d467a204e6766be2e6e22f", size = 26609, upload-time = "2026-06-08T15:32:51.718Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/c3/545903f0396eba7d91c3fbf2f2d7717fd85bc7273d467534a2a6f63facfc/ciel-2.4.1-py3-none-any.whl", hash = "sha256:aa3f3f44c63d1dd21006d456821f95f90cbaa0ed8b81df04c592e8297041e80e", size = 38614, upload-time = "2026-04-16T19:35:42.795Z" },
+    { url = "https://files.pythonhosted.org/packages/67/ec/b400a3e5c197547309d8f22573fcbe4b80d113deb4e0938fa0116af5d01f/ciel-2.5.0-py3-none-any.whl", hash = "sha256:03f0e75fda4d12ee936b9fd50c0c4f0eb2fdc242d937ae2b5930189eac2e4103", size = 38629, upload-time = "2026-06-08T15:32:50.539Z" },
 ]
 
 [[package]]
@@ -560,7 +560,7 @@ requires-dist = [
     { name = "myst-parser", specifier = ">=5.1.0" },
     { name = "sphinx", specifier = ">=8.0.0" },
     { name = "sphinx-autoapi", specifier = ">=3.0.0" },
-    { name = "sphinx-autodoc-typehints", specifier = ">=3.10.2" },
+    { name = "sphinx-autodoc-typehints", specifier = ">=3.11.0" },
     { name = "sphinx-copybutton", specifier = ">=0.5.0" },
     { name = "sphinx-design", specifier = ">=0.5.0" },
     { name = "sphinx-llm", extras = ["gen"], specifier = ">=0.4.1" },
@@ -1052,7 +1052,7 @@ wheels = [
 
 [[package]]
 name = "librelane"
-version = "3.0.3"
+version = "3.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ciel" },
@@ -1070,9 +1070,9 @@ dependencies = [
     { name = "semver" },
     { name = "yamlcore" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4a/f9/45a77e41d53ef7423ca199465623dc586108feb3778bb3e0e824fcd6aa7f/librelane-3.0.3.tar.gz", hash = "sha256:74a10031b930dbdc22d8bc9f5cfd413899e8d6814517b787cd28c0fb76764ced", size = 307633, upload-time = "2026-04-29T19:32:49.329Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/78/79/2349a474f636b56d730116946a1debd152c81280870ca46e8c77b7839ac6/librelane-3.0.4.tar.gz", hash = "sha256:1e27899c3e572fe7d331dbadc673b809beea60375ded3e87406f51f3526da75b", size = 307644, upload-time = "2026-06-07T19:51:13.932Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/13/43/187bfbc229b55111944c7cc78c4fa552b81179e7336e7fd05ada308d75cf/librelane-3.0.3-py3-none-any.whl", hash = "sha256:4894e38d5b0cfe9ddf4f603ad68b89a3a1a700c2e4c6a1040df70adfa00f9142", size = 423981, upload-time = "2026-04-29T19:32:47.248Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/a9/0ba4b86345a106d24ac68814d0fec4f1dce991725e2889bbdc105dc3479c/librelane-3.0.4-py3-none-any.whl", hash = "sha256:8973ca7e60d5f6b1684ca45723a7beb5f27e45788c62d3acb9598242504fa35c", size = 424266, upload-time = "2026-06-07T19:51:12.562Z" },
 ]
 
 [[package]]
@@ -2250,14 +2250,14 @@ wheels = [
 
 [[package]]
 name = "sphinx-autodoc-typehints"
-version = "3.10.2"
+version = "3.11.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "sphinx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/75/75/9a5695b3d3b848a43cfe91c7d7d3c5ab543eb3bc5c2a12ffaf5003a2a4f6/sphinx_autodoc_typehints-3.10.2.tar.gz", hash = "sha256:34db651eb14343ba16bd9c03e0f5093971f9bbd3cc6b0a1470adecd578940b9c", size = 74241, upload-time = "2026-04-15T22:09:48.87Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d3/ac/99f66f906b15718687525fdf3601ca0b50d19c5e88d57cd4275a89355926/sphinx_autodoc_typehints-3.11.0.tar.gz", hash = "sha256:0112b322e2ebd993c0561af3c9e4615481b42dec199d665d6bacc875f3371e96", size = 82518, upload-time = "2026-06-11T18:48:34.225Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bf/0f/f1c2e2592f995d301bc06901fbb2e947cbe4889397a418309710ccc3a1db/sphinx_autodoc_typehints-3.10.2-py3-none-any.whl", hash = "sha256:2d1bcac8f62b8d0d210f6ca44b8e016e314d07cc8c30d0512cf6986a0b042b26", size = 39231, upload-time = "2026-04-15T22:09:47.413Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/55/7aaa2439e77cff66a6f348bb2d9894abf2b7b153595a5b974c5c277e9145/sphinx_autodoc_typehints-3.11.0-py3-none-any.whl", hash = "sha256:4ab73fe735c33168be3f34818034581155416e8e248d32ea1b604e90bea75223", size = 41610, upload-time = "2026-06-11T18:48:33.056Z" },
 ]
 
 [[package]]
@@ -2499,17 +2499,17 @@ wheels = [
 
 [[package]]
 name = "typer"
-version = "0.25.1"
+version = "0.26.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
-    { name = "click" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "rich" },
     { name = "shellingham" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/51/9aed62104cea109b820bbd6c14245af756112017d309da813ef107d42e7e/typer-0.25.1.tar.gz", hash = "sha256:9616eb8853a09ffeabab1698952f33c6f29ffdbceb4eaeecf571880e8d7664cc", size = 122276, upload-time = "2026-04-30T19:32:16.964Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5e/ed/ef06584ccdd5c410df0837951ecd7e15d9a6144ea1bd4c73cecab1a89891/typer-0.26.7.tar.gz", hash = "sha256:e314a34c617e419c091b2830dda3ea1f257134ff593061a8f5b9717ab8dddb3a", size = 201709, upload-time = "2026-06-03T07:18:06.843Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/f9/2b3ff4e56e5fa7debfaf9eb135d0da96f3e9a1d5b27222223c7296336e5f/typer-0.25.1-py3-none-any.whl", hash = "sha256:75caa44ed46a03fb2dab8808753ffacdbfea88495e74c85a28c5eefcf5f39c89", size = 58409, upload-time = "2026-04-30T19:32:18.271Z" },
+    { url = "https://files.pythonhosted.org/packages/24/25/2201973529af2c954de0bb725323c3aaed6d7f0ceee8f550dec9185df013/typer-0.26.7-py3-none-any.whl", hash = "sha256:5c87cfbc5d34491c5346ebf49c23e18d56ccb863268d3a8d592b26087c2f5e58", size = 122456, upload-time = "2026-06-03T07:18:05.732Z" },
 ]
 
 [[package]]
