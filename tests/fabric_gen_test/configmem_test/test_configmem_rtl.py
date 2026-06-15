@@ -161,7 +161,8 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     # Generate the ConfigMem RTL
     generateConfigMem(
         writer,
-        tile_config,
+        tile_config.name,
+        tile_config.globalConfigBits,
         csv_path,
         frame_bits_per_row=fabric_config.frameBitsPerRow,
         max_frame_per_col=fabric_config.maxFramesPerCol,
@@ -261,7 +262,8 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     # Generate the ConfigMem RTL
     generateConfigMem(
         writer,
-        default_tile,
+        default_tile.name,
+        default_tile.globalConfigBits,
         csv_path,
         frame_bits_per_row=default_fabric.frameBitsPerRow,
         max_frame_per_col=default_fabric.maxFramesPerCol,

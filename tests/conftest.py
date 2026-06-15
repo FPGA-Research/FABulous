@@ -10,10 +10,83 @@ from loguru import logger
 
 import fabulous.fabulous
 import fabulous.fabulous_settings
-from fabulous.fabric_definition.define import HDLType
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import IO, Direction, HDLType, Side
+from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.tile import Tile
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from fabulous.fabulous_cli.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
+
+
+def sjump_port(
+    name: str,
+    inOut: IO,
+    wireCount: int = 2,
+    xOffset: int = 0,
+    yOffset: int = 0,
+) -> Port:
+    """Build an SJUMP port.
+
+    OUTPUT ports drive ``sourceName``; INPUT ports terminate at
+    ``destinationName``. SJUMP ports carry zero offsets, which is exactly the
+    case the width fix in ``expandPortInfo*`` has to handle.
+    """
+    return Port(
+        wireDirection=Direction.SJUMP,
+        sourceName=name if inOut == IO.OUTPUT else "NULL",
+        xOffset=xOffset,
+        yOffset=yOffset,
+        destinationName=name if inOut == IO.INPUT else "NULL",
+        wireCount=wireCount,
+        name=name,
+        inOut=inOut,
+        sideOfTile=Side.ANY,
+    )
+
+
+def make_empty_tile(
+    name: str,
+    ports: list[Port] | None = None,
+    *,
+    tileDir: Path = Path(),
+    matrixDir: Path = Path(),
+    pinOrderConfig: dict | None = None,
+) -> Tile:
+    """Build a minimal Tile usable inside a SuperTile.tileMap.
+
+    Passing ``pinOrderConfig={}`` skips the GDS pin-order import; the ``None``
+    default preserves the original behaviour for callers that don't care.
+    """
+    return Tile(
+        name=name,
+        ports=ports or [],
+        bels=[],
+        tileDir=tileDir,
+        matrixDir=matrixDir,
+        gen_ios=[],
+        userCLK=False,
+        pinOrderConfig=pinOrderConfig,
+    )
+
+
+def make_muladd_bel(internal: list[tuple[str, IO]], *, prefix: str = "SUPER_") -> Bel:
+    """Build a MULADD-style supertile BEL with only its internal pins populated."""
+    return Bel(
+        src=Path("MULADD.v"),
+        prefix=prefix,
+        module_name="MULADD",
+        internal=internal,
+        external=[],
+        configPort=[],
+        sharedPort=[],
+        configBit=0,
+        belMap={},
+        userCLK=False,
+        ports_vectors={},
+        carry={},
+        localShared={},
+    )
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]

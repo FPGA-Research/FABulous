@@ -15,10 +15,11 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
+    build_super_tile_config_mem_csv,
     generateConfigMem,
     generateConfigMemInit,
 )
-from tests.fabric_gen_test.conftest import verify_csv_content
+from tests.fabric_gen_test.conftest import create_config_csv, verify_csv_content
 
 
 def _check_fabric_capacity(
@@ -258,10 +259,11 @@ class TestGeneratedConfigMemRTL:
             fabric_config, tile_config.globalConfigBits
         )
         if not has_capacity and tile_config.globalConfigBits > 0:
-            with pytest.raises(ValueError, match="adjust the tile configuration."):
+            with pytest.raises(ValueError, match="adjust the configuration."):
                 generateConfigMem(
                     writer,
-                    tile_config,
+                    tile_config.name,
+                    tile_config.globalConfigBits,
                     config_csv,
                     frame_bits_per_row=fabric_config.frameBitsPerRow,
                     max_frame_per_col=fabric_config.maxFramesPerCol,
@@ -270,7 +272,8 @@ class TestGeneratedConfigMemRTL:
 
         generateConfigMem(
             writer,
-            tile_config,
+            tile_config.name,
+            tile_config.globalConfigBits,
             config_csv,
             frame_bits_per_row=fabric_config.frameBitsPerRow,
             max_frame_per_col=fabric_config.maxFramesPerCol,
@@ -323,7 +326,8 @@ class TestGeneratedConfigMemRTL:
         # Generate the ConfigMem RTL
         generateConfigMem(
             writer,
-            default_tile,
+            default_tile.name,
+            default_tile.globalConfigBits,
             csv_path,
             frame_bits_per_row=default_fabric.frameBitsPerRow,
             max_frame_per_col=default_fabric.maxFramesPerCol,
@@ -371,3 +375,93 @@ class TestGeneratedConfigMemRTL:
                     )
 
                     config_bit_counter += 1
+
+
+def _write_configmem_csv(path: Path, masks: list[str], ranges: list[str]) -> None:
+    """Write a minimal ConfigMem CSV with the given per-frame masks and ranges."""
+    create_config_csv(
+        path,
+        [
+            {
+                "frame_name": f"frame{i}",
+                "frame_index": i,
+                "bits_used_in_frame": mask.count("1"),
+                "used_bits_mask": mask,
+                "ConfigBits_ranges": rng,
+            }
+            for i, (mask, rng) in enumerate(zip(masks, ranges, strict=True))
+        ],
+    )
+
+
+class TestSuperTileConfigMemReuse:
+    """``build_super_tile_config_mem_csv`` reuses a valid existing CSV, else regen.
+
+    Master tile has 4 frames of 4 bits each (tiny, for readability). Frame 0 uses
+    its top two bits (``1100``), leaving the rest free for the supertile.
+    """
+
+    FRAME_BITS = 4
+    MAX_FRAMES = 4
+    MASTER_MASKS = ["1100", "0000", "0000", "0000"]
+    MASTER_RANGES = ["1:0", "# NULL", "# NULL", "# NULL"]
+
+    def _master(self, tmp_path: Path) -> Path:
+        master = tmp_path / "DSP_bot_ConfigMem.csv"
+        _write_configmem_csv(master, self.MASTER_MASKS, self.MASTER_RANGES)
+        return master
+
+    def _build(self, tmp_path: Path, out: Path, bits: int = 2) -> None:
+        build_super_tile_config_mem_csv(
+            self._master(tmp_path),
+            bits,
+            out,
+            frameBitsPerRow=self.FRAME_BITS,
+            maxFramesPerCol=self.MAX_FRAMES,
+        )
+
+    def test_fresh_generation_when_absent(self, tmp_path: Path) -> None:
+        out = tmp_path / "DSP_ConfigMem.csv"
+        self._build(tmp_path, out)
+        # The two supertile bits land in master frame 0's free (low) slots.
+        masks = _read_masks(out)
+        assert sum(m.count("1") for m in masks.values()) == 2
+        # No bit overlaps the master's used top two bits.
+        assert all(
+            not (a == "1" and b == "1")
+            for a, b in zip(masks[0], self.MASTER_MASKS[0], strict=True)
+        )
+
+    def test_existing_valid_csv_is_reused(self, tmp_path: Path) -> None:
+        out = tmp_path / "DSP_ConfigMem.csv"
+        # A valid supertile CSV using the master's free low bits, disjoint from it.
+        _write_configmem_csv(
+            out, ["0011", "0000", "0000", "0000"], ["0;1", "# NULL", "# NULL", "# NULL"]
+        )
+        before = out.read_text()
+        self._build(tmp_path, out)
+        assert out.read_text() == before  # reused, not regenerated
+
+    def test_conflict_with_master_raises(self, tmp_path: Path) -> None:
+        out = tmp_path / "DSP_ConfigMem.csv"
+        # Bit 0 (MSB) is used by the master (1100) -> conflict.
+        _write_configmem_csv(
+            out, ["1010", "0000", "0000", "0000"], ["0;1", "# NULL", "# NULL", "# NULL"]
+        )
+        with pytest.raises(ValueError, match="conflicts with the master"):
+            self._build(tmp_path, out)
+
+    def test_stale_bit_count_raises(self, tmp_path: Path) -> None:
+        out = tmp_path / "DSP_ConfigMem.csv"
+        # Only one used bit, but the supertile needs two.
+        _write_configmem_csv(
+            out, ["0001", "0000", "0000", "0000"], ["0", "# NULL", "# NULL", "# NULL"]
+        )
+        with pytest.raises(ValueError, match="needs 2"):
+            self._build(tmp_path, out, bits=2)
+
+
+def _read_masks(path: Path) -> dict[int, str]:
+    """Read a ConfigMem CSV into ``{frame_index: used_bits_mask}`` (no underscores)."""
+    rows = verify_csv_content(path)
+    return {int(r["frame_index"]): r["used_bits_mask"].replace("_", "") for r in rows}

@@ -4,13 +4,21 @@ Tests the feature that allows users to redirect CSV output to a custom directory
 converting .list files to .csv for switch matrix generation.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 from pytest_mock import MockerFixture
 
+from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
-from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
+from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
+from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
+    gen_super_tile_switch_matrix,
+    genTileSwitchMatrix,
+)
+from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 from tests.fabric_gen_test.conftest import (
     create_switchmatrix_csv,
     create_switchmatrix_list,
@@ -156,3 +164,72 @@ class TestListFileCsvOutputDirectory:
         # Verify tile.matrixDir unchanged and no new CSV created
         assert default_tile.matrixDir == csv_file
         assert not (custom_output_dir / "test_matrix.csv").exists()
+
+
+class TestSuperTileSwitchMatrixConstants:
+    """The supertile switch matrix exposes GND/VCC/VDD constants like normal tiles.
+
+    ``gen_super_tile_switch_matrix`` reuses the shared matrix-body generator, so a
+    ``supertile_matrix.list`` may drive a BEL input from a constant (tie-off) or
+    offer one as a mux option. This guards that behaviour against a refactor.
+    """
+
+    def _gen(
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[[str, str], CodeGenerator],
+        connections: list[tuple[str, str]],
+    ) -> str:
+        mat = tmp_path / "supertile_matrix.list"
+        create_switchmatrix_list(mat, connections)
+        bot = make_empty_tile(
+            "DSP_bot",
+            [sjump_port("x", IO.OUTPUT, wireCount=1)],
+            tileDir=tmp_path,
+            matrixDir=tmp_path / "DSP_bot_switch_matrix.list",
+            pinOrderConfig={},
+        )
+        bel = make_muladd_bel([("SUPER_A0", IO.INPUT), ("SUPER_B0", IO.INPUT)])
+        supertile = SuperTile(
+            name="DSP",
+            tileDir=tmp_path,
+            tiles=[bot],
+            tileMap=[[bot]],
+            bels=[bel],
+            supertile_matrix_dir=mat,
+            supertile_matrix_config_bits=1,
+        )
+        writer = code_generator_factory(".v", "DSP_switch_matrix")
+        gen_super_tile_switch_matrix(writer, supertile)
+        return writer.outFileName.read_text()
+
+    def test_constants_declared(
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[[str, str], CodeGenerator],
+    ) -> None:
+        rtl = self._gen(
+            tmp_path, code_generator_factory, [("SUPER_A0", "[DSP_bot_A0]")]
+        )
+        assert "parameter GND0 = 1'b0;" in rtl
+        assert "parameter VCC0 = 1'b1;" in rtl
+        assert "parameter VDD0 = 1'b1;" in rtl
+
+    def test_constant_tie_off(
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[[str, str], CodeGenerator],
+    ) -> None:
+        rtl = self._gen(tmp_path, code_generator_factory, [("SUPER_A0", "[GND0]")])
+        assert "assign SUPER_A0 = GND0;" in rtl
+
+    def test_constant_as_mux_input(
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[[str, str], CodeGenerator],
+    ) -> None:
+        rtl = self._gen(
+            tmp_path, code_generator_factory, [("SUPER_B0{2}", "[VCC0|DSP_bot_x0]")]
+        )
+        assert "SUPER_B0_input = {DSP_bot_x0,VCC0}" in rtl
+        assert "cus_mux21 inst_cus_mux21_SUPER_B0" in rtl
