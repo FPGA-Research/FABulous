@@ -251,7 +251,7 @@ def test_parse_list(
 
 
 class TestParseSJumpPortLine:
-    """``parsePortLine`` accepts the two one-way SJUMP forms, rejects the rest.
+    """`parsePortLine` accepts the two one-way SJUMP forms, rejects the rest.
 
     An SJUMP line is a one-way connection between a basic tile and its supertile
     BEL, so exactly one of source/destination must be NULL and the line carries
@@ -290,10 +290,10 @@ class TestParseSJumpPortLine:
 
 
 class TestSuperTileMatrixValidation:
-    """``validate_super_tile_matrix`` rejects names that aren't real ports/pins.
+    """`validate_super_tile_matrix` rejects names that aren't real ports/pins.
 
     The supertile switch matrix may only reference BEL pins, child-tile SJUMP
-    wires, or constants; anything else (a typo like ``asdfasd``) is rejected.
+    wires, or constants; anything else (a typo like `asdfasd`) is rejected.
     """
 
     def _supertile(self) -> SuperTile:
@@ -322,28 +322,33 @@ class TestSuperTileMatrixValidation:
         # sinks: BEL input + child INPUT SJUMP wire
         assert sinks == {"SUPER_A0", "DSP_bot_Q0"}
 
-    def test_valid_connections_pass(self) -> None:
+    @pytest.mark.parametrize(
+        ("connections", "error_match"),
+        [
+            pytest.param(
+                {
+                    "SUPER_A0": ["DSP_bot_A0"],  # forward: child output -> BEL input
+                    "DSP_bot_Q0": ["SUPER_Q0", "GND0", "VCC0"],  # reverse + consts
+                },
+                None,
+                id="valid",
+            ),
+            pytest.param(
+                {"DSP_bot_Q0": ["SUPER_Q0", "GND0", "asdfasd"]},
+                "asdfasd",
+                id="unknown_source",
+            ),
+            pytest.param({"SUPER_ZZ9": ["DSP_bot_A0"]}, "SUPER_ZZ9", id="unknown_sink"),
+            pytest.param({"GND0": ["DSP_bot_A0"]}, "GND0", id="constant_as_sink"),
+        ],
+    )
+    def test_validate_super_tile_matrix(
+        self, connections: dict[str, list[str]], error_match: str | None
+    ) -> None:
         st = self._supertile()
-        connections = {
-            "SUPER_A0": ["DSP_bot_A0"],  # forward: child output -> BEL input
-            "DSP_bot_Q0": ["SUPER_Q0", "GND0", "VCC0"],  # reverse + constants
-        }
-        validate_super_tile_matrix(st, connections, Path("supertile_matrix.list"))
-
-    def test_unknown_source_rejected(self) -> None:
-        st = self._supertile()
-        connections = {"DSP_bot_Q0": ["SUPER_Q0", "GND0", "asdfasd"]}
-        with pytest.raises(InvalidSwitchMatrixDefinition, match="asdfasd"):
-            validate_super_tile_matrix(st, connections, Path("supertile_matrix.list"))
-
-    def test_unknown_sink_rejected(self) -> None:
-        st = self._supertile()
-        connections = {"SUPER_ZZ9": ["DSP_bot_A0"]}
-        with pytest.raises(InvalidSwitchMatrixDefinition, match="SUPER_ZZ9"):
-            validate_super_tile_matrix(st, connections, Path("supertile_matrix.list"))
-
-    def test_constant_as_sink_rejected(self) -> None:
-        st = self._supertile()
-        connections = {"GND0": ["DSP_bot_A0"]}
-        with pytest.raises(InvalidSwitchMatrixDefinition, match="GND0"):
-            validate_super_tile_matrix(st, connections, Path("supertile_matrix.list"))
+        path = Path("supertile_matrix.list")
+        if error_match is None:
+            validate_super_tile_matrix(st, connections, path)
+        else:
+            with pytest.raises(InvalidSwitchMatrixDefinition, match=error_match):
+                validate_super_tile_matrix(st, connections, path)

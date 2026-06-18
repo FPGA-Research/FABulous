@@ -213,7 +213,7 @@ def genTileSwitchMatrix(
     writer.addPortEnd()
     writer.addHeaderEnd(f"{tile.name}_switch_matrix")
     writer.addDesignDescriptionStart(f"{tile.name}_switch_matrix")
-    _genSwitchMatrixBody(
+    _gen_switch_matrix_body(
         writer,
         tile.name,
         connections,
@@ -225,7 +225,7 @@ def genTileSwitchMatrix(
     )
 
 
-def _genSwitchMatrixBody(
+def _gen_switch_matrix_body(
     writer: CodeGenerator,
     name: str,
     connections: dict[str, list[str]],
@@ -239,7 +239,7 @@ def _genSwitchMatrixBody(
 
     Called after the port list has been written. Handles constant declarations,
     signal declarations, mux instantiation, optional debug signals, and the
-    closing ``addDesignDescriptionEnd`` / ``writeToFile`` calls.
+    closing `addDesignDescriptionEnd` / `writeToFile` calls.
 
     Parameters
     ----------
@@ -433,7 +433,7 @@ def gen_super_tile_switch_matrix(
 
     The supertile switch matrix routes SJUMP output signals from child tiles to
     the input ports of supertile-level BELs. Its connectivity is described by
-    ``superTile.supertile_matrix_dir`` (a ``.list`` or ``.csv`` file using the same
+    `superTile.supertile_matrix_dir` (a `.list` or `.csv` file using the same
     format as tile switch matrices).
 
     Parameters
@@ -524,7 +524,7 @@ def gen_super_tile_switch_matrix(
     writer.addPortEnd()
     writer.addHeaderEnd(module_name)
     writer.addDesignDescriptionStart(module_name)
-    _genSwitchMatrixBody(
+    _gen_switch_matrix_body(
         writer,
         superTile.name,
         connections,

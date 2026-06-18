@@ -41,7 +41,7 @@ class SuperTile:
     supertile_matrix_config_bits : int
         Number of configuration bits required by the supertile switch matrix.
     master_tile_coords : tuple[int, int] | None
-        Local (x, y) of the master tile. Explicitly set via the ``MASTER`` token
+        Local (x, y) of the master tile. Explicitly set via the `MASTER` token
         in the supertile CSV, or computed as the last non-None tile in row-major
         order if no MASTER is present.  All supertile config bits and BELs are
         anchored to this tile.
@@ -133,21 +133,21 @@ class SuperTile:
         """Return the (x, y) coordinates of the master tile in local space.
 
         The master tile is either:
-        - The tile explicitly marked with ``MASTER`` in the supertile CSV
-          (stored in ``master_tile_coords``), or
+        - The tile explicitly marked with `MASTER` in the supertile CSV
+          (stored in `master_tile_coords`), or
         - The last non-None tile in row-major order if no MASTER was specified.
 
         Config bits for the supertile switch matrix and BELs are chained
         through this tile's frame path, and the BEL placement (nextpnr model,
         bitstream spec) is anchored here. This is distinct from the supertile's
-        structural *anchor* tile (the top-left tile, where ``gen_fabric`` places
+        structural *anchor* tile (the top-left tile, where `gen_fabric` places
         the wrapper instance); the master and the anchor are usually different
-        tiles (e.g. DSP master = ``DSP_bot``, anchor = ``DSP_top``).
+        tiles (e.g. DSP master = `DSP_bot`, anchor = `DSP_top`).
 
         Returns
         -------
         tuple[int, int]
-            ``(x, y)`` in local supertile coordinates.
+            `(x, y)` in local supertile coordinates.
 
         Raises
         ------
@@ -169,14 +169,14 @@ class SuperTile:
             )
         return mx, my
 
-    def get_all_sjump_ports(self) -> list[tuple[int, int, "Port"]]:
+    def get_all_sjump_ports(self) -> list[tuple[int, int, Port]]:
         """Return all SJUMP OUTPUT ports across every child tile.
 
         Returns
         -------
         list[tuple[int, int, Port]]
-            Each entry is ``(local_x, local_y, port)`` for every OUTPUT port
-            with ``wireDirection == Direction.SJUMP`` in any child tile.
+            Each entry is `(local_x, local_y, port)` for every OUTPUT port
+            with `wireDirection == Direction.SJUMP` in any child tile.
         """
         result = []
         for y, row in enumerate(self.tileMap):
@@ -188,14 +188,14 @@ class SuperTile:
                         result.append((x, y, p))
         return result
 
-    def get_all_input_sjump_ports(self) -> list[tuple[int, int, "Port"]]:
+    def get_all_input_sjump_ports(self) -> list[tuple[int, int, Port]]:
         """Return all SJUMP INPUT ports across every child tile.
 
         Returns
         -------
         list[tuple[int, int, Port]]
-            Each entry is ``(local_x, local_y, port)`` for every INPUT port
-            with ``wireDirection == Direction.SJUMP`` in any child tile.
+            Each entry is `(local_x, local_y, port)` for every INPUT port
+            with `wireDirection == Direction.SJUMP` in any child tile.
         """
         result = []
         for y, row in enumerate(self.tileMap):
@@ -210,15 +210,15 @@ class SuperTile:
     def get_matrix_port_names(self) -> tuple[set[str], set[str]]:
         """Return the valid source and sink names for the supertile switch matrix.
 
-        The names mirror what :func:`gen_super_tile_switch_matrix` declares as matrix
+        The names mirror what `gen_super_tile_switch_matrix` declares as matrix
         ports, so they form the authoritative set against which a
-        ``supertile_matrix`` file is validated. Constant sources (``GND0`` etc.)
+        `supertile_matrix` file is validated. Constant sources (`GND0` etc.)
         are not included here; callers add them separately.
 
         Returns
         -------
         tuple[set[str], set[str]]
-            ``(valid_sources, valid_sinks)`` where sources drive the matrix muxes
+            `(valid_sources, valid_sinks)` where sources drive the matrix muxes
             (child OUTPUT SJUMP wires and BEL outputs) and sinks are the mux
             outputs (BEL inputs and child INPUT SJUMP wires).
         """
@@ -243,7 +243,7 @@ class SuperTile:
         return valid_sources, valid_sinks
 
     @property
-    def totalConfigBits(self) -> int:
+    def total_config_bits(self) -> int:
         """Return the supertile's config bits: switch matrix bits plus BEL bits."""
         return self.supertile_matrix_config_bits + sum(b.configBit for b in self.bels)
 

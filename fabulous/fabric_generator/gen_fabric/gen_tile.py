@@ -696,7 +696,7 @@ def generateSuperTile(
             for p in b.externalOutput:
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
 
-    st_config_bits = superTile.totalConfigBits
+    st_config_bits = superTile.total_config_bits
 
     # add config port
     if config_bit_mode == ConfigBitMode.FRAME_BASED:

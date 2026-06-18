@@ -1,9 +1,9 @@
 """Unit tests for the SJUMP / supertile-BEL data model.
 
 Covers the model pieces added to route a BEL that lives in a supertile's master
-tile from its child tiles: SJUMP port expansion, ``Tile.get_sjump_ports``,
-``SuperTile`` helpers, and the bidirectional SJUMP wire pass run by
-``Fabric.__post_init__``.
+tile from its child tiles: SJUMP port expansion, `Tile.get_sjump_ports`,
+`SuperTile` helpers, and the bidirectional SJUMP wire pass run by
+`Fabric.__post_init__`.
 """
 
 from collections.abc import Callable
@@ -22,10 +22,10 @@ from tests.conftest import make_empty_tile, sjump_port
 
 
 def _tile(name: str, ports: list[Port]) -> Tile:
-    """Build a minimal real Tile (``pinOrderConfig={}`` skips the GDS import).
+    """Build a minimal real Tile (`pinOrderConfig={}` skips the GDS import).
 
     These tests never read the tile's files, so the dir/matrix paths are left at
-    their defaults; tests that do touch disk use the ``tmp_path`` fixture.
+    their defaults; tests that do touch disk use the `tmp_path` fixture.
     """
     return make_empty_tile(name, ports, pinOrderConfig={})
 
@@ -42,7 +42,7 @@ def _sjump_wires(tile: Tile) -> set[tuple[str, str, int, int]]:
 class TestPortSJumpExpansion:
     """SJUMP ports keep their declared width instead of collapsing to zero.
 
-    SJUMP ports have ``(xOffset, yOffset) == (0, 0)``, so the Manhattan-distance
+    SJUMP ports have `(xOffset, yOffset) == (0, 0)`, so the Manhattan-distance
     width formula used for NULL-terminated wires would otherwise zero them out.
     """
 
@@ -64,7 +64,7 @@ class TestPortSJumpExpansion:
 
 
 class TestTileGetSJumpPorts:
-    """``Tile.get_sjump_ports`` returns only the SJUMP-direction, non-NULL ports."""
+    """`Tile.get_sjump_ports` returns only the SJUMP-direction, non-NULL ports."""
 
     def test_returns_only_sjump_ports(self) -> None:
         sjump_out = sjump_port("A", IO.OUTPUT)
@@ -103,7 +103,7 @@ class TestTileGetSJumpPorts:
 
 
 class TestSuperTileHelpers:
-    """``SuperTile`` master-coordinate and SJUMP-port helpers."""
+    """`SuperTile` master-coordinate and SJUMP-port helpers."""
 
     def _supertile(self, **overrides: object) -> SuperTile:
         top = _tile("DSP_top", [sjump_port("top2bot", IO.OUTPUT)])
@@ -148,7 +148,7 @@ class TestSuperTileHelpers:
 
 
 class TestFabricSJumpWirePass:
-    """``Fabric.__post_init__`` adds SJUMP wires in both directions.
+    """`Fabric.__post_init__` adds SJUMP wires in both directions.
 
     Layout: DSP_top (row 0) over DSP_bot (row 1), single column. DSP_bot is the
     master tile. Forward wires carry child OUTPUT ports up to the supertile SM;
@@ -231,9 +231,9 @@ class TestSJumpRequiresSupertile:
 class TestGenNpnrModelSupertile:
     """Supertile switch-matrix PIPs come out with the right source/sink.
 
-    The ``.list`` convention is ``<destination>,[<sources>]``; the supertile
-    callers parse it with the ``"source"`` collect mode so the dict keys by
-    destination (matching ``parseMatrix``). A regression here previously emitted
+    The `.list` convention is `<destination>,[<sources>]`; the supertile
+    callers parse it with the `"source"` collect mode so the dict keys by
+    destination (matching `parseMatrix`). A regression here previously emitted
     every supertile-SM PIP reversed.
     """
 
@@ -298,9 +298,9 @@ class TestGenBitstreamSpecSupertileMux:
 
     The supertile's config bits physically live in the master tile's frame
     column (the master tile's own ConfigMem leaves them free). For a 4-input
-    mux the two select bits must land on the master tile's ``TileSpecs`` PIP
+    mux the two select bits must land on the master tile's `TileSpecs` PIP
     entries, and the supertile's used-bit mask must be merged into the master
-    tile's ``FrameMap`` even though the master tile has no config bits of its
+    tile's `FrameMap` even though the master tile has no config bits of its
     own.
     """
 

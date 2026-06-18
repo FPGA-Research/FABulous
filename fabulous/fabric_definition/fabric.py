@@ -398,10 +398,10 @@ class Fabric:
     def iter_super_tile_placements(
         self, superTile: SuperTile | None = None
     ) -> Generator[tuple[int, int, SuperTile], None, None]:
-        """Yield ``(base_fx, base_fy, superTile)`` for every supertile placement.
+        """Yield `(base_fx, base_fy, superTile)` for every supertile placement.
 
-        Each supertile type's ``tileMap`` pattern is matched against the fabric
-        grid; ``(base_fx, base_fy)`` is the top-left corner of a match. Shared by
+        Each supertile type's `tileMap` pattern is matched against the fabric
+        grid; `(base_fx, base_fy)` is the top-left corner of a match. Shared by
         the SJUMP wire pass, the nextpnr model, and the bitstream spec so they all
         locate supertile instances identically.
 
@@ -422,13 +422,13 @@ class Fabric:
         for st in candidates:
             for base_fy in range(len(self.tile) - st.max_height + 1):
                 for base_fx in range(len(self.tile[base_fy]) - st.max_width + 1):
-                    if self._matchesSuperTile(st, base_fx, base_fy):
+                    if self._matches_super_tile(st, base_fx, base_fy):
                         yield base_fx, base_fy, st
 
-    def _matchesSuperTile(
+    def _matches_super_tile(
         self, superTile: SuperTile, base_fx: int, base_fy: int
     ) -> bool:
-        """Return whether ``superTile``'s tileMap matches the grid at the base."""
+        """Return whether `superTile`'s tileMap matches the grid at the base."""
         for ly, st_row in enumerate(superTile.tileMap):
             for lx, st_tile in enumerate(st_row):
                 fy = base_fy + ly

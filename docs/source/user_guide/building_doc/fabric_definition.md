@@ -1307,9 +1307,9 @@ EndTILE
 A supertile has two independent reference tiles, and they are easy to confuse:
 
 - The **anchor tile** ({ref}`above <supertiles>`) is the first non-NULL tile in a
-  row-by-row scan (the top-left tile). It fixes where the supertile is *placed* in the
+  row-by-row scan (the top-left tile). It fixes where the supertile is _placed_ in the
   fabric and is purely structural.
-- The **master tile** is where a supertile BEL and its configuration bits *live*. By
+- The **master tile** is where a supertile BEL and its configuration bits _live_. By
   default it is the **last** non-NULL tile in row-major order; an explicit `MASTER` token
   in the supertile CSV overrides this.
 
@@ -1319,7 +1319,7 @@ switch matrix all live in `DSP_bot` even though the wrapper is placed at `DSP_to
 ```
 
 A BEL declared on the supertile (such as the `MULADD` block above) lives in the supertile's **master tile**,
-but its operands and results usually need to reach the routing fabric of *every* basic tile in the supertile - a multiplier,
+but its operands and results usually need to reach the routing fabric of _every_ basic tile in the supertile - a multiplier,
 for instance, may take its operands from the top tile and write its result back through the bottom tile.
 
 Pins of a supertile BEL marked `EXTERNAL` behave exactly like those of a normal tile BEL: they are
@@ -1335,8 +1335,8 @@ so an `SJUMP` line carries **no spatial offset** - its `X-offset` and `Y-offset`
 
 A basic tile declares its `SJUMP` ports the same way as any other wire, but each line is **one-way**:
 exactly one of `source_name`/`destination_name` must be `NULL`.
-An `OUTPUT` direction (a non-`NULL` `source_name`, `NULL` destination) drives a signal *up* to the supertile BEL;
-an `INPUT` direction (`NULL` source, a non-`NULL` `destination_name`) receives a result *back* from the BEL:
+An `OUTPUT` direction (a non-`NULL` `source_name`, `NULL` destination) drives a signal _up_ to the supertile BEL;
+an `INPUT` direction (`NULL` source, a non-`NULL` `destination_name`) receives a result _back_ from the BEL:
 
 ```{code-block} python
 :emphasize-lines: 4,6

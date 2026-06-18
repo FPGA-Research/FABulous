@@ -28,10 +28,10 @@ from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
 def iter_super_tile_anchors(
     fabric: Fabric,
 ) -> Generator[tuple[int, int, SuperTile], None, None]:
-    """Yield ``(anchor_x, anchor_y, superTile)`` for every supertile placement.
+    """Yield `(anchor_x, anchor_y, superTile)` for every supertile placement.
 
     The anchor is the first non-NULL child tile in row-major order for each
-    placement -- the same position at which ``generateFabric`` instantiates the
+    placement -- the same position at which `generateFabric` instantiates the
     supertile wrapper.
 
     Parameters
@@ -42,7 +42,7 @@ def iter_super_tile_anchors(
     Yields
     ------
     tuple[int, int, SuperTile]
-        The anchor ``(x, y)`` and the ``SuperTile`` placed there.
+        The anchor `(x, y)` and the `SuperTile` placed there.
     """
     for base_fx, base_fy, superTile in fabric.iter_super_tile_placements():
         for ly, row in enumerate(superTile.tileMap):

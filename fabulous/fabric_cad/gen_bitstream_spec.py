@@ -197,7 +197,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
         if not superTile.bels and superTile.supertile_matrix_dir is None:
             continue
 
-        st_config_bits = superTile.totalConfigBits
+        st_config_bits = superTile.total_config_bits
 
         st_encode_dict = [-1] * (fabric.maxFramesPerCol * fabric.frameBitsPerRow)
         st_mask_dic: dict[int, str] = {}

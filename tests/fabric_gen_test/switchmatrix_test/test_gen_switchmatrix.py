@@ -169,8 +169,8 @@ class TestListFileCsvOutputDirectory:
 class TestSuperTileSwitchMatrixConstants:
     """The supertile switch matrix exposes GND/VCC/VDD constants like normal tiles.
 
-    ``gen_super_tile_switch_matrix`` reuses the shared matrix-body generator, so a
-    ``supertile_matrix.list`` may drive a BEL input from a constant (tie-off) or
+    `gen_super_tile_switch_matrix` reuses the shared matrix-body generator, so a
+    `supertile_matrix.list` may drive a BEL input from a constant (tie-off) or
     offer one as a mux option. This guards that behaviour against a refactor.
     """
 

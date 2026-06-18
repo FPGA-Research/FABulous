@@ -344,7 +344,7 @@ class FABulous_API:
         """Generate the switch matrix RTL for a supertile.
 
         Only has an effect when the supertile directory contains a
-        ``supertile_matrix.csv`` or ``supertile_matrix.list`` file.  If no such
+        `supertile_matrix.csv` or `supertile_matrix.list` file.  If no such
         file exists the call is a no-op.
 
         Parameters

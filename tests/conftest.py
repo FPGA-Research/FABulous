@@ -28,9 +28,9 @@ def sjump_port(
 ) -> Port:
     """Build an SJUMP port.
 
-    OUTPUT ports drive ``sourceName``; INPUT ports terminate at
-    ``destinationName``. SJUMP ports carry zero offsets, which is exactly the
-    case the width fix in ``expandPortInfo*`` has to handle.
+    OUTPUT ports drive `sourceName`; INPUT ports terminate at
+    `destinationName`. SJUMP ports carry zero offsets, which is exactly the
+    case the width fix in `expandPortInfo*` has to handle.
     """
     return Port(
         wireDirection=Direction.SJUMP,
@@ -55,7 +55,7 @@ def make_empty_tile(
 ) -> Tile:
     """Build a minimal Tile usable inside a SuperTile.tileMap.
 
-    Passing ``pinOrderConfig={}`` skips the GDS pin-order import; the ``None``
+    Passing `pinOrderConfig={}` skips the GDS pin-order import; the `None`
     default preserves the original behaviour for callers that don't care.
     """
     return Tile(

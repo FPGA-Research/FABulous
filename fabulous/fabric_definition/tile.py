@@ -264,7 +264,7 @@ class Tile:
         SJUMP ports are one-way connections between the tile and a supertile
         BEL: OUTPUT ports exit toward the supertile switch matrix, INPUT ports
         receive results back. Both directions are returned; callers filter by
-        ``inOut`` as needed.
+        `inOut` as needed.
 
         Returns
         -------
@@ -368,9 +368,9 @@ class Tile:
         """Calculate minimum tile dimensions based on IO pin track requirements.
 
         The IO pin placer distributes pins across available tracks on each
-        tile edge. Each pin occupies ``thickness_mult`` consecutive tracks,
-        and ``edge_offset`` tracks are reserved at the start of the tile
-        (see ``tile_io_place.allocate_tracks``).
+        tile edge. Each pin occupies `thickness_mult` consecutive tracks,
+        and `edge_offset` tracks are reserved at the start of the tile
+        (see `tile_io_place.allocate_tracks`).
 
         The minimum number of tracks on a side is therefore::
 

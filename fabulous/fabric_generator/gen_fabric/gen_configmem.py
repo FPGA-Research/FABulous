@@ -282,32 +282,34 @@ def generateConfigMem(
     writer.writeToFile()
 
 
-def _readConfigMemMasks(configMemCsv: Path, maxFramesPerCol: int) -> dict[int, str]:
-    """Read a ConfigMem CSV into a ``{frame_index: used_bits_mask}`` mapping.
+def _read_config_mem_masks(
+    config_mem_csv: Path, max_frames_per_col: int
+) -> dict[int, str]:
+    """Read a ConfigMem CSV into a `{frame_index: used_bits_mask}` mapping.
 
     Parameters
     ----------
-    configMemCsv : Path
-        Path to a ``*_ConfigMem.csv`` file.
-    maxFramesPerCol : int
+    config_mem_csv : Path
+        Path to a `*_ConfigMem.csv` file.
+    max_frames_per_col : int
         Expected number of frame rows.
 
     Raises
     ------
     ValueError
-        If the file does not have exactly ``maxFramesPerCol`` rows.
+        If the file does not have exactly `max_frames_per_col` rows.
 
     Returns
     -------
     dict[int, str]
-        Mapping from frame index to its ``used_bits_mask`` (underscores stripped).
+        Mapping from frame index to its `used_bits_mask` (underscores stripped).
     """
-    with configMemCsv.open() as f:
+    with config_mem_csv.open() as f:
         rows = list(csv.DictReader(f))
-    if len(rows) != maxFramesPerCol:
+    if len(rows) != max_frames_per_col:
         raise ValueError(
-            f"ConfigMem {configMemCsv} has {len(rows)} rows but MaxFramesPerCol "
-            f"is {maxFramesPerCol}."
+            f"ConfigMem {config_mem_csv} has {len(rows)} rows but MaxFramesPerCol "
+            f"is {max_frames_per_col}."
         )
     return {int(r["frame_index"]): r["used_bits_mask"].replace("_", "") for r in rows}
 
@@ -316,8 +318,8 @@ def validate_super_tile_config_mem(
     super_tile_config_mem_csv: Path,
     master_config_mem_csv: Path,
     num_bits_needed: int,
-    frameBitsPerRow: int = 32,
-    maxFramesPerCol: int = 20,
+    frame_bits_per_row: int = 32,
+    max_frames_per_col: int = 20,
 ) -> None:
     """Validate an existing supertile ConfigMem against the master tile.
 
@@ -328,24 +330,24 @@ def validate_super_tile_config_mem(
     Parameters
     ----------
     super_tile_config_mem_csv : Path
-        Path to the existing supertile ``*_ConfigMem.csv`` to validate.
+        Path to the existing supertile `*_ConfigMem.csv` to validate.
     master_config_mem_csv : Path
-        Path to the master tile's ``*_ConfigMem.csv``.
+        Path to the master tile's `*_ConfigMem.csv`.
     num_bits_needed : int
         Number of supertile configuration bits that must be present.
-    frameBitsPerRow : int
+    frame_bits_per_row : int
         Number of bits per frame row.
-    maxFramesPerCol : int
+    max_frames_per_col : int
         Number of frames per column.
 
     Raises
     ------
     ValueError
         If either file has the wrong row count, the supertile does not use exactly
-        ``num_bits_needed`` bits, or any frame bit is used by both ConfigMems.
+        `num_bits_needed` bits, or any frame bit is used by both ConfigMems.
     """
-    st_masks = _readConfigMemMasks(super_tile_config_mem_csv, maxFramesPerCol)
-    master_masks = _readConfigMemMasks(master_config_mem_csv, maxFramesPerCol)
+    st_masks = _read_config_mem_masks(super_tile_config_mem_csv, max_frames_per_col)
+    master_masks = _read_config_mem_masks(master_config_mem_csv, max_frames_per_col)
 
     used_bits = sum(mask.count("1") for mask in st_masks.values())
     if used_bits != num_bits_needed:
@@ -356,7 +358,7 @@ def validate_super_tile_config_mem(
         )
 
     for frame_idx, st_mask in st_masks.items():
-        master_mask = master_masks.get(frame_idx, "0" * frameBitsPerRow)
+        master_mask = master_masks.get(frame_idx, "0" * frame_bits_per_row)
         conflicts = [
             k
             for k, (a, b) in enumerate(zip(st_mask, master_mask, strict=True))
@@ -376,34 +378,34 @@ def build_super_tile_config_mem_csv(
     master_config_mem_csv: Path,
     num_bits_needed: int,
     output_path: Path,
-    frameBitsPerRow: int = 32,
-    maxFramesPerCol: int = 20,
+    frame_bits_per_row: int = 32,
+    max_frames_per_col: int = 20,
 ) -> None:
     """Build a ConfigMem CSV for a supertile SM using free slots from the master tile.
 
     Reads the master tile's ConfigMem CSV, collects bit positions where the
-    ``used_bits_mask`` is ``'0'`` (free), and writes a new CSV that maps
-    ``ST_ConfigBits[0..num_bits_needed-1]`` to those positions.  The output CSV
-    has exactly ``maxFramesPerCol`` rows so it is accepted by ``parseConfigMem``.
+    `used_bits_mask` is `'0'` (free), and writes a new CSV that maps
+    `ST_ConfigBits[0..num_bits_needed-1]` to those positions.  The output CSV
+    has exactly `max_frames_per_col` rows so it is accepted by `parseConfigMem`.
 
     Parameters
     ----------
     master_config_mem_csv : Path
-        Path to the master tile's existing ``*_ConfigMem.csv``.
+        Path to the master tile's existing `*_ConfigMem.csv`.
     num_bits_needed : int
         Number of supertile configuration bits to place.
     output_path : Path
         Destination path for the generated supertile ConfigMem CSV.
-    frameBitsPerRow : int
+    frame_bits_per_row : int
         Number of bits per frame row (must match the fabric setting).
-    maxFramesPerCol : int
+    max_frames_per_col : int
         Number of frames per column (must match the fabric setting).
 
     Raises
     ------
     ValueError
-        If the master tile's ConfigMem CSV does not have exactly ``maxFramesPerCol``
-        rows, or if there are fewer free slots than ``num_bits_needed``.
+        If the master tile's ConfigMem CSV does not have exactly `max_frames_per_col`
+        rows, or if there are fewer free slots than `num_bits_needed`.
     """
     # Reuse an existing (possibly hand-tuned) supertile ConfigMem instead of
     # overwriting it, but only after confirming it is still consistent with the
@@ -414,18 +416,18 @@ def build_super_tile_config_mem_csv(
             output_path,
             master_config_mem_csv,
             num_bits_needed,
-            frameBitsPerRow,
-            maxFramesPerCol,
+            frame_bits_per_row,
+            max_frames_per_col,
         )
         return
 
     with master_config_mem_csv.open() as f:
         master_rows = list(csv.DictReader(f))
 
-    if len(master_rows) != maxFramesPerCol:
+    if len(master_rows) != max_frames_per_col:
         raise ValueError(
             f"Master tile ConfigMem {master_config_mem_csv} has "
-            f"{len(master_rows)} rows but MaxFramesPerCol is {maxFramesPerCol}."
+            f"{len(master_rows)} rows but MaxFramesPerCol is {max_frames_per_col}."
         )
 
     # Collect free (frame_index, bit_k) slots in reading order.
@@ -464,14 +466,15 @@ def build_super_tile_config_mem_csv(
             frame_idx = int(row["frame_index"])
             assignments = frame_assignments.get(frame_idx, [])
             if not assignments:
-                mask_str = "0" * frameBitsPerRow
+                mask_str = "0" * frame_bits_per_row
                 config_bits_ranges = "# NULL"
             else:
-                mask_list = ["0"] * frameBitsPerRow
+                mask_list = ["0"] * frame_bits_per_row
                 for bit_k, _ in assignments:
                     mask_list[bit_k] = "1"
                 mask_str = "_".join(
-                    "".join(mask_list[i : i + 4]) for i in range(0, frameBitsPerRow, 4)
+                    "".join(mask_list[i : i + 4])
+                    for i in range(0, frame_bits_per_row, 4)
                 )
                 assignments.sort(key=lambda x: x[0])
                 config_bits_ranges = ";".join(str(cb_idx) for _, cb_idx in assignments)
@@ -492,7 +495,7 @@ def generate_super_tile_config_mem(
 
     Builds a ConfigMem CSV that places the supertile SM's config bits into the
     free slots of the master tile's frame space, then generates the Verilog/VHDL
-    module via ``generateConfigMem``.
+    module via `generateConfigMem`.
 
     Parameters
     ----------
@@ -501,13 +504,13 @@ def generate_super_tile_config_mem(
     superTile : SuperTile
         The supertile whose SM config bits need a ConfigMem.
     master_config_mem_csv : Path
-        Path to the master tile's existing ``*_ConfigMem.csv``.
+        Path to the master tile's existing `*_ConfigMem.csv`.
     frame_bits_per_row : int
         Number of bits per frame row.
     max_frame_per_col : int
         Number of frames per column.
     """
-    st_config_bits = superTile.totalConfigBits
+    st_config_bits = superTile.total_config_bits
     if st_config_bits <= 0:
         return
 
@@ -516,8 +519,8 @@ def generate_super_tile_config_mem(
         master_config_mem_csv,
         st_config_bits,
         output_csv,
-        frameBitsPerRow=frame_bits_per_row,
-        maxFramesPerCol=max_frame_per_col,
+        frame_bits_per_row=frame_bits_per_row,
+        max_frames_per_col=max_frame_per_col,
     )
     generateConfigMem(
         writer,

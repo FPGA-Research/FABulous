@@ -201,7 +201,7 @@ def _serialize_supertile_ports(
                     )
 
     # Supertile-level BEL external ports live on the wrapper itself (named e.g.
-    # ``SUPER_out_ext``, without a ``Tile_X..`` prefix) and are anchored at the
+    # `SUPER_out_ext`, without a `Tile_X..` prefix) and are anchored at the
     # master tile. Place them on the master tile's external side.
     # NOTE: not verified end-to-end against the GDS flow.
     if super_tile.bels:

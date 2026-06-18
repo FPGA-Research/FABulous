@@ -1,4 +1,4 @@
-"""Tests for fabric and supertile HDL generation (``gen_fabric`` package)."""
+"""Tests for fabric and supertile HDL generation (`gen_fabric` package)."""
 
 import re
 from collections.abc import Callable
@@ -45,7 +45,7 @@ def _supertile(tmp_path: Path) -> SuperTile:
     create_switchmatrix_list(mat, [("{2}SUPER_A0", "[DSP_bot_A0|DSP_bot_A1]")])
 
     def mk(name: str, ports: list[Port]) -> Tile:
-        """Build a minimal child tile rooted at ``tmp_path``."""
+        """Build a minimal child tile rooted at `tmp_path`."""
         return make_empty_tile(
             name,
             ports,
@@ -76,8 +76,8 @@ def test_supertile_configmem_preloaded_from_master_bitstream(
 
     The supertile's config bits live in free slots of the master tile's frame
     space, so in emulation they are preloaded from the master tile's
-    ``Emulate_Bitstream`` parameter. Without this the supertile mux bits stay 0
-    and the emulated DSP misroutes its operands (``make emu_dsp`` fails).
+    `Emulate_Bitstream` parameter. Without this the supertile mux bits stay 0
+    and the emulated DSP misroutes its operands (`make emu_dsp` fails).
     """
     writer = code_generator_factory(".v", "DSP")
     generateSuperTile(writer, _supertile(tmp_path))
@@ -94,8 +94,8 @@ def test_supertile_configmem_preloaded_from_master_bitstream(
 def test_iter_supertile_anchors_yields_top_left_anchor(tmp_path: Path) -> None:
     """Each supertile placement yields one anchor at its top-left child tile.
 
-    ``generateFabric`` names a supertile's top-level EXTERNAL ports at this
-    anchor (matching the wrapper instance ``Tile_X{x}Y{y}_DSP``), so the helper
+    `generateFabric` names a supertile's top-level EXTERNAL ports at this
+    anchor (matching the wrapper instance `Tile_X{x}Y{y}_DSP`), so the helper
     must return the top-left child (DSP_top), not the master (DSP_bot below it).
     """
     supertile = _supertile(tmp_path)

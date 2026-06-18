@@ -617,7 +617,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
         withUserCLK = any(bel.withUserCLK for bel in bels)
         # tileDir is the supertile CSV file path (matching Tile.tileDir), so
-        # consumers use ``tileDir.parent`` for the supertile's directory.
+        # consumers use `tileDir.parent` for the supertile's directory.
         superTile = SuperTile(
             name, fileName.absolute(), tiles, tileMap, bels, withUserCLK
         )

@@ -395,10 +395,10 @@ def _write_configmem_csv(path: Path, masks: list[str], ranges: list[str]) -> Non
 
 
 class TestSuperTileConfigMemReuse:
-    """``build_super_tile_config_mem_csv`` reuses a valid existing CSV, else regen.
+    """`build_super_tile_config_mem_csv` reuses a valid existing CSV, else regen.
 
     Master tile has 4 frames of 4 bits each (tiny, for readability). Frame 0 uses
-    its top two bits (``1100``), leaving the rest free for the supertile.
+    its top two bits (`1100`), leaving the rest free for the supertile.
     """
 
     FRAME_BITS = 4
@@ -416,8 +416,8 @@ class TestSuperTileConfigMemReuse:
             self._master(tmp_path),
             bits,
             out,
-            frameBitsPerRow=self.FRAME_BITS,
-            maxFramesPerCol=self.MAX_FRAMES,
+            frame_bits_per_row=self.FRAME_BITS,
+            max_frames_per_col=self.MAX_FRAMES,
         )
 
     def test_fresh_generation_when_absent(self, tmp_path: Path) -> None:
@@ -442,26 +442,35 @@ class TestSuperTileConfigMemReuse:
         self._build(tmp_path, out)
         assert out.read_text() == before  # reused, not regenerated
 
-    def test_conflict_with_master_raises(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        ("masks", "ranges", "error_match"),
+        [
+            # Bit 0 (MSB) is used by the master (1100) -> conflict.
+            pytest.param(
+                ["1010", "0000", "0000", "0000"],
+                ["0;1", "# NULL", "# NULL", "# NULL"],
+                "conflicts with the master",
+                id="conflict_with_master",
+            ),
+            # Only one used bit, but the supertile needs two.
+            pytest.param(
+                ["0001", "0000", "0000", "0000"],
+                ["0", "# NULL", "# NULL", "# NULL"],
+                "needs 2",
+                id="stale_bit_count",
+            ),
+        ],
+    )
+    def test_invalid_existing_csv_raises(
+        self, tmp_path: Path, masks: list[str], ranges: list[str], error_match: str
+    ) -> None:
         out = tmp_path / "DSP_ConfigMem.csv"
-        # Bit 0 (MSB) is used by the master (1100) -> conflict.
-        _write_configmem_csv(
-            out, ["1010", "0000", "0000", "0000"], ["0;1", "# NULL", "# NULL", "# NULL"]
-        )
-        with pytest.raises(ValueError, match="conflicts with the master"):
-            self._build(tmp_path, out)
-
-    def test_stale_bit_count_raises(self, tmp_path: Path) -> None:
-        out = tmp_path / "DSP_ConfigMem.csv"
-        # Only one used bit, but the supertile needs two.
-        _write_configmem_csv(
-            out, ["0001", "0000", "0000", "0000"], ["0", "# NULL", "# NULL", "# NULL"]
-        )
-        with pytest.raises(ValueError, match="needs 2"):
+        _write_configmem_csv(out, masks, ranges)
+        with pytest.raises(ValueError, match=error_match):
             self._build(tmp_path, out, bits=2)
 
 
 def _read_masks(path: Path) -> dict[int, str]:
-    """Read a ConfigMem CSV into ``{frame_index: used_bits_mask}`` (no underscores)."""
+    """Read a ConfigMem CSV into `{frame_index: used_bits_mask}` (no underscores)."""
     rows = verify_csv_content(path)
     return {int(r["frame_index"]): r["used_bits_mask"].replace("_", "") for r in rows}
