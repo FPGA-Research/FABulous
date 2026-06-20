@@ -254,6 +254,7 @@ class ArchitectureSynthesizer(ABC):
         tile_name: str,
         out_path: str | Path,
         *,
+        switch_matrix: object | None = None,
         mode: SwmImageMode = "heat",
         pixel_size: int = 1,
         grid_every: int = 0,
@@ -266,9 +267,15 @@ class ArchitectureSynthesizer(ABC):
         Parameters
         ----------
         tile_name : str
-            Tile type whose switch matrix should be rendered.
+            Tile type whose switch matrix should be rendered when
+            ``switch_matrix`` is not provided.
         out_path : str | Path
             PNG path to write.
+        switch_matrix : object | None
+            Optional manual switch matrix to render instead of querying the
+            attached FPGA model. Accepts the same shapes as
+            :func:`gen_swm_pattern_image`, such as a graph
+            ``RoutingSwitchMatrix``, nested row/column mapping, or raw 2D list.
         mode : SwmImageMode
             ``"heat"`` maps low non-zero values to blue and high values through
             red toward black. ``"binary"`` renders every non-zero entry black.
@@ -293,13 +300,17 @@ class ArchitectureSynthesizer(ABC):
         RuntimeError
             If no FABulous PnR model can be attached to the architecture flow.
         """
-        if self.fpga_model is None:
-            self.generate_fpga_model()
-        if self.fpga_model is None:
-            raise RuntimeError("FABulous PnR model not attached to architecture flow.")
+        if switch_matrix is None:
+            if self.fpga_model is None:
+                self.generate_fpga_model()
+            if self.fpga_model is None:
+                raise RuntimeError(
+                    "FABulous PnR model not attached to architecture flow."
+                )
+            switch_matrix = self.fpga_model.switch_matrix(tile_name)
 
         return gen_swm_pattern_image(
-            self.fpga_model.switch_matrix(tile_name),
+            switch_matrix,
             out_path,
             mode=mode,
             pixel_size=pixel_size,

@@ -52,12 +52,45 @@ def test_write_switch_matrix_pattern_image_uses_fpga_model(
     assert result.active_pips == 1
 
 
+def test_write_switch_matrix_pattern_image_accepts_manual_matrix(
+    tmp_path: Path,
+) -> None:
+    """Write a switch-matrix image from an explicit matrix value."""
+    synthesizer = _ManualMatrixSynthesizer()
+
+    result = synthesizer.write_switch_matrix_pattern_image(
+        "IGNORED_TILE",
+        tmp_path / "manual.png",
+        switch_matrix={
+            "ROW0": {"COL0": 0, "COL1": 1},
+            "ROW1": {"COL0": "8", "COL1": "#"},
+        },
+        mode="binary",
+    )
+
+    assert result.image_path.exists()
+    assert result.active_pips == 2
+    assert result.rows == 2
+    assert result.columns == 2
+
+
 class _RoutingMetadataSynthesizer(ArchitectureSynthesizer):
     """Concrete synthesizer with a fake graph-backed PnR model."""
 
     def generate_fpga_model(self) -> None:
         """Attach a fake PnR model that writes routing metadata."""
         self.fpga_model = _FakePnRModel()  # type: ignore[assignment]
+
+    def run_flow(self) -> None:
+        """No-op flow entry point for tests."""
+
+
+class _ManualMatrixSynthesizer(ArchitectureSynthesizer):
+    """Concrete synthesizer that must not create an FPGA model."""
+
+    def generate_fpga_model(self) -> None:
+        """Fail if manual matrix rendering tries to build a model."""
+        raise AssertionError("manual matrix rendering must not query fpga_model")
 
     def run_flow(self) -> None:
         """No-op flow entry point for tests."""

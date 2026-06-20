@@ -439,6 +439,79 @@ def test_routing_track_groups_use_graph_external_resources() -> None:
     assert any(source in {"SEND0", "SEND1"} for _row, source in graph.active_pairs)
 
 
+def test_lut_carry_rich_balances_output_egress_by_group() -> None:
+    """Connect LUT outputs into every discovered cardinal routing group."""
+    graph = _FakePnRBridge()
+    _use_rich_lut_tile_model(graph)
+
+    result = SwitchMatrixPattern(
+        SwitchMatrixPatternOptions(
+            tile_name="Toy",
+            input_fanin=1,
+            output_fanin=1,
+            routing_pip_pattern="lut_carry_rich",
+            routing_pip_fs=2,
+            track_progress=False,
+        )
+    ).run(graph)
+
+    assert result.stats.generated_routing_pips > 0
+    assert any(
+        row.startswith("NBEG") and source == "A_O" for row, source in graph.active_pairs
+    )
+    assert any(
+        row.startswith("EBEG") and source == "A_O" for row, source in graph.active_pairs
+    )
+    assert ("A_I0", "GND0") in graph.active_pairs
+    assert ("A_I1", "VCC0") in graph.active_pairs
+    assert ("A_I0", "A_O") in graph.active_pairs
+    assert ("B_I0", "A_O") in graph.active_pairs
+    assert ("B_Ci", "A_Co") in graph.active_pairs
+    assert ("A_I0", "A_Co") in graph.active_pairs
+    assert ("A_SR", "EBEG0") in graph.active_pairs
+
+
+def test_lut_carry_rich_caps_final_active_pips() -> None:
+    """Keep a normal eight-BEL rich pattern below the LUT5F starter budget."""
+    graph = _FakePnRBridge()
+    _use_rich_lut_tile_model(graph, bel_count=8)
+
+    result = SwitchMatrixPattern(
+        SwitchMatrixPatternOptions(
+            tile_name="Toy",
+            input_fanin=8,
+            output_fanin=5,
+            routing_pip_pattern="lut_carry_rich",
+            routing_pip_fs=4,
+            track_progress=False,
+        )
+    ).run(graph)
+
+    assert result.stats.active_pips_after <= 3000
+
+
+def test_lut_carry_rich_aligns_adjacent_bel_pair_lanes() -> None:
+    """Use matching sparse routing lanes for paired BEL egress and ingress."""
+    graph = _FakePnRBridge()
+    _use_rich_lut_tile_model(graph, bel_count=8)
+
+    SwitchMatrixPattern(
+        SwitchMatrixPatternOptions(
+            tile_name="Toy",
+            input_fanin=8,
+            output_fanin=5,
+            routing_pip_pattern="lut_carry_rich",
+            routing_pip_fs=4,
+            track_progress=False,
+        )
+    ).run(graph)
+
+    assert ("NBEG2", "H_O1") in graph.active_pairs
+    assert ("G_Ci", "NEND2") in graph.active_pairs
+    assert ("EBEG3", "H_O1") in graph.active_pairs
+    assert ("G_Ci", "EEND3") in graph.active_pairs
+
+
 def test_switch_matrix_pattern_pass_wrapper_uses_pnr_bridge() -> None:
     """Run the PnR wrapper against the bridge-shaped graph object."""
     graph = _FakePnRBridge()
@@ -803,3 +876,81 @@ def _base_available_wires() -> list[str]:
         "EEND2",
         "EEND3",
     ]
+
+
+def _use_rich_lut_tile_model(
+    graph: _FakePnRBridge,
+    *,
+    bel_count: int = 2,
+) -> None:
+    """Swap the fake graph to an N-BEL LUT/carry/control tile model."""
+    prefixes = ("A", "B", "C", "D", "E", "F", "G", "H")[:bel_count]
+    graph.model = RoutingTileModel(
+        tile_type="Toy",
+        tile_csv_path=Path("Toy.csv"),
+        tile_dir=Path(),
+        matrix_path=Path("Toy_switch_matrix.list"),
+        matrix_config_bits=0,
+        with_user_clk=False,
+        ports=graph.model.ports,
+        bels=tuple(
+            RoutingTileBelModel(
+                source_path=Path("toy_bel.v"),
+                prefix=f"{prefix}_",
+                name=f"toy_bel_{prefix.lower()}",
+                module_name="toy_bel",
+                inputs=(
+                    f"{prefix}_I0",
+                    f"{prefix}_I1",
+                    f"{prefix}_B0",
+                    f"{prefix}_Ci",
+                    f"{prefix}_SR",
+                    f"{prefix}_EN",
+                ),
+                outputs=(f"{prefix}_O", f"{prefix}_O1", f"{prefix}_Co"),
+                external_inputs=(),
+                external_outputs=(),
+                config_bits=0,
+                feature_names=(),
+                with_user_clk=False,
+            )
+            for prefix in prefixes
+        ),
+        gen_ios=(),
+    )
+    graph.available_wires.update(
+        wire
+        for prefix in prefixes
+        for wire in (
+            f"{prefix}_I0",
+            f"{prefix}_I1",
+            f"{prefix}_B0",
+            f"{prefix}_Ci",
+            f"{prefix}_SR",
+            f"{prefix}_EN",
+            f"{prefix}_O",
+            f"{prefix}_O1",
+            f"{prefix}_Co",
+        )
+    )
+
+
+def _add_dense_routing_resources(graph: _FakePnRBridge) -> None:
+    """Add enough synthetic routing families to exercise rich-pattern capping."""
+    directions = (
+        (Direction.NORTH, 0, -1),
+        (Direction.EAST, 1, 0),
+        (Direction.SOUTH, 0, 1),
+        (Direction.WEST, -1, 0),
+    )
+    for index in range(48):
+        direction, x_offset, y_offset = directions[index % len(directions)]
+        graph.add_external_resource(
+            "Toy",
+            direction,
+            f"R{index}BEG",
+            x_offset,
+            y_offset,
+            f"R{index}END",
+            16,
+        )

@@ -10,6 +10,9 @@ from fabulous.fabric_cad.fabxplore.modules.routing_patterns.core.models import (
     SwitchMatrixPatternImplementation,
     SwitchMatrixPatternOptions,
 )
+from fabulous.fabric_cad.fabxplore.modules.routing_patterns.patterns import (
+    lut_carry_rich,
+)
 from fabulous.fabric_cad.fabxplore.modules.routing_patterns.patterns.full import (
     FullRoutingPattern,
 )
@@ -37,6 +40,7 @@ _PATTERN_IMPLEMENTATIONS: dict[RoutingPipPattern, PatternImplementation] = {
     RoutingPipPattern.SUBSET: SubsetRoutingPattern,
     RoutingPipPattern.WILTON: WiltonRoutingPattern,
     RoutingPipPattern.UNIVERSAL: UniversalRoutingPattern,
+    RoutingPipPattern.LUT_CARRY_RICH: (lut_carry_rich.LutCarryRichRoutingPattern),
 }
 
 

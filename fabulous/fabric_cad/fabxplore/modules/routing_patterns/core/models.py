@@ -20,6 +20,7 @@ class RoutingPipPattern(StrEnum):
     SUBSET = "subset"
     WILTON = "wilton"
     UNIVERSAL = "universal"
+    LUT_CARRY_RICH = "lut_carry_rich"
 
 
 class SwitchMatrixPatternOptions(BaseModel):
