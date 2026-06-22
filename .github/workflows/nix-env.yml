@@ -32,7 +32,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, ubuntu-22.04]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - uses: ./.github/actions/prepare_nix_environment
 
