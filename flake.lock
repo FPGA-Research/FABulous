@@ -202,11 +202,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1779676664,
-        "narHash": "sha256-MbXylBTkWqVm8/VYjoULtMoVRgWBN1gSHbeRKsOsPlU=",
+        "lastModified": 1782093830,
+        "narHash": "sha256-6gmEVe69+KlRkZD4PEEV5xAlB9CB0Y9TiuEgQjDrKTQ=",
         "owner": "pyproject-nix",
         "repo": "build-system-pkgs",
-        "rev": "7bff980f37fc24e09dbc986643719900c139bf12",
+        "rev": "430680a19bc85a3bda55f12e4cc1a1aadcf2e478",
         "type": "github"
       },
       "original": {
