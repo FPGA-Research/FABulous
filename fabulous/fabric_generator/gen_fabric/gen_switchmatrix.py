@@ -30,8 +30,8 @@ from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
 from fabulous.fabric_generator.gen_fabric.gen_helper import (
-    bootstrapSwitchMatrix,
-    list2CSV,
+    bootstrap_switch_matrix,
+    list_to_csv,
 )
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
 
@@ -75,7 +75,7 @@ def genTileSwitchMatrix(
     default_pip_delay : int
         Per-mux delay (ps) emitted on assign statements in the switch matrix.
     preserve_list_order : bool
-        When True, `list2CSV` writes a per-row 1-based index encoding the
+        When True, `list_to_csv` writes a per-row 1-based index encoding the
         connection's position in the `.list` file so the mux input order
         can be recovered downstream. Defaults to False (legacy behaviour).
 
@@ -104,8 +104,8 @@ def genTileSwitchMatrix(
         else:
             matrixDir = tile.matrixDir.with_suffix(".csv")
 
-        bootstrapSwitchMatrix(tile, matrixDir)
-        list2CSV(tile.matrixDir, matrixDir, preserve_list_order)
+        bootstrap_switch_matrix(tile, matrixDir)
+        list_to_csv(tile.matrixDir, matrixDir, preserve_list_order)
         logger.info(
             f"Update matrix directory to {matrixDir} for Fabric Tile Dictionary"
         )
