@@ -200,10 +200,17 @@ def list_to_csv(
 def csv_to_list(InFileName: Path, OutFileName: Path) -> None:
     """Export a CSV switch matrix description into its equivalent list representation.
 
-    Every non-zero cell becomes a `source,destination` line. The `#` metadata
-    that `list_to_csv` appends (per-row connection counts and the trailing
-    column-count row) is stripped the same way `parseMatrix` does, so a CSV
-    produced by `list_to_csv` round-trips back to a valid .list file.
+    Each matrix row is one destination (the first column) and every non-zero
+    cell in that row is one of its sources. The cell magnitude is the 1-based
+    `.list` position that `list_to_csv` encodes, so the sources are emitted in
+    ascending-magnitude order (falling back to column order for ties) to recover
+    the original `.list` ordering. A destination with two or more sources is a
+    multiplexer and is written in the compact `dest{N},[src|...]` form; a single
+    source stays a plain `dest,source` line.
+
+    The `#` metadata that `list_to_csv` appends (per-row connection counts and
+    the trailing column-count row) is stripped the same way `parseMatrix` does,
+    so a CSV produced by `list_to_csv` round-trips back to a valid .list file.
 
     Parameters
     ----------
@@ -226,10 +233,24 @@ def csv_to_list(InFileName: Path, OutFileName: Path) -> None:
             source = fields[0]
             if not source:
                 continue
+
+            # Collect (magnitude, column, sink) for each configurable cell so the
+            # mux inputs can be ordered the way list_to_csv encoded them.
+            sinks: list[tuple[int, int, str]] = []
             for k, value in enumerate(fields[1:]):
+                stripped = value.strip()
                 if (
                     k < len(destinations)
                     and destinations[k]
-                    and value.strip() not in ("", "0")
+                    and stripped not in ("", "0")
                 ):
-                    f.write(f"{source},{destinations[k]}\n")
+                    sinks.append((int(stripped), k, destinations[k]))
+            if not sinks:
+                continue
+
+            sinks.sort(key=lambda s: (s[0], s[1]))
+            ordered = [sink for _, _, sink in sinks]
+            if len(ordered) >= 2:
+                f.write(f"{source}{{{len(ordered)}}},[{'|'.join(ordered)}]\n")
+            else:
+                f.write(f"{source},{ordered[0]}\n")
