@@ -66,6 +66,17 @@ def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
     kind, start, x, y, end, count = line.split(",")[:6]
     x, y, count = int(x), int(y), int(count)
 
+    # The trailing digits are read back as that index. A name that ends in a digit is
+    # ambiguous once expanded.
+    for wireName in (start, end):
+        if wireName != "NULL" and wireName[-1:].isdigit():
+            raise InvalidPortType(
+                f"Wire name '{wireName}' ends in a digit, which is ambiguous: "
+                "wire expansion appends the index as a trailing digit, so a name "
+                "ending in a digit cannot be distinguished from an indexed wire. "
+                "Rename the wire so it does not end in a digit."
+            )
+
     if kind in ("NORTH", "SOUTH", "EAST", "WEST"):
         # Directional wire: OUTPUT port at start side, INPUT port at opposite side
         direction = Direction[kind]
