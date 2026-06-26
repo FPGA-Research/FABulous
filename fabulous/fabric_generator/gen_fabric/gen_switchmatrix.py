@@ -25,6 +25,7 @@ from fabulous.fabric_definition.define import (
     Direction,
     MultiplexerStyle,
 )
+from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -36,6 +37,50 @@ from fabulous.fabric_generator.gen_fabric.gen_helper import (
     list2CSV,
 )
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
+
+
+def _unconnected_port_diagnostic(ports: list[Port], port_name: str) -> str:
+    """Explain an unconnected switch matrix port caused by NULL-wire expansion.
+
+    A NULL-terminated spanning wire expands to ``wires x distance`` nested
+    wires (see `Port.expandPortInfoByName`). When the switch matrix leaves some
+    of those nested wires unconnected, the bare wire name is unhelpful, so this
+    traces the wire back to its originating port and explains the expansion.
+
+    Parameters
+    ----------
+    ports : list[Port]
+        The ports of the tile whose switch matrix is being generated.
+    port_name : str
+        The expanded wire name that has no connections.
+
+    Returns
+    -------
+    str
+        A diagnostic message to append to the base error, or an empty string
+        when `port_name` is not a nested wire of a NULL-terminated spanning
+        wire.
+    """
+    for port in ports:
+        expanded = port.expandPortInfoByName()
+        if port_name not in expanded:
+            continue
+        distance = abs(port.xOffset) + abs(port.yOffset)
+        isNullTerminated = port.sourceName == "NULL" or port.destinationName == "NULL"
+        if not (isNullTerminated and distance > 1):
+            return ""
+        return (
+            f"\n  '{port_name}' is one of {len(expanded)} nested wires expanded "
+            f"from wire spec '{port.name}' (wires={port.wireCount}, "
+            f"distance={distance}). A NULL-terminated wire connects all nested "
+            f"wires: wires x distance = {port.wireCount} x {distance} = "
+            f"{len(expanded)} ({expanded[0]}..{expanded[-1]}). The switch matrix "
+            f"connects fewer than {len(expanded)} of them. Either connect all "
+            f"{len(expanded)} nested wires, or name both ends of the wire "
+            f"(instead of NULL) for a direct {port.wireCount}-wire "
+            "point-to-point bus."
+        )
+    return ""
 
 
 def genTileSwitchMatrix(
@@ -125,7 +170,8 @@ def genTileSwitchMatrix(
     noConfigBits = 0
     for port_name in connections:
         if not connections[port_name]:
-            raise ValueError(f"{port_name} not connected to anything!")
+            hint = _unconnected_port_diagnostic(tile.portsInfo, port_name)
+            raise ValueError(f"{port_name} not connected to anything!{hint}")
         mux_size = len(connections[port_name])
         if mux_size >= 2:
             noConfigBits += (mux_size - 1).bit_length()

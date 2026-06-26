@@ -15,9 +15,11 @@ from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
+    _unconnected_port_diagnostic,
     gen_super_tile_switch_matrix,
     genTileSwitchMatrix,
 )
+from fabulous.fabric_generator.parser.parse_csv import parsePortLine
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 from tests.fabric_gen_test.conftest import (
     create_switchmatrix_csv,
@@ -233,3 +235,39 @@ class TestSuperTileSwitchMatrixConstants:
         )
         assert "SUPER_B0_input = {DSP_bot_x0,VCC0}" in rtl
         assert "cus_mux21 inst_cus_mux21_SUPER_B0" in rtl
+
+
+class TestUnconnectedPortDiagnostic:
+    """The 'not connected to anything' error should explain NULL-wire expansion.
+
+    A NULL-terminated spanning wire expands to ``wires x distance`` nested wires.
+    When a switch matrix leaves some of those nested wires unconnected, the
+    diagnostic should point back to the originating wire spec instead of just
+    naming the bare expanded wire.
+    """
+
+    def test_null_terminated_spanning_wire_explains_expansion(self) -> None:
+        ports, _ = parsePortLine("SOUTH,X1_Y1_2_X1_Y4_port,0,3,NULL,16")
+
+        hint = _unconnected_port_diagnostic(ports, "X1_Y1_2_X1_Y4_port16")
+
+        assert "X1_Y1_2_X1_Y4_port" in hint
+        assert "48" in hint  # wires (16) x distance (3)
+        assert "16" in hint  # original wire count
+        assert "3" in hint  # distance
+        assert "both ends" in hint
+
+    def test_both_ends_named_wire_gives_no_hint(self) -> None:
+        ports, _ = parsePortLine("NORTH,N4BEG,0,-4,N4END,4")
+
+        assert _unconnected_port_diagnostic(ports, "N4BEG0") == ""
+
+    def test_null_terminated_single_distance_gives_no_hint(self) -> None:
+        ports, _ = parsePortLine("NORTH,NULL,0,-1,N1END,4")
+
+        assert _unconnected_port_diagnostic(ports, "N1END0") == ""
+
+    def test_unknown_port_name_gives_no_hint(self) -> None:
+        ports, _ = parsePortLine("SOUTH,X1_Y1_2_X1_Y4_port,0,3,NULL,16")
+
+        assert _unconnected_port_diagnostic(ports, "not_a_real_wire0") == ""
