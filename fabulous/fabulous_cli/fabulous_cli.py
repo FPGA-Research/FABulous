@@ -417,7 +417,7 @@ class FABulous_CLI(Cmd):
             "User Design Flow commands are disabled until fabric is loaded",
         )
         self.disable_category(
-            CMD_GUI, "GUI commands are disabled until gen_gen_geometry is run"
+            CMD_GUI, "GUI commands are disabled until gen_geometry is run"
         )
         self.disable_category(
             CMD_HELPER, "Helper commands are disabled until fabric is loaded"
