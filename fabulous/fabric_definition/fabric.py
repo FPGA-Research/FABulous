@@ -339,10 +339,10 @@ class Fabric:
 
         Yields
         ------
-        Generator[tuple[tuple[int, int], Tile | None]]
-            Generator yielding a tuple where the first element is the (x, y)
-            coordinates and the second is the Tile at that position or None
-            if the position is empty.
+        tuple[tuple[int, int], Tile | None]
+            A tuple where the first element is the (x, y) coordinates and the
+            second is the Tile at that position or None if the position is
+            empty.
         """
         for y, row in enumerate(self.tile):
             for x, tile in enumerate(row):
