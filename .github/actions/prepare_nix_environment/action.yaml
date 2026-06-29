@@ -24,7 +24,7 @@ runs:
           extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
 
     - name: Free up disk space
-      if: ${{ inputs.free_disk_space == 'true' }}
+      if: ${{ inputs.free_disk_space == 'true' && runner.os == 'Linux' }}
       shell: bash
       run: |
         sudo rm -rf /usr/share/dotnet
