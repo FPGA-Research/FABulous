@@ -16,7 +16,7 @@ runs:
   using: "composite"
   steps:
     - name: Install Nix
-      uses: nixbuild/nix-quick-install-action@v34
+      uses: nixbuild/nix-quick-install-action@v35
       with:
         nix_version: ${{ inputs.nix_version }}
         nix_conf: |

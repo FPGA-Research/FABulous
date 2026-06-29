@@ -28,7 +28,7 @@ jobs:
       # It's mandatory to use the exact same path when saving/restoring cache, otherwise it won't work
       - name: Restore test durations
         id: restore-test-durations
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: /tmp/.test_durations_cached
           key: tests-durations-${{ github.sha }}
@@ -66,7 +66,7 @@ jobs:
     steps:
       # These two steps will be executed only when there IS a cache hit (exact match or not).
       # When a matrix job is retried, it will reuse the same artifact, to execute the exact same split.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Download test durations
@@ -181,7 +181,7 @@ jobs:
 
       # Finally, we cache the new test durations. This file will be restored in next CI execution
       - name: Cache final test durations
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: /tmp/.test_durations_cached
           key: tests-durations-${{ github.sha }}
@@ -199,7 +199,7 @@ jobs:
     env:
       COVERAGE_FAIL_UNDER: "70"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Download all partial coverage artifacts
         uses: actions/download-artifact@v8
         with:
