@@ -14,11 +14,11 @@ from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Annotated
 
-import click
 import typer
 from loguru import logger
 from packaging.version import Version
 from pydantic import ValidationError
+from typer.main import get_command
 
 from fabulous.custom_exception import PipelineCommandError
 from fabulous.fabric_definition.define import HDLType
@@ -921,7 +921,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         sys.exit(0)
 
     common_options(
-        ctx=typer.Context(click.Command("legacy_args")),
+        ctx=typer.Context(get_command(app)),
         project_dir=project_dir if args.project_dir else None,
         verbose=args.verbose,
         debug=args.debug,
