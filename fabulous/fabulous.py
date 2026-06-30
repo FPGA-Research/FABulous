@@ -111,6 +111,13 @@ class NixShell(StrEnum):
         return cls.BASH
 
 
+class ScriptType(StrEnum):
+    """Script execution modes supported by the ``script`` command."""
+
+    FABULOUS = "fabulous"
+    TCL = "tcl"
+
+
 GLOBAL_FLAGS = {
     "--verbose",
     "-v",
@@ -491,14 +498,14 @@ def script_cmd(
         ),
     ],
     script_type: Annotated[
-        str,
+        ScriptType,
         typer.Option(
             "--type",
             "-t",
             help="Override script type detection",
-            click_type=click.Choice(["fabulous", "tcl"]),
+            case_sensitive=False,
         ),
-    ] = "tcl",
+    ] = ScriptType.TCL,
     force: ForceType = False,
 ) -> None:
     """Execute a script file with auto-detection of script type.
