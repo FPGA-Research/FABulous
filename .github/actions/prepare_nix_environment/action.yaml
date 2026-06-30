@@ -6,7 +6,7 @@ inputs:
   nix_version:
     description: "Nix version to install"
     required: false
-    default: "2.31.2"
+    default: "2.34.7"
   free_disk_space:
     description: "Remove large pre-installed tool directories to free disk space"
     required: false
