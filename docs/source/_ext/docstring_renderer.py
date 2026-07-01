@@ -55,6 +55,7 @@ def _convert_fenced_code_blocks(lines: Iterable[str]) -> list[str]:
     """Convert markdown fenced code blocks into reST code blocks."""
     converted: list[str] = []
     in_fence = False
+    fence_indent = ""
     code_indent = ""
 
     for line in lines:
@@ -68,15 +69,30 @@ def _convert_fenced_code_blocks(lines: Iterable[str]) -> list[str]:
                 directive = f".. code-block:: {language}" if language else "::"
                 converted.append(f"{indent}{directive}")
                 converted.append("")
+                fence_indent = indent
                 code_indent = indent + "   "
                 in_fence = True
             else:
                 in_fence = False
+                fence_indent = ""
                 code_indent = ""
+                # reST requires a blank line after a literal block; markdown does
+                # not, so terminate the block even when the source omitted it.
+                converted.append("")
             continue
 
         if in_fence:
-            converted.append(f"{code_indent}{line.lstrip()}")
+            if not line.strip():
+                converted.append("")
+            else:
+                # Drop only the fence's own indentation so that indentation
+                # *within* the block (nested code, YAML keys) is preserved.
+                body = (
+                    line[len(fence_indent) :]
+                    if line.startswith(fence_indent)
+                    else line.lstrip()
+                )
+                converted.append(f"{code_indent}{body}")
             continue
 
         converted.append(_convert_inline_markdown_code(line))
@@ -263,11 +279,6 @@ def format_type_for_rst(type_annotation: str) -> str:
     return f"``{type_annotation.strip()}``"
 
 
-def format_option_type_for_rst(type_annotation: str) -> str:
-    """Render directive option type values as plain text."""
-    return type_annotation.strip()
-
-
 def normalize_docstring_for_rst(docstring: str) -> str:
     """Normalize markdown-leaning docstrings so Sphinx renders them as reST."""
     if not docstring.strip():
@@ -312,7 +323,6 @@ def prepare_autoapi_jinja_env(jinja_env: JinjaEnvironmentLike) -> None:
     """Register custom Jinja filters used by the AutoAPI templates."""
     jinja_env.filters["format_inheritance_for_rst"] = format_inheritance_for_rst
     jinja_env.filters["format_annotation_for_rst"] = format_annotation_for_rst
-    jinja_env.filters["format_option_type_for_rst"] = format_option_type_for_rst
     jinja_env.filters["format_type_for_rst"] = format_type_for_rst
     jinja_env.filters["normalize_callable_docstring_for_rst"] = (
         normalize_callable_docstring_for_rst

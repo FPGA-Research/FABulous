@@ -4,10 +4,13 @@
 # You can set these variables from the command line, and also
 # from the environment for the first two.
 SPHINXOPTS    ?= -q -n
+# Treat warnings as errors for the production HTML build so it matches the Read
+# the Docs build (fail_on_warning). Kept out of SPHINXOPTS so the livehtml dev
+# server stays usable while a page still has warnings.
+WARNOPTS      ?= -W --keep-going
 SPHINXBUILD   ?= uv run --directory . --quiet sphinx-build
 SOURCEDIR     = source
 BUILDDIR      = build
-PACKAGEDIR    = ../FABulous
 PORT          ?= 8000
 
 # Put it first so that "make" without argument is like "make help".
@@ -26,14 +29,12 @@ help:
 setup:
 	@echo "Setting up uv environment for documentation..."
 	uv sync
-	@echo "Installing FABulous package in editable mode..."
-	uv pip install -e ..
 	@echo "Documentation environment ready!"
 
 # Build HTML documentation
 html: setup
 	@echo "Building final HTML documentation..."
-	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
+	@$(SPHINXBUILD) -M html "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(WARNOPTS) $(O)
 	@echo "Documentation built successfully in $(BUILDDIR)/html"
 
 # Serve built documentation with Python HTTP server and open browser

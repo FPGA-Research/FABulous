@@ -244,7 +244,7 @@ class SuperTile:
 
     @property
     def total_config_bits(self) -> int:
-        """Return the supertile's config bits: switch matrix bits plus BEL bits."""
+        """Return the supertile's config bits (switch matrix bits plus BEL bits)."""
         return self.supertile_matrix_config_bits + sum(b.configBit for b in self.bels)
 
     @property
