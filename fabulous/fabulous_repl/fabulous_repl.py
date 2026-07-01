@@ -24,7 +24,6 @@ import argparse
 import csv
 import os
 import pickle
-import re
 import shutil
 import subprocess as sp
 import sys
@@ -70,15 +69,11 @@ from fabulous.fabulous_api import FABulous_API
 from fabulous.fabulous_repl import cmd_compile_design, cmd_run_simulation
 from fabulous.fabulous_repl.cmd_helper import HelperCommandSet
 from fabulous.fabulous_repl.cmd_script import ScriptCommandSet
+from fabulous.fabulous_repl.cmd_setup import SetupCommandSet
 from fabulous.fabulous_repl.helper import (
     CommandPipeline,
     allow_blank,
-    clone_tile_directory,
     get_file_path,
-    install_fabulator,
-    install_oss_cad_suite,
-    register_tile_in_fabric_csv,
-    resolve_tile,
     wrap_with_except_handling,
 )
 from fabulous.fabulous_settings import get_context, is_pdk_config_set
@@ -279,14 +274,10 @@ class FABulousREPL(Cmd):
         Argument parser for commands accepting a list of tile names
     tile_single_parser : Cmd2ArgumentParser
         Argument parser for commands accepting a single tile name
-    switch_matrix_convert_parser : Cmd2ArgumentParser
-        Argument parser for the list_to_csv/csv_to_list conversion commands
     clone_tile_parser : Cmd2ArgumentParser
         Argument parser for the clone_tile command
     install_oss_cad_suite_parser : Cmd2ArgumentParser
         Argument parser for the install-oss-cad-suite command
-    install_FABulator_parser : Cmd2ArgumentParser
-        Argument parser for the install-FABulator command
     geometryParser : Cmd2ArgumentParser
         Argument parser for the gen_geometry command
     do_run_simulation : Callable
@@ -340,6 +331,7 @@ class FABulousREPL(Cmd):
             command_sets=[
                 HelperCommandSet(),
                 ScriptCommandSet(),
+                SetupCommandSet(),
             ],
         )
         self.self_in_py = True
@@ -601,23 +593,6 @@ class FABulousREPL(Cmd):
         completer=lambda self: self.fab.getTiles(),
     )
 
-    switch_matrix_convert_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    switch_matrix_convert_parser.add_argument(
-        "input", type=Path, help="Input switch matrix file", completer=Cmd.path_complete
-    )
-    switch_matrix_convert_parser.add_argument(
-        "output",
-        type=Path,
-        help="Output switch matrix file",
-        completer=Cmd.path_complete,
-    )
-    switch_matrix_convert_parser.add_argument(
-        "--preserve-list-order",
-        action="store_true",
-        help="Keep the mux-input order (MSB-first) so the conversion is "
-        "order-faithful; otherwise inputs fall back to column order (legacy)",
-    )
-
     clone_tile_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     clone_tile_parser.add_argument(
         "src_tile",
@@ -652,161 +627,6 @@ class FABulousREPL(Cmd):
         default=False,
         nargs=argparse.OPTIONAL,
     )
-
-    @with_category(CMD_SETUP)
-    @allow_blank
-    @with_argparser(install_oss_cad_suite_parser)
-    def do_install_oss_cad_suite(self, args: argparse.Namespace) -> None:
-        """Download and extract the latest OSS CAD suite.
-
-        The installation will set the `FAB_OSS_CAD_SUITE` environment variable
-        in the `.env` file.
-        """
-        if args.destination_folder == "":
-            dest_dir = get_context().root
-        else:
-            dest_dir = args.destination_folder
-
-        install_oss_cad_suite(dest_dir, args.update_existing)
-
-    install_FABulator_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    install_FABulator_parser.add_argument(
-        "destination_folder",
-        type=Path,
-        help="Destination folder for the installation",
-        default="",
-        completer=Cmd.path_complete,
-        nargs=argparse.OPTIONAL,
-    )
-
-    @with_category(CMD_SETUP)
-    @allow_blank
-    @with_argparser(install_oss_cad_suite_parser)
-    def do_install_FABulator(self, args: argparse.Namespace) -> None:
-        """Download and install the latest version of FABulator.
-
-        Sets the the FABULATOR_ROOT environment variable in the .env file.
-        """
-        if args.destination_folder == "":
-            dest_dir = get_context().root
-        else:
-            dest_dir = args.destination_folder
-
-        if not install_fabulator(dest_dir):
-            raise RuntimeError("FABulator installation failed")
-
-        logger.info("FABulator successfully installed")
-
-    @with_category(CMD_SETUP)
-    @allow_blank
-    @with_argparser(filePathOptionalParser)
-    def do_load_fabric(self, args: argparse.Namespace) -> None:
-        """Load 'fabric.csv' file and generate an internal representation of the fabric.
-
-        Parse input arguments and set a few internal variables to assist fabric
-        generation.
-        """
-        # if no argument is given will use the one set by set_fabric_csv
-        # else use the argument
-
-        logger.info("Loading fabric")
-        if args.file == Path():
-            if self.csvFile.exists():
-                logger.info(
-                    "Found fabric.csv in the project directory loading that file as "
-                    "the definition of the fabric"
-                )
-                self.fabulousAPI.loadFabric(self.csvFile)
-            else:
-                raise FileNotFoundError(
-                    f"No argument is given and the csv file is set at {self.csvFile}, "
-                    "but the file does not exist"
-                )
-        else:
-            self.fabulousAPI.loadFabric(args.file)
-            self.csvFile = args.file
-
-        self.fabric_loaded = True
-        tile_by_path = [
-            f.stem for f in (self.projectDir / "Tile/").iterdir() if f.is_dir()
-        ]
-        tile_by_fabric = list(self.fabulousAPI.fabric.tileDic.keys())
-        super_tile_by_fabric = list(self.fabulousAPI.fabric.superTileDic.keys())
-        self.all_tile = list(
-            set(tile_by_path) & set(tile_by_fabric + super_tile_by_fabric)
-        )
-
-        if not self.all_tile:
-            logger.error(
-                "No tiles found in the project tiles directory that match the tiles "
-                "defined in the fabric.csv"
-            )
-            raise ValueError
-
-        proj_dir = get_context().proj_dir
-        if (proj_dir / f"{self.fabulousAPI.fabric.name}_geometry.csv").exists():
-            self.enable_category(CMD_GUI)
-
-        self.enable_category(CMD_FABRIC_FLOW)
-        self.enable_category(CMD_USER_DESIGN_FLOW)
-        self.enable_category(CMD_HELPER)
-        logger.info("Complete")
-
-    @with_category(CMD_SETUP)
-    @with_argparser(clone_tile_parser)
-    def do_clone_tile(self, args: argparse.Namespace) -> None:
-        """Clone a tile or supertile directory and register it in fabric.csv.
-
-        Copies the source tile directory to a new destination directory, renaming
-        all files and replacing all internal references to match the new tile name.
-        Also appends the required Tile/Supertile entries to fabric.csv.
-
-        Notes
-        -----
-        Only works correctly for tiles that follow the default FABulous tile
-        naming scheme, where the tile name is used as a prefix for all files
-        and internal references (e.g. `LUT4AB.csv`,
-        `LUT4AB_switch_matrix.list`).
-
-        Parameters
-        ----------
-        args : argparse.Namespace
-            Command arguments containing:
-            - src_tile: Name of the existing tile (looked up in Tile/) or path to
-              a tile directory
-            - dst_tile: Name for the new tile (placed in Tile/) or path to the
-              destination directory
-            - no_register: If True, skip updating fabric.csv
-        """
-        tile_dir = self.projectDir / "Tile"
-        src_dir = resolve_tile(args.src_tile, tile_dir)
-        dst_dir = resolve_tile(args.dst_tile, tile_dir)
-
-        if not src_dir.is_dir():
-            logger.error(f"Tile '{args.src_tile}' not found at {src_dir}")
-            return
-        if not (src_dir / f"{src_dir.name}.csv").exists():
-            logger.error(
-                f"'{args.src_tile}' at {src_dir} is not a valid FABulous tile"
-                f" (missing {src_dir.name}.csv)"
-            )
-            return
-        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", dst_dir.name):
-            logger.error(
-                f"'{args.dst_tile}' is not a valid tile name"
-                " (must start with a letter, contain only letters, digits, underscores)"
-            )
-            return
-        if dst_dir.exists():
-            logger.error(f"Destination '{args.dst_tile}' already exists at {dst_dir}")
-            return
-
-        clone_tile_directory(src_dir, dst_dir, src_dir.name, dst_dir.name)
-        logger.info(f"Cloned tile '{args.src_tile}' -> '{args.dst_tile}'")
-
-        if not args.no_register:
-            register_tile_in_fabric_csv(self.csvFile, dst_dir)
-            logger.info(f"Updated {self.csvFile} with entries for '{args.dst_tile}'")
 
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)
@@ -845,32 +665,6 @@ class FABulousREPL(Cmd):
             )
             self.fabulousAPI.genSwitchMatrix(i)
         logger.info("Switch matrix generation complete")
-
-    @with_category(CMD_SETUP)
-    @with_argparser(switch_matrix_convert_parser)
-    def do_list_to_csv(self, args: argparse.Namespace) -> None:
-        """Convert a `.list` switch matrix file to `.csv`."""
-        logger.info(
-            "Format conversion only; connectivity is not validated against any "
-            "tile configuration."
-        )
-        self.fabulousAPI.add_list_to_matrix(
-            args.input, args.output, args.preserve_list_order
-        )
-        logger.info(f"Converted {args.input} to {args.output}")
-
-    @with_category(CMD_SETUP)
-    @with_argparser(switch_matrix_convert_parser)
-    def do_csv_to_list(self, args: argparse.Namespace) -> None:
-        """Convert a `.csv` switch matrix file to `.list`."""
-        logger.info(
-            "Format conversion only; connectivity is not validated against any "
-            "tile configuration."
-        )
-        self.fabulousAPI.add_matrix_to_list(
-            args.input, args.output, args.preserve_list_order
-        )
-        logger.info(f"Converted {args.input} to {args.output}")
 
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)
