@@ -9,7 +9,120 @@ such as LUTs, flip-flops, and other logic elements.
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from fabulous.custom_exception import InvalidState
 from fabulous.fabric_definition.define import IO, HDLType
+from fabulous.fabric_definition.yosys_obj import YosysJson, YosysModule
+
+# Yosys cell types whose internal input->output path is sequential (broken by a
+# register or memory) and therefore is NOT a combinational timing arc.
+REGISTER_CELL_PREFIXES = (
+    "$dff",
+    "$adff",
+    "$sdff",
+    "$dffsr",
+    "$dlatch",
+    "$adlatch",
+    "$sr",
+    "$mem",
+    "$_DFF",
+    "$_SDFF",
+    "$_DLATCH",
+    "$_SR",
+)
+
+
+def _cell_is_sequential(cell_type: str, submodules: dict[str, YosysModule]) -> bool:
+    """Return whether a cell type breaks the combinational path with a register.
+
+    Parameters
+    ----------
+    cell_type : str
+        The cell's module/primitive type name.
+    submodules : dict[str, YosysModule]
+        Sibling module definitions from the same netlist, keyed by module name.
+        A custom primitive is sequential when its own definition contains a
+        register cell.
+
+    Returns
+    -------
+    bool
+        True if the cell holds state (register/latch/memory).
+    """
+    if cell_type.startswith(REGISTER_CELL_PREFIXES):
+        return True
+    submodule = submodules.get(cell_type)
+    if submodule is None:
+        return False
+    return any(
+        cell.type.startswith(REGISTER_CELL_PREFIXES)
+        for cell in submodule.cells.values()
+    )
+
+
+def _comb_arcs_from_module(
+    module: YosysModule, submodules: dict[str, YosysModule]
+) -> set[tuple[str, str]]:
+    """Extract combinational input->output port arcs from a parsed module.
+
+    Parameters
+    ----------
+    module : YosysModule
+        The parsed netlist module to analyze.
+    submodules : dict[str, YosysModule]
+        Sibling module definitions from the same netlist (the resolved
+        primitive library), used to classify each instantiated cell's direction
+        and sequential-ness.
+
+    Returns
+    -------
+    set[tuple[str, str]]
+        Combinational `(input_port, output_port)` arcs in module-local names.
+    """
+    import networkx as nx
+
+    graph = nx.DiGraph()
+    for cell in module.cells.values():
+        directions = cell.port_directions
+        if not directions or _cell_is_sequential(cell.type, submodules):
+            continue
+        input_bits = [
+            bit
+            for port, bits in cell.connections.items()
+            if directions.get(port) == "input"
+            for bit in bits
+            if isinstance(bit, int)
+        ]
+        output_bits = [
+            bit
+            for port, bits in cell.connections.items()
+            if directions.get(port) == "output"
+            for bit in bits
+            if isinstance(bit, int)
+        ]
+        for source_bit in input_bits:
+            for sink_bit in output_bits:
+                graph.add_edge(source_bit, sink_bit)
+
+    input_name: dict[int, str] = {}
+    output_name: dict[int, str] = {}
+    for port, detail in module.ports.items():
+        multibit = len(detail.bits) > 1
+        for index, bit in enumerate(detail.bits):
+            if not isinstance(bit, int):
+                continue
+            name = f"{port}{index}" if multibit else port
+            if detail.direction == "input":
+                input_name[bit] = name
+            elif detail.direction == "output":
+                output_name[bit] = name
+
+    arcs: set[tuple[str, str]] = set()
+    for in_bit, in_port in input_name.items():
+        reachable = nx.descendants(graph, in_bit) if in_bit in graph else set()
+        for out_bit, out_port in output_name.items():
+            if out_bit in reachable:
+                arcs.add((in_port, out_port))
+    return arcs
 
 
 @dataclass
@@ -54,6 +167,9 @@ class Bel:
         Carry chains by name.
     localShared : dict[str, tuple[str, IO]]
         Local shared ports of the BEL.
+    yosys_json : YosysJson | None
+        Parsed Yosys netlist of the BEL, used for combinational-arc analysis.
+        Default is None.
 
     Attributes
     ----------
@@ -99,6 +215,8 @@ class Bel:
         {RESET/ENABLE,(portname, IO)}
         Local shared ports of the BEL.
         Are only shared in the Tile, not in the fabric.
+    yosys_json : YosysJson | None
+        Parsed Yosys netlist of the BEL, used for combinational-arc analysis.
 
     Raises
     ------
@@ -124,6 +242,7 @@ class Bel:
     ports_vectors: dict[str, dict[str, tuple[IO, int]]] = field(default_factory=dict)
     carry: dict[str, dict[IO, str]] = field(default_factory=dict)
     localShared: dict[str, tuple[str, IO]] = field(default_factory=dict)
+    yosys_json: YosysJson | None = None
 
     def __init__(
         self,
@@ -140,6 +259,7 @@ class Bel:
         ports_vectors: dict[str, dict[str, tuple[IO, int]]],
         carry: dict[str, dict[IO, str]],
         localShared: dict[str, tuple[str, IO]],
+        yosys_json: YosysJson | None = None,
     ) -> None:
         self.src = src
         self.prefix = prefix
@@ -165,3 +285,36 @@ class Bel:
             raise ValueError(f"Unknown file type {self.src.suffix} for BEL {self.src}")
         self.carry = carry
         self.localShared = localShared
+        self.yosys_json = yosys_json
+
+    def get_comb_arcs(self) -> set[tuple[str, str]]:
+        """Return this BEL's combinational input->output arcs in BEL-local names.
+
+        The parsed netlist (`yosys_json`) already carries the BEL's instantiated
+        primitives resolved against the fabric models_pack, so the sub-cell
+        directions and sequential-ness are read straight from it; no arguments
+        are needed.
+
+        Returns
+        -------
+        set[tuple[str, str]]
+            Combinational `(input_port, output_port)` arcs in BEL-local names.
+
+        Raises
+        ------
+        InvalidState
+            The BEL has no parsed netlist, or its module is missing from it.
+        """
+        if self.yosys_json is None:
+            raise InvalidState(
+                f"BEL {self.name} has no parsed netlist (yosys_json); cannot "
+                f"extract combinational arcs."
+            )
+        module = self.yosys_json.modules.get(self.module_name)
+        if module is None:
+            raise InvalidState(
+                f"Module {self.module_name} not found in the parsed netlist of "
+                f"BEL {self.name}."
+            )
+
+        return _comb_arcs_from_module(module, self.yosys_json.modules)

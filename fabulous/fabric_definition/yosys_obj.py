@@ -219,6 +219,10 @@ class YosysJson:
     ----------
     path : Path
         Path to a HDL file.
+    run_hierarchy : bool
+        Whether to run `hierarchy -auto-top`, which prunes modules unreachable
+        from the chosen top. Set to `False` to keep every module of a
+        multi-module library (e.g. a primitive pack). Default is `True`.
 
     Attributes
     ----------
@@ -248,7 +252,7 @@ class YosysJson:
     modules: dict[str, YosysModule]
     models: dict
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, run_hierarchy: bool = True) -> None:
         if not path.exists():
             raise FileNotFoundError(f"File {path} does not exist")
         if path.suffix not in {".vhd", ".vhdl", ".v", ".sv"}:
@@ -273,6 +277,10 @@ class YosysJson:
                 _tf.write("package my_package is\nend package;\n")
                 temp = Path(_tf.name)
             try:
+                # models_pack is fed to GHDL as a source, so the emitted Verilog
+                # already carries the resolved fabric primitives. This is the
+                # VHDL counterpart of the Verilog read_verilog bake below; both
+                # make the parsed netlist self-contained for arc analysis.
                 runCmd = [
                     f"{ghdl!s}",
                     "--synth",
@@ -297,17 +305,40 @@ class YosysJson:
             yosys_src = self.srcPath.with_suffix(".v")
         else:
             yosys_src = self.srcPath
-        runCmd = [
-            f"{yosys!s}",
-            "-q",
-            (
-                "-p "
+
+        # Resolve the source's instantiated fabric primitives against models_pack
+        # so the parsed netlist is self-contained. VHDL already did this via GHDL
+        # above, so this bake only applies to a Verilog/SV source. models_pack is
+        # one per-project file keyed to proj_lang, so it is always same-language
+        # with the source here; skip it when parsing models_pack itself.
+        models_pack = get_context().models_pack
+        augment_with_models_pack = (
+            run_hierarchy
+            and self.srcPath.suffix in {".v", ".sv"}
+            and models_pack is not None
+            and models_pack != self.srcPath
+        )
+        if augment_with_models_pack:
+            # Read and auto-top the source ALONE first: a BEL that instantiates no
+            # primitives would otherwise let -auto-top pick a models_pack primitive
+            # as top. The second hierarchy binds the primitives and prunes unused.
+            yosys_script = (
                 f"read_verilog -sv {yosys_src}; "
                 "hierarchy -auto-top; "
+                f"read_verilog -sv {models_pack}; "
+                "hierarchy; "
                 "proc -noopt; "
                 f"write_json -compat-int {json_file}"
-            ),
-        ]
+            )
+        else:
+            hierarchy_step = "hierarchy -auto-top; " if run_hierarchy else ""
+            yosys_script = (
+                f"read_verilog -sv {yosys_src}; "
+                f"{hierarchy_step}"
+                "proc -noopt; "
+                f"write_json -compat-int {json_file}"
+            )
+        runCmd = [f"{yosys!s}", "-q", f"-p {yosys_script}"]
         try:
             subprocess.run(runCmd, check=True, capture_output=True)
         except subprocess.CalledProcessError as e:

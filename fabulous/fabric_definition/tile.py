@@ -5,11 +5,14 @@ from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import networkx as nx
+
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, Direction, PinSortMode, Side
 from fabulous.fabric_definition.gen_io import Gen_IO
 from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.wire import Wire
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 
 if TYPE_CHECKING:
     from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
@@ -133,6 +136,37 @@ class Tile:
         if __o is None or not isinstance(__o, Tile):
             return False
         return self.name == __o.name
+
+    def as_graph(self) -> nx.DiGraph:
+        """Build the tile's combinational connectivity graph.
+
+        The graph combines switch-matrix routing (driver->sink edges from the
+        tile's `.list` file), each BEL's combinational input->output arcs, and
+        the intra-tile jump wires (zero-offset wires whose `BEG -> END` return
+        path closes loops inside the tile). `wireList` is populated only on
+        placed grid instances, so call this on a placed tile.
+
+        Returns
+        -------
+        nx.DiGraph
+            Directed graph whose nodes are net names and whose edges run from
+            driver to sink.
+        """
+        graph = nx.DiGraph()
+        for sink, source in parseList(self.matrixDir, collect="pair"):
+            graph.add_edge(source, sink)
+        for bel in self.bels:
+            valid_inputs = set(bel.inputs)
+            valid_outputs = set(bel.outputs)
+            for in_port, out_port in bel.get_comb_arcs():
+                source = f"{bel.prefix}{in_port}"
+                sink = f"{bel.prefix}{out_port}"
+                if source in valid_inputs and sink in valid_outputs:
+                    graph.add_edge(source, sink)
+        for wire in self.wireList:
+            if wire.xOffset == 0 and wire.yOffset == 0:
+                graph.add_edge(wire.source, wire.destination)
+        return graph
 
     def getWestSidePorts(self) -> list[Port]:
         """Get all ports physically located on the west side of the tile.

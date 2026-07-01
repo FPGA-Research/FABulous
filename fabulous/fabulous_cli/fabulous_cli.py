@@ -67,7 +67,11 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
 )
 from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_api import FABulous_API
-from fabulous.fabulous_cli import cmd_compile_design, cmd_run_simulation
+from fabulous.fabulous_cli import (
+    cmd_compile_design,
+    cmd_export_sdc,
+    cmd_run_simulation,
+)
 from fabulous.fabulous_cli.helper import (
     CommandPipeline,
     allow_blank,
@@ -267,6 +271,8 @@ class FABulous_CLI(Cmd):
         Maximum number of parallel jobs for tile generation
     do_compile_design : Callable
         Method to compile user design through synthesis, PnR, and bitstream generation
+    do_export_sdc : Callable
+        Method to export a loop-break SDC for a tile
     filePathOptionalParser : Cmd2ArgumentParser
         Argument parser for commands with an optional file path argument
     filePathRequireParser : Cmd2ArgumentParser
@@ -547,6 +553,7 @@ class FABulous_CLI(Cmd):
         self.onecmd_plus_hooks(cmd)
 
     do_compile_design: Callable = cmd_compile_design.do_compile_design
+    do_export_sdc: Callable = cmd_export_sdc.do_export_sdc
 
     filePathOptionalParser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     filePathOptionalParser.add_argument(
