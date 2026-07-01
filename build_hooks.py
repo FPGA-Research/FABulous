@@ -5,11 +5,114 @@ from shutil import copy2, rmtree
 
 from setuptools.command.build_py import build_py
 
+_UPSTREAM_PKG = "fabulous.fabric_generator.gds_generator"
+_LIBRELANE_PLUGIN_SUBPKGS: tuple[str, ...] = ("steps", "flows")
+
+
+def _render_librelane_plugin_init() -> str:
+    """Render the librelane_plugin_fabulous/__init__.py content."""
+    subpkgs = ", ".join(repr(s) for s in _LIBRELANE_PLUGIN_SUBPKGS)
+    return f'''\
+"""LibreLane plugin: re-export of the FABulous GDS steps and flows.
+
+Ships as a side-package inside the FABulous-FPGA wheel. LibreLane
+auto-discovers packages whose name matches ``librelane_plugin_*`` — importing
+this package walks every submodule under
+``{_UPSTREAM_PKG}.{{steps,flows}}`` so their
+``@Step.factory.register()`` / ``@Flow.factory.register()`` decorators fire.
+
+``FABulousTile`` and ``FABulousFabric`` are additionally re-exported at the
+package root as a drop-in replacement for ``mole99/librelane_plugin_fabulous``.
+
+Generated at build time by ``build_hooks.BuildPyWithFabulousNix`` — do not
+edit by hand. The source of truth for every Step and Flow lives in
+``{_UPSTREAM_PKG}``.
+"""
+
+import importlib as _importlib
+import pkgutil as _pkgutil
+import sys as _sys
+
+_PENDING_REGISTRATION = False
+
+
+def _gds_import_in_progress() -> bool:
+    """Return True while any ``{_UPSTREAM_PKG}`` module is still initialising.
+
+    LibreLane runs plugin discovery the first time ``librelane`` itself is
+    imported. When that first import is triggered from inside a gds_generator
+    module (e.g. ``steps.tile_area_opt`` importing ``librelane.common``),
+    eagerly walking the submodules here re-enters that half-initialised module
+    and raises ``ImportError`` (``cannot import name ... (circular import)``).
+    importlib sets ``__spec__._initializing`` for the duration of a module's
+    execution, which flags exactly that re-entrant case for any submodule,
+    regardless of how the modules are named or split.
+    """
+    _prefix = "{_UPSTREAM_PKG}."
+    for _name, _module in list(_sys.modules.items()):
+        if not _name.startswith(_prefix):
+            continue
+        _spec = getattr(_module, "__spec__", None)
+        if _spec is not None and getattr(_spec, "_initializing", False):
+            return True
+    return False
+
+
+def _register_submodules() -> None:
+    for _sub in {subpkgs!s}:
+        _pkg = _importlib.import_module(f"{_UPSTREAM_PKG}.{{_sub}}")
+        for _info in _pkgutil.iter_modules(_pkg.__path__):
+            _importlib.import_module(f"{_UPSTREAM_PKG}.{{_sub}}.{{_info.name}}")
+
+
+def _register_or_defer() -> None:
+    global _PENDING_REGISTRATION
+    if _gds_import_in_progress():
+        _PENDING_REGISTRATION = True
+        return
+    _register_submodules()
+    _PENDING_REGISTRATION = False
+
+
+def _finish_deferred_registration() -> None:
+    global _PENDING_REGISTRATION
+    if _PENDING_REGISTRATION:
+        _PENDING_REGISTRATION = False
+        _register_submodules()
+
+
+_register_or_defer()
+
+__all__ = ["FABulousTile", "FABulousFabric"]
+
+_REEXPORTS = {{
+    "FABulousTile": ("{_UPSTREAM_PKG}.flows.plugin_tile_flow", "FABulousTile"),
+    "FABulousFabric": ("{_UPSTREAM_PKG}.flows.plugin_fabric_flow", "FABulousFabric"),
+}}
+
+
+def __getattr__(name: str) -> object:
+    """Lazy re-export.
+
+    Resolved on first access rather than at package-import time so that, if
+    submodule registration was deferred to avoid a circular import during
+    LibreLane's plugin discovery, it completes before a flow class is handed
+    out.
+    """
+    target = _REEXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {{__name__!r}} has no attribute {{name!r}}")
+    _finish_deferred_registration()
+    module_name, attr = target
+    return getattr(_importlib.import_module(module_name), attr)
+'''
+
 
 class BuildPyWithFabulousNix(build_py):
-    """Generate a build-only `fabulous_nix` package with required nix assets."""
+    """Generate FABulous side-packages."""
 
-    _PACKAGE_NAME = "fabulous_nix"
+    _NIX_PACKAGE_NAME = "fabulous_nix"
+    _LIBRELANE_PLUGIN_PACKAGE_NAME = "librelane_plugin_fabulous"
 
     _ASSET_MAP: tuple[tuple[str, str], ...] = (
         ("flake.nix", "flake.nix"),
@@ -26,12 +129,14 @@ class BuildPyWithFabulousNix(build_py):
     )
 
     def run(self) -> None:
+        """Run package build and generate side packages."""
         super().run()
         self._build_fabulous_nix_package()
+        self._build_librelane_plugin_fabulous_package()
 
     def _build_fabulous_nix_package(self) -> None:
         project_root = Path(__file__).resolve().parent
-        target_root = self._target_root(project_root)
+        target_root = self._target_root(project_root, self._NIX_PACKAGE_NAME)
         rmtree(target_root, ignore_errors=True)
         target_root.mkdir(parents=True, exist_ok=True)
 
@@ -47,12 +152,24 @@ class BuildPyWithFabulousNix(build_py):
             target_path.parent.mkdir(parents=True, exist_ok=True)
             copy2(source_path, target_path)
 
-    def _target_root(self, project_root: Path) -> Path:
+    def _build_librelane_plugin_fabulous_package(self) -> None:
+        """Generate librelane_plugin_fabulous/ as a thin re-export side-package."""
+        project_root = Path(__file__).resolve().parent
+        target_root = self._target_root(
+            project_root, self._LIBRELANE_PLUGIN_PACKAGE_NAME
+        )
+        rmtree(target_root, ignore_errors=True)
+        target_root.mkdir(parents=True, exist_ok=True)
+        (target_root / "__init__.py").write_text(
+            _render_librelane_plugin_init(), encoding="utf-8"
+        )
+
+    def _target_root(self, project_root: Path, package_name: str) -> Path:
         if getattr(self, "editable_mode", False):
             packages = list(self.distribution.packages or [])
-            if self._PACKAGE_NAME not in packages:
-                packages.append(self._PACKAGE_NAME)
+            if package_name not in packages:
+                packages.append(package_name)
             self.distribution.packages = packages
-            return project_root / self._PACKAGE_NAME
+            return project_root / package_name
 
-        return Path(self.build_lib) / self._PACKAGE_NAME
+        return Path(self.build_lib) / package_name

@@ -136,18 +136,21 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             curTileMap = {}
             curTileMapNoMask = {}
 
+            # Iterate features and entries in a canonical (sorted) order so the
+            # bit offsets assigned below are stable regardless of the order in
+            # which the parser populated belFeatureMap. Bels keep their declared
+            # order because the A/B/C letter prefix is their identity.
             for i, bel in enumerate(tile.bels):
-                for featureKey, keyDict in bel.belFeatureMap.items():
-                    for entry in keyDict:
-                        if isinstance(entry, int):
-                            for v in keyDict[entry]:
-                                curTileMap[
-                                    f"{string.ascii_uppercase[i]}.{featureKey}"
-                                ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
-                                curTileMapNoMask[
-                                    f"{string.ascii_uppercase[i]}.{featureKey}"
-                                ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
-                            curBitOffset += len(keyDict[entry])
+                for featureKey, keyDict in sorted(bel.belFeatureMap.items()):
+                    for entry in sorted(k for k in keyDict if isinstance(k, int)):
+                        for v in sorted(keyDict[entry]):
+                            curTileMap[f"{string.ascii_uppercase[i]}.{featureKey}"] = {
+                                encodeDict[curBitOffset + v]: keyDict[entry][v]
+                            }
+                            curTileMapNoMask[
+                                f"{string.ascii_uppercase[i]}.{featureKey}"
+                            ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
+                        curBitOffset += len(keyDict[entry])
 
             # All the generation will be working on the tile level with the tileDic
             # This is added to propagate the updated switch matrix to each of the tile
@@ -156,7 +159,8 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                 tile.matrixDir = tile.matrixDir.with_suffix(".csv")
 
             result = parseMatrix(tile.matrixDir, tile.name)
-            for source, sinkList in result.items():
+            # Sort by switch-matrix source so pip bit offsets are canonical.
+            for source, sinkList in sorted(result.items()):
                 controlWidth = 0
                 for i, sink in enumerate(reversed(sinkList)):
                     controlWidth = (len(sinkList) - 1).bit_length()
@@ -179,7 +183,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
 
             # And now we add empty config bit mappings for immutable connections
             # (i.e. wires), as nextpnr sees these the same as normal pips
-            for wire in tile.wireList:
+            for wire in sorted(tile.wireList, key=lambda w: (w.source, w.destination)):
                 curTileMap[f"{wire.source}.{wire.destination}"] = {}
                 curTileMapNoMask[f"{wire.source}.{wire.destination}"] = {}
 
