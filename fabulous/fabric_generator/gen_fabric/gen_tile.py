@@ -35,6 +35,7 @@ def generateTile(
     max_frame_per_col: int = 20,
     disable_user_clk: bool = False,
     config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
+    disable_config_bits_n: bool = False,
 ) -> None:
     """Generate the RTL code for a tile given the tile object.
 
@@ -82,6 +83,9 @@ def generateTile(
         If True, the UserCLK port will not be generated or connected
     config_bit_mode : ConfigBitMode
         The configuration bit mode to use (frame-based or FlipFlop chain)
+    disable_config_bits_n : bool
+        If True, the inverted `ConfigBits_N` wires and ports are not generated
+        or connected for the tile, its config memory, or its switch matrix.
 
     Raises
     ------
@@ -275,7 +279,8 @@ def generateTile(
     # all the signal wire need to declare first for compatibility with VHDL
     if tile.globalConfigBits > 0:
         writer.addConnectionVector("ConfigBits", "NoConfigBits-1", 0)
-        writer.addConnectionVector("ConfigBits_N", "NoConfigBits-1", 0)
+        if not disable_config_bits_n:
+            writer.addConnectionVector("ConfigBits_N", "NoConfigBits-1", 0)
 
     writer.addNewLine()
     writer.addComment("Connection for outgoing wires", onNewLine=True)
@@ -393,15 +398,17 @@ def generateTile(
 
     if config_bit_mode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
         writer.addComment("configuration storage latches", onNewLine=True)
+        configMemPorts = [
+            ("FrameData", "FrameData"),
+            ("FrameStrobe", "FrameStrobe"),
+            ("ConfigBits", "ConfigBits"),
+        ]
+        if not disable_config_bits_n:
+            configMemPorts.append(("ConfigBits_N", "ConfigBits_N"))
         writer.addInstantiation(
             compName=f"{tile.name}_ConfigMem",
             compInsName=f"Inst_{tile.name}_ConfigMem",
-            portsPairs=[
-                ("FrameData", "FrameData"),
-                ("FrameStrobe", "FrameStrobe"),
-                ("ConfigBits", "ConfigBits"),
-                ("ConfigBits_N", "ConfigBits_N"),
-            ],
+            portsPairs=configMemPorts,
             emulateParamPairs=[("Emulate_Bitstream", "Emulate_Bitstream")],
         )
 
@@ -579,12 +586,13 @@ def generateTile(
                 f"ConfigBits[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
             )
         )
-        portsPairs.append(
-            (
-                "ConfigBits_N",
-                f"ConfigBits_N[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
+        if not disable_config_bits_n:
+            portsPairs.append(
+                (
+                    "ConfigBits_N",
+                    f"ConfigBits_N[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
+                )
             )
-        )
 
     writer.addInstantiation(
         compName=f"{tile.name}_switch_matrix",

@@ -204,6 +204,7 @@ class FABulous_API:
                 configMem,
                 frame_bits_per_row=self.fabric.frameBitsPerRow,
                 max_frame_per_col=self.fabric.maxFramesPerCol,
+                disable_config_bits_n=self.fabric.disableConfigBitsN,
             )
         else:
             raise ValueError(f"Tile {tileName} not found")
@@ -244,6 +245,7 @@ class FABulous_API:
                 multiplexer_style=self.fabric.multiplexerStyle,
                 default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
                 preserve_list_order=self.fabric.preserveListOrder,
+                disable_config_bits_n=self.fabric.disableConfigBitsN,
             )
         else:
             raise ValueError(f"Tile {tileName} not found")
@@ -290,6 +292,7 @@ class FABulous_API:
                 max_frame_per_col or self.fabric.maxFramesPerCol,
                 disable_user_clk or self.fabric.disableUserCLK,
                 config_bit_mode or self.fabric.configBitMode,
+                self.fabric.disableConfigBitsN,
             )
         else:
             raise ValueError(f"Tile {tileName} not found")
@@ -397,6 +400,7 @@ class FABulous_API:
                 master_config_mem_csv,
                 frame_bits_per_row=self.fabric.frameBitsPerRow,
                 max_frame_per_col=self.fabric.maxFramesPerCol,
+                disable_config_bits_n=self.fabric.disableConfigBitsN,
             )
         else:
             raise ValueError(f"SuperTile {tileName} not found")

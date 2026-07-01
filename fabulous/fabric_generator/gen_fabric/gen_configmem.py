@@ -109,6 +109,7 @@ def generateConfigMem(
     configMemCsv: Path,
     frame_bits_per_row: int = 32,
     max_frame_per_col: int = 20,
+    disable_config_bits_n: bool = False,
 ) -> None:
     """Generate the RTL code for configuration memory.
 
@@ -135,6 +136,10 @@ def generateConfigMem(
         The number of configuration bits per frame row.
     max_frame_per_col : int
         The number of frames stored per tile column.
+    disable_config_bits_n : bool
+        Whether to disable the generation of the inverted configuration bit
+        ports (`ConfigBits_N`) and the corresponding latch `QN` outputs. When
+        `True`, only `ConfigBits` and the `Q` latch outputs are generated.
 
     Raises
     ------
@@ -231,7 +236,10 @@ def generateConfigMem(
     writer.addPortVector("FrameData", IO.INPUT, "FrameBitsPerRow - 1", indentLevel=2)
     writer.addPortVector("FrameStrobe", IO.INPUT, "MaxFramesPerCol - 1", indentLevel=2)
     writer.addPortVector("ConfigBits", IO.OUTPUT, "NoConfigBits - 1", indentLevel=2)
-    writer.addPortVector("ConfigBits_N", IO.OUTPUT, "NoConfigBits - 1", indentLevel=2)
+    if not disable_config_bits_n:
+        writer.addPortVector(
+            "ConfigBits_N", IO.OUTPUT, "NoConfigBits - 1", indentLevel=2
+        )
     writer.addPortEnd(indentLevel=1)
     writer.addHeaderEnd(f"{name}_ConfigMem")
     writer.addNewLine()
@@ -265,15 +273,19 @@ def generateConfigMem(
             # Safely check if bit is set, treat missing bits as '0'
             bit_value = i.usedBitMask[k] if k < len(i.usedBitMask) else "0"
             if bit_value == "1":
+                latchPorts = [
+                    ("D", f"FrameData[{frame_bits_per_row - 1 - k}]"),
+                    ("E", f"FrameStrobe[{i.frameIndex}]"),
+                    ("Q", f"ConfigBits[{i.configBitRanges[counter]}]"),
+                ]
+                if not disable_config_bits_n:
+                    latchPorts.append(
+                        ("QN", f"ConfigBits_N[{i.configBitRanges[counter]}]")
+                    )
                 writer.addInstantiation(
                     compName="config_latch",
                     compInsName=(f"Inst_{i.frameName}_bit{frame_bits_per_row - 1 - k}"),
-                    portsPairs=[
-                        ("D", f"FrameData[{frame_bits_per_row - 1 - k}]"),
-                        ("E", f"FrameStrobe[{i.frameIndex}]"),
-                        ("Q", f"ConfigBits[{i.configBitRanges[counter]}]"),
-                        ("QN", f"ConfigBits_N[{i.configBitRanges[counter]}]"),
-                    ],
+                    portsPairs=latchPorts,
                 )
                 counter += 1
     if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
@@ -490,6 +502,7 @@ def generate_super_tile_config_mem(
     master_config_mem_csv: Path,
     frame_bits_per_row: int = 32,
     max_frame_per_col: int = 20,
+    disable_config_bits_n: bool = False,
 ) -> None:
     """Generate the ConfigMem RTL for a supertile switch matrix.
 
@@ -509,6 +522,9 @@ def generate_super_tile_config_mem(
         Number of bits per frame row.
     max_frame_per_col : int
         Number of frames per column.
+    disable_config_bits_n : bool
+        Whether to disable the generation of the inverted configuration bit
+        ports (`ConfigBits_N`) and the corresponding latch `QN` outputs.
     """
     st_config_bits = superTile.total_config_bits
     if st_config_bits <= 0:
@@ -529,4 +545,5 @@ def generate_super_tile_config_mem(
         output_csv,
         frame_bits_per_row=frame_bits_per_row,
         max_frame_per_col=max_frame_per_col,
+        disable_config_bits_n=disable_config_bits_n,
     )

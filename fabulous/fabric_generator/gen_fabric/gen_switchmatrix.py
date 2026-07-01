@@ -92,6 +92,7 @@ def genTileSwitchMatrix(
     multiplexer_style: MultiplexerStyle = MultiplexerStyle.CUSTOM,
     default_pip_delay: int = 80,
     preserve_list_order: bool = False,
+    disable_config_bits_n: bool = False,
 ) -> None:
     """Generate the RTL code for the tile switch matrix.
 
@@ -125,6 +126,9 @@ def genTileSwitchMatrix(
         When True, `list2CSV` writes a per-row 1-based index encoding the
         connection's position in the `.list` file so the mux input order
         can be recovered downstream. Defaults to False (legacy behaviour).
+    disable_config_bits_n : bool
+        When True, the inverted `ConfigBits_N` input port and the negated
+        `S*N` mux select connections are omitted from the switch matrix.
 
     Raises
     ------
@@ -253,9 +257,10 @@ def genTileSwitchMatrix(
             writer.addPortVector(
                 "ConfigBits", IO.INPUT, "NoConfigBits-1", indentLevel=2
             )
-            writer.addPortVector(
-                "ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2
-            )
+            if not disable_config_bits_n:
+                writer.addPortVector(
+                    "ConfigBits_N", IO.INPUT, "NoConfigBits-1", indentLevel=2
+                )
     writer.addPortEnd()
     writer.addHeaderEnd(f"{tile.name}_switch_matrix")
     writer.addDesignDescriptionStart(f"{tile.name}_switch_matrix")
@@ -268,6 +273,7 @@ def genTileSwitchMatrix(
         multiplexer_style,
         default_pip_delay,
         switch_matrix_debug_signal,
+        disable_config_bits_n,
     )
 
 
@@ -280,6 +286,7 @@ def _gen_switch_matrix_body(
     multiplexer_style: MultiplexerStyle,
     default_pip_delay: int,
     switch_matrix_debug_signal: bool,
+    disable_config_bits_n: bool = False,
 ) -> None:
     """Emit the body of a switch matrix module (constants, signals, mux logic).
 
@@ -305,6 +312,8 @@ def _gen_switch_matrix_body(
         Per-mux delay (ps) emitted on assign statements.
     switch_matrix_debug_signal : bool
         Whether to generate debug signals.
+    disable_config_bits_n : bool
+        When True, the negated `S*N` mux select connections are omitted.
     """
     # constant declaration - provides '0'/'1' as padding inputs to muxes
     vhdl = isinstance(writer, VHDLCodeGenerator)
@@ -411,12 +420,13 @@ def _gen_switch_matrix_body(
                         portsPairs.append(
                             (f"S{i}", f"ConfigBits[{configBitstreamPosition}+{i}]")
                         )
-                        portsPairs.append(
-                            (
-                                f"S{i}N",
-                                f"ConfigBits_N[{configBitstreamPosition}+{i}]",
+                        if not disable_config_bits_n:
+                            portsPairs.append(
+                                (
+                                    f"S{i}N",
+                                    f"ConfigBits_N[{configBitstreamPosition}+{i}]",
+                                )
                             )
-                        )
 
             portsPairs.append(("X", f"{portName}"))
 

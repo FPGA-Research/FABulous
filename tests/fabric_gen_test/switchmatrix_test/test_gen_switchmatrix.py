@@ -1,7 +1,8 @@
 """Tests for genTileSwitchMatrix.
 
 Tests the feature that allows users to redirect CSV output to a custom directory when
-converting .list files to .csv for switch matrix generation.
+converting .list files to .csv for switch matrix generation, as well as the
+disableConfigBitsN feature for switch matrix generation.
 """
 
 from collections.abc import Callable
@@ -11,6 +12,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -271,3 +273,57 @@ class TestUnconnectedPortDiagnostic:
         ports, _ = parsePortLine("SOUTH,X1_Y1_2_X1_Y4_port,0,3,NULL,16")
 
         assert _unconnected_port_diagnostic(ports, "not_a_real_wire0") == ""
+
+
+class TestDisableConfigBitsN:
+    """Test ConfigBits_N and S*N port presence based on disableConfigBitsN."""
+
+    @pytest.mark.parametrize(
+        ("disable_n", "expect_present"),
+        [(False, True), (True, False)],
+        ids=["configbits_n_enabled", "configbits_n_disabled"],
+    )
+    def test_switchmatrix_configbits_n_presence(
+        self,
+        switchmatrix_fabric: Fabric,
+        switchmatrix_tile: Tile,
+        mux4_connections: dict[str, list[str]],
+        code_generator_factory: Callable[..., CodeGenerator],
+        tmp_path: Path,
+        mocker: MockerFixture,
+        disable_n: bool,
+        expect_present: bool,
+    ) -> None:
+        """Test ConfigBits_N and S*N port presence in switch matrix RTL."""
+        switchmatrix_fabric.disableConfigBitsN = disable_n
+
+        csv_file = tmp_path / f"{switchmatrix_tile.name}_matrix.csv"
+        create_switchmatrix_csv(
+            csv_file,
+            switchmatrix_tile.name,
+            destinations=list(mux4_connections.keys()),
+            sources=list({s for srcs in mux4_connections.values() for s in srcs}),
+        )
+        switchmatrix_tile.matrixDir = csv_file
+
+        mocker.patch(
+            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.parseMatrix",
+            return_value=mux4_connections,
+        )
+
+        writer = code_generator_factory(".v", f"{switchmatrix_tile.name}_switch_matrix")
+        genTileSwitchMatrix(
+            writer,
+            switchmatrix_tile,
+            False,
+            disable_config_bits_n=switchmatrix_fabric.disableConfigBitsN,
+        )
+        rtl = writer.outFileName.read_text()
+
+        if expect_present:
+            assert "ConfigBits_N" in rtl
+            assert "S0N" in rtl
+        else:
+            assert "ConfigBits_N" not in rtl
+            assert "S0N" not in rtl
+            assert "S1N" not in rtl

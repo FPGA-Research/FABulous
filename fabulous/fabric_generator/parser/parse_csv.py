@@ -760,6 +760,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     superTileEnable = True
     disableUserCLK = False
     preserveListOrder = False
+    disableConfigBitsN = False
 
     for i in parameters:
         i = i.split(",")
@@ -815,6 +816,8 @@ def parseFabricCSV(fileName: str) -> Fabric:
             disableUserCLK = i[1] == "TRUE"
         elif i[0].startswith("PreserveListOrder"):
             preserveListOrder = i[1] == "TRUE"
+        elif i[0].startswith("DisableConfigBitsN"):
+            disableConfigBitsN = i[1] == "TRUE"
         else:
             raise InvalidFabricParameter(f"The following parameter is not valid: {i}")
 
@@ -879,6 +882,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         superTileEnable=superTileEnable,
         disableUserCLK=disableUserCLK,
         preserveListOrder=preserveListOrder,
+        disableConfigBitsN=disableConfigBitsN,
         tileDic=tileDic,
         superTileDic=superTileDic,
         unusedTileDic=unusedTileDic,

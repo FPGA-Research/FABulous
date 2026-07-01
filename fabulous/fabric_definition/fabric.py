@@ -75,6 +75,10 @@ class Fabric:
     syncHeaderHex : str
         Hex string of the 20-byte sync header written at the start of every
         binary bitstream.
+    disableConfigBitsN : bool
+        Whether to disable the generation of inverted configuration bit ports
+        (ConfigBits_N) and the corresponding N-ports (S0N, S1N, ...) on custom
+        multiplexers. When True, only ConfigBits and S ports are generated.
     tileDic : dict[str, Tile]
         A dictionary of tiles used in the fabric. The key is the name of the tile and
         the value is the tile.
@@ -113,6 +117,7 @@ class Fabric:
     disableUserCLK: bool = False
     preserveListOrder: bool = False
     syncHeaderHex: str = "00AAFF01000000010000000000000000FAB0FAB1"
+    disableConfigBitsN: bool = False
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
     superTileDic: dict[str, SuperTile] = field(default_factory=dict)
@@ -469,6 +474,7 @@ class Fabric:
         fabric += f"multiplexerStyle: {self.multiplexerStyle}\n"
         fabric += f"superTileEnable: {self.superTileEnable}\n"
         fabric += f"disableUserCLK: {self.disableUserCLK}\n"
+        fabric += f"disableConfigBitsN: {self.disableConfigBitsN}\n"
         fabric += f"tileDic: {list(self.tileDic.keys())}\n"
         return fabric
 
