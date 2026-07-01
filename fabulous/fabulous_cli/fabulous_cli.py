@@ -67,7 +67,11 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
 )
 from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_api import FABulous_API
-from fabulous.fabulous_cli import cmd_compile_design, cmd_run_simulation
+from fabulous.fabulous_cli import (
+    cmd_compile_design,
+    cmd_conversion,
+    cmd_run_simulation,
+)
 from fabulous.fabulous_cli.helper import (
     CommandPipeline,
     allow_blank,
@@ -283,6 +287,10 @@ class FABulous_CLI(Cmd):
         Argument parser for the install-oss-cad-suite command
     install_FABulator_parser : Cmd2ArgumentParser
         Argument parser for the install-FABulator command
+    do_list_to_csv : Callable
+        Method to convert a .list switch matrix file to .csv
+    do_csv_to_list : Callable
+        Method to convert a .csv switch matrix file to .list
     geometryParser : Cmd2ArgumentParser
         Argument parser for the gen_geometry command
     do_run_simulation : Callable
@@ -810,6 +818,9 @@ class FABulous_CLI(Cmd):
             logger.info(f"\n{pprint.pformat(tile, width=200)}")
         else:
             raise CommandError(f"Tile {args.tile} not found in fabric")
+
+    do_list_to_csv: Callable = cmd_conversion.do_list_to_csv
+    do_csv_to_list: Callable = cmd_conversion.do_csv_to_list
 
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)

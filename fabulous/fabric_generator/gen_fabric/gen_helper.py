@@ -17,7 +17,7 @@ from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 
 
-def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
+def bootstrap_switch_matrix(tile: Tile, outputDir: Path) -> None:
     """Generate a blank switch matrix CSV file for the given tile.
 
     The top left corner will contain the name of the tile.
@@ -68,7 +68,35 @@ def bootstrapSwitchMatrix(tile: Tile, outputDir: Path) -> None:
             writer.writerow([p] + [0] * len(destName))
 
 
-def list2CSV(
+def bootstrap_matrix_from_list(list_file: Path, output: Path, tile_name: str) -> None:
+    """Generate a blank switch matrix CSV whose ports come from a .list file.
+
+    Unlike `bootstrap_switch_matrix`, this does not need a `Tile` object: the
+    source and destination port sets are derived directly from the
+    connections in `list_file`. Only ports that take part in at least one
+    connection appear in the grid, in first-appearance order. The result is
+    an all-zero grid ready for `list_to_csv` to populate.
+
+    Parameters
+    ----------
+    list_file : Path
+        The input .list file to derive the ports from.
+    output : Path
+        The path of the blank switch matrix CSV to write.
+    tile_name : str
+        The name written into the top-left cell of the matrix.
+    """
+    connection_pairs = parseList(list_file)
+    sources = list(dict.fromkeys(s for s, _ in connection_pairs))
+    destinations = list(dict.fromkeys(d for _, d in connection_pairs))
+    with output.open("w") as f:
+        writer = csv.writer(f)
+        writer.writerow([tile_name] + destinations)
+        for s in sources:
+            writer.writerow([s] + [0] * len(destinations))
+
+
+def list_to_csv(
     InFileName: Path, OutFileName: Path, preserveListOrder: bool = False
 ) -> None:
     """Export a list file into its equivalent CSV switch matrix representation.
@@ -169,32 +197,60 @@ def list2CSV(
         f.write(f"#,{','.join(colCount)}")
 
 
-def CSV2list(InFileName: str, OutFileName: str) -> None:
+def csv_to_list(InFileName: Path, OutFileName: Path) -> None:
     """Export a CSV switch matrix description into its equivalent list representation.
+
+    Each matrix row is one destination (the first column) and every non-zero
+    cell in that row is one of its sources. The cell magnitude is the 1-based
+    `.list` position that `list_to_csv` encodes, so the sources are emitted in
+    ascending-magnitude order (falling back to column order for ties) to recover
+    the original `.list` ordering. A destination with two or more sources is a
+    multiplexer and is written in the compact `dest{N},[src|...]` form; a single
+    source stays a plain `dest,source` line.
+
+    The `#` metadata that `list_to_csv` appends (per-row connection counts and
+    the trailing column-count row) is stripped the same way `parseMatrix` does,
+    so a CSV produced by `list_to_csv` round-trips back to a valid .list file.
 
     Parameters
     ----------
-    InFileName : str
+    InFileName : Path
         The input file name of the CSV file
-    OutFileName : str
+    OutFileName : Path
         The directory of the list file to be written
     """
     with Path(InFileName).open() as f:
-        inFile = f.readlines()
-    InFile = [i.strip("\n").split(",") for i in inFile]
+        lines = re.sub(r"#.*", "", f.read()).split("\n")
+
+    header = lines[0].split(",")
+    tile_name = header[0]
+    destinations = header[1:]
+
     with Path(OutFileName).open("w") as f:
-        # get the number of tiles in horizontal direction
-        cols = len(InFile[0])
-        # top-left should be the name
-        _ = f.write(f"# {InFile[0][0]}\n")
-        # switch matrix inputs
-        inputs = []
-        for item in InFile[0][1:]:
-            inputs.append(item)
-        # beginning from the second line, write out the list
-        for line in InFile[1:]:
-            for i in range(1, cols):
-                if line[i] != "0":
-                    # it is [i-1] because the beginning of the line is the
-                    # destination port
-                    _ = f.write(f"{line[0]},{inputs[i - 1]}")
+        f.write(f"# {tile_name}\n")
+        for line in lines[1:]:
+            fields = line.split(",")
+            source = fields[0]
+            if not source:
+                continue
+
+            # Collect (magnitude, column, sink) for each configurable cell so the
+            # mux inputs can be ordered the way list_to_csv encoded them.
+            sinks: list[tuple[int, int, str]] = []
+            for k, value in enumerate(fields[1:]):
+                stripped = value.strip()
+                if (
+                    k < len(destinations)
+                    and destinations[k]
+                    and stripped not in ("", "0")
+                ):
+                    sinks.append((int(stripped), k, destinations[k]))
+            if not sinks:
+                continue
+
+            sinks.sort(key=lambda s: (s[0], s[1]))
+            ordered = [sink for _, _, sink in sinks]
+            if len(ordered) >= 2:
+                f.write(f"{source}{{{len(ordered)}}},[{'|'.join(ordered)}]\n")
+            else:
+                f.write(f"{source},{ordered[0]}\n")

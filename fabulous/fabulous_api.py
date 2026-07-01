@@ -54,8 +54,8 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 from fabulous.fabric_generator.gen_fabric.gen_helper import (
-    bootstrapSwitchMatrix,
-    list2CSV,
+    bootstrap_switch_matrix,
+    list_to_csv,
 )
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
 from fabulous.fabric_generator.gen_fabric.gen_tile import (
@@ -142,7 +142,7 @@ class FABulous_API:
     def bootstrapSwitchMatrix(self, tileName: str, outputDir: Path) -> None:
         """Bootstrap the switch matrix for the specified tile.
 
-        Using 'bootstrapSwitchMatrix' defined in 'fabric_gen.py'.
+        Using 'bootstrap_switch_matrix' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -159,12 +159,12 @@ class FABulous_API:
         tile = self.fabric.getTileByName(tileName)
         if not tile:
             raise ValueError(f"Tile {tileName} not found in fabric.")
-        bootstrapSwitchMatrix(tile, outputDir)
+        bootstrap_switch_matrix(tile, outputDir)
 
     def addList2Matrix(self, listFile: Path, matrix: Path) -> None:
         """Convert list into CSV matrix and save it.
 
-        Using 'list2CSV' defined in 'fabric_gen.py'.
+        Using 'list_to_csv' defined in 'fabric_gen.py'.
 
         Parameters
         ----------
@@ -173,7 +173,7 @@ class FABulous_API:
         matrix : Path
             File path where the matrix data will be saved.
         """
-        list2CSV(listFile, matrix)
+        list_to_csv(listFile, matrix)
 
     def genConfigMem(self, tileName: str, configMem: Path) -> None:
         """Generate configuration memory for specified tile.
