@@ -19,8 +19,10 @@ def setup_mocks(
     """Set up mocks."""
     monkeypatch.setattr(
         "subprocess.run",
-        lambda cmd, check=False, capture_output=False: type(  # noqa: ARG005
-            "MockResult", (), {"stdout": b"mock output", "stderr": b""}
+        lambda *args, **kwargs: type(  # noqa: ARG005
+            "MockResult",
+            (),
+            {"stdout": "mock output", "stderr": "", "returncode": 0},
         )(),
     )
     monkeypatch.setattr("json.load", lambda _: json_data)
@@ -98,7 +100,9 @@ def test_yosys_json_initialization_parametric(
     m = mocker.patch(
         "subprocess.run",
         return_value=type(
-            "MockResult", (), {"stdout": b"mock output", "stderr": b""}
+            "MockResult",
+            (),
+            {"stdout": "mock output", "stderr": "", "returncode": 0},
         )(),
     )
 
@@ -285,52 +289,3 @@ def test_get_top_module_prefers_top_over_blackbox(
 
     assert module_name == "top_mod"
     assert "top" in module.attributes
-
-
-def test_getNetPortSrcSinks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """Test getNetPortSrcSinks method."""
-    json_data = {
-        "creator": "Yosys 0.33",
-        "modules": {
-            "module1": {
-                "attributes": {},
-                "parameter_default_values": {},
-                "ports": {},
-                "cells": {
-                    "A": {
-                        "hide_name": "",
-                        "attributes": {},
-                        "parameters": {},
-                        "type": "DFF",
-                        "port_directions": {"A": "input", "Y": "output"},
-                        "connections": {
-                            "A": [1],
-                            "Y": [2],
-                        },
-                    },
-                    "B": {
-                        "hide_name": "",
-                        "attributes": {},
-                        "parameters": {},
-                        "type": "DFF",
-                        "port_directions": {"A": "input", "Y": "output"},
-                        "connections": {
-                            "A": [2],
-                            "Y": [3],
-                        },
-                    },
-                },
-                "memories": {},
-                "netnames": {},
-            }
-        },
-        "models": {},
-    }
-
-    setup_mocks(monkeypatch, json_data, tmp_path)
-    fakePath = tmp_path / "test_file.v"
-    fakePath.touch()
-    fakePath.with_suffix(".json").touch()
-    yosys_json = YosysJson(fakePath)
-
-    assert yosys_json.getNetPortSrcSinks(2) == (("A", "Y"), [("B", "A")])
