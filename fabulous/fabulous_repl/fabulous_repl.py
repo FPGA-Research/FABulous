@@ -24,7 +24,6 @@ import argparse
 import csv
 import os
 import pickle
-import pprint
 import re
 import shutil
 import subprocess as sp
@@ -69,6 +68,8 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
 from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_api import FABulous_API
 from fabulous.fabulous_repl import cmd_compile_design, cmd_run_simulation
+from fabulous.fabulous_repl.cmd_helper import HelperCommandSet
+from fabulous.fabulous_repl.cmd_script import ScriptCommandSet
 from fabulous.fabulous_repl.helper import (
     CommandPipeline,
     allow_blank,
@@ -252,7 +253,7 @@ class FABulousREPL(Cmd):
         Current project directory path
     top : str
         Top-level module name for synthesis
-    allTile : list[str]
+    all_tile : list[str]
         List of all tile names in the current fabric
     csvFile : Path
         Path to the fabric CSV definition file
@@ -316,7 +317,7 @@ class FABulousREPL(Cmd):
     fabulousAPI: FABulous_API
     projectDir: Path
     top: str
-    allTile: list[str]
+    all_tile: list[str]
     csvFile: Path
     extension: str = "v"
     script: str = ""
@@ -336,6 +337,10 @@ class FABulousREPL(Cmd):
         super().__init__(
             persistent_history_file=f"{get_context().proj_dir}/{META_DATA_DIR}/.fabulous_history",
             allow_cli_args=False,
+            command_sets=[
+                HelperCommandSet(),
+                ScriptCommandSet(),
+            ],
         )
         self.self_in_py = True
         logger.info(f"Running at: {get_context().proj_dir}")
@@ -402,15 +407,14 @@ class FABulousREPL(Cmd):
         categorize(self.do_shortcuts, CMD_OTHER)
         categorize(self.do_help, CMD_OTHER)
         categorize(self.do_macro, CMD_OTHER)
-        categorize(self.do_run_tcl, CMD_SCRIPT)
         categorize(self.do_run_pyscript, CMD_SCRIPT)
 
         self.tcl = tk.Tcl()
-        for fun in dir(self.__class__):
-            f = getattr(self, fun)
-            if fun.startswith("do_") and callable(f):
-                name = fun.strip("do_")
-                self.tcl.createcommand(name, wrap_with_except_handling(f))
+        # get_all_commands() includes commands provided by CommandSets, which are
+        # bound to the instance (not the class), so iterating the class would miss them.
+        for command in self.get_all_commands():
+            func = getattr(self, f"do_{command}")
+            self.tcl.createcommand(command, wrap_with_except_handling(func))
 
         self.disable_category(
             CMD_FABRIC_FLOW, "Fabric Flow commands are disabled until fabric is loaded"
@@ -722,15 +726,17 @@ class FABulousREPL(Cmd):
             self.fabulousAPI.loadFabric(args.file)
             self.csvFile = args.file
 
-        self.fabricLoaded = True
-        tileByPath = [
+        self.fabric_loaded = True
+        tile_by_path = [
             f.stem for f in (self.projectDir / "Tile/").iterdir() if f.is_dir()
         ]
-        tileByFabric = list(self.fabulousAPI.fabric.tileDic.keys())
-        superTileByFabric = list(self.fabulousAPI.fabric.superTileDic.keys())
-        self.allTile = list(set(tileByPath) & set(tileByFabric + superTileByFabric))
+        tile_by_fabric = list(self.fabulousAPI.fabric.tileDic.keys())
+        super_tile_by_fabric = list(self.fabulousAPI.fabric.superTileDic.keys())
+        self.all_tile = list(
+            set(tile_by_path) & set(tile_by_fabric + super_tile_by_fabric)
+        )
 
-        if not self.allTile:
+        if not self.all_tile:
             logger.error(
                 "No tiles found in the project tiles directory that match the tiles "
                 "defined in the fabric.csv"
@@ -743,6 +749,7 @@ class FABulousREPL(Cmd):
 
         self.enable_category(CMD_FABRIC_FLOW)
         self.enable_category(CMD_USER_DESIGN_FLOW)
+        self.enable_category(CMD_HELPER)
         logger.info("Complete")
 
     @with_category(CMD_SETUP)
@@ -800,36 +807,6 @@ class FABulousREPL(Cmd):
         if not args.no_register:
             register_tile_in_fabric_csv(self.csvFile, dst_dir)
             logger.info(f"Updated {self.csvFile} with entries for '{args.dst_tile}'")
-
-    @with_category(CMD_HELPER)
-    def do_print_bel(self, args: argparse.Namespace) -> None:
-        """Print a Bel object to the console."""
-        if len(args) != 1:
-            raise CommandError("Please provide a Bel name")
-
-        if not self.fabricLoaded:
-            raise CommandError("Need to load fabric first")
-
-        bels = self.fabulousAPI.getBels()
-        for i in bels:
-            if i.name == args[0]:
-                logger.info(f"\n{pprint.pformat(i, width=200)}")
-                return
-        raise CommandError(f"Bel {args[0]} not found in fabric")
-
-    @with_category(CMD_HELPER)
-    @with_argparser(tile_single_parser)
-    def do_print_tile(self, args: argparse.Namespace) -> None:
-        """Print a tile object to the console."""
-        if not self.fabricLoaded:
-            raise CommandError("Need to load fabric first")
-
-        if (tile := self.fabulousAPI.getTile(args.tile)) or (
-            tile := self.fabulousAPI.getSuperTile(args[0])
-        ):
-            logger.info(f"\n{pprint.pformat(tile, width=200)}")
-        else:
-            raise CommandError(f"Tile {args.tile} not found in fabric")
 
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)
@@ -991,7 +968,7 @@ class FABulousREPL(Cmd):
     def do_gen_all_tile(self, *_ignored: str) -> None:
         """Generate all tiles by calling `do_gen_tile`."""
         logger.info("Generating all tiles")
-        self.do_gen_tile(" ".join(self.allTile))
+        self.do_gen_tile(" ".join(self.all_tile))
         logger.info("All tiles generation complete")
 
     @with_category(CMD_FABRIC_FLOW)
@@ -1037,12 +1014,12 @@ class FABulousREPL(Cmd):
         padding is not within the valid range of 4 to 32.
         """
         logger.info(f"Generating geometry for {self.fabulousAPI.fabric.name}")
-        geomFile = f"{self.projectDir}/{self.fabulousAPI.fabric.name}_geometry.csv"
-        self.fabulousAPI.setWriterOutputFile(geomFile)
+        geom_file = f"{self.projectDir}/{self.fabulousAPI.fabric.name}_geometry.csv"
+        self.fabulousAPI.setWriterOutputFile(geom_file)
 
         self.fabulousAPI.genGeometry(args.padding)
         logger.info("Geometry generation complete")
-        logger.info(f"{geomFile} can now be imported into FABulator")
+        logger.info(f"{geom_file} can now be imported into FABulator")
 
     @with_category(CMD_GUI)
     def do_start_FABulator(self, *_ignored: str) -> None:
@@ -1051,14 +1028,14 @@ class FABulousREPL(Cmd):
         If no installation can be found, a warning is produced.
         """
         logger.info("Checking for FABulator installation")
-        fabulatorRoot = get_context().fabulator_root
+        fabulator_root = get_context().fabulator_root
         if shutil.which("mvn") is None:
             raise FileNotFoundError(
                 "Application mvn (Java Maven) not found in PATH",
                 " please install it to use FABulator",
             )
 
-        if fabulatorRoot is None:
+        if fabulator_root is None:
             logger.warning("FABULATOR_ROOT environment variable not set.")
             logger.warning(
                 "Install FABulator (https://github.com/FPGA-Research-Manchester/FABulator)"
@@ -1067,23 +1044,23 @@ class FABulousREPL(Cmd):
             )
             return
 
-        if not Path(fabulatorRoot).exists():
+        if not Path(fabulator_root).exists():
             raise EnvironmentNotSet(
-                f"FABULATOR_ROOT environment variable set to {fabulatorRoot} "
+                f"FABULATOR_ROOT environment variable set to {fabulator_root} "
                 "but the directory does not exist."
             )
 
-        logger.info(f"Found FABulator installation at {fabulatorRoot}")
+        logger.info(f"Found FABulator installation at {fabulator_root}")
         logger.info("Trying to start FABulator...")
 
-        startupCmd = ["mvn", "-f", f"{fabulatorRoot}/pom.xml", "javafx:run"]
+        startup_cmd = ["mvn", "-f", f"{fabulator_root}/pom.xml", "javafx:run"]
         try:
             if self.verbose:
                 # log FABulator output to the FABulous shell
-                sp.Popen(startupCmd)
+                sp.Popen(startup_cmd)
             else:
                 # discard FABulator output
-                sp.Popen(startupCmd, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+                sp.Popen(startup_cmd, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
 
         except sp.SubprocessError as e:
             raise CommandError(
@@ -1101,22 +1078,22 @@ class FABulousREPL(Cmd):
         Also logs the paths of the output files.
         """
         logger.info("Generating bitstream specification")
-        specObject = self.fabulousAPI.genBitStreamSpec()
+        spec_object = self.fabulousAPI.genBitStreamSpec()
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin")
         with Path(f"{self.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin").open(
             "wb"
         ) as outFile:
-            pickle.dump(specObject, outFile)
+            pickle.dump(spec_object, outFile)
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv")
         with Path(f"{self.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv").open(
             "w", encoding="utf-8", newline="\n"
         ) as f:
             w = csv.writer(f)
-            for key1 in specObject["TileSpecs"]:
+            for key1 in spec_object["TileSpecs"]:
                 w.writerow([key1])
-                for key2, val in specObject["TileSpecs"][key1].items():
+                for key2, val in spec_object["TileSpecs"][key1].items():
                     w.writerow([key2, val])
         logger.info("Bitstream specification generation complete")
 
@@ -1175,26 +1152,26 @@ class FABulousREPL(Cmd):
         Logs output file directories.
         """
         logger.info("Generating npnr model")
-        npnrModel = self.fabulousAPI.gen_routing_model()
+        npnr_model = self.fabulousAPI.gen_routing_model()
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/pips.txt")
         with Path(f"{self.projectDir}/{META_DATA_DIR}/pips.txt").open("w") as f:
-            f.write(npnrModel[0])
+            f.write(npnr_model[0])
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bel.txt")
         with Path(f"{self.projectDir}/{META_DATA_DIR}/bel.txt").open("w") as f:
-            f.write(npnrModel[1])
+            f.write(npnr_model[1])
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bel.v2.txt")
         with Path(f"{self.projectDir}/{META_DATA_DIR}/bel.v2.txt").open("w") as f:
-            f.write(npnrModel[2])
+            f.write(npnr_model[2])
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bel.v3.txt")
         with Path(f"{self.projectDir}/{META_DATA_DIR}/bel.v3.txt").open("w") as f:
-            f.write(npnrModel[3])
+            f.write(npnr_model[3])
 
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/template.pcf")
         with Path(f"{self.projectDir}/{META_DATA_DIR}/template.pcf").open("w") as f:
-            f.write(npnrModel[4])
+            f.write(npnr_model[4])
 
         estimatePath = Path(f"{self.projectDir}/{META_DATA_DIR}/placement_estimate.txt")
         logger.info(f"output file: {estimatePath}")
@@ -1265,33 +1242,6 @@ class FABulousREPL(Cmd):
 
     @with_category(CMD_SCRIPT)
     @with_argparser(filePathRequireParser)
-    def do_run_tcl(self, args: argparse.Namespace) -> None:
-        """Execute TCL script relative to the project directory.
-
-        Specified by <tcl_scripts>. Use the 'tk' module to create TCL commands.
-
-        Also logs usage errors and file not found errors.
-        """
-        if not args.file.exists():
-            raise FileNotFoundError(
-                f"Cannot find {args.file} file, please check the path and try again."
-            )
-
-        if self.force:
-            logger.warning(
-                "TCL script does not work with force mode, TCL will stop on first error"
-            )
-
-        logger.info(f"Execute TCL script {args.file}")
-
-        with Path(args.file).open() as f:
-            script = f.read()
-        self.tcl.eval(script)
-
-        logger.info("TCL script executed")
-
-    @with_category(CMD_SCRIPT)
-    @with_argparser(filePathRequireParser)
     def do_run_script(self, args: argparse.Namespace) -> None:
         """Execute script."""
         if not args.file.exists():
@@ -1338,7 +1288,7 @@ class FABulousREPL(Cmd):
         CommandError
             If the fabric has not been loaded yet.
         """
-        if not self.fabricLoaded:
+        if not self.fabric_loaded:
             raise CommandError("Need to load fabric first")
         project_dir = get_context().proj_dir
         self.fabulousAPI.generateUserDesignTopWrapper(
@@ -1462,7 +1412,7 @@ class FABulousREPL(Cmd):
         "tile",
         type=str,
         help="A tile or supertile",
-        completer=lambda self: self.allTile,
+        completer=lambda self: self.all_tile,
     )
     io_pin_config_parser.add_argument(
         "output",
@@ -1590,7 +1540,7 @@ class FABulousREPL(Cmd):
     def do_gen_all_tile_macros(self, args: argparse.Namespace) -> None:
         """Generate GDSII files for all tiles in the fabric."""
         commands = CommandPipeline(self)
-        for i in sorted(self.allTile):
+        for i in sorted(self.all_tile):
             if args.optimise:
                 commands.add_step(
                     f"gen_tile_macro {i} --optimise {args.optimise.value}"
@@ -1859,7 +1809,7 @@ class FABulousREPL(Cmd):
                 sta_executable=get_context().opensta_path,
                 mode=TimingModelMode(args.mode),
                 custom_per_tile_source_files=dict.fromkeys(
-                    self.allTile,
+                    self.all_tile,
                     TimingModelTileSourceFiles(
                         netlist_file=Path(
                             "path/to/netlist: <optional, not use project dir files>"
