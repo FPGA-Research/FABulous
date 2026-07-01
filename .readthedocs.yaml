@@ -6,6 +6,9 @@ build:
     python: "3.12"
 
   jobs:
+    post_checkout:
+      # setuptools_scm needs tags + full history to derive the version
+      - git fetch --tags --unshallow || git fetch --tags
     post_create_environment:
       # Install uv
       - pip install uv
@@ -23,4 +26,3 @@ sphinx:
 formats:
   - pdf
   - epub
-
