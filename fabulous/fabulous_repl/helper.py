@@ -1,9 +1,9 @@
-"""Helper functions and utilities for the FABulous CLI.
+"""Helper functions and utilities for the FABulous REPL.
 
 This module provides various utility functions for the FABulous command-line interface,
 including project creation, file operations, logging setup, external application
 management, and OSS CAD Suite installation. It serves as a collection of common
-functionalities used throughout the CLI components.
+functionalities used throughout the REPL components.
 """
 
 import argparse
@@ -703,7 +703,7 @@ class CommandPipeline:
     Parameters
     ----------
     repl_instance : FABulousREPL
-        The CLI instance to use for command execution.
+        The REPL instance to use for command execution.
     force : bool
         If True, continues executing commands even if one fails.
     """
@@ -771,7 +771,7 @@ class CommandPipeline:
         If any command fails (raises or sets a non-zero exit code), a
         PipelineCommandError is raised (unless `force` is True).
         """
-        # Use ThreadPoolExecutor because the CLI instance cannot be pickled for
+        # Use ThreadPoolExecutor because the REPL instance cannot be pickled for
         # ProcessPoolExecutor; thread-based concurrency is sufficient here since
         # the heavy work (GDS generation) likely releases the GIL via I/O or
         # underlying C extensions.
@@ -797,7 +797,7 @@ class CommandPipeline:
                     if not self.force:
                         raise PipelineCommandError(err_msg)
                 else:
-                    # If the callable ran without raising, check the CLI exit code
+                    # If the callable ran without raising, check the REPL exit code
                     # that the command may have set.
                     if self.repl.exit_code != 0:
                         self.final_exit_code = self.repl.exit_code
@@ -811,12 +811,12 @@ class CommandPipeline:
         return self.final_exit_code == 0
 
     def _run_command_threadsafe(self, command: str) -> None:
-        """Run a CLI command in a thread.
+        """Run a REPL command in a thread.
 
         Run `onecmd_plus_hooks`; exceptions will be propagated to the Future so
         the caller can handle them.
         """
-        # Run the command on the CLI instance. onecmd_plus_hooks will set
+        # Run the command on the REPL instance. onecmd_plus_hooks will set
         # `self.repl.exit_code` appropriately.
         self.repl.onecmd_plus_hooks(command)
 

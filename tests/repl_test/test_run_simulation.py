@@ -14,11 +14,11 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabulous_repl import cmd_run_simulation
+from fabulous.fabulous_repl import cmd_user_design
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from tests.conftest import run_cmd
 
-_CMD_MODULE = "fabulous.fabulous_repl.cmd_run_simulation"
+_CMD_MODULE = "fabulous.fabulous_repl.cmd_user_design"
 
 
 def _make_bitstream(cli: FABulousREPL) -> Path:
@@ -144,7 +144,7 @@ def _make_pdk(
 def _patch_context(
     mocker: MockerFixture, pdk: str | None, pdk_root: Path | None
 ) -> None:
-    """Point ``cmd_run_simulation``'s context at a stub PDK and install root."""
+    """Point ``cmd_user_design``'s context at a stub PDK and install root."""
     ctx = mocker.Mock()
     ctx.pdk = pdk
     ctx.pdk_root = pdk_root
@@ -165,7 +165,7 @@ def test_collect_gl_sources_orders_wrapper_fabric_tiles_then_libs(
     primary = _make_pdk(tmp_path / "pdk_root")
     _patch_context(mocker, "ihp-sg13g2", tmp_path / "pdk_root")
 
-    sources = cmd_run_simulation.collect_gl_sources(tmp_path, [])
+    sources = cmd_user_design.collect_gl_sources(tmp_path, [])
     names = [p.name for p in sources]
 
     assert "eFPGA_top.v" in names
@@ -210,20 +210,20 @@ def test_collect_gl_sources_invalid_layout(
     """An incomplete or ambiguous macro layout surfaces a clear error, not a skip."""
     setup(tmp_path)
     with pytest.raises(exc, match=match):
-        cmd_run_simulation.collect_gl_sources(tmp_path, [])
+        cmd_user_design.collect_gl_sources(tmp_path, [])
 
 
 def test_resolve_sim_libs_override_file(tmp_path: Path) -> None:
     """A concrete override file is resolved as-is."""
     lib = tmp_path / "cells.v"
     lib.write_text("// cells\n")
-    assert cmd_run_simulation.resolve_sim_libs(tmp_path, [str(lib)]) == [lib.resolve()]
+    assert cmd_user_design.resolve_sim_libs(tmp_path, [str(lib)]) == [lib.resolve()]
 
 
 def test_resolve_sim_libs_override_no_match(tmp_path: Path) -> None:
     """An override matching nothing raises rather than silently passing."""
     with pytest.raises(FileNotFoundError, match="matched no files"):
-        cmd_run_simulation.resolve_sim_libs(tmp_path, [str(tmp_path / "no" / "*.v")])
+        cmd_user_design.resolve_sim_libs(tmp_path, [str(tmp_path / "no" / "*.v")])
 
 
 @pytest.mark.parametrize(
@@ -244,13 +244,13 @@ def test_resolve_sim_libs_invalid_context(
     """Without usable PDK context and no overrides, resolution fails clearly."""
     _patch_context(mocker, pdk, pdk_root)
     with pytest.raises(ValueError, match=match):
-        cmd_run_simulation.resolve_sim_libs(tmp_path, [])
+        cmd_user_design.resolve_sim_libs(tmp_path, [])
 
 
 def test_resolve_sim_libs_from_context(tmp_path: Path, mocker: MockerFixture) -> None:
     """The context's PDK + root resolve to the primary cell file plus UDPs."""
     primary = _make_pdk(tmp_path / "pdk_root")
     _patch_context(mocker, "ihp-sg13g2", tmp_path / "pdk_root")
-    result = cmd_run_simulation.resolve_sim_libs(tmp_path, [])
+    result = cmd_user_design.resolve_sim_libs(tmp_path, [])
     assert result[0] == primary
     assert any("udp" in p.name for p in result)

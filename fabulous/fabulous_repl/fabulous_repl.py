@@ -20,26 +20,25 @@ includes interactive and batch mode support for fabric generation, bitstream cre
 simulation, and project management.
 """
 
-import argparse
 import os
 import sys
 import tkinter as tk
 import traceback
-from collections.abc import Callable
 from pathlib import Path
+from typing import Annotated
 
 from cmd2 import (
     Cmd,
-    Cmd2ArgumentParser,
     Settable,
     Statement,
     categorize,
-    with_argparser,
+    with_annotated,
     with_category,
 )
+from cmd2.annotated import Argument
 from loguru import logger
 
-from fabulous.custom_exception import CommandError, InvalidFileType
+from fabulous.custom_exception import CommandError
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
@@ -47,7 +46,6 @@ from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
 from fabulous.fabulous_api import FABulous_API
-from fabulous.fabulous_repl import cmd_compile_design, cmd_run_simulation
 from fabulous.fabulous_repl.cmd_fabric_gen import FabricGenCommandSet
 from fabulous.fabulous_repl.cmd_gui import GuiCommandSet
 from fabulous.fabulous_repl.cmd_helper import HelperCommandSet
@@ -55,35 +53,20 @@ from fabulous.fabulous_repl.cmd_macro import MacroFlowCommandSet
 from fabulous.fabulous_repl.cmd_script import ScriptCommandSet
 from fabulous.fabulous_repl.cmd_setup import SetupCommandSet
 from fabulous.fabulous_repl.cmd_timing import TimingCommandSet
+from fabulous.fabulous_repl.cmd_user_design import UserDesignCommandSet
+from fabulous.fabulous_repl.command_set_base import (
+    CMD_FABRIC_FLOW,
+    CMD_GUI,
+    CMD_HELPER,
+    CMD_OTHER,
+    CMD_SCRIPT,
+    CMD_USER_DESIGN_FLOW,
+    META_DATA_DIR,
+)
 from fabulous.fabulous_repl.helper import (
     wrap_with_except_handling,
 )
 from fabulous.fabulous_settings import get_context
-
-META_DATA_DIR = ".FABulous"
-
-CMD_SETUP = "Setup"
-CMD_FABRIC_FLOW = "Fabric Flow"
-CMD_USER_DESIGN_FLOW = "User Design Flow"
-CMD_HELPER = "Helper"
-CMD_OTHER = "Other"
-CMD_GUI = "GUI"
-CMD_SCRIPT = "Script"
-CMD_TOOLS = "Tools"
-CMD_TIMING_MODEL = "Timing Characterization"
-
-# klayout layer property file naming differs by PDK:
-# - ihp-sg13g2 ships sg13g2.lyp under its single-variant install dir.
-# - gf180mcu ships a single gf180mcu.lyp shared by every variant (A/B/C/D).
-# - Other PDKs (e.g. sky130A/B) follow the variant-name convention.
-KLAYOUT_LAYER_FILE_NAMES: dict[str, str] = {
-    "ihp-sg13g2": "sg13g2.lyp",
-    "gf180mcuA": "gf180mcu.lyp",
-    "gf180mcuB": "gf180mcu.lyp",
-    "gf180mcuC": "gf180mcu.lyp",
-    "gf180mcuD": "gf180mcu.lyp",
-}
-
 
 INTO_STRING = rf"""
      ______      ____        __
@@ -132,7 +115,7 @@ class FABulousREPL(Cmd):
     force : bool
         If True, force operations without confirmation, by default False
     interactive : bool
-        If True, run in interactive CLI mode, by default False
+        If True, run in interactive REPL mode, by default False
     verbose : bool
         If True, enable verbose logging, by default False
     debug : bool
@@ -143,7 +126,7 @@ class FABulousREPL(Cmd):
     Attributes
     ----------
     intro : str
-        Introduction message displayed when CLI starts
+        Introduction message displayed when REPL starts
     prompt : str
         Command prompt string displayed to users
     fabulousAPI : FABulous_API
@@ -163,35 +146,13 @@ class FABulousREPL(Cmd):
     force : bool
         If true, force operations without confirmation
     interactive : bool
-        If true, run in interactive CLI mode
+        If true, run in interactive REPL mode
     max_job : int
         Maximum number of parallel jobs for tile generation
-    do_compile_design : Callable
-        Method to compile user design through synthesis, PnR, and bitstream generation
-    filePathOptionalParser : Cmd2ArgumentParser
-        Argument parser for commands with an optional file path argument
-    filePathRequireParser : Cmd2ArgumentParser
-        Argument parser for commands with a required file path argument
-    userDesignRequireParser : Cmd2ArgumentParser
-        Argument parser for commands requiring a user design file path
-    tile_list_parser : Cmd2ArgumentParser
-        Argument parser for commands accepting a list of tile names
-    tile_single_parser : Cmd2ArgumentParser
-        Argument parser for commands accepting a single tile name
-    clone_tile_parser : Cmd2ArgumentParser
-        Argument parser for the clone_tile command
-    install_oss_cad_suite_parser : Cmd2ArgumentParser
-        Argument parser for the install-oss-cad-suite command
-    do_run_simulation : Callable
-        Method to run simulation of a compiled user design
-    gen_tile_parser : Cmd2ArgumentParser
-        Argument parser for the gen_tile command
-    gui_parser : Cmd2ArgumentParser
-        Argument parser for the open_gui command
 
     Notes
     -----
-    This CLI extends the cmd.Cmd class to provide command completion, help system,
+    This REPL extends the cmd.Cmd class to provide command completion, help system,
     and command history. It supports both interactive mode and batch script execution.
     """
 
@@ -225,9 +186,10 @@ class FABulousREPL(Cmd):
                 ScriptCommandSet(),
                 SetupCommandSet(),
                 FabricGenCommandSet(),
+                MacroFlowCommandSet(),
                 GuiCommandSet(),
                 TimingCommandSet(),
-                MacroFlowCommandSet(),
+                UserDesignCommandSet(),
             ],
         )
         self.self_in_py = True
@@ -346,336 +308,33 @@ class FABulousREPL(Cmd):
         """Exit the FABulous shell and log info message."""
         self.onecmd_plus_hooks("exit")
 
-    # Legacy synthesis parser — kept for backwards compatibility with existing
-    # scripts that pass flags like -extra-plib, -nofsm, etc. directly.
-    _synthesis_parser = Cmd2ArgumentParser(
-        description="[DEPRECATED] Use 'compile_design --synth-only' instead."
-    )
-    _synthesis_parser.add_argument(
-        "files",
-        type=Path,
-        nargs="+",
-        completer=Cmd.path_complete,
-    )
-    _synthesis_parser.add_argument("-top", type=str, default="top_wrapper")
-    _synthesis_parser.add_argument("-auto-top", action="store_true")
-    _synthesis_parser.add_argument("-blif", type=Path)
-    _synthesis_parser.add_argument("-edif", type=Path)
-    _synthesis_parser.add_argument("-json", type=Path)
-    _synthesis_parser.add_argument("-lut", type=str, default="4")
-    _synthesis_parser.add_argument("-plib", type=str)
-    _synthesis_parser.add_argument("-extra-plib", type=Path, action="append")
-    _synthesis_parser.add_argument("-extra-map", type=Path, action="append")
-    _synthesis_parser.add_argument("-encfile", type=Path)
-    _synthesis_parser.add_argument("-nofsm", action="store_true")
-    _synthesis_parser.add_argument("-noalumacc", action="store_true")
-    _synthesis_parser.add_argument(
-        "-carry", type=str, default="none", choices=["none", "ha"]
-    )
-    _synthesis_parser.add_argument("-noregfile", action="store_true")
-    _synthesis_parser.add_argument("-iopad", action="store_true")
-    _synthesis_parser.add_argument("-complex-dff", action="store_true")
-    _synthesis_parser.add_argument("-noflatten", action="store_true")
-    _synthesis_parser.add_argument("-nordff", action="store_true")
-    _synthesis_parser.add_argument("-noshare", action="store_true")
-    _synthesis_parser.add_argument("-run", type=str)
-    _synthesis_parser.add_argument("-no-rw-check", action="store_true")
-
-    @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(_synthesis_parser)
-    def do_synthesis(self, args: argparse.Namespace) -> None:
-        """Run Yosys synthesis for the specified Verilog files.
-
-        deprecated: Use ``compile_design --synth-only`` instead.
-        """
-        logger.warning(
-            "The 'synthesis' command is deprecated. Use 'compile_design' instead."
-        )
-
-        # Translate legacy flags into --synth-extra-args for compile_design
-        extra = []
-        if args.blif:
-            extra.append(f"-blif {args.blif}")
-        if args.edif:
-            extra.append(f"-edif {args.edif}")
-        if args.lut:
-            extra.append(f"-lut {args.lut}")
-        if args.plib:
-            extra.append(f"-plib {args.plib}")
-        if args.extra_plib:
-            extra.extend(f"-extra-plib {p}" for p in args.extra_plib)
-        if args.extra_map:
-            extra.extend(f"-extra-map {m}" for m in args.extra_map)
-        if args.encfile:
-            extra.append(f"-encfile {args.encfile}")
-        if args.nofsm:
-            extra.append("-nofsm")
-        if args.noalumacc:
-            extra.append("-noalumacc")
-        if args.carry and args.carry != "none":
-            extra.append(f"-carry {args.carry}")
-        if args.noregfile:
-            extra.append("-noregfile")
-        if args.iopad:
-            extra.append("-iopad")
-        if args.complex_dff:
-            extra.append("-complex-dff")
-        if args.noflatten:
-            extra.append("-noflatten")
-        if args.nordff:
-            extra.append("-nordff")
-        if args.noshare:
-            extra.append("-noshare")
-        if args.run:
-            extra.append(f"-run {args.run}")
-        if args.no_rw_check:
-            extra.append("-no-rw-check")
-
-        cmd = f"compile_design {' '.join(str(f) for f in args.files)} --synth-only"
-        if args.top != "top_wrapper":
-            cmd += f" -top {args.top}"
-        if args.json:
-            cmd += f" -json {args.json}"
-        if extra:
-            cmd += f' --synth-extra-args "{" ".join(extra)}"'
-
-        self.onecmd_plus_hooks(cmd)
-
-    do_compile_design: Callable = cmd_compile_design.do_compile_design
-
-    filePathOptionalParser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    filePathOptionalParser.add_argument(
-        "file",
-        type=Path,
-        help="Path to the target file",
-        default="",
-        nargs=argparse.OPTIONAL,
-        completer=Cmd.path_complete,
-    )
-
-    filePathRequireParser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    filePathRequireParser.add_argument(
-        "file", type=Path, help="Path to the target file", completer=Cmd.path_complete
-    )
-
-    userDesignRequireParser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    userDesignRequireParser.add_argument(
-        "user_design",
-        type=Path,
-        help="Path to user design file",
-        completer=Cmd.path_complete,
-    )
-    userDesignRequireParser.add_argument(
-        "user_design_top_wrapper",
-        type=Path,
-        help="Output path for user design top wrapper",
-        completer=Cmd.path_complete,
-    )
-
-    tile_list_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    tile_list_parser.add_argument(
-        "tiles",
-        type=str,
-        help="A list of tile",
-        nargs="+",
-        completer=lambda self: self.fab.getTiles(),
-    )
-
-    tile_single_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    tile_single_parser.add_argument(
-        "tile",
-        type=str,
-        help="A tile",
-        completer=lambda self: self.fab.getTiles(),
-    )
-
-    clone_tile_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    clone_tile_parser.add_argument(
-        "src_tile",
-        type=str,
-        help="Name of the tile to clone (looked up in Tile/) or path to a tile dir",
-    )
-    clone_tile_parser.add_argument(
-        "dst_tile",
-        type=str,
-        help="Name for the cloned tile (placed in Tile/) or path to destination dir",
-    )
-    clone_tile_parser.add_argument(
-        "--no-register",
-        action="store_true",
-        default=False,
-        help="Skip adding the new tile to fabric.csv",
-    )
-
-    install_oss_cad_suite_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    install_oss_cad_suite_parser.add_argument(
-        "destination_folder",
-        type=Path,
-        help="Destination folder for the installation",
-        default="",
-        completer=Cmd.path_complete,
-        nargs=argparse.OPTIONAL,
-    )
-    install_oss_cad_suite_parser.add_argument(
-        "update",
-        type=bool,
-        help="Update/override existing installation, if exists",
-        default=False,
-        nargs=argparse.OPTIONAL,
-    )
-
-    @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(filePathRequireParser)
-    def do_place_and_route(self, args: argparse.Namespace) -> None:
-        """Run place and route with Nextpnr for a given JSON file.
-
-        deprecated: Use ``compile_design --pnr-only`` instead.
-        """
-        logger.warning(
-            "The 'place_and_route' command is deprecated. "
-            "Use 'compile_design --pnr-only' instead."
-        )
-
-        path = Path(args.file)
-        if path.suffix != ".json":
-            raise InvalidFileType(
-                "No json file provided. Usage: place_and_route <json_file>"
-            )
-
-        self.onecmd_plus_hooks(f"compile_design {path} --pnr-only")
-
-    @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(filePathRequireParser)
-    def do_gen_bitStream_binary(self, args: argparse.Namespace) -> None:
-        """Generate bitstream of a given design.
-
-        deprecated: Use ``compile_design`` which includes bitstream generation.
-        """
-        logger.warning(
-            "The 'gen_bitStream_binary' command is deprecated. "
-            "Use 'compile_design' instead, which includes bitstream generation."
-        )
-
-        if args.file.suffix != ".fasm":
-            raise InvalidFileType(
-                "No fasm file provided. Usage: gen_bitStream_binary <fasm_file>"
-            )
-
-        self.onecmd_plus_hooks(f"compile_design {args.file} --bitgen-only")
-
-    do_run_simulation: Callable = cmd_run_simulation.do_run_simulation
-
-    @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(filePathRequireParser)
-    def do_run_FABulous_bitstream(self, args: argparse.Namespace) -> None:
-        """Run FABulous to generate bitstream on a given design.
-
-        deprecated: Use ``compile_design`` instead.
-        """
-        logger.warning(
-            "The 'run_FABulous_bitstream' command is deprecated. "
-            "Use 'compile_design' instead."
-        )
-
-        if args.file.suffix not in [".v", ".sv"]:
-            raise InvalidFileType(
-                "No Verilog or SystemVerilog file provided. "
-                "Usage: run_FABulous_bitstream <top_module_file>"
-            )
-
-        self.onecmd_plus_hooks(f"compile_design {args.file}")
-
     @with_category(CMD_SCRIPT)
-    @with_argparser(filePathRequireParser)
-    def do_run_script(self, args: argparse.Namespace) -> None:
+    @with_annotated
+    def do_run_script(
+        self,
+        file: Annotated[Path, Argument(help_text="Path to the target file")],
+    ) -> None:
         """Execute script."""
-        if not args.file.exists():
+        if not file.exists():
             raise FileNotFoundError(
-                f"Cannot find {args.file} file, please check the path and try again."
+                f"Cannot find {file} file, please check the path and try again."
             )
 
-        logger.info(f"Execute script {args.file}")
+        logger.info(f"Execute script {file}")
 
-        with Path(args.file).open() as f:
-            for i in f:
-                if i.startswith("#"):
+        with file.open() as f:
+            for line in f:
+                if line.startswith("#"):
                     continue
-                self.onecmd_plus_hooks(i.strip())
+                self.onecmd_plus_hooks(line.strip())
                 if self.exit_code != 0:
                     if not self.force:
                         raise CommandError(
-                            f"Script execution failed at line: {i.strip()}"
+                            f"Script execution failed at line: {line.strip()}"
                         )
                     logger.error(
-                        f"Script execution failed at line: {i.strip()} "
+                        f"Script execution failed at line: {line.strip()} "
                         "but continuing due to force mode"
                     )
 
         logger.info("Script executed")
-
-    @with_category(CMD_USER_DESIGN_FLOW)
-    @with_argparser(userDesignRequireParser)
-    def do_gen_user_design_wrapper(self, args: argparse.Namespace) -> None:
-        """Generate a user design wrapper for the specified user design.
-
-        This command creates a wrapper module that interfaces the user design
-        with the FPGA fabric, handling signal connections and naming conventions.
-
-        Parameters
-        ----------
-        args : argparse.Namespace
-            Command arguments containing:
-            - user_design: Path to the user design file
-            - user_design_top_wrapper: Path for the generated wrapper file
-
-        Raises
-        ------
-        CommandError
-            If the fabric has not been loaded yet.
-        """
-        if not self.fabric_loaded:
-            raise CommandError("Need to load fabric first")
-        project_dir = get_context().proj_dir
-        self.fabulousAPI.generateUserDesignTopWrapper(
-            project_dir / Path(args.user_design),
-            project_dir / args.user_design_top_wrapper,
-        )
-
-    gen_tile_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    gen_tile_parser.add_argument(
-        "tile_path",
-        type=Path,
-        help="Path to the target tile directory",
-        completer=Cmd.path_complete,
-    )
-
-    gen_tile_parser.add_argument(
-        "--no-switch-matrix",
-        "-nosm",
-        help="Do not generate a Tile Switch Matrix",
-        action="store_true",
-    )
-
-    gui_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    gui_parser.add_argument("file", nargs="?", help="file to open", default=None)
-    gui_parser.add_argument(
-        "--tile",
-        help="launch GUI to view a specific tile",
-        default=None,
-        completer=lambda self: self.fab.getTiles(),
-    )
-    gui_parser.add_argument(
-        "--fabric",
-        help="launch GUI to view the entire fabric",
-        default=False,
-        action="store_true",
-    )
-    gui_parser.add_argument(
-        "--last-run", help="launch GUI to view last run", action="store_true"
-    )
-
-    gui_parser.add_argument(
-        "--head",
-        help="number of item to select from",
-        default=10,
-    )
