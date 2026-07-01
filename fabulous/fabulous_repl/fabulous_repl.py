@@ -24,10 +24,7 @@ import argparse
 import csv
 import os
 import pickle
-import shutil
-import subprocess as sp
 import sys
-import tempfile
 import tkinter as tk
 import traceback
 from collections.abc import Callable
@@ -47,13 +44,8 @@ from cmd2 import (
 )
 from loguru import logger
 
-from fabulous.custom_exception import CommandError, EnvironmentNotSet, InvalidFileType
+from fabulous.custom_exception import CommandError, InvalidFileType
 from fabulous.fabric_cad.gen_npnr_model import PLACEMENT_ESTIMATE_TEXT
-from fabulous.fabric_cad.timing_model.models import (
-    TimingModelConfig,
-    TimingModelMode,
-    TimingModelTileSourceFiles,
-)
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
@@ -67,13 +59,14 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
 from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_api import FABulous_API
 from fabulous.fabulous_repl import cmd_compile_design, cmd_run_simulation
+from fabulous.fabulous_repl.cmd_gui import GuiCommandSet
 from fabulous.fabulous_repl.cmd_helper import HelperCommandSet
 from fabulous.fabulous_repl.cmd_script import ScriptCommandSet
 from fabulous.fabulous_repl.cmd_setup import SetupCommandSet
+from fabulous.fabulous_repl.cmd_timing import TimingCommandSet
 from fabulous.fabulous_repl.helper import (
     CommandPipeline,
     allow_blank,
-    get_file_path,
     wrap_with_except_handling,
 )
 from fabulous.fabulous_settings import get_context, is_pdk_config_set
@@ -294,8 +287,6 @@ class FABulousREPL(Cmd):
         Argument parser for the gen_eFPGA_macro command
     gui_parser : Cmd2ArgumentParser
         Argument parser for the open_gui command
-    timing_model_parser : Cmd2ArgumentParser
-        Argument parser for the timing_model command
 
     Notes
     -----
@@ -332,6 +323,8 @@ class FABulousREPL(Cmd):
                 HelperCommandSet(),
                 ScriptCommandSet(),
                 SetupCommandSet(),
+                GuiCommandSet(),
+                TimingCommandSet(),
             ],
         )
         self.self_in_py = True
@@ -814,53 +807,6 @@ class FABulousREPL(Cmd):
         self.fabulousAPI.genGeometry(args.padding)
         logger.info("Geometry generation complete")
         logger.info(f"{geom_file} can now be imported into FABulator")
-
-    @with_category(CMD_GUI)
-    def do_start_FABulator(self, *_ignored: str) -> None:
-        """Start FABulator if an installation can be found.
-
-        If no installation can be found, a warning is produced.
-        """
-        logger.info("Checking for FABulator installation")
-        fabulator_root = get_context().fabulator_root
-        if shutil.which("mvn") is None:
-            raise FileNotFoundError(
-                "Application mvn (Java Maven) not found in PATH",
-                " please install it to use FABulator",
-            )
-
-        if fabulator_root is None:
-            logger.warning("FABULATOR_ROOT environment variable not set.")
-            logger.warning(
-                "Install FABulator (https://github.com/FPGA-Research-Manchester/FABulator)"
-                " and set the FABULATOR_ROOT environment variable to the root directory"
-                " to use this feature."
-            )
-            return
-
-        if not Path(fabulator_root).exists():
-            raise EnvironmentNotSet(
-                f"FABULATOR_ROOT environment variable set to {fabulator_root} "
-                "but the directory does not exist."
-            )
-
-        logger.info(f"Found FABulator installation at {fabulator_root}")
-        logger.info("Trying to start FABulator...")
-
-        startup_cmd = ["mvn", "-f", f"{fabulator_root}/pom.xml", "javafx:run"]
-        try:
-            if self.verbose:
-                # log FABulator output to the FABulous shell
-                sp.Popen(startup_cmd)
-            else:
-                # discard FABulator output
-                sp.Popen(startup_cmd, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
-
-        except sp.SubprocessError as e:
-            raise CommandError(
-                "Failed to start FABulator. Please ensure that the FABULATOR_ROOT "
-                "environment variable is set correctly and that FABulator is installed."
-            ) from e
 
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_bitStream_spec(self, *_ignored: str) -> None:
@@ -1451,194 +1397,3 @@ class FABulousREPL(Cmd):
         help="number of item to select from",
         default=10,
     )
-
-    @with_argparser(gui_parser)
-    @with_category(CMD_TOOLS)
-    def do_start_openroad_gui(self, args: argparse.Namespace) -> None:
-        """Start OpenROAD GUI if an installation can be found.
-
-        If no installation can be found, a warning is produced.
-        """
-        logger.info("Checking for OpenROAD installation")
-        openroad = get_context().openroad_path
-        file_name: str
-        if args.fabric and args.tile is not None:
-            raise CommandError("Please specify either --fabric or --tile, not both")
-
-        if args.file is None:
-            db_file: str = get_file_path(
-                self.projectDir, args, "odb", show_count=int(args.head)
-            )
-        else:
-            db_file = args.file
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".tcl", delete=False
-        ) as script_file:
-            # script_file.name contains the full filesystem path to the temp file
-            script_file.write(f"read_db {db_file}\n")
-            file_name = script_file.name
-        logger.info(f"Start OpenROAD GUI with odb: {db_file}")
-        try:
-            sp.run(
-                [
-                    str(openroad),
-                    "-gui",
-                    str(file_name),
-                ]
-            )
-        finally:
-            Path(file_name).unlink(missing_ok=True)
-
-    @with_argparser(gui_parser)
-    @with_category(CMD_TOOLS)
-    def do_start_klayout_gui(self, args: argparse.Namespace) -> None:
-        """Start OpenROAD GUI if an installation can be found.
-
-        If no installation can be found, a warning is produced.
-        """
-        logger.info("Checking for klayout installation")
-        klayout = get_context().klayout_path
-        if args.fabric and args.tile is not None:
-            raise CommandError("Please specify either --fabric or --tile, not both")
-        if args.file is None:
-            gds_file: str = get_file_path(
-                self.projectDir, args, "gds", show_count=int(args.head)
-            )
-        else:
-            gds_file = args.file
-        pdk_name = cast("str", get_context().pdk)
-        pdk_root = cast("Path", get_context().pdk_root)
-        layer_file_name = KLAYOUT_LAYER_FILE_NAMES.get(pdk_name, f"{pdk_name}.lyp")
-        layer_file = (
-            pdk_root / pdk_name / "libs.tech" / "klayout" / "tech" / layer_file_name
-        )
-        logger.info(f"Start klayout GUI with gds: {gds_file}")
-        logger.info(f"Layer property file: {layer_file!s}")
-        sp.run(
-            [
-                str(klayout),
-                "-l",
-                str(layer_file),
-                gds_file,
-            ]
-        )
-
-    timing_model_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    timing_model_parser.add_argument(
-        "--mode",
-        help="Timing model generation mode (physical or structural).",
-        type=str,
-        choices=["physical", "structural"],
-        default="physical",
-    )
-    timing_model_parser.add_argument(
-        "--outfile",
-        help="Output file for the generated timing model or config template.",
-        type=Path,
-        default=None,
-    )
-    timing_model_parser.add_argument(
-        "--emit-config-template",
-        help="Output file for the generated timing model config template.",
-        default=False,
-        action="store_true",
-    )
-    timing_model_parser.add_argument(
-        "--with-config-file",
-        help="Use a config file for timing model generation instead of CLI arguments.",
-        type=Path,
-        default=None,
-    )
-
-    @with_argparser(timing_model_parser)
-    @with_category(CMD_TIMING_MODEL)
-    def do_timing_model(self, args: argparse.Namespace) -> None:
-        """Generate a timing model for the fabric.
-
-        Timing information is extracted from the GDS layout and used to create a timing
-        model compatible with nextpnr for timing-aware place and route. This command
-        generates a timing model for the FPGA fabric based on the specified mode
-        (physical or structural) and outputs it to a file named pips.txt in the
-        .FABulous directory. If no config file is provided, the automated flow must be
-        run first to generate post-layout files. If a config file is provided, it will
-        be used for timing model generation instead of CLI arguments. This allows for
-        more complex configurations like different PDK support. If emit-config-template
-        is specified, a config template will be output and no timing model will be
-        generated.
-        """
-        outfile: Path | None = None
-        manual_config: TimingModelConfig | None = None
-
-        # Custom output path for the timing model file, if not provided, defaults
-        # to .FABulous/pips.txt with backup of existing file if exists.
-        if args.outfile is not None:
-            outfile: Path = args.outfile
-        else:
-            pips_path = get_context().proj_dir / ".FABulous" / "pips.txt"
-            if pips_path.exists():
-                backup_path = pips_path.with_suffix(".backup.txt")
-                logger.info(f"Backing up existing pips.txt to {backup_path}")
-                pips_path.rename(backup_path)
-            outfile = pips_path
-
-        # If a config file is provided, use it to generate the timing model
-        # instead of CLI arguments This allows for more complex configurations
-        # like supporting different PDKs.
-        if args.with_config_file is not None:
-            config_path = args.with_config_file
-            if not config_path.exists():
-                raise FileNotFoundError(f"Config file {config_path} not found")
-            manual_config = TimingModelConfig.model_validate_json(
-                config_path.read_text()
-            )
-
-        # If emit-config-template is specified, output a config template
-        # and return without generating the timing model.
-        if args.emit_config_template:
-            cfg_template: TimingModelConfig = TimingModelConfig(
-                project_dir=get_context().proj_dir,
-                liberty_files=Path("path/to/liberty/files: <required>"),
-                min_buf_cell_and_ports="cell_name in_port out_port: <required>",
-                synth_executable=get_context().yosys_path,
-                sta_executable=get_context().opensta_path,
-                mode=TimingModelMode(args.mode),
-                custom_per_tile_source_files=dict.fromkeys(
-                    self.all_tile,
-                    TimingModelTileSourceFiles(
-                        netlist_file=Path(
-                            "path/to/netlist: <optional, not use project dir files>"
-                        ),
-                        rc_file=Path(
-                            "path/to/rc: <optional, not use project dir files>"
-                        ),
-                        rtl_files=[
-                            Path("path/to/rtl: <optional, not use project dir files>")
-                        ],
-                    ),
-                ),
-            )
-
-            outfile = (
-                get_context().proj_dir
-                / ".FABulous"
-                / "timing_model_config_template.json"
-            )
-            outfile = args.outfile if args.outfile is not None else outfile
-            outfile.write_text(cfg_template.model_dump_json(indent=4))
-            logger.info(f"Timing model config template generated at {outfile}")
-            return
-
-        logger.info(f"Output timing model file: {outfile}")
-
-        tm_config_resolved: TimingModelConfig = self.fabulousAPI.timing_model_interface(
-            mode=args.mode,
-            output_file=outfile,
-            debug=self.debug,
-            manual_config=manual_config,
-        )
-
-        resolved_path: Path = (
-            get_context().proj_dir / ".FABulous" / "timing_model_config_resolved.json"
-        )
-        resolved_path.write_text(tm_config_resolved.model_dump_json(indent=4))
-        logger.info(f"Timing model config resolved at {resolved_path}")
