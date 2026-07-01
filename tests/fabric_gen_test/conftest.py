@@ -16,7 +16,8 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.yosys_obj import YosysJson
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
-from fabulous.fabulous_settings import get_context
+from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV
+from fabulous.fabulous_settings import get_context, init_context
 
 
 class FabricConfig(NamedTuple):
@@ -73,6 +74,61 @@ def default_tile(mocker: MockerFixture) -> Tile:
     tile.name = "DefaultTile"
     tile.globalConfigBits = 127
     return tile
+
+
+def find_switch_matrix_tile(fabric: Fabric) -> Tile:
+    """Return the first fabric tile whose switch matrix is parseable.
+
+    Tiles whose `matrixDir` is a `.list` or `.csv` file drive the real
+    switch-matrix generation path; Verilog/VHDL matrix files are skipped.
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The parsed fabric to search.
+
+    Returns
+    -------
+    Tile
+        The first tile with a `.list` or `.csv` switch matrix.
+
+    Raises
+    ------
+    ValueError
+        If no tile has a parseable switch matrix.
+    """
+    for tile in fabric.tileDic.values():
+        if tile.matrixDir.suffix in (".list", ".csv"):
+            return tile
+    raise ValueError("no tile with a parseable switch matrix in fabric")
+
+
+@pytest.fixture
+def parsed_default_fabric(project: Path) -> Fabric:
+    """Parse the default project fabric through the real parser stack.
+
+    Unlike `default_fabric`, this returns a fully parsed `Fabric` with real
+    tiles, ports and switch matrices, suitable for exercising generation end
+    to end.
+
+    Parameters
+    ----------
+    project : Path
+        Temp directory of a freshly created default project.
+
+    Returns
+    -------
+    Fabric
+        The parsed fabric of the default project.
+    """
+    init_context(project)
+    return parseFabricCSV(str(project / "fabric.csv"))
+
+
+@pytest.fixture
+def switch_matrix_tile(parsed_default_fabric: Fabric) -> Tile:
+    """Return a default-project tile with a parseable switch matrix."""
+    return find_switch_matrix_tile(parsed_default_fabric)
 
 
 @pytest.fixture(

@@ -374,12 +374,15 @@ def _gen_switch_matrix_body(
 
             portsPairs.append(("X", f"{portName}"))
 
+            # we add the input signal in reversed order
+            # Both multiplexer styles index this vector, so it is driven for both.
+            writer.addAssignScalar(
+                f"{portName}_input",
+                connections[portName][::-1],
+                delay=default_pip_delay,
+            )
+
             if multiplexer_style == MultiplexerStyle.CUSTOM:
-                writer.addAssignScalar(
-                    f"{portName}_input",
-                    connections[portName][::-1],
-                    delay=default_pip_delay,
-                )
                 writer.addInstantiation(
                     compName=muxComponentName,
                     compInsName=f"inst_{muxComponentName}_{portName}",
