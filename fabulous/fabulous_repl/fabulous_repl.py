@@ -21,14 +21,11 @@ simulation, and project management.
 """
 
 import argparse
-import csv
 import os
-import pickle
 import sys
 import tkinter as tk
 import traceback
 from collections.abc import Callable
-from decimal import Decimal
 from pathlib import Path
 
 from cmd2 import (
@@ -43,20 +40,15 @@ from cmd2 import (
 from loguru import logger
 
 from fabulous.custom_exception import CommandError, InvalidFileType
-from fabulous.fabric_cad.gen_npnr_model import PLACEMENT_ESTIMATE_TEXT
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
 )
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
-from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
-from fabulous.fabric_generator.gen_fabric.fabric_automation import (
-    generateCustomTileConfig,
-)
-from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_api import FABulous_API
 from fabulous.fabulous_repl import cmd_compile_design, cmd_run_simulation
+from fabulous.fabulous_repl.cmd_fabric_gen import FabricGenCommandSet
 from fabulous.fabulous_repl.cmd_gui import GuiCommandSet
 from fabulous.fabulous_repl.cmd_helper import HelperCommandSet
 from fabulous.fabulous_repl.cmd_macro import MacroFlowCommandSet
@@ -64,8 +56,6 @@ from fabulous.fabulous_repl.cmd_script import ScriptCommandSet
 from fabulous.fabulous_repl.cmd_setup import SetupCommandSet
 from fabulous.fabulous_repl.cmd_timing import TimingCommandSet
 from fabulous.fabulous_repl.helper import (
-    CommandPipeline,
-    allow_blank,
     wrap_with_except_handling,
 )
 from fabulous.fabulous_settings import get_context
@@ -192,16 +182,10 @@ class FABulousREPL(Cmd):
         Argument parser for the clone_tile command
     install_oss_cad_suite_parser : Cmd2ArgumentParser
         Argument parser for the install-oss-cad-suite command
-    geometryParser : Cmd2ArgumentParser
-        Argument parser for the gen_geometry command
     do_run_simulation : Callable
         Method to run simulation of a compiled user design
     gen_tile_parser : Cmd2ArgumentParser
         Argument parser for the gen_tile command
-    gds_parser : Cmd2ArgumentParser
-        Argument parser for the run_gds command
-    io_pin_config_parser : Cmd2ArgumentParser
-        Argument parser for the gen_io_pin_config command
     gui_parser : Cmd2ArgumentParser
         Argument parser for the open_gui command
 
@@ -240,6 +224,7 @@ class FABulousREPL(Cmd):
                 HelperCommandSet(),
                 ScriptCommandSet(),
                 SetupCommandSet(),
+                FabricGenCommandSet(),
                 GuiCommandSet(),
                 TimingCommandSet(),
                 MacroFlowCommandSet(),
@@ -539,304 +524,6 @@ class FABulousREPL(Cmd):
         nargs=argparse.OPTIONAL,
     )
 
-    @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(tile_list_parser)
-    def do_gen_config_mem(self, args: argparse.Namespace) -> None:
-        """Generate configuration memory of the given tile.
-
-        Parsing input arguments and calling `genConfigMem`.
-
-        Logs generation processes for each specified tile.
-        """
-        logger.info(f"Generating Config Memory for {' '.join(args.tiles)}")
-        for i in args.tiles:
-            logger.info(f"Generating configMem for {i}")
-            self.fabulousAPI.setWriterOutputFile(
-                self.projectDir / f"Tile/{i}/{i}_ConfigMem.{self.extension}"
-            )
-            self.fabulousAPI.genConfigMem(
-                i, self.projectDir / f"Tile/{i}/{i}_ConfigMem.csv"
-            )
-        logger.info("ConfigMem generation complete")
-
-    @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(tile_list_parser)
-    def do_gen_switch_matrix(self, args: argparse.Namespace) -> None:
-        """Generate switch matrix of given tile.
-
-        Parsing input arguments and calling `genSwitchMatrix`.
-
-        Also logs generation process for each specified tile.
-        """
-        logger.info(f"Generating switch matrix for {' '.join(args.tiles)}")
-        for i in args.tiles:
-            logger.info(f"Generating switch matrix for {i}")
-            self.fabulousAPI.setWriterOutputFile(
-                self.projectDir / f"Tile/{i}/{i}_switch_matrix.{self.extension}"
-            )
-            self.fabulousAPI.genSwitchMatrix(i)
-        logger.info("Switch matrix generation complete")
-
-    @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(tile_list_parser)
-    def do_gen_tile(self, args: argparse.Namespace) -> None:
-        """Generate given tile with switch matrix and configuration memory.
-
-        Parsing input arguments, call functions such as `genSwitchMatrix` and
-        `genConfigMem`. Handle both regular tiles and super tiles with sub-tiles.
-
-        Also logs generation process for each specified tile and sub-tile.
-        """
-        logger.info(f"Generating tile {' '.join(args.tiles)}")
-        for t in args.tiles:
-            if subTiles := [
-                f.stem
-                for f in (self.projectDir / f"Tile/{t}").iterdir()
-                if f.is_dir() and f.name != "macro"
-            ]:
-                logger.info(
-                    f"{t} is a super tile, generating {t} with sub tiles "
-                    f"{' '.join(subTiles)}"
-                )
-                for st in subTiles:
-                    # Gen switch matrix
-                    logger.info(f"Generating switch matrix for tile {t}")
-                    logger.info(f"Generating switch matrix for {st}")
-                    self.fabulousAPI.setWriterOutputFile(
-                        f"{self.projectDir}/Tile/{t}/{st}/{st}_switch_matrix.{self.extension}"
-                    )
-                    self.fabulousAPI.genSwitchMatrix(st)
-                    logger.info(f"Generated switch matrix for {st}")
-
-                    # Gen config mem
-                    logger.info(f"Generating configMem for tile {t}")
-                    logger.info(f"Generating ConfigMem for {st}")
-                    self.fabulousAPI.setWriterOutputFile(
-                        f"{self.projectDir}/Tile/{t}/{st}/{st}_ConfigMem.{self.extension}"
-                    )
-                    self.fabulousAPI.genConfigMem(
-                        st, self.projectDir / f"Tile/{t}/{st}/{st}_ConfigMem.csv"
-                    )
-                    logger.info(f"Generated configMem for {st}")
-
-                    # Gen tile
-                    logger.info(f"Generating subtile for tile {t}")
-                    logger.info(f"Generating subtile {st}")
-                    self.fabulousAPI.setWriterOutputFile(
-                        f"{self.projectDir}/Tile/{t}/{st}/{st}.{self.extension}"
-                    )
-                    self.fabulousAPI.genTile(st)
-                    logger.info(f"Generated subtile {st}")
-
-                # Gen supertile switch matrix (no-op if no supertile_matrix file)
-                logger.info(f"Generating switch matrix for super tile {t}")
-                self.fabulousAPI.setWriterOutputFile(
-                    f"{self.projectDir}/Tile/{t}/{t}_switch_matrix.{self.extension}"
-                )
-                self.fabulousAPI.gen_super_tile_switch_matrix(t)
-                logger.info(f"Generated switch matrix for super tile {t}")
-
-                # Gen supertile ConfigMem (no-op if no ST config bits)
-                logger.info(f"Generating ConfigMem for super tile {t}")
-                self.fabulousAPI.setWriterOutputFile(
-                    f"{self.projectDir}/Tile/{t}/{t}_ConfigMem.{self.extension}"
-                )
-                self.fabulousAPI.gen_super_tile_config_mem(t)
-                logger.info(f"Generated ConfigMem for super tile {t}")
-
-                # Gen super tile
-                logger.info(f"Generating super tile {t}")
-                self.fabulousAPI.setWriterOutputFile(
-                    f"{self.projectDir}/Tile/{t}/{t}.{self.extension}"
-                )
-                self.fabulousAPI.genSuperTile(t)
-                logger.info(f"Generated super tile {t}")
-                continue
-
-            # Gen switch matrix
-            self.do_gen_switch_matrix(t)
-
-            # Gen config mem
-            self.do_gen_config_mem(t)
-
-            logger.info(f"Generating tile {t}")
-            # Gen tile
-            self.fabulousAPI.setWriterOutputFile(
-                f"{self.projectDir}/Tile/{t}/{t}.{self.extension}"
-            )
-            self.fabulousAPI.genTile(t)
-            logger.info(f"Generated tile {t}")
-
-        logger.info("Tile generation complete")
-
-    @with_category(CMD_FABRIC_FLOW)
-    def do_gen_all_tile(self, *_ignored: str) -> None:
-        """Generate all tiles by calling `do_gen_tile`."""
-        logger.info("Generating all tiles")
-        self.do_gen_tile(" ".join(self.all_tile))
-        logger.info("All tiles generation complete")
-
-    @with_category(CMD_FABRIC_FLOW)
-    def do_gen_fabric(self, *_ignored: str) -> None:
-        """Generate fabric based on the loaded fabric.
-
-        Calling `gen_all_tile` and `genFabric`.
-
-        Logs start and completion of fabric generation process.
-        """
-        logger.info(f"Generating fabric {self.fabulousAPI.fabric.name}")
-        self.onecmd_plus_hooks("gen_all_tile")
-        if self.exit_code != 0:
-            raise CommandError("Tile generation failed")
-        self.fabulousAPI.setWriterOutputFile(
-            f"{self.projectDir}/Fabric/{self.fabulousAPI.fabric.name}.{self.extension}"
-        )
-        self.fabulousAPI.genFabric()
-        logger.info("Fabric generation complete")
-
-    geometryParser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    geometryParser.add_argument(
-        "padding",
-        type=int,
-        help="Padding value for geometry generation",
-        choices=range(4, 33),
-        metavar="[4-32]",
-        nargs="?",
-        default=8,
-    )
-
-    @with_category(CMD_FABRIC_FLOW)
-    @allow_blank
-    @with_argparser(geometryParser)
-    def do_gen_geometry(self, args: argparse.Namespace) -> None:
-        """Generate geometry of fabric for FABulator.
-
-        Checking if fabric is loaded, and calling 'genGeometry' and passing on padding
-        value. Default padding is '8'.
-
-        Also logs geometry generation, the used padding value and any warning about
-        faulty padding arguments, as well as errors if the fabric is not loaded or the
-        padding is not within the valid range of 4 to 32.
-        """
-        logger.info(f"Generating geometry for {self.fabulousAPI.fabric.name}")
-        geom_file = f"{self.projectDir}/{self.fabulousAPI.fabric.name}_geometry.csv"
-        self.fabulousAPI.setWriterOutputFile(geom_file)
-
-        self.fabulousAPI.genGeometry(args.padding)
-        logger.info("Geometry generation complete")
-        logger.info(f"{geom_file} can now be imported into FABulator")
-
-    @with_category(CMD_FABRIC_FLOW)
-    def do_gen_bitStream_spec(self, *_ignored: str) -> None:
-        """Generate bitstream specification of the fabric.
-
-        By calling `genBitStreamSpec` and saving the specification to a binary and CSV
-        file.
-
-        Also logs the paths of the output files.
-        """
-        logger.info("Generating bitstream specification")
-        spec_object = self.fabulousAPI.genBitStreamSpec()
-
-        logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin")
-        with Path(f"{self.projectDir}/{META_DATA_DIR}/bitStreamSpec.bin").open(
-            "wb"
-        ) as outFile:
-            pickle.dump(spec_object, outFile)
-
-        logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv")
-        with Path(f"{self.projectDir}/{META_DATA_DIR}/bitStreamSpec.csv").open(
-            "w", encoding="utf-8", newline="\n"
-        ) as f:
-            w = csv.writer(f)
-            for key1 in spec_object["TileSpecs"]:
-                w.writerow([key1])
-                for key2, val in spec_object["TileSpecs"][key1].items():
-                    w.writerow([key2, val])
-        logger.info("Bitstream specification generation complete")
-
-    @with_category(CMD_FABRIC_FLOW)
-    def do_gen_top_wrapper(self, *_ignored: str) -> None:
-        """Generate top wrapper of the fabric by calling `genTopWrapper`."""
-        logger.info("Generating top wrapper")
-        self.fabulousAPI.setWriterOutputFile(
-            f"{self.projectDir}/Fabric/{self.fabulousAPI.fabric.name}_top.{self.extension}"
-        )
-        self.fabulousAPI.genTopWrapper()
-        logger.info("Top wrapper generation complete")
-
-    @with_category(CMD_FABRIC_FLOW)
-    def do_run_fab(self, *_ignored: str) -> None:
-        """Generate the fabric based on the CSV file.
-
-        Create bitstream specification of the fabric, top wrapper of the fabric, Nextpnr
-        model of the fabric and geometry information of the fabric.
-        """
-        logger.info("Running FABulous")
-
-        success = (
-            CommandPipeline(self)
-            .add_step("gen_io_fabric")
-            .add_step("gen_fabric", "Fabric generation failed")
-            .add_step("gen_bitStream_spec", "Bitstream specification generation failed")
-            .add_step("gen_top_wrapper", "Top wrapper generation failed")
-            .add_step("gen_model_npnr", "Nextpnr model generation failed")
-            .add_step("gen_geometry", "Geometry generation failed")
-            .execute()
-        )
-
-        if success:
-            logger.info("FABulous fabric flow complete")
-
-    @with_category(CMD_FABRIC_FLOW)
-    def do_run_FABulous_fabric(self, *_ignored: str) -> None:
-        """Generate the fabric based on the CSV file.
-
-        deprecated: Use ``run_fab`` instead.
-        """
-        logger.warning(
-            "The 'run_FABulous_fabric' command is deprecated. Use 'run_fab' instead."
-        )
-        self.do_run_fab()
-
-    @with_category(CMD_FABRIC_FLOW)
-    def do_gen_model_npnr(self, *_ignored: str) -> None:
-        """Generate Nextpnr model of fabric.
-
-        By parsing various required files for place and route such as `pips.txt`,
-        `bel.txt`, `bel.v2.txt` and `template.pcf`. Output files are written to the
-        directory specified by `metaDataDir` within `projectDir`.
-
-        Logs output file directories.
-        """
-        logger.info("Generating npnr model")
-        npnr_model = self.fabulousAPI.gen_routing_model()
-        logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/pips.txt")
-        with Path(f"{self.projectDir}/{META_DATA_DIR}/pips.txt").open("w") as f:
-            f.write(npnr_model[0])
-
-        logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bel.txt")
-        with Path(f"{self.projectDir}/{META_DATA_DIR}/bel.txt").open("w") as f:
-            f.write(npnr_model[1])
-
-        logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bel.v2.txt")
-        with Path(f"{self.projectDir}/{META_DATA_DIR}/bel.v2.txt").open("w") as f:
-            f.write(npnr_model[2])
-
-        logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bel.v3.txt")
-        with Path(f"{self.projectDir}/{META_DATA_DIR}/bel.v3.txt").open("w") as f:
-            f.write(npnr_model[3])
-
-        logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/template.pcf")
-        with Path(f"{self.projectDir}/{META_DATA_DIR}/template.pcf").open("w") as f:
-            f.write(npnr_model[4])
-
-        estimatePath = Path(f"{self.projectDir}/{META_DATA_DIR}/placement_estimate.txt")
-        logger.info(f"output file: {estimatePath}")
-        estimatePath.write_text(PLACEMENT_ESTIMATE_TEXT)
-
-        logger.info("Generated npnr model")
-
     @with_category(CMD_USER_DESIGN_FLOW)
     @with_argparser(filePathRequireParser)
     def do_place_and_route(self, args: argparse.Namespace) -> None:
@@ -968,140 +655,6 @@ class FABulousREPL(Cmd):
         help="Do not generate a Tile Switch Matrix",
         action="store_true",
     )
-
-    @with_category(CMD_TOOLS)
-    @with_argparser(gen_tile_parser)
-    def do_generate_custom_tile_config(self, args: argparse.Namespace) -> None:
-        """Generate a custom tile configuration for a given tile folder.
-
-        Or path to bel folder. A tile `.csv` file and a switch matrix `.list` file will
-        be generated.
-
-        The provided path may contain bel files, which will be included in the generated
-        tile .csv file as well as the generated switch matrix .list file.
-        """
-        if not args.tile_path.is_dir():
-            logger.error(f"{args.tile_path} is not a directory or does not exist")
-            return
-
-        tile_csv = generateCustomTileConfig(args.tile_path)
-
-        if not args.no_switch_matrix:
-            parseTilesCSV(tile_csv)
-
-    @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(tile_list_parser)
-    def do_gen_io_tiles(self, args: argparse.Namespace) -> None:
-        """Generate I/O BELs for specified tiles.
-
-        This command generates Input/Output Basic Elements of Logic (BELs) for the
-        specified tiles, enabling external connectivity for the FPGA fabric.
-
-        Parameters
-        ----------
-        args : argparse.Namespace
-            Command arguments containing:
-            - tiles: List of tile names to generate I/O BELs for
-        """
-        if args.tiles:
-            for tile in args.tiles:
-                self.fabulousAPI.genIOBelForTile(tile)
-
-    @with_category(CMD_FABRIC_FLOW)
-    @allow_blank
-    def do_gen_io_fabric(self, _args: str) -> None:
-        """Generate I/O BELs for the entire fabric.
-
-        This command generates Input/Output Basic Elements of Logic (BELs) for all
-        applicable tiles in the fabric, providing external connectivity
-        across the entire FPGA design.
-
-        Parameters
-        ----------
-        _args : str
-            Command arguments (unused for this command).
-        """
-        self.fabulousAPI.genFabricIOBels()
-
-    gds_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    gds_parser.add_argument(
-        "tile",
-        type=str,
-        help="A tile",
-        completer=lambda self: self.fab.getTiles(),
-    )
-    gds_parser.add_argument(
-        "--optimise",
-        "-opt",
-        type=OptMode,
-        nargs="?",
-        const=OptMode.BALANCE,
-        default=OptMode.NO_OPT,
-        help="Optimize the GDS layout. Available modes: "
-        + ", ".join(m.value for m in OptMode),
-    )
-    gds_parser.add_argument(
-        "--override",
-        help="Override config with a custom YAML config file",
-        type=Path,
-    )
-    gds_parser.add_argument(
-        "--fix-width",
-        type=Decimal,
-        default=None,
-        metavar="WIDTH",
-        help="Lock the tile width to WIDTH and minimise the height "
-        "(implies --optimise find_min_height).",
-    )
-    gds_parser.add_argument(
-        "--fix-height",
-        type=Decimal,
-        default=None,
-        metavar="HEIGHT",
-        help="Lock the tile height to HEIGHT and minimise the width "
-        "(implies --optimise find_min_width).",
-    )
-    gds_parser.add_argument(
-        "--io-pin-config", help="Path to a custom IO pin config YAML file", type=Path
-    )
-
-    io_pin_config_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    io_pin_config_parser.add_argument(
-        "tile",
-        type=str,
-        help="A tile or supertile",
-        completer=lambda self: self.all_tile,
-    )
-    io_pin_config_parser.add_argument(
-        "output",
-        type=Path,
-        help="Output path for the generated IO pin config YAML",
-        nargs=argparse.OPTIONAL,
-        completer=Cmd.path_complete,
-    )
-
-    @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(io_pin_config_parser)
-    def do_gen_io_pin_config(self, args: argparse.Namespace) -> None:
-        """Generate an IO pin configuration YAML file for a tile or supertile."""
-        logger.info(f"Generating IO pin config for {args.tile}")
-
-        tile = self.fabulousAPI.getTile(args.tile)
-        if tile is None:
-            logger.error(f"Tile {args.tile} not found in fabric definition")
-            return
-
-        output_path = args.output
-        if output_path is None:
-            output_path = (
-                self.projectDir / "Tile" / args.tile / f"{args.tile}_io_pin_order.yaml"
-            )
-
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        self.fabulousAPI.gen_io_pin_order_config(tile, output_path)
-
-        logger.info(f"Generated IO pin config at {output_path}")
-        logger.info("IO pin config generation complete")
 
     gui_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     gui_parser.add_argument("file", nargs="?", help="file to open", default=None)
