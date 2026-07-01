@@ -18,7 +18,7 @@ def _make_default_args(**overrides) -> argparse.Namespace:  # noqa: ANN003
         json=None,
         fasm=None,
         log=None,
-        bin=None,
+        bin_file=None,
         synth_only=False,
         pnr_only=False,
         bitgen_only=False,
@@ -61,7 +61,7 @@ def compile_cli(
     mock_ctx.yosys_path = "/usr/bin/yosys"
     mock_ctx.nextpnr_path = "/usr/bin/nextpnr-generic"
     mocker.patch(
-        "fabulous.fabulous_repl.cmd_compile_design.get_context",
+        "fabulous.fabulous_repl.cmd_user_design.get_context",
         return_value=mock_ctx,
     )
 
@@ -86,7 +86,7 @@ def test_compile_design_task_dispatch(
 ) -> None:
     """Verify the correct task(s) are called for each flag combination."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file} {cli_flags}")
     assert mock_run_task.call_count == len(expected_tasks)
@@ -101,7 +101,7 @@ def test_compile_design_task_vars(
 ) -> None:
     """Verify all expected task variables are passed with correct values."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file}")
 
@@ -128,7 +128,7 @@ def test_compile_design_default_paths_chain_from_json(
 ) -> None:
     """Verify FASM/BIN/LOG default paths are derived from JSON_FILE."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file}")
 
@@ -149,7 +149,7 @@ def test_compile_design_task_dir(
 ) -> None:
     """Verify run_task is called with Test as the task directory."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file}")
 
@@ -162,7 +162,7 @@ def test_compile_design_extra_args(
 ) -> None:
     """Verify all extra args are forwarded verbatim to task variables."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
     run_cmd(
         compile_cli,
@@ -199,7 +199,7 @@ def test_compile_design_nextpnr_verbose(
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
     compile_cli.verbose = verbose
     compile_cli.debug = debug
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file}")
 
@@ -212,7 +212,7 @@ def test_compile_design_top_override(
 ) -> None:
     """Verify -top propagates to the TOP_WRAPPER task var."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file} -top my_top")
 
@@ -239,7 +239,7 @@ def test_compile_design_relative_output_override(
 ) -> None:
     """Relative output paths resolve against projectDir."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file} {flag} {filename}")
 
@@ -269,7 +269,7 @@ def test_compile_design_absolute_output_override(
     """Absolute output paths are preserved unchanged."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
     abs_path = tmp_path / filename
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
     run_cmd(compile_cli, f"compile_design {design_file} {flag} {abs_path}")
 
@@ -293,10 +293,8 @@ def test_compile_design_tool_help(
 ) -> None:
     """Verify --yosys-synth-help and --nextpnr-help call the tool and skip tasks."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
-    mock_subprocess = mocker.patch(
-        "fabulous.fabulous_repl.cmd_compile_design.subprocess.run"
-    )
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
+    mock_subprocess = mocker.patch("fabulous.fabulous_repl.cmd_user_design.sp.run")
 
     run_cmd(compile_cli, f"compile_design {design_file} {flag}")
 
@@ -311,20 +309,20 @@ def test_compile_design_no_taskfile(
     """Verify FileNotFoundError when Test/Taskfile.yml is absent."""
     design_file = compile_cli.projectDir / "user_design" / "my_design.v"
     (compile_cli.projectDir / "Test" / "Taskfile.yml").unlink()
-    mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
+    mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
-    from fabulous.fabulous_repl.cmd_compile_design import do_compile_design
+    cmdset = compile_cli.find_commandset_for_command("compile_design")
 
     args = _make_default_args(files=[design_file])
     with pytest.raises(FileNotFoundError, match="Taskfile.yml"):
-        do_compile_design.__wrapped__(compile_cli, args)
+        type(cmdset).do_compile_design.__wrapped__(cmdset, **vars(args))
 
 
 def test_compile_design_nonexistent_file(
     compile_cli: FABulousREPL, mocker: MockerFixture
 ) -> None:
     """Verify the command logs an error and does not call run_task for missing files."""
-    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_compile_design.run_task")
+    mock_run_task = mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
     bogus = compile_cli.projectDir / "user_design" / "does_not_exist.v"
 
     run_cmd(compile_cli, f"compile_design {bogus}")
