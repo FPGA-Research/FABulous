@@ -2,21 +2,30 @@ name: Nix environment CI
 
 on:
   push:
+    branches: [main]
     paths:
       - "flake.nix"
       - "*.lock"
+      - "pyproject.toml"
       - "nix/**"
       - ".github/workflows/nix-env.yml"
   pull_request:
     paths:
       - "flake.nix"
       - "*.lock"
+      - "pyproject.toml"
       - "nix/**"
       - ".github/workflows/nix-env.yml"
+  # warm `nix-*` cache existing on `main` to fall back to
+  schedule:
+    - cron: "0 1 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
+  # Needed so the main cache-maintaining run can delete superseded Nix store
+  # caches (purge). PR runs keep the default read-only token and never purge.
+  actions: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -35,6 +44,9 @@ jobs:
         uses: actions/checkout@v7
 
       - uses: ./.github/actions/prepare_nix_environment
+        with:
+          # Only the main base cache prunes its old generations
+          purge_old_caches: ${{ github.ref == 'refs/heads/main' }}
 
       - name: DevShell smoke test
         run: |

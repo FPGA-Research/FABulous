@@ -1,5 +1,7 @@
 """Pytest configuration for CLI tests."""
 
+import hashlib
+import re
 import subprocess
 from pathlib import Path
 
@@ -13,6 +15,72 @@ from tests.conftest import run_cmd
 TILE = "LUT4AB"
 
 MOCK_COMPLETED_PROCESS = subprocess.CompletedProcess(args=[], returncode=0)
+
+# The end-to-end CLI tests (fabric/tile generation, compile, simulation) each
+# load the same demo fabric, which synthesises every BEL HDL file with Yosys,
+# one subprocess per file. Every test runs against a fresh copy of the demo, so
+# the identical BEL sources would otherwise be re-synthesised dozens of times
+# across the suite. These regexes pull the source and JSON output paths out of
+# the Yosys command FABulous builds in
+# ``fabulous.fabric_definition.yosys_obj.YosysJson``.
+_YOSYS_SRC_RE = re.compile(r"read_verilog\s+-sv\s+([^;\s]+)")
+_YOSYS_OUT_RE = re.compile(r"write_json\s+-compat-int\s+([^;\s]+)")
+
+
+@pytest.fixture(scope="session")
+def _yosys_json_cache() -> dict[str, bytes]:
+    """Session cache mapping BEL source content hashes to Yosys JSON output."""
+    return {}
+
+
+@pytest.fixture(autouse=True)
+def cache_yosys_synthesis(
+    _yosys_json_cache: dict[str, bytes], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Memoise Yosys BEL synthesis by source content for the test session.
+
+    Each unique BEL source is synthesised by the real Yosys once; identical
+    sources copied into later test projects reuse the cached JSON instead of
+    spawning Yosys again. The produced JSON is byte-identical to a real Yosys
+    run, and every ``YosysJson`` still builds its own objects from it, so no
+    parsed state is shared between tests. The fabric still loads and generates
+    for real, so the end-to-end smoke tests keep their meaning.
+    """
+    real_run = subprocess.run
+
+    def cached_run(
+        cmd: list[str] | str, *args: object, **kwargs: object
+    ) -> subprocess.CompletedProcess:
+        # Only the Yosys BEL-synthesis call is cached. Every other subprocess
+        # (ghdl, iverilog/nvc, `task`, install, ...) must run untouched, so
+        # require the executable to be Yosys before inspecting the arguments.
+        if not isinstance(cmd, (list, tuple)) or not cmd:
+            return real_run(cmd, *args, **kwargs)
+        if "yosys" not in Path(str(cmd[0])).name.lower():
+            return real_run(cmd, *args, **kwargs)
+
+        joined = " ".join(map(str, cmd))
+        src_match = _YOSYS_SRC_RE.search(joined)
+        out_match = _YOSYS_OUT_RE.search(joined)
+        if not (src_match and out_match):
+            return real_run(cmd, *args, **kwargs)
+
+        src = Path(src_match.group(1))
+        out = Path(out_match.group(1))
+        if not src.exists():
+            return real_run(cmd, *args, **kwargs)
+
+        key = hashlib.sha256(src.read_bytes()).hexdigest()
+        if key in _yosys_json_cache:
+            out.write_bytes(_yosys_json_cache[key])
+            return subprocess.CompletedProcess(cmd, 0, stdout=b"", stderr=b"")
+
+        result = real_run(cmd, *args, **kwargs)
+        if result.returncode == 0 and out.exists():
+            _yosys_json_cache[key] = out.read_bytes()
+        return result
+
+    monkeypatch.setattr(subprocess, "run", cached_run)
 
 
 @pytest.fixture

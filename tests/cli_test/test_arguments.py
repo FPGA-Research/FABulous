@@ -17,7 +17,18 @@ from dotenv import set_key
 from pytest_mock import MockerFixture
 
 from fabulous.fabulous import main
+from fabulous.fabulous_api import FABulous_API
 from fabulous.fabulous_settings import init_context, reset_context
+
+
+@pytest.fixture(autouse=True)
+def stub_fabric_loading(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Skip the real fabric load for every test in this module."""
+
+    def stub(*_args: object) -> None:
+        raise RuntimeError("Fabric loading is stubbed out in the argument tests")
+
+    monkeypatch.setattr(FABulous_API, "loadFabric", stub)
 
 
 @pytest.mark.parametrize(

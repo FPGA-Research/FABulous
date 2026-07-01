@@ -11,6 +11,13 @@ inputs:
     description: "Remove large pre-installed tool directories to free disk space"
     required: false
     default: "true"
+  purge_old_caches:
+    description: "Delete superseded Nix store caches for this OS, keeping only the
+      current key. Enable ONLY on the cache-maintaining ref (main): a PR build that
+      purged would delete the base cache other PRs fall back to. Requires the job to
+      grant `actions: write`."
+    required: false
+    default: "false"
 
 runs:
   using: "composite"
@@ -38,10 +45,10 @@ runs:
     - name: Cache Nix store
       uses: nix-community/cache-nix-action@v7
       with:
-        primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock', 'uv.lock', 'pyproject.toml') }}
         restore-prefixes-first-match: nix-${{ runner.os }}-
         gc-max-store-size-linux: 10G
-        purge: true
+        purge: ${{ inputs.purge_old_caches }}
         purge-prefixes: nix-${{ runner.os }}-
         purge-created: 0
         purge-last-accessed: 0
