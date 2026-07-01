@@ -25,7 +25,7 @@ dependencies = [
   'python-dotenv>=1.0.0',
   'loguru>=0.7.0',
   'requests>=2.0.0',
-  'cmd2>=2',
+  'cmd2>=4',
   'bitarray>=3.3.0',
   "pydantic>=2.12.1",
   "pydantic-settings>=2.10.1",
@@ -33,9 +33,6 @@ dependencies = [
   "typer>=0.20.0",
   "FABulous-bit-gen>=0.3.1",
   'PyYAML>=6.0.0',
-  # OS-aware readline dependencies
-  'pyreadline3>=3.4.0; sys_platform == "win32"',
-  'gnureadline>=8.2.0; sys_platform != "win32"',
   "librelane>=3.0.0",
   "pick>=2.4.0",
   "pymoo>=0.6.1.5",
@@ -162,8 +159,6 @@ markers = [
 addopts = "-m 'not slow and not gl'"
 
 [tool.deptry]
-# Ignore platform-specific readline dependencies for DEP002 (defined but not used)
-# These are indirect requirements needed by cmd2 and other interactive CLI tools
 extend_exclude = [
   "fabulous/fabric_generator/gds_generator/script",
   "docs",
@@ -171,7 +166,7 @@ extend_exclude = [
 ]
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["pyreadline3", "gnureadline", "go-task-bin", "FABulous-bit-gen"]
+DEP002 = ["go-task-bin", "FABulous-bit-gen"]
 
 [tool.deptry.package_module_name_map]
 FABulous-bit-gen = "FABulous_bit_gen"
