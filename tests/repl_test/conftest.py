@@ -9,7 +9,7 @@ import pytest
 from dotenv import set_key
 from pytest_mock import MockerFixture
 
-from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from tests.conftest import run_cmd
 
 TILE = "LUT4AB"
@@ -138,7 +138,7 @@ def project_directories(tmp_path: Path) -> dict[str, Path]:
 
 
 @pytest.fixture
-def simulation_mock(cli: FABulous_CLI, mocker: MockerFixture) -> None:
+def simulation_mock(cli: FABulousREPL, mocker: MockerFixture) -> None:
     """Prepare a CLI instance for simulation tests.
 
     Mocks subprocess.run, generates the fabric, creates the required design artifacts

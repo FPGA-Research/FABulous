@@ -22,7 +22,7 @@ from fabulous.fabric_definition.define import HDLType
 from tests.conftest import make_default_project, run_cmd
 
 if TYPE_CHECKING:
-    from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+    from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 
 @pytest.fixture(autouse=True)
@@ -514,7 +514,7 @@ def stage_user_design(
 
 
 def compile_user_design(
-    cli: "FABulous_CLI",
+    cli: "FABulousREPL",
     user_design: Path,
     design_name: str,
     pcf: Path,
@@ -528,7 +528,7 @@ def compile_user_design(
 
     Parameters
     ----------
-    cli : FABulous_CLI
+    cli : FABulousREPL
         The CLI instance with the target fabric already loaded.
     user_design : Path
         Path to the staged user design source to compile.

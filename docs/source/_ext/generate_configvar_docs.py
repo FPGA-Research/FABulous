@@ -326,7 +326,7 @@ def extract_fabulous_settings() -> dict[str, dict[str, list]]:
 
 
 def extract_cli_settables() -> list:
-    """Extract settable variables from FABulous_CLI using AST parsing.
+    """Extract settable variables from FABulousREPL using AST parsing.
 
     These are variables that can be set interactively using the `set` command.
 
@@ -335,7 +335,7 @@ def extract_cli_settables() -> list:
     list
         List of settable variable dictionaries.
     """
-    cli_file = _PROJECT_ROOT / "fabulous" / "fabulous_cli" / "fabulous_cli.py"
+    cli_file = _PROJECT_ROOT / "fabulous" / "fabulous_repl" / "fabulous_repl.py"
 
     settables: list = []
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sphinx extension to auto-generate CLI command documentation from FABulous_CLI."""
+"""Sphinx extension to auto-generate CLI command documentation from FABulousREPL."""
 
 import ast
 import logging
@@ -26,12 +26,12 @@ def setup(app: Sphinx) -> dict[str, str]:  # noqa: ARG001
     dict[str, str]
         Extension metadata.
     """
-    app.connect("config-inited", generate_cli_docs)
+    app.connect("config-inited", generate_repl_docs)
     return {"version": "1.0"}
 
 
-def generate_cli_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
-    """Generate CLI command documentation from FABulous_CLI class.
+def generate_repl_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
+    """Generate CLI command documentation from FABulousREPL class.
 
     Parameters
     ----------
@@ -58,8 +58,8 @@ def generate_cli_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
         #TODO: Workout an architecture that don't need this type of fixing.
         # Extract command metadata using AST parsing (no imports needed)
         repo_root = doc_root_dir.parent.parent
-        cli_dir = repo_root / "fabulous" / "fabulous_cli"
-        cli_file = cli_dir / "fabulous_cli.py"
+        cli_dir = repo_root / "fabulous" / "fabulous_repl"
+        cli_file = cli_dir / "fabulous_repl.py"
         commands_by_category = extract_cli_commands_ast(cli_file)
 
         synthesis_file = cli_dir / "cmd_compile_design.py"
@@ -180,7 +180,7 @@ def extract_cli_commands_ast(cli_file: Path) -> dict:
     commands_by_category: dict = {}
 
     for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef) and node.name == "FABulous_CLI":
+        if isinstance(node, ast.ClassDef) and node.name == "FABulousREPL":
             for item in node.body:
                 if isinstance(item, ast.FunctionDef) and item.name.startswith("do_"):
                     cmd_name = item.name[3:]

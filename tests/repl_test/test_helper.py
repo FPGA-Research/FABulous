@@ -9,8 +9,8 @@ from pytest_mock import MockerFixture
 
 from fabulous.custom_exception import EnvironmentNotSet
 from fabulous.fabric_definition.define import HDLType
-from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
-from fabulous.fabulous_cli.helper import (
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
+from fabulous.fabulous_repl.helper import (
     create_project,
     register_tile_in_fabric_csv,
     run_task,
@@ -77,7 +77,7 @@ def test_update_project_version_success(
     env_file.write_text("FAB_PROJ_VERSION=1.2.3\n")
 
     # Patch version() to return compatible version
-    monkeypatch.setattr("fabulous.fabulous_cli.helper.version", lambda _: "1.2.4")
+    monkeypatch.setattr("fabulous.fabulous_repl.helper.version", lambda _: "1.2.4")
 
     assert update_project_version(tmp_path / "proj") is True
     assert "FAB_PROJ_VERSION='1.2.4'" in env_file.read_text()
@@ -103,7 +103,7 @@ def test_update_project_version_major_mismatch(
     env_file = env_dir / ".env"
     env_file.write_text("FAB_PROJ_VERSION=1.2.3\n")
 
-    monkeypatch.setattr("fabulous.fabulous_cli.helper.version", lambda _: "2.0.0")
+    monkeypatch.setattr("fabulous.fabulous_repl.helper.version", lambda _: "2.0.0")
 
     assert update_project_version(tmp_path / "proj") is False
 
@@ -271,7 +271,7 @@ def test_register_tile_in_fabric_csv(tmp_path: Path) -> None:
 @pytest.mark.parametrize("src_kind", ["name", "absolute", "external"])
 def test_clone_tile_various_src(
     src_kind: str,
-    cli: FABulous_CLI,
+    cli: FABulousREPL,
     caplog: pytest.LogCaptureFixture,
     tmp_path: Path,
 ) -> None:
@@ -309,7 +309,7 @@ def test_clone_tile_various_src(
 
 
 def test_clone_supertile_creates_subtile_and_supertile_entries(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Cloning a supertile adds Tile entries for sub-tiles and a Supertile entry."""
     run_cmd(cli, "clone_tile DSP MY_DSP")
@@ -336,7 +336,7 @@ def test_clone_supertile_creates_subtile_and_supertile_entries(
     ],
 )
 def test_clone_tile_error_cases(
-    cli: FABulous_CLI,
+    cli: FABulousREPL,
     caplog: pytest.LogCaptureFixture,
     cmd: str,
     error_fragment: str,
@@ -354,7 +354,7 @@ def test_clone_tile_error_cases(
 
 
 def test_clone_tile_dst_absolute_path(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, tmp_path: Path
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture, tmp_path: Path
 ) -> None:
     """Cloning to an absolute path places the tile outside the Tile directory."""
     dst_path = (tmp_path / "external_tiles" / "MY_TILE").resolve()
@@ -370,7 +370,7 @@ def test_clone_tile_dst_absolute_path(
 
 
 def test_clone_tile_dst_path_with_separator(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A dst argument containing a path separator is treated as a path, not a name."""
     dst_path = cli.projectDir / "Tile" / "subdir" / "MY_TILE"
@@ -385,7 +385,7 @@ def test_clone_tile_dst_path_with_separator(
 
 
 def test_clone_tile_no_register_skips_fabric_csv(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
 ) -> None:
     """--no-register clones the tile directory but leaves fabric.csv unchanged."""
     csv_before = cli.csvFile.read_text(encoding="utf-8")

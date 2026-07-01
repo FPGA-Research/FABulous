@@ -13,8 +13,8 @@ from typing import Any, NamedTuple
 import pytest
 from loguru import logger
 
-from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
-from fabulous.fabulous_cli.helper import setup_logger
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
+from fabulous.fabulous_repl.helper import setup_logger
 from fabulous.fabulous_settings import init_context
 from tests.conftest import normalize, run_cmd
 
@@ -235,7 +235,7 @@ def run_fabulous_commands_with_logging(
     monkeypatch: pytest.MonkeyPatch,
     commands: list[str] | None = None,
     skip_on_fail: bool = False,
-) -> tuple[FABulous_CLI, dict[str, Any]]:
+) -> tuple[FABulousREPL, dict[str, Any]]:
     """Run standard FABulous commands using existing test patterns.
 
     Parameters
@@ -255,7 +255,7 @@ def run_fabulous_commands_with_logging(
 
     Returns
     -------
-    cli : FABulous_CLI
+    cli : FABulousREPL
         The FABulous CLI instance with executed commands.
     execution_info : dict[str, Any]
         Contains:
@@ -270,7 +270,7 @@ def run_fabulous_commands_with_logging(
     monkeypatch.setenv("FAB_PROJ_DIR", str(project_path))
     monkeypatch.setenv("FAB_PROJ_LANG", language.upper())
     init_context(project_path)
-    cli = FABulous_CLI(
+    cli = FABulousREPL(
         language,
         force=False,
         interactive=False,

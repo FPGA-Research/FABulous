@@ -17,11 +17,11 @@ from cmd2 import Cmd, Cmd2ArgumentParser, with_argparser, with_category
 from loguru import logger
 
 from fabulous.custom_exception import InvalidFileType
-from fabulous.fabulous_cli.helper import make_hex, run_task
+from fabulous.fabulous_repl.helper import make_hex, run_task
 from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
-    from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+    from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 CMD_USER_DESIGN_FLOW = "User Design Flow"
 
@@ -240,7 +240,7 @@ run_simulation_parser.add_argument(
 
 @with_category(CMD_USER_DESIGN_FLOW)
 @with_argparser(run_simulation_parser)
-def do_run_simulation(self: "FABulous_CLI", args: argparse.Namespace) -> None:
+def do_run_simulation(self: "FABulousREPL", args: argparse.Namespace) -> None:
     """Simulate given FPGA design.
 
     Uses Taskfile.yml (preferred) or falls back to Make (deprecated). The

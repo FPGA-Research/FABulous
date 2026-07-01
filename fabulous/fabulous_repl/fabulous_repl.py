@@ -68,8 +68,8 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
 )
 from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabulous_api import FABulous_API
-from fabulous.fabulous_cli import cmd_compile_design, cmd_run_simulation
-from fabulous.fabulous_cli.helper import (
+from fabulous.fabulous_repl import cmd_compile_design, cmd_run_simulation
+from fabulous.fabulous_repl.helper import (
     CommandPipeline,
     allow_blank,
     clone_tile_directory,
@@ -218,7 +218,7 @@ To run the complete FABulous flow with the default project, run the following co
 """
 
 
-class FABulous_CLI(Cmd):
+class FABulousREPL(Cmd):
     """FABulous command-line interface for FPGA fabric generation and management.
 
     This class provides an interactive and non-interactive command-line interface

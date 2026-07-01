@@ -54,7 +54,7 @@ def test_example(tmp_path: Path):
 
 #### CLI Fixture and run_cmd
 
-The `cli` fixture provides a pre-configured instance of `FABulous_CLI` for testing. It:
+The `cli` fixture provides a pre-configured instance of `FABulousREPL` for testing. It:
 
 - Creates a new project in a temporary directory
 - Sets up the FABulous environment

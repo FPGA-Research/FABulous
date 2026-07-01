@@ -8,10 +8,10 @@ from fabulous.fabric_cad.gen_npnr_model import (
     genNextpnrModel,
 )
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 
-def test_gen_routing_model_returns_five_with_timing(cli: FABulous_CLI) -> None:
+def test_gen_routing_model_returns_five_with_timing(cli: FABulousREPL) -> None:
     """gen_routing_model emits a bel.v3 string with timing arcs alongside bel.v2.
 
     The bel.v3 block must mirror the bel.v2 structural lines and additionally
@@ -80,7 +80,7 @@ def test_placement_estimate_text_has_tunables_and_lc_block() -> None:
 
 
 def test_genNextpnrModel_bel_timing_unaffected_by_real_pip_delay(
-    cli: FABulous_CLI, mocker: MockerFixture
+    cli: FABulousREPL, mocker: MockerFixture
 ) -> None:
     """bel.v3's BEL-internal timing arcs stay fixed regardless of pip delay.
 

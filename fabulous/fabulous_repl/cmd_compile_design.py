@@ -14,11 +14,11 @@ from typing import TYPE_CHECKING
 from cmd2 import Cmd, Cmd2ArgumentParser, with_argparser, with_category
 from loguru import logger
 
-from fabulous.fabulous_cli.helper import run_task
+from fabulous.fabulous_repl.helper import run_task
 from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
-    from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+    from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 CMD_USER_DESIGN_FLOW = "User Design Flow"
 
@@ -146,7 +146,7 @@ def _print_tool_help(tool_path: Path | str, args: list[str], tool_name: str) -> 
 
 @with_category(CMD_USER_DESIGN_FLOW)
 @with_argparser(compile_design_parser)
-def do_compile_design(self: "FABulous_CLI", args: argparse.Namespace) -> None:
+def do_compile_design(self: "FABulousREPL", args: argparse.Namespace) -> None:
     """Compile a user design through synthesis, PnR, and bitstream generation.
 
     This function orchestrates the full compile flow by delegating to a compile

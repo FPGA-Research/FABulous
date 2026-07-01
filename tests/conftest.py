@@ -16,8 +16,8 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
-from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
-from fabulous.fabulous_cli.helper import create_project, setup_logger
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
+from fabulous.fabulous_repl.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
 
 
@@ -155,8 +155,8 @@ def normalize(block: str) -> list[str]:
     return [line.rstrip() for line in block.splitlines()]
 
 
-def run_cmd(app: FABulous_CLI, cmd: str) -> None:
-    """Run a command in the given FABulous_CLI instance."""
+def run_cmd(app: FABulousREPL, cmd: str) -> None:
+    """Run a command in the given FABulousREPL instance."""
     app.onecmd_plus_hooks(cmd)
 
 
@@ -266,10 +266,10 @@ def fabulous_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 @pytest.fixture
-def cli(fabulous_project: Path) -> FABulous_CLI:
+def cli(fabulous_project: Path) -> FABulousREPL:
     """Create a FABulous CLI instance bound to ``fabulous_project``."""
     init_context(fabulous_project)
-    cli = FABulous_CLI(
+    cli = FABulousREPL(
         "verilog",
         force=False,
         interactive=False,

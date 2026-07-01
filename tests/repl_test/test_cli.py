@@ -13,19 +13,19 @@ from pytest_mock import MockerFixture
 
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
-from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI, _resolve_directional_fix
-from fabulous.fabulous_cli.helper import create_project, setup_logger
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL, _resolve_directional_fix
+from fabulous.fabulous_repl.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
-from tests.cli_test.conftest import MOCK_COMPLETED_PROCESS, TILE, find_task_calls
 from tests.conftest import (
     normalize_and_check_for_errors,
     run_cmd,
 )
+from tests.repl_test.conftest import MOCK_COMPLETED_PROCESS, TILE, find_task_calls
 
 SIM_CMD = "run_simulation fst ./user_design/sequential_16bit_en.bin"
 
 
-def test_load_fabric(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_load_fabric(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test loading fabric from CSV file."""
 
     run_cmd(cli, "load_fabric")
@@ -34,7 +34,7 @@ def test_load_fabric(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> Non
     assert "Complete" in log[-1]
 
 
-def test_gen_config_mem(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_gen_config_mem(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating configuration memory."""
     run_cmd(cli, f"gen_config_mem {TILE}")
     log = normalize_and_check_for_errors(caplog.text)
@@ -42,7 +42,7 @@ def test_gen_config_mem(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> 
     assert "ConfigMem generation complete" in log[-1]
 
 
-def test_gen_switch_matrix(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_gen_switch_matrix(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating switch matrix."""
     run_cmd(cli, f"gen_switch_matrix {TILE}")
     log = normalize_and_check_for_errors(caplog.text)
@@ -51,7 +51,7 @@ def test_gen_switch_matrix(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) 
 
 
 def test_switch_matrix_list_csv_conversion_preserve_order(
-    cli: FABulous_CLI, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    cli: FABulousREPL, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """With --preserve-list-order the .list -> .csv -> .list round trip is exact.
 
@@ -74,7 +74,7 @@ def test_switch_matrix_list_csv_conversion_preserve_order(
 
 
 def test_switch_matrix_list_csv_conversion_default(
-    cli: FABulous_CLI, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    cli: FABulousREPL, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Without the flag, the conversion still preserves connectivity (not order)."""
     src = cli.projectDir / f"Tile/{TILE}/{TILE}_switch_matrix.list"
@@ -91,7 +91,7 @@ def test_switch_matrix_list_csv_conversion_default(
     assert all(set(back_conns[k]) == set(src_conns[k]) for k in src_conns)
 
 
-def test_gen_tile(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_gen_tile(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating tile."""
     run_cmd(cli, f"gen_tile {TILE}")
     log = normalize_and_check_for_errors(caplog.text)
@@ -99,7 +99,7 @@ def test_gen_tile(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
     assert "Tile generation complete" in log[-1]
 
 
-def test_gen_all_tile(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_gen_all_tile(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating all tiles."""
     run_cmd(cli, "gen_all_tile")
     log = normalize_and_check_for_errors(caplog.text)
@@ -107,7 +107,7 @@ def test_gen_all_tile(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> No
     assert "All tiles generation complete" in log[-1]
 
 
-def test_gen_fabric(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_gen_fabric(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating fabric."""
     run_cmd(cli, "gen_fabric")
     log = normalize_and_check_for_errors(caplog.text)
@@ -115,7 +115,7 @@ def test_gen_fabric(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None
     assert "Fabric generation complete" in log[-1]
 
 
-def test_gen_geometry(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_gen_geometry(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating geometry."""
     # Test with default padding
     run_cmd(cli, "gen_geometry")
@@ -130,7 +130,7 @@ def test_gen_geometry(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> No
     assert "can now be imported into fabulator" in log[-1].lower()
 
 
-def test_gen_top_wrapper(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_gen_top_wrapper(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating top wrapper."""
     run_cmd(cli, "gen_top_wrapper")
     log = normalize_and_check_for_errors(caplog.text)
@@ -138,7 +138,7 @@ def test_gen_top_wrapper(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) ->
     assert "Top wrapper generation complete" in log[-1]
 
 
-def test_run_fab(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_run_fab(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test running FABulous fabric flow."""
     run_cmd(cli, "run_fab")
     log = normalize_and_check_for_errors(caplog.text)
@@ -147,7 +147,7 @@ def test_run_fab(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
 
 
 def test_run_FABulous_fabric_deprecated(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Test the deprecated `run_FABulous_fabric` alias delegates to `run_fab`."""
     run_cmd(cli, "run_FABulous_fabric")
@@ -158,7 +158,7 @@ def test_run_FABulous_fabric_deprecated(
     assert "FABulous fabric flow complete" in log[-1]
 
 
-def test_gen_model_npnr(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_gen_model_npnr(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating nextpnr model."""
     run_cmd(cli, "gen_model_npnr")
     log = normalize_and_check_for_errors(caplog.text)
@@ -166,7 +166,7 @@ def test_gen_model_npnr(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> 
     assert "Generated npnr model" in log[-1]
 
 
-def test_gen_io_pin_config(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
+def test_gen_io_pin_config(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating an IO pin configuration YAML file for a tile."""
     output_file = cli.projectDir / "Tile" / TILE / f"{TILE}_io_pin_order.yaml"
 
@@ -181,11 +181,11 @@ def test_gen_io_pin_config(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) 
 
 
 def test_gen_tile_macro_with_io_pin_config_skips_generation(
-    cli: FABulous_CLI, mocker: MockerFixture, tmp_path: Path
+    cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
 ) -> None:
     """`gen_tile_macro --io-pin-config <file>` uses the user-provided pin config."""
     mocker.patch(
-        "fabulous.fabulous_cli.fabulous_cli.is_pdk_config_set", return_value=True
+        "fabulous.fabulous_repl.fabulous_repl.is_pdk_config_set", return_value=True
     )
     gen_pin_order_spy = mocker.spy(cli.fabulousAPI, "gen_io_pin_order_config")
     gen_tile_macro_mock = mocker.patch.object(cli.fabulousAPI, "genTileMacro")
@@ -201,11 +201,11 @@ def test_gen_tile_macro_with_io_pin_config_skips_generation(
 
 
 def test_gen_tile_macro_without_io_pin_config_generates_for_tile(
-    cli: FABulous_CLI, mocker: MockerFixture
+    cli: FABulousREPL, mocker: MockerFixture
 ) -> None:
     """Without ``--io-pin-config``, the CLI auto-generates the pin order for a tile."""
     mocker.patch(
-        "fabulous.fabulous_cli.fabulous_cli.is_pdk_config_set", return_value=True
+        "fabulous.fabulous_repl.fabulous_repl.is_pdk_config_set", return_value=True
     )
     gen_pin_order_mock = mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
     gen_tile_macro_mock = mocker.patch.object(cli.fabulousAPI, "genTileMacro")
@@ -219,7 +219,7 @@ def test_gen_tile_macro_without_io_pin_config_generates_for_tile(
 
 
 def test_run_FABulous_bitstream_deprecated(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
 ) -> None:
     """Test the deprecated `run_FABulous_bitstream` delegates to compile_design."""
     mocker.patch("subprocess.run", return_value=MOCK_COMPLETED_PROCESS)
@@ -233,7 +233,7 @@ def test_run_FABulous_bitstream_deprecated(
 
 @pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation(
-    cli: FABulous_CLI,
+    cli: FABulousREPL,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test running simulation via Taskfile."""
@@ -244,7 +244,7 @@ def test_run_simulation(
 
 @pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation_makefile_fallback(
-    cli: FABulous_CLI,
+    cli: FABulousREPL,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test simulation falls back to Makefile with deprecation warning."""
@@ -260,7 +260,7 @@ def test_run_simulation_makefile_fallback(
 
 @pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation_no_taskfile_no_makefile(
-    cli: FABulous_CLI,
+    cli: FABulousREPL,
 ) -> None:
     """Test simulation errors when neither Taskfile.yml nor Makefile exists."""
     # Remove both Taskfile.yml and Makefile
@@ -274,7 +274,7 @@ def test_run_simulation_no_taskfile_no_makefile(
 
 @pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation_with_extra_flags(
-    cli: FABulous_CLI,
+    cli: FABulousREPL,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test simulation passes extra iverilog flags to Taskfile."""
@@ -289,7 +289,7 @@ def test_run_simulation_with_extra_flags(
 
 @pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation_with_extra_nvc_flag(
-    cli: FABulous_CLI,
+    cli: FABulousREPL,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test simulation passes --extra-nvc-flag to Taskfile as EXTRA_NVC_FLAGS."""
@@ -304,7 +304,7 @@ def test_run_simulation_with_extra_nvc_flag(
 
 @pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation_with_simulator_flag(
-    cli: FABulous_CLI,
+    cli: FABulousREPL,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test simulation passes --simulator to Taskfile as SIMULATOR."""
@@ -320,7 +320,7 @@ def test_run_simulation_with_simulator_flag(
 
 @pytest.mark.usefixtures("simulation_mock")
 def test_run_simulation_with_design_flag(
-    cli: FABulous_CLI,
+    cli: FABulousREPL,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test simulation passes --design flag to Taskfile as DESIGN variable."""
@@ -334,7 +334,7 @@ def test_run_simulation_with_design_flag(
 
 
 def test_run_tcl_with_tcl_command(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, tmp_path: Path
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture, tmp_path: Path
 ) -> None:
     """Test running a Tcl script with tcl command."""
     script_content = '# Dummy Tcl script\nputs "Text from tcl"'
@@ -349,7 +349,7 @@ def test_run_tcl_with_tcl_command(
 
 
 def test_run_tcl_with_fabulous_command(
-    cli: FABulous_CLI, caplog: pytest.LogCaptureFixture, tmp_path: Path
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture, tmp_path: Path
 ) -> None:
     """Test running a Tcl script with FABulous command."""
     test_script = tmp_path / "test_script.tcl"
@@ -391,7 +391,7 @@ def test_run_fab_sv_extension(
         csv_file.write_text(content)
 
     init_context(project)
-    cli = FABulous_CLI(
+    cli = FABulousREPL(
         "verilog",
         force=False,
         interactive=False,
@@ -411,7 +411,7 @@ def test_run_fab_sv_extension(
     assert "FABulous fabric flow complete" in log[-1]
 
 
-def test_exit_code_reset_after_error(cli: FABulous_CLI) -> None:
+def test_exit_code_reset_after_error(cli: FABulousREPL) -> None:
     """Test that exit code is reset between commands (regression test for issue #574).
 
     After a command fails, subsequent successful commands should not be affected by the
@@ -497,7 +497,7 @@ def test_start_klayout_gui_layer_file(
     create_project(project_dir)
     init_context(project_dir)
     setup_logger(0, False)
-    cli = FABulous_CLI(
+    cli = FABulousREPL(
         "verilog", force=False, interactive=False, verbose=False, debug=True
     )
     run_cmd(cli, f"start_klayout_gui {gds_file}")
@@ -549,15 +549,15 @@ class TestResolveDirectionalFix:
 class TestGenTileMacroFlags:
     """End-to-end CLI wiring for the explicit size flags."""
 
-    def _patch(self, cli: FABulous_CLI, mocker: MockerFixture) -> MockerFixture:
+    def _patch(self, cli: FABulousREPL, mocker: MockerFixture) -> MockerFixture:
         mocker.patch(
-            "fabulous.fabulous_cli.fabulous_cli.is_pdk_config_set", return_value=True
+            "fabulous.fabulous_repl.fabulous_repl.is_pdk_config_set", return_value=True
         )
         mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
         return mocker.patch.object(cli.fabulousAPI, "genTileMacro")
 
     def test_fix_height_sets_mode_and_die_area(
-        self, cli: FABulous_CLI, mocker: MockerFixture
+        self, cli: FABulousREPL, mocker: MockerFixture
     ) -> None:
         gen_macro = self._patch(cli, mocker)
 
@@ -570,7 +570,7 @@ class TestGenTileMacroFlags:
         assert overrides["FABULOUS_OPT_MODE"] == OptMode.FIND_MIN_WIDTH
 
     def test_fix_width_sets_mode_and_die_area(
-        self, cli: FABulous_CLI, mocker: MockerFixture
+        self, cli: FABulousREPL, mocker: MockerFixture
     ) -> None:
         gen_macro = self._patch(cli, mocker)
 
@@ -586,7 +586,7 @@ class TestGenTileMacroFlags:
         ]
 
     def test_fix_height_conflicting_mode_aborts(
-        self, cli: FABulous_CLI, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+        self, cli: FABulousREPL, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
     ) -> None:
         gen_macro = self._patch(cli, mocker)
 
@@ -599,7 +599,7 @@ class TestGenTileMacroFlags:
         assert "only valid with --optimise find_min_width" in caplog.text
 
     def test_override_merges_custom_yaml(
-        self, cli: FABulous_CLI, mocker: MockerFixture, tmp_path: Path
+        self, cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         gen_macro = self._patch(cli, mocker)
         override = tmp_path / "ov.yaml"
@@ -616,13 +616,13 @@ class TestGenTileMacroFlags:
 class TestRunEFPGAMacroForwarding:
     """End-to-end CLI wiring: flags forwarded to the API entrypoint."""
 
-    def _patch(self, cli: FABulous_CLI, mocker: MockerFixture) -> MockerFixture:
+    def _patch(self, cli: FABulousREPL, mocker: MockerFixture) -> MockerFixture:
         mocker.patch(
-            "fabulous.fabulous_cli.fabulous_cli.is_pdk_config_set", return_value=True
+            "fabulous.fabulous_repl.fabulous_repl.is_pdk_config_set", return_value=True
         )
         return mocker.patch.object(cli.fabulousAPI, "full_fabric_automation")
 
-    def test_forwards_nlp_flags(self, cli: FABulous_CLI, mocker: MockerFixture) -> None:
+    def test_forwards_nlp_flags(self, cli: FABulousREPL, mocker: MockerFixture) -> None:
         full_auto = self._patch(cli, mocker)
 
         run_cmd(cli, "run_FABulous_eFPGA_macro --nlp-only --nlp-area-margin 0.1")
@@ -633,7 +633,7 @@ class TestRunEFPGAMacroForwarding:
         assert kwargs["nlp_area_margin"] == pytest.approx(0.1)
         assert kwargs["tile_opt_config"] is None
 
-    def test_forwards_defaults(self, cli: FABulous_CLI, mocker: MockerFixture) -> None:
+    def test_forwards_defaults(self, cli: FABulousREPL, mocker: MockerFixture) -> None:
         full_auto = self._patch(cli, mocker)
 
         run_cmd(cli, "run_FABulous_eFPGA_macro")
@@ -644,7 +644,7 @@ class TestRunEFPGAMacroForwarding:
         assert kwargs["tile_opt_config"] is None
 
     def test_forwards_tile_opt_info_as_path(
-        self, cli: FABulous_CLI, mocker: MockerFixture, tmp_path: Path
+        self, cli: FABulousREPL, mocker: MockerFixture, tmp_path: Path
     ) -> None:
         full_auto = self._patch(cli, mocker)
         summary = tmp_path / "tile_optimisation_summary.json"
@@ -656,10 +656,10 @@ class TestRunEFPGAMacroForwarding:
         assert tile_opt_config == Path(summary)
 
     def test_skips_when_pdk_not_set(
-        self, cli: FABulous_CLI, mocker: MockerFixture
+        self, cli: FABulousREPL, mocker: MockerFixture
     ) -> None:
         mocker.patch(
-            "fabulous.fabulous_cli.fabulous_cli.is_pdk_config_set", return_value=False
+            "fabulous.fabulous_repl.fabulous_repl.is_pdk_config_set", return_value=False
         )
         full_auto = mocker.patch.object(cli.fabulousAPI, "full_fabric_automation")
 

@@ -14,14 +14,14 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from fabulous.fabulous_cli import cmd_run_simulation
-from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+from fabulous.fabulous_repl import cmd_run_simulation
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from tests.conftest import run_cmd
 
-_CMD_MODULE = "fabulous.fabulous_cli.cmd_run_simulation"
+_CMD_MODULE = "fabulous.fabulous_repl.cmd_run_simulation"
 
 
-def _make_bitstream(cli: FABulous_CLI) -> Path:
+def _make_bitstream(cli: FABulousREPL) -> Path:
     """Create a dummy ``.bin`` bitstream inside the project."""
     bitstream = cli.projectDir / "sequential_16bit_en.bin"
     bitstream.write_bytes(b"\x00\x00\x00\x00")
@@ -29,7 +29,7 @@ def _make_bitstream(cli: FABulous_CLI) -> Path:
 
 
 def test_run_simulation_uses_plain_task(
-    cli: FABulous_CLI, mocker: MockerFixture
+    cli: FABulousREPL, mocker: MockerFixture
 ) -> None:
     """Without ``--gl`` the plain ``run-simulation`` task is used."""
     bitstream = _make_bitstream(cli)
@@ -44,7 +44,7 @@ def test_run_simulation_uses_plain_task(
     collect.assert_not_called()
 
 
-def test_gl_branch_invokes_gl_task(cli: FABulous_CLI, mocker: MockerFixture) -> None:
+def test_gl_branch_invokes_gl_task(cli: FABulousREPL, mocker: MockerFixture) -> None:
     """``--gl`` resolves GL sources and runs the ``run-gl-simulation`` task."""
     bitstream = _make_bitstream(cli)
     mocker.patch(f"{_CMD_MODULE}.make_hex")
@@ -72,7 +72,7 @@ def test_gl_branch_invokes_gl_task(cli: FABulous_CLI, mocker: MockerFixture) -> 
     )
 
 
-def test_gl_sim_libs_forwarded(cli: FABulous_CLI, mocker: MockerFixture) -> None:
+def test_gl_sim_libs_forwarded(cli: FABulousREPL, mocker: MockerFixture) -> None:
     """``--gl-sim-libs`` overrides reach ``collect_gl_sources``."""
     bitstream = _make_bitstream(cli)
     mocker.patch(f"{_CMD_MODULE}.make_hex")
@@ -91,7 +91,7 @@ def test_gl_sim_libs_forwarded(cli: FABulous_CLI, mocker: MockerFixture) -> None
 
 
 def test_gl_rejects_vhdl(
-    cli: FABulous_CLI, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
+    cli: FABulousREPL, mocker: MockerFixture, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Gate-level simulation is Verilog-only; a VHDL project is rejected."""
     bitstream = _make_bitstream(cli)

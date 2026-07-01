@@ -36,7 +36,7 @@ from fabulous.fabulous_settings import add_var_to_global_env
 if TYPE_CHECKING:
     from loguru import Record
 
-    from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+    from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 MAX_BITBYTES = 16384
 
@@ -702,14 +702,14 @@ class CommandPipeline:
 
     Parameters
     ----------
-    cli_instance : FABulous_CLI
+    repl_instance : FABulousREPL
         The CLI instance to use for command execution.
     force : bool
         If True, continues executing commands even if one fails.
     """
 
-    def __init__(self, cli_instance: "FABulous_CLI", force: bool = False) -> None:
-        self.cli = cli_instance
+    def __init__(self, repl_instance: "FABulousREPL", force: bool = False) -> None:
+        self.repl = repl_instance
         self.steps = []
         self.force = force
         self.final_exit_code = 0
@@ -752,12 +752,12 @@ class CommandPipeline:
             If any command in the pipeline fails during execution.
         """
         for command, error_message in self.steps:
-            self.cli.onecmd_plus_hooks(command)
-            if self.cli.exit_code != 0:
-                self.final_exit_code = self.cli.exit_code
+            self.repl.onecmd_plus_hooks(command)
+            if self.repl.exit_code != 0:
+                self.final_exit_code = self.repl.exit_code
                 logger.error(
                     f"Command '{command}' execution failed with exit code "
-                    f"{self.cli.exit_code}"
+                    f"{self.repl.exit_code}"
                 )
 
                 if not self.force:
@@ -775,7 +775,7 @@ class CommandPipeline:
         # ProcessPoolExecutor; thread-based concurrency is sufficient here since
         # the heavy work (GDS generation) likely releases the GIL via I/O or
         # underlying C extensions.
-        with futures.ThreadPoolExecutor(max_workers=self.cli.max_job) as executor:
+        with futures.ThreadPoolExecutor(max_workers=self.repl.max_job) as executor:
             future_map: dict[futures.Future, tuple[str, str]] = {
                 executor.submit(self._run_command_threadsafe, command): (
                     command,
@@ -799,8 +799,8 @@ class CommandPipeline:
                 else:
                     # If the callable ran without raising, check the CLI exit code
                     # that the command may have set.
-                    if self.cli.exit_code != 0:
-                        self.final_exit_code = self.cli.exit_code
+                    if self.repl.exit_code != 0:
+                        self.final_exit_code = self.repl.exit_code
                         logger.error(
                             f"Command '{cmd}' execution failed with exit code "
                             f"{self.final_exit_code}"
@@ -817,8 +817,8 @@ class CommandPipeline:
         the caller can handle them.
         """
         # Run the command on the CLI instance. onecmd_plus_hooks will set
-        # `self.cli.exit_code` appropriately.
-        self.cli.onecmd_plus_hooks(command)
+        # `self.repl.exit_code` appropriately.
+        self.repl.onecmd_plus_hooks(command)
 
     def get_exit_code(self) -> int:
         """Get the final exit code from pipeline execution."""

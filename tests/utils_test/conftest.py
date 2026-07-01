@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.fabulous_cli.helper import create_project
+from fabulous.fabulous_repl.helper import create_project
 from fabulous.fabulous_settings import init_context, reset_context
 
 

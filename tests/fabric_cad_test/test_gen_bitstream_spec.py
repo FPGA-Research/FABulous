@@ -29,7 +29,7 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.wire import Wire
-from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from tests.conftest import make_empty_tile, make_fabric_from_grid, run_cmd
 
 
@@ -93,7 +93,7 @@ def test_border_rows_have_config_bits_interior_ignored() -> None:
 
 
 @pytest.fixture
-def generated_fabric(cli: FABulous_CLI) -> Fabric:
+def generated_fabric(cli: FABulousREPL) -> Fabric:
     """Return the fully generated demo fabric bound to the CLI fixture."""
     run_cmd(cli, "gen_fabric")
     return cli.fabulousAPI.fabric

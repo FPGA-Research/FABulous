@@ -22,8 +22,8 @@ from typer.main import get_command
 
 from fabulous.custom_exception import PipelineCommandError
 from fabulous.fabric_definition.define import HDLType
-from fabulous.fabulous_cli import FABulous_CLI
-from fabulous.fabulous_cli.helper import (
+from fabulous.fabulous_repl import FABulousREPL
+from fabulous.fabulous_repl.helper import (
     CommandPipeline,
     create_project,
     install_fabulator,
@@ -518,7 +518,7 @@ def script_cmd(
     """
     # Initialize context
     script_file = script_file.absolute()
-    fab_CLI = FABulous_CLI(
+    repl = FABulousREPL(
         writerType=get_context().proj_lang,
         force=force,
         debug=get_context().debug,
@@ -526,7 +526,7 @@ def script_cmd(
     # Change to project directory
 
     # Try to load fabric, but don't fail if it's not a valid FABulous project
-    fab_CLI.onecmd_plus_hooks("load_fabric")
+    repl.onecmd_plus_hooks("load_fabric")
 
     # Check if script file exists before trying to execute
     if not script_file.exists():
@@ -537,24 +537,24 @@ def script_cmd(
     if (
         script_file.suffix.lower() in [".fab", ".fs"] and script_type is None
     ) or script_type == "fabulous":
-        fab_CLI.onecmd_plus_hooks(f"run_script {script_file.absolute()}")
-        if fab_CLI.exit_code:
+        repl.onecmd_plus_hooks(f"run_script {script_file.absolute()}")
+        if repl.exit_code:
             logger.error(
                 f"FABulous script {script_file} execution failed with "
-                f"exit code {fab_CLI.exit_code}"
+                f"exit code {repl.exit_code}"
             )
-            raise typer.Exit(fab_CLI.exit_code)
+            raise typer.Exit(repl.exit_code)
         logger.info(f"FABulous script {script_file} executed successfully")
     elif (
         script_file.suffix.lower() == ".tcl" and script_type is None
     ) or script_type == "tcl":
-        fab_CLI.onecmd_plus_hooks(f"run_tcl {script_file.absolute()}")
-        if fab_CLI.exit_code:
+        repl.onecmd_plus_hooks(f"run_tcl {script_file.absolute()}")
+        if repl.exit_code:
             logger.error(
                 f"TCL script {script_file} execution failed with "
-                f"exit code {fab_CLI.exit_code}"
+                f"exit code {repl.exit_code}"
             )
-            raise typer.Exit(fab_CLI.exit_code)
+            raise typer.Exit(repl.exit_code)
         logger.info(f"TCL script {script_file} executed successfully")
     else:
         logger.error(f"Unknown script type: {script_type}")
@@ -569,15 +569,15 @@ def start_cmd(force: ForceType = False) -> None:
     This is the main command for running FABulous in interactive mode or with scripts.
     If no project directory is specified, uses the current directory.
     """
-    fab_CLI = FABulous_CLI(
+    repl = FABulousREPL(
         get_context().proj_lang,
         force=force,
         interactive=True,
         verbose=get_context().verbose >= 2,
         debug=get_context().debug,
     )
-    fab_CLI.onecmd_plus_hooks("load_fabric")
-    fab_CLI.cmdloop()
+    repl.onecmd_plus_hooks("load_fabric")
+    repl.cmdloop()
 
 
 @app.command("run")
@@ -602,7 +602,7 @@ def run_cmd(
 
     Alias: r
     """
-    fab_CLI = FABulous_CLI(
+    repl = FABulousREPL(
         get_context().proj_lang,
         force=force,
         interactive=True,
@@ -612,7 +612,7 @@ def run_cmd(
 
     # Change to project directory
     logger.info(f"Setting current working directory to: {get_context().proj_dir}")
-    fab_CLI.onecmd_plus_hooks("load_fabric")
+    repl.onecmd_plus_hooks("load_fabric")
     # Ensure commands is a list
     if isinstance(commands, str):
         commands = [commands]
@@ -621,7 +621,7 @@ def run_cmd(
         return
 
     # Create and execute command pipeline
-    pipeline = CommandPipeline(fab_CLI, force=force)
+    pipeline = CommandPipeline(repl, force=force)
 
     # Add all commands to pipeline
     for cmd in commands:

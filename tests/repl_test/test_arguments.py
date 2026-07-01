@@ -723,7 +723,7 @@ def test_start(
     def mock_cmdloop(self: object) -> None:  # noqa: ARG001
         pass
 
-    monkeypatch.setattr("fabulous.fabulous_cli.FABulous_CLI.cmdloop", mock_cmdloop)
+    monkeypatch.setattr("fabulous.fabulous_repl.FABulousREPL.cmdloop", mock_cmdloop)
 
     test_args = [s.replace("{project}", str(project)) for s in argv]
     monkeypatch.setattr(sys, "argv", test_args)

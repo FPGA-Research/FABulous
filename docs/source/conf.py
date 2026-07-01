@@ -65,9 +65,9 @@ extensions = [
     # Utility extensions
     "sphinxcontrib.bibtex",
     "sphinx_llm.txt",
-    'sphinxcontrib.mermaid',
+    "sphinxcontrib.mermaid",
     # Custom FABulous extensions
-    "generate_cli_docs",
+    "generate_repl_docs",
     "generate_configvar_docs",
     "generate_gds_variable_docs",
 ]

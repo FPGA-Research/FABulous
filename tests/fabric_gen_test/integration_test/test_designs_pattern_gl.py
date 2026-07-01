@@ -29,7 +29,7 @@ import fabulous.fabric_files as _fab_template_pkg
 from tests.conftest import run_cmd
 
 if TYPE_CHECKING:
-    from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
+    from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 _DEMO_NAME = "sequential_16bit_en"
 _DEMO_DESIGN = (
@@ -42,7 +42,7 @@ _DEMO_DESIGN = (
 
 @pytest.mark.gl
 def test_gl_simulation_demo(
-    cli: "FABulous_CLI",
+    cli: "FABulousREPL",
     pytestconfig: pytest.Config,
 ) -> None:
     """Compile the demo design and gate-level simulate it through ``--gl``.
