@@ -30,9 +30,7 @@ import traceback
 from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
-from typing import cast
 
-import yaml
 from cmd2 import (
     Cmd,
     Cmd2ArgumentParser,
@@ -61,6 +59,7 @@ from fabulous.fabulous_api import FABulous_API
 from fabulous.fabulous_repl import cmd_compile_design, cmd_run_simulation
 from fabulous.fabulous_repl.cmd_gui import GuiCommandSet
 from fabulous.fabulous_repl.cmd_helper import HelperCommandSet
+from fabulous.fabulous_repl.cmd_macro import MacroFlowCommandSet
 from fabulous.fabulous_repl.cmd_script import ScriptCommandSet
 from fabulous.fabulous_repl.cmd_setup import SetupCommandSet
 from fabulous.fabulous_repl.cmd_timing import TimingCommandSet
@@ -69,7 +68,7 @@ from fabulous.fabulous_repl.helper import (
     allow_blank,
     wrap_with_except_handling,
 )
-from fabulous.fabulous_settings import get_context, is_pdk_config_set
+from fabulous.fabulous_settings import get_context
 
 META_DATA_DIR = ".FABulous"
 
@@ -94,84 +93,6 @@ KLAYOUT_LAYER_FILE_NAMES: dict[str, str] = {
     "gf180mcuC": "gf180mcu.lyp",
     "gf180mcuD": "gf180mcu.lyp",
 }
-
-
-def _require_directional_mode(
-    opt_mode: OptMode, implied: OptMode, flag: str
-) -> OptMode:
-    """Return the directional mode a ``--fix-*`` flag implies, or raise on conflict.
-
-    Parameters
-    ----------
-    opt_mode : OptMode
-        The mode requested via ``--optimise`` (``NO_OPT`` when unset).
-    implied : OptMode
-        The directional mode the fix flag requires.
-    flag : str
-        The flag name, used for the error message.
-
-    Returns
-    -------
-    OptMode
-        ``implied`` when compatible with ``opt_mode``.
-
-    Raises
-    ------
-    ValueError
-        If ``opt_mode`` is an explicit mode other than ``implied``.
-    """
-    if opt_mode in (OptMode.NO_OPT, implied):
-        return implied
-    raise ValueError(
-        f"{flag} is only valid with --optimise {implied.value}, not {opt_mode.value}."
-    )
-
-
-def _resolve_directional_fix(
-    opt_mode: OptMode,
-    fix_width: Decimal | None,
-    fix_height: Decimal | None,
-) -> tuple[OptMode, list[int | Decimal] | None]:
-    """Resolve ``--optimise`` plus ``--fix-*`` into a mode and DIE_AREA override.
-
-    A fixed axis pins one side and minimises the other: ``--fix-width`` pairs with
-    ``find_min_height`` and ``--fix-height`` with ``find_min_width``. The minimised
-    axis starts square; ``TileOptimisation`` re-seeds it from the synthesised cell
-    area, so only the fixed value needs to be supplied.
-
-    Parameters
-    ----------
-    opt_mode : OptMode
-        The mode requested via ``--optimise``.
-    fix_width : Decimal | None
-        Locked tile width, if ``--fix-width`` was given.
-    fix_height : Decimal | None
-        Locked tile height, if ``--fix-height`` was given.
-
-    Returns
-    -------
-    tuple[OptMode, list[int | Decimal] | None]
-        The resolved optimisation mode and the DIE_AREA override, or ``None`` when
-        neither fix flag is set.
-
-    Raises
-    ------
-    ValueError
-        If both fix flags are given, or a fix flag contradicts ``--optimise``.
-    """
-    if fix_width is not None and fix_height is not None:
-        raise ValueError("Specify only one of --fix-width / --fix-height.")
-    if fix_width is not None:
-        mode = _require_directional_mode(
-            opt_mode, OptMode.FIND_MIN_HEIGHT, "--fix-width"
-        )
-        return mode, [0, 0, fix_width, fix_width]
-    if fix_height is not None:
-        mode = _require_directional_mode(
-            opt_mode, OptMode.FIND_MIN_WIDTH, "--fix-height"
-        )
-        return mode, [0, 0, fix_height, fix_height]
-    return opt_mode, None
 
 
 INTO_STRING = rf"""
@@ -281,10 +202,6 @@ class FABulousREPL(Cmd):
         Argument parser for the run_gds command
     io_pin_config_parser : Cmd2ArgumentParser
         Argument parser for the gen_io_pin_config command
-    gen_all_tile_parser : Cmd2ArgumentParser
-        Argument parser for the gen_all_tile command
-    eFPGA_macro_parser: Cmd2ArgumentParser
-        Argument parser for the gen_eFPGA_macro command
     gui_parser : Cmd2ArgumentParser
         Argument parser for the open_gui command
 
@@ -325,6 +242,7 @@ class FABulousREPL(Cmd):
                 SetupCommandSet(),
                 GuiCommandSet(),
                 TimingCommandSet(),
+                MacroFlowCommandSet(),
             ],
         )
         self.self_in_py = True
@@ -1184,195 +1102,6 @@ class FABulousREPL(Cmd):
 
         logger.info(f"Generated IO pin config at {output_path}")
         logger.info("IO pin config generation complete")
-
-    @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(gds_parser)
-    def do_gen_tile_macro(self, args: argparse.Namespace) -> None:
-        """Generate GDSII files for a specific tile.
-
-        This command generates GDSII files for the specified tile, allowing for
-        the physical representation of the tile to be created.
-
-        Parameters
-        ----------
-        args : argparse.Namespace
-            Command arguments containing:
-            - tile: Name of the tile to generate GDSII files for
-        """
-        if not args.tile:
-            logger.error("Tile name must be specified")
-            return
-
-        if not is_pdk_config_set():
-            logger.error(
-                "PDK configuration is not set. Please set the PDK configuration to "
-                "generate tile macros."
-            )
-            return
-
-        try:
-            opt_mode, die_area_override = _resolve_directional_fix(
-                args.optimise, args.fix_width, args.fix_height
-            )
-        except ValueError as exc:
-            logger.error(str(exc))
-            return
-
-        custom_overrides: dict = {}
-        if args.override:
-            custom_overrides.update(yaml.safe_load(args.override.read_text()) or {})
-        if die_area_override is not None:
-            custom_overrides["FABULOUS_OPT_MODE"] = opt_mode
-            custom_overrides["DIE_AREA"] = die_area_override
-
-        tile_dir = self.projectDir / "Tile" / args.tile
-        pin_order_file = tile_dir / f"{args.tile}_io_pin_order.yaml"
-
-        if not tile_dir.exists():
-            logger.error(f"Tile directory {tile_dir} does not exist")
-            return
-
-        if not args.io_pin_config:
-            if tile := self.fabulousAPI.getTile(args.tile):
-                self.fabulousAPI.gen_io_pin_order_config(tile, pin_order_file)
-            else:
-                super_tile = self.fabulousAPI.getSuperTile(args.tile)
-                if super_tile is None:
-                    logger.error(f"Tile {args.tile} not found in fabric definition")
-                    return
-                self.fabulousAPI.gen_io_pin_order_config(super_tile, pin_order_file)
-        else:
-            pin_order_file = args.io_pin_config.resolve()
-
-        self.fabulousAPI.genTileMacro(
-            tile_dir,
-            pin_order_file,
-            tile_dir / "macro",
-            cast("str", get_context().pdk),
-            cast("Path", get_context().pdk_root),
-            optimisation=opt_mode,
-            base_config_path=self.projectDir / "Tile" / "include" / "gds_config.yaml",
-            config_override_path=tile_dir / "gds_config.yaml",
-            custom_config_overrides=custom_overrides or None,
-        )
-
-    gen_all_tile_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    gen_all_tile_parser.add_argument(
-        "--parallel",
-        "-p",
-        help="Generate tile macros in parallel",
-        default=False,
-        action="store_true",
-    )
-    gen_all_tile_parser.add_argument(
-        "--optimise",
-        "-opt",
-        type=OptMode,
-        nargs="?",
-        const=OptMode.BALANCE,
-        default=None,
-        help="Optimize the GDS layout of all tiles. Available modes: "
-        + ", ".join(m.value for m in OptMode),
-    )
-
-    @with_argparser(gen_all_tile_parser)
-    @with_category(CMD_FABRIC_FLOW)
-    def do_gen_all_tile_macros(self, args: argparse.Namespace) -> None:
-        """Generate GDSII files for all tiles in the fabric."""
-        commands = CommandPipeline(self)
-        for i in sorted(self.all_tile):
-            if args.optimise:
-                commands.add_step(
-                    f"gen_tile_macro {i} --optimise {args.optimise.value}"
-                )
-            else:
-                commands.add_step(f"gen_tile_macro {i}")
-        if not args.parallel:
-            commands.execute()
-        else:
-            commands.execute_parallel()
-
-    @with_category(CMD_FABRIC_FLOW)
-    def do_gen_fabric_macro(self, *_args: str) -> None:
-        """Generate GDSII files for the entire fabric."""
-        if not is_pdk_config_set():
-            logger.error(
-                "PDK configuration is not set. Please set the PDK configuration to "
-                "generate fabric macros."
-            )
-            return
-
-        tile_macro_root = self.projectDir / "Tile"
-        tile_macro_paths: dict[str, Path] = {}
-
-        for tile_dir in tile_macro_root.iterdir():
-            if not tile_dir.is_dir():
-                continue
-            macro_dir = tile_dir / "macro" / "final_views"
-            if macro_dir.exists():
-                tile_macro_paths[tile_dir.name] = macro_dir
-
-        if not tile_macro_paths:
-            logger.error(
-                "No tile macro directories found. Generate tile GDS results first."
-            )
-            return
-
-        (self.projectDir / "gds").mkdir(exist_ok=True)
-        (self.projectDir / "Fabric" / "macro").mkdir(exist_ok=True)
-        self.fabulousAPI.fabric_stitching(
-            tile_macro_paths,
-            self.projectDir
-            / "Fabric"
-            / f"{self.fabulousAPI.fabric.name}.{self.extension}",
-            self.projectDir / "Fabric" / "macro",
-            cast("str", get_context().pdk),
-            cast("Path", get_context().pdk_root),
-            base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
-        )
-
-    eFPGA_macro_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
-    eFPGA_macro_parser.add_argument(
-        "--tile-opt-info",
-        type=str,
-        default=None,
-        help="Path to tile optimisation summary JSON to skip Step 1",
-    )
-    eFPGA_macro_parser.add_argument(
-        "--nlp-only",
-        action="store_true",
-        help="Run exploration and NLP only, skip recompilation",
-    )
-    eFPGA_macro_parser.add_argument(
-        "--nlp-area-margin",
-        type=float,
-        default=0.05,
-        help="Area margin for NLP constraint (default: 0.05 = 5%%)",
-    )
-
-    @with_category(CMD_FABRIC_FLOW)
-    @with_argparser(eFPGA_macro_parser)
-    def do_run_FABulous_eFPGA_macro(self, args: argparse.Namespace) -> None:
-        """Run the full FABulous eFPGA macro generation flow."""
-        if not is_pdk_config_set():
-            logger.error(
-                "PDK configuration is not set. Please set the PDK configuration to "
-                "run the full FABulous eFPGA macro generation flow."
-            )
-            return
-
-        (self.projectDir / "Fabric" / "macro").mkdir(exist_ok=True)
-        tile_opt_config = Path(args.tile_opt_info) if args.tile_opt_info else None
-        self.fabulousAPI.full_fabric_automation(
-            self.projectDir,
-            self.projectDir / "Fabric" / "macro",
-            cast("str", get_context().pdk),
-            cast("Path", get_context().pdk_root),
-            base_config_path=self.projectDir / "Fabric" / "gds_config.yaml",
-            tile_opt_config=tile_opt_config,
-            nlp_only=args.nlp_only,
-            nlp_area_margin=args.nlp_area_margin,
-        )
 
     gui_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     gui_parser.add_argument("file", nargs="?", help="file to open", default=None)

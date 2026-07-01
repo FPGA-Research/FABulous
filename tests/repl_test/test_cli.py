@@ -13,7 +13,8 @@ from pytest_mock import MockerFixture
 
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
-from fabulous.fabulous_repl.fabulous_repl import FABulousREPL, _resolve_directional_fix
+from fabulous.fabulous_repl.cmd_macro import _resolve_directional_fix
+from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from fabulous.fabulous_repl.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
 from tests.conftest import (
@@ -185,7 +186,7 @@ def test_gen_tile_macro_with_io_pin_config_skips_generation(
 ) -> None:
     """`gen_tile_macro --io-pin-config <file>` uses the user-provided pin config."""
     mocker.patch(
-        "fabulous.fabulous_repl.fabulous_repl.is_pdk_config_set", return_value=True
+        "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
     )
     gen_pin_order_spy = mocker.spy(cli.fabulousAPI, "gen_io_pin_order_config")
     gen_tile_macro_mock = mocker.patch.object(cli.fabulousAPI, "genTileMacro")
@@ -205,7 +206,7 @@ def test_gen_tile_macro_without_io_pin_config_generates_for_tile(
 ) -> None:
     """Without ``--io-pin-config``, the CLI auto-generates the pin order for a tile."""
     mocker.patch(
-        "fabulous.fabulous_repl.fabulous_repl.is_pdk_config_set", return_value=True
+        "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
     )
     gen_pin_order_mock = mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
     gen_tile_macro_mock = mocker.patch.object(cli.fabulousAPI, "genTileMacro")
@@ -551,7 +552,7 @@ class TestGenTileMacroFlags:
 
     def _patch(self, cli: FABulousREPL, mocker: MockerFixture) -> MockerFixture:
         mocker.patch(
-            "fabulous.fabulous_repl.fabulous_repl.is_pdk_config_set", return_value=True
+            "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
         )
         mocker.patch.object(cli.fabulousAPI, "gen_io_pin_order_config")
         return mocker.patch.object(cli.fabulousAPI, "genTileMacro")
@@ -618,7 +619,7 @@ class TestRunEFPGAMacroForwarding:
 
     def _patch(self, cli: FABulousREPL, mocker: MockerFixture) -> MockerFixture:
         mocker.patch(
-            "fabulous.fabulous_repl.fabulous_repl.is_pdk_config_set", return_value=True
+            "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
         )
         return mocker.patch.object(cli.fabulousAPI, "full_fabric_automation")
 
@@ -659,7 +660,7 @@ class TestRunEFPGAMacroForwarding:
         self, cli: FABulousREPL, mocker: MockerFixture
     ) -> None:
         mocker.patch(
-            "fabulous.fabulous_repl.fabulous_repl.is_pdk_config_set", return_value=False
+            "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=False
         )
         full_auto = mocker.patch.object(cli.fabulousAPI, "full_fabric_automation")
 
