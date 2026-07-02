@@ -119,6 +119,14 @@ run, three files in `<project-dir>/.FABulous/` list them:
 
   gives you `X0Y1/A` and `X0Y1/B`.
 
+  :::{note}
+  The letter is the slot name only for `IO_1_bidirectional_frame_config_pass`
+  BELs. `InPass4_frame_config` / `OutPass4_frame_config` BELs (the BRAM-adjacent
+  data I/O) are addressed by their port prefix instead of the letter — a row
+  such as `X9Y1,X9,Y1,A,InPass4_frame_config_mux,RAM2FAB_D0_O0,...` is the
+  location `X9Y1/RAM2FAB_D0`, not `X9Y1/A`.
+  :::
+
 - `bel.v2.txt` — the same BELs in the newer structured format, one multi-line
   `BelBegin … BelEnd` block per BEL. The tile coordinate and BEL letter are the
   second and third fields of the `BelBegin` line, so the two BELs above appear
@@ -134,6 +142,14 @@ run, three files in `<project-dir>/.FABulous/` list them:
 - `template.pcf` — a generated listing of every constrainable I/O site, one
   `set_io` line per BEL. Use it to see which locations exist, then write your
   own PCF assigning your design's ports to a subset of them.
+
+  :::{warning}
+  `template.pcf` currently writes each location in the older `Tile_X0Y1.A`
+  naming (`set_io Tile_X0Y1_A Tile_X0Y1.A`), which nextpnr no longer accepts.
+  Read the tile coordinate and slot from it, but write your own constraints in
+  the `X0Y1/A` slash form (or take the letter directly from `bel.txt` /
+  `bel.v2.txt`).
+  :::
 
 ## Running the flow
 
