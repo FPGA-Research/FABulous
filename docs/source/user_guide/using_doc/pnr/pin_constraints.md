@@ -1,23 +1,21 @@
 (pin-constraints)=
 
-# Pin constraints (PCF)
+# Pin Constraints File (PCF)
 
 A pin constraints file (`.pcf`) maps the top-level ports of your user design to
-physical I/O BELs on the fabric. It lets you take an _ordinary_ design — one
-whose top module exposes plain input/output ports — and pin those ports to
-fabric I/O without hand-instantiating any I/O BEL.
+physical I/O BELs on the fabric, letting you pin an _ordinary_ design without
+hand-instantiating any I/O BEL.
 
 This is the recommended alternative to the manual
 [absolute-placement approach](#nextpnr-compilation), where every I/O is wired up
-by instantiating `IO_1_bidirectional_frame_config_pass`,
-`InPass4_frame_config` or `OutPass4_frame_config` blocks inside a
-`top_wrapper` and constraining each one with a `(* BEL=... *)` attribute. With a
-PCF you keep your design's port list clean and describe the pin assignment
-separately.
+by instantiating the I/O BEL (e.g. `IO_1_bidirectional_frame_config_pass`)
+inside a `top_wrapper` and constraining each one with a `(* BEL=... *)`
+attribute. With a PCF you keep your design's port list clean and describe the
+pin assignment separately.
 
 ## How it works
 
-The PCF flow has two halves, one in synthesis and one in place-and-route:
+The PCF flow has two parts, one in synthesis and one in place-and-route:
 
 1. **Synthesis (`-iopad`).** Passing `-iopad` to the `synth_fabulous` Yosys pass
    runs I/O pad mapping, which inserts an I/O buffer cell
@@ -65,8 +63,9 @@ the tile, `B` the second, and so on. This letter is the BEL's _Z position_ (its
 slot index inside the tile); together with the tile's `X`/`Y` coordinate it
 uniquely identifies one BEL on the whole fabric.
 
-You never have to guess the letter — it is column 4 of each `bel.txt` row (see
-[below](#finding-valid-io-locations)). For example these two rows
+You never have to guess the letter — it is column 4 of each `bel.txt` row, or
+the third field of each `BelBegin` line in `bel.v2.txt` (see
+[below](#finding-valid-io-locations)). For example these two `bel.txt` rows
 
 ```text
 X0Y1,X0,Y1,A,IO_1_bidirectional_frame_config_pass,A_I,A_T,A_O,A_Q
@@ -106,12 +105,12 @@ appear inside the fabric netlist (`Tile_X0Y1_A_...`); do not use the
 ## Finding valid I/O locations
 
 Only tiles that contain an I/O BEL can be targeted. After the fabric flow has
-run, two files in `<project-dir>/.FABulous/` list them:
+run, three files in `<project-dir>/.FABulous/` list them:
 
-- `bel.txt` — every BEL in the fabric. I/O BELs are the ones whose primitive
-  name is `IO_1_bidirectional_frame_config_pass`, `InPass4_frame_config`,
-  `OutPass4_frame_config`, or their `_mux` variants. Each row gives the tile
-  coordinate and BEL letter you need, for example:
+- `bel.txt` — every BEL in the fabric, one CSV row per BEL. I/O BELs are the ones
+  whose primitive name is `IO_1_bidirectional_frame_config_pass`,
+  `InPass4_frame_config`, `OutPass4_frame_config`, or their `_mux` variants. Each
+  row gives the tile coordinate and BEL letter you need, for example:
 
   ```text
   X0Y1,X0,Y1,A,IO_1_bidirectional_frame_config_pass,A_I,A_T,A_O,A_Q
@@ -119,6 +118,18 @@ run, two files in `<project-dir>/.FABulous/` list them:
   ```
 
   gives you `X0Y1/A` and `X0Y1/B`.
+
+- `bel.v2.txt` — the same BELs in the newer structured format, one multi-line
+  `BelBegin … BelEnd` block per BEL. The tile coordinate and BEL letter are the
+  second and third fields of the `BelBegin` line, so the two BELs above appear
+  as:
+
+  ```text
+  BelBegin,X0Y1,A,IO_1_bidirectional_frame_config_pass,A_
+  BelBegin,X0Y1,B,IO_1_bidirectional_frame_config_pass,B_
+  ```
+
+  also giving `X0Y1/A` and `X0Y1/B`.
 
 - `template.pcf` — a generated listing of every constrainable I/O site, one
   `set_io` line per BEL. Use it to see which locations exist, then write your
@@ -206,5 +217,5 @@ Yosys?`
 
 `Cannot find a pin named '<location>'`
 : The `X<col>Y<row>/<bel>` location does not exist or is not an I/O BEL. Confirm
-  it against `bel.txt` / `template.pcf`, and use the slash form `X0Y1/A` rather
+  it against `bel.txt` / `bel.v2.txt` / `template.pcf`, and use the slash form `X0Y1/A` rather
   than `Tile_X0Y1.A`.
