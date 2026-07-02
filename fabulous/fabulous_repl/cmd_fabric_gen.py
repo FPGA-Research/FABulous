@@ -455,14 +455,14 @@ class FabricGenCommandSet(ReplCommandSet):
         tile_path: Annotated[
             Path, Argument(help_text="Path to the target tile directory")
         ],
-        no_switch_matrix: Annotated[
+        switch_matrix: Annotated[
             bool,
             Option(
-                "--no-switch-matrix",
-                "-nosm",
-                help_text="Do not generate a Tile Switch Matrix",
+                "--switch-matrix",
+                "-sm",
+                help_text="Generate a Tile Switch Matrix (enabled by default)",
             ),
-        ] = False,
+        ] = True,
     ) -> None:
         """Generate a custom tile configuration for a given tile folder.
 
@@ -478,5 +478,5 @@ class FabricGenCommandSet(ReplCommandSet):
 
         tile_csv = generateCustomTileConfig(tile_path)
 
-        if not no_switch_matrix:
+        if switch_matrix:
             parseTilesCSV(tile_csv)
