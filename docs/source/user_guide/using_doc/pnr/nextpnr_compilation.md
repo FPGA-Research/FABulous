@@ -1,3 +1,5 @@
+(nextpnr-compilation)=
+
 # Nextpnr compilation
 
 Nextpnr can compile a JSON description of a circuit to FASM [^footnote-1] using the architectural description in bels.txt and pips.txt
@@ -51,6 +53,10 @@ Constraints for your architecture can be put in place using Absolute Placement C
 ```
 
 We can constrain which BEL should be used - LUT `C` is constrained to be used in Tile X7Y3 in the example. With the same constraint method, we can also instantiate `InPass4_frame_config, OutPass4_frame_config and IO_1_bidirectional_frame_config_pass` blocks for IO constraints.
+
+:::{note}
+For _I/O_ specifically, you usually do not need to instantiate the I/O BELs by hand. A [pin constraints file (PCF)](#pin-constraints) lets you keep a plain port list on your top module and map those ports to I/O BELs separately. Use the manual `(* BEL=... *)` method below when you need fine-grained control over non-I/O BEL placement.
+:::
 
 The following example is a 16-bit counter output to Block_RAM, and then Block_RAM to W_IO in a 10x10 fabric.
 
