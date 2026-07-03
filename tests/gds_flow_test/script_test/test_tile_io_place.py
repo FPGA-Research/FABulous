@@ -2,6 +2,7 @@
 # ruff: noqa: E402, SLF001, E501, F841
 
 import sys
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 import pytest
@@ -12,6 +13,7 @@ from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     PinOrderConfig,
 )
+from fabulous.fabric_generator.gds_generator.helper import round_die_dimension
 from fabulous.fabric_generator.gds_generator.script.tile_io_place import (
     PinPlacementPlan,
     SegmentInfo,
@@ -444,6 +446,120 @@ class TestPinPlacementPlan:
             for seg in segs
         )
         assert total_pins == 2
+
+
+class TestSupertileDivisionGridAlignment:
+    """DRT-0416 offgrid pin on multi-column super tiles, across many sizings.
+
+    ``allocate_tracks`` places each logical division at
+    ``origin + ceil(die_width * division_index / num_divisions)`` and lays every
+    pin track a whole ``step`` from there. When the die width is not a multiple of
+    ``num_divisions * step``, some division origin is off the manufacturing grid,
+    so all its pin tracks land off-grid, exactly the failure reported in
+    discussion #880. ``round_die_dimension`` (applied by the balance/large sizing)
+    removes it by making the width a multiple of ``num_divisions * step``.
+    """
+
+    MANUFACTURING_GRID = 5.0
+
+    def _division_tracks(
+        self,
+        mocker: MockerFixture,
+        num_divisions: int,
+        step: float,
+        die_width: float,
+    ) -> list[list[float]]:
+        # N-column super tile (X0..X{N-1} on the north edge), one pin per column;
+        # return the raw tracks allocated to each division, ordered by column.
+        config = {
+            f"X{x}Y0": {"NORTH": [{"pins": [f"pin{x}"], "sort_mode": "bus_major"}]}
+            for x in range(num_divisions)
+        }
+        pins = [
+            mocker.Mock(getName=lambda n=f"pin{x}": n) for x in range(num_divisions)
+        ]
+        plan = PinPlacementPlan(config, pins, "none")
+
+        # The first spec element (track count) is unused by allocate_tracks; the
+        # origin is 0 so alignment is decided purely by the division origins.
+        plan.allocate_tracks({Side.NORTH: (0, step, 0.0, die_width)})
+        return plan.track_coordinates[Side.NORTH]
+
+    # Sizings that DO trigger the bug: width is a multiple of step but not of
+    # num_divisions * step, so at least one division origin is off-grid. Covers
+    # odd column counts (3, 6, 7), realistic sky130 pitches (340, 460), a tiny
+    # tile, and the 2-column edge that only breaks for an odd-grid-multiple pitch.
+    OFFGRID_SIZINGS = [
+        pytest.param(3, 100.0, 1000.0, id="3col_step100"),
+        pytest.param(3, 100.0, 100.0, id="3col_tiny"),
+        pytest.param(3, 340.0, 3400.0, id="3col_step340"),
+        pytest.param(3, 460.0, 4600.0, id="3col_step460"),
+        pytest.param(6, 100.0, 1000.0, id="6col_step100"),
+        pytest.param(7, 100.0, 1000.0, id="7col_step100"),
+        pytest.param(7, 460.0, 10000.0, id="7col_step460"),
+        pytest.param(2, 15.0, 45.0, id="2col_oddpitch"),
+    ]
+
+    # Sizings where the bug never manifests (width already divides evenly into
+    # grid-aligned parts). round_die_dimension must be a safe no-op here.
+    ALIGNED_SIZINGS = [
+        pytest.param(1, 100.0, 1000.0, id="1col_regular_tile"),
+        pytest.param(2, 100.0, 1000.0, id="2col_step100"),
+        pytest.param(4, 100.0, 1000.0, id="4col_step100"),
+        pytest.param(5, 100.0, 1000.0, id="5col_step100"),
+    ]
+
+    @pytest.mark.parametrize(
+        ("num_divisions", "step", "raw_width"), OFFGRID_SIZINGS + ALIGNED_SIZINGS
+    )
+    def test_round_die_dimension_keeps_every_division_on_grid(
+        self,
+        mocker: MockerFixture,
+        num_divisions: int,
+        step: float,
+        raw_width: float,
+    ) -> None:
+        # The fix: every division of the rounded width must be on-grid.
+        fixed_width = float(
+            round_die_dimension(Decimal(raw_width), Decimal(step), num_divisions)
+        )
+        division_tracks = self._division_tracks(
+            mocker, num_divisions, step, fixed_width
+        )
+
+        assert len(division_tracks) == num_divisions
+        for tracks in division_tracks:
+            assert tracks  # each division actually received tracks
+            assert all(t % self.MANUFACTURING_GRID == 0 for t in tracks)
+
+    @pytest.mark.parametrize(("num_divisions", "step", "raw_width"), OFFGRID_SIZINGS)
+    def test_unaligned_width_reproduces_offgrid(
+        self,
+        mocker: MockerFixture,
+        num_divisions: int,
+        step: float,
+        raw_width: float,
+    ) -> None:
+        # The bug: the raw (unrounded) width places at least one pin off-grid...
+        raw_tracks = [
+            t
+            for tracks in self._division_tracks(mocker, num_divisions, step, raw_width)
+            for t in tracks
+        ]
+        assert any(t % self.MANUFACTURING_GRID != 0 for t in raw_tracks)
+
+        # ...and the rounded width removes every off-grid pin.
+        fixed_width = float(
+            round_die_dimension(Decimal(raw_width), Decimal(step), num_divisions)
+        )
+        fixed_tracks = [
+            t
+            for tracks in self._division_tracks(
+                mocker, num_divisions, step, fixed_width
+            )
+            for t in tracks
+        ]
+        assert all(t % self.MANUFACTURING_GRID == 0 for t in fixed_tracks)
 
 
 class TestPinPlacementPlanPrivateMethods:

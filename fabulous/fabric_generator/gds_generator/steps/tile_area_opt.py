@@ -18,7 +18,7 @@ from librelane.steps.step import MetricsUpdate, Step, ViewsUpdate
 from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
     get_routing_obstructions,
-    round_up_decimal,
+    round_die_dimension,
 )
 from fabulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
 from fabulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
@@ -377,11 +377,13 @@ class TileAreaOptimisation(WhileStep):
                 core_area,
             )
 
+        logical_w = int(self.config.get("FABULOUS_TILE_LOGICAL_WIDTH", 1))
+        logical_h = int(self.config.get("FABULOUS_TILE_LOGICAL_HEIGHT", 1))
         die_area = (
             Decimal(0),
             Decimal(0),
-            round_up_decimal(new_width, x_pitch),
-            round_up_decimal(new_height, y_pitch),
+            round_die_dimension(new_width, x_pitch, logical_w),
+            round_die_dimension(new_height, y_pitch, logical_h),
         )
         self.config = self.config.copy(
             DRT_OPT_ITERS=self.config["FABULOUS_BASE_OPTIMISATION_ITERATION_START"]
@@ -643,8 +645,8 @@ class TileAreaOptimisation(WhileStep):
                         init_w = max(init_w, init_h * logical_w / logical_h)
 
             x_pitch, y_pitch = get_pitch(self.config)
-            init_w = round_up_decimal(init_w, x_pitch)
-            init_h = round_up_decimal(init_h, y_pitch)
+            init_w = round_die_dimension(init_w, x_pitch, int(logical_w))
+            init_h = round_die_dimension(init_h, y_pitch, int(logical_h))
 
             # Grow per-axis only so a user-locked axis is preserved.
             new_w = max(current_w, init_w)

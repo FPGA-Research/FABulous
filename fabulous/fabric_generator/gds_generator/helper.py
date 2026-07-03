@@ -75,6 +75,15 @@ def round_up_decimal(value: Decimal, pitch: Decimal) -> Decimal:
     return quotient * pitch
 
 
+def round_die_dimension(dimension: Decimal, pitch: Decimal, divisions: int) -> Decimal:
+    """Round `dimension` up so each of its `divisions` equal parts is pitch-aligned.
+
+    A super tile is split into `divisions` equal parts during IO placement, so
+    `dimension / divisions` (not just `dimension`) must be a `pitch` multiple.
+    """
+    return round_up_decimal(dimension / divisions, pitch) * divisions
+
+
 def round_die_area(config: Config) -> Config:
     """Round the DIE_AREA to multiples of the minimum pitch.
 
@@ -95,8 +104,8 @@ def round_die_area(config: Config) -> Config:
 
     mWidth = int(config["FABULOUS_TILE_LOGICAL_WIDTH"])
     mHeight = int(config["FABULOUS_TILE_LOGICAL_HEIGHT"])
-    width_rounded = round_up_decimal(width / mWidth, x_pitch) * mWidth
-    height_rounded = round_up_decimal(height / mHeight, y_pitch) * mHeight
+    width_rounded = round_die_dimension(width, x_pitch, mWidth)
+    height_rounded = round_die_dimension(height, y_pitch, mHeight)
     info(
         f"Rounding DIE_AREA from ({width}, {height}) to "
         f"({width_rounded}, {height_rounded}) "

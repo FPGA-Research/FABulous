@@ -14,6 +14,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
     get_routing_obstructions,
     round_die_area,
+    round_die_dimension,
     round_up_decimal,
 )
 
@@ -169,6 +170,34 @@ class TestRoundUpDecimal:
         pitch = Decimal(5)
         result = round_up_decimal(value, pitch)
         assert result == Decimal(-5)
+
+
+class TestRoundDieDimension:
+    """Tests for round_die_dimension function.
+
+    A super tile is split into ``divisions`` equal physical parts during IO
+    placement. Rounding the whole dimension to the pitch is not enough: each
+    division boundary must land on the grid, so ``dimension / divisions`` itself
+    must be a multiple of the pitch.
+    """
+
+    def test_each_division_lands_on_grid(self) -> None:
+        # 10.2 across 2 divisions on a 0.5 grid: rounding the total (-> 10.5)
+        # leaves 10.5/2 = 5.25 off-grid. Per-division rounding must give 11.0.
+        result = round_die_dimension(Decimal("10.2"), Decimal("0.5"), 2)
+        assert result == Decimal("11.0")
+        assert (result / 2) % Decimal("0.5") == 0
+
+    def test_single_division_matches_round_up(self) -> None:
+        # divisions == 1 (a regular tile) is identical to round_up_decimal.
+        assert round_die_dimension(Decimal("10.2"), Decimal("0.5"), 1) == Decimal(
+            "10.5"
+        )
+
+    def test_already_aligned_is_unchanged(self) -> None:
+        assert round_die_dimension(Decimal("11.0"), Decimal("0.5"), 2) == Decimal(
+            "11.0"
+        )
 
 
 class TestRoundDieArea:

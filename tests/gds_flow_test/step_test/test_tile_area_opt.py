@@ -165,6 +165,92 @@ class TestTileOptimisation:
         assert result is True
 
 
+class TestSupertileDieAreaGridAlignment:
+    """BALANCE/LARGE die-area sizing must keep every logical division on-grid.
+
+    A super tile is split into ``FABULOUS_TILE_LOGICAL_WIDTH`` equal physical
+    divisions during IO placement; each division origin must land on the routing
+    grid, so ``width / logical_width`` must be a multiple of the track pitch (and
+    likewise for height). Rounding only the total dimension to the pitch leaves
+    per-division boundaries off-grid for multi-column/row super tiles, producing
+    the ``[DRT-0416] offgrid pin shape`` failure seen on unusually shaped tiles.
+    """
+
+    def test_pre_iteration_keeps_divisions_on_grid(
+        self,
+        mocker: MockerFixture,
+        mock_config: Config,
+        mock_state: State,
+        tmp_path: Path,
+    ) -> None:
+        # 2-wide super tile. Chosen so the naive "round the whole width to pitch"
+        # lands on 10.5 (an odd multiple of 0.5), whose half 5.25 is off-grid.
+        mocker.patch(
+            "fabulous.fabric_generator.gds_generator.steps.tile_area_opt.get_pitch",
+            return_value=(Decimal("0.5"), Decimal("0.5")),
+        )
+        mocker.patch(
+            "fabulous.fabric_generator.gds_generator.steps.tile_area_opt.get_routing_obstructions",
+            return_value=[],
+        )
+
+        cfg = mock_config.copy(
+            FABULOUS_OPT_MODE=OptMode.BALANCE,
+            FABULOUS_TILE_LOGICAL_WIDTH=2,
+            FABULOUS_TILE_LOGICAL_HEIGHT=1,
+            FABULOUS_OPTIMISATION_WIDTH_STEP_COUNT=2,
+            FABULOUS_OPTIMISATION_HEIGHT_STEP_COUNT=1,
+            DIE_AREA=(Decimal(0), Decimal(0), Decimal(10), Decimal(10)),
+        )
+        mock_state.metrics["pdk__site_width"] = Decimal("0.1")
+        mock_state.metrics["pdk__site_height"] = Decimal("0.1")
+        mock_state.metrics["design__instance__area"] = 0
+
+        step = TileAreaOptimisation(cfg)
+        step.step_dir = str(tmp_path)
+        step.config = cfg
+        step.iter_count = 0
+
+        step.pre_iteration_callback(mock_state)
+
+        width = step.config["DIE_AREA"][2]
+        # Per-division boundary must be a multiple of the 0.5 track pitch.
+        assert (width / Decimal(2)) % Decimal("0.5") == 0
+
+    def test_run_smart_init_keeps_divisions_on_grid(
+        self, mocker: MockerFixture, mock_config: Config, mock_state: State
+    ) -> None:
+        # BALANCE smart-init seeds a square-cell die from the instance area.
+        # instance_area 52.02 over a 2x1 super tile gives init_w = 2*sqrt(26.01)
+        # = 10.2, which the naive rounding pushes to 10.5 (off-grid per division).
+        mocker.patch(
+            "fabulous.fabric_generator.gds_generator.steps.tile_area_opt.get_pitch",
+            return_value=(Decimal("0.5"), Decimal("0.5")),
+        )
+        mocker.patch(
+            "fabulous.fabric_generator.gds_generator.steps.tile_area_opt.WhileStep.run",
+            return_value=({}, {}),
+        )
+
+        cfg = mock_config.copy(
+            FABULOUS_OPT_MODE=OptMode.BALANCE,
+            FABULOUS_TILE_LOGICAL_WIDTH=2,
+            FABULOUS_TILE_LOGICAL_HEIGHT=1,
+            FABULOUS_PIN_MIN_WIDTH=Decimal(1),
+            FABULOUS_PIN_MIN_HEIGHT=Decimal(1),
+            DIE_AREA=(Decimal(0), Decimal(0), Decimal(1), Decimal(1)),
+        )
+        mock_state.metrics["design__instance__area"] = Decimal("52.02")
+
+        step = TileAreaOptimisation(cfg)
+        step.config = cfg
+
+        step.run(mock_state)
+
+        width = step.config["DIE_AREA"][2]
+        assert (width / Decimal(2)) % Decimal("0.5") == 0
+
+
 class TestRunUserFixedSmartInit:
     """``run`` smart-init for directional modes with a user-locked axis.
 
