@@ -105,7 +105,7 @@ appear inside the fabric netlist (`Tile_X0Y1_A_...`); do not use the
 ## Finding valid I/O locations
 
 Only tiles that contain an I/O BEL can be targeted. After the fabric flow has
-run, three files in `<project-dir>/.FABulous/` list them:
+run, two files in `<project-dir>/.FABulous/` list them:
 
 - `bel.txt` — every BEL in the fabric, one CSV row per BEL. I/O BELs are the ones
   whose primitive name is `IO_1_bidirectional_frame_config_pass`,
@@ -138,18 +138,6 @@ run, three files in `<project-dir>/.FABulous/` list them:
   ```
 
   also giving `X0Y1/A` and `X0Y1/B`.
-
-- `template.pcf` — a generated listing of every constrainable I/O site, one
-  `set_io` line per BEL. Use it to see which locations exist, then write your
-  own PCF assigning your design's ports to a subset of them.
-
-  :::{warning}
-  `template.pcf` currently writes each location in the older `Tile_X0Y1.A`
-  naming (`set_io Tile_X0Y1_A Tile_X0Y1.A`), which nextpnr no longer accepts.
-  Read the tile coordinate and slot from it, but write your own constraints in
-  the `X0Y1/A` slash form (or take the letter directly from `bel.txt` /
-  `bel.v2.txt`).
-  :::
 
 ## Running the flow
 
@@ -233,5 +221,5 @@ Yosys?`
 
 `Cannot find a pin named '<location>'`
 : The `X<col>Y<row>/<bel>` location does not exist or is not an I/O BEL. Confirm
-  it against `bel.txt` / `bel.v2.txt` / `template.pcf`, and use the slash form `X0Y1/A` rather
+  it against `bel.txt` / `bel.v2.txt`, and use the slash form `X0Y1/A` rather
   than `Tile_X0Y1.A`.
