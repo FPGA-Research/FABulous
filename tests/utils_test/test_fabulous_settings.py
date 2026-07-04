@@ -242,9 +242,7 @@ class TestFABulousSettings:
         monkeypatch.setenv("FAB_PDK_HASH", "deadbeef" * 5)
 
         mocker.patch("fabulous.fabulous_settings.which", return_value=None)
-        mocker.patch(
-            "fabulous.fabulous_settings.get_pdk_hash", return_value="deadbeef" * 5
-        )
+        mocker.patch("librelane.common.misc.get_pdk_hash", return_value="deadbeef" * 5)
         mocker.patch("ciel.manage.enable")
 
         settings = init_context(project)
@@ -988,7 +986,7 @@ class TestCheckPdkAutoResolution:
         """Test warning behavior for configured vs recommended pdk hash."""
         self._setup_pdk_env(project, monkeypatch, mocker)
         mocker.patch(
-            "fabulous.fabulous_settings.get_pdk_hash",
+            "librelane.common.misc.get_pdk_hash",
             return_value=recommended_hash,
         )
         monkeypatch.setenv("FAB_PDK_HASH", configured_hash)
@@ -1006,7 +1004,7 @@ class TestCheckPdkAutoResolution:
         """Test graceful handling when get_pdk_hash raises SystemExit."""
         self._setup_pdk_env(project, monkeypatch, mocker)
         mocker.patch(
-            "fabulous.fabulous_settings.get_pdk_hash",
+            "librelane.common.misc.get_pdk_hash",
             side_effect=SystemExit(1),
         )
 
@@ -1042,7 +1040,7 @@ class TestCheckPdkAutoResolution:
         )
         expected_hash = f"hash_for_{pdk_name}_abc123"
         mock_get_hash = mocker.patch(
-            "fabulous.fabulous_settings.get_pdk_hash",
+            "librelane.common.misc.get_pdk_hash",
             return_value=expected_hash,
         )
         mock_enable = mocker.patch("ciel.manage.enable")
@@ -1071,7 +1069,7 @@ class TestCheckPdkAutoResolution:
             mock_ciel_enable=False,
         )
         mocker.patch(
-            "fabulous.fabulous_settings.get_pdk_hash",
+            "librelane.common.misc.get_pdk_hash",
             return_value="bad_hash_no_manifest",
         )
         mocker.patch(
@@ -1089,7 +1087,7 @@ class TestCheckPdkAutoResolution:
         pdk_root = project.parent / "nonexistent_pdk_root"
         self._setup_pdk_env(project, monkeypatch, mocker, pdk_root=pdk_root)
         mocker.patch(
-            "fabulous.fabulous_settings.get_pdk_hash",
+            "librelane.common.misc.get_pdk_hash",
             return_value="some_hash_abc",
         )
         # _setup_pdk_env creates pdk_root; remove it so the exists() check fails
@@ -1122,7 +1120,7 @@ class TestCheckPdkAutoResolution:
             return_value=str(ciel_home),
         )
         mocker.patch(
-            "fabulous.fabulous_settings.get_pdk_hash",
+            "librelane.common.misc.get_pdk_hash",
             return_value="auto_hash",
         )
 

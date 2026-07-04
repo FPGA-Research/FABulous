@@ -204,13 +204,13 @@ class TileAreaOptimisation(WhileStep):
     def _diode_port_area(self, site_width: Decimal, site_height: Decimal) -> Decimal:
         """Estimate the flat instance-area contribution of port diodes.
 
-        ``DiodesOnPorts`` inserts one diode per protected port bit. Each
+        `DiodesOnPorts` inserts one diode per protected port bit. Each
         diode cell is approximated as one placement-site footprint. The
         result is added to the design's instance area so downstream sizing
         absorbs the diodes in one shot rather than growing iteratively.
 
-        Returns zero until the first iteration's ``FABulousTileIOPlacement``
-        has populated ``diode_port_bits`` via ``post_iteration_callback``.
+        Returns zero until the first iteration's `FABulousTileIOPlacement`
+        has populated `diode_port_bits` via `post_iteration_callback`.
         """
         mode = self.config.get("DIODE_ON_PORTS", "none")
         if mode == "none" or self.diode_port_bits is None:
@@ -409,7 +409,7 @@ class TileAreaOptimisation(WhileStep):
 
         Scales both axes proportionally when the core cannot hold the instance area,
         then applies the per-iteration step. Directional modes are handled separately
-        by ``_compute_binary_search_dimensions``.
+        by `_compute_binary_search_dimensions`.
         """
         opt_mode = self.config["FABULOUS_OPT_MODE"]
 
@@ -453,12 +453,12 @@ class TileAreaOptimisation(WhileStep):
         smart-init value:
 
         - **Bracketing (exponential)**: while no working point has been seen, double
-          the target axis each iteration. If doubling would exceed ``bracket_cap``,
+          the target axis each iteration. If doubling would exceed `bracket_cap`,
           mark the search exhausted — the aspect is likely infeasible.
         - **Bisecting**: once at least one working point has been seen, bisect
-          between ``bracket_low`` (largest failing) and ``bracket_high`` (smallest
-          working). When only ``bracket_high`` exists (very first iter worked),
-          bisect between the pin-floor and ``bracket_high`` to push even smaller.
+          between `bracket_low` (largest failing) and `bracket_high` (smallest
+          working). When only `bracket_high` exists (very first iter worked),
+          bisect between the pin-floor and `bracket_high` to push even smaller.
 
         The non-target axis is kept at its incoming value so the mode stays true to
         "minimise this one axis".

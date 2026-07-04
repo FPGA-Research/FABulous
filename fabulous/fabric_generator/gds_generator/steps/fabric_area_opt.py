@@ -43,7 +43,7 @@ class NLPTileProblem(ElementwiseProblem):
     all_tile_metrics : dict[OptMode, dict] | None, optional
         Retained for backwards compatibility; should contain the same
         successful-compilation entries as *tile_metrics*. Falls back to
-        *tile_metrics* when ``None``.
+        *tile_metrics* when `None`.
     area_margin : float, optional
         Fractional margin added to standard-cell area constraints,
         by default 0.05 (5 %).
@@ -677,15 +677,15 @@ class FabricAreaOptimisation(Step):
     ) -> tuple[dict[OptMode, dict], dict[OptMode, dict]]:
         """Load tile metrics from a JSON file.
 
-        Returns two dicts: ``(valid_metrics, all_metrics)``. Both contain only
-        entries that compiled successfully — any entry with an ``error`` field
+        Returns two dicts: `(valid_metrics, all_metrics)`. Both contain only
+        entries that compiled successfully — any entry with an `error` field
         is dropped. A failed run may have left behind a recovered intermediate
         bbox (for example, when detailed routing timed out at an attempted die
         size), but that bbox does not represent a buildable geometry and would
         mislead both the NLP lower bounds and the feasibility envelope.
 
         The two dicts are returned identical for now; the second slot remains
-        for backwards compatibility with ``NLPTileProblem.all_tile_metrics``.
+        for backwards compatibility with `NLPTileProblem.all_tile_metrics`.
         """
         tile_data_raw = json.loads(path.resolve().read_text())
         valid_data: dict[OptMode, dict] = {}

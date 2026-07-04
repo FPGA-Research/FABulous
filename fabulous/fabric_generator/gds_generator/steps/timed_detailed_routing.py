@@ -2,7 +2,7 @@
 
 During tile-size exploration TritonRoute can spin for hours on pathological
 dies. This step wraps :class:`librelane.steps.openroad.DetailedRouting` so that
-if routing has not finished within ``FABULOUS_DRT_TIMEOUT`` seconds the entire
+if routing has not finished within `FABULOUS_DRT_TIMEOUT` seconds the entire
 OpenROAD process group is killed and a :class:`DRTTimedOutError` is raised,
 which the surrounding optimisation loop treats as a hard stop.
 """
@@ -26,15 +26,15 @@ class DRTTimedOutError(StepError):
 
 
 class _GroupLeaderPopen(subprocess.Popen):
-    """Minimal ``subprocess.Popen`` shim accepted by librelane's stats thread.
+    """Minimal `subprocess.Popen` shim accepted by librelane's stats thread.
 
-    librelane's ``ProcessStatsThread`` checks
-    ``status() in {STATUS_ZOMBIE, STATUS_DEAD}`` at entry to its sampling
-    loop; returning ``"dead"`` (psutil's ``STATUS_DEAD`` literal) makes it
+    librelane's `ProcessStatsThread` checks
+    `status() in {STATUS_ZOMBIE, STATUS_DEAD}` at entry to its sampling
+    loop; returning `"dead"` (psutil's `STATUS_DEAD` literal) makes it
     exit immediately, so no psutil-specific methods are ever called and
     stats reporting is skipped for the timed DRT step. Everything else
-    (line streaming, ``wait()``, ``returncode``, etc.) is plain
-    ``subprocess.Popen`` behaviour.
+    (line streaming, `wait()`, `returncode`, etc.) is plain
+    `subprocess.Popen` behaviour.
     """
 
     def status(self) -> str:

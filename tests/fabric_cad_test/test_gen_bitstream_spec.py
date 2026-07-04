@@ -1,12 +1,21 @@
 """Tests for bitstream specification generation.
 
-Two layers of coverage:
+Three layers of coverage:
 
 * Unit tests for :func:`border_rows_have_config_bits`, the border-row detection
   that drives the ``IncludeBorderRows`` archspec flag.
 * Integration tests that run the real generator on a fully generated demo fabric
   and assert the whole specification is internally consistent.
+* Bit-offset tests: ``generateBitstreamSpec`` assigns configuration-bit offsets
+  while iterating a tile's BEL feature map, switch-matrix sources, and wire
+  list. Those offsets must mirror the order in which the fabric HDL wires its
+  config bits: ``genTileSwitchMatrix`` walks ``parseMatrix``'s connections in
+  insertion order and assigns ``ConfigBits`` positions accordingly, so the spec
+  has to follow the same insertion order to stay aligned with the generated
+  hardware.
 """
+
+from pathlib import Path
 
 import pytest
 
@@ -14,7 +23,12 @@ from fabulous.fabric_cad.gen_bitstream_spec import (
     border_rows_have_config_bits,
     generateBitstreamSpec,
 )
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import Direction
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.wire import Wire
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from tests.conftest import make_empty_tile, make_fabric_from_grid, run_cmd
 
@@ -152,3 +166,201 @@ def test_config_tile_in_border_row_sets_flag(generated_fabric: Fabric) -> None:
 
     assert spec["ArchSpecs"]["IncludeBorderRows"] is True
     assert f"X{target_x}Y0" in spec["TileSpecs"]
+
+
+# Fabric.__post_init__ mandates 20 frames x 32 bits. Park all used config bits
+# in frame 0 so encodeDict[0:_USED_BITS] resolve to distinct physical positions
+# (frame 0 bit i -> 31 - i); that makes a wrong offset assignment observable
+# instead of collapsing onto the unused -1 sentinel.
+_FRAME_BITS = 32
+_MAX_FRAMES = 20
+_USED_BITS = 6
+_TILE_NAME = "TESTTILE"
+_DESTS = ["D0", "D1"]
+
+# Three BEL features consuming four config bits (F_B is a two-bit feature) plus
+# two switch-matrix sources consuming one control bit each => 6 global config
+# bits, matching matrixConfigBits (2) + bel.configBit (4).
+_FEATURE_MAP = {
+    "F_A": {0: {0: "1"}},
+    "F_B": {0: {0: "0", 1: "1"}},
+    "F_C": {0: {0: "1"}},
+}
+_SOURCES = ["S0", "S1"]
+
+
+def _write_configmem(path: Path) -> None:
+    """Write a 20-frame ConfigMem CSV with all used bits in frame 0.
+
+    Parameters
+    ----------
+    path : Path
+        Destination CSV path.
+    """
+    header = (
+        "frame_name,frame_index,bits_used_in_frame,used_bits_mask,ConfigBits_ranges"
+    )
+    mask = "1" * _USED_BITS + "0" * (_FRAME_BITS - _USED_BITS)
+    rows = [header, f"frame0,0,{_USED_BITS},{mask},0:{_USED_BITS - 1}"]
+    for index in range(1, _MAX_FRAMES):
+        rows.append(f"frame{index},{index},0,{'0' * _FRAME_BITS},NULL")
+    path.write_text("\n".join(rows) + "\n")
+
+
+def _write_matrix(path: Path, sources: list[str]) -> None:
+    """Write a switch-matrix CSV wiring every source to every destination.
+
+    Parameters
+    ----------
+    path : Path
+        Destination CSV path.
+    sources : list[str]
+        Source rows, written in the given order so the test can vary it.
+    """
+    lines = [f"{_TILE_NAME}," + ",".join(_DESTS)]
+    for source in sources:
+        lines.append(f"{source}," + ",".join(["1"] * len(_DESTS)))
+    path.write_text("\n".join(lines) + "\n")
+
+
+def _natural_wires() -> list[Wire]:
+    """Return the wire list used by the tests.
+
+    Returns
+    -------
+    list[Wire]
+        Two immutable wires in their declared insertion order.
+    """
+    return [
+        Wire(Direction.JUMP, "W_A", 0, 0, "W_B", "", ""),
+        Wire(Direction.JUMP, "W_C", 0, 0, "W_D", "", ""),
+    ]
+
+
+def _build_fabric(
+    root: Path,
+    name: str,
+    feature_map: dict[str, dict],
+    sources: list[str],
+    wires: list[Wire],
+) -> Fabric:
+    """Build a single-tile fabric backed by on-disk ConfigMem and matrix CSVs.
+
+    Parameters
+    ----------
+    root : Path
+        Temporary root directory; each fabric gets its own ``name`` subtree so
+        their CSV files do not clobber one another.
+    name : str
+        Subdirectory name isolating this fabric's CSV files.
+    feature_map : dict[str, dict]
+        BEL feature map populating the single BEL.
+    sources : list[str]
+        Switch-matrix source rows, in the desired insertion order.
+    wires : list[Wire]
+        Immutable wire connections, in the desired insertion order.
+
+    Returns
+    -------
+    Fabric
+        A 1x1 fabric whose only tile carries the supplied feature map, switch
+        matrix, and wire list.
+    """
+    tile_dir = root / name / _TILE_NAME
+    tile_dir.mkdir(parents=True, exist_ok=True)
+
+    _write_configmem(tile_dir / f"{_TILE_NAME}_ConfigMem.csv")
+    matrix_path = tile_dir / f"{_TILE_NAME}_switch_matrix.csv"
+    _write_matrix(matrix_path, sources)
+
+    bel = Bel(
+        src=tile_dir / "LUTA.v",
+        prefix="",
+        module_name="LUTA",
+        internal=[],
+        external=[],
+        configPort=[],
+        sharedPort=[],
+        configBit=4,
+        belMap=feature_map,
+        userCLK=False,
+        ports_vectors={},
+        carry={},
+        localShared={},
+    )
+
+    tile = Tile(
+        name=_TILE_NAME,
+        ports=[],
+        bels=[bel],
+        tileDir=tile_dir / f"{_TILE_NAME}.csv",
+        switch_matrix=SwitchMatrix.from_file(matrix_path, _TILE_NAME),
+        gen_ios=[],
+        userCLK=False,
+    )
+    tile.wireList = wires
+
+    fabric = Fabric(fabric_dir=root)
+    fabric.tile = [[tile]]
+    fabric.numberOfRows = 1
+    fabric.numberOfColumns = 1
+    return fabric
+
+
+def test_bitstream_spec_is_deterministic(tmp_path: Path) -> None:
+    """Identical fabric content yields an identical spec across runs."""
+    first = _build_fabric(
+        tmp_path,
+        "first",
+        feature_map=_FEATURE_MAP,
+        sources=_SOURCES,
+        wires=_natural_wires(),
+    )
+    second = _build_fabric(
+        tmp_path,
+        "second",
+        feature_map=_FEATURE_MAP,
+        sources=_SOURCES,
+        wires=_natural_wires(),
+    )
+
+    spec_first = generateBitstreamSpec(first)
+    spec_second = generateBitstreamSpec(second)
+
+    assert spec_first == spec_second
+    # Guard against a vacuous pass: the tile spec must actually be populated.
+    assert spec_first["TileSpecs"]["X0Y0"]
+
+
+def test_bitstream_spec_assigns_bit_offsets_in_insertion_order(
+    tmp_path: Path,
+) -> None:
+    """Each feature/pip maps to the config bit implied by its insertion order.
+
+    Frame 0 maps config bits 0..5 to physical positions 31..26. The three BEL
+    features consume offsets 0..3 and the two switch-matrix sources consume
+    offsets 4..5, in the order the parsers populate them, so the encoding below
+    is fully determined.
+    """
+    fabric = _build_fabric(
+        tmp_path,
+        "golden",
+        feature_map=_FEATURE_MAP,
+        sources=_SOURCES,
+        wires=_natural_wires(),
+    )
+
+    tile_spec = generateBitstreamSpec(fabric)["TileSpecs"]["X0Y0"]
+
+    assert tile_spec["A.F_A"] == {31: "1"}
+    # F_B is a two-bit feature; only the highest bit survives the per-bit
+    # overwrite, landing on offset 2 -> physical position 29.
+    assert tile_spec["A.F_B"] == {29: "1"}
+    assert tile_spec["A.F_C"] == {28: "1"}
+    assert tile_spec["D0.S0"] == {27: "0"}
+    assert tile_spec["D1.S0"] == {27: "1"}
+    assert tile_spec["D0.S1"] == {26: "0"}
+    assert tile_spec["D1.S1"] == {26: "1"}
+    # Immutable wires emit empty bit maps.
+    assert tile_spec["W_A.W_B"] == {}
+    assert tile_spec["W_C.W_D"] == {}

@@ -48,18 +48,18 @@ def filter_pin_tracks_by_stride_and_distance(
 ) -> tuple[dict[Side, list[list[float]]], list[dict]]:
     """Filter the per-segment raw tracks to satisfy min/max distance.
 
-    For each side and each segment in ``plan``, keep every ``stride``-th raw
-    track to enforce the segment's ``min_distance``, then insert extra
+    For each side and each segment in `plan`, keep every `stride`-th raw
+    track to enforce the segment's `min_distance`, then insert extra
     tracks where consecutive filtered tracks fall further apart than the
-    segment's ``max_distance``.  Segments whose filtered track count is
-    smaller than ``actual_pin_count`` are flagged in the returned
-    ``track_errors`` list for the caller to surface.
+    segment's `max_distance`.  Segments whose filtered track count is
+    smaller than `actual_pin_count` are flagged in the returned
+    `track_errors` list for the caller to surface.
 
     Parameters
     ----------
     plan : PinPlacementPlan
-        Plan whose ``track_coordinates`` and ``segments_by_side`` have been
-        populated by ``allocate_tracks`` and ``ensure_min_distances``.
+        Plan whose `track_coordinates` and `segments_by_side` have been
+        populated by `allocate_tracks` and `ensure_min_distances`.
     step_by_side : dict[Side, float]
         Track pitch for each side, in DBU.
     origin_by_side : dict[Side, float]
@@ -71,16 +71,16 @@ def filter_pin_tracks_by_stride_and_distance(
     -------
     pin_tracks : dict[Side, list[list[float]]]
         Filtered track coordinates per side, in the same order as
-        ``plan.segments_by_side[side]``.
+        `plan.segments_by_side[side]`.
     track_errors : list[dict]
         One entry per segment that did not have enough filtered tracks to
-        hold its pins, with ``side``, ``shortage``, ``step`` and
-        ``min_distance`` keys.
+        hold its pins, with `side`, `shortage`, `step` and
+        `min_distance` keys.
 
     Raises
     ------
     AssertionError
-        If any segment is missing a ``min_distance`` value, which should have
+        If any segment is missing a `min_distance` value, which should have
     """
     pin_tracks: dict[Side, list[list[float]]] = {side: [] for side in Side}
     track_errors: list[dict] = []
@@ -92,7 +92,7 @@ def filter_pin_tracks_by_stride_and_distance(
         step = step_by_side[side]
 
         # Stride cadence is carried across segments that share a physical
-        # tile; it resets when ``tile_index`` changes so each super-tile
+        # tile; it resets when `tile_index` changes so each super-tile
         # division still produces the same pin layout as a standalone tile.
         side_last_filtered_idx: int | None = None
         side_current_tile_index: int | None = None
@@ -610,8 +610,8 @@ class PinPlacementPlan:
 
         Each division gets tracks computed as if it were a standalone tile with
         the same PDK origin and step.  The division boundary (division_size) is
-        guaranteed to be a multiple of ``step`` by the upstream
-        ``round_die_area`` step, so ``tile_origin`` always falls on the global
+        guaranteed to be a multiple of `step` by the upstream
+        `round_die_area` step, so `tile_origin` always falls on the global
         routing grid.
         """
         if not segments_for_side:

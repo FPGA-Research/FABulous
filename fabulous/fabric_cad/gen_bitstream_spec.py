@@ -159,16 +159,15 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
 
             for i, bel in enumerate(tile.bels):
                 for featureKey, keyDict in bel.belFeatureMap.items():
-                    for entry in keyDict:
-                        if isinstance(entry, int):
-                            for v in keyDict[entry]:
-                                curTileMap[
-                                    f"{string.ascii_uppercase[i]}.{featureKey}"
-                                ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
-                                curTileMapNoMask[
-                                    f"{string.ascii_uppercase[i]}.{featureKey}"
-                                ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
-                            curBitOffset += len(keyDict[entry])
+                    for entry in (k for k in keyDict if isinstance(k, int)):
+                        for v in keyDict[entry]:
+                            curTileMap[f"{string.ascii_uppercase[i]}.{featureKey}"] = {
+                                encodeDict[curBitOffset + v]: keyDict[entry][v]
+                            }
+                            curTileMapNoMask[
+                                f"{string.ascii_uppercase[i]}.{featureKey}"
+                            ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
+                        curBitOffset += len(keyDict[entry])
 
             result = tile.switch_matrix.connections
             for source, sinkList in result.items():

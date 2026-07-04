@@ -125,8 +125,8 @@ def _run_tile_flow_worker(
         flow. Passed explicitly because the worker process cannot read the
         parent's context.
     design_dir : Path | None
-        Override the flow's design directory. When ``None``, the default
-        ``<tile>/macro/<opt_mode>`` location is used.
+        Override the flow's design directory. When `None`, the default
+        `<tile>/macro/<opt_mode>` location is used.
     **custom_config_overrides : dict
         Any software overrides for the flow configuration.
 
@@ -558,7 +558,7 @@ class FABulousFabricOptimisationFlow(Flow):
                 )
 
             # Walk up from the GDS path to find the run directory containing the
-            # `final/`` snapshot. Robust to varying step nesting (e.g. write-out
+            # `final/` snapshot. Robust to varying step nesting (e.g. write-out
             # steps inside a WhileStep wrapper). librelane's Path is a
             # UserString, so wrap with pathlib.
             final_dir: Path | None = next(

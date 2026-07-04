@@ -6,6 +6,7 @@ including I/O types, directions, sides, and configuration modes.
 
 from decimal import Decimal
 from enum import Enum, StrEnum
+from functools import total_ordering
 from typing import NamedTuple
 
 
@@ -25,24 +26,35 @@ class IO(Enum):
     NULL = "NULL"
 
 
+@total_ordering
 class Direction(Enum):
     """Enumeration for wire and port directions in the fabric.
 
-    Defines the directional flow of wires and ports:
+    Members are declared in canonical order (NORTH, EAST, SOUTH, WEST, JUMP)
+    and can be sorted.
+
+    The directional flow of wires and ports:
     - NORTH: Northward direction
-    - SOUTH: Southward direction
     - EAST: Eastward direction
+    - SOUTH: Southward direction
     - WEST: Westward direction
     - JUMP: Local connections within a tile
     - SJUMP: One-way connections from a tile up to a supertile BEL
     """
 
     NORTH = "NORTH"
-    SOUTH = "SOUTH"
     EAST = "EAST"
+    SOUTH = "SOUTH"
     WEST = "WEST"
     JUMP = "JUMP"
     SJUMP = "SJUMP"
+
+    def __lt__(self, other: "Direction") -> bool:
+        """Return `True` if `self` precedes `other` in definition order."""
+        if not isinstance(other, Direction):
+            return NotImplemented
+        members = list(type(self))
+        return members.index(self) < members.index(other)
 
 
 class Side(StrEnum):

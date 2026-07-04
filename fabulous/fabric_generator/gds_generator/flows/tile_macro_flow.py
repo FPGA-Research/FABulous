@@ -232,7 +232,7 @@ def _apply_tile_die_area_config(
     tile_type: Tile | SuperTile,
     opt_mode: OptMode | None = None,
 ) -> GenericDict[str, object]:
-    """Populate and validate tile ``DIE_AREA`` using the routing pitch."""
+    """Populate and validate tile `DIE_AREA` using the routing pitch."""
     x_pitch, y_pitch = get_pitch(config)
     get_offset(config)
     min_x, min_y = tile_type.get_min_die_area(
