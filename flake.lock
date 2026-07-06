@@ -222,11 +222,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1780416763,
-        "narHash": "sha256-rRK3IFixgsrK6S3e14Xz9HAZm7+kMAIl3oi5zZlcwYI=",
+        "lastModified": 1782905613,
+        "narHash": "sha256-SvXJcAemihifkTn4BGvyE5K1FJX9bl4U8DQ5pqKvD0s=",
         "owner": "pyproject-nix",
         "repo": "pyproject.nix",
-        "rev": "ad83f1ead0e78e57b188f35cb57298affb06fc5f",
+        "rev": "7af23cfe91064865ecf2e835da28b45b3c6f49fd",
         "type": "github"
       },
       "original": {
@@ -284,11 +284,11 @@
     "yosys-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1782986445,
-        "narHash": "sha256-/o06pAntXTDi+Gb5xpvh2rZyvkBqusFRYi+NtM3qopE=",
+        "lastModified": 1783351082,
+        "narHash": "sha256-vsAjDjo0im2Cw/ygg9ObxkGAiP6ZuDisvblMMC/aA0Q=",
         "ref": "refs/heads/main",
-        "rev": "b285b72e360260be4abc8990f9c46b25b8b66b40",
-        "revCount": 17384,
+        "rev": "aa18c921a76a9790e3b877a378b9eec41c26f752",
+        "revCount": 17398,
         "submodules": true,
         "type": "git",
         "url": "https://github.com/YosysHQ/yosys"
