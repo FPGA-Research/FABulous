@@ -39,7 +39,7 @@ dependencies = [
   "librelane>=3.0.0",
   "pick>=2.4.0",
   "pymoo>=0.6.1.5",
-  "numpy>=2.3.4",
+  "numpy>=2.5.1",
   "dill>=0.4.0",
   "networkx>=3.6.1",
   "sdf-timing",
