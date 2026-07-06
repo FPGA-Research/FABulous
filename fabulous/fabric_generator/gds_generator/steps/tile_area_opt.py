@@ -21,7 +21,6 @@ from fabulous.fabric_generator.gds_generator.helper import (
     round_up_decimal,
 )
 from fabulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
-from fabulous.fabric_generator.gds_generator.steps.custom_pdn import CustomGeneratePDN
 from fabulous.fabric_generator.gds_generator.steps.diodes_on_ports import (
     FABulousDiodesOnPorts,
 )
@@ -147,7 +146,7 @@ class TileAreaOptimisation(WhileStep):
         OpenROAD.CutRows,
         OpenROAD.TapEndcapInsertion,
         Odb.AddPDNObstructions,
-        CustomGeneratePDN,  # Custom PDN default pdn_cfg.tcl
+        OpenROAD.GeneratePDN,
         Odb.RemovePDNObstructions,
         Odb.AddRoutingObstructions,
         FABulousTileIOPlacement,  # Replace with FABulous IO Placement
