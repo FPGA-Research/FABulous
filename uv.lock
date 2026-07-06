@@ -686,7 +686,7 @@ requires-dist = [
     { name = "librelane", specifier = ">=3.0.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "networkx", specifier = ">=3.6.1" },
-    { name = "numpy", specifier = ">=2.3.4" },
+    { name = "numpy", specifier = ">=2.5.1" },
     { name = "packaging", specifier = ">=25.0" },
     { name = "pick", specifier = ">=2.4.0" },
     { name = "pydantic", specifier = ">=2.12.1" },
