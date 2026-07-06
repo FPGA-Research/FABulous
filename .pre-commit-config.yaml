@@ -49,8 +49,12 @@ repos:
       # Run the formatter.
       - id: ruff-format
 
+  # Pinned to 0.9.0: pydoclint 0.9.1 regressed numpy docstring parsing so the
+  # standard `param : type, optional` / `default=...` suffix is treated as part
+  # of the type hint, producing false DOC105/DOC605 mismatches across the repo.
+  # Unpin once a fixed release lands (see the dependabot ignore for 0.9.1).
   - repo: https://github.com/jsh9/pydoclint
-    rev: 0.9.1
+    rev: 0.9.0
     hooks:
       - id: pydoclint
         args: [ --style=numpy ]

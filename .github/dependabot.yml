@@ -83,6 +83,12 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
+    # pydoclint 0.9.1 regressed numpy docstring parsing (the `, optional` /
+    # `default=...` suffix is read as part of the type hint), producing false
+    # DOC105/DOC605 errors. Skip that release; drop this once a fix ships.
+    ignore:
+      - dependency-name: "https://github.com/jsh9/pydoclint"
+        versions: ["0.9.1"]
 
   - package-ecosystem: "docker"
     directory: "/.devcontainer"
