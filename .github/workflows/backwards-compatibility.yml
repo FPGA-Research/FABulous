@@ -9,6 +9,7 @@ on:
       - 'uv.lock'
       - '.github/workflows/backwards-compatibility.yml'
       - '.github/actions/**'
+  merge_group:
 
 jobs:
   # NOTE: This workflow intentionally uses two separate jobs instead of two

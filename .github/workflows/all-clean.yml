@@ -2,6 +2,7 @@ name: All clean
 
 on:
   pull_request:
+  merge_group:
 
 permissions:
   checks: read

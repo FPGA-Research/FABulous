@@ -17,6 +17,7 @@ on:
       - "uv.lock"
       - ".github/workflows/pytest_testing.yml"
       - ".github/actions/**"
+  merge_group:
 
 # copy and modified based on https://github.com/jerry-git/pytest-split/issues/20#issuecomment-2576031836
 
