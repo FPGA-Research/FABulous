@@ -63,7 +63,7 @@ repos:
 
   # Verilog / SystemVerilog linting — upstream hook (Docker-backed)
   - repo: https://github.com/verilator/verilator
-    rev: v5.048 # refreshed by `pre-commit autoupdate`
+    rev: v5.050 # refreshed by `pre-commit autoupdate`
     hooks:
       - id: verilator
         # Waivers are inherent to pre-commit's per-file linting, not real design defects:
