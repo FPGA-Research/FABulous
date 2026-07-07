@@ -97,16 +97,14 @@ The host design needs a thin top-level module that instantiates the fabric and
 connects it to the board's physical resources. The demo's `top.v` does four
 things.
 
-**Clocking.** A Vivado clocking wizard (`clk_wiz_0`) derives the fabric clock
-from the board's oscillator. The demo runs the fabric at 10 MHz. Keep this well
-below the UART bit rate margin — the configuration loader samples `Rx` in the
-fabric clock domain.
+**Clocking:** A Vivado clocking wizard (`clk_wiz_0`) derives the fabric clock
+from the board's oscillator. The demo runs the fabric at 10 MHz.
 
-**Reset.** `resetn` is asserted only when the external reset is released _and_
+**Reset:** `resetn` is asserted only when the external reset is released _and_
 the clocking wizard reports `locked`, so the fabric is not clocked before its
 PLL is stable.
 
-**Configuration link.** The board's UART receive line drives the fabric's `Rx`
+**Configuration link:** The board's UART receive line drives the fabric's `Rx`
 port through `eFPGA_Config`, and the fabric's `ReceiveLED` is brought out to a board LED.
 If it will be solid on during the bitstream transmission and blink when there is no transmission,
 so you can see if the config logic receives a bitstream. This is useful for debugging something
@@ -114,17 +112,17 @@ like a baud rate mismatch.
 
 The relevant configuration ports exposed by `eFPGA_Config` are:
 
-| Port             | Direction | Role                                                        |
-|------------------|-----------|-------------------------------------------------------------|
-| `Rx`             | in        | UART serial input — this is what `board.py` drives          |
-| `s_clk`/`s_data` | in        | Bit-bang serial config (unused in the UART flow)            |
-| `ReceiveLED`     | out       | Toggles while configuration data is being received          |
-| `ComActive`      | out       | High while a configuration transfer is in progress          |
+| Port             | Direction | Role                                                               |
+|------------------|-----------|--------------------------------------------------------------------|
+| `Rx`             | in        | UART serial input — this is what `board.py` drives                 |
+| `s_clk`/`s_data` | in        | Bit-bang serial config (unused in the UART flow)                   |
+| `ReceiveLED`     | out       | On while configuration data is being received, blinking otherwise  |
+| `ComActive`      | out       | High while a configuration transfer is in progress                 |
 
 The fabric prioritizes configuration sources as **UART > bit-bang > parallel**,
 so wiring only `Rx` is sufficient for this flow.
 
-**User I/O.** The fabric's user I/O buses (`I_top` / `O_top` in the demo, sized
+**User I/O:** The fabric's user I/O buses (`I_top` / `O_top` in the demo, sized
 by `NUM_USED_IOS`) are mapped to board switches and LEDs so you can drive inputs
 and observe outputs. In the demo, dip switches feed fabric inputs and a slice of
 the fabric outputs drive `led[7:2]`, with `led[0]` used as a free-running
@@ -151,7 +149,7 @@ and the user design consistent.
 5. **Enable out-of-context (OOC) synthesis** on the tile instances and the block
    RAM. Select them in the _Sources_ panel, right-click, and set them out of
    context. The fabric is highly repetitive, so OOC synthesis of the tiles
-   drastically reduces synthesis time.
+   drastically reduces synthesis time and RAM usage.
 6. **Configure the clocking wizard** (`clk_wiz_0`): input `clk_in`, output `clk_out1` at 10 MHz.
 7. **Generate the bitstream** from the Flow Navigator, then program the board
    through the Hardware Manager.
@@ -175,7 +173,7 @@ Useful options:
 |-------------------|---------------------------|------------------------------------------------|
 | `-i DEVICE_ID`    | —                         | Select a specific board by serial/device id    |
 | `-v`              | off                       | Verbose progress output                        |
-| (VID/PID/baud)    | `0403` / `6014` / `57600` | FTDI USB-UART identity and bit rate            |
+| (VID/PID/baud)    | `0403` / `6014` / `57600` | FTDI USB-UART identity and baud rate           |
 
 The configuration-receive LED (`led[1]` in the demo) is solid while the bitstream
 is being received. When the upload finishes, the fabric holds the mapped design.
