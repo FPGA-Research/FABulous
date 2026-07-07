@@ -152,9 +152,7 @@ and the user design consistent.
    RAM. Select them in the _Sources_ panel, right-click, and set them out of
    context. The fabric is highly repetitive, so OOC synthesis of the tiles
    drastically reduces synthesis time.
-6. **Configure the clocking wizard** (`clk_wiz_0`): input `clk_in`, output
-   `clk_out1` at 10 MHz, with the `reset` and `locked` pins enabled and reset
-   set active-high.
+6. **Configure the clocking wizard** (`clk_wiz_0`): input `clk_in`, output `clk_out1` at 10 MHz.
 7. **Generate the bitstream** from the Flow Navigator, then program the board
    through the Hardware Manager.
 
