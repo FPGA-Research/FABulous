@@ -48,11 +48,11 @@ Each non-blank, non-comment line is a single `set_io` constraint:
 set_io <port> X<col>Y<row>/<bel>
 ```
 
-| Field    | Meaning                                                                    |
-| -------- | -------------------------------------------------------------------------- |
-| `<port>` | A top-level port of your design. Bus bits are indexed, e.g. `a[0]`.        |
-| `X<col>Y<row>` | The tile coordinate of the target I/O BEL (column `X`, row `Y`).     |
-| `<bel>`  | The BEL letter that selects one BEL within that tile — see below.          |
+| Field           | Meaning                                                             |
+| ----------------| ------------------------------------------------------------------- |
+| `<port>`        | A top-level port of your design. Bus bits are indexed, e.g. `a[0]`. |
+| `X<col>Y<row>`  | The tile coordinate of the target I/O BEL (column `X`, row `Y`).    |
+| `<bel>`         | The BEL letter that selects one BEL within that tile — see below.   |
 
 ### What the BEL letter means
 
@@ -171,7 +171,6 @@ regular I/O, not the dedicated clock network.
 
 ```verilog
 module counter (input clk, input rst, input ena, input [3:0] a, output [3:0] b);
-    // The clock tile is a blackbox and is not pinned through the PCF.
     wire clk_int;
     (* keep *) Global_Clock inst_clk (.CLK(clk_int));
 
