@@ -7,6 +7,7 @@ board and reconfigure it with user designs at runtime, over UART. The
 repository is used as the worked example. It targets a
 [Digilent Nexys Video](https://digilent.com/reference/programmable-logic/nexys-video/start)
 board, but the same approach applies to any FPGA large enough to hold the fabric.
+Note that the FPGA needs to support latch cells, since the configuration bitstream is stored in latches.
 
 ## Two kinds of emulation
 
@@ -27,6 +28,8 @@ covers.
 The second mode is the closer analogue to real silicon: the host FPGA plays the
 role the ASIC would, and you exercise the same configuration path
 (`config_UART` -> `ConfigFSM` -> frame registers) that a hardened fabric uses.
+The first mode results in a lower resource utilization, since the bitstream does not have to be stored and
+all the switch matrices collapse into simple, hardwired connections.
 
 ## How it works
 
