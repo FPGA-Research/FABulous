@@ -177,7 +177,7 @@ Useful options:
 | `-v`              | off                       | Verbose progress output                        |
 | (VID/PID/baud)    | `0403` / `6014` / `57600` | FTDI USB-UART identity and bit rate            |
 
-The configuration-receive LED (`led[1]` in the demo) toggles while the bitstream
+The configuration-receive LED (`led[1]` in the demo) is solid while the bitstream
 is being received. When the upload finishes, the fabric holds the mapped design.
 
 To try a different design, compile it to a `.bin` with `compile_design`
@@ -196,7 +196,7 @@ reset the counter and the LEDs show its running output.
   the Vivado programming step and the board's mode/power jumpers.
 - **Heartbeat but no reaction to uploads.** Confirm the UART device (VID/PID),
   baud rate, and that `board.py` is talking to the right port. The
-  configuration-receive LED should toggle during a valid transfer.
+  configuration-receive LED should be solid on during a valid transfer.
 - **Upload completes but outputs look wrong.** Re-check that the wrapper's
   switch/LED mapping lines up with the user design's top-level ports, and that
   the `.bin` was built against the _same_ fabric RTL that was synthesized onto
