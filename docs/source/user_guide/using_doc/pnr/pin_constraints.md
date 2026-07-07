@@ -17,12 +17,12 @@ pin assignment separately.
 
 The PCF flow has two parts, one in synthesis and one in place-and-route:
 
-1. **Synthesis (`-iopad`).** Passing `-iopad` to the `synth_fabulous` Yosys pass
+1. **Synthesis (`-iopad`):** Passing `-iopad` to the `synth_fabulous` Yosys pass
    runs I/O pad mapping, which inserts an I/O buffer cell
    (`$nextpnr_ibuf` / `$nextpnr_obuf` / `$nextpnr_iobuf`) on every top-level
    port. Without this step there are no I/O cells for nextpnr to constrain, and
    the PCF has nothing to bind to.
-2. **Place-and-route (`-o pcf=...`).** nextpnr reads the PCF, and for each
+2. **Place-and-route (`-o pcf=...`):** nextpnr reads the PCF, and for each
    `set_io` line it finds the I/O cell connected to the named port and locks it
    to the requested I/O BEL.
 
@@ -155,7 +155,7 @@ FABulous> compile_design user_design/counter.v -top counter \
 | ------------------------------------- | -------------------------------------------------- |
 | `user_design/counter.v`               | The design source(s) to compile.                   |
 | `-top counter`                        | Use the design module as the top (no wrapper).     |
-| `--synth-extra-args=-iopad`           | Insert I/O buffers so the PCF has cells to bind.    |
+| `--synth-extra-args=-iopad`           | Insert I/O buffers so the PCF has cells to bind.   |
 | `--nextpnr-extra-args "-o pcf=..."`   | Forward the PCF to nextpnr's `fabulous` uarch.     |
 
 The result is the usual bitstream (`counter.bin`) next to the design, ready to
