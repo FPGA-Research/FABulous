@@ -40,6 +40,10 @@ if TYPE_CHECKING:
 
 MAX_BITBYTES = 16384
 
+# Yosys master broke FABulous; pin the OSS-CAD-Suite install to a known-good
+# release. Set to None to track the latest nightly again.
+OSS_CAD_SUITE_VERSION: str | None = "2026-06-29"
+
 
 def setup_logger(verbosity: int, debug: bool, log_file: Path = Path()) -> None:
     """Set up the loguru logger with custom formatting based on verbosity level.
@@ -545,9 +549,15 @@ def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> Non
         If no valid archive is found for the current OS and architecture.
         If the file format of the downloaded archive is unsupported.
     """
-    github_releases_url = (
-        "https://api.github.com/repos/YosysHQ/oss-cad-suite-build/releases/latest"
-    )
+    if OSS_CAD_SUITE_VERSION is None:
+        github_releases_url = (
+            "https://api.github.com/repos/YosysHQ/oss-cad-suite-build/releases/latest"
+        )
+    else:
+        github_releases_url = (
+            "https://api.github.com/repos/YosysHQ/oss-cad-suite-build/releases/tags/"
+            f"{OSS_CAD_SUITE_VERSION}"
+        )
     response = requests.get(github_releases_url)
     system = platform.system().lower()
     machine = platform.machine().lower()
