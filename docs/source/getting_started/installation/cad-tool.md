@@ -11,6 +11,10 @@ FABulous install oss-cad-suite
 
 This will install the [`oss-cad-suit`](https://github.com/YosysHQ/oss-cad-suite-build) for you which will install all the non-required CAD tools, such as `nextpnr-generic` and simulators, which save you the trouble of installing other tools.
 
+:::{warning}
+Do **not** use the latest nightly build of Yosys. This also applies to `FABulous install oss-cad-suite` as it pulls the OSS CAD Suite, which tracks the Yosys nightly. Nightly builds after **29 June** are **not** compatible with current FABulous and will fail. Install Yosys **0.66**, or any build dated **before 29 June**, instead.
+:::
+
 :::{note}
 If you just want to install `yosys` using **apt**, make sure you have at least Ubuntu 23.10 (24.04 for the LTS versions) installed to meet the above requirement.
 :::
