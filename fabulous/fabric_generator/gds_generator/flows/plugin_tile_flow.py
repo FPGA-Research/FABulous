@@ -24,7 +24,6 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     generate_IO_pin_order_config,
 )
 from fabulous.fabric_generator.gds_generator.helper import (
-    get_offset,
     get_pitch,
     get_routing_obstructions,
     round_die_area,
@@ -71,6 +70,21 @@ class FABulousTile(SequentialFlow):
             "per-subtile Verilog.",
             default=False,
         ),
+        Variable(
+            "FABULOUS_CONFIG_BIT_MODE",
+            ConfigBitMode,
+            "Config-bit storage mode used when regenerating the tile switch "
+            "matrix and config memory. Must match the parent fabric; the "
+            "standalone tile flow has no fabric to read it from.",
+            default=ConfigBitMode.FRAME_BASED,
+        ),
+        Variable(
+            "FABULOUS_MULTIPLEXER_STYLE",
+            MultiplexerStyle,
+            "Multiplexer implementation style used when regenerating the tile "
+            "switch matrix. Must match the parent fabric.",
+            default=MultiplexerStyle.CUSTOM,
+        ),
     ]
 
     gating_config_vars = FABulousTileVerilogMacroFlow.gating_config_vars
@@ -94,8 +108,16 @@ class FABulousTile(SequentialFlow):
         is_supertile = bool(self.config.get("FABULOUS_SUPERTILE", False))
 
         tile = _parse_plugin_tile(tile_dir, tile_name, is_supertile)
+        config_bit_mode = ConfigBitMode(self.config["FABULOUS_CONFIG_BIT_MODE"])
+        multiplexer_style = MultiplexerStyle(self.config["FABULOUS_MULTIPLEXER_STYLE"])
         writer = VerilogCodeGenerator()
-        _emit_tile_verilog(writer, tile, tile_dir)
+        _emit_tile_verilog(
+            writer,
+            tile,
+            tile_dir,
+            config_bit_mode=config_bit_mode,
+            multiplexer_style=multiplexer_style,
+        )
 
         pin_yaml = Path(self.run_dir) / f"{tile_name}_io_pin_order.yaml"
         external_side_value = self.config.get("FABULOUS_EXTERNAL_SIDE")
@@ -157,10 +179,7 @@ class FABulousTile(SequentialFlow):
         self.config = _apply_tile_die_area_config(self.config, tile)
         self.config = round_die_area(self.config)
 
-        if (
-            "ROUTING_OBSTRUCTIONS" not in self.config
-            or self.config["ROUTING_OBSTRUCTIONS"] is None
-        ) and self.config["ROUTING_OBSTRUCTIONS"] is not False:
+        if self.config.get("ROUTING_OBSTRUCTIONS") is None:
             self.config = self.config.copy(
                 ROUTING_OBSTRUCTIONS=get_routing_obstructions(self.config)
             )
@@ -168,32 +187,49 @@ class FABulousTile(SequentialFlow):
         return super().run(initial_state, **kwargs)
 
 
+# PIP delay only annotates the switch-matrix for simulation timing; it does not
+# affect the hardened macro, so it is fixed here rather than exposed as config.
+_SWITCH_MATRIX_PIP_DELAY = 80
+
+
 def _emit_tile_verilog(
     writer: VerilogCodeGenerator,
     tile: Tile | SuperTile,
     tile_dir: Path,
+    config_bit_mode: ConfigBitMode,
+    multiplexer_style: MultiplexerStyle,
 ) -> None:
     """Generate switch-matrix, config-mem, and tile Verilog into `tile_dir`."""
     if isinstance(tile, SuperTile):
         for sub_tile in tile.tiles:
             sub_dir = sub_tile.tileDir.parent
-            _emit_regular_tile_verilog(writer, sub_tile, sub_dir)
+            _emit_regular_tile_verilog(
+                writer,
+                sub_tile,
+                sub_dir,
+                config_bit_mode,
+                multiplexer_style,
+            )
         writer.outFileName = tile_dir / f"{tile.name}.v"
         generateSuperTile(
             writer,
             tile,
             disable_user_clk=True,
-            config_bit_mode=ConfigBitMode.FRAME_BASED,
+            config_bit_mode=config_bit_mode,
         )
         return
 
-    _emit_regular_tile_verilog(writer, tile, tile_dir)
+    _emit_regular_tile_verilog(
+        writer, tile, tile_dir, config_bit_mode, multiplexer_style
+    )
 
 
 def _emit_regular_tile_verilog(
     writer: VerilogCodeGenerator,
     tile: Tile,
     tile_dir: Path,
+    config_bit_mode: ConfigBitMode,
+    multiplexer_style: MultiplexerStyle,
 ) -> None:
     """Generate Verilog artefacts for one concrete tile."""
     switch_matrix_debug_signal = get_context().switch_matrix_debug_signal
@@ -203,9 +239,9 @@ def _emit_regular_tile_verilog(
         writer,
         tile,
         switch_matrix_debug_signal,
-        config_bit_mode=ConfigBitMode.FRAME_BASED,
-        multiplexer_style=MultiplexerStyle.CUSTOM,
-        default_pip_delay=80,
+        config_bit_mode=config_bit_mode,
+        multiplexer_style=multiplexer_style,
+        default_pip_delay=_SWITCH_MATRIX_PIP_DELAY,
     )
     writer.outFileName = tile_dir / f"{tile.name}_ConfigMem.v"
     generateConfigMem(
@@ -219,7 +255,7 @@ def _emit_regular_tile_verilog(
         writer,
         tile,
         disable_user_clk=True,
-        config_bit_mode=ConfigBitMode.FRAME_BASED,
+        config_bit_mode=config_bit_mode,
     )
 
 
@@ -229,7 +265,6 @@ def _apply_tile_die_area_config(
 ) -> GenericDict[str, object]:
     """Populate plugin tile `DIE_AREA` using patchable local helper imports."""
     x_pitch, y_pitch = get_pitch(config)
-    get_offset(config)
     min_x, min_y = tile_type.get_min_die_area(
         x_pitch=x_pitch,
         y_pitch=y_pitch,

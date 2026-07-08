@@ -16,6 +16,7 @@ import pytest
 from librelane.flows.flow import Flow, FlowException
 from pytest_mock import MockerFixture
 
+from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle
 from fabulous.fabric_generator.gds_generator.flows import plugin_tile_flow
 from fabulous.fabric_generator.gds_generator.flows.plugin_tile_flow import (
     FABulousTile,
@@ -154,7 +155,13 @@ class TestEmitTileVerilog:
             return_value=mocker.MagicMock(switch_matrix_debug_signal=False),
         )
 
-        _emit_tile_verilog(mock_writer, mock_tile, tile_dir)
+        _emit_tile_verilog(
+            mock_writer,
+            mock_tile,
+            tile_dir,
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
+            multiplexer_style=MultiplexerStyle.GENERIC,
+        )
 
         expected: list[Path] = [
             tile_dir / "LUT4AB_switch_matrix.v",
@@ -163,6 +170,10 @@ class TestEmitTileVerilog:
         ]
         assert actual_paths == expected
         gen_sm.assert_called_once()
+        # Config-bit mode and mux style flow through instead of being hard-coded.
+        sm_kwargs = gen_sm.call_args.kwargs
+        assert sm_kwargs["config_bit_mode"] == ConfigBitMode.FLIPFLOP_CHAIN
+        assert sm_kwargs["multiplexer_style"] == MultiplexerStyle.GENERIC
         gen_cm.assert_called_once_with(
             mock_writer,
             mock_tile.name,
@@ -199,7 +210,13 @@ class TestEmitTileVerilog:
         )
         gen_super = mocker.patch.object(plugin_tile_flow, "generateSuperTile")
 
-        _emit_tile_verilog(mock_writer, mock_supertile, tile_dir)
+        _emit_tile_verilog(
+            mock_writer,
+            mock_supertile,
+            tile_dir,
+            config_bit_mode=ConfigBitMode.FRAME_BASED,
+            multiplexer_style=MultiplexerStyle.CUSTOM,
+        )
 
         assert [call.args[2] for call in emit_regular.call_args_list] == [
             top_dir,
@@ -265,7 +282,6 @@ class TestFABulousTileRunAdapter:
         mocker.patch.object(
             plugin_tile_flow, "get_pitch", return_value=(Decimal(1), Decimal(1))
         )
-        mocker.patch.object(plugin_tile_flow, "get_offset")
         mocker.patch.object(
             plugin_tile_flow, "get_routing_obstructions", return_value=[]
         )
@@ -371,7 +387,6 @@ class TestFABulousTileRunAdapter:
         mocker.patch.object(
             plugin_tile_flow, "get_pitch", return_value=(Decimal(1), Decimal(1))
         )
-        mocker.patch.object(plugin_tile_flow, "get_offset")
         mocker.patch.object(
             plugin_tile_flow, "get_routing_obstructions", return_value=[]
         )
@@ -468,7 +483,6 @@ class TestFABulousTileEndToEnd:
         mocker.patch.object(
             plugin_tile_flow, "get_pitch", return_value=(Decimal(1), Decimal(1))
         )
-        mocker.patch.object(plugin_tile_flow, "get_offset")
         mocker.patch.object(
             plugin_tile_flow, "get_routing_obstructions", return_value=[]
         )

@@ -20,12 +20,13 @@ from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV
 def _discover_tile_macros(
     tile_names: list[str], tile_library_paths: list[Path]
 ) -> dict[str, Path]:
-    """Locate each tile's most recent `RUN_*/final` directory.
+    """Locate each tile's most recent completed `RUN_*/final` directory.
 
     Walks each `FABULOUS_TILE_LIBRARY` root, looks for `<root>/<tile>/runs/`,
-    and picks the most recently modified `RUN_*/final` directory. Tiles that
-    cannot be resolved are omitted; the caller is responsible for surfacing
-    the error.
+    and picks the most recently modified `RUN_*/final` directory that contains
+    a `metrics.json` (an incomplete or failed run without it is not a usable
+    macro). Tiles that cannot be resolved are omitted; the caller is
+    responsible for surfacing the error.
     """
     discovered: dict[str, Path] = {}
     for tile in tile_names:
@@ -34,7 +35,11 @@ def _discover_tile_macros(
             runs = Path(lib) / tile / "runs"
             if not runs.is_dir():
                 continue
-            candidates.extend(p for p in runs.glob("RUN_*/final") if p.is_dir())
+            candidates.extend(
+                p
+                for p in runs.glob("RUN_*/final")
+                if p.is_dir() and (p / "metrics.json").is_file()
+            )
         if not candidates:
             continue
         discovered[tile] = max(candidates, key=lambda p: p.stat().st_mtime)
@@ -115,10 +120,11 @@ class FABulousFabric(FABulousFabricMacroFlow):
             tile_lib_paths = [
                 Path(p) for p in self.config.get("FABULOUS_TILE_LIBRARY") or []
             ]
-            tile_names = [
+            macro_names = [
                 t.name for t in self.fabric.tileDic.values() if not t.partOfSuperTile
             ]
-            tile_macro_dirs = _discover_tile_macros(tile_names, tile_lib_paths)
+            macro_names += list(self.fabric.superTileDic)
+            tile_macro_dirs = _discover_tile_macros(macro_names, tile_lib_paths)
         if not tile_macro_dirs:
             raise FlowException(
                 "FABULOUS_TILE_MACROS is empty and no RUN_*/final directories "

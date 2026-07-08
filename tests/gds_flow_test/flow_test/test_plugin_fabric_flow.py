@@ -10,6 +10,7 @@ name → pre-hardened macro directory) into the `self.fabric` / `self.macros`
 # ruff: noqa: SLF001
 
 import json
+import os
 from decimal import Decimal
 from pathlib import Path
 
@@ -25,7 +26,17 @@ from fabulous.fabric_generator.gds_generator.flows.plugin_fabric_flow import (
     FABulousFabric,
     _build_macros,
     _collect_fabric_verilog,
+    _discover_tile_macros,
 )
+
+
+def _write_run_final(root: Path, tile: str, run: str, *, with_metrics: bool) -> Path:
+    """Create `<root>/<tile>/runs/<run>/final`, optionally with metrics.json."""
+    final: Path = root / tile / "runs" / run / "final"
+    final.mkdir(parents=True)
+    if with_metrics:
+        (final / "metrics.json").write_text("{}", encoding="utf-8")
+    return final
 
 
 def _write_macro_dir(
@@ -332,3 +343,84 @@ class TestFABulousFabricInitAdapter:
                 pdk="sky130A",
                 pdk_root=str(tmp_path / "pdk"),
             )
+
+
+class TestDiscoverTileMacros:
+    """`_discover_tile_macros` resolves hardened tile run directories."""
+
+    def test_picks_newest_run_with_metrics(self, tmp_path: Path) -> None:
+        old: Path = _write_run_final(tmp_path, "LUT4AB", "RUN_OLD", with_metrics=True)
+        new: Path = _write_run_final(tmp_path, "LUT4AB", "RUN_NEW", with_metrics=True)
+        os.utime(old, (1000, 1000))
+        os.utime(new, (2000, 2000))
+
+        assert _discover_tile_macros(["LUT4AB"], [tmp_path]) == {"LUT4AB": new}
+
+    def test_skips_run_without_metrics_even_if_newer(self, tmp_path: Path) -> None:
+        good: Path = _write_run_final(tmp_path, "LUT4AB", "RUN_OLD", with_metrics=True)
+        newer_bad: Path = _write_run_final(
+            tmp_path, "LUT4AB", "RUN_NEW", with_metrics=False
+        )
+        os.utime(good, (1000, 1000))
+        os.utime(newer_bad, (2000, 2000))
+
+        # The newer run has no metrics.json, so it is not a usable macro.
+        assert _discover_tile_macros(["LUT4AB"], [tmp_path]) == {"LUT4AB": good}
+
+    def test_omits_tile_with_no_valid_run(self, tmp_path: Path) -> None:
+        _write_run_final(tmp_path, "LUT4AB", "RUN_NEW", with_metrics=False)
+
+        assert _discover_tile_macros(["LUT4AB", "MISSING"], [tmp_path]) == {}
+
+
+@pytest.mark.usefixtures("mock_config_load")
+class TestAutoDiscoveryIncludesSuperTiles:
+    """Auto-discovery must resolve super-tile macros, not just standalone tiles."""
+
+    def test_supertile_names_passed_to_discovery(
+        self, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        fabric_csv: Path = tmp_path / "fabric.csv"
+        fabric_csv.write_text("", encoding="utf-8")
+        (tmp_path / "MyFab.v").write_text("", encoding="utf-8")
+
+        regular = mocker.MagicMock()
+        regular.name = "LUT4AB"
+        regular.partOfSuperTile = False
+        subtile = mocker.MagicMock()
+        subtile.name = "DSP_top"
+        subtile.partOfSuperTile = True
+
+        mock_fabric = mocker.MagicMock()
+        mock_fabric.name = "MyFab"
+        mock_fabric.tileDic = {"LUT4AB": regular, "DSP_top": subtile}
+        mock_fabric.superTileDic = {"DSP": mocker.MagicMock()}
+
+        mocker.patch.object(
+            plugin_fabric_flow, "parseFabricCSV", return_value=mock_fabric
+        )
+        mocker.patch.object(plugin_fabric_flow, "generateFabric")
+        discover = mocker.patch.object(
+            plugin_fabric_flow,
+            "_discover_tile_macros",
+            return_value={"LUT4AB": tmp_path, "DSP": tmp_path},
+        )
+        mocker.patch.object(plugin_fabric_flow, "_build_macros", return_value=({}, {}))
+
+        FABulousFabric(
+            config={
+                "FABULOUS_FABRIC_CONFIG": [str(fabric_csv)],
+                "FABULOUS_TILE_LIBRARY": str(tmp_path),
+                "DESIGN_DIR": str(tmp_path),
+            },
+            design_dir=str(tmp_path),
+            pdk="sky130A",
+            pdk_root=str(tmp_path / "pdk"),
+        )
+
+        passed_names = discover.call_args.args[0]
+        # Super-tile name resolved, standalone tile resolved, sub-tile excluded
+        # (its macro is hardened under the super-tile name, not on its own).
+        assert "DSP" in passed_names
+        assert "LUT4AB" in passed_names
+        assert "DSP_top" not in passed_names

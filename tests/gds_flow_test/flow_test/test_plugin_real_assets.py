@@ -76,7 +76,6 @@ class TestTileRealAsset:
         mocker.patch.object(
             plugin_tile_flow, "get_pitch", return_value=(Decimal(1), Decimal(1))
         )
-        mocker.patch.object(plugin_tile_flow, "get_offset")
         mocker.patch.object(
             plugin_tile_flow, "get_routing_obstructions", return_value=[]
         )

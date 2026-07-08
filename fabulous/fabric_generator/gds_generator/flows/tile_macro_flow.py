@@ -21,7 +21,6 @@ from fabulous.fabric_generator.gds_generator.flows.flow_define import (
     write_out_steps,
 )
 from fabulous.fabric_generator.gds_generator.helper import (
-    get_offset,
     get_pitch,
     get_routing_obstructions,
     round_die_area,
@@ -190,10 +189,7 @@ class FABulousTileMacroFlow(SequentialFlow):
             self.config, tile_type, final_opt_mode
         )
         self.config = round_die_area(self.config)
-        if (
-            "ROUTING_OBSTRUCTIONS" not in self.config
-            or self.config["ROUTING_OBSTRUCTIONS"] is None
-        ) and self.config["ROUTING_OBSTRUCTIONS"] is not False:
+        if self.config.get("ROUTING_OBSTRUCTIONS") is None:
             self.config = self.config.copy(
                 ROUTING_OBSTRUCTIONS=get_routing_obstructions(self.config)
             )
@@ -234,7 +230,6 @@ def _apply_tile_die_area_config(
 ) -> GenericDict[str, object]:
     """Populate and validate tile `DIE_AREA` using the routing pitch."""
     x_pitch, y_pitch = get_pitch(config)
-    get_offset(config)
     min_x, min_y = tile_type.get_min_die_area(
         x_pitch=x_pitch,
         y_pitch=y_pitch,

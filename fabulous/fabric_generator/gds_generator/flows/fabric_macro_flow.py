@@ -491,6 +491,12 @@ class FABulousFabricMacroFlow(Classic):
         -------
         tuple[State, list[Step]]
             Tuple of final state and list of executed steps.
+
+        Raises
+        ------
+        FlowException
+            If a tile placed in the fabric grid has no corresponding hardened
+            macro available.
         """
         ts_raw = self.config["FABULOUS_TILE_SPACING"]
         tile_spacing: tuple[Decimal, Decimal] = (
@@ -606,7 +612,13 @@ class FABulousFabricMacroFlow(Classic):
                     info(f"Skipping Null tile at X{x}Y{flipped_y}")
                 else:
                     if tile_name not in self.macros:
-                        err(f"Could not find {tile_name} in macros")
+                        raise FlowException(
+                            f"No hardened macro available for tile {tile_name!r}. "
+                            f"Provide it via FABULOUS_TILE_MACROS or ensure a "
+                            f"RUN_*/final directory exists for it under "
+                            f"FABULOUS_TILE_LIBRARY. Available macros: "
+                            f"{sorted(self.macros)}."
+                        )
 
                     self.macros[tile_name].instances[f"{prefix}{tile_name}"] = Instance(
                         location=(
