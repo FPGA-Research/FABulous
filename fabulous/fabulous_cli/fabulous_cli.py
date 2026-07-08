@@ -50,6 +50,10 @@ from cmd2 import (
 from loguru import logger
 
 from fabulous.custom_exception import CommandError, EnvironmentNotSet, InvalidFileType
+from fabulous.fabric_cad.gen_fabric_metadata import (
+    MetadataFormat,
+    write_fabric_metadata,
+)
 from fabulous.fabric_cad.timing_model.models import (
     TimingModelConfig,
     TimingModelMode,
@@ -1074,6 +1078,68 @@ class FABulous_CLI(Cmd):
                     w.writerow([key2, val])
         logger.info("Bitstream specification generation complete")
 
+    _gen_fabric_metadata_parser = Cmd2ArgumentParser(
+        description=(
+            "Export fabric metadata (geometry, resource counts, bitstream size) "
+            "as YAML and HDL constants (Verilog, SystemVerilog, VHDL)."
+        )
+    )
+    _gen_fabric_metadata_parser.add_argument(
+        "--format",
+        dest="formats",
+        action="append",
+        type=MetadataFormat,
+        choices=list(MetadataFormat),
+        help=(
+            "Output format to write. May be repeated. "
+            f"Default: {', '.join(MetadataFormat)}."
+        ),
+    )
+    _gen_fabric_metadata_parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help=(
+            f"Directory for metadata files. Default: "
+            f"<project>/{META_DATA_DIR}"
+        ),
+    )
+
+    @with_category(CMD_FABRIC_FLOW)
+    @with_argparser(_gen_fabric_metadata_parser)
+    def do_gen_fabric_metadata(self, args: argparse.Namespace) -> None:
+        """Export machine-readable fabric metadata.
+
+        Writes a structured inventory under `.FABulous` (by default): YAML as
+        the canonical document, plus Verilog defines, a SystemVerilog package,
+        and a VHDL package for firmware and testbench use.
+
+        Parameters
+        ----------
+        args : argparse.Namespace
+            Parsed CLI arguments. Supported fields are `formats` (list of
+            `MetadataFormat` values, or None for all) and `output_dir`
+            (destination path, or None for `.FABulous` under the project
+            directory).
+
+        Raises
+        ------
+        CommandError
+            If no fabric has been loaded yet.
+        """
+        if not self.fabricLoaded:
+            raise CommandError("Need to load fabric first")
+
+        output_dir = args.output_dir or (self.projectDir / META_DATA_DIR)
+        formats = args.formats
+        logger.info(f"Generating fabric metadata in {output_dir}")
+        written = write_fabric_metadata(
+            self.fabulousAPI.fabric, output_dir, formats=formats
+        )
+        for fmt, path in written.items():
+            logger.info(f"output file ({fmt}): {path}")
+        logger.info("Fabric metadata generation complete")
+
     @with_category(CMD_FABRIC_FLOW)
     def do_gen_top_wrapper(self, *_ignored: str) -> None:
         """Generate top wrapper of the fabric by calling `genTopWrapper`."""
@@ -1088,8 +1154,8 @@ class FABulous_CLI(Cmd):
     def do_run_fab(self, *_ignored: str) -> None:
         """Generate the fabric based on the CSV file.
 
-        Create bitstream specification of the fabric, top wrapper of the fabric, Nextpnr
-        model of the fabric and geometry information of the fabric.
+        Create bitstream specification, fabric metadata inventory, top wrapper,
+        Nextpnr model, and geometry information of the fabric.
         """
         logger.info("Running FABulous")
 
@@ -1098,6 +1164,7 @@ class FABulous_CLI(Cmd):
             .add_step("gen_io_fabric")
             .add_step("gen_fabric", "Fabric generation failed")
             .add_step("gen_bitStream_spec", "Bitstream specification generation failed")
+            .add_step("gen_fabric_metadata", "Fabric metadata generation failed")
             .add_step("gen_top_wrapper", "Top wrapper generation failed")
             .add_step("gen_model_npnr", "Nextpnr model generation failed")
             .add_step("gen_geometry", "Geometry generation failed")
