@@ -49,6 +49,21 @@ def test_gen_switch_matrix(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) 
     assert "Switch matrix generation complete" in log[-1]
 
 
+def test_switch_matrix_list_csv_conversion(
+    cli: FABulous_CLI, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Convert a tile's switch matrix from .list to .csv and back."""
+    src = cli.projectDir / f"Tile/{TILE}/{TILE}_switch_matrix.list"
+    csv = tmp_path / "sm.csv"
+    run_cmd(cli, f"list2csv {src} {csv}")
+    assert csv.exists()
+
+    back = tmp_path / "sm.list"
+    run_cmd(cli, f"csv2list {csv} {back}")
+    assert back.exists()
+    normalize_and_check_for_errors(caplog.text)
+
+
 def test_gen_tile(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating tile."""
     run_cmd(cli, f"gen_tile {TILE}")

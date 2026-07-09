@@ -277,6 +277,8 @@ class FABulous_CLI(Cmd):
         Argument parser for commands accepting a list of tile names
     tile_single_parser : Cmd2ArgumentParser
         Argument parser for commands accepting a single tile name
+    switch_matrix_convert_parser : Cmd2ArgumentParser
+        Argument parser for the list2csv/csv2list conversion commands
     clone_tile_parser : Cmd2ArgumentParser
         Argument parser for the clone_tile command
     install_oss_cad_suite_parser : Cmd2ArgumentParser
@@ -594,6 +596,17 @@ class FABulous_CLI(Cmd):
         completer=lambda self: self.fab.getTiles(),
     )
 
+    switch_matrix_convert_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
+    switch_matrix_convert_parser.add_argument(
+        "input", type=Path, help="Input switch matrix file", completer=Cmd.path_complete
+    )
+    switch_matrix_convert_parser.add_argument(
+        "output",
+        type=Path,
+        help="Output switch matrix file",
+        completer=Cmd.path_complete,
+    )
+
     clone_tile_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     clone_tile_parser.add_argument(
         "src_tile",
@@ -848,6 +861,20 @@ class FABulous_CLI(Cmd):
             )
             self.fabulousAPI.genSwitchMatrix(i)
         logger.info("Switch matrix generation complete")
+
+    @with_category(CMD_SETUP)
+    @with_argparser(switch_matrix_convert_parser)
+    def do_list2csv(self, args: argparse.Namespace) -> None:
+        """Convert a `.list` switch matrix file to `.csv`."""
+        self.fabulousAPI.addList2Matrix(args.input, args.output)
+        logger.info(f"Converted {args.input} to {args.output}")
+
+    @with_category(CMD_SETUP)
+    @with_argparser(switch_matrix_convert_parser)
+    def do_csv2list(self, args: argparse.Namespace) -> None:
+        """Convert a `.csv` switch matrix file to `.list`."""
+        self.fabulousAPI.addMatrix2List(args.input, args.output)
+        logger.info(f"Converted {args.input} to {args.output}")
 
     @with_category(CMD_FABRIC_FLOW)
     @with_argparser(tile_list_parser)

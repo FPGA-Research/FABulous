@@ -154,6 +154,18 @@ class FABulous_API:
         """
         SwitchMatrix.from_file(listFile, listFile.stem).to_csv_file(matrix, matrix.stem)
 
+    def addMatrix2List(self, matrix: Path, listFile: Path) -> None:
+        """Convert a ``.csv`` switch matrix file into a ``.list`` file.
+
+        Parameters
+        ----------
+        matrix : Path
+            CSV matrix data to be converted.
+        listFile : Path
+            Destination ``.list`` file (created or overwritten).
+        """
+        SwitchMatrix.from_file(matrix, matrix.stem).to_list_file(listFile)
+
     def genConfigMem(self, tileName: str, configMem: Path) -> None:
         """Generate configuration memory for specified tile.
 
