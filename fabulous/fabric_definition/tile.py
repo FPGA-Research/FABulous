@@ -32,14 +32,13 @@ class Tile:
         List of Basic Elements of Logic (BELs) in the tile
     tileDir : Path
         Directory path for the tile
-    matrixDir : Path
-        Directory path for the tile matrix
+    switchMatrix : SwitchMatrix
+        Switch matrix of the tile, holding its source file, connectivity, and
+        config-bit count.
     gen_ios : list[Gen_IO]
         List of general I/O components
     userCLK : bool
         True if the tile uses a clk signal
-    configBit : int, optional
-        Number of configuration bits for the switch matrix. Default is 0.
     pinOrderConfig : dict[Side, PinOrderConfig] | None, optional
         Configuration for pin ordering on each side of the tile. If None, defaults to
         BUS_MAJOR sorting on all sides.
@@ -52,10 +51,8 @@ class Tile:
         The list of ports of the tile
     bels: list[Bel]
         The list of BELs of the tile
-    matrixDir : Path
-        The directory of the tile matrix
-    matrixConfigBits : int
-        The number of config bits the tile switch matrix has
+    switchMatrix : SwitchMatrix
+        The switch matrix of the tile
     gen_ios : list[Gen_IO]
         The list of GEN_IOs of the tile
     withUserCLK : bool
@@ -73,8 +70,7 @@ class Tile:
     name: str
     portsInfo: list[Port]
     bels: list[Bel]
-    matrixDir: Path
-    matrixConfigBits: int
+    switchMatrix: SwitchMatrix
     gen_ios: list[Gen_IO]
     withUserCLK: bool = False
     wireList: list[Wire] = field(default_factory=list)
@@ -88,19 +84,17 @@ class Tile:
         ports: list[Port],
         bels: list[Bel],
         tileDir: Path,
-        matrixDir: Path,
+        switchMatrix: SwitchMatrix,
         gen_ios: list[Gen_IO],
         userCLK: bool,
-        configBit: int = 0,
         pinOrderConfig: dict[Side, "PinOrderConfig"] | None = None,
     ) -> None:
         self.name = name
         self.portsInfo = ports
         self.bels = bels
         self.gen_ios = gen_ios
-        self.matrixDir = matrixDir
+        self.switchMatrix = switchMatrix
         self.withUserCLK = userCLK
-        self.matrixConfigBits = configBit
         self.wireList = []
         self.tileDir = tileDir
 
@@ -313,17 +307,6 @@ class Tile:
         ]
 
     @property
-    def switch_matrix(self) -> SwitchMatrix:
-        """Get the tile's switch matrix as a fabric-model construct.
-
-        Returns
-        -------
-        SwitchMatrix
-            The switch matrix wrapping this tile's matrix file and config bits.
-        """
-        return SwitchMatrix(self.name, self.matrixDir, self.matrixConfigBits)
-
-    @property
     def globalConfigBits(self) -> int:
         """Get the total number of global configuration bits.
 
@@ -335,7 +318,7 @@ class Tile:
         int
             Total number of global configuration bits for the tile.
         """
-        ret = self.matrixConfigBits
+        ret = self.switchMatrix.noConfigBits
 
         for b in self.bels:
             ret += b.configBit

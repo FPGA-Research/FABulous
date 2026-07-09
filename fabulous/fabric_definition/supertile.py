@@ -14,6 +14,7 @@ from pathlib import Path
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, Side
 from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 
 
@@ -35,11 +36,9 @@ class SuperTile:
         The list of bels of that the super tile contains
     withUserCLK : bool
         Whether the super tile has a userCLK port. Default is False.
-    supertile_matrix_dir : Path | None
-        Path to the supertile switch matrix file (.list or .csv), or None if
-        no supertile switch matrix exists.
-    supertile_matrix_config_bits : int
-        Number of configuration bits required by the supertile switch matrix.
+    switchMatrix : SwitchMatrix | None
+        The supertile switch matrix (source file, connectivity, config bits), or
+        None if the supertile has no switch matrix.
     master_tile_coords : tuple[int, int] | None
         Local (x, y) of the master tile. Explicitly set via the `MASTER` token
         in the supertile CSV, or computed as the last non-None tile in row-major
@@ -53,8 +52,7 @@ class SuperTile:
     tileMap: list[list[Tile]]
     bels: list[Bel] = field(default_factory=list)
     withUserCLK: bool = False
-    supertile_matrix_dir: Path | None = None
-    supertile_matrix_config_bits: int = 0
+    switchMatrix: SwitchMatrix | None = None
     master_tile_coords: tuple[int, int] | None = None
 
     def getPortsAroundTile(self) -> dict[str, list[list[Port]]]:
@@ -246,6 +244,16 @@ class SuperTile:
     def total_config_bits(self) -> int:
         """Return the supertile's config bits: switch matrix bits plus BEL bits."""
         return self.supertile_matrix_config_bits + sum(b.configBit for b in self.bels)
+
+    @property
+    def supertile_matrix_dir(self) -> Path | None:
+        """Return the supertile switch matrix file, or None if there is none."""
+        return None if self.switchMatrix is None else self.switchMatrix.matrixFile
+
+    @property
+    def supertile_matrix_config_bits(self) -> int:
+        """Return the supertile switch matrix config-bit count (0 if no matrix)."""
+        return 0 if self.switchMatrix is None else self.switchMatrix.noConfigBits
 
     @property
     def max_width(self) -> int:

@@ -28,6 +28,7 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.gen_io import Gen_IO
 from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     addBelsToPrim,
@@ -35,10 +36,6 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateSwitchmatrixList,
 )
 from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
-from fabulous.fabric_generator.parser.parse_switchmatrix import (
-    parseList,
-    parseMatrix,
-)
 from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
@@ -137,13 +134,18 @@ def parsePortLine(line: str) -> tuple[list[Port], tuple[str, str] | None]:
     raise InvalidPortType(f"Unknown port type: {kind}")
 
 
-def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
+def parseTilesCSV(
+    fileName: Path, preserve_list_order: bool = False
+) -> tuple[list[Tile], list[tuple[str, str]]]:
     """Parse a CSV tile configuration file and returns all tile objects.
 
     Parameters
     ----------
     fileName : Path
         The path to the CSV file.
+    preserve_list_order : bool, optional
+        Passed to each tile's switch matrix so a ``.list`` keeps its file order
+        (MSB-first) instead of the canonical dest-column order. Defaults to False.
 
     Returns
     -------
@@ -358,8 +360,6 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                         f"{tileName}."
                     )
             elif temp[0] == "MATRIX":
-                configBit = 0
-
                 if "GENERATE" in temp:
                     logger.info(f"Generating switch matrix list for tile {tileName}")
                     genMatrixList = True
@@ -392,32 +392,6 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
 
                 else:
                     matrixDir = fileName.parent.joinpath(temp[1]).absolute()
-                    match matrixDir.suffix:
-                        case ".list":
-                            for _, v in parseList(matrixDir, "source").items():
-                                muxSize = len(v)
-                                if muxSize >= 2:
-                                    configBit += (muxSize - 1).bit_length()
-                        case ".csv":
-                            for _, v in parseMatrix(matrixDir, tileName).items():
-                                muxSize = len(v)
-                                if muxSize >= 2:
-                                    configBit += (muxSize - 1).bit_length()
-                        case ".vhdl" | ".v" | ".sv":
-                            with matrixDir.open() as f:
-                                f = f.read()
-                                if configBit := re.search(
-                                    r"NumberOfConfigBits: (\d+)", f
-                                ):
-                                    configBit = int(configBit.group(1))
-                                else:
-                                    configBit = 0
-                                    logger.warning(
-                                        "Cannot find NumberOfConfigBits in "
-                                        f"{matrixDir} assume 0 config bits."
-                                    )
-                        case _:
-                            raise InvalidFileType("Unknown file extension for matrix.")
 
             elif temp[0] == "INCLUDE":
                 p = fileName.parent.joinpath(temp[1])
@@ -451,10 +425,6 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
             generateSwitchmatrixList(
                 tileName, bels, matrixDir, tileCarry, localSharedPorts
             )
-            for _, v in parseList(matrixDir, "source").items():
-                muxSize = len(v)
-                if muxSize >= 2:
-                    configBit += (muxSize - 1).bit_length()
 
         new_tiles.append(
             Tile(
@@ -462,10 +432,15 @@ def parseTilesCSV(fileName: Path) -> tuple[list[Tile], list[tuple[str, str]]]:
                 ports=ports,
                 bels=bels,
                 tileDir=fileName,
-                matrixDir=matrixDir,
+                switchMatrix=SwitchMatrix.from_file(
+                    matrixDir,
+                    tileName,
+                    ports=ports,
+                    bels=bels,
+                    preserve_list_order=preserve_list_order,
+                ),
                 gen_ios=gen_ios,
                 userCLK=withUserCLK,
-                configBit=configBit,
             )
         )
 
@@ -637,25 +612,18 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
         # The supertile switch matrix is taken from the MATRIX line (resolved
         # relative to the CSV). There is no auto-discovery: a supertile without a
         # MATRIX line simply has no switch matrix.
-        st_matrix_config_bits = 0
         st_matrix_dir: Path | None = matrix_line_path
         if st_matrix_dir is not None:
             if not st_matrix_dir.exists():
                 raise InvalidSupertileDefinition(
                     f"Supertile '{name}': MATRIX file {st_matrix_dir} does not exist."
                 )
-            if st_matrix_dir.suffix == ".list":
-                connections = parseList(st_matrix_dir, "source")
-            else:
-                connections = parseMatrix(st_matrix_dir, name)
-            validate_super_tile_matrix(superTile, connections, st_matrix_dir)
-            for v in connections.values():
-                muxSize = len(v)
-                if muxSize > 1:
-                    st_matrix_config_bits += (muxSize - 1).bit_length()
+            switch_matrix = SwitchMatrix.from_file(st_matrix_dir, name)
+            validate_super_tile_matrix(
+                superTile, switch_matrix.connections, st_matrix_dir
+            )
+            superTile.switchMatrix = switch_matrix
 
-        superTile.supertile_matrix_dir = st_matrix_dir
-        superTile.supertile_matrix_config_bits = st_matrix_config_bits
         new_supertiles.append(superTile)
 
     return new_supertiles
@@ -732,8 +700,16 @@ def parseFabricCSV(fileName: str) -> Fabric:
     superTileDic = {}
     unusedSuperTileDic = {}
 
+    # PreserveListOrder controls the canonical .list mux-input ordering, so it
+    # must be known before any tile is parsed (a tile may precede it in the CSV).
+    preserveListOrder = False
+    for line in parameters:
+        fields = [f.strip() for f in line.split(",") if f.strip()]
+        if fields and fields[0].startswith("PreserveListOrder"):
+            preserveListOrder = fields[1] == "TRUE"
+
     # For backwards compatibility parse tiles in fabric config
-    new_tiles, new_commonWirePair = parseTilesCSV(fName)
+    new_tiles, new_commonWirePair = parseTilesCSV(fName, preserveListOrder)
     tileTypes += [new_tile.name for new_tile in new_tiles]
     tileDefs += new_tiles
     commonWirePair += new_commonWirePair
@@ -759,7 +735,6 @@ def parseFabricCSV(fileName: str) -> Fabric:
     multiplexerStyle = MultiplexerStyle.CUSTOM
     superTileEnable = True
     disableUserCLK = False
-    preserveListOrder = False
 
     for i in parameters:
         i = i.split(",")
@@ -772,7 +747,9 @@ def parseFabricCSV(fileName: str) -> Fabric:
                 # we generate the tile right before we parse everything
                 i[1] = str(generateCustomTileConfig(filePath.joinpath(i[1])))
 
-            new_tiles, new_commonWirePair = parseTilesCSV(filePath.joinpath(i[1]))
+            new_tiles, new_commonWirePair = parseTilesCSV(
+                filePath.joinpath(i[1]), preserveListOrder
+            )
             tileTypes += [new_tile.name for new_tile in new_tiles]
             tileDefs += new_tiles
             commonWirePair += new_commonWirePair
