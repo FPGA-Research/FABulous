@@ -10,6 +10,7 @@ from fabulous.fabric_definition.define import IO, ConfigBitMode
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_fabric import (
@@ -63,8 +64,7 @@ def _supertile(tmp_path: Path) -> SuperTile:
         tiles=[top, bot],
         tileMap=[[top], [bot]],
         bels=[bel],
-        supertile_matrix_dir=mat,
-        supertile_matrix_config_bits=1,
+        switchMatrix=SwitchMatrix.from_file(mat, "DSP"),
     )
 
 

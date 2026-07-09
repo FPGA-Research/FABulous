@@ -17,6 +17,7 @@ from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from tests.conftest import make_empty_tile, sjump_port
 
@@ -272,7 +273,7 @@ class TestGenNpnrModelSupertile:
             tileDir=tmp_path,
             tiles=[top, bot],
             tileMap=[[top], [bot]],
-            supertile_matrix_dir=st_mat,
+            switchMatrix=SwitchMatrix.from_file(st_mat, "DSP"),
         )
         for t in supertile.tiles:
             t.partOfSuperTile = True
@@ -333,8 +334,8 @@ class TestGenBitstreamSpecSupertileMux:
 
         top = _tile("DSP_top", [sjump_port("top2bot", IO.OUTPUT)])
         bot = _tile("DSP_bot", [sjump_port("A", IO.OUTPUT, wireCount=1)])
-        top.matrixDir = top_mat
-        bot.matrixDir = bot_mat
+        top.switchMatrix = SwitchMatrix.from_file(top_mat, "DSP_top")
+        bot.switchMatrix = SwitchMatrix.from_file(bot_mat, "DSP_bot")
         supertile = SuperTile(
             name="DSP",
             # tileDir is the supertile CSV file; consumers read sibling files via
@@ -342,8 +343,7 @@ class TestGenBitstreamSpecSupertileMux:
             tileDir=tmp_path / "DSP.csv",
             tiles=[top, bot],
             tileMap=[[top], [bot]],
-            supertile_matrix_dir=st_mat,
-            supertile_matrix_config_bits=2,
+            switchMatrix=SwitchMatrix.from_file(st_mat, "DSP"),
         )
         for t in supertile.tiles:
             t.partOfSuperTile = True

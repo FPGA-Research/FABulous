@@ -13,6 +13,7 @@ import fabulous.fabulous_settings
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, Direction, HDLType, Side
 from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 from fabulous.fabulous_cli.helper import create_project, setup_logger
@@ -63,7 +64,7 @@ def make_empty_tile(
         ports=ports or [],
         bels=[],
         tileDir=tileDir,
-        matrixDir=matrixDir,
+        switchMatrix=SwitchMatrix(matrixFile=matrixDir, connections={}, noConfigBits=0),
         gen_ios=[],
         userCLK=False,
         pinOrderConfig=pinOrderConfig,

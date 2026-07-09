@@ -1,171 +1,127 @@
-"""Tests for genTileSwitchMatrix.
-
-Tests the feature that allows users to redirect CSV output to a custom directory when
-converting .list files to .csv for switch matrix generation.
-"""
+"""Tests for switch matrix construction and generation."""
 
 from collections.abc import Callable
 from pathlib import Path
 
-import pytest
-from pytest_mock import MockerFixture
-
+from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
     _unconnected_port_diagnostic,
     gen_super_tile_switch_matrix,
     genTileSwitchMatrix,
 )
-from fabulous.fabric_generator.parser.parse_csv import parsePortLine
+from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV, parsePortLine
+from fabulous.fabulous_settings import init_context
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 from tests.fabric_gen_test.conftest import (
-    create_switchmatrix_csv,
     create_switchmatrix_list,
 )
 
 
-class TestListFileCsvOutputDirectory:
-    """Test class for csv_output_dir parameter in genTileSwitchMatrix.
+class TestCanonicalListOrder:
+    """A `.list` matrix is read once into canonical port/BEL signal order.
 
-    Note: These tests focus only on the CSV output path logic. The function
-    is allowed to fail after CSV path logic executes since we're not testing
-    full RTL generation.
+    The mux-output keys follow the canonical source order and each mux's inputs
+    follow the canonical dest-column order (BEL output order here), independent
+    of the order lines appear in the `.list`. `PreserveListOrder` instead keeps
+    the `.list` order, reversed (MSB-first).
     """
 
-    def test_csv_written_to_custom_directory(
-        self,
-        default_tile: Tile,
-        tmp_path: Path,
-        mocker: MockerFixture,
+    def _bel_and_list(self, tmp_path: Path) -> tuple[Bel, Path]:
+        # BEL input `A` is the mux output; BEL outputs X, Y, Z are the mux
+        # inputs, giving a canonical dest order of [X, Y, Z].
+        bel = make_muladd_bel(
+            [
+                ("A", IO.INPUT),
+                ("X", IO.OUTPUT),
+                ("Y", IO.OUTPUT),
+                ("Z", IO.OUTPUT),
+            ]
+        )
+        list_file = tmp_path / "m.list"
+        # Deliberately out of canonical order: Z, X, Y.
+        list_file.write_text("A,Z\nA,X\nA,Y\n")
+        return bel, list_file
+
+    def test_default_uses_canonical_dest_order(self, tmp_path: Path) -> None:
+        bel, list_file = self._bel_and_list(tmp_path)
+        sm = SwitchMatrix.from_file(list_file, "T", ports=[], bels=[bel])
+        assert list(sm.connections.keys()) == ["A"]
+        assert sm.connections["A"] == ["X", "Y", "Z"]
+
+    def test_preserve_list_order_keeps_reversed_list_order(
+        self, tmp_path: Path
     ) -> None:
-        """Test that CSV is written to specified csv_output_dir for .list input."""
-        source_dir = tmp_path / "source"
-        source_dir.mkdir()
-        list_file = source_dir / "test_matrix.list"
-        create_switchmatrix_list(list_file)
-
-        custom_output_dir = tmp_path / "custom_output"
-        default_tile.matrixDir = list_file
-
-        mocker.patch(
-            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
-            side_effect=lambda tile, path: create_switchmatrix_csv(path, tile.name),
+        bel, list_file = self._bel_and_list(tmp_path)
+        sm = SwitchMatrix.from_file(
+            list_file, "T", ports=[], bels=[bel], preserve_list_order=True
         )
-        mocker.patch(
-            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
-        )
+        # .list order is Z, X, Y; MSB-first keeps its reverse.
+        assert sm.connections["A"] == ["Y", "X", "Z"]
 
-        with pytest.raises(AttributeError):
-            genTileSwitchMatrix(
-                None,
-                default_tile,
-                False,
-                csv_output_dir=custom_output_dir,
+
+class TestHdlSwitchMatrix:
+    """Hand-written HDL matrices: only config bits are read, generation skipped."""
+
+    def test_from_file_extracts_config_bits_only(self, tmp_path: Path) -> None:
+        v = tmp_path / "T_switch_matrix.v"
+        v.write_text("// NumberOfConfigBits: 7\nmodule T(); endmodule\n")
+        sm = SwitchMatrix.from_file(v, "T")
+        assert sm.connections == {}
+        assert sm.noConfigBits == 7
+
+    def test_missing_config_bits_defaults_to_zero(self, tmp_path: Path) -> None:
+        v = tmp_path / "T_switch_matrix.vhdl"
+        v.write_text("entity T is end T;\n")
+        assert SwitchMatrix.from_file(v, "T").noConfigBits == 0
+
+    def test_generation_skips_hdl_matrix(self, tmp_path: Path) -> None:
+        v = tmp_path / "T_switch_matrix.v"
+        v.write_text("// NumberOfConfigBits: 0\nmodule T(); endmodule\n")
+        tile = make_empty_tile("T", tileDir=tmp_path, matrixDir=v, pinOrderConfig={})
+        # No writer is needed: an HDL matrix returns before any RTL is emitted.
+        # (A non-HDL matrix would dereference the None writer and raise.)
+        genTileSwitchMatrix(None, tile, False)
+
+
+class TestPreserveListOrderEndToEnd:
+    """`PreserveListOrder` in the fabric CSV threads through to tile matrices."""
+
+    def test_flag_reorders_but_preserves_connectivity(self, project: Path) -> None:
+        init_context(project)
+        default = parseFabricCSV(str(project / "fabric.csv"))
+
+        fabric_csv = project / "fabric.csv"
+        fabric_csv.write_text(
+            fabric_csv.read_text().replace(
+                "ParametersEnd", "PreserveListOrder,TRUE\nParametersEnd"
             )
-
-        expected_csv = custom_output_dir / "test_matrix.csv"
-        assert expected_csv.exists()
-        assert not (source_dir / "test_matrix.csv").exists()
-        assert default_tile.matrixDir == expected_csv
-
-    def test_default_writes_to_same_directory(
-        self,
-        default_tile: Tile,
-        tmp_path: Path,
-        mocker: MockerFixture,
-    ) -> None:
-        """Test backward compatibility: default writes CSV next to .list file."""
-        list_file = tmp_path / "test_matrix.list"
-        create_switchmatrix_list(list_file)
-        default_tile.matrixDir = list_file
-
-        mocker.patch(
-            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
-            side_effect=lambda tile, path: create_switchmatrix_csv(path, tile.name),
         )
-        mocker.patch(
-            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
-        )
+        preserved = parseFabricCSV(str(project / "fabric.csv"))
 
-        with pytest.raises(AttributeError):
-            genTileSwitchMatrix(None, default_tile, False)
+        default_conns = {
+            t.name: t.switchMatrix.connections for t in default.tileDic.values()
+        }
+        preserved_conns = {
+            t.name: t.switchMatrix.connections for t in preserved.tileDic.values()
+        }
 
-        expected_csv = tmp_path / "test_matrix.csv"
-        assert expected_csv.exists()
-        assert default_tile.matrixDir == expected_csv
+        # Same tiles, same mux outputs, same mux inputs — only input order may
+        # change, proving PreserveListOrder is honoured without dropping links.
+        assert default_conns.keys() == preserved_conns.keys()
+        for name, d in default_conns.items():
+            p = preserved_conns[name]
+            assert list(d.keys()) == list(p.keys())
+            for mux_out, inputs in d.items():
+                assert set(inputs) == set(p[mux_out])
 
-    def test_creates_nested_output_directory(
-        self,
-        default_tile: Tile,
-        tmp_path: Path,
-        mocker: MockerFixture,
-    ) -> None:
-        """Test that nested csv_output_dir is auto-created."""
-        list_file = tmp_path / "test_matrix.list"
-        create_switchmatrix_list(list_file)
-        default_tile.matrixDir = list_file
-
-        custom_output_dir = tmp_path / "nested" / "deeply" / "output"
-        assert not custom_output_dir.exists()
-
-        mocker.patch(
-            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.bootstrapSwitchMatrix",
-            side_effect=lambda tile, path: create_switchmatrix_csv(path, tile.name),
-        )
-        mocker.patch(
-            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.list2CSV",
-        )
-
-        with pytest.raises(AttributeError):
-            genTileSwitchMatrix(
-                None,
-                default_tile,
-                False,
-                csv_output_dir=custom_output_dir,
-            )
-
-        assert custom_output_dir.exists()
-        assert (custom_output_dir / "test_matrix.csv").exists()
-
-    def test_csv_input_ignores_csv_output_dir(
-        self,
-        default_tile: Tile,
-        tmp_path: Path,
-        mocker: MockerFixture,
-    ) -> None:
-        """Test that csv_output_dir is ignored when input is already .csv."""
-        csv_file = tmp_path / "source" / "test_matrix.csv"
-        csv_file.parent.mkdir()
-        create_switchmatrix_csv(csv_file, default_tile.name)
-
-        custom_output_dir = tmp_path / "custom_output"
-        custom_output_dir.mkdir()
-
-        default_tile.matrixDir = csv_file
-
-        mock_parse = mocker.patch(
-            "fabulous.fabric_generator.gen_fabric.gen_switchmatrix.parseMatrix",
-            return_value={},
-        )
-
-        with pytest.raises(AttributeError):
-            genTileSwitchMatrix(
-                None,
-                default_tile,
-                False,
-                csv_output_dir=custom_output_dir,
-            )
-
-        # Verify parseMatrix called with original .csv path
-        mock_parse.assert_called_once()
-        assert mock_parse.call_args[0][0] == csv_file
-
-        # Verify tile.matrixDir unchanged and no new CSV created
-        assert default_tile.matrixDir == csv_file
-        assert not (custom_output_dir / "test_matrix.csv").exists()
+        # The flag must actually reorder at least one real (multi-input) mux.
+        assert any(
+            default_conns[name] != preserved_conns[name] for name in default_conns
+        ), "PreserveListOrder=TRUE did not reorder any switch matrix"
 
 
 class TestSuperTileSwitchMatrixConstants:
@@ -198,8 +154,7 @@ class TestSuperTileSwitchMatrixConstants:
             tiles=[bot],
             tileMap=[[bot]],
             bels=[bel],
-            supertile_matrix_dir=mat,
-            supertile_matrix_config_bits=1,
+            switchMatrix=SwitchMatrix.from_file(mat, "DSP"),
         )
         writer = code_generator_factory(".v", "DSP_switch_matrix")
         gen_super_tile_switch_matrix(writer, supertile)

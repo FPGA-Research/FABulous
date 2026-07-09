@@ -13,6 +13,7 @@ from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_definition.yosys_obj import YosysJson
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
@@ -52,7 +53,10 @@ def mk_tile(tmp_path: Path) -> Callable[[str], Tile]:
     """
 
     def _create(name: str) -> Tile:
-        return Tile(name, [], [], tmp_path, tmp_path / f"{name}.list", [], False)
+        switch_matrix = SwitchMatrix(
+            matrixFile=tmp_path / f"{name}.list", connections={}, noConfigBits=0
+        )
+        return Tile(name, [], [], tmp_path, switch_matrix, [], False)
 
     return _create
 
@@ -98,7 +102,7 @@ def find_switch_matrix_tile(fabric: Fabric) -> Tile:
         If no tile has a parseable switch matrix.
     """
     for tile in fabric.tileDic.values():
-        if tile.matrixDir.suffix in (".list", ".csv"):
+        if tile.switchMatrix.matrixFile.suffix in (".list", ".csv"):
             return tile
     raise ValueError("no tile with a parseable switch matrix in fabric")
 

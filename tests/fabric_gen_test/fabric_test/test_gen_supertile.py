@@ -32,6 +32,7 @@ from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
 from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
@@ -329,7 +330,9 @@ class TestBelExternalPorts:
             ports=[],
             bels=[bel],
             tileDir=Path(),
-            matrixDir=Path(),
+            switchMatrix=SwitchMatrix(
+                matrixFile=Path(), connections={}, noConfigBits=0
+            ),
             gen_ios=[],
             userCLK=False,
         )
@@ -364,7 +367,9 @@ class TestInterTileRouting:
             ],
             bels=[],
             tileDir=Path(),
-            matrixDir=Path(),
+            switchMatrix=SwitchMatrix(
+                matrixFile=Path(), connections={}, noConfigBits=0
+            ),
             gen_ios=[],
             userCLK=False,
         )
@@ -377,7 +382,9 @@ class TestInterTileRouting:
             ],
             bels=[],
             tileDir=Path(),
-            matrixDir=Path(),
+            switchMatrix=SwitchMatrix(
+                matrixFile=Path(), connections={}, noConfigBits=0
+            ),
             gen_ios=[],
             userCLK=False,
         )

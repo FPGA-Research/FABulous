@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.port import Port
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 
 
@@ -15,7 +16,7 @@ def _mk_tile(ports: list[Port]) -> Tile:
         ports=ports,
         bels=[],
         tileDir=Path(),
-        matrixDir=Path(),
+        switchMatrix=SwitchMatrix(matrixFile=Path(), connections={}, noConfigBits=0),
         gen_ios=[],
         userCLK=False,
     )
