@@ -250,6 +250,16 @@ def test_parse_list(
         assert parseList(main_file, collect) == expected_result
 
 
+def test_parse_list_warns_on_duplicates(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Duplicate connections are de-duplicated but reported."""
+    f = tmp_path / "dup.list"
+    f.write_text("A,B\nA,C\nA,B\n")
+    assert parseList(f, "pair") == [("A", "B"), ("A", "C")]
+    assert "ignoring 1 duplicate" in caplog.text
+
+
 class TestParseSJumpPortLine:
     """`parsePortLine` accepts the two one-way SJUMP forms, rejects the rest.
 

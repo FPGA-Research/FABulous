@@ -10,6 +10,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Literal, overload
 
+from loguru import logger
+
 from fabulous.custom_exception import (
     InvalidListFileDefinition,
     InvalidSwitchMatrixDefinition,
@@ -200,6 +202,11 @@ def parseList(
         pairs.extend(zip(expanded_sources, expanded_sinks, strict=True))
 
     unique_pairs = list(dict.fromkeys(pairs))
+    if len(unique_pairs) != len(pairs):
+        logger.warning(
+            f"{path.name}: ignoring {len(pairs) - len(unique_pairs)} duplicate "
+            "connection(s)"
+        )
 
     if collect == "source":
         grouped: defaultdict[str, list[str]] = defaultdict(list)
