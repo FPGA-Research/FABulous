@@ -13,11 +13,9 @@ Key features:
 """
 
 import math
-from pathlib import Path
 
 from loguru import logger
 
-from fabulous.custom_exception import InvalidFileType
 from fabulous.fabric_definition.define import (
     IO,
     SWITCH_MATRIX_CONSTANTS,
@@ -32,11 +30,6 @@ from fabulous.fabric_generator.code_generator.code_generator import CodeGenerato
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
-from fabulous.fabric_generator.gen_fabric.gen_helper import (
-    bootstrapSwitchMatrix,
-    list2CSV,
-)
-from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
 
 def _unconnected_port_diagnostic(ports: list[Port], port_name: str) -> str:
@@ -87,20 +80,16 @@ def genTileSwitchMatrix(
     writer: CodeGenerator,
     tile: Tile,
     switch_matrix_debug_signal: bool,
-    csv_output_dir: Path | None = None,
     config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
     multiplexer_style: MultiplexerStyle = MultiplexerStyle.CUSTOM,
     default_pip_delay: int = 80,
-    preserve_list_order: bool = False,
 ) -> None:
     """Generate the RTL code for the tile switch matrix.
 
-    The switch matrix generated will be based on the `matrixDir` attribute of the tile.
-    If the given file format is `.csv`, it will be parsed as a switch matrix
-    `.csv` file.
-    If the given file format is `.list`, the tool will convert the `.list` file
-    into a switch matrix with specific ordering first before progressing. If the given
-    file format is Verilog or VHDL, then the function will not generate anything.
+    The switch matrix is read straight from the tile's already-canonical
+    ``tile.switchMatrix.connections`` (built once when the fabric was parsed);
+    no CSV is written or re-read here. A tile whose matrix is hand-written HDL
+    is skipped — it supplies its own switch matrix module.
 
     Parameters
     ----------
@@ -110,63 +99,26 @@ def genTileSwitchMatrix(
         The tile object containing BELs and port information
     switch_matrix_debug_signal : bool
         Whether to generate debug signals for the switch matrix.
-    csv_output_dir : Path | None
-        Optional directory to write the generated CSV file when converting from
-        `.list` format. If None, the CSV is written to the same directory as the
-        source `.list` file. This parameter is ignored when the input is already
-        a `.csv` file.
     config_bit_mode : ConfigBitMode
         The configuration-bit mode for the tile (frame-based or flip-flop chain).
     multiplexer_style : MultiplexerStyle
         The multiplexer style used to implement switch-matrix muxes.
     default_pip_delay : int
         Per-mux delay (ps) emitted on assign statements in the switch matrix.
-    preserve_list_order : bool
-        When True, `list2CSV` writes a per-row 1-based index encoding the
-        connection's position in the `.list` file so the mux input order
-        can be recovered downstream. Defaults to False (legacy behaviour).
 
     Raises
     ------
-    InvalidFileType
-        If `matrixDir` does not contain a valid file format.
     ValueError
         If any port in the switch matrix is not connected to anything.
     """
-    # convert the matrix to a dictionary map and performs entry check
-    connections: dict[str, list[str]] = {}
-    if tile.matrixDir.suffix == ".csv":
-        connections = parseMatrix(tile.matrixDir, tile.name)
-    elif tile.matrixDir.suffix == ".list":
-        logger.info(f"{tile.name} matrix is a list file")
+    if tile.switchMatrix.matrixFile.suffix in (".v", ".sv", ".vhdl", ".vhd"):
         logger.info(
-            f"Bootstrapping {tile.name} to matrix form and adding the list file to the "
-            "matrix"
-        )
-
-        # Determine CSV output path
-        if csv_output_dir is not None:
-            csv_output_dir.mkdir(parents=True, exist_ok=True)
-            matrixDir = csv_output_dir / f"{tile.matrixDir.stem}.csv"
-        else:
-            matrixDir = tile.matrixDir.with_suffix(".csv")
-
-        bootstrapSwitchMatrix(tile, matrixDir)
-        list2CSV(tile.matrixDir, matrixDir, preserve_list_order)
-        logger.info(
-            f"Update matrix directory to {matrixDir} for Fabric Tile Dictionary"
-        )
-        tile.matrixDir = matrixDir
-        connections = parseMatrix(tile.matrixDir, tile.name)
-    elif tile.matrixDir.suffix in [".v", ".sv", ".vhdl"]:
-        logger.info(
-            f"A switch matrix file is provided in {tile.name}, "
-            "will skip the matrix generation process"
+            f"{tile.name} provides a hand-written switch matrix HDL; "
+            "skipping matrix generation."
         )
         return
-    else:
-        raise InvalidFileType("Invalid matrix file format.")
 
+    connections = tile.switchMatrix.connections
     noConfigBits = 0
     for port_name in connections:
         if not connections[port_name]:
@@ -504,21 +456,14 @@ def gen_super_tile_switch_matrix(
     default_pip_delay : int
         Default PIP delay value for timing annotation.
     """
-    if superTile.supertile_matrix_dir is None:
+    if superTile.switchMatrix is None:
         return
 
-    noConfigBits = superTile.supertile_matrix_config_bits
+    noConfigBits = superTile.switchMatrix.noConfigBits
     module_name = f"{superTile.name}_switch_matrix"
 
-    # Parse connectivity (destination -> [sources]).
-    matrix_path = superTile.supertile_matrix_dir
-    if matrix_path.suffix == ".list":
-        raw_pairs = parseList(matrix_path)
-        connections: dict[str, list[str]] = {}
-        for dest, src in raw_pairs:
-            connections.setdefault(dest, []).append(src)
-    else:
-        connections = parseMatrix(matrix_path, superTile.name)
+    # Connectivity (destination -> [sources]) held on the supertile.
+    connections = superTile.switchMatrix.connections
 
     writer.addComment(f"NumberOfConfigBits: {noConfigBits}")
     writer.addHeader(module_name)

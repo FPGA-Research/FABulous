@@ -30,6 +30,7 @@ from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import ConfigBitMode, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.supertile import SuperTile
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
@@ -56,10 +57,6 @@ from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     generateConfigMem,
 )
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
-from fabulous.fabric_generator.gen_fabric.gen_helper import (
-    bootstrapSwitchMatrix,
-    list2CSV,
-)
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
     gen_super_tile_switch_matrix,
     genTileSwitchMatrix,
@@ -145,41 +142,17 @@ class FABulous_API:
             logger.error("Only .csv files are supported for fabric loading")
             raise ValueError
 
-    def bootstrapSwitchMatrix(self, tileName: str, outputDir: Path) -> None:
-        """Bootstrap the switch matrix for the specified tile.
-
-        Using 'bootstrapSwitchMatrix' defined in 'fabric_gen.py'.
-
-        Parameters
-        ----------
-        tileName : str
-            Name of the tile for which the switch matrix will be bootstrapped.
-        outputDir : Path
-            Directory path where the switch matrix will be generated.
-
-        Raises
-        ------
-        ValueError
-            If tile is not found in fabric.
-        """
-        tile = self.fabric.getTileByName(tileName)
-        if not tile:
-            raise ValueError(f"Tile {tileName} not found in fabric.")
-        bootstrapSwitchMatrix(tile, outputDir)
-
     def addList2Matrix(self, listFile: Path, matrix: Path) -> None:
-        """Convert list into CSV matrix and save it.
-
-        Using 'list2CSV' defined in 'fabric_gen.py'.
+        """Convert a ``.list`` switch matrix file into a ``.csv`` file.
 
         Parameters
         ----------
         listFile : Path
             List data to be converted.
         matrix : Path
-            File path where the matrix data will be saved.
+            Destination ``.csv`` file (created or overwritten).
         """
-        list2CSV(listFile, matrix)
+        SwitchMatrix.from_file(listFile, listFile.stem).to_csv_file(matrix, matrix.stem)
 
     def genConfigMem(self, tileName: str, configMem: Path) -> None:
         """Generate configuration memory for specified tile.
@@ -208,10 +181,8 @@ class FABulous_API:
         else:
             raise ValueError(f"Tile {tileName} not found")
 
-    def genSwitchMatrix(
-        self, tileName: str, csv_output_dir: Path | None = None
-    ) -> None:
-        """Generate switch matrix for specified tile.
+    def genSwitchMatrix(self, tileName: str) -> None:
+        """Generate switch matrix RTL for the specified tile.
 
         Using 'genTileSwitchMatrix' defined in 'fabric_gen.py'.
 
@@ -219,11 +190,6 @@ class FABulous_API:
         ----------
         tileName : str
             Name of the tile for which the switch matrix will be generated.
-        csv_output_dir : Path | None
-            Optional directory to write the generated CSV file when converting
-            from `.list` format. If None, the CSV is written to the same directory
-            as the source `.list` file. This parameter is ignored when the input
-            is already a `.csv` file.
 
         Raises
         ------
@@ -239,11 +205,9 @@ class FABulous_API:
                 self.writer,
                 tile,
                 switch_matrix_debug_signal,
-                csv_output_dir=csv_output_dir,
                 config_bit_mode=self.fabric.configBitMode,
                 multiplexer_style=self.fabric.multiplexerStyle,
                 default_pip_delay=self.fabric.generateDelayInSwitchMatrix,
-                preserve_list_order=self.fabric.preserveListOrder,
             )
         else:
             raise ValueError(f"Tile {tileName} not found")

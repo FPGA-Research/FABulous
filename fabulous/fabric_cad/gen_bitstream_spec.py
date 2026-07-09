@@ -13,7 +13,6 @@ from loguru import logger
 
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
-from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
@@ -69,13 +68,13 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             if tile is None:
                 continue
             if "fabric.csv" in str(tile.tileDir):
-                # backward compatibility for old project structure
-                # We need to take the matrixDir from the tile, since there
-                # is the actual path to the tile defined in the fabric.csv
-                if tile.matrixDir.is_file():
-                    configMemPath = tile.matrixDir.parent / f"{tile.name}_ConfigMem.csv"
-                elif tile.matrixDir.is_dir():
-                    configMemPath = tile.matrixDir / f"{tile.name}_ConfigMem.csv"
+                # Backward compat: in the old fabric.csv-embedded layout the
+                # tile's real location comes from its switch-matrix file path.
+                matrixFile = tile.switchMatrix.matrixFile
+                if matrixFile.is_file():
+                    configMemPath = matrixFile.parent / f"{tile.name}_ConfigMem.csv"
+                elif matrixFile.is_dir():
+                    configMemPath = matrixFile / f"{tile.name}_ConfigMem.csv"
                 else:
                     configMemPath = (
                         get_context().proj_dir
@@ -149,13 +148,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                                 ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
                             curBitOffset += len(keyDict[entry])
 
-            # All the generation will be working on the tile level with the tileDic
-            # This is added to propagate the updated switch matrix to each of the tile
-            # in the fabric
-            if tile.matrixDir.suffix == ".list":
-                tile.matrixDir = tile.matrixDir.with_suffix(".csv")
-
-            result = parseMatrix(tile.matrixDir, tile.name)
+            result = tile.switchMatrix.connections
             for source, sinkList in result.items():
                 controlWidth = 0
                 for i, sink in enumerate(reversed(sinkList)):
@@ -217,13 +210,8 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                         ) + fabric.frameBitsPerRow * cfm.frameIndex
 
         sm_connections: dict[str, list[str]] = {}
-        if superTile.supertile_matrix_dir is not None:
-            mat_path = superTile.supertile_matrix_dir
-            if mat_path.suffix == ".list":
-                for dest, src in parseList(mat_path):
-                    sm_connections.setdefault(dest, []).append(src)
-            else:
-                sm_connections = parseMatrix(mat_path, superTile.name)
+        if superTile.switchMatrix is not None:
+            sm_connections = superTile.switchMatrix.connections
 
         tx_local, ty_local = superTile.get_master_tile_coords()
 

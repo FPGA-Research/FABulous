@@ -12,12 +12,11 @@ placement and routing for user designs.
 import string
 from pathlib import Path
 
-from fabulous.custom_exception import InvalidFileType, InvalidState
+from fabulous.custom_exception import InvalidState
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
     FABulousTimingModelInterface,
 )
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
 
 def genNextpnrModel(
@@ -42,8 +41,6 @@ def genNextpnrModel(
 
     Raises
     ------
-    InvalidFileType
-        If matrixDir of a tile is not '.csv' or '.list' file.
     InvalidState
         If a wire in a tile points to an invalid tile outside the fabric bounds.
     """
@@ -65,20 +62,8 @@ def genNextpnrModel(
             if tile is None:
                 continue
             pipStr.append(f"#Tile-internal pips on tile X{x}Y{y}:")
-            if tile.matrixDir.suffix == ".csv":
-                connection = parseMatrix(tile.matrixDir, tile.name)
-                for source, sinkList in connection.items():
-                    for sink in sinkList:
-                        # This delay is just arbitrary
-                        delay: float = 8
-                        if delay_model is not None:
-                            delay = delay_model.pip_delay(tile.name, sink, source)
-                        pipStr.append(
-                            f"X{x}Y{y},{sink},X{x}Y{y},{source},{delay},{sink}.{source}"
-                        )
-            elif tile.matrixDir.suffix == ".list":
-                connection = parseList(tile.matrixDir)
-                for source, sink in connection:
+            for source, sinkList in tile.switchMatrix.connections.items():
+                for sink in sinkList:
                     # This delay is just arbitrary
                     delay: float = 8
                     if delay_model is not None:
@@ -86,10 +71,6 @@ def genNextpnrModel(
                     pipStr.append(
                         f"X{x}Y{y},{sink},X{x}Y{y},{source},{delay},{sink}.{source}"
                     )
-            else:
-                raise InvalidFileType(
-                    f"File {tile.matrixDir} is not a .csv or .list file"
-                )
 
             pipStr.append(f"#Tile-external pips on tile X{x}Y{y}:")
             for wire in tile.wireList:
@@ -208,15 +189,8 @@ def genNextpnrModel(
                 belv2Str.append("GlobalClk")
             belv2Str.append("BelEnd")
 
-        if superTile.supertile_matrix_dir is not None:
-            mat_path = superTile.supertile_matrix_dir
-            if mat_path.suffix == ".list":
-                sm_connections: dict[str, list[str]] = {}
-                for dest, src in parseList(mat_path):
-                    sm_connections.setdefault(dest, []).append(src)
-            else:
-                sm_connections = parseMatrix(mat_path, superTile.name)
-            for sink, sources in sm_connections.items():
+        if superTile.switchMatrix is not None:
+            for sink, sources in superTile.switchMatrix.connections.items():
                 for src in sources:
                     delay: float = 8
                     if delay_model is not None:
