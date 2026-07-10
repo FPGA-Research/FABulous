@@ -39,7 +39,7 @@ FABulous install oss-cad-suite
 This installs the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build), which includes Yosys, nextpnr, simulators, and all other required tools. VHDL users will also get [ghdl](https://github.com/ghdl/ghdl) and the [ghdl-yosys-plugin](https://github.com/ghdl/ghdl-yosys-plugin) through this installer. For manual installation or more details, see [CAD tool installation](#cad-tool-install).
 
 :::{warning}
-Do **not** use the latest nightly build of Yosys. This also applies to `FABulous install oss-cad-suite` as it pulls the OSS CAD Suite, which tracks the Yosys nightly. Nightly builds after **29 June** are **not** compatible with current FABulous and will fail. Install Yosys **0.66**, or any build dated **before 29 June**, instead.
+Do **not** use the latest nightly build of Yosys. Nightly builds after **29 June** are **not** compatible with current FABulous and will fail. Install Yosys **0.66**, or any build dated **before 29 June**, instead.
 :::
 
 ## 3. Create a project

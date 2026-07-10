@@ -58,7 +58,7 @@ To run FABulous, you need Python 3.12 or later. The framework is fully supported
 For the complete toolchain experience, you will need synthesis and place-and-route tools. We recommend installing the [OSS CAD Suite](https://github.com/YosysHQ/oss-cad-suite-build), which bundles Yosys and nextpnr, using the provided `FABulous install oss-cad-suite` command. Additionally, using `uv` is highly recommended for faster Python package management.
 
 > [!WARNING]
-> Do **not** use the latest nightly build of Yosys. This also applies to `FABulous install oss-cad-suite` as it pulls the OSS CAD Suite, which tracks the Yosys nightly. Nightly builds after **29 June** are **not** compatible with current FABulous and will fail. Install Yosys **0.66**, or any build dated **before 29 June**, instead.
+> Do **not** use the latest nightly build of Yosys. Nightly builds after **29 June** are **not** compatible with current FABulous and will fail. Install Yosys **0.66**, or any build dated **before 29 June**, instead.
 
 ## Installation
 

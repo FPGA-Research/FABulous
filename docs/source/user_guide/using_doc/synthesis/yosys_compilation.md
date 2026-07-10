@@ -9,7 +9,7 @@ Yosys is used for logic synthesis and technology mapping of the Verilog Hardware
 To build you may use the Makefile wrapper in the cloned repository (<https://github.com/YosysHQ/yosys.git>) `make` and `sudo make install`
 
 :::{warning}
-Do **not** use the latest nightly build of Yosys. This also applies to `FABulous install oss-cad-suite` as it pulls the OSS CAD Suite, which tracks the Yosys nightly. Nightly builds after **29 June** are **not** compatible with current FABulous and will fail. Install Yosys **0.66**, or any build dated **before 29 June**, instead.
+Do **not** use the latest nightly build of Yosys. Nightly builds after **29 June** are **not** compatible with current FABulous and will fail. Install Yosys **0.66**, or any build dated **before 29 June**, instead.
 :::
 
 ## User guide
