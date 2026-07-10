@@ -3,6 +3,9 @@
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
+from fabulous.custom_exception import InvalidSwitchMatrixDefinition
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO
 from fabulous.fabric_definition.supertile import SuperTile
@@ -61,6 +64,32 @@ class TestCanonicalListOrder:
         )
         # .list order is Z, X, Y; MSB-first keeps its reverse.
         assert sm.connections["A"] == ["Y", "X", "Z"]
+
+
+class TestSwitchMatrixValidation:
+    """from_file validates connections against tile signals when ports are given."""
+
+    def _bel(self) -> Bel:
+        # BEL input A is a valid mux output; BEL output X a valid mux input.
+        return make_muladd_bel([("A", IO.INPUT), ("X", IO.OUTPUT)])
+
+    def test_csv_rejects_unknown_output(self, tmp_path: Path) -> None:
+        csv = tmp_path / "m.csv"
+        csv.write_text("T,X\nBOGUS,1\n")
+        with pytest.raises(InvalidSwitchMatrixDefinition):
+            SwitchMatrix.from_file(csv, "T", ports=[], bels=[self._bel()])
+
+    def test_list_rejects_unknown_input(self, tmp_path: Path) -> None:
+        lst = tmp_path / "m.list"
+        lst.write_text("A,NOT_A_SIGNAL\n")
+        with pytest.raises(InvalidSwitchMatrixDefinition):
+            SwitchMatrix.from_file(lst, "T", ports=[], bels=[self._bel()])
+
+    def test_without_ports_skips_validation(self, tmp_path: Path) -> None:
+        # No tile context (e.g. the list2csv/csv2list CLI) -> no validation.
+        csv = tmp_path / "m.csv"
+        csv.write_text("T,X\nBOGUS,1\n")
+        assert SwitchMatrix.from_file(csv, "T").connections == {"BOGUS": ["X"]}
 
 
 class TestHdlSwitchMatrix:

@@ -866,6 +866,10 @@ class FABulous_CLI(Cmd):
     @with_argparser(switch_matrix_convert_parser)
     def do_list2csv(self, args: argparse.Namespace) -> None:
         """Convert a `.list` switch matrix file to `.csv`."""
+        logger.info(
+            "Format conversion only; connectivity is not validated against any "
+            "tile configuration."
+        )
         self.fabulousAPI.addList2Matrix(args.input, args.output)
         logger.info(f"Converted {args.input} to {args.output}")
 
@@ -873,6 +877,10 @@ class FABulous_CLI(Cmd):
     @with_argparser(switch_matrix_convert_parser)
     def do_csv2list(self, args: argparse.Namespace) -> None:
         """Convert a `.csv` switch matrix file to `.list`."""
+        logger.info(
+            "Format conversion only; connectivity is not validated against any "
+            "tile configuration."
+        )
         self.fabulousAPI.addMatrix2List(args.input, args.output)
         logger.info(f"Converted {args.input} to {args.output}")
 

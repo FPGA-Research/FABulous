@@ -105,8 +105,11 @@ class SwitchMatrix:
         into the canonical port/BEL signal order when ``ports`` is supplied,
         matching what the old bootstrap-CSV pipeline produced; without ``ports``
         it falls back to raw ``.list`` order (connectivity only, order not
-        canonical). Hand-written HDL (``.v``/``.sv``/``.vhdl``/``.vhd``) is an
-        escape hatch: only its ``NumberOfConfigBits`` is read and connectivity
+        canonical). When ``ports`` is supplied every connection is validated
+        against the tile's signals (both ``.csv`` and ``.list``); without it no
+        validation is possible. Hand-written HDL (``.v``/``.sv``/``.vhdl``/
+        ``.vhd``) is an escape hatch: only its ``NumberOfConfigBits`` is read
+        and connectivity
         is left empty (the tile supplies its own switch matrix module).
 
         Parameters
@@ -138,6 +141,9 @@ class SwitchMatrix:
         match path.suffix:
             case ".csv":
                 connections = parseMatrix(path, tile_name)
+                if ports is not None:
+                    sources, dests = switch_matrix_signal_order(ports, bels or [])
+                    cls._check_signals(connections, sources, dests, path.name)
             case ".list":
                 if ports is not None:
                     connections = cls._canonical_list_connections(
@@ -167,8 +173,9 @@ class SwitchMatrix:
             noConfigBits=cls._count_config_bits(connections),
         )
 
-    @staticmethod
+    @classmethod
     def _canonical_list_connections(
+        cls,
         path: Path,
         ports: "list[Port]",
         bels: "list[Bel]",
@@ -196,11 +203,6 @@ class SwitchMatrix:
         -------
         dict[str, list[str]]
             Canonically ordered connectivity.
-
-        Raises
-        ------
-        InvalidSwitchMatrixDefinition
-            If a ``.list`` source or sink is not a signal of the tile.
         """
         raw: dict[str, list[str]] = {}
         for source, sink in parseList(path, "pair"):
@@ -209,21 +211,7 @@ class SwitchMatrix:
         sources, dests = switch_matrix_signal_order(ports, bels)
         dest_index = {d: i for i, d in enumerate(dests)}
 
-        # Reject unknown signals; otherwise a bad source silently vanishes and a
-        # bad sink crashes (or slips through under preserve_list_order).
-        known_sources = set(sources)
-        for source, sinks in raw.items():
-            if source not in known_sources:
-                raise InvalidSwitchMatrixDefinition(
-                    f"Switch matrix output {source!r} in {path.name} is not a "
-                    "signal of the tile"
-                )
-            for sink in sinks:
-                if sink not in dest_index:
-                    raise InvalidSwitchMatrixDefinition(
-                        f"Switch matrix input {sink!r} (driving {source!r}) in "
-                        f"{path.name} is not a signal of the tile"
-                    )
+        cls._check_signals(raw, sources, dests, path.name)
 
         connections: dict[str, list[str]] = {}
         for source in sources:
@@ -235,6 +223,45 @@ class SwitchMatrix:
             else:
                 connections[source] = sorted(sinks, key=lambda d: dest_index[d])
         return connections
+
+    @staticmethod
+    def _check_signals(
+        connections: dict[str, list[str]],
+        sources: list[str],
+        dests: list[str],
+        filename: str,
+    ) -> None:
+        """Raise if a connection names a signal the tile does not have.
+
+        Parameters
+        ----------
+        connections : dict[str, list[str]]
+            Mux output → mux inputs to validate.
+        sources : list[str]
+            Valid mux-output (source) signals of the tile.
+        dests : list[str]
+            Valid mux-input (dest) signals of the tile.
+        filename : str
+            Matrix file name, used in the error message.
+
+        Raises
+        ------
+        InvalidSwitchMatrixDefinition
+            If any mux output or input is not a signal of the tile.
+        """
+        source_set, dest_set = set(sources), set(dests)
+        for mux_out, mux_ins in connections.items():
+            if mux_out not in source_set:
+                raise InvalidSwitchMatrixDefinition(
+                    f"Switch matrix output {mux_out!r} in {filename} is not a "
+                    "signal of the tile"
+                )
+            for mux_in in mux_ins:
+                if mux_in not in dest_set:
+                    raise InvalidSwitchMatrixDefinition(
+                        f"Switch matrix input {mux_in!r} (driving {mux_out!r}) in "
+                        f"{filename} is not a signal of the tile"
+                    )
 
     def to_csv_file(
         self,
