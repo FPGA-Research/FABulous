@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.1.0](https://github.com/FPGA-Research/FABulous/compare/v2.0.0...v2.1.0) (2026-07-10)
+
+
+### Features
+
+* add Yosys, OpenSTA and GHDL subprocess wrappers ([#837](https://github.com/FPGA-Research/FABulous/issues/837)) ([b4e5f28](https://github.com/FPGA-Research/FABulous/commit/b4e5f28bf2ffb13f5ffa9f0de2eb91d18f9451f0))
+
+
+### Bug Fixes
+
+* **ci:** stop tagging rolling major minor refs on release ([#898](https://github.com/FPGA-Research/FABulous/issues/898)) ([0ec8ec9](https://github.com/FPGA-Research/FABulous/commit/0ec8ec94539ae6082b6820a14de7e9b815056065))
+* **gds:** keep super-tile IO pins on the manufacturing grid ([61b493f](https://github.com/FPGA-Research/FABulous/commit/61b493f0bcd3b674346193d67823d51d0ede8511))
+
+
+### Documentation
+
+* add guide for emulating a fabric on a commercial FPGA ([#900](https://github.com/FPGA-Research/FABulous/issues/900)) ([6b9aaff](https://github.com/FPGA-Research/FABulous/commit/6b9aaff9a564a07343cc04dd295c16f3cf44a7db))
+
 ## [2.0.0](https://github.com/FPGA-Research/FABulous/compare/v2.0.0...v2.0.0) (2026-07-01)
 
 
