@@ -89,10 +89,13 @@ class TestListExport:
             [("A", IO.INPUT), ("X", IO.OUTPUT), ("Y", IO.OUTPUT), ("Z", IO.OUTPUT)]
         )
         sm = SwitchMatrix(
-            matrixFile=Path("x.csv"), connections={"A": ["Z", "Y", "X"]}, noConfigBits=0
+            matrixFile=Path("x.csv"),
+            connections={"A": ["Z", "Y", "X"]},
+            noConfigBits=0,
+            preserve_list_order=True,
         )
         out = tmp_path / "m.list"
-        sm.to_list_file(out, preserve_list_order=True)
+        sm.to_list_file(out)
         # Inputs are written reversed so a preserve-order (MSB-first) read
         # recovers the stored order.
         assert out.read_text() == "{3}A,[X|Y|Z]\n"

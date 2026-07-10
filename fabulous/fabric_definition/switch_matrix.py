@@ -83,11 +83,16 @@ class SwitchMatrix:
         Mux output port → list of mux input signals. Empty for hand-written HDL.
     noConfigBits : int
         Number of configuration bits required by this switch matrix.
+    preserve_list_order : bool
+        Whether the mux-input order is significant (MSB-first ``.list`` order)
+        rather than the canonical dest-column order. Recorded once at read time
+        and reused when exporting so a round trip is faithful. Default False.
     """
 
     matrixFile: Path
     connections: dict[str, list[str]]
     noConfigBits: int
+    preserve_list_order: bool = False
 
     @classmethod
     def from_file(
@@ -162,6 +167,7 @@ class SwitchMatrix:
                     matrixFile=path,
                     connections={},
                     noConfigBits=cls._extract_config_bits_from_hdl(path),
+                    preserve_list_order=preserve_list_order,
                 )
             case _:
                 raise InvalidFileType(
@@ -171,6 +177,7 @@ class SwitchMatrix:
             matrixFile=path,
             connections=connections,
             noConfigBits=cls._count_config_bits(connections),
+            preserve_list_order=preserve_list_order,
         )
 
     @classmethod
@@ -263,18 +270,16 @@ class SwitchMatrix:
                         f"{filename} is not a signal of the tile"
                     )
 
-    def to_csv_file(
-        self,
-        path: Path,
-        tile_name: str,
-        preserve_list_order: bool = False,
-    ) -> None:
+    def to_csv_file(self, path: Path, tile_name: str) -> None:
         """Write the switch matrix connections to a ``.csv`` file.
 
         The file is written in the format consumed by :func:`parseMatrix`:
         the header row contains mux-input signal names (column headers),
         each data row is ``mux_output_port, v0, v1, …``, and comment
-        annotations (``#,count``) are appended for human readability.
+        annotations (``#,count``) are appended for human readability. When
+        ``self.preserve_list_order`` is set, mux-input ordering is encoded with
+        a 1-based descending index so :func:`parseMatrix` recovers it (otherwise
+        every connection is written as ``1``).
 
         Parameters
         ----------
@@ -282,11 +287,8 @@ class SwitchMatrix:
             Destination ``.csv`` file. Created (or overwritten) by this call.
         tile_name : str
             Tile name written to the top-left cell of the CSV header.
-        preserve_list_order : bool, optional
-            When True, encode mux-input ordering with a 1-based descending
-            index so that :func:`parseMatrix` recovers the original list-file
-            ordering. Defaults to False (all connections written as ``1``).
         """
+        preserve_list_order = self.preserve_list_order
         # Column headers = unique mux-input signals, in first-seen order.
         mux_inputs_ordered: list[str] = []
         seen: set[str] = set()
@@ -320,30 +322,28 @@ class SwitchMatrix:
                 )
             f.write(f"#,{','.join(str(c) for c in col_counts)}")
 
-    def to_list_file(self, path: Path, preserve_list_order: bool = False) -> None:
+    def to_list_file(self, path: Path) -> None:
         """Write the switch matrix connections to a ``.list`` file.
 
         One line per mux output in the compact form
         ``{N}mux_output,[input0|input1|...]`` where ``N`` is the number of mux
         inputs. The ``{N}`` multiplier repeats the output so :func:`parseList`
         pairs it with each bracketed input. Outputs with no inputs are omitted.
+        When ``self.preserve_list_order`` is set the inputs are written reversed
+        so that a ``preserve_list_order`` (MSB-first) read recovers this object's
+        input order; otherwise the order is not significant (the reader
+        re-derives it from the tile's ports).
 
         Parameters
         ----------
         path : Path
             Destination ``.list`` file. Created (or overwritten) by this call.
-        preserve_list_order : bool, optional
-            Must match the flag the file will be read back with. When True the
-            inputs are written reversed so that a ``preserve_list_order`` read
-            (which is MSB-first) recovers this object's input order; when False
-            the order is not significant (the reader re-derives it from the
-            tile's ports). Defaults to False.
         """
         with path.open("w") as f:
             for mux_output, mux_inputs in self.connections.items():
                 if not mux_inputs:
                     continue
-                inputs = mux_inputs[::-1] if preserve_list_order else mux_inputs
+                inputs = mux_inputs[::-1] if self.preserve_list_order else mux_inputs
                 f.write(f"{{{len(mux_inputs)}}}{mux_output},[{'|'.join(inputs)}]\n")
 
     @staticmethod
