@@ -66,6 +66,42 @@ class TestCanonicalListOrder:
         assert sm.connections["A"] == ["Y", "X", "Z"]
 
 
+class TestListExport:
+    """to_list_file writes one compact `{N}output,[inputs]` line per mux."""
+
+    def test_compact_per_mux_format_round_trips(self, tmp_path: Path) -> None:
+        sm = SwitchMatrix(
+            matrixFile=Path("x.csv"),
+            connections={"A_I": ["X", "Y"], "B_I": ["Z"], "C_I": []},
+            noConfigBits=0,
+        )
+        out = tmp_path / "m.list"
+        sm.to_list_file(out)
+        # One line per connected mux; the empty C_I is omitted.
+        assert out.read_text() == "{2}A_I,[X|Y]\n{1}B_I,[Z]\n"
+        assert SwitchMatrix.from_file(out, "T").connections == {
+            "A_I": ["X", "Y"],
+            "B_I": ["Z"],
+        }
+
+    def test_preserve_list_order_round_trips(self, tmp_path: Path) -> None:
+        bel = make_muladd_bel(
+            [("A", IO.INPUT), ("X", IO.OUTPUT), ("Y", IO.OUTPUT), ("Z", IO.OUTPUT)]
+        )
+        sm = SwitchMatrix(
+            matrixFile=Path("x.csv"), connections={"A": ["Z", "Y", "X"]}, noConfigBits=0
+        )
+        out = tmp_path / "m.list"
+        sm.to_list_file(out, preserve_list_order=True)
+        # Inputs are written reversed so a preserve-order (MSB-first) read
+        # recovers the stored order.
+        assert out.read_text() == "{3}A,[X|Y|Z]\n"
+        back = SwitchMatrix.from_file(
+            out, "T", ports=[], bels=[bel], preserve_list_order=True
+        ).connections
+        assert back["A"] == ["Z", "Y", "X"]
+
+
 class TestSwitchMatrixValidation:
     """from_file validates connections against tile signals when ports are given."""
 

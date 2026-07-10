@@ -320,21 +320,31 @@ class SwitchMatrix:
                 )
             f.write(f"#,{','.join(str(c) for c in col_counts)}")
 
-    def to_list_file(self, path: Path) -> None:
+    def to_list_file(self, path: Path, preserve_list_order: bool = False) -> None:
         """Write the switch matrix connections to a ``.list`` file.
 
-        Each connection is written as ``mux_output,mux_input`` on its own line,
-        matching the format consumed by :func:`parseList`.
+        One line per mux output in the compact form
+        ``{N}mux_output,[input0|input1|...]`` where ``N`` is the number of mux
+        inputs. The ``{N}`` multiplier repeats the output so :func:`parseList`
+        pairs it with each bracketed input. Outputs with no inputs are omitted.
 
         Parameters
         ----------
         path : Path
             Destination ``.list`` file. Created (or overwritten) by this call.
+        preserve_list_order : bool, optional
+            Must match the flag the file will be read back with. When True the
+            inputs are written reversed so that a ``preserve_list_order`` read
+            (which is MSB-first) recovers this object's input order; when False
+            the order is not significant (the reader re-derives it from the
+            tile's ports). Defaults to False.
         """
         with path.open("w") as f:
             for mux_output, mux_inputs in self.connections.items():
-                for mux_input in mux_inputs:
-                    f.write(f"{mux_output},{mux_input}\n")
+                if not mux_inputs:
+                    continue
+                inputs = mux_inputs[::-1] if preserve_list_order else mux_inputs
+                f.write(f"{{{len(mux_inputs)}}}{mux_output},[{'|'.join(inputs)}]\n")
 
     @staticmethod
     def _count_config_bits(connections: dict[str, list[str]]) -> int:
