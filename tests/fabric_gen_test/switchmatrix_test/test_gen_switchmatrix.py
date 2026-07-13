@@ -180,7 +180,7 @@ class TestPreserveListOrderEndToEnd:
             t.name: t.switchMatrix.connections for t in preserved.tileDic.values()
         }
 
-        # Same tiles, same mux outputs, same mux inputs — only input order may
+        # Same tiles, same mux outputs, same mux inputs - only input order may
         # change, proving PreserveListOrder is honoured without dropping links.
         assert default_conns.keys() == preserved_conns.keys()
         for name, d in default_conns.items():
@@ -203,7 +203,7 @@ class TestPreserveListOrderGeneration:
 
     Generation drives each `{port}_input` vector from the reversed connection
     list, so the flag's MSB-first reordering surfaces directly in the emitted
-    `assign {port}_input = {...}` statements — the ordering a bitstream depends
+    `assign {port}_input = {...}` statements - the ordering a bitstream depends
     on. Parse/export coverage alone would not catch a generation regression.
     """
 
@@ -259,7 +259,7 @@ class TestPreserveListOrderGeneration:
         ]
         assert flipped, "PreserveListOrder=TRUE changed no generated mux-input vector"
 
-        # Where a vector flips, the source set is identical — only order differs.
+        # Where a vector flips, the source set is identical - only order differs.
         for port in flipped:
             assert set(default_inputs[port]) == set(preserved_inputs[port])
 

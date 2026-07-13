@@ -44,7 +44,7 @@ def switch_matrix_signal_order(
     Returns
     -------
     tuple[list[str], list[str]]
-        `(sources, dests)` — the ordered, de-duplicated mux-output and
+        `(sources, dests)` - the ordered, de-duplicated mux-output and
         mux-input signal names.
     """
     sources: list[str] = []
@@ -78,7 +78,7 @@ class SwitchMatrix:
         Source file for the switch matrix (`.csv`, `.list`, or hand-written
         HDL).
     connections : dict[str, list[str]]
-        Mux output port → list of mux input signals. Empty for hand-written HDL.
+        Mux output port -> list of mux input signals. Empty for hand-written HDL.
     no_config_bits : int
         Number of configuration bits required by this switch matrix.
     preserve_list_order : bool
@@ -156,7 +156,7 @@ class SwitchMatrix:
             case ".v" | ".sv" | ".vhdl" | ".vhd":
                 logger.warning(
                     f"Switch matrix for tile {tile_name!r} is read from HDL "
-                    f"{path.name}: only NumberOfConfigBits is extracted — the "
+                    f"{path.name}: only NumberOfConfigBits is extracted - the "
                     "connectivity is NOT parsed or checked. You are responsible "
                     "for ensuring the HDL matches the fabric's expected ports."
                 )
@@ -241,7 +241,7 @@ class SwitchMatrix:
         Parameters
         ----------
         connections : dict[str, list[str]]
-            Mux output → mux inputs to validate.
+            Mux output -> mux inputs to validate.
         sources : list[str]
             Valid mux-output (source) signals of the tile.
         dests : list[str]
@@ -273,7 +273,7 @@ class SwitchMatrix:
 
         The file is written in the format consumed by :func:`parseMatrix`:
         the header row contains mux-input signal names (column headers),
-        each data row is `mux_output_port, v0, v1, …`, and comment
+        each data row is `mux_output_port, v0, v1, ...`, and comment
         annotations (`#,count`) are appended for human readability. When
         `self.preserve_list_order` is set, mux-input ordering is encoded with
         a 1-based descending index so :func:`parseMatrix` recovers it (otherwise
@@ -351,7 +351,7 @@ class SwitchMatrix:
         Parameters
         ----------
         connections : dict[str, list[str]]
-            Mux output → mux inputs.
+            Mux output -> mux inputs.
 
         Returns
         -------

@@ -89,7 +89,7 @@ def genTileSwitchMatrix(
     The switch matrix is read straight from the tile's already-canonical
     `tile.switchMatrix.connections` (built once when the fabric was parsed);
     no CSV is written or re-read here. A tile whose matrix is hand-written HDL
-    is skipped — it supplies its own switch matrix module.
+    is skipped - it supplies its own switch matrix module.
 
     Parameters
     ----------
