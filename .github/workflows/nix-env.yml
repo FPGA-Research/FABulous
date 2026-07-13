@@ -26,7 +26,9 @@ concurrency:
   # Literal, not `github.workflow`: under workflow_call that resolves to the
   # *caller's* name, folding this into the caller's group.
   group: nix-env-${{ github.ref }}
-  cancel-in-progress: true
+  # Never under merge_group: a cancelled leg surfaces as `cancelled` to ci.yml's
+  # all-clean fan-in, which fails it and evicts the PR from the queue.
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
   nix-smoke-test:
