@@ -345,7 +345,7 @@ wheels = [
 
 [[package]]
 name = "ciel"
-version = "2.6.0"
+version = "2.6.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -355,9 +355,9 @@ dependencies = [
     { name = "rich" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/73/f9/36028fa9faf358b206a251ef4158c7adf0fe261542dd48277dd91a6e079a/ciel-2.6.0.tar.gz", hash = "sha256:69a2c2ae5eddefcd48bdf4c25e790eb79392572c604b765a253197b0ae7dd818", size = 26619, upload-time = "2026-06-27T18:40:00.219Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/59/24/98ac927526ce8e42e825e7ec33502b6f80bec16243e8d6da3647aa2e36a4/ciel-2.6.1.tar.gz", hash = "sha256:e4fcfb303f5c603752b51541c4cf47baf6b08f300f5df65d36372234451896ec", size = 26608, upload-time = "2026-07-09T13:25:59.987Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/37/1f/71d12659439abdae1efc259e88afbc20464c395f1cf7e25c331ca250c5c8/ciel-2.6.0-py3-none-any.whl", hash = "sha256:50938b8d05751624bc25d0d37f274522c2f1d5dc17eaee12f713fa16e0f84794", size = 38634, upload-time = "2026-06-27T18:39:59.016Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/05/1fdc10f1387cde76a2dbfe923e926e94b40fb326693244279173f9ffd193/ciel-2.6.1-py3-none-any.whl", hash = "sha256:7d9464ff8d3c6897206ea401beef87ebac3c4dd6b5823f755d409a78f04f17c9", size = 38634, upload-time = "2026-07-09T13:25:58.76Z" },
 ]
 
 [[package]]
@@ -398,18 +398,17 @@ wheels = [
 
 [[package]]
 name = "cmd2"
-version = "3.4.0"
+version = "4.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "gnureadline", marker = "sys_platform == 'darwin'" },
+    { name = "prompt-toolkit" },
     { name = "pyperclip" },
-    { name = "pyreadline3", marker = "sys_platform == 'win32'" },
     { name = "rich" },
     { name = "rich-argparse" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/70/39/c0c85040ea9b9465ec345ec9ae89416aef9a8672e74bc23c5cc1a2142ea0/cmd2-3.4.0.tar.gz", hash = "sha256:fd43ef7540609469f055858146f2c592ca4c58e3c336b5efbc5502459ab0bdb2", size = 710127, upload-time = "2026-03-03T16:09:08.413Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9b/cd/3bbf233808b4045b105c072deea014599bbbae9205eec8e643674d2dc0f6/cmd2-4.1.1.tar.gz", hash = "sha256:8a70157dacbbbc11290c18cb3453f0c8ab1dba742572d247a06f4bb519a16472", size = 850451, upload-time = "2026-07-09T23:40:24.762Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/28/16/3dc2eaeeef97a2e47679d9ada72dd56d5033d3d9ed8f0c8d3c75ddf3bc07/cmd2-3.4.0-py3-none-any.whl", hash = "sha256:9bf15718bcc5a99c863518d6209f8e36990b18826dbb4aceeb53d17215edcbaf", size = 148210, upload-time = "2026-03-03T16:09:07.221Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/a7/8779f0ddfe7134842283f589513c27ad179b358ec524f101d95243e9b07a/cmd2-4.1.1-py3-none-any.whl", hash = "sha256:848d04fdfaf3c5c35505d45ab4073cc027092c532a4a74f4448770a279a4505f", size = 194949, upload-time = "2026-07-09T23:40:22.941Z" },
 ]
 
 [[package]]
@@ -623,6 +622,7 @@ dependencies = [
     { name = "fabulous-bit-gen" },
     { name = "gnureadline", marker = "sys_platform != 'win32'" },
     { name = "go-task-bin" },
+    { name = "jinja2" },
     { name = "librelane" },
     { name = "loguru" },
     { name = "networkx" },
@@ -644,11 +644,12 @@ dependencies = [
 requires-dist = [
     { name = "bitarray", specifier = ">=3.3.0" },
     { name = "ciel", specifier = ">=2.4.0" },
-    { name = "cmd2", specifier = ">=2" },
+    { name = "cmd2", specifier = ">=4.1.1" },
     { name = "dill", specifier = ">=0.4.0" },
     { name = "fabulous-bit-gen", specifier = ">=0.3.1" },
     { name = "gnureadline", marker = "sys_platform != 'win32'", specifier = ">=8.2.0" },
     { name = "go-task-bin", specifier = ">=3.40.0" },
+    { name = "jinja2", specifier = ">=3.1.6" },
     { name = "librelane", specifier = ">=3.0.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "networkx", specifier = ">=3.6.1" },
@@ -1081,7 +1082,7 @@ wheels = [
 
 [[package]]
 name = "librelane"
-version = "3.0.4"
+version = "3.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ciel" },
@@ -1099,9 +1100,9 @@ dependencies = [
     { name = "semver" },
     { name = "yamlcore" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/78/79/2349a474f636b56d730116946a1debd152c81280870ca46e8c77b7839ac6/librelane-3.0.4.tar.gz", hash = "sha256:1e27899c3e572fe7d331dbadc673b809beea60375ded3e87406f51f3526da75b", size = 307644, upload-time = "2026-06-07T19:51:13.932Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f5/fb/bfc50f666d07aa6adb80fc5ff197ad18f432a44eae74fc746790c790ce91/librelane-3.0.5.tar.gz", hash = "sha256:2a8647352d977b4dcca88b1f7af89524b0be396b4004be4990b81155bbb35d9a", size = 307574, upload-time = "2026-07-10T14:49:39.953Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a5/a9/0ba4b86345a106d24ac68814d0fec4f1dce991725e2889bbdc105dc3479c/librelane-3.0.4-py3-none-any.whl", hash = "sha256:8973ca7e60d5f6b1684ca45723a7beb5f27e45788c62d3acb9598242504fa35c", size = 424266, upload-time = "2026-06-07T19:51:12.562Z" },
+    { url = "https://files.pythonhosted.org/packages/5e/af/2995a807f60d17e9745006b15c8ba2ad4a57fe503179d5bcef076c6a9aea/librelane-3.0.5-py3-none-any.whl", hash = "sha256:c46e70ce3c996b7f6917503978ff253cd75cc53c86d095b16a2c2bd477ff7be7", size = 424211, upload-time = "2026-07-10T14:49:38.488Z" },
 ]
 
 [[package]]
@@ -1653,6 +1654,18 @@ wheels = [
 ]
 
 [[package]]
+name = "prompt-toolkit"
+version = "3.0.52"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "wcwidth" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a1/96/06e01a7b38dce6fe1db213e061a4602dd6032a8a97ef6c1a862537732421/prompt_toolkit-3.0.52.tar.gz", hash = "sha256:28cde192929c8e7321de85de1ddbe736f1375148b02f2e17edd840042b1be855", size = 434198, upload-time = "2025-08-27T15:24:02.057Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/84/03/0d3ce49e2505ae70cf43bc5bb3033955d2fc9f932163e84dc0779cc47f48/prompt_toolkit-3.0.52-py3-none-any.whl", hash = "sha256:9aac639a3bbd33284347de5ad8d68ecc044b91a762dc39b7c21095fcd6a19955", size = 391431, upload-time = "2025-08-27T15:23:59.498Z" },
+]
+
+[[package]]
 name = "psutil"
 version = "7.2.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2062,15 +2075,15 @@ wheels = [
 
 [[package]]
 name = "rich"
-version = "14.3.4"
+version = "15.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "markdown-it-py" },
     { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e9/67/cae617f1351490c25a4b8ac3b8b63a4dda609295d8222bad12242dfdc629/rich-14.3.4.tar.gz", hash = "sha256:817e02727f2b25b40ef56f5aa2217f400c8489f79ca8f46ea2b70dd5e14558a9", size = 230524, upload-time = "2026-04-11T02:57:45.419Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c0/8f/0722ca900cc807c13a6a0c696dacf35430f72e0ec571c4275d2371fca3e9/rich-15.0.0.tar.gz", hash = "sha256:edd07a4824c6b40189fb7ac9bc4c52536e9780fbbfbddf6f1e2502c31b068c36", size = 230680, upload-time = "2026-04-12T08:24:00.75Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b3/76/6d163cfac87b632216f71879e6b2cf17163f773ff59c00b5ff4900a80fa3/rich-14.3.4-py3-none-any.whl", hash = "sha256:07e7adb4690f68864777b1450859253bed81a99a31ac321ac1817b2313558952", size = 310480, upload-time = "2026-04-11T02:57:47.484Z" },
+    { url = "https://files.pythonhosted.org/packages/82/3b/64d4899d73f91ba49a8c18a8ff3f0ea8f1c1d75481760df8c68ef5235bf5/rich-15.0.0-py3-none-any.whl", hash = "sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb", size = 310654, upload-time = "2026-04-12T08:24:02.83Z" },
 ]
 
 [[package]]
@@ -2724,6 +2737,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/56/fe/cb8ef3d6f929d14158fdaaad9925985b7310abc9384dcd4d82dd0016fb59/watchfiles-1.2.0-cp315-cp315-manylinux_2_31_riscv64.whl", hash = "sha256:cee9d5efd929efdac5f7e58f72b3376f676b64050a91c5b99a7094c5b2317488", size = 465096, upload-time = "2026-05-18T04:31:30.384Z" },
     { url = "https://files.pythonhosted.org/packages/25/91/80908e835e100527a9267147b08c0eee1fa6ab0ffec15edc04d1d44885f7/watchfiles-1.2.0-cp315-cp315-musllinux_1_1_aarch64.whl", hash = "sha256:b718bf356bbc15e559bd8ef41782b573b8ae0e3f177ab244b440568d7ea02cfb", size = 630638, upload-time = "2026-05-18T04:30:49.89Z" },
     { url = "https://files.pythonhosted.org/packages/46/4b/95ab2f256bb4af3cb2eb23b9317bda984ee6e0f11733a5c004a6c95b06e3/watchfiles-1.2.0-cp315-cp315-musllinux_1_1_x86_64.whl", hash = "sha256:922c0e019fe68b3ae392965a766b02a71ba1168c932cebc3733cd52c5fe5b377", size = 657684, upload-time = "2026-05-18T04:31:32.027Z" },
+]
+
+[[package]]
+name = "wcwidth"
+version = "0.8.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/34/74/c6428f875774288bec1396f5bfcbc2d925700a4dad61727fd5f2b12f249d/wcwidth-0.8.2.tar.gz", hash = "sha256:91fbef97204b96a3d4d421609b80340b760cf33e26da123ff243d76b1fda8dda", size = 1466253, upload-time = "2026-06-29T18:11:11.601Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/96/42/3e5985a0a7e57de470b320c6d6a1a67c844f6737a587f3d44dd13d1819e7/wcwidth-0.8.2-py3-none-any.whl", hash = "sha256:d63947694a0539a1d51e01eda7caf800c291020e6cdd7e28ad7b14dd33ad4f85", size = 323166, upload-time = "2026-06-29T18:11:09.888Z" },
 ]
 
 [[package]]
