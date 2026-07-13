@@ -1,15 +1,19 @@
 name: Test fabric generation against base branch
 
+# Driven by ci.yml.
 on:
-  pull_request:
-    paths:
-      - 'fabulous/**'
-      - 'tests/**'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/backwards-compatibility.yml'
-      - '.github/actions/**'
-  merge_group:
+  workflow_call:
+    inputs:
+      base_ref:
+        # Explicit, not `github.base_ref`: that is empty under merge_group, which
+        # would check out the queue branch and compare it against itself.
+        description: Branch to generate the reference project from.
+        type: string
+        required: true
+
+# Pinned, else this inherits ci.yml's ceiling (the union of all its callees).
+permissions:
+  contents: read
 
 jobs:
   # NOTE: This workflow intentionally uses two separate jobs instead of two
@@ -31,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.base_ref }}
+          ref: ${{ inputs.base_ref }}
       - uses: ./.github/actions/prepare_FABulous_container
       - name: Generate project with base branch FABulous
         run: |

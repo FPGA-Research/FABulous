@@ -9,13 +9,8 @@ on:
       - "pyproject.toml"
       - "nix/**"
       - ".github/workflows/nix-env.yml"
-  pull_request:
-    paths:
-      - "flake.nix"
-      - "*.lock"
-      - "pyproject.toml"
-      - "nix/**"
-      - ".github/workflows/nix-env.yml"
+  # PR / merge_group runs come through ci.yml.
+  workflow_call:
   # warm `nix-*` cache existing on `main` to fall back to
   schedule:
     - cron: "0 1 * * *"
@@ -28,7 +23,9 @@ permissions:
   actions: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Literal, not `github.workflow`: under workflow_call that resolves to the
+  # *caller's* name, folding this into the caller's group.
+  group: nix-env-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

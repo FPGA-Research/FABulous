@@ -1,7 +1,12 @@
 name: Testing with pytest and cocotb
 
 on:
+  # PR / merge_group runs come through ci.yml.
+  workflow_call:
+  # Default branch only. Actions caches are ref-scoped, so a run on `main` is the
+  # only one that writes a test-durations entry every PR can restore from.
   push:
+    branches: [main]
     paths:
       - "fabulous/**"
       - "tests/**"
@@ -12,20 +17,9 @@ on:
       - "nix/**"
       - ".github/workflows/pytest_testing.yml"
       - ".github/actions/**"
-  pull_request:
-    paths:
-      - "fabulous/**"
-      - "tests/**"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "flake.nix"
-      - "flake.lock"
-      - "nix/**"
-      - ".github/workflows/pytest_testing.yml"
-      - ".github/actions/**"
-  merge_group:
-  # The full Nix-devshell suite only runs on this nightly schedule; push/PR
-  # runs stay container-only.
+  # The full Nix-devshell suite only runs on this nightly schedule; push/PR runs
+  # stay container-only. Under workflow_call `github.event_name` is the caller's
+  # event, never `schedule`, so the matrix below stays container-only for PRs.
   schedule:
     - cron: "0 2 * * *"
 

@@ -1,6 +1,12 @@
 name: Run pre-commit hooks
 
-on: [push, pull_request, merge_group]
+# Driven by ci.yml.
+on:
+  workflow_call:
+
+# Pinned, else this inherits ci.yml's ceiling (the union of all its callees).
+permissions:
+  contents: read
 
 jobs:
   pre-commit:

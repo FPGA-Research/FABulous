@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  pull_request:
+  merge_group:
+
+# Ceiling for every called workflow: a reusable workflow can narrow these, never
+# widen them, so this is the union of what the callees ask for.
+permissions:
+  contents: read
+  actions: write
+  id-token: write
+  issues: write
+  pull-requests: write
+  code-quality: write
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # PR-only: cancelling a merge-queue run evicts the PR from the queue.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      pytest: ${{ github.event_name != 'pull_request' || steps.filter.outputs.pytest == 'true' }}
+      backwards_compat: ${{ github.event_name != 'pull_request' || steps.filter.outputs.backwards_compat == 'true' }}
+      nix: ${{ github.event_name != 'pull_request' || steps.filter.outputs.nix == 'true' }}
+    steps:
+      # merge_group has no base commit to diff against, so the filter is skipped
+      # there and the outputs above short-circuit to `true`.
+      - uses: dorny/paths-filter@v4
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            pytest:
+              - 'fabulous/**'
+              - 'tests/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'flake.nix'
+              - 'flake.lock'
+              - 'nix/**'
+              - '.github/workflows/pytest_testing.yml'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/**'
+            backwards_compat:
+              - 'fabulous/**'
+              - 'tests/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/workflows/backwards-compatibility.yml'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/**'
+            nix:
+              - 'flake.nix'
+              - 'flake.lock'
+              - 'uv.lock'
+              - 'pyproject.toml'
+              - 'nix/**'
+              - '.github/workflows/nix-env.yml'
+              - '.github/workflows/ci.yml'
+
+  pre-commit:
+    uses: ./.github/workflows/pre-commit-hooks.yml
+    secrets: inherit
+
+  pytest:
+    needs: changes
+    if: needs.changes.outputs.pytest == 'true'
+    uses: ./.github/workflows/pytest_testing.yml
+    secrets: inherit
+
+  backwards-compat:
+    needs: changes
+    if: needs.changes.outputs.backwards_compat == 'true'
+    uses: ./.github/workflows/backwards-compatibility.yml
+    with:
+      base_ref: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
+    secrets: inherit
+
+  nix-env:
+    needs: changes
+    if: needs.changes.outputs.nix == 'true'
+    uses: ./.github/workflows/nix-env.yml
+    secrets: inherit
+
+  # The single required status check on `main`. It must wait via `needs:`, never
+  # by polling: a job blocked on `needs:` is not dispatched to a runner, while a
+  # poller holds one of the org's 20 concurrent slots for its entire wait. Enough
+  # concurrent PRs' pollers then hold every slot, waiting on checks that can
+  # never be scheduled because the pollers are holding the slots those checks
+  # need -- a deadlock that only clears when the pollers time out.
+  all-clean:
+    if: always()
+    needs: [changes, pre-commit, pytest, backwards-compat, nix-env]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report dependency results
+        run: |
+          echo "Dependency results: ${{ join(needs.*.result, ', ') }}"
+
+      # `skipped` is a pass -- it means a path filter excluded that leg.
+      - name: Fail if any dependency failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "::error::A required job failed or was cancelled"
+          exit 1
