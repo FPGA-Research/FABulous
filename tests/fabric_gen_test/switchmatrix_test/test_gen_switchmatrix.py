@@ -1,5 +1,6 @@
 """Tests for switch matrix construction and generation."""
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -7,9 +8,10 @@ import pytest
 
 from fabulous.custom_exception import InvalidSwitchMatrixDefinition
 from fabulous.fabric_definition.bel import Bel
-from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO, MultiplexerStyle
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
     _unconnected_port_diagnostic,
@@ -21,6 +23,7 @@ from fabulous.fabulous_settings import init_context
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 from tests.fabric_gen_test.conftest import (
     create_switchmatrix_list,
+    find_switch_matrix_tile,
 )
 
 
@@ -190,6 +193,75 @@ class TestPreserveListOrderEndToEnd:
         assert any(
             default_conns[name] != preserved_conns[name] for name in default_conns
         ), "PreserveListOrder=TRUE did not reorder any switch matrix"
+
+
+_INPUT_ASSIGN = re.compile(r"assign\s+(\w+)_input\s*=\s*\{([^}]*)\};")
+
+
+class TestPreserveListOrderGeneration:
+    """PreserveListOrder must flip the generated mux-input vector order.
+
+    Generation drives each `{port}_input` vector from the reversed connection
+    list, so the flag's MSB-first reordering surfaces directly in the emitted
+    `assign {port}_input = {...}` statements — the ordering a bitstream depends
+    on. Parse/export coverage alone would not catch a generation regression.
+    """
+
+    def _generated_input_vectors(
+        self,
+        fabric_csv: Path,
+        code_generator_factory: Callable[[str, str], CodeGenerator],
+    ) -> tuple[Tile, dict[str, list[str]]]:
+        """Generate a tile's switch matrix and return its `{port}_input` RHS lists."""
+        init_context(fabric_csv.parent)
+        tile = find_switch_matrix_tile(parseFabricCSV(str(fabric_csv)))
+        writer = code_generator_factory(".v", f"{tile.name}_switch_matrix")
+        genTileSwitchMatrix(
+            writer, tile, False, multiplexer_style=MultiplexerStyle.CUSTOM
+        )
+        rtl = writer.outFileName.read_text()
+        return tile, {
+            m.group(1): m.group(2).split(",") for m in _INPUT_ASSIGN.finditer(rtl)
+        }
+
+    def test_flag_flips_generated_input_vector_order(
+        self,
+        project: Path,
+        code_generator_factory: Callable[[str, str], CodeGenerator],
+    ) -> None:
+        fabric_csv = project / "fabric.csv"
+        default_tile, default_inputs = self._generated_input_vectors(
+            fabric_csv, code_generator_factory
+        )
+
+        fabric_csv.write_text(
+            fabric_csv.read_text().replace(
+                "ParametersEnd", "PreserveListOrder,TRUE\nParametersEnd"
+            )
+        )
+        preserved_tile, preserved_inputs = self._generated_input_vectors(
+            fabric_csv, code_generator_factory
+        )
+
+        # The emitted vector is the reversed connection list: generation must
+        # faithfully mirror the (flag-ordered) connections, both ways.
+        for tile, inputs in (
+            (default_tile, default_inputs),
+            (preserved_tile, preserved_inputs),
+        ):
+            for port, rhs in inputs.items():
+                assert rhs == tile.switchMatrix.connections[port][::-1]
+
+        # Same muxes generated, and the flag must actually flip at least one.
+        assert default_inputs.keys() == preserved_inputs.keys()
+        flipped = [
+            p for p in default_inputs if default_inputs[p] != preserved_inputs[p]
+        ]
+        assert flipped, "PreserveListOrder=TRUE changed no generated mux-input vector"
+
+        # Where a vector flips, the source set is identical — only order differs.
+        for port in flipped:
+            assert set(default_inputs[port]) == set(preserved_inputs[port])
 
 
 class TestSuperTileSwitchMatrixConstants:
