@@ -64,7 +64,9 @@ def make_empty_tile(
         ports=ports or [],
         bels=[],
         tileDir=tileDir,
-        switchMatrix=SwitchMatrix(matrixFile=matrixDir, connections={}, noConfigBits=0),
+        switchMatrix=SwitchMatrix(
+            matrix_file=matrixDir, connections={}, no_config_bits=0
+        ),
         gen_ios=[],
         userCLK=False,
         pinOrderConfig=pinOrderConfig,

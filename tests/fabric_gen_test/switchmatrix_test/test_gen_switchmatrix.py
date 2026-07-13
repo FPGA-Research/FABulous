@@ -71,9 +71,9 @@ class TestListExport:
 
     def test_compact_per_mux_format_round_trips(self, tmp_path: Path) -> None:
         sm = SwitchMatrix(
-            matrixFile=Path("x.csv"),
+            matrix_file=Path("x.csv"),
             connections={"A_I": ["X", "Y"], "B_I": ["Z"], "C_I": []},
-            noConfigBits=0,
+            no_config_bits=0,
         )
         out = tmp_path / "m.list"
         sm.to_list_file(out)
@@ -89,9 +89,9 @@ class TestListExport:
             [("A", IO.INPUT), ("X", IO.OUTPUT), ("Y", IO.OUTPUT), ("Z", IO.OUTPUT)]
         )
         sm = SwitchMatrix(
-            matrixFile=Path("x.csv"),
+            matrix_file=Path("x.csv"),
             connections={"A": ["Z", "Y", "X"]},
-            noConfigBits=0,
+            no_config_bits=0,
             preserve_list_order=True,
         )
         out = tmp_path / "m.list"
@@ -139,12 +139,12 @@ class TestHdlSwitchMatrix:
         v.write_text("// NumberOfConfigBits: 7\nmodule T(); endmodule\n")
         sm = SwitchMatrix.from_file(v, "T")
         assert sm.connections == {}
-        assert sm.noConfigBits == 7
+        assert sm.no_config_bits == 7
 
     def test_missing_config_bits_defaults_to_zero(self, tmp_path: Path) -> None:
         v = tmp_path / "T_switch_matrix.vhdl"
         v.write_text("entity T is end T;\n")
-        assert SwitchMatrix.from_file(v, "T").noConfigBits == 0
+        assert SwitchMatrix.from_file(v, "T").no_config_bits == 0
 
     def test_generation_skips_hdl_matrix(self, tmp_path: Path) -> None:
         v = tmp_path / "T_switch_matrix.v"

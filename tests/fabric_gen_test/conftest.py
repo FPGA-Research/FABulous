@@ -54,7 +54,7 @@ def mk_tile(tmp_path: Path) -> Callable[[str], Tile]:
 
     def _create(name: str) -> Tile:
         switch_matrix = SwitchMatrix(
-            matrixFile=tmp_path / f"{name}.list", connections={}, noConfigBits=0
+            matrix_file=tmp_path / f"{name}.list", connections={}, no_config_bits=0
         )
         return Tile(name, [], [], tmp_path, switch_matrix, [], False)
 
@@ -102,7 +102,7 @@ def find_switch_matrix_tile(fabric: Fabric) -> Tile:
         If no tile has a parseable switch matrix.
     """
     for tile in fabric.tileDic.values():
-        if tile.switchMatrix.matrixFile.suffix in (".list", ".csv"):
+        if tile.switchMatrix.matrix_file.suffix in (".list", ".csv"):
             return tile
     raise ValueError("no tile with a parseable switch matrix in fabric")
 

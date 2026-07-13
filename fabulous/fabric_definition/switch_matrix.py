@@ -3,9 +3,7 @@
 A tile's switch matrix is the programmable interconnect: which sources may drive
 each destination inside the tile. The connectivity is declared in the tile's
 matrix file (a `.csv` adjacency matrix or a `.list` of pairs) and read **once**
-into this dataclass in canonical port/BEL order. It gives the switch matrix a
-first-class home in the fabric model so callers work with a `SwitchMatrix` object
-instead of re-deriving file dispatch and parsing at every site. RTL generation
+into this dataclass in canonical port/BEL order. RTL generation
 lives in :mod:`fabulous.fabric_generator.gen_fabric.gen_switchmatrix`.
 """
 
@@ -28,25 +26,25 @@ if TYPE_CHECKING:
 def switch_matrix_signal_order(
     ports: "list[Port]", bels: "list[Bel]"
 ) -> tuple[list[str], list[str]]:
-    """Return the canonical ``(sources, dests)`` signal order for a switch matrix.
+    """Return the canonical `(sources, dests)` signal order for a switch matrix.
 
     This is the ordering the switch matrix uses for its mux outputs (sources)
     and mux inputs (dests): non-JUMP wire signals first (in tile port order),
     then BEL signals, then JUMP wire signals, each de-duplicated first-seen. It
-    depends only on the tile's ports and BELs, so a ``.list`` matrix can be read
+    depends only on the tile's ports and BELs, so a `.list` matrix can be read
     straight into this canonical order without a CSV round trip.
 
     Parameters
     ----------
     ports : list[Port]
-        The tile's ports (``tile.portsInfo``).
+        The tile's ports (`tile.portsInfo`).
     bels : list[Bel]
-        The tile's BELs (``tile.bels``).
+        The tile's BELs (`tile.bels`).
 
     Returns
     -------
     tuple[list[str], list[str]]
-        ``(sources, dests)`` — the ordered, de-duplicated mux-output and
+        `(sources, dests)` — the ordered, de-duplicated mux-output and
         mux-input signal names.
     """
     sources: list[str] = []
@@ -76,22 +74,22 @@ class SwitchMatrix:
 
     Attributes
     ----------
-    matrixFile : Path
-        Source file for the switch matrix (``.csv``, ``.list``, or hand-written
+    matrix_file : Path
+        Source file for the switch matrix (`.csv`, `.list`, or hand-written
         HDL).
     connections : dict[str, list[str]]
         Mux output port → list of mux input signals. Empty for hand-written HDL.
-    noConfigBits : int
+    no_config_bits : int
         Number of configuration bits required by this switch matrix.
     preserve_list_order : bool
-        Whether the mux-input order is significant (MSB-first ``.list`` order)
+        Whether the mux-input order is significant (MSB-first `.list` order)
         rather than the canonical dest-column order. Recorded once at read time
         and reused when exporting so a round trip is faithful. Default False.
     """
 
-    matrixFile: Path
+    matrix_file: Path
     connections: dict[str, list[str]]
-    noConfigBits: int
+    no_config_bits: int
     preserve_list_order: bool = False
 
     @classmethod
@@ -105,31 +103,30 @@ class SwitchMatrix:
     ) -> "SwitchMatrix":
         """Construct a SwitchMatrix by parsing the given source file.
 
-        The matrix is read once into its canonical form. A ``.csv`` is already
-        canonical (its authored row/column order is kept). A ``.list`` is read
-        into the canonical port/BEL signal order when ``ports`` is supplied,
-        matching what the old bootstrap-CSV pipeline produced; without ``ports``
-        it falls back to raw ``.list`` order (connectivity only, order not
-        canonical). When ``ports`` is supplied every connection is validated
-        against the tile's signals (both ``.csv`` and ``.list``); without it no
-        validation is possible. Hand-written HDL (``.v``/``.sv``/``.vhdl``/
-        ``.vhd``) is an escape hatch: only its ``NumberOfConfigBits`` is read
-        and connectivity
-        is left empty (the tile supplies its own switch matrix module).
+        The matrix is read once into its canonical form. A `.csv` is already
+        canonical (its authored row/column order is kept). A `.list` is read
+        into the canonical port/BEL signal order when `ports` is supplied,
+        matching what the old bootstrap-CSV pipeline produced; without `ports`
+        it falls back to raw `.list` order (connectivity only, order not
+        canonical). When `ports` is supplied every connection is validated
+        against the tile's signals (both `.csv` and `.list`); without it no
+        validation is possible. Hand-written HDL (`.v`/`.sv`/`.vhdl`/
+        `.vhd`) is an escape hatch: only its `NumberOfConfigBits` is read
+        and connectivity is left empty.
 
         Parameters
         ----------
         path : Path
-            Path to the switch matrix file. Supported extensions: ``.csv``,
-            ``.list``, ``.v``, ``.sv``, ``.vhdl``, ``.vhd``.
+            Path to the switch matrix file. Supported extensions: `.csv`,
+            `.list`, `.v`, `.sv`, `.vhdl`, `.vhd`.
         tile_name : str
             Tile name, required for CSV tile-name validation.
         ports : list[Port] | None, optional
-            Tile ports, required to canonicalise a ``.list`` matrix.
+            Tile ports, required to canonicalise a `.list` matrix.
         bels : list[Bel] | None, optional
-            Tile BELs, used to canonicalise a ``.list`` matrix.
+            Tile BELs, used to canonicalise a `.list` matrix.
         preserve_list_order : bool, optional
-            When True, a ``.list``'s mux inputs keep the file order (reversed,
+            When True, a `.list`'s mux inputs keep the file order (reversed,
             MSB-first) instead of the canonical dest-column order. Defaults to
             False.
 
@@ -164,9 +161,9 @@ class SwitchMatrix:
                     "for ensuring the HDL matches the fabric's expected ports."
                 )
                 return cls(
-                    matrixFile=path,
+                    matrix_file=path,
                     connections={},
-                    noConfigBits=cls._extract_config_bits_from_hdl(path),
+                    no_config_bits=cls._extract_config_bits_from_hdl(path),
                     preserve_list_order=preserve_list_order,
                 )
             case _:
@@ -174,9 +171,9 @@ class SwitchMatrix:
                     f"Unrecognised switch matrix file extension: {path.suffix}"
                 )
         return cls(
-            matrixFile=path,
+            matrix_file=path,
             connections=connections,
-            noConfigBits=cls._count_config_bits(connections),
+            no_config_bits=cls._count_config_bits(connections),
             preserve_list_order=preserve_list_order,
         )
 
@@ -188,23 +185,23 @@ class SwitchMatrix:
         bels: "list[Bel]",
         preserve_list_order: bool,
     ) -> dict[str, list[str]]:
-        """Read a ``.list`` into canonical ``{mux_output: [mux_inputs]}`` order.
+        """Read a `.list` into canonical `{mux_output: [mux_inputs]}` order.
 
-        Reproduces the old ``bootstrapSwitchMatrix`` + ``list2CSV`` +
-        ``parseMatrix`` result without writing a CSV: keys follow the canonical
+        Reproduces the old `bootstrapSwitchMatrix` + `list2CSV` +
+        `parseMatrix` result without writing a CSV: keys follow the canonical
         source order, and each key's inputs follow the canonical dest-column
-        order (or the reversed ``.list`` order when ``preserve_list_order``).
+        order (or the reversed `.list` order when `preserve_list_order`).
 
         Parameters
         ----------
         path : Path
-            The ``.list`` file.
+            The `.list` file.
         ports : list[Port]
             Tile ports, for the canonical signal order.
         bels : list[Bel]
             Tile BELs, for the canonical signal order.
         preserve_list_order : bool
-            Keep ``.list`` mux-input order (reversed) instead of dest order.
+            Keep `.list` mux-input order (reversed) instead of dest order.
 
         Returns
         -------
@@ -272,20 +269,20 @@ class SwitchMatrix:
                     )
 
     def to_csv_file(self, path: Path, tile_name: str) -> None:
-        """Write the switch matrix connections to a ``.csv`` file.
+        """Write the switch matrix connections to a `.csv` file.
 
         The file is written in the format consumed by :func:`parseMatrix`:
         the header row contains mux-input signal names (column headers),
-        each data row is ``mux_output_port, v0, v1, …``, and comment
-        annotations (``#,count``) are appended for human readability. When
-        ``self.preserve_list_order`` is set, mux-input ordering is encoded with
+        each data row is `mux_output_port, v0, v1, …`, and comment
+        annotations (`#,count`) are appended for human readability. When
+        `self.preserve_list_order` is set, mux-input ordering is encoded with
         a 1-based descending index so :func:`parseMatrix` recovers it (otherwise
-        every connection is written as ``1``).
+        every connection is written as `1`).
 
         Parameters
         ----------
         path : Path
-            Destination ``.csv`` file. Created (or overwritten) by this call.
+            Destination `.csv` file. Created (or overwritten) by this call.
         tile_name : str
             Tile name written to the top-left cell of the CSV header.
         """
@@ -324,21 +321,21 @@ class SwitchMatrix:
             f.write(f"#,{','.join(str(c) for c in col_counts)}")
 
     def to_list_file(self, path: Path) -> None:
-        """Write the switch matrix connections to a ``.list`` file.
+        """Write the switch matrix connections to a `.list` file.
 
         One line per mux output in the compact form
-        ``{N}mux_output,[input0|input1|...]`` where ``N`` is the number of mux
-        inputs. The ``{N}`` multiplier repeats the output so :func:`parseList`
+        `{N}mux_output,[input0|input1|...]` where `N` is the number of mux
+        inputs. The `{N}` multiplier repeats the output so :func:`parseList`
         pairs it with each bracketed input. Outputs with no inputs are omitted.
-        When ``self.preserve_list_order`` is set the inputs are written reversed
-        so that a ``preserve_list_order`` (MSB-first) read recovers this object's
+        When `self.preserve_list_order` is set the inputs are written reversed
+        so that a `preserve_list_order` (MSB-first) read recovers this object's
         input order; otherwise the order is not significant (the reader
         re-derives it from the tile's ports).
 
         Parameters
         ----------
         path : Path
-            Destination ``.list`` file. Created (or overwritten) by this call.
+            Destination `.list` file. Created (or overwritten) by this call.
         """
         with path.open("w") as f:
             for mux_output, mux_inputs in self.connections.items():
@@ -349,6 +346,19 @@ class SwitchMatrix:
 
     @staticmethod
     def _count_config_bits(connections: dict[str, list[str]]) -> int:
+        """Count config bits needed to select each mux's inputs.
+
+        Parameters
+        ----------
+        connections : dict[str, list[str]]
+            Mux output → mux inputs.
+
+        Returns
+        -------
+        int
+            Total select bits summed over every mux (a mux with fewer than two
+            inputs needs none).
+        """
         total = 0
         for sources in connections.values():
             if len(sources) >= 2:
@@ -357,6 +367,19 @@ class SwitchMatrix:
 
     @staticmethod
     def _extract_config_bits_from_hdl(path: Path) -> int:
+        """Read `NumberOfConfigBits` out of a hand-written HDL matrix.
+
+        Parameters
+        ----------
+        path : Path
+            The `.v`/`.sv`/`.vhdl`/`.vhd` switch matrix file.
+
+        Returns
+        -------
+        int
+            The declared config-bit count, or 0 if none is found (a warning is
+            logged in that case).
+        """
         content = path.read_text(encoding="utf-8")
         if m := re.search(r"NumberOfConfigBits:\s*(\d+)", content):
             return int(m.group(1))

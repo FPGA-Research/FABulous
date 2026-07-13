@@ -143,26 +143,26 @@ class FABulous_API:
             raise ValueError
 
     def addList2Matrix(self, listFile: Path, matrix: Path) -> None:
-        """Convert a ``.list`` switch matrix file into a ``.csv`` file.
+        """Convert a `.list` switch matrix file into a `.csv` file.
 
         Parameters
         ----------
         listFile : Path
             List data to be converted.
         matrix : Path
-            Destination ``.csv`` file (created or overwritten).
+            Destination `.csv` file (created or overwritten).
         """
         SwitchMatrix.from_file(listFile, listFile.stem).to_csv_file(matrix, matrix.stem)
 
     def addMatrix2List(self, matrix: Path, listFile: Path) -> None:
-        """Convert a ``.csv`` switch matrix file into a ``.list`` file.
+        """Convert a `.csv` switch matrix file into a `.list` file.
 
         Parameters
         ----------
         matrix : Path
             CSV matrix data to be converted.
         listFile : Path
-            Destination ``.list`` file (created or overwritten).
+            Destination `.list` file (created or overwritten).
         """
         SwitchMatrix.from_file(matrix, matrix.stem).to_list_file(listFile)
 

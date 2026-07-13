@@ -35,7 +35,7 @@ from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
 def _unconnected_port_diagnostic(ports: list[Port], port_name: str) -> str:
     """Explain an unconnected switch matrix port caused by NULL-wire expansion.
 
-    A NULL-terminated spanning wire expands to ``wires x distance`` nested
+    A NULL-terminated spanning wire expands to `wires x distance` nested
     wires (see `Port.expandPortInfoByName`). When the switch matrix leaves some
     of those nested wires unconnected, the bare wire name is unhelpful, so this
     traces the wire back to its originating port and explains the expansion.
@@ -87,7 +87,7 @@ def genTileSwitchMatrix(
     """Generate the RTL code for the tile switch matrix.
 
     The switch matrix is read straight from the tile's already-canonical
-    ``tile.switchMatrix.connections`` (built once when the fabric was parsed);
+    `tile.switchMatrix.connections` (built once when the fabric was parsed);
     no CSV is written or re-read here. A tile whose matrix is hand-written HDL
     is skipped — it supplies its own switch matrix module.
 
@@ -111,7 +111,7 @@ def genTileSwitchMatrix(
     ValueError
         If any port in the switch matrix is not connected to anything.
     """
-    if tile.switchMatrix.matrixFile.suffix in (".v", ".sv", ".vhdl", ".vhd"):
+    if tile.switchMatrix.matrix_file.suffix in (".v", ".sv", ".vhdl", ".vhd"):
         logger.info(
             f"{tile.name} provides a hand-written switch matrix HDL; "
             "skipping matrix generation."
@@ -126,7 +126,7 @@ def genTileSwitchMatrix(
         if not connections[port_name]:
             hint = _unconnected_port_diagnostic(tile.portsInfo, port_name)
             raise ValueError(f"{port_name} not connected to anything!{hint}")
-    noConfigBits = tile.switchMatrix.noConfigBits
+    noConfigBits = tile.switchMatrix.no_config_bits
 
     # we pass the NumberOfConfigBits as a comment in the beginning of the file.
     # This simplifies it to generate the configuration port only if needed later when
@@ -459,7 +459,7 @@ def gen_super_tile_switch_matrix(
     if superTile.switchMatrix is None:
         return
 
-    noConfigBits = superTile.switchMatrix.noConfigBits
+    noConfigBits = superTile.switchMatrix.no_config_bits
     module_name = f"{superTile.name}_switch_matrix"
 
     # Connectivity (destination -> [sources]) held on the supertile.

@@ -70,11 +70,11 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             if "fabric.csv" in str(tile.tileDir):
                 # Backward compat: in the old fabric.csv-embedded layout the
                 # tile's real location comes from its switch-matrix file path.
-                matrixFile = tile.switchMatrix.matrixFile
-                if matrixFile.is_file():
-                    configMemPath = matrixFile.parent / f"{tile.name}_ConfigMem.csv"
-                elif matrixFile.is_dir():
-                    configMemPath = matrixFile / f"{tile.name}_ConfigMem.csv"
+                matrix_file = tile.switchMatrix.matrix_file
+                if matrix_file.is_file():
+                    configMemPath = matrix_file.parent / f"{tile.name}_ConfigMem.csv"
+                elif matrix_file.is_dir():
+                    configMemPath = matrix_file / f"{tile.name}_ConfigMem.csv"
                 else:
                     configMemPath = (
                         get_context().proj_dir

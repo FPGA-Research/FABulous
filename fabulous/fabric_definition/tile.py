@@ -318,7 +318,7 @@ class Tile:
         int
             Total number of global configuration bits for the tile.
         """
-        ret = self.switchMatrix.noConfigBits
+        ret = self.switchMatrix.no_config_bits
 
         for b in self.bels:
             ret += b.configBit
