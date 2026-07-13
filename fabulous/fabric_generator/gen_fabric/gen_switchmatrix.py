@@ -118,15 +118,15 @@ def genTileSwitchMatrix(
         )
         return
 
+    # Unconnected outputs are checked here (not at parse) because tile ports are
+    # only final after fabric assembly; the switch matrix connections are read
+    # once but the port set backing the diagnostic changes.
     connections = tile.switchMatrix.connections
-    noConfigBits = 0
     for port_name in connections:
         if not connections[port_name]:
             hint = _unconnected_port_diagnostic(tile.portsInfo, port_name)
             raise ValueError(f"{port_name} not connected to anything!{hint}")
-        mux_size = len(connections[port_name])
-        if mux_size >= 2:
-            noConfigBits += (mux_size - 1).bit_length()
+    noConfigBits = tile.switchMatrix.noConfigBits
 
     # we pass the NumberOfConfigBits as a comment in the beginning of the file.
     # This simplifies it to generate the configuration port only if needed later when

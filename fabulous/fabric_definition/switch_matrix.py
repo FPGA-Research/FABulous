@@ -223,7 +223,8 @@ class SwitchMatrix:
         connections: dict[str, list[str]] = {}
         for source in sources:
             # Unconnected outputs keep an empty entry so generation's
-            # "not connected to anything" check still fires.
+            # "not connected to anything" check still fires (with final,
+            # post-assembly tile ports).
             sinks = raw.get(source, [])
             if preserve_list_order:
                 connections[source] = list(reversed(sinks))
