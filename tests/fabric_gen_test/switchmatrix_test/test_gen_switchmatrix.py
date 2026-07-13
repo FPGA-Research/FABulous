@@ -128,7 +128,7 @@ class TestSwitchMatrixValidation:
             SwitchMatrix.from_file(lst, "T", ports=[], bels=[self._bel()])
 
     def test_without_ports_skips_validation(self, tmp_path: Path) -> None:
-        # No tile context (e.g. the list2csv/csv2list CLI) -> no validation.
+        # No tile context (e.g. the list_to_csv/csv_to_list CLI) -> no validation.
         csv = tmp_path / "m.csv"
         csv.write_text("T,X\nBOGUS,1\n")
         assert SwitchMatrix.from_file(csv, "T").connections == {"BOGUS": ["X"]}

@@ -4,12 +4,13 @@ A tile's switch matrix is the programmable interconnect: which sources may drive
 each destination inside the tile. The connectivity is declared in the tile's
 matrix file (a `.csv` adjacency matrix or a `.list` of pairs) and read **once**
 into this dataclass in canonical port/BEL order. RTL generation
-lives in :mod:`fabulous.fabric_generator.gen_fabric.gen_switchmatrix`.
+lives in `fabulous.fabric_generator.gen_fabric.gen_switchmatrix`.
 """
+
+from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -19,12 +20,14 @@ from fabulous.fabric_definition.define import Direction
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from fabulous.fabric_definition.bel import Bel
     from fabulous.fabric_definition.port import Port
 
 
 def switch_matrix_signal_order(
-    ports: "list[Port]", bels: "list[Bel]"
+    ports: list[Port], bels: list[Bel]
 ) -> tuple[list[str], list[str]]:
     """Return the canonical `(sources, dests)` signal order for a switch matrix.
 
@@ -97,10 +100,10 @@ class SwitchMatrix:
         cls,
         path: Path,
         tile_name: str,
-        ports: "list[Port] | None" = None,
-        bels: "list[Bel] | None" = None,
+        ports: list[Port] | None = None,
+        bels: list[Bel] | None = None,
         preserve_list_order: bool = False,
-    ) -> "SwitchMatrix":
+    ) -> SwitchMatrix:
         """Construct a SwitchMatrix by parsing the given source file.
 
         The matrix is read once into its canonical form. A `.csv` is already
@@ -181,8 +184,8 @@ class SwitchMatrix:
     def _canonical_list_connections(
         cls,
         path: Path,
-        ports: "list[Port]",
-        bels: "list[Bel]",
+        ports: list[Port],
+        bels: list[Bel],
         preserve_list_order: bool,
     ) -> dict[str, list[str]]:
         """Read a `.list` into canonical `{mux_output: [mux_inputs]}` order.
@@ -271,12 +274,12 @@ class SwitchMatrix:
     def to_csv_file(self, path: Path, tile_name: str) -> None:
         """Write the switch matrix connections to a `.csv` file.
 
-        The file is written in the format consumed by :func:`parseMatrix`:
+        The file is written in the format consumed by `parseMatrix`:
         the header row contains mux-input signal names (column headers),
         each data row is `mux_output_port, v0, v1, ...`, and comment
         annotations (`#,count`) are appended for human readability. When
         `self.preserve_list_order` is set, mux-input ordering is encoded with
-        a 1-based descending index so :func:`parseMatrix` recovers it (otherwise
+        a 1-based descending index so `parseMatrix` recovers it (otherwise
         every connection is written as `1`).
 
         Parameters
@@ -325,7 +328,7 @@ class SwitchMatrix:
 
         One line per mux output in the compact form
         `{N}mux_output,[input0|input1|...]` where `N` is the number of mux
-        inputs. The `{N}` multiplier repeats the output so :func:`parseList`
+        inputs. The `{N}` multiplier repeats the output so `parseList`
         pairs it with each bracketed input. Outputs with no inputs are omitted.
         When `self.preserve_list_order` is set the inputs are written reversed
         so that a `preserve_list_order` (MSB-first) read recovers this object's

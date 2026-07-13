@@ -55,11 +55,11 @@ def test_switch_matrix_list_csv_conversion(
     """Convert a tile's switch matrix from .list to .csv and back."""
     src = cli.projectDir / f"Tile/{TILE}/{TILE}_switch_matrix.list"
     csv = tmp_path / "sm.csv"
-    run_cmd(cli, f"list2csv {src} {csv}")
+    run_cmd(cli, f"list_to_csv {src} {csv}")
     assert csv.exists()
 
     back = tmp_path / "sm.list"
-    run_cmd(cli, f"csv2list {csv} {back}")
+    run_cmd(cli, f"csv_to_list {csv} {back}")
     assert back.exists()
     normalize_and_check_for_errors(caplog.text)
 

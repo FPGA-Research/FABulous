@@ -278,7 +278,7 @@ class FABulous_CLI(Cmd):
     tile_single_parser : Cmd2ArgumentParser
         Argument parser for commands accepting a single tile name
     switch_matrix_convert_parser : Cmd2ArgumentParser
-        Argument parser for the list2csv/csv2list conversion commands
+        Argument parser for the list_to_csv/csv_to_list conversion commands
     clone_tile_parser : Cmd2ArgumentParser
         Argument parser for the clone_tile command
     install_oss_cad_suite_parser : Cmd2ArgumentParser
@@ -864,7 +864,7 @@ class FABulous_CLI(Cmd):
 
     @with_category(CMD_SETUP)
     @with_argparser(switch_matrix_convert_parser)
-    def do_list2csv(self, args: argparse.Namespace) -> None:
+    def do_list_to_csv(self, args: argparse.Namespace) -> None:
         """Convert a `.list` switch matrix file to `.csv`."""
         logger.info(
             "Format conversion only; connectivity is not validated against any "
@@ -875,7 +875,7 @@ class FABulous_CLI(Cmd):
 
     @with_category(CMD_SETUP)
     @with_argparser(switch_matrix_convert_parser)
-    def do_csv2list(self, args: argparse.Namespace) -> None:
+    def do_csv_to_list(self, args: argparse.Namespace) -> None:
         """Convert a `.csv` switch matrix file to `.list`."""
         logger.info(
             "Format conversion only; connectivity is not validated against any "
