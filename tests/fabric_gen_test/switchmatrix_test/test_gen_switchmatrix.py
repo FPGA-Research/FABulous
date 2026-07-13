@@ -76,7 +76,6 @@ class TestListExport:
         sm = SwitchMatrix(
             matrix_file=Path("x.csv"),
             connections={"A_I": ["X", "Y"], "B_I": ["Z"], "C_I": []},
-            no_config_bits=0,
         )
         out = tmp_path / "m.list"
         sm.to_list_file(out)
@@ -94,7 +93,6 @@ class TestListExport:
         sm = SwitchMatrix(
             matrix_file=Path("x.csv"),
             connections={"A": ["Z", "Y", "X"]},
-            no_config_bits=0,
             preserve_list_order=True,
         )
         out = tmp_path / "m.list"

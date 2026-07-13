@@ -16,7 +16,7 @@ def _mk_tile(ports: list[Port]) -> Tile:
         ports=ports,
         bels=[],
         tileDir=Path(),
-        switchMatrix=SwitchMatrix(matrix_file=Path(), connections={}, no_config_bits=0),
+        switchMatrix=SwitchMatrix(matrix_file=Path(), connections={}),
         gen_ios=[],
         userCLK=False,
     )

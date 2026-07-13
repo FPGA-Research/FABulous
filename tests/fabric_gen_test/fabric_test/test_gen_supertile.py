@@ -330,9 +330,7 @@ class TestBelExternalPorts:
             ports=[],
             bels=[bel],
             tileDir=Path(),
-            switchMatrix=SwitchMatrix(
-                matrix_file=Path(), connections={}, no_config_bits=0
-            ),
+            switchMatrix=SwitchMatrix(matrix_file=Path(), connections={}),
             gen_ios=[],
             userCLK=False,
         )
@@ -367,9 +365,7 @@ class TestInterTileRouting:
             ],
             bels=[],
             tileDir=Path(),
-            switchMatrix=SwitchMatrix(
-                matrix_file=Path(), connections={}, no_config_bits=0
-            ),
+            switchMatrix=SwitchMatrix(matrix_file=Path(), connections={}),
             gen_ios=[],
             userCLK=False,
         )
@@ -382,9 +378,7 @@ class TestInterTileRouting:
             ],
             bels=[],
             tileDir=Path(),
-            switchMatrix=SwitchMatrix(
-                matrix_file=Path(), connections={}, no_config_bits=0
-            ),
+            switchMatrix=SwitchMatrix(matrix_file=Path(), connections={}),
             gen_ios=[],
             userCLK=False,
         )

@@ -82,18 +82,36 @@ class SwitchMatrix:
         HDL).
     connections : dict[str, list[str]]
         Mux output port -> list of mux input signals. Empty for hand-written HDL.
-    no_config_bits : int
-        Number of configuration bits required by this switch matrix.
     preserve_list_order : bool
         Whether the mux-input order is significant (MSB-first `.list` order)
         rather than the canonical dest-column order. Recorded once at read time
         and reused when exporting so a round trip is faithful. Default False.
+    hdl_config_bits : int | None
+        Config-bit count declared by a hand-written HDL matrix. None for parsed
+        matrices, whose `no_config_bits` is derived from `connections` instead.
     """
 
     matrix_file: Path
     connections: dict[str, list[str]]
-    no_config_bits: int
     preserve_list_order: bool = False
+    hdl_config_bits: int | None = None
+
+    @property
+    def no_config_bits(self) -> int:
+        """Number of configuration bits required by this switch matrix.
+
+        Derived on demand from `connections` (so it tracks any change to them);
+        a hand-written HDL matrix has no parsed connections and instead reports
+        the count declared in its header (`hdl_config_bits`).
+
+        Returns
+        -------
+        int
+            Total configuration bits across all muxes.
+        """
+        if self.hdl_config_bits is not None:
+            return self.hdl_config_bits
+        return self._count_config_bits(self.connections)
 
     @classmethod
     def from_file(
@@ -166,8 +184,8 @@ class SwitchMatrix:
                 return cls(
                     matrix_file=path,
                     connections={},
-                    no_config_bits=cls._extract_config_bits_from_hdl(path),
                     preserve_list_order=preserve_list_order,
+                    hdl_config_bits=cls._extract_config_bits_from_hdl(path),
                 )
             case _:
                 raise InvalidFileType(
@@ -176,7 +194,6 @@ class SwitchMatrix:
         return cls(
             matrix_file=path,
             connections=connections,
-            no_config_bits=cls._count_config_bits(connections),
             preserve_list_order=preserve_list_order,
         )
 
