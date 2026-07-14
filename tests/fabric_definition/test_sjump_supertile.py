@@ -19,7 +19,7 @@ from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
-from tests.conftest import make_empty_tile, sjump_port
+from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 
 
 def _tile(name: str, ports: list[Port]) -> Tile:
@@ -292,6 +292,46 @@ class TestGenNpnrModelSupertile:
         pips = set(pip_str.splitlines())
         # BEL output SUPER_Q0 -> reverse wire DSP_bot_Q0.
         assert "X0Y1,SUPER_Q0,X0Y1,DSP_bot_Q0,8,SUPER_Q0.DSP_bot_Q0" in pips
+
+    def test_supertile_bel_emitted_in_belv2_and_belv3(
+        self, make_fabric: Callable[..., Fabric], tmp_path: Path
+    ) -> None:
+        """Supertile BELs get bel.v2 blocks and, for timed types, bel.v3 arcs.
+
+        `genNextpnrModel`'s supertile loop only ever emitted `belStr`/`belv2Str`
+        blocks; `belv3Str` silently skipped every supertile BEL. Covers a
+        supertile BEL of a type nextpnr times (FABULOUS_LC) at the master
+        tile's fabric coordinates (X0Y1, per the module fixture above).
+        """
+        bel = make_muladd_bel(
+            [("I0", IO.INPUT), ("I1", IO.INPUT), ("O", IO.OUTPUT)], prefix="LA_"
+        )
+        bel.name = "LUT4c_frame_config"
+
+        top_mat = tmp_path / "DSP_top_switch_matrix.list"
+        bot_mat = tmp_path / "DSP_bot_switch_matrix.list"
+        top_mat.write_text("# DSP_top\n")
+        bot_mat.write_text("# DSP_bot\n")
+        top = make_empty_tile("DSP_top", tileDir=tmp_path, matrixDir=top_mat)
+        bot = make_empty_tile("DSP_bot", tileDir=tmp_path, matrixDir=bot_mat)
+        supertile = SuperTile(
+            name="DSP",
+            tileDir=tmp_path,
+            tiles=[top, bot],
+            tileMap=[[top], [bot]],
+            bels=[bel],
+        )
+        for t in supertile.tiles:
+            t.partOfSuperTile = True
+        fabric = make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
+
+        _, belv1, belv2, belv3, _ = genNextpnrModel(fabric)
+
+        assert "X0Y1,X0,Y1,A,FABULOUS_LC" in belv1
+        assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in belv2
+        assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in belv3
+        assert "Delay,I0,O,3.0,FF=0" in belv3
+        assert "Delay," not in belv2
 
 
 class TestGenBitstreamSpecSupertileMux:

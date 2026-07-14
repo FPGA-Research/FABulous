@@ -50,6 +50,7 @@ from cmd2 import (
 from loguru import logger
 
 from fabulous.custom_exception import CommandError, EnvironmentNotSet, InvalidFileType
+from fabulous.fabric_cad.gen_npnr_model import PLACEMENT_ESTIMATE_TEXT
 from fabulous.fabric_cad.timing_model.models import (
     TimingModelConfig,
     TimingModelMode,
@@ -1187,9 +1188,17 @@ class FABulous_CLI(Cmd):
         with Path(f"{self.projectDir}/{META_DATA_DIR}/bel.v2.txt").open("w") as f:
             f.write(npnrModel[2])
 
+        logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/bel.v3.txt")
+        with Path(f"{self.projectDir}/{META_DATA_DIR}/bel.v3.txt").open("w") as f:
+            f.write(npnrModel[3])
+
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/template.pcf")
         with Path(f"{self.projectDir}/{META_DATA_DIR}/template.pcf").open("w") as f:
-            f.write(npnrModel[3])
+            f.write(npnrModel[4])
+
+        estimatePath = Path(f"{self.projectDir}/{META_DATA_DIR}/placement_estimate.txt")
+        logger.info(f"output file: {estimatePath}")
+        estimatePath.write_text(PLACEMENT_ESTIMATE_TEXT)
 
         logger.info("Generated npnr model")
 
