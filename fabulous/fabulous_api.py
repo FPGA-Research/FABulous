@@ -15,6 +15,11 @@ import fabulous.fabric_cad.gen_npnr_model as model_gen_npnr
 import fabulous.fabric_generator.parser.parse_csv as fileParser
 from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from fabulous.fabric_cad.gen_design_top_wrapper import generateUserDesignTopWrapper
+from fabulous.fabric_cad.gen_fabric_metadata import (
+    MetadataFormat,
+    collect_fabric_metadata,
+    generate_fabric_metadata,
+)
 from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
     FABulousTimingModelInterface,
 )
@@ -425,6 +430,49 @@ class FABulous_API:
         Using 'generateTopWrapper' defined in 'fabric_gen.py'.
         """
         generateTopWrapper(self.writer, self.fabric)
+
+    def collectFabricMetadata(self) -> dict:
+        """Return a structured dictionary of machine-readable fabric metadata.
+
+        The result is keyed under a single top-level ``"fabric"`` mapping that
+        contains identity, geometry, frame parameters, bitstream sizing and a
+        ``"tiles"`` sub-mapping. Each tile entry carries its placement count,
+        total config bits, the switch-matrix file path, and a list of BELs
+        (with prefix, module name, source RTL path and per-BEL config bits).
+
+        See ``gen_fabric_metadata.collect_fabric_metadata`` for the full schema.
+
+        Returns
+        -------
+        dict
+            Nested fabric metadata, ready to serialise as YAML.
+        """
+        return collect_fabric_metadata(self.fabric)
+
+    def genFabricMetadata(
+        self,
+        output_dir: Path,
+        formats: tuple[MetadataFormat, ...] = tuple(MetadataFormat),
+    ) -> dict[MetadataFormat, Path]:
+        """Write fabric metadata to ``output_dir`` in the requested formats.
+
+        Parameters
+        ----------
+        output_dir : Path
+            Directory to write the metadata files into. Created if missing.
+        formats : tuple[MetadataFormat, ...], optional
+            Subset of ``MetadataFormat`` members to emit. Defaults to all three
+            (YAML, Verilog defines, SystemVerilog package).
+
+        Returns
+        -------
+        dict[MetadataFormat, Path]
+            Mapping from each requested format to the path written. Keys are
+            ``MetadataFormat`` members (``YAML``, ``VERILOG``,
+            ``SYSTEMVERILOG``); values are the absolute paths of the generated
+            files inside ``output_dir``.
+        """
+        return generate_fabric_metadata(self.fabric, Path(output_dir), formats=formats)
 
     def genBitStreamSpec(self) -> dict:
         """Generate the bitstream specification object.
