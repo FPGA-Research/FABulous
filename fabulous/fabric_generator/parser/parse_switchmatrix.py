@@ -18,7 +18,7 @@ from fabulous.custom_exception import (
 )
 
 
-def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
+def parseMatrix(fileName: Path) -> dict[str, list[str]]:
     """Parse the matrix CSV into a dictionary from destination to source.
 
     Any non-zero integer denotes a configurable connection; the integer
@@ -26,18 +26,18 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
     `.list` entry → `A0`, MSB-first). Sort by (-value, column) so all-`1`
     rows fall back to CSV-column order via the column-index secondary key.
 
+    The top-left header cell is a label only (conventionally the tile name)
+    and is not validated: the mux-input columns are `header[1:]`.
+
     Parameters
     ----------
     fileName : Path
         Directory of the matrix CSV file.
-    tileName : str
-        Name of the tile needed to be parsed.
 
     Raises
     ------
     InvalidSwitchMatrixDefinition
-        Non matching matrix file content and tile name, or a non-integer
-        cell value in a row.
+        A non-integer cell value in a row.
 
     Returns
     -------
@@ -49,12 +49,6 @@ def parseMatrix(fileName: Path, tileName: str) -> dict[str, list[str]]:
         lines = re.sub(r"#.*", "", f.read()).split("\n")
 
     header = lines[0].split(",")
-    if header[0] != tileName:
-        raise InvalidSwitchMatrixDefinition(
-            f"{path} {header} {tileName}\n"
-            "Tile name (top left element) in csv file does not match tile name "
-            "in tile object"
-        )
     dest_list = header[1:]
 
     connections: dict[str, list[str]] = {}

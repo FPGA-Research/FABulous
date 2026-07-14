@@ -590,7 +590,7 @@ The following figure shows a list file and the corresponding adjacency matrix:
 :width: 90%
 :::
 
-The adjacency matrix states the tile identifier name in the top left cell.
+The top left cell of the adjacency matrix is a label only (conventionally the tile identifier name); it is not validated when the matrix is read, so any placeholder works.
 The columns denote the input ports to the switch matrix and the rows denote the output ports.
 A non-zero entry in the matrix denotes a configurable connection, i.e. a multiplexer input connection. Each non-zero entry corresponds to one `<output_port>,<input_port>` tuple defined in the adjacency list.
 

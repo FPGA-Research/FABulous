@@ -140,7 +140,7 @@ class SwitchMatrix:
             Path to the switch matrix file. Supported extensions: `.csv`,
             `.list`, `.v`, `.sv`, `.vhdl`, `.vhd`.
         tile_name : str
-            Tile name, required for CSV tile-name validation.
+            Tile name, used only in the hand-written-HDL warning message.
         ports : list[Port] | None, optional
             Tile ports, required to canonicalise a `.list` matrix.
         bels : list[Bel] | None, optional
@@ -170,7 +170,7 @@ class SwitchMatrix:
 
         match path.suffix:
             case ".csv":
-                connections = parseMatrix(path, tile_name)
+                connections = parseMatrix(path)
                 if ports is not None:
                     sources, dests = switch_matrix_signal_order(ports, bels or [])
                     cls._check_signals(connections, sources, dests, path.name)
@@ -185,8 +185,11 @@ class SwitchMatrix:
                 logger.warning(
                     f"Switch matrix for tile {tile_name!r} is read from HDL "
                     f"{path.name}: only NumberOfConfigBits is extracted - the "
-                    "connectivity is NOT parsed or checked. You are responsible "
-                    "for ensuring the HDL matches the fabric's expected ports."
+                    "connectivity is NOT parsed. This tile therefore contributes "
+                    "no tile-internal pips to the nextpnr model and no switch-"
+                    "matrix bit mapping to the bitstream (its config bits are "
+                    "still reserved). nextpnr cannot route through it; you are "
+                    "responsible for ensuring the HDL matches the fabric's ports."
                 )
                 return cls(
                     matrix_file=path,

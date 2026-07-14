@@ -66,60 +66,46 @@ def test_expand_list_ports(
 
 
 @pytest.mark.parametrize(
-    ("content", "tile_name", "expected_result", "expected_error"),
+    ("content", "expected_result", "expected_error"),
     [
         pytest.param(
             "MyTile,DEST0,DEST1\nSRC0,1,0\nSRC1,0,1\n",
-            "MyTile",
             {"SRC0": ["DEST0"], "SRC1": ["DEST1"]},
             None,
             id="basic_connections",
         ),
         pytest.param(
             "T,D0,D1,D2\nSRC,1,0,1\n",
-            "T",
             {"SRC": ["D0", "D2"]},
             None,
             id="multiple_destinations_per_source",
         ),
         pytest.param(
             "T,D0,D1\nSRC,0,0\n",
-            "T",
             {"SRC": []},
             None,
             id="no_connections",
         ),
         pytest.param(
             "T,D0 # header comment\nSRC,1 # row comment\n",
-            "T",
             None,
             None,
             id="comments_stripped",
         ),
         pytest.param(
             "T,D0\n\nSRC,1\n\n",
-            "T",
             None,
             None,
             id="blank_lines_skipped",
         ),
         pytest.param(
-            "WrongTile,D0\nSRC,1\n",
-            "MyTile",
-            None,
-            InvalidSwitchMatrixDefinition,
-            id="tile_name_mismatch",
-        ),
-        pytest.param(
             "T,D0,D1,D2,D3\nSRC,1,2,3,4\n",
-            "T",
             {"SRC": ["D3", "D2", "D1", "D0"]},
             None,
             id="preserve_order_msb_first",
         ),
         pytest.param(
             "T,D0,D1,D2\nSRC,0,foo,1\n",
-            "T",
             None,
             InvalidSwitchMatrixDefinition,
             id="non_integer_cell_value",
@@ -129,7 +115,6 @@ def test_expand_list_ports(
 def test_parse_matrix(
     tmp_path: Path,
     content: str,
-    tile_name: str,
     expected_result: dict | None,
     expected_error: type | None,
 ) -> None:
@@ -139,9 +124,9 @@ def test_parse_matrix(
 
     if expected_error:
         with pytest.raises(expected_error):
-            parseMatrix(f, tile_name)
+            parseMatrix(f)
     else:
-        result = parseMatrix(f, tile_name)
+        result = parseMatrix(f)
         if expected_result is not None:
             assert result == expected_result
         else:
