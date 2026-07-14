@@ -306,10 +306,11 @@ class SwitchMatrix:
         The file is written in the format consumed by `parseMatrix`:
         the header row contains mux-input signal names (column headers),
         each data row is `mux_output_port, v0, v1, ...`, and comment
-        annotations (`#,count`) are appended for human readability. When
-        `self.preserve_list_order` is set, mux-input ordering is encoded with
-        a 1-based descending index so `parseMatrix` recovers it (otherwise
-        every connection is written as `1`).
+        annotations (`#,count`) are appended for human readability. Each
+        mux input is encoded with a 1-based descending index (not a bare
+        `1`) so `parseMatrix` recovers the exact per-mux order regardless of
+        the column arrangement, making a `.list` -> `.csv` -> `.list` round
+        trip order-faithful.
 
         Parameters
         ----------
@@ -318,7 +319,6 @@ class SwitchMatrix:
         tile_name : str
             Tile name written to the top-left cell of the CSV header.
         """
-        preserve_list_order = self.preserve_list_order
         # Column headers = unique mux-input signals, in first-seen order.
         mux_inputs_ordered: list[str] = []
         seen: set[str] = set()
@@ -331,12 +331,14 @@ class SwitchMatrix:
         input_index = {s: j for j, s in enumerate(mux_inputs_ordered)}
         mux_outputs = list(self.connections.keys())
 
-        # matrix[row][col]: row = mux output, col = mux input signal
+        # matrix[row][col]: row = mux output, col = mux input signal. The value
+        # is a 1-based descending index (first input = highest) so parseMatrix's
+        # (-value, column) sort recovers this exact order, not the column order.
         matrix: list[list[int]] = [[0] * len(mux_inputs_ordered) for _ in mux_outputs]
         for i, signals in enumerate(self.connections.values()):
             n = len(signals)
             for idx, src in enumerate(signals):
-                matrix[i][input_index[src]] = (n - idx) if preserve_list_order else 1
+                matrix[i][input_index[src]] = n - idx
 
         col_counts = [
             sum(1 for row in matrix if row[j] != 0)

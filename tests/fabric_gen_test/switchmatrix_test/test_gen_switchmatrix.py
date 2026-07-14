@@ -22,6 +22,7 @@ from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
     genTileSwitchMatrix,
 )
 from fabulous.fabric_generator.parser.parse_csv import parseFabricCSV, parsePortLine
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseMatrix
 from fabulous.fabulous_settings import init_context
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 from tests.fabric_gen_test.conftest import (
@@ -107,6 +108,33 @@ class TestListExport:
             out, "T", ports=[], bels=[bel], preserve_list_order=True
         ).connections
         assert back["A"] == ["Z", "Y", "X"]
+
+
+class TestCsvExportOrderFaithful:
+    """to_csv_file encodes per-mux position so parseMatrix recovers exact order.
+
+    Column headers are global (first-seen across rows), so an all-`1` CSV would
+    lose a mux whose input order differs from that column order. Encoding each
+    input's 1-based descending position keeps the round trip faithful, and it
+    does so independent of `preserve_list_order` (which no longer affects the
+    CSV export).
+    """
+
+    @pytest.mark.parametrize("preserve", [False, True])
+    def test_csv_roundtrip_preserves_per_mux_order(
+        self, tmp_path: Path, preserve: bool
+    ) -> None:
+        # B's order [X, Y] differs from the global column order [Y, Z, X];
+        # this is the case an all-1s CSV silently reordered to [Y, X].
+        conns = {"A": ["Y", "Z"], "B": ["X", "Y"]}
+        sm = SwitchMatrix(
+            matrix_file=Path("x.csv"),
+            connections=conns,
+            preserve_list_order=preserve,
+        )
+        out = tmp_path / "m.csv"
+        sm.to_csv_file(out, "T")
+        assert parseMatrix(out) == conns
 
 
 class TestSwitchMatrixValidation:

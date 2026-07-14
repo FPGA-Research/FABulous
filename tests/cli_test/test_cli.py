@@ -12,6 +12,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI, _resolve_directional_fix
 from fabulous.fabulous_cli.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
@@ -52,7 +53,12 @@ def test_gen_switch_matrix(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) 
 def test_switch_matrix_list_csv_conversion(
     cli: FABulous_CLI, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Convert a tile's switch matrix from .list to .csv and back."""
+    """Convert a tile's switch matrix .list -> .csv -> .list, order-faithfully.
+
+    The intermediate CSV encodes each mux-input position, so the round trip
+    recovers the exact per-mux ordering (the bitstream depends on it) even
+    though the regenerated .list text may differ from the original.
+    """
     src = cli.projectDir / f"Tile/{TILE}/{TILE}_switch_matrix.list"
     csv = tmp_path / "sm.csv"
     run_cmd(cli, f"list_to_csv {src} {csv}")
@@ -62,6 +68,9 @@ def test_switch_matrix_list_csv_conversion(
     run_cmd(cli, f"csv_to_list {csv} {back}")
     assert back.exists()
     normalize_and_check_for_errors(caplog.text)
+
+    # The logical switch-matrix ordering must survive the round trip.
+    assert parseList(back, "source") == parseList(src, "source")
 
 
 def test_gen_tile(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:
