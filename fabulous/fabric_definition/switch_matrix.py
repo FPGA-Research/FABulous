@@ -17,7 +17,6 @@ from loguru import logger
 
 from fabulous.custom_exception import InvalidFileType, InvalidSwitchMatrixDefinition
 from fabulous.fabric_definition.define import Direction
-from fabulous.fabric_generator.parser.parse_switchmatrix import parseList, parseMatrix
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -161,6 +160,14 @@ class SwitchMatrix:
         InvalidFileType
             If the file extension is not recognised.
         """
+        # Local import keeps fabric_definition free of a module-level dependency
+        # on fabric_generator (the same layering pattern Tile uses for its GDS
+        # import); the parser itself only depends on custom_exception.
+        from fabulous.fabric_generator.parser.parse_switchmatrix import (
+            parseList,
+            parseMatrix,
+        )
+
         match path.suffix:
             case ".csv":
                 connections = parseMatrix(path, tile_name)
@@ -228,6 +235,8 @@ class SwitchMatrix:
         dict[str, list[str]]
             Canonically ordered connectivity.
         """
+        from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
+
         raw: dict[str, list[str]] = {}
         for source, sink in parseList(path, "pair"):
             raw.setdefault(source, []).append(sink)
