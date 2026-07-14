@@ -199,7 +199,6 @@ def parseTilesCSV(
         matrixDir: Path | None = None
         gen_ios: list[Gen_IO] = []
         withUserCLK = False
-        configBit = 0
         genMatrixList = False
         tileCarry: dict[str, dict[IO, str]] = {}
         localSharedPorts: dict[str, list[Port]] = {}
@@ -706,6 +705,10 @@ def parseFabricCSV(fileName: str) -> Fabric:
     for line in parameters:
         fields = [f.strip() for f in line.split(",") if f.strip()]
         if fields and fields[0].startswith("PreserveListOrder"):
+            if len(fields) < 2 or fields[1] not in ("TRUE", "FALSE"):
+                raise InvalidFabricParameter(
+                    "PreserveListOrder requires a value of TRUE or FALSE"
+                )
             preserveListOrder = fields[1] == "TRUE"
 
     # For backwards compatibility parse tiles in fabric config
@@ -791,7 +794,9 @@ def parseFabricCSV(fileName: str) -> Fabric:
         elif i[0].startswith("DisableUserCLK"):
             disableUserCLK = i[1] == "TRUE"
         elif i[0].startswith("PreserveListOrder"):
-            preserveListOrder = i[1] == "TRUE"
+            # Consumed and validated by the pre-scan above (it must be known
+            # before any tile is parsed); accepted here so it is not rejected.
+            pass
         else:
             raise InvalidFabricParameter(f"The following parameter is not valid: {i}")
 
@@ -855,7 +860,6 @@ def parseFabricCSV(fileName: str) -> Fabric:
         numberOfBRAMs=int(height / 2),
         superTileEnable=superTileEnable,
         disableUserCLK=disableUserCLK,
-        preserveListOrder=preserveListOrder,
         tileDic=tileDic,
         superTileDic=superTileDic,
         unusedTileDic=unusedTileDic,

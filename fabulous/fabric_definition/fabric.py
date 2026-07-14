@@ -67,11 +67,6 @@ class Fabric:
         Whether the fabric has super tile.
     disableUserCLK : bool
         Whether to disable UserCLK generation in the fabric.
-    preserveListOrder : bool
-        Whether to preserve the mux input order from each tile's `.list`
-        file in the generated switch matrix CSV. When `False` (default),
-        every connection is written as `1` and order is determined by
-        CSV-column position when read back.
     syncHeaderHex : str
         Hex string of the 20-byte sync header written at the start of every
         binary bitstream.
@@ -111,7 +106,6 @@ class Fabric:
     numberOfBRAMs: int = 10
     superTileEnable: bool = True
     disableUserCLK: bool = False
-    preserveListOrder: bool = False
     syncHeaderHex: str = "00AAFF01000000010000000000000000FAB0FAB1"
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
