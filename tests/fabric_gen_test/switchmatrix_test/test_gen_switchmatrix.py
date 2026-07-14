@@ -6,7 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from fabulous.custom_exception import InvalidSwitchMatrixDefinition
+from fabulous.custom_exception import (
+    InvalidSwitchMatrixDefinition,
+    InvalidTileDefinition,
+)
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import IO, MultiplexerStyle
 from fabulous.fabric_definition.supertile import SuperTile
@@ -191,6 +194,28 @@ class TestPreserveListOrderEndToEnd:
         assert any(
             default_conns[name] != preserved_conns[name] for name in default_conns
         ), "PreserveListOrder=TRUE did not reorder any switch matrix"
+
+
+class TestMissingMatrix:
+    """A tile CSV with no MATRIX line is rejected at parse time."""
+
+    def test_tile_without_matrix_raises(self, project: Path) -> None:
+        init_context(project)
+        # Pick a tile definition CSV that declares a switch matrix and drop it.
+        tile_csv = next(
+            p
+            for p in (project / "Tile").rglob("*.csv")
+            if any(line.startswith("MATRIX") for line in p.read_text().splitlines())
+        )
+        tile_csv.write_text(
+            "\n".join(
+                line
+                for line in tile_csv.read_text().splitlines()
+                if not line.startswith("MATRIX")
+            )
+        )
+        with pytest.raises(InvalidTileDefinition):
+            parseFabricCSV(str(project / "fabric.csv"))
 
 
 _INPUT_ASSIGN = re.compile(r"assign\s+(\w+)_input\s*=\s*\{([^}]*)\};")

@@ -420,6 +420,12 @@ def parseTilesCSV(
 
         withUserCLK = any(bel.withUserCLK for bel in bels)
 
+        if matrixDir is None:
+            raise InvalidTileDefinition(
+                f"Tile {tileName!r} has no MATRIX line; a switch matrix "
+                "(.csv/.list) or hand-written HDL file is required."
+            )
+
         if genMatrixList:
             generateSwitchmatrixList(
                 tileName, bels, matrixDir, tileCarry, localSharedPorts
