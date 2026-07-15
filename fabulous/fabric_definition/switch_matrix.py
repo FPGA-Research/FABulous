@@ -370,7 +370,7 @@ class SwitchMatrix:
         pairs it with each bracketed input. Outputs with no inputs are omitted.
 
         The inputs are always written reversed (MSB-first), independent of
-        `preserve_list_order` — the file always encodes the full order, and the
+        `preserve_list_order` - the file always encodes the full order, and the
         reader decides how to interpret it: a `preserve_list_order` read
         recovers this exact order, while a plain read re-derives it from the
         tile's ports.

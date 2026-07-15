@@ -606,6 +606,12 @@ class FABulous_CLI(Cmd):
         help="Output switch matrix file",
         completer=Cmd.path_complete,
     )
+    switch_matrix_convert_parser.add_argument(
+        "--preserve-list-order",
+        action="store_true",
+        help="Keep the mux-input order (MSB-first) so the conversion is "
+        "order-faithful; otherwise inputs fall back to column order (legacy)",
+    )
 
     clone_tile_parser: Cmd2ArgumentParser = Cmd2ArgumentParser()
     clone_tile_parser.add_argument(
@@ -870,7 +876,9 @@ class FABulous_CLI(Cmd):
             "Format conversion only; connectivity is not validated against any "
             "tile configuration."
         )
-        self.fabulousAPI.addList2Matrix(args.input, args.output)
+        self.fabulousAPI.addList2Matrix(
+            args.input, args.output, args.preserve_list_order
+        )
         logger.info(f"Converted {args.input} to {args.output}")
 
     @with_category(CMD_SETUP)
@@ -881,7 +889,9 @@ class FABulous_CLI(Cmd):
             "Format conversion only; connectivity is not validated against any "
             "tile configuration."
         )
-        self.fabulousAPI.addMatrix2List(args.input, args.output)
+        self.fabulousAPI.addMatrix2List(
+            args.input, args.output, args.preserve_list_order
+        )
         logger.info(f"Converted {args.input} to {args.output}")
 
     @with_category(CMD_FABRIC_FLOW)

@@ -50,27 +50,45 @@ def test_gen_switch_matrix(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) 
     assert "Switch matrix generation complete" in log[-1]
 
 
-def test_switch_matrix_list_csv_conversion(
+def test_switch_matrix_list_csv_conversion_preserve_order(
     cli: FABulous_CLI, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Convert a tile's switch matrix .list -> .csv -> .list, order-faithfully.
+    """With --preserve-list-order the .list -> .csv -> .list round trip is exact.
 
-    The intermediate CSV encodes each mux-input position, so the round trip
+    The intermediate CSV encodes each mux-input position, so a preserve read
     recovers the exact per-mux ordering (the bitstream depends on it) even
     though the regenerated .list text may differ from the original.
     """
     src = cli.projectDir / f"Tile/{TILE}/{TILE}_switch_matrix.list"
     csv = tmp_path / "sm.csv"
-    run_cmd(cli, f"list_to_csv {src} {csv}")
+    run_cmd(cli, f"list_to_csv --preserve-list-order {src} {csv}")
     assert csv.exists()
 
     back = tmp_path / "sm.list"
-    run_cmd(cli, f"csv_to_list {csv} {back}")
+    run_cmd(cli, f"csv_to_list --preserve-list-order {csv} {back}")
     assert back.exists()
     normalize_and_check_for_errors(caplog.text)
 
     # The logical switch-matrix ordering must survive the round trip.
     assert parseList(back, "source") == parseList(src, "source")
+
+
+def test_switch_matrix_list_csv_conversion_default(
+    cli: FABulous_CLI, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Without the flag, the conversion still preserves connectivity (not order)."""
+    src = cli.projectDir / f"Tile/{TILE}/{TILE}_switch_matrix.list"
+    csv = tmp_path / "sm.csv"
+    run_cmd(cli, f"list_to_csv {src} {csv}")
+    back = tmp_path / "sm.list"
+    run_cmd(cli, f"csv_to_list {csv} {back}")
+    normalize_and_check_for_errors(caplog.text)
+
+    # Same muxes and the same set of inputs per mux; only the order may differ.
+    src_conns = parseList(src, "source")
+    back_conns = parseList(back, "source")
+    assert src_conns.keys() == back_conns.keys()
+    assert all(set(back_conns[k]) == set(src_conns[k]) for k in src_conns)
 
 
 def test_gen_tile(cli: FABulous_CLI, caplog: pytest.LogCaptureFixture) -> None:

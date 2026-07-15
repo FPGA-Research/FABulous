@@ -142,7 +142,9 @@ class FABulous_API:
             logger.error("Only .csv files are supported for fabric loading")
             raise ValueError
 
-    def addList2Matrix(self, listFile: Path, matrix: Path) -> None:
+    def addList2Matrix(
+        self, listFile: Path, matrix: Path, preserve_list_order: bool = False
+    ) -> None:
         """Convert a `.list` switch matrix file into a `.csv` file.
 
         Parameters
@@ -151,12 +153,18 @@ class FABulous_API:
             List data to be converted.
         matrix : Path
             Destination `.csv` file (created or overwritten).
+        preserve_list_order : bool, optional
+            Keep the mux-input order (MSB-first) so the conversion is
+            order-faithful; otherwise the reader falls back to column order.
+            Defaults to False.
         """
         SwitchMatrix.from_file(
-            listFile, listFile.stem, preserve_list_order=True
+            listFile, listFile.stem, preserve_list_order=preserve_list_order
         ).to_csv_file(matrix, matrix.stem)
 
-    def addMatrix2List(self, matrix: Path, listFile: Path) -> None:
+    def addMatrix2List(
+        self, matrix: Path, listFile: Path, preserve_list_order: bool = False
+    ) -> None:
         """Convert a `.csv` switch matrix file into a `.list` file.
 
         Parameters
@@ -165,9 +173,13 @@ class FABulous_API:
             CSV matrix data to be converted.
         listFile : Path
             Destination `.list` file (created or overwritten).
+        preserve_list_order : bool, optional
+            Keep the cell-encoded mux-input order so the conversion is
+            order-faithful; otherwise the reader falls back to column order.
+            Defaults to False.
         """
         SwitchMatrix.from_file(
-            matrix, matrix.stem, preserve_list_order=True
+            matrix, matrix.stem, preserve_list_order=preserve_list_order
         ).to_list_file(listFile)
 
     def genConfigMem(self, tileName: str, configMem: Path) -> None:

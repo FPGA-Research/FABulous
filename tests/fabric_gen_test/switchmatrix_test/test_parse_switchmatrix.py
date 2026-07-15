@@ -121,8 +121,8 @@ def test_parse_matrix(
     """Test parseMatrix with preserve_list_order, honouring the cell encoding.
 
     The parametrized cases encode mux-input positions, so they are read with
-    ``preserve_list_order=True``; the legacy (treat-as-1, column-order) read is
-    covered separately in ``test_parse_matrix_legacy_column_order``.
+    `preserve_list_order=True`; the legacy (treat-as-1, column-order) read is
+    covered separately in `test_parse_matrix_legacy_column_order`.
     """
     f = tmp_path / "tile_matrix.csv"
     f.write_text(content)

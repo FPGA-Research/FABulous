@@ -24,10 +24,10 @@ def parseMatrix(
     """Parse the matrix CSV into a dictionary from destination to source.
 
     A non-zero cell denotes a configurable connection. When
-    ``preserve_list_order`` is set, the cell's integer encodes the mux input
+    `preserve_list_order` is set, the cell's integer encodes the mux input
     position (higher = earlier, MSB-first) and that order is kept; when unset,
-    every connection is treated as a plain ``1`` so the inputs fall back to
-    CSV-column order (legacy behaviour). Both sort by ``(-value, column)``.
+    every connection is treated as a plain `1` so the inputs fall back to
+    CSV-column order (legacy behaviour). Both sort by `(-value, column)`.
 
     The top-left header cell is a label only (conventionally the tile name)
     and is not validated: the mux-input columns are `header[1:]`.
@@ -38,7 +38,7 @@ def parseMatrix(
         Directory of the matrix CSV file.
     preserve_list_order : bool, optional
         Keep the cell-encoded mux-input order when True; otherwise treat every
-        connection as ``1`` and use CSV-column order. Defaults to False.
+        connection as `1` and use CSV-column order. Defaults to False.
 
     Raises
     ------
