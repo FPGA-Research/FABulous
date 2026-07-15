@@ -152,7 +152,9 @@ class FABulous_API:
         matrix : Path
             Destination `.csv` file (created or overwritten).
         """
-        SwitchMatrix.from_file(listFile, listFile.stem).to_csv_file(matrix, matrix.stem)
+        SwitchMatrix.from_file(
+            listFile, listFile.stem, preserve_list_order=True
+        ).to_csv_file(matrix, matrix.stem)
 
     def addMatrix2List(self, matrix: Path, listFile: Path) -> None:
         """Convert a `.csv` switch matrix file into a `.list` file.
@@ -164,7 +166,9 @@ class FABulous_API:
         listFile : Path
             Destination `.list` file (created or overwritten).
         """
-        SwitchMatrix.from_file(matrix, matrix.stem).to_list_file(listFile)
+        SwitchMatrix.from_file(
+            matrix, matrix.stem, preserve_list_order=True
+        ).to_list_file(listFile)
 
     def genConfigMem(self, tileName: str, configMem: Path) -> None:
         """Generate configuration memory for specified tile.

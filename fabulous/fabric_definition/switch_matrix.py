@@ -170,7 +170,7 @@ class SwitchMatrix:
 
         match path.suffix:
             case ".csv":
-                connections = parseMatrix(path)
+                connections = parseMatrix(path, preserve_list_order)
                 if ports is not None:
                     sources, dests = switch_matrix_signal_order(ports, bels or [])
                     cls._check_signals(connections, sources, dests, path.name)
@@ -180,7 +180,14 @@ class SwitchMatrix:
                         path, ports, bels or [], preserve_list_order
                     )
                 else:
+                    # No tile context to canonicalise against, so honour the
+                    # file order; preserve keeps it MSB-first (reversed), the
+                    # same convention _canonical_list_connections applies.
                     connections = parseList(path, "source")
+                    if preserve_list_order:
+                        connections = {
+                            k: list(reversed(v)) for k, v in connections.items()
+                        }
             case ".v" | ".sv" | ".vhdl" | ".vhd":
                 logger.warning(
                     f"Switch matrix for tile {tile_name!r} is read from HDL "
@@ -361,10 +368,12 @@ class SwitchMatrix:
         `{N}mux_output,[input0|input1|...]` where `N` is the number of mux
         inputs. The `{N}` multiplier repeats the output so `parseList`
         pairs it with each bracketed input. Outputs with no inputs are omitted.
-        When `self.preserve_list_order` is set the inputs are written reversed
-        so that a `preserve_list_order` (MSB-first) read recovers this object's
-        input order; otherwise the order is not significant (the reader
-        re-derives it from the tile's ports).
+
+        The inputs are always written reversed (MSB-first), independent of
+        `preserve_list_order` — the file always encodes the full order, and the
+        reader decides how to interpret it: a `preserve_list_order` read
+        recovers this exact order, while a plain read re-derives it from the
+        tile's ports.
 
         Parameters
         ----------
@@ -375,7 +384,7 @@ class SwitchMatrix:
             for mux_output, mux_inputs in self.connections.items():
                 if not mux_inputs:
                     continue
-                inputs = mux_inputs[::-1] if self.preserve_list_order else mux_inputs
+                inputs = mux_inputs[::-1]
                 f.write(f"{{{len(mux_inputs)}}}{mux_output},[{'|'.join(inputs)}]\n")
 
     @staticmethod

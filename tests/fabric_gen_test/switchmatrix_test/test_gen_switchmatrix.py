@@ -83,9 +83,13 @@ class TestListExport:
         )
         out = tmp_path / "m.list"
         sm.to_list_file(out)
-        # One line per connected mux; the empty C_I is omitted.
-        assert out.read_text() == "{2}A_I,[X|Y]\n{1}B_I,[Z]\n"
-        assert SwitchMatrix.from_file(out, "T").connections == {
+        # One line per connected mux; inputs always written reversed (MSB-first);
+        # the empty C_I is omitted.
+        assert out.read_text() == "{2}A_I,[Y|X]\n{1}B_I,[Z]\n"
+        # A preserve read recovers the exact input order.
+        assert SwitchMatrix.from_file(
+            out, "T", preserve_list_order=True
+        ).connections == {
             "A_I": ["X", "Y"],
             "B_I": ["Z"],
         }
@@ -110,31 +114,30 @@ class TestListExport:
         assert back["A"] == ["Z", "Y", "X"]
 
 
-class TestCsvExportOrderFaithful:
-    """to_csv_file encodes per-mux position so parseMatrix recovers exact order.
+class TestCsvExportReaderDecides:
+    """to_csv_file always encodes per-mux position; the reader applies the flag.
 
-    Column headers are global (first-seen across rows), so an all-`1` CSV would
-    lose a mux whose input order differs from that column order. Encoding each
-    input's 1-based descending position keeps the round trip faithful, and it
-    does so independent of `preserve_list_order` (which no longer affects the
-    CSV export).
+    Column headers are global (first-seen across rows), so an all-`1` CSV loses
+    a mux whose input order differs from that column order. The CSV always
+    encodes each input's 1-based descending position, and a preserve read
+    recovers the exact order while a legacy read falls back to column order.
     """
 
-    @pytest.mark.parametrize("preserve", [False, True])
-    def test_csv_roundtrip_preserves_per_mux_order(
-        self, tmp_path: Path, preserve: bool
+    def test_preserve_read_recovers_order_legacy_read_uses_columns(
+        self, tmp_path: Path
     ) -> None:
-        # B's order [X, Y] differs from the global column order [Y, Z, X];
-        # this is the case an all-1s CSV silently reordered to [Y, X].
+        # B's order [X, Y] differs from the global column order [Y, Z, X].
         conns = {"A": ["Y", "Z"], "B": ["X", "Y"]}
-        sm = SwitchMatrix(
-            matrix_file=Path("x.csv"),
-            connections=conns,
-            preserve_list_order=preserve,
-        )
+        sm = SwitchMatrix(matrix_file=Path("x.csv"), connections=conns)
         out = tmp_path / "m.csv"
         sm.to_csv_file(out, "T")
-        assert parseMatrix(out) == conns
+        # preserve read honours the encoded position -> exact per-mux order
+        assert parseMatrix(out, preserve_list_order=True) == conns
+        # legacy read treats every entry as 1 -> column order (B reordered)
+        assert parseMatrix(out, preserve_list_order=False) == {
+            "A": ["Y", "Z"],
+            "B": ["Y", "X"],
+        }
 
 
 class TestSwitchMatrixValidation:

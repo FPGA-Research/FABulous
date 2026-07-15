@@ -18,13 +18,16 @@ from fabulous.custom_exception import (
 )
 
 
-def parseMatrix(fileName: Path) -> dict[str, list[str]]:
+def parseMatrix(
+    fileName: Path, preserve_list_order: bool = False
+) -> dict[str, list[str]]:
     """Parse the matrix CSV into a dictionary from destination to source.
 
-    Any non-zero integer denotes a configurable connection; the integer
-    encodes the mux input position (higher = earlier, i.e. rightmost
-    `.list` entry → `A0`, MSB-first). Sort by (-value, column) so all-`1`
-    rows fall back to CSV-column order via the column-index secondary key.
+    A non-zero cell denotes a configurable connection. When
+    ``preserve_list_order`` is set, the cell's integer encodes the mux input
+    position (higher = earlier, MSB-first) and that order is kept; when unset,
+    every connection is treated as a plain ``1`` so the inputs fall back to
+    CSV-column order (legacy behaviour). Both sort by ``(-value, column)``.
 
     The top-left header cell is a label only (conventionally the tile name)
     and is not validated: the mux-input columns are `header[1:]`.
@@ -33,6 +36,9 @@ def parseMatrix(fileName: Path) -> dict[str, list[str]]:
     ----------
     fileName : Path
         Directory of the matrix CSV file.
+    preserve_list_order : bool, optional
+        Keep the cell-encoded mux-input order when True; otherwise treat every
+        connection as ``1`` and use CSV-column order. Defaults to False.
 
     Raises
     ------
@@ -70,7 +76,8 @@ def parseMatrix(fileName: Path) -> dict[str, list[str]]:
                     f"cell value {stripped!r}"
                 ) from exc
             if value != 0 and k < len(dest_list):
-                items.append((value, k, dest_list[k]))
+                sort_value = value if preserve_list_order else 1
+                items.append((sort_value, k, dest_list[k]))
         items.sort(key=lambda x: (-x[0], x[1]))
         connections[port_name] = [d for _, _, d in items]
     return connections

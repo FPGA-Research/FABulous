@@ -118,19 +118,36 @@ def test_parse_matrix(
     expected_result: dict | None,
     expected_error: type | None,
 ) -> None:
-    """Test parseMatrix for valid connection parsing and error conditions."""
+    """Test parseMatrix with preserve_list_order, honouring the cell encoding.
+
+    The parametrized cases encode mux-input positions, so they are read with
+    ``preserve_list_order=True``; the legacy (treat-as-1, column-order) read is
+    covered separately in ``test_parse_matrix_legacy_column_order``.
+    """
     f = tmp_path / "tile_matrix.csv"
     f.write_text(content)
 
     if expected_error:
         with pytest.raises(expected_error):
-            parseMatrix(f)
+            parseMatrix(f, preserve_list_order=True)
     else:
-        result = parseMatrix(f)
+        result = parseMatrix(f, preserve_list_order=True)
         if expected_result is not None:
             assert result == expected_result
         else:
             assert isinstance(result, dict)
+
+
+def test_parse_matrix_legacy_column_order(tmp_path: Path) -> None:
+    """Without preserve_list_order, every entry is treated as 1 (column order)."""
+    f = tmp_path / "m.csv"
+    # Cell magnitudes would put SRC in D3..D0 order, but the legacy read ignores
+    # them and returns the mux inputs in CSV-column order instead.
+    f.write_text("T,D0,D1,D2,D3\nSRC,1,2,3,4\n")
+    assert parseMatrix(f, preserve_list_order=False) == {
+        "SRC": ["D0", "D1", "D2", "D3"]
+    }
+    assert parseMatrix(f, preserve_list_order=True) == {"SRC": ["D3", "D2", "D1", "D0"]}
 
 
 @pytest.mark.parametrize(
