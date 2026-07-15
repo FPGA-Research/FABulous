@@ -36,7 +36,7 @@ class SuperTile:
         The list of bels of that the super tile contains
     withUserCLK : bool
         Whether the super tile has a userCLK port. Default is False.
-    switchMatrix : SwitchMatrix | None
+    switch_matrix : SwitchMatrix | None
         The supertile switch matrix (source file, connectivity, config bits), or
         None if the supertile has no switch matrix.
     master_tile_coords : tuple[int, int] | None
@@ -52,7 +52,7 @@ class SuperTile:
     tileMap: list[list[Tile]]
     bels: list[Bel] = field(default_factory=list)
     withUserCLK: bool = False
-    switchMatrix: SwitchMatrix | None = None
+    switch_matrix: SwitchMatrix | None = None
     master_tile_coords: tuple[int, int] | None = None
 
     def getPortsAroundTile(self) -> dict[str, list[list[Port]]]:
@@ -248,12 +248,12 @@ class SuperTile:
     @property
     def supertile_matrix_dir(self) -> Path | None:
         """Return the supertile switch matrix file, or None if there is none."""
-        return None if self.switchMatrix is None else self.switchMatrix.matrix_file
+        return None if self.switch_matrix is None else self.switch_matrix.matrix_file
 
     @property
     def supertile_matrix_config_bits(self) -> int:
         """Return the supertile switch matrix config-bit count (0 if no matrix)."""
-        return 0 if self.switchMatrix is None else self.switchMatrix.no_config_bits
+        return 0 if self.switch_matrix is None else self.switch_matrix.no_config_bits
 
     @property
     def max_width(self) -> int:

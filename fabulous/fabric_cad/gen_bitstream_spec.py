@@ -70,7 +70,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             if "fabric.csv" in str(tile.tileDir):
                 # Backward compat: in the old fabric.csv-embedded layout the
                 # tile's real location comes from its switch-matrix file path.
-                matrix_file = tile.switchMatrix.matrix_file
+                matrix_file = tile.switch_matrix.matrix_file
                 if matrix_file.is_file():
                     configMemPath = matrix_file.parent / f"{tile.name}_ConfigMem.csv"
                 else:
@@ -146,7 +146,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                                 ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
                             curBitOffset += len(keyDict[entry])
 
-            result = tile.switchMatrix.connections
+            result = tile.switch_matrix.connections
             for source, sinkList in result.items():
                 controlWidth = 0
                 for i, sink in enumerate(reversed(sinkList)):
@@ -208,8 +208,8 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                         ) + fabric.frameBitsPerRow * cfm.frameIndex
 
         sm_connections: dict[str, list[str]] = {}
-        if superTile.switchMatrix is not None:
-            sm_connections = superTile.switchMatrix.connections
+        if superTile.switch_matrix is not None:
+            sm_connections = superTile.switch_matrix.connections
 
         tx_local, ty_local = superTile.get_master_tile_coords()
 

@@ -437,7 +437,7 @@ def parseTilesCSV(
                 ports=ports,
                 bels=bels,
                 tileDir=fileName,
-                switchMatrix=SwitchMatrix.from_file(
+                switch_matrix=SwitchMatrix.from_file(
                     matrixDir,
                     tileName,
                     ports=ports,
@@ -627,7 +627,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
             validate_super_tile_matrix(
                 superTile, switch_matrix.connections, st_matrix_dir
             )
-            superTile.switchMatrix = switch_matrix
+            superTile.switch_matrix = switch_matrix
 
         new_supertiles.append(superTile)
 

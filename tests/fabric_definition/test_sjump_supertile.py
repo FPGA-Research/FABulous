@@ -273,7 +273,7 @@ class TestGenNpnrModelSupertile:
             tileDir=tmp_path,
             tiles=[top, bot],
             tileMap=[[top], [bot]],
-            switchMatrix=SwitchMatrix.from_file(st_mat, "DSP"),
+            switch_matrix=SwitchMatrix.from_file(st_mat, "DSP"),
         )
         for t in supertile.tiles:
             t.partOfSuperTile = True
@@ -334,8 +334,8 @@ class TestGenBitstreamSpecSupertileMux:
 
         top = _tile("DSP_top", [sjump_port("top2bot", IO.OUTPUT)])
         bot = _tile("DSP_bot", [sjump_port("A", IO.OUTPUT, wireCount=1)])
-        top.switchMatrix = SwitchMatrix.from_file(top_mat, "DSP_top")
-        bot.switchMatrix = SwitchMatrix.from_file(bot_mat, "DSP_bot")
+        top.switch_matrix = SwitchMatrix.from_file(top_mat, "DSP_top")
+        bot.switch_matrix = SwitchMatrix.from_file(bot_mat, "DSP_bot")
         supertile = SuperTile(
             name="DSP",
             # tileDir is the supertile CSV file; consumers read sibling files via
@@ -343,7 +343,7 @@ class TestGenBitstreamSpecSupertileMux:
             tileDir=tmp_path / "DSP.csv",
             tiles=[top, bot],
             tileMap=[[top], [bot]],
-            switchMatrix=SwitchMatrix.from_file(st_mat, "DSP"),
+            switch_matrix=SwitchMatrix.from_file(st_mat, "DSP"),
         )
         for t in supertile.tiles:
             t.partOfSuperTile = True

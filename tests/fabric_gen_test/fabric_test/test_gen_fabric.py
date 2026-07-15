@@ -64,7 +64,7 @@ def _supertile(tmp_path: Path) -> SuperTile:
         tiles=[top, bot],
         tileMap=[[top], [bot]],
         bels=[bel],
-        switchMatrix=SwitchMatrix.from_file(mat, "DSP"),
+        switch_matrix=SwitchMatrix.from_file(mat, "DSP"),
     )
 
 

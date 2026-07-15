@@ -102,7 +102,7 @@ def find_switch_matrix_tile(fabric: Fabric) -> Tile:
         If no tile has a parseable switch matrix.
     """
     for tile in fabric.tileDic.values():
-        if tile.switchMatrix.matrix_file.suffix in (".list", ".csv"):
+        if tile.switch_matrix.matrix_file.suffix in (".list", ".csv"):
             return tile
     raise ValueError("no tile with a parseable switch matrix in fabric")
 

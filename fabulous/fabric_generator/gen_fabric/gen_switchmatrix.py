@@ -87,7 +87,7 @@ def genTileSwitchMatrix(
     """Generate the RTL code for the tile switch matrix.
 
     The switch matrix is read straight from the tile's already-canonical
-    `tile.switchMatrix.connections` (built once when the fabric was parsed);
+    `tile.switch_matrix.connections` (built once when the fabric was parsed);
     no CSV is written or re-read here. A tile whose matrix is hand-written HDL
     is skipped - it supplies its own switch matrix module.
 
@@ -111,7 +111,7 @@ def genTileSwitchMatrix(
     ValueError
         If any port in the switch matrix is not connected to anything.
     """
-    if tile.switchMatrix.matrix_file.suffix in (".v", ".sv", ".vhdl", ".vhd"):
+    if tile.switch_matrix.matrix_file.suffix in (".v", ".sv", ".vhdl", ".vhd"):
         logger.info(
             f"{tile.name} provides a hand-written switch matrix HDL; "
             "skipping matrix generation."
@@ -121,12 +121,12 @@ def genTileSwitchMatrix(
     # Unconnected outputs are checked here (not at parse) because tile ports are
     # only final after fabric assembly; the switch matrix connections are read
     # once but the port set backing the diagnostic changes.
-    connections = tile.switchMatrix.connections
+    connections = tile.switch_matrix.connections
     for port_name in connections:
         if not connections[port_name]:
             hint = _unconnected_port_diagnostic(tile.portsInfo, port_name)
             raise ValueError(f"{port_name} not connected to anything!{hint}")
-    noConfigBits = tile.switchMatrix.no_config_bits
+    noConfigBits = tile.switch_matrix.no_config_bits
 
     # we pass the NumberOfConfigBits as a comment in the beginning of the file.
     # This simplifies it to generate the configuration port only if needed later when
@@ -456,14 +456,14 @@ def gen_super_tile_switch_matrix(
     default_pip_delay : int
         Default PIP delay value for timing annotation.
     """
-    if superTile.switchMatrix is None:
+    if superTile.switch_matrix is None:
         return
 
-    noConfigBits = superTile.switchMatrix.no_config_bits
+    noConfigBits = superTile.switch_matrix.no_config_bits
     module_name = f"{superTile.name}_switch_matrix"
 
     # Connectivity (destination -> [sources]) held on the supertile.
-    connections = superTile.switchMatrix.connections
+    connections = superTile.switch_matrix.connections
 
     writer.addComment(f"NumberOfConfigBits: {noConfigBits}")
     writer.addHeader(module_name)

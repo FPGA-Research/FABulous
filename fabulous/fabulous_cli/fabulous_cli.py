@@ -876,7 +876,7 @@ class FABulous_CLI(Cmd):
             "Format conversion only; connectivity is not validated against any "
             "tile configuration."
         )
-        self.fabulousAPI.addList2Matrix(
+        self.fabulousAPI.add_list_to_matrix(
             args.input, args.output, args.preserve_list_order
         )
         logger.info(f"Converted {args.input} to {args.output}")
@@ -889,7 +889,7 @@ class FABulous_CLI(Cmd):
             "Format conversion only; connectivity is not validated against any "
             "tile configuration."
         )
-        self.fabulousAPI.addMatrix2List(
+        self.fabulousAPI.add_matrix_to_list(
             args.input, args.output, args.preserve_list_order
         )
         logger.info(f"Converted {args.input} to {args.output}")

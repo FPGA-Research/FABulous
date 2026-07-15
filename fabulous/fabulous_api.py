@@ -142,7 +142,7 @@ class FABulous_API:
             logger.error("Only .csv files are supported for fabric loading")
             raise ValueError
 
-    def addList2Matrix(
+    def add_list_to_matrix(
         self, listFile: Path, matrix: Path, preserve_list_order: bool = False
     ) -> None:
         """Convert a `.list` switch matrix file into a `.csv` file.
@@ -162,7 +162,7 @@ class FABulous_API:
             listFile, listFile.stem, preserve_list_order=preserve_list_order
         ).to_csv_file(matrix, matrix.stem)
 
-    def addMatrix2List(
+    def add_matrix_to_list(
         self, matrix: Path, listFile: Path, preserve_list_order: bool = False
     ) -> None:
         """Convert a `.csv` switch matrix file into a `.list` file.

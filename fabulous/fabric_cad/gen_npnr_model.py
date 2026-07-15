@@ -62,7 +62,7 @@ def genNextpnrModel(
             if tile is None:
                 continue
             pipStr.append(f"#Tile-internal pips on tile X{x}Y{y}:")
-            for source, sinkList in tile.switchMatrix.connections.items():
+            for source, sinkList in tile.switch_matrix.connections.items():
                 for sink in sinkList:
                     # This delay is just arbitrary
                     delay: float = 8
@@ -189,8 +189,8 @@ def genNextpnrModel(
                 belv2Str.append("GlobalClk")
             belv2Str.append("BelEnd")
 
-        if superTile.switchMatrix is not None:
-            for sink, sources in superTile.switchMatrix.connections.items():
+        if superTile.switch_matrix is not None:
+            for sink, sources in superTile.switch_matrix.connections.items():
                 for src in sources:
                     delay: float = 8
                     if delay_model is not None:

@@ -206,10 +206,10 @@ class TestPreserveListOrderEndToEnd:
         preserved = parseFabricCSV(str(project / "fabric.csv"))
 
         default_conns = {
-            t.name: t.switchMatrix.connections for t in default.tileDic.values()
+            t.name: t.switch_matrix.connections for t in default.tileDic.values()
         }
         preserved_conns = {
-            t.name: t.switchMatrix.connections for t in preserved.tileDic.values()
+            t.name: t.switch_matrix.connections for t in preserved.tileDic.values()
         }
 
         # Same tiles, same mux outputs, same mux inputs - only input order may
@@ -304,7 +304,7 @@ class TestPreserveListOrderGeneration:
             (preserved_tile, preserved_inputs),
         ):
             for port, rhs in inputs.items():
-                assert rhs == tile.switchMatrix.connections[port][::-1]
+                assert rhs == tile.switch_matrix.connections[port][::-1]
 
         # Same muxes generated, and the flag must actually flip at least one.
         assert default_inputs.keys() == preserved_inputs.keys()
@@ -348,7 +348,7 @@ class TestSuperTileSwitchMatrixConstants:
             tiles=[bot],
             tileMap=[[bot]],
             bels=[bel],
-            switchMatrix=SwitchMatrix.from_file(mat, "DSP"),
+            switch_matrix=SwitchMatrix.from_file(mat, "DSP"),
         )
         writer = code_generator_factory(".v", "DSP_switch_matrix")
         gen_super_tile_switch_matrix(writer, supertile)

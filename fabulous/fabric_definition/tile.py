@@ -32,7 +32,7 @@ class Tile:
         List of Basic Elements of Logic (BELs) in the tile
     tileDir : Path
         Directory path for the tile
-    switchMatrix : SwitchMatrix
+    switch_matrix : SwitchMatrix
         Switch matrix of the tile, holding its source file, connectivity, and
         config-bit count.
     gen_ios : list[Gen_IO]
@@ -51,7 +51,7 @@ class Tile:
         The list of ports of the tile
     bels: list[Bel]
         The list of BELs of the tile
-    switchMatrix : SwitchMatrix
+    switch_matrix : SwitchMatrix
         The switch matrix of the tile
     gen_ios : list[Gen_IO]
         The list of GEN_IOs of the tile
@@ -70,7 +70,7 @@ class Tile:
     name: str
     portsInfo: list[Port]
     bels: list[Bel]
-    switchMatrix: SwitchMatrix
+    switch_matrix: SwitchMatrix
     gen_ios: list[Gen_IO]
     withUserCLK: bool = False
     wireList: list[Wire] = field(default_factory=list)
@@ -84,7 +84,7 @@ class Tile:
         ports: list[Port],
         bels: list[Bel],
         tileDir: Path,
-        switchMatrix: SwitchMatrix,
+        switch_matrix: SwitchMatrix,
         gen_ios: list[Gen_IO],
         userCLK: bool,
         pinOrderConfig: dict[Side, "PinOrderConfig"] | None = None,
@@ -93,7 +93,7 @@ class Tile:
         self.portsInfo = ports
         self.bels = bels
         self.gen_ios = gen_ios
-        self.switchMatrix = switchMatrix
+        self.switch_matrix = switch_matrix
         self.withUserCLK = userCLK
         self.wireList = []
         self.tileDir = tileDir
@@ -318,7 +318,7 @@ class Tile:
         int
             Total number of global configuration bits for the tile.
         """
-        ret = self.switchMatrix.no_config_bits
+        ret = self.switch_matrix.no_config_bits
 
         for b in self.bels:
             ret += b.configBit
