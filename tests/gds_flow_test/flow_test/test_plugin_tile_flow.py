@@ -273,7 +273,7 @@ class TestFABulousTileRunAdapter:
         )
         mocker.patch.object(plugin_tile_flow, "VerilogCodeGenerator")
         parse_tile = mocker.patch.object(
-            plugin_tile_flow, "_parse_plugin_tile", return_value=mock_tile
+            plugin_tile_flow, "parse_tile_from_dir", return_value=mock_tile
         )
         emit_verilog = mocker.patch.object(plugin_tile_flow, "_emit_tile_verilog")
         gen_pin_yaml = mocker.patch.object(
@@ -380,7 +380,7 @@ class TestFABulousTileRunAdapter:
         )
         mocker.patch.object(plugin_tile_flow, "VerilogCodeGenerator")
         parse_tile = mocker.patch.object(
-            plugin_tile_flow, "_parse_plugin_tile", return_value=mock_tile
+            plugin_tile_flow, "parse_tile_from_dir", return_value=mock_tile
         )
         mocker.patch.object(plugin_tile_flow, "_emit_tile_verilog")
         mocker.patch.object(plugin_tile_flow, "generate_IO_pin_order_config")

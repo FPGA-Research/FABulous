@@ -11,6 +11,10 @@ from librelane.flows.sequential import SequentialFlow
 from librelane.state.state import State
 from librelane.steps.step import Step
 
+from fabulous.custom_exception import (
+    InvalidSupertileDefinition,
+    InvalidTileDefinition,
+)
 from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle, Side
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
@@ -35,7 +39,7 @@ from fabulous.fabric_generator.gen_fabric.gen_tile import (
     generateSuperTile,
     generateTile,
 )
-from fabulous.fabric_generator.parser.parse_csv import parseSupertilesCSV, parseTilesCSV
+from fabulous.fabric_generator.parser.parse_csv import parse_tile_from_dir
 from fabulous.fabulous_settings import get_context, init_context
 
 
@@ -107,7 +111,15 @@ class FABulousTile(SequentialFlow):
         tile_name = self.config.get("DESIGN_NAME") or tile_dir.name
         is_supertile = bool(self.config.get("FABULOUS_SUPERTILE", False))
 
-        tile = _parse_plugin_tile(tile_dir, tile_name, is_supertile)
+        try:
+            tile = parse_tile_from_dir(tile_dir, tile_name, is_supertile)
+        except (
+            FileNotFoundError,
+            InvalidTileDefinition,
+            InvalidSupertileDefinition,
+        ) as exc:
+            raise FlowException(str(exc)) from exc
+
         config_bit_mode = ConfigBitMode(self.config["FABULOUS_CONFIG_BIT_MODE"])
         multiplexer_style = MultiplexerStyle(self.config["FABULOUS_MULTIPLEXER_STYLE"])
         writer = VerilogCodeGenerator()
@@ -283,45 +295,3 @@ def _apply_tile_die_area_config(
             f"tile {tile_type.name}. Please update the DIE_AREA "
         )
     return config
-
-
-def _parse_plugin_tile(
-    tile_dir: Path,
-    tile_name: str,
-    is_supertile: bool,
-) -> Tile | SuperTile:
-    """Parse the plugin tile directory without constructing a Fabric."""
-    tile_csv = tile_dir / f"{tile_name}.csv"
-    if not tile_csv.exists():
-        raise FlowException(f"Tile CSV {tile_csv} does not exist")
-
-    if not is_supertile:
-        tiles, _ = parseTilesCSV(tile_csv)
-        for tile in tiles:
-            if tile.name == tile_name:
-                return tile
-        raise FlowException(f"Tile {tile_name!r} not found in {tile_csv}")
-
-    tile_dic: dict[str, Tile] = {}
-    subtile_names: list[str] = []
-    with tile_csv.open("r", encoding="utf-8") as f:
-        f.readline()
-        for raw in f:
-            line = raw.strip()
-            if "EndSuperTILE" in line:
-                break
-            for cell in line.split(","):
-                name = cell.strip()
-                if name:
-                    subtile_names.append(name)
-
-    for subtile_name in subtile_names:
-        subtile_csv = tile_dir / subtile_name / f"{subtile_name}.csv"
-        tiles, _ = parseTilesCSV(subtile_csv)
-        tile_dic.update({tile.name: tile for tile in tiles})
-
-    supertiles = parseSupertilesCSV(tile_csv, tile_dic)
-    for supertile in supertiles:
-        if supertile.name == tile_name:
-            return supertile
-    raise FlowException(f"SuperTile {tile_name!r} not found in {tile_csv}")

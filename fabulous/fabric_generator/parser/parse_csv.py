@@ -634,6 +634,87 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
     return new_supertiles
 
 
+def parse_tile_from_dir(
+    tile_dir: Path, tile_name: str, is_supertile: bool
+) -> Tile | SuperTile:
+    """Parse a single tile or supertile from its own directory.
+
+    Reads `<tile_dir>/<tile_name>.csv` in isolation, without constructing a
+    surrounding `Fabric`. For a supertile, the subtile CSVs are read first (each
+    from `<tile_dir>/<subtile>/<subtile>.csv`) to build the tile dictionary the
+    supertile definition references.
+
+    Parameters
+    ----------
+    tile_dir : Path
+        Directory containing the tile CSV and, for supertiles, the subtile
+        subdirectories.
+    tile_name : str
+        Name of the tile or supertile to return. Also the CSV file stem.
+    is_supertile : bool
+        Whether the target is a supertile.
+
+    Raises
+    ------
+    FileNotFoundError
+        If `<tile_dir>/<tile_name>.csv` does not exist.
+    InvalidTileDefinition
+        If a non-supertile named `tile_name` is not present in the CSV.
+    InvalidSupertileDefinition
+        If a supertile named `tile_name` is not present in the CSV.
+
+    Returns
+    -------
+    Tile | SuperTile
+        The parsed tile or supertile.
+    """
+    tile_csv = tile_dir / f"{tile_name}.csv"
+    if not tile_csv.exists():
+        raise FileNotFoundError(f"Tile CSV {tile_csv} does not exist")
+
+    if not is_supertile:
+        tiles, _ = parseTilesCSV(tile_csv)
+        for tile in tiles:
+            if tile.name == tile_name:
+                return tile
+        raise InvalidTileDefinition(f"Tile {tile_name!r} not found in {tile_csv}")
+
+    # Collect the subtile names the supertile references. The block is scanned
+    # with the same regex, comment stripping, and token filtering
+    # `parseSupertilesCSV` uses, so the two agree on which cells are subtile
+    # names: the `BEL`/`MATRIX` control lines and the `MASTER`/`Null` placement
+    # tokens are skipped, leaving only the subtile names.
+    text = re.sub(r"#.*", "", tile_csv.read_text(encoding="utf-8"))
+    subtile_names: list[str] = []
+    seen: set[str] = set()
+    for block in re.findall(
+        r"SuperTILE(.*?)EndSuperTILE", text, re.MULTILINE | re.DOTALL
+    ):
+        # block[0] is the `SuperTILE,<name>` header remainder and the last line
+        # is the empty line before `EndSuperTILE`; the tile map is between.
+        for raw_line in block.split("\n")[1:-1]:
+            line = [cell for cell in raw_line.split(",") if cell not in ("", " ")]
+            if not line or line[0] in ("BEL", "MATRIX"):
+                continue
+            for cell in line:
+                if cell in ("MASTER", "Null", "NULL", "None") or cell in seen:
+                    continue
+                seen.add(cell)
+                subtile_names.append(cell)
+
+    tile_dic: dict[str, Tile] = {}
+    for subtile_name in subtile_names:
+        subtile_csv = tile_dir / subtile_name / f"{subtile_name}.csv"
+        tiles, _ = parseTilesCSV(subtile_csv)
+        tile_dic.update({tile.name: tile for tile in tiles})
+
+    supertiles = parseSupertilesCSV(tile_csv, tile_dic)
+    for supertile in supertiles:
+        if supertile.name == tile_name:
+            return supertile
+    raise InvalidSupertileDefinition(f"SuperTile {tile_name!r} not found in {tile_csv}")
+
+
 def parseFabricCSV(fileName: str) -> Fabric:
     """Parse a CSV file and returns a fabric object.
 

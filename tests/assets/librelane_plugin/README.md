@@ -14,22 +14,21 @@ the relative paths inside the vendored CSV/YAML files (`../common/`,
 ```
 tests/assets/librelane_plugin/
 ├── README.md                     # this file
-├── models_pack.v                 # top-level Verilog
-├── custom.v                      # top-level Verilog
+├── models_pack.v                 # symlink into the FABulous project template
 ├── primitives/                   # BEL libraries
 │   └── FABULOUS_LC/fabulous/FABULOUS_LC.v
 ├── tiles/classic/                # tile library
 │   ├── common/                   # shared per-direction wiring
 │   │   ├── Base.csv
-│   │   └── Base.list
+│   │   ├── Base.list
+│   │   └── config.yaml
 │   └── LUT4x8_ha/                # the one tile we harden
 │       ├── LUT4x8_ha.csv
 │       ├── LUT4x8_ha_switch_matrix.list
-│       ├── config.yaml           # FABulousTile flow config
-│       └── README_old.md
+│       └── config.yaml           # FABulousTile flow config
 └── fabrics/
     └── synthetic_lut4x8_ha_10x10/
-        ├── synthetic_lut4x8_ha_10x10.csv  # 10×10 grid, all LUT4x8_ha
+        ├── synthetic_lut4x8_ha_10x10.csv  # 10x10 grid, all LUT4x8_ha
         └── config.yaml                    # FABulousFabric flow config
 ```
 
@@ -37,8 +36,12 @@ tests/assets/librelane_plugin/
 
 | Path | Upstream repo | Commit pinned |
 | --- | --- | --- |
-| `tiles/`, `primitives/`, `models_pack.v`, `custom.v` | https://github.com/FPGA-Research/fabulous-tiles | `964c1ab38a4e0a85c190999fbba7dc2fa7aa667c` |
+| `tiles/`, `primitives/` | https://github.com/FPGA-Research/fabulous-tiles | `964c1ab38a4e0a85c190999fbba7dc2fa7aa667c` |
 | `fabrics/synthetic_lut4x8_ha_10x10/` (synthetic, derived from upstream layout) | https://github.com/FPGA-Research/fabulous-fabrics | `bb5d98490fbc99f1f0662f072d3819b7a9b2d663` |
+
+`models_pack.v` is a symlink into the FABulous project template
+(`fabulous/fabric_files/FABulous_project_template_verilog/Fabric/models_pack.v`),
+not a vendored copy, so it always tracks the in-repo primitive models.
 
 The fabric is **synthetic** rather than vendored verbatim: the upstream
 `classic_fabric_10x10` references 16 distinct tile types, but the nightly
