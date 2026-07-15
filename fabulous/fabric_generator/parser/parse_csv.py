@@ -453,7 +453,7 @@ def parseTilesCSV(
 
 
 def validate_super_tile_matrix(
-    superTile: SuperTile,
+    super_tile: SuperTile,
     connections: dict[str, list[str]],
     matrix_path: Path,
 ) -> None:
@@ -466,7 +466,7 @@ def validate_super_tile_matrix(
 
     Parameters
     ----------
-    superTile : SuperTile
+    super_tile : SuperTile
         The supertile whose ports and BELs define the legal names.
     connections : dict[str, list[str]]
         Parsed matrix, mapping each sink (destination) to its sources.
@@ -478,7 +478,7 @@ def validate_super_tile_matrix(
     InvalidSwitchMatrixDefinition
         If any sink or source is not a known port, BEL pin, or constant.
     """
-    valid_sources, valid_sinks = superTile.get_matrix_port_names()
+    valid_sources, valid_sinks = super_tile.get_matrix_port_names()
     valid_sources |= set(SWITCH_MATRIX_CONSTANTS)
 
     unknown_sinks = sorted(s for s in connections if s not in valid_sinks)
@@ -488,7 +488,7 @@ def validate_super_tile_matrix(
 
     if unknown_sinks or unknown_sources:
         raise InvalidSwitchMatrixDefinition(
-            f"Supertile '{superTile.name}' switch matrix {matrix_path} references "
+            f"Supertile '{super_tile.name}' switch matrix {matrix_path} references "
             f"undefined names: sinks={unknown_sinks}, sources={unknown_sources}.\n"
             "Sinks must be BEL inputs or child-tile INPUT SJUMP wires; sources "
             "must be BEL outputs, child-tile OUTPUT SJUMP wires, or a constant.\n"
@@ -609,10 +609,10 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
         withUserCLK = any(bel.withUserCLK for bel in bels)
         # tileDir is the supertile CSV file path (matching Tile.tileDir), so
         # consumers use `tileDir.parent` for the supertile's directory.
-        superTile = SuperTile(
+        super_tile = SuperTile(
             name, fileName.absolute(), tiles, tileMap, bels, withUserCLK
         )
-        superTile.master_tile_coords = master_coords
+        super_tile.master_tile_coords = master_coords
 
         # The supertile switch matrix is taken from the MATRIX line (resolved
         # relative to the CSV). There is no auto-discovery: a supertile without a
@@ -625,11 +625,11 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                 )
             switch_matrix = SwitchMatrix.from_file(st_matrix_dir, name)
             validate_super_tile_matrix(
-                superTile, switch_matrix.connections, st_matrix_dir
+                super_tile, switch_matrix.connections, st_matrix_dir
             )
-            superTile.switch_matrix = switch_matrix
+            super_tile.switch_matrix = switch_matrix
 
-        new_supertiles.append(superTile)
+        new_supertiles.append(super_tile)
 
     return new_supertiles
 

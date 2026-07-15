@@ -154,18 +154,18 @@ def genNextpnrModel(
     # Supertile BEL and switch-matrix PIP emission.
     # SJUMP PIPs live in tile.wireList (added by Fabric.__post_init__) and are
     # already emitted by the per-tile loop above.
-    for base_fx, base_fy, superTile in fabric.iter_super_tile_placements():
-        if not superTile.bels and superTile.supertile_matrix_dir is None:
+    for base_fx, base_fy, super_tile in fabric.iter_super_tile_placements():
+        if not super_tile.bels and super_tile.supertile_matrix_dir is None:
             continue
 
-        tx_local, ty_local = superTile.get_master_tile_coords()
+        tx_local, ty_local = super_tile.get_master_tile_coords()
         ftx = base_fx + tx_local
         fty = base_fy + ty_local
 
         bel_offset = len(fabric.tile[fty][ftx].bels)
-        belStr.append(f"#SuperTile_{superTile.name}_X{ftx}Y{fty}")
-        belv2Str.append(f"#SuperTile_{superTile.name}_X{ftx}Y{fty}")
-        for i, bel in enumerate(superTile.bels):
+        belStr.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
+        belv2Str.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
+        for i, bel in enumerate(super_tile.bels):
             letter = string.ascii_uppercase[bel_offset + i]
             cType = bel.name
             belPort = bel.inputs + bel.outputs
@@ -189,12 +189,12 @@ def genNextpnrModel(
                 belv2Str.append("GlobalClk")
             belv2Str.append("BelEnd")
 
-        if superTile.switch_matrix is not None:
-            for sink, sources in superTile.switch_matrix.connections.items():
+        if super_tile.switch_matrix is not None:
+            for sink, sources in super_tile.switch_matrix.connections.items():
                 for src in sources:
                     delay: float = 8
                     if delay_model is not None:
-                        delay = delay_model.pip_delay(superTile.name, sink, src)
+                        delay = delay_model.pip_delay(super_tile.name, sink, src)
                     pipStr.append(
                         f"X{ftx}Y{fty},{src},X{ftx}Y{fty},{sink},{delay},{src}.{sink}"
                     )
