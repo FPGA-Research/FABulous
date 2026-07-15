@@ -16,17 +16,17 @@ def _render_librelane_plugin_init() -> str:
 """LibreLane plugin: re-export of the FABulous GDS steps and flows.
 
 Ships as a side-package inside the FABulous-FPGA wheel. LibreLane
-auto-discovers packages whose name matches ``librelane_plugin_*`` — importing
+auto-discovers packages whose name matches `librelane_plugin_*`, importing
 this package walks every submodule under
-``{_UPSTREAM_PKG}.{{steps,flows}}`` so their
-``@Step.factory.register()`` / ``@Flow.factory.register()`` decorators fire.
+`{_UPSTREAM_PKG}.{{steps,flows}}` so their
+`@Step.factory.register()` / `@Flow.factory.register()` decorators fire.
 
-``FABulousTile`` and ``FABulousFabric`` are additionally re-exported at the
-package root as a drop-in replacement for ``mole99/librelane_plugin_fabulous``.
+`FABulousTile` and `FABulousFabric` are additionally re-exported at the
+package root as a drop-in replacement for `mole99/librelane_plugin_fabulous`.
 
-Generated at build time by ``build_hooks.BuildPyWithFabulousNix`` — do not
+Generated at build time by `build_hooks.BuildPyWithFabulousNix`. Do not
 edit by hand. The source of truth for every Step and Flow lives in
-``{_UPSTREAM_PKG}``.
+`{_UPSTREAM_PKG}`.
 """
 
 import importlib as _importlib
@@ -37,14 +37,14 @@ _PENDING_REGISTRATION = False
 
 
 def _gds_import_in_progress() -> bool:
-    """Return True while any ``{_UPSTREAM_PKG}`` module is still initialising.
+    """Return True while any `{_UPSTREAM_PKG}` module is still initialising.
 
-    LibreLane runs plugin discovery the first time ``librelane`` itself is
+    LibreLane runs plugin discovery the first time `librelane` itself is
     imported. When that first import is triggered from inside a gds_generator
-    module (e.g. ``steps.tile_area_opt`` importing ``librelane.common``),
+    module (e.g. `steps.tile_area_opt` importing `librelane.common`),
     eagerly walking the submodules here re-enters that half-initialised module
-    and raises ``ImportError`` (``cannot import name ... (circular import)``).
-    importlib sets ``__spec__._initializing`` for the duration of a module's
+    and raises `ImportError` (`cannot import name ... (circular import)`).
+    importlib sets `__spec__._initializing` for the duration of a module's
     execution, which flags exactly that re-entrant case for any submodule,
     regardless of how the modules are named or split.
     """

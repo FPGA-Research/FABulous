@@ -2,7 +2,7 @@
 
 These tests verify the *adapting* layer: how `FABulousFabric`'s overridden
 `__init__` turns plugin-level config (a fabric CSV path + a mapping of tile
-name → pre-hardened macro directory) into the `self.fabric` / `self.macros`
+name -> pre-hardened macro directory) into the `self.fabric` / `self.macros`
 / `self.tile_sizes` fields that the underlying
 :class:`FABulousFabricMacroFlow` expects.
 """
@@ -115,7 +115,7 @@ class TestFABulousFabricSchema:
 
 
 class TestBuildMacros:
-    """`_build_macros` turns a tile-name → macro-dir mapping into Macros."""
+    """`_build_macros` turns a tile-name -> macro-dir mapping into Macros."""
 
     def test_builds_macro_from_complete_directory_tree(self, tmp_path: Path) -> None:
         macro_dir: Path = _write_macro_dir(tmp_path, "LUT4AB", "150", "200")

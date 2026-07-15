@@ -8,6 +8,7 @@ fabric_definition
 building_fabric
 fabric_automation
 fabric_gds
+librelane_plugin
 timing_characterization
 /generated_doc/gds_variable
 ```
