@@ -1,7 +1,11 @@
 # Hardening through the LibreLane plugin
 
-:::{note}
-The canonical FABulous path is the CLI GDS flow in [Convert your design into GDSII format](./fabric_gds.md), which drives the same hardening steps while keeping the standard FABulous project layout (`Tile/`, `Fabric/`, per-tile `gds_config.yaml`). Reach for the plugin only if you specifically want to drive the flow through `librelane` yourself, for example to slot FABulous into an existing LibreLane-based setup or to use a particular LibreLane feature directly.
+:::{warning}
+**This plugin is experimental.**
+
+The supported, first-class FABulous path is the CLI GDS flow in [Convert your design into GDSII format](./fabric_gds.md). It drives the same hardening steps while keeping the standard FABulous project layout (`Tile/`, `Fabric/`, per-tile `gds_config.yaml`), and it is the path FABulous develops and tests end to end.
+
+The plugin adds no hardening capability the CLI flow lacks. It only swaps the driver: you drive the same underlying steps through `librelane` and hand-written `config.yaml` files instead of through the FABulous CLI. Its main reason to exist is pairing FABulous with an external, [fabulous tile library](https://github.com/FPGA-Research/fabulous-tiles) and FABulous itself is not yet fully integrated to consume such a library. Until that integration lands, the plugin is essentially just a different interface onto the same flow, and you take on writing the `config.yaml` files and managing the tile macros by hand. If you are not deliberately building on the tile library, use the CLI GDS flow instead.
 :::
 
 FABulous ships a [LibreLane](https://github.com/librelane/librelane) plugin, `librelane_plugin_fabulous`, that exposes the tile-hardening and fabric-stitching flows as native LibreLane flows. This lets you drive the ASIC flow directly with `librelane` and a `config.yaml`, rather than through the FABulous CLI. It is a thin adapter over the same steps as the CLI flow, so the [flow variable table](#gds-variables), [pin configuration](#pin-config), and [tile stitching](#stitching-the-tiles) sections of the GDS guide apply here as well.
