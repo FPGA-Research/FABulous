@@ -428,7 +428,7 @@ class FABulous_API:
         """
         return generateBitstreamSpec(self.fabric)
 
-    def genRoutingModel(self) -> tuple[str, str, str, str, str]:
+    def gen_routing_model(self) -> tuple[str, str, str, str, str]:
         """Generate model for Nextpnr based on fabric data.
 
         Returns

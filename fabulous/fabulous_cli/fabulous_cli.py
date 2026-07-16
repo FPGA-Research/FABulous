@@ -1175,7 +1175,7 @@ class FABulous_CLI(Cmd):
         Logs output file directories.
         """
         logger.info("Generating npnr model")
-        npnrModel = self.fabulousAPI.genRoutingModel()
+        npnrModel = self.fabulousAPI.gen_routing_model()
         logger.info(f"output file: {self.projectDir}/{META_DATA_DIR}/pips.txt")
         with Path(f"{self.projectDir}/{META_DATA_DIR}/pips.txt").open("w") as f:
             f.write(npnrModel[0])

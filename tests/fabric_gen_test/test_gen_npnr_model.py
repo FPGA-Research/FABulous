@@ -11,13 +11,13 @@ from fabulous.fabric_definition.bel import Bel
 from fabulous.fabulous_cli.fabulous_cli import FABulous_CLI
 
 
-def test_genRoutingModel_returns_five_with_timing(cli: FABulous_CLI) -> None:
-    """genRoutingModel emits a bel.v3 string with timing arcs alongside bel.v2.
+def test_gen_routing_model_returns_five_with_timing(cli: FABulous_CLI) -> None:
+    """gen_routing_model emits a bel.v3 string with timing arcs alongside bel.v2.
 
     The bel.v3 block must mirror the bel.v2 structural lines and additionally
     carry the FABULOUS_LC timing arcs, while bel.v2 stays free of timing lines.
     """
-    model = cli.fabulousAPI.genRoutingModel()
+    model = cli.fabulousAPI.gen_routing_model()
     assert len(model) == 5
 
     belv2, belv3 = model[2], model[3]
