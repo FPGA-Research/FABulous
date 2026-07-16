@@ -111,8 +111,8 @@ class TestTileRealAsset:
         assert (tile_dir / f"{TILE_NAME}.v").exists()
         assert (tile_dir / f"{TILE_NAME}_switch_matrix.v").exists()
         assert (tile_dir / f"{TILE_NAME}_ConfigMem.v").exists()
-        # The .list switch matrix was bootstrapped to a .csv.
-        assert (tile_dir / f"{TILE_NAME}_switch_matrix.csv").exists()
+        # The .list switch matrix is read directly into the model, so no
+        # bootstrap-CSV round trip is emitted.
         # IO pin-order YAML produced in the run directory.
         pin_yaml = Path(flow.run_dir) / f"{TILE_NAME}_io_pin_order.yaml"
         assert pin_yaml.exists()

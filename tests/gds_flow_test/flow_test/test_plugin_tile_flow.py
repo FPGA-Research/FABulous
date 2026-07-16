@@ -510,11 +510,11 @@ class TestFABulousTileEndToEnd:
 
         flow.run(initial_state=mocker.MagicMock())
 
-        # The plugin must have re-emitted the per-tile RTL artifacts...
+        # The plugin must have re-emitted the per-tile RTL artifacts from the
+        # `.list` switch matrix, which is read directly into the model without a
+        # bootstrap-CSV round trip...
         assert (tile_workspace / f"{name}.v").exists()
         assert (tile_workspace / f"{name}_switch_matrix.v").exists()
-        # ...bootstrapped the .list switch-matrix into a .csv...
-        assert (tile_workspace / f"{name}_switch_matrix.csv").exists()
         # ...and produced the IO pin-order YAML in the run directory.
         pin_yaml = Path(flow.run_dir) / f"{name}_io_pin_order.yaml"
         assert pin_yaml.exists()
