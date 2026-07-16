@@ -640,7 +640,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bitarray", specifier = ">=3.9.0" },
+    { name = "bitarray", specifier = ">=3.3.0" },
     { name = "ciel", specifier = ">=2.4.0" },
     { name = "cmd2", specifier = ">=4" },
     { name = "dill", specifier = ">=0.4.0" },
