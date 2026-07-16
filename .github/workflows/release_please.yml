@@ -29,7 +29,6 @@ jobs:
         id: release
         with:
           token: ${{ steps.app-token.outputs.token }}
-          release-type: python
 
       - name: Update AUTHORS.md on release PR
         if: ${{ steps.release.outputs.pr }}

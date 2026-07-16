@@ -92,3 +92,61 @@ You should see paths pointing to the Nix store, for example:
 ```
 
 If the commands point back to your system's default installation paths, the Nix environment is not set up correctly. This can happen if another environment was active before you entered the Nix shell. In that case, open a new terminal and use `FABulous nix-env` to enter a clean environment.
+
+## Using FABulous as a flake input (downstream projects)
+
+The sections above cover developing FABulous itself. If you are instead building a project _on top of_ FABulous, such as a chip or fabric that you harden to GDS, you do not vendor the toolchain yourself. You add FABulous's flake as an input and build your project shell from `mkConsumerShell`.
+
+FABulous's flake exposes one composition helper, `fabulous.lib.<system>.mkConsumerShell`, which builds a ready-to-use, non-editable shell containing:
+
+- the `librelane` CLI with the `librelane_plugin_fabulous` GDS plugin already discovered,
+- the `FABulous` and `fabulous` CLIs,
+- the full EDA toolchain (Yosys, NextPNR, OpenROAD, GHDL, and the rest),
+- FABulous's Python environment, pinned by FABulous's `uv.lock`.
+
+It takes two extension surfaces so your project adds what it needs without vendoring anything:
+
+- `extraPackages`, the non-Python tools your project needs (simulators, waveform viewers, `make`). A list, or a function `pkgs: [ ... ]` selecting from FABulous's own package set.
+- `extraPythonPackages`, your project's own Python tooling (cocotb, pytest, and so on), as a function `ps: [ ... ]` selecting from nixpkgs.
+
+FABulous's own Python packages (FABulous, librelane, the plugin) are pinned by `uv.lock` and are not overridable downstream by design. To change one, open a pull request against FABulous. Your project's verification Python in `extraPythonPackages` is yours to choose; where it shares a dependency with FABulous, FABulous's pinned version wins.
+
+### Example
+
+```nix
+{
+  inputs.fabulous.url = "github:FPGA-Research/FABulous";
+
+  # FABulous and its toolchain are prebuilt in the fossi-foundation cache.
+  # Without this, entering the shell rebuilds the whole EDA toolchain from source.
+  nixConfig = {
+    extra-substituters = [ "https://nix-cache.fossi-foundation.org" ];
+    extra-trusted-public-keys = [
+      "nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs="
+    ];
+  };
+
+  outputs =
+    { self, fabulous, ... }:
+    let
+      system = "x86_64-linux";
+    in
+    {
+      devShells.${system}.default = fabulous.lib.${system}.mkConsumerShell {
+        # Non-Python tools this project brings itself.
+        extraPackages = pkgs: with pkgs; [ iverilog verilator gtkwave gnumake ];
+        # This project's own Python verification tooling.
+        extraPythonPackages = ps: with ps; [ cocotb pytest ];
+      };
+    };
+}
+```
+
+Enter it with `nix develop`, then drive the flow as usual. For example, harden a tile through the plugin (see [Hardening through the LibreLane plugin](../../user_guide/building_doc/librelane_plugin.md)):
+
+```bash
+nix develop
+librelane path/to/tile/config.yaml   # sky130A PDK resolved as usual
+```
+
+The `librelane` in this shell already has the FABulous plugin. Confirm with `librelane --version`, which lists `librelane_plugin_fabulous` under _Discovered plugins_.

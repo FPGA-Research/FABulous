@@ -1,4 +1,9 @@
-final: prev: {
+final: prev:
+let
+  fallbackVersion =
+    (builtins.fromTOML (builtins.readFile ../../pyproject.toml)).tool.setuptools_scm.fallback_version;
+in
+{
   # Override fasm to use GitHub source instead of PyPI and add missing build deps
   fasm = prev.fasm.overrideAttrs (old: {
     src = final.pkgs.fetchFromGitHub {
@@ -56,5 +61,15 @@ final: prev: {
     postInstall = (old.postInstall or "") + ''
       rm -f $out/LICENSE
     '';
+  });
+
+  fabulous-fpga = prev.fabulous-fpga.overrideAttrs (old: {
+    # Relabel to match the version setuptools_scm will stamp (below); we are
+    # not changing src, so opt out of nixpkgs' version/src mismatch warning.
+    version = fallbackVersion;
+    __intentionallyOverridingVersion = true;
+    env = (old.env or { }) // {
+      SETUPTOOLS_SCM_PRETEND_VERSION = fallbackVersion;
+    };
   });
 }

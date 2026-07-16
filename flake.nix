@@ -69,6 +69,7 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       nix-eda,
       librelane,
@@ -131,22 +132,10 @@
         }
       );
 
-    in
-    {
-      packages = forAllSystems (system: {
-        default = pythonSets.${system}.mkVirtualEnv "FABulous-env" workspace.deps.default;
-      });
-      devShells = forAllSystems (
+      fabulousToolchain = forAllSystems (
         system:
         let
-          # Use the per-system package set built above so mkShell and all
-          # overlays (including librelane and project overlays) are present.
           pkgs = nix_eda_pkgs.${system};
-          pythonSet = pythonSets.${system}.overrideScope editableOverlay;
-
-          # Create virtualenv with all deps
-          virtualenv = pythonSet.mkVirtualEnv "FABulous-env" workspace.deps.all;
-
           customPkgs = import ./nix {
             inherit pkgs;
             srcs = {
@@ -158,28 +147,16 @@
               fabulator = fabulator-src;
             };
           };
-
-          # Get librelane from our patched pkgs (which includes our overlays)
           librelane-pkg = pkgs.python3.pkgs.librelane;
-          # We need librelane's Python modules available for the EDA tools, but we don't
-          # want to include the full librelane-env in packages (would collide with virtualenv).
-          # Instead, we'll add it to NIX_PYTHONPATH.
-          librelane-python-path = "${librelane-pkg}/${pkgs.python3.sitePackages}";
           tkinter-pkg = nixpkgs.legacyPackages.${system}.python3Packages.tkinter;
           tkinter-python-path = "${tkinter-pkg}/${nixpkgs.legacyPackages.${system}.python3.sitePackages}";
-
-          # Combine all packages: librelane tools (with patched OpenROAD) + our custom tools + uv2nix env
-          # Note: We only include virtualenv for Python, not librelane-env, to avoid collisions
-          # Filter by platform support: include if no platforms specified or current system matches
           systemSupported =
             tool:
             let
               platforms = tool.meta.platforms or [ ];
             in
             platforms == [ ] || (builtins.elem system platforms);
-
-          allPackages = [
-            virtualenv
+          toolPackages = [
             pkgs.uv
             pkgs.which
             pkgs.git
@@ -193,202 +170,97 @@
             pkgs.nvc
           ]
           ++ (builtins.filter systemSupported librelane-pkg.includedTools);
-
-          prompt = ''\[\033[1;32m\][FABulous-nix:\w]\$\[\033[0m\] '';
         in
+        {
+          inherit
+            pkgs
+            customPkgs
+            librelane-pkg
+            tkinter-python-path
+            toolPackages
+            ;
+          # Runtime environment shared by the wrapped package and the dev shells.
+          envVars = {
+            # Tells FABulous the nix yosys binary is named fab-yosys.
+            FAB_YOSYS_PATH = "fab-yosys";
+            # libghdl, dlopen'd by the yosys ghdl plugin, can't derive its own
+            # install prefix (only the ghdl binary can), so it needs this to
+            # find the IEEE libraries.
+            GHDL_PREFIX = "${customPkgs.ghdl}/lib/ghdl";
+            # Silence known third-party import warnings (fasm, textX).
+            PYTHONWARNINGS = "ignore:Importing fasm.parse_fasm:RuntimeWarning,ignore:Falling back on slower textX parser implementation:RuntimeWarning";
+          };
+        }
+      );
+
+    in
+    {
+      packages = forAllSystems (
+        system:
         let
-          # Common devshell configuration (bash by default)
-          baseShellConfig = {
-            devshell.packages = allPackages;
-            env = [
-              {
-                name = "FAB_YOSYS_PATH";
-                value = "fab-yosys";
-              }
-              {
-                # libghdl loaded by the yosys ghdl plugin can't derive its own
-                # install prefix (only the ghdl binary can), so it can't find
-                # the IEEE libraries without GHDL_PREFIX.
-                name = "GHDL_PREFIX";
-                value = "${customPkgs.ghdl}/lib/ghdl";
-              }
-              {
-                name = "NIX_PYTHONPATH";
-                value = "${librelane-python-path}:${tkinter-python-path}";
-              }
-              {
-                name = "PYTHONWARNINGS";
-                value = "ignore:Importing fasm.parse_fasm:RuntimeWarning,ignore:Falling back on slower textX parser implementation:RuntimeWarning";
-              }
-              {
-                name = "UV_NO_SYNC";
-                value = "1";
-              }
-              {
-                name = "UV_PYTHON";
-                value = pythonSet.python.interpreter;
-              }
-              {
-                name = "UV_PYTHON_DOWNLOADS";
-                value = "never";
-              }
-              {
-                name = "PYTHONNOUSERSITE";
-                value = "1";
-              }
-            ];
-            devshell.startup.fabulous-setup = {
-              text = ''
-                [ -n "''${REPO_ROOT:-}" ] || export REPO_ROOT="${toString ./.}"
-                ORIGINAL_PS1="$PS1"
-
-                . ${virtualenv}/bin/activate
-                # Restore original PS1 to avoid double prompt decoration
-                export PS1="$ORIGINAL_PS1"
-
-                # Ensure the repository root and the virtualenv site-packages are importable
-                VENV_SITE=$(python -c 'import site; print(site.getsitepackages()[0])' 2>/dev/null || true)
-
-                # Build PYTHONPATH: NIX_PYTHONPATH (librelane) + venv + repo root
-                if [ -n "$VENV_SITE" ]; then
-                  export PYTHONPATH="$NIX_PYTHONPATH:$VENV_SITE:$REPO_ROOT"
-                else
-                  export PYTHONPATH="$NIX_PYTHONPATH:$REPO_ROOT"
-                fi
-
-              '';
-            };
-            devshell.interactive.PS1 = {
-              text = ''PS1="${prompt}"'';
-            };
-            motd = "";
+          tc = fabulousToolchain.${system};
+          virtualenv = pythonSets.${system}.mkVirtualEnv "FABulous-env" workspace.deps.default;
+          fabulousApp = import ./nix/package.nix {
+            inherit lib virtualenv;
+            pkgs = tc.pkgs;
+            toolchain = tc;
           };
         in
         {
-          # Default: bash
-          default = pkgs.devshell.mkShell baseShellConfig;
-
-          # Start in fish: nix develop .#fish
-          fish = pkgs.devshell.mkShell (
-            baseShellConfig
-            // {
-              devshell.interactive."zzz-switch-shell" = {
-                # Run last so we exec into fish after env is set up
-                text = "exec fish -l";
-              };
-            }
-          );
-
-          # Start in zsh: nix develop .#zsh
-          zsh = pkgs.devshell.mkShell (
-            baseShellConfig
-            // {
-              devshell.interactive."zzz-switch-shell" = {
-                text = "exec zsh -l";
-              };
-            }
-          );
-
-          # Dedicated shell for `fabulous nix-env`.
-          # Uses pkgs.mkShell so tools are in buildInputs (available to --command).
-          # The shellHook sources three scripts from the nix store:
-          #   1. setup  — env vars, virtualenv, PYTHONPATH
-          #   2. verify — checks EDA tools are from /nix/store
-          #   3. shell  — execs into the user's preferred shell (FAB_NIX_SHELL)
-          nix-env =
-            let
-              inherit (nixpkgs.legacyPackages.${system}) mkShell writeShellScript writeText;
-              nixBinPath = lib.makeBinPath allPackages;
-
-              setupScript = writeShellScript "fab-nix-setup.sh" ''
-                # Deactivate any active venv/conda to avoid PATH conflicts
-                if [ -n "''${VIRTUAL_ENV:-}" ] && type deactivate &>/dev/null; then
-                  deactivate
-                fi
-                unset VIRTUAL_ENV CONDA_PREFIX CONDA_DEFAULT_ENV
-
-                # FAB_YOSYS_PATH: tells FABulous the nix yosys binary is named fab-yosys
-                export FAB_YOSYS_PATH="fab-yosys"
-
-                # GHDL_PREFIX: libghdl loaded by the yosys ghdl plugin needs
-                # this to locate the IEEE libraries (the ghdl binary derives
-                # this itself, but a dlopen'd libghdl cannot).
-                export GHDL_PREFIX="${customPkgs.ghdl}/lib/ghdl"
-
-                export REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-                . ${virtualenv}/bin/activate
-
-                # Build PYTHONPATH so librelane + venv + repo root are importable
-                _nix_py="${librelane-python-path}:${tkinter-python-path}"
-                VENV_SITE=$(python -c 'import site; print(site.getsitepackages()[0])' 2>/dev/null || true)
-                if [ -n "$VENV_SITE" ]; then
-                  export PYTHONPATH="$_nix_py:$VENV_SITE:$REPO_ROOT"
-                else
-                  export PYTHONPATH="$_nix_py:$REPO_ROOT"
-                fi
-
-                # Prepend nix tool paths LAST so they take precedence
-                export PATH="${nixBinPath}:$PATH"
-                export PS1="\[\033[1;34m\][fab-nix]\[\033[0m\] ''${PS1:-\$ }"
-              '';
-
-              # Verify silently: exits with error if any tool is missing.
-              # Skipped when FAB_NIX_NO_CHECK=1 (--no-check flag).
-              verifyScript = writeShellScript "fab-nix-verify.sh" ''
-                if [ "''${FAB_NIX_NO_CHECK:-}" = "1" ]; then
-                  return 0 2>/dev/null || exit 0
-                fi
-
-                TOOLS="fab-yosys:yosys nextpnr-generic:nextpnr openroad:openroad"
-                MISSING=""
-                for entry in $TOOLS; do
-                  cmd="''${entry%%:*}"
-                  label="''${entry##*:}"
-                  path=$(which "$cmd" 2>/dev/null)
-                  if [ -z "$path" ] || ! echo "$path" | grep -q "^/nix/"; then
-                    MISSING="$MISSING $label"
-                  fi
-                done
-
-                if [ -n "$MISSING" ]; then
-                  echo >&2 "ERROR: The following EDA tools are not from the Nix store:$MISSING"
-                  echo >&2 "Please report this issue at https://github.com/FPGA-Research/FABulous/issues"
-                  return 1 2>/dev/null || exit 1
-                fi
-              '';
-
-              # Fish -C runs AFTER config files, re-prepending nix paths
-              # that fish's config may have reordered (nix-darwin#1607).
-              fishInitScript = writeText "fab-fish-init.fish" ''
-                for p in (string split ":" "$_FAB_NIX_BIN_PATH")
-                  test -n "$p"; and fish_add_path --prepend --move $p
-                end
-                set -e _FAB_NIX_BIN_PATH
-              '';
-
-              shellSwitchScript = writeShellScript "fab-nix-shell-switch.sh" ''
-                if [ -n "''${FAB_NIX_SHELL:-}" ]; then
-                  case "''${FAB_NIX_SHELL}" in
-                    fish)
-                      export _FAB_NIX_BIN_PATH="${nixBinPath}"
-                      exec fish -C "source ${fishInitScript}"
-                      ;;
-                    bash) ;;
-                    *) exec "''${FAB_NIX_SHELL}" ;;
-                  esac
-                fi
-              '';
-            in
-            mkShell {
-              buildInputs = allPackages;
-              shellHook = ''
-                . ${setupScript}
-                . ${verifyScript}
-                . ${shellSwitchScript}
-              '';
-            };
+          default = fabulousApp;
+          fabulous = fabulousApp;
         }
       );
+      devShells = forAllSystems (
+        system:
+        let
+          tc = fabulousToolchain.${system};
+          pythonSet = pythonSets.${system}.overrideScope editableOverlay;
+        in
+        import ./nix/devshells.nix {
+          inherit lib;
+          pkgs = tc.pkgs;
+          toolchain = tc;
+          virtualenv = pythonSet.mkVirtualEnv "FABulous-env" workspace.deps.all;
+          pythonInterpreter = pythonSet.python.interpreter;
+          repoRoot = ./.;
+        }
+      );
+
+      # Consumer-facing composition surface. Downstream chip/fabric projects
+      # build their shell from `mkConsumerShell { extraPackages = ...; extraPythonPackages = ...; }`
+      # (a hermetic uv.lock-pinned FABulous + librelane + plugin, plus their own
+      # non-Python tools and Python packages).
+      lib = forAllSystems (
+        system:
+        let
+          tc = fabulousToolchain.${system};
+          consumerVenv = pythonSets.${system}.mkVirtualEnv "FABulous-consumer-env" workspace.deps.default;
+        in
+        {
+          mkConsumerShell = import ./nix/consumer.nix {
+            pkgs = tc.pkgs;
+            python = nixpkgs.legacyPackages.${system}.python3;
+            toolchain = tc;
+            virtualenv = consumerVenv;
+          };
+        }
+      );
+
+      overlays.default = final: prev: {
+        fabulous = self.packages.${final.system}.default;
+      };
+
+      apps = forAllSystems (system: {
+        default = {
+          type = "app";
+          program = "${self.packages.${system}.default}/bin/FABulous";
+        };
+        librelane = {
+          type = "app";
+          program = "${self.packages.${system}.default}/bin/librelane";
+        };
+      });
 
     };
 }

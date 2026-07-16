@@ -61,14 +61,13 @@ fabulous = "fabulous.fabulous:main"
 [tool.setuptools_scm]
 version_scheme = "guess-next-dev"
 local_scheme = "node-and-date"
+# Version stamped into git-less builds (Nix, sdist) where setuptools_scm cannot
+# read a git tag. release-please bumps this to the release version inside the
+# release PR via the toml extra-files updater in release-please-config.json.
+fallback_version = "2.1.0"
 
 [tool.setuptools.packages.find]
-exclude = [
-  "docs*",
-  "tests*",
-  "scripts*",
-  "nix*",
-] # trailing * is required to also exclude sub-packages (e.g. tests.unit)
+include = ["fabulous*", "fabulous_nix*", "librelane_plugin_fabulous*"]
 
 [tool.setuptools.cmdclass]
 build_py = "build_hooks.BuildPyWithFabulousNix"
