@@ -7,6 +7,7 @@ from setuptools.command.build_py import build_py
 
 _UPSTREAM_PKG = "fabulous.fabric_generator.gds_generator"
 _LIBRELANE_PLUGIN_SUBPKGS: tuple[str, ...] = ("steps", "flows")
+_LIBRELANE_PLUGIN_PACKAGE_NAME = "librelane_plugin_fabulous"
 
 
 def _render_librelane_plugin_init() -> str:
@@ -108,11 +109,44 @@ def __getattr__(name: str) -> object:
 '''
 
 
+def _write_librelane_plugin_package(target_root: Path) -> None:
+    """Write the generated side-package into `target_root`.
+
+    Parameters
+    ----------
+    target_root : Path
+        Directory to (re)create as the `librelane_plugin_fabulous` package.
+    """
+    rmtree(target_root, ignore_errors=True)
+    target_root.mkdir(parents=True, exist_ok=True)
+    (target_root / "__init__.py").write_text(
+        _render_librelane_plugin_init(), encoding="utf-8"
+    )
+
+
+def materialize_librelane_plugin() -> Path:
+    """Generate the side-package next to this file, as an editable install does.
+
+    `pip`/`uv` run the build from the checkout, so the editable install writes
+    the package straight into it. Nix builds in a sandboxed copy of the source
+    that is discarded, leaving nothing behind for the editable finder (which
+    resolves the package under `$REPO_ROOT`) to import. The Nix devshells call
+    this on startup to close that gap.
+
+    Returns
+    -------
+    Path
+        The generated package directory.
+    """
+    target_root = Path(__file__).resolve().parent / _LIBRELANE_PLUGIN_PACKAGE_NAME
+    _write_librelane_plugin_package(target_root)
+    return target_root
+
+
 class BuildPyWithFabulousNix(build_py):
     """Generate FABulous side-packages."""
 
     _NIX_PACKAGE_NAME = "fabulous_nix"
-    _LIBRELANE_PLUGIN_PACKAGE_NAME = "librelane_plugin_fabulous"
 
     _ASSET_MAP: tuple[tuple[str, str], ...] = (
         ("flake.nix", "flake.nix"),
@@ -155,14 +189,8 @@ class BuildPyWithFabulousNix(build_py):
     def _build_librelane_plugin_fabulous_package(self) -> None:
         """Generate librelane_plugin_fabulous/ as a thin re-export side-package."""
         project_root = Path(__file__).resolve().parent
-        target_root = self._target_root(
-            project_root, self._LIBRELANE_PLUGIN_PACKAGE_NAME
-        )
-        rmtree(target_root, ignore_errors=True)
-        target_root.mkdir(parents=True, exist_ok=True)
-        (target_root / "__init__.py").write_text(
-            _render_librelane_plugin_init(), encoding="utf-8"
-        )
+        target_root = self._target_root(project_root, _LIBRELANE_PLUGIN_PACKAGE_NAME)
+        _write_librelane_plugin_package(target_root)
 
     def _target_root(self, project_root: Path, package_name: str) -> Path:
         if getattr(self, "editable_mode", False):

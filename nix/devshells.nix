@@ -21,6 +21,18 @@ let
   allPackages = [ virtualenv ] ++ toolPackages;
   prompt = ''\[\033[1;32m\][FABulous-nix:\w]\$\[\033[0m\] '';
 
+  # `librelane_plugin_fabulous` is generated at build time. pip/uv build from
+  # the checkout, so an editable install writes it straight there; Nix builds in
+  # a sandboxed copy of the source that is discarded, leaving nothing for the
+  # editable finder ($REPO_ROOT/librelane_plugin_fabulous) to import. Generate
+  # it on startup instead. Skipped when $REPO_ROOT is the /nix/store flake
+  # source, which is read-only and ships no editable checkout to write into.
+  materializePlugin = ''
+    if [ -w "$REPO_ROOT" ]; then
+      python -c "import sys; sys.path.insert(0, '$REPO_ROOT'); import build_hooks; build_hooks.materialize_librelane_plugin()"
+    fi
+  '';
+
   # Common devshell configuration (bash by default).
   baseShellConfig = {
     devshell.packages = allPackages;
@@ -63,7 +75,13 @@ let
     ];
     devshell.startup.fabulous-setup = {
       text = ''
-        [ -n "''${REPO_ROOT:-}" ] || export REPO_ROOT="${toString repoRoot}"
+        # The editable install resolves fabulous/ and the generated
+        # side-packages under $REPO_ROOT, so it has to be the developer's
+        # checkout. Only when there is none (e.g. `nix develop github:...`)
+        # does it fall back to the read-only flake source in /nix/store.
+        if [ -z "''${REPO_ROOT:-}" ]; then
+          export REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "${toString repoRoot}")"
+        fi
         ORIGINAL_PS1="$PS1"
 
         . ${virtualenv}/bin/activate
@@ -80,6 +98,7 @@ let
           export PYTHONPATH="$NIX_PYTHONPATH:$REPO_ROOT"
         fi
 
+        ${materializePlugin}
       '';
     };
     devshell.interactive.PS1 = {
@@ -137,6 +156,8 @@ in
         else
           export PYTHONPATH="$_nix_py:$REPO_ROOT"
         fi
+
+        ${materializePlugin}
 
         # Prepend nix tool paths LAST so they take precedence
         export PATH="${nixBinPath}:$PATH"
