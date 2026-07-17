@@ -285,25 +285,41 @@ matching nextpnr's original hard-coded values. By default, FABulous writes
 `delayOffset` equal to `delayScale`.
 :::
 
-### `FABULOUS_LC` placement estimate
+### Per-type placement estimates
 
-After the two scaling keys, FABulous appends one representative `FABULOUS_LC`
-block, the same timing-arc lines as `bel.v3.txt`, minus the `BelBegin`/pin
-lines:
+After the scaling keys, FABulous appends one representative block per timed
+BEL type, delimited by `BelBegin,<type>`/`BelEnd` and containing the same
+timing-arc lines as `bel.v3.txt` (minus the pin lines): `FABULOUS_LC`, the
+registered output pads (`OutPass4_frame_config`, `OutPass4_frame_config_mux`,
+`SetupHold` arcs on `I0`-`I3`), and the registered input pads
+(`InPass4_frame_config`, `InPass4_frame_config_mux`, `ClkToOut` arcs on
+`O0`-`O3`):
 
 ```{code-block} text
 delayScale=3.0
 delayOffset=3.0
+...
+BelBegin,FABULOUS_LC
 Clock,CLK,FF=1
 Delay,I0,O,3.0,FF=0
 ...
 SetupHold,I0,CLK,2.5,0.1,FF=1
 ClkToOut,Q,CLK,1.0,FF=1
+BelEnd
+BelBegin,OutPass4_frame_config
+SetupHold,I0,CLK,2.5,0.1
+...
+BelEnd
+BelBegin,InPass4_frame_config
+ClkToOut,O0,CLK,2.5
+...
+BelEnd
 ```
 
-nextpnr applies BEL timing in two passes: this one representative block steers
-placement (every `FABULOUS_LC` is estimated with it), then after placement each
-BEL's own `bel.v3.txt` arcs replace it, so the routed report is per-instance.
+nextpnr applies BEL timing in two passes: these representative blocks steer
+placement (every instance of a type is estimated with its type's block), then
+after placement each BEL's own `bel.v3.txt` arcs replace them, so the routed
+report is per-instance.
 
 :::{note}
 `bel.v3.txt` and `placement_estimate.txt` are written

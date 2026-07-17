@@ -57,12 +57,13 @@ def test_belLines_unknown_type_emits_no_timing_arcs() -> None:
         assert not any(line.startswith(keyword) for line in v3_lines)
 
 
-def test_placement_estimate_text_has_tunables_and_lc_block() -> None:
-    """The static placement_estimate.txt carries the tunables and one LC block.
+def test_placement_estimate_text_has_tunables_and_type_blocks() -> None:
+    """The static placement_estimate.txt carries the tunables and one
+    BelBegin/BelEnd estimate block per timed BEL type.
 
     Values reproduce nextpnr's historical hardcoded defaults, so P&R behaviour
-    is unchanged. It is a fixed constant while every LC instance shares the
-    same timing; a real per-instance model would regenerate it.
+    is unchanged. It is a fixed constant while every instance of a type shares
+    the same timing; a real per-instance model would regenerate it.
     """
     text = PLACEMENT_ESTIMATE_TEXT
     assert "delayScale=3.0" in text
@@ -71,12 +72,27 @@ def test_placement_estimate_text_has_tunables_and_lc_block() -> None:
     assert "ripupPenalty=0.5" in text
     assert "carryPredictDelay=0.5" in text
 
+    # One estimate block per timed BEL type.
+    for bel_type in (
+        "FABULOUS_LC",
+        "OutPass4_frame_config",
+        "OutPass4_frame_config_mux",
+        "InPass4_frame_config",
+        "InPass4_frame_config_mux",
+    ):
+        assert f"BelBegin,{bel_type}\n" in text
+    assert text.count("BelBegin,") == text.count("BelEnd")
+
     # The representative FABULOUS_LC arcs, in bel.v3 arc format.
     assert "Clock,CLK,FF=1" in text
     assert "Delay,I0,O,3.0,FF=0" in text
     assert "Delay,Ci,Co,0.2,Ci/Co?" in text
     assert "SetupHold,I0,CLK,2.5,0.1,FF=1" in text
     assert "ClkToOut,Q,CLK,1.0,FF=1" in text
+
+    # The representative IO register arcs.
+    assert "SetupHold,I0,CLK,2.5,0.1\n" in text
+    assert "ClkToOut,O0,CLK,2.5" in text
 
 
 def test_genNextpnrModel_bel_timing_unaffected_by_real_pip_delay(

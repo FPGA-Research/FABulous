@@ -20,7 +20,7 @@ from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.fabric import Fabric
 
 # Dummy BEL timing values (ns), mirroring nextpnr's historical hardcoded
-# constants (fabulous.cc, update_cell_timing).
+# constants (fabulous.cc, seed_default_estimates).
 LUT_DELAY = 3.0
 CARRY_CICO_DELAY = 0.2
 CARRY_I_DELAY = 1.0
@@ -44,9 +44,9 @@ CARRY_PREDICT_DELAY = 0.5
 # Arbitrary placeholder pip delay used when no delay_model is supplied.
 DUMMY_PIP_DELAY = 8
 
-# Representative FABULOUS_LC timing arcs for nextpnr's placement estimate.
-# Static while every LC instance shares these constants (I0-I3 LUT4); a real
-# per-instance timing model would regenerate this.
+# Representative per-type timing arcs for nextpnr's placement estimate.
+# Static while every instance of a type shares these constants (I0-I3 LUT4);
+# a real per-instance timing model would regenerate this.
 _LC_LUT_INPUTS = ("I0", "I1", "I2", "I3")
 LC_ESTIMATE_LINES: list[str] = [
     "Clock,CLK,FF=1",
@@ -60,9 +60,11 @@ LC_ESTIMATE_LINES: list[str] = [
     f"ClkToOut,Q,CLK,{FF_CLK_TO_Q},FF=1",
 ]
 
+
 # Full static placement_estimate.txt content: nextpnr placer/router tunables
-# plus the representative FABULOUS_LC estimate. All values reproduce nextpnr's
-# historical hardcoded defaults, so P&R behaviour is unchanged.
+# plus one representative estimate block per timed BEL type. All values
+# reproduce nextpnr's historical hardcoded defaults, so P&R behaviour is
+# unchanged.
 PLACEMENT_ESTIMATE_TEXT: str = (
     "\n".join(
         [
@@ -71,7 +73,21 @@ PLACEMENT_ESTIMATE_TEXT: str = (
             f"delayEpsilon={DELAY_EPSILON}",
             f"ripupPenalty={RIPUP_PENALTY}",
             f"carryPredictDelay={CARRY_PREDICT_DELAY}",
+            "BelBegin,FABULOUS_LC",
             *LC_ESTIMATE_LINES,
+            "BelEnd",
+            "BelBegin,OutPass4_frame_config",
+            *[f"SetupHold,I{p},CLK,{IO_SETUP},{IO_HOLD}" for p in range(4)],
+            "BelEnd",
+            "BelBegin,OutPass4_frame_config_mux",
+            *[f"SetupHold,I{p},CLK,{IO_SETUP},{IO_HOLD}" for p in range(4)],
+            "BelEnd",
+            "BelBegin,InPass4_frame_config",
+            *[f"ClkToOut,O{p},CLK,{IO_CLK_TO_OUT}" for p in range(4)],
+            "BelEnd",
+            "BelBegin,InPass4_frame_config_mux",
+            *[f"ClkToOut,O{p},CLK,{IO_CLK_TO_OUT}" for p in range(4)],
+            "BelEnd",
         ]
     )
     + "\n"
