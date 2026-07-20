@@ -51,7 +51,7 @@ def make_empty_tile(
     name: str,
     ports: list[Port] | None = None,
     *,
-    tileDir: Path = Path(),
+    tile_dir: Path = Path(),
     matrixDir: Path = Path(),
     pinOrderConfig: dict | None = None,
     config_bits: int = 0,
@@ -67,7 +67,7 @@ def make_empty_tile(
         name=name,
         ports=ports or [],
         bels=[],
-        tileDir=tileDir,
+        tile_dir=tile_dir,
         switch_matrix=SwitchMatrix(
             matrix_file=matrixDir, connections={}, hdl_config_bits=config_bits or None
         ),

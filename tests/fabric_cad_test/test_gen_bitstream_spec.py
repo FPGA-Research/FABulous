@@ -308,7 +308,7 @@ def _build_fabric(
         name=_TILE_NAME,
         ports=[],
         bels=[bel],
-        tileDir=tile_dir / f"{_TILE_NAME}.csv",
+        tile_dir=tile_dir / f"{_TILE_NAME}.csv",
         switch_matrix=SwitchMatrix.from_file(matrix_path, _TILE_NAME),
         gen_ios=[],
         userCLK=False,

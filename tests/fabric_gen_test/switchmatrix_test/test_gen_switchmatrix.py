@@ -184,7 +184,7 @@ class TestHdlSwitchMatrix:
     def test_generation_skips_hdl_matrix(self, tmp_path: Path) -> None:
         v = tmp_path / "T_switch_matrix.v"
         v.write_text("// NumberOfConfigBits: 0\nmodule T(); endmodule\n")
-        tile = make_empty_tile("T", tileDir=tmp_path, matrixDir=v, pinOrderConfig={})
+        tile = make_empty_tile("T", tile_dir=tmp_path, matrixDir=v, pinOrderConfig={})
         # No writer is needed: an HDL matrix returns before any RTL is emitted.
         # (A non-HDL matrix would dereference the None writer and raise.)
         genTileSwitchMatrix(None, tile, False)
@@ -337,14 +337,14 @@ class TestSuperTileSwitchMatrixConstants:
         bot = make_empty_tile(
             "DSP_bot",
             [sjump_port("x", IO.OUTPUT, wireCount=1)],
-            tileDir=tmp_path,
+            tile_dir=tmp_path,
             matrixDir=tmp_path / "DSP_bot_switch_matrix.list",
             pinOrderConfig={},
         )
         bel = make_muladd_bel([("SUPER_A0", IO.INPUT), ("SUPER_B0", IO.INPUT)])
         supertile = SuperTile(
             name="DSP",
-            tileDir=tmp_path,
+            tile_dir=tmp_path,
             tiles=[bot],
             tileMap=[[bot]],
             bels=[bel],
