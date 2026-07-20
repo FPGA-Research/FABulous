@@ -677,7 +677,7 @@ dev = [
 requires-dist = [
     { name = "bitarray", specifier = ">=3.3.0" },
     { name = "ciel", specifier = ">=2.4.0" },
-    { name = "cmd2", specifier = ">=4" },
+    { name = "cmd2", specifier = ">=4.1.2" },
     { name = "dill", specifier = ">=0.4.0" },
     { name = "fabulous-bit-gen", specifier = ">=0.3.1" },
     { name = "go-task-bin", specifier = ">=3.40.0" },
