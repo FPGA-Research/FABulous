@@ -53,3 +53,6 @@ jobs:
           nix develop --command bash -c "openroad -version"
           nix develop --command bash -c "yosys --version"
           nix develop --command bash -c "fab-yosys -m ghdl -p help"
+
+      - name: End-to-end flow
+        run: nix develop --command task smoke-test

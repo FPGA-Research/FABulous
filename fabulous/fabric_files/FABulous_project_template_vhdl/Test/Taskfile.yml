@@ -79,7 +79,6 @@ tasks:
     cmds:
       - task: compile:compile-yosys
         vars:
-          YOSYS_PATH: '{{.YOSYS_PATH | default .FAB_YOSYS_PATH | default "yosys"}}'
           YOSYS_GHDL: "-m ghdl"
           YOSYS_EXTRA_ARGS: '{{.YOSYS_EXTRA_ARGS | default ""}}'
           SYNTH_CMD: "ghdl {{.RESOLVED_DESIGN_FILES}} -e {{.DESIGN}}; read_verilog {{.RESOLVED_TOP_WRAPPER_FILE}}; synth_fabulous -top {{.TOP_WRAPPER}} -json {{.RESOLVED_JSON_FILE}} {{.CUSTOM_PRIMS}} {{.SYNTH_EXTRA_ARGS | default \"\"}};"
@@ -93,7 +92,6 @@ tasks:
       - task: compile:compile-nextpnr
         vars:
           FAB_PROJ_ROOT: "{{.FAB_PROJ_ROOT}}"
-          NEXTPNR_PATH: '{{.NEXTPNR_PATH | default .FAB_NEXTPNR_PATH | default "nextpnr-generic"}}'
           JSON_FILE: '{{.JSON_FILE | default (printf "%s/%s.json" .BUILD_DIR .DESIGN)}}'
           FASM_FILE: '{{.FASM_FILE | default (printf "%s/%s.fasm" .BUILD_DIR .DESIGN)}}'
           LOG_FILE: '{{.LOG_FILE | default ""}}'

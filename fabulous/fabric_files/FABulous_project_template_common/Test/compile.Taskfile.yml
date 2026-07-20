@@ -8,8 +8,8 @@ version: "3"
 
 vars:
   FAB_PROJ_ROOT: '{{.FAB_PROJ_ROOT | default ".."}}'
-  YOSYS_PATH: '{{.YOSYS_PATH | default "yosys"}}'
-  NEXTPNR_PATH: '{{.NEXTPNR_PATH | default "nextpnr-generic"}}'
+  YOSYS_PATH: '{{.YOSYS_PATH | default .FAB_YOSYS_PATH | default "yosys"}}'
+  NEXTPNR_PATH: '{{.NEXTPNR_PATH | default .FAB_NEXTPNR_PATH | default "nextpnr-generic"}}'
   SYNTH_CMD: "{{.SYNTH_CMD}}"
   DESIGN_FILES: "{{.DESIGN_FILES}}"
   TOP_WRAPPER_FILE: '{{.TOP_WRAPPER_FILE | default ""}}'
