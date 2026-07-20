@@ -364,3 +364,31 @@ def start_flow(
     state = State.loads((step_dir / "state_in.json").read_text())
     info(f"Forking '{source.name}' at '{frm}' into a new run.")
     return flow.start(with_initial_state=state, frm=frm)
+
+
+def keep_bel_hierarchy(config: Config, bel_modules: set[str]) -> Config:
+    """Keep each BEL module as its own module through synthesis.
+
+    Flattening a BEL lets synthesis merge its logic into switch-matrix gates,
+    after which `FABulousLoopBreakSDC` cannot keep its cuts out of the BEL. The
+    BEL modules are added to any `SYNTH_KEEP_HIERARCHY_MODULES` already set.
+
+    Parameters
+    ----------
+    config : Config
+        Flow configuration to extend.
+    bel_modules : set[str]
+        Yosys module selection patterns matching the tile's BELs after
+        elaboration.
+
+    Returns
+    -------
+    Config
+        The configuration with `SYNTH_KEEP_HIERARCHY_MODULES` and
+        `FABULOUS_BEL_MODULES` set.
+    """
+    kept = set(config.get("SYNTH_KEEP_HIERARCHY_MODULES") or [])
+    return config.copy(
+        SYNTH_KEEP_HIERARCHY_MODULES=sorted(kept | bel_modules),
+        FABULOUS_BEL_MODULES=sorted(bel_modules),
+    )
