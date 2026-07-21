@@ -21,18 +21,26 @@ tasks:
 
   smoke-test:
     desc: Create the demo project and run the simulation flow
+    # FABULOUS is the launcher prefix. It defaults to `uv run FABulous` for the
+    # uv-managed dev/container environment; in the Nix devshell FABulous is on
+    # PATH directly, so pass `FABULOUS=FABulous` to skip uv (whose .venv is a
+    # different Python and ABI-incompatible with the devshell's packages).
+    vars:
+      FABULOUS: '{{.FABULOUS | default "uv run FABulous"}}'
     cmds:
       - rm -rf demo-smoke-test
-      - uv run FABulous c demo-smoke-test
-      - uv run FABulous -p demo-smoke-test run "run_fab"
+      - '{{.FABULOUS}} c demo-smoke-test'
+      - '{{.FABULOUS}} -p demo-smoke-test run "run_fab"'
       - task --dir ./demo-smoke-test/Test fab-sim
 
   smoke-test-vhdl:
     desc: Create the demo project and run the simulation flow
+    vars:
+      FABULOUS: '{{.FABULOUS | default "uv run FABulous"}}'
     cmds:
       - rm -rf demo-smoke-test
-      - uv run FABulous c demo-smoke-test -w vhdl
-      - uv run FABulous -p demo-smoke-test run "run_fab"
+      - '{{.FABULOUS}} c demo-smoke-test -w vhdl'
+      - '{{.FABULOUS}} -p demo-smoke-test run "run_fab"'
       - task --dir ./demo-smoke-test/Test fab-sim
 
   ci:

@@ -55,4 +55,6 @@ jobs:
           nix develop --command bash -c "fab-yosys -m ghdl -p help"
 
       - name: End-to-end flow
-        run: nix develop --command task smoke-test
+        # FABulous is on PATH in the devshell; skip `uv run` (its .venv is a
+        # different Python and ABI-incompatible with the devshell packages).
+        run: nix develop --command task smoke-test FABULOUS=FABulous
