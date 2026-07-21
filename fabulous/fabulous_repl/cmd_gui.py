@@ -177,7 +177,7 @@ class GuiCommandSet(ReplCommandSet):
             int, Option("--head", help_text="number of item to select from")
         ] = 10,
     ) -> None:
-        """Start OpenROAD GUI if an installation can be found.
+        """Start KLayout GUI if an installation can be found.
 
         If no installation can be found, a warning is produced.
         """
