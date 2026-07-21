@@ -116,6 +116,7 @@ def test_spec_is_internally_consistent(generated_fabric: Fabric) -> None:
     assert arch["DesyncBit"] == fabric.desync_flag
     # the flag must mirror the detector on the actual fabric
     assert arch["IncludeBorderRows"] == border_rows_have_config_bits(fabric)
+    assert arch["MultiClkDomains"] == fabric.multiClkDomains
 
     # TileMap covers the whole grid; NULL cells are mapped but carry no specs
     assert set(spec["TileMap"]) == _all_tile_locations(fabric)
@@ -146,6 +147,20 @@ def test_border_rows_excluded_for_demo_fabric(generated_fabric: Fabric) -> None:
     """The demo fabric terminates top/bottom rows, so the flag stays off."""
     spec = generateBitstreamSpec(generated_fabric)
     assert spec["ArchSpecs"]["IncludeBorderRows"] is False
+
+
+def test_multi_clk_domains_defaults_off(generated_fabric: Fabric) -> None:
+    """MultiClkDomains defaults to False for a plain fabric."""
+    spec = generateBitstreamSpec(generated_fabric)
+    assert spec["ArchSpecs"]["MultiClkDomains"] is False
+
+
+def test_multi_clk_domains_flag_propagates(generated_fabric: Fabric) -> None:
+    """Setting the fabric flag propagates into the spec's ArchSpecs."""
+    fabric = generated_fabric
+    fabric.multiClkDomains = True
+    spec = generateBitstreamSpec(fabric)
+    assert spec["ArchSpecs"]["MultiClkDomains"] is True
 
 
 def test_config_tile_in_border_row_sets_flag(generated_fabric: Fabric) -> None:

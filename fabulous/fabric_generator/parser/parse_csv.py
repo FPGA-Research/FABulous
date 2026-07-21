@@ -825,6 +825,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
     multiplexerStyle = MultiplexerStyle.CUSTOM
     superTileEnable = True
     disableUserCLK = False
+    multiClkDomains = False
 
     for i in parameters:
         i = i.split(",")
@@ -880,6 +881,8 @@ def parseFabricCSV(fileName: str) -> Fabric:
             superTileEnable = i[1] == "TRUE"
         elif i[0].startswith("DisableUserCLK"):
             disableUserCLK = i[1] == "TRUE"
+        elif i[0].startswith("MultiClkDomains"):
+            multiClkDomains = i[1] == "TRUE"
         elif i[0].startswith("PreserveListOrder"):
             # Consumed and validated by the pre-scan above (it must be known
             # before any tile is parsed); accepted here so it is not rejected.
@@ -947,6 +950,7 @@ def parseFabricCSV(fileName: str) -> Fabric:
         numberOfBRAMs=int(height / 2),
         superTileEnable=superTileEnable,
         disableUserCLK=disableUserCLK,
+        multiClkDomains=multiClkDomains,
         tileDic=tileDic,
         superTileDic=superTileDic,
         unusedTileDic=unusedTileDic,

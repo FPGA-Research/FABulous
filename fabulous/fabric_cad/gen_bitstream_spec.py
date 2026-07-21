@@ -73,6 +73,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             "DesyncBit": fabric.desync_flag,
             "SyncHeaderHex": fabric.syncHeaderHex,
             "IncludeBorderRows": border_rows_have_config_bits(fabric),
+            "MultiClkDomains": fabric.multiClkDomains,
             "FABulousVersion": version("FABulous-FPGA"),
         },
     }

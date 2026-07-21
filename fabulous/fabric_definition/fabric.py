@@ -67,6 +67,9 @@ class Fabric:
         Whether the fabric has super tile.
     disableUserCLK : bool
         Whether to disable UserCLK generation in the fabric.
+    multiClkDomains : bool
+        Whether the fabric uses multiple clock domains. When True, CLK features
+        are kept in the bitstream instead of being filtered out.
     syncHeaderHex : str
         Hex string of the 20-byte sync header written at the start of every
         binary bitstream.
@@ -106,6 +109,7 @@ class Fabric:
     numberOfBRAMs: int = 10
     superTileEnable: bool = True
     disableUserCLK: bool = False
+    multiClkDomains: bool = False
     syncHeaderHex: str = "00AAFF01000000010000000000000000FAB0FAB1"
 
     tileDic: dict[str, Tile] = field(default_factory=dict)
@@ -463,6 +467,7 @@ class Fabric:
         fabric += f"multiplexerStyle: {self.multiplexerStyle}\n"
         fabric += f"superTileEnable: {self.superTileEnable}\n"
         fabric += f"disableUserCLK: {self.disableUserCLK}\n"
+        fabric += f"multiClkDomains: {self.multiClkDomains}\n"
         fabric += f"tileDic: {list(self.tileDic.keys())}\n"
         return fabric
 
