@@ -158,12 +158,59 @@ def test_run_FABulous_fabric_deprecated(
     assert "FABulous fabric flow complete" in log[-1]
 
 
-def test_gen_model_npnr(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
-    """Test generating nextpnr model."""
-    run_cmd(cli, "gen_model_npnr")
+def test_gen_routing_model(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
+    """Test generating the nextpnr routing model."""
+    run_cmd(cli, "gen_routing_model")
     log = normalize_and_check_for_errors(caplog.text)
     assert "Generating npnr model" in log[0]
     assert "Generated npnr model" in log[-1]
+
+
+def test_gen_routing_model_writes_bel_v3_and_placement_estimate(
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The nextpnr model run emits every artifact nextpnr reads, not just pips."""
+    run_cmd(cli, "gen_routing_model")
+    normalize_and_check_for_errors(caplog.text)
+    meta_dir = cli.projectDir / ".FABulous"
+
+    for name in ("pips.txt", "bel.txt", "bel.v2.txt", "bel.v3.txt", "template.pcf"):
+        assert (meta_dir / name).exists(), f"{name} was not written"
+
+    # bel.v3 carries the BEL-internal timing arcs; bel.v2 stays structural.
+    belv3 = (meta_dir / "bel.v3.txt").read_text()
+    assert "Delay,I0,O,3.0,FF=0" in belv3
+    assert "Delay," not in (meta_dir / "bel.v2.txt").read_text()
+
+    estimate = (meta_dir / "placement_estimate.txt").read_text()
+    assert "delayScale=3.0" in estimate
+    assert "carryPredictDelay=0.5" in estimate
+
+
+def test_gen_model_npnr_deprecated_forwards_to_gen_routing_model(
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The deprecated gen_model_npnr command warns and forwards to gen_routing_model."""
+    run_cmd(cli, "gen_model_npnr")
+    log = normalize_and_check_for_errors(caplog.text)
+
+    assert "deprecated" in caplog.text.lower()
+    # Forwarded to gen_routing_model, which generated the model.
+    assert "Generated npnr model" in log[-1]
+    assert (cli.projectDir / ".FABulous" / "pips.txt").exists()
+
+
+def test_routing_model_deprecated_forwards_to_gen_routing_model(
+    cli: FABulousREPL, caplog: pytest.LogCaptureFixture, mocker: MockerFixture
+) -> None:
+    """The deprecated routing_model command warns and forwards to gen_routing_model."""
+    forwarded = mocker.patch.object(cli, "do_gen_routing_model")
+
+    run_cmd(cli, "routing_model --mode structural")
+
+    assert "deprecated" in caplog.text.lower()
+    forwarded.assert_called_once()
+    assert "--timing structural" in str(forwarded.call_args)
 
 
 def test_gen_io_pin_config(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:

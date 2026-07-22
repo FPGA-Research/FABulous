@@ -12,13 +12,13 @@ from pathlib import Path
 import pytest
 
 from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
-from fabulous.fabric_cad.gen_npnr_model import genNextpnrModel
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.port import Port
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
+from fabulous.routing_model.generator import RoutingModelGenerator
 from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
 
 
@@ -280,7 +280,7 @@ class TestGenNpnrModelSupertile:
         return make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
 
     def test_forward_pip_has_bel_input_as_destination(self, fabric: Fabric) -> None:
-        pip_str, *_ = genNextpnrModel(fabric)
+        pip_str, *_ = RoutingModelGenerator(fabric).generate()
         pips = set(pip_str.splitlines())
         # source DSP_bot_A0 -> destination SUPER_A0 (BEL input is the sink).
         assert "X0Y1,DSP_bot_A0,X0Y1,SUPER_A0,8,DSP_bot_A0.SUPER_A0" in pips
@@ -288,7 +288,7 @@ class TestGenNpnrModelSupertile:
         assert "X0Y1,SUPER_A0,X0Y1,DSP_bot_A0,8,SUPER_A0.DSP_bot_A0" not in pips
 
     def test_reverse_pip_has_bel_output_as_source(self, fabric: Fabric) -> None:
-        pip_str, *_ = genNextpnrModel(fabric)
+        pip_str, *_ = RoutingModelGenerator(fabric).generate()
         pips = set(pip_str.splitlines())
         # BEL output SUPER_Q0 -> reverse wire DSP_bot_Q0.
         assert "X0Y1,SUPER_Q0,X0Y1,DSP_bot_Q0,8,SUPER_Q0.DSP_bot_Q0" in pips
@@ -298,10 +298,9 @@ class TestGenNpnrModelSupertile:
     ) -> None:
         """Supertile BELs get bel.v2 blocks and, for timed types, bel.v3 arcs.
 
-        `genNextpnrModel`'s supertile loop only ever emitted `belStr`/`belv2Str`
-        blocks; `belv3Str` silently skipped every supertile BEL. Covers a
-        supertile BEL of a type nextpnr times (FABULOUS_LC) at the master
-        tile's fabric coordinates (X0Y1, per the module fixture above).
+        The supertile loop shares one BEL emitter with the per-tile loop, so a
+        supertile BEL of a type nextpnr times (FABULOUS_LC) carries its timing
+        arcs at the master tile's fabric coordinates (X0Y1, per the fixture).
         """
         bel = make_muladd_bel(
             [("I0", IO.INPUT), ("I1", IO.INPUT), ("O", IO.OUTPUT)], prefix="LA_"
@@ -325,13 +324,62 @@ class TestGenNpnrModelSupertile:
             t.partOfSuperTile = True
         fabric = make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
 
-        _, belv1, belv2, belv3, _ = genNextpnrModel(fabric)
+        _, belv1, belv2, belv3, _ = RoutingModelGenerator(fabric).generate()
 
         assert "X0Y1,X0,Y1,A,FABULOUS_LC" in belv1
         assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in belv2
         assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in belv3
         assert "Delay,I0,O,3.0,FF=0" in belv3
         assert "Delay," not in belv2
+
+
+class TestGenNextpnrSupertileBels:
+    """A BEL hosted in a supertile's master tile is emitted into the nextpnr model.
+
+    The BEL letter continues after the master tile's own BELs, and its definition
+    is placed at the master tile's coordinates in both the old and new BEL strings.
+    """
+
+    @pytest.fixture
+    def fabric(self, make_fabric: Callable[..., Fabric], tmp_path: Path) -> Fabric:
+        # Child tiles need real (empty) switch-matrix list files so the per-tile
+        # pip pass can read them.
+        top_mat = tmp_path / "DSP_top_switch_matrix.list"
+        bot_mat = tmp_path / "DSP_bot_switch_matrix.list"
+        top_mat.write_text("# DSP_top\n")
+        bot_mat.write_text("# DSP_bot\n")
+        top = make_empty_tile(
+            "DSP_top", tileDir=tmp_path, matrixDir=top_mat, pinOrderConfig={}
+        )
+        bot = make_empty_tile(
+            "DSP_bot", tileDir=tmp_path, matrixDir=bot_mat, pinOrderConfig={}
+        )
+        supertile = SuperTile(
+            name="DSP",
+            tileDir=tmp_path,
+            tiles=[top, bot],
+            tileMap=[[top], [bot]],
+            bels=[make_muladd_bel([("SUPER_A0", IO.INPUT), ("SUPER_Q0", IO.OUTPUT)])],
+        )
+        for t in supertile.tiles:
+            t.partOfSuperTile = True
+        return make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
+
+    def test_supertile_bel_in_old_style_bel_str(self, fabric: Fabric) -> None:
+        # The master tile is the last non-None tile (DSP_bot) at X0Y1; with no
+        # master-tile BELs the supertile BEL takes letter A.
+        _, bel_str, *_ = RoutingModelGenerator(fabric).generate()
+        lines = bel_str.splitlines()
+        assert "#SuperTile_DSP_X0Y1" in lines
+        assert "X0Y1,X0,Y1,A,MULADD,SUPER_A0,SUPER_Q0" in lines
+
+    def test_supertile_bel_in_new_style_bel_str(self, fabric: Fabric) -> None:
+        _, _, belv2_str, _, _ = RoutingModelGenerator(fabric).generate()
+        lines = belv2_str.splitlines()
+        assert "BelBegin,X0Y1,A,MULADD,SUPER_" in lines
+        assert "I,A0,X0Y1.SUPER_A0" in lines
+        assert "O,Q0,X0Y1.SUPER_Q0" in lines
+        assert "BelEnd" in lines
 
 
 class TestGenBitstreamSpecSupertileMux:
