@@ -11,7 +11,7 @@ runtime, see [Emulating a fabric on a commercial FPGA](#emulation-on-fpga).
 The emulation functionality is implemented but needs more testing.
 :::
 
-The script `bit_gen.py` in [bitstream generation](#bitstream-generation)
+The script `bit_gen.py` in {ref}`bitstream generation <bitstream-generation>`
 not only generates the binary bitstream for simulation, but also the bitstream files for Verilog and VHDL emulation.
 
 :::{note}

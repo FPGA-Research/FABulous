@@ -1,12 +1,25 @@
 #!/usr/bin/env python3
-"""Sphinx extension to auto-generate CLI command documentation from FABulousREPL."""
+"""Sphinx extension to auto-generate REPL command documentation from FABulousREPL.
 
-import ast
+Command metadata is read by importing the live REPL classes and introspecting the
+objects cmd2 already builds: the `@with_category` category string and the
+`@with_annotated` argument parser attached to each `do_*` method. This uses
+cmd2's own resolved values (required-ness, defaults, choices, flag spellings)
+rather than re-deriving them, so the docs cannot drift from what the REPL
+actually accepts.
+"""
+
+import argparse
+import importlib
+import inspect
 import logging
-import re
+import pkgutil
+import types
+import typing
 from pathlib import Path
 
 import jinja2
+from cmd2 import constants
 from sphinx.application import Sphinx
 from sphinx.config import Config
 
@@ -31,7 +44,7 @@ def setup(app: Sphinx) -> dict[str, str]:  # noqa: ARG001
 
 
 def generate_repl_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
-    """Generate CLI command documentation from FABulousREPL class.
+    """Generate REPL command documentation from the live REPL classes.
 
     Parameters
     ----------
@@ -55,20 +68,8 @@ def generate_repl_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
         lookup = jinja2.FileSystemLoader(searchpath=all_templates_path)
         env = jinja2.Environment(loader=lookup)
 
-        #TODO: Workout an architecture that don't need this type of fixing.
-        # Extract command metadata using AST parsing (no imports needed)
-        repo_root = doc_root_dir.parent.parent
-        cli_dir = repo_root / "fabulous" / "fabulous_repl"
-        cli_file = cli_dir / "fabulous_repl.py"
-        commands_by_category = extract_cli_commands_ast(cli_file)
-
-        synthesis_file = cli_dir / "cmd_compile_design.py"
-        if synthesis_file.exists():
-            synthesis_commands = extract_standalone_commands_ast(synthesis_file)
-            for category, cmds in synthesis_commands.items():
-                if category not in commands_by_category:
-                    commands_by_category[category] = []
-                commands_by_category[category].extend(cmds)
+        commands_by_category = _collect_commands()
+        commands_by_category = _sort_categories(commands_by_category, _category_order())
 
         # Render documentation
         template = env.get_template("cli_commands.md.jinja")
@@ -77,14 +78,14 @@ def generate_repl_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
         )
 
         # Write output to generated_doc folder (gitignored)
-        output_file = doc_root_dir / "generated_doc" / "interactive_cli_commands.md"
+        output_file = doc_root_dir / "generated_doc" / "interactive_repl_commands.md"
         output_file.parent.mkdir(parents=True, exist_ok=True)
         output_file.write_text(output)
 
-        logger.info("Generated CLI command documentation: %s", output_file)
+        logger.info("Generated REPL command documentation: %s", output_file)
 
-    except (OSError, jinja2.TemplateError):
-        logger.exception("Failed to generate CLI command documentation")
+    except (OSError, jinja2.TemplateError, ImportError):
+        logger.exception("Failed to generate REPL command documentation")
         raise SystemExit(-1) from None
 
 
@@ -140,344 +141,300 @@ def clean_docstring(docstring: str) -> str:
     return "\n".join(result).strip()
 
 
-def extract_cli_commands_ast(cli_file: Path) -> dict:
-    """Extract CLI commands using AST parsing (no runtime imports).
+def _command_classes() -> list[type]:
+    """Import the REPL command modules and return the classes that define commands.
+
+    The concrete command providers are `FABulousREPL` itself and every
+    `ReplCommandSet` subclass. The `cmd_*.py` submodules are imported first so
+    those subclasses are registered before they are enumerated.
+
+    Returns
+    -------
+    list[type]
+        `FABulousREPL` followed by every `ReplCommandSet` subclass.
+    """
+    repl_pkg = importlib.import_module("fabulous.fabulous_repl")
+    for module in pkgutil.iter_modules(repl_pkg.__path__):
+        if module.name.startswith("cmd_"):
+            importlib.import_module(f"{repl_pkg.__name__}.{module.name}")
+
+    from fabulous.fabulous_repl.command_set_base import ReplCommandSet
+    from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
+
+    return [FABulousREPL, *_all_subclasses(ReplCommandSet)]
+
+
+def _all_subclasses(cls: type) -> list[type]:
+    """Return every direct and indirect subclass of `cls` (deduplicated).
 
     Parameters
     ----------
-    cli_file : Path
-        Path to the CLI file to parse.
+    cls : type
+        The base class to walk.
+
+    Returns
+    -------
+    list[type]
+        All descendant classes, each appearing once.
+    """
+    seen: dict[type, None] = {}
+    stack = list(cls.__subclasses__())
+    while stack:
+        subclass = stack.pop()
+        if subclass not in seen:
+            seen[subclass] = None
+            stack.extend(subclass.__subclasses__())
+    return list(seen)
+
+
+def _collect_commands() -> dict:
+    """Collect all `do_*` commands, grouped by their cmd2 help category.
 
     Returns
     -------
     dict
-        Dictionary of commands by category.
+        Mapping of category name to a list of command doc entries.
     """
-    source = cli_file.read_text()
-    tree = ast.parse(source)
-
-    # Find category constants
-    category_map = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if (
-                    isinstance(target, ast.Name)
-                    and target.id.startswith("CMD_")
-                    and isinstance(node.value, ast.Constant)
-                ):
-                    category_map[target.id] = node.value.value
-
-    # Find parser definitions
-    parsers = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and "parser" in target.id.lower():
-                    parsers[target.id] = extract_parser_args(node, source)
-
-    # Find do_* methods
     commands_by_category: dict = {}
+    for cls in _command_classes():
+        for name, member in vars(cls).items():
+            if not name.startswith("do_") or not callable(member):
+                continue
+            category = getattr(member, constants.COMMAND_ATTR_HELP_CATEGORY, "Other")
+            commands_by_category.setdefault(category, []).append(
+                _command_entry(name, member)
+            )
+    return commands_by_category
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef) and node.name == "FABulousREPL":
-            for item in node.body:
-                if isinstance(item, ast.FunctionDef) and item.name.startswith("do_"):
-                    cmd_name = item.name[3:]
-                    docstring = ast.get_docstring(item) or "No documentation available"
-                    # Clean the docstring to remove Parameters section
-                    cleaned_docstring = clean_docstring(docstring)
-                    short_desc = cleaned_docstring.split("\n")[0].strip()
 
-                    # Get category from decorators
-                    category = "Other"
-                    parser_name = None
-                    for decorator in item.decorator_list:
-                        if isinstance(decorator, ast.Call) and isinstance(
-                            decorator.func, ast.Name
-                        ):
-                            if decorator.func.id == "with_category":
-                                if decorator.args and isinstance(
-                                    decorator.args[0], ast.Name
-                                ):
-                                    cat_var = decorator.args[0].id
-                                    category = category_map.get(cat_var, "Other")
-                            elif (
-                                decorator.func.id == "with_argparser"
-                                and decorator.args
-                                and isinstance(decorator.args[0], ast.Name)
-                            ):
-                                parser_name = decorator.args[0].id
+def _command_entry(method_name: str, fn: types.FunctionType) -> dict:
+    """Build a command doc entry from a `do_*` method.
 
-                    # Get arguments from parser
-                    arguments = []
-                    if parser_name and parser_name in parsers:
-                        arguments = parsers[parser_name]
+    Parameters
+    ----------
+    method_name : str
+        The method name, e.g. `do_load_fabric`.
+    fn : types.FunctionType
+        The (possibly `@with_annotated`-wrapped) method object.
 
-                    if category not in commands_by_category:
-                        commands_by_category[category] = []
+    Returns
+    -------
+    dict
+        A `{name, short_desc, full_desc, arguments}` record.
+    """
+    docstring = inspect.getdoc(fn) or "No documentation available"
+    cleaned_docstring = clean_docstring(docstring)
+    return {
+        "name": method_name[3:],
+        "short_desc": cleaned_docstring.split("\n")[0].strip(),
+        "full_desc": cleaned_docstring,
+        "arguments": _extract_arguments(fn),
+    }
 
-                    commands_by_category[category].append(
-                        {
-                            "name": cmd_name,
-                            "short_desc": short_desc,
-                            "full_desc": cleaned_docstring,
-                            "arguments": arguments,
-                        }
-                    )
 
-    # Sort commands within each category
+def _extract_arguments(fn: types.FunctionType) -> list[dict]:
+    """Build the argument list for a `do_*` method from its cmd2 parser.
+
+    Reads the `@with_annotated` argument parser attached by cmd2 and pairs each
+    argparse action with the parameter's type annotation. Methods without an
+    attached parser (no `@with_annotated`) have no arguments.
+
+    Parameters
+    ----------
+    fn : types.FunctionType
+        The method object to inspect.
+
+    Returns
+    -------
+    list[dict]
+        One record per argument, each with `name`, `type`, `help`,
+        `required`, `choices` and `default` keys.
+    """
+    spec = getattr(fn, constants.ARGPARSE_COMMAND_ATTR_SPEC, None)
+    if spec is None:
+        return []
+
+    # cmd2 types parser_source as "a Cmd2ArgumentParser instance or a factory
+    # that returns one" -- accept both rather than assuming either form.
+    source = spec.parser_source
+    parser = source if isinstance(source, argparse.ArgumentParser) else source()
+    type_hints = _parameter_type_hints(fn)
+
+    arguments: list[dict] = []
+    for action in parser._actions:  # noqa: SLF001
+        if isinstance(action, argparse._HelpAction):  # noqa: SLF001
+            continue
+        arguments.append(_argument_record(action, type_hints))
+    return arguments
+
+
+def _parameter_type_hints(fn: types.FunctionType) -> dict:
+    """Resolve a method's parameter annotations, keyed by parameter name.
+
+    Uses {func}`inspect.signature` rather than {func}`typing.get_type_hints` so a
+    `self` parameter annotated with a not-at-runtime-importable forward reference
+    (the standalone `do_*` functions write `self: "FABulousREPL"` to dodge a
+    circular import) never has to resolve. Only real command parameters, whose
+    types are imported at runtime, are resolved; `self` is skipped.
+
+    Parameters
+    ----------
+    fn : types.FunctionType
+        The method to inspect.
+
+    Returns
+    -------
+    dict
+        Parameter name to its (possibly `Annotated`) type object.
+    """
+    globalns = getattr(fn, "__globals__", {})
+    hints: dict = {}
+    for name, param in inspect.signature(fn).parameters.items():
+        if name == "self" or param.annotation is inspect.Parameter.empty:
+            continue
+        annotation = param.annotation
+        if isinstance(annotation, str):
+            annotation = eval(annotation, globalns)  # noqa: S307
+        hints[name] = annotation
+    return hints
+
+
+def _argument_record(action: argparse.Action, type_hints: dict) -> dict:
+    """Build one argument record from an argparse action and the method's hints.
+
+    Parameters
+    ----------
+    action : argparse.Action
+        The action to render (a positional or an option).
+    type_hints : dict
+        `typing.get_type_hints(..., include_extras=True)` for the method, keyed
+        by parameter name (`action.dest`).
+
+    Returns
+    -------
+    dict
+        A `{name, type, help, required, choices, default}` record, with markdown
+        pipes escaped so values cannot break the surrounding table.
+    """
+    is_positional = not action.option_strings
+    display_name = action.dest if is_positional else action.option_strings[0]
+
+    hint = type_hints.get(action.dest)
+    type_str = _format_type(_annotated_inner(hint)) if hint is not None else "Any"
+
+    default_str = "" if action.default is None else str(action.default)
+
+    choices_str = ""
+    if action.choices is not None:
+        choices_str = ", ".join(str(choice) for choice in action.choices)
+
+    return {
+        "name": _escape_pipe(display_name),
+        "type": _escape_pipe(type_str),
+        "help": _escape_pipe(action.help or ""),
+        "required": action.required,
+        "choices": _escape_pipe(choices_str),
+        "default": _escape_pipe(default_str),
+    }
+
+
+def _annotated_inner(hint: object) -> object:
+    """Return the underlying type of an `Annotated[T, ...]` hint, else the hint."""
+    if typing.get_origin(hint) is typing.Annotated:
+        return typing.get_args(hint)[0]
+    return hint
+
+
+def _format_type(tp: object) -> str:
+    """Render a type object as a short, source-like string.
+
+    Produces `Path`, `str | None`, `list[Path]` or `Literal[a, b]` rather
+    than the fully-qualified `repr` so the doc table stays readable.
+
+    Parameters
+    ----------
+    tp : object
+        The type (or typing construct) to render.
+
+    Returns
+    -------
+    str
+        A human-readable type string.
+    """
+    if tp is type(None):
+        return "None"
+    if isinstance(tp, type):
+        return tp.__name__
+
+    origin = typing.get_origin(tp)
+    if origin in (types.UnionType, typing.Union):
+        return " | ".join(_format_type(arg) for arg in typing.get_args(tp))
+    if origin is typing.Literal:
+        return "Literal[" + ", ".join(str(arg) for arg in typing.get_args(tp)) + "]"
+    if origin is not None:
+        args = ", ".join(_format_type(arg) for arg in typing.get_args(tp))
+        origin_name = getattr(origin, "__name__", str(origin))
+        return f"{origin_name}[{args}]"
+
+    return getattr(tp, "__name__", str(tp))
+
+
+def _escape_pipe(text: str) -> str:
+    """Escape `|` so a value doesn't break the surrounding markdown table."""
+    return text.replace("|", r"\|")
+
+
+def _category_order() -> list[str]:
+    """Return category display order, following `command_set_base` definitions.
+
+    Categories are shown in the order their `CMD_*` constants are defined in
+    `command_set_base.py`, with the `"Other"` catch-all always rendered last.
+
+    Returns
+    -------
+    list[str]
+        Category names in display order.
+    """
+    command_set_base = importlib.import_module(
+        "fabulous.fabulous_repl.command_set_base"
+    )
+    order = [
+        value
+        for name, value in vars(command_set_base).items()
+        if name.startswith("CMD_") and isinstance(value, str)
+    ]
+    order = list(dict.fromkeys(order))
+    if "Other" in order:
+        order.remove("Other")
+        order.append("Other")
+    return order
+
+
+def _sort_categories(commands_by_category: dict, category_order: list[str]) -> dict:
+    """Sort commands within each category and order the categories.
+
+    Parameters
+    ----------
+    commands_by_category : dict
+        Mapping of category name to its list of command entries.
+    category_order : list[str]
+        Category names in the desired display order. Categories present in
+        `commands_by_category` but absent here are appended afterwards.
+
+    Returns
+    -------
+    dict
+        New mapping with categories in display order, each command list sorted
+        by command name.
+    """
     for category in commands_by_category:
         commands_by_category[category].sort(key=lambda x: x["name"])
-
-    # Sort categories
-    category_order = [
-        "Setup",
-        "Fabric Flow",
-        "User Design Flow",
-        "Helper",
-        "GUI",
-        "Script",
-        "Tools",
-        "Other",
-    ]
 
     sorted_categories: dict = {}
     for cat in category_order:
         if cat in commands_by_category:
             sorted_categories[cat] = commands_by_category[cat]
-
     for cat in commands_by_category:
         if cat not in sorted_categories:
             sorted_categories[cat] = commands_by_category[cat]
-
     return sorted_categories
-
-
-def extract_standalone_commands_ast(cmd_file: Path) -> dict:
-    """Extract CLI commands from standalone command files like cmd_synthesis.py.
-
-    These files define do_* functions at module level (not in a class) that get
-    mixed into the CLI class.
-
-    Parameters
-    ----------
-    cmd_file : Path
-        Path to the command file to parse.
-
-    Returns
-    -------
-    dict
-        Dictionary of commands by category.
-    """
-    source = cmd_file.read_text()
-    tree = ast.parse(source)
-
-    # Find category constants
-    category_map = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if (
-                    isinstance(target, ast.Name)
-                    and target.id.startswith("CMD_")
-                    and isinstance(node.value, ast.Constant)
-                ):
-                    category_map[target.id] = node.value.value
-
-    # Find parser definitions
-    parsers = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and "parser" in target.id.lower():
-                    parsers[target.id] = extract_parser_args(node, source)
-
-    # Find do_* functions at module level
-    commands_by_category: dict = {}
-
-    for node in ast.iter_child_nodes(tree):
-        if isinstance(node, ast.FunctionDef) and node.name.startswith("do_"):
-            cmd_name = node.name[3:]
-            docstring = ast.get_docstring(node) or "No documentation available"
-            # Clean the docstring to remove Parameters section
-            cleaned_docstring = clean_docstring(docstring)
-            short_desc = cleaned_docstring.split("\n")[0].strip()
-
-            # Get category from decorators
-            category = "Other"
-            parser_name = None
-            for decorator in node.decorator_list:
-                if isinstance(decorator, ast.Call) and isinstance(
-                    decorator.func, ast.Name
-                ):
-                    if decorator.func.id == "with_category":
-                        if decorator.args and isinstance(decorator.args[0], ast.Name):
-                            cat_var = decorator.args[0].id
-                            category = category_map.get(cat_var, "Other")
-                    elif (
-                        decorator.func.id == "with_argparser"
-                        and decorator.args
-                        and isinstance(decorator.args[0], ast.Name)
-                    ):
-                        parser_name = decorator.args[0].id
-
-            # Get arguments from parser
-            arguments = []
-            if parser_name and parser_name in parsers:
-                arguments = parsers[parser_name]
-
-            if category not in commands_by_category:
-                commands_by_category[category] = []
-
-            commands_by_category[category].append(
-                {
-                    "name": cmd_name,
-                    "short_desc": short_desc,
-                    "full_desc": cleaned_docstring,
-                    "arguments": arguments,
-                }
-            )
-
-    return commands_by_category
-
-
-def extract_parser_args(assign_node: ast.Assign, source: str) -> list:
-    """Extract argument info from parser definition using regex on source.
-
-    Parameters
-    ----------
-    assign_node : ast.Assign
-        The AST assignment node for the parser.
-    source : str
-        The source code.
-
-    Returns
-    -------
-    list
-        List of argument dictionaries.
-    """
-    arguments: list = []
-
-    # Get the parser variable name
-    if not assign_node.targets:
-        return arguments
-    target = assign_node.targets[0]
-    if not isinstance(target, ast.Name):
-        return arguments
-
-    parser_name = target.id
-
-    # Get line range for this assignment and following add_argument calls
-    start_line = assign_node.lineno
-    lines = source.split("\n")
-
-    # Search for add_argument calls after the parser definition
-    in_parser_block = False
-    for i, line in enumerate(lines[start_line - 1 :], start=start_line):
-        if parser_name in line and "Cmd2ArgumentParser" in line:
-            in_parser_block = True
-            continue
-
-        if in_parser_block:
-            if f"{parser_name}.add_argument" in line:
-                # Extract argument info from the add_argument call
-                arg_info = parse_add_argument(lines, i - 1)
-                if arg_info:
-                    arguments.append(arg_info)
-            elif (
-                line.strip()
-                and not line.strip().startswith("#")
-                and not line.strip().startswith(")")
-            ):
-                # Check if we've moved past this parser's definitions
-                if (
-                    re.match(r"^\s*\w+\s*=", line)
-                    or line.strip().startswith("@")
-                    or line.strip().startswith("def ")
-                ):
-                    break
-
-    return arguments
-
-
-def parse_add_argument(lines: list, start_idx: int) -> dict | None:
-    """Parse a single add_argument call.
-
-    Parameters
-    ----------
-    lines : list
-        List of source code lines.
-    start_idx : int
-        Starting line index.
-
-    Returns
-    -------
-    dict | None
-        Argument info dictionary or None if parsing fails.
-    """
-    # Collect the full add_argument call (may span multiple lines)
-    call_text = ""
-    paren_count = 0
-    started = False
-
-    for i in range(start_idx, min(start_idx + 20, len(lines))):
-        line = lines[i]
-        for char in line:
-            if char == "(":
-                paren_count += 1
-                started = True
-            elif char == ")":
-                paren_count -= 1
-
-            if started:
-                call_text += char
-
-            if started and paren_count == 0:
-                break
-
-        if started and paren_count == 0:
-            break
-        call_text += " "
-
-    if not call_text:
-        return None
-
-    # Extract argument name (first string argument)
-    name_match = re.search(r'["\']([^"\']+)["\']', call_text)
-    if not name_match:
-        return None
-
-    arg_name = name_match.group(1).lstrip("-")
-
-    # Extract type
-    arg_type = "str"
-    type_match = re.search(r"type\s*=\s*(\w+)", call_text)
-    if type_match:
-        arg_type = type_match.group(1)
-
-    # Extract help text
-    help_text = ""
-    help_match = re.search(r'help\s*=\s*["\']([^"\']+)["\']', call_text)
-    if help_match:
-        help_text = help_match.group(1)
-
-    # Extract default
-    default = ""
-    default_match = re.search(r"default\s*=\s*([^,\)]+)", call_text)
-    if default_match:
-        default = default_match.group(1).strip().strip("\"'")
-        if default in ('""', "''", ""):
-            default = ""
-
-    # Check if required (no nargs=? or default)
-    required = "nargs" not in call_text.lower() and "default" not in call_text.lower()
-
-    return {
-        "name": arg_name,
-        "type": arg_type,
-        "help": help_text,
-        "required": required,
-        "choices": "",
-        "default": default,
-    }

@@ -43,9 +43,27 @@ This project is under active development.
 
 ```{toctree}
 :maxdepth: 2
+:caption: Getting started
 
-getting_started/index
-user_guide/index
+getting_started/quickstart
+getting_started/codespaces
+getting_started/installation/index
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: User guide
+
+user_guide/building_doc/index
+user_guide/cli_doc/index
+user_guide/using_doc/index
+user_guide/simulation/index
+```
+
+```{toctree}
+:maxdepth: 1
+:caption: Reference
+
 developer_guide/development
 gallery/index
 misc/contact

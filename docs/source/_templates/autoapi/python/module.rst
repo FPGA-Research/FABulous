@@ -6,9 +6,9 @@
 .. py:module:: {{ obj.name }}
 
       {% if obj.docstring %}
-.. autoapi-nested-parse::
+.. myst-docstring::
 
-   {{ obj.docstring|normalize_docstring_for_rst|indent(3) }}
+   {{ obj.docstring|indent(3) }}
 
       {% endif %}
 
@@ -144,9 +144,9 @@ Functions
 .. py:module:: {{ obj.name }}
 
       {% if obj.docstring %}
-   .. autoapi-nested-parse::
+   .. myst-docstring::
 
-      {{ obj.docstring|normalize_docstring_for_rst|indent(6) }}
+      {{ obj.docstring|indent(6) }}
 
       {% endif %}
       {% for obj_item in visible_children %}

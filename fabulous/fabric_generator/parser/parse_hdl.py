@@ -105,9 +105,11 @@ def parseBelFile(
     The function will also parse and record all the FABulous attributes
     which all start with:
 
-        (* FABulous, <type>, ... *)
+    ```verilog
+    (* FABulous, <type>, ... *)
+    ```
 
-    The <type> can be one the following:
+    The `<type>` can be one the following:
 
     * **BelMap**
     * **EXTERNAL**
@@ -120,21 +122,20 @@ def parseBelFile(
     The **BelMap** attribute will specify the bel mapping for the bel.
     This attribute should be placed before the start of the module.
     The bel mapping is then used for generating the bitstream specification.
-    Each of the entry in the attribute will have the following format::
-
-    <name> = <value>
-
-    ``<name>`` is the name of the feature and ``<value>`` will be the
-    bit position of the feature. ie. ``INIT=0`` will specify that the feature
-    ``INIT`` is located at bit 0.
+    Each of the entry in the attribute will have the format `<name> = <value>`,
+    where `<name>` is the name of the feature and `<value>` will be the
+    bit position of the feature. ie. `INIT=0` will specify that the feature
+    `INIT` is located at bit 0.
     Since a single feature can be mapped to multiple bits, this is currently done by
     specifying multiple entries for the same feature.
     This will be changed in the future.
-    The bit specification is done in the following way::
+    The bit specification is done in the following way:
 
-        INIT_a_1=1, INIT_a_2=2, ...
+    ```text
+    INIT_a_1=1, INIT_a_2=2, ...
+    ```
 
-    The name of the feature will be converted to ``INIT_a[1]``, ``INIT_a[2]``
+    The name of the feature will be converted to `INIT_a[1]`, `INIT_a[2]`
     for the above example. This is necessary
     because  Verilog does not allow square brackets as part of the attribute name.
 
@@ -153,25 +154,26 @@ def parseBelFile(
     Example
     -------
     Verilog
-    ::
 
-        (* FABulous, BelMap,
-        single_bit_feature=0, //single bit feature, single_bit_feature=0
-        multiple_bits_0=1, //multiple bit feature bit0, multiple_bits[0]=1
-        multiple_bits_1=2 //multiple bit feature bit1, multiple_bits[1]=2
-        *)
-        module exampleModule (
-            externalPin,
-            normalPin1,
-            normalPin2,
-            sharedPin,
-            globalPin);
-            (* FABulous, EXTERNAL *) input externalPin;
-            input normalPin;
-            (* FABulous, EXTERNAL, SHARED_PORT *) input sharedPin;
-            (* FABulous, GLOBAL) input globalPin;
-            output normalPin2; //do not get parsed
-            ...
+    ```verilog
+    (* FABulous, BelMap,
+    single_bit_feature=0, //single bit feature, single_bit_feature=0
+    multiple_bits_0=1, //multiple bit feature bit0, multiple_bits[0]=1
+    multiple_bits_1=2 //multiple bit feature bit1, multiple_bits[1]=2
+    *)
+    module exampleModule (
+        externalPin,
+        normalPin1,
+        normalPin2,
+        sharedPin,
+        globalPin);
+        (* FABulous, EXTERNAL *) input externalPin;
+        input normalPin;
+        (* FABulous, EXTERNAL, SHARED_PORT *) input sharedPin;
+        (* FABulous, GLOBAL) input globalPin;
+        output normalPin2; //do not get parsed
+        ...
+    ```
 
     Parameters
     ----------

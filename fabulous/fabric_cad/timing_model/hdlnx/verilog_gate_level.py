@@ -489,13 +489,15 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         have *all* nets in `nets` connected to any of their pins.
 
         - Only looks at direct instances inside the given module (no hierarchy).
-        - Assumes gate-level style instantiations like
+        - Assumes gate-level style instantiations like:
 
-            cell_type inst_name (
-                .A0(net1),
-                .A1(net2),
-                ...
-            );
+        ```
+        cell_type inst_name (
+            .A0(net1),
+            .A1(net2),
+            ...
+        );
+        ```
 
         Parameters
         ----------
