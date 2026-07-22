@@ -17,8 +17,8 @@ __all__ = ["make_empty_tile"]
 def make_fabric() -> Callable[..., Fabric]:
     """Return a factory that creates a real Fabric with sensible defaults.
 
-    Unlike the mocked fixtures in ``fabric_gen_test/conftest.py``, the objects
-    produced here go through ``__post_init__`` and therefore exercise all
+    Unlike the mocked fixtures in `fabric_gen_test/conftest.py`, the objects
+    produced here go through `__post_init__` and therefore exercise all
     validation logic.
     """
 

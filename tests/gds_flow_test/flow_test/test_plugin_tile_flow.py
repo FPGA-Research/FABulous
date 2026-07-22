@@ -2,7 +2,7 @@
 
 These tests verify the *adapting* layer: how `FABulousTile` translates
 plugin-level config variables and tile-directory inputs into what the
-underlying :class:`FABulousTileVerilogMacroFlow` pipeline expects. They do not
+underlying {class}`FABulousTileVerilogMacroFlow` pipeline expects. They do not
 exercise the real LibreLane pipeline (that is covered elsewhere).
 """
 
@@ -447,7 +447,7 @@ def _build_synthetic_tile(parent: Path) -> Path:
 
     Produces `<parent>/<name>/<name>.csv` and the matching
     `<name>_switch_matrix.list`. The trailing comma on each line keeps the
-    `temp[6]` lookup in :func:`parseTilesCSV` safe.
+    `temp[6]` lookup in {func}`parseTilesCSV` safe.
     """
     name = SYNTHETIC_TILE_NAME
     tile_dir = parent / name
@@ -471,7 +471,7 @@ def _build_synthetic_tile(parent: Path) -> Path:
 class TestFABulousTileEndToEnd:
     """End-to-end exercise of `FABulousTile.run()` against a synthetic tile.
 
-    Unlike :class:`TestFABulousTileRunAdapter`, this class does not mock the
+    Unlike {class}`TestFABulousTileRunAdapter`, this class does not mock the
     plugin's prep work (CSV parsing, RTL emission, pin-YAML generation): it
     runs the real generators on disk. Only the PDK-reading helpers and the
     inherited `SequentialFlow.run` are stubbed, so we cover regressions in

@@ -33,7 +33,7 @@ def _disable_pdk_download(
 ) -> None:
     """Strip FAB_PDK / FAB_PDK_ROOT so RTL tests don't trigger PDK downloads.
 
-    Gate-level (``@pytest.mark.gl``) tests are exempt — they consume an
+    Gate-level (`@pytest.mark.gl`) tests are exempt — they consume an
     already-hardened project and explicitly need the PDK env vars to resolve
     standard-cell sim libraries.
     """
@@ -71,7 +71,7 @@ class FabricConfigDUT(Protocol):
 
 
 class FabricClockedDUT(FabricConfigDUT, Protocol):
-    """Fabric DUT that also exposes the top-level ``UserCLK`` input."""
+    """Fabric DUT that also exposes the top-level `UserCLK` input."""
 
     UserCLK: LogicObject
 
@@ -97,16 +97,16 @@ _USE_TO_PORT: dict[str, str] = {"IN": "I", "OUT": "O", "EN": "T"}
 class PCF:
     """Resolve user-design signals on a generated FABulous fabric DUT.
 
-    A FABulous ``.pcf`` file maps a user-design signal name to a fabric
+    A FABulous `.pcf` file maps a user-design signal name to a fabric
     location::
 
         set_io a[3]       X1Y2/A
         set_io clk        X3Y0/B
 
     `PCF` parses such a file, then walks the cocotb top-level handle
-    to bind each ``<signal>[<index>]`` to the matching
+    to bind each `<signal>[<index>]` to the matching
     `Tile_X#Y#_<bel>_<use>_top` ports for `IN` (drive into fabric),
-    `OUT`` (read from fabric) and ``EN`` (output-enable) directions. Tests
+    `OUT` (read from fabric) and `EN`` (output-enable) directions. Tests
     can then drive or sample signals **by user name** instead of touching
     tile-relative ports, which keeps the test code portable across fabric
     layouts.
@@ -147,7 +147,7 @@ class PCF:
                 self._bind_line(match)
 
     def _bind_line(self, match: re.Match[str]) -> None:
-        """Bind a single ``set_io`` line to the matching DUT ports."""
+        """Bind a single `set_io` line to the matching DUT ports."""
         signal = match.group("signal")
         index = int(match.group("index")) if match.group("index") is not None else 0
         tile_x = match.group("tilex")
@@ -179,21 +179,21 @@ class PCF:
         return self._port_index.get(key)
 
     def get(self, signal: str, index: int | None = None) -> LogicArray | Logic:
-        """Read the current ``IN`` value of ``signal``.
+        """Read the current `IN` value of `signal`.
 
         Parameters
         ----------
         signal : str
             User-design signal name as it appears in the PCF.
         index : int | None, optional
-            If ``None`` (default), the whole bus is returned as a
-            :class:`LogicArray`. Otherwise a single bit as a :class:`Logic`.
+            If `None` (default), the whole bus is returned as a
+            {class}`LogicArray`. Otherwise a single bit as a {class}`Logic`.
 
         Returns
         -------
         LogicArray | Logic
             The signal value. If index is None, returns the whole bus as a
-            :class:`LogicArray`. Otherwise a single :class:`Logic`.
+            {class}`LogicArray`. Otherwise a single {class}`Logic`.
         """
         if index is None:
             bits = "".join(
@@ -208,15 +208,15 @@ class PCF:
         value: LogicArray | Logic,
         index: int | None = None,
     ) -> None:
-        """Drive ``value`` onto the ``OUT`` (fabric-input) pins of ``signal``.
+        """Drive `value` onto the `OUT` (fabric-input) pins of `signal`.
 
         Parameters
         ----------
         signal : str
             User-design signal name as it appears in the PCF.
         value : LogicArray | Logic
-            New value. Must be a :class:`LogicArray` of matching width when
-            ``index`` is ``None``, otherwise a single :class:`Logic`.
+            New value. Must be a {class}`LogicArray` of matching width when
+            `index` is `None`, otherwise a single {class}`Logic`.
         index : int | None, optional
             If given, only this bit is updated.
         """
@@ -229,7 +229,7 @@ class PCF:
     def get_raw(self, signal: str, use: str, index: int = 0) -> LogicObject:
         """Return the raw cocotb handle for a signal pin.
 
-        Use this when you need a handle for triggers (e.g. ``RisingEdge``) or
+        Use this when you need a handle for triggers (e.g. `RisingEdge`) or
         for clocking a generated clock onto a routed input.
 
         Parameters
@@ -237,9 +237,9 @@ class PCF:
         signal : str
             User-design signal name.
         use : str
-            ``"IN"``, ``"OUT"`` or ``"EN"``.
+            `"IN"`, `"OUT"` or `"EN"`.
         index : int, optional
-            Bit index. Default ``0``.
+            Bit index. Default `0`.
 
         Returns
         -------
@@ -259,9 +259,9 @@ async def zero_bitstream(dut: FabricConfigDUT, delay_ns: int = 10) -> None:
     Parameters
     ----------
     dut : FabricConfigDUT
-        cocotb top-level handle exposing ``FrameData`` and ``FrameStrobe``.
+        cocotb top-level handle exposing `FrameData` and `FrameStrobe`.
     delay_ns : int, optional
-        Duration each phase is held, in nanoseconds. Default ``10``.
+        Duration each phase is held, in nanoseconds. Default `10`.
     """
     dut.FrameData.value = 0
     dut.FrameStrobe.value = (1 << len(dut.FrameStrobe)) - 1
@@ -364,7 +364,7 @@ async def setup_fabric(dut: FabricConfigDUT, settle_ns: int = 10) -> PCF:
     in, and waits `settle_ns` between each phase so combinational paths
     propagate.
 
-    Returns the :class:`PCF` so tests can drive/sample by user-design
+    Returns the {class}`PCF` so tests can drive/sample by user-design
     signal name without repeating the boilerplate.
 
     Parameters
@@ -372,7 +372,7 @@ async def setup_fabric(dut: FabricConfigDUT, settle_ns: int = 10) -> PCF:
     dut : FabricConfigDUT
         cocotb top-level handle.
     settle_ns : int, optional
-        Per-phase settling delay in ns. Default ``10``.
+        Per-phase settling delay in ns. Default `10`.
 
     Returns
     -------
@@ -393,9 +393,9 @@ async def setup_fabric(dut: FabricConfigDUT, settle_ns: int = 10) -> PCF:
 
 
 def _collect_fabric_sources(project_dir: Path, suffix: str) -> list[Path]:
-    """Return every HDL source emitted under ``Fabric/`` and ``Tile/``.
+    """Return every HDL source emitted under `Fabric/` and `Tile/`.
 
-    FABulous emits the same module (e.g. ``Config_access.v``) under multiple
+    FABulous emits the same module (e.g. `Config_access.v`) under multiple
     tile directories with identical content; deduplicate by basename so the
     simulator sees one definition per module name.
     """
@@ -420,25 +420,25 @@ def _collect_fabric_sources(project_dir: Path, suffix: str) -> list[Path]:
 
 
 def set_multiplexer_style(project_dir: Path, style: str) -> None:
-    """Rewrite the ``MultiplexerStyle`` value in a project's ``fabric.csv``.
+    """Rewrite the `MultiplexerStyle` value in a project's `fabric.csv`.
 
-    Flips the switch-matrix mux style the generated fabric will use (``custom``
-    or ``generic``) by editing only the value column of the
-    ``MultiplexerStyle`` row, leaving the trailing comment columns intact. The
-    edit happens before ``load_fabric`` so the real ``parse_csv`` path consumes
+    Flips the switch-matrix mux style the generated fabric will use (`custom`
+    or `generic`) by editing only the value column of the
+    `MultiplexerStyle` row, leaving the trailing comment columns intact. The
+    edit happens before `load_fabric` so the real `parse_csv` path consumes
     it rather than the in-memory model being mutated.
 
     Parameters
     ----------
     project_dir : Path
-        FABulous project directory containing ``fabric.csv``.
+        FABulous project directory containing `fabric.csv`.
     style : str
-        New multiplexer style, e.g. ``"custom"`` or ``"generic"``.
+        New multiplexer style, e.g. `"custom"` or `"generic"`.
 
     Raises
     ------
     ValueError
-        If ``fabric.csv`` has no ``MultiplexerStyle`` row.
+        If `fabric.csv` has no `MultiplexerStyle` row.
     """
     fabric_csv = project_dir / "fabric.csv"
     lines = fabric_csv.read_text().splitlines()
@@ -466,32 +466,32 @@ def stage_user_design(
     design_name: str,
     lang: HDLType = HDLType.VERILOG,
 ) -> tuple[Path, Path]:
-    """Copy a packaged user design + PCF into ``project_dir/user_design/``.
+    """Copy a packaged user design + PCF into `project_dir/user_design/`.
 
-    Looks for ``user_designs/<design_name>.<ext>`` (extension chosen from
-    ``lang``), copies it next to a fresh empty ``top_wrapper.v`` and a copy
-    of the shared ``constraints.pcf`` renamed to ``<design_name>.pcf``.
+    Looks for `user_designs/<design_name>.<ext>` (extension chosen from
+    `lang`), copies it next to a fresh empty `top_wrapper.v` and a copy
+    of the shared `constraints.pcf` renamed to `<design_name>.pcf`.
 
     Parameters
     ----------
     project_dir : Path
         The project directory to stage the user design into.
     design_name : str
-        Basename of the packaged design under ``user_designs/``.
+        Basename of the packaged design under `user_designs/`.
     lang : HDLType, optional
         Source language to select the file extension. Default
-        ``HDLType.VERILOG``.
+        `HDLType.VERILOG`.
 
     Returns
     -------
     tuple[Path, Path]
-        ``(user_design_path, pcf_path)`` inside the project — both ready to
-        be passed to :func:`compile_user_design`.
+        `(user_design_path, pcf_path)` inside the project — both ready to
+        be passed to {func}`compile_user_design`.
 
     Raises
     ------
     FileNotFoundError
-        If no source file matching ``design_name`` and ``lang`` exists.
+        If no source file matching `design_name` and `lang` exists.
     """
     suffixes = _USER_DESIGN_SUFFIXES[lang]
     candidates = [_USER_DESIGNS_DIR / f"{design_name}{ext}" for ext in suffixes]
@@ -519,9 +519,9 @@ def compile_user_design(
     design_name: str,
     pcf: Path,
 ) -> Path:
-    """Drive ``compile_design`` through Yosys + nextpnr + bitgen.
+    """Drive `compile_design` through Yosys + nextpnr + bitgen.
 
-    Mirrors what ``test_design_pattern`` (RTL) and ``test_design_pattern_gl``
+    Mirrors what `test_design_pattern` (RTL) and `test_design_pattern_gl`
     (GL) both need: synthesise the user design against the loaded fabric,
     place-and-route under the supplied PCF, generate the bitstream binary,
     and surface a clear failure if the binary is missing.
@@ -533,19 +533,19 @@ def compile_user_design(
     user_design : Path
         Path to the staged user design source to compile.
     design_name : str
-        Top-level module name passed to ``compile_design``.
+        Top-level module name passed to `compile_design`.
     pcf : Path
         Pin constraints file forwarded to nextpnr.
 
     Returns
     -------
     Path
-        The ``.bin`` bitstream produced next to ``user_design``.
+        The `.bin` bitstream produced next to `user_design`.
 
     Raises
     ------
     FileNotFoundError
-        If ``compile_design`` does not produce the expected bitstream.
+        If `compile_design` does not produce the expected bitstream.
     """
     run_cmd(
         cli,
@@ -587,8 +587,8 @@ _COMMON_TEMPLATE_TEST_DIR = (
 def pytest_addoption(parser: pytest.Parser) -> None:  # type: ignore[name-defined]
     """Register GL-only knobs.
 
-    ``--gl`` and ``--gl-fabric-project`` are registered in the repo-level
-    ``tests/conftest.py``; ``--gl-sim-libs`` is GL-specific and lives here.
+    `--gl` and `--gl-fabric-project` are registered in the repo-level
+    `tests/conftest.py`; `--gl-sim-libs` is GL-specific and lives here.
     """
     group = parser.getgroup("FABulous GL simulation")
     group.addoption(
@@ -630,13 +630,13 @@ def gl_fabric_project(pytestconfig: pytest.Config) -> Path:
 
 
 def _ignore_heavy_artifacts(src_dir: str, names: list[str]) -> set[str]:
-    """``shutil.copytree`` filter that skips LibreLane run output.
+    """`shutil.copytree` filter that skips LibreLane run output.
 
     Hardened projects can be tens of GB because every Tile/ holds the full
-    librelane ``runs/`` tree plus per-macro snapshots. ``run_simulation --gl``
-    only reads the netlists under each ``macro/final_views/`` (see
-    ``collect_gl_sources``), so keep that subtree and drop the rest of
-    ``macro/`` along with ``runs/`` and ``gds/`` to keep the per-test copy
+    librelane `runs/` tree plus per-macro snapshots. `run_simulation --gl`
+    only reads the netlists under each `macro/final_views/` (see
+    `collect_gl_sources`), so keep that subtree and drop the rest of
+    `macro/` along with `runs/` and `gds/` to keep the per-test copy
     cheap.
     """
     skip = {"runs", "gds", ".git", "__pycache__"}
@@ -656,13 +656,13 @@ def hardened_project_copy(
 ) -> Path:
     """Per-test copy of the hardened project, with Test/ refreshed.
 
-    ``compile_design`` mutates ``user_design/`` and writes intermediate files
-    into ``.FABulous/``, so the supplied artifact is copied into a fresh tmp
+    `compile_design` mutates `user_design/` and writes intermediate files
+    into `.FABulous/`, so the supplied artifact is copied into a fresh tmp
     dir first to keep it untouched and to allow parallel runs. The copy
-    drops the heavy librelane artifacts (``runs/``, ``gds/`` and the
-    non-``final_views`` parts of each ``macro/``) but keeps the
-    ``macro/final_views`` netlists, since ``run_simulation --gl`` resolves
-    the gate-level sources from the copy (see ``collect_gl_sources``).
+    drops the heavy librelane artifacts (`runs/`, `gds/` and the
+    non-`final_views` parts of each `macro/`) but keeps the
+    `macro/final_views` netlists, since `run_simulation --gl` resolves
+    the gate-level sources from the copy (see `collect_gl_sources`).
 
     The Test/ Taskfile is taken from the **current** FABulous template rather
     than what shipped with the artifact, because the compile_design contract
@@ -685,7 +685,7 @@ def hardened_project_copy(
         if src.is_file():
             shutil.copy2(src, test_dir / src.name)
 
-    # The repo-level autouse fixture stubs ``get_ciel_home`` to a hermetic tmp
+    # The repo-level autouse fixture stubs `get_ciel_home` to a hermetic tmp
     # dir (with only an ihp placeholder) so unit tests never touch the real PDK
     # store. GL simulation needs the real standard-cell models, so restore the
     # genuine ciel resolver, which froze the real ciel home at import time.
@@ -703,16 +703,16 @@ def fabulous_project(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Path:
-    """Marker-aware override of the global ``fabulous_project`` fixture.
+    """Marker-aware override of the global `fabulous_project` fixture.
 
-    ``@pytest.mark.gl`` tests get the per-test copy of the user's hardened
-    LibreLane project (so the ``cli`` fixture binds to it transparently);
+    `@pytest.mark.gl` tests get the per-test copy of the user's hardened
+    LibreLane project (so the `cli` fixture binds to it transparently);
     every other test in this directory falls back to a fresh empty project,
-    matching the global behaviour from ``tests/conftest.py``.
+    matching the global behaviour from `tests/conftest.py`.
 
-    The override has to live here (rather than as a ``cli`` override) because
-    the ``cli`` fixture is verilog-only and the lookup happens via
-    ``fabulous_project``; intercepting at that hop lets GL tests reuse ``cli``
+    The override has to live here (rather than as a `cli` override) because
+    the `cli` fixture is verilog-only and the lookup happens via
+    `fabulous_project`; intercepting at that hop lets GL tests reuse `cli`
     without further wiring.
     """
     if request.node.get_closest_marker("gl"):

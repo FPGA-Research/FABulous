@@ -437,8 +437,8 @@ end process;
     ) -> None:
         """Assign a behavioral mux output, converting the select slice to integer.
 
-        VHDL array indices must be integers, so the ``std_logic_vector`` select
-        slice is converted with ``to_integer(unsigned(...))``.
+        VHDL array indices must be integers, so the `std_logic_vector` select
+        slice is converted with `to_integer(unsigned(...))`.
 
         Parameters
         ----------

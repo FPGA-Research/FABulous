@@ -31,14 +31,16 @@ def delay_type(delay_paths: dict, kind: DelayType = DelayType.MAX_ALL) -> float:
     different conditions (fast, slow, nominal). For example, a delay dictionary
     might look like this:
 
-    delay_paths{
+    ```python
+    delay_paths = {
         "fast": {"min": 1.0, "avg": None, "max": 2.0},
         "slow": {"min": 3.0, "avg": None, "max": 4.0},
-        "nominal": {"min": 2.0,  "avg": None, "max": 3.0}
+        "nominal": {"min": 2.0, "avg": None, "max": 3.0},
     }
+    ```
 
-    which will be in the SDF as: ((1.0::2.0) (3.0::4.0)) for fast
-    and slow, and (2.0::3.0) for nominal.
+    which will be in the SDF as `((1.0::2.0) (3.0::4.0))` for fast
+    and slow, and `(2.0::3.0)` for nominal.
 
     Parameters
     ----------

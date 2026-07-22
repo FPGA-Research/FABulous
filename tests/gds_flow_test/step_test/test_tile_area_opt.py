@@ -102,9 +102,9 @@ class TestTileOptimisation:
     ) -> None:
         """Test post_loop_callback returns a state derived from the last working one.
 
-        The result is a freshly constructed ``State`` so the ``fabulous__clean_probes``
+        The result is a freshly constructed `State` so the `fabulous__clean_probes`
         metric can be added onto an immutable metrics dict — identity comparison
-        against ``mock_state`` no longer holds, but the original metrics must still be
+        against `mock_state` no longer holds, but the original metrics must still be
         visible on the returned state.
         """
         step = TileAreaOptimisation(mock_config)
@@ -168,12 +168,12 @@ class TestTileOptimisation:
 class TestSupertileDieAreaGridAlignment:
     """BALANCE/LARGE die-area sizing must keep every logical division on-grid.
 
-    A super tile is split into ``FABULOUS_TILE_LOGICAL_WIDTH`` equal physical
+    A super tile is split into `FABULOUS_TILE_LOGICAL_WIDTH` equal physical
     divisions during IO placement; each division origin must land on the routing
-    grid, so ``width / logical_width`` must be a multiple of the track pitch (and
+    grid, so `width / logical_width` must be a multiple of the track pitch (and
     likewise for height). Rounding only the total dimension to the pitch leaves
     per-division boundaries off-grid for multi-column/row super tiles, producing
-    the ``[DRT-0416] offgrid pin shape`` failure seen on unusually shaped tiles.
+    the `[DRT-0416] offgrid pin shape` failure seen on unusually shaped tiles.
     """
 
     def test_pre_iteration_keeps_divisions_on_grid(
@@ -252,9 +252,9 @@ class TestSupertileDieAreaGridAlignment:
 
 
 class TestRunUserFixedSmartInit:
-    """``run`` smart-init when the user has supplied a DIE_AREA.
+    """`run` smart-init when the user has supplied a DIE_AREA.
 
-    When ``FABULOUS_IGNORE_DEFAULT_DIE_AREA`` is False the user DIE_AREA reaches
+    When `FABULOUS_IGNORE_DEFAULT_DIE_AREA` is False the user DIE_AREA reaches
     this step. Directional modes hold its non-minimised axis constant and seed the
     minimised axis from the synthesised instance area so the bracket search starts
     somewhere feasible; BALANCE/LARGE keep it as the floor both axes grow from.
@@ -379,10 +379,10 @@ class TestRunUserFixedSmartInit:
 
 
 class TestOptModeMissing:
-    """``OptMode._missing_`` is the entry point for tolerant string lookups.
+    """`OptMode._missing_` is the entry point for tolerant string lookups.
 
     The CSV / config layer hands us strings with arbitrary case and the explicit
-    sentinel ``None``; this method maps both onto canonical members.
+    sentinel `None`; this method maps both onto canonical members.
     """
 
     def test_uppercase_string_matches_lowercase_member(self) -> None:
@@ -401,7 +401,7 @@ class TestOptModeMissing:
 
 
 class TestDirectionalHelpers:
-    """``_is_directional`` and ``_directional_target`` drive bracket-based search."""
+    """`_is_directional` and `_directional_target` drive bracket-based search."""
 
     def test_is_directional_true_for_min_width_and_min_height(
         self, mock_config: Config
@@ -444,7 +444,7 @@ class TestDirectionalHelpers:
 
 
 class TestComputeNewDimensions:
-    """``_compute_new_dimensions`` covers BALANCE / LARGE / supertile-aspect logic."""
+    """`_compute_new_dimensions` covers BALANCE / LARGE / supertile-aspect logic."""
 
     def test_balance_grows_smaller_axis(self, mock_config: Config) -> None:
         # BALANCE on a non-supertile (logical=1x1) grows the smaller axis only.
@@ -495,7 +495,7 @@ class TestComputeNewDimensions:
 
     def test_instance_area_overflow_scales_both_axes(self, mock_config: Config) -> None:
         # When instance area > core area, both axes scale by sqrt(ratio)
-        # *before* the per-axis step is applied.
+        # _before_ the per-axis step is applied.
         cfg = mock_config.copy(FABULOUS_OPT_MODE=OptMode.LARGE)
         step = TileAreaOptimisation(cfg)
         step.config = cfg
@@ -552,10 +552,10 @@ class TestComputeNewDimensions:
 
 
 class TestComputeBinarySearchDimensions:
-    """``_compute_binary_search_dimensions`` is the bracket-based axis search.
+    """`_compute_binary_search_dimensions` is the bracket-based axis search.
 
     Phase 1 (bracketing): no working point yet — double the target axis until
-    we hit ``bracket_cap``.
+    we hit `bracket_cap`.
     Phase 2 (bisecting): once a working point exists, bisect between the
     largest failure and the smallest success.
     """
