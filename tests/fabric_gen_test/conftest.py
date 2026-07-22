@@ -563,13 +563,52 @@ class Netlist:
         """Names of every sub-instance."""
         return set(self.top.cells)
 
+    def _src_sinks(self, bit: int) -> tuple[tuple[str, str], list[tuple[str, str]]]:
+        """Split the terminals on net `bit` into its driver and its sinks.
+
+        Parameters
+        ----------
+        bit : int
+            Net ID to resolve.
+
+        Returns
+        -------
+        tuple[tuple[str, str], list[tuple[str, str]]]
+            The driving `(instance, port)` (`("", "z")` when the net is driven
+            from outside the top module) and the driven `(instance, port)`
+            terminals.
+
+        Raises
+        ------
+        ValueError
+            If the net reaches no sink, or is driven by more than one output.
+        """
+        src: list[tuple[str, str]] = []
+        sinks: list[tuple[str, str]] = []
+        for cell_name, cell in self.top.cells.items():
+            for port, bits in cell.connections.items():
+                if bit not in bits:
+                    continue
+                if cell.port_directions[port] == "output":
+                    src.append((cell_name, port))
+                else:
+                    sinks.append((cell_name, port))
+
+        if not sinks:
+            raise ValueError(f"Net {bit} reaches no sink in module {self.top_name}")
+        if len(src) > 1:
+            raise ValueError(f"Multiple drivers found for net {bit}: {src}")
+
+        # A net fed by a top-level input has no driving cell inside this module.
+        return (src[0] if src else ("", "z")), sinks
+
     def driver(self, bit: int) -> tuple[str, str]:
         """The `(instance, port)` driving net `bit` (`("", "z")` if undriven)."""
-        return self.yj.getNetPortSrcSinks(bit)[0]
+        return self._src_sinks(bit)[0]
 
     def sinks(self, bit: int) -> list[tuple[str, str]]:
         """The `(instance, port)` terminals driven by net `bit`."""
-        return self.yj.getNetPortSrcSinks(bit)[1]
+        return self._src_sinks(bit)[1]
 
 
 class GridConnectivity:
