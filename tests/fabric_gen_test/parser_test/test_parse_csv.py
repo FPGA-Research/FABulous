@@ -92,8 +92,8 @@ class TestPortNameTrailingDigit:
     """A declared port name must not end in a digit.
 
     Trailing digits are reserved for the index that wire expansion appends
-    (``N1BEG`` -> `N1BEG0`, `N1BEG1` ...). A declared name that already
-    ends in a digit (e.g. ``X0_Y4_2_X0_Y3``) becomes ambiguous once the index
+    (`N1BEG` -> `N1BEG0`, `N1BEG1` ...). A declared name that already
+    ends in a digit (e.g. `X0_Y4_2_X0_Y3`) becomes ambiguous once the index
     is appended, because downstream the trailing digits are read back as a bit
     index. Reject such names at the parsing boundary.
     """

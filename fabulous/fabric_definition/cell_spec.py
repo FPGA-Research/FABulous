@@ -1,18 +1,18 @@
 """Standard-cell specifications for timing characterization.
 
-A standard-cell library (:class:`StdCellLibrary`) bundles everything the timing
+A standard-cell library ({class}`StdCellLibrary`) bundles everything the timing
 flow needs for one PDK: the liberty timing files, the Yosys techmap files, and
 the standard cells the synthesizer maps onto, grouped by the logical function
-they fill (:class:`CellFunction`). Each cell is a :class:`CellSpec` -- its name
+they fill ({class}`CellFunction`). Each cell is a {class}`CellSpec` -- its name
 plus the ports a cell-mapping tool needs, with room to grow more metadata.
 
-The library is parsed (and validated) from one ``pdk::<variant>`` section of the
-project's ``Fabric/std_cell_library.yaml`` via :meth:`StdCellLibrary.load`, so a
+The library is parsed (and validated) from one `pdk::<variant>` section of the
+project's `Fabric/std_cell_library.yaml` via {meth}`StdCellLibrary.load`, so a
 PDK is characterized -- or repointed -- by editing that file instead of changing
 code. Liberty/techmap paths may be absolute, relative to the project directory,
-or reference ``${VAR}`` placeholders (e.g. ``${PDK_ROOT}``, ``${PDK}``) that the
+or reference `${VAR}` placeholders (e.g. `${PDK_ROOT}`, `${PDK}`) that the
 caller resolves from the active settings. Add a section to characterize another
-PDK, and add a member to :class:`CellFunction` (with a matching ``cells`` key) to
+PDK, and add a member to {class}`CellFunction` (with a matching `cells` key) to
 teach it a new cell type.
 """
 
@@ -31,24 +31,24 @@ _VARIABLE_PATTERN = re.compile(r"\$\{(\w+)\}")
 
 
 def _expand_variables(raw: str, variables: dict[str, str]) -> str:
-    """Substitute ``${VAR}`` placeholders in ``raw`` with ``variables`` values.
+    """Substitute `${VAR}` placeholders in `raw` with `variables` values.
 
     Parameters
     ----------
     raw : str
-        The string to expand, possibly containing ``${VAR}`` placeholders.
+        The string to expand, possibly containing `${VAR}` placeholders.
     variables : dict[str, str]
-        Placeholder name to value mapping (e.g. ``{"PDK_ROOT": "/pdks"}``).
+        Placeholder name to value mapping (e.g. `{"PDK_ROOT": "/pdks"}`).
 
     Returns
     -------
     str
-        ``raw`` with every placeholder replaced by its value.
+        `raw` with every placeholder replaced by its value.
 
     Raises
     ------
     ValueError
-        If ``raw`` references a placeholder not present in ``variables``.
+        If `raw` references a placeholder not present in `variables`.
     """
     for name in _VARIABLE_PATTERN.findall(raw):
         if name not in variables:
@@ -63,8 +63,8 @@ def _expand_variables(raw: str, variables: dict[str, str]) -> str:
 class CellFunction(StrEnum):
     """The logical role a standard cell fills during timing characterization.
 
-    The members are the keys of a library's ``cells`` mapping and the argument
-    to :meth:`StdCellLibrary.get`; they are the extension point for new cell
+    The members are the keys of a library's `cells` mapping and the argument
+    to {meth}`StdCellLibrary.get`; they are the extension point for new cell
     types.
     """
 
@@ -78,7 +78,7 @@ class CellFunction(StrEnum):
 class CellSpec(BaseModel):
     """A standard cell and the ports a cell-mapping tool needs to use it.
 
-    ``cell`` is the standard-cell name; ``input_ports`` and ``output_ports`` list
+    `cell` is the standard-cell name; `input_ports` and `output_ports` list
     its ports (a buffer has one of each, a tie cell only an output, and cells
     with several inputs/outputs list them all). Add further fields -- drive
     strength, area, ... -- as more cell metadata is needed.
@@ -98,8 +98,8 @@ class CellSpec(BaseModel):
         -------
         str
             The cell followed by its input ports then output ports, as Yosys
-            options such as ``insbuf -buf`` and ``hilomap`` expect: a buffer
-            renders ``"buf_1 A X"``, a tie cell ``"conb_1 HI"``.
+            options such as `insbuf -buf` and `hilomap` expect: a buffer
+            renders `"buf_1 A X"`, a tie cell `"conb_1 HI"`.
         """
         return " ".join((self.cell, *self.input_ports, *self.output_ports))
 
@@ -109,9 +109,9 @@ class StdCellLibrary(BaseModel):
 
     Bundles the liberty timing files and Yosys techmap files with the cells the
     synthesizer maps onto, grouped by function. A function may map to several
-    cells (e.g. multiple buffers); use :meth:`get` to fetch them. Liberty and
-    techmap entries accept ``${VAR}`` placeholders and relative paths, resolved
-    against the validation context supplied by :meth:`load`.
+    cells (e.g. multiple buffers); use {meth}`get` to fetch them. Liberty and
+    techmap entries accept `${VAR}` placeholders and relative paths, resolved
+    against the validation context supplied by {meth}`load`.
     """
 
     liberty_files: list[Path] = []
@@ -121,10 +121,10 @@ class StdCellLibrary(BaseModel):
     @field_validator("liberty_files", "techmap_files", mode="before")
     @classmethod
     def _resolve_path_list(cls, value: object, info: ValidationInfo) -> object:
-        """Expand ``${VAR}`` placeholders and resolve relative path entries.
+        """Expand `${VAR}` placeholders and resolve relative path entries.
 
         Placeholder values and the base directory for relative entries come from
-        the validation context (``variables`` and ``base_dir``); absolute paths
+        the validation context (`variables` and `base_dir`); absolute paths
         are left untouched.
 
         Parameters
@@ -132,7 +132,7 @@ class StdCellLibrary(BaseModel):
         value : object
             The raw field value: a path string or a list of path strings.
         info : ValidationInfo
-            Validation context carrying ``variables`` and ``base_dir``.
+            Validation context carrying `variables` and `base_dir`.
 
         Returns
         -------
@@ -157,7 +157,7 @@ class StdCellLibrary(BaseModel):
         return resolved
 
     def get(self, function: CellFunction) -> list[CellSpec]:
-        """Return the cells declared for ``function``.
+        """Return the cells declared for `function`.
 
         Parameters
         ----------
@@ -167,7 +167,7 @@ class StdCellLibrary(BaseModel):
         Returns
         -------
         list[CellSpec]
-            The cells declared for ``function`` in declaration order, empty when
+            The cells declared for `function` in declaration order, empty when
             the library declares none.
         """
         return self.cells.get(function, [])
@@ -176,17 +176,17 @@ class StdCellLibrary(BaseModel):
     def load(
         cls, project_dir: Path, pdk: str, variables: dict[str, str] | None = None
     ) -> Self:
-        """Load the standard-cell library for ``pdk`` from the project file.
+        """Load the standard-cell library for `pdk` from the project file.
 
         Parameters
         ----------
         project_dir : Path
-            Project directory containing ``Fabric/std_cell_library.yaml``.
+            Project directory containing `Fabric/std_cell_library.yaml`.
         pdk : str
-            Active PDK variant name, matched against a ``pdk::<name>`` section.
+            Active PDK variant name, matched against a `pdk::<name>` section.
         variables : dict[str, str] | None
-            Placeholder values for ``${VAR}`` references in liberty/techmap
-            paths (e.g. ``{"PDK_ROOT": ..., "PDK": ...}``); None for no
+            Placeholder values for `${VAR}` references in liberty/techmap
+            paths (e.g. `{"PDK_ROOT": ..., "PDK": ...}`); None for no
             placeholders.
 
         Returns
@@ -199,7 +199,7 @@ class StdCellLibrary(BaseModel):
         FileNotFoundError
             If the standard-cell library file does not exist.
         ValueError
-            If the file has no section for ``pdk`` or the section is malformed.
+            If the file has no section for `pdk` or the section is malformed.
         """
         config_path = project_dir / STD_CELL_LIBRARY_RELPATH
         if not config_path.exists():
@@ -223,8 +223,8 @@ class StdCellLibrary(BaseModel):
 
 
 class StdCellLibraryFile(RootModel[dict[str, StdCellLibrary]]):
-    """The on-disk standard-cell library config: ``pdk::<variant>`` sections.
+    """The on-disk standard-cell library config: `pdk::<variant>` sections.
 
-    Maps each ``pdk::<variant>`` section name to its :class:`StdCellLibrary`.
-    Used to emit the JSON schema for ``Fabric/std_cell_library.yaml``.
+    Maps each `pdk::<variant>` section name to its {class}`StdCellLibrary`.
+    Used to emit the JSON schema for `Fabric/std_cell_library.yaml`.
     """

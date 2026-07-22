@@ -1,6 +1,6 @@
 """GHDL tool wrapper.
 
-GHDL elaborates a VHDL design (``--synth --out=verilog``) and writes the resulting
+GHDL elaborates a VHDL design (`--synth --out=verilog`) and writes the resulting
 Verilog netlist to stdout. This wrapper captures that output so the VHDL-to-Verilog
 conversion no longer needs a raw subprocess call in the caller. Used as a singleton
 via `GhdlTool.synthesize_to_verilog(...)`; never instantiated.
@@ -37,11 +37,11 @@ class GhdlTool(Tool):
         ----------
         vhdl_file : Path
             The VHDL source file to elaborate. Its stem is used as the
-            top-level entity name passed to ``-e``.
+            top-level entity name passed to `-e`.
         models_pack : Path
             The FABulous models package GHDL needs on its analysis path.
         std : str
-            The VHDL standard passed to ``--std`` (default "08").
+            The VHDL standard passed to `--std` (default "08").
 
         Returns
         -------

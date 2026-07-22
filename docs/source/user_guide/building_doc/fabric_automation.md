@@ -11,7 +11,7 @@ in FABulous and explains them with detailed examples.
 
 Defining a custom fabric, custom tiles or just add some custom functionality
 can be a complex task.
-The section [fabric_definition](#fabric-definition) describes in detail, how to model FABulous fabrics
+The section {ref}`fabric_definition <fabric-definition>` describes in detail, how to model FABulous fabrics
 with all its components.
 In addition to that, we provide a set of tools to automate the generation of custom
 tiles and switch matrices, as well as basic integration in CAD tools.
@@ -107,7 +107,7 @@ provided BELs in a tile.
 
 For the start, we create a new FABulous demo project and create the folder structure.
 We assume, that you have already installed FABulous and the needed dependencies,
-as described in the [Quick start](#quick-start) section.
+as described in the {ref}`Quick start <quick-start>` section.
 
 ```console
 (venv)$ FABulous -c demo
@@ -120,7 +120,7 @@ Afterward we place our BEL file `crc5.v` in the `CRC5` folder.
 
 FABulous requires a set of annotations in the BEL file to handle it correctly.
 The {ref}`primitives` section explains the basic FABulous annotations in detail.
-How to add and access bitstream bits in the BEL is described in the [Bel Map Attribute](#belmap-primitives) section.
+How to add and access bitstream bits in the BEL is described in the {ref}`Bel Map Attribute <belmap-primitives>` section.
 
 In our case, we just need to annotate the `clk` port of our BEL with the
 SHARED_PORT and EXTERNAL.
@@ -231,7 +231,7 @@ EndTILE
 It contains the standard tile information, includes the base routing .csv, which provides
 the standard tile interconnect information for the tiles, and the provided
 BEL file. If you want to add more BELs, duplicate a BEL, add a prefix or add additional
-routing, you can do it there, like described in the [fabric definition](#fabric-definition) section.
+routing, you can do it there, like described in the {ref}`fabric definition <fabric-definition>` section.
 
 #### Switch Matrix Generation
 

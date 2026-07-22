@@ -110,11 +110,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog
             // **comment**
-
         VHDL
             -- **comment**
+        ```
         """
 
     @abc.abstractmethod
@@ -133,16 +134,16 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-        ::
-
-            Verilog
-                module **name**
-            VHDL
-                library IEEE;
-                use IEEE.std_logic_1164.all;
-                use IEEE.NUMERIC_STD.ALL
-                **package**
-                entity **name** is
+        ```text
+        Verilog
+            module <name>
+        VHDL
+            library IEEE;
+            use IEEE.std_logic_1164.all;
+            use IEEE.NUMERIC_STD.ALL
+            <package>
+            entity <name> is
+        ```
         """
 
     @abc.abstractmethod
@@ -158,8 +159,10 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         VHDL
             end entity **name**;
+        ```
         """
 
     @abc.abstractmethod
@@ -173,11 +176,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog
             #(
-
         VHDL
             Generic(
+        ```
         """
 
     @abc.abstractmethod
@@ -191,11 +195,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog
             )
-
         VHDL
             );
+        ```
         """
 
     @abc.abstractmethod
@@ -217,11 +222,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog
             parameter **name** = **value**
-
         VHDL
             **name** : **type** := **value**;
+        ```
         """
 
     @abc.abstractmethod
@@ -235,11 +241,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog
             (
-
         VHDL
             port (
+        ```
         """
 
     @abc.abstractmethod
@@ -253,11 +260,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog
             );
-
         VHDL
             );
+        ```
         """
 
     @abc.abstractmethod
@@ -286,11 +294,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog
             **(* FABulous, ATTRIBUTE *)** **io** **reg** **name**
-
         VHDL
             **name** : **io** STD_LOGIC; **-- ATTRIBUTE**
+        ```
         """
 
     @abc.abstractmethod
@@ -322,11 +331,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog
             **(* FABulous, ATTRIBUTE *)** **io** **reg** [**msbIndex**:0] **name**
-
         VHDL
             **name** : **io** STD_LOGIC_VECTOR(**msbIndex** downto 0); **-- ATTRIBUTE**
+        ```
         """
 
     @abc.abstractmethod
@@ -342,8 +352,10 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         VHDL
             architecture Behavioral of **name** is
+        ```
         """
 
     @abc.abstractmethod
@@ -357,11 +369,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog
             endmodule
-
         VHDL
             end architecture Behavioral
+        ```
         """
 
     @abc.abstractmethod
@@ -379,11 +392,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-            Verilog
-                parameter **name** = **value**;
-
-            VHDL
-                constant **name** : STD_LOGIC := **value**;
+        ```text
+        Verilog
+            parameter **name** = **value**;
+        VHDL
+            constant **name** : STD_LOGIC := **value**;
+        ```
         """
 
     @abc.abstractmethod
@@ -403,10 +417,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog:
             wire/reg **name**;
         VHDL:
             signal **name** : STD_LOGIC;
+        ```
         """
 
     @abc.abstractmethod
@@ -435,10 +451,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog:
             wire/reg [**startIndex**:**end**] **name**;
         VHDL:
             signal **name** : STD_LOGIC_VECTOR( **startIndex** downto **endIndex** );
+        ```
         """
 
     @abc.abstractmethod
@@ -452,25 +470,29 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog:
             No equivalent construct.
         VHDL:
             begin
+        ```
         """
 
     @abc.abstractmethod
     def addLogicEnd(self, indentLevel: int = 0) -> None:
         """Add end of logic. Only useful with VHDL.
 
-        Examples
-        --------
-        VHDL:
-            end
-
         Parameters
         ----------
         indentLevel : int, optional
             The indentation Level. Defaults to 0.
+
+        Examples
+        --------
+        ```text
+        VHDL:
+            end
+        ```
         """
 
     @abc.abstractmethod
@@ -513,6 +535,7 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog:
             **compName** **compInsName** # (
                 . **paramPairs[0]** (**paramSignals[0]**),
@@ -525,7 +548,6 @@ class CodeGenerator(abc.ABC):
                 ...
                 . **compPorts[n]** (**signals[n]**)
             );
-
         VHDL:
             **compInsName** : **compName**
                 generic map (
@@ -539,6 +561,7 @@ class CodeGenerator(abc.ABC):
                     **compPorts[i]** => **signals[i]**,
                     **compPorts[i]** => **signals[i]**
                 );
+        ```
         """
 
     @abc.abstractmethod
@@ -657,11 +680,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog:
             assign **left** = **right**;
-
         VHDL:
             **left** <= **right** after **delay** ps;
+        ```
         """
 
     @abc.abstractmethod
@@ -693,11 +717,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog:
             assign **left** = **right** [**widthL**:**widthR**];
-
         VHDL:
-            **left** <= **right** ( **widthL** downto *widthR* );
+            **left** <= **right** ( **widthL** downto **widthR** );
+        ```
         """
 
     @abc.abstractmethod
@@ -714,9 +739,9 @@ class CodeGenerator(abc.ABC):
         """Assign a behavioral multiplexer output from a select slice.
 
         Drives **output** with the element of **inputVector** chosen by the
-        ``selectWidth``-bit slice of **selectVector** starting at bit
+        `selectWidth`-bit slice of **selectVector** starting at bit
         **selectLow**. Each backend emits the indexing in its own syntax: a
-        Verilog vector index, a VHDL ``to_integer(unsigned(...))`` conversion.
+        Verilog vector index, a VHDL `to_integer(unsigned(...))` conversion.
 
         Parameters
         ----------
@@ -725,7 +750,7 @@ class CodeGenerator(abc.ABC):
         inputVector : str
             The concatenated mux inputs being indexed.
         selectVector : str
-            The vector holding the select bits (e.g. ``ConfigBits``).
+            The vector holding the select bits (e.g. `ConfigBits`).
         selectLow : int
             Index of the lowest select bit within **selectVector**.
         selectWidth : int
@@ -737,12 +762,13 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog:
             assign **output** = **inputVector**[**selectVector**[high:low]];
-
         VHDL:
             **output** <= **inputVector**(to_integer(unsigned(
             **selectVector**(high downto low)))) after **delay** ps;
+        ```
         """
 
     @abc.abstractmethod
@@ -758,11 +784,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog:
-            \`ifdef **macro**
-
+            `ifdef **macro**
         VHDL:
             unsupported
+        ```
         """
 
     @abc.abstractmethod
@@ -778,11 +805,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog:
-            \`ifndef **macro**
-
+            `ifndef **macro**
         VHDL:
             unsupported
+        ```
         """
 
     @abc.abstractmethod
@@ -796,11 +824,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog:
-            \`else
-
+            `else
         VHDL:
             unsupported
+        ```
         """
 
     @abc.abstractmethod
@@ -814,11 +843,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
+        ```text
         Verilog:
-            \`endif
-
+            `endif
         VHDL:
             unsupported
+        ```
         """
 
     @abc.abstractmethod
@@ -839,15 +869,12 @@ class CodeGenerator(abc.ABC):
 
         Examples
         --------
-            input:
-                list[("INIT", 3), ("FF", 1)]
-
-            Verilog:
-            ```
-                (*FABulous, BelMap, INIT=0, INIT_1=1, INIT_2=2,FF=3 *)
-            ```
-            VHDL:
-            ```
-                -- (* FABulous, BelMap, INIT=0, INIT[1]=1, INIT[2]=2, FF=3 *)
-            ```
+        ```text
+        input:
+            list[("INIT", 3), ("FF", 1)]
+        Verilog:
+            (*FABulous, BelMap, INIT=0, INIT_1=1, INIT_2=2,FF=3 *)
+        VHDL:
+            -- (* FABulous, BelMap, INIT=0, INIT[1]=1, INIT[2]=2, FF=3 *)
+        ```
         """

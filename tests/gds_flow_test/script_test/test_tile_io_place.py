@@ -451,13 +451,13 @@ class TestPinPlacementPlan:
 class TestSupertileDivisionGridAlignment:
     """DRT-0416 offgrid pin on multi-column super tiles, across many sizings.
 
-    ``allocate_tracks`` places each logical division at
-    ``origin + ceil(die_width * division_index / num_divisions)`` and lays every
-    pin track a whole ``step`` from there. When the die width is not a multiple of
-    ``num_divisions * step``, some division origin is off the manufacturing grid,
+    `allocate_tracks` places each logical division at
+    `origin + ceil(die_width * division_index / num_divisions)` and lays every
+    pin track a whole `step` from there. When the die width is not a multiple of
+    `num_divisions * step`, some division origin is off the manufacturing grid,
     so all its pin tracks land off-grid, exactly the failure reported in
-    discussion #880. ``round_die_dimension`` (applied by the balance/large sizing)
-    removes it by making the width a multiple of ``num_divisions * step``.
+    discussion #880. `round_die_dimension` (applied by the balance/large sizing)
+    removes it by making the width a multiple of `num_divisions * step`.
     """
 
     MANUFACTURING_GRID = 5.0
@@ -1407,7 +1407,7 @@ class TestNormalTileSupertilePinAlignment:
 
         When the division boundary falls on an odd global track index and stride=2, a
         global-index-based filter would skip the first track in upper divisions,
-        shifting all pins by 1 track.  The cadence must reset at every ``tile_index``
+        shifting all pins by 1 track.  The cadence must reset at every `tile_index`
         boundary so each super-tile division reproduces the standalone tile layout.
         """
         import math as m
@@ -1503,18 +1503,18 @@ class TestNormalTileSupertilePinAlignment:
     def test_stride_filter_respects_distance_across_segments_in_tile(
         self, mocker: MockerFixture
     ) -> None:
-        """Stride filter must hold ``stride * step`` across segment boundaries.
+        """Stride filter must hold `stride * step` across segment boundaries.
 
         Real tiles split one side across multiple YAML segments (e.g.
-        ``N_term_single`` SOUTH allocates pins to ``N1END``, ``N2MID``,
-        ``N2END``).  The stride filter that enforces ``min_distance`` should
+        `N_term_single` SOUTH allocates pins to `N1END`, `N2MID`,
+        `N2END`).  The stride filter that enforces `min_distance` should
         treat the whole side of a physical tile as one stride cadence.
         When the cadence restarts at every segment boundary the last
         filtered pin of segment A and the first filtered pin of segment B
-        can land at ``step`` apart instead of ``stride * step``, which
+        can land at `step` apart instead of `stride * step`, which
         TritonRoute then reports as Metal Spacing DRCs on the routed nets.
 
-        Reproduction observed on ``N_term_single`` SOUTH at W=120.96 um.
+        Reproduction observed on `N_term_single` SOUTH at W=120.96 um.
         """
         # SG13G2 Metal2 routing parameters: origin on-grid, step is the
         # native pitch, min_distance = 2 pitches → stride = 2.

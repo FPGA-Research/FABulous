@@ -14,7 +14,7 @@ class CustomError(Exception):
 
 
 class _InnerStep(Step):
-    """Minimal sub-step whose ``start`` is patched per-test."""
+    """Minimal sub-step whose `start` is patched per-test."""
 
     id = "Test.Inner"
     name = "Inner"
@@ -98,7 +98,7 @@ class TestWhileStep:
         """An exception in propagate_exceptions re-raises even when break_on_failure.
 
         propagate_exceptions must win over break_on_failure (and raise_on_failure
-        being False), which would otherwise swallow the error via ``break``.
+        being False), which would otherwise swallow the error via `break`.
         """
 
         class PropagatingWhileStep(WhileStep):

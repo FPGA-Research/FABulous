@@ -63,7 +63,7 @@ async def cocotb_test_demo_bitstream_smoke(dut: FabricConfigDUT) -> None:
 
 @cocotb.test
 async def cocotb_test_passthrough(dut: FabricConfigDUT) -> None:
-    """Drive random ``a`` values and assert ``b == a``."""
+    """Drive random `a` values and assert `b == a`."""
     pcf = await setup_fabric(dut)
 
     width = len(pcf.signals["a"])
@@ -90,7 +90,7 @@ async def cocotb_test_passthrough(dut: FabricConfigDUT) -> None:
 
 @cocotb.test
 async def cocotb_test_addition(dut: FabricConfigDUT) -> None:
-    """Drive random ``a, b`` and assert ``c == a + b``."""
+    """Drive random `a, b` and assert `c == a + b`."""
     pcf = await setup_fabric(dut)
 
     a_width = len(pcf.signals["a"])
@@ -110,7 +110,7 @@ async def cocotb_test_addition(dut: FabricConfigDUT) -> None:
 
 @cocotb.test
 async def cocotb_test_multiplication(dut: FabricConfigDUT) -> None:
-    """Drive random ``mult_a, mult_b`` and assert ``product == mult_a * mult_b``."""
+    """Drive random `mult_a, mult_b` and assert `product == mult_a * mult_b`."""
     pcf = await setup_fabric(dut)
 
     a_width = len(pcf.signals["mult_a"])
@@ -130,7 +130,7 @@ async def cocotb_test_multiplication(dut: FabricConfigDUT) -> None:
 
 @cocotb.test
 async def cocotb_test_all_ones(dut: FabricConfigDUT) -> None:
-    """Assert ``all`` reads back as all-ones after bitstream upload."""
+    """Assert `all` reads back as all-ones after bitstream upload."""
     pcf = await setup_fabric(dut)
 
     width = len(pcf.signals["all"])
@@ -143,7 +143,7 @@ async def cocotb_test_all_ones(dut: FabricConfigDUT) -> None:
 
 @cocotb.test
 async def cocotb_test_all_zeros(dut: FabricConfigDUT) -> None:
-    """Assert ``all`` reads back as all-zeros after bitstream upload."""
+    """Assert `all` reads back as all-zeros after bitstream upload."""
     pcf = await setup_fabric(dut)
 
     observed = pcf.get("all").to_unsigned()
@@ -152,7 +152,7 @@ async def cocotb_test_all_zeros(dut: FabricConfigDUT) -> None:
 
 @cocotb.test
 async def cocotb_test_counter(dut: FabricClockedDUT) -> None:
-    """Reset, enable and count cycles, assert ``d == cycles - 1``."""
+    """Reset, enable and count cycles, assert `d == cycles - 1`."""
     dut.UserCLK.value = 0
     pcf = await setup_fabric(dut)
     pcf.set("rst", Logic(1), index=0)

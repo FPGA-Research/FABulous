@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Generate ``force_block.vh`` to remove gate-level X-pessimism in hardened sim.
+"""Generate `force_block.vh` to remove gate-level X-pessimism in hardened sim.
 
 A hardened fabric powers up all-X (OpenROAD resynthesises FABulous's X-optimistic
 cells into X-pessimistic gates), and the X never clears on its own. This script
-emits ``force_block.vh`` (compiled in with ``-DGL_SIM``) with two one-shot actions
-fired at ``config_done``:
+emits `force_block.vh` (compiled in with `-DGL_SIM`) with two one-shot actions
+fired at `config_done`:
 
-1. ``$deposit 0`` on every still-X fabric net -- breaks the combinational X web.
+1. `$deposit 0` on every still-X fabric net -- breaks the combinational X web.
 2. A per-flop state clear (a net deposit cannot reach a flop, which re-drives its
-   own ``Q``). It is PDK-adaptive, because OpenROAD maps the FABulous DFF to a
+   own `Q`). It is PDK-adaptive, because OpenROAD maps the FABulous DFF to a
    different cell per PDK: a reset-pin pulse where the mapped cell has an async
-   reset (IHP ``sg13g2_dfrbpq``, ``RESET_B``), a ``$deposit(Q, 0)`` where it does
-   not (sky130 ``dfxtp``, gf180 ``dffq``).
+   reset (IHP `sg13g2_dfrbpq`, `RESET_B`), a `$deposit(Q, 0)` where it does
+   not (sky130 `dfxtp`, gf180 `dffq`).
 
 Both actions are **X-only** (gated on the target still being X), so they only add
 definedness where the design left X and can never overwrite a configured value or
 hide a bug -- a wrong value still mismatches the golden reference.
 
 Implication: a future fabric with a power-on INIT bit staged in config memory but
-not yet reflected in ``Q`` would be defaulted to 0 by the flop clear; that case
+not yet reflected in `Q` would be defaulted to 0 by the flop clear; that case
 needs the clear to target the configured INIT value instead.
 
 Usage
@@ -79,7 +79,7 @@ def collect_efpga_nets(efpga_text: str) -> list[str]:
     Parameters
     ----------
     efpga_text : str
-        Contents of the fabric netlist (``eFPGA.nl.v``).
+        Contents of the fabric netlist (`eFPGA.nl.v`).
 
     Returns
     -------
@@ -102,40 +102,40 @@ def collect_efpga_nets(efpga_text: str) -> list[str]:
     return names
 
 
-# A gate-level cell instantiation: ``CELL inst ( .PIN(net), ... );``. Net names
-# (including escaped identifiers) never contain ``)`` or ``;``, so the body runs
-# to the first ``);``.
+# A gate-level cell instantiation: `CELL inst ( .PIN(net), ... );`. Net names
+# (including escaped identifiers) never contain `)` or `;`, so the body runs
+# to the first `);`.
 _INST_RE = re.compile(r"\b\w+\s+\S+\s*\((.*?)\)\s*;", re.DOTALL)
 
 
 def collect_flops(
     tile_dir: Path, reset_pin: str
 ) -> dict[str, list[tuple[str, str | None]]]:
-    """Map each tile type to its flip-flops' ``(Q net, reset net | None)`` pairs.
+    """Map each tile type to its flip-flops' `(Q net, reset net | None)` pairs.
 
-    A flip-flop is any cell instantiation carrying both a ``Q`` output and a
-    ``CLK`` edge-clock pin. The ``CLK`` requirement is what isolates the
+    A flip-flop is any cell instantiation carrying both a `Q` output and a
+    `CLK` edge-clock pin. The `CLK` requirement is what isolates the
     edge-triggered user flops from the gate-enabled configuration-memory latches
-    (``latq`` / ``dlxtp``), which also expose a ``Q`` but are enabled by ``E`` /
-    ``GATE`` and have no ``CLK``; it stays std-cell-name agnostic. If the flop
+    (`latq` / `dlxtp`), which also expose a `Q` but are enabled by `E` /
+    `GATE` and have no `CLK`; it stays std-cell-name agnostic. If the flop
     also carries the PDK async reset pin its reset net is recorded, otherwise the
-    pair holds ``None`` -- the two get different X-init treatment (a reset pulse
-    vs a ``Q`` deposit). Either way the action is gated on the flop's own ``Q``
+    pair holds `None` -- the two get different X-init treatment (a reset pulse
+    vs a `Q` deposit). Either way the action is gated on the flop's own `Q`
     being X, so a flop already holding a defined value is left alone.
 
     Parameters
     ----------
     tile_dir : Path
-        The project ``Tile`` directory.
+        The project `Tile` directory.
     reset_pin : str
         The flip-flop async reset pin name to match (PDK-specific). A flop whose
-        instantiation lacks it is paired with ``None``.
+        instantiation lacks it is paired with `None`.
 
     Returns
     -------
     dict[str, list[tuple[str, str | None]]]
-        Tile type (the ``Tile/<type>`` directory name) -> list of
-        ``(Q net, reset net | None)``, one entry per flop instance.
+        Tile type (the `Tile/<type>` directory name) -> list of
+        `(Q net, reset net | None)`, one entry per flop instance.
     """
     rpin = re.compile(rf"\.{re.escape(reset_pin)}\(\s*(.*?)\s*\)")
     qpin = re.compile(r"\.Q\(\s*(.*?)\s*\)")
@@ -159,19 +159,19 @@ def collect_flops(
 def collect_flop_tile_instances(
     efpga_text: str, types: list[str]
 ) -> list[tuple[str, str]]:
-    """Return ``(tile_type, instance_name)`` for every flop-bearing tile instance.
+    """Return `(tile_type, instance_name)` for every flop-bearing tile instance.
 
     Parameters
     ----------
     efpga_text : str
-        Contents of the fabric netlist (``eFPGA.nl.v``).
+        Contents of the fabric netlist (`eFPGA.nl.v`).
     types : list[str]
         Tile types known to contain flip-flops.
 
     Returns
     -------
     list[tuple[str, str]]
-        One entry per matching tile instantiation. Empty when ``types`` is
+        One entry per matching tile instantiation. Empty when `types` is
         empty (an empty alternation would otherwise match arbitrary lines).
     """
     if not types:
@@ -186,10 +186,10 @@ def collect_flop_tile_instances(
 
 
 def hier_ref(top_inst: str, *parts: str) -> str:
-    """Build a hierarchical reference below ``top_inst``, preserving escapes.
+    """Build a hierarchical reference below `top_inst`, preserving escapes.
 
-    The reference is ``top_inst`` followed by ``parts`` joined with ``.`` -- e.g.
-    ``hier_ref(top, net)`` for a top-level net, ``hier_ref(top, inst, net)`` for a
+    The reference is `top_inst` followed by `parts` joined with `.` -- e.g.
+    `hier_ref(top, net)` for a top-level net, `hier_ref(top, inst, net)` for a
     tile-internal one. A Verilog escaped identifier (leading backslash) must be
     terminated by whitespace, so when the final segment is escaped it keeps a
     trailing space; intermediate instance names are emitted verbatim.
@@ -199,12 +199,12 @@ def hier_ref(top_inst: str, *parts: str) -> str:
     top_inst : str
         Hierarchical path to the gate-level fabric top level instance.
     *parts : str
-        Net/instance names below ``top_inst``, outermost first.
+        Net/instance names below `top_inst`, outermost first.
 
     Returns
     -------
     str
-        ``<top_inst>.<part>...``; an escaped final segment keeps its trailing
+        `<top_inst>.<part>...`; an escaped final segment keeps its trailing
         space.
     """
     *head, leaf = parts

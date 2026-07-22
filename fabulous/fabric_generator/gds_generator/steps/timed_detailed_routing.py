@@ -1,9 +1,9 @@
 """Detailed Routing step with a hard wall-clock timeout.
 
 During tile-size exploration TritonRoute can spin for hours on pathological
-dies. This step wraps :class:`librelane.steps.openroad.DetailedRouting` so that
+dies. This step wraps {class}`librelane.steps.openroad.DetailedRouting` so that
 if routing has not finished within `FABULOUS_DRT_TIMEOUT` seconds the entire
-OpenROAD process group is killed and a :class:`DRTTimedOutError` is raised,
+OpenROAD process group is killed and a {class}`DRTTimedOutError` is raised,
 which the surrounding optimisation loop treats as a hard stop.
 """
 

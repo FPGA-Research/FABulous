@@ -7,7 +7,7 @@
 .. py:property:: {% if is_own_page %}{{ obj.id}}{% else %}{{ obj.short_name }}{% endif %}
    {% if obj.annotation %}
 
-   :type: {{ obj.annotation|format_option_type_for_rst }}
+   :type: {{ obj.annotation }}
    {% endif %}
    {% for property in obj.properties %}
 
@@ -16,8 +16,8 @@
 
    {% if obj.docstring %}
 
-   .. autoapi-nested-parse::
+   .. myst-docstring::
 
-      {{ obj.docstring|normalize_property_docstring_for_rst|indent(6) }}
+      {{ obj.docstring|strip_property_return_sections|indent(6) }}
    {% endif %}
 {% endif %}

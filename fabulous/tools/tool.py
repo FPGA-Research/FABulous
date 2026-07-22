@@ -1,7 +1,7 @@
 """Abstract base for external EDA tool wrappers.
 
 `Tool` is the root of the tool catalogue. It is never instantiated: every tool is
-used as a singleton through classmethods (e.g. ``YosysTool.run(...)``). The base
+used as a singleton through classmethods (e.g. `YosysTool.run(...)`). The base
 owns the single subprocess entry point (`run`), so every concrete wrapper (Yosys,
 OpenSTA, GHDL, and future tools such as nextpnr or OpenROAD) shares one place for
 invocation and error handling, and no business-logic code calls `subprocess`
@@ -23,7 +23,7 @@ from loguru import logger
 def _template_env() -> Environment:
     """Return the shared Jinja environment for tool script templates.
 
-    Templates live in the ``fabulous/template`` package directory.
+    Templates live in the `fabulous/template` package directory.
     `StrictUndefined` makes a missing variable a render error rather than an
     empty string, so a malformed template surfaces immediately.
 
@@ -77,7 +77,7 @@ class Tool(ABC):
         Parameters
         ----------
         template_name : str
-            Template file name within the ``fabulous/template`` directory.
+            Template file name within the `fabulous/template` directory.
         **context : object
             Variables made available to the template.
 

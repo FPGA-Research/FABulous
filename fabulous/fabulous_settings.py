@@ -100,7 +100,7 @@ class FABulousSettings(BaseSettings):
             "Path to the PDK family directory . "
             "When unset for a ciel-managed PDK it is auto-resolved to "
             "`<ciel_home>/<family>`; the install dir for the active "
-            "variant is then at ``pdk_root/<pdk>``."
+            "variant is then at `pdk_root/<pdk>`."
         ),
     )
     pdk: str | None = Field(
@@ -412,7 +412,7 @@ class FABulousSettings(BaseSettings):
     def check_pdk(self) -> Self:
         """Check if PDK_root and PDK are set correctly.
 
-        When a supported PDK family is configured and ``pdk_hash`` has not been
+        When a supported PDK family is configured and `pdk_hash` has not been
         provided, this validator resolves the recommended hash from librelane
         and auto-installs/activates the PDK via ciel.
 
@@ -420,10 +420,10 @@ class FABulousSettings(BaseSettings):
         -----
         Validation rules:
 
-        1. Both ``pdk`` and ``pdk_root`` are None  -> warn, return (GDS unavailable)
-        2. ``pdk_root`` set but ``pdk`` is None    -> raise ValueError
-        3. ``pdk`` set, ``pdk_root`` None, ciel family   -> auto-resolve pdk_root
-        4. ``pdk`` set, ``pdk_root`` None, not ciel       -> raise ValueError
+        1. Both `pdk` and `pdk_root` are None  -> warn, return (GDS unavailable)
+        2. `pdk_root` set but `pdk` is None    -> raise ValueError
+        3. `pdk` set, `pdk_root` None, ciel family   -> auto-resolve pdk_root
+        4. `pdk` set, `pdk_root` None, not ciel       -> raise ValueError
         5. Both set, not ciel family               -> info log + return
         6. Both set, ciel family                   -> hash resolution + enable
         """
@@ -665,7 +665,7 @@ def is_pdk_config_set() -> bool:
     Returns
     -------
     bool
-        True if both ``pdk`` and ``pdk_root`` are set in the global context,
+        True if both `pdk` and `pdk_root` are set in the global context,
         False otherwise.
     """
     return get_context().pdk is not None and get_context().pdk_root is not None
