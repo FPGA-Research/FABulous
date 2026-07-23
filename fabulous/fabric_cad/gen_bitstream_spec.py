@@ -78,15 +78,15 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
         },
     }
 
-    tileMap = {}
+    tile_map = {}
     for y, row in enumerate(fabric.tile):
         for x, tile in enumerate(row):
             if tile is not None:
-                tileMap[f"X{x}Y{y}"] = tile.name
+                tile_map[f"X{x}Y{y}"] = tile.name
             else:
-                tileMap[f"X{x}Y{y}"] = "NULL"
+                tile_map[f"X{x}Y{y}"] = "NULL"
 
-    specData["TileMap"] = tileMap
+    specData["TileMap"] = tile_map
     configMemList: list[ConfigMem] = []
     for y, row in enumerate(fabric.tile):
         for x, tile in enumerate(row):
@@ -124,9 +124,9 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                     configMemPath,
                     fabric.maxFramesPerCol,
                     fabric.frameBitsPerRow,
-                    tile.globalConfigBits,
+                    tile.total_config_bits,
                 )
-            elif tile.globalConfigBits > 0:
+            elif tile.total_config_bits > 0:
                 logger.critical(
                     f"No ConfigMem csv file found for {tile.name} which "
                     "have config bits"
@@ -153,7 +153,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                 maskDic[len(configMemList) + i] = "0" * fabric.frameBitsPerRow
 
             specData["FrameMap"][tile.name] = maskDic
-            if tile.globalConfigBits == 0:
+            if tile.total_config_bits == 0:
                 logger.info(f"No config memory for X{x}Y{y}_{tile.name}.")
                 specData["FrameMap"][tile.name] = {}
                 specData["FrameMapEncode"][tile.name] = {}

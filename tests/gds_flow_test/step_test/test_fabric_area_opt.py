@@ -361,7 +361,7 @@ def _make_tile(name: str) -> Tile:
         matrix_dir=Path(),
         switch_matrix=SwitchMatrix.from_connections(matrix_file=Path(), connections={}),
         gen_ios=[],
-        userCLK=False,
+        user_clk=False,
     )
 
 

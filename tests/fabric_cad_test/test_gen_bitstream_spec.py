@@ -316,7 +316,7 @@ def _build_fabric(
         matrix_dir=matrix_path,
         switch_matrix=SwitchMatrix.from_file(matrix_path, _TILE_NAME),
         gen_ios=[],
-        userCLK=False,
+        user_clk=False,
     )
     tile.wire_list = wires
 

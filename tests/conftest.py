@@ -58,7 +58,7 @@ def make_empty_tile(
     pin_order_config: dict | None = None,
     config_bits: int = 0,
 ) -> Tile:
-    """Build a minimal Tile usable inside a SuperTile.tileMap.
+    """Build a minimal Tile usable inside a SuperTile.tile_map.
 
     Passing ``pin_order_config={}`` skips the GDS pin-order import; the ``None``
     default preserves the original behaviour for callers that don't care.
@@ -72,7 +72,7 @@ def make_empty_tile(
         tile_dir=tile_dir,
         matrix_dir=matrix_dir,
         gen_ios=[],
-        userCLK=False,
+        user_clk=False,
         switch_matrix=SwitchMatrix.from_connections(
             matrix_file=matrix_dir, connections={}, hdl_config_bits=config_bits or None
         ),

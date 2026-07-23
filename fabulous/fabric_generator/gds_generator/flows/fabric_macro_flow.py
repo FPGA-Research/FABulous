@@ -201,7 +201,7 @@ class FABulousFabricMacroFlow(Classic):
         supertile_anchors: dict[str, str] = {}
         subtile_to_anchor: dict[str, str] = {}
         for supertile_name, supertile in fabric.superTileDic.items():
-            anchor = supertile.tileMap[-1][0]
+            anchor = supertile.tile_map[-1][0]
             supertile_anchors[anchor.name] = supertile_name
             # Create back-references from all subtiles to their anchor
             for tile in supertile.tiles:
@@ -218,8 +218,10 @@ class FABulousFabricMacroFlow(Classic):
                 supertile_name = supertile_anchors[tile_key]
                 supertile = fabric.superTileDic[supertile_name]
                 width, height = tile_sizes[supertile_name]
-                num_rows_spanned = len(supertile.tileMap)
-                num_cols_spanned = len(supertile.tileMap[0]) if supertile.tileMap else 1
+                num_rows_spanned = len(supertile.tile_map)
+                num_cols_spanned = (
+                    len(supertile.tile_map[0]) if supertile.tile_map else 1
+                )
             elif tile_key in subtile_to_anchor:
                 # This is a non-anchor subtile, skip it but process only
                 # when we hit the anchor
@@ -593,7 +595,7 @@ class FABulousFabricMacroFlow(Classic):
                     subtiles = [tile.name for tile in supertile.tiles]
 
                     # Get the anchor of the supertile (bottom left)
-                    anchor = supertile.tileMap[-1][0]
+                    anchor = supertile.tile_map[-1][0]
 
                     if tile_name in subtiles:
                         if tile_name == anchor.name:

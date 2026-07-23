@@ -323,7 +323,7 @@ class TestSuperTileMatrixValidation:
             name="DSP",
             tile_dir=Path(),
             tiles=[bot],
-            tileMap=[[bot]],
+            tile_map=[[bot]],
             bels=[bel],
         )
 

@@ -59,7 +59,7 @@ class TestGenerateConfigMemInit:
     ) -> None:
         """Test that generateConfigMemInit creates CSV with correct structure."""
         output_file = tmp_path / f"test_{fabric_config.name}_{tile_config.name}.csv"
-        tile_config_bits = tile_config.globalConfigBits
+        tile_config_bits = tile_config.total_config_bits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
             fabric_config, tile_config_bits
         )
@@ -95,7 +95,7 @@ class TestGenerateConfigMemInit:
         self, tmp_path: Path, fabric_config: Fabric, tile_config: Tile
     ) -> None:
         """Test that generated bitmasks are valid."""
-        tile_config_bits = tile_config.globalConfigBits
+        tile_config_bits = tile_config.total_config_bits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
             fabric_config, tile_config_bits
         )
@@ -141,7 +141,7 @@ class TestGenerateConfigMemInit:
         self, tmp_path: Path, fabric_config: Fabric, tile_config: Tile
     ) -> None:
         """Test that bits are allocated across frames following priority order."""
-        tile_config_bits = tile_config.globalConfigBits
+        tile_config_bits = tile_config.total_config_bits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
             fabric_config, tile_config_bits
         )
@@ -192,7 +192,7 @@ class TestGenerateConfigMemInit:
         self, tmp_path: Path, default_fabric: Fabric, default_tile: Tile
     ) -> None:
         """Test that ConfigBits_ranges are formatted correctly."""
-        tile_config_bits = default_tile.globalConfigBits
+        tile_config_bits = default_tile.total_config_bits
         has_capacity, max_fabric_bits = _check_fabric_capacity(
             default_fabric, tile_config_bits
         )
@@ -256,14 +256,14 @@ class TestGeneratedConfigMemRTL:
 
         # Call generateConfigMem
         has_capacity, _ = _check_fabric_capacity(
-            fabric_config, tile_config.globalConfigBits
+            fabric_config, tile_config.total_config_bits
         )
-        if not has_capacity and tile_config.globalConfigBits > 0:
+        if not has_capacity and tile_config.total_config_bits > 0:
             with pytest.raises(ValueError, match="adjust the configuration."):
                 generateConfigMem(
                     writer,
                     tile_config.name,
-                    tile_config.globalConfigBits,
+                    tile_config.total_config_bits,
                     config_csv,
                     frame_bits_per_row=fabric_config.frameBitsPerRow,
                     max_frame_per_col=fabric_config.maxFramesPerCol,
@@ -273,7 +273,7 @@ class TestGeneratedConfigMemRTL:
         generateConfigMem(
             writer,
             tile_config.name,
-            tile_config.globalConfigBits,
+            tile_config.total_config_bits,
             config_csv,
             frame_bits_per_row=fabric_config.frameBitsPerRow,
             max_frame_per_col=fabric_config.maxFramesPerCol,
@@ -281,7 +281,7 @@ class TestGeneratedConfigMemRTL:
 
         # Verify output file was created and contains expected content
         output_file = writer.outFileName
-        if tile_config.globalConfigBits != 0:
+        if tile_config.total_config_bits != 0:
             assert output_file.exists(), "Output file should be created"
         else:
             return  # Skip further checks if no config bits are generated
@@ -291,8 +291,8 @@ class TestGeneratedConfigMemRTL:
 
         # Count actual config_latch instantiations in content
         actual_instantiations = content.count("config_latch")
-        assert actual_instantiations == tile_config.globalConfigBits, (
-            f"Expected {tile_config.globalConfigBits} config_latch instantiations, "
+        assert actual_instantiations == tile_config.total_config_bits, (
+            f"Expected {tile_config.total_config_bits} config_latch instantiations, "
             f"found {actual_instantiations}"
         )
 
@@ -327,7 +327,7 @@ class TestGeneratedConfigMemRTL:
         generateConfigMem(
             writer,
             default_tile.name,
-            default_tile.globalConfigBits,
+            default_tile.total_config_bits,
             csv_path,
             frame_bits_per_row=default_fabric.frameBitsPerRow,
             max_frame_per_col=default_fabric.maxFramesPerCol,
