@@ -9,8 +9,37 @@ from pathlib import Path
 import pytest
 import pytest_mock
 
-from fabulous.custom_exception import InvalidFileType
+from fabulous.custom_exception import InvalidFileType, InvalidState
 from fabulous.fabric_definition.yosys_obj import YosysJson
+
+
+def _cell(cell_type: str, port_directions: dict, connections: dict) -> dict:
+    """Build a Yosys-JSON cell entry for the parser fixtures."""
+    return {
+        "hide_name": 0,
+        "type": cell_type,
+        "parameters": {},
+        "attributes": {},
+        "port_directions": port_directions,
+        "connections": connections,
+    }
+
+
+def _module(ports: dict, cells: dict) -> dict:
+    """Build a Yosys-JSON module entry for the parser fixtures."""
+    return {
+        "attributes": {},
+        "parameter_default_values": {},
+        "ports": ports,
+        "cells": cells,
+        "memories": {},
+        "netnames": {},
+    }
+
+
+def _port(direction: str, bits: list[int]) -> dict:
+    """Build a Yosys-JSON port entry for the parser fixtures."""
+    return {"direction": direction, "bits": bits}
 
 
 def setup_mocks(
@@ -338,3 +367,151 @@ def test_getNetPortSrcSinks(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
     yosys_json = YosysJson(fakePath)
 
     assert yosys_json.getNetPortSrcSinks(2) == (("A", "Y"), [("B", "A")])
+
+
+def test_comb_arcs_breaks_registers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """comb_arcs drops the sequential D->Q path through a register.
+
+    A 2:1 mux (combinational) drives O from input vector I; a DFF samples the mux
+    output into Q. Only the combinational I->O arc survives.
+    """
+    json_data = {
+        "creator": "Yosys",
+        "modules": {
+            "test": _module(
+                ports={
+                    "I": _port("input", [2, 3]),
+                    "O": _port("output", [4]),
+                    "Q": _port("output", [5]),
+                },
+                cells={
+                    "mux": _cell(
+                        "$mux",
+                        {"A": "input", "B": "input", "S": "input", "Y": "output"},
+                        {"A": [2], "B": [3], "S": [10], "Y": [4]},
+                    ),
+                    "reg": _cell(
+                        "$dff",
+                        {"CLK": "input", "D": "input", "Q": "output"},
+                        {"CLK": [9], "D": [4], "Q": [5]},
+                    ),
+                },
+            )
+        },
+        "models": {},
+    }
+    setup_mocks(monkeypatch, json_data, tmp_path)
+    src = tmp_path / "test.v"
+    src.touch()
+    src.with_suffix(".json").touch()
+    yosys_json = YosysJson(src)
+
+    assert yosys_json.comb_arcs("test") == {("I0", "O"), ("I1", "O")}
+
+
+def test_comb_arcs_resolves_sequential_submodule(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """comb_arcs treats a submodule that holds a latch as sequential.
+
+    A custom primitive `config_latch` is sequential (its own definition holds a
+    latch) and feeds a combinational `cus_mux21` whose select comes from input S.
+    The latch breaks the data path from D, so only S -> X is combinational.
+    """
+    json_data = {
+        "creator": "Yosys",
+        "modules": {
+            "config_latch": _module({}, {"l": _cell("$dlatch", {}, {})}),
+            "cus_mux21": _module({}, {"m": _cell("$mux", {}, {})}),
+            "test": _module(
+                ports={
+                    "D": _port("input", [2]),
+                    "S": _port("input", [3]),
+                    "X": _port("output", [5]),
+                },
+                cells={
+                    "latch": _cell(
+                        "config_latch",
+                        {"D": "input", "Q": "output"},
+                        {"D": [2], "Q": [4]},
+                    ),
+                    "mux": _cell(
+                        "cus_mux21",
+                        {"A0": "input", "A1": "input", "S": "input", "X": "output"},
+                        {"A0": [4], "A1": [4], "S": [3], "X": [5]},
+                    ),
+                },
+            ),
+        },
+        "models": {},
+    }
+    setup_mocks(monkeypatch, json_data, tmp_path)
+    src = tmp_path / "test.v"
+    src.touch()
+    src.with_suffix(".json").touch()
+    yosys_json = YosysJson(src)
+
+    assert yosys_json.comb_arcs("test") == {("S", "X")}
+
+
+def test_comb_arcs_resolves_nested_sequential_submodule(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """comb_arcs finds a register nested two submodules deep.
+
+    `config_latch` holds no register directly; it instantiates `latch_impl`,
+    which holds the `$dlatch`. A one-level check would miss this and wrongly emit
+    a D -> X arc through the latch, so only S -> X must survive.
+    """
+    json_data = {
+        "creator": "Yosys",
+        "modules": {
+            "latch_impl": _module({}, {"l": _cell("$dlatch", {}, {})}),
+            "config_latch": _module({}, {"impl": _cell("latch_impl", {}, {})}),
+            "cus_mux21": _module({}, {"m": _cell("$mux", {}, {})}),
+            "test": _module(
+                ports={
+                    "D": _port("input", [2]),
+                    "S": _port("input", [3]),
+                    "X": _port("output", [5]),
+                },
+                cells={
+                    "latch": _cell(
+                        "config_latch",
+                        {"D": "input", "Q": "output"},
+                        {"D": [2], "Q": [4]},
+                    ),
+                    "mux": _cell(
+                        "cus_mux21",
+                        {"A0": "input", "A1": "input", "S": "input", "X": "output"},
+                        {"A0": [4], "A1": [4], "S": [3], "X": [5]},
+                    ),
+                },
+            ),
+        },
+        "models": {},
+    }
+    setup_mocks(monkeypatch, json_data, tmp_path)
+    src = tmp_path / "test.v"
+    src.touch()
+    src.with_suffix(".json").touch()
+    yosys_json = YosysJson(src)
+
+    assert yosys_json.comb_arcs("test") == {("S", "X")}
+
+
+def test_comb_arcs_missing_module_raises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """comb_arcs raises InvalidState when the module is absent from the netlist."""
+    json_data = {"creator": "Yosys", "modules": {}, "models": {}}
+    setup_mocks(monkeypatch, json_data, tmp_path)
+    src = tmp_path / "test.v"
+    src.touch()
+    src.with_suffix(".json").touch()
+    yosys_json = YosysJson(src)
+
+    with pytest.raises(InvalidState, match="not found in the parsed netlist"):
+        yosys_json.comb_arcs("nope")

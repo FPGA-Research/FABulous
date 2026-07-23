@@ -156,7 +156,7 @@ class FABulousTile(SequentialFlow):
             generated_files = []
 
         for concrete_tile in concrete_tiles:
-            concrete_tile_dir = concrete_tile.tileDir.parent
+            concrete_tile_dir = concrete_tile.tile_dir.parent
             generated_files.extend(
                 [
                     concrete_tile_dir / f"{concrete_tile.name}.v",
@@ -214,7 +214,7 @@ def _emit_tile_verilog(
     """Generate switch-matrix, config-mem, and tile Verilog into `tile_dir`."""
     if isinstance(tile, SuperTile):
         for sub_tile in tile.tiles:
-            sub_dir = sub_tile.tileDir.parent
+            sub_dir = sub_tile.tile_dir.parent
             _emit_regular_tile_verilog(
                 writer,
                 sub_tile,

@@ -196,10 +196,10 @@ class TestEmitTileVerilog:
         bot_dir.mkdir()
         top_tile: MagicMock = mocker.MagicMock(spec=Tile)
         top_tile.name = "DSP_top"
-        top_tile.tileDir = top_dir / "DSP_top.csv"
+        top_tile.tile_dir = top_dir / "DSP_top.csv"
         bot_tile: MagicMock = mocker.MagicMock(spec=Tile)
         bot_tile.name = "DSP_bot"
-        bot_tile.tileDir = bot_dir / "DSP_bot.csv"
+        bot_tile.tile_dir = bot_dir / "DSP_bot.csv"
         mock_supertile: MagicMock = mocker.MagicMock(spec=SuperTile)
         mock_supertile.name = "DSP"
         mock_supertile.tiles = [top_tile, bot_tile]
@@ -261,7 +261,7 @@ class TestFABulousTileRunAdapter:
         mock_tile: MagicMock = mocker.MagicMock(spec=Tile)
         mock_tile.get_min_die_area.return_value = (Decimal(10), Decimal(10))
         mock_tile.name = "LUT4AB"
-        mock_tile.tileDir = tile_dir / "LUT4AB.csv"
+        mock_tile.tile_dir = tile_dir / "LUT4AB.csv"
         mock_tile.bels = []
         mock_tile.globalConfigBits = 0
 

@@ -381,7 +381,7 @@ class FABulous_API:
             mx, my = tile.get_master_tile_coords()
             master_tile = tile.tileMap[my][mx]
             master_config_mem_csv = (
-                master_tile.tileDir.parent / f"{master_tile.name}_ConfigMem.csv"
+                master_tile.tile_dir.parent / f"{master_tile.name}_ConfigMem.csv"
             )
             generate_super_tile_config_mem(
                 self.writer,
@@ -576,12 +576,12 @@ class FABulous_API:
         gio_config_access = [gio for gio in tile.gen_ios if gio.configAccess]
 
         if gios:
-            bel_path = tile.tileDir.parent / f"{tile.name}_GenIO.{suffix}"
+            bel_path = tile.tile_dir.parent / f"{tile.name}_GenIO.{suffix}"
             bel = genIOBel(gios, bel_path, True)
             if bel:
                 bels.append(bel)
         if gio_config_access:
-            bel_path = tile.tileDir.parent / f"{tile.name}_ConfigAccess_GenIO.{suffix}"
+            bel_path = tile.tile_dir.parent / f"{tile.name}_ConfigAccess_GenIO.{suffix}"
             bel = genIOBel(gio_config_access, bel_path, True)
             if bel:
                 bels.append(bel)

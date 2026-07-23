@@ -29,17 +29,49 @@ class YosysTool(Tool):
         return get_context().yosys_path
 
     @classmethod
-    def convert_to_json(cls, verilog_input: Path, json_output: Path) -> None:
-        """Convert a Verilog file to Yosys's JSON format."""
-        cls.run(
-            args=[
-                "-q",
-                (
-                    "-p "
-                    f"read_verilog -sv {verilog_input}; "
-                    "hierarchy -auto-top; "
-                    "proc -noopt; "
-                    f"write_json -compat-int {json_output}"
-                ),
-            ]
-        )
+    def convert_to_json(
+        cls,
+        verilog_input: Path,
+        json_output: Path,
+        models_pack: Path | None = None,
+        run_hierarchy: bool = True,
+    ) -> None:
+        """Convert a Verilog file to Yosys's JSON format.
+
+        Parameters
+        ----------
+        verilog_input : Path
+            The Verilog/SystemVerilog source to read.
+        json_output : Path
+            Destination path for the emitted Yosys JSON netlist.
+        models_pack : Path | None
+            When given, the fabric models package is read in after the source so
+            the parsed netlist resolves its instantiated primitives and becomes
+            self-contained for arc analysis. Defaults to None (no augmentation).
+        run_hierarchy : bool
+            Whether to run `hierarchy -auto-top` to prune modules unreachable
+            from the chosen top. Ignored when `models_pack` is given, since the
+            two-stage bind always needs hierarchy. Defaults to True.
+        """
+        if models_pack is not None:
+            # Read and auto-top the source ALONE first: a BEL that instantiates
+            # no primitives would otherwise let -auto-top pick a models_pack
+            # primitive as top. The second hierarchy binds the primitives and
+            # prunes unused ones.
+            script = (
+                f"read_verilog -sv {verilog_input}; "
+                "hierarchy -auto-top; "
+                f"read_verilog -sv {models_pack}; "
+                "hierarchy; "
+                "proc -noopt; "
+                f"write_json -compat-int {json_output}"
+            )
+        else:
+            hierarchy_step = "hierarchy -auto-top; " if run_hierarchy else ""
+            script = (
+                f"read_verilog -sv {verilog_input}; "
+                f"{hierarchy_step}"
+                "proc -noopt; "
+                f"write_json -compat-int {json_output}"
+            )
+        cls.run(args=["-q", f"-p {script}"])

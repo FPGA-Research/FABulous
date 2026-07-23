@@ -5,13 +5,20 @@ Harden tiles and the fabric into GDS macros via the LibreLane flow.
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Annotated, cast
+from typing import TYPE_CHECKING, Annotated, cast
 
 import yaml
-from cmd2 import with_annotated, with_category
+from cmd2 import Cmd, with_annotated, with_category
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
+from fabulous.custom_exception import CommandError
+from fabulous.fabric_cad.gen_sdc import (
+    FVS_BATCH_FRACTION,
+    FVS_SINGLE_MAX,
+    export_tile_sdc,
+)
+from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
@@ -21,6 +28,9 @@ from fabulous.fabulous_repl.helper import (
     CommandPipeline,
 )
 from fabulous.fabulous_settings import get_context, is_pdk_config_set
+
+if TYPE_CHECKING:
+    from fabulous.fabric_definition.tile import Tile
 
 
 def _require_directional_mode(
@@ -351,3 +361,101 @@ class MacroFlowCommandSet(ReplCommandSet):
             nlp_only=nlp_only,
             nlp_area_margin=nlp_area_margin,
         )
+
+    @with_category(CMD_FABRIC_FLOW)
+    @with_annotated
+    def do_export_sdc(
+        self,
+        tile: Annotated[
+            str,
+            Argument(
+                help_text="Export a loop-break SDC for this tile's switch matrix",
+                completer=lambda self: [
+                    t.name for t in self._cmd.fabulousAPI.getTiles()
+                ],
+            ),
+        ],
+        output: Annotated[
+            Path | None,
+            Option(
+                "--output",
+                "-o",
+                help_text="Override the output SDC file path",
+                completer=Cmd.path_complete,
+            ),
+        ] = None,
+        fvs_single_max: Annotated[
+            int,
+            Option(
+                help_text=(
+                    "Strongly connected components up to this size are reduced one "
+                    f"vertex per round (default: {FVS_SINGLE_MAX})"
+                ),
+            ),
+        ] = FVS_SINGLE_MAX,
+        fvs_batch_fraction: Annotated[
+            float,
+            Option(
+                help_text=(
+                    "Fraction of vertices removed per round from larger components "
+                    f"(default: {FVS_BATCH_FRACTION})"
+                ),
+            ),
+        ] = FVS_BATCH_FRACTION,
+    ) -> None:
+        """Export an SDC that breaks a tile's combinational loops for STA.
+
+        Builds the tile's switch-matrix connectivity graph, selects a
+        feedback-vertex set, and writes `set_disable_timing` constraints. A super
+        tile expands to one SDC per constituent sub-tile, since each sub-tile owns
+        its own switch matrix. Each SDC goes to its tile directory unless
+        `-o`/`--output` overrides it; for a super tile `-o` is treated as the
+        destination directory. Raises `CommandError` if the fabric is not loaded
+        or `tile` names a tile that is not in the fabric.
+        """
+        repl = self._cmd
+        if not repl.fabric_loaded:
+            raise CommandError("Need to load fabric first")
+
+        fabric = repl.fabulousAPI.fabric
+        try:
+            resolved = fabric.getTileByName(tile)
+        except KeyError as e:
+            raise CommandError(str(e)) from e
+
+        if isinstance(resolved, SuperTile):
+            tile_names = [t.name for t in resolved.tiles]
+        else:
+            tile_names = [resolved.name]
+
+        # The intra-tile jump wires (tile.wireList) are populated only on the
+        # placed grid instances, not on the tileDic/SuperTile definitions, so
+        # resolve each name to its placed instance.
+        placed: dict[str, Tile] = {}
+        for row in fabric.tile:
+            for grid_tile in row:
+                if grid_tile is not None and grid_tile.name in tile_names:
+                    placed.setdefault(grid_tile.name, grid_tile)
+
+        missing = [name for name in tile_names if name not in placed]
+        if missing:
+            raise CommandError(
+                f"Tile(s) not placed in the fabric: {', '.join(missing)}"
+            )
+
+        multi = len(tile_names) > 1
+        for name in tile_names:
+            placed_tile = placed[name]
+            if output is None:
+                out = placed_tile.tile_dir.parent / f"{name}_loop_break.sdc"
+            elif multi:
+                out = output / f"{name}_loop_break.sdc"
+            else:
+                out = output
+            export_tile_sdc(
+                placed_tile,
+                out,
+                single_max=fvs_single_max,
+                batch_fraction=fvs_batch_fraction,
+            )
+            logger.info(f"Exported loop-break SDC to {out}")

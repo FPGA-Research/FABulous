@@ -92,7 +92,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
         for x, tile in enumerate(row):
             if tile is None:
                 continue
-            if "fabric.csv" in str(tile.tileDir):
+            if "fabric.csv" in str(tile.tile_dir):
                 # Backward compat: in the old fabric.csv-embedded layout the
                 # tile's real location comes from its switch-matrix file path.
                 matrix_file = tile.switch_matrix.matrix_file
@@ -110,7 +110,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                         f"Assuming default path: {configMemPath}"
                     )
             else:
-                configMemPath = tile.tileDir.parent.joinpath(
+                configMemPath = tile.tile_dir.parent.joinpath(
                     f"{tile.name}_ConfigMem.csv"
                 )
             logger.info(f"ConfigMemPath: {configMemPath}")
@@ -218,7 +218,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
         st_mask_dic: dict[int, str] = {}
         if st_config_bits > 0:
             st_config_mem_list = parseConfigMem(
-                super_tile.tileDir.parent / f"{super_tile.name}_ConfigMem.csv",
+                super_tile.tile_dir.parent / f"{super_tile.name}_ConfigMem.csv",
                 fabric.maxFramesPerCol,
                 fabric.frameBitsPerRow,
                 st_config_bits,

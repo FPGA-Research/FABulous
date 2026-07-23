@@ -333,4 +333,5 @@ def parseBelFile(
         ports_vectors=ports_vectors,
         carry=carry,
         localShared=localSharedPorts,
+        yosys_json=yosys_json,
     )

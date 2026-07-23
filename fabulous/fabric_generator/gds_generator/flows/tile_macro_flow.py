@@ -88,7 +88,7 @@ class FABulousTileMacroFlow(SequentialFlow):
         file_list += [
             str(f)
             for pattern in self._hdl_glob_patterns
-            for f in tile_type.tileDir.parent.glob(pattern)
+            for f in tile_type.tile_dir.parent.glob(pattern)
             if "macro" not in f.parts
         ]
         if not self._models_pack_first:
@@ -131,7 +131,7 @@ class FABulousTileMacroFlow(SequentialFlow):
         final_dir_path = (
             Path(str(design_dir))
             if design_dir is not None
-            else tile_type.tileDir.parent / "macro" / opt_mode.value
+            else tile_type.tile_dir.parent / "macro" / opt_mode.value
         )
         final_dir_path.mkdir(parents=True, exist_ok=True)
         final_dir = str(final_dir_path.resolve())

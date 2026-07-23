@@ -36,7 +36,7 @@ class TestSuperTileLayout:
         t11 = make_empty_tile("T11")
         st = SuperTile(
             name="ST",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[t00, t11],
             tileMap=[[t00, None], [None, t11]],
         )
@@ -47,7 +47,7 @@ class TestSuperTileLayout:
         # Ragged layout: top row is wider.
         st = SuperTile(
             name="ST",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[t],
             tileMap=[[t, t, t], [t, None]],
         )
@@ -57,7 +57,7 @@ class TestSuperTileLayout:
         t = make_empty_tile("T")
         st = SuperTile(
             name="ST",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[t],
             tileMap=[[t], [t], [t]],
         )
@@ -85,7 +85,7 @@ class TestSuperTilePortQueries:
 
         st = SuperTile(
             name="ST",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[tile],
             tileMap=[[tile]],
         )
@@ -119,7 +119,7 @@ class TestSuperTilePortQueries:
 
         st = SuperTile(
             name="ST",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[left, right],
             tileMap=[[left, right]],
         )
@@ -161,7 +161,7 @@ class TestSuperTileMinDieArea:
 
         st = SuperTile(
             name="ST",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[a, b],
             tileMap=[[a, b]],
         )
@@ -187,7 +187,7 @@ class TestSuperTileMinDieArea:
         )
         st = SuperTile(
             name="ST",
-            tileDir=Path(),
+            tile_dir=Path(),
             tiles=[a],
             tileMap=[[a]],
         )
