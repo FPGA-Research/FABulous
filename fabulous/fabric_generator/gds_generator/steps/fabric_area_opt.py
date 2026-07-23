@@ -113,7 +113,7 @@ class NLPTileProblem(ElementwiseProblem):
 
         tile_min: dict[str, tuple[float, float]] = {}
         for tile in fabric.tileDic.values():
-            if tile.partOfSuperTile:
+            if tile.part_of_super_tile:
                 continue
             tile_min[tile.name] = _combined_min(tile.name)
 
@@ -121,24 +121,24 @@ class NLPTileProblem(ElementwiseProblem):
         # and from row/column neighbors
         for supertile in fabric.superTileDic.values():
             st_min_w, st_min_h = _combined_min(supertile.name)
-            first_row = supertile.tileMap[0] if supertile.tileMap else []
+            first_row = supertile.tile_map[0] if supertile.tile_map else []
             n_cols = sum(1 for t in first_row if t is not None)
             n_rows = sum(
                 1
-                for row in supertile.tileMap
+                for row in supertile.tile_map
                 if row and any(t is not None for t in row)
             )
             if n_cols == 0 or n_rows == 0:
                 continue
 
             # Ensure all component tiles have an entry before updating
-            for row in supertile.tileMap:
+            for row in supertile.tile_map:
                 for component_tile in row:
                     if component_tile is not None:
                         tile_min.setdefault(component_tile.name, (1.0, 1.0))
 
             # Update height bounds from row neighbors
-            for row in supertile.tileMap:
+            for row in supertile.tile_map:
                 for component_tile in row:
                     if component_tile is None:
                         continue
@@ -153,7 +153,7 @@ class NLPTileProblem(ElementwiseProblem):
 
             # Update width bounds from column neighbors
             for col_idx in range(supertile.max_width):
-                for row in supertile.tileMap:
+                for row in supertile.tile_map:
                     if col_idx >= len(row) or row[col_idx] is None:
                         continue
                     name = row[col_idx].name
@@ -218,11 +218,11 @@ class NLPTileProblem(ElementwiseProblem):
             is_supertile = tile.name in self.fabric.superTileDic
             if is_supertile:
                 supertile = self.fabric.superTileDic[tile.name]
-                first_row = supertile.tileMap[0] if supertile.tileMap else []
+                first_row = supertile.tile_map[0] if supertile.tile_map else []
                 n_cols = sum(1 for t in first_row if t is not None)
                 n_rows = sum(
                     1
-                    for row in supertile.tileMap
+                    for row in supertile.tile_map
                     if row and any(t is not None for t in row)
                 )
                 if n_cols == 0 or n_rows == 0:
@@ -242,7 +242,7 @@ class NLPTileProblem(ElementwiseProblem):
             if is_supertile:
                 per_row_h = sample_h / n_rows
                 per_col_w = sample_w / n_cols
-                for row in supertile.tileMap:
+                for row in supertile.tile_map:
                     for component in row:
                         if component is None:
                             continue
@@ -278,7 +278,7 @@ class NLPTileProblem(ElementwiseProblem):
 
         xu = xl * 3.0  # upper bound safety floor
         for tile in fabric.tileDic.values():
-            if tile.partOfSuperTile:
+            if tile.part_of_super_tile:
                 continue
             required = self.min_areas.get(tile.name, 0.0) * (1.0 + self.area_margin)
             if required <= 0:
@@ -322,7 +322,7 @@ class NLPTileProblem(ElementwiseProblem):
         # same row/col group share identical dimensions.
         tile_constraints: list[tuple[str, int, int]] = []
         for tile in fabric.tileDic.values():
-            if tile.partOfSuperTile:
+            if tile.part_of_super_tile:
                 continue
             rows = self.tile_row_set[tile.name]
             cols = self.tile_column_set[tile.name]
@@ -333,11 +333,11 @@ class NLPTileProblem(ElementwiseProblem):
         for supertile in fabric.superTileDic.values():
             st_cols = [
                 min(self.tile_column_set[tile.name])
-                for tile in (supertile.tileMap[0] if supertile.tileMap else [])
+                for tile in (supertile.tile_map[0] if supertile.tile_map else [])
                 if tile is not None
             ]
             st_rows: list[int] = []
-            for row in supertile.tileMap:
+            for row in supertile.tile_map:
                 first_tile = (
                     next((t for t in row if t is not None), None) if row else None
                 )
@@ -806,7 +806,7 @@ class FabricAreaOptimisation(Step):
             return Decimal(problem.get_row_height(res.X, row)).quantize(quant)
 
         for tile in fabric.tileDic.values():
-            if tile.partOfSuperTile:
+            if tile.part_of_super_tile:
                 continue
             result_dict[tile.name] = (
                 zero,
@@ -817,13 +817,13 @@ class FabricAreaOptimisation(Step):
 
         for supertile in fabric.superTileDic.values():
             total_w = zero
-            if supertile.tileMap:
-                for tile in supertile.tileMap[0]:
+            if supertile.tile_map:
+                for tile in supertile.tile_map[0]:
                     if tile is not None:
                         total_w += quantized_width(tile.name)
 
             total_h = zero
-            for row_tiles in supertile.tileMap:
+            for row_tiles in supertile.tile_map:
                 first_tile = (
                     next((t for t in row_tiles if t is not None), None)
                     if row_tiles

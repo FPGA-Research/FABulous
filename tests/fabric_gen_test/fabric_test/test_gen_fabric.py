@@ -63,7 +63,7 @@ def _supertile(tmp_path: Path) -> SuperTile:
         name="DSP",
         tile_dir=tmp_path,
         tiles=[top, bot],
-        tileMap=[[top], [bot]],
+        tile_map=[[top], [bot]],
         bels=[bel],
         switch_matrix=SwitchMatrix.from_file(mat, "DSP"),
     )
@@ -175,8 +175,8 @@ def test_iter_supertile_anchors_yields_top_left_anchor(tmp_path: Path) -> None:
     """
     supertile = _supertile(tmp_path)
     top, bot = supertile.tiles
-    top.partOfSuperTile = True
-    bot.partOfSuperTile = True
+    top.part_of_super_tile = True
+    bot.part_of_super_tile = True
     fabric = Fabric(
         fabric_dir=tmp_path,
         tile=[[top], [bot]],

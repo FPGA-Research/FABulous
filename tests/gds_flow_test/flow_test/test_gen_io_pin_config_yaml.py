@@ -138,10 +138,13 @@ class TestSerializeTilePorts:
         west_port.get_port_regex.return_value = r"W\[\d+\]"
 
         # Set up side port methods
-        tile.getNorthSidePorts.return_value = [north_port]
-        tile.getEastSidePorts.return_value = [east_port]
-        tile.getSouthSidePorts.return_value = [south_port]
-        tile.getWestSidePorts.return_value = [west_port]
+        side_ports = {
+            Side.NORTH: [north_port],
+            Side.EAST: [east_port],
+            Side.SOUTH: [south_port],
+            Side.WEST: [west_port],
+        }
+        tile.get_port_on_side.side_effect = lambda side, _io=None: side_ports[side]
 
         # Pin order config for each side
         tile.pin_order_config = {
@@ -228,10 +231,7 @@ class TestSerializeTilePorts:
         tile = mocker.MagicMock()
 
         # Empty side ports
-        tile.getNorthSidePorts.return_value = []
-        tile.getEastSidePorts.return_value = []
-        tile.getSouthSidePorts.return_value = []
-        tile.getWestSidePorts.return_value = []
+        tile.get_port_on_side.return_value = []
 
         tile.pin_order_config = {
             Side.NORTH: PinOrderConfig(),
@@ -259,7 +259,7 @@ class TestSerializeTilePorts:
     def test_serialize_tile_ports_empty_port_regex(self, mock_tile: Tile) -> None:
         """Test handling of ports that return empty regex."""
         # Make one port return empty regex
-        mock_tile.getNorthSidePorts.return_value[0].get_port_regex.return_value = ""
+        mock_tile.get_port_on_side(Side.NORTH)[0].get_port_regex.return_value = ""
 
         result = _serialize_tile_ports(mock_tile)
 
@@ -287,7 +287,7 @@ class TestSerializeSupertilePorts:
         mock_tile.bels = []
 
         # 2x2 supertile
-        supertile.tileMap = [
+        supertile.tile_map = [
             [mock_tile, mock_tile],
             [mock_tile, mock_tile],
         ]
@@ -360,7 +360,7 @@ class TestSerializeSupertilePorts:
         tile_top = _tile()
         tile_bot = _tile()
         # 1-wide, 2-tall layout — tile_top above tile_bot
-        supertile.tileMap = [[tile_top], [tile_bot]]
+        supertile.tile_map = [[tile_top], [tile_bot]]
 
         # tile_top (0,0): only EAST has routing ports; NORTH and WEST do not
         east_port_top = mocker.MagicMock()
@@ -436,12 +436,12 @@ class TestSerializeSupertilePorts:
         )
 
     def test_serialize_supertile_ports_none_tile(self, mocker: MockerFixture) -> None:
-        """Test handling when tileMap has None entries."""
+        """Test handling when tile_map has None entries."""
         supertile = mocker.MagicMock()
         supertile.bels = []
 
         # TileMap with None
-        supertile.tileMap = [[None]]
+        supertile.tile_map = [[None]]
 
         port = mocker.MagicMock()
         port.side_of_tile = Side.SOUTH
@@ -475,10 +475,7 @@ class TestGenerateIOPinOrderConfig:
         tile = mocker.MagicMock(spec=Tile)
 
         # Empty side ports for simplicity
-        tile.getNorthSidePorts.return_value = []
-        tile.getEastSidePorts.return_value = []
-        tile.getSouthSidePorts.return_value = []
-        tile.getWestSidePorts.return_value = []
+        tile.get_port_on_side.return_value = []
 
         tile.pin_order_config = {
             Side.NORTH: PinOrderConfig(),
@@ -557,7 +554,7 @@ class TestGenerateIOPinOrderConfig:
         }
         mock_tile.bels = []
 
-        mock_supertile.tileMap = [[mock_tile]]
+        mock_supertile.tile_map = [[mock_tile]]
         mock_supertile.get_ports_around_tile.return_value = {}
 
         outfile = tmp_path / "test_supertile_config.yaml"
@@ -663,7 +660,7 @@ class TestGenerateIOPinOrderConfig:
         bel.external_output = []
         mock_tile.bels = [bel]
 
-        mock_supertile.tileMap = [[mock_tile]]
+        mock_supertile.tile_map = [[mock_tile]]
         mock_supertile.get_ports_around_tile.return_value = {"0,0": [[]]}
 
         mock_fabric = mocker.MagicMock(spec=Fabric)
@@ -706,7 +703,7 @@ class TestGenerateIOPinOrderConfig:
         bel.external_output = []
         mock_tile.bels = [bel]
 
-        mock_supertile.tileMap = [[mock_tile]]
+        mock_supertile.tile_map = [[mock_tile]]
         mock_supertile.get_ports_around_tile.return_value = {"0,0": [[]]}
 
         outfile = tmp_path / "test_config.yaml"

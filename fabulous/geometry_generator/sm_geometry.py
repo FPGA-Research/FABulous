@@ -275,10 +275,10 @@ class SmGeometry:
         self.jumpPorts = [
             port for port in tile.ports_info if port.wire_direction == Direction.JUMP
         ]
-        self.northPorts = tile.getNorthSidePorts()
-        self.southPorts = tile.getSouthSidePorts()
-        self.eastPorts = tile.getEastSidePorts()
-        self.westPorts = tile.getWestSidePorts()
+        self.northPorts = tile.get_port_on_side(Side.NORTH)
+        self.southPorts = tile.get_port_on_side(Side.SOUTH)
+        self.eastPorts = tile.get_port_on_side(Side.EAST)
+        self.westPorts = tile.get_port_on_side(Side.WEST)
         self.preprocessPorts(tileBorder)
 
         # Counting the total number of wires for each direction
