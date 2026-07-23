@@ -20,7 +20,12 @@ from cmd2.annotated import Argument, Option
 from loguru import logger
 
 from fabulous.custom_exception import CommandError, InvalidFileType
-from fabulous.fabulous_repl.command_set_base import CMD_USER_DESIGN_FLOW, ReplCommandSet
+from fabulous.fabric_cad.gen_pcf_template import write_pcf_template
+from fabulous.fabulous_repl.command_set_base import (
+    CMD_USER_DESIGN_FLOW,
+    USER_DESIGN_DIR,
+    ReplCommandSet,
+)
 from fabulous.fabulous_repl.helper import make_hex, run_task
 from fabulous.fabulous_settings import get_context
 
@@ -292,6 +297,23 @@ class UserDesignCommandSet(ReplCommandSet):
             cmd += f' --synth-extra-args "{" ".join(extra)}"'
 
         repl.onecmd_plus_hooks(cmd)
+
+    def do_gen_pcf_template(self, *_ignored: str) -> None:
+        """Generate the `template.pcf` constraint template of the fabric.
+
+        Lists every constrainable I/O site as a commented `set_io` stub, grouped
+        per tile and supertile, in the slash form the nextpnr `fabulous` uarch
+        accepts. The file is written to the directory specified by `metaDataDir`
+        within `projectDir` and is meant to be copied and edited by the user.
+
+        Logs the output file directory.
+        """
+        repl = self._cmd
+        logger.info("Generating pcf template")
+        template_path = Path(f"{repl.projectDir}/{USER_DESIGN_DIR}/template.pcf")
+        logger.info(f"output file: {template_path}")
+        write_pcf_template(repl.fabulousAPI.fabric, template_path)
+        logger.info("Generated pcf template")
 
     @with_annotated
     def do_place_and_route(

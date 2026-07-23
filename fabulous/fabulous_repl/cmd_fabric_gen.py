@@ -336,8 +336,9 @@ class FabricGenCommandSet(ReplCommandSet):
         """Generate Nextpnr model of fabric.
 
         By parsing various required files for place and route such as `pips.txt`,
-        `bel.txt`, `bel.v2.txt` and `template.pcf`. Output files are written to the
-        directory specified by `metaDataDir` within `projectDir`.
+        `bel.txt`, `bel.v2.txt` and `bel.v3.txt`. Output files are written to the
+        directory specified by `metaDataDir` within `projectDir`. Run
+        `gen_pcf_template` to produce the `template.pcf` constraint template.
 
         Logs output file directories.
         """
@@ -359,10 +360,6 @@ class FabricGenCommandSet(ReplCommandSet):
         logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/bel.v3.txt")
         with Path(f"{repl.projectDir}/{META_DATA_DIR}/bel.v3.txt").open("w") as f:
             f.write(npnr_model[3])
-
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/template.pcf")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/template.pcf").open("w") as f:
-            f.write(npnr_model[4])
 
         estimate_path = Path(
             f"{repl.projectDir}/{META_DATA_DIR}/placement_estimate.txt"

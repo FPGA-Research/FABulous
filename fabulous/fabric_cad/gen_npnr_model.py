@@ -93,21 +93,9 @@ PLACEMENT_ESTIMATE_TEXT: str = (
     + "\n"
 )
 
-# BEL types whose ports are exposed as fabric pins in the per-tile
-# loop; a matching BEL gets a `set_io` constraint line.
-IO_BEL_TYPES = (
-    "IO_1_bidirectional_frame_config_pass",
-    "InPass4_frame_config",
-    "OutPass4_frame_config",
-    "InPass4_frame_config_mux",
-    "OutPass4_frame_config_mux",
-)
 
-
-def belLines(
-    bel: Bel, letter: str, x: int, y: int
-) -> tuple[str, list[str], list[str], list[str]]:
-    """Build a BEL's legacy v1 line, its v2/v3 blocks, and any pin constraint.
+def belLines(bel: Bel, letter: str, x: int, y: int) -> tuple[str, list[str], list[str]]:
+    """Build a BEL's legacy v1 line and its v2/v3 blocks.
 
     The bel.v3 block additionally carries timing-arc lines, but only for the
     BEL types nextpnr currently times (``FABULOUS_LC``, ``InPass4_frame_config``,
@@ -127,9 +115,9 @@ def belLines(
 
     Returns
     -------
-    tuple[str, list[str], list[str], list[str]]
-        `(v1_line, v2_lines, v3_lines, constrain_lines)` - the legacy bel.txt
-        line, the bel.v2/bel.v3 block lines, and zero or one `set_io` line.
+    tuple[str, list[str], list[str]]
+        `(v1_line, v2_lines, v3_lines)` - the legacy bel.txt line and the
+        bel.v2/bel.v3 block lines.
     """
     cType = bel.name
     if bel.name in ("LUT4c_frame_config", "LUT4c_frame_config_dffesr"):
@@ -182,18 +170,12 @@ def belLines(
     v2_lines = block(timing=False)
     v3_lines = block(timing=True)
 
-    constrain_lines = (
-        [f"set_io Tile_X{x}Y{y}_{letter} Tile_X{x}Y{y}.{letter}"]
-        if bel.name in IO_BEL_TYPES
-        else []
-    )
-
-    return v1_line, v2_lines, v3_lines, constrain_lines
+    return v1_line, v2_lines, v3_lines
 
 
 def genNextpnrModel(
     fabric: Fabric, delay_model: FABulousTimingModelInterface = None
-) -> tuple[str, str, str, str, str]:
+) -> tuple[str, str, str, str]:
     """Generate the fabric's nextpnr model.
 
     Parameters
@@ -205,12 +187,11 @@ def genNextpnrModel(
 
     Returns
     -------
-    tuple[str, str, str, str, str]
+    tuple[str, str, str, str]
         - pipStr: A string with tile-internal and tile-external pip descriptions.
         - belStr: A string with old style BEL definitions.
         - belv2Str: A string with new style BEL definitions.
         - belv3Str: A string with new style BEL definitions including timing.
-        - constrainStr: A string with constraint definitions.
 
     Raises
     ------
@@ -233,7 +214,6 @@ def genNextpnrModel(
         f"# BEL descriptions: top left corner Tile_X0Y0, "
         f"bottom right Tile_X{fabric.numberOfColumns}Y{fabric.numberOfRows}"
     )
-    constrainStr = []
 
     for y, row in enumerate(fabric.tile):
         for x, tile in enumerate(row):
@@ -282,13 +262,10 @@ def genNextpnrModel(
             belv3Str.append(f"#Tile_X{x}Y{y}")
             for i, bel in enumerate(tile.bels):
                 letter = string.ascii_uppercase[i]
-                v1_line, v2_lines, v3_lines, constrain_lines = belLines(
-                    bel, letter, x, y
-                )
+                v1_line, v2_lines, v3_lines = belLines(bel, letter, x, y)
                 belStr.append(v1_line)
                 belv2Str.extend(v2_lines)
                 belv3Str.extend(v3_lines)
-                constrainStr.extend(constrain_lines)
 
     # Supertile BEL and switch-matrix PIP emission.
     # SJUMP PIPs live in tile.wireList (added by Fabric.__post_init__) and are
@@ -307,13 +284,10 @@ def genNextpnrModel(
         belv3Str.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
         for i, bel in enumerate(super_tile.bels):
             letter = string.ascii_uppercase[bel_offset + i]
-            v1_line, v2_lines, v3_lines, constrain_lines = belLines(
-                bel, letter, ftx, fty
-            )
+            v1_line, v2_lines, v3_lines = belLines(bel, letter, ftx, fty)
             belStr.append(v1_line)
             belv2Str.extend(v2_lines)
             belv3Str.extend(v3_lines)
-            constrainStr.extend(constrain_lines)
 
         if super_tile.switch_matrix is not None:
             for sink, sources in super_tile.switch_matrix.connections.items():
@@ -330,7 +304,6 @@ def genNextpnrModel(
         "\n".join(belStr),
         "\n".join(belv2Str),
         "\n".join(belv3Str),
-        "\n".join(constrainStr),
     )
 
 

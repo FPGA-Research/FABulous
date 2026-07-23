@@ -16,7 +16,7 @@ nextpnr can find all model files.
 | `bel.v3.txt`       | `bel.v2.txt` plus per-BEL timing arcs (see [](#belv3txt-bel-timing))                  |
 | `pips.txt`         | Routing resources (programmable interconnect points) and their delays                |
 | `placement_estimate.txt`  | The fabric's base delay scaling factors (see [](#placement-estimate))                     |
-| `template.pcf`     | A pin-constraint template listing the fabric's IO BELs                                |
+| `template.pcf`     | A pin-constraint template listing the fabric's IO BELs (see below)                    |
 
 nextpnr selects the BEL file as follows:
 
@@ -26,7 +26,8 @@ nextpnr selects the BEL file as follows:
   defaults baked into the viaduct);
 - legacy projects with no `.FABulous` directory use `npnroutput/bel.txt`.
 
-All of these files are produced together by the `gen_model_npnr` CLI command.
+`gen_model_npnr` produces every file above except `template.pcf`, which the
+`gen_pcf_template` command writes so it can be regenerated on its own.
 
 ## `bel.txt` (legacy)
 
