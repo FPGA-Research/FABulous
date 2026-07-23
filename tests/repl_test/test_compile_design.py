@@ -1,35 +1,13 @@
-"""Tests for FABulous CLI compile_design command."""
+"""Tests for the FABulous REPL compile_design command."""
 
-import argparse
 from pathlib import Path
 
 import pytest
 from pytest_mock import MockerFixture
 
+from fabulous.fabulous_repl.cmd_user_design import UserDesignCommandSet
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 from tests.conftest import run_cmd
-
-
-def _make_default_args(**overrides) -> argparse.Namespace:  # noqa: ANN003
-    """Return a Namespace with all compile_design arguments set to defaults."""
-    defaults = dict(
-        files=[],
-        top="top_wrapper",
-        json=None,
-        fasm=None,
-        log=None,
-        bin_file=None,
-        synth_only=False,
-        pnr_only=False,
-        bitgen_only=False,
-        synth_extra_args="",
-        yosys_extra_args="",
-        nextpnr_extra_args="",
-        yosys_synth_help=False,
-        nextpnr_help=False,
-    )
-    defaults.update(overrides)
-    return argparse.Namespace(**defaults)
 
 
 @pytest.fixture
@@ -311,11 +289,13 @@ def test_compile_design_no_taskfile(
     (compile_cli.projectDir / "Test" / "Taskfile.yml").unlink()
     mocker.patch("fabulous.fabulous_repl.cmd_user_design.run_task")
 
-    cmdset = compile_cli.find_commandset_for_command("compile_design")
-
-    args = _make_default_args(files=[design_file])
+    # Call the undecorated implementation directly so the exception surfaces
+    # instead of being swallowed by the REPL's onecmd handler.
+    command_set = compile_cli.find_commandsets(UserDesignCommandSet)[0]
     with pytest.raises(FileNotFoundError, match="Taskfile.yml"):
-        type(cmdset).do_compile_design.__wrapped__(cmdset, **vars(args))
+        UserDesignCommandSet.do_compile_design.__wrapped__(
+            command_set, files=[design_file]
+        )
 
 
 def test_compile_design_nonexistent_file(

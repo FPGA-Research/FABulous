@@ -6,8 +6,6 @@ management, and OSS CAD Suite installation. It serves as a collection of common
 functionalities used throughout the REPL components.
 """
 
-import argparse
-import functools
 import os
 import platform
 import re
@@ -15,7 +13,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from concurrent import futures
 from importlib import resources
 from importlib.metadata import version
@@ -270,21 +268,6 @@ def run_task(
     subprocess.run(cmd, cwd=task_dir, check=True)
 
 
-def copy_verilog_files(src: Path, dst: Path) -> None:
-    """Copy all Verilog files from source directory to the destination directory.
-
-    Parameters
-    ----------
-    src : Path
-        Source directory.
-    dst : Path
-        Destination directory
-    """
-    for file_path in src.rglob("*.v"):
-        destination_path = dst / file_path.name
-        shutil.copy(file_path, destination_path)
-
-
 _TEXT_CLONE_EXTENSIONS = {
     ".csv",
     ".list",
@@ -406,22 +389,6 @@ def register_tile_in_fabric_csv(csv_path: Path, dst_dir: Path) -> None:
     csv_path.write_text("".join(result), encoding="utf-8")
 
 
-def remove_dir(path: Path) -> None:
-    """Remove a directory and all its contents.
-
-    If the directory cannot be removed, logs OS error.
-
-    Parameters
-    ----------
-    path : Path
-        Path of the directory to remove.
-    """
-    try:
-        shutil.rmtree(path)
-    except OSError as e:
-        logger.error(f"{e}")
-
-
 def make_hex(binfile: Path, outfile: Path) -> None:
     """Convert a binary file into hex file.
 
@@ -489,41 +456,6 @@ def wrap_with_except_handling(fun_to_wrap: Callable) -> Callable:
             raise Exception from Exception  # noqa: TRY002 - Raising a new exception with the original traceback
 
     return inter
-
-
-def allow_blank(func: Callable) -> Callable:
-    """Allow function to be called with blank arguments.
-
-    This decorator wraps a function to handle cases where fewer arguments are provided
-    than expected. If only one argument is provided, it calls the function with an
-    additional empty string argument.
-
-    Parameters
-    ----------
-    func : Callable
-        The function to be wrapped.
-
-    Returns
-    -------
-    Callable
-        The wrapped function that can handle missing arguments.
-    """
-
-    @functools.wraps(func)
-    def _check_blank(*args: Sequence[str]) -> None:
-        """Check for blank arguments.
-
-        Parameters
-        ----------
-        *args : Sequence[str]
-            Variable number of string arguments.
-        """
-        if len(args) == 1:
-            func(*args, "")
-        else:
-            func(*args)
-
-    return _check_blank
 
 
 def install_oss_cad_suite(destination_folder: Path, update: bool = False) -> None:
@@ -956,11 +888,41 @@ def install_fabulator(install_dir: Path) -> None:
 
 def get_file_path(
     project_dir: Path,
-    args: argparse.Namespace,
     file_extension: str,
+    *,
+    last_run: bool = False,
+    fabric: bool = False,
+    tile: str | None = None,
     show_count: int = 0,
 ) -> str:
-    """Get the file path for the specified file extension."""
+    """Get the file path for the specified file extension.
+
+    Parameters
+    ----------
+    project_dir : Path
+        Project root the search is anchored at.
+    file_extension : str
+        Extension to look for, without the leading dot.
+    last_run : bool
+        Take the most recently modified match instead of prompting.
+        Defaults to False.
+    fabric : bool
+        Restrict the search to the `Fabric/` directory. Defaults to False.
+    tile : str | None
+        Restrict the search to a single tile directory. Defaults to None.
+    show_count : int
+        Number of candidates to offer when prompting. Defaults to 0.
+
+    Returns
+    -------
+    str
+        Path to the selected file.
+
+    Raises
+    ------
+    FileNotFoundError
+        If no matching file is found.
+    """
 
     def get_latest(directory: Path, file_extension: str) -> str:
         """Get the latest modified file in a directory."""
@@ -988,19 +950,19 @@ def get_file_path(
         return str(files_list[cast("int", idx)])
 
     file: str = ""
-    if args.last_run:
-        if args.fabric:
+    if last_run:
+        if fabric:
             file = get_latest(project_dir / "Fabric", file_extension)
-        elif args.tile is not None:
-            file = get_latest(project_dir / "Tile" / args.tile, file_extension)
+        elif tile is not None:
+            file = get_latest(project_dir / "Tile" / tile, file_extension)
         else:
             file = get_latest(project_dir, file_extension)
     else:
-        if args.fabric:
+        if fabric:
             file = get_option(project_dir / "Fabric", file_extension)
-        elif args.tile is not None:
-            file = get_option(project_dir / "Tile" / args.tile, file_extension)
-        elif args.tile is None and not args.fabric:
+        elif tile is not None:
+            file = get_option(project_dir / "Tile" / tile, file_extension)
+        elif tile is None and not fabric:
             file = get_option(project_dir, file_extension)
 
     if not file:
