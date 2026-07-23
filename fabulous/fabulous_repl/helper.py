@@ -422,6 +422,40 @@ def remove_dir(path: Path) -> None:
         logger.error(f"{e}")
 
 
+def write_pnr_model(
+    artifacts: dict[str, str | bytes], out_dir: Path, backup_existing: bool = False
+) -> None:
+    """Write a place-and-route model's files into `out_dir`.
+
+    The backend owns the file names and the file contents, so this only
+    decides where they land and logs each one.
+
+    Parameters
+    ----------
+    artifacts : dict[str, str | bytes]
+        File names, relative to `out_dir`, mapped to their content.
+    out_dir : Path
+        Directory the files are written to. Created if it does not exist.
+    backup_existing : bool
+        Whether to rename an existing file to `<name>.backup<suffix>` before
+        overwriting it. Defaults to False. The timed model overwrites the
+        untimed one in place, so that path keeps the previous generation
+        around.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name, content in artifacts.items():
+        path = out_dir / name
+        if backup_existing and path.exists():
+            backup_path = path.with_suffix(f".backup{path.suffix}")
+            logger.info(f"Backing up existing {path.name} to {backup_path}")
+            path.rename(backup_path)
+        logger.info(f"output file: {path}")
+        if isinstance(content, bytes):
+            path.write_bytes(content)
+        else:
+            path.write_text(content, encoding="utf-8")
+
+
 def make_hex(binfile: Path, outfile: Path) -> None:
     """Convert a binary file into hex file.
 

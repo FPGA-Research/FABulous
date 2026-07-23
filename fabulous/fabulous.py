@@ -37,6 +37,7 @@ from fabulous.fabulous_settings import (
     get_context,
     init_context,
 )
+from fabulous.plugins.manager import PluginManager
 
 APP_NAME = "FABulous"
 
@@ -54,14 +55,6 @@ install_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(install_app, name="install")
-
-
-def version_callback(value: bool) -> None:
-    """Print version information and exit."""
-    if value:
-        package_version = Version(version("FABulous-FPGA"))
-        typer.echo(f"FABulous CLI {package_version.base_version}")
-        raise typer.Exit
 
 
 def validate_project_directory(value: str) -> Path | None:
@@ -94,6 +87,75 @@ WriterType = Annotated[
 ]
 
 ForceType = Annotated[bool, typer.Option("--force", help="Enable force mode")]
+
+PluginOptType = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--plugin",
+        "-m",
+        help="Load a session plugin (dotted module or directory). Repeatable.",
+    ),
+]
+
+SkipBrokenType = Annotated[
+    bool,
+    typer.Option(
+        "--skip-broken-plugins",
+        help="Warn and continue when an optional plugin fails to load.",
+    ),
+]
+
+plugins_app = typer.Typer(help="Manage FABulous plugins.", no_args_is_help=True)
+app.add_typer(plugins_app, name="plugins")
+
+
+@plugins_app.callback()
+def plugins_callback(
+    ctx: typer.Context,
+    skip_broken_plugins: SkipBrokenType = False,
+) -> None:
+    """Build the plugin manager only when a `plugins` subcommand runs.
+
+    Other FABulous commands never touch `ctx.obj`, so they no longer pay for
+    plugin discovery on every invocation. `--project-dir` is still honoured:
+    the root `common_options` callback initialises the context (without
+    project validation) before this callback runs.
+    """
+    ctx.obj = PluginManager.create(skip_broken=skip_broken_plugins)
+
+
+@plugins_app.command("list")
+def plugins_list_cmd(ctx: typer.Context) -> None:
+    """List discovered plugins."""
+    typer.echo(ctx.obj.get_installed_plugins_str())
+
+
+@plugins_app.command("info")
+def plugins_info_cmd(ctx: typer.Context, name: str) -> None:
+    """Show detail for a single plugin."""
+    typer.echo(ctx.obj.get_plugin_info_str(name))
+
+
+@plugins_app.command("install")
+def plugins_install_cmd(ctx: typer.Context, spec: str) -> None:
+    """Install a plugin package via uv."""
+    _, message = ctx.obj.install(spec)
+    typer.echo(message)
+
+
+@plugins_app.command("uninstall")
+def plugins_uninstall_cmd(ctx: typer.Context, name: str) -> None:
+    """Uninstall a plugin package via uv."""
+    _, message = ctx.obj.uninstall(name)
+    typer.echo(message)
+
+
+def version_callback(value: bool) -> None:
+    """Print version information and exit."""
+    if value:
+        package_version = Version(version("FABulous-FPGA"))
+        typer.echo(f"FABulous CLI {package_version.base_version}")
+        raise typer.Exit
 
 
 class NixShell(StrEnum):
@@ -153,6 +215,7 @@ def reorder_options(argv: list[str]) -> list[str]:
         return argv
 
     command_names = {c.name for c in app.registered_commands}
+    command_names |= {g.name for g in app.registered_groups}
 
     # Find first subcommand occurrence
     cmd_index = None
@@ -249,6 +312,10 @@ def common_options(
         subcommand.startswith("install")
         or subcommand in {"create-project", "c", "nix-env"}
     ):
+        return
+
+    if subcommand == "plugins":
+        init_context(project_dir=project_dir, api_mode=True)
         return
 
     resolved_dir = project_dir or Path.cwd()
@@ -507,6 +574,8 @@ def script_cmd(
         ),
     ] = ScriptType.TCL,
     force: ForceType = False,
+    plugin: PluginOptType = None,
+    skip_broken_plugins: SkipBrokenType = False,
 ) -> None:
     """Execute a script file with auto-detection of script type.
 
@@ -522,6 +591,8 @@ def script_cmd(
         writerType=get_context().proj_lang,
         force=force,
         debug=get_context().debug,
+        extra_plugins=plugin,
+        skip_broken_plugins=skip_broken_plugins,
     )
     # Change to project directory
 
@@ -563,7 +634,11 @@ def script_cmd(
 
 @app.command("start")
 @app.command("s", hidden=True)
-def start_cmd(force: ForceType = False) -> None:
+def start_cmd(
+    force: ForceType = False,
+    plugin: PluginOptType = None,
+    skip_broken_plugins: SkipBrokenType = False,
+) -> None:
     """Start FABulous in interactive mode. Alias: s.
 
     This is the main command for running FABulous in interactive mode or with scripts.
@@ -575,6 +650,8 @@ def start_cmd(force: ForceType = False) -> None:
         interactive=True,
         verbose=get_context().verbose >= 2,
         debug=get_context().debug,
+        extra_plugins=plugin,
+        skip_broken_plugins=skip_broken_plugins,
     )
     repl.onecmd_plus_hooks("load_fabric")
     repl.cmdloop()
@@ -597,6 +674,8 @@ def run_cmd(
         ),
     ] = None,
     force: ForceType = False,
+    plugin: PluginOptType = None,
+    skip_broken_plugins: SkipBrokenType = False,
 ) -> None:
     """Run commands directly in a FABulous project.
 
@@ -608,6 +687,8 @@ def run_cmd(
         interactive=True,
         verbose=get_context().verbose >= 2,
         debug=get_context().debug,
+        extra_plugins=plugin,
+        skip_broken_plugins=skip_broken_plugins,
     )
 
     # Change to project directory
@@ -707,12 +788,10 @@ def main() -> None:
         if len(sys.argv) == 1:
             app()
         sys.argv = reorder_options(sys.argv)
+        known = [c.name for c in app.registered_commands]
+        known += [g.name for g in app.registered_groups]
         for i in sys.argv[1:]:
-            if (
-                i in [i.name for i in app.registered_commands]
-                or i in [g.name for g in app.registered_groups if g.name]
-                or i == "--help"
-            ):
+            if i in known or i == "--help":
                 app()
                 break
         else:
