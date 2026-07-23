@@ -50,7 +50,7 @@ def _serialize_tile_ports(
         Side.WEST.name: [],
     }
 
-    for port in tile.getNorthSidePorts():
+    for port in tile.get_port_on_side(Side.NORTH):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.NORTH.name].append(
                 tile.pin_order_config[Side.NORTH]([regex]).to_dict()
@@ -60,7 +60,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameStrobe_O\[\d+\]"]).to_dict()
     )
 
-    for port in tile.getEastSidePorts():
+    for port in tile.get_port_on_side(Side.EAST):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.EAST.name].append(
                 tile.pin_order_config[Side.EAST]([regex]).to_dict()
@@ -69,7 +69,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameData_O\[\d+\]"]).to_dict()
     )
 
-    for port in tile.getSouthSidePorts():
+    for port in tile.get_port_on_side(Side.SOUTH):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.SOUTH.name].append(
                 tile.pin_order_config[Side.SOUTH]([regex]).to_dict()
@@ -79,7 +79,7 @@ def _serialize_tile_ports(
         PinOrderConfig()([rf"{prefix}FrameStrobe\[\d+\]"]).to_dict()
     )
 
-    for port in tile.getWestSidePorts():
+    for port in tile.get_port_on_side(Side.WEST):
         if regex := port.get_port_regex(indexed=True, prefix=prefix):
             port_dict[Side.WEST.name].append(
                 tile.pin_order_config[Side.WEST]([regex]).to_dict()
@@ -108,7 +108,7 @@ def _serialize_supertile_ports(
 ) -> dict[str, dict[str, list[dict]]]:
     """Serialize SuperTile ports, processing only perimeter sides."""
     config_payload: dict[str, dict[str, list[dict]]] = {}
-    ports_around = super_tile.getPortsAroundTile()
+    ports_around = super_tile.get_ports_around_tile()
 
     for coord_key, port_lists in ports_around.items():
         if not port_lists:
@@ -124,7 +124,7 @@ def _serialize_supertile_ports(
         }
 
         x_int, y_int = int(x), int(y)
-        tile = super_tile.tileMap[y_int][x_int]
+        tile = super_tile.tile_map[y_int][x_int]
         if tile is None:
             continue
 
@@ -148,7 +148,7 @@ def _serialize_supertile_ports(
         # carries FrameData on its WEST edge). Derive the full perimeter set from
         # the supertile layout instead of relying on the routing-port list.
         all_perimeter_sides: set[Side] = set()
-        tm = super_tile.tileMap
+        tm = super_tile.tile_map
         if y_int == 0 or tm[y_int - 1][x_int] is None:
             all_perimeter_sides.add(Side.NORTH)
         if x_int + 1 >= len(tm[y_int]) or tm[y_int][x_int + 1] is None:
@@ -213,7 +213,7 @@ def _serialize_supertile_ports(
         ]
         mx, my = super_tile.get_master_tile_coords()
         master_key = f"X{mx}Y{my}"
-        master_tile = super_tile.tileMap[my][mx]
+        master_tile = super_tile.tile_map[my][mx]
         if st_pin_regexes and master_tile is not None and master_key in config_payload:
             if external_port_sides and (mx, my) in external_port_sides:
                 master_side = external_port_sides[(mx, my)]
@@ -265,7 +265,7 @@ def generate_IO_pin_order_config(
                 base_x = min(pos[0] for pos in positions)
                 base_y = min(pos[1] for pos in positions)
 
-            for st_y, row in enumerate(tile_or_super_tile.tileMap):
+            for st_y, row in enumerate(tile_or_super_tile.tile_map):
                 for st_x, st_tile in enumerate(row):
                     if st_tile is None:
                         continue
@@ -276,7 +276,7 @@ def generate_IO_pin_order_config(
         else:
             sides = {
                 (x, y): external_port_side
-                for y, row in enumerate(tile_or_super_tile.tileMap)
+                for y, row in enumerate(tile_or_super_tile.tile_map)
                 for x, subtile in enumerate(row)
                 if subtile is not None
             }

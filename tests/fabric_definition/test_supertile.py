@@ -1,10 +1,10 @@
 """Tests for SuperTile methods.
 
 The supertile aggregates Tile objects into a 2D layout. The methods under test are
-pure functions of the ``tileMap`` shape and the constituent tiles' port counts:
+pure functions of the ``tile_map`` shape and the constituent tiles' port counts:
 
-- ``getPortsAroundTile``: emits side-of-tile port lists for *outer* edges only.
-- ``getInternalConnections``: emits side-of-tile port lists for *inner* edges only.
+- ``get_ports_around_tile``: emits side-of-tile port lists for *outer* edges only.
+- ``get_internal_connections``: emits side-of-tile port lists for *inner* edges only.
 - ``__iter__``: yields ``((x, y), tile)`` for every non-None cell.
 - ``max_width`` / ``max_height``: dimensions of the layout grid.
 - ``get_min_die_area``: pin-density-driven physical minimum.
@@ -38,7 +38,7 @@ class TestSuperTileLayout:
             name="ST",
             tile_dir=Path(),
             tiles=[t00, t11],
-            tileMap=[[t00, None], [None, t11]],
+            tile_map=[[t00, None], [None, t11]],
         )
         assert list(st) == [((0, 0), t00), ((1, 1), t11)]
 
@@ -49,7 +49,7 @@ class TestSuperTileLayout:
             name="ST",
             tile_dir=Path(),
             tiles=[t],
-            tileMap=[[t, t, t], [t, None]],
+            tile_map=[[t, t, t], [t, None]],
         )
         assert st.max_width == 3
 
@@ -59,18 +59,18 @@ class TestSuperTileLayout:
             name="ST",
             tile_dir=Path(),
             tiles=[t],
-            tileMap=[[t], [t], [t]],
+            tile_map=[[t], [t], [t]],
         )
         assert st.max_height == 3
 
 
 class TestSuperTilePortQueries:
-    """``getPortsAroundTile`` / ``getInternalConnections`` partition the four
+    """``get_ports_around_tile`` / ``get_internal_connections`` partition the four
     edges of every cell into "outer" (boundary or facing a hole) and "inner"
     (facing another tile).
 
     The implementation calls the side-getter for outer-edges only
-    in ``getPortsAroundTile`` and inner-edges only in ``getInternalConnections``.
+    in ``get_ports_around_tile`` and inner-edges only in ``get_internal_connections``.
     """
 
     def test_single_tile_supertile_has_all_outer_edges(
@@ -78,26 +78,28 @@ class TestSuperTilePortQueries:
     ) -> None:
         # A 1x1 supertile: every edge is outer, none are internal.
         tile = mocker.MagicMock(spec=Tile)
-        tile.getNorthSidePorts.return_value = ["N"]
-        tile.getEastSidePorts.return_value = ["E"]
-        tile.getSouthSidePorts.return_value = ["S"]
-        tile.getWestSidePorts.return_value = ["W"]
+        tile.get_port_on_side.side_effect = lambda side, _io=None: {
+            Side.NORTH: ["N"],
+            Side.EAST: ["E"],
+            Side.SOUTH: ["S"],
+            Side.WEST: ["W"],
+        }[side]
 
         st = SuperTile(
             name="ST",
             tile_dir=Path(),
             tiles=[tile],
-            tileMap=[[tile]],
+            tile_map=[[tile]],
         )
 
-        ports = st.getPortsAroundTile()
+        ports = st.get_ports_around_tile()
         # The cell coordinate is "x,y" for col x, row y.
         assert list(ports.keys()) == ["0,0"]
         # Every direction should appear exactly once on the only cell.
         assert ports["0,0"] == [["N"], ["E"], ["S"], ["W"]]
 
         # No internal connections.
-        assert st.getInternalConnections() == []
+        assert st.get_internal_connections() == []
 
     def test_two_tile_horizontal_splits_outer_and_inner(
         self, mocker: MockerFixture
@@ -106,32 +108,36 @@ class TestSuperTilePortQueries:
         # its east edge is internal (faces the right tile); mirror for the
         # right tile.
         left = mocker.MagicMock(spec=Tile)
-        left.getNorthSidePorts.return_value = ["LN"]
-        left.getEastSidePorts.return_value = ["LE"]
-        left.getSouthSidePorts.return_value = ["LS"]
-        left.getWestSidePorts.return_value = ["LW"]
+        left.get_port_on_side.side_effect = lambda side, _io=None: {
+            Side.NORTH: ["LN"],
+            Side.EAST: ["LE"],
+            Side.SOUTH: ["LS"],
+            Side.WEST: ["LW"],
+        }[side]
 
         right = mocker.MagicMock(spec=Tile)
-        right.getNorthSidePorts.return_value = ["RN"]
-        right.getEastSidePorts.return_value = ["RE"]
-        right.getSouthSidePorts.return_value = ["RS"]
-        right.getWestSidePorts.return_value = ["RW"]
+        right.get_port_on_side.side_effect = lambda side, _io=None: {
+            Side.NORTH: ["RN"],
+            Side.EAST: ["RE"],
+            Side.SOUTH: ["RS"],
+            Side.WEST: ["RW"],
+        }[side]
 
         st = SuperTile(
             name="ST",
             tile_dir=Path(),
             tiles=[left, right],
-            tileMap=[[left, right]],
+            tile_map=[[left, right]],
         )
 
-        ports = st.getPortsAroundTile()
+        ports = st.get_ports_around_tile()
         # Outer edges: left has N, S, W (no E, since right is east neighbor).
         assert ports["0,0"] == [["LN"], ["LS"], ["LW"]]
         # Outer edges: right has N, E, S (no W).
         assert ports["1,0"] == [["RN"], ["RE"], ["RS"]]
 
         # Inner connections: left's E side and right's W side.
-        internal = st.getInternalConnections()
+        internal = st.get_internal_connections()
         # Each entry is (ports, x, y); order follows the loop.
         assert (["LE"], 0, 0) in internal
         assert (["RW"], 1, 0) in internal
@@ -163,7 +169,7 @@ class TestSuperTileMinDieArea:
             name="ST",
             tile_dir=Path(),
             tiles=[a, b],
-            tileMap=[[a, b]],
+            tile_map=[[a, b]],
         )
 
         # pitch=1, thickness_mult=1, edge_offset=2.
@@ -189,7 +195,7 @@ class TestSuperTileMinDieArea:
             name="ST",
             tile_dir=Path(),
             tiles=[a],
-            tileMap=[[a]],
+            tile_map=[[a]],
         )
         # width = (2 * 3 + 2) * 0.5 = 4.0 ; height = (1 * 2 + 2) * 0.25 = 1.0
         w, h = st.get_min_die_area(

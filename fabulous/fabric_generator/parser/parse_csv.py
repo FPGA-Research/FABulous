@@ -104,7 +104,7 @@ def parseTilesCSV(
         bels: list[Bel] = []
         matrixDir: Path | None = None
         gen_ios: list[Gen_IO] = []
-        withUserCLK = False
+        with_user_clk = False
         genMatrixList = False
         tileCarry: dict[str, dict[IO, str]] = {}
         localSharedPorts: dict[str, list[TilePort]] = {}
@@ -324,7 +324,7 @@ def parseTilesCSV(
                     "BEL, GEN_IO, MATRIX, and INCLUDE."
                 )
 
-        withUserCLK = any(bel.with_user_clock for bel in bels)
+        with_user_clk = any(bel.with_user_clock for bel in bels)
 
         if matrixDir is None:
             raise InvalidTileDefinition(
@@ -352,7 +352,7 @@ def parseTilesCSV(
                     preserve_list_order=preserve_list_order,
                 ),
                 gen_ios=gen_ios,
-                userCLK=withUserCLK,
+                user_clk=with_user_clk,
             )
         )
 
@@ -452,10 +452,10 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
     for t in superTilesData:
         description = t.split("\n")
         name = description[0].split(",")[1]
-        tileMap = []
+        tile_map = []
         tiles = []
         bels = []
-        withUserCLK = False
+        with_user_clk = False
         master_set = False
         master_coords: tuple[int, int] | None = None
         matrix_line_path: Path | None = None
@@ -485,7 +485,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                     row_master = True
                     continue
                 if j in tileDic:
-                    tileDic[j].partOfSuperTile = True
+                    tileDic[j].part_of_super_tile = True
                     t = deepcopy(tileDic[j])
                     row.append(t)
                     if t not in tiles:
@@ -503,7 +503,7 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                         f"Supertile '{name}': MASTER cannot be used on a row "
                         "with multiple tiles."
                     )
-                row_index = len(tileMap)
+                row_index = len(tile_map)
                 col_index = len(row) - 1
                 if master_set:
                     raise InvalidSupertileDefinition(
@@ -511,17 +511,17 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                     )
                 master_coords = (col_index, row_index)
                 master_set = True
-            tileMap.append(row)
+            tile_map.append(row)
 
-        # Reverse tileMap to use bottom-left origin coordinate system
-        # After this: tileMap[0] = bottom row, tileMap[-1] = top row
-        tileMap.reverse()
+        # Reverse tile_map to use bottom-left origin coordinate system
+        # After this: tile_map[0] = bottom row, tile_map[-1] = top row
+        tile_map.reverse()
 
-        withUserCLK = any(bel.with_user_clock for bel in bels)
+        with_user_clk = any(bel.with_user_clock for bel in bels)
         # tile_dir is the supertile CSV file path (matching Tile.tile_dir), so
         # consumers use `tile_dir.parent` for the supertile's directory.
         super_tile = SuperTile(
-            name, fileName.absolute(), tiles, tileMap, bels, withUserCLK
+            name, fileName.absolute(), tiles, tile_map, bels, with_user_clk
         )
         super_tile.master_tile_coords = master_coords
 

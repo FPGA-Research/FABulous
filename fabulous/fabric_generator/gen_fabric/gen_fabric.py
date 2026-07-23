@@ -56,7 +56,7 @@ def iter_super_tile_anchors(
         The anchor `(x, y)` and the `SuperTile` placed there.
     """
     for base_fx, base_fy, superTile in fabric.iter_super_tile_placements():
-        for ly, row in enumerate(superTile.tileMap):
+        for ly, row in enumerate(superTile.tile_map):
             for lx, tile in enumerate(row):
                 if tile is not None:
                     yield base_fx + lx, base_fy + ly, superTile
@@ -268,14 +268,14 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             # get all the ports of the tile. If is a super tile, we loop over the
             # tile map and find all the offset of the subtile, and all their related
             # ports.
-            if tile.partOfSuperTile:
+            if tile.part_of_super_tile:
                 for k, v in fabric.superTileDic.items():
                     if tile.name in [i.name for i in v.tiles]:
                         superTile = fabric.superTileDic[k]
                         break
 
             if superTile:
-                portsAround = superTile.getPortsAroundTile()
+                portsAround = superTile.get_ports_around_tile()
                 cord = [
                     (i.split(",")[0], i.split(",")[1]) for i in list(portsAround.keys())
                 ]
@@ -291,7 +291,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
             # if is a normal tile then the offset is (0, 0)
             for i, j in tileLocationOffset:
                 here = fabric.tile[y + j][x + i]
-                in_super = here.partOfSuperTile
+                in_super = here.part_of_super_tile
 
                 def _local_names(
                     ports: list, _i: int = i, _j: int = j, in_super: bool = in_super
@@ -329,7 +329,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
             # output signal name is same as the output port name
             if superTile:
-                portsAround = superTile.getPortsAroundTile()
+                portsAround = superTile.get_ports_around_tile()
                 cord = [
                     (i.split(",")[0], i.split(",")[1]) for i in list(portsAround.keys())
                 ]
@@ -378,7 +378,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
 
             if not fabric.disableUserCLK:
                 if not superTile:
-                    # for userCLK
+                    # for user_clk
                     if (
                         y + 1 < fabric.numberOfRows
                         and fabric.tile[y + 1][x] is not None

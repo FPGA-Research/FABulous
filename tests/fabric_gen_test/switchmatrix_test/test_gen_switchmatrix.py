@@ -351,7 +351,7 @@ class TestSuperTileSwitchMatrixConstants:
             name="DSP",
             tile_dir=tmp_path,
             tiles=[bot],
-            tileMap=[[bot]],
+            tile_map=[[bot]],
             bels=[bel],
             switch_matrix=SwitchMatrix.from_file(mat, "DSP"),
         )

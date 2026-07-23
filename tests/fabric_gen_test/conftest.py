@@ -33,7 +33,7 @@ class TileConfig(NamedTuple):
     """Configuration parameters for tile testing."""
 
     name: str
-    globalConfigBits: int
+    total_config_bits: int
 
 
 @pytest.fixture
@@ -64,7 +64,7 @@ def mk_tile(tmp_path: Path) -> Callable[[str], Tile]:
             tile_dir=tmp_path,
             matrix_dir=matrix_dir,
             gen_ios=[],
-            userCLK=False,
+            user_clk=False,
             switch_matrix=switch_matrix,
         )
 
@@ -86,7 +86,7 @@ def default_tile(mocker: MockerFixture) -> Tile:
     """Create a Tile instance with given parameters."""
     tile = mocker.create_autospec(Tile, spec_set=False)
     tile.name = "DefaultTile"
-    tile.globalConfigBits = 127
+    tile.total_config_bits = 127
     return tile
 
 
@@ -191,7 +191,7 @@ def tile_config(request: pytest.FixtureRequest, mocker: MockerFixture) -> Tile:
     config = request.param
     tile = mocker.create_autospec(Tile, spec_set=False)
     tile.name = config.name
-    tile.globalConfigBits = config.globalConfigBits
+    tile.total_config_bits = config.total_config_bits
     return tile
 
 
@@ -362,7 +362,7 @@ def configmem_list(
             )
         )
         shuffle(poss)
-        config_final = poss[: tile.globalConfigBits]
+        config_final = poss[: tile.total_config_bits]
 
         def generate_mask(bits_used: int, total_bits: int) -> str:
             """Generate a random bit mask with specified number of '1's and '0's.

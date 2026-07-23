@@ -115,13 +115,13 @@ class TestSuperTileHelpers:
             "name": "DSP",
             "tile_dir": Path(),
             "tiles": [top, bot],
-            "tileMap": [[top], [bot]],
+            "tile_map": [[top], [bot]],
         }
         defaults.update(overrides)
         return SuperTile(**defaults)
 
     def test_master_defaults_to_last_non_none_tile(self) -> None:
-        # tileMap [[DSP_top], [DSP_bot]] -> master is DSP_bot at local (0, 1).
+        # tile_map [[DSP_top], [DSP_bot]] -> master is DSP_bot at local (0, 1).
         assert self._supertile().get_master_tile_coords() == (0, 1)
 
     def test_master_explicit_override(self) -> None:
@@ -129,7 +129,7 @@ class TestSuperTileHelpers:
         assert st.get_master_tile_coords() == (0, 0)
 
     def test_master_raises_on_empty(self) -> None:
-        st = self._supertile(tiles=[], tileMap=[[None]])
+        st = self._supertile(tiles=[], tile_map=[[None]])
         with pytest.raises(ValueError, match="has no tiles"):
             st.get_master_tile_coords()
 
@@ -143,7 +143,7 @@ class TestSuperTileHelpers:
             name="DSP",
             tile_dir=Path(),
             tiles=[top, bot],
-            tileMap=[[top], [bot]],
+            tile_map=[[top], [bot]],
         )
         coords = [(x, y, p.name) for x, y, p in st.get_all_sjump_ports()]
         # Only OUTPUT SJUMP ports, with their (local_x, local_y).
@@ -172,10 +172,10 @@ class TestFabricSJumpWirePass:
             name="DSP",
             tile_dir=Path(),
             tiles=[top, bot],
-            tileMap=[[top], [bot]],
+            tile_map=[[top], [bot]],
         )
         for t in supertile.tiles:
-            t.partOfSuperTile = True
+            t.part_of_super_tile = True
         return make_fabric(
             tile=[[top], [bot]],
             superTileDic={"DSP": supertile},
@@ -220,12 +220,12 @@ class TestSJumpRequiresSupertile:
         self, make_fabric: Callable[..., Fabric]
     ) -> None:
         bot = _tile("DSP_bot", [sjump_port("A", IO.OUTPUT)])
-        bot.partOfSuperTile = True  # set by the parser for supertile members
+        bot.part_of_super_tile = True  # set by the parser for supertile members
         supertile = SuperTile(
             name="DSP",
             tile_dir=Path(),
             tiles=[bot],
-            tileMap=[[bot]],
+            tile_map=[[bot]],
         )
         # Must not raise.
         make_fabric(tile=[[bot]], superTileDic={"DSP": supertile})
@@ -274,11 +274,11 @@ class TestGenNpnrModelSupertile:
             name="DSP",
             tile_dir=tmp_path,
             tiles=[top, bot],
-            tileMap=[[top], [bot]],
+            tile_map=[[top], [bot]],
             switch_matrix=SwitchMatrix.from_file(st_mat, "DSP"),
         )
         for t in supertile.tiles:
-            t.partOfSuperTile = True
+            t.part_of_super_tile = True
         return make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
 
     def test_forward_pip_has_bel_input_as_destination(self, fabric: Fabric) -> None:
@@ -321,7 +321,7 @@ class TestGenNpnrModelSupertile:
             name="DSP",
             tile_dir=tmp_path,
             tiles=[top, bot],
-            tileMap=[[top], [bot]],
+            tile_map=[[top], [bot]],
             bels=[bel],
         )
         for t in supertile.tiles:
@@ -385,11 +385,11 @@ class TestGenBitstreamSpecSupertileMux:
             # tile_dir.parent (here tmp_path, where the ConfigMem CSV is written).
             tile_dir=tmp_path / "DSP.csv",
             tiles=[top, bot],
-            tileMap=[[top], [bot]],
+            tile_map=[[top], [bot]],
             switch_matrix=SwitchMatrix.from_file(st_mat, "DSP"),
         )
         for t in supertile.tiles:
-            t.partOfSuperTile = True
+            t.part_of_super_tile = True
         fabric = make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
         return generateBitstreamSpec(fabric)
 
