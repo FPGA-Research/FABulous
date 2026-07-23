@@ -1,7 +1,7 @@
 """FABulous command-line interface entry point.
 
 This module provides the main entry point for the FABulous FPGA framework command-line
-interface. It handles argument parsing, project setup, and CLI initialization.
+interface. It handles argument parsing, project setup, and REPL initialization.
 """
 
 import os
@@ -775,7 +775,7 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         default=None,
         help=(
             "Run FABulous with a FABulous script. A FABulous script is a text file "
-            "containing only FABulous commands. This will automatically exit the CLI "
+            "containing only FABulous commands. This will automatically exit the REPL "
             "once the command finish execution, and the exit will always happen "
             "gracefully."
         ),
@@ -789,8 +789,8 @@ def convert_legacy_args_with_deprecation_warning() -> None:
         help=(
             "Run FABulous with a TCL script. A TCL script is a text file containing "
             "a mix of TCL commands and FABulous commands. This will automatically exit "
-            "the CLI once the command finish execution, and the exit will always happen"
-            "gracefully."
+            "the REPL once the command finish execution, and the exit will always "
+            "happen gracefully."
         ),
         type=Path,
     )

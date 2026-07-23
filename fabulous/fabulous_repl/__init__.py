@@ -1,4 +1,4 @@
-"""CLI module for FABulous."""
+"""REPL module for FABulous."""
 
 from .fabulous_repl import FABulousREPL
 
