@@ -1,14 +1,10 @@
 # Configuration file for the Sphinx documentation builder.
 
+import json
+import re
 import sys
-from importlib import import_module
+from importlib.metadata import version as installed_version
 from pathlib import Path
-
-_source_root = Path(__file__).resolve().parent
-if _source_root.as_posix() not in sys.path:
-    sys.path.insert(0, _source_root.as_posix())
-
-from conf_helper import get_display_version, get_version
 
 # -- Project information
 
@@ -16,57 +12,46 @@ project = "FABulous: An easy-to-use, silicon-proven (e)FPGA generator with an in
 copyright = "2021, University of Manchester"
 author = "Jing, Nguyen, Bea, Bardia, Dirk"
 
-version = get_version()
+# The docs environment installs `fabulous-fpga` (editable), so the package
+# metadata is the single source for the version.
+version = installed_version("fabulous-fpga")
 release = version
-display_version = get_display_version(version)
+# Bare version for tagged releases, version+dev for dev builds.
+display_version = re.sub(r"(\.dev.*|[+].*)$", "", version) + (
+    "+dev" if ".dev" in version else ""
+)
 project_name = "FABulous"
 project_tagline = "An easy-to-use, silicon-proven (e)FPGA generator with an integrated CAD toolchain 🏗️"
 
 
 # -- General configuration
 
-# Ensure the repository root is importable so `import FABulous.*` works as a
-# proper package (and doesn't get shadowed by FABulous.py).
-_repo_root = Path(__file__).resolve().parents[2].as_posix()
-if _repo_root not in sys.path:
-    sys.path.insert(0, _repo_root)
-
-# Add _ext directory to path for custom extensions
+# Add _ext directory to path so Sphinx can load the custom extensions below.
 _ext_dir = Path(__file__).resolve().parent / "_ext"
 if _ext_dir.as_posix() not in sys.path:
     sys.path.insert(0, _ext_dir.as_posix())
 
-prepare_autoapi_jinja_env = import_module(
-    "docstring_renderer"
-).prepare_autoapi_jinja_env
-format_annotation_for_rst = import_module(
-    "docstring_renderer"
-).format_annotation_for_rst
+from docstring_renderer import prepare_autoapi_jinja_env
 
 extensions = [
-    # Core Sphinx extensions (scikit-learn style)
-    "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
+    # Core Sphinx extensions
     "sphinx.ext.duration",
-    "sphinx.ext.doctest",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.imgconverter",
-    # Modern documentation automation
-    "autoapi.extension",  # Keep existing AutoAPI
-    # Enhanced documentation features (scikit-learn additions)
+    # API reference generation
+    "autoapi.extension",
+    # Documentation features
     "myst_parser",  # Markdown support
-    "sphinx_design",  # Modern UI components
     "sphinxext.opengraph",  # Social media cards
     "sphinx_copybutton",  # Copy code button
-    "sphinx_remove_toctrees",  # Clean up AutoAPI navigation noise
-    "sphinx_prompt",
-    # Utility extensions
     "sphinxcontrib.bibtex",
     "sphinx_llm.txt",
     "sphinxcontrib.mermaid",
+    "sphinx_reredirects",  # Keep old page URLs working after restructures
     # Custom FABulous extensions
+    "myst_docstring",  # Parse docstrings as MyST, not reST
     "generate_repl_docs",
     "generate_configvar_docs",
     "generate_gds_variable_docs",
@@ -74,7 +59,27 @@ extensions = [
 
 myst_enable_extensions = [
     "colon_fence",
+    # Napoleon rewrites numpy sections into field lists before AutoAPI renders
+    # them; MyST needs this to turn those into Sphinx parameter lists.
+    "fieldlist",
 ]
+
+# Redirects for pages moved or merged during docs restructures, so published
+# URLs keep resolving. Targets are relative to the old page location.
+redirects = {
+    "getting_started/index": "quickstart.html",
+    "user_guide/index": "building_doc/index.html",
+    "user_guide/using_doc/synthesis/index": "../synthesis.html",
+    "user_guide/using_doc/synthesis/yosys": "../synthesis.html",
+    "user_guide/using_doc/synthesis/yosys_compilation": "../synthesis.html",
+    "user_guide/using_doc/pnr/index": "../place_and_route.html",
+    "user_guide/using_doc/pnr/nextpnr": "../place_and_route.html",
+    "user_guide/using_doc/pnr/nextpnr_compilation": "../place_and_route.html",
+    "user_guide/using_doc/pnr/pin_constraints": "../pin_constraints.html",
+    "user_guide/using_doc/bitstream/bitstream_generation": (
+        "../bitstream_generation.html"
+    ),
+}
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
@@ -87,24 +92,30 @@ intersphinx_mapping = {
     # Additional scikit-learn style mappings
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
+    # GDS-flow dependencies whose types appear in the gds_generator docstrings.
+    "librelane": ("https://librelane.readthedocs.io/en/latest/", None),
+    "packaging": ("https://packaging.pypa.io/en/stable/", None),
+    "networkx": ("https://networkx.org/documentation/stable/", None),
 }
 
 # Enable cross-references within the project
-autodoc_typehints_format = "short"
 intersphinx_disabled_domains = ["std"]
 
-# Make Sphinx resolve all cross-references
-nitpicky = False  # Disabled to avoid noisy warnings, type aliases still work
-python_use_unqualified_type_names = True
+# AutoAPI honors autodoc's typehint settings (napoleon loads sphinx.ext.autodoc):
+# render type hints in the parameter descriptions, not the signature, and show
+# short names. This keeps AutoAPI signatures readable and avoids unresolved
+# fully-qualified type refs from annotations like `typer.Option` or
+# `csv.writer` under nitpicky mode.
+autodoc_typehints = "description"
+autodoc_typehints_description_target = "documented"
+autodoc_typehints_format = "short"
 
-# Type alias mappings for common types that cause reference warnings
-autodoc_type_aliases = {
-    "optional": "typing.Optional",
-    "Path": "pathlib.Path",
-    "Object": "object",
-    "callable": "typing.Callable",
-    "Ellipsis": "type(Ellipsis)",
-}
+# Make Sphinx resolve all cross-references
+# Report every unresolved cross-reference. The missing-reference handler below
+# (resolve_known_type_refs) rewrites or downgrades the known-unresolvable targets,
+# so this stays quiet in a clean tree and fails the build on genuinely new breakage.
+nitpicky = True
+python_use_unqualified_type_names = True
 
 # Add additional paths for module resolution
 add_module_names = False
@@ -113,86 +124,19 @@ templates_path = ["_templates"]
 
 # FABulous package is installed as a dependency in the docs environment
 
+# Only non-default napoleon options are set; everything else uses the
+# sphinx.ext.napoleon defaults.
 napoleon_google_docstring = False
-napoleon_numpy_docstring = True
-napoleon_include_init_with_doc = False
-napoleon_include_private_with_doc = False
 napoleon_include_special_with_doc = True
-napoleon_use_admonition_for_examples = False
-napoleon_use_admonition_for_notes = False
-napoleon_use_admonition_for_references = False
 napoleon_use_ivar = (
     True  # Use :ivar: instead of .. attribute:: to avoid duplicate warnings
 )
-napoleon_use_param = True
-napoleon_use_rtype = True
-napoleon_preprocess_types = False
-napoleon_type_aliases = None
-napoleon_attr_annotations = True
 napoleon_custom_sections = [
     ("Command line arguments", "Parameters"),
     ("Params", "Parameters"),
     ("Verilog", "Other"),
     ("VHDL", "Other"),
 ]
-
-# -- Mock imports for documentation build
-autodoc_mock_imports = [
-    # External dependencies that aren't available in docs environment
-    "numpy",
-    "pandas",
-    "matplotlib",
-    "networkx",
-    "lxml",
-    "typing_extensions",
-    "loguru",
-    "cmd2",
-    "dotenv",
-    "bitarray",
-    "requests",
-    "pydantic",
-    "pydantic_settings",
-    "rich",
-    "textx",
-    "arpeggio",
-]
-
-# Configure autodoc to avoid dataclass field duplication
-autodoc_default_options = {
-    "members": True,
-    "undoc-members": False,
-    "show-inheritance": True,
-    "special-members": False,
-    "inherited-members": False,
-}
-
-# Prevent autodoc from automatically documenting modules
-autodoc_member_order = "alphabetical"
-
-# Prevent duplicate object warnings from autosummary
-autodoc_typehints = "description"
-autodoc_typehints_description_target = "documented"
-autodoc_preserve_defaults = True
-autodoc_member_order = "alphabetical"
-autodoc_class_signature = "mixed"
-autodoc_inherit_docstrings = True
-
-# Configuration for sphinx-autodoc-typehints extension
-typehints_fully_qualified = False  # Use short names when possible
-typehints_document_rtype = False  # Keep return types in the signature only
-typehints_use_signature = True  # Show types in signature
-typehints_use_signature_return = True  # Show return types in signature
-typehints_use_rtype = False  # Do not add return types to docstring bodies
-always_document_param_types = True  # Always show parameter types
-typehints_formatter = format_annotation_for_rst
-
-# Enhanced intersphinx mapping for better cross-references
-intersphinx_mapping.update(
-    {
-        "numpy": ("https://numpy.org/doc/stable/", None),
-        "pandas": ("https://pandas.pydata.org/docs/", None),
-    }
-)
 
 # Modern Sphinx configuration
 html_title = f"{project} v{version}"
@@ -229,23 +173,16 @@ _jsonld = {
     },
 }
 
-import json as _json
+html_context["jsonld"] = json.dumps(_jsonld)
 
-html_context["jsonld"] = _json.dumps(_jsonld)
-
-# -- AutoAPI Configuration (Modern replacement for autosummary)
-autoapi_type = "python"
+# -- AutoAPI Configuration
 autoapi_dirs = ["../../fabulous"]  # Path to source code
-autoapi_root = "generated_doc"  # Directory name for generated docs (consistent with existing setup)
+autoapi_root = "generated_doc"  # Directory name for generated docs
 autoapi_keep_files = True  # Keep generated .rst files for debugging
-autoapi_generate_api_docs = True
 autoapi_template_dir = "_templates/autoapi"
 autoapi_ignore = [
     "**/fabric_files/**",  # Exclude fabric_files directory (template files, not code)
 ]
-autoapi_add_toctree_entry = (
-    True  # Auto-insert AutoAPI index into our main toctree to reduce toc.not_included
-)
 
 
 def autoapi_skip_member(app, what, name, obj, skip, options):
@@ -274,23 +211,30 @@ autoapi_prepare_jinja_env = prepare_autoapi_jinja_env
 
 # Custom AutoAPI configuration
 autoapi_python_class_content = (
-    "both"  # Include both class and __init__ docs (scikit-learn style)
+    # Only the class docstring (where this codebase documents fields/attributes).
+    # "both" would also splice in the inherited Pydantic/object __init__ boilerplate
+    # ("Create a new model by parsing...", "Initialize self.  See help..."), which
+    # napoleon then mis-parses as cross-reference targets.
+    "class"
 )
 autoapi_member_order = "alphabetical"
 autoapi_own_page_level = (
     "module"  # Each module gets its own page (avoid nested class toctree issues)
 )
 
-# Additional configuration for better navigation integration
-# remove_from_toctrees = ["generated_doc/FABulous/*/index.rst"]  # Disabled to ensure content accessibility
-
 
 def strip_redundant_rtype_fields(app, domain, objtype, contentnode) -> None:  # noqa: ARG001
-    """Remove redundant return-type field blocks for documented callables."""
+    """Remove the return-type field, which the rendered signature already states.
+
+    Two things put it there: napoleon, rewriting the numpy `Returns` section, and
+    autodoc's `_merge_typehints`, which re-adds it from the annotation AutoAPI
+    records. Both land in the doctree as an `rtype` field, so removing it here
+    covers both -- stripping it from the docstring text would not.
+    """
     if domain != "py" or objtype not in {"function", "method"}:
         return
 
-    nodes = import_module("docutils.nodes")
+    from docutils import nodes
 
     for field_list in [
         node for node in contentnode if isinstance(node, nodes.field_list)
@@ -303,30 +247,78 @@ def strip_redundant_rtype_fields(app, domain, objtype, contentnode) -> None:  # 
                 field_list.remove(field)
 
 
+# Type names that appear bare (or mis-qualified) in NumPy-style docstring type
+# fields, rewritten to a target an intersphinx inventory can resolve so the
+# cross-reference renders as a real link instead of failing under nitpicky mode.
+_XREF_REWRITE = {
+    "Path": "pathlib.Path",
+    "Decimal": "decimal.Decimal",
+    "nx.DiGraph": "networkx.DiGraph",
+    "Cmd2ArgumentParser": "cmd2.argparse_utils.Cmd2ArgumentParser",
+    "State": "librelane.state.State",
+    "Config": "librelane.config.config.Config",
+    "FlowException": "librelane.flows.flow.FlowException",
+    # Re-exported by librelane.steps.magic but only documented under common.drc.
+    "librelane.steps.magic.DRC": "librelane.common.drc.DRC",
+}
+
+# References with no documentation target to link to: the NumPy `optional`
+# modifier (not a type), an import-aliased stdlib callable, and library-internal
+# type aliases / classes their published API docs do not expose. Handled by
+# returning the reference's own content node, which renders the short display
+# name as plain text. `nitpick_ignore` is deliberately not used here: it only
+# silences the warning and leaves the reference rendering its fully-qualified
+# target. Anything _not_ listed here still warns under nitpicky mode, so newly
+# broken references are not masked.
+_XREF_AS_TEXT = {
+    "optional",
+    "csvWriter",
+    "ValidationInfo",
+    "ValidationError",
+    "Ellipsis",
+    "pydantic.RootModel[dict[str, StdCellLibrary]]",
+    "librelane.steps.step.ViewsUpdate",
+    "librelane.steps.step.MetricsUpdate",
+    "librelane.steps.step.CompositeStep",
+    "librelane.steps.openroad.Floorplan",
+    "librelane.steps.openroad.DetailedRouting",
+    "librelane.steps.magic.StreamOut",
+    "librelane.steps.pyosys.JsonHeader",
+    "librelane.flows.classic.Classic",
+    "pymoo.core.problem.ElementwiseProblem",
+}
+
+
+def resolve_known_type_refs(app, env, node, contnode):  # noqa: ARG001
+    """Resolve a docstring type reference the domains cannot resolve alone.
+
+    Rewrites a known bare/mis-qualified target so intersphinx links it, or
+    returns its display text for references with no documentation target.
+    Returns `None` for unknown targets so nitpicky mode still reports them.
+    """
+    target = node.get("reftarget")
+    if target in _XREF_REWRITE:
+        node["reftarget"] = _XREF_REWRITE[target]
+        return None
+    if target in _XREF_AS_TEXT:
+        return contnode
+    return None
+
+
 def setup(app):
     """Custom Sphinx setup to ensure proper AutoAPI execution order."""
     # Connect AutoAPI skip member hook to avoid duplicates
     app.connect("autoapi-skip-member", autoapi_skip_member)
     app.connect("object-description-transform", strip_redundant_rtype_fields)
+    # Priority below intersphinx's default (500) so a rewritten target is handed
+    # to intersphinx for resolution within the same event dispatch.
+    app.connect("missing-reference", resolve_known_type_refs, priority=400)
     return {"version": "0.1", "parallel_read_safe": True}
 
 
-# Only suppress warnings that are definitely safe to ignore
 suppress_warnings = [
-    # These are genuinely noisy and don't indicate real issues
-    "app.add_node",  # Extension internal warnings
-    "ref.class",  # Missing type references that can't be resolved
-    "ref.exc",  # Missing exception references
-    "ref.obj",  # Missing exception references
-    # TODO(doc): Temporary suppression for docutils-origin warnings coming from
-    # generated .rst/docstrings. Remove after cleaning docstrings and
-    # improving templates. Patterns below cover common docutils emitters.
-    "docutils",
-    "ref.doc",
+    "app.add_node",  # Sphinx extension internal node-registration noise
 ]
-# Note: ~10 "duplicate object description" warnings are expected from AutoAPI's handling
-# of dataclass attributes (like hide_name, bits, etc. that appear in multiple classes).
-# These are cosmetic only - the documentation content is complete and correct.
 
 
 # Exclude patterns to prevent conflicts
@@ -337,7 +329,7 @@ exclude_patterns = [
     "generated_doc/fabulous_variable.md",
     "generated_doc/FABulous",
     "generated_doc/FABulous/**",
-] # since we alias the fabulous package with FABulous, we have to exclude the FABulous
+]  # since we alias the fabulous package with FABulous, we have to exclude the FABulous
 # package from the generated_doc to avoid confusion and duplication in the documentation.
 
 # -- Options for HTML output
@@ -381,22 +373,6 @@ html_theme_options = {
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 html_js_files = ["toc_sidebar.js"]
-
-# -- removing left side bar on pages that don't benefit
-html_sidebars = {
-    "Usage": [],
-    "Building fabric": [],
-    "fabric_definition": [],
-    "fabric_automation": [],
-    "FPGA_CAD-tools/index": [],
-    "gallary/index": [],
-    "FPGA-to-bitstream/index": [],
-    "definitions": [],
-    "contact": [],
-    "publications": [],
-    "simulation/index": [],
-    "development": [],
-}
 
 # -- Options for EPUB output
 epub_show_urls = "footnote"

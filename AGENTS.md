@@ -16,6 +16,8 @@ user design → Yosys (synth) → nextpnr (P&R) → FASM → bitstream
 - **Tasks**: `Taskfile.yml` is the canonical runner. The ones you'll use most: `task test` (forwards args after `--`; pass `--runslow` for slow tests), `task ci` (run before pushing), `task smoke-test` (end-to-end). `task --list` for the rest.
 - **Pre-commit is enforced** (ruff, docstring linting, dependency hygiene, etc.). If a hook fails, fix the cause — don't `--no-verify`.
 
+- **Docs: MyST (Sphinx).** Project documentation is written in MyST Markdown and built with Sphinx. Prefer MyST for new documentation (uses directives, roles, and math blocks) rather than raw reStructuredText; see `docs/source/conf.py` for the Sphinx configuration and the `docs/` Makefile to build HTML output.
+
 ## Coding Taste
 
 Rules that make changes feel native. Follow them even when a tool's defaults disagree.
@@ -26,8 +28,8 @@ Rules that make changes feel native. Follow them even when a tool's defaults dis
 - **Paths**: `pathlib.Path`. Never `os.path` or string concatenation.
 - **Logging**: `loguru` (`from loguru import logger`). Not `print`, not stdlib `logging`.
 - **Docstrings**: NumPy style — `pydoclint` + `interrogate` (≥95% coverage) enforce this.
-- **Inline code in docstrings/comments**: We use MyST for documentation. We use single "`" for raw text and "_" for italic.
-- **Naming**: this repo right now uses `camelCase` for variables/functions, `PascalCase` for classes, `CONSTANT_CASE` for module constants. Use snake case for all newly created methods and variables as we slow transition to meet PEP 8.  
+- **Markup in docstrings/comments**: We use MyST, in docstrings as well as pages — the `myst_docstring` extension parses docstrings with the MyST parser. So standard CommonMark applies: single backticks for inline code, fenced blocks for code, and either `*asterisks*` or `_underscores_` for italic. Cross-references use MyST role syntax (a `{class}` or `{meth}` role wrapping a backticked target); a reST `:class:` role will **not** resolve and is rejected by pre-commit.
+- **Naming**: this repo right now uses `camelCase` for variables/functions, `PascalCase` for classes, `CONSTANT_CASE` for module constants. Use snake case for all newly created methods and variables as we slow transition to meet PEP 8.
 - Formatting (line length, quotes, etc.) is whatever `ruff format` produces.
 
 ### Design

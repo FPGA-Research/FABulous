@@ -175,9 +175,9 @@ class TestRoundUpDecimal:
 class TestRoundDieDimension:
     """Tests for round_die_dimension function.
 
-    A super tile is split into ``divisions`` equal physical parts during IO
+    A super tile is split into `divisions` equal physical parts during IO
     placement. Rounding the whole dimension to the pitch is not enough: each
-    division boundary must land on the grid, so ``dimension / divisions`` itself
+    division boundary must land on the grid, so `dimension / divisions` itself
     must be a multiple of the pitch.
     """
 

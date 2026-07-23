@@ -551,7 +551,7 @@ wheels = [
 [[package]]
 name = "fabulous-docs"
 version = "0.1.0"
-source = { editable = "." }
+source = { virtual = "." }
 dependencies = [
     { name = "docutils" },
     { name = "fabulous-fpga" },
@@ -560,12 +560,9 @@ dependencies = [
     { name = "myst-parser" },
     { name = "sphinx" },
     { name = "sphinx-autoapi" },
-    { name = "sphinx-autodoc-typehints" },
     { name = "sphinx-copybutton" },
-    { name = "sphinx-design" },
     { name = "sphinx-llm", extra = ["gen"] },
-    { name = "sphinx-prompt" },
-    { name = "sphinx-remove-toctrees" },
+    { name = "sphinx-reredirects" },
     { name = "sphinxcontrib-bibtex" },
     { name = "sphinxcontrib-mermaid" },
     { name = "sphinxext-opengraph" },
@@ -585,12 +582,9 @@ requires-dist = [
     { name = "myst-parser", specifier = ">=5.1.0" },
     { name = "sphinx", specifier = ">=8.0.0" },
     { name = "sphinx-autoapi", specifier = ">=3.0.0" },
-    { name = "sphinx-autodoc-typehints", specifier = ">=3.12.1" },
     { name = "sphinx-copybutton", specifier = ">=0.5.0" },
-    { name = "sphinx-design", specifier = ">=0.5.0" },
     { name = "sphinx-llm", extras = ["gen"], specifier = ">=0.4.1" },
-    { name = "sphinx-prompt", specifier = "==1.10.2" },
-    { name = "sphinx-remove-toctrees", specifier = ">=1.0.0.post1" },
+    { name = "sphinx-reredirects", specifier = ">=1.1.0" },
     { name = "sphinxcontrib-bibtex", specifier = ">=2.6.0" },
     { name = "sphinxcontrib-mermaid", specifier = ">=2.1.0" },
     { name = "sphinxext-opengraph", specifier = ">=0.9.0" },
@@ -2241,18 +2235,6 @@ wheels = [
 ]
 
 [[package]]
-name = "sphinx-autodoc-typehints"
-version = "3.12.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "sphinx" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/de/ae/8ad5e79a0f7beac5e5810b2a8d0a1c6c63c795ba265a81970070abf15f32/sphinx_autodoc_typehints-3.12.1.tar.gz", hash = "sha256:4bbf6f6b907586d3b2a3ae2b23e0f86be939f19a7449e917d304df57ff9674d1", size = 84421, upload-time = "2026-07-03T13:52:09.056Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/a2/d5964523f0c98e39ef608a09f3de23032aa32fbe3e98a262e2112c39f985/sphinx_autodoc_typehints-3.12.1-py3-none-any.whl", hash = "sha256:932472c9cc160e6a0dc34eca13d3d6a9823ed6e6dc505d7c12f6963c983cf8f6", size = 42950, upload-time = "2026-07-03T13:52:07.696Z" },
-]
-
-[[package]]
 name = "sphinx-basic-ng"
 version = "1.0.0b2"
 source = { registry = "https://pypi.org/simple" }
@@ -2274,18 +2256,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fc/2b/a964715e7f5295f77509e59309959f4125122d648f86b4fe7d70ca1d882c/sphinx-copybutton-0.5.2.tar.gz", hash = "sha256:4cf17c82fb9646d1bc9ca92ac280813a3b605d8c421225fd9913154103ee1fbd", size = 23039, upload-time = "2023-04-14T08:10:22.998Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9e/48/1ea60e74949eecb12cdd6ac43987f9fd331156388dcc2319b45e2ebb81bf/sphinx_copybutton-0.5.2-py3-none-any.whl", hash = "sha256:fb543fd386d917746c9a2c50360c7905b605726b9355cd26e9974857afeae06e", size = 13343, upload-time = "2023-04-14T08:10:20.844Z" },
-]
-
-[[package]]
-name = "sphinx-design"
-version = "0.7.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "sphinx" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/13/7b/804f311da4663a4aecc6cf7abd83443f3d4ded970826d0c958edc77d4527/sphinx_design-0.7.0.tar.gz", hash = "sha256:d2a3f5b19c24b916adb52f97c5f00efab4009ca337812001109084a740ec9b7a", size = 2203582, upload-time = "2026-01-19T13:12:53.297Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/30/cf/45dd359f6ca0c3762ce0490f681da242f0530c49c81050c035c016bfdd3a/sphinx_design-0.7.0-py3-none-any.whl", hash = "sha256:f82bf179951d58f55dca78ab3706aeafa496b741a91b1911d371441127d64282", size = 2220350, upload-time = "2026-01-19T13:12:51.077Z" },
 ]
 
 [[package]]
@@ -2321,34 +2291,15 @@ wheels = [
 ]
 
 [[package]]
-name = "sphinx-prompt"
-version = "1.10.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "certifi" },
-    { name = "docutils" },
-    { name = "idna" },
-    { name = "jinja2" },
-    { name = "pygments" },
-    { name = "requests" },
-    { name = "sphinx" },
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/d0/a3/91293c0e0f0b76d0697ba7a41541929ca3f5457671d008bd84a9bde17e21/sphinx_prompt-1.10.2.tar.gz", hash = "sha256:47b592ba75caebd044b0eddf7a5a1b6e0aef6df587b034377cd101a999b686ba", size = 5566, upload-time = "2025-11-28T09:23:18.057Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a9/f4/44ce4d0179fb4e9cfe181a8aa281bba23e40158a609fb3680774529acaaa/sphinx_prompt-1.10.2-py3-none-any.whl", hash = "sha256:6594337962c4b1498602e6984634bed4a0dc7955852e3cfc255eb0af766ed859", size = 7474, upload-time = "2025-11-28T09:23:17.154Z" },
-]
-
-[[package]]
-name = "sphinx-remove-toctrees"
-version = "1.0.0.post1"
+name = "sphinx-reredirects"
+version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "sphinx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9a/50/e3153912d4382bb434b3679a42eb96966f8b741789004412d1ceecbeee30/sphinx_remove_toctrees-1.0.0.post1.tar.gz", hash = "sha256:4808d1edf151c06eff6d2c3922ec7ebc9fd3aa1762de1b2e1674a37f5ac9ce2d", size = 8473, upload-time = "2024-03-22T11:00:03.727Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/8d/0e39fe2740d7d71417edf9a6424aa80ca2c27c17fc21282cdc39f90d5a40/sphinx_reredirects-1.1.0.tar.gz", hash = "sha256:fb9b195335ab14b43f8273287d0c7eeb637ba6c56c66581c11b47202f6718b29", size = 614624, upload-time = "2025-12-22T08:28:02.792Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/bc/19/59dadac9ee5e8fa32b0d735b5488a569de36892a54e0b9927bea2b22f605/sphinx_remove_toctrees-1.0.0.post1-py3-none-any.whl", hash = "sha256:22a96579d7899cc034de194195916717a54a122cc101f16ec79c996fe0baa2be", size = 5200, upload-time = "2024-03-22T11:00:01.507Z" },
+    { url = "https://files.pythonhosted.org/packages/51/81/b5dd07067f3daac6d23687ec737b2d593740671ebcd145830c8f92d381c5/sphinx_reredirects-1.1.0-py3-none-any.whl", hash = "sha256:4b5692273c72cd2d4d917f4c6f87d5919e4d6114a752d4be033f7f5f6310efd9", size = 6351, upload-time = "2025-12-22T08:27:59.724Z" },
 ]
 
 [[package]]

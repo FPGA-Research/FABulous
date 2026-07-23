@@ -16,8 +16,8 @@
 
    {% if obj.docstring %}
 
-   .. autoapi-nested-parse::
+   .. myst-docstring::
 
-      {{ obj.docstring|normalize_callable_docstring_for_rst|indent(6) }}
+      {{ obj.docstring|indent(6) }}
    {% endif %}
 {% endif %}

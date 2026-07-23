@@ -19,7 +19,7 @@ Once you are in the REPL, you will find many features that help you with the flo
 You can type `help` or `?` in the REPL to see a list of all available commands and their descriptions.
 We will list out a few useful ones below. For more details on the capabilities of `cmd2`, please refer to the [cmd2 documentation](https://cmd2.readthedocs.io/en/stable/) since FABulous CLI is built on top of `cmd2`.
 
-For more details about the available commands, please refer to the [Interactive CLI Commands Reference](#interactive-cli-commands-reference).
+For more details about the available commands, please refer to the {ref}`Interactive CLI Commands Reference <interactive-cli-commands-reference>`.
 
 ### Session variables
 
@@ -44,7 +44,7 @@ Argument and filesystem completion are available — press Tab to complete filen
 You can open files from the REPL in your preferred editor and return to the CLI once the editor closes. The CLI chooses the editor from the following (in order): the environment variable `FABULOUS_EDITOR` (recommended), then `EDITOR` / `VISUAL`.
 The main use of the `FABULOUS_EDITOR` is to provide per-project editor settings, but without it, the CLI will try resolving with the `$EDITOR` which is set for most terminal environments.
 
-For more details on FABulous environment variables, see [FABulous environment variables](#fabulous-variables).
+For more details on FABulous environment variables, see {ref}`FABulous environment variables <fabulous-variables>`.
 
 Examples:
 

@@ -928,14 +928,14 @@ class TestCheckPdkAutoResolution:
         pdk_name : str
             PDK family name (used for env var and default pdk_root path).
         pdk_root : Path | None
-            Explicit pdk_root path. When None and ``set_pdk_root_env`` is True,
-            a default path under ``project.parent / ".ciel"`` is created.
+            Explicit pdk_root path. When None and `set_pdk_root_env` is True,
+            a default path under `project.parent / ".ciel"` is created.
         set_pdk_env : bool
-            When True (default), set ``FAB_PDK`` env var.
+            When True (default), set `FAB_PDK` env var.
         set_pdk_root_env : bool
-            When True (default), set ``FAB_PDK_ROOT`` env var and create the dir.
+            When True (default), set `FAB_PDK_ROOT` env var and create the dir.
         mock_ciel_enable : bool
-            When True (default), mock ``ciel.manage.enable`` so tests don't
+            When True (default), mock `ciel.manage.enable` so tests don't
             make real network calls.
 
         Returns

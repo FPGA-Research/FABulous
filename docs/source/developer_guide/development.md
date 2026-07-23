@@ -12,9 +12,9 @@ Contributors must use [uv](https://github.com/astral-sh/uv) for reproducible
 environment management and to ensure consistent dependency resolution with CI.
 
 :::{note} Recommended setup for full development (including ASIC backend)
-For end-to-end development, including the ASIC backend flow and EDA tooling, use the [Nix-based installation](#nix-install) provided in this repository. Nix ensures the full toolchain (GHDL, Yosys, NextPNR, OpenROAD, Librelane, etc.) is available and reproducible.
+For end-to-end development, including the ASIC backend flow and EDA tooling, use the {ref}`Nix-based installation <nix-install>` provided in this repository. Nix ensures the full toolchain (GHDL, Yosys, NextPNR, OpenROAD, Librelane, etc.) is available and reproducible.
 
-Use `uv` alongside Nix for Python-related dependency management of the FABulous project itself (locking, editable installs, tasks), as documented below. The [Dev Container](#dev-container) is available as a fallback when Nix is not accessible, but Nix remains the preferred method whenever possible.
+Use `uv` alongside Nix for Python-related dependency management of the FABulous project itself (locking, editable installs, tasks), as documented below. The {ref}`Dev Container <dev-container>` is available as a fallback when Nix is not accessible, but Nix remains the preferred method whenever possible.
 :::
 
 ### Installing uv

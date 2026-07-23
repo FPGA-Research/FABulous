@@ -11,7 +11,7 @@ def _complete_names(repl: FABulousREPL, command: str, dest: str) -> list[str]:
     """Return the completion candidates for a CommandSet command's argument.
 
     Pulls the completer off the built parser and calls it with the owning
-    CommandSet as ``self`` (what cmd2 passes at completion time), so the test
+    CommandSet as `self` (what cmd2 passes at completion time), so the test
     exercises the real completer wiring.
     """
     parser = repl.command_parsers.get(getattr(repl, f"do_{command}"))

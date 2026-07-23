@@ -4,7 +4,7 @@ These tests verify the *adapting* layer: how `FABulousFabric`'s overridden
 `__init__` turns plugin-level config (a fabric CSV path + a mapping of tile
 name -> pre-hardened macro directory) into the `self.fabric` / `self.macros`
 / `self.tile_sizes` fields that the underlying
-:class:`FABulousFabricMacroFlow` expects.
+{class}`FABulousFabricMacroFlow` expects.
 """
 
 # ruff: noqa: SLF001

@@ -2,15 +2,15 @@
 
 Three layers of coverage:
 
-* Unit tests for :func:`border_rows_have_config_bits`, the border-row detection
-  that drives the ``IncludeBorderRows`` archspec flag.
+* Unit tests for {func}`border_rows_have_config_bits`, the border-row detection
+  that drives the `IncludeBorderRows` archspec flag.
 * Integration tests that run the real generator on a fully generated demo fabric
   and assert the whole specification is internally consistent.
-* Bit-offset tests: ``generateBitstreamSpec`` assigns configuration-bit offsets
+* Bit-offset tests: `generateBitstreamSpec` assigns configuration-bit offsets
   while iterating a tile's BEL feature map, switch-matrix sources, and wire
   list. Those offsets must mirror the order in which the fabric HDL wires its
-  config bits: ``genTileSwitchMatrix`` walks ``parseMatrix``'s connections in
-  insertion order and assigns ``ConfigBits`` positions accordingly, so the spec
+  config bits: `genTileSwitchMatrix` walks `parseMatrix`'s connections in
+  insertion order and assigns `ConfigBits` positions accordingly, so the spec
   has to follow the same insertion order to stay aligned with the generated
   hardware.
 """
@@ -39,7 +39,7 @@ def _fabric_from_bits(grid: list[list[int | None]]) -> Fabric:
     Parameters
     ----------
     grid : list[list[int | None]]
-        Per-tile ``globalConfigBits``; ``None`` marks an empty (NULL) cell.
+        Per-tile `globalConfigBits`; `None` marks an empty (NULL) cell.
 
     Returns
     -------
@@ -100,7 +100,7 @@ def generated_fabric(cli: FABulousREPL) -> Fabric:
 
 
 def _all_tile_locations(fabric: Fabric) -> set[str]:
-    """Return every ``XxYy`` location string in the fabric grid."""
+    """Return every `XxYy` location string in the fabric grid."""
     return {f"X{x}Y{y}" for y, row in enumerate(fabric.tile) for x, _ in enumerate(row)}
 
 
@@ -264,7 +264,7 @@ def _build_fabric(
     Parameters
     ----------
     root : Path
-        Temporary root directory; each fabric gets its own ``name`` subtree so
+        Temporary root directory; each fabric gets its own `name` subtree so
         their CSV files do not clobber one another.
     name : str
         Subdirectory name isolating this fabric's CSV files.

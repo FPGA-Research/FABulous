@@ -420,7 +420,7 @@ class NLPTileProblem(ElementwiseProblem):
             return x
 
         def union(a: int, b: int) -> None:
-            """Merge the sets containing *a* and *b*."""
+            """Merge the sets containing *a_ and _b*."""
             ra, rb = find(a), find(b)
             if ra != rb:
                 parent[ra] = rb

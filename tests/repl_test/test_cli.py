@@ -204,7 +204,7 @@ def test_gen_tile_macro_with_io_pin_config_skips_generation(
 def test_gen_tile_macro_without_io_pin_config_generates_for_tile(
     cli: FABulousREPL, mocker: MockerFixture
 ) -> None:
-    """Without ``--io-pin-config``, the CLI auto-generates the pin order for a tile."""
+    """Without `--io-pin-config`, the CLI auto-generates the pin order for a tile."""
     mocker.patch(
         "fabulous.fabulous_repl.cmd_macro.is_pdk_config_set", return_value=True
     )
@@ -470,7 +470,7 @@ def test_start_klayout_gui_layer_file(
     lyp: str,
     auto_resolve_pdk_root: bool,
 ) -> None:
-    """The layer file resolves to ``pdk_root/<pdk>/libs.tech/klayout/tech/<lyp>``.
+    """The layer file resolves to `pdk_root/<pdk>/libs.tech/klayout/tech/<lyp>`.
 
     Covers both branches: ciel auto-resolution of `pdk_root` (fresh install)
     and an explicit `FAB_PDK_ROOT`
@@ -480,7 +480,7 @@ def test_start_klayout_gui_layer_file(
         if key.startswith("FAB_"):
             monkeypatch.delenv(key, raising=False)
 
-    # tests/conftest.py patches get_ciel_home() to ``tmp_path/.ciel``.
+    # tests/conftest.py patches get_ciel_home() to `tmp_path/.ciel`.
     pdk_root = tmp_path / ".ciel" / family
     expected_layer_file = pdk_root / pdk / "libs.tech" / "klayout" / "tech" / lyp
     expected_layer_file.parent.mkdir(parents=True, exist_ok=True)
@@ -509,7 +509,7 @@ def test_start_klayout_gui_layer_file(
 
 
 class TestResolveDirectionalFix:
-    """``_resolve_directional_fix`` maps a fix flag onto a directional mode."""
+    """`_resolve_directional_fix` maps a fix flag onto a directional mode."""
 
     def test_fix_height_implies_find_min_width(self) -> None:
         mode, die_area = _resolve_directional_fix(OptMode.NO_OPT, None, Decimal(245))

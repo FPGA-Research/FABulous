@@ -244,12 +244,12 @@ def run_task(
         If True, adds `--verbose` flag.
     taskfile : str | None
         Explicit Taskfile name (e.g. `"compile.Taskfile.yml"`).
-        When None, ``task`` uses its default lookup (``Taskfile.yml``).
+        When None, `task` uses its default lookup (`Taskfile.yml`).
 
     Raises
     ------
     EnvironmentNotSet
-        If the ``task`` binary is not found on ``PATH``.
+        If the `task` binary is not found on `PATH`.
     """
     if shutil.which("task") is None:
         raise EnvironmentNotSet(
@@ -346,7 +346,7 @@ def resolve_tile(arg: str, tile_dir: Path) -> Path:
     arg : str
         Tile name or path supplied by the user.
     tile_dir : Path
-        Project ``Tile/`` directory used for name-based lookup.
+        Project `Tile/` directory used for name-based lookup.
 
     Returns
     -------

@@ -1,11 +1,11 @@
-"""Tests for the ``run_simulation`` CLI command, including ``--gl``.
+"""Tests for the `run_simulation` CLI command, including `--gl`.
 
-The command-branch tests mock the EDA tools (``run_task`` / ``make_hex``) so
+The command-branch tests mock the EDA tools (`run_task` / `make_hex`) so
 they run without iverilog or a hardened project. The source-resolution tests
 exercise the gate-level helpers directly against a tmp-path project layout. The
 end-to-end gate-level run lives in
-``tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py`` behind
-``@pytest.mark.gl``.
+`tests/fabric_gen_test/integration_test/test_designs_pattern_gl.py` behind
+`@pytest.mark.gl`.
 """
 
 from collections.abc import Callable
@@ -22,7 +22,7 @@ _CMD_MODULE = "fabulous.fabulous_repl.cmd_run_simulation"
 
 
 def _make_bitstream(cli: FABulousREPL) -> Path:
-    """Create a dummy ``.bin`` bitstream inside the project."""
+    """Create a dummy `.bin` bitstream inside the project."""
     bitstream = cli.projectDir / "sequential_16bit_en.bin"
     bitstream.write_bytes(b"\x00\x00\x00\x00")
     return bitstream
@@ -31,7 +31,7 @@ def _make_bitstream(cli: FABulousREPL) -> Path:
 def test_run_simulation_uses_plain_task(
     cli: FABulousREPL, mocker: MockerFixture
 ) -> None:
-    """Without ``--gl`` the plain ``run-simulation`` task is used."""
+    """Without `--gl` the plain `run-simulation` task is used."""
     bitstream = _make_bitstream(cli)
     mocker.patch(f"{_CMD_MODULE}.make_hex")
     collect = mocker.patch(f"{_CMD_MODULE}.collect_gl_sources")
@@ -45,7 +45,7 @@ def test_run_simulation_uses_plain_task(
 
 
 def test_gl_branch_invokes_gl_task(cli: FABulousREPL, mocker: MockerFixture) -> None:
-    """``--gl`` resolves GL sources and runs the ``run-gl-simulation`` task."""
+    """`--gl` resolves GL sources and runs the `run-gl-simulation` task."""
     bitstream = _make_bitstream(cli)
     mocker.patch(f"{_CMD_MODULE}.make_hex")
     mocker.patch(
@@ -73,7 +73,7 @@ def test_gl_branch_invokes_gl_task(cli: FABulousREPL, mocker: MockerFixture) -> 
 
 
 def test_gl_sim_libs_forwarded(cli: FABulousREPL, mocker: MockerFixture) -> None:
-    """``--gl-sim-libs`` overrides reach ``collect_gl_sources``."""
+    """`--gl-sim-libs` overrides reach `collect_gl_sources`."""
     bitstream = _make_bitstream(cli)
     mocker.patch(f"{_CMD_MODULE}.make_hex")
     mocker.patch(f"{_CMD_MODULE}.run_task")
@@ -144,7 +144,7 @@ def _make_pdk(
 def _patch_context(
     mocker: MockerFixture, pdk: str | None, pdk_root: Path | None
 ) -> None:
-    """Point ``cmd_run_simulation``'s context at a stub PDK and install root."""
+    """Point `cmd_run_simulation`'s context at a stub PDK and install root."""
     ctx = mocker.Mock()
     ctx.pdk = pdk
     ctx.pdk_root = pdk_root

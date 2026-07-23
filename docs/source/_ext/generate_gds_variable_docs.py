@@ -20,80 +20,45 @@ This extension auto-discovers all steps and flows from the gds_generator module 
 extracts their configuration variables for documentation.
 """
 
+from __future__ import annotations
+
 import importlib
 import inspect
 import logging
 import pkgutil
 import re
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import jinja2
-from sphinx.application import Sphinx
-from sphinx.config import Config
+from _doc_common import render_generated_doc
+
+if TYPE_CHECKING:
+    from sphinx.application import Sphinx
+    from sphinx.config import Config
 
 logger = logging.getLogger(__name__)
 
+# librelane's `type_repr_md` embeds MyST ``{class}`Name <module.path>``` cross
+# references; in a generated table those resolve to nothing, so reduce a type to
+# its bare display name. (Descriptions are left alone — they contain literal
+# `{...}` placeholders that this would mangle.)
+_TYPE_ROLE_RE = re.compile(r"\{[a-z]+\}`([^`<]+?)\s*(?:<[^>]+>)?`")
+
 
 def setup(app: Sphinx) -> dict[str, str]:  # noqa: ARG001
-    """Set up the Sphinx extension.
-
-    Parameters
-    ----------
-    app : Sphinx
-        The Sphinx application object.
-
-    Returns
-    -------
-    dict[str, str]
-        Extension metadata.
-    """
+    """Register the GDS variable doc generator on `config-inited`."""
     app.connect("config-inited", generate_gds_variable_docs)
-    return {"version": "1.0"}
+    return {"version": "1.0", "parallel_read_safe": True}
 
 
 def generate_gds_variable_docs(app: Sphinx, conf: Config) -> None:  # noqa: ARG001
-    """Generate GDS flow variable documentation.
-
-    Parameters
-    ----------
-    app : Sphinx
-        The Sphinx application object.
-    conf : Config
-        The Sphinx configuration object.
-
-    Raises
-    ------
-    SystemExit
-        If documentation generation fails.
-    """
-    try:
-        conf_py_path: str = conf._raw_config["__file__"]  # noqa: SLF001
-        doc_root_dir: Path = Path(conf_py_path).parent
-
-        template_relpath: str = conf.templates_path[0]
-        all_templates_path = doc_root_dir / template_relpath
-
-        lookup = jinja2.FileSystemLoader(searchpath=all_templates_path)
-        env = jinja2.Environment(loader=lookup)
-
-        # Extract GDS flow variables
-        gds_vars = extract_gds_variables()
-
-        # Render documentation
-        template = env.get_template("gds_variable.md.jinja")
-        output = template.render(gds_vars=gds_vars)
-
-        # Write output to generated_doc folder (gitignored)
-        output_file = doc_root_dir / "generated_doc" / "gds_variable.md"
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-        output_file.write_text(output)
-
-        logger.info("Generated GDS variable documentation: %s", output_file)
-
-    except (OSError, jinja2.TemplateError):
-        logger.exception("Failed to generate GDS variable documentation")
-        raise SystemExit(-1) from None
+    """Render the GDS flow variable reference into `generated_doc/`."""
+    output_file = render_generated_doc(
+        conf,
+        template_name="gds_variable.md.jinja",
+        output_name="gds_variable.md",
+        context={"gds_vars": extract_gds_variables()},
+    )
+    logger.info("Generated GDS variable documentation: %s", output_file)
 
 
 def shorten_path_default(default: str, type_str: str) -> str:
@@ -198,18 +163,7 @@ def extract_variables_from_class(
             continue
         seen_names.add(var.name)
 
-        # Get type as string
-        var_type = var.type
-        if hasattr(var_type, "__name__"):
-            type_str = var_type.__name__
-        elif hasattr(var_type, "__origin__"):
-            type_str = str(var_type).replace("typing.", "")
-        else:
-            type_str = str(var_type)
-
-        # Clean up type string
-        type_str = type_str.replace("decimal.Decimal", "Decimal")
-        type_str = type_str.replace("<class '", "").replace("'>", "")
+        type_str = _TYPE_ROLE_RE.sub(r"\1", var.type_repr_md(for_document=True)).strip()
 
         # Get default value
         default = ""
@@ -221,9 +175,10 @@ def extract_variables_from_class(
         if len(default) > 50:
             default = default[:47] + "..."
 
-        # Get description
-        description = var.description or ""
-        description = " ".join(description.split())
+        # Get description (left verbatim apart from whitespace: librelane
+        # descriptions mix literal `{...}` placeholders with backticks, so a
+        # blanket role strip would corrupt them).
+        description = " ".join((var.description or "").split())
 
         gds_vars[category].append(
             {
@@ -250,11 +205,7 @@ def discover_classes_with_config_vars(package_name: str) -> list[tuple[str, type
     """
     classes_found: list[tuple[str, type]] = []
 
-    try:
-        package = importlib.import_module(package_name)
-    except ImportError:
-        logger.warning("Could not import package %s", package_name)
-        return classes_found
+    package = importlib.import_module(package_name)
 
     package_path = getattr(package, "__path__", None)
     if package_path is None:
@@ -263,11 +214,7 @@ def discover_classes_with_config_vars(package_name: str) -> list[tuple[str, type
     for _, module_name, _ in pkgutil.iter_modules(package_path):
         full_module_name = f"{package_name}.{module_name}"
 
-        try:
-            module = importlib.import_module(full_module_name)
-        except ImportError:
-            logger.warning("Could not import module %s", full_module_name)
-            continue
+        module = importlib.import_module(full_module_name)
 
         # Find all classes in the module that have config_vars
         for name, obj in inspect.getmembers(module, inspect.isclass):
@@ -302,10 +249,7 @@ def extract_gds_variables() -> dict[str, list[dict[str, Any]]]:
     )
     for class_name, cls in steps_classes:
         category = class_name_to_category(class_name)
-        try:
-            extract_variables_from_class(cls, gds_vars, category)
-        except (AttributeError, TypeError):
-            logger.warning("Could not extract variables from %s", class_name)
+        extract_variables_from_class(cls, gds_vars, category)
 
     # Auto-discover from flows package
     flows_classes = discover_classes_with_config_vars(
@@ -313,9 +257,6 @@ def extract_gds_variables() -> dict[str, list[dict[str, Any]]]:
     )
     for class_name, cls in flows_classes:
         category = class_name_to_category(class_name)
-        try:
-            extract_variables_from_class(cls, gds_vars, category)
-        except (AttributeError, TypeError):
-            logger.warning("Could not extract variables from %s", class_name)
+        extract_variables_from_class(cls, gds_vars, category)
 
     return dict(sorted(gds_vars.items()))

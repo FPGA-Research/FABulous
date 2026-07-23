@@ -3,8 +3,8 @@
 Run TCL scripts through the embedded interpreter. Grouped as a CommandSet so it
 can be registered and, in future, managed independently of the core REPL.
 
-Note: ``run_script`` stays on the REPL class rather than living here, because it
-overrides cmd2's built-in ``run_script`` (which cmd2 also calls internally) and
+Note: `run_script` stays on the REPL class rather than living here, because it
+overrides cmd2's built-in `run_script` (which cmd2 also calls internally) and
 cmd2 forbids a CommandSet from replacing an existing command attribute.
 """
 

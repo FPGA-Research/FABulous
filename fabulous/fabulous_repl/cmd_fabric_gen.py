@@ -326,7 +326,7 @@ class FabricGenCommandSet(ReplCommandSet):
     def do_run_FABulous_fabric(self, *_ignored: str) -> None:
         """Generate the fabric based on the CSV file.
 
-        deprecated: Use ``run_fab`` instead.
+        deprecated: Use `run_fab` instead.
         """
         repl = self._cmd
         logger.warning(

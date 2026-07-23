@@ -31,6 +31,32 @@ repos:
         language: python
         pass_filenames: false
         always_run: true
+  # Documentation is MyST, not reST -- in pages and in docstrings alike, since
+  # docs/source/_ext/docstring_renderer.py translates MyST docstrings to reST
+  # before AutoAPI renders them. These hooks stop reST syntax creeping back in.
+  # docstring_renderer and its test are exempt: the reST in them is the output
+  # being produced and asserted, not markup being authored.
+  - repo: local
+    hooks:
+      - id: forbid-rst-inline-literal
+        name: forbid reST ``literal`` (MyST uses a single backtick)
+        language: pygrep
+        entry: '(?<!`)``(?!`)[^`\n]+``(?!`)'
+        types_or: [python, markdown]
+        exclude: ^(docs/source/_ext/docstring_renderer|tests/docs_test/test_docstring_renderer)\.py$
+      - id: forbid-rst-directive
+        name: forbid reST directives and eval-rst (MyST uses ```{directive})
+        language: pygrep
+        entry: '^\s*\.\.\s+[a-z-]+::|eval-rst'
+        types_or: [python, markdown]
+      - id: forbid-rst-role
+        name: forbid reST :role:`x` (use {role}`x`)
+        language: pygrep
+        # A leading backtick means it is an inline code span (e.g. `:rtype:`), not a role.
+        entry: '(?<![{\w:`]):[a-z]+(?::[a-z]+)*:`'
+        types_or: [python, markdown]
+        exclude: ^(docs/source/_ext/docstring_renderer|tests/docs_test/test_docstring_renderer)\.py$
+
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.6
     hooks:

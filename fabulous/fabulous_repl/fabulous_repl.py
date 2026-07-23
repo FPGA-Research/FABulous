@@ -386,7 +386,7 @@ class FABulousREPL(Cmd):
     def do_synthesis(self, args: argparse.Namespace) -> None:
         """Run Yosys synthesis for the specified Verilog files.
 
-        deprecated: Use ``compile_design --synth-only`` instead.
+        deprecated: Use `compile_design --synth-only` instead.
         """
         logger.warning(
             "The 'synthesis' command is deprecated. Use 'compile_design' instead."
@@ -529,7 +529,7 @@ class FABulousREPL(Cmd):
     def do_place_and_route(self, args: argparse.Namespace) -> None:
         """Run place and route with Nextpnr for a given JSON file.
 
-        deprecated: Use ``compile_design --pnr-only`` instead.
+        deprecated: Use `compile_design --pnr-only` instead.
         """
         logger.warning(
             "The 'place_and_route' command is deprecated. "
@@ -549,7 +549,7 @@ class FABulousREPL(Cmd):
     def do_gen_bitStream_binary(self, args: argparse.Namespace) -> None:
         """Generate bitstream of a given design.
 
-        deprecated: Use ``compile_design`` which includes bitstream generation.
+        deprecated: Use `compile_design` which includes bitstream generation.
         """
         logger.warning(
             "The 'gen_bitStream_binary' command is deprecated. "
@@ -570,7 +570,7 @@ class FABulousREPL(Cmd):
     def do_run_FABulous_bitstream(self, args: argparse.Namespace) -> None:
         """Run FABulous to generate bitstream on a given design.
 
-        deprecated: Use ``compile_design`` instead.
+        deprecated: Use `compile_design` instead.
         """
         logger.warning(
             "The 'run_FABulous_bitstream' command is deprecated. "
