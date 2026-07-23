@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.2.0](https://github.com/FPGA-Research/FABulous/compare/v2.1.0...v2.2.0) (2026-07-23)
+
+
+### Features
+
+* add MultiClkDomains fabric param to bitstream spec ([#945](https://github.com/FPGA-Research/FABulous/issues/945)) ([f50ce4e](https://github.com/FPGA-Research/FABulous/commit/f50ce4e6f868f643f2f3f2abc3c44a3349d832fa))
+* automatic top-bottom border config ([#931](https://github.com/FPGA-Research/FABulous/issues/931)) ([5c76abd](https://github.com/FPGA-Research/FABulous/commit/5c76abdf018e7e53e4a50c6a2e5a461cb4ac091c))
+* better nix flake ([#933](https://github.com/FPGA-Research/FABulous/issues/933)) ([f34ef78](https://github.com/FPGA-Research/FABulous/commit/f34ef78be2ecb2598ccdce7617c6d7ba4f37364b))
+* export as librelane plugin ([#695](https://github.com/FPGA-Research/FABulous/issues/695)) ([75b52a9](https://github.com/FPGA-Research/FABulous/commit/75b52a956c29580a7ba8786a12596698cff37152))
+* **fabric_cad:** add per-type IO pad placement estimates ([#935](https://github.com/FPGA-Research/FABulous/issues/935)) ([ef940cb](https://github.com/FPGA-Research/FABulous/commit/ef940cb0465258e97ec57603f14f76c69c58a8d5))
+
+
+### Bug Fixes
+
+* **gen:** emit VHDL component declarations for supertile HDL ([#950](https://github.com/FPGA-Research/FABulous/issues/950)) ([616e8f9](https://github.com/FPGA-Research/FABulous/commit/616e8f97786fb6c5d7fe8a1a0af38a1d6484d54d))
+
 ## [2.1.0](https://github.com/FPGA-Research/FABulous/compare/v2.0.0...v2.1.0) (2026-07-10)
 
 
