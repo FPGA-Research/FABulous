@@ -628,6 +628,13 @@ def generateSuperTile(
         If True, the UserCLK port will not be generated or connected
     config_bit_mode : ConfigBitMode
         The configuration bit mode to use (frame-based or FlipFlop chain)
+
+    Raises
+    ------
+    FileNotFoundError
+        If the supertile's switch matrix or ConfigMem HDL file is expected
+        (per the instantiation conditions) but missing; run matrix / config_mem
+        generation first.
     """
     writer.addHeader(f"{superTile.name}")
     writer.addParameterStart(indentLevel=1)
@@ -764,12 +771,37 @@ def generateSuperTile(
     writer.addNewLine()
 
     if isinstance(writer, VHDLCodeGenerator):
+        basePath = Path(writer.outFileName).parent
         for t in superTile.tiles:
             # This is only relevant to VHDL code generation,
             # will not affect Verilog code generation
-            writer.addComponentDeclarationForFile(
-                f"{Path(writer.outFileName).parent}/{t.name}/{t.name}.vhdl"
-            )
+            writer.addComponentDeclarationForFile(f"{basePath}/{t.name}/{t.name}.vhdl")
+        # The wrapper instantiates the supertile-level BELs directly, so declare
+        # each BEL's component once (mirroring generateTile).
+        bel_srcs_seen: list = []
+        for bel in superTile.bels:
+            if bel.src not in bel_srcs_seen:
+                bel_srcs_seen.append(bel.src)
+                writer.addComponentDeclarationForFile(bel.src)
+        # The wrapper also instantiates its own switch matrix and ConfigMem
+        # (see below), so VHDL needs their component declarations too - mirroring
+        # generateTile. Guarded by the same conditions as those instantiations.
+        if superTile.supertile_matrix_dir is not None:
+            sm_file = basePath / f"{superTile.name}_switch_matrix.vhdl"
+            if not sm_file.exists():
+                raise FileNotFoundError(
+                    f"Could not find {sm_file.name} in {basePath}. "
+                    "Need to run matrix generation first"
+                )
+            writer.addComponentDeclarationForFile(str(sm_file))
+        if st_config_bits > 0 and config_bit_mode == ConfigBitMode.FRAME_BASED:
+            cm_file = basePath / f"{superTile.name}_ConfigMem.vhdl"
+            if not cm_file.exists():
+                raise FileNotFoundError(
+                    f"Could not find {cm_file.name} in {basePath}. "
+                    "Need to run config_mem generation first"
+                )
+            writer.addComponentDeclarationForFile(str(cm_file))
 
     # find all internal connections
     internalConnections = superTile.getInternalConnections()

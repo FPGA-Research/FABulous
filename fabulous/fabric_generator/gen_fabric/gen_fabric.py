@@ -14,7 +14,6 @@ Key features:
 """
 
 from collections.abc import Generator
-from pathlib import Path
 
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction
 from fabulous.fabric_definition.fabric import Fabric
@@ -139,21 +138,20 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     writer.addNewLine()
 
     if isinstance(writer, VHDLCodeGenerator):
-        added = set()
-        for t in fabric.tileDic:
-            name = t.split("_")[0]
-            if name in added:
+        # Declare a component per entity the fabric body instantiates: regular
+        # tiles by their own name, supertiles by the wrapper name. Subtiles are
+        # instantiated inside the wrapper, not the fabric, so they are skipped.
+        # tileDir holds the CSV path, so its parent is the tile/supertile folder.
+        for tile in fabric.tileDic.values():
+            if tile.partOfSuperTile:
                 continue
-            if name not in fabric.superTileDic:
-                writer.addComponentDeclarationForFile(
-                    f"{Path(writer.outFileName).parent.parent}/Tile/{t}/{t}.vhdl"
-                )
-                added.add(t)
-            else:
-                writer.addComponentDeclarationForFile(
-                    f"{Path(writer.outFileName).parent.parent}/Tile/{name}/{name}.vhdl"
-                )
-                added.add(name)
+            writer.addComponentDeclarationForFile(
+                str(tile.tileDir.parent / f"{tile.name}.vhdl")
+            )
+        for superTile in fabric.superTileDic.values():
+            writer.addComponentDeclarationForFile(
+                str(superTile.tileDir.parent / f"{superTile.name}.vhdl")
+            )
 
     # VHDL signal declarations
     writer.addComment("signal declarations", onNewLine=True, end="\n")
