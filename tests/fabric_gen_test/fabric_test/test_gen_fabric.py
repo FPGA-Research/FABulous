@@ -91,6 +91,78 @@ def test_supertile_configmem_preloaded_from_master_bitstream(
     assert ".Emulate_Bitstream(Tile_X0Y1_Emulate_Bitstream)" in block
 
 
+def _stub_entity(path: Path, name: str) -> None:
+    """Write a minimal VHDL entity so `addComponentDeclarationForFile` can read it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"entity {name} is\nend entity {name};\n")
+
+
+def _vhdl_supertile(tmp_path: Path) -> SuperTile:
+    """A DSP-like supertile plus the on-disk VHDL stubs the VHDL wrapper reads.
+
+    The VHDL wrapper copies a component declaration out of each instantiated
+    entity's file, so unlike the Verilog fixture those files must exist with a
+    parseable entity (switch matrix, ConfigMem, BEL, and each sub-tile).
+    """
+    mat = tmp_path / "supertile_matrix.list"
+    create_switchmatrix_list(mat, [("{2}SUPER_A0", "[DSP_bot_A0|DSP_bot_A1]")])
+
+    def mk(name: str, ports: list[Port]) -> Tile:
+        """Build a minimal child tile rooted at `tmp_path`."""
+        return make_empty_tile(
+            name,
+            ports,
+            tileDir=tmp_path,
+            matrixDir=tmp_path / f"{name}_switch_matrix.list",
+            pinOrderConfig={},
+        )
+
+    top = mk("DSP_top", [sjump_port("top2bot", IO.OUTPUT)])
+    bot = mk("DSP_bot", [sjump_port("A", IO.OUTPUT)])
+    bel = make_muladd_bel([("SUPER_A0", IO.INPUT)])
+    bel.src = tmp_path / "MULADD.vhdl"
+
+    _stub_entity(bel.src, "MULADD")
+    _stub_entity(tmp_path / "DSP_switch_matrix.vhdl", "DSP_switch_matrix")
+    _stub_entity(tmp_path / "DSP_ConfigMem.vhdl", "DSP_ConfigMem")
+    _stub_entity(tmp_path / "DSP_top" / "DSP_top.vhdl", "DSP_top")
+    _stub_entity(tmp_path / "DSP_bot" / "DSP_bot.vhdl", "DSP_bot")
+
+    return SuperTile(
+        name="DSP",
+        tileDir=tmp_path,
+        tiles=[top, bot],
+        tileMap=[[top], [bot]],
+        bels=[bel],
+        switch_matrix=SwitchMatrix.from_file(mat, "DSP"),
+    )
+
+
+def test_supertile_vhdl_declares_all_instantiated_components(
+    tmp_path: Path,
+    code_generator_factory: Callable[[str, str], CodeGenerator],
+) -> None:
+    """The VHDL supertile wrapper must declare every entity it instantiates.
+
+    A missing `component` is legal Verilog but rejected by VHDL analysers, which
+    is exactly what broke VHDL supertile projects: the wrapper instantiated its
+    own switch matrix, ConfigMem and BEL with no matching declaration, so NVC /
+    GHDL left the DSP tiles unbound (all-X output).
+    """
+    writer = code_generator_factory(".vhd", "DSP")
+    generateSuperTile(writer, _vhdl_supertile(tmp_path))
+    rtl = writer.outFileName.read_text()
+
+    for entity in (
+        "DSP_switch_matrix",
+        "DSP_ConfigMem",
+        "MULADD",
+        "DSP_top",
+        "DSP_bot",
+    ):
+        assert f"component {entity}" in rtl, f"{entity} component not declared"
+
+
 def test_iter_supertile_anchors_yields_top_left_anchor(tmp_path: Path) -> None:
     """Each supertile placement yields one anchor at its top-left child tile.
 
