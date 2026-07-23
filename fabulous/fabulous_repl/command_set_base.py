@@ -29,6 +29,7 @@ CMD_TIMING_MODEL = "Timing Characterization"
 
 # Directory holding FABulous project metadata.
 META_DATA_DIR = ".FABulous"
+USER_DESIGN_DIR = "user_design"
 
 if TYPE_CHECKING:
     from fabulous.fabulous_repl.fabulous_repl import FABulousREPL

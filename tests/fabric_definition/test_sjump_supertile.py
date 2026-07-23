@@ -325,7 +325,7 @@ class TestGenNpnrModelSupertile:
             t.partOfSuperTile = True
         fabric = make_fabric(tile=[[top], [bot]], superTileDic={"DSP": supertile})
 
-        _, belv1, belv2, belv3, _ = genNextpnrModel(fabric)
+        _, belv1, belv2, belv3 = genNextpnrModel(fabric)
 
         assert "X0Y1,X0,Y1,A,FABULOUS_LC" in belv1
         assert "BelBegin,X0Y1,A,FABULOUS_LC,LA_" in belv2

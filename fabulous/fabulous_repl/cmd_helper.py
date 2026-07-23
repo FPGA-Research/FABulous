@@ -8,7 +8,7 @@ managed independently of the core REPL.
 import pprint
 from typing import Annotated
 
-from cmd2 import with_annotated, with_category
+from cmd2 import with_annotated
 from cmd2.annotated import Argument
 from loguru import logger
 
@@ -25,7 +25,8 @@ def _safe_pformat(obj: object) -> str:
 class HelperCommandSet(ReplCommandSet):
     """Commands for inspecting fabric objects from the REPL."""
 
-    @with_category(CMD_HELPER)
+    DEFAULT_CATEGORY = CMD_HELPER
+
     @with_annotated
     def do_print_bel(
         self,
@@ -50,7 +51,6 @@ class HelperCommandSet(ReplCommandSet):
                 return
         raise CommandError(f"Bel {bel} not found in fabric")
 
-    @with_category(CMD_HELPER)
     @with_annotated
     def do_print_tile(
         self,

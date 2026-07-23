@@ -11,14 +11,14 @@ from fabulous.fabric_definition.bel import Bel
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
 
 
-def test_gen_routing_model_returns_five_with_timing(cli: FABulousREPL) -> None:
+def test_gen_routing_model_returns_four_with_timing(cli: FABulousREPL) -> None:
     """gen_routing_model emits a bel.v3 string with timing arcs alongside bel.v2.
 
     The bel.v3 block must mirror the bel.v2 structural lines and additionally
     carry the FABULOUS_LC timing arcs, while bel.v2 stays free of timing lines.
     """
     model = cli.fabulousAPI.gen_routing_model()
-    assert len(model) == 5
+    assert len(model) == 4
 
     belv2, belv3 = model[2], model[3]
 
@@ -51,7 +51,7 @@ def test_belLines_unknown_type_emits_no_timing_arcs() -> None:
     bel.belFeatureMap = {}
     bel.withUserCLK = False
 
-    _, _, v3_lines, _ = belLines(bel, "A", 0, 0)
+    _, _, v3_lines = belLines(bel, "A", 0, 0)
 
     for keyword in ("Delay,", "SetupHold,", "ClkToOut,", "Clock,"):
         assert not any(line.startswith(keyword) for line in v3_lines)
@@ -107,7 +107,7 @@ def test_genNextpnrModel_bel_timing_unaffected_by_real_pip_delay(
     fake_model = mocker.Mock()
     fake_model.pip_delay.return_value = 6.0
 
-    _, _, _, belv3, _ = genNextpnrModel(cli.fabulousAPI.fabric, fake_model)
+    _, _, _, belv3 = genNextpnrModel(cli.fabulousAPI.fabric, fake_model)
 
     assert "Delay,I0,O,3.0,FF=0" in belv3
     assert "Delay,Ci,Co,0.2,Ci/Co?" in belv3

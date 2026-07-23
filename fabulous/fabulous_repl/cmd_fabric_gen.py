@@ -26,14 +26,14 @@ from fabulous.fabulous_repl.command_set_base import (
 )
 from fabulous.fabulous_repl.helper import (
     CommandPipeline,
-    allow_blank,
 )
 
 
 class FabricGenCommandSet(ReplCommandSet):
     """Generate config memory, switch matrices, tiles, IO, and the fabric."""
 
-    @with_category(CMD_FABRIC_FLOW)
+    DEFAULT_CATEGORY = CMD_FABRIC_FLOW
+
     @with_annotated
     def do_gen_config_mem(
         self,
@@ -65,7 +65,6 @@ class FabricGenCommandSet(ReplCommandSet):
             )
         logger.info("ConfigMem generation complete")
 
-    @with_category(CMD_FABRIC_FLOW)
     @with_annotated
     def do_gen_switch_matrix(
         self,
@@ -95,7 +94,6 @@ class FabricGenCommandSet(ReplCommandSet):
             repl.fabulousAPI.genSwitchMatrix(i)
         logger.info("Switch matrix generation complete")
 
-    @with_category(CMD_FABRIC_FLOW)
     @with_annotated
     def do_gen_tile(
         self,
@@ -184,10 +182,14 @@ class FabricGenCommandSet(ReplCommandSet):
                 continue
 
             # Gen switch matrix
-            repl.do_gen_switch_matrix(t)
+            repl.onecmd_plus_hooks(f"gen_switch_matrix {t}")
+            if repl.exit_code != 0:
+                raise CommandError(f"Switch matrix generation failed for tile {t}")
 
             # Gen config mem
-            repl.do_gen_config_mem(t)
+            repl.onecmd_plus_hooks(f"gen_config_mem {t}")
+            if repl.exit_code != 0:
+                raise CommandError(f"Config memory generation failed for tile {t}")
 
             logger.info(f"Generating tile {t}")
             # Gen tile
@@ -199,15 +201,15 @@ class FabricGenCommandSet(ReplCommandSet):
 
         logger.info("Tile generation complete")
 
-    @with_category(CMD_FABRIC_FLOW)
     def do_gen_all_tile(self, *_ignored: str) -> None:
         """Generate all tiles by calling `do_gen_tile`."""
         repl = self._cmd
         logger.info("Generating all tiles")
-        repl.do_gen_tile(" ".join(repl.all_tile))
+        repl.onecmd_plus_hooks(f"gen_tile {' '.join(repl.all_tile)}")
+        if repl.exit_code != 0:
+            raise CommandError("Tile generation failed")
         logger.info("All tiles generation complete")
 
-    @with_category(CMD_FABRIC_FLOW)
     def do_gen_fabric(self, *_ignored: str) -> None:
         """Generate fabric based on the loaded fabric.
 
@@ -226,8 +228,6 @@ class FabricGenCommandSet(ReplCommandSet):
         repl.fabulousAPI.genFabric()
         logger.info("Fabric generation complete")
 
-    @with_category(CMD_FABRIC_FLOW)
-    @allow_blank
     @with_annotated
     def do_gen_geometry(
         self,
@@ -258,7 +258,6 @@ class FabricGenCommandSet(ReplCommandSet):
         logger.info("Geometry generation complete")
         logger.info(f"{geom_file} can now be imported into FABulator")
 
-    @with_category(CMD_FABRIC_FLOW)
     def do_gen_bitStream_spec(self, *_ignored: str) -> None:
         """Generate bitstream specification of the fabric.
 
@@ -288,7 +287,6 @@ class FabricGenCommandSet(ReplCommandSet):
                     w.writerow([key2, val])
         logger.info("Bitstream specification generation complete")
 
-    @with_category(CMD_FABRIC_FLOW)
     def do_gen_top_wrapper(self, *_ignored: str) -> None:
         """Generate top wrapper of the fabric by calling `genTopWrapper`."""
         repl = self._cmd
@@ -299,7 +297,6 @@ class FabricGenCommandSet(ReplCommandSet):
         repl.fabulousAPI.genTopWrapper()
         logger.info("Top wrapper generation complete")
 
-    @with_category(CMD_FABRIC_FLOW)
     def do_run_fab(self, *_ignored: str) -> None:
         """Generate the fabric based on the CSV file.
 
@@ -322,7 +319,6 @@ class FabricGenCommandSet(ReplCommandSet):
         if success:
             logger.info("FABulous fabric flow complete")
 
-    @with_category(CMD_FABRIC_FLOW)
     def do_run_FABulous_fabric(self, *_ignored: str) -> None:
         """Generate the fabric based on the CSV file.
 
@@ -332,15 +328,17 @@ class FabricGenCommandSet(ReplCommandSet):
         logger.warning(
             "The 'run_FABulous_fabric' command is deprecated. Use 'run_fab' instead."
         )
-        repl.do_run_fab()
+        repl.onecmd_plus_hooks("run_fab")
+        if repl.exit_code != 0:
+            raise CommandError("FABulous fabric flow failed")
 
-    @with_category(CMD_FABRIC_FLOW)
     def do_gen_model_npnr(self, *_ignored: str) -> None:
         """Generate Nextpnr model of fabric.
 
         By parsing various required files for place and route such as `pips.txt`,
-        `bel.txt`, `bel.v2.txt` and `template.pcf`. Output files are written to the
-        directory specified by `metaDataDir` within `projectDir`.
+        `bel.txt`, `bel.v2.txt` and `bel.v3.txt`. Output files are written to the
+        directory specified by `metaDataDir` within `projectDir`. Run
+        `gen_pcf_template` to produce the `template.pcf` constraint template.
 
         Logs output file directories.
         """
@@ -363,10 +361,6 @@ class FabricGenCommandSet(ReplCommandSet):
         with Path(f"{repl.projectDir}/{META_DATA_DIR}/bel.v3.txt").open("w") as f:
             f.write(npnr_model[3])
 
-        logger.info(f"output file: {repl.projectDir}/{META_DATA_DIR}/template.pcf")
-        with Path(f"{repl.projectDir}/{META_DATA_DIR}/template.pcf").open("w") as f:
-            f.write(npnr_model[4])
-
         estimate_path = Path(
             f"{repl.projectDir}/{META_DATA_DIR}/placement_estimate.txt"
         )
@@ -375,7 +369,6 @@ class FabricGenCommandSet(ReplCommandSet):
 
         logger.info("Generated npnr model")
 
-    @with_category(CMD_FABRIC_FLOW)
     @with_annotated
     def do_gen_io_tiles(
         self,
@@ -398,8 +391,6 @@ class FabricGenCommandSet(ReplCommandSet):
         for tile in tiles:
             repl.fabulousAPI.genIOBelForTile(tile)
 
-    @with_category(CMD_FABRIC_FLOW)
-    @allow_blank
     def do_gen_io_fabric(self, _args: str) -> None:
         """Generate I/O BELs for the entire fabric.
 
@@ -415,7 +406,6 @@ class FabricGenCommandSet(ReplCommandSet):
         repl = self._cmd
         repl.fabulousAPI.genFabricIOBels()
 
-    @with_category(CMD_FABRIC_FLOW)
     @with_annotated
     def do_gen_io_pin_config(
         self,
