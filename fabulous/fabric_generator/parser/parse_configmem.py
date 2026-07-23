@@ -23,7 +23,7 @@ def parseConfigMem(
     fileName: Path,
     maxFramePerCol: int,
     frameBitPerRow: int,
-    globalConfigBits: int,
+    total_config_bits: int,
 ) -> list[ConfigMem]:
     """Parse the config memory CSV file into a list of ConfigMem objects.
 
@@ -35,7 +35,7 @@ def parseConfigMem(
         Maximum number of frames per column
     frameBitPerRow : int
         Number of bits per row
-    globalConfigBits : int
+    total_config_bits : int
         Number of configuration bits the config memory must cover
 
     Raises
@@ -87,11 +87,11 @@ def parseConfigMem(
                 )
             usedBitsCounter += entry["used_bits_mask"].count("1")
 
-        if usedBitsCounter != globalConfigBits:
+        if usedBitsCounter != total_config_bits:
             raise ValueError(
                 f"bitstream mapping file {fileName} has a bitmask mismatch; "
                 f"bitmask has in total {usedBitsCounter} 1-values for "
-                f"{globalConfigBits} bits."
+                f"{total_config_bits} bits."
             )
 
         allConfigBitsOrder = []

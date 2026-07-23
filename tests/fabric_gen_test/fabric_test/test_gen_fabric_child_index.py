@@ -43,13 +43,13 @@ def test_supertile_bottom_child_usrclk_connects_to_global(
     """
     top = mk_tile("ST_top")
     bot = mk_tile("ST_bot")
-    top.partOfSuperTile = True
-    bot.partOfSuperTile = True
+    top.part_of_super_tile = True
+    bot.part_of_super_tile = True
     supertile = SuperTile(
         name="ST",
         tile_dir=top.tile_dir,
         tiles=[top, bot],
-        tileMap=[[top], [bot]],
+        tile_map=[[top], [bot]],
     )
     fabric = Fabric(
         fabric_dir=top.tile_dir,

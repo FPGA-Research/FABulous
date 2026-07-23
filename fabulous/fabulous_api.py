@@ -201,7 +201,7 @@ class FABulous_API:
             generateConfigMem(
                 self.writer,
                 tile.name,
-                tile.globalConfigBits,
+                tile.total_config_bits,
                 configMem,
                 frame_bits_per_row=self.fabric.frameBitsPerRow,
                 max_frame_per_col=self.fabric.maxFramesPerCol,
@@ -379,7 +379,7 @@ class FABulous_API:
         """
         if tile := self.fabric.getSuperTileByName(tileName):
             mx, my = tile.get_master_tile_coords()
-            master_tile = tile.tileMap[my][mx]
+            master_tile = tile.tile_map[my][mx]
             master_config_mem_csv = (
                 master_tile.tile_dir.parent / f"{master_tile.name}_ConfigMem.csv"
             )

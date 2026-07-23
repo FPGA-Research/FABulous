@@ -1,9 +1,12 @@
 """Tile class definition for FPGA fabric representation."""
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from loguru import logger
 
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.define import (
@@ -29,6 +32,12 @@ if TYPE_CHECKING:
 class Tile:
     """Store information about a tile.
 
+    A tile is composite-capable: a leaf tile is a 1x1 composite of itself, while
+    a former supertile is a `Tile` whose `tile_map` holds a grid of sub-tile
+    objects. The grid is stored top row first, so `tile_map[0]` is the TOP row
+    (physically north) and `tile_map[-1]` is the bottom row (physically south).
+    Cell coordinates are `(x=column, y=row)` indices in that top-first space.
+
     Parameters
     ----------
     name : str
@@ -52,8 +61,16 @@ class Tile:
     pin_order_config : dict[Side, PinOrderConfig] | None
         Configuration for pin ordering on each side of the tile. If None, defaults to
         BUS_MAJOR sorting on all sides.
-    tile_map : list[list[str | None]] | None
-        2D sub-tile layout for composite tiles, or None for simple tiles.
+    tile_map : list[list[Tile | None]] | None
+        The 2D grid of sub-tile objects for a composite tile, stored top row
+        first. `None` for a leaf tile. Defaults to None.
+    sub_tiles : list[Tile] | None
+        The flat list of constituent sub-tiles of a composite tile. Defaults to
+        an empty list for a leaf tile.
+    master_offset : tuple[int, int] | None
+        Explicit `(x, y)` cell of the master sub-tile (where the wrapper BELs
+        and config bits live). When None, the master defaults to the last
+        non-None cell in row-major order. Defaults to None.
 
     Attributes
     ----------
@@ -73,12 +90,19 @@ class Tile:
         The list of wires of the tile
     tile_dir : Path
         The path to the tile folder
-    partOfSuperTile : bool, optional
+    part_of_super_tile : bool
         Whether the tile is part of a super tile. Default is False.
     pin_order_config : dict
         Configuration for pin ordering on each side of the tile.
-    tile_map : list[list[str | None]] | None
-        2D sub-tile layout for composite tiles, or None for simple tiles.
+    tile_map : list[list[Tile | None]] | None
+        The 2D grid of sub-tile objects for a composite tile, stored top row
+        first. `None` for a leaf tile. Defaults to None.
+    sub_tiles : list[Tile]
+        The flat list of constituent sub-tiles of a composite tile. Empty for a
+        leaf tile.
+    master_offset : tuple[int, int] | None
+        Explicit `(x, y)` cell of the master sub-tile, or None to use the
+        row-major default.
     """
 
     name: str
@@ -89,9 +113,11 @@ class Tile:
     withUserCLK: bool = False
     wire_list: list[Wire] = field(default_factory=list)
     tile_dir: Path = Path()
-    partOfSuperTile: bool = False
+    part_of_super_tile: bool = False
     pin_order_config: dict = field(default_factory=dict)
-    tile_map: list[list[str | None]] | None = None  # 2D sub-tile layout
+    tile_map: list[list["Tile | None"]] | None = None  # 2D sub-tile layout
+    sub_tiles: list["Tile"] = field(default_factory=list)  # flat list of sub-tiles
+    master_offset: tuple[int, int] | None = None  # explicit master cell (x, y)
 
     def __init__(
         self,
@@ -104,7 +130,9 @@ class Tile:
         switch_matrix: SwitchMatrix,
         userCLK: bool,
         pin_order_config: dict[Side, "PinOrderConfig"] | None = None,
-        tile_map: list[list[str | None]] | None = None,
+        tile_map: list[list["Tile | None"]] | None = None,
+        sub_tiles: list["Tile"] | None = None,
+        master_offset: tuple[int, int] | None = None,
     ) -> None:
         self.name = name
         self.ports_info = ports
@@ -116,6 +144,8 @@ class Tile:
         self.wire_list = []
         self.tile_dir = tile_dir
         self.tile_map = tile_map
+        self.sub_tiles = sub_tiles if sub_tiles is not None else []
+        self.master_offset = master_offset
 
         if pin_order_config is None:
             from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
@@ -147,62 +177,6 @@ class Tile:
         if __o is None or not isinstance(__o, Tile):
             return False
         return self.name == __o.name
-
-    def getWestSidePorts(self) -> list[TilePort]:
-        """Get all ports physically located on the west side of the tile.
-
-        Returns
-        -------
-        list[TilePort]
-            List of ports on the west side, excluding NULL ports.
-        """
-        return [
-            p
-            for p in self.ports_info
-            if p.side_of_tile == Side.WEST and not p.name_is_null
-        ]
-
-    def getEastSidePorts(self) -> list[TilePort]:
-        """Get all ports physically located on the east side of the tile.
-
-        Returns
-        -------
-        list[TilePort]
-            List of ports on the east side, excluding NULL ports.
-        """
-        return [
-            p
-            for p in self.ports_info
-            if p.side_of_tile == Side.EAST and not p.name_is_null
-        ]
-
-    def getNorthSidePorts(self) -> list[TilePort]:
-        """Get all ports physically located on the north side of the tile.
-
-        Returns
-        -------
-        list[TilePort]
-            List of ports on the north side, excluding NULL ports.
-        """
-        return [
-            p
-            for p in self.ports_info
-            if p.side_of_tile == Side.NORTH and not p.name_is_null
-        ]
-
-    def getSouthSidePorts(self) -> list[TilePort]:
-        """Get all ports physically located on the south side of the tile.
-
-        Returns
-        -------
-        list[TilePort]
-            List of ports on the south side, excluding NULL ports.
-        """
-        return [
-            p
-            for p in self.ports_info
-            if p.side_of_tile == Side.SOUTH and not p.name_is_null
-        ]
 
     def ports_on(self, side: Side, io: IO | None = None) -> list[TilePort]:
         """Return the pins the tile presents on one border.
@@ -292,7 +266,7 @@ class Tile:
         ]
 
     @property
-    def globalConfigBits(self) -> int:
+    def total_config_bits(self) -> int:
         """Get the total number of global configuration bits.
 
         Calculates the sum of switch matrix configuration bits
@@ -360,6 +334,11 @@ class Tile:
 
             min_dim = required_tracks * pitch
 
+        For a composite tile the per-side pin count is the maximum across all
+        constituent sub-tiles (a conservative upper bound). A leaf tile's
+        `get_sub_tiles` returns `[self]`, so the same code path naturally
+        uses the leaf's own per-side pin counts.
+
         Parameters
         ----------
         x_pitch : Decimal
@@ -382,10 +361,11 @@ class Tile:
         tuple[Decimal, Decimal]
             (min_width, min_height)
         """
-        north_ports = self.port_count(Side.NORTH)
-        south_ports = self.port_count(Side.SOUTH)
-        west_ports = self.port_count(Side.WEST)
-        east_ports = self.port_count(Side.EAST)
+        sub_tiles = self.get_sub_tiles()
+        north_ports = max(sub.port_count(Side.NORTH) for sub in sub_tiles)
+        south_ports = max(sub.port_count(Side.SOUTH) for sub in sub_tiles)
+        west_ports = max(sub.port_count(Side.WEST) for sub in sub_tiles)
+        east_ports = max(sub.port_count(Side.EAST) for sub in sub_tiles)
 
         x_io_count = Decimal(max(north_ports, south_ports) + frame_strobe_width)
         min_width_io = (x_io_count * x_pin_thickness_mult + edge_offset) * x_pitch
@@ -395,30 +375,231 @@ class Tile:
 
         return min_width_io, min_height_io
 
-    def get_sub_tiles(self) -> list[str]:
-        """Get list of all sub-tile names.
+    @property
+    def is_composite(self) -> bool:
+        """Whether this tile is a composite tile holding sub-tiles.
 
         Returns
         -------
-        list[str]
-            List of sub-tile names. For simple tiles, returns [tile.name].
+        bool
+            `True` if the tile carries a `tile_map` (and therefore contains
+            sub-tiles), `False` for a leaf tile.
+        """
+        return self.tile_map is not None
+
+    @property
+    def max_width(self) -> int:
+        """Maximum number of columns across the tile map.
+
+        Returns
+        -------
+        int
+            The widest row in `tile_map` for a composite tile, or `1` for a
+            leaf tile.
         """
         if self.tile_map is None:
-            return [self.name]
-        return [name for row in self.tile_map for name in row if name is not None]
+            return 1
+        return max(len(row) for row in self.tile_map)
 
-    def get_sub_tile_offset(self, sub_tile: str) -> tuple[int, int]:
-        """Get (x, y) offset for a sub-tile in the tile map.
+    @property
+    def max_height(self) -> int:
+        """Number of rows in the tile map.
 
-        Parameters
-        ----------
-        sub_tile : str
-            Name of the sub-tile to find.
+        Returns
+        -------
+        int
+            The number of rows in `tile_map` for a composite tile, or `1` for
+            a leaf tile.
+        """
+        if self.tile_map is None:
+            return 1
+        return len(self.tile_map)
+
+    def __iter__(self) -> Iterator[tuple[tuple[int, int], "Tile"]]:
+        """Iterate over the sub-tiles and their grid coordinates.
+
+        For a leaf tile a single `((0, 0), self)` pair is yielded. For a
+        composite tile each non-`None` cell is yielded as `((x, y), tile)`
+        where `x` is the column index and `y` is the row index.
+
+        Yields
+        ------
+        tuple[tuple[int, int], Tile]
+            The `(x, y)` grid coordinate and the sub-tile at that cell.
+        """
+        if self.tile_map is None:
+            yield (0, 0), self
+            return
+        for y, row in enumerate(self.tile_map):
+            for x, tile in enumerate(row):
+                if tile is not None:
+                    yield (x, y), tile
+
+    def get_ports_around_tile(self) -> dict[str, list[list[TilePort]]]:
+        """Return the perimeter side ports of each composite sub-tile cell.
+
+        The dictionary key is the sub-tile cell location in `"x,y"` format,
+        matching the `(x, y)` grid indexing of `__iter__` (`x` is the
+        column, `y` is the row). For each present cell, the side-port list of a
+        given side is appended only when that side faces the composite boundary
+        (its neighbour in the grid is missing or `None`). `tile_map` is stored
+        top row first, so a smaller row index is physically north.
+
+        Returns
+        -------
+        dict[str, list[list[TilePort]]]
+            Mapping from cell coordinate to the perimeter side-port lists. An
+            empty dict for a leaf tile.
+        """
+        if self.tile_map is None:
+            return {}
+
+        ports: dict[str, list[list[TilePort]]] = {}
+        for y, row in enumerate(self.tile_map):
+            for x, tile in enumerate(row):
+                if tile is None:
+                    continue
+                key = f"{x},{y}"
+                ports[key] = []
+                # Top-first storage: y-1 is physically north, y+1 is south.
+                if y - 1 < 0 or self.tile_map[y - 1][x] is None:
+                    ports[key].append(tile.ports_on(Side.NORTH))
+                if y + 1 >= len(self.tile_map) or self.tile_map[y + 1][x] is None:
+                    ports[key].append(tile.ports_on(Side.SOUTH))
+                if x + 1 >= len(row) or row[x + 1] is None:
+                    ports[key].append(tile.ports_on(Side.EAST))
+                if x - 1 < 0 or row[x - 1] is None:
+                    ports[key].append(tile.ports_on(Side.WEST))
+        return ports
+
+    def get_internal_connections(self) -> list[tuple[list[TilePort], int, int]]:
+        """Return the internal edge side ports between adjacent sub-tile cells.
+
+        For each present cell, the side-port list of a given side is reported
+        when that side faces another present sub-tile (an internal edge). Each
+        entry carries the side ports and the `(x, y)` cell coordinate, using
+        the same grid indexing as `__iter__`. `tile_map` is stored top row
+        first, so a smaller row index is physically north.
+
+        Returns
+        -------
+        list[tuple[list[TilePort], int, int]]
+            One entry per internal edge as `(side_ports, x, y)`. An empty list
+            for a leaf tile.
+        """
+        if self.tile_map is None:
+            return []
+
+        internal_connections: list[tuple[list[TilePort], int, int]] = []
+        for y, row in enumerate(self.tile_map):
+            for x, tile in enumerate(row):
+                if tile is None:
+                    continue
+                # Top-first storage: y-1 is physically north, y+1 is south.
+                if y - 1 >= 0 and self.tile_map[y - 1][x] is not None:
+                    internal_connections.append((tile.ports_on(Side.NORTH), x, y))
+                if y + 1 < len(self.tile_map) and self.tile_map[y + 1][x] is not None:
+                    internal_connections.append((tile.ports_on(Side.SOUTH), x, y))
+                if x + 1 < len(row) and row[x + 1] is not None:
+                    internal_connections.append((tile.ports_on(Side.EAST), x, y))
+                if x - 1 >= 0 and row[x - 1] is not None:
+                    internal_connections.append((tile.ports_on(Side.WEST), x, y))
+        return internal_connections
+
+    def get_anchor_offset(self) -> tuple[int, int]:
+        """Return the `(x, y)` cell of the composite anchor sub-tile.
+
+        The anchor is where the composite is structurally placed and where its
+        external ports are named: the first non-None cell in row-major order,
+        which under top-first storage is the top-left cell. A leaf tile anchors
+        at the origin.
 
         Returns
         -------
         tuple[int, int]
-            (x, y) position in the tile map, with y=0 at the top row.
+            The `(x, y)` anchor cell, `(0, 0)` for a leaf tile.
+
+        Raises
+        ------
+        ValueError
+            If a composite tile has an all-None `tile_map`.
+        """
+        if self.tile_map is None:
+            return (0, 0)
+        for y, row in enumerate(self.tile_map):
+            for x, tile in enumerate(row):
+                if tile is not None:
+                    return (x, y)
+        message = (
+            f"Composite tile '{self.name}' has no sub-tiles; cannot determine anchor"
+        )
+        logger.error(message)
+        raise ValueError(message)
+
+    def get_master_offset(self) -> tuple[int, int]:
+        """Return the `(x, y)` cell of the composite master sub-tile.
+
+        The master is where the wrapper's BELs and config bits physically live.
+        When `master_offset` is set it is returned directly; otherwise the
+        master defaults to the last non-None cell in row-major order. A leaf tile
+        masters at the origin.
+
+        Returns
+        -------
+        tuple[int, int]
+            The `(x, y)` master cell, `(0, 0)` for a leaf tile.
+
+        Raises
+        ------
+        ValueError
+            If a composite tile has an all-None `tile_map` and no explicit
+            `master_offset`.
+        """
+        if self.tile_map is None:
+            return (0, 0)
+        if self.master_offset is not None:
+            return self.master_offset
+
+        master: tuple[int, int] | None = None
+        for y, row in enumerate(self.tile_map):
+            for x, tile in enumerate(row):
+                if tile is not None:
+                    master = (x, y)
+        if master is None:
+            message = (
+                f"Composite tile '{self.name}' has no sub-tiles; "
+                "cannot determine master"
+            )
+            logger.error(message)
+            raise ValueError(message)
+        return master
+
+    def get_sub_tiles(self) -> list["Tile"]:
+        """Get the list of all sub-tiles.
+
+        Returns
+        -------
+        list[Tile]
+            The non-`None` sub-tile objects of a composite tile, or `[self]`
+            for a leaf tile.
+        """
+        if self.tile_map is None:
+            return [self]
+        return [tile for row in self.tile_map for tile in row if tile is not None]
+
+    def get_sub_tile_offset(self, sub_tile: "Tile | str") -> tuple[int, int]:
+        """Get the (x, y) offset for a sub-tile in the tile map.
+
+        Parameters
+        ----------
+        sub_tile : Tile | str
+            The sub-tile object or its name to locate.
+
+        Returns
+        -------
+        tuple[int, int]
+            The `(x, y)` position in the tile map, with `y=0` at the top row,
+            matching `get_anchor_offset` and `get_master_offset`.
 
         Raises
         ------
@@ -426,44 +607,68 @@ class Tile:
             If the sub-tile is not found.
         """
         if self.tile_map is None:
-            if sub_tile == self.name:
+            if self._matches_tile(self, sub_tile):
                 return (0, 0)
             raise ValueError(f"Sub-tile '{sub_tile}' not found in tile '{self.name}'")
 
         for y, row in enumerate(self.tile_map):
-            for x, name in enumerate(row):
-                if name == sub_tile:
+            for x, tile in enumerate(row):
+                if tile is not None and self._matches_tile(tile, sub_tile):
                     return (x, y)
         raise ValueError(f"Sub-tile '{sub_tile}' not found in tile_map")
 
-    def part_of_tile(self, name: str) -> bool:
-        """Check if name is part of this tile.
+    def part_of_tile(self, sub_tile: "Tile | str") -> bool:
+        """Check whether a sub-tile is part of this tile.
 
         Parameters
         ----------
-        name : str
-            Name to check.
+        sub_tile : Tile | str
+            The sub-tile object or its name to check.
 
         Returns
         -------
         bool
-            True if name is a sub-tile of this tile.
+            `True` if the given sub-tile is a sub-tile of this tile.
         """
-        return name in self.get_sub_tiles()
+        return any(self._matches_tile(tile, sub_tile) for tile in self.get_sub_tiles())
 
-    def is_root_tile(self, name: str) -> bool:
-        """Check if name is the root sub-tile (bottom-left).
+    def is_root_tile(self, sub_tile: "Tile | str") -> bool:
+        """Check whether a sub-tile is the root sub-tile (bottom-left).
 
         Parameters
         ----------
-        name : str
-            Name to check.
+        sub_tile : Tile | str
+            The sub-tile object or its name to check.
 
         Returns
         -------
         bool
-            True if name is the root sub-tile.
+            `True` if the given sub-tile is the bottom-left sub-tile.
         """
         if self.tile_map is None:
-            return name == self.name
-        return self.tile_map[-1][0] == name
+            return self._matches_tile(self, sub_tile)
+        root_tile = self.tile_map[-1][0]
+        if root_tile is None:
+            return False
+        return self._matches_tile(root_tile, sub_tile)
+
+    @staticmethod
+    def _matches_tile(tile: "Tile", reference: "Tile | str") -> bool:
+        """Check whether a tile matches a reference object or name.
+
+        Parameters
+        ----------
+        tile : Tile
+            The candidate sub-tile.
+        reference : Tile | str
+            The sub-tile object or name to match against.
+
+        Returns
+        -------
+        bool
+            `True` if `tile` matches `reference` by name (when a string is
+            given) or by equality (when a tile object is given).
+        """
+        if isinstance(reference, str):
+            return tile.name == reference
+        return tile == reference

@@ -143,7 +143,7 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
     # Skip impossible configurations where fabric capacity < tile requirements
     fabric_capacity = fabric_config.frameBitsPerRow * fabric_config.maxFramesPerCol
-    tile_requirements = tile_config.globalConfigBits
+    tile_requirements = tile_config.total_config_bits
     if fabric_capacity < tile_requirements and tile_requirements > 0:
         pytest.skip(
             f"Impossible configuration: fabric capacity ({fabric_capacity}) < "
@@ -162,14 +162,14 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     generateConfigMem(
         writer,
         tile_config.name,
-        tile_config.globalConfigBits,
+        tile_config.total_config_bits,
         csv_path,
         frame_bits_per_row=fabric_config.frameBitsPerRow,
         max_frame_per_col=fabric_config.maxFramesPerCol,
     )
 
     # Check if RTL file was created - skip if no config bits were generated
-    if tile_config.globalConfigBits != 0:
+    if tile_config.total_config_bits != 0:
         assert writer.outFileName.exists(), (
             f"ConfigMem RTL file {writer.outFileName} was not generated."
         )
@@ -181,7 +181,7 @@ def test_configmem_rtl_with_generated_configmem_simulation(
         csv_path,
         fabric_config.maxFramesPerCol,
         fabric_config.frameBitsPerRow,
-        tile_config.globalConfigBits,
+        tile_config.total_config_bits,
     )
 
     # Create direct mapping using the parsed ConfigMem objects
@@ -232,7 +232,7 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     """Generate ConfigMem RTL and verify its behavior using cocotb simulation."""
     # Skip impossible configurations where fabric capacity < tile requirements
     fabric_capacity = default_fabric.frameBitsPerRow * default_fabric.maxFramesPerCol
-    tile_requirements = default_tile.globalConfigBits
+    tile_requirements = default_tile.total_config_bits
     if fabric_capacity < tile_requirements and tile_requirements > 0:
         pytest.skip(
             f"Impossible configuration: fabric capacity ({fabric_capacity}) < "
@@ -263,7 +263,7 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     generateConfigMem(
         writer,
         default_tile.name,
-        default_tile.globalConfigBits,
+        default_tile.total_config_bits,
         csv_path,
         frame_bits_per_row=default_fabric.frameBitsPerRow,
         max_frame_per_col=default_fabric.maxFramesPerCol,

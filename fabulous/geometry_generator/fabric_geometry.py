@@ -172,7 +172,7 @@ class FabricGeometry:
         master_bels: dict[str, list] = {}
         for superTile in self.fabric.superTileDic.values():
             mx, my = superTile.get_master_tile_coords()
-            master_tile = superTile.tileMap[my][mx]
+            master_tile = superTile.tile_map[my][mx]
             if master_tile is not None:
                 master_bels.setdefault(master_tile.name, []).extend(superTile.bels)
 

@@ -135,7 +135,7 @@ class TestGetSuperTileContaining:
             name=name,
             tile_dir=Path(),
             tiles=tiles,
-            tileMap=[tiles],
+            tile_map=[tiles],
         )
 
     def test_returns_supertile_for_member_tile(

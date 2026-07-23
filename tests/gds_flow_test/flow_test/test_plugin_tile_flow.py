@@ -177,7 +177,7 @@ class TestEmitTileVerilog:
         gen_cm.assert_called_once_with(
             mock_writer,
             mock_tile.name,
-            mock_tile.globalConfigBits,
+            mock_tile.total_config_bits,
             tile_dir / "LUT4AB_ConfigMem.csv",
         )
         gen_tile.assert_called_once()
@@ -263,7 +263,7 @@ class TestFABulousTileRunAdapter:
         mock_tile.name = "LUT4AB"
         mock_tile.tile_dir = tile_dir / "LUT4AB.csv"
         mock_tile.bels = []
-        mock_tile.globalConfigBits = 0
+        mock_tile.total_config_bits = 0
 
         init_ctx = mocker.patch.object(plugin_tile_flow, "init_context")
         mocker.patch.object(

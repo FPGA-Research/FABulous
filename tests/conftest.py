@@ -211,12 +211,12 @@ def make_empty_tile(
     pin_order_config: dict | None = None,
     config_bits: int = 0,
 ) -> Tile:
-    """Build a minimal Tile usable inside a SuperTile.tileMap.
+    """Build a minimal Tile usable inside a SuperTile.tile_map.
 
     Passing `pin_order_config={}` skips the GDS pin-order import; the `None`
     default preserves the original behaviour for callers that don't care.
     `config_bits` sets the switch matrix's declared config-bit count so the
-    tile reports it via `globalConfigBits`.
+    tile reports it via `total_config_bits`.
     """
     return Tile(
         name=name,
