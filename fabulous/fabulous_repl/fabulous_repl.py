@@ -13,11 +13,15 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-"""FABulous command-line interface module.
+"""FABulous interactive shell.
 
-This module provides the main command-line interface for the FABulous FPGA framework. It
-includes interactive and batch mode support for fabric generation, bitstream creation,
+This module provides the `FABulousREPL` shell for the FABulous FPGA framework,
+supporting interactive and batch use for fabric generation, bitstream creation,
 simulation, and project management.
+
+The commands themselves live in the `cmd_*` modules as `cmd2.CommandSet` groups
+and are registered in `FABulousREPL.__init__`. Only shell-level behaviour --
+exception handling, exit, and script execution -- stays on this class.
 """
 
 import os
@@ -133,16 +137,14 @@ class FABulousREPL(Cmd):
         Instance of the FABulous API for fabric operations
     projectDir : Path
         Current project directory path
-    top : str
-        Top-level module name for synthesis
     all_tile : list[str]
         List of all tile names in the current fabric
     csvFile : Path
         Path to the fabric CSV definition file
     extension : str
         File extension for HDL files ("v" for Verilog, "vhd" for VHDL)
-    script : str
-        Batch script commands to execute
+    fabric_loaded : bool
+        True once `load_fabric` has built the in-memory fabric model
     force : bool
         If true, force operations without confirmation
     interactive : bool
@@ -152,19 +154,20 @@ class FABulousREPL(Cmd):
 
     Notes
     -----
-    This REPL extends the cmd.Cmd class to provide command completion, help system,
-    and command history. It supports both interactive mode and batch script execution.
+    This shell extends `cmd2.Cmd` to provide command completion, a help system,
+    and command history. It supports both interactive mode and batch script
+    execution. The commands themselves are contributed by the `cmd_*` CommandSet
+    modules.
     """
 
     intro: str = INTO_STRING
     prompt: str = "FABulous> "
     fabulousAPI: FABulous_API
     projectDir: Path
-    top: str
     all_tile: list[str]
     csvFile: Path
     extension: str = "v"
-    script: str = ""
+    fabric_loaded: bool = False
     force: bool = False
     interactive: bool = True
     max_job: int = 4
@@ -220,8 +223,6 @@ class FABulousREPL(Cmd):
             Settable("projectDir", Path, "The directory of the project", self)
         )
 
-        self.tiles = []
-        self.superTiles = []
         self.csvFile = Path(self.projectDir / "fabric.csv").resolve()
         self.add_settable(
             Settable(
@@ -246,17 +247,22 @@ class FABulousREPL(Cmd):
         else:
             self.extension = "v"
 
-        categorize(self.do_alias, CMD_OTHER)
-        categorize(self.do_edit, CMD_OTHER)
-        categorize(self.do_shell, CMD_OTHER)
-        categorize(self.do_exit, CMD_OTHER)
-        categorize(self.do_quit, CMD_OTHER)
-        categorize(self.do_q, CMD_OTHER)
-        categorize(self.do_set, CMD_OTHER)
-        categorize(self.do_history, CMD_OTHER)
-        categorize(self.do_shortcuts, CMD_OTHER)
-        categorize(self.do_help, CMD_OTHER)
-        categorize(self.do_macro, CMD_OTHER)
+        # cmd2's own builtins cannot be decorated at definition time, so they are
+        # categorized here. FABulous commands live in CommandSets and take their
+        # category from the set's DEFAULT_CATEGORY.
+        categorize(
+            [
+                self.do_alias,
+                self.do_edit,
+                self.do_shell,
+                self.do_set,
+                self.do_history,
+                self.do_shortcuts,
+                self.do_help,
+                self.do_macro,
+            ],
+            CMD_OTHER,
+        )
         categorize(self.do_run_pyscript, CMD_SCRIPT)
 
         self.tcl = tk.Tcl()
@@ -295,26 +301,39 @@ class FABulousREPL(Cmd):
                 return False
             return not self.force
 
-    def do_exit(self, *_ignored: str) -> bool:
+    @with_category(CMD_OTHER)
+    @with_annotated
+    def do_exit(self) -> bool:
         """Exit the FABulous shell and log info message."""
         logger.info("Exiting FABulous shell")
         return True
 
-    def do_quit(self, *_ignored: str) -> None:
+    @with_category(CMD_OTHER)
+    @with_annotated
+    def do_quit(self) -> None:
         """Exit the FABulous shell and log info message."""
         self.onecmd_plus_hooks("exit")
 
-    def do_q(self, *_ignored: str) -> None:
+    @with_category(CMD_OTHER)
+    @with_annotated
+    def do_q(self) -> None:
         """Exit the FABulous shell and log info message."""
         self.onecmd_plus_hooks("exit")
 
+    # Stays on the shell class rather than moving into ScriptCommandSet: it
+    # overrides cmd2's built-in `run_script` (which cmd2 also calls internally)
+    # and cmd2 forbids a CommandSet from replacing an existing command.
     @with_category(CMD_SCRIPT)
     @with_annotated
     def do_run_script(
         self,
         file: Annotated[Path, Argument(help_text="Path to the target file")],
     ) -> None:
-        """Execute script."""
+        """Execute script.
+
+        Lines starting with `#` are skipped. A failing line aborts the script
+        unless force mode is on.
+        """
         if not file.exists():
             raise FileNotFoundError(
                 f"Cannot find {file} file, please check the path and try again."

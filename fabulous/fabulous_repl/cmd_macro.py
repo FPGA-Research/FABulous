@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated, cast
 
 import yaml
-from cmd2 import with_annotated, with_category
+from cmd2 import with_annotated
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
@@ -104,7 +104,8 @@ def _resolve_directional_fix(
 class MacroFlowCommandSet(ReplCommandSet):
     """Harden tiles and the fabric into GDS macros via the LibreLane flow."""
 
-    @with_category(CMD_FABRIC_FLOW)
+    DEFAULT_CATEGORY = CMD_FABRIC_FLOW
+
     @with_annotated
     def do_gen_tile_macro(
         self,
@@ -230,7 +231,6 @@ class MacroFlowCommandSet(ReplCommandSet):
         )
 
     @with_annotated
-    @with_category(CMD_FABRIC_FLOW)
     def do_gen_all_tile_macros(
         self,
         parallel: Annotated[
@@ -264,7 +264,6 @@ class MacroFlowCommandSet(ReplCommandSet):
         else:
             commands.execute_parallel()
 
-    @with_category(CMD_FABRIC_FLOW)
     def do_gen_fabric_macro(self, *_args: str) -> None:
         """Generate GDSII files for the entire fabric."""
         repl = self._cmd
@@ -304,7 +303,6 @@ class MacroFlowCommandSet(ReplCommandSet):
             base_config_path=repl.projectDir / "Fabric" / "gds_config.yaml",
         )
 
-    @with_category(CMD_FABRIC_FLOW)
     @with_annotated
     def do_run_FABulous_eFPGA_macro(
         self,

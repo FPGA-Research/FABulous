@@ -71,7 +71,7 @@ run_simulation --gl fst ./user_design/<design>.bin   # 4. gate-level simulate
    Source resolution fails with a clear error if the layout is incomplete.
 
 3. **PDK standard-cell models**, auto-resolved (best-effort) from `FAB_PDK`. The
-   library is hard-coded in `_SCL_BY_PDK` (`cmd_run_simulation.py`) for the three
+   library is hard-coded in `_SCL_BY_PDK` (`cmd_user_design.py`) for the three
    PDKs FABulous hardens for:
 
    | PDK | Standard-cell library |
