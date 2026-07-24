@@ -194,35 +194,8 @@ next release. Please migrate to `Taskfile.yml`. The FABulous CLI
 `make` with a deprecation warning.
 :::
 
-FABulous comes with 3 different simulation methods:
-
-1. Serial (Mode 0)
-
-   Send configuration in through UART
-
-2. Parallel (Mode 1) - default in the testbench
-
-   Use parallel configuration port
-
-3. Bitbang configuration port (To be supported in the testbench)
-
-   We have produced a quick asynchronous serial configuration port interface that is ideal for microcontroller configuration. It uses the original CPU interface that we have in our TSMC chip. The idea of the protocol is as follows:
-
-   :::{figure} ./figs/bitbang1.*
-   :align: center
-   :alt: Bitbang description
-   :::
-
-   We drive s_clk and s_data. On each rising edge of s_clock, we sample data and on the falling edge, we sample control.
-
-   Both values get shifted in a separate register. If the control register sees the bit-pattern x”FAB0” it samples the data shift register into a hold register and issues a one-cycle strobe output (active 1).
-
-   The next figure shows the enable generation (and input sampling) for generating the enable signals for
-
-   - the control shift register and
-   - the data shift register.
-
-   :::{figure} ./figs/bitbang2.*
-   :align: center
-   :alt: An illustration of the signals used in the custom bitbang protocol as well as the decoding of these signals.
-   :::
+:::{note}
+The testbench uses the parallel configuration port (Mode 1) by default. For
+details on all available fabric configuration methods, see
+[Configuration](configuration.md).
+:::
