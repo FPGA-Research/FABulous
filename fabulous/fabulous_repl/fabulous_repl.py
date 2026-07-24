@@ -196,6 +196,8 @@ class FABulousREPL(Cmd):
             ],
         )
         self.self_in_py = True
+        self.aliases["quit"] = "exit"
+        self.aliases["q"] = "exit"
         logger.info(f"Running at: {get_context().proj_dir}")
 
         if max_job == -1:
@@ -307,18 +309,6 @@ class FABulousREPL(Cmd):
         """Exit the FABulous shell and log info message."""
         logger.info("Exiting FABulous shell")
         return True
-
-    @with_category(CMD_OTHER)
-    @with_annotated
-    def do_quit(self) -> None:
-        """Exit the FABulous shell and log info message."""
-        self.onecmd_plus_hooks("exit")
-
-    @with_category(CMD_OTHER)
-    @with_annotated
-    def do_q(self) -> None:
-        """Exit the FABulous shell and log info message."""
-        self.onecmd_plus_hooks("exit")
 
     # Stays on the shell class rather than moving into ScriptCommandSet: it
     # overrides cmd2's built-in `run_script` (which cmd2 also calls internally)
