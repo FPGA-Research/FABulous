@@ -35,9 +35,9 @@ class Port:
     Raises
     ------
     ValueError
-        If the width is not greater than 0.
+        If ``width`` is not greater than 0.
     TypeError
-        If io_direction is not an instance of IO, or if name is not a string.
+        If ``io_direction`` is not an ``IO`` or ``name`` is not a ``str``.
     """
 
     _name: str
@@ -129,22 +129,21 @@ class TilePort(Port):
     side_of_tile : Side
         The side of the tile where the port is located.
     terminal : bool
-        Indicates if the port is a terminal port. Defaults to False.
+        Whether the port is a terminal port. Defaults to False.
     tile_type : str
-        The type of tile this port belongs to. Defaults to "".
+        The type of tile this port belongs to.
     wire_direction : Direction | None
-        The wire direction (for backward compatibility with legacy Port).
-        Defaults to None, which resolves to Direction.JUMP.
+        The wire direction; defaults to ``Direction.JUMP`` when None.
     source_name : str
-        The source name of the wire connection. Defaults to "".
+        The source name of the wire connection.
     x_offset : int
-        The X-offset for wire routing. Defaults to 0.
+        The X-offset for wire routing.
     y_offset : int
-        The Y-offset for wire routing. Defaults to 0.
+        The Y-offset for wire routing.
     destination_name : str
-        The destination name of the wire connection. Defaults to "".
+        The destination name of the wire connection.
     wire_count : int
-        The number of wires. Defaults to 1.
+        The number of wires.
     """
 
     _side_of_tile: Side
@@ -366,9 +365,7 @@ class TilePort(Port):
         list[str]
             List of individual wire names for this port.
         """
-        if (
-            self.source_name == "NULL" or self.destination_name == "NULL"
-        ) and self.wire_direction != Direction.SJUMP:
+        if self.source_name == "NULL" or self.destination_name == "NULL":
             count = (abs(self.x_offset) + abs(self.y_offset)) * self.wire_count
         else:
             count = self.wire_count
@@ -414,10 +411,7 @@ class TilePort(Port):
         list[str]
             List of individual wire names for top-level connections.
         """
-        if self.wire_direction == Direction.SJUMP:
-            startIndex = 0
-            total_wires = self.wire_count
-        elif self.source_name == "NULL" or self.destination_name == "NULL":
+        if self.source_name == "NULL" or self.destination_name == "NULL":
             startIndex = 0
             total_wires = (abs(self.x_offset) + abs(self.y_offset)) * self.wire_count
         else:
@@ -479,9 +473,7 @@ class TilePort(Port):
         if mode == "SwitchMatrix" or mode == "SwitchMatrixIndexed":
             thisRange = self.wire_count
         elif mode == "AutoSwitchMatrix" or mode == "AutoSwitchMatrixIndexed":
-            if self.wire_direction == Direction.SJUMP:
-                thisRange = self.wire_count
-            elif self.source_name == "NULL" or self.destination_name == "NULL":
+            if self.source_name == "NULL" or self.destination_name == "NULL":
                 # the following line connects all wires to the switch matrix in the case
                 # one port is NULL (typically termination)
                 thisRange = (abs(self.x_offset) + abs(self.y_offset)) * self.wire_count
@@ -540,8 +532,7 @@ class SlicedPort(Port):
     original_port : Port
         The original port being sliced.
     slice_range : tuple[int, int]
-        The range of bits to slice (start, end), inclusive.
-        Defaults to (-1, -1).
+        The inclusive range of bits to slice (start, end).
     """
 
     _slice_range: tuple[int, int]
@@ -621,11 +612,11 @@ class BelPort(Port):
     width : int
         The bit width of the port.
     prefix : str
-        Prefix added to the port name. Defaults to "".
+        Prefix added to the port name.
     external : bool
-        Whether the port is exposed externally. Defaults to False.
+        Whether the port is exposed externally.
     control : bool
-        Whether the port is a control signal. Defaults to False.
+        Whether the port is a control signal.
     """
 
     _prefix: str
@@ -709,10 +700,9 @@ class ConfigPort(Port):
     width : int
         The bit width of the port.
     features : list[FeatureValue] | None
-        List of features associated with this port.
-        Defaults to None, which resolves to an empty list.
+        Features associated with this port; defaults to an empty list.
     feature_type : FeatureType
-        The type of feature encoding. Defaults to FeatureType.ENUMERATE.
+        The type of feature encoding.
     """
 
     _features: list[FeatureValue]
@@ -773,7 +763,7 @@ class SharedPort(Port):
     width : int
         The bit width of the port.
     shared_with : str
-        Name of the entity this port is shared with. Defaults to "".
+        Name of the entity this port is shared with.
     """
 
     _shared_with: str

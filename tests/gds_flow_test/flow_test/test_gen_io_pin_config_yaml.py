@@ -3,7 +3,7 @@
 Tests focus on:
 - PinOrderConfig dataclass
 - Tile port serialization
-- SuperTile port serialization
+- Composite tile port serialization
 - IO pin configuration generation
 """
 
@@ -15,7 +15,6 @@ from pytest_mock import MockerFixture
 
 from fabulous.fabric_definition.define import PinSortMode, Side
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
     PinOrderConfig,
@@ -123,6 +122,7 @@ class TestSerializeTilePorts:
     def mock_tile(self, mocker: MockerFixture) -> Tile:
         """Create a mock tile for testing."""
         tile = mocker.MagicMock(spec=Tile)
+        tile.is_composite = False
 
         # Mock ports
         north_port = mocker.MagicMock()
@@ -271,9 +271,10 @@ class TestSerializeSupertilePorts:
     """Tests for _serialize_supertile_ports function."""
 
     @pytest.fixture
-    def mock_supertile(self, mocker: MockerFixture) -> SuperTile:
-        """Create a mock supertile for testing."""
-        supertile = mocker.MagicMock(spec=SuperTile)
+    def mock_supertile(self, mocker: MockerFixture) -> Tile:
+        """Create a mock composite tile for testing."""
+        supertile = mocker.MagicMock(spec=Tile)
+        supertile.is_composite = True
         supertile.bels = []
 
         # Create a mock tile for the tilemap
@@ -309,7 +310,7 @@ class TestSerializeSupertilePorts:
 
         return supertile
 
-    def test_serialize_supertile_ports_basic(self, mock_supertile: SuperTile) -> None:
+    def test_serialize_supertile_ports_basic(self, mock_supertile: Tile) -> None:
         """Test basic supertile port serialization."""
         result = _serialize_supertile_ports(mock_supertile)
 
@@ -328,9 +329,7 @@ class TestSerializeSupertilePorts:
 
         assert result == {}
 
-    def test_serialize_supertile_ports_with_prefix(
-        self, mock_supertile: SuperTile
-    ) -> None:
+    def test_serialize_supertile_ports_with_prefix(self, mock_supertile: Tile) -> None:
         """Test supertile serialization with prefix."""
         result = _serialize_supertile_ports(mock_supertile, prefix="Test_")
 
@@ -349,7 +348,8 @@ class TestSerializeSupertilePorts:
         those sides were silently omitted from the YAML, causing the GDS flow
         to fail with "not found in config but found in design" errors.
         """
-        supertile = mocker.MagicMock(spec=SuperTile)
+        supertile = mocker.MagicMock(spec=Tile)
+        supertile.is_composite = True
         supertile.bels = []
 
         def _tile() -> Tile:
@@ -473,6 +473,7 @@ class TestGenerateIOPinOrderConfig:
     def mock_tile(self, mocker: MockerFixture) -> Tile:
         """Create a mock tile for testing."""
         tile = mocker.MagicMock(spec=Tile)
+        tile.is_composite = False
 
         # Empty side ports for simplicity
         tile.get_port_on_side.return_value = []
@@ -539,9 +540,10 @@ class TestGenerateIOPinOrderConfig:
     def test_generate_io_pin_order_config_supertile(
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
-        """Test generation for a SuperTile."""
-        # Create mock supertile
-        mock_supertile = mocker.MagicMock(spec=SuperTile)
+        """Test generation for a composite tile."""
+        # Create mock composite tile
+        mock_supertile = mocker.MagicMock(spec=Tile)
+        mock_supertile.is_composite = True
         mock_supertile.bels = []
 
         # Simple tilemap
@@ -644,8 +646,9 @@ class TestGenerateIOPinOrderConfig:
     def test_generate_io_pin_order_config_supertile_uses_fabric_border_side(
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
-        """SuperTile subtile sides come from fabric placement when given."""
-        mock_supertile = mocker.MagicMock(spec=SuperTile)
+        """Composite subtile sides come from fabric placement when given."""
+        mock_supertile = mocker.MagicMock(spec=Tile)
+        mock_supertile.is_composite = True
         mock_supertile.bels = []
 
         mock_tile = mocker.MagicMock(spec=Tile)
@@ -684,11 +687,92 @@ class TestGenerateIOPinOrderConfig:
 
         assert "ext_in" in all_pins
 
+    def test_generate_io_pin_order_config_multirow_maps_subtile_to_fabric_y(
+        self, mocker: MockerFixture, tmp_path: Path
+    ) -> None:
+        """Each sub-tile's border side must come from its true fabric cell.
+
+        ``tile_map`` is stored top-first (row 0 is north) while the fabric grid is
+        bottom-first (y=0 is south). For a 1-wide, 2-tall composite placed with
+        bottom-left origin ``(1, 0)`` the top sub-tile (``st_y=0``) physically
+        sits at fabric ``y=1`` (NORTH border) and the bottom sub-tile
+        (``st_y=1``) at fabric ``y=0`` (SOUTH border). Its BEL external port must
+        therefore land on NORTH for the top tile and SOUTH for the bottom tile.
+
+        The old code added the top-first ``st_y`` directly to ``base_y``, so the
+        top sub-tile queried fabric ``y=0`` (SOUTH) and the bottom one ``y=1``
+        (NORTH) — i.e. the two sub-tiles received each other's border side.
+        """
+
+        def _subtile(ext_name: str) -> Tile:
+            t = mocker.MagicMock(spec=Tile)
+            t.pin_order_config = {s: PinOrderConfig() for s in Side}
+            bel = mocker.MagicMock()
+            bel.external_input = [ext_name]
+            bel.external_output = []
+            t.bels = [bel]
+            return t
+
+        tile_top = _subtile("top_ext")
+        tile_bot = _subtile("bot_ext")
+
+        mock_supertile = mocker.MagicMock(spec=Tile)
+        mock_supertile.is_composite = True
+        mock_supertile.bels = []
+        # 1-wide, 2-tall: tile_map[0] is the north (top) row.
+        mock_supertile.tile_map = [[tile_top], [tile_bot]]
+        mock_supertile.max_height = 2
+
+        def _ports_around() -> dict:
+            return {"0,0": [[]], "0,1": [[]]}
+
+        mock_supertile.get_ports_around_tile.side_effect = _ports_around
+
+        mock_fabric = mocker.MagicMock(spec=Fabric)
+        # Covered cells are bottom-first; min() over them gives base (1, 0).
+        mock_fabric.find_tile_positions.return_value = [(1, 0), (1, 1)]
+
+        def _border(_x: int, y: int) -> Side:
+            # y=1 is the north border, y=0 is the south border.
+            return Side.NORTH if y == 1 else Side.SOUTH
+
+        mock_fabric.determine_border_side.side_effect = _border
+
+        outfile = tmp_path / "test_config.yaml"
+
+        generate_IO_pin_order_config(
+            mock_supertile,
+            outfile,
+            fabric=mock_fabric,
+        )
+
+        with outfile.open() as f:
+            config = yaml.safe_load(f)
+
+        def pins_for(tile_key: str, side: str) -> list[str]:
+            return [p for entry in config[tile_key][side] for p in entry["pins"]]
+
+        # Top sub-tile (X0Y0) physically borders NORTH -> its external port there.
+        assert "top_ext" in pins_for("X0Y0", "NORTH"), (
+            "top sub-tile external port must land on its true (NORTH) border"
+        )
+        assert "top_ext" not in pins_for("X0Y0", "SOUTH"), (
+            "top sub-tile must not be assigned the bottom tile's SOUTH border"
+        )
+        # Bottom sub-tile (X0Y1) physically borders SOUTH.
+        assert "bot_ext" in pins_for("X0Y1", "SOUTH"), (
+            "bottom sub-tile external port must land on its true (SOUTH) border"
+        )
+        assert "bot_ext" not in pins_for("X0Y1", "NORTH"), (
+            "bottom sub-tile must not be assigned the top tile's NORTH border"
+        )
+
     def test_generate_io_pin_order_config_supertile_without_fabric(
         self, mocker: MockerFixture, tmp_path: Path
     ) -> None:
-        """Test SuperTile generation without fabric placement context."""
-        mock_supertile = mocker.MagicMock(spec=SuperTile)
+        """Test composite tile generation without fabric placement context."""
+        mock_supertile = mocker.MagicMock(spec=Tile)
+        mock_supertile.is_composite = True
         mock_supertile.bels = []
 
         mock_tile = mocker.MagicMock(spec=Tile)

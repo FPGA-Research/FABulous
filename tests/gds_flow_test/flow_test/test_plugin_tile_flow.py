@@ -135,6 +135,7 @@ class TestEmitTileVerilog:
         tile_dir.mkdir()
         mock_tile: MagicMock = mocker.MagicMock(spec=Tile)
         mock_tile.name = "LUT4AB"
+        mock_tile.is_composite = False
 
         actual_paths: list[Path] = []
         gen_sm = mocker.patch.object(plugin_tile_flow, "genTileSwitchMatrix")
@@ -177,15 +178,14 @@ class TestEmitTileVerilog:
         gen_cm.assert_called_once_with(
             mock_writer,
             mock_tile.name,
-            mock_tile.globalConfigBits,
+            mock_tile.total_config_bits,
             tile_dir / "LUT4AB_ConfigMem.csv",
         )
         gen_tile.assert_called_once()
 
-    def test_supertile_emits_per_subtile_then_wrapper(
+    def test_composite_emits_per_subtile_then_wrapper(
         self, mock_writer: MagicMock, mocker: MockerFixture, tmp_path: Path
     ) -> None:
-        from fabulous.fabric_definition.supertile import SuperTile
         from fabulous.fabric_definition.tile import Tile
 
         tile_dir: Path = tmp_path / "DSP"
@@ -200,19 +200,20 @@ class TestEmitTileVerilog:
         bot_tile: MagicMock = mocker.MagicMock(spec=Tile)
         bot_tile.name = "DSP_bot"
         bot_tile.tile_dir = bot_dir / "DSP_bot.csv"
-        mock_supertile: MagicMock = mocker.MagicMock(spec=SuperTile)
-        mock_supertile.name = "DSP"
-        mock_supertile.tiles = [top_tile, bot_tile]
+        mock_composite: MagicMock = mocker.MagicMock(spec=Tile)
+        mock_composite.name = "DSP"
+        mock_composite.is_composite = True
+        mock_composite.get_sub_tiles.return_value = [top_tile, bot_tile]
 
         emit_regular = mocker.patch.object(
             plugin_tile_flow,
             "_emit_regular_tile_verilog",
         )
-        gen_super = mocker.patch.object(plugin_tile_flow, "generateSuperTile")
+        gen_wrapper = mocker.patch.object(plugin_tile_flow, "generateTile")
 
         _emit_tile_verilog(
             mock_writer,
-            mock_supertile,
+            mock_composite,
             tile_dir,
             config_bit_mode=ConfigBitMode.FRAME_BASED,
             multiplexer_style=MultiplexerStyle.CUSTOM,
@@ -223,7 +224,7 @@ class TestEmitTileVerilog:
             bot_dir,
         ]
         assert mock_writer.outFileName == tile_dir / "DSP.v"
-        gen_super.assert_called_once()
+        gen_wrapper.assert_called_once()
 
 
 @pytest.mark.usefixtures("mock_config_load")
@@ -262,8 +263,11 @@ class TestFABulousTileRunAdapter:
         mock_tile.get_min_die_area.return_value = (Decimal(10), Decimal(10))
         mock_tile.name = "LUT4AB"
         mock_tile.tile_dir = tile_dir / "LUT4AB.csv"
+        mock_tile.is_composite = False
+        mock_tile.max_width = 1
+        mock_tile.max_height = 1
         mock_tile.bels = []
-        mock_tile.globalConfigBits = 0
+        mock_tile.total_config_bits = 0
 
         init_ctx = mocker.patch.object(plugin_tile_flow, "init_context")
         mocker.patch.object(
@@ -351,7 +355,7 @@ class TestFABulousTileRunAdapter:
         with pytest.raises(FlowException, match="is not a directory"):
             flow.run(initial_state=mocker.MagicMock())
 
-    def test_run_uses_get_super_tile_when_supertile_flag_set(
+    def test_run_parses_composite_when_supertile_flag_set(
         self,
         mocker: MockerFixture,
         tmp_path: Path,
@@ -359,17 +363,18 @@ class TestFABulousTileRunAdapter:
     ) -> None:
         from decimal import Decimal
 
-        from fabulous.fabric_definition.supertile import SuperTile
+        from fabulous.fabric_definition.tile import Tile
 
         tile_dir: Path = project_tree["tile_dir"]
         (tile_dir / "DSP_top").mkdir()
 
-        mock_tile: MagicMock = mocker.MagicMock(spec=SuperTile)
+        mock_tile: MagicMock = mocker.MagicMock(spec=Tile)
         mock_tile.max_width = 4
         mock_tile.max_height = 2
         mock_tile.get_min_die_area.return_value = (Decimal(10), Decimal(10))
         mock_tile.name = "LUT4AB"
-        mock_tile.tiles = []
+        mock_tile.is_composite = True
+        mock_tile.get_sub_tiles.return_value = []
         mock_tile.bels = []
 
         mocker.patch.object(plugin_tile_flow, "init_context")

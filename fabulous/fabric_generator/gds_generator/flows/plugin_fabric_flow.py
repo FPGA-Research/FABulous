@@ -120,10 +120,11 @@ class FABulousFabric(FABulousFabricMacroFlow):
             tile_lib_paths = [
                 Path(p) for p in self.config.get("FABULOUS_TILE_LIBRARY") or []
             ]
+            # tileDic holds both leaf and composite tiles (former supertiles);
+            # sub-tiles carry part_of_super_tile and are built inside the wrapper.
             macro_names = [
-                t.name for t in self.fabric.tileDic.values() if not t.partOfSuperTile
+                t.name for t in self.fabric.tileDic.values() if not t.part_of_super_tile
             ]
-            macro_names += list(self.fabric.superTileDic)
             tile_macro_dirs = _discover_tile_macros(macro_names, tile_lib_paths)
         if not tile_macro_dirs:
             raise FlowException(

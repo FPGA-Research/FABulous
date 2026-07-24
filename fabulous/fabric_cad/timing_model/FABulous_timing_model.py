@@ -26,7 +26,6 @@ from fabulous.fabric_cad.timing_model.tools.specification import StaTool, SynthT
 from fabulous.fabric_cad.timing_model.tools.sta_tools.opensta import OpenStaTool
 from fabulous.fabric_cad.timing_model.tools.synth_tools.yosys import YosysTool
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.supertile import SuperTile
 
 
 class FABulousTileTimingModel:
@@ -69,7 +68,7 @@ class FABulousTileTimingModel:
 
         self.tm_config: TimingModelConfig = config
 
-        # Determine if the tile is part of a SuperTile and set
+        # Determine if the tile is part of a composite tile and set
         # the unique_tile_name accordingly.
 
         self.is_in_which_super_tile: str | None = None
@@ -140,21 +139,21 @@ class FABulousTileTimingModel:
             )
 
     def _get_unique_tile_name(self) -> None:
-        """Determine if the tile is part of a SuperTile.
+        """Determine if the tile is part of a composite tile.
 
         Sets the unique_tile_name accordingly.
-        - If the tile is found within a SuperTile, set unique_tile_name to the name of
-          that SuperTile and is_in_which_super_tile to the same name.
-        - If the tile is not found within any SuperTile, unique_tile_name remains as
-          the original tile name and is_in_which_super_tile remains None.
+        - If the tile is found within a composite tile, set unique_tile_name to the
+          name of that composite tile and is_in_which_super_tile to the same name.
+        - If the tile is not found within any composite tile, unique_tile_name
+          remains the original tile name and is_in_which_super_tile remains None.
         - This is necessary because the timing model needs to use the unique tile name
-          (which is the SuperTile name if the tile is part of a SuperTile) to find
+          (the composite tile name when the tile is part of a composite tile) to find
           the correct Verilog files and switch matrix information for the tile.
           The original tile name is used for other purposes within the timing model.
         """
         for unique_tiles in self.fabric.get_all_unique_tiles():
-            if isinstance(unique_tiles, SuperTile):
-                for composed_tile in unique_tiles.tiles:
+            if unique_tiles.is_composite:
+                for composed_tile in unique_tiles.get_sub_tiles():
                     if composed_tile.name == self.tile_name:
                         self.is_in_which_super_tile = unique_tiles.name
                         self.unique_tile_name = unique_tiles.name
@@ -238,7 +237,7 @@ class FABulousTileTimingModel:
             and the method returns None.
         """
         logger.info(f"Initializing FABulous Timing Model for Tile: {self.tile_name}")
-        logger.info(f"  SuperTile: {self.is_in_which_super_tile}")
+        logger.info(f"  Composite tile: {self.is_in_which_super_tile}")
 
         # Initialize the synthesis-level timing model first, as it is needed
         # to extract the switch matrix information and to find the relevant
@@ -390,7 +389,7 @@ class FABulousTileTimingModel:
 
         The method uses the synthesis-level timing model to find the relevant
         switch matrix instance and module based on regex patterns. It also
-        checks if the tile is part of a SuperTile to filter the correct switch
+        checks if the tile is part of a composite tile to filter the correct switch
         matrix information. Finally, it loads the internal PIPs of the switch
         matrix for later use in delay calculations.
 
@@ -434,7 +433,7 @@ class FABulousTileTimingModel:
             ):
                 raise ValueError(
                     "Multiple switch matrix instances or modules found "
-                    "for a non-SuperTile."
+                    "for a non-composite tile."
                 )
 
             self.switch_matrix_hier_path = self.switch_matrix_hier_path[0]
@@ -459,7 +458,7 @@ class FABulousTileTimingModel:
                 or len(self.switch_matrix_module_name) == 0
             ):
                 raise ValueError(
-                    f"No switch matrix instance or module found for SuperTile "
+                    f"No switch matrix instance or module found for composite tile "
                     f"{self.unique_tile_name}"
                 )
 
@@ -469,7 +468,7 @@ class FABulousTileTimingModel:
             ):
                 raise ValueError(
                     f"Multiple switch matrix instances or modules found Tile "
-                    f"{self.tile_name} in SuperTile {self.unique_tile_name}."
+                    f"{self.tile_name} in composite tile {self.unique_tile_name}."
                 )
 
             self.switch_matrix_hier_path = self.switch_matrix_hier_path[0]

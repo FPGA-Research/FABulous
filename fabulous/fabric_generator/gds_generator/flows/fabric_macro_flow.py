@@ -200,11 +200,15 @@ class FABulousFabricMacroFlow(Classic):
         # Build supertile anchor map for quick lookup and back-references
         supertile_anchors: dict[str, str] = {}
         subtile_to_anchor: dict[str, str] = {}
-        for supertile_name, supertile in fabric.superTileDic.items():
-            anchor = supertile.tile_map[-1][0]
+        composite_by_name = {
+            c.name: c for c in fabric.get_all_unique_tiles() if c.is_composite
+        }
+        for supertile_name, supertile in composite_by_name.items():
+            master_x, master_y = supertile.get_master_offset()
+            anchor = supertile.tile_map[master_y][master_x]
             supertile_anchors[anchor.name] = supertile_name
             # Create back-references from all subtiles to their anchor
-            for tile in supertile.tiles:
+            for tile in supertile.get_sub_tiles():
                 subtile_to_anchor[tile.name] = anchor.name
 
         # Single pass through the grid; capture the first non-null in each row/col
@@ -216,7 +220,7 @@ class FABulousFabricMacroFlow(Classic):
             tile_key = tile.name
             if tile_key in supertile_anchors:
                 supertile_name = supertile_anchors[tile_key]
-                supertile = fabric.superTileDic[supertile_name]
+                supertile = composite_by_name[supertile_name]
                 width, height = tile_sizes[supertile_name]
                 num_rows_spanned = len(supertile.tile_map)
                 num_cols_spanned = (
@@ -460,8 +464,9 @@ class FABulousFabricMacroFlow(Classic):
         for tile_name, (width, height) in tile_sizes.items():
             check_multiple(tile_name, width, height)
 
-        # Also validate supertiles
-        for supertile_name, _ in fabric.superTileDic.items():
+        # Also validate composite tiles
+        for composite in (c for c in fabric.get_all_unique_tiles() if c.is_composite):
+            supertile_name = composite.name
             if supertile_name not in tile_sizes:
                 continue
             width, height = tile_sizes[supertile_name]
@@ -591,16 +596,22 @@ class FABulousFabricMacroFlow(Classic):
                 tile_name = tile.name if tile is not None else None
                 prefix = f"Tile_X{x}Y{y}_"
 
-                for supertile_name, supertile in self.fabric.superTileDic.items():
-                    subtiles = [tile.name for tile in supertile.tiles]
+                composites = (
+                    c for c in self.fabric.get_all_unique_tiles() if c.is_composite
+                )
+                for supertile in composites:
+                    supertile_name = supertile.name
+                    subtiles = [tile.name for tile in supertile.get_sub_tiles()]
 
-                    # Get the anchor of the supertile (bottom left)
-                    anchor = supertile.tile_map[-1][0]
+                    # Get the master cell of the supertile (where its BELs and
+                    # config bits physically live), matching the nextpnr/bitstream
+                    # coordinate convention.
+                    master_x, master_y = supertile.get_master_offset()
+                    anchor = supertile.tile_map[master_y][master_x]
 
                     if tile_name in subtiles:
                         if tile_name == anchor.name:
                             tile_name = supertile_name
-                            # The anchor is at the bottom-left of the supertile
                             prefix = f"Tile_X{x}Y{y}_"
                         else:
                             tile_name = None

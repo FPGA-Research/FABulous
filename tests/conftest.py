@@ -22,25 +22,25 @@ from fabulous.fabulous_repl.helper import create_project, setup_logger
 from fabulous.fabulous_settings import init_context, reset_context
 
 
-def sjump_port(
+def jump_port(
     name: str,
     in_out: IO,
     wire_count: int = 2,
     x_offset: int = 0,
     y_offset: int = 0,
 ) -> TilePort:
-    """Build an SJUMP port.
+    """Build a JUMP port facing a composite wrapper switch matrix.
 
     OUTPUT ports drive ``source_name``; INPUT ports terminate at
-    ``destination_name``. SJUMP ports carry zero offsets, which is exactly the
-    case the width fix in ``expand_port_info*`` has to handle.
+    ``destination_name``. These ports carry zero offsets, the case the width
+    handling in ``expand_port_info*`` must cover.
     """
     return TilePort(
         name=name,
         io_direction=in_out,
         width=wire_count,
         side_of_tile=Side.ANY,
-        wire_direction=Direction.SJUMP,
+        wire_direction=Direction.JUMP,
         source_name=name if in_out == IO.OUTPUT else "NULL",
         x_offset=x_offset,
         y_offset=y_offset,
@@ -58,12 +58,12 @@ def make_empty_tile(
     pin_order_config: dict | None = None,
     config_bits: int = 0,
 ) -> Tile:
-    """Build a minimal Tile usable inside a SuperTile.tile_map.
+    """Build a minimal Tile usable as a leaf or inside a composite tile_map.
 
     Passing ``pin_order_config={}`` skips the GDS pin-order import; the ``None``
     default preserves the original behaviour for callers that don't care.
     `config_bits` sets the switch matrix's declared config-bit count so the
-    tile reports it via `globalConfigBits`.
+    tile reports it via `total_config_bits`.
     """
     return Tile(
         name=name,

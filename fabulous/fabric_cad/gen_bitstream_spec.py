@@ -7,10 +7,12 @@ locations and is used during bitstream generation.
 
 import string
 from importlib.metadata import version
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from fabulous.fabric_cad.gen_npnr_model import composite_master_fabric_coords
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem
 from fabulous.fabulous_settings import get_context
@@ -37,7 +39,7 @@ def border_rows_have_config_bits(fabric: Fabric) -> bool:
 
     border_rows = (fabric.tile[0], fabric.tile[-1])
     return any(
-        tile is not None and tile.globalConfigBits > 0
+        tile is not None and tile.total_config_bits > 0
         for row in border_rows
         for tile in row
     )
@@ -59,6 +61,12 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
     -------
     dict[str, dict]
         The bits stream specification of the fabric.
+
+    Raises
+    ------
+    ValueError
+        If a composite tile's ConfigMem conflicts with its master tile's own
+        ConfigMem (both drive the same physical config bit).
     """
     specData = {
         "TileMap": {},
@@ -93,9 +101,9 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             if tile is None:
                 continue
             if "fabric.csv" in str(tile.tile_dir):
-                # Backward compat: in the old fabric.csv-embedded layout the tile's
-                # real location comes from its matrix file path (== the tile's
-                # switch_matrix.matrix_file).
+                # backward compatibility for old project structure
+                # We need to take the matrix_dir from the tile, since there
+                # is the actual path to the tile defined in the fabric.csv
                 if tile.matrix_dir.is_file():
                     configMemPath = (
                         tile.matrix_dir.parent / f"{tile.name}_ConfigMem.csv"
@@ -164,18 +172,21 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
 
             for i, bel in enumerate(tile.bels):
                 for featureKey, keyDict in bel.bel_feature_map.items():
-                    for entry in (k for k in keyDict if isinstance(k, int)):
-                        for v in keyDict[entry]:
-                            curTileMap[f"{string.ascii_uppercase[i]}.{featureKey}"] = {
-                                encodeDict[curBitOffset + v]: keyDict[entry][v]
-                            }
-                            curTileMapNoMask[
-                                f"{string.ascii_uppercase[i]}.{featureKey}"
-                            ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
-                        curBitOffset += len(keyDict[entry])
+                    for entry in keyDict:
+                        if isinstance(entry, int):
+                            for v in keyDict[entry]:
+                                curTileMap[
+                                    f"{string.ascii_uppercase[i]}.{featureKey}"
+                                ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
+                                curTileMapNoMask[
+                                    f"{string.ascii_uppercase[i]}.{featureKey}"
+                                ] = {encodeDict[curBitOffset + v]: keyDict[entry][v]}
+                            curBitOffset += len(keyDict[entry])
 
-            result = tile.switch_matrix.connections
-            for source, sinkList in result.items():
+            # The switch matrix was parsed into muxes when the fabric was loaded.
+            for mux in tile.switch_matrix.muxes:
+                source = mux.output.name
+                sinkList = [inp.name for inp in mux.inputs]
                 controlWidth = 0
                 for i, sink in enumerate(reversed(sinkList)):
                     controlWidth = (len(sinkList) - 1).bit_length()
@@ -205,24 +216,33 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             specData["TileSpecs"][f"X{x}Y{y}"] = curTileMap
             specData["TileSpecs_No_Mask"][f"X{x}Y{y}"] = curTileMapNoMask
 
-    # Supertile bitstream features. A supertile's config bits physically live in
-    # its master tile's frame column (the master tile's own ConfigMem leaves those
-    # bits free). Within the supertile config space the bit order is
-    # [switch-matrix bits][BEL bits], matching genSuperTile()'s ST_ConfigBits
-    # slicing. The BEL and switch-matrix features are added to the master tile's
-    # TileSpecs entry alongside the master tile's own features.
+    # Composite bitstream features. A composite tile's config bits physically
+    # live in its master cell's frame column (the master cell's own ConfigMem
+    # leaves those bits free). Within the composite config space the bit order is
+    # [switch-matrix bits][BEL bits], matching the composite ConfigMem layout. The
+    # BEL and switch-matrix features are added to the master cell's TileSpecs entry
+    # alongside the master cell's own features.
     st_bel_count: dict[tuple[int, int], int] = {}
-    for super_tile in fabric.superTileDic.values():
-        if not super_tile.bels and super_tile.supertile_matrix_dir is None:
+    # Snapshot each tile type's own frame masks before any composite bits are
+    # merged in, so the collision check below compares a composite against the
+    # master's OWN config bits rather than bits a previous placement of the same
+    # composite already merged (which would be a false positive).
+    own_frame_masks = {
+        name: dict(masks) for name, masks in specData["FrameMap"].items()
+    }
+    for composite in fabric.get_all_unique_tiles():
+        if not composite.is_composite:
+            continue
+        if not composite.bels and composite.matrix_dir == Path():
             continue
 
-        st_config_bits = super_tile.total_config_bits
+        st_config_bits = composite.total_config_bits
 
         st_encode_dict = [-1] * (fabric.maxFramesPerCol * fabric.frameBitsPerRow)
         st_mask_dic: dict[int, str] = {}
         if st_config_bits > 0:
             st_config_mem_list = parseConfigMem(
-                super_tile.tile_dir.parent / f"{super_tile.name}_ConfigMem.csv",
+                composite.tile_dir.parent / f"{composite.name}_ConfigMem.csv",
                 fabric.maxFramesPerCol,
                 fabric.frameBitsPerRow,
                 st_config_bits,
@@ -235,20 +255,27 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                             fabric.frameBitsPerRow - 1 - i
                         ) + fabric.frameBitsPerRow * cfm.frameIndex
 
-        sm_connections: dict[str, list[str]] = {}
-        if super_tile.switch_matrix is not None:
-            sm_connections = super_tile.switch_matrix.connections
-
-        tx_local, ty_local = super_tile.get_master_tile_coords()
-
-        for base_fx, base_fy, _ in fabric.iter_super_tile_placements(super_tile):
-            ftx = base_fx + tx_local
-            fty = base_fy + ty_local
+        for ftx, fty in composite_master_fabric_coords(fabric, composite):
             master_tile = fabric.tile[fty][ftx]
 
             frame_map = specData["FrameMap"].setdefault(master_tile.name, {})
+            master_own_masks = own_frame_masks.get(master_tile.name, {})
             for frame_idx, mask in st_mask_dic.items():
                 existing = frame_map.get(frame_idx, "0" * fabric.frameBitsPerRow)
+                own = master_own_masks.get(frame_idx, "0" * fabric.frameBitsPerRow)
+                conflicts = [
+                    i
+                    for i, (a, b) in enumerate(zip(own, mask, strict=True))
+                    if a == "1" and b == "1"
+                ]
+                if conflicts:
+                    raise ValueError(
+                        f"Composite tile '{composite.name}' ConfigMem conflicts with "
+                        f"the master tile '{master_tile.name}' own ConfigMem in frame "
+                        f"{frame_idx} at bit position(s) {conflicts}: both drive the "
+                        "same physical config bit. Delete the composite ConfigMem to "
+                        "regenerate it."
+                    )
                 frame_map[frame_idx] = "".join(
                     "1" if a == "1" or b == "1" else "0"
                     for a, b in zip(existing, mask, strict=True)
@@ -260,7 +287,9 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
             )
 
             curBitOffset = 0
-            for source, sinkList in sm_connections.items():
+            for mux in composite.switch_matrix.muxes:
+                source = mux.output.name
+                sinkList = [inp.name for inp in mux.inputs]
                 controlWidth = (len(sinkList) - 1).bit_length()
                 if st_config_bits == 0:
                     # No config bits — all connections are passthrough.
@@ -283,7 +312,7 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
 
             bel_coord = (ftx, fty)
             bel_offset = len(master_tile.bels) + st_bel_count.get(bel_coord, 0)
-            for i, bel in enumerate(super_tile.bels):
+            for i, bel in enumerate(composite.bels):
                 letter = string.ascii_uppercase[bel_offset + i]
                 for featureKey, keyDict in bel.bel_feature_map.items():
                     for entry in keyDict:
@@ -295,6 +324,6 @@ def generateBitstreamSpec(fabric: Fabric) -> dict[str, dict]:
                                     st_encode_dict[curBitOffset + v]: keyDict[entry][v]
                                 }
                         curBitOffset += len(keyDict[entry])
-            st_bel_count[bel_coord] = bel_offset + len(super_tile.bels)
+            st_bel_count[bel_coord] = bel_offset + len(composite.bels)
 
     return specData

@@ -10,6 +10,7 @@ from pathlib import Path
 from loguru import logger
 
 from fabulous.custom_exception import InvalidFileType
+from fabulous.fabric_cad.gen_npnr_model import composite_master_fabric_coords
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.fabric import Fabric
 
@@ -68,16 +69,18 @@ def generateUserDesignTopWrapper(
     bel_inputs: dict[str, list[str]] = {}
     bel_outputs: dict[str, list[str]] = {}
 
-    # Supertile BELs are placed by nextpnr at the supertile's master tile, after
-    # that tile's own BELs. Collect them per master-tile coordinate so that
-    # appending them to the master tile's BEL list yields the same BEL letters
-    # the nextpnr model uses.
+    # Composite wrapper BELs are placed by nextpnr at the composite's master
+    # cell, after that cell's own BELs. Collect them per master-cell fabric
+    # coordinate so that appending them to the master cell's BEL list yields the
+    # same BEL letters the nextpnr model uses.
     super_tile_bels: dict[tuple[int, int], list] = {}
-    for base_fx, base_fy, superTile in fabric.iter_super_tile_placements():
-        mx, my = superTile.get_master_tile_coords()
-        super_tile_bels.setdefault((base_fx + mx, base_fy + my), []).extend(
-            superTile.bels
-        )
+    for composite in fabric.get_all_unique_tiles():
+        if not composite.is_composite or not composite.bels:
+            continue
+        for master_fx, master_fy in composite_master_fabric_coords(fabric, composite):
+            super_tile_bels.setdefault((master_fx, master_fy), []).extend(
+                composite.bels
+            )
 
     # generate component instantioations
     for x in range(fabric.numberOfColumns):

@@ -69,9 +69,7 @@ class HelperCommandSet(ReplCommandSet):
         if not repl.fabric_loaded:
             raise CommandError("Need to load fabric first")
 
-        if (tile_obj := repl.fabulousAPI.getTile(tile)) or (
-            tile_obj := repl.fabulousAPI.getSuperTile(tile)
-        ):
+        if tile_obj := repl.fabulousAPI.getTile(tile):
             logger.info(f"\n{_safe_pformat(tile_obj)}")
         else:
             raise CommandError(f"Tile {tile} not found in fabric")

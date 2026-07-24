@@ -340,7 +340,9 @@ class TestTotalConfigBits:
         leaf = _leaf(
             "T",
             bels=[_bel(2), _bel(3)],
-            switch_matrix=SwitchMatrix.from_config_bits(4),
+            switch_matrix=SwitchMatrix.from_connections(
+                matrix_file=Path(), connections={}, hdl_config_bits=4
+            ),
         )
         assert leaf.total_config_bits == 4 + 2 + 3
 
@@ -351,7 +353,9 @@ class TestTotalConfigBits:
             "C",
             [[top], [bot]],
             bels=[_bel(2)],
-            switch_matrix=SwitchMatrix.from_config_bits(4),
+            switch_matrix=SwitchMatrix.from_connections(
+                matrix_file=Path(), connections={}, hdl_config_bits=4
+            ),
         )
         assert comp.total_config_bits == 6
 

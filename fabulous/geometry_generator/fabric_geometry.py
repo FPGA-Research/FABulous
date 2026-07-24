@@ -167,14 +167,16 @@ class FabricGeometry:
             else:
                 outerTileNames.append(tileName)
 
-        # A supertile-level BEL is drawn in the supertile's master tile, so map
-        # each master tile name to the supertile BELs it hosts.
+        # A composite wrapper BEL is drawn in the composite's master cell, so map
+        # each master sub-tile name to the wrapper BELs it hosts.
         master_bels: dict[str, list] = {}
-        for superTile in self.fabric.superTileDic.values():
-            mx, my = superTile.get_master_tile_coords()
-            master_tile = superTile.tile_map[my][mx]
+        for composite in self.fabric.get_all_unique_tiles():
+            if not composite.is_composite or not composite.bels:
+                continue
+            mx, my = composite.get_master_offset()
+            master_tile = composite.tile_map[my][mx]
             if master_tile is not None:
-                master_bels.setdefault(master_tile.name, []).extend(superTile.bels)
+                master_bels.setdefault(master_tile.name, []).extend(composite.bels)
 
         for tileName in self.tileNames:
             tile = self.fabric.getTileByName(tileName)
