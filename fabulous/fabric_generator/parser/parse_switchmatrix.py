@@ -8,7 +8,7 @@ validation of port configurations.
 import re
 from collections import defaultdict
 from pathlib import Path
-from typing import Literal, overload
+from typing import TYPE_CHECKING, Literal, overload
 
 from loguru import logger
 
@@ -19,6 +19,9 @@ from fabulous.custom_exception import (
 )
 from fabulous.fabric_definition.define import IO, Direction, Side
 from fabulous.fabric_definition.port import NULL_PORT_NAME, TilePort
+
+if TYPE_CHECKING:
+    from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 
 oppositeDic = {"NORTH": "SOUTH", "SOUTH": "NORTH", "EAST": "WEST", "WEST": "EAST"}
 
@@ -430,53 +433,28 @@ def parse_port_line(line: str) -> tuple[list[TilePort], tuple[str, str] | None]:
         commonWirePair = None
 
     else:
-        # SJUMP,source,0,0,NULL,n  -> OUTPUT: signal exits tile toward supertile SM
-        # SJUMP,NULL,0,0,dest,n    -> INPUT: signal enters tile from supertile SM
-        # An SJUMP line is one-way: exactly one of source/destination must be NULL.
-        if (source_name == NULL_PORT_NAME) == (destination_name == NULL_PORT_NAME):
-            raise InvalidPortType(
-                f"Invalid SJUMP line '{line.strip()}': exactly one of source and "
-                "destination must be NULL (use 'SJUMP,src,0,0,NULL,n' for an output "
-                "or 'SJUMP,NULL,0,0,dst,n' for an input)."
-            )
-        # SJUMP wires terminate at the supertile switch matrix and carry no
-        # spatial offset; a nonzero offset is a definition error, not silently 0.
-        if x_offset != 0 or y_offset != 0:
-            raise InvalidPortType(
-                f"Invalid SJUMP line '{line.strip()}': X/Y offset must be 0,0 "
-                f"(got {x_offset},{y_offset})."
-            )
-
-        if source_name != NULL_PORT_NAME:
-            ports.append(
-                TilePort(
-                    name=source_name,
-                    io_direction=IO.OUTPUT,
-                    width=wire_count,
-                    side_of_tile=Side.ANY,
-                    wire_direction=Direction.SJUMP,
-                    source_name=source_name,
-                    x_offset=0,
-                    y_offset=0,
-                    destination_name=NULL_PORT_NAME,
-                    wire_count=wire_count,
-                )
-            )
-        if destination_name != NULL_PORT_NAME:
-            ports.append(
-                TilePort(
-                    name=destination_name,
-                    io_direction=IO.INPUT,
-                    width=wire_count,
-                    side_of_tile=Side.ANY,
-                    wire_direction=Direction.SJUMP,
-                    source_name=NULL_PORT_NAME,
-                    x_offset=0,
-                    y_offset=0,
-                    destination_name=destination_name,
-                    wire_count=wire_count,
-                )
-            )
-        commonWirePair = None
-
+        raise InvalidPortType(f"Unknown port type: {port_type}")
     return (ports, commonWirePair)
+
+
+def create_switch_matrix(matrix_dir: Path, tileName: str = "") -> "SwitchMatrix":
+    """Build a `SwitchMatrix` from a switch matrix file.
+
+    Thin wrapper over `SwitchMatrix.from_file` for the composite-tile parse
+    path, whose wrapper matrix has no tile ports to canonicalise against.
+
+    Parameters
+    ----------
+    matrix_dir : Path
+        Path to the switch matrix file (`.list`, `.csv`, or hand-written HDL).
+    tileName : str, optional
+        Tile name, used in HDL warnings and CSV validation. Defaults to "".
+
+    Returns
+    -------
+    SwitchMatrix
+        The parsed switch matrix.
+    """
+    from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+
+    return SwitchMatrix.from_file(matrix_dir, tileName)

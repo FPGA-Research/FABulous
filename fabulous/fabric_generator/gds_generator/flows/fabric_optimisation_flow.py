@@ -29,7 +29,6 @@ from librelane.steps.step import Step
 
 from fabulous.fabric_definition.define import HDLType
 from fabulous.fabric_definition.fabric import Fabric
-from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gds_generator.flows.fabric_macro_flow import (
     FABulousFabricMacroFlow,
@@ -85,7 +84,7 @@ def _extract_pin_min(flow: FABulousTileMacroFlow) -> dict[str, float]:
 
 
 def _run_tile_flow_worker(
-    tile_type: Tile | SuperTile,
+    tile_type: Tile,
     io_pin_config: Path,
     optimisation: OptMode,
     base_config_path: Path,
@@ -104,7 +103,7 @@ def _run_tile_flow_worker(
 
     Parameters
     ----------
-    tile_type : Tile | SuperTile
+    tile_type : Tile
         The tile to compile.
     io_pin_config : Path
         Path to the IO pin configuration YAML file.
@@ -264,23 +263,24 @@ class FABulousFabricOptimisationFlow(Flow):
             )
 
         # Validate all tile directories exist
-        # Check both regular tiles and SuperTiles from their dictionaries
+        # Check both leaf tiles and composite tiles
         missing_tiles: list[str] = []
         found_regular_tiles: int = 0
         found_supertiles: int = 0
 
-        # Build set of all subtile names that are part of SuperTiles
-        # Subtiles don't need their own directories
+        composites = [t for t in fabric.get_all_unique_tiles() if t.is_composite]
+
+        # Build set of all subtile names that are part of a composite tile.
+        # Subtiles don't need their own directories.
         subtile_names: set[str] = set()
-        for supertile in fabric.superTileDic.values():
-            for subtile in supertile.tiles:
+        for composite in composites:
+            for subtile in composite.get_sub_tiles():
                 subtile_names.add(subtile.name)
 
         # Validate regular tile directories
-        # Skip tiles that are sub-components of SuperTiles
-        for tile_name in fabric.tileDic:
-            if tile_name in subtile_names:
-                # This tile is part of a supertile, skip directory check
+        # Skip tiles that are sub-components of composite tiles
+        for tile_name, tile in fabric.tileDic.items():
+            if tile.is_composite or tile_name in subtile_names:
                 continue
             tile_dir: Path = tile_dir_base / tile_name
             if not tile_dir.exists():
@@ -288,12 +288,12 @@ class FABulousFabricOptimisationFlow(Flow):
             else:
                 found_regular_tiles += 1
 
-        # Validate SuperTile directories
-        # Note: Supertiles should have their own directories with compiled output
-        for supertile_name in fabric.superTileDic:
-            supertile_dir: Path = tile_dir_base / supertile_name
+        # Validate composite tile directories
+        # Note: composite tiles have their own directories with compiled output
+        for composite in composites:
+            supertile_dir: Path = tile_dir_base / composite.name
             if not supertile_dir.exists():
-                missing_tiles.append(f"{supertile_name} (SuperTile)")
+                missing_tiles.append(f"{composite.name} (composite Tile)")
             else:
                 found_supertiles += 1
 
@@ -307,13 +307,14 @@ class FABulousFabricOptimisationFlow(Flow):
         if subtile_names:
             info(
                 f"✓ Project structure validated: {total_types} tile types found "
-                f"({found_regular_tiles} regular tiles, {found_supertiles} supertiles, "
-                f"{len(subtile_names)} subtiles within SuperTiles)"
+                f"({found_regular_tiles} regular tiles, {found_supertiles} composite "
+                f"tiles, {len(subtile_names)} subtiles within composite tiles)"
             )
         else:
             info(
                 f"✓ Project structure validated: {total_types} tile types found "
-                f"({found_regular_tiles} regular tiles, {found_supertiles} supertiles)"
+                f"({found_regular_tiles} regular tiles, "
+                f"{found_supertiles} composite tiles)"
             )
 
     def _init_compile(self, fabric: Fabric, proj_dir: Path) -> None:
@@ -325,7 +326,7 @@ class FABulousFabricOptimisationFlow(Flow):
             OptMode.FIND_MIN_WIDTH,
         ]
 
-        handlers: list[tuple[Future[WorkerResult], OptMode, Tile | SuperTile]] = []
+        handlers: list[tuple[Future[WorkerResult], OptMode, Tile]] = []
         with DillProcessPoolExecutor(max_workers=get_context().max_worker) as executor:
             for opt_mode, tile_type in product(
                 opt_modes, fabric.get_all_unique_tiles()
@@ -485,7 +486,7 @@ class FABulousFabricOptimisationFlow(Flow):
                 generate_IO_pin_order_config(tile_type, io_config_path, fabric=fabric)
 
         # Compile tiles with optimal dimensions in parallel
-        handlers: list[tuple[Future[WorkerResult], Tile | SuperTile]] = []
+        handlers: list[tuple[Future[WorkerResult], Tile]] = []
         with DillProcessPoolExecutor(max_workers=get_context().max_worker) as executor:
             for tile_type in fabric.get_all_unique_tiles():
                 io_config_path = tile_type.tile_dir.parent / "io_pin_order.yaml"

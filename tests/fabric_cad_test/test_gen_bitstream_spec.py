@@ -44,7 +44,7 @@ def _fabric_from_bits(grid: list[list[int | None]]) -> Fabric:
     Parameters
     ----------
     grid : list[list[int | None]]
-        Per-tile ``globalConfigBits``; ``None`` marks an empty (NULL) cell.
+        Per-tile ``total_config_bits``; ``None`` marks an empty (NULL) cell.
 
     Returns
     -------
@@ -175,7 +175,7 @@ def test_config_tile_in_border_row_sets_flag(generated_fabric: Fabric) -> None:
         tile
         for row in fabric.tile
         for tile in row
-        if tile is not None and tile.globalConfigBits > 0
+        if tile is not None and tile.total_config_bits > 0
     )
     # replace a placed cell in the top border row with the config-bearing tile
     top_row = fabric.tile[0]

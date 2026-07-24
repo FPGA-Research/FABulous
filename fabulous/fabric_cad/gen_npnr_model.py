@@ -18,6 +18,7 @@ from fabulous.fabric_cad.timing_model.FABulous_timing_model_interface import (
 )
 from fabulous.fabric_definition.bel import Bel
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.tile import Tile
 
 # Dummy BEL timing values (ns), mirroring nextpnr's historical hardcoded
 # constants (fabulous.cc, seed_default_estimates).
@@ -192,6 +193,39 @@ def belLines(
     return v1_line, v2_lines, v3_lines, constrain_lines
 
 
+def composite_master_fabric_coords(
+    fabric: Fabric, composite: Tile
+) -> list[tuple[int, int]]:
+    """Return the master cell's fabric coordinate for each composite placement.
+
+    The composite's wrapper BELs and config bits physically live at its master
+    cell. ``get_master_offset`` gives the master's TOP-FIRST ``tile_map`` index
+    ``(mx, my)``; the fabric grid is stored bottom row first, so the master's
+    fabric offset within a placement is ``(mx, (max_height - 1) - my)``. One master
+    coordinate is emitted per real placement, using the per-placement bottom-left
+    origins from :meth:`Fabric.find_composite_placement_origins` (which is correct
+    even for contiguous repeated placements of the same composite).
+
+    Parameters
+    ----------
+    fabric : Fabric
+        The fabric whose grid is scanned for placements of the composite.
+    composite : Tile
+        The composite tile to locate.
+
+    Returns
+    -------
+    list[tuple[int, int]]
+        One ``(x, y)`` master fabric coordinate per placement.
+    """
+    mx, my = composite.get_master_offset()
+    master_dy = (composite.max_height - 1) - my
+    return [
+        (base_fx + mx, base_fy + master_dy)
+        for base_fx, base_fy in fabric.find_composite_placement_origins(composite)
+    ]
+
+
 def genNextpnrModel(
     fabric: Fabric, delay_model: FABulousTimingModelInterface = None
 ) -> tuple[str, str, str, str, str]:
@@ -291,37 +325,37 @@ def genNextpnrModel(
                 belv3Str.extend(v3_lines)
                 constrainStr.extend(constrain_lines)
 
-    # Supertile BEL and switch-matrix PIP emission.
-    # SJUMP PIPs live in tile.wire_list (added by Fabric.__post_init__) and are
-    # already emitted by the per-tile loop above.
-    for base_fx, base_fy, super_tile in fabric.iter_super_tile_placements():
-        if not super_tile.bels and super_tile.supertile_matrix_dir is None:
+    # Composite wrapper BEL and switch-matrix PIP emission. A composite tile's
+    # wrapper BELs and unified switch matrix physically live at its master cell,
+    # so they are emitted at the master cell's fabric coordinate. The per-cell
+    # internal PIPs of the sub-tiles are already emitted by the per-tile loop
+    # above (the fabric grid is flattened to leaf tiles).
+    for composite in fabric.get_all_unique_tiles():
+        if not composite.is_composite:
+            continue
+        if not composite.bels and composite.matrix_dir == Path():
             continue
 
-        tx_local, ty_local = super_tile.get_master_tile_coords()
-        ftx = base_fx + tx_local
-        fty = base_fy + ty_local
+        for ftx, fty in composite_master_fabric_coords(fabric, composite):
+            bel_offset = len(fabric.tile[fty][ftx].bels)
+            belStr.append(f"#Composite_{composite.name}_X{ftx}Y{fty}")
+            belv2Str.append(f"#Composite_{composite.name}_X{ftx}Y{fty}")
+            belv3Str.append(f"#Composite_{composite.name}_X{ftx}Y{fty}")
+            for i, bel in enumerate(composite.bels):
+                letter = string.ascii_uppercase[bel_offset + i]
+                v1_line, v2_lines, v3_lines, constrain_lines = belLines(
+                    bel, letter, ftx, fty
+                )
+                belStr.append(v1_line)
+                belv2Str.extend(v2_lines)
+                belv3Str.extend(v3_lines)
+                constrainStr.extend(constrain_lines)
 
-        bel_offset = len(fabric.tile[fty][ftx].bels)
-        belStr.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
-        belv2Str.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
-        belv3Str.append(f"#SuperTile_{super_tile.name}_X{ftx}Y{fty}")
-        for i, bel in enumerate(super_tile.bels):
-            letter = string.ascii_uppercase[bel_offset + i]
-            v1_line, v2_lines, v3_lines, constrain_lines = belLines(
-                bel, letter, ftx, fty
-            )
-            belStr.append(v1_line)
-            belv2Str.extend(v2_lines)
-            belv3Str.extend(v3_lines)
-            constrainStr.extend(constrain_lines)
-
-        if super_tile.switch_matrix is not None:
-            for sink, sources in super_tile.switch_matrix.connections.items():
+            for sink, sources in composite.switch_matrix.connections.items():
                 for src in sources:
                     delay: float = DUMMY_PIP_DELAY
                     if delay_model is not None:
-                        delay = delay_model.pip_delay(super_tile.name, sink, src)
+                        delay = delay_model.pip_delay(composite.name, sink, src)
                     pipStr.append(
                         f"X{ftx}Y{fty},{src},X{ftx}Y{fty},{sink},{delay},{src}.{sink}"
                     )
