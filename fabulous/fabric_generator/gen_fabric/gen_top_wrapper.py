@@ -18,7 +18,7 @@ from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
 from fabulous.fabric_generator.code_generator.code_generator_VHDL import (
     VHDLCodeGenerator,
 )
-from fabulous.fabric_generator.gen_fabric.gen_fabric import iter_super_tile_anchors
+from fabulous.fabric_generator.gen_fabric.gen_fabric import iter_composite_anchors
 
 
 def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
@@ -107,7 +107,7 @@ def generateTopWrapper(writer: CodeGenerator, fabric: Fabric) -> None:
                         externalPorts.append((IO.OUTPUT, f"Tile_X{x}Y{y}_{i}"))
     # supertile-level BEL external ports, named at the wrapper anchor so they
     # match the eFPGA module's top-level ports.
-    for ax, ay, superTile in iter_super_tile_anchors(fabric):
+    for ax, ay, superTile in iter_composite_anchors(fabric):
         for bel in superTile.bels:
             for i in bel.external_input:
                 externalPorts.append((IO.INPUT, f"Tile_X{ax}Y{ay}_{i}"))

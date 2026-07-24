@@ -117,9 +117,9 @@ class NLPTileProblem(ElementwiseProblem):
                 continue
             tile_min[tile.name] = _combined_min(tile.name)
 
-        # SuperTile components derive bounds from the SuperTile minimum
+        # Composite tiles derive bounds from the composite minimum
         # and from row/column neighbors
-        for supertile in fabric.superTileDic.values():
+        for supertile in (c for c in fabric.get_all_unique_tiles() if c.is_composite):
             st_min_w, st_min_h = _combined_min(supertile.name)
             first_row = supertile.tile_map[0] if supertile.tile_map else []
             n_cols = sum(1 for t in first_row if t is not None)
@@ -215,9 +215,9 @@ class NLPTileProblem(ElementwiseProblem):
             if len(samples) >= 2:
                 continue
 
-            is_supertile = tile.name in self.fabric.superTileDic
+            supertile = self.fabric.getTileByName(tile.name)
+            is_supertile = supertile.is_composite
             if is_supertile:
-                supertile = self.fabric.superTileDic[tile.name]
                 first_row = supertile.tile_map[0] if supertile.tile_map else []
                 n_cols = sum(1 for t in first_row if t is not None)
                 n_rows = sum(
@@ -330,7 +330,7 @@ class NLPTileProblem(ElementwiseProblem):
                 tile_constraints.append((tile.name, min(cols), min(rows)))
 
         supertile_constraints: list[tuple[str, list[int], list[int]]] = []
-        for supertile in fabric.superTileDic.values():
+        for supertile in (c for c in fabric.get_all_unique_tiles() if c.is_composite):
             st_cols = [
                 min(self.tile_column_set[tile.name])
                 for tile in (supertile.tile_map[0] if supertile.tile_map else [])
@@ -815,7 +815,7 @@ class FabricAreaOptimisation(Step):
                 quantized_height(tile.name),
             )
 
-        for supertile in fabric.superTileDic.values():
+        for supertile in (c for c in fabric.get_all_unique_tiles() if c.is_composite):
             total_w = zero
             if supertile.tile_map:
                 for tile in supertile.tile_map[0]:

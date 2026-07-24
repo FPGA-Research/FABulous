@@ -6,21 +6,19 @@ import pytest
 
 from fabulous.custom_exception import (
     InvalidListFileDefinition,
-    InvalidPortType,
     InvalidSwitchMatrixDefinition,
 )
-from fabulous.fabric_definition.define import IO, Direction
-from fabulous.fabric_definition.supertile import SuperTile
-from fabulous.fabric_generator.parser.parse_csv import (
-    parse_port_line,
-    validate_super_tile_matrix,
-)
+from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.define import IO, Direction, Side
+from fabulous.fabric_definition.port import TilePort
+from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.parser.parse_csv import validate_composite_tile_matrix
 from fabulous.fabric_generator.parser.parse_switchmatrix import (
     expandListPorts,
     parseList,
     parseMatrix,
 )
-from tests.conftest import make_empty_tile, make_muladd_bel, sjump_port
+from tests.conftest import make_empty_tile, make_muladd_bel
 
 
 @pytest.mark.parametrize(
@@ -66,46 +64,71 @@ def test_expand_list_ports(
 
 
 @pytest.mark.parametrize(
-    ("content", "expected_result", "expected_error"),
+    ("content", "preserve_list_order", "expected_result", "expected_error"),
     [
         pytest.param(
             "MyTile,DEST0,DEST1\nSRC0,1,0\nSRC1,0,1\n",
+            False,
             {"SRC0": ["DEST0"], "SRC1": ["DEST1"]},
             None,
             id="basic_connections",
         ),
         pytest.param(
             "T,D0,D1,D2\nSRC,1,0,1\n",
+            False,
             {"SRC": ["D0", "D2"]},
             None,
             id="multiple_destinations_per_source",
         ),
         pytest.param(
             "T,D0,D1\nSRC,0,0\n",
+            False,
             {"SRC": []},
             None,
             id="no_connections",
         ),
         pytest.param(
             "T,D0 # header comment\nSRC,1 # row comment\n",
+            False,
             None,
             None,
             id="comments_stripped",
         ),
         pytest.param(
             "T,D0\n\nSRC,1\n\n",
+            False,
             None,
             None,
             id="blank_lines_skipped",
         ),
         pytest.param(
+            # The top-left header cell is a label only and is never validated,
+            # so a mismatching name parses like any other.
+            "WrongTile,D0\nSRC,1\n",
+            False,
+            {"SRC": ["D0"]},
+            None,
+            id="header_label_not_validated",
+        ),
+        pytest.param(
             "T,D0,D1,D2,D3\nSRC,1,2,3,4\n",
+            True,
             {"SRC": ["D3", "D2", "D1", "D0"]},
             None,
             id="preserve_order_msb_first",
         ),
         pytest.param(
+            # Without the flag every non-zero cell is a plain 1, so the inputs
+            # fall back to CSV-column order.
+            "T,D0,D1,D2,D3\nSRC,1,2,3,4\n",
+            False,
+            {"SRC": ["D0", "D1", "D2", "D3"]},
+            None,
+            id="legacy_read_uses_column_order",
+        ),
+        pytest.param(
             "T,D0,D1,D2\nSRC,0,foo,1\n",
+            True,
             None,
             InvalidSwitchMatrixDefinition,
             id="non_integer_cell_value",
@@ -115,39 +138,23 @@ def test_expand_list_ports(
 def test_parse_matrix(
     tmp_path: Path,
     content: str,
+    preserve_list_order: bool,
     expected_result: dict | None,
     expected_error: type | None,
 ) -> None:
-    """Test parseMatrix with preserve_list_order, honouring the cell encoding.
-
-    The parametrized cases encode mux-input positions, so they are read with
-    `preserve_list_order=True`; the legacy (treat-as-1, column-order) read is
-    covered separately in `test_parse_matrix_legacy_column_order`.
-    """
+    """Test parseMatrix for valid connection parsing and error conditions."""
     f = tmp_path / "tile_matrix.csv"
     f.write_text(content)
 
     if expected_error:
         with pytest.raises(expected_error):
-            parseMatrix(f, preserve_list_order=True)
+            parseMatrix(f, preserve_list_order)
     else:
-        result = parseMatrix(f, preserve_list_order=True)
+        result = parseMatrix(f, preserve_list_order)
         if expected_result is not None:
             assert result == expected_result
         else:
             assert isinstance(result, dict)
-
-
-def test_parse_matrix_legacy_column_order(tmp_path: Path) -> None:
-    """Without preserve_list_order, every entry is treated as 1 (column order)."""
-    f = tmp_path / "m.csv"
-    # Cell magnitudes would put SRC in D3..D0 order, but the legacy read ignores
-    # them and returns the mux inputs in CSV-column order instead.
-    f.write_text("T,D0,D1,D2,D3\nSRC,1,2,3,4\n")
-    assert parseMatrix(f, preserve_list_order=False) == {
-        "SRC": ["D0", "D1", "D2", "D3"]
-    }
-    assert parseMatrix(f, preserve_list_order=True) == {"SRC": ["D3", "D2", "D1", "D0"]}
 
 
 @pytest.mark.parametrize(
@@ -262,105 +269,74 @@ def test_parse_list_warns_on_duplicates(
     assert "ignoring 1 duplicate" in caplog.text
 
 
-class TestParseSJumpPortLine:
-    """`parse_port_line` accepts the two one-way SJUMP forms, rejects the rest.
+def _jump_port(name: str, in_out: IO, wire_count: int = 1) -> TilePort:
+    """Build a regular (JUMP-direction) tile port for composite-matrix tests."""
+    return TilePort(
+        name=name,
+        io_direction=in_out,
+        width=wire_count,
+        side_of_tile=Side.ANY,
+        wire_direction=Direction.JUMP,
+        source_name=name if in_out == IO.OUTPUT else "NULL",
+        x_offset=0,
+        y_offset=0,
+        destination_name=name if in_out == IO.INPUT else "NULL",
+        wire_count=wire_count,
+    )
 
-    An SJUMP line is a one-way connection between a basic tile and its supertile
-    BEL, so exactly one of source/destination must be NULL and the line carries
-    no spatial offset.
+
+class TestCompositeTileMatrixValidation:
+    """``validate_composite_tile_matrix`` rejects names that aren't real ports/pins.
+
+    A composite tile's wrapper switch matrix may only reference sub-tile ports
+    (sub-tile-qualified), wrapper-BEL pins, or constants; anything else (a typo
+    like ``asdfasd``) is rejected.
     """
 
-    def test_output_form(self) -> None:
-        ports, common = parse_port_line("SJUMP,A,0,0,NULL,8")
-        assert common is None
-        assert len(ports) == 1
-        (port,) = ports
-        assert port.wire_direction == Direction.SJUMP
-        assert port.io_direction == IO.OUTPUT
-        assert port.name == "A"
-        assert (port.x_offset, port.y_offset) == (0, 0)
-
-    def test_input_form(self) -> None:
-        (port,), common = parse_port_line("SJUMP,NULL,0,0,Q,8")
-        assert common is None
-        assert port.io_direction == IO.INPUT
-        assert port.name == "Q"
-
-    def test_both_non_null_rejected(self) -> None:
-        with pytest.raises(InvalidPortType, match="exactly one of source"):
-            parse_port_line("SJUMP,A,0,0,Q,8")
-
-    def test_both_null_rejected(self) -> None:
-        with pytest.raises(InvalidPortType, match="exactly one of source"):
-            parse_port_line("SJUMP,NULL,0,0,NULL,8")
-
-    def test_nonzero_offset_rejected(self) -> None:
-        with pytest.raises(InvalidPortType, match="offset must be 0,0"):
-            parse_port_line("SJUMP,A,1,0,NULL,8")
-        with pytest.raises(InvalidPortType, match="offset must be 0,0"):
-            parse_port_line("SJUMP,NULL,0,-1,Q,8")
-
-
-class TestSuperTileMatrixValidation:
-    """`validate_super_tile_matrix` rejects names that aren't real ports/pins.
-
-    The supertile switch matrix may only reference BEL pins, child-tile SJUMP
-    wires, or constants; anything else (a typo like `asdfasd`) is rejected.
-    """
-
-    def _supertile(self) -> SuperTile:
-        # DSP_bot drives operand A0 up to the BEL and reads result Q0 back.
+    def _sub_tiles_and_bels(self) -> tuple[list[Tile], list[Bel]]:
+        # DSP_bot exposes operand A (output toward the matrix) and result Q
+        # (input back from the matrix); the wrapper BEL has one input/output pin.
         bot = make_empty_tile(
             "DSP_bot",
             [
-                sjump_port("A", IO.OUTPUT, wire_count=1),
-                sjump_port("Q", IO.INPUT, wire_count=1),
+                _jump_port("A", IO.OUTPUT, wire_count=1),
+                _jump_port("Q", IO.INPUT, wire_count=1),
             ],
             pin_order_config={},
         )
         bel = make_muladd_bel([("SUPER_A0", IO.INPUT), ("SUPER_Q0", IO.OUTPUT)])
-        return SuperTile(
-            name="DSP",
-            tile_dir=Path(),
-            tiles=[bot],
-            tile_map=[[bot]],
-            bels=[bel],
+        return [bot], [bel]
+
+    def test_valid_connections_pass(self) -> None:
+        sub_tiles, bels = self._sub_tiles_and_bels()
+        connections = {
+            "SUPER_A0": ["DSP_bot_A0"],  # forward: sub-tile output -> BEL input
+            "DSP_bot_Q0": ["SUPER_Q0", "GND0", "VCC0"],  # reverse + constants
+        }
+        validate_composite_tile_matrix(
+            "DSP", sub_tiles, bels, connections, Path("composite_matrix.list")
         )
 
-    def test_port_name_sets(self) -> None:
-        sources, sinks = self._supertile().get_matrix_port_names()
-        # sources: child OUTPUT SJUMP wire + BEL output
-        assert sources == {"DSP_bot_A0", "SUPER_Q0"}
-        # sinks: BEL input + child INPUT SJUMP wire
-        assert sinks == {"SUPER_A0", "DSP_bot_Q0"}
+    def test_unknown_source_rejected(self) -> None:
+        sub_tiles, bels = self._sub_tiles_and_bels()
+        connections = {"DSP_bot_Q0": ["SUPER_Q0", "GND0", "asdfasd"]}
+        with pytest.raises(InvalidSwitchMatrixDefinition, match="asdfasd"):
+            validate_composite_tile_matrix(
+                "DSP", sub_tiles, bels, connections, Path("composite_matrix.list")
+            )
 
-    @pytest.mark.parametrize(
-        ("connections", "error_match"),
-        [
-            pytest.param(
-                {
-                    "SUPER_A0": ["DSP_bot_A0"],  # forward: child output -> BEL input
-                    "DSP_bot_Q0": ["SUPER_Q0", "GND0", "VCC0"],  # reverse + consts
-                },
-                None,
-                id="valid",
-            ),
-            pytest.param(
-                {"DSP_bot_Q0": ["SUPER_Q0", "GND0", "asdfasd"]},
-                "asdfasd",
-                id="unknown_source",
-            ),
-            pytest.param({"SUPER_ZZ9": ["DSP_bot_A0"]}, "SUPER_ZZ9", id="unknown_sink"),
-            pytest.param({"GND0": ["DSP_bot_A0"]}, "GND0", id="constant_as_sink"),
-        ],
-    )
-    def test_validate_super_tile_matrix(
-        self, connections: dict[str, list[str]], error_match: str | None
-    ) -> None:
-        st = self._supertile()
-        path = Path("supertile_matrix.list")
-        if error_match is None:
-            validate_super_tile_matrix(st, connections, path)
-        else:
-            with pytest.raises(InvalidSwitchMatrixDefinition, match=error_match):
-                validate_super_tile_matrix(st, connections, path)
+    def test_unknown_sink_rejected(self) -> None:
+        sub_tiles, bels = self._sub_tiles_and_bels()
+        connections = {"SUPER_ZZ9": ["DSP_bot_A0"]}
+        with pytest.raises(InvalidSwitchMatrixDefinition, match="SUPER_ZZ9"):
+            validate_composite_tile_matrix(
+                "DSP", sub_tiles, bels, connections, Path("composite_matrix.list")
+            )
+
+    def test_constant_as_sink_rejected(self) -> None:
+        sub_tiles, bels = self._sub_tiles_and_bels()
+        connections = {"GND0": ["DSP_bot_A0"]}
+        with pytest.raises(InvalidSwitchMatrixDefinition, match="GND0"):
+            validate_composite_tile_matrix(
+                "DSP", sub_tiles, bels, connections, Path("composite_matrix.list")
+            )

@@ -17,7 +17,6 @@ from collections import defaultdict
 from pathlib import Path
 
 from fabulous.fabric_definition.define import IO, ConfigBitMode, Direction, Side
-from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
@@ -89,6 +88,17 @@ def generateTile(
         Only raised for VHDL output. If required component files
         (e.g., switch matrix or config memory) are missing.
     """
+    if tile.is_composite:
+        _generate_composite_tile(
+            writer,
+            tile,
+            frame_bits_per_row,
+            max_frame_per_col,
+            disable_user_clk,
+            config_bit_mode,
+        )
+        return
+
     allJumpWireList = []
 
     writer.addHeader(f"{tile.name}")
@@ -131,17 +141,6 @@ def generateTile(
         wireSize = (abs(port.x_offset) + abs(port.y_offset)) * port.wire_count - 1
         writer.addPortVector(port.name, port.io_direction, wireSize, indentLevel=2)
         writer.addComment(str(port), indentLevel=2, onNewLine=False)
-
-    # SJUMP ports: OUTPUT exits toward supertile SM; INPUT enters from supertile SM
-    sjump_ports = tile.get_sjump_ports()
-    if sjump_ports:
-        writer.addComment(
-            "SJUMP ports (supertile BEL interface)", onNewLine=True, indentLevel=1
-        )
-        for p in sjump_ports:
-            writer.addPortVector(
-                p.name, p.io_direction, f"{p.wire_count}-1", indentLevel=2
-            )
 
     # now we have to scan all BELs if they use external pins,
     # because they have to be exported to the tile entity
@@ -248,9 +247,6 @@ def generateTile(
 
             for k in range(p.wire_count):
                 allJumpWireList.append(f"{p.name}( {k} )")
-
-    # SJUMP ports are module ports (declared above) and are wired to the switch
-    # matrix directly in the instantiation below, so they need no internal wire.
 
     # internal configuration data signal to daisy-chain all BELs
     # (if any and in the order they are listed in the fabric.csv)
@@ -488,10 +484,9 @@ def generateTile(
         belCounter += 1
 
     ports_pairs = []
-    # normal input wire (excludes JUMP and SJUMP, which are handled separately;
-    # otherwise SJUMP inputs would be bound twice in the switch-matrix instance)
+    # normal input wire (excludes JUMP, which is handled separately)
     for i in tile.ports_info:
-        if i.wire_direction not in (Direction.JUMP, Direction.SJUMP) and i.is_input:
+        if i.wire_direction != Direction.JUMP and i.is_input:
             ports_pairs += list(
                 zip(
                     i.expand_port_info_by_name(),
@@ -514,9 +509,9 @@ def generateTile(
 
     ports_pairs += list(zip(port, signal, strict=False))
 
-    # normal output wire (excludes JUMP and SJUMP which are handled separately)
+    # normal output wire (excludes JUMP, which is handled separately)
     for i in tile.ports_info:
-        if i.wire_direction not in (Direction.JUMP, Direction.SJUMP) and i.is_output:
+        if i.wire_direction != Direction.JUMP and i.is_output:
             ports_pairs += list(
                 zip(
                     i.expand_port_info_by_name(),
@@ -536,26 +531,6 @@ def generateTile(
         if i.wire_direction == Direction.JUMP and i.is_output:
             port += i.expand_port_info_by_name()
         if i.wire_direction == Direction.JUMP and i.is_output:
-            signal += i.expand_port_info_by_name(indexed=True)
-
-    ports_pairs += list(zip(port, signal, strict=True))
-
-    # sjump output wire - SM drives SJUMP OUTPUT signals exiting to supertile SM
-    port, signal = [], []
-    for i in tile.ports_info:
-        if i.wire_direction == Direction.SJUMP and i.is_output:
-            port += i.expand_port_info_by_name()
-            signal += i.expand_port_info_by_name(indexed=True)
-
-    ports_pairs += list(zip(port, signal, strict=True))
-
-    # sjump input wire - SJUMP INPUT signals enter SM as sources from supertile SM.
-    # The tile port is a vector, so index into it (Q[0]) rather than using the
-    # scalar SM-port name (Q0), which would be a floating implicit wire.
-    port, signal = [], []
-    for i in tile.ports_info:
-        if i.wire_direction == Direction.SJUMP and i.is_input:
-            port += i.expand_port_info_by_name()
             signal += i.expand_port_info_by_name(indexed=True)
 
     ports_pairs += list(zip(port, signal, strict=True))
@@ -590,54 +565,184 @@ def generateTile(
     writer.writeToFile()
 
 
-def generateSuperTile(
+def _composite_ports_around(tile: Tile) -> dict[str, list[list]]:
+    """Return the perimeter side ports of each composite sub-tile cell.
+
+    Mirrors the pre-migration supertile perimeter wiring so the composite
+    wrapper exposes exactly the same perimeter ports (and in the same
+    order) as the pre-migration supertile generator. The dictionary key is the
+    ``"x,y"`` cell coordinate using the same row/column indexing as
+    ``tile.tile_map``; a side-port list is appended only when that side faces the
+    composite boundary.
+
+    Parameters
+    ----------
+    tile : Tile
+        The composite tile whose ``tile_map`` cells are scanned.
+
+    Returns
+    -------
+    dict[str, list[list]]
+        Mapping from cell coordinate to its perimeter side-port lists.
+    """
+    tile_map = tile.tile_map
+    ports: dict[str, list[list]] = {}
+    for y, row in enumerate(tile_map):
+        for x, sub in enumerate(row):
+            if sub is None:
+                continue
+            ports[f"{x},{y}"] = []
+            # Top-first storage: y-1 is physically north, y+1 is south (matches
+            # gen_fabric ``_composite_perimeter_by_offset`` and the connection side).
+            if y - 1 < 0 or tile_map[y - 1][x] is None:
+                ports[f"{x},{y}"].append(sub.get_port_on_side(Side.NORTH))
+            if x + 1 >= len(tile_map[y]) or tile_map[y][x + 1] is None:
+                ports[f"{x},{y}"].append(sub.get_port_on_side(Side.EAST))
+            if y + 1 >= len(tile_map) or tile_map[y + 1][x] is None:
+                ports[f"{x},{y}"].append(sub.get_port_on_side(Side.SOUTH))
+            if x - 1 < 0 or tile_map[y][x - 1] is None:
+                ports[f"{x},{y}"].append(sub.get_port_on_side(Side.WEST))
+    return ports
+
+
+def _composite_internal_connections(tile: Tile) -> list[tuple[list, int, int]]:
+    """Return the internal edge side ports between adjacent composite cells.
+
+    Mirrors the pre-migration supertile internal wiring so the composite
+    wrapper declares exactly the same internal connection signals (and
+    in the same order) as the pre-migration supertile generator.
+
+    Parameters
+    ----------
+    tile : Tile
+        The composite tile whose ``tile_map`` cells are scanned.
+
+    Returns
+    -------
+    list[tuple[list, int, int]]
+        One entry per internal edge as ``(side_ports, x, y)``.
+    """
+    tile_map = tile.tile_map
+    internal: list[tuple[list, int, int]] = []
+    for y, row in enumerate(tile_map):
+        for x, _sub in enumerate(row):
+            # Top-first storage: y-1 is physically north, y+1 is south. Kept
+            # complementary with ``_composite_ports_around`` so each side is either
+            # a perimeter port or an internal wire, never both.
+            if 0 <= y - 1 < len(tile_map) and tile_map[y - 1][x] is not None:
+                internal.append((row[x].get_port_on_side(Side.NORTH), x, y))
+            if 0 <= x + 1 < len(tile_map[0]) and tile_map[y][x + 1] is not None:
+                internal.append((row[x].get_port_on_side(Side.EAST), x, y))
+            if 0 <= y + 1 < len(tile_map) and tile_map[y + 1][x] is not None:
+                internal.append((row[x].get_port_on_side(Side.SOUTH), x, y))
+            if 0 <= x - 1 < len(tile_map[0]) and tile_map[y][x - 1] is not None:
+                internal.append((row[x].get_port_on_side(Side.WEST), x, y))
+    return internal
+
+
+def _composite_wrapper_matrix_signals(
+    tile: Tile,
+) -> list[tuple[str, str, int, list[int]]]:
+    """Return the sub-tile ports the composite wrapper matrix binds to.
+
+    The composite wrapper switch matrix references its sub-tile instance ports by
+    sub-tile-qualified name (``{subtile}_{port}{k}``). For each such ``(subtile,
+    port)`` pair an intermediate signal is declared and bound to both the
+    sub-tile instance port and the wrapper-matrix instance port. This scans the
+    wrapper matrix (``tile.switch_matrix``) and reports every sub-tile port it
+    references, along with the exact bit indices referenced.
+
+    Only the referenced bits are reported because the wrapper switch matrix module
+    (see ``_add_composite_matrix_ports``) declares a scalar port only for the
+    referenced ``{subtile}_{port}{k}`` names, not for every bit ``0..wire_count-1``.
+
+    Parameters
+    ----------
+    tile : Tile
+        The composite tile whose ``switch_matrix`` references sub-tile ports.
+
+    Returns
+    -------
+    list[tuple[str, str, int, list[int]]]
+        One entry per referenced sub-tile port as ``(subtile_name, port_name,
+        wire_count, referenced_bits)``, in deterministic sub-tile then port order.
+        ``referenced_bits`` is the ascending list of bit indices the wrapper
+        matrix actually references.
+    """
+    referenced: set[str] = set()
+    for mux in tile.switch_matrix.muxes:
+        referenced.add(mux.output.name)
+        for inp in mux.inputs:
+            referenced.add(inp.name)
+
+    result: list[tuple[str, str, int, list[int]]] = []
+    for sub_tile in tile.get_sub_tiles():
+        for port in sub_tile.ports_info:
+            if port.name == "NULL":
+                continue
+            referenced_bits = [
+                k
+                for k in range(port.wire_count)
+                if f"{sub_tile.name}_{port.name}{k}" in referenced
+            ]
+            if referenced_bits:
+                result.append(
+                    (sub_tile.name, port.name, port.wire_count, referenced_bits)
+                )
+    return result
+
+
+def _generate_composite_tile(
     writer: CodeGenerator,
-    superTile: SuperTile,
+    tile: Tile,
     frame_bits_per_row: int = 32,
     max_frame_per_col: int = 20,
     disable_user_clk: bool = False,
     config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
 ) -> None:
-    """Generate a super tile wrapper for given super tile.
+    """Generate the wrapper module for a composite tile.
 
-    Creates a hierarchical wrapper that instantiates multiple individual tiles
-    and manages their interconnections. The supertile handles:
-    - Internal tile-to-tile connections within the supertile
-    - External port mapping to fabric-level connections
-    - Configuration data distribution to sub-tiles
-    - Clock signal routing and buffering
-    - External I/O port aggregation
+    A composite tile (former supertile) is emitted as a single module that
+    instantiates each sub-tile, wires the internal sub-tile-to-sub-tile
+    connections, exposes the perimeter ports, and instantiates the wrapper switch
+    matrix, wrapper config memory and wrapper BELs at the master cell. The
+    wrapper matrix binds to sub-tile instance ports directly via intermediate
+    signals (the sub-tiles expose no special wrapper-only module ports).
 
     Parameters
     ----------
     writer : CodeGenerator
-        The code generator instance for RTL output
-    superTile : SuperTile
-        Super tile object containing tile map and configuration
+        The code generator instance for RTL output.
+    tile : Tile
+        The composite tile object (``tile.is_composite`` is ``True``).
     frame_bits_per_row : int
-        Number of configuration bits per row for frame-based configuration
+        Number of configuration bits per row for frame-based configuration.
     max_frame_per_col : int
-        Maximum number of frames per column for frame-based configuration
+        Maximum number of frames per column for frame-based configuration.
     disable_user_clk : bool
-        If True, the UserCLK port will not be generated or connected
+        If True, the UserCLK port will not be generated or connected.
     config_bit_mode : ConfigBitMode
-        The configuration bit mode to use (frame-based or FlipFlop chain)
+        The configuration bit mode to use (frame-based or FlipFlop chain).
 
     Raises
     ------
     FileNotFoundError
-        If the supertile's switch matrix or ConfigMem HDL file is expected
+        If the composite tile's switch matrix or ConfigMem HDL file is expected
         (per the instantiation conditions) but missing; run matrix / config_mem
         generation first.
     """
-    writer.addHeader(f"{superTile.name}")
+    tile_map = tile.tile_map
+    sub_tiles = tile.get_sub_tiles()
+    wrapper_signals = _composite_wrapper_matrix_signals(tile)
+
+    writer.addHeader(f"{tile.name}")
     writer.addParameterStart(indentLevel=1)
     if isinstance(writer, VerilogCodeGenerator):
         writer.addPreprocIfDef("EMULATION")
         maxBits = frame_bits_per_row * max_frame_per_col
-        for y, row in enumerate(superTile.tile_map):
-            for x, tile in enumerate(row):
-                if not tile:
+        for y, row in enumerate(tile_map):
+            for x, sub in enumerate(row):
+                if not sub:
                     continue
                 writer.addParameter(
                     f"Tile_X{x}Y{y}_Emulate_Bitstream",
@@ -652,7 +757,7 @@ def generateSuperTile(
     writer.addParameterEnd(indentLevel=1)
     writer.addPortStart(indentLevel=1)
 
-    ports_around = superTile.get_ports_around_tile()
+    ports_around = _composite_ports_around(tile)
 
     for k, v in ports_around.items():
         if not v:
@@ -677,7 +782,7 @@ def generateSuperTile(
 
     # add tile external bel port
     writer.addComment("Tile IO ports from BELs", onNewLine=True, indentLevel=1)
-    for i in superTile.tiles:
+    for i in sub_tiles:
         for b in i.bels:
             for p in b.external_input:
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
@@ -688,26 +793,28 @@ def generateSuperTile(
                     continue
                 writer.addPortScalar(p.name, p.io_direction, indentLevel=2)
 
-    # add supertile-level BEL external ports
-    if superTile.bels:
-        writer.addComment("SuperTile BEL IO ports", onNewLine=True, indentLevel=1)
-        for b in superTile.bels:
+    # add wrapper-level BEL external ports
+    if tile.bels:
+        writer.addComment("Wrapper BEL IO ports", onNewLine=True, indentLevel=1)
+        for b in tile.bels:
             for p in b.external_input:
                 writer.addPortScalar(p, IO.INPUT, indentLevel=2)
             for p in b.external_output:
                 writer.addPortScalar(p, IO.OUTPUT, indentLevel=2)
 
-    st_config_bits = superTile.total_config_bits
+    st_config_bits = tile.total_config_bits
 
     # add config port
     if config_bit_mode == ConfigBitMode.FRAME_BASED:
-        for y, row in enumerate(superTile.tile_map):
-            for x, _tile in enumerate(row):
-                # Bottom-left origin: expose FrameStrobe_O if no tile above (y+1)
-                if (
-                    y + 1 >= len(superTile.tile_map)
-                    or superTile.tile_map[y + 1][x] is None
-                ):
+        for y, row in enumerate(tile_map):
+            for x, sub in enumerate(row):
+                # Holes own no config/clock terminals; emitting ports for them
+                # leaks a phantom cell into the wrapper interface.
+                if sub is None:
+                    continue
+                # Top-first storage: FrameStrobe_O exits north (the top cell), so
+                # expose it when there is no tile to the north (y-1).
+                if y - 1 < 0 or tile_map[y - 1][x] is None:
                     writer.addPortVector(
                         f"Tile_X{x}Y{y}_FrameStrobe_O",
                         IO.OUTPUT,
@@ -715,7 +822,7 @@ def generateSuperTile(
                         indentLevel=2,
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
-                if x - 1 < 0 or superTile.tile_map[y][x - 1] is None:
+                if x - 1 < 0 or tile_map[y][x - 1] is None:
                     writer.addPortVector(
                         f"Tile_X{x}Y{y}_FrameData",
                         IO.INPUT,
@@ -723,8 +830,9 @@ def generateSuperTile(
                         indentLevel=2,
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
-                # Bottom-left origin: expose FrameStrobe if no tile below (y-1)
-                if y - 1 < 0 or superTile.tile_map[y - 1][x] is None:
+                # Top-first storage: FrameStrobe enters from the south (the bottom
+                # cell), so expose it when there is no tile to the south (y+1).
+                if y + 1 >= len(tile_map) or tile_map[y + 1][x] is None:
                     writer.addPortVector(
                         f"Tile_X{x}Y{y}_FrameStrobe",
                         IO.INPUT,
@@ -732,10 +840,7 @@ def generateSuperTile(
                         indentLevel=2,
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
-                if (
-                    x + 1 >= len(superTile.tile_map[y])
-                    or superTile.tile_map[y][x + 1] is None
-                ):
+                if x + 1 >= len(tile_map[y]) or tile_map[y][x + 1] is None:
                     writer.addPortVector(
                         f"Tile_X{x}Y{y}_FrameData_O",
                         IO.OUTPUT,
@@ -744,42 +849,46 @@ def generateSuperTile(
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
     if not disable_user_clk:
-        for y, row in enumerate(superTile.tile_map):
-            for x, _tile in enumerate(row):
-                if y - 1 < 0 or superTile.tile_map[y - 1][x] is None:
+        for y, row in enumerate(tile_map):
+            for x, sub in enumerate(row):
+                # Holes own no config/clock terminals; emitting ports for them
+                # leaks a phantom cell into the wrapper interface.
+                if sub is None:
+                    continue
+                # Top-first storage: the user clock chains south to north, like
+                # FrameStrobe, so UserCLK enters from the south (y+1) and
+                # UserCLKo exits north (y-1); each is a port only at that edge.
+                if y - 1 < 0 or tile_map[y - 1][x] is None:
                     writer.addPortScalar(
                         f"Tile_X{x}Y{y}_UserCLKo", IO.OUTPUT, indentLevel=2
                     )
-                if (
-                    y + 1 >= len(superTile.tile_map)
-                    or superTile.tile_map[y + 1][x] is None
-                ):
+                if y + 1 >= len(tile_map) or tile_map[y + 1][x] is None:
                     writer.addPortScalar(
                         f"Tile_X{x}Y{y}_UserCLK", IO.INPUT, indentLevel=2
                     )
     writer.addPortEnd()
-    writer.addHeaderEnd(f"{superTile.name}")
-    writer.addDesignDescriptionStart(f"{superTile.name}")
+    writer.addHeaderEnd(f"{tile.name}")
+    writer.addDesignDescriptionStart(f"{tile.name}")
     writer.addNewLine()
 
     if isinstance(writer, VHDLCodeGenerator):
         basePath = Path(writer.outFileName).parent
-        for t in superTile.tiles:
+        for t in sub_tiles:
             # This is only relevant to VHDL code generation,
             # will not affect Verilog code generation
             writer.addComponentDeclarationForFile(f"{basePath}/{t.name}/{t.name}.vhdl")
-        # The wrapper instantiates the supertile-level BELs directly, so declare
+        # The wrapper instantiates the composite-level BELs directly, so declare
         # each BEL's component once (mirroring generateTile).
         bel_srcs_seen: list = []
-        for bel in superTile.bels:
+        for bel in tile.bels:
             if bel.src not in bel_srcs_seen:
                 bel_srcs_seen.append(bel.src)
                 writer.addComponentDeclarationForFile(bel.src)
         # The wrapper also instantiates its own switch matrix and ConfigMem
         # (see below), so VHDL needs their component declarations too - mirroring
         # generateTile. Guarded by the same conditions as those instantiations.
-        if superTile.supertile_matrix_dir is not None:
-            sm_file = basePath / f"{superTile.name}_switch_matrix.vhdl"
+        if tile.matrix_dir != Path():
+            sm_file = basePath / f"{tile.name}_switch_matrix.vhdl"
             if not sm_file.exists():
                 raise FileNotFoundError(
                     f"Could not find {sm_file.name} in {basePath}. "
@@ -787,7 +896,7 @@ def generateSuperTile(
                 )
             writer.addComponentDeclarationForFile(str(sm_file))
         if st_config_bits > 0 and config_bit_mode == ConfigBitMode.FRAME_BASED:
-            cm_file = basePath / f"{superTile.name}_ConfigMem.vhdl"
+            cm_file = basePath / f"{tile.name}_ConfigMem.vhdl"
             if not cm_file.exists():
                 raise FileNotFoundError(
                     f"Could not find {cm_file.name} in {basePath}. "
@@ -796,39 +905,27 @@ def generateSuperTile(
             writer.addComponentDeclarationForFile(str(cm_file))
 
     # find all internal connections
-    internal_connections = superTile.get_internal_connections()
+    internal_connections = _composite_internal_connections(tile)
 
     # declare internal connections
     writer.addComment("signal declarations", onNewLine=True)
 
-    # SJUMP signals: one vector per (child tile, SJUMP port) pair
-    sjump_ports = superTile.get_all_sjump_ports()
-    if sjump_ports:
-        writer.addComment("SJUMP signals (child tile -> supertile SM)", onNewLine=True)
-        for lx, ly, p in sjump_ports:
+    # Wrapper-matrix intermediate signals: one vector per (sub-tile, port) pair
+    # the wrapper switch matrix references. Each signal binds the sub-tile
+    # instance port to the wrapper-matrix instance port of the same name.
+    if wrapper_signals:
+        writer.addComment(
+            "wrapper matrix signals (sub-tile <-> wrapper SM)", onNewLine=True
+        )
+        for sub_name, port_name, wire_count, _referenced_bits in wrapper_signals:
             writer.addConnectionVector(
-                f"{superTile.tile_map[ly][lx].name}_{p.name}",
-                f"{p.wire_count}-1",
-                indentLevel=1,
+                f"{sub_name}_{port_name}", f"{wire_count}-1", indentLevel=1
             )
 
-    # Reverse SJUMP signals: supertile SM -> child tile inputs
-    all_input_sjump = superTile.get_all_input_sjump_ports()
-    if all_input_sjump:
-        writer.addComment("SJUMP signals (supertile SM -> child tile)", onNewLine=True)
-        for lx, ly, p in all_input_sjump:
-            writer.addConnectionVector(
-                f"{superTile.tile_map[ly][lx].name}_{p.name}",
-                f"{p.wire_count}-1",
-                indentLevel=1,
-            )
-
-    # BEL pin signals bridging the supertile BELs and the switch matrix
-    bel_pin_signals = [
-        pin for bel in superTile.bels for pin in (*bel.inputs, *bel.outputs)
-    ]
+    # BEL pin signals bridging the wrapper BELs and the switch matrix
+    bel_pin_signals = [pin for bel in tile.bels for pin in (*bel.inputs, *bel.outputs)]
     if bel_pin_signals:
-        writer.addComment("BEL pin signals (BEL <-> supertile SM)", onNewLine=True)
+        writer.addComment("BEL pin signals (BEL <-> wrapper SM)", onNewLine=True)
         for pin in bel_pin_signals:
             writer.addConnectionScalar(pin.name, indentLevel=1)
 
@@ -844,30 +941,34 @@ def generateSuperTile(
                     writer.addComment(str(p), onNewLine=False)
 
     # declare internal connections for frameData, frameStrobe, and UserCLK
-    for y, row in enumerate(superTile.tile_map):
-        for x, _tile in enumerate(row):
-            # Bottom-left origin: internal FrameStrobe_O wire if a tile is above (y+1)
-            if (
-                0 <= y + 1 < len(superTile.tile_map)
-                and superTile.tile_map[y + 1][x] is not None
-            ):
+    for y, row in enumerate(tile_map):
+        for x, sub in enumerate(row):
+            # A hole owns no terminals, so declaring wires for it would leak a
+            # phantom cell into the wrapper.
+            if sub is None:
+                continue
+            # Top-first storage: FrameStrobe_O is internal when a tile is to the
+            # north (y-1) to receive it (complementary with the FrameStrobe_O port).
+            if 0 <= y - 1 < len(tile_map) and tile_map[y - 1][x] is not None:
                 writer.addConnectionVector(
                     f"Tile_X{x}Y{y}_FrameStrobe_O",
                     "MaxFramesPerCol-1",
                     indentLevel=1,
                 )
-            # Bottom-left origin: internal UserCLKo wire only when there's a tile
-            # below (y-1) to receive it, and the user clock is enabled.
+            # Top-first storage: UserCLKo is internal only when there's a tile to
+            # the north (y-1) to receive it, and the user clock is enabled.
             if (
                 not disable_user_clk
-                and 0 <= y - 1 < len(superTile.tile_map)
-                and superTile.tile_map[y - 1][x] is not None
+                and 0 <= y - 1 < len(tile_map)
+                and tile_map[y - 1][x] is not None
             ):
                 writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo", indentLevel=1)
-            if (
-                0 <= x - 1 < len(superTile.tile_map[y])
-                and superTile.tile_map[y][x - 1] is not None
-            ):
+            # FrameData runs west to east, so FrameData_O is an internal wire
+            # only when a tile to the east (x+1) consumes it; otherwise it is a
+            # boundary port. Keying this on the west neighbour leaves the real
+            # producer's bus undeclared, and Verilog silently truncates it to a
+            # one-bit implicit net.
+            if 0 <= x + 1 < len(tile_map[y]) and tile_map[y][x + 1] is not None:
                 writer.addConnectionVector(
                     f"Tile_X{x}Y{y}_FrameData_O", "FrameBitsPerRow-1", indentLevel=1
                 )
@@ -884,88 +985,75 @@ def generateSuperTile(
 
     writer.addLogicStart()
 
+    # sub-tile ports the wrapper matrix references, grouped by sub-tile name.
+    wrapper_ports_by_sub: dict[str, list[str]] = defaultdict(list)
+    for sub_name, port_name, _wire_count, _referenced_bits in wrapper_signals:
+        wrapper_ports_by_sub[sub_name].append(port_name)
+
     # pair up the connection for tile instantiation
-    for y, row in enumerate(superTile.tile_map):
-        for x, tile in enumerate(row):
+    for y, row in enumerate(tile_map):
+        for x, sub in enumerate(row):
             north_input, south_input, east_input, west_input = [], [], [], []
             ports_pairs = []
-            if tile is None:
+            if sub is None:
                 continue
 
             # north direction input connection
-            north_port = [i.name for i in tile.get_port_on_side(Side.SOUTH, IO.INPUT)]
-            # Bottom-left origin: north input comes from south tile (y-1)
-            if (
-                0 <= y - 1 < len(superTile.tile_map)
-                and superTile.tile_map[y - 1][x] is not None
-            ):
-                for p in superTile.tile_map[y - 1][x].get_port_on_side(
-                    Side.NORTH, IO.OUTPUT
-                ):
-                    north_input.append(f"Tile_X{x}Y{y - 1}_{p.name}")
+            north_port = [i.name for i in sub.get_port_on_side(Side.SOUTH, IO.INPUT)]
+            # Top-first storage: northbound wires end on this tile's south side,
+            # so they are driven by the tile to the south (y+1).
+            if 0 <= y + 1 < len(tile_map) and tile_map[y + 1][x] is not None:
+                for p in tile_map[y + 1][x].get_port_on_side(Side.NORTH, IO.OUTPUT):
+                    north_input.append(f"Tile_X{x}Y{y + 1}_{p.name}")
             else:
-                for p in tile.get_port_on_side(Side.SOUTH, IO.INPUT):
+                for p in sub.get_port_on_side(Side.SOUTH, IO.INPUT):
                     north_input.append(f"Tile_X{x}Y{y}_{p.name}")
 
             ports_pairs += list(zip(north_port, north_input, strict=False))
             # east direction input connection
-            east_port = [i.name for i in tile.get_port_on_side(Side.WEST, IO.INPUT)]
-            if (
-                0 <= x - 1 < len(superTile.tile_map[0])
-                and superTile.tile_map[y][x - 1] is not None
-            ):
-                for p in superTile.tile_map[y][x - 1].get_port_on_side(
-                    Side.EAST, IO.OUTPUT
-                ):
+            east_port = [i.name for i in sub.get_port_on_side(Side.WEST, IO.INPUT)]
+            if 0 <= x - 1 < len(tile_map[0]) and tile_map[y][x - 1] is not None:
+                for p in tile_map[y][x - 1].get_port_on_side(Side.EAST, IO.OUTPUT):
                     east_input.append(f"Tile_X{x - 1}Y{y}_{p.name}")
             else:
-                for p in tile.get_port_on_side(Side.WEST, IO.INPUT):
+                for p in sub.get_port_on_side(Side.WEST, IO.INPUT):
                     east_input.append(f"Tile_X{x}Y{y}_{p.name}")
 
             ports_pairs += list(zip(east_port, east_input, strict=False))
 
             # south direction input connection
-            south_port = [i.name for i in tile.get_port_on_side(Side.NORTH, IO.INPUT)]
-            # Bottom-left origin: south input comes from north tile (y+1)
-            if (
-                0 <= y + 1 < len(superTile.tile_map)
-                and superTile.tile_map[y + 1][x] is not None
-            ):
-                for p in superTile.tile_map[y + 1][x].get_port_on_side(
-                    Side.SOUTH, IO.OUTPUT
-                ):
-                    south_input.append(f"Tile_X{x}Y{y + 1}_{p.name}")
+            south_port = [i.name for i in sub.get_port_on_side(Side.NORTH, IO.INPUT)]
+            # Top-first storage: southbound wires end on this tile's north side,
+            # so they are driven by the tile to the north (y-1).
+            if 0 <= y - 1 < len(tile_map) and tile_map[y - 1][x] is not None:
+                for p in tile_map[y - 1][x].get_port_on_side(Side.SOUTH, IO.OUTPUT):
+                    south_input.append(f"Tile_X{x}Y{y - 1}_{p.name}")
             else:
-                for p in tile.get_port_on_side(Side.NORTH, IO.INPUT):
+                for p in sub.get_port_on_side(Side.NORTH, IO.INPUT):
                     south_input.append(f"Tile_X{x}Y{y}_{p.name}")
 
             ports_pairs += list(zip(south_port, south_input, strict=False))
 
             # west direction input connection
-            west_port = [i.name for i in tile.get_port_on_side(Side.EAST, IO.INPUT)]
-            if (
-                0 <= x + 1 < len(superTile.tile_map[0])
-                and superTile.tile_map[y][x + 1] is not None
-            ):
-                for p in superTile.tile_map[y][x + 1].get_port_on_side(
-                    Side.WEST, IO.OUTPUT
-                ):
+            west_port = [i.name for i in sub.get_port_on_side(Side.EAST, IO.INPUT)]
+            if 0 <= x + 1 < len(tile_map[0]) and tile_map[y][x + 1] is not None:
+                for p in tile_map[y][x + 1].get_port_on_side(Side.WEST, IO.OUTPUT):
                     west_input.append(f"Tile_X{x + 1}Y{y}_{p.name}")
             else:
-                for p in tile.get_port_on_side(Side.EAST, IO.INPUT):
+                for p in sub.get_port_on_side(Side.EAST, IO.INPUT):
                     west_input.append(f"Tile_X{x}Y{y}_{p.name}")
 
             ports_pairs += list(zip(west_port, west_input, strict=False))
 
             for p in (
-                tile.get_port_on_side(Side.NORTH, IO.OUTPUT)
-                + tile.get_port_on_side(Side.EAST, IO.OUTPUT)
-                + tile.get_port_on_side(Side.SOUTH, IO.OUTPUT)
-                + tile.get_port_on_side(Side.WEST, IO.OUTPUT)
+                sub.get_port_on_side(Side.NORTH, IO.OUTPUT)
+                + sub.get_port_on_side(Side.EAST, IO.OUTPUT)
+                + sub.get_port_on_side(Side.SOUTH, IO.OUTPUT)
+                + sub.get_port_on_side(Side.WEST, IO.OUTPUT)
             ):
                 ports_pairs.append((p.name, f"Tile_X{x}Y{y}_{p.name}"))
 
-            for b in tile.bels:
+            for b in sub.bels:
                 for p in b.external_input:
                     ports_pairs.append((p, p))
 
@@ -977,39 +1065,32 @@ def generateSuperTile(
                         if "UserCLK" not in p.name:
                             ports_pairs.append(("UserCLK", p.name))
 
-            # connect SJUMP ports to supertile-level signals
-            for p in tile.get_sjump_ports():
-                ports_pairs.append((p.name, f"{tile.name}_{p.name}"))
+            # connect the sub-tile ports the wrapper matrix references to their
+            # intermediate signals (the wrapper SM binds to the same signals).
+            for port_name in wrapper_ports_by_sub.get(sub.name, []):
+                ports_pairs.append((port_name, f"{sub.name}_{port_name}"))
 
             # add clock to tile
             if not disable_user_clk:
-                if (
-                    0 <= y + 1 < len(superTile.tile_map)
-                    and superTile.tile_map[y + 1][x] is not None
-                ):
+                # Top-first storage: UserCLK is chained from the south tile (y+1).
+                if 0 <= y + 1 < len(tile_map) and tile_map[y + 1][x] is not None:
                     ports_pairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
                 else:
                     ports_pairs.append(("UserCLK", f"Tile_X{x}Y{y}_UserCLK"))
                 ports_pairs.append(("UserCLKo", f"Tile_X{x}Y{y}_UserCLKo"))
             if config_bit_mode == ConfigBitMode.FRAME_BASED:
                 # add connection for frameData, frameStrobe
-                if (
-                    0 <= x - 1 < len(superTile.tile_map[0])
-                    and superTile.tile_map[y][x - 1] is not None
-                ):
+                if 0 <= x - 1 < len(tile_map[0]) and tile_map[y][x - 1] is not None:
                     ports_pairs.append(("FrameData", f"Tile_X{x - 1}Y{y}_FrameData_O"))
                 else:
                     ports_pairs.append(("FrameData", f"Tile_X{x}Y{y}_FrameData"))
 
                 ports_pairs.append(("FrameData_O", f"Tile_X{x}Y{y}_FrameData_O"))
 
-                # Bottom-left origin: FrameStrobe comes from tile below (y-1)
-                if (
-                    0 <= y - 1 < len(superTile.tile_map)
-                    and superTile.tile_map[y - 1][x] is not None
-                ):
+                # Top-first storage: FrameStrobe is chained from the south tile (y+1)
+                if 0 <= y + 1 < len(tile_map) and tile_map[y + 1][x] is not None:
                     ports_pairs.append(
-                        ("FrameStrobe", f"Tile_X{x}Y{y - 1}_FrameStrobe_O")
+                        ("FrameStrobe", f"Tile_X{x}Y{y + 1}_FrameStrobe_O")
                     )
                 else:
                     ports_pairs.append(("FrameStrobe", f"Tile_X{x}Y{y}_FrameStrobe"))
@@ -1021,105 +1102,80 @@ def generateSuperTile(
             ]
 
             writer.addInstantiation(
-                compName=tile.name,
-                compInsName=f"Tile_X{x}Y{y}_{tile.name}",
+                compName=sub.name,
+                compInsName=f"Tile_X{x}Y{y}_{sub.name}",
                 portsPairs=ports_pairs,
                 emulateParamPairs=emulateParamPairs,
             )
 
-    # Instantiate supertile ConfigMem (shares free slots in master tile's frame space)
+    # Instantiate wrapper ConfigMem (shares free slots in master cell's frame space)
+    mx, my = tile.get_master_offset()
     if st_config_bits > 0 and config_bit_mode == ConfigBitMode.FRAME_BASED:
-        mx, my = superTile.get_master_tile_coords()
-        if (
-            0 <= mx - 1 < len(superTile.tile_map[0])
-            and superTile.tile_map[my][mx - 1] is not None
-        ):
+        if 0 <= mx - 1 < len(tile_map[0]) and tile_map[my][mx - 1] is not None:
             cm_frame_data = f"Tile_X{mx - 1}Y{my}_FrameData_O"
         else:
             cm_frame_data = f"Tile_X{mx}Y{my}_FrameData"
-        if (
-            0 <= my + 1 < len(superTile.tile_map)
-            and superTile.tile_map[my + 1][mx] is not None
-        ):
+        if 0 <= my + 1 < len(tile_map) and tile_map[my + 1][mx] is not None:
             cm_frame_strobe = f"Tile_X{mx}Y{my + 1}_FrameStrobe_O"
         else:
             cm_frame_strobe = f"Tile_X{mx}Y{my}_FrameStrobe"
         writer.addInstantiation(
-            compName=f"{superTile.name}_ConfigMem",
-            compInsName=f"Inst_{superTile.name}_ConfigMem",
+            compName=f"{tile.name}_ConfigMem",
+            compInsName=f"Inst_{tile.name}_ConfigMem",
             portsPairs=[
                 ("FrameData", cm_frame_data),
                 ("FrameStrobe", cm_frame_strobe),
                 ("ConfigBits", f"ST_ConfigBits[{st_config_bits}-1:0]"),
                 ("ConfigBits_N", f"ST_ConfigBits_N[{st_config_bits}-1:0]"),
             ],
-            # The supertile config bits live in free slots of the master tile's
+            # The wrapper config bits live in free slots of the master cell's
             # frame space, so in emulation they are preloaded from the master
-            # tile's bitstream parameter (not its own frame shift register).
+            # cell's bitstream parameter (not its own frame shift register).
             emulateParamPairs=[
                 ("Emulate_Bitstream", f"Tile_X{mx}Y{my}_Emulate_Bitstream")
             ],
         )
 
-    # Instantiate supertile switch matrix (if a matrix file was found)
-    if superTile.supertile_matrix_dir is not None:
+    # Instantiate the wrapper switch matrix (only when a wrapper matrix exists).
+    sm_config_bits = tile.switch_matrix.total_config_bits
+    if tile.matrix_dir != Path():
         sm_ports_pairs = []
-        # Connect SJUMP vector signals to SM scalar input ports
-        for lx, ly, p in superTile.get_all_sjump_ports():
-            tileName = superTile.tile_map[ly][lx].name
-            for k in range(p.wire_count):
+        # Bind each referenced sub-tile port to its intermediate signal, one
+        # scalar SM port per referenced bit ({sub}_{port}{k} <- {sub}_{port}[k]).
+        # Only referenced bits are bound: the wrapper SM module declares a scalar
+        # port only for the bits it references, not for every bit 0..wire_count-1.
+        for sub_name, port_name, _wire_count, referenced_bits in wrapper_signals:
+            for k in referenced_bits:
                 sm_ports_pairs.append(
-                    (f"{tileName}_{p.name}{k}", f"{tileName}_{p.name}[{k}]")
+                    (f"{sub_name}_{port_name}{k}", f"{sub_name}_{port_name}[{k}]")
                 )
-        # SM outputs drive BEL input signals (signals named after the BEL ports)
-        for bel in superTile.bels:
+        # BEL pins are driven by / drive the SM via signals named after the pins.
+        for bel in tile.bels:
             for ip in bel.inputs:
                 sm_ports_pairs.append((ip.name, ip.name))
-        # BEL output signals feed back into the SM (routed to reverse SJUMP wires)
-        for bel in superTile.bels:
+        for bel in tile.bels:
             for op in bel.outputs:
                 sm_ports_pairs.append((op.name, op.name))
-        # SM outputs also drive reverse SJUMP signals into child tiles
-        for _ly, row in enumerate(superTile.tile_map):
-            for _lx, st_tile in enumerate(row):
-                if st_tile is None:
-                    continue
-                for p in st_tile.get_sjump_ports():
-                    if p.is_input:
-                        tileName = st_tile.name
-                        for k in range(p.wire_count):
-                            sm_ports_pairs.append(
-                                (f"{tileName}_{p.name}{k}", f"{tileName}_{p.name}[{k}]")
-                            )
-        if (
-            superTile.supertile_matrix_config_bits > 0
-            and config_bit_mode == ConfigBitMode.FRAME_BASED
-        ):
+        if sm_config_bits > 0 and config_bit_mode == ConfigBitMode.FRAME_BASED:
             sm_ports_pairs.append(
-                (
-                    "ConfigBits",
-                    f"ST_ConfigBits[{superTile.supertile_matrix_config_bits}-1:0]",
-                )
+                ("ConfigBits", f"ST_ConfigBits[{sm_config_bits}-1:0]")
             )
             sm_ports_pairs.append(
-                (
-                    "ConfigBits_N",
-                    f"ST_ConfigBits_N[{superTile.supertile_matrix_config_bits}-1:0]",
-                )
+                ("ConfigBits_N", f"ST_ConfigBits_N[{sm_config_bits}-1:0]")
             )
         writer.addInstantiation(
-            compName=f"{superTile.name}_switch_matrix",
-            compInsName=f"Inst_{superTile.name}_switch_matrix",
+            compName=f"{tile.name}_switch_matrix",
+            compInsName=f"Inst_{tile.name}_switch_matrix",
             portsPairs=sm_ports_pairs,
         )
 
-    # Instantiate supertile BELs
-    st_bel_config_offset = superTile.supertile_matrix_config_bits
-    for bel in superTile.bels:
+    # Instantiate wrapper BELs at the master cell.
+    bel_config_offset = sm_config_bits
+    for bel in tile.bels:
         bel_ports_pairs = []
         # Bus the individual switch-matrix signals into the BEL's vector ports,
         # mirroring the normal-tile BEL instantiation (e.g. .A({A7,...,A0})). The
-        # signals {prefix}{port}{i} are the supertile SM outputs / BEL inputs.
+        # signals {prefix}{port}{i} are the wrapper SM outputs / BEL inputs.
         port_dict: defaultdict[str, list[tuple[str, str]]] = defaultdict(list)
         for port_type, bel_ports in bel.ports_vectors.items():
             if port_type in ("external", "internal"):
@@ -1142,15 +1198,12 @@ def generateSuperTile(
             else:
                 bel_ports_pairs.append((portname, ports[0][0]))
         if not disable_user_clk and bel.with_user_clock:
-            # The supertile wrapper has no bare "UserCLK"; the BEL shares the
-            # master tile's clock net (same selection the master tile uses: the
-            # chained UserCLKo from the tile below, or its own UserCLK input).
-            mx, my = superTile.get_master_tile_coords()
-            if (
-                0 <= my + 1 < len(superTile.tile_map)
-                and superTile.tile_map[my + 1][mx] is not None
-            ):
-                bel_user_clk = f"Tile_X{mx}Y{my + 1}_UserCLKo"
+            # The wrapper has no bare "UserCLK"; the BEL shares the master cell's
+            # clock net (same selection the master cell uses). Top-first storage:
+            # the master's clock is the chained UserCLKo from the north cell (y-1),
+            # or its own UserCLK input.
+            if 0 <= my - 1 < len(tile_map) and tile_map[my - 1][mx] is not None:
+                bel_user_clk = f"Tile_X{mx}Y{my - 1}_UserCLKo"
             else:
                 bel_user_clk = f"Tile_X{mx}Y{my}_UserCLK"
             bel_ports_pairs.append(("UserCLK", bel_user_clk))
@@ -1158,11 +1211,11 @@ def generateSuperTile(
             bel_ports_pairs.append(
                 (
                     "ConfigBits",
-                    f"ST_ConfigBits[{st_bel_config_offset + bel.config_bit}"
-                    f"-1:{st_bel_config_offset}]",
+                    f"ST_ConfigBits["
+                    f"{bel_config_offset + bel.config_bit}-1:{bel_config_offset}]",
                 )
             )
-        st_bel_config_offset += bel.config_bit
+        bel_config_offset += bel.config_bit
         writer.addInstantiation(
             compName=bel.name,
             compInsName=f"Inst_ST_{bel.prefix}{bel.name}",

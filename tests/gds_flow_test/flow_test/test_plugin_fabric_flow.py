@@ -386,15 +386,23 @@ class TestAutoDiscoveryIncludesSuperTiles:
 
         regular = mocker.MagicMock()
         regular.name = "LUT4AB"
-        regular.partOfSuperTile = False
+        regular.part_of_super_tile = False
+        composite = mocker.MagicMock()
+        composite.name = "DSP"
+        composite.part_of_super_tile = False
         subtile = mocker.MagicMock()
         subtile.name = "DSP_top"
-        subtile.partOfSuperTile = True
+        subtile.part_of_super_tile = True
 
         mock_fabric = mocker.MagicMock()
         mock_fabric.name = "MyFab"
-        mock_fabric.tileDic = {"LUT4AB": regular, "DSP_top": subtile}
-        mock_fabric.superTileDic = {"DSP": mocker.MagicMock()}
+        # Composites live in tileDic alongside leaves now; only their sub-tiles
+        # carry part_of_super_tile.
+        mock_fabric.tileDic = {
+            "LUT4AB": regular,
+            "DSP": composite,
+            "DSP_top": subtile,
+        }
 
         mocker.patch.object(
             plugin_fabric_flow, "parseFabricCSV", return_value=mock_fabric

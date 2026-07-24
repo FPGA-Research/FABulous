@@ -26,7 +26,6 @@ from fabulous.fabric_definition.define import (
 )
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.gen_io import Gen_IO
-from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.gen_fabric.fabric_automation import (
@@ -34,7 +33,12 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import (
     generateCustomTileConfig,
     generateSwitchmatrixList,
 )
-from fabulous.fabric_generator.parser.parse_switchmatrix import parse_port_line
+from fabulous.fabric_generator.parser.parse_switchmatrix import (
+    create_switch_matrix,
+    parse_port_line,
+    parseList,
+    parseMatrix,
+)
 from fabulous.fabulous_settings import get_context
 
 if TYPE_CHECKING:
@@ -50,7 +54,7 @@ def parseTilesCSV(
     ----------
     fileName : Path
         The path to the CSV file.
-    preserve_list_order : bool, optional
+    preserve_list_order : bool
         Passed to each tile's switch matrix so a `.list` keeps its file order
         (MSB-first) instead of the canonical dest-column order. Defaults to False.
 
@@ -103,7 +107,7 @@ def parseTilesCSV(
             )
         ports: list[TilePort] = []
         bels: list[Bel] = []
-        matrixDir: Path | None = None
+        matrix_dir: Path | None = None
         gen_ios: list[Gen_IO] = []
         with_user_clk = False
         genMatrixList = False
@@ -271,33 +275,33 @@ def parseTilesCSV(
                     genMatrixList = True
                     if len(temp) <= 2:
                         # only MATRIX, GENERATE in csv
-                        matrixDir = fileName.parent
+                        matrix_dir = fileName.parent
                     else:
-                        matrixDir = fileName.parent.joinpath(temp[2])
-                    if matrixDir.is_file() and matrixDir.suffix == ".list":
+                        matrix_dir = fileName.parent.joinpath(temp[2])
+                    if matrix_dir.is_file() and matrix_dir.suffix == ".list":
                         logger.warning(
-                            f"Matrix file {matrixDir} already exists and will be "
+                            f"Matrix file {matrix_dir} already exists and will be "
                             "overwritten."
                         )
-                    elif matrixDir.parent == proj_dir.joinpath("Tile"):
-                        matrixDir = matrixDir.joinpath(
+                    elif matrix_dir.parent == proj_dir.joinpath("Tile"):
+                        matrix_dir = matrix_dir.joinpath(
                             f"{tileName}_generated_switch_matrix.list"
                         )
-                        logger.info(f"Generating matrix file {matrixDir}")
+                        logger.info(f"Generating matrix file {matrix_dir}")
                     else:
-                        matrixDir = proj_dir.joinpath(
+                        matrix_dir = proj_dir.joinpath(
                             f"./Tile/{tileName}/{tileName}_generated_switch_matrix.list"
                         )
                         logger.warning(
                             "No destination directory for matrix file sepicified, "
-                            f"using default path {matrixDir}."
+                            f"using default path {matrix_dir}."
                         )
-                        if not matrixDir.parent.exists():
-                            matrixDir.parent.mkdir(parents=True)
-                            logger.warning(f"Creating directory {matrixDir.parent}.")
+                        if not matrix_dir.parent.exists():
+                            matrix_dir.parent.mkdir(parents=True)
+                            logger.warning(f"Creating directory {matrix_dir.parent}.")
 
                 else:
-                    matrixDir = fileName.parent.joinpath(temp[1]).absolute()
+                    matrix_dir = fileName.parent.joinpath(temp[1]).absolute()
 
             elif temp[0] == "INCLUDE":
                 p = fileName.parent.joinpath(temp[1])
@@ -327,7 +331,7 @@ def parseTilesCSV(
 
         with_user_clk = any(bel.with_user_clock for bel in bels)
 
-        if matrixDir is None:
+        if matrix_dir is None:
             raise InvalidTileDefinition(
                 f"Tile {tileName!r} has no MATRIX line; a switch matrix "
                 "(.csv/.list) or hand-written HDL file is required."
@@ -335,47 +339,103 @@ def parseTilesCSV(
 
         if genMatrixList:
             generateSwitchmatrixList(
-                tileName, bels, matrixDir, tileCarry, localSharedPorts
+                tileName, bels, matrix_dir, tileCarry, localSharedPorts
             )
 
+        # Built here, not at the MATRIX line: a `.list` is canonicalised against
+        # the tile's ports and BELs, which are only complete once the whole tile
+        # block has been read.
         new_tiles.append(
             Tile(
                 name=tileName,
                 ports=ports,
                 bels=bels,
                 tile_dir=fileName,
-                matrix_dir=matrixDir,
+                matrix_dir=matrix_dir,
+                gen_ios=gen_ios,
+                user_clk=with_user_clk,
                 switch_matrix=SwitchMatrix.from_file(
-                    matrixDir,
+                    matrix_dir,
                     tileName,
                     ports=ports,
                     bels=bels,
                     preserve_list_order=preserve_list_order,
                 ),
-                gen_ios=gen_ios,
-                user_clk=with_user_clk,
             )
         )
 
     return (new_tiles, common_wire_pairs)
 
 
-def validate_super_tile_matrix(
-    super_tile: SuperTile,
-    connections: dict[str, list[str]],
-    matrix_path: Path,
-) -> None:
-    """Check that a supertile switch matrix only references known names.
+def _composite_matrix_port_names(
+    sub_tiles: list[Tile], bels: list["Bel"]
+) -> tuple[set[str], set[str]]:
+    """Return the valid source and sink names for a composite tile's matrix.
 
-    Every mux output (sink) must be a BEL input or a child-tile INPUT SJUMP wire,
-    and every mux input (source) must be a BEL output, a child-tile OUTPUT SJUMP
-    wire, or a switch-matrix constant. An unknown name is almost always a typo and
-    would otherwise emit RTL referencing an undeclared signal.
+    The composite tile's wrapper switch matrix binds to its sub-tile instance
+    ports by sub-tile-qualified name (``{subtile}_{port}{k}``) and to its wrapper
+    BEL pins by BEL pin name. A sub-tile OUTPUT port can drive a mux (a source);
+    a sub-tile INPUT port can be a mux output (a sink). A wrapper-BEL output is a
+    source; a wrapper-BEL input is a sink.
 
     Parameters
     ----------
-    super_tile : SuperTile
-        The supertile whose ports and BELs define the legal names.
+    sub_tiles : list[Tile]
+        The composite tile's constituent sub-tiles, whose ports define the legal
+        sub-tile-qualified matrix names.
+    bels : list[Bel]
+        The composite tile's wrapper BELs, whose pins define the legal BEL-pin
+        matrix names.
+
+    Returns
+    -------
+    tuple[set[str], set[str]]
+        ``(valid_sources, valid_sinks)``.
+    """
+    valid_sources: set[str] = set()
+    valid_sinks: set[str] = set()
+
+    for sub_tile in sub_tiles:
+        for port in sub_tile.ports_info:
+            if port.name == "NULL":
+                continue
+            names = {f"{sub_tile.name}_{port.name}{k}" for k in range(port.wire_count)}
+            if port.io_direction == IO.OUTPUT:
+                valid_sources |= names
+            elif port.io_direction == IO.INPUT:
+                valid_sinks |= names
+
+    for bel in bels:
+        valid_sinks.update(p.name for p in bel.inputs)
+        valid_sources.update(p.name for p in bel.outputs)
+
+    return valid_sources, valid_sinks
+
+
+def validate_composite_tile_matrix(
+    name: str,
+    sub_tiles: list[Tile],
+    bels: list["Bel"],
+    connections: dict[str, list[str]],
+    matrix_path: Path,
+) -> None:
+    """Check that a composite tile's switch matrix only references known names.
+
+    Every mux output (sink) must be a sub-tile INPUT port (qualified
+    ``{subtile}_{port}``) or a wrapper-BEL input, and every mux input (source)
+    must be a sub-tile OUTPUT port, a wrapper-BEL output, or a switch-matrix
+    constant. An unknown name is almost always a typo and would otherwise emit
+    RTL referencing an undeclared signal.
+
+    Parameters
+    ----------
+    name : str
+        The composite tile name, used in the error message.
+    sub_tiles : list[Tile]
+        The composite tile's constituent sub-tiles, whose ports define the legal
+        names.
+    bels : list[Bel]
+        The composite tile's wrapper BELs, whose pins define the legal names.
     connections : dict[str, list[str]]
         Parsed matrix, mapping each sink (destination) to its sources.
     matrix_path : Path
@@ -386,7 +446,7 @@ def validate_super_tile_matrix(
     InvalidSwitchMatrixDefinition
         If any sink or source is not a known port, BEL pin, or constant.
     """
-    valid_sources, valid_sinks = super_tile.get_matrix_port_names()
+    valid_sources, valid_sinks = _composite_matrix_port_names(sub_tiles, bels)
     valid_sources |= set(SWITCH_MATRIX_CONSTANTS)
 
     unknown_sinks = sorted(s for s in connections if s not in valid_sinks)
@@ -396,17 +456,23 @@ def validate_super_tile_matrix(
 
     if unknown_sinks or unknown_sources:
         raise InvalidSwitchMatrixDefinition(
-            f"Supertile '{super_tile.name}' switch matrix {matrix_path} references "
-            f"undefined names: sinks={unknown_sinks}, sources={unknown_sources}.\n"
-            "Sinks must be BEL inputs or child-tile INPUT SJUMP wires; sources "
-            "must be BEL outputs, child-tile OUTPUT SJUMP wires, or a constant.\n"
+            f"Composite tile '{name}' switch matrix {matrix_path} "
+            f"references undefined names: sinks={unknown_sinks}, "
+            f"sources={unknown_sources}.\n"
+            "Sinks must be sub-tile INPUT ports or wrapper-BEL inputs; sources "
+            "must be sub-tile OUTPUT ports, wrapper-BEL outputs, or a constant.\n"
             f"Available sinks: {sorted(valid_sinks)}\n"
             f"Available sources: {sorted(valid_sources)}"
         )
 
 
-def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTile]:
-    """Parse a CSV supertile configuration file and returns all SuperTile objects.
+def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[Tile]:
+    """Parse a CSV supertile configuration file and return composite tiles.
+
+    Each ``SuperTILE`` block becomes a single composite :class:`Tile` whose
+    ``tile_map`` holds the grid of sub-tile objects (stored top row first, matching
+    the CSV order). Its wrapper switch matrix is its own ``switch_matrix`` and its
+    wrapper BELs are its own ``bels``.
 
     Parameters
     ----------
@@ -426,8 +492,8 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
 
     Returns
     -------
-    list[SuperTile]
-        List of SuperTile objects.
+    list[Tile]
+        List of composite Tile objects.
     """
     logger.info(f"Reading supertile configuration: {fileName}")
 
@@ -447,30 +513,31 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
         r"SuperTILE(.*?)EndSuperTILE", file, re.MULTILINE | re.DOTALL
     )
 
-    new_supertiles = []
+    new_composites: list[Tile] = []
 
-    # Parse each supertile config
+    # Parse each supertile config into a composite tile
     for t in superTilesData:
         description = t.split("\n")
         name = description[0].split(",")[1]
-        tile_map = []
-        tiles = []
-        bels = []
-        with_user_clk = False
+        tile_map: list[list[Tile | None]] = []
+        sub_tiles: list[Tile] = []
+        bels: list[Bel] = []
         master_set = False
-        master_coords: tuple[int, int] | None = None
+        master_offset: tuple[int, int] | None = None
         matrix_line_path: Path | None = None
         for i in description[1:-1]:
             line = i.split(",")
             line = [i for i in line if i != "" and i != " "]
-            row = []
+            if not line:
+                continue
+            row: list[Tile | None] = []
 
             if line[0] == "BEL":
                 belFilePath = filePath.joinpath(line[1])
                 bels.append(Bel.from_hdl(belFilePath, line[2] if len(line) > 2 else ""))
                 continue
             if line[0] == "MATRIX":
-                # The supertile switch matrix is given by this line's path,
+                # The wrapper switch matrix is given by this line's path,
                 # resolved relative to the supertile CSV.
                 if len(line) > 1:
                     matrix_line_path = filePath / line[1]
@@ -487,10 +554,10 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                     continue
                 if j in tileDic:
                     tileDic[j].part_of_super_tile = True
-                    t = deepcopy(tileDic[j])
-                    row.append(t)
-                    if t not in tiles:
-                        tiles.append(t)
+                    sub_tile = deepcopy(tileDic[j])
+                    row.append(sub_tile)
+                    if sub_tile not in sub_tiles:
+                        sub_tiles.append(sub_tile)
                 elif j in ("Null", "NULL", "None"):
                     row.append(None)
                 else:
@@ -504,81 +571,91 @@ def parseSupertilesCSV(fileName: Path, tileDic: dict[str, Tile]) -> list[SuperTi
                         f"Supertile '{name}': MASTER cannot be used on a row "
                         "with multiple tiles."
                     )
+                # tile_map is built top row first (CSV order), so the row index is
+                # simply the current number of rows already appended.
                 row_index = len(tile_map)
                 col_index = len(row) - 1
                 if master_set:
                     raise InvalidSupertileDefinition(
                         f"Supertile '{name}': multiple MASTER tokens found."
                     )
-                master_coords = (col_index, row_index)
+                master_offset = (col_index, row_index)
                 master_set = True
             tile_map.append(row)
 
-        # Reverse tile_map to use bottom-left origin coordinate system
-        # After this: tile_map[0] = bottom row, tile_map[-1] = top row
-        tile_map.reverse()
-
         with_user_clk = any(bel.with_user_clock for bel in bels)
-        # tile_dir is the supertile CSV file path (matching Tile.tile_dir), so
-        # consumers use `tile_dir.parent` for the supertile's directory.
-        super_tile = SuperTile(
-            name, fileName.absolute(), tiles, tile_map, bels, with_user_clk
-        )
-        super_tile.master_tile_coords = master_coords
 
-        # The supertile switch matrix is taken from the MATRIX line (resolved
+        # The wrapper switch matrix is taken from the MATRIX line (resolved
         # relative to the CSV). There is no auto-discovery: a supertile without a
-        # MATRIX line simply has no switch matrix.
-        st_matrix_dir: Path | None = matrix_line_path
-        if st_matrix_dir is not None:
-            if not st_matrix_dir.exists():
+        # MATRIX line simply has an empty wrapper matrix; its sub-tiles keep
+        # their own matrices.
+        switch_matrix = SwitchMatrix(matrix_file=Path())
+        if matrix_line_path is not None:
+            if not matrix_line_path.exists():
                 raise InvalidSupertileDefinition(
-                    f"Supertile '{name}': MATRIX file {st_matrix_dir} does not exist."
+                    f"Supertile '{name}': MATRIX file {matrix_line_path} "
+                    "does not exist."
                 )
-            switch_matrix = SwitchMatrix.from_file(st_matrix_dir, name)
-            validate_super_tile_matrix(
-                super_tile, switch_matrix.connections, st_matrix_dir
+            if matrix_line_path.suffix == ".list":
+                connections = parseList(matrix_line_path, "source")
+            else:
+                connections = parseMatrix(matrix_line_path, name)
+            validate_composite_tile_matrix(
+                name, sub_tiles, bels, connections, matrix_line_path
             )
-            super_tile.switch_matrix = switch_matrix
+            switch_matrix = create_switch_matrix(matrix_line_path, name)
 
-        new_supertiles.append(super_tile)
+        # tile_dir is the supertile CSV file path (matching Tile.tile_dir), so
+        # consumers use ``tile_dir.parent`` for the supertile's directory.
+        compositeTile = Tile(
+            name=name,
+            ports=[],
+            bels=bels,
+            tile_dir=fileName.absolute(),
+            matrix_dir=matrix_line_path if matrix_line_path is not None else Path(),
+            gen_ios=[],
+            user_clk=with_user_clk,
+            switch_matrix=switch_matrix,
+            tile_map=tile_map,
+            sub_tiles=sub_tiles,
+            master_offset=master_offset,
+        )
+        new_composites.append(compositeTile)
 
-    return new_supertiles
+    return new_composites
 
 
-def parse_tile_from_dir(
-    tile_dir: Path, tile_name: str, is_supertile: bool
-) -> Tile | SuperTile:
-    """Parse a single tile or supertile from its own directory.
+def parse_tile_from_dir(tile_dir: Path, tile_name: str, is_supertile: bool) -> Tile:
+    """Parse a single leaf or composite tile from its own directory.
 
     Reads `<tile_dir>/<tile_name>.csv` in isolation, without constructing a
-    surrounding `Fabric`. For a supertile, the subtile CSVs are read first (each
+    surrounding `Fabric`. For a composite, the sub-tile CSVs are read first (each
     from `<tile_dir>/<subtile>/<subtile>.csv`) to build the tile dictionary the
-    supertile definition references.
+    composite definition references.
 
     Parameters
     ----------
     tile_dir : Path
-        Directory containing the tile CSV and, for supertiles, the subtile
+        Directory containing the tile CSV and, for composites, the sub-tile
         subdirectories.
     tile_name : str
-        Name of the tile or supertile to return. Also the CSV file stem.
+        Name of the tile or composite to return. Also the CSV file stem.
     is_supertile : bool
-        Whether the target is a supertile.
+        Whether the target is a composite tile.
 
     Raises
     ------
     FileNotFoundError
         If `<tile_dir>/<tile_name>.csv` does not exist.
     InvalidTileDefinition
-        If a non-supertile named `tile_name` is not present in the CSV.
+        If a leaf tile named `tile_name` is not present in the CSV.
     InvalidSupertileDefinition
-        If a supertile named `tile_name` is not present in the CSV.
+        If a composite named `tile_name` is not present in the CSV.
 
     Returns
     -------
-    Tile | SuperTile
-        The parsed tile or supertile.
+    Tile
+        The parsed leaf or composite tile.
     """
     tile_csv = tile_dir / f"{tile_name}.csv"
     if not tile_csv.exists():
@@ -591,11 +668,11 @@ def parse_tile_from_dir(
                 return tile
         raise InvalidTileDefinition(f"Tile {tile_name!r} not found in {tile_csv}")
 
-    # Collect the subtile names the supertile references. The block is scanned
+    # Collect the sub-tile names the composite references. The block is scanned
     # with the same regex, comment stripping, and token filtering
-    # `parseSupertilesCSV` uses, so the two agree on which cells are subtile
+    # `parseSupertilesCSV` uses, so the two agree on which cells are sub-tile
     # names: the `BEL`/`MATRIX` control lines and the `MASTER`/`Null` placement
-    # tokens are skipped, leaving only the subtile names.
+    # tokens are skipped, leaving only the sub-tile names.
     text = re.sub(r"#.*", "", tile_csv.read_text(encoding="utf-8"))
     subtile_names: list[str] = []
     seen: set[str] = set()
@@ -620,10 +697,10 @@ def parse_tile_from_dir(
         tiles, _ = parseTilesCSV(subtile_csv)
         tile_dic.update({tile.name: tile for tile in tiles})
 
-    supertiles = parseSupertilesCSV(tile_csv, tile_dic)
-    for supertile in supertiles:
-        if supertile.name == tile_name:
-            return supertile
+    composites = parseSupertilesCSV(tile_csv, tile_dic)
+    for composite in composites:
+        if composite.name == tile_name:
+            return composite
     raise InvalidSupertileDefinition(f"SuperTile {tile_name!r} not found in {tile_csv}")
 
 
@@ -691,12 +768,12 @@ def parseFabricCSV(fileName: str) -> Fabric:
     tileDefs = []
     common_wire_pair: list[tuple[str, str]] = []
     fabricTiles = []
-    tileDic = {}
-    unusedTileDic = {}
+    tileDic: dict[str, Tile] = {}
+    unusedTileDic: dict[str, Tile] = {}
 
-    # list for supertiles
-    superTileDic = {}
-    unusedSuperTileDic = {}
+    # Composite (former supertile) tiles, keyed by name and kept separate from
+    # the leaf tileDic until both are merged below.
+    compositeTileDic: dict[str, Tile] = {}
 
     # PreserveListOrder controls the canonical .list mux-input ordering, so it
     # must be known before any tile is parsed (a tile may precede it in the CSV).
@@ -717,11 +794,11 @@ def parseFabricCSV(fileName: str) -> Fabric:
     common_wire_pair += new_common_wire_pair
     tileDic = dict(zip(tileTypes, tileDefs, strict=False))
 
-    new_supertiles = parseSupertilesCSV(fName, tileDic)
-    for new_supertile in new_supertiles:
-        superTileDic[new_supertile.name] = new_supertile
+    new_composites = parseSupertilesCSV(fName, tileDic)
+    for new_composite in new_composites:
+        compositeTileDic[new_composite.name] = new_composite
 
-    if new_tiles or new_supertiles:
+    if new_tiles or new_composites:
         logger.warning(
             f"Deprecation warning: {fName} should not contain tile descriptions."
         )
@@ -758,9 +835,9 @@ def parseFabricCSV(fileName: str) -> Fabric:
             common_wire_pair += new_common_wire_pair
             tileDic = dict(zip(tileTypes, tileDefs, strict=False))
         elif i[0].startswith("Supertile"):
-            new_supertiles = parseSupertilesCSV(filePath.joinpath(i[1]), tileDic)
-            for new_supertile in new_supertiles:
-                superTileDic[new_supertile.name] = new_supertile
+            new_composites = parseSupertilesCSV(filePath.joinpath(i[1]), tileDic)
+            for new_composite in new_composites:
+                compositeTileDic[new_composite.name] = new_composite
         elif i[0].startswith("ConfigBitMode"):
             if i[1] == "frame_based":
                 configBitMode = ConfigBitMode.FRAME_BASED
@@ -831,14 +908,18 @@ def parseFabricCSV(fileName: str) -> Fabric:
             )
             unusedTileDic[i] = tileDic[i]
             del tileDic[i]
-    for i in list(superTileDic.keys()):
-        if any(j.name not in usedTile for j in superTileDic[i].tiles):
+
+    # Merge composite tiles into the (un)used tile dictionaries. A composite is
+    # used only if every one of its sub-tiles is used in the fabric grid.
+    for name, composite in compositeTileDic.items():
+        if any(sub.name not in usedTile for sub in composite.get_sub_tiles()):
             logger.info(
-                f"Supertile {i} is not used in the fabric. "
+                f"Composite tile {name} is not used in the fabric. "
                 "Removing from tile dictionary."
             )
-            unusedSuperTileDic[i] = superTileDic[i]
-            del superTileDic[i]
+            unusedTileDic[name] = composite
+        else:
+            tileDic[name] = composite
 
     # Reverse rows to use bottom-left origin coordinate system
     # After this: fabricTiles[0] = bottom row (y=0), fabricTiles[-1] = top row
@@ -868,8 +949,6 @@ def parseFabricCSV(fileName: str) -> Fabric:
         disableUserCLK=disableUserCLK,
         multiClkDomains=multiClkDomains,
         tileDic=tileDic,
-        superTileDic=superTileDic,
         unusedTileDic=unusedTileDic,
-        unusedSuperTileDic=unusedSuperTileDic,
         commonWirePair=common_wire_pair,
     )

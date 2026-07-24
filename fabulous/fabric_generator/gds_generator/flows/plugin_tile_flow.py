@@ -16,7 +16,6 @@ from fabulous.custom_exception import (
     InvalidTileDefinition,
 )
 from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle, Side
-from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
@@ -35,10 +34,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
-from fabulous.fabric_generator.gen_fabric.gen_tile import (
-    generateSuperTile,
-    generateTile,
-)
+from fabulous.fabric_generator.gen_fabric.gen_tile import generateTile
 from fabulous.fabric_generator.parser.parse_csv import parse_tile_from_dir
 from fabulous.fabulous_settings import get_context, init_context
 
@@ -148,8 +144,8 @@ class FABulousTile(SequentialFlow):
         )
 
         file_list = [str(f) for f in self.config.get("VERILOG_FILES", []) or []]
-        if isinstance(tile, SuperTile):
-            concrete_tiles = list(tile.tiles)
+        if tile.is_composite:
+            concrete_tiles = tile.get_sub_tiles()
             generated_files = [tile_dir / f"{tile.name}.v"]
         else:
             concrete_tiles = [tile]
@@ -172,12 +168,9 @@ class FABulousTile(SequentialFlow):
         if models_pack := get_context().models_pack:
             file_list.append(str(models_pack.resolve()))
 
-        if isinstance(tile, SuperTile):
-            logical_width = tile.max_width
-            logical_height = tile.max_height
-        else:
-            logical_width = 1
-            logical_height = 1
+        # A leaf tile reports 1x1, so this covers both cases.
+        logical_width = tile.max_width
+        logical_height = tile.max_height
 
         self.config = self.config.copy(
             DESIGN_NAME=tile_name,
@@ -206,14 +199,14 @@ _SWITCH_MATRIX_PIP_DELAY = 80
 
 def _emit_tile_verilog(
     writer: VerilogCodeGenerator,
-    tile: Tile | SuperTile,
+    tile: Tile,
     tile_dir: Path,
     config_bit_mode: ConfigBitMode,
     multiplexer_style: MultiplexerStyle,
 ) -> None:
     """Generate switch-matrix, config-mem, and tile Verilog into `tile_dir`."""
-    if isinstance(tile, SuperTile):
-        for sub_tile in tile.tiles:
+    if tile.is_composite:
+        for sub_tile in tile.get_sub_tiles():
             sub_dir = sub_tile.tile_dir.parent
             _emit_regular_tile_verilog(
                 writer,
@@ -223,7 +216,7 @@ def _emit_tile_verilog(
                 multiplexer_style,
             )
         writer.outFileName = tile_dir / f"{tile.name}.v"
-        generateSuperTile(
+        generateTile(
             writer,
             tile,
             disable_user_clk=True,
@@ -259,7 +252,7 @@ def _emit_regular_tile_verilog(
     generateConfigMem(
         writer,
         tile.name,
-        tile.globalConfigBits,
+        tile.total_config_bits,
         tile_dir / f"{tile.name}_ConfigMem.csv",
     )
     writer.outFileName = tile_dir / f"{tile.name}.v"
@@ -273,7 +266,7 @@ def _emit_regular_tile_verilog(
 
 def _apply_tile_die_area_config(
     config: GenericDict[str, object],
-    tile_type: Tile | SuperTile,
+    tile_type: Tile,
 ) -> GenericDict[str, object]:
     """Populate plugin tile `DIE_AREA` using patchable local helper imports."""
     x_pitch, y_pitch = get_pitch(config)

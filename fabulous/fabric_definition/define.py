@@ -39,7 +39,6 @@ class Direction(Enum):
     - SOUTH: Southward direction
     - WEST: Westward direction
     - JUMP: Local connections within a tile
-    - SJUMP: One-way connections from a tile up to a supertile BEL
     """
 
     NORTH = "NORTH"
@@ -47,7 +46,6 @@ class Direction(Enum):
     SOUTH = "SOUTH"
     WEST = "WEST"
     JUMP = "JUMP"
-    SJUMP = "SJUMP"
 
     def __lt__(self, other: "Direction") -> bool:
         """Return `True` if `self` precedes `other` in definition order."""
