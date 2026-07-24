@@ -27,6 +27,7 @@ cells.
 ```{toctree}
 simulation
 gate_level_simulation
+configuration
 emulation
 emulation_on_fpga
 ```
