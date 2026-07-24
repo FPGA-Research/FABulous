@@ -3,7 +3,6 @@
 Launch the FABulator, OpenROAD, and KLayout GUIs.
 """
 
-import argparse
 import shutil
 import subprocess as sp
 import tempfile
@@ -40,6 +39,8 @@ KLAYOUT_LAYER_FILE_NAMES: dict[str, str] = {
 
 class GuiCommandSet(ReplCommandSet):
     """Launch the FABulator, OpenROAD, and KLayout GUIs."""
+
+    DEFAULT_CATEGORY = CMD_TOOLS
 
     @with_category(CMD_GUI)
     def do_start_FABulator(self, *_ignored: str) -> None:
@@ -90,7 +91,6 @@ class GuiCommandSet(ReplCommandSet):
             ) from e
 
     @with_annotated
-    @with_category(CMD_TOOLS)
     def do_start_openroad_gui(
         self,
         file: Annotated[str | None, Argument(help_text="file to open")] = None,
@@ -128,8 +128,10 @@ class GuiCommandSet(ReplCommandSet):
         if file is None:
             db_file: str = get_file_path(
                 repl.projectDir,
-                argparse.Namespace(last_run=last_run, fabric=fabric, tile=tile),
                 "odb",
+                last_run=last_run,
+                fabric=fabric,
+                tile=tile,
                 show_count=head,
             )
         else:
@@ -153,7 +155,6 @@ class GuiCommandSet(ReplCommandSet):
             Path(file_name).unlink(missing_ok=True)
 
     @with_annotated
-    @with_category(CMD_TOOLS)
     def do_start_klayout_gui(
         self,
         file: Annotated[str | None, Argument(help_text="file to open")] = None,
@@ -189,8 +190,10 @@ class GuiCommandSet(ReplCommandSet):
         if file is None:
             gds_file: str = get_file_path(
                 repl.projectDir,
-                argparse.Namespace(last_run=last_run, fabric=fabric, tile=tile),
                 "gds",
+                last_run=last_run,
+                fabric=fabric,
+                tile=tile,
                 show_count=head,
             )
         else:

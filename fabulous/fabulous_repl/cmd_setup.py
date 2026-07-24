@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Annotated
 
-from cmd2 import Cmd, with_annotated, with_category
+from cmd2 import Cmd, with_annotated
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
@@ -20,7 +20,6 @@ from fabulous.fabulous_repl.command_set_base import (
     ReplCommandSet,
 )
 from fabulous.fabulous_repl.helper import (
-    allow_blank,
     clone_tile_directory,
     install_fabulator,
     install_oss_cad_suite,
@@ -33,8 +32,8 @@ from fabulous.fabulous_settings import get_context
 class SetupCommandSet(ReplCommandSet):
     """Install tooling, load a fabric, and clone tiles."""
 
-    @with_category(CMD_SETUP)
-    @allow_blank
+    DEFAULT_CATEGORY = CMD_SETUP
+
     @with_annotated
     def do_install_oss_cad_suite(
         self,
@@ -56,12 +55,12 @@ class SetupCommandSet(ReplCommandSet):
         in the `.env` file.
         """
         dest_dir = (
-            destination_folder if destination_folder is not None else get_context().root
+            destination_folder
+            if destination_folder is not None
+            else get_context().user_config_dir
         )
         install_oss_cad_suite(dest_dir, update)
 
-    @with_category(CMD_SETUP)
-    @allow_blank
     @with_annotated
     def do_install_FABulator(
         self,
@@ -72,19 +71,19 @@ class SetupCommandSet(ReplCommandSet):
     ) -> None:
         """Download and install the latest version of FABulator.
 
-        Sets the the FABULATOR_ROOT environment variable in the .env file.
+        Sets the FABULATOR_ROOT environment variable in the .env file.
         """
         dest_dir = (
-            destination_folder if destination_folder is not None else get_context().root
+            destination_folder
+            if destination_folder is not None
+            else get_context().user_config_dir
         )
 
-        if not install_fabulator(dest_dir):
-            raise RuntimeError("FABulator installation failed")
+        # install_fabulator raises RuntimeError on failure; it returns nothing.
+        install_fabulator(dest_dir)
 
         logger.info("FABulator successfully installed")
 
-    @with_category(CMD_SETUP)
-    @allow_blank
     @with_annotated
     def do_load_fabric(
         self,
@@ -144,7 +143,6 @@ class SetupCommandSet(ReplCommandSet):
         repl.enable_category(CMD_HELPER)
         logger.info("Complete")
 
-    @with_category(CMD_SETUP)
     @with_annotated
     def do_clone_tile(
         self,
@@ -168,9 +166,6 @@ class SetupCommandSet(ReplCommandSet):
         ],
         no_register: Annotated[
             bool,
-            # store_true (not the inferred BooleanOptionalAction): a flag literally
-            # named --no-register would otherwise be read as the negation form and
-            # set False, inverting the intended "present means skip" semantics.
             Option(
                 "--no-register",
                 action="store_true",
@@ -222,17 +217,14 @@ class SetupCommandSet(ReplCommandSet):
             register_tile_in_fabric_csv(repl.csvFile, dst_dir)
             logger.info(f"Updated {repl.csvFile} with entries for '{dst_tile}'")
 
-    @with_category(CMD_SETUP)
     @with_annotated
     def do_list_to_csv(
         self,
-        # Named `input`/`output` because the parameter name is the CLI
-        # argument name shown in help; renaming would change the interface.
-        input: Annotated[  # noqa: A002
+        input_file: Annotated[
             Path,
             Argument(help_text="Input switch matrix file", completer=Cmd.path_complete),
         ],
-        output: Annotated[
+        output_file: Annotated[
             Path,
             Argument(
                 help_text="Output switch matrix file", completer=Cmd.path_complete
@@ -253,20 +245,19 @@ class SetupCommandSet(ReplCommandSet):
             "Format conversion only; connectivity is not validated against any "
             "tile configuration."
         )
-        self._cmd.fabulousAPI.add_list_to_matrix(input, output, preserve_list_order)
-        logger.info(f"Converted {input} to {output}")
+        self._cmd.fabulousAPI.add_list_to_matrix(
+            input_file, output_file, preserve_list_order
+        )
+        logger.info(f"Converted {input_file} to {output_file}")
 
-    @with_category(CMD_SETUP)
     @with_annotated
     def do_csv_to_list(
         self,
-        # Named `input`/`output` because the parameter name is the CLI
-        # argument name shown in help; renaming would change the interface.
-        input: Annotated[  # noqa: A002
+        input_file: Annotated[
             Path,
             Argument(help_text="Input switch matrix file", completer=Cmd.path_complete),
         ],
-        output: Annotated[
+        output_file: Annotated[
             Path,
             Argument(
                 help_text="Output switch matrix file", completer=Cmd.path_complete
@@ -287,5 +278,7 @@ class SetupCommandSet(ReplCommandSet):
             "Format conversion only; connectivity is not validated against any "
             "tile configuration."
         )
-        self._cmd.fabulousAPI.add_matrix_to_list(input, output, preserve_list_order)
-        logger.info(f"Converted {input} to {output}")
+        self._cmd.fabulousAPI.add_matrix_to_list(
+            input_file, output_file, preserve_list_order
+        )
+        logger.info(f"Converted {input_file} to {output_file}")

@@ -6,7 +6,7 @@ Generate the nextpnr timing model for the fabric.
 from pathlib import Path
 from typing import Annotated, Literal
 
-from cmd2 import with_annotated, with_category
+from cmd2 import with_annotated
 from cmd2.annotated import Option
 from loguru import logger
 
@@ -25,7 +25,8 @@ from fabulous.fabulous_settings import get_context
 class TimingCommandSet(ReplCommandSet):
     """Generate the nextpnr timing model for the fabric."""
 
-    @with_category(CMD_TIMING_MODEL)
+    DEFAULT_CATEGORY = CMD_TIMING_MODEL
+
     @with_annotated
     def do_timing_model(
         self,
