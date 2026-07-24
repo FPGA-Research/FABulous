@@ -175,25 +175,25 @@ def cocotb_runner(tmp_path: Path, request: pytest.FixtureRequest) -> CocotbRunne
     return _create_runner
 
 
-def sjump_port(
+def jump_port(
     name: str,
     in_out: IO,
     wire_count: int = 2,
     x_offset: int = 0,
     y_offset: int = 0,
 ) -> TilePort:
-    """Build an SJUMP port.
+    """Build a JUMP port facing a composite wrapper switch matrix.
 
     OUTPUT ports drive `source_name`; INPUT ports terminate at
-    `destination_name`. SJUMP ports carry zero offsets, which is exactly the
-    case the width fix in `expand_port_info*` has to handle.
+    `destination_name`. These ports carry zero offsets, the case the width
+    handling in `expand_port_info*` must cover.
     """
     return TilePort(
         name=name,
         io_direction=in_out,
         width=wire_count,
         side_of_tile=Side.ANY,
-        wire_direction=Direction.SJUMP,
+        wire_direction=Direction.JUMP,
         source_name=name if in_out == IO.OUTPUT else "NULL",
         x_offset=x_offset,
         y_offset=y_offset,
@@ -211,7 +211,7 @@ def make_empty_tile(
     pin_order_config: dict | None = None,
     config_bits: int = 0,
 ) -> Tile:
-    """Build a minimal Tile usable inside a SuperTile.tile_map.
+    """Build a minimal Tile usable as a leaf or inside a composite tile_map.
 
     Passing `pin_order_config={}` skips the GDS pin-order import; the `None`
     default preserves the original behaviour for callers that don't care.
@@ -233,18 +233,29 @@ def make_empty_tile(
     )
 
 
-def make_muladd_bel(internal: list[tuple[str, IO]], *, prefix: str = "SUPER_") -> Bel:
-    """Build a MULADD-style supertile BEL with only its internal pins populated."""
+def make_muladd_bel(
+    internal: list[tuple[str, IO]],
+    *,
+    prefix: str = "SUPER_",
+    name: str = "MULADD",
+    config_ports: list[tuple[str, IO]] | None = None,
+    bel_map: dict | None = None,
+) -> Bel:
+    """Build a MULADD-style wrapper BEL with only its internal pins populated.
+
+    `config_ports` and `bel_map` give the BEL configuration bits, which a
+    wrapper BEL needs to appear in the master cell's frame.
+    """
     return Bel(
-        src=Path("MULADD.v"),
+        src=Path(f"{name}.v"),
         prefix=prefix,
-        module_name="MULADD",
+        module_name=name,
         internal=internal,
         external=[],
-        configPort=[],
+        configPort=config_ports if config_ports is not None else [],
         sharedPort=[],
-        configBit=0,
-        belMap={},
+        configBit=len(bel_map) if bel_map else 0,
+        belMap=bel_map if bel_map is not None else {},
         userCLK=False,
         ports_vectors={},
         carry={},

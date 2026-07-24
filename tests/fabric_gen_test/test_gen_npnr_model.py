@@ -1,5 +1,7 @@
 """Tests for nextpnr model generation, focusing on bel.v3 timing output."""
 
+from pathlib import Path
+
 from pytest_mock import MockerFixture
 
 from fabulous.fabric_cad.gen_npnr_model import (
@@ -8,7 +10,11 @@ from fabulous.fabric_cad.gen_npnr_model import (
     genNextpnrModel,
 )
 from fabulous.fabric_definition.bel import Bel
+from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
+from fabulous.fabric_definition.tile import Tile
 from fabulous.fabulous_repl.fabulous_repl import FABulousREPL
+from tests.conftest import make_empty_tile
 
 
 def test_gen_routing_model_returns_five_with_timing(cli: FABulousREPL) -> None:
@@ -119,3 +125,48 @@ def test_genNextpnrModel_bel_timing_unaffected_by_real_pip_delay(
     assert "Delay,Ci,Co,0.2,Ci/Co?" in belv3
     assert "SetupHold,I0,CLK,2.5,0.1,FF=1" in belv3
     assert "ClkToOut,Q,CLK,1.0,FF=1" in belv3
+
+
+def test_composite_without_matrix_or_bels_is_skipped(tmp_path: Path) -> None:
+    """A composite with no BELs and no wrapper MATRIX emits no BEL/pip lines.
+
+    `matrix_dir` is `None` here (no MATRIX line), replacing the old `Path()`
+    sentinel. A passthrough mux (`I` -> `O`, no config bits) is given to the
+    composite's switch matrix as a discriminator: if the `is None` skip did
+    not fire, its pip (`"I.O"`) would be emitted for the composite (see
+    `gen_npnr_model.py:302-331`). This proves `genNextpnrModel` neither
+    crashes dereferencing `None` nor emits anything for the composite,
+    matching the pre-refactor behaviour.
+
+    `genNextpnrModel` returns five joined strings (not line lists), so the
+    assertions check substring membership directly rather than iterating
+    "lines" - iterating a string yields characters, not lines.
+    """
+    sub = make_empty_tile("Sub", tile_dir=tmp_path, matrix_dir=tmp_path / "sub.csv")
+    composite = Tile(
+        name="C",
+        ports=[],
+        bels=[],
+        tile_dir=tmp_path / "C.csv",
+        matrix_dir=None,
+        gen_ios=[],
+        switch_matrix=SwitchMatrix(matrix_file=Path(), connections={"O": ["I"]}),
+        tile_map=[[sub]],
+        sub_tiles=[sub],
+        userCLK=False,
+    )
+    fabric = Fabric(
+        fabric_dir=tmp_path,
+        tile=[[sub]],
+        numberOfRows=1,
+        numberOfColumns=1,
+        tileDic={"Sub": sub, "C": composite},
+    )
+
+    pipStr, belStr, belv2Str, belv3Str, constrainStr = genNextpnrModel(fabric)
+
+    assert "I.O" not in pipStr
+    assert "Composite_C_" not in belStr
+    assert "Composite_C_" not in belv2Str
+    assert "Composite_C_" not in belv3Str
+    assert "Composite_C_" not in constrainStr

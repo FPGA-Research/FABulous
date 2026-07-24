@@ -207,14 +207,11 @@ class MacroFlowCommandSet(ReplCommandSet):
             return
 
         if not io_pin_config:
-            if tile_obj := repl.fabulousAPI.getTile(tile):
-                repl.fabulousAPI.gen_io_pin_order_config(tile_obj, pin_order_file)
-            else:
-                super_tile = repl.fabulousAPI.getSuperTile(tile)
-                if super_tile is None:
-                    logger.error(f"Tile {tile} not found in fabric definition")
-                    return
-                repl.fabulousAPI.gen_io_pin_order_config(super_tile, pin_order_file)
+            tile_obj = repl.fabulousAPI.getTile(tile)
+            if tile_obj is None:
+                logger.error(f"Tile {tile} not found in fabric definition")
+                return
+            repl.fabulousAPI.gen_io_pin_order_config(tile_obj, pin_order_file)
         else:
             pin_order_file = io_pin_config.resolve()
 

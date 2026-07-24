@@ -10,15 +10,19 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
+from fabulous.fabric_cad.gen_bitstream_spec import generateBitstreamSpec
 from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.fabric import Fabric
+from fabulous.fabric_definition.switch_matrix import SwitchMatrix
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
-    build_super_tile_config_mem_csv,
+    _read_config_mem_masks,
+    generate_composite_config_mem,
     generateConfigMem,
     generateConfigMemInit,
 )
+from tests.conftest import make_empty_tile
 from tests.fabric_gen_test.conftest import create_config_csv, verify_csv_content
 
 
@@ -378,7 +382,17 @@ class TestGeneratedConfigMemRTL:
 
 
 def _write_configmem_csv(path: Path, masks: list[str], ranges: list[str]) -> None:
-    """Write a minimal ConfigMem CSV with the given per-frame masks and ranges."""
+    """Write a minimal ConfigMem CSV with the given per-frame masks and ranges.
+
+    Parameters
+    ----------
+    path : Path
+        Destination CSV path.
+    masks : list[str]
+        One `used_bits_mask` per frame, in frame-index order.
+    ranges : list[str]
+        One `ConfigBits_ranges` entry per frame, in frame-index order.
+    """
     create_config_csv(
         path,
         [
@@ -394,65 +408,238 @@ def _write_configmem_csv(path: Path, masks: list[str], ranges: list[str]) -> Non
     )
 
 
-class TestSuperTileConfigMemReuse:
-    """`build_super_tile_config_mem_csv` reuses a valid existing CSV, else regen.
+def _read_masks(path: Path) -> dict[int, str]:
+    """Read a ConfigMem CSV into `{frame_index: used_bits_mask}` (no underscores).
 
-    Master tile has 4 frames of 4 bits each (tiny, for readability). Frame 0 uses
-    its top two bits (`1100`), leaving the rest free for the supertile.
+    Parameters
+    ----------
+    path : Path
+        The ConfigMem CSV to read.
+
+    Returns
+    -------
+    dict[int, str]
+        Mapping from frame index to its `used_bits_mask`.
+    """
+    rows = verify_csv_content(path)
+    return {int(r["frame_index"]): r["used_bits_mask"].replace("_", "") for r in rows}
+
+
+def _make_composite(tmp_path: Path, *, master_config_bits: int) -> Tile:
+    """Build a 1-wide, 2-tall composite `C`: top `C_top` over master `C_bot`.
+
+    The wrapper switch matrix is a real 4-input mux, so the composite carries two
+    wrapper config bits. Each sub-tile gets its own directory and a file-shaped
+    `tile_dir`, matching what the CSV parser produces, so the master's ConfigMem
+    CSV resolves next to its own tile CSV.
+
+    Parameters
+    ----------
+    tmp_path : Path
+        Directory the composite and its sub-tiles live in.
+    master_config_bits : int
+        Number of config bits the master sub-tile uses for itself.
+
+    Returns
+    -------
+    Tile
+        The composite tile, mastering at its bottom cell.
+    """
+    sub_tiles = []
+    for name, config_bits in (("C_top", 0), ("C_bot", master_config_bits)):
+        (tmp_path / name).mkdir(exist_ok=True)
+        sub_tiles.append(
+            make_empty_tile(
+                name,
+                tile_dir=tmp_path / name / f"{name}.csv",
+                pin_order_config={},
+                config_bits=config_bits,
+            )
+        )
+    top, bot = sub_tiles
+
+    wrapper_matrix = tmp_path / "C_matrix.list"
+    wrapper_matrix.write_text(
+        "\n".join(f"SUPER_A0,{src}" for src in ("C_bot_A0", "GND0", "VCC0", "C_bot_A1"))
+        + "\n"
+    )
+    return Tile(
+        name="C",
+        ports=[],
+        bels=[],
+        tile_dir=tmp_path / "C.csv",
+        matrix_dir=wrapper_matrix,
+        gen_ios=[],
+        switch_matrix=SwitchMatrix(
+            matrix_file=wrapper_matrix,
+            connections={"SUPER_A0": ["C_bot_A0", "GND0", "VCC0", "C_bot_A1"]},
+        ),
+        tile_map=[[top], [bot]],
+        sub_tiles=[top, bot],
+        master_offset=(0, 1),
+        pin_order_config={},
+        userCLK=False,
+    )
+
+
+class TestReadConfigMemMasksFrameKeySet:
+    """`_read_config_mem_masks` requires exactly one row per frame index.
+
+    Both call sites (`_validate_composite_config_mem` and
+    `_build_composite_config_mem_csv`) rely on this to index the returned
+    dict directly instead of defaulting missing frames to all-free.
+    """
+
+    def test_complete_frame_set_is_read(self, tmp_path: Path) -> None:
+        """A CSV with exactly one row per frame index round-trips cleanly."""
+        path = tmp_path / "ConfigMem.csv"
+        _write_configmem_csv(
+            path,
+            ["1100", "0000", "0000", "0000"],
+            ["0;1", "# NULL", "# NULL", "# NULL"],
+        )
+
+        masks = _read_config_mem_masks(path, max_frames_per_col=4)
+
+        assert masks == {0: "1100", 1: "0000", 2: "0000", 3: "0000"}
+
+    @pytest.mark.parametrize(
+        ("frame_indices", "error_match"),
+        [
+            # Duplicate frame_index 1 leaves frame_index 2 entirely missing,
+            # while the row count (4) still matches max_frames_per_col.
+            pytest.param([0, 1, 1, 3], "missing \\[2\\]", id="duplicate_index"),
+            # frame_index 4 is out of range for max_frames_per_col=4 (0..3),
+            # while the row count still matches.
+            pytest.param([0, 1, 2, 4], "missing \\[3\\]", id="out_of_range_index"),
+        ],
+    )
+    def test_incomplete_frame_key_set_raises(
+        self, tmp_path: Path, frame_indices: list[int], error_match: str
+    ) -> None:
+        """A row-count-correct but key-set-incomplete CSV raises, not silently."""
+        path = tmp_path / "ConfigMem.csv"
+        create_config_csv(
+            path,
+            [
+                {
+                    "frame_name": f"frame{i}",
+                    "frame_index": frame_idx,
+                    "bits_used_in_frame": 0,
+                    "used_bits_mask": "0000",
+                    "ConfigBits_ranges": "# NULL",
+                }
+                for i, frame_idx in enumerate(frame_indices)
+            ],
+        )
+
+        with pytest.raises(ValueError, match=error_match):
+            _read_config_mem_masks(path, max_frames_per_col=4)
+
+
+class TestCompositeConfigMemAllocation:
+    """A composite's ConfigMem is allocated from its master's FREE frame slots.
+
+    The master uses two config bits of its own, which `generateConfigMemInit`
+    packs into the top two bits of frame 0 (`1100` with four bits per frame), so
+    the composite's own two bits must land elsewhere.
     """
 
     FRAME_BITS = 4
     MAX_FRAMES = 4
     MASTER_MASKS = ["1100", "0000", "0000", "0000"]
-    MASTER_RANGES = ["1:0", "# NULL", "# NULL", "# NULL"]
 
-    def _master(self, tmp_path: Path) -> Path:
-        master = tmp_path / "DSP_bot_ConfigMem.csv"
-        _write_configmem_csv(master, self.MASTER_MASKS, self.MASTER_RANGES)
-        return master
-
-    def _build(self, tmp_path: Path, out: Path, bits: int = 2) -> None:
-        build_super_tile_config_mem_csv(
-            self._master(tmp_path),
-            bits,
+    def _generate(
+        self, composite: Tile, code_generator_factory: Callable[..., CodeGenerator]
+    ) -> Path:
+        """Run composite ConfigMem generation and return the composite CSV path."""
+        writer = code_generator_factory(".v", f"{composite.name}_ConfigMem")
+        out = composite.tile_dir.parent / f"{composite.name}_ConfigMem.csv"
+        generate_composite_config_mem(
+            writer,
+            composite,
             out,
             frame_bits_per_row=self.FRAME_BITS,
-            max_frames_per_col=self.MAX_FRAMES,
+            max_frame_per_col=self.MAX_FRAMES,
+        )
+        return out
+
+    def _master_csv(self, composite: Tile) -> Path:
+        """Return the master sub-tile's own ConfigMem CSV path."""
+        master = composite.get_master_tile()
+        return master.tile_dir.parent / f"{master.name}_ConfigMem.csv"
+
+    def test_fresh_generation_avoids_master_used_bits(
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[..., CodeGenerator],
+    ) -> None:
+        """A freshly generated composite CSV never reuses the master's own bits."""
+        composite = _make_composite(tmp_path, master_config_bits=2)
+        _write_configmem_csv(
+            self._master_csv(composite),
+            self.MASTER_MASKS,
+            ["1:0", "# NULL", "# NULL", "# NULL"],
         )
 
-    def test_fresh_generation_when_absent(self, tmp_path: Path) -> None:
-        out = tmp_path / "DSP_ConfigMem.csv"
-        self._build(tmp_path, out)
-        # The two supertile bits land in master frame 0's free (low) slots.
+        out = self._generate(composite, code_generator_factory)
+
         masks = _read_masks(out)
-        assert sum(m.count("1") for m in masks.values()) == 2
-        # No bit overlaps the master's used top two bits.
+        assert sum(mask.count("1") for mask in masks.values()) == 2
         assert all(
             not (a == "1" and b == "1")
             for a, b in zip(masks[0], self.MASTER_MASKS[0], strict=True)
         )
 
-    def test_existing_valid_csv_is_reused(self, tmp_path: Path) -> None:
-        out = tmp_path / "DSP_ConfigMem.csv"
-        # A valid supertile CSV using the master's free low bits, disjoint from it.
+    def test_missing_master_csv_is_generated_first(
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[..., CodeGenerator],
+    ) -> None:
+        """The master's own ConfigMem is generated when it has not been yet."""
+        composite = _make_composite(tmp_path, master_config_bits=2)
+        master_csv = self._master_csv(composite)
+        assert not master_csv.exists()
+
+        out = self._generate(composite, code_generator_factory)
+
+        assert _read_masks(master_csv)[0] == self.MASTER_MASKS[0]
+        assert _read_masks(out)[0] == "0011"
+
+    def test_existing_valid_csv_is_reused(
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[..., CodeGenerator],
+    ) -> None:
+        """A valid hand-tuned composite CSV is kept, not overwritten."""
+        composite = _make_composite(tmp_path, master_config_bits=2)
         _write_configmem_csv(
-            out, ["0011", "0000", "0000", "0000"], ["0;1", "# NULL", "# NULL", "# NULL"]
+            self._master_csv(composite),
+            self.MASTER_MASKS,
+            ["1:0", "# NULL", "# NULL", "# NULL"],
+        )
+        out = composite.tile_dir.parent / "C_ConfigMem.csv"
+        # Uses the master's free low bits, disjoint from the master's own bits.
+        _write_configmem_csv(
+            out, ["0000", "0011", "0000", "0000"], ["# NULL", "0;1", "# NULL", "# NULL"]
         )
         before = out.read_text()
-        self._build(tmp_path, out)
-        assert out.read_text() == before  # reused, not regenerated
+
+        self._generate(composite, code_generator_factory)
+
+        assert out.read_text() == before
 
     @pytest.mark.parametrize(
         ("masks", "ranges", "error_match"),
         [
-            # Bit 0 (MSB) is used by the master (1100) -> conflict.
+            # Bit 0 (MSB) of frame 0 is used by the master (1100) -> conflict.
             pytest.param(
                 ["1010", "0000", "0000", "0000"],
                 ["0;1", "# NULL", "# NULL", "# NULL"],
                 "conflicts with the master",
                 id="conflict_with_master",
             ),
-            # Only one used bit, but the supertile needs two.
+            # Only one used bit, but the composite wrapper needs two.
             pytest.param(
                 ["0001", "0000", "0000", "0000"],
                 ["0", "# NULL", "# NULL", "# NULL"],
@@ -462,15 +649,99 @@ class TestSuperTileConfigMemReuse:
         ],
     )
     def test_invalid_existing_csv_raises(
-        self, tmp_path: Path, masks: list[str], ranges: list[str], error_match: str
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[..., CodeGenerator],
+        masks: list[str],
+        ranges: list[str],
+        error_match: str,
     ) -> None:
-        out = tmp_path / "DSP_ConfigMem.csv"
-        _write_configmem_csv(out, masks, ranges)
+        """A stale composite CSV fails at generation time, not at bitstream time."""
+        composite = _make_composite(tmp_path, master_config_bits=2)
+        _write_configmem_csv(
+            self._master_csv(composite),
+            self.MASTER_MASKS,
+            ["1:0", "# NULL", "# NULL", "# NULL"],
+        )
+        _write_configmem_csv(
+            composite.tile_dir.parent / "C_ConfigMem.csv", masks, ranges
+        )
+
         with pytest.raises(ValueError, match=error_match):
-            self._build(tmp_path, out, bits=2)
+            self._generate(composite, code_generator_factory)
+
+    def test_missing_master_tile_directory_raises(
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[..., CodeGenerator],
+    ) -> None:
+        """A master whose directory does not exist fails loudly, not silently free."""
+        composite = _make_composite(tmp_path, master_config_bits=2)
+        composite.get_master_tile().tile_dir = tmp_path / "nowhere" / "C_bot.csv"
+
+        with pytest.raises(FileNotFoundError, match="C_bot"):
+            self._generate(composite, code_generator_factory)
+
+    def test_unset_master_tile_dir_raises(
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[..., CodeGenerator],
+    ) -> None:
+        """A master with the default empty tile_dir fails loudly, not from the CWD.
+
+        `Path().is_dir()` resolves to the current working directory, so a
+        master whose `tile_dir` was never set would otherwise silently pass
+        the directory guard and read the wrong ConfigMem file.
+        """
+        composite = _make_composite(tmp_path, master_config_bits=2)
+        composite.get_master_tile().tile_dir = Path()
+
+        with pytest.raises(ValueError, match="unset tile_dir"):
+            self._generate(composite, code_generator_factory)
 
 
-def _read_masks(path: Path) -> dict[int, str]:
-    """Read a ConfigMem CSV into `{frame_index: used_bits_mask}` (no underscores)."""
-    rows = verify_csv_content(path)
-    return {int(r["frame_index"]): r["used_bits_mask"].replace("_", "") for r in rows}
+class TestCompositeConfigMemBitstreamSpec:
+    """Freshly generated composite ConfigMems survive the bitstream-spec check."""
+
+    def test_generated_composite_bits_pass_bitstream_spec(
+        self,
+        tmp_path: Path,
+        code_generator_factory: Callable[..., CodeGenerator],
+    ) -> None:
+        """Generation places the wrapper bits outside the master's own frame bits."""
+        composite = _make_composite(tmp_path, master_config_bits=2)
+        top, bot = composite.get_sub_tiles()
+        writer = code_generator_factory(".v", "C_bot_ConfigMem")
+        generateConfigMem(
+            writer,
+            bot.name,
+            bot.total_config_bits,
+            bot.tile_dir.parent / f"{bot.name}_ConfigMem.csv",
+        )
+        writer = code_generator_factory(".v", "C_ConfigMem")
+        generate_composite_config_mem(
+            writer, composite, composite.tile_dir.parent / "C_ConfigMem.csv"
+        )
+        fabric = Fabric(
+            fabric_dir=tmp_path,
+            tile=[[bot], [top]],
+            numberOfRows=2,
+            numberOfColumns=1,
+            maxFramesPerCol=20,
+            frameBitsPerRow=32,
+            tileDic={"C": composite, "C_top": top, "C_bot": bot},
+        )
+
+        spec = generateBitstreamSpec(fabric)
+
+        # The master packs its own two bits at the top of frame 0 (physical bits
+        # 31 and 30); every wrapper pip bit must sit outside those.
+        master_own_bits = {31, 30}
+        wrapper_bits = {
+            bit
+            for pip, bits in spec["TileSpecs"]["X0Y0"].items()
+            if pip.endswith(".SUPER_A0")
+            for bit in bits
+        }
+        assert wrapper_bits
+        assert wrapper_bits.isdisjoint(master_own_bits)

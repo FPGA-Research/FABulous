@@ -89,7 +89,7 @@ def _composite(
         ports=[],
         bels=bels if bels is not None else [],
         tile_dir=Path(),
-        matrix_dir=Path(),
+        matrix_dir=None,
         gen_ios=[],
         switch_matrix=switch_matrix
         if switch_matrix is not None
@@ -181,6 +181,59 @@ class TestCompositeTile:
         a, d = _leaf("a"), _leaf("d")
         comp = _composite("C", [[a, None], [None, d]])
         assert list(comp) == [((0, 0), a), ((1, 1), d)]
+
+
+class TestFabricOrientation:
+    """`fabric_dy` / `iter_cells_fabric` convert top-first storage to fabric order."""
+
+    def test_leaf_fabric_dy_is_identity(self) -> None:
+        """A leaf tile has height 1, so its only row maps to fabric row 0."""
+        assert _leaf("T").fabric_dy(0) == 0
+
+    def test_composite_fabric_dy_flips_the_row_axis(self) -> None:
+        """Row 0 (top, north) maps to the highest fabric row; the last row to 0."""
+        top, mid, bot = _leaf("top"), _leaf("mid"), _leaf("bot")
+        comp = _composite("C", [[top], [mid], [bot]])
+        assert comp.fabric_dy(0) == 2
+        assert comp.fabric_dy(1) == 1
+        assert comp.fabric_dy(2) == 0
+
+    def test_leaf_iter_cells_fabric_yields_self_at_origin(self) -> None:
+        """A leaf tile yields a single (0, 0, self) triple."""
+        leaf = _leaf("T")
+        assert list(leaf.iter_cells_fabric()) == [(0, 0, leaf)]
+
+    def test_composite_iter_cells_fabric_flips_row_only(self) -> None:
+        """Column offsets are unchanged; only the row is flipped to fabric order."""
+        a, b, c, d = _leaf("a"), _leaf("b"), _leaf("c"), _leaf("d")
+        # Top-first storage: row 0 (a, b) is north, row 1 (c, d) is south.
+        comp = _composite("C", [[a, b], [c, d]])
+        assert list(comp.iter_cells_fabric()) == [
+            (0, 1, a),
+            (1, 1, b),
+            (0, 0, c),
+            (1, 0, d),
+        ]
+
+    def test_ragged_rows_skip_none_and_flip_each_row(self) -> None:
+        """A ragged, holed composite still yields each populated cell in order.
+
+        `tile_map=[[a], [b, None], [c, d]]` (top-first storage, 3 rows): `a`
+        is the sole north cell, `b` occupies the middle row's west cell (its
+        east neighbour is a hole), and `c`/`d` fill the south row. Traversal
+        order matches `__iter__` (row-major, top-first); only the row
+        component is converted to fabric (bottom-first) orientation.
+        """
+        a, b, c, d = _leaf("a"), _leaf("b"), _leaf("c"), _leaf("d")
+        comp = _composite("C", [[a], [b, None], [c, d]])
+        assert comp.max_height == 3
+
+        assert list(comp.iter_cells_fabric()) == [
+            (0, 2, a),
+            (0, 1, b),
+            (0, 0, c),
+            (1, 0, d),
+        ]
 
 
 class TestSubTileHelpersAcceptObjectOrName:
@@ -300,6 +353,61 @@ class TestPerimeterAndInternalPorts:
         assert (top.ports_on(Side.SOUTH), 0, 0) in internal
         assert (bot.ports_on(Side.NORTH), 0, 1) in internal
         assert len(internal) == 2
+
+    def test_l_shaped_composite_skips_empty_cell_in_order(self) -> None:
+        """An L-shaped composite (a `None` cell) is skipped, not dereferenced.
+
+        `tile_map=[[a, None], [d, d]]` (top-first storage): `a` occupies
+        (0, 0), the (1, 0) cell is empty, and `d` occupies both (0, 1) and
+        (1, 1). Connections are emitted N,E,S,W per cell, in cell scan order.
+        """
+        a, d = _leaf_all_sides("a"), _leaf_all_sides("d")
+        comp = _composite("C", [[a, None], [d, d]])
+
+        internal = comp.get_internal_connections()
+
+        # a (0,0) borders d (0,1) on its SOUTH side; the (1,0) empty cell
+        # contributes nothing. d (0,1) borders a (0,0) on NORTH and d (1,1) on
+        # EAST; d (1,1) borders d (0,1) on WEST only (its NORTH neighbour,
+        # (1,0), is empty).
+        assert internal == [
+            (a.ports_on(Side.SOUTH), 0, 0),
+            (d.ports_on(Side.NORTH), 0, 1),
+            (d.ports_on(Side.EAST), 0, 1),
+            (d.ports_on(Side.WEST), 1, 1),
+        ]
+
+    def test_ragged_rows_report_connections_beyond_first_row_width(self) -> None:
+        """A row wider than row 0 still has its internal edges reported.
+
+        `tile_map=[[a], [b, None], [c, d]]` (top-first storage) is ragged: row
+        0 has one cell, row 2 has two. `Tile.max_width` is the max over all
+        rows precisely because rows are not required to be the same length,
+        so the EAST/WEST scan must bound itself by each row's own length
+        (`len(row)`), not row 0's. `b`'s (1, 1) cell is `None` so its NORTH
+        neighbour check on row 0 never runs, keeping row 2 safely reachable:
+        `c` (0, 2) and `d` (1, 2) border each other on the EAST/WEST edge,
+        which is wider than row 0.
+        """
+        a, b, c, d = (
+            _leaf_all_sides("a"),
+            _leaf_all_sides("b"),
+            _leaf_all_sides("c"),
+            _leaf_all_sides("d"),
+        )
+        comp = _composite("C", [[a], [b, None], [c, d]])
+        assert comp.max_width == 2
+
+        internal = comp.get_internal_connections()
+
+        assert internal == [
+            (a.ports_on(Side.SOUTH), 0, 0),
+            (b.ports_on(Side.NORTH), 0, 1),
+            (b.ports_on(Side.SOUTH), 0, 1),
+            (c.ports_on(Side.NORTH), 0, 2),
+            (c.ports_on(Side.EAST), 0, 2),
+            (d.ports_on(Side.WEST), 1, 2),
+        ]
 
 
 class TestMasterAnchorOffsets:

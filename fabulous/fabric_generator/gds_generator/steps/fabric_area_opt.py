@@ -113,13 +113,13 @@ class NLPTileProblem(ElementwiseProblem):
 
         tile_min: dict[str, tuple[float, float]] = {}
         for tile in fabric.tileDic.values():
-            if tile.part_of_super_tile:
+            if tile.part_of_composite:
                 continue
             tile_min[tile.name] = _combined_min(tile.name)
 
-        # SuperTile components derive bounds from the SuperTile minimum
+        # Composite tiles derive bounds from the composite minimum
         # and from row/column neighbors
-        for supertile in fabric.superTileDic.values():
+        for supertile in (c for c in fabric.get_all_unique_tiles() if c.is_composite):
             st_min_w, st_min_h = _combined_min(supertile.name)
             first_row = supertile.tile_map[0] if supertile.tile_map else []
             n_cols = sum(1 for t in first_row if t is not None)
@@ -215,9 +215,9 @@ class NLPTileProblem(ElementwiseProblem):
             if len(samples) >= 2:
                 continue
 
-            is_supertile = tile.name in self.fabric.superTileDic
+            supertile = self.fabric.getTileByName(tile.name)
+            is_supertile = supertile.is_composite
             if is_supertile:
-                supertile = self.fabric.superTileDic[tile.name]
                 first_row = supertile.tile_map[0] if supertile.tile_map else []
                 n_cols = sum(1 for t in first_row if t is not None)
                 n_rows = sum(
@@ -278,7 +278,7 @@ class NLPTileProblem(ElementwiseProblem):
 
         xu = xl * 3.0  # upper bound safety floor
         for tile in fabric.tileDic.values():
-            if tile.part_of_super_tile:
+            if tile.part_of_composite:
                 continue
             required = self.min_areas.get(tile.name, 0.0) * (1.0 + self.area_margin)
             if required <= 0:
@@ -322,7 +322,7 @@ class NLPTileProblem(ElementwiseProblem):
         # same row/col group share identical dimensions.
         tile_constraints: list[tuple[str, int, int]] = []
         for tile in fabric.tileDic.values():
-            if tile.part_of_super_tile:
+            if tile.part_of_composite:
                 continue
             rows = self.tile_row_set[tile.name]
             cols = self.tile_column_set[tile.name]
@@ -330,7 +330,7 @@ class NLPTileProblem(ElementwiseProblem):
                 tile_constraints.append((tile.name, min(cols), min(rows)))
 
         supertile_constraints: list[tuple[str, list[int], list[int]]] = []
-        for supertile in fabric.superTileDic.values():
+        for supertile in (c for c in fabric.get_all_unique_tiles() if c.is_composite):
             st_cols = [
                 min(self.tile_column_set[tile.name])
                 for tile in (supertile.tile_map[0] if supertile.tile_map else [])
@@ -806,7 +806,7 @@ class FabricAreaOptimisation(Step):
             return Decimal(problem.get_row_height(res.X, row)).quantize(quant)
 
         for tile in fabric.tileDic.values():
-            if tile.part_of_super_tile:
+            if tile.part_of_composite:
                 continue
             result_dict[tile.name] = (
                 zero,
@@ -815,7 +815,7 @@ class FabricAreaOptimisation(Step):
                 quantized_height(tile.name),
             )
 
-        for supertile in fabric.superTileDic.values():
+        for supertile in (c for c in fabric.get_all_unique_tiles() if c.is_composite):
             total_w = zero
             if supertile.tile_map:
                 for tile in supertile.tile_map[0]:

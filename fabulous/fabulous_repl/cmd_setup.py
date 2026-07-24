@@ -121,11 +121,10 @@ class SetupCommandSet(ReplCommandSet):
         tile_by_path = [
             f.stem for f in (repl.projectDir / "Tile/").iterdir() if f.is_dir()
         ]
+        # tileDic holds both leaf and composite tiles (former supertiles), so a
+        # composite is matched by its own name here without a separate lookup.
         tile_by_fabric = list(repl.fabulousAPI.fabric.tileDic.keys())
-        super_tile_by_fabric = list(repl.fabulousAPI.fabric.superTileDic.keys())
-        repl.all_tile = list(
-            set(tile_by_path) & set(tile_by_fabric + super_tile_by_fabric)
-        )
+        repl.all_tile = list(set(tile_by_path) & set(tile_by_fabric))
 
         if not repl.all_tile:
             logger.error(

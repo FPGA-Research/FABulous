@@ -85,13 +85,14 @@ def default_tile(mocker: MockerFixture) -> Tile:
     tile = mocker.create_autospec(Tile, spec_set=False)
     tile.name = "DefaultTile"
     tile.total_config_bits = 127
+    tile.is_composite = False
     return tile
 
 
 def find_switch_matrix_tile(fabric: Fabric) -> Tile:
     """Return the first fabric tile whose switch matrix is parseable.
 
-    Tiles whose `matrixDir` is a `.list` or `.csv` file drive the real
+    Tiles whose `matrix_dir` is a `.list` or `.csv` file drive the real
     switch-matrix generation path; Verilog/VHDL matrix files are skipped.
 
     Parameters
@@ -110,7 +111,7 @@ def find_switch_matrix_tile(fabric: Fabric) -> Tile:
         If no tile has a parseable switch matrix.
     """
     for tile in fabric.tileDic.values():
-        if tile.switch_matrix.matrix_file.suffix in (".list", ".csv"):
+        if tile.matrix_dir is not None and tile.matrix_dir.suffix in (".list", ".csv"):
             return tile
     raise ValueError("no tile with a parseable switch matrix in fabric")
 

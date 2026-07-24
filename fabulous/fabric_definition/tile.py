@@ -48,9 +48,11 @@ class Tile:
         List of Basic Elements of Logic (BELs) in the tile
     tile_dir : Path
         Directory path for the tile
-    matrix_dir : Path
-        Path to the tile's switch-matrix source (file or directory). `Path()`
-        when the tile has no wrapper switch matrix.
+    matrix_dir : Path | None
+        Path to the tile's switch-matrix source (file or directory). `None`
+        when the tile has no wrapper switch matrix (a composite with no
+        `MATRIX` line). A leaf tile always has a real path; parsing raises
+        if a leaf tile has no `MATRIX` line.
     gen_ios : list[Gen_IO]
         List of general I/O components
     switch_matrix : SwitchMatrix
@@ -90,7 +92,7 @@ class Tile:
         The list of wires of the tile
     tile_dir : Path
         The path to the tile folder
-    part_of_super_tile : bool
+    part_of_composite : bool
         Whether the tile is part of a super tile. Default is False.
     pin_order_config : dict
         Configuration for pin ordering on each side of the tile.
@@ -113,7 +115,7 @@ class Tile:
     withUserCLK: bool = False
     wire_list: list[Wire] = field(default_factory=list)
     tile_dir: Path = Path()
-    part_of_super_tile: bool = False
+    part_of_composite: bool = False
     pin_order_config: dict = field(default_factory=dict)
     tile_map: list[list["Tile | None"]] | None = None  # 2D sub-tile layout
     sub_tiles: list["Tile"] = field(default_factory=list)  # flat list of sub-tiles
@@ -125,7 +127,7 @@ class Tile:
         ports: list[TilePort],
         bels: list[Bel],
         tile_dir: Path,
-        matrix_dir: Path,
+        matrix_dir: Path | None,
         gen_ios: list[Gen_IO],
         switch_matrix: SwitchMatrix,
         userCLK: bool,
@@ -229,39 +231,20 @@ class Tile:
             and (io is None or port.io_direction is io)
         ]
 
-    def get_sjump_ports(self) -> list[TilePort]:
-        """Get all ports with SJUMP wire direction.
-
-        SJUMP ports are one-way connections between the tile and a supertile
-        BEL: OUTPUT ports exit toward the supertile switch matrix, INPUT ports
-        receive results back. Both directions are returned; callers filter by
-        `in_out` as needed.
-
-        Returns
-        -------
-        list[TilePort]
-            List of SJUMP-direction ports, excluding NULL ports.
-        """
-        return [
-            p
-            for p in self.ports_info
-            if p.wire_direction == Direction.SJUMP and not p.name_is_null
-        ]
-
     def get_tile_output_names(self) -> list[str]:
         """Get all output port source names for the tile.
 
         Returns
         -------
         list[str]
-            List of source names for output ports, excluding NULL, JUMP, and
-            SJUMP direction ports.
+            List of source names for output ports, excluding NULL and JUMP
+            direction ports.
         """
         return [
             p.source_name
             for p in self.ports_info
             if p.source_name != "NULL"
-            and p.wire_direction not in (Direction.JUMP, Direction.SJUMP)
+            and p.wire_direction != Direction.JUMP
             and p.is_output
         ]
 
@@ -435,6 +418,44 @@ class Tile:
                 if tile is not None:
                     yield (x, y), tile
 
+    def fabric_dy(self, row_index: int) -> int:
+        """Convert a top-first `tile_map` row index to a bottom-first fabric offset.
+
+        `tile_map` is stored top row first (row 0 = north), while the fabric
+        grid (`Fabric.tile`) is stored bottom row first (row 0 = south). This
+        flips the row axis only; column indices are identical between the two
+        orientations.
+
+        Parameters
+        ----------
+        row_index : int
+            A row index into `tile_map`, top-first.
+
+        Returns
+        -------
+        int
+            The corresponding row offset in the bottom-first fabric grid.
+        """
+        return self.max_height - 1 - row_index
+
+    def iter_cells_fabric(self) -> Iterator[tuple[int, int, "Tile"]]:
+        """Iterate over populated sub-tile cells using fabric-oriented offsets.
+
+        Like `__iter__`, but the row component of each coordinate is converted
+        from `tile_map`'s top-first storage into the fabric grid's
+        bottom-first orientation via `fabric_dy`. For a leaf tile a single
+        `(0, 0, self)` triple is yielded.
+
+        Yields
+        ------
+        tuple[int, int, Tile]
+            The `(dx, fabric_dy, sub_tile)` triple for each populated cell,
+            where `dx` is the column offset and `fabric_dy` is the row offset
+            in the bottom-first fabric grid.
+        """
+        for (x, y), tile in self:
+            yield x, self.fabric_dy(y), tile
+
     def get_ports_around_tile(self) -> dict[str, list[list[TilePort]]]:
         """Return the perimeter side ports of each composite sub-tile cell.
 
@@ -462,12 +483,13 @@ class Tile:
                 key = f"{x},{y}"
                 ports[key] = []
                 # Top-first storage: y-1 is physically north, y+1 is south.
+                # Order is N,E,S,W to match the emitted HDL port order.
                 if y - 1 < 0 or self.tile_map[y - 1][x] is None:
                     ports[key].append(tile.ports_on(Side.NORTH))
-                if y + 1 >= len(self.tile_map) or self.tile_map[y + 1][x] is None:
-                    ports[key].append(tile.ports_on(Side.SOUTH))
                 if x + 1 >= len(row) or row[x + 1] is None:
                     ports[key].append(tile.ports_on(Side.EAST))
+                if y + 1 >= len(self.tile_map) or self.tile_map[y + 1][x] is None:
+                    ports[key].append(tile.ports_on(Side.SOUTH))
                 if x - 1 < 0 or row[x - 1] is None:
                     ports[key].append(tile.ports_on(Side.WEST))
         return ports
@@ -496,12 +518,13 @@ class Tile:
                 if tile is None:
                     continue
                 # Top-first storage: y-1 is physically north, y+1 is south.
+                # Order is N,E,S,W to match the emitted HDL port order.
                 if y - 1 >= 0 and self.tile_map[y - 1][x] is not None:
                     internal_connections.append((tile.ports_on(Side.NORTH), x, y))
-                if y + 1 < len(self.tile_map) and self.tile_map[y + 1][x] is not None:
-                    internal_connections.append((tile.ports_on(Side.SOUTH), x, y))
                 if x + 1 < len(row) and row[x + 1] is not None:
                     internal_connections.append((tile.ports_on(Side.EAST), x, y))
+                if y + 1 < len(self.tile_map) and self.tile_map[y + 1][x] is not None:
+                    internal_connections.append((tile.ports_on(Side.SOUTH), x, y))
                 if x - 1 >= 0 and row[x - 1] is not None:
                     internal_connections.append((tile.ports_on(Side.WEST), x, y))
         return internal_connections
@@ -572,6 +595,29 @@ class Tile:
             )
             logger.error(message)
             raise ValueError(message)
+        return master
+
+    def get_master_tile(self) -> "Tile":
+        """Return the sub-tile at the composite's master cell.
+
+        Returns
+        -------
+        Tile
+            The master sub-tile, or `self` for a leaf tile.
+
+        Raises
+        ------
+        ValueError
+            If an explicit `master_offset` points at an empty cell.
+        """
+        if self.tile_map is None:
+            return self
+        x, y = self.get_master_offset()
+        master = self.tile_map[y][x]
+        if master is None:
+            raise ValueError(
+                f"Composite tile '{self.name}' masters at ({x}, {y}), which is empty."
+            )
         return master
 
     def get_sub_tiles(self) -> list["Tile"]:

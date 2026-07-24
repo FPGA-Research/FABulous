@@ -92,6 +92,45 @@ def test_border_rows_have_config_bits_interior_ignored() -> None:
     assert border_rows_have_config_bits(fabric) is False
 
 
+def test_composite_without_matrix_or_bels_is_skipped(tmp_path: Path) -> None:
+    """A composite with no BELs and no wrapper MATRIX contributes no features.
+
+    `matrix_dir` is `None` here (no MATRIX line), replacing the old `Path()`
+    sentinel. `TileSpecs`/`FrameMap` are keyed by fabric location/tile name,
+    never by the composite's own name, so a passthrough mux (`I` -> `O`, no
+    config bits) is given to the composite's switch matrix as a discriminator:
+    if the `is None` skip did not fire, its pip (`"I.O"`) would be merged into
+    the master cell's `TileSpecs` entry (see `gen_bitstream_spec.py:296-300`).
+    This proves `generateBitstreamSpec` neither crashes dereferencing `None`
+    nor merges that pip, matching the pre-refactor behaviour.
+    """
+    sub = make_empty_tile("Sub", tile_dir=tmp_path, matrix_dir=tmp_path / "sub.csv")
+    composite = Tile(
+        name="C",
+        ports=[],
+        bels=[],
+        tile_dir=tmp_path / "C.csv",
+        matrix_dir=None,
+        gen_ios=[],
+        switch_matrix=SwitchMatrix(matrix_file=Path(), connections={"O": ["I"]}),
+        tile_map=[[sub]],
+        sub_tiles=[sub],
+        userCLK=False,
+    )
+    fabric = Fabric(
+        fabric_dir=tmp_path,
+        tile=[[sub]],
+        numberOfRows=1,
+        numberOfColumns=1,
+        tileDic={"Sub": sub, "C": composite},
+    )
+
+    spec = generateBitstreamSpec(fabric)
+
+    assert "I.O" not in spec["TileSpecs"]["X0Y0"]
+    assert "I.O" not in spec["TileSpecs_No_Mask"]["X0Y0"]
+
+
 @pytest.fixture
 def generated_fabric(cli: FABulousREPL) -> Fabric:
     """Return the fully generated demo fabric bound to the CLI fixture."""

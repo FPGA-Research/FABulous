@@ -161,21 +161,21 @@ def _composite_tile(name: str, tile_map: list[list[str | None]]) -> Tile:
     Name strings are turned into leaf `Tile` objects so the resulting
     `tile_map` holds tile objects, matching the composite tile model.
     """
-    objectMap: list[list[Tile | None]] = [
+    object_map: list[list[Tile | None]] = [
         [_simple_tile(name=cell) if cell is not None else None for cell in row]
         for row in tile_map
     ]
-    sub_tiles = [tile for row in objectMap for tile in row if tile is not None]
+    sub_tiles = [tile for row in object_map for tile in row if tile is not None]
     return Tile(
         name=name,
         ports=[],
         bels=[],
         tile_dir=Path(),
-        matrix_dir=Path(),
+        matrix_dir=None,
         gen_ios=[],
         userCLK=False,
         switch_matrix=SwitchMatrix(matrix_file=Path(), connections={}),
-        tile_map=objectMap,
+        tile_map=object_map,
         sub_tiles=sub_tiles,
     )
 
@@ -221,3 +221,24 @@ class TestSubTiles:
         tile = _composite_tile("C", [["T0", "T1"], ["T2", "T3"]])
         assert tile.is_root_tile("T2") is True
         assert tile.is_root_tile("T0") is False
+
+
+class TestGetMasterTile:
+    """The master cell resolved to an object, not just an offset."""
+
+    def test_leaf_tile_masters_at_itself(self) -> None:
+        """A leaf tile is its own master, so callers need no special case."""
+        tile = _simple_tile()
+        assert tile.get_master_tile() is tile
+
+    def test_composite_masters_at_the_last_populated_cell(self) -> None:
+        """With no explicit offset the master is the last non-None cell."""
+        composite = _composite_tile("C", [["A", "B"], ["C", None]])
+        assert composite.get_master_tile().name == "C"
+
+    def test_master_offset_pointing_at_a_hole_raises(self) -> None:
+        """An explicit offset on an empty cell is a definition error, not a default."""
+        composite = _composite_tile("C", [["A", "B"], ["C", None]])
+        composite.master_offset = (1, 1)
+        with pytest.raises(ValueError, match="which is empty"):
+            composite.get_master_tile()

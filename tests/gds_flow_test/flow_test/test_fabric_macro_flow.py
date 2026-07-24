@@ -353,9 +353,12 @@ class TestValidateTileSizes:
     def test_supertile_validation(
         self, flow: MagicMock, mock_fabric: MagicMock, mocker: MockerFixture
     ) -> None:
-        """Test validation also checks supertiles."""
-        # Modify mock_fabric to include a supertile
-        mock_fabric.superTileDic = {"super1": mocker.MagicMock()}
+        """Test validation also checks composite tiles."""
+        # Modify mock_fabric to include a composite tile.
+        composite = mocker.MagicMock()
+        composite.name = "super1"
+        composite.is_composite = True
+        mock_fabric.get_all_unique_tiles.return_value = [composite]
 
         tile_sizes: dict[str, tuple[Decimal, Decimal]] = {
             "tile1": (Decimal(100), Decimal(200)),
