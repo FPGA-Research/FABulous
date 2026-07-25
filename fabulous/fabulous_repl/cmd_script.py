@@ -11,7 +11,7 @@ cmd2 forbids a CommandSet from replacing an existing command attribute.
 from pathlib import Path
 from typing import Annotated
 
-from cmd2 import with_annotated, with_category
+from cmd2 import with_annotated
 from cmd2.annotated import Argument
 from loguru import logger
 
@@ -21,7 +21,8 @@ from fabulous.fabulous_repl.command_set_base import CMD_SCRIPT, ReplCommandSet
 class ScriptCommandSet(ReplCommandSet):
     """Commands that execute TCL scripts from the REPL."""
 
-    @with_category(CMD_SCRIPT)
+    DEFAULT_CATEGORY = CMD_SCRIPT
+
     @with_annotated
     def do_run_tcl(
         self,

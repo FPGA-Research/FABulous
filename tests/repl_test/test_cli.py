@@ -108,6 +108,28 @@ def test_gen_all_tile(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> No
     assert "All tiles generation complete" in log[-1]
 
 
+def test_gen_tile_aborts_on_sub_command_failure(
+    cli: FABulousREPL, mocker: MockerFixture
+) -> None:
+    """A failing sub-command aborts gen_tile instead of being silently skipped.
+
+    gen_tile dispatches gen_switch_matrix / gen_config_mem through
+    onecmd_plus_hooks, which swallows exceptions and only records them in
+    exit_code. The exit-code guard must turn that sub-command failure into a
+    gen_tile failure so the following step is not silently skipped (AGENTS.md:
+    surface failures, no fallbacks).
+    """
+    mocker.patch.object(
+        cli.fabulousAPI, "genSwitchMatrix", side_effect=RuntimeError("boom")
+    )
+    gen_config_mem = mocker.patch.object(cli.fabulousAPI, "genConfigMem")
+
+    run_cmd(cli, f"gen_tile {TILE}")
+
+    assert cli.exit_code != 0, "gen_tile must report the failed sub-command"
+    gen_config_mem.assert_not_called()
+
+
 def test_gen_fabric(cli: FABulousREPL, caplog: pytest.LogCaptureFixture) -> None:
     """Test generating fabric."""
     run_cmd(cli, "gen_fabric")

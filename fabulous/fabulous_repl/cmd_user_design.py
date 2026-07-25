@@ -1,14 +1,21 @@
-"""User design flow commands for the FABulous REPL.
+"""User-design flow commands for the FABulous REPL.
 
-Synthesis, place-and-route, bitstream generation, simulation, and user
-design wrapper generation.
+Take a user design from HDL to bitstream: generate the top wrapper the flow
+expects, then run the unified compile flow (synthesis -> PnR -> bitgen), which
+delegates execution to the project compile Taskfile. Simulation of the result
+lives here too.
+
+The deprecated per-stage commands (`synthesis`, `place_and_route`,
+`gen_bitStream_binary`, `run_FABulous_bitstream`) are thin shims that rewrite
+their legacy arguments into a `compile_design` invocation, so they only make
+sense next to the command they forward to.
 """
 
 import subprocess as sp
 from pathlib import Path
 from typing import Annotated, Literal
 
-from cmd2 import with_annotated, with_category
+from cmd2 import with_annotated
 from cmd2.annotated import Argument, Option
 from loguru import logger
 
@@ -50,14 +57,14 @@ _SCL_BY_PDK: dict[str, str] = {
 
 
 def resolve_sim_libs(project: Path, overrides: list[str]) -> list[Path]:
-    """Resolve the PDK standard-cell Verilog sim models for ``project``.
+    """Resolve the PDK standard-cell Verilog sim models for `project`.
 
-    Honours ``overrides`` (files or globs) first; otherwise takes the active
+    Honours `overrides` (files or globs) first; otherwise takes the active
     PDK and its install root from the FABulous context (which resolves
-    ``FAB_PDK`` / ``FAB_PDK_ROOT`` and the ciel install) and globs
-    ``<pdk_root>/<pdk>/libs.ref/<scl>/verilog/`` for ``<scl>.v`` plus any
-    ``*udp*.v`` / ``primitives.v`` companion (sky130 and gf180 ship their UDPs
-    in a separate ``primitives.v``; IHP inlines them).
+    `FAB_PDK` / `FAB_PDK_ROOT` and the ciel install) and globs
+    `<pdk_root>/<pdk>/libs.ref/<scl>/verilog/` for `<scl>.v` plus any
+    `*udp*.v` / `primitives.v` companion (sky130 and gf180 ship their UDPs
+    in a separate `primitives.v`; IHP inlines them).
 
     Parameters
     ----------
@@ -128,15 +135,15 @@ def collect_gl_sources(project: Path, sim_lib_overrides: list[str]) -> list[Path
     """Resolve every Verilog source the gate-level simulator needs.
 
     Returns one self-contained source list so the caller can hand it to
-    iverilog directly (no extra ``find`` in the Taskfile):
+    iverilog directly (no extra `find` in the Taskfile):
 
-    - the behavioural wrapper that keeps driving configuration (``Fabric/*.v``:
-      ``eFPGA_top``, the config controller, ``Frame_*``, ``BlockRAM``,
-      ``models_pack`` ...). The behavioural core ``eFPGA.v`` is excluded because
-      the gate-level ``eFPGA.nl.v`` replaces it.
-    - the post-PnR fabric netlist (``Fabric/macro/final_views`` holds exactly one
-      ``*.nl.v``, structural, instantiating tile macros by name),
-    - every tile netlist (``Tile/<tile>/macro/final_views/nl/<tile>.nl.v``),
+    - the behavioural wrapper that keeps driving configuration (`Fabric/*.v`:
+      `eFPGA_top`, the config controller, `Frame_*`, `BlockRAM`,
+      `models_pack` ...). The behavioural core `eFPGA.v` is excluded because
+      the gate-level `eFPGA.nl.v` replaces it.
+    - the post-PnR fabric netlist (`Fabric/macro/final_views` holds exactly one
+      `*.nl.v`, structural, instantiating tile macros by name),
+    - every tile netlist (`Tile/<tile>/macro/final_views/nl/<tile>.nl.v`),
     - the PDK cell models the netlists bind against.
 
     Parameters
@@ -195,7 +202,8 @@ def collect_gl_sources(project: Path, sim_lib_overrides: list[str]) -> list[Path
 class UserDesignCommandSet(ReplCommandSet):
     """User design flow: synthesis through bitstream and simulation."""
 
-    @with_category(CMD_USER_DESIGN_FLOW)
+    DEFAULT_CATEGORY = CMD_USER_DESIGN_FLOW
+
     @with_annotated
     def do_synthesis(  # noqa: PLR0913, C901
         self,
@@ -228,7 +236,7 @@ class UserDesignCommandSet(ReplCommandSet):
     ) -> None:
         """Run Yosys synthesis for the specified Verilog files.
 
-        deprecated: Use ``compile_design --synth-only`` instead.
+        deprecated: Use `compile_design --synth-only` instead.
         """
         repl = self._cmd
         del auto_top  # accepted for backwards compat; not forwarded to compile_design
@@ -285,7 +293,6 @@ class UserDesignCommandSet(ReplCommandSet):
 
         repl.onecmd_plus_hooks(cmd)
 
-    @with_category(CMD_USER_DESIGN_FLOW)
     @with_annotated
     def do_place_and_route(
         self,
@@ -293,7 +300,7 @@ class UserDesignCommandSet(ReplCommandSet):
     ) -> None:
         """Run place and route with Nextpnr for a given JSON file.
 
-        deprecated: Use ``compile_design --pnr-only`` instead.
+        deprecated: Use `compile_design --pnr-only` instead.
         """
         repl = self._cmd
         logger.warning(
@@ -308,7 +315,6 @@ class UserDesignCommandSet(ReplCommandSet):
 
         repl.onecmd_plus_hooks(f"compile_design {file} --pnr-only")
 
-    @with_category(CMD_USER_DESIGN_FLOW)
     @with_annotated
     def do_gen_bitStream_binary(
         self,
@@ -316,7 +322,7 @@ class UserDesignCommandSet(ReplCommandSet):
     ) -> None:
         """Generate bitstream of a given design.
 
-        deprecated: Use ``compile_design`` which includes bitstream generation.
+        deprecated: Use `compile_design` which includes bitstream generation.
         """
         repl = self._cmd
         logger.warning(
@@ -331,7 +337,6 @@ class UserDesignCommandSet(ReplCommandSet):
 
         repl.onecmd_plus_hooks(f"compile_design {file} --bitgen-only")
 
-    @with_category(CMD_USER_DESIGN_FLOW)
     @with_annotated
     def do_run_FABulous_bitstream(
         self,
@@ -339,7 +344,7 @@ class UserDesignCommandSet(ReplCommandSet):
     ) -> None:
         """Run FABulous to generate bitstream on a given design.
 
-        deprecated: Use ``compile_design`` instead.
+        deprecated: Use `compile_design` instead.
         """
         repl = self._cmd
         logger.warning(
@@ -360,7 +365,6 @@ class UserDesignCommandSet(ReplCommandSet):
     # be moved into a CommandSet, which cmd2 forbids from replacing existing
     # attributes.
 
-    @with_category(CMD_USER_DESIGN_FLOW)
     @with_annotated
     def do_gen_user_design_wrapper(
         self,
@@ -379,7 +383,6 @@ class UserDesignCommandSet(ReplCommandSet):
             project_dir / user_design_top_wrapper,
         )
 
-    @with_category(CMD_USER_DESIGN_FLOW)
     @with_annotated
     def do_compile_design(
         self,
@@ -557,7 +560,6 @@ class UserDesignCommandSet(ReplCommandSet):
 
         logger.info("Compile flow completed successfully.")
 
-    @with_category(CMD_USER_DESIGN_FLOW)
     @with_annotated
     def do_run_simulation(
         self,
@@ -643,7 +645,7 @@ class UserDesignCommandSet(ReplCommandSet):
 
         Uses Taskfile.yml (preferred) or falls back to Make (deprecated). The
         bitstream_file argument should be a binary file generated by
-        'compile_design'. With ``--gl`` the hardened fabric netlist replaces the
+        'compile_design'. With `--gl` the hardened fabric netlist replaces the
         behavioural core for gate-level simulation.
         """
         repl = self._cmd
