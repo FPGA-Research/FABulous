@@ -1,35 +1,25 @@
 (fabric-configuration)=
 # Fabric configuration
 
-FABulous fabrics can be loaded with a bitstream through one of three
-configuration methods. For how to run a simulation, see
-[Simulation setup](simulation.md).
+FABulous fabrics offer a 32-bit wide configuration port which can either be driven directly by e.g. a CPU or bus or by the two currently implemented configuration adapters, allowing the transmission over UART and a custom bitbang protocol.
 
-:::{note}
-The FABulous testbench currently drives configuration only through the
-**parallel port (Mode 1)**. Serial (Mode 0) and Bitbang are supported by the
-fabric RTL but are not yet exercised by the generated testbench.
-:::
-
-## Parallel (Mode 1) — default in testbench
+## Parallel Port
 
 Configuration data is written directly into the fabric through a 32-bit
-parallel port, rather than shifted in bit-serially. This is the fastest of
-the three methods and is the only one currently exercised by the FABulous
-testbench.
+parallel port, rather than shifted in bit-serially. This is the main configuration interface which is also used by the UART and bitbang configuration adapters.
 
 - **Signals:** `SelfWriteData` (32-bit data bus), `SelfWriteStrobe` (write strobe)
 - **Bus width:** 32 bits — each transfer loads 4 bytes of the bitstream
-- **Timing:** for each word, data is held for 2 clock cycles, then
-  `SelfWriteStrobe` is pulsed high for one clock cycle to latch it in,
-  followed by 2 more idle cycles before the next word
-- **Transfer count:** `MAX_BITBYTES / 4` word writes to load the full bitstream
+- **Timing:** Data must be valid on the bus for at least one clock cycle before `SelfWriteStrobe` is asserted, and held stable while the strobe is high.
 
-## Serial (Mode 0)
+## Configuration Adapters
 
-Configuration is sent to the fabric byte-by-byte over a UART link on `Rx`,
-decoded, and assembled into 32-bit words that feed the same write interface
-used by Parallel mode.
+To allow configuration from outside of a chip, currently two configuration adapters are implemented, allowing to upload a bitstream using a UART or a custom bitstream protocol.
+
+###  UART
+
+The configuration is sent to the fabric bit-by-bit over a UARTlink on `Rx (since the adapter does not transmit anything, it's technically just a "UAR")`,
+decoded, and assembled into 32-bit words that feed the configuration port.
 
 - **Signals:** `Rx` (UART input), `WriteData` (32-bit, shared with parallel
   write path), `WriteStrobe`, `Command` (decoded command byte), `ComActive`,
@@ -42,22 +32,22 @@ used by Parallel mode.
 - **Framing:** each transfer begins with a fixed ID header and a command
   byte before data bytes are accepted
 - **Word assembly:** 4 received bytes are packed into one `WriteData` word,
-  then `WriteStrobe` pulses once per word — matching the Parallel-mode timing
+  then `WriteStrobe` pulses once per word, as the configuration interface expects
 - **Integrity check:** a running checksum is accumulated over the data and
   validated against an expected checksum value
 - **Timeout:** an inactivity timeout resets the receiver to idle if no data
   arrives mid-transfer
 
-## Bitbang configuration port (To be supported in the testbench)
+### Bitbang
 
-We have produced a quick asynchronous serial configuration port interface that is ideal for microcontroller configuration. It uses the original CPU interface that we have in our TSMC chip. The idea of the protocol is as follows:
+The bitbang adapter offers a quick asynchronous serial configuration port interface that is ideal for configuring the fabric via a microcontroller. The idea of the protocol is as follows:
 
 :::{figure} ./figs/bitbang1.*
 :align: center
 :alt: Bitbang description
 :::
 
-We drive `s_clk` and `s_data`. On each rising edge of s_clock, we sample data and on the falling edge, we sample control.
+The protocol uses the two signals `s_clk` and `s_data`. On each rising edge of `s_clk`, we sample data and on the falling edge, we sample control.
 
 Both values get shifted in a separate register. If the control register sees the bit-pattern x"FAB0" it samples the data shift register into a hold register and issues a one-cycle strobe output (active 1).
 

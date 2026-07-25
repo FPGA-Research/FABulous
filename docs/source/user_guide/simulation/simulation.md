@@ -194,8 +194,3 @@ next release. Please migrate to `Taskfile.yml`. The FABulous CLI
 `make` with a deprecation warning.
 :::
 
-:::{note}
-The testbench uses the parallel configuration port (Mode 1) by default. For
-details on all available fabric configuration methods, see
-[Configuration](configuration.md).
-:::
