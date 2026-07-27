@@ -5,6 +5,7 @@
 This contains a guide and information on building your custom eFPGA.
 ```{toctree}
 fabric_definition
+configuration
 building_fabric
 fabric_automation
 fabric_gds
