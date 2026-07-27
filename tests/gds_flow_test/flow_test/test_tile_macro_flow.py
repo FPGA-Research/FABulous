@@ -13,12 +13,14 @@ Note: These tests use shared fixtures from conftest.py that mock the PDK
 and Config.load to avoid requiring actual PDK files.
 """
 
+import logging
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from conftest import create_instance, create_macro
 from librelane.flows.flow import FlowException
 
 from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
@@ -26,6 +28,9 @@ from fabulous.fabric_generator.gds_generator.flows.tile_macro_flow import (
 )
 from fabulous.fabric_generator.gds_generator.helper import round_up_decimal
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
+
+# A macro location roughly centred in the 150x150 DIE_AREA these tests use.
+CENTRED = (Decimal("50.0"), Decimal("50.0"))
 
 
 @pytest.mark.usefixtures("mock_config_load")
@@ -583,3 +588,181 @@ class TestFABulousTileVerilogMacroFlowInit:
         )
 
         assert flow.config["FABULOUS_OPT_MODE"] == OptMode.NO_OPT
+
+    def test_fix_mode_captures_no_reference_die_area(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """The default mode replays absolute locations and needs no reference."""
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
+            tile_type=mock_tile,
+            io_pin_config=io_pin_config,
+            mock_pdk_root=mock_pdk_root,
+            DIE_AREA=(0, 0, Decimal("150.0"), Decimal("150.0")),
+            MACROS={"sram": create_macro({"u_sram": create_instance(*CENTRED)})},
+        )
+
+        assert flow.config.get("FABULOUS_MACRO_REFERENCE_DIE_AREA") is None
+
+    def test_relative_captures_the_user_die_area(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """The reference is the authored DIE_AREA, taken before it is rounded."""
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
+            tile_type=mock_tile,
+            io_pin_config=io_pin_config,
+            mock_pdk_root=mock_pdk_root,
+            DIE_AREA=(0, 0, Decimal("150.0"), Decimal("150.0")),
+            FABULOUS_MACRO_PLACEMENT_MODE="relative",
+            MACROS={"sram": create_macro({"u_sram": create_instance(*CENTRED)})},
+        )
+
+        assert flow.config["FABULOUS_MACRO_REFERENCE_DIE_AREA"] == (
+            Decimal(0),
+            Decimal(0),
+            Decimal("150.0"),
+            Decimal("150.0"),
+        )
+        # The rounding that follows must not reach back into the reference.
+        assert flow.config["DIE_AREA"] == (0, 0, Decimal("150.08"), Decimal("150.08"))
+
+    def test_relative_rejects_a_missing_die_area(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """Without a DIE_AREA the original macro margins are unknowable."""
+        with pytest.raises(FlowException, match="DIE_AREA.*centre mode"):
+            self._create_flow(
+                tile_type=mock_tile,
+                io_pin_config=io_pin_config,
+                mock_pdk_root=mock_pdk_root,
+                FABULOUS_MACRO_PLACEMENT_MODE="relative",
+                MACROS={"sram": create_macro({"u_sram": create_instance(*CENTRED)})},
+            )
+
+    def test_relative_rejects_an_ignored_die_area(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """A discarded DIE_AREA cannot double as the reference area."""
+        with pytest.raises(FlowException, match="DIE_AREA.*centre mode"):
+            self._create_flow(
+                tile_type=mock_tile,
+                io_pin_config=io_pin_config,
+                mock_pdk_root=mock_pdk_root,
+                DIE_AREA=(0, 0, Decimal("150.0"), Decimal("150.0")),
+                FABULOUS_IGNORE_DEFAULT_DIE_AREA=True,
+                FABULOUS_MACRO_PLACEMENT_MODE="relative",
+                MACROS={"sram": create_macro({"u_sram": create_instance(*CENTRED)})},
+            )
+
+    def test_relative_rejects_a_die_area_away_from_the_origin(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """Tile die areas are normalised to the origin, so a shifted one is fatal."""
+        with pytest.raises(FlowException, match="origin"):
+            self._create_flow(
+                tile_type=mock_tile,
+                io_pin_config=io_pin_config,
+                mock_pdk_root=mock_pdk_root,
+                DIE_AREA=(
+                    Decimal("10.0"),
+                    Decimal("10.0"),
+                    Decimal("160.0"),
+                    Decimal("160.0"),
+                ),
+                FABULOUS_MACRO_PLACEMENT_MODE="relative",
+                MACROS={"sram": create_macro({"u_sram": create_instance(*CENTRED)})},
+            )
+
+    def test_relative_without_macros_is_accepted(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """A tile holding no macros has nothing to place, so nothing to validate."""
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
+            tile_type=mock_tile,
+            io_pin_config=io_pin_config,
+            mock_pdk_root=mock_pdk_root,
+            FABULOUS_MACRO_PLACEMENT_MODE="relative",
+        )
+
+        assert flow.config.get("FABULOUS_MACRO_REFERENCE_DIE_AREA") is None
+
+    def test_centre_accepts_a_single_macro_instance(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """Centring one macro needs no reference area, so it works under no_opt."""
+        flow: FABulousTileVerilogMacroFlow = self._create_flow(
+            tile_type=mock_tile,
+            io_pin_config=io_pin_config,
+            mock_pdk_root=mock_pdk_root,
+            opt_mode=OptMode.NO_OPT,
+            DIE_AREA=(0, 0, Decimal("150.0"), Decimal("150.0")),
+            FABULOUS_MACRO_PLACEMENT_MODE="centre",
+            MACROS={"sram": create_macro({"u_sram": create_instance(*CENTRED)})},
+        )
+
+        assert flow.config.get("FABULOUS_MACRO_REFERENCE_DIE_AREA") is None
+
+    def test_centre_rejects_multiple_macro_instances(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+    ) -> None:
+        """Centring several macros would stack them all on the die centre."""
+        with pytest.raises(FlowException, match="2 macro instances"):
+            self._create_flow(
+                tile_type=mock_tile,
+                io_pin_config=io_pin_config,
+                mock_pdk_root=mock_pdk_root,
+                DIE_AREA=(0, 0, Decimal("150.0"), Decimal("150.0")),
+                FABULOUS_MACRO_PLACEMENT_MODE="centre",
+                MACROS={
+                    "sram": create_macro(
+                        {
+                            "u_sram_a": create_instance(*CENTRED),
+                            "u_sram_b": create_instance(Decimal(0), Decimal(0)),
+                        }
+                    )
+                },
+            )
+
+    def test_unknown_placement_mode_falls_back_to_fix(
+        self,
+        mock_tile: MagicMock,
+        io_pin_config: Path,
+        mock_pdk_root: dict[str, Any],
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """An unsupported mode warns and behaves as fix, capturing no reference."""
+        with caplog.at_level(logging.WARNING):
+            flow: FABulousTileVerilogMacroFlow = self._create_flow(
+                tile_type=mock_tile,
+                io_pin_config=io_pin_config,
+                mock_pdk_root=mock_pdk_root,
+                DIE_AREA=(0, 0, Decimal("150.0"), Decimal("150.0")),
+                FABULOUS_MACRO_PLACEMENT_MODE="auto",
+                MACROS={"sram": create_macro({"u_sram": create_instance(*CENTRED)})},
+            )
+
+        assert "falling back to fix" in caplog.text
+        assert flow.config.get("FABULOUS_MACRO_REFERENCE_DIE_AREA") is None

@@ -18,6 +18,9 @@ from pytest_mock import MockerFixture
 from fabulous.fabric_definition.define import ConfigBitMode, MultiplexerStyle
 from fabulous.fabric_definition.supertile import SuperTile
 from fabulous.fabric_definition.tile import Tile
+from fabulous.fabric_generator.gds_generator.steps.macro_placement import (
+    MacroPlacementMode,
+)
 
 # PDK track info content for realistic routing grid
 TRACKS_INFO_CONTENT: str = """M1 X 0 0.28
@@ -116,6 +119,7 @@ def mock_config_load(
         defaults: dict[str, Any] = {
             "DESIGN_DIR": design_dir,
             "FABULOUS_IGNORE_DEFAULT_DIE_AREA": False,
+            "FABULOUS_MACRO_PLACEMENT_MODE": MacroPlacementMode.FIX.value,
             "ROUTING_OBSTRUCTIONS": None,
             "FABULOUS_TILE_LOGICAL_WIDTH": 1,
             "FABULOUS_TILE_LOGICAL_HEIGHT": 1,

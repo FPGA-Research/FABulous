@@ -3,7 +3,7 @@
 from decimal import Decimal
 from pathlib import Path
 
-from librelane.common import GenericDict
+from librelane.config.config import Config
 from librelane.config.variable import Variable
 from librelane.flows.classic import Classic
 from librelane.flows.flow import Flow, FlowException
@@ -24,6 +24,9 @@ from fabulous.fabric_generator.gds_generator.helper import (
     get_pitch,
     get_routing_obstructions,
     round_die_area,
+)
+from fabulous.fabric_generator.gds_generator.steps.macro_placement import (
+    MacroPlacementMode,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabulous_settings import get_context
@@ -185,6 +188,7 @@ class FABulousTileMacroFlow(SequentialFlow):
                 )
                 self.config = self.config.copy(FABULOUS_IGNORE_DEFAULT_DIE_AREA=True)
 
+        self.config = _apply_macro_placement_config(self.config)
         self.config = _apply_tile_die_area_config(
             self.config, tile_type, final_opt_mode
         )
@@ -223,11 +227,79 @@ class FABulousTileVHDLMacroFlow(FABulousTileMacroFlow):
     _extra_synth_config = {"GHDL_ARGUMENTS": ["--std=08", "-fexplicit", "--latches"]}
 
 
+def _apply_macro_placement_config(
+    config: Config,
+) -> Config:
+    """Validate the macro placement mode and capture its reference die area.
+
+    `relative` measures each macro's original margins against the die area its
+    location was authored for, so that area is captured here, before the
+    optimisation steps start rewriting `DIE_AREA`.
+
+    Parameters
+    ----------
+    config : Config
+        The flow configuration.
+
+    Returns
+    -------
+    Config
+        The configuration, carrying the reference die area when needed.
+
+    Raises
+    ------
+    FlowException
+        If `centre` is asked to place more than one macro instance, or if
+        `relative` has no user `DIE_AREA` at the origin to measure against.
+    """
+    mode = MacroPlacementMode(config["FABULOUS_MACRO_PLACEMENT_MODE"])
+    if mode == MacroPlacementMode.FIX:
+        return config
+
+    instances = [
+        name
+        for macro in (config.get("MACROS") or {}).values()
+        for name in macro.instances
+    ]
+    if not instances:
+        return config
+
+    if mode == MacroPlacementMode.CENTRE:
+        if len(instances) > 1:
+            raise FlowException(
+                f"The centre macro placement mode stacks every macro on the die "
+                f"centre, but {len(instances)} macro instances are configured: "
+                f"{', '.join(instances)}. Use the fix or relative mode instead."
+            )
+        return config
+
+    if config.get("DIE_AREA") is None or config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"]:
+        raise FlowException(
+            "The relative macro placement mode needs a reference die area to "
+            "measure the original macro margins against. Set DIE_AREA with "
+            "FABULOUS_IGNORE_DEFAULT_DIE_AREA false, or use the centre mode."
+        )
+
+    reference = config["DIE_AREA"]
+    # Tile die areas are normalised to the origin further down, so a shifted
+    # reference would put the configured locations in a frame the placer never
+    # sees and silently mis-place every macro.
+    if reference[0] != 0 or reference[1] != 0:
+        raise FlowException(
+            f"The relative macro placement mode needs a DIE_AREA starting at the "
+            f"origin to measure the macro margins against, but it starts at "
+            f"({reference[0]}, {reference[1]}). Move the die area to (0, 0) and "
+            "shift the macro locations to match."
+        )
+
+    return config.copy(FABULOUS_MACRO_REFERENCE_DIE_AREA=reference)
+
+
 def _apply_tile_die_area_config(
-    config: GenericDict[str, object],
+    config: Config,
     tile_type: Tile | SuperTile,
     opt_mode: OptMode | None = None,
-) -> GenericDict[str, object]:
+) -> Config:
     """Populate and validate tile `DIE_AREA` using the routing pitch."""
     x_pitch, y_pitch = get_pitch(config)
     min_x, min_y = tile_type.get_min_die_area(
