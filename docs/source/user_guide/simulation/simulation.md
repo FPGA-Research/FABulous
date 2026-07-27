@@ -193,4 +193,3 @@ next release. Please migrate to `Taskfile.yml`. The FABulous CLI
 (`run_simulation`) will prefer `Taskfile.yml` when present and fall back to
 `make` with a deprecation warning.
 :::
-
