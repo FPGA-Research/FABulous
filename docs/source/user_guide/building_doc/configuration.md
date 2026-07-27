@@ -9,7 +9,7 @@ Configuration data is written directly into the fabric through a 32-bit
 parallel port, rather than shifted in bit-serially. This is the main configuration interface which is also used by the UART and bitbang configuration adapters.
 
 - **Signals:** `SelfWriteData` (32-bit data bus), `SelfWriteStrobe` (write strobe)
-- **Bus width:** 32 bits — each transfer loads 4 bytes of the bitstream
+- **Bus width:** 32 bits - each transfer loads 4 bytes of the bitstream
 - **Timing:** Data must be valid on the bus for at least one clock cycle before `SelfWriteStrobe` is asserted, and held stable while the strobe is high.
 
 ## Configuration Adapters
@@ -48,8 +48,6 @@ The bitbang adapter offers a quick asynchronous serial configuration port interf
 :::
 
 ### Bitbang
-
-The bitbang adapter offers a quick asynchronous serial configuration port interface that is ideal for configuring the fabric via a microcontroller.
 
 - **Signals:** `s_clk` and `s_data`, as well as a one-cycle strobe output (active 1).
 - **Protocol:** Data is sampled on each rising edge of `s_clk`, and control is sampled on the falling edge.
