@@ -600,10 +600,8 @@ class TileAreaOptimisation(WhileStep):
         current_w = Decimal(die_area[2]) if die_area else Decimal(0)
         current_h = Decimal(die_area[3]) if die_area else Decimal(0)
 
-        # In directional modes the user locks the non-minimised axis via DIE_AREA
-        # (FABULOUS_IGNORE_DEFAULT_DIE_AREA stays False). When they do, hold that
-        # axis at the user value and seed only the minimised axis from the
-        # instance area, even if no pin floor is configured.
+        # A user DIE_AREA reaches this step whenever FABULOUS_IGNORE_DEFAULT_DIE_AREA
+        # is False.
         user_fixed = (
             die_area is not None
             and self._is_directional()

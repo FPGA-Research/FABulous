@@ -32,8 +32,8 @@ configs = Classic.config_vars + [
     Variable(
         "FABULOUS_IGNORE_DEFAULT_DIE_AREA",
         bool,
-        "When is true will ignore the provided die area and "
-        "use the default one instead.",
+        "When true, discards the provided DIE_AREA and sizes the tile from "
+        "scratch instead of using it as the optimisation starting area.",
         default=False,
     ),
 ]
@@ -163,20 +163,23 @@ class FABulousTileMacroFlow(SequentialFlow):
                 OptMode.FIND_MIN_WIDTH,
                 OptMode.FIND_MIN_HEIGHT,
             )
-            # Directional modes minimise one axis. When the user supplies a
-            # DIE_AREA they are fixing the other axis, so keep that value instead
-            # of forcing the computed minimum. BALANCE/LARGE have no fixed axis,
-            # so they always fall back to full-auto sizing.
+            # A user DIE_AREA is the starting area for every optimisation mode:
+            # directional modes lock the non-minimised axis to it, BALANCE/LARGE
+            # grow both axes from it.
             honour_user_die_area = (
-                directional
-                and self.config.get("DIE_AREA") is not None
+                self.config.get("DIE_AREA") is not None
                 and not self.config["FABULOUS_IGNORE_DEFAULT_DIE_AREA"]
             )
-            if honour_user_die_area:
+            if honour_user_die_area and directional:
                 info(
                     f"FABulous optimisation is set to {final_opt_mode}, honouring "
                     "the user DIE_AREA: the fixed axis is locked and the other "
                     "axis is minimised."
+                )
+            elif honour_user_die_area:
+                info(
+                    f"FABulous optimisation is set to {final_opt_mode}, honouring "
+                    "the user DIE_AREA as the starting area."
                 )
             else:
                 info(
