@@ -18,11 +18,11 @@ To allow configuration from outside of a chip, currently two configuration adapt
 
 ###  UART
 
-The configuration is sent to the fabric bit-by-bit over a UARTlink on `Rx (since the adapter does not transmit anything, it's technically just a "UAR")`,
+The configuration is sent to the fabric bit-by-bit over a UART link on `Rx` (since the adapter does not transmit anything, it's technically just a "UAR"),
 decoded, and assembled into 32-bit words that feed the configuration port.
 
-- **Signals:** `Rx` (UART input), `WriteData` (32-bit, shared with parallel
-  write path), `WriteStrobe`, `Command` (decoded command byte), `ComActive`,
+- **Signals:** `Rx` (UART input), `WriteData` (32-bit, output to the parallel
+  config port), `WriteStrobe`, `Command` (decoded command byte), `ComActive`,
   `ReceiveLED`
 - **Frame format:** standard UART frame — 1 start bit, 8 data bits, 1 stop bit
 - **Baud rate:** set by `ComRate = f_CLK / Baudrate` (default `217`, e.g. 25 MHz / 115200 baud)
@@ -47,9 +47,13 @@ The bitbang adapter offers a quick asynchronous serial configuration port interf
 :alt: Bitbang description
 :::
 
-The protocol uses the two signals `s_clk` and `s_data`. On each rising edge of `s_clk`, we sample data and on the falling edge, we sample control.
+### Bitbang
 
-Both values get shifted in a separate register. If the control register sees the bit-pattern x"FAB0" it samples the data shift register into a hold register and issues a one-cycle strobe output (active 1).
+The bitbang adapter offers a quick asynchronous serial configuration port interface that is ideal for configuring the fabric via a microcontroller.
+
+- **Signals:** `s_clk` and `s_data`, as well as a one-cycle strobe output (active 1).
+- **Protocol:** Data is sampled on each rising edge of `s_clk`, and control is sampled on the falling edge.
+- **Word assembly:** Both values get shifted in a separate register; if the control register sees the bit-pattern x"FAB0", it samples the data shift register into a hold register and issues a one-cycle strobe output (active 1).
 
 The next figure shows the enable generation (and input sampling) for generating the enable signals for
 
