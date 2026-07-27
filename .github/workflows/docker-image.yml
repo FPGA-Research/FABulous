@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: useblacksmith/setup-docker-builder@v1
+        uses: useblacksmith/setup-docker-builder@v2
 
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
