@@ -285,7 +285,7 @@ If no feasible solution can be found after all iterations, the flow will raise a
 - `FABULOUS_OPTIMISATION_WIDTH_STEP_COUNT`: Sites to increase width per iteration (default: 4)
 - `FABULOUS_OPTIMISATION_HEIGHT_STEP_COUNT`: Sites to increase height per iteration (default: 1)
 - `IGNORE_ANTENNA_VIOLATIONS`: If `true`, antenna violations won't trigger size increases
-- `IGNORE_DEFAULT_DIE_AREA`: If `true`, ignores provided die area and starts from instance area
+- `FABULOUS_IGNORE_DEFAULT_DIE_AREA`: If `true`, ignores provided die area and starts from instance area
 
 ## Output Structure
 
