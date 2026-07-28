@@ -47,8 +47,6 @@ The bitbang adapter offers a quick asynchronous serial configuration port interf
 :alt: Bitbang description
 :::
 
-### Bitbang
-
 - **Signals:** `s_clk` and `s_data`, as well as a one-cycle strobe output (active 1).
 - **Protocol:** Data is sampled on each rising edge of `s_clk`, and control is sampled on the falling edge.
 - **Word assembly:** Both values get shifted in a separate register; if the control register sees the bit-pattern x"FAB0", it samples the data shift register into a hold register and issues a one-cycle strobe output (active 1).
