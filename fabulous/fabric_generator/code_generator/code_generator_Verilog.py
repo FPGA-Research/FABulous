@@ -371,7 +371,7 @@ class VerilogCodeGenerator(CodeGenerator):
         cfgBit = int(math.ceil(configBits / 2.0)) * 2
         template = f"""
     genvar k;
-    assign ConfigBitsInput = {{ConfigBits[{cfgBit}-1-1:0], CONFin;}}
+    assign ConfigBitsInput = {{ConfigBits[{cfgBit}-1-1:0], CONFin}};
     // for k in 0 to Conf/2 generate
     for (k=0; k < {cfgBit - 1}; k = k + 1) begin: L
         config_latch inst_config_latch_a(
