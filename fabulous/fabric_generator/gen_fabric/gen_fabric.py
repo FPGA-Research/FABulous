@@ -229,7 +229,7 @@ def generateFabric(writer: CodeGenerator, fabric: Fabric) -> None:
     # (so we can modify this here without side effects)
     if fabric.configBitMode == "FlipFlopChain":
         writer.addComment("configuration data daisy chaining", onNewLine=True)
-        writer.addAssignScalar("conf_dat'low", "CONFin")
+        writer.addAssignScalar("conf_data'low", "CONFin")
         writer.addComment("conf_data'low=0 and CONFin is from tile entity")
         writer.addAssignScalar("CONFout", "conf_data'high")
         writer.addComment("CONFout is from tile entity")
