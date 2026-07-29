@@ -95,21 +95,31 @@ If the commands point back to your system's default installation paths, the Nix 
 
 ## Using FABulous as a flake input (downstream projects)
 
-The sections above cover developing FABulous itself. If you are instead building a project _on top of_ FABulous, such as a chip or fabric that you harden to GDS, you do not vendor the toolchain yourself. You add FABulous's flake as an input and build your project shell from `mkConsumerShell`.
+The sections above cover developing FABulous itself. If you are instead building a project _on top of_ FABulous, such as a chip or fabric that you harden to GDS, you do not vendor the toolchain yourself. You add FABulous's flake as an input, compose its overlay, and build your project shell from `pkgs.fabulous-shell`.
 
-FABulous's flake exposes one composition helper, `fabulous.lib.<system>.mkConsumerShell`, which builds a ready-to-use, non-editable shell containing:
+FABulous exposes `overlays.default`, which contributes the following to any nixpkgs instance you apply it to:
 
-- the `librelane` CLI with the `librelane_plugin_fabulous` GDS plugin already discovered,
-- the `FABulous` and `fabulous` CLIs,
-- the full EDA toolchain (Yosys, NextPNR, OpenROAD, GHDL, and the rest),
-- FABulous's Python environment, pinned by FABulous's `uv.lock`.
+| Attribute | What it is |
+| --- | --- |
+| `fabulous` | The `FABulous`, `fabulous`, and `librelane` CLIs, wrapped with the toolchain on `PATH` |
+| `fabulous-shell` | A ready-to-use, non-editable development shell |
+| `fab-yosys` | Yosys with the `ghdl` plugin bundled, installed as `fab-yosys` |
+| `fab-nextpnr` | nextpnr, generic architecture |
+| `fab-ghdl` | GHDL v6.0.0 |
+| `fabulator` | The fabric visualiser |
 
-It takes two extension surfaces so your project adds what it needs without vendoring anything:
+`fabulous-shell` contains the `librelane` CLI with the `librelane_plugin_fabulous` GDS plugin already discovered, the FABulous CLIs, the full EDA toolchain (Yosys, NextPNR, OpenROAD, GHDL, and the rest), and FABulous's Python environment pinned by FABulous's `uv.lock`.
 
-- `extraPackages`, the non-Python tools your project needs (simulators, waveform viewers, `make`). A list, or a function `pkgs: [ ... ]` selecting from FABulous's own package set.
-- `extraPythonPackages`, your project's own Python tooling (cocotb, pytest, and so on), as a function `ps: [ ... ]` selecting from nixpkgs.
+It is overridden the same way `librelane-shell` is, with the same argument names:
 
-FABulous's own Python packages (FABulous, librelane, the plugin) are pinned by `uv.lock` and are not overridable downstream by design. To change one, open a pull request against FABulous. Your project's verification Python in `extraPythonPackages` is yours to choose; where it shares a dependency with FABulous, FABulous's pinned version wins.
+- `extra-packages`, the non-Python tools your project needs (simulators, waveform viewers, `make`), as a list.
+- `extra-python-packages`, your project's own Python packages, as a function `ps: [ ... ]`.
+- `extra-env`, additional environment variables, as a list of `{ name; value; }`.
+- `python-env`, the Python environment wholesale, covered under [Bringing your own uv.lock](#bringing-your-own-uvlock) below.
+
+`extra-python-packages` selects from `pkgs.fabulous-python`, described next: an ordinary nixpkgs Python interpreter whose package set is FABulous's `uv.lock`. A package chosen there is built against the same versions FABulous itself runs on, so a dependency the two share is one build rather than two competing copies.
+
+Every attribute above is also a flake output, so `nix build github:FPGA-Research/FABulous#fab-yosys` works without composing anything.
 
 ### Example
 
@@ -130,13 +140,17 @@ FABulous's own Python packages (FABulous, librelane, the plugin) are pinned by `
     { self, fabulous, ... }:
     let
       system = "x86_64-linux";
+      # FABulous's own composed package set: nixpkgs plus nix-eda, librelane,
+      # and FABulous. Compose `fabulous.overlays.default` into your own nixpkgs
+      # instead if you already maintain one.
+      pkgs = fabulous.legacyPackages.${system};
     in
     {
-      devShells.${system}.default = fabulous.lib.${system}.mkConsumerShell {
+      devShells.${system}.default = pkgs.fabulous-shell.override {
         # Non-Python tools this project brings itself.
-        extraPackages = pkgs: with pkgs; [ iverilog verilator gtkwave gnumake ];
+        extra-packages = with pkgs; [ iverilog verilator gtkwave gnumake ];
         # This project's own Python verification tooling.
-        extraPythonPackages = ps: with ps; [ cocotb pytest ];
+        extra-python-packages = ps: with ps; [ cocotb pytest ];
       };
     };
 }
@@ -150,3 +164,61 @@ librelane path/to/tile/config.yaml   # sky130A PDK resolved as usual
 ```
 
 The `librelane` in this shell already has the FABulous plugin. Confirm with `librelane --version`, which lists `librelane_plugin_fabulous` under _Discovered plugins_.
+
+### The Python environment
+
+`pkgs.fabulous-python` is an ordinary nixpkgs Python interpreter whose package set is FABulous's `uv.lock`. Every package the lock resolves is converted into that set, so the versions are uv's resolution rather than whatever nixpkgs happens to ship, and FABulous composes like any other Python package:
+
+```nix
+pkgs.fabulous-python.withPackages (ps: [ ps.fabulous-fpga ps.cocotb ])
+pkgs.fabulous-python.pkgs.fabulous-fpga            # as a propagatedBuildInput
+pkgs.fabulous-python-env                           # FABulous + tkinter, prebuilt
+```
+
+The conversion is generated from `uv.lock`, so `uv lock` on FABulous's side is the only thing that moves it — there is no hand-written list of packages or versions to keep in step.
+
+Scoping matters here: the converted packages live on this interpreter only. `pkgs.python3` in the same nixpkgs instance is untouched, so applying FABulous's overlay does not change the Python anything else in your flake builds against.
+
+Three packages deliberately keep nixpkgs' versions rather than the lock's: `wheel`, `packaging` and `tomli`. nixpkgs' own `buildPythonPackage` is built from them, so converting them would require them to build themselves. All three are build tooling rather than anything FABulous imports, and nixpkgs' versions satisfy its constraints.
+
+```{note}
+The Python environment cannot be built on a case-insensitive `/nix`. FABulous installs both a `FABulous` and a `fabulous` command, which are the same path there, and the installer refuses to overwrite. The Nix installer creates a case-sensitive store volume on macOS by default, so this normally does not arise; where it does, the two commands cannot both exist and only `FABulous` is available.
+```
+
+### Bringing your own uv.lock
+
+`extra-python-packages` covers a project whose Python dependencies FABulous's lock already resolves. When that is not true — you need a package the lock does not contain, or a different version of one it pins — build the environment from your own `uv.lock` instead and pass it as `python-env`.
+
+Your lock resolves `fabulous-fpga` as an ordinary dependency alongside your own, so `uv` settles every shared version in a single resolution and a real conflict surfaces as a `uv` resolution error rather than at runtime:
+
+```nix
+devShells = forAllSystems (
+  pkgs:
+  let
+    workspace = pkgs.loadFabulousWorkspace ./.;
+    venv =
+      (pkgs.mkFabulousPythonSet { inherit workspace; }).mkVirtualEnv "chip-env"
+        workspace.deps.default;
+  in
+  {
+    default = pkgs.fabulous-shell.override {
+      python-env = venv;
+      extra-packages = with pkgs; [ iverilog gnumake ];
+    };
+  }
+);
+```
+
+| Attribute | What it does |
+| --- | --- |
+| `loadFabulousWorkspace` | Loads a `uv.lock` into a uv2nix workspace. Re-exported so FABulous stays your only flake input — otherwise you would take `uv2nix`, `pyproject-nix` and `build-system-pkgs` as inputs too and have to keep their revisions in step with the ones FABulous built against. |
+| `mkFabulousPythonSet` | Turns that workspace into a Python package set with FABulous's build fixups already composed in. Takes `sourcePreference` (default `"wheel"`) and `overrides`, a list of extra uv2nix overlays applied last — that is where `workspace.mkEditablePyprojectOverlay` goes if your own sources should be editable. |
+
+This route trades away the nixpkgs composability above: the result is a sealed virtualenv, not a Python set, so it cannot be passed to `withPackages` or taken as a `propagatedBuildInput`. Prefer `extra-python-packages` unless you specifically need your own lock.
+
+Upgrades stay on the side that owns them:
+
+```bash
+nix flake update fabulous                 # FABulous's Python versions and its toolchain
+uv lock --upgrade-package fabulous-fpga   # only if you keep your own lock
+```
