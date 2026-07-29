@@ -541,6 +541,12 @@ N2BEG[0|0|0|0],[N2END3|E2END2|S2END1|LB_O]
 {4}N2BEG0,[N2END3|E2END2|S2END1|LB_O]
 ```
 
+:::{figure} figs/switch_matrix_mux4.*
+:align: center
+:alt: A simplified view of the elements involved in a 4-to-1 configurable connection in a switch matrix.
+:width: 50%
+:::
+
 For completion, the following expressions are all equivalent:
 
 ```python
