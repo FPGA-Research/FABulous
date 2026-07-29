@@ -47,6 +47,12 @@ jobs:
           # Only the main base cache prunes its old generations
           purge_old_caches: ${{ github.ref == 'refs/heads/main' }}
 
+      - name: Python fixups still match uv.lock
+        # Nix only forces an override for a package something depends on, so a
+        # fixup naming a package uv.lock no longer resolves is a silent no-op
+        # rather than an error. This check is what makes it fail.
+        run: nix eval --raw ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).python-fixups.drvPath"
+
       - name: DevShell smoke test
         run: |
           nix develop --command bash -c "FABulous --version"
@@ -58,3 +64,41 @@ jobs:
         # FABulous is on PATH in the devshell; skip `uv run` (its .venv is a
         # different Python and ABI-incompatible with the devshell packages).
         run: nix develop --command task smoke-test FABULOUS=FABulous
+
+  downstream-template:
+    name: Downstream template (Nix ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/prepare_nix_environment
+
+      - name: Build the uv.lock-matched Python environment
+        # The one build that proves the conversion: every package uv.lock
+        # resolved, rebuilt as an ordinary nixpkgs Python package, linked into
+        # one environment. This is also where `fabulous-fpga` itself is
+        # verified — it cannot be built on a case-insensitive /nix, because its
+        # `FABulous` and `fabulous` commands collide there.
+        run: |
+          system=$(nix eval --raw --impure --expr builtins.currentSystem)
+          nix build ".#legacyPackages.$system.fabulous-python-env"
+          ./result/bin/python -c "import fabulous, librelane; print('imports OK')"
+
+      - name: Evaluate the downstream template
+        # Stands in for a consuming project, so a break in the composition
+        # surface fails here rather than in someone else's repository.
+        run: |
+          set -euo pipefail
+          TEMPLATE="$RUNNER_TEMP/downstream"
+          cp -r nix/templates/downstream "$TEMPLATE"
+          cd "$TEMPLATE"
+          git init -q . && git add -A
+          system=$(nix eval --raw --impure --expr builtins.currentSystem)
+          nix eval --raw \
+            --override-input fabulous "git+file://$GITHUB_WORKSPACE?shallow=1" \
+            ".#devShells.$system.default.drvPath"

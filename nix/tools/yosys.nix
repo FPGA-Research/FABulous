@@ -14,20 +14,19 @@
   tcl,
   zlib,
   python3,
-  prefetchedSrc,
+  src,
+  version,
   ghdl-bin,
   ghdlYosysPluginSrc,
 }:
 
 let
-  shortRev = builtins.substring 0 9 prefetchedSrc.rev;
+  shortRev = builtins.substring 0 9 src.rev;
 in
 
 stdenv.mkDerivation {
   pname = "fab-yosys";
-  version = "unstable";
-
-  src = prefetchedSrc;
+  inherit src version;
 
   nativeBuildInputs = [
     bison
@@ -89,14 +88,15 @@ stdenv.mkDerivation {
     mv $out/bin/yosys-config $out/bin/fab-yosys-config
   '';
 
-  meta = with lib; {
+  meta = {
     description = "Yosys Open SYnthesis Suite (FABulous build)";
     longDescription = ''
       Yosys is a framework for RTL synthesis tools. This is a custom build
       for FABulous, installed as fab-yosys to avoid conflicts with system yosys.
     '';
     homepage = "https://github.com/YosysHQ/yosys";
-    license = licenses.isc;
-    platforms = platforms.linux ++ platforms.darwin;
+    license = lib.licenses.isc;
+    platforms = lib.platforms.linux ++ lib.platforms.darwin;
+    mainProgram = "fab-yosys";
   };
 }
