@@ -54,7 +54,7 @@ from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     generate_super_tile_config_mem,
-    generateConfigMem,
+    generateConfigMemFramebased,
 )
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
@@ -198,7 +198,7 @@ class FABulous_API:
             If tile is not found in fabric.
         """
         if tile := self.fabric.getTileByName(tileName):
-            generateConfigMem(
+            generateConfigMemFramebased(
                 self.writer,
                 tile.name,
                 tile.globalConfigBits,

@@ -16,7 +16,7 @@ from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     build_super_tile_config_mem_csv,
-    generateConfigMem,
+    generateConfigMemFramebased,
     generateConfigMemInit,
 )
 from tests.fabric_gen_test.conftest import create_config_csv, verify_csv_content
@@ -260,7 +260,7 @@ class TestGeneratedConfigMemRTL:
         )
         if not has_capacity and tile_config.globalConfigBits > 0:
             with pytest.raises(ValueError, match="adjust the configuration."):
-                generateConfigMem(
+                generateConfigMemFramebased(
                     writer,
                     tile_config.name,
                     tile_config.globalConfigBits,
@@ -270,7 +270,7 @@ class TestGeneratedConfigMemRTL:
                 )
             return
 
-        generateConfigMem(
+        generateConfigMemFramebased(
             writer,
             tile_config.name,
             tile_config.globalConfigBits,
@@ -324,7 +324,7 @@ class TestGeneratedConfigMemRTL:
         mock_parse.return_value = config_memlist_data
 
         # Generate the ConfigMem RTL
-        generateConfigMem(
+        generateConfigMemFramebased(
             writer,
             default_tile.name,
             default_tile.globalConfigBits,

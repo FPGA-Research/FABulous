@@ -141,7 +141,7 @@ class TestEmitTileVerilog:
         gen_sm.side_effect = lambda *_args, **_kwargs: actual_paths.append(
             mock_writer.outFileName
         )
-        gen_cm = mocker.patch.object(plugin_tile_flow, "generateConfigMem")
+        gen_cm = mocker.patch.object(plugin_tile_flow, "generateConfigMemFramebased")
         gen_cm.side_effect = lambda *_args, **_kwargs: actual_paths.append(
             mock_writer.outFileName
         )

@@ -102,7 +102,7 @@ def generateConfigMemInit(
             writer.writerow([entry[field] for field in fieldName])
 
 
-def generateConfigMem(
+def generateConfigMemFramebased(
     writer: CodeGenerator,
     name: str,
     config_bits_count: int,
@@ -276,6 +276,78 @@ def generateConfigMem(
                     ],
                 )
                 counter += 1
+    if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
+        writer.addPreprocEndif()
+    writer.addDesignDescriptionEnd()
+    writer.writeToFile()
+
+def generateConfigMemFF(
+    writer: CodeGenerator,
+    name: str,
+    config_bits_count: int,
+) -> None:
+
+    if config_bits_count <= 0:
+        logger.info(f"No config bits are defined for {name}")
+        return
+
+    logger.info(f"Generating {writer.outFileName} for {name}")
+
+    writer.addHeader(f"{name}_ConfigMem")
+
+    writer.addParameterStart(indentLevel=1)
+    if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
+        writer.addPreprocIfDef("EMULATION")
+        writer.addParameter(
+            "Emulate_Bitstream",
+            f"[{config_bits_count - 1}:0]",
+            f"{config_bits_count}'b0",
+            indentLevel=2,
+        )
+        writer.addPreprocEndif()
+
+    writer.addParameter("NoConfigBits","integer", config_bits_count, indentLevel = 2)
+    writer.addParameterEnd(indentLevel=1)
+
+    writer.addPortStart(indentLevel=1)
+    writer.addPortScalar("CONF_CLK", IO.INPUT, indentLevel=2)
+    writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
+    writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
+    writer.addPortVector("ConfigBits", IO.OUTPUT, "NoConfigBits-1", indentLevel=2)
+    writer.addPortVector("ConfigBits_N", IO.OUTPUT, "NoConfigBits-1", indentLevel=2)
+    writer.addPortEnd(indentLevel=1)
+    writer.addHeaderEnd(f"{name}_ConfigMem")
+    writer.addNewLine()
+
+    writer.addDesignDescriptionStart(f"{name}_ConfigMem")
+
+    if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
+        writer.addPreprocIfDef("EMULATION")
+        for i in range(config_bits_count):
+            writer.addAssignScalar(
+                f"ConfigBits[{i}]",
+                f"Emulate_Bitstream[{i}]",
+            )
+        writer.addPreprocElse()
+    writer.addNewLine()
+    writer.addNewLine()
+    writer.addLogicStart()
+    writer.addComment("instantiate shift reg", end="")
+    for i in range(config_bits_count):
+        d_source = "CONFin" if i == 0 else f"ConfigBits[{i - 1}]"
+        writer.addInstantiation(
+            compName="config_dff",
+            compInsName=f"Inst_ConfigBit_FF{i}",
+            portsPairs=[
+                ("D", d_source),
+                ("CLK", "CONF_CLK"),
+                ("Q", f"ConfigBits[{i}]"),
+                ("QN", f"ConfigBits_N[{i}]"),
+            ],
+        )
+
+    writer.addAssignScalar("CONFout", f"ConfigBits[{config_bits_count - 1}]")
+
     if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
         writer.addPreprocEndif()
     writer.addDesignDescriptionEnd()
@@ -522,7 +594,7 @@ def generate_super_tile_config_mem(
         frame_bits_per_row=frame_bits_per_row,
         max_frames_per_col=max_frame_per_col,
     )
-    generateConfigMem(
+    generateConfigMemFramebased(
         writer,
         superTile.name,
         st_config_bits,

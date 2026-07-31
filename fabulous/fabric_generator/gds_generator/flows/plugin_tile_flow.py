@@ -33,7 +33,7 @@ from fabulous.fabric_generator.gds_generator.helper import (
     round_die_area,
 )
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
-from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMem
+from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMemFramebased
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import genTileSwitchMatrix
 from fabulous.fabric_generator.gen_fabric.gen_tile import (
     generateSuperTile,
@@ -256,7 +256,7 @@ def _emit_regular_tile_verilog(
         default_pip_delay=_SWITCH_MATRIX_PIP_DELAY,
     )
     writer.outFileName = tile_dir / f"{tile.name}_ConfigMem.v"
-    generateConfigMem(
+    generateConfigMemFramebased(
         writer,
         tile.name,
         tile.globalConfigBits,
