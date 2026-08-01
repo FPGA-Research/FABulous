@@ -298,7 +298,6 @@ def generateConfigMemFF(
     config_bits_count : int
         Total number of configuration bits.
     """
-
     if config_bits_count <= 0:
         logger.info(f"No config bits are defined for {name}")
         return
