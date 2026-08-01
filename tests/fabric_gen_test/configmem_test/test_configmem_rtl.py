@@ -15,7 +15,7 @@ from fabulous.fabric_definition.configmem import ConfigMem
 from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
-from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMemFrmaebased
+from fabulous.fabric_generator.gen_fabric.gen_configmem import generateConfigMemFramebased
 
 # Use parseConfigMem function to get accurate bit mapping
 from fabulous.fabric_generator.parser.parse_configmem import parseConfigMem

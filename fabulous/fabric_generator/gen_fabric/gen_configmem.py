@@ -594,6 +594,8 @@ def generate_super_tile_config_mem(
         Number of bits per frame row.
     max_frame_per_col : int
         Number of frames per column.
+    config_bit_mode :
+        Memory Config Mode
     """
     st_config_bits = superTile.total_config_bits
     if st_config_bits <= 0:
