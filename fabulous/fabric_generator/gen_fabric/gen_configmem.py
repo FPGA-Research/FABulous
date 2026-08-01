@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from bitarray import bitarray
 from loguru import logger
 
-from fabulous.fabric_definition.define import IO
+from fabulous.fabric_definition.define import IO, ConfigBitMode
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.code_generator.code_generator_Verilog import (
     VerilogCodeGenerator,
@@ -562,6 +562,7 @@ def generate_super_tile_config_mem(
     master_config_mem_csv: Path,
     frame_bits_per_row: int = 32,
     max_frame_per_col: int = 20,
+    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
 ) -> None:
     """Generate the ConfigMem RTL for a supertile switch matrix.
 
@@ -584,6 +585,14 @@ def generate_super_tile_config_mem(
     """
     st_config_bits = superTile.total_config_bits
     if st_config_bits <= 0:
+        return
+
+    if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+        generateConfigMemFF(
+            writer=writer,
+            name=superTile.name,
+            config_bits_count=st_config_bits,
+        )
         return
 
     output_csv = superTile.tileDir.parent / f"{superTile.name}_ConfigMem.csv"

@@ -55,6 +55,7 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     generate_super_tile_config_mem,
     generateConfigMemFramebased,
+    generateConfigMemFF,
 )
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
@@ -198,14 +199,21 @@ class FABulous_API:
             If tile is not found in fabric.
         """
         if tile := self.fabric.getTileByName(tileName):
-            generateConfigMemFramebased(
-                self.writer,
-                tile.name,
-                tile.globalConfigBits,
-                configMem,
-                frame_bits_per_row=self.fabric.frameBitsPerRow,
-                max_frame_per_col=self.fabric.maxFramesPerCol,
-            )
+            if self.fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
+                generateConfigMemFF(
+                    writer=self.writer,
+                    name=tile.name,
+                    config_bits_count=tile.globalConfigBits,
+                )
+            else:
+                generateConfigMemFramebased(
+                    self.writer,
+                    tile.name,
+                    tile.globalConfigBits,
+                    configMem,
+                    frame_bits_per_row=self.fabric.frameBitsPerRow,
+                    max_frame_per_col=self.fabric.maxFramesPerCol,
+                )
         else:
             raise ValueError(f"Tile {tileName} not found")
 
@@ -389,6 +397,7 @@ class FABulous_API:
                 master_config_mem_csv,
                 frame_bits_per_row=self.fabric.frameBitsPerRow,
                 max_frame_per_col=self.fabric.maxFramesPerCol,
+                config_bit_mode=self.fabric.configBitMode,
             )
         else:
             raise ValueError(f"SuperTile {tileName} not found")
