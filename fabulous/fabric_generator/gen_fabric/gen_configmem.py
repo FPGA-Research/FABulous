@@ -281,11 +281,23 @@ def generateConfigMemFramebased(
     writer.addDesignDescriptionEnd()
     writer.writeToFile()
 
+
 def generateConfigMemFF(
     writer: CodeGenerator,
     name: str,
     config_bits_count: int,
 ) -> None:
+    """Generate the RTL code for configuration memory (FlipFlopChain mode).
+
+    Parameters
+    ----------
+    writer : CodeGenerator
+        The code generator instance for RTL output
+    name : str
+        Name of the tile or module (used for module naming and log messages).
+    config_bits_count : int
+        Total number of configuration bits.
+    """
 
     if config_bits_count <= 0:
         logger.info(f"No config bits are defined for {name}")
@@ -306,7 +318,7 @@ def generateConfigMemFF(
         )
         writer.addPreprocEndif()
 
-    writer.addParameter("NoConfigBits","integer", config_bits_count, indentLevel = 2)
+    writer.addParameter("NoConfigBits", "integer", config_bits_count, indentLevel=2)
     writer.addParameterEnd(indentLevel=1)
 
     writer.addPortStart(indentLevel=1)
