@@ -297,8 +297,19 @@ def generate_config_mem_FF(
         Name of the tile or module (used for module naming and log messages).
     config_bits_count : int
         Total number of configuration bits.
+
+    Raises
+    ------
+    ValueError
+        - If `config_bits_count` is negative.
     """
-    if config_bits_count <= 0:
+    if config_bits_count < 0:
+        raise ValueError(
+            f"{name} has an invalid config_bits_count ({config_bits_count}). "
+            "Configuration bit count cannot be negative."
+        )
+
+    if config_bits_count == 0:
         logger.info(f"No config bits are defined for {name}")
         return
 
