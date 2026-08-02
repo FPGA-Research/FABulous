@@ -53,9 +53,9 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
-    generate_super_tile_config_mem,
     generate_config_mem_FF,
     generate_config_mem_frame_based,
+    generate_super_tile_config_mem,
 )
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
