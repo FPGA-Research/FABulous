@@ -16,7 +16,7 @@ from fabulous.fabric_definition.fabric import Fabric
 from fabulous.fabric_definition.tile import Tile
 from fabulous.fabric_generator.code_generator.code_generator import CodeGenerator
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
-    generateConfigMemFramebased,
+    generate_config_mem_frame_based,
 )
 
 # Use parseConfigMem function to get accurate bit mapping
@@ -161,7 +161,7 @@ def test_configmem_rtl_with_generated_configmem_simulation(
     csv_path = tmp_path / f"{tile_config.name}_configMem.csv"
 
     # Generate the ConfigMem RTL
-    generateConfigMemFramebased(
+    generate_config_mem_frame_based(
         writer,
         tile_config.name,
         tile_config.globalConfigBits,
@@ -262,7 +262,7 @@ def test_configmem_rtl_with_custom_configmem_simulation(
     mock_parse.return_value = configmem_list_data
 
     # Generate the ConfigMem RTL
-    generateConfigMemFramebased(
+    generate_config_mem_frame_based(
         writer,
         default_tile.name,
         default_tile.globalConfigBits,

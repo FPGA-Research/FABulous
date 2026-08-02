@@ -102,7 +102,7 @@ def generateConfigMemInit(
             writer.writerow([entry[field] for field in fieldName])
 
 
-def generateConfigMemFramebased(
+def generate_config_mem_frame_based(
     writer: CodeGenerator,
     name: str,
     config_bits_count: int,
@@ -282,7 +282,7 @@ def generateConfigMemFramebased(
     writer.writeToFile()
 
 
-def generateConfigMemFF(
+def generate_config_mem_FF(
     writer: CodeGenerator,
     name: str,
     config_bits_count: int,
@@ -601,7 +601,7 @@ def generate_super_tile_config_mem(
         return
 
     if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-        generateConfigMemFF(
+        generate_config_mem_FF(
             writer=writer,
             name=superTile.name,
             config_bits_count=st_config_bits,
@@ -616,7 +616,7 @@ def generate_super_tile_config_mem(
         frame_bits_per_row=frame_bits_per_row,
         max_frames_per_col=max_frame_per_col,
     )
-    generateConfigMemFramebased(
+    generate_config_mem_frame_based(
         writer,
         superTile.name,
         st_config_bits,
