@@ -3,7 +3,7 @@
 module Frame_Select #(
     parameter integer MaxFramesPerCol = 20,
     parameter integer FrameSelectWidth = 5,
-    parameter reg [FrameSelectWidth-1:0] Col = 18
+    parameter [FrameSelectWidth-1:0] Col = 18
 ) (
     input [MaxFramesPerCol-1:0] FrameStrobe_I,
     output reg [MaxFramesPerCol-1:0] FrameStrobe_O,

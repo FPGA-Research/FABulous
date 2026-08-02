@@ -59,8 +59,8 @@ module ConfigFSM #(
                                 state <= UNSYNCED;
                             end else begin
                                 frame_address_register <= write_data;
-                                // Width-cast to silence WIDTHTRUNC warning
-                                row_index <= 5'(NumberOfRows);
+                                // Part-select to silence WIDTHTRUNC warning
+                                row_index <= NumberOfRows[4:0];
                                 state <= WRITE_FRAME_DATA;
                             end
                         end

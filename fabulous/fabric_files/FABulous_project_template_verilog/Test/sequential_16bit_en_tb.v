@@ -49,7 +49,7 @@ module sequential_16bit_en_tb ();
     assign T_top_gold = ~oeb_gold;
 
     localparam integer       MAX_BITBYTES               = 16384;
-    reg                [7:0] bitstream   [MAX_BITBYTES]        ;
+    reg                [7:0] bitstream   [0:MAX_BITBYTES-1]    ;
 
     // a slower clock to make it easier to meet timing in gate-level sim
     always #500000 CLK = (CLK === 1'b0);
