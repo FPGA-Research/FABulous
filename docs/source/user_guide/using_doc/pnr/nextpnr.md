@@ -192,11 +192,12 @@ whenever the FF is used. This is a special case for the
 FABULOUS_LC, for every other BEL, there should be no pseudo pins.
 
 :::{warning}
-The BEL timing values FABulous writes
-are **fixed placeholder constants**, equal to
-the values nextpnr historically hard-coded; they are **not** yet derived from
-a characterised timing model.
-Only pip delays (`pips.txt`) are produced by the timing model today, see
+Normal nextpnr model generation without a timing-model run retains the timing constants
+historically used for `FABULOUS_LC`. When the `timing_model` command targets BELs, it
+instead characterizes every standard and custom BEL from the tile's SDF timing graph.
+These characterized results replace the legacy timing arcs and can include
+combinational delays, setup/hold checks, and clock-to-output delays. A BEL for which no
+resolvable timing path exists has no timing-arc lines. See
 [Timing Characterization](../../building_doc/timing_characterization.md).
 :::
 

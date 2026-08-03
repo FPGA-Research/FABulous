@@ -58,6 +58,36 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
 
     ### Public methods ###
 
+    @staticmethod
+    def verilog_identifier_to_sdf(identifier: str) -> str:
+        r"""Convert a Verilog instance identifier to its SDF representation.
+
+        Yosys uses escaped Verilog identifiers for generated instances, for example
+        `\Q$_DFF_P_`. OpenSTA removes the leading Verilog escape and escapes the
+        special characters in the corresponding SDF hierarchy, producing
+        `Q\$_DFF_P_`. Indexed names such as `\Q[0]$_DFF_P_` become
+        `Q\[0\]\$_DFF_P_`.
+
+        Parameters
+        ----------
+        identifier : str
+            Instance identifier as written in the structural Verilog netlist.
+
+        Returns
+        -------
+        str
+            Identifier spelling used by the SDF timing graph.
+        """
+        if not identifier.startswith("\\"):
+            return identifier
+
+        sdf_identifier: str = identifier.removeprefix("\\")
+        for special_character in ("$", "[", "]"):
+            sdf_identifier = sdf_identifier.replace(
+                special_character, f"\\{special_character}"
+            )
+        return sdf_identifier
+
     def get_raw_verilog_netlist_data(self) -> str:
         """Return the raw Verilog netlist content as a string.
 
@@ -123,8 +153,13 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         # Very simple instance pattern: CellType inst_name ( .PIN(net), ... );
         # This will also match the module header "module name (...);"
         # but we filter it out.
+        # Escaped Verilog identifiers end at whitespace, which must separate them
+        # from the opening parenthesis.
         inst_pattern = re.compile(
-            r"([A-Za-z_][\w$]*)\s+([A-Za-z_][\w$]*)\s*\((.*?)\);\s*", flags=re.DOTALL
+            r"([A-Za-z_][\w$]*)\s+"
+            r"(\\[^\s]+(?=\s)|[A-Za-z_][\w$]*)\s*"
+            r"\((.*?)\);\s*",
+            flags=re.DOTALL,
         )
 
         reserved_types = {
@@ -195,6 +230,12 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
         top_module = parts[0]
         inst_chain = parts[1:-1]
         target_pin = parts[-1]
+        target_pin_match: re.Match[str] | None = re.fullmatch(
+            r"(?P<base>[A-Za-z_][\w$]*)(?:\[\d+\])?", target_pin
+        )
+        if target_pin_match is None:
+            raise ValueError(f"Invalid hierarchical pin name: {target_pin!r}")
+        target_instance_pin: str = target_pin_match.group("base")
 
         if top_module not in modules:
             raise KeyError(f"Top module {top_module!r} not found in netlist")
@@ -231,7 +272,7 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
             )
 
         # last_inst is the instance whose pin we are addressing
-        if target_pin not in last_inst["conns"]:
+        if target_instance_pin not in last_inst["conns"]:
             raise KeyError(
                 f"Pin {target_pin!r} not found on instance {last_inst['name']!r} "
                 f"in module {prev_module!r}"
@@ -278,7 +319,8 @@ class VerilogGateLevelTimingGraph(SDFTimingGraph):
                     if net != net_name:
                         continue
 
-                    new_prefix = f"{prefix}{sep}{inst_name}"
+                    sdf_inst_name: str = self.verilog_identifier_to_sdf(inst_name)
+                    new_prefix: str = f"{prefix}{sep}{sdf_inst_name}"
 
                     # Leaf std-cell: no module definition for its type
                     if inst_type not in modules:

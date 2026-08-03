@@ -8,12 +8,14 @@ from fabulous.fabric_cad.timing_model.FABulous_timing_model import (
     FABulousTileTimingModel,
 )
 from fabulous.fabric_cad.timing_model.models import (
+    BelTiming,
     DelayType,
     InternalPipCacheEntry,
     TimingModelMode,
     TimingModelStaTools,
     TimingModelSynthTools,
 )
+from fabulous.fabric_definition.bel import Bel
 
 
 def make_source_override(
@@ -1559,6 +1561,38 @@ def test_external_pip_delay_dispatch_structural(
     )
 
     assert bare_model.external_pip_delay("A", "Y") == 4.56
+
+
+def test_bel_timing_dispatch_physical(
+    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Physical mode dispatches BEL timing to its physical implementation."""
+    bare_model.tm_config.mode = TimingModelMode.PHYSICAL
+    bel = Bel.__new__(Bel)
+    physical_timing = BelTiming()
+    structural_timing = BelTiming()
+    monkeypatch.setattr(bare_model, "bel_timing_physical", lambda _bel: physical_timing)
+    monkeypatch.setattr(
+        bare_model, "bel_timing_structural", lambda _bel: structural_timing
+    )
+
+    assert bare_model.bel_timing(bel) is physical_timing
+
+
+def test_bel_timing_dispatch_structural(
+    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Structural mode dispatches BEL timing to its structural implementation."""
+    bare_model.tm_config.mode = TimingModelMode.STRUCTURAL
+    bel = Bel.__new__(Bel)
+    physical_timing = BelTiming()
+    structural_timing = BelTiming()
+    monkeypatch.setattr(bare_model, "bel_timing_physical", lambda _bel: physical_timing)
+    monkeypatch.setattr(
+        bare_model, "bel_timing_structural", lambda _bel: structural_timing
+    )
+
+    assert bare_model.bel_timing(bel) is structural_timing
 
 
 def test_pip_delay_dispatch_internal_applies_scaling_and_rounding(
