@@ -55,7 +55,7 @@ from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
     generate_config_mem_FF,
     generate_config_mem_frame_based,
-    generate_super_tile_config_mem,
+    generate_super_tile_config_mem_frame_based,
 )
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
@@ -201,9 +201,10 @@ class FABulous_API:
         if tile := self.fabric.getTileByName(tileName):
             if self.fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
                 generate_config_mem_FF(
-                    writer=self.writer,
-                    name=tile.name,
-                    config_bits_count=tile.globalConfigBits,
+                    self.writer,
+                    tile.name,
+                    tile.globalConfigBits,
+                    configMem,
                 )
             else:
                 generate_config_mem_frame_based(
@@ -391,7 +392,7 @@ class FABulous_API:
             master_config_mem_csv = (
                 master_tile.tileDir.parent / f"{master_tile.name}_ConfigMem.csv"
             )
-            generate_super_tile_config_mem(
+            generate_super_tile_config_mem_frame_based(
                 self.writer,
                 tile,
                 master_config_mem_csv,

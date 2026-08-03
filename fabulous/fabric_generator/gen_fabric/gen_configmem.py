@@ -286,6 +286,7 @@ def generate_config_mem_FF(
     writer: CodeGenerator,
     name: str,
     config_bits_count: int,
+    configMemCsv: Path,
 ) -> None:
     """Generate the RTL code for configuration memory (FlipFlopChain mode).
 
@@ -297,12 +298,20 @@ def generate_config_mem_FF(
         Name of the tile or module (used for module naming and log messages).
     config_bits_count : int
         Total number of configuration bits.
+    configMemCsv : Path
+        The directory of the config memory CSV file.
 
     Raises
     ------
     ValueError
         - If `config_bits_count` is negative.
     """
+    if configMemCsv.exists():
+        logger.critical(
+            f"Found bitstream mapping file {name}_configMem.csv for {name}, "
+            "but is ignored in FLIPFLOP_CHAIN mode"
+        )
+
     if config_bits_count < 0:
         raise ValueError(
             f"{name} has an invalid config_bits_count ({config_bits_count}). "
@@ -578,7 +587,7 @@ def build_super_tile_config_mem_csv(
             )
 
 
-def generate_super_tile_config_mem(
+def generate_super_tile_config_mem_frame_based(
     writer: CodeGenerator,
     superTile: "SuperTile",
     master_config_mem_csv: Path,
