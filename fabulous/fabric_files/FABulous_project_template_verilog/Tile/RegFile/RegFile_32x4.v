@@ -40,7 +40,7 @@ module RegFile_32x4 #(
     (* FABulous, GLOBAL *) input [NoConfigBits-1:0] ConfigBits
 );
 
-    reg     [3:0] mem                                         [0:31];
+    reg     [3:0] mem                                         [32];
 
     wire    [3:0] AD_comb;  // port A read data, combinatorial
     wire    [3:0] BD_comb;  // port B read data, combinatorial

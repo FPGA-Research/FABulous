@@ -3,7 +3,7 @@
 module Frame_Data_Reg #(
     parameter integer FrameBitsPerRow = 32,
     parameter integer RowSelectWidth = 5,
-    parameter [RowSelectWidth-1:0] Row = 1
+    parameter reg [RowSelectWidth-1:0] Row = 1
 ) (
     input wire CLK,
     input wire [FrameBitsPerRow-1:0] FrameData_I,

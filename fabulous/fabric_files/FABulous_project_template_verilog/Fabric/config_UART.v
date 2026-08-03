@@ -1,7 +1,7 @@
 `default_nettype none
 
 module config_UART #(
-        parameter [1:0] Mode = 2'd0,
+        parameter reg [1:0] Mode = 2'd0,
         // The default mode is "auto", which switches between "hex" and "binary" mode,
         // but takes a bit more logic.
         // Mode "bin" is the faster binary mode, but might not work on all machines/boards.
