@@ -69,7 +69,7 @@ def _path_timing(
     setup: float | None = None,
     hold: float | None = None,
 ) -> SDFPathTiming:
-    """Build one path-query result for structural BEL timing tests.
+    """Build one path-query result for BEL timing tests.
 
     Parameters
     ----------
@@ -135,32 +135,26 @@ def _timing(delay: float = 3.0) -> BelTiming:
     return BelTiming(arcs=(BelDelayTiming("I0", "O", delay, condition="FF=0"),))
 
 
-@pytest.mark.parametrize(
-    "method_name", ["bel_timing_structural", "bel_timing_physical"]
-)
-def test_tile_bel_timing_modes_return_empty_scaffold(
-    method_name: str, mocker: MockerFixture
+def test_tile_bel_timing_without_resolved_ports_returns_no_arcs(
+    mocker: MockerFixture,
 ) -> None:
-    """Both mode-specific tile methods construct empty BEL timing results."""
+    """Unified BEL timing returns no arcs when no leaf pins are resolved."""
     model = FABulousTileTimingModel.__new__(FABulousTileTimingModel)
     model.tile_name = "LUT4AB"
-    model.hdlnx_tm_synth = None
-    if method_name == "bel_timing_structural":
-        model.hdlnx_tm_synth = mocker.Mock()
-        model.hdlnx_tm_synth.find_instance_paths_by_regex.return_value = [
-            "Inst_LA_LUT4c_frame_config_dffesr"
-        ]
-        model.hdlnx_tm_synth.resolve_hier_pin.return_value = []
+    model.hdlnx_tm_synth = mocker.Mock()
+    model.hdlnx_tm_synth.find_instance_paths_by_regex.return_value = [
+        "Inst_LA_LUT4c_frame_config_dffesr"
+    ]
+    model.hdlnx_tm_synth.resolve_hier_pin.return_value = []
 
-    assert getattr(model, method_name)(_bel()) == BelTiming()
+    assert model.bel_timing(_bel()) == BelTiming()
 
-    if method_name == "bel_timing_structural":
-        model.hdlnx_tm_synth.find_instance_paths_by_regex.assert_called_once_with(
-            r"LA_LUT4c_frame_config_dffesr$"
-        )
+    model.hdlnx_tm_synth.find_instance_paths_by_regex.assert_called_once_with(
+        r"LA_LUT4c_frame_config_dffesr$"
+    )
 
 
-def test_structural_bel_timing_warns_for_multiple_instance_paths(
+def test_bel_timing_warns_for_multiple_instance_paths(
     mocker: MockerFixture,
 ) -> None:
     """Multiple hierarchy matches produce a warning before selecting the first."""
@@ -176,11 +170,11 @@ def test_structural_bel_timing_warns_for_multiple_instance_paths(
         "fabulous.fabric_cad.timing_model.FABulous_timing_model.logger.warning"
     )
 
-    assert model.bel_timing_structural(_bel()) == BelTiming()
+    assert model.bel_timing(_bel()) == BelTiming()
     warning.assert_called_once()
 
 
-def test_structural_bel_timing_maps_nextpnr_pins_to_verilog_pins(
+def test_bel_timing_maps_nextpnr_pins_to_verilog_pins(
     mocker: MockerFixture,
 ) -> None:
     """Vectorized nextpnr pins map back to indexed Verilog module pins."""
@@ -193,7 +187,7 @@ def test_structural_bel_timing_maps_nextpnr_pins_to_verilog_pins(
     model.hdlnx_tm_synth.resolve_hier_pin.side_effect = lambda pin: [f"{pin}/std_cell"]
     model.hdlnx_tm_synth.query_timing_paths.side_effect = nx.NetworkXNoPath
 
-    assert model.bel_timing_structural(_bel()) == BelTiming()
+    assert model.bel_timing(_bel()) == BelTiming()
 
     resolved_module_pins: list[str] = [
         call.args[0] for call in model.hdlnx_tm_synth.resolve_hier_pin.call_args_list
@@ -221,7 +215,7 @@ def test_structural_bel_timing_maps_nextpnr_pins_to_verilog_pins(
         pytest.param("CUSTOM", "O", id="custom-bel"),
     ],
 )
-def test_structural_bel_timing_evaluates_every_input_output_pair(
+def test_bel_timing_evaluates_every_input_output_pair(
     mocker: MockerFixture,
     bel_name: str,
     expected_clock_to_output_port: str,
@@ -328,7 +322,7 @@ def test_structural_bel_timing_evaluates_every_input_output_pair(
         "fabulous.fabric_cad.timing_model.FABulous_timing_model.logger.info"
     )
 
-    assert model.bel_timing_structural(bel) == BelTiming(
+    assert model.bel_timing(bel) == BelTiming(
         arcs=(
             BelClockTiming(clock="CLK", condition="FF=1"),
             BelDelayTiming(source="I0", sink="O", delay=0.3, condition="FF=0"),
@@ -369,7 +363,7 @@ def test_structural_bel_timing_evaluates_every_input_output_pair(
     model.hdlnx_tm_synth.single_delay.assert_not_called()
 
 
-def test_structural_bel_timing_treats_custom_carry_ports_as_regular_ports(
+def test_bel_timing_treats_custom_carry_ports_as_regular_ports(
     mocker: MockerFixture,
 ) -> None:
     """Treat annotated custom carry ports as ordinary timing endpoints.
@@ -418,7 +412,7 @@ def test_structural_bel_timing_treats_custom_carry_ports_as_regular_ports(
         },
     }
 
-    assert model.bel_timing_structural(bel) == BelTiming(
+    assert model.bel_timing(bel) == BelTiming(
         arcs=(
             BelDelayTiming(
                 source="CIN",

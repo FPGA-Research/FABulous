@@ -1563,36 +1563,70 @@ def test_external_pip_delay_dispatch_structural(
     assert bare_model.external_pip_delay("A", "Y") == 4.56
 
 
-def test_bel_timing_dispatch_physical(
-    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("mode", list(TimingModelMode))
+def test_bel_timing_uses_unified_implementation_for_all_modes(
+    bare_model: FABulousTileTimingModel,
+    mode: TimingModelMode,
 ) -> None:
-    """Physical mode dispatches BEL timing to its physical implementation."""
-    bare_model.tm_config.mode = TimingModelMode.PHYSICAL
+    """Every timing-model mode uses the unified BEL timing implementation.
+
+    Parameters
+    ----------
+    bare_model : FABulousTileTimingModel
+        Minimally initialized tile timing model.
+    mode : TimingModelMode
+        Timing-model mode under test.
+    """
+
+    class Synth:
+        """Provide the hierarchy resolution needed by unified BEL timing."""
+
+        def find_instance_paths_by_regex(self, regex: str) -> list[str]:
+            """Return the single BEL instance selected by the query.
+
+            Parameters
+            ----------
+            regex : str
+                Hierarchical instance suffix expression.
+
+            Returns
+            -------
+            list[str]
+                Matching BEL instance path.
+            """
+            assert regex == r"LA_LUT4c_frame_config_dffesr$"
+            return ["Inst_LA_LUT4c_frame_config_dffesr"]
+
+        def resolve_hier_pin(self, pin: str) -> list[str]:
+            """Return no leaf pins for the synthetic BEL.
+
+            Parameters
+            ----------
+            pin : str
+                Hierarchical module pin to resolve.
+
+            Returns
+            -------
+            list[str]
+                Empty resolved-pin collection.
+            """
+            _ = pin
+            return []
+
     bel = Bel.__new__(Bel)
-    physical_timing = BelTiming()
-    structural_timing = BelTiming()
-    monkeypatch.setattr(bare_model, "bel_timing_physical", lambda _bel: physical_timing)
-    monkeypatch.setattr(
-        bare_model, "bel_timing_structural", lambda _bel: structural_timing
-    )
+    bel.name = "LUT4c_frame_config_dffesr"
+    bel.module_name = "LUT4c_frame_config_dffesr"
+    bel.prefix = "LA_"
+    bel.ports_vectors = {
+        "internal": {},
+        "shared": {},
+    }
+    bel.withUserCLK = False
+    bel.belFeatureMap = {}
+    bare_model.tm_config.mode = mode
+    bare_model.hdlnx_tm_synth = Synth()
 
-    assert bare_model.bel_timing(bel) is physical_timing
-
-
-def test_bel_timing_dispatch_structural(
-    bare_model: FABulousTileTimingModel, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Structural mode dispatches BEL timing to its structural implementation."""
-    bare_model.tm_config.mode = TimingModelMode.STRUCTURAL
-    bel = Bel.__new__(Bel)
-    physical_timing = BelTiming()
-    structural_timing = BelTiming()
-    monkeypatch.setattr(bare_model, "bel_timing_physical", lambda _bel: physical_timing)
-    monkeypatch.setattr(
-        bare_model, "bel_timing_structural", lambda _bel: structural_timing
-    )
-
-    assert bare_model.bel_timing(bel) is structural_timing
+    assert bare_model.bel_timing(bel) == BelTiming()
 
 
 def test_pip_delay_dispatch_internal_applies_scaling_and_rounding(
