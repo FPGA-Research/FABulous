@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
+from fabulous.custom_exception import CommandError
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_repl.cmd_macro import _resolve_directional_fix
@@ -689,3 +690,48 @@ class TestRunEFPGAMacroForwarding:
         run_cmd(cli, "run_FABulous_eFPGA_macro")
 
         full_auto.assert_not_called()
+
+
+CUSTOM_PRIM_BELS = [
+    "Tile/LUT4AB/LUT4c_frame_config_dffesr.v",
+    "Tile/LUT4AB/MUX8LUT_frame_config_mux.v",
+]
+
+
+def custom_prims_file(cli: FABulousREPL) -> str:
+    """Return the content of the project's custom primitives file."""
+    return (cli.projectDir / "user_design" / "custom_prims.v").read_text()
+
+
+def test_add_as_custom_prim_adds_blackbox_prims(cli: FABulousREPL) -> None:
+    """Every given RTL file ends up as a blackbox module in custom_prims.v."""
+    paths = [str(cli.projectDir / bel) for bel in CUSTOM_PRIM_BELS]
+    before = custom_prims_file(cli)
+
+    run_cmd(cli, f"add_as_custom_prim {' '.join(paths)}")
+
+    prims = custom_prims_file(cli)
+    for bel in CUSTOM_PRIM_BELS:
+        module = bel.rsplit("/", 1)[-1].removesuffix(".v")
+        assert f"module {module} (" not in before
+        assert f"module {module} (" in prims
+
+
+def test_add_as_custom_prim_is_idempotent(cli: FABulousREPL) -> None:
+    """A primitive already present in the file is not appended again."""
+    path = str(cli.projectDir / CUSTOM_PRIM_BELS[0])
+    run_cmd(cli, f"add_as_custom_prim {path}")
+    first = custom_prims_file(cli)
+
+    run_cmd(cli, f"add_as_custom_prim {path}")
+    assert custom_prims_file(cli) == first
+
+
+def test_add_as_custom_prim_missing_file_errors(cli: FABulousREPL) -> None:
+    """A non-existent RTL file is rejected before anything is written."""
+    before = custom_prims_file(cli)
+
+    with pytest.raises(CommandError, match="does_not_exist.v"):
+        cli.get_command_func("add_as_custom_prim")("does_not_exist.v")
+
+    assert custom_prims_file(cli) == before
