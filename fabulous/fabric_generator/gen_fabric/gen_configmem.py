@@ -102,13 +102,14 @@ def generateConfigMemInit(
             writer.writerow([entry[field] for field in fieldName])
 
 
-def generate_config_mem_frame_based(
+def generate_config_mem(
     writer: CodeGenerator,
     name: str,
     config_bits_count: int,
     configMemCsv: Path,
     frame_bits_per_row: int = 32,
     max_frame_per_col: int = 20,
+    config_bit_mode: ConfigBitMode = ConfigBitMode.FRAME_BASED,
 ) -> None:
     """Generate the RTL code for configuration memory.
 
@@ -135,6 +136,8 @@ def generate_config_mem_frame_based(
         The number of configuration bits per frame row.
     max_frame_per_col : int
         The number of frames stored per tile column.
+    config_bit_mode : ConfigBitMode
+        The configuration memory mode (FRAME_BASED or FLIPFLOP_CHAIN).
 
     Raises
     ------
@@ -202,6 +205,12 @@ def generate_config_mem_frame_based(
             f"does not match global config bits ({config_bits_count})"
         )
 
+    # For FLIPFLOP_CHAIN, collect mapped indices in order
+    mapped_indices: list[int] = []
+    if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+        for entry in configMemList:
+            mapped_indices.extend(entry.configBitRanges)
+
     # start writing the file
     logger.info(f"Generating {writer.outFileName} for {name}")
     writer.addHeader(f"{name}_ConfigMem")
@@ -216,20 +225,35 @@ def generate_config_mem_frame_based(
             indentLevel=2,
         )
         writer.addPreprocEndif()
-    if max_frame_per_col != 0:
-        writer.addParameter(
-            "MaxFramesPerCol", "integer", max_frame_per_col, indentLevel=2
-        )
-    if frame_bits_per_row != 0:
-        writer.addParameter(
-            "FrameBitsPerRow", "integer", frame_bits_per_row, indentLevel=2
-        )
+
+    # Frmae-based specific parameters
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
+        if max_frame_per_col != 0:
+            writer.addParameter(
+                "MaxFramesPerCol", "integer", max_frame_per_col, indentLevel=2
+            )
+        if frame_bits_per_row != 0:
+            writer.addParameter(
+                "FrameBitsPerRow", "integer", frame_bits_per_row, indentLevel=2
+            )
+
     writer.addParameter("NoConfigBits", "integer", config_bits_count, indentLevel=2)
     writer.addParameterEnd(indentLevel=1)
+
+    # Port definitions
     writer.addPortStart(indentLevel=1)
-    # the port definitions are generic
-    writer.addPortVector("FrameData", IO.INPUT, "FrameBitsPerRow - 1", indentLevel=2)
-    writer.addPortVector("FrameStrobe", IO.INPUT, "MaxFramesPerCol - 1", indentLevel=2)
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
+        writer.addPortVector(
+            "FrameData", IO.INPUT, "FrameBitsPerRow - 1", indentLevel=2
+        )
+        writer.addPortVector(
+            "FrameStrobe", IO.INPUT, "MaxFramesPerCol - 1", indentLevel=2
+        )
+    elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+        writer.addPortScalar("CONF_CLK", IO.INPUT, indentLevel=2)
+        writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
+        writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
+
     writer.addPortVector("ConfigBits", IO.OUTPUT, "NoConfigBits - 1", indentLevel=2)
     writer.addPortVector("ConfigBits_N", IO.OUTPUT, "NoConfigBits - 1", indentLevel=2)
     writer.addPortEnd(indentLevel=1)
@@ -258,126 +282,49 @@ def generate_config_mem_frame_based(
     writer.addNewLine()
     writer.addNewLine()
     writer.addLogicStart()
-    writer.addComment("instantiate frame latches", end="")
-    for i in configMemList:
-        counter = 0
-        for k in range(frame_bits_per_row):
-            # Safely check if bit is set, treat missing bits as '0'
-            bit_value = i.usedBitMask[k] if k < len(i.usedBitMask) else "0"
-            if bit_value == "1":
-                writer.addInstantiation(
-                    compName="config_latch",
-                    compInsName=(f"Inst_{i.frameName}_bit{frame_bits_per_row - 1 - k}"),
-                    portsPairs=[
-                        ("D", f"FrameData[{frame_bits_per_row - 1 - k}]"),
-                        ("E", f"FrameStrobe[{i.frameIndex}]"),
-                        ("Q", f"ConfigBits[{i.configBitRanges[counter]}]"),
-                        ("QN", f"ConfigBits_N[{i.configBitRanges[counter]}]"),
-                    ],
-                )
-                counter += 1
-    if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
-        writer.addPreprocEndif()
-    writer.addDesignDescriptionEnd()
-    writer.writeToFile()
 
-
-def generate_config_mem_FF(
-    writer: CodeGenerator,
-    name: str,
-    config_bits_count: int,
-    configMemCsv: Path,
-) -> None:
-    """Generate the RTL code for configuration memory (FlipFlopChain mode).
-
-    Parameters
-    ----------
-    writer : CodeGenerator
-        The code generator instance for RTL output
-    name : str
-        Name of the tile or module (used for module naming and log messages).
-    config_bits_count : int
-        Total number of configuration bits.
-    configMemCsv : Path
-        The directory of the config memory CSV file.
-
-    Raises
-    ------
-    ValueError
-        - If `config_bits_count` is negative.
-    """
-    if configMemCsv.exists():
-        logger.critical(
-            f"Found bitstream mapping file {name}_configMem.csv for {name}, "
-            "but is ignored in FLIPFLOP_CHAIN mode"
-        )
-
-    if config_bits_count < 0:
-        raise ValueError(
-            f"{name} has an invalid config_bits_count ({config_bits_count}). "
-            "Configuration bit count cannot be negative."
-        )
-
-    if config_bits_count == 0:
-        logger.info(f"No config bits are defined for {name}")
-        return
-
-    logger.info(f"Generating {writer.outFileName} for {name}")
-
-    writer.addHeader(f"{name}_ConfigMem")
-
-    writer.addParameterStart(indentLevel=1)
-    if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
-        writer.addPreprocIfDef("EMULATION")
-        writer.addParameter(
-            "Emulate_Bitstream",
-            f"[{config_bits_count - 1}:0]",
-            f"{config_bits_count}'b0",
-            indentLevel=2,
-        )
-        writer.addPreprocEndif()
-
-    writer.addParameter("NoConfigBits", "integer", config_bits_count, indentLevel=2)
-    writer.addParameterEnd(indentLevel=1)
-
-    writer.addPortStart(indentLevel=1)
-    writer.addPortScalar("CONF_CLK", IO.INPUT, indentLevel=2)
-    writer.addPortScalar("CONFin", IO.INPUT, indentLevel=2)
-    writer.addPortScalar("CONFout", IO.OUTPUT, indentLevel=2)
-    writer.addPortVector("ConfigBits", IO.OUTPUT, "NoConfigBits-1", indentLevel=2)
-    writer.addPortVector("ConfigBits_N", IO.OUTPUT, "NoConfigBits-1", indentLevel=2)
-    writer.addPortEnd(indentLevel=1)
-    writer.addHeaderEnd(f"{name}_ConfigMem")
-    writer.addNewLine()
-
-    writer.addDesignDescriptionStart(f"{name}_ConfigMem")
-
-    if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
-        writer.addPreprocIfDef("EMULATION")
+    # Logic Instantiation based on mode
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
+        writer.addComment("instantiate frame latches", end="")
+        for i in configMemList:
+            counter = 0
+            for k in range(frame_bits_per_row):
+                # Safely check if bit is set, treat missing bits as '0'
+                bit_value = i.usedBitMask[k] if k < len(i.usedBitMask) else "0"
+                if bit_value == "1":
+                    writer.addInstantiation(
+                        compName="config_latch",
+                        compInsName=(
+                            f"Inst_{i.frameName}_bit{frame_bits_per_row - 1 - k}"
+                        ),
+                        portsPairs=[
+                            ("D", f"FrameData[{frame_bits_per_row - 1 - k}]"),
+                            ("E", f"FrameStrobe[{i.frameIndex}]"),
+                            ("Q", f"ConfigBits[{i.configBitRanges[counter]}]"),
+                            ("QN", f"ConfigBits_N[{i.configBitRanges[counter]}]"),
+                        ],
+                    )
+                    counter += 1
+    elif config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
+        writer.addComment("instantiate shift reg", end="")
         for i in range(config_bits_count):
-            writer.addAssignScalar(
-                f"ConfigBits[{i}]",
-                f"Emulate_Bitstream[{i}]",
-            )
-        writer.addPreprocElse()
-    writer.addNewLine()
-    writer.addNewLine()
-    writer.addLogicStart()
-    writer.addComment("instantiate shift reg", end="")
-    for i in range(config_bits_count):
-        d_source = "CONFin" if i == 0 else f"ConfigBits[{i - 1}]"
-        writer.addInstantiation(
-            compName="config_dff",
-            compInsName=f"Inst_ConfigBit_FF{i}",
-            portsPairs=[
-                ("D", d_source),
-                ("CLK", "CONF_CLK"),
-                ("Q", f"ConfigBits[{i}]"),
-                ("QN", f"ConfigBits_N[{i}]"),
-            ],
-        )
+            curr_bit = mapped_indices[i]
+            prev_bit = mapped_indices[i - 1] if i > 0 else None
 
-    writer.addAssignScalar("CONFout", f"ConfigBits[{config_bits_count - 1}]")
+            d_source = "CONFin" if i == 0 else f"ConfigBits[{prev_bit}]"
+            writer.addInstantiation(
+                compName="config_dff",
+                compInsName=f"Inst_ConfigBit_FF{curr_bit}",
+                portsPairs=[
+                    ("D", d_source),
+                    ("CLK", "CONF_CLK"),
+                    ("Q", f"ConfigBits[{curr_bit}]"),
+                    ("QN", f"ConfigBits_N[{curr_bit}]"),
+                ],
+            )
+
+    last_bit = mapped_indices[config_bits_count - 1]
+    writer.addAssignScalar("CONFout", f"ConfigBits[{last_bit}]")
 
     if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
         writer.addPreprocEndif()
@@ -587,7 +534,7 @@ def build_super_tile_config_mem_csv(
             )
 
 
-def generate_super_tile_config_mem_frame_based(
+def generate_super_tile_config_mem(
     writer: CodeGenerator,
     superTile: "SuperTile",
     master_config_mem_csv: Path,
@@ -620,27 +567,24 @@ def generate_super_tile_config_mem_frame_based(
     if st_config_bits <= 0:
         return
 
-    if config_bit_mode == ConfigBitMode.FLIPFLOP_CHAIN:
-        generate_config_mem_FF(
-            writer=writer,
-            name=superTile.name,
-            config_bits_count=st_config_bits,
-        )
-        return
-
     output_csv = superTile.tileDir.parent / f"{superTile.name}_ConfigMem.csv"
-    build_super_tile_config_mem_csv(
-        master_config_mem_csv,
-        st_config_bits,
-        output_csv,
-        frame_bits_per_row=frame_bits_per_row,
-        max_frames_per_col=max_frame_per_col,
-    )
-    generate_config_mem_frame_based(
-        writer,
-        superTile.name,
-        st_config_bits,
-        output_csv,
+
+    # Only build the master-derived CSV layout when in FRAME_BASED mode
+    if config_bit_mode == ConfigBitMode.FRAME_BASED:
+        build_super_tile_config_mem_csv(
+            master_config_mem_csv,
+            st_config_bits,
+            output_csv,
+            frame_bits_per_row=frame_bits_per_row,
+            max_frames_per_col=max_frame_per_col,
+        )
+
+    generate_config_mem(
+        writer=writer,
+        name=superTile.name,
+        config_bits_count=st_config_bits,
+        configMemCsv=output_csv,
         frame_bits_per_row=frame_bits_per_row,
         max_frame_per_col=max_frame_per_col,
+        config_bit_mode=config_bit_mode,
     )

@@ -53,9 +53,8 @@ from fabulous.fabric_generator.gds_generator.gen_io_pin_config_yaml import (
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.gen_fabric.fabric_automation import genIOBel
 from fabulous.fabric_generator.gen_fabric.gen_configmem import (
-    generate_config_mem_FF,
-    generate_config_mem_frame_based,
-    generate_super_tile_config_mem_frame_based,
+    generate_config_mem,
+    generate_super_tile_config_mem,
 )
 from fabulous.fabric_generator.gen_fabric.gen_fabric import generateFabric
 from fabulous.fabric_generator.gen_fabric.gen_switchmatrix import (
@@ -199,22 +198,15 @@ class FABulous_API:
             If tile is not found in fabric.
         """
         if tile := self.fabric.getTileByName(tileName):
-            if self.fabric.configBitMode == ConfigBitMode.FLIPFLOP_CHAIN:
-                generate_config_mem_FF(
-                    self.writer,
-                    tile.name,
-                    tile.globalConfigBits,
-                    configMem,
-                )
-            else:
-                generate_config_mem_frame_based(
-                    self.writer,
-                    tile.name,
-                    tile.globalConfigBits,
-                    configMem,
-                    frame_bits_per_row=self.fabric.frameBitsPerRow,
-                    max_frame_per_col=self.fabric.maxFramesPerCol,
-                )
+            generate_config_mem(
+                writer=self.writer,
+                name=tile.name,
+                config_bits_count=tile.globalConfigBits,
+                configMemCsv=configMem,
+                frame_bits_per_row=self.fabric.frameBitsPerRow,
+                max_frame_per_col=self.fabric.maxFramesPerCol,
+                config_bit_mode=self.fabric.configBitMode,
+            )
         else:
             raise ValueError(f"Tile {tileName} not found")
 
@@ -392,7 +384,7 @@ class FABulous_API:
             master_config_mem_csv = (
                 master_tile.tileDir.parent / f"{master_tile.name}_ConfigMem.csv"
             )
-            generate_super_tile_config_mem_frame_based(
+            generate_super_tile_config_mem(
                 self.writer,
                 tile,
                 master_config_mem_csv,
