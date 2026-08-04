@@ -76,10 +76,7 @@ runCommand "fabulous-${version}"
     inherit version;
     pname = "fabulous";
     nativeBuildInputs = [ makeWrapper ];
-    passthru = {
-      inherit includedTools env;
-      pythonEnv = fabulous-python-env;
-    };
+    passthru = { inherit includedTools env; };
     meta = {
       description = "FABulous FPGA fabric generator (wrapped with its EDA toolchain)";
       homepage = "https://github.com/FPGA-Research/FABulous";

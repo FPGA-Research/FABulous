@@ -44,13 +44,14 @@ resolve, or need a version it pins differently, build a virtualenv from your own
 `uv.lock` and pass it as `python-env`. See _Bringing your own uv.lock_ in the
 FABulous Nix documentation.
 
-## Known limitation
+## Known limitations
 
 The `librelane_plugin_fabulous` GDS plugin ships in the FABulous wheel from
 2.2.0 onwards. On an older FABulous everything else works, but `librelane` will
 not discover the FABulous flows.
 
-The Python environment cannot be built on a case-insensitive `/nix`, because
-FABulous installs both a `FABulous` and a `fabulous` command and the two collide
-there. The Nix installer creates a case-sensitive store volume on macOS by
-default, so this normally does not arise.
+FABulous installs both a `FABulous` and a `fabulous` command. On a
+case-insensitive `/nix` those are one path, so only one file survives and which
+name it carries depends on the installer; lookup is case-insensitive there too,
+so both commands still work. The Nix installer creates a case-sensitive store
+volume on macOS by default, so this normally does not arise at all.

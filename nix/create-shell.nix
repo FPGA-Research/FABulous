@@ -43,7 +43,7 @@
   # Generate `librelane_plugin_fabulous` into $REPO_ROOT on startup. Only ever
   # true for an editable checkout *of this repo*: the hook imports FABulous's
   # own `build_hooks`, which no downstream checkout has. A downstream venv gets
-  # the plugin from the wheel instead, which carries it from 2.2.0 onwards.
+  # the plugin from the wheel instead.
   materialize-plugin ? false,
   # Additional `devshell.startup` / `devshell.interactive` entries. Used by this
   # repo's own shells; downstream projects should not need them.
@@ -55,7 +55,7 @@ assert lib.assertMsg (!materialize-plugin || editable-root != null)
   "fabulous-shell: materialize-plugin needs editable-root — the plugin is generated into $REPO_ROOT.";
 
 let
-  inherit (fabulous.passthru) includedTools env;
+  inherit (fabulous.passthru) includedTools;
 
   # `python-env` puts its own site-packages on the interpreter's path, so
   # nothing has to be reconstructed here. Only the extras a virtualenv-shaped
@@ -79,41 +79,21 @@ in
 devshell.mkShell {
   devshell.packages = [ python-env ] ++ includedTools ++ extra-packages;
 
-  env = [
-    {
-      name = "FAB_YOSYS_PATH";
-      value = env.FAB_YOSYS_PATH;
-    }
-    {
-      name = "GHDL_PREFIX";
-      value = env.GHDL_PREFIX;
-    }
-    {
-      name = "PYTHONWARNINGS";
-      value = env.PYTHONWARNINGS;
-    }
-    {
-      name = "PYTHONPATH";
-      value = pythonPath;
-    }
-    {
-      name = "PYTHONNOUSERSITE";
-      value = "1";
-    }
-    {
-      name = "UV_NO_SYNC";
-      value = "1";
-    }
-    {
-      name = "UV_PYTHON";
-      value = "${python-env}/bin/python";
-    }
-    {
-      name = "UV_PYTHON_DOWNLOADS";
-      value = "never";
-    }
-  ]
-  ++ extra-env;
+  # Taken wholesale from `fabulous.passthru.env` rather than re-spelled, so a
+  # variable added to the wrapper's runtime environment reaches every shell
+  # built from here instead of silently applying to only one of the two.
+  env =
+    lib.mapAttrsToList (name: value: { inherit name value; }) (
+      fabulous.passthru.env
+      // {
+        PYTHONPATH = pythonPath;
+        PYTHONNOUSERSITE = "1";
+        UV_NO_SYNC = "1";
+        UV_PYTHON = "${python-env}/bin/python";
+        UV_PYTHON_DOWNLOADS = "never";
+      }
+    )
+    ++ extra-env;
 
   devshell.startup = {
     fabulous-setup.text = lib.optionalString (editable-root != null) ''

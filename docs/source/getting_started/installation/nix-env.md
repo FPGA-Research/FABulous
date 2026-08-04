@@ -105,7 +105,7 @@ FABulous exposes `overlays.default`, which contributes the following to any nixp
 | `fabulous-shell` | A ready-to-use, non-editable development shell |
 | `fab-yosys` | Yosys with the `ghdl` plugin bundled, installed as `fab-yosys` |
 | `fab-nextpnr` | nextpnr, generic architecture |
-| `fab-ghdl` | GHDL v6.0.0 |
+| `fab-ghdl` | GHDL (prebuilt binary) |
 | `fabulator` | The fabric visualiser |
 
 `fabulous-shell` contains the `librelane` CLI with the `librelane_plugin_fabulous` GDS plugin already discovered, the FABulous CLIs, the full EDA toolchain (Yosys, NextPNR, OpenROAD, GHDL, and the rest), and FABulous's Python environment pinned by FABulous's `uv.lock`.
@@ -117,7 +117,7 @@ It is overridden the same way `librelane-shell` is, with the same argument names
 - `extra-env`, additional environment variables, as a list of `{ name; value; }`.
 - `python-env`, the Python environment wholesale, covered under [Bringing your own uv.lock](#bringing-your-own-uvlock) below.
 
-`extra-python-packages` selects from `pkgs.fabulous-python`, described next: an ordinary nixpkgs Python interpreter whose package set is FABulous's `uv.lock`. A package chosen there is built against the same versions FABulous itself runs on, so a dependency the two share is one build rather than two competing copies.
+`extra-python-packages` selects from `pkgs.fabulous-python`, described next: an ordinary nixpkgs Python interpreter whose package set is FABulous's `uv.lock`.
 
 Every attribute above is also a flake output, so `nix build github:FPGA-Research/FABulous#fab-yosys` works without composing anything.
 
@@ -127,8 +127,9 @@ Every attribute above is also a flake output, so `nix build github:FPGA-Research
 {
   inputs.fabulous.url = "github:FPGA-Research/FABulous";
 
-  # FABulous and its toolchain are prebuilt in the fossi-foundation cache.
-  # Without this, entering the shell rebuilds the whole EDA toolchain from source.
+  # librelane, nix-eda and the nixpkgs closure they share come from the
+  # fossi-foundation cache. FABulous's own derivations are not published to a
+  # binary cache yet, so the first `nix develop` still builds those from source.
   nixConfig = {
     extra-substituters = [ "https://nix-cache.fossi-foundation.org" ];
     extra-trusted-public-keys = [
@@ -141,8 +142,9 @@ Every attribute above is also a flake output, so `nix build github:FPGA-Research
     let
       system = "x86_64-linux";
       # FABulous's own composed package set: nixpkgs plus nix-eda, librelane,
-      # and FABulous. Compose `fabulous.overlays.default` into your own nixpkgs
-      # instead if you already maintain one.
+      # and FABulous. `fabulous.overlays.default` expects those other overlays
+      # already applied, so prefer this unless you compose the full stack
+      # yourself.
       pkgs = fabulous.legacyPackages.${system};
     in
     {
@@ -182,7 +184,7 @@ Scoping matters here: the converted packages live on this interpreter only. `pkg
 Three packages deliberately keep nixpkgs' versions rather than the lock's: `wheel`, `packaging` and `tomli`. nixpkgs' own `buildPythonPackage` is built from them, so converting them would require them to build themselves. All three are build tooling rather than anything FABulous imports, and nixpkgs' versions satisfy its constraints.
 
 ```{note}
-The Python environment cannot be built on a case-insensitive `/nix`. FABulous installs both a `FABulous` and a `fabulous` command, which are the same path there, and the installer refuses to overwrite. The Nix installer creates a case-sensitive store volume on macOS by default, so this normally does not arise; where it does, the two commands cannot both exist and only `FABulous` is available.
+FABulous installs both a `FABulous` and a `fabulous` command. On a case-insensitive `/nix` the two are one path, so only one file survives installation, and which of the two names it carries depends on the installer. Lookup is case-insensitive there too, so both commands still work. The Nix installer creates a case-sensitive store volume on macOS by default, so this normally does not arise at all.
 ```
 
 ### Bringing your own uv.lock
@@ -192,21 +194,19 @@ The Python environment cannot be built on a case-insensitive `/nix`. FABulous in
 Your lock resolves `fabulous-fpga` as an ordinary dependency alongside your own, so `uv` settles every shared version in a single resolution and a real conflict surfaces as a `uv` resolution error rather than at runtime:
 
 ```nix
-devShells = forAllSystems (
-  pkgs:
-  let
-    workspace = pkgs.loadFabulousWorkspace ./.;
-    venv =
-      (pkgs.mkFabulousPythonSet { inherit workspace; }).mkVirtualEnv "chip-env"
-        workspace.deps.default;
-  in
-  {
-    default = pkgs.fabulous-shell.override {
-      python-env = venv;
-      extra-packages = with pkgs; [ iverilog gnumake ];
-    };
-  }
-);
+let
+  pkgs = fabulous.legacyPackages.${system};
+  workspace = pkgs.loadFabulousWorkspace ./.;
+  venv =
+    (pkgs.mkFabulousPythonSet { inherit workspace; }).mkVirtualEnv "chip-env"
+      workspace.deps.default;
+in
+{
+  devShells.${system}.default = pkgs.fabulous-shell.override {
+    python-env = venv;
+    extra-packages = with pkgs; [ iverilog gnumake ];
+  };
+}
 ```
 
 | Attribute | What it does |

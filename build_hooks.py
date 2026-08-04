@@ -1,7 +1,7 @@
 """Setuptools build hooks for FABulous packaging."""
 
 from pathlib import Path
-from shutil import copy2, copytree, rmtree
+from shutil import copy2, copytree, ignore_patterns, rmtree
 
 from setuptools.command.build_py import build_py
 
@@ -182,9 +182,14 @@ class BuildPyWithFabulousNix(build_py):
         for asset in self._ASSET_FILES:
             copy2(project_root / asset, target_root / asset)
 
+        # `nix build` leaves `result` symlinks into /nix/store. Copying them by
+        # value would pull the whole store closure into the wheel, so preserve
+        # symlinks and skip those names outright.
         copytree(
             project_root / self._ASSET_TREE,
             target_root / self._ASSET_TREE,
+            symlinks=True,
+            ignore=ignore_patterns("result", "result-*"),
             dirs_exist_ok=True,
         )
 

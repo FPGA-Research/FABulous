@@ -57,11 +57,9 @@ let
         };
       });
 
-  # Every package `deps` patches, so `checks.python-fixups` can assert they are
-  # all still in FABulous's uv.lock. Without that assert a rename upstream turns
-  # a fixup into a no-op rather than an error: Nix never forces an override for
-  # a package nothing in the venv depends on, which is how the `fasm` override
-  # outlived that package becoming `fabulous-fasm` (#672).
+  # Every package `deps` patches. `checks.python-fixups` asserts each still
+  # resolves from uv.lock — a rename upstream otherwise turns a fixup into a
+  # silent no-op rather than an error (see the check in flake.nix).
   depFixups = {
     about-time = dropTopLevelLicense;
     alive-progress = dropTopLevelLicense;
@@ -109,16 +107,7 @@ in
 
   # Applied to the *nixpkgs* Python set, after `toNixpkgs` has converted the
   # uv2nix packages into it.
-  nixpkgs =
-    _final: prev:
-    lib.genAttrs nixpkgsFixups (
-      name:
-      prev.${name}.overrideAttrs (old: {
-        postInstall = (old.postInstall or "") + ''
-          rm -f $out/LICENSE
-        '';
-      })
-    );
+  nixpkgs = final: prev: lib.genAttrs nixpkgsFixups (name: dropTopLevelLicense final prev.${name});
 
   source = _final: prev: {
     fabulous-fpga = prev.fabulous-fpga.overrideAttrs (old: {
