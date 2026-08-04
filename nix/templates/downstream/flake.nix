@@ -1,8 +1,9 @@
 {
   description = "A chip project built on FABulous";
 
-  # FABulous and its EDA toolchain are prebuilt in the fossi-foundation cache.
-  # Without this, entering the shell rebuilds the whole toolchain from source.
+  # librelane, nix-eda and the nixpkgs closure they share come from the
+  # fossi-foundation cache. FABulous's own derivations are not published to a
+  # binary cache yet, so the first `nix develop` still builds those from source.
   nixConfig = {
     extra-substituters = [ "https://nix-cache.fossi-foundation.org" ];
     extra-trusted-public-keys = [

@@ -7,15 +7,14 @@
 # by merging attribute sets after the fact: `devshell.mkShell` config is nested,
 # and a shallow `//` on it silently drops `devshell.packages`.
 {
-  lib,
   pkgs,
-  fabulous,
-  fabulous-shell,
   editableVenv,
   repoRoot,
 }:
 
 let
+  inherit (pkgs) lib fabulous fabulous-shell;
+
   # `nix develop` already puts these on PATH; the fish variant re-prepends them
   # because fish's config files reorder PATH after we are done (nix-darwin#1607).
   nixBinPath = lib.makeBinPath ([ editableVenv ] ++ fabulous.passthru.includedTools);
@@ -27,26 +26,17 @@ let
     set -e _FAB_NIX_BIN_PATH
   '';
 
-  # Runs last: the "zzz-" key sorts it after every other interactive hook, so the
-  # environment is fully set up before we hand over.
-  switchTo = shell: {
-    "zzz-switch-shell".text =
-      if shell == "fish" then
-        ''
-          export _FAB_NIX_BIN_PATH="${nixBinPath}"
-          exec ${lib.getExe pkgs.fish} -C "source ${fishInitScript}"
-        ''
-      else
-        ''exec ${lib.getExe pkgs.${shell}} -l'';
-  };
+  execFish = ''
+    export _FAB_NIX_BIN_PATH="${nixBinPath}"
+    exec ${lib.getExe pkgs.fish} -C "source ${fishInitScript}"
+  '';
 
   devShell =
     args:
     fabulous-shell.override (
       {
-        # An editable checkout is the one thing the converted nixpkgs set cannot
-        # express — `toNixpkgs` builds from wheels — so development stays on the
-        # uv2nix virtualenv even though consumption no longer does.
+        # `toNixpkgs` builds from wheels, so editable development stays on the
+        # uv2nix virtualenv (see `python-env` in create-shell.nix).
         python-env = editableVenv;
         # That virtualenv's interpreter has no tkinter; the withPackages
         # environment consumers get includes it directly.
@@ -89,14 +79,18 @@ let
   '';
 in
 {
-  # Default: bash. Start in fish/zsh with `nix develop .#fish` / `.#zsh`.
+  # Default: bash. Start in fish/zsh with `nix develop .#fish` / `.#zsh`. The
+  # "zzz-" key sorts the hand-over after every other interactive hook, so the
+  # environment is fully set up before we exec.
   default = devShell { };
-  fish = devShell { extra-interactive = switchTo "fish"; };
-  zsh = devShell { extra-interactive = switchTo "zsh"; };
+  fish = devShell { extra-interactive."zzz-switch-shell".text = execFish; };
+  zsh = devShell {
+    extra-interactive."zzz-switch-shell".text = "exec ${lib.getExe pkgs.zsh} -l";
+  };
 
   nix-env = devShell {
     extra-startup = {
-      # "aaa-" so the foreign-env teardown runs before the venv is activated.
+      # "aaa-" sorts the teardown before the other startup hooks.
       aaa-deactivate.text = deactivateForeignEnvs;
       zzz-verify.text = verifyTools;
     };
@@ -104,8 +98,7 @@ in
       "zzz-switch-shell".text = ''
         case "''${FAB_NIX_SHELL:-}" in
           fish)
-            export _FAB_NIX_BIN_PATH="${nixBinPath}"
-            exec ${lib.getExe pkgs.fish} -C "source ${fishInitScript}"
+            ${execFish}
             ;;
           ""|bash) ;;
           *) exec "''${FAB_NIX_SHELL}" ;;

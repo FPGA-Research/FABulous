@@ -11,7 +11,7 @@ on:
       - ".github/workflows/nix-env.yml"
   # PR / merge_group runs come through ci.yml.
   workflow_call:
-  # warm `nix-*` cache existing on `main` to fall back to
+  # nightly: keep main's `nix-*` caches warm so PR runs can fall back on them
   schedule:
     - cron: "0 1 * * *"
   workflow_dispatch:
@@ -48,9 +48,8 @@ jobs:
           purge_old_caches: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Python fixups still match uv.lock
-        # Nix only forces an override for a package something depends on, so a
-        # fixup naming a package uv.lock no longer resolves is a silent no-op
-        # rather than an error. This check is what makes it fail.
+        # A fixup naming a package uv.lock no longer resolves is a silent
+        # no-op; this makes it an error.
         run: nix eval --raw ".#checks.$(nix eval --raw --impure --expr builtins.currentSystem).python-fixups.drvPath"
 
       - name: DevShell smoke test
@@ -79,14 +78,11 @@ jobs:
       - uses: ./.github/actions/prepare_nix_environment
 
       - name: Build the uv.lock-matched Python environment
-        # The one build that proves the conversion: every package uv.lock
-        # resolved, rebuilt as an ordinary nixpkgs Python package, linked into
-        # one environment. This is also where `fabulous-fpga` itself is
-        # verified — it cannot be built on a case-insensitive /nix, because its
-        # `FABulous` and `fabulous` commands collide there.
+        # Builds fabulous-fpga's full dependency closure as ordinary nixpkgs
+        # Python packages, linked into one environment — the check that the
+        # `toNixpkgs` conversion actually holds together.
         run: |
-          system=$(nix eval --raw --impure --expr builtins.currentSystem)
-          nix build ".#legacyPackages.$system.fabulous-python-env"
+          nix build ".#fabulous-python-env"
           ./result/bin/python -c "import fabulous, librelane; print('imports OK')"
 
       - name: Evaluate the downstream template
