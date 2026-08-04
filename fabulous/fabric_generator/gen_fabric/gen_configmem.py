@@ -323,8 +323,8 @@ def generate_config_mem(
                 ],
             )
 
-    last_bit = mapped_indices[config_bits_count - 1]
-    writer.addAssignScalar("CONFout", f"ConfigBits[{last_bit}]")
+        last_bit = mapped_indices[config_bits_count - 1]
+        writer.addAssignScalar("CONFout", f"ConfigBits[{last_bit}]")
 
     if isinstance(writer, VerilogCodeGenerator):  # emulation only in Verilog
         writer.addPreprocEndif()
