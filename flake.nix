@@ -1,6 +1,5 @@
 {
-  description = "FABulous EDA development environment with Nix - includes GHDL, Yosys, NextPNR, Librelane, and more.
-    nix-eda and nixpkgs follow librelane's pins for binary cache compatibility.";
+  description = "FABulous EDA development environment with Nix - includes GHDL, Yosys, NextPNR, Librelane, and more.";
 
   inputs = {
     librelane.url = "github:librelane/librelane";
@@ -27,7 +26,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Prebuilt GHDL v6.0.0 binary tarballs (locked in flake.lock)
+    # Prebuilt GHDL binary tarballs; no source build.
     ghdl-bin-x86_64-linux = {
       url = "https://github.com/ghdl/ghdl/releases/download/v6.0.0/ghdl-mcode-6.0.0-ubuntu24.04-x86_64.tar.gz";
       flake = false;
@@ -89,7 +88,7 @@
 
       # Only the systems a prebuilt GHDL tarball exists for. Claiming
       # `lib.systems.flakeExposed` would make `nix flake check` fail to evaluate
-      # on the eight systems that have no toolchain.
+      # on every system that has no toolchain.
       supportedSystems = [
         "x86_64-linux"
         "aarch64-darwin"
@@ -116,8 +115,10 @@
           ;
         lockedPackages = map (p: p.name) (lib.importTOML ./uv.lock).package;
         srcs = {
-          ghdl-linux-bin = ghdl-bin-x86_64-linux;
-          ghdl-darwin-bin = ghdl-bin-aarch64-darwin;
+          ghdl-bin = {
+            x86_64-linux = ghdl-bin-x86_64-linux;
+            aarch64-darwin = ghdl-bin-aarch64-darwin;
+          };
           yosys = yosys-src;
           ghdl-yosys-plugin = ghdl-yosys-plugin-src;
           nextpnr = nextpnr-src;
@@ -165,8 +166,7 @@
           pkgs = self.legacyPackages.${system};
         in
         import ./nix/devshells.nix {
-          inherit lib pkgs;
-          inherit (pkgs) fabulous fabulous-shell;
+          inherit pkgs;
           editableVenv = (pkgs.fabulous-python-set.overrideScope editableOverlay).mkVirtualEnv "FABulous-env" workspace.deps.all;
           repoRoot = ./.;
         }
@@ -181,7 +181,7 @@
           # uv.lock resolves. Nix only forces an override when something depends
           # on the package, so a rename upstream otherwise turns a fixup into a
           # silent no-op rather than an error — which is exactly what the `fasm`
-          # fixup did after that package became `fabulous-fasm` (#672).
+          # fixup did after that package became `fabulous-fasm`.
           stale = lib.filter (name: !(pkgs.fabulous-python-set ? ${name})) pythonFixups.patchedPackages;
         in
         self.packages.${system}
@@ -200,11 +200,10 @@
       );
 
       # `nix flake init -t github:FPGA-Research/FABulous` scaffolds a project
-      # that depends on FABulous: a uv workspace whose uv.lock resolves
-      # `fabulous-fpga` next to the project's own Python dependencies.
+      # that consumes FABulous through `pkgs.fabulous-shell`.
       templates.default = {
         path = ./nix/templates/downstream;
-        description = "A chip or fabric project built on FABulous, with its own uv.lock";
+        description = "A chip or fabric project built on FABulous";
       };
 
       formatter = forAllSystems (system: nix-eda.formatter.${system});
@@ -221,7 +220,7 @@
           };
           librelane = {
             type = "app";
-            program = "${pkgs.fabulous}/bin/librelane";
+            program = lib.getExe' pkgs.fabulous "librelane";
           };
         }
       );

@@ -38,13 +38,10 @@ let
     "0-unstable-${lib.substring 0 4 d}-${lib.substring 4 2 d}-${lib.substring 6 2 d}";
 in
 {
-  # Turn a uv2nix workspace into a Python set, with FABulous's build fixups
-  # already composed in. Parameterised over the workspace rather than closed
-  # over FABulous's own, because that is what makes the environment reusable:
+  # Parameterised over the workspace rather than closed over FABulous's own:
   # a downstream project passes the workspace for *its* uv.lock (which resolves
   # `fabulous-fpga` alongside its own dependencies) and gets one coherent venv
-  # whose versions uv resolved across both projects at once. Nothing here needs
-  # editing when either side runs `uv lock`.
+  # whose versions uv resolved across both projects at once.
   mkFabulousPythonSet =
     {
       workspace,
@@ -125,21 +122,12 @@ in
     ps.tkinter
   ]);
 
-  # The sealed uv2nix virtualenv. Still the source `fabulous-python` converts
-  # from, and still what this repo's own editable dev shells use, but no longer
-  # the surface downstream composes against.
-  fabulous-venv = final.fabulous-python-set.mkVirtualEnv "FABulous-env" workspace.deps.default;
-
-  # GHDL ships prebuilt tarballs rather than a source build; the platform
-  # dispatch lives here because only one tarball is fetched per system.
+  # GHDL ships prebuilt tarballs rather than a source build, keyed by system so
+  # only the one for this platform is fetched.
   fab-ghdl = final.callPackage ../tools/ghdl-bin.nix {
     src =
-      if final.stdenv.hostPlatform.system == "x86_64-linux" then
-        srcs.ghdl-linux-bin
-      else if final.stdenv.hostPlatform.system == "aarch64-darwin" then
-        srcs.ghdl-darwin-bin
-      else
-        throw "fab-ghdl: no prebuilt GHDL tarball for ${final.stdenv.hostPlatform.system}";
+      srcs.ghdl-bin.${final.stdenv.hostPlatform.system}
+        or (throw "fab-ghdl: no prebuilt GHDL tarball for ${final.stdenv.hostPlatform.system}");
   };
 
   # Bundles the ghdl-yosys-plugin so `fab-yosys -m ghdl` works with no wrapper.
