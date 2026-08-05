@@ -102,9 +102,10 @@ jobs:
             --override-input fabulous "git+file://$GITHUB_WORKSPACE?shallow=1" \
             ".#devShells.$system.default.drvPath"
 
-  # WSL is the platform the README points Windows users at, and it is the one
-  # supported target no runner label covers directly: `ubuntu-latest` shares its
-  # architecture but none of its filesystem or init behaviour.
+  # WSL is the platform the README points Windows users at, and no runner label
+  # covers it directly: `ubuntu-latest` shares its architecture but not the way
+  # it boots. No systemd here, so no nix-daemon and no multi-user store, which
+  # is a different installation of Nix than any other leg exercises.
   nix-wsl:
     name: WSL2 (Nix Ubuntu-24.04)
     runs-on: windows-latest
@@ -198,14 +199,20 @@ jobs:
           "$pyenv/bin/FABulous" --version
           "$pyenv/bin/fabulous" --version
 
-      - name: Generate a fabric with the project on the Windows drive
-        # Where WSL users keep their work in practice. DrvFs is case-insensitive
-        # and reports Windows ACLs rather than POSIX modes, so no other job runs
-        # the generator against a filesystem shaped like this. `run_fab` is pure
-        # Python, so it needs none of the EDA toolchain this job skips.
+      - name: Generate a fabric under WSL
+        # `run_fab` is pure Python -- no synthesis -- so the generator runs end
+        # to end without any of the EDA toolchain this job leaves out.
+        #
+        # On the Linux filesystem rather than /mnt/c, and not only for speed:
+        # the same flow on the Windows drive fails today. Project creation
+        # copies the template out of the read-only store with `shutil.copytree`,
+        # whose default `copy2` carries metadata across, and DrvFs answers the
+        # chmod with EPERM unless the drive was mounted with `metadata`. That is
+        # a real limitation for anyone keeping a project on C:, but it wants a
+        # fix in FABulous rather than an assertion here.
         run: |
           fab=$(cat ~/fabulous-env)/bin/FABulous
-          project=/mnt/c/fabulous-wsl
+          project=~/fabulous-wsl
           rm -rf "$project"
           mkdir -p "$project"
           cd "$project"
