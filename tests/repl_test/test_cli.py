@@ -759,6 +759,29 @@ def test_add_as_custom_prim_overwrite(
     assert HAND_WRITTEN_PRIM in prims
 
 
+def test_add_as_custom_prim_overwrite_keeps_content_between_duplicates(
+    cli: FABulousREPL,
+) -> None:
+    """Duplicate definitions are removed without taking the content between them."""
+    target, neighbour = CUSTOM_PRIM_BELS
+    module = target.rsplit("/", 1)[-1].removesuffix(".v")
+    neighbour_module = neighbour.rsplit("/", 1)[-1].removesuffix(".v")
+    paths = [str(cli.projectDir / bel) for bel in CUSTOM_PRIM_BELS]
+    run_cmd(cli, f"add_as_custom_prim {' '.join(paths)}")
+
+    # a second definition of the same module, with content to preserve in between
+    prims_path = cli.projectDir / "user_design" / "custom_prims.v"
+    generated = custom_prims_file(cli)
+    prims_path.write_text(generated + HAND_WRITTEN_PRIM + generated)
+
+    run_cmd(cli, f"add_as_custom_prim --overwrite {paths[0]}")
+
+    prims = custom_prims_file(cli)
+    assert prims.count(f"module {module} (") == 1
+    assert prims.count(f"module {neighbour_module} (") == 2
+    assert HAND_WRITTEN_PRIM in prims
+
+
 def test_add_as_custom_prim_missing_file_errors(cli: FABulousREPL) -> None:
     """A non-existent RTL file is rejected before anything is written."""
     before = custom_prims_file(cli)
