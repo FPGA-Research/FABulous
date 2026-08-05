@@ -704,9 +704,16 @@ def custom_prims_file(cli: FABulousREPL) -> str:
     return (cli.projectDir / "user_design" / "custom_prims.v").read_text()
 
 
-def test_add_as_custom_prim_adds_blackbox_prims(cli: FABulousREPL) -> None:
-    """Every given RTL file ends up as a blackbox module in custom_prims.v."""
-    paths = [str(cli.projectDir / bel) for bel in CUSTOM_PRIM_BELS]
+@pytest.mark.parametrize("absolute", [True, False], ids=["absolute", "relative"])
+def test_add_as_custom_prim_adds_blackbox_prims(
+    cli: FABulousREPL, absolute: bool
+) -> None:
+    """Every given RTL file ends up as a blackbox module in custom_prims.v.
+
+    Relative paths are resolved against the project directory, like the other
+    REPL commands do.
+    """
+    paths = [str(cli.projectDir / bel) if absolute else bel for bel in CUSTOM_PRIM_BELS]
     before = custom_prims_file(cli)
 
     run_cmd(cli, f"add_as_custom_prim {' '.join(paths)}")
@@ -780,6 +787,26 @@ def test_add_as_custom_prim_overwrite_keeps_content_between_duplicates(
     assert prims.count(f"module {module} (") == 1
     assert prims.count(f"module {neighbour_module} (") == 2
     assert HAND_WRITTEN_PRIM in prims
+
+
+def test_add_as_custom_prim_overwrite_removes_indented_definition(
+    cli: FABulousREPL,
+) -> None:
+    """Hand-written formatting (indentation, trailing comment) is still matched."""
+    target = CUSTOM_PRIM_BELS[0]
+    module = target.rsplit("/", 1)[-1].removesuffix(".v")
+    prims_path = cli.projectDir / "user_design" / "custom_prims.v"
+    prims_path.write_text(
+        f"  (* blackbox *)\n"
+        f"  module {module} (\n    input stale_port\n  );\n"
+        f"  endmodule // {module}\n"
+    )
+
+    run_cmd(cli, f"add_as_custom_prim --overwrite {cli.projectDir / target}")
+
+    prims = custom_prims_file(cli)
+    assert "stale_port" not in prims
+    assert prims.count(f"module {module} (") == 1
 
 
 def test_add_as_custom_prim_missing_file_errors(cli: FABulousREPL) -> None:

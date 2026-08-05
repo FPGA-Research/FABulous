@@ -508,6 +508,7 @@ class FabricGenCommandSet(ReplCommandSet):
     ) -> None:
         """Add RTL files as blackbox primitives to `user_design/custom_prims.v`."""
         repl = self._cmd
+        rtl_files = [f if f.is_absolute() else repl.projectDir / f for f in rtl_files]
         missing = [f for f in rtl_files if not f.is_file()]
         if missing:
             raise CommandError(f"File(s) not found: {', '.join(map(str, missing))}")

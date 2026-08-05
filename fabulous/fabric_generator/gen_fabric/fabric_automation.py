@@ -424,8 +424,9 @@ def addBelsToPrim(
         for bel in bels:
             prims, removed = re.subn(
                 rf"(^//Warning: The primitive {re.escape(bel.module_name)} [^\n]*\n)?"
-                rf"(^\(\* blackbox[^\n]*\n)?"
-                rf"^module\s+{re.escape(bel.module_name)}\s*\(.*?^endmodule\n?",
+                rf"(^[ \t]*\(\* blackbox[^\n]*\n)?"
+                rf"^[ \t]*module\s+{re.escape(bel.module_name)}\s*\("
+                rf".*?^[ \t]*endmodule[^\n]*\n?",
                 "",
                 prims,
                 flags=re.MULTILINE | re.DOTALL,
