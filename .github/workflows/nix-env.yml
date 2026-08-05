@@ -186,9 +186,9 @@ jobs:
 
       - name: Build the uv.lock-matched Python environment
         # The same `toNixpkgs` conversion the downstream-template job checks.
-        # The store path is written to a file rather than an `--out-link`
-        # because the later step works on the Windows drive, where creating a
-        # symlink needs a privilege the runner may not hold.
+        # The store path goes to a file rather than an `--out-link`: this step
+        # starts in the Windows workspace, and dropping a `result` symlink onto
+        # that drive needs a privilege the runner may not hold.
         run: |
           export PATH="$HOME/.nix-profile/bin:$PATH"
           nix build --no-link --print-out-paths "$HOME/FABulous#fabulous-python-env" > ~/fabulous-env
