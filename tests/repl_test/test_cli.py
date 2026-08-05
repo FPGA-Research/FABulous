@@ -727,25 +727,38 @@ def test_add_as_custom_prim_is_idempotent(cli: FABulousREPL) -> None:
     assert custom_prims_file(cli) == first
 
 
-def test_add_as_custom_prim_overwrite_replaces_existing(cli: FABulousREPL) -> None:
-    """`--overwrite` replaces a stale definition instead of keeping it."""
-    bel = CUSTOM_PRIM_BELS[0]
-    module = bel.rsplit("/", 1)[-1].removesuffix(".v")
-    path = str(cli.projectDir / bel)
-    run_cmd(cli, f"add_as_custom_prim {path}")
+HAND_WRITTEN_PRIM = "\nmodule keep_me (\n    input a\n);\nendmodule\n"
 
+
+@pytest.mark.parametrize(
+    ("flag", "stale_kept"), [("", True), ("--overwrite", False)], ids=["off", "on"]
+)
+def test_add_as_custom_prim_overwrite(
+    cli: FABulousREPL, flag: str, stale_kept: bool
+) -> None:
+    """Only `--overwrite` replaces a stale definition, and only that definition."""
+    target, neighbour = CUSTOM_PRIM_BELS
+    module = target.rsplit("/", 1)[-1].removesuffix(".v")
+    neighbour_module = neighbour.rsplit("/", 1)[-1].removesuffix(".v")
+    paths = [str(cli.projectDir / bel) for bel in CUSTOM_PRIM_BELS]
+    run_cmd(cli, f"add_as_custom_prim {' '.join(paths)}")
+
+    # make the already present definition differ from what the command generates
     prims_path = cli.projectDir / "user_design" / "custom_prims.v"
     prims_path.write_text(
         custom_prims_file(cli).replace(
             f"module {module} (", f"module {module} (\n    input stale_port,"
         )
+        + HAND_WRITTEN_PRIM
     )
 
-    run_cmd(cli, f"add_as_custom_prim --overwrite {path}")
+    run_cmd(cli, f"add_as_custom_prim {flag} {paths[0]}")
 
     prims = custom_prims_file(cli)
-    assert "stale_port" not in prims
+    assert ("stale_port" in prims) is stale_kept
     assert prims.count(f"module {module} (") == 1
+    assert prims.count(f"module {neighbour_module} (") == 1
+    assert HAND_WRITTEN_PRIM in prims
 
 
 def test_add_as_custom_prim_missing_file_errors(cli: FABulousREPL) -> None:
