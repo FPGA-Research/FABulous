@@ -199,17 +199,23 @@ jobs:
           "$pyenv/bin/FABulous" --version
           "$pyenv/bin/fabulous" --version
 
-      - name: Generate a fabric under WSL
-        # `run_fab` is pure Python -- no synthesis -- so the generator runs end
-        # to end without any of the EDA toolchain this job leaves out.
+      - name: Create a project under WSL
+        # Proves the environment this job built is actually runnable here:
+        # settings initialisation, extracting the packaged template out of the
+        # read-only store, and writing the tree all happen on this path.
         #
-        # On the Linux filesystem rather than /mnt/c, and not only for speed:
-        # the same flow on the Windows drive fails today. Project creation
-        # copies the template out of the read-only store with `shutil.copytree`,
-        # whose default `copy2` carries metadata across, and DrvFs answers the
-        # chmod with EPERM unless the drive was mounted with `metadata`. That is
-        # a real limitation for anyone keeping a project on C:, but it wants a
-        # fix in FABulous rather than an assertion here.
+        # It stops short of `run_fab`, which shells out to yosys while loading
+        # the fabric. Pulling the EDA toolchain into a WSL store that gets no
+        # cache means building yosys from source on every run, and it would
+        # prove little: fabric generation is platform-independent Python that
+        # the ubuntu legs already run end to end, through simulation.
+        #
+        # On the Linux filesystem rather than /mnt/c because the same commands
+        # fail on the Windows drive today. Project creation copies the template
+        # with `shutil.copytree`, whose default `copy2` carries metadata across,
+        # and DrvFs answers the chmod with EPERM unless the drive was mounted
+        # with `metadata`. Real for anyone keeping a project on C:, but it wants
+        # a fix in FABulous rather than an assertion here.
         run: |
           fab=$(cat ~/fabulous-env)/bin/FABulous
           project=~/fabulous-wsl
@@ -217,6 +223,6 @@ jobs:
           mkdir -p "$project"
           cd "$project"
           "$fab" c demo
-          "$fab" -p demo run "run_fab"
-          ls demo/Fabric/*_top.v
-          test -s demo/.FABulous/bitStreamSpec.csv
+          test -s demo/fabric.csv
+          test -d demo/Tile/LUT4AB
+          test -d demo/.FABulous
