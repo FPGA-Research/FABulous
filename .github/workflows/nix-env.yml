@@ -113,11 +113,16 @@ jobs:
         shell: wsl-bash {0}
     steps:
       - name: Keep the checkout at LF
-        # Git on a Windows runner rewrites the tree to CRLF. Nix expressions
+        # Git on a Windows runner rewrites the tree to CRLF, and Nix expressions
         # carry shell fragments, so a stray \r becomes a build failure that says
-        # nothing about WSL. Has to run before the checkout to have any effect.
+        # nothing about WSL. `core.autocrlf` alone is not enough: `.gitattributes`
+        # marks every file `text=auto`, and an explicit text attribute outranks
+        # it, leaving the working-tree ending to `core.eol` -- which defaults to
+        # the platform's native one. Both have to be set, and before the checkout.
         shell: pwsh
-        run: git config --global core.autocrlf false
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
 
       - name: Checkout
         uses: actions/checkout@v7
@@ -167,6 +172,13 @@ jobs:
         # attributable to FABulous rather than to DrvFs.
         run: |
           test -f flake.nix
+          # Assert the line endings rather than trusting them: CRLF that reaches
+          # the store surfaces as `$'\r': command not found` from inside a build
+          # phase, which points nowhere near the checkout that caused it.
+          if grep -rIl $'\r' flake.nix pyproject.toml nix/; then
+            echo "::error::checkout has CRLF line endings; core.eol=lf did not take effect"
+            exit 1
+          fi
           rm -rf ~/FABulous
           mkdir ~/FABulous
           cp -r ./. ~/FABulous/
