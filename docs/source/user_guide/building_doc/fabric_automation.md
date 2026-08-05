@@ -365,8 +365,9 @@ definition with the regenerated one:
 FABulous> add_as_custom_prim --overwrite Tile/CRC5/crc5.v
 ```
 
-This only removes the blackbox definitions FABulous generated for the given modules,
-everything else in `custom_prims.v` is kept.
+This removes every definition of the given modules, including hand-written ones, so
+your own implementation or techmap description of that module is lost. Definitions of
+other modules are kept.
 
 With `--support-vectors` (`-v`), vector ports are emitted as vectors instead of being
 unrolled into individual scalar ports. Only use this if your CAD flow can handle it,
