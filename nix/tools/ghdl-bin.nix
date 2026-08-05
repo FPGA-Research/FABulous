@@ -8,7 +8,7 @@
   glibc ? null,
   gnat13 ? null,
   gcc ? null,
-  prefetchedTarball,
+  src,
 }:
 
 let
@@ -24,7 +24,7 @@ stdenv.mkDerivation {
   pname = "ghdl-bin";
   version = "6.0.0";
 
-  src = prefetchedTarball;
+  inherit src;
 
   nativeBuildInputs = lib.optionals isLinux [ autoPatchelfHook ];
 
@@ -56,14 +56,14 @@ stdenv.mkDerivation {
     runHook postInstall
   '';
 
-  meta = with lib; {
+  meta = {
     description = "GHDL - VHDL simulator (binary distribution)";
     homepage = "https://github.com/ghdl/ghdl";
-    license = licenses.gpl2Plus;
+    license = lib.licenses.gpl2Plus;
     platforms = [
       "x86_64-linux"
       "aarch64-darwin"
     ];
-    maintainers = [ ];
+    mainProgram = "ghdl";
   };
 }
