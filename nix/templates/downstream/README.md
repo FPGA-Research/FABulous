@@ -50,8 +50,8 @@ The `librelane_plugin_fabulous` GDS plugin ships in the FABulous wheel from
 2.2.0 onwards. On an older FABulous everything else works, but `librelane` will
 not discover the FABulous flows.
 
-FABulous installs both a `FABulous` and a `fabulous` command. On a
-case-insensitive `/nix` those are one path, so only one file survives and which
-name it carries depends on the installer; lookup is case-insensitive there too,
-so both commands still work. The Nix installer creates a case-sensitive store
-volume on macOS by default, so this normally does not arise at all.
+The Python environment cannot be built on a case-insensitive `/nix`. FABulous
+ships both a `FABulous` and a `fabulous` command, which are one path there, and
+the wheel installer refuses to overwrite. The Nix installer creates a
+case-sensitive store volume on macOS by default, so this normally does not
+arise.
