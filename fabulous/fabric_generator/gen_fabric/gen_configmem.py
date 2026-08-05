@@ -226,7 +226,7 @@ def generate_config_mem(
         )
         writer.addPreprocEndif()
 
-    # Frmae-based specific parameters
+    # Frame-based specific parameters
     if config_bit_mode == ConfigBitMode.FRAME_BASED:
         if max_frame_per_col != 0:
             writer.addParameter(
