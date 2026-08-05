@@ -344,6 +344,8 @@ clock port name for Yosys.
 This marks it as the external-facing pin of an I/O pad for Yosys and keeps it from trying
 to place an IO cell to the pin.
 
+(add-as-custom-prim)=
+
 ##### Adding primitives without generating a tile
 
 If you only want to make Yosys aware of a BEL, without generating a whole tile
