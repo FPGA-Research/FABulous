@@ -101,3 +101,103 @@ jobs:
           nix eval --raw \
             --override-input fabulous "git+file://$GITHUB_WORKSPACE?shallow=1" \
             ".#devShells.$system.default.drvPath"
+
+  # WSL is the platform the README points Windows users at, and it is the one
+  # supported target no runner label covers directly: `ubuntu-latest` shares its
+  # architecture but none of its filesystem or init behaviour.
+  nix-wsl:
+    name: WSL2 (Nix Ubuntu-24.04)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: wsl-bash {0}
+    steps:
+      - name: Keep the checkout at LF
+        # Git on a Windows runner rewrites the tree to CRLF. Nix expressions
+        # carry shell fragments, so a stray \r becomes a build failure that says
+        # nothing about WSL. Has to run before the checkout to have any effect.
+        shell: pwsh
+        run: git config --global core.autocrlf false
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up WSL2
+        uses: Vampire/setup-wsl@v7
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 2
+          additional-packages: curl xz-utils git ca-certificates
+          # Nix's installer refuses to run as root and the distribution ships no
+          # other user, so the action creates this one.
+          wsl-shell-user: nixuser
+
+      - name: Hand the store to that user
+        # Pre-creating /nix is what lets the installer skip sudo, which this
+        # distribution does not ship either.
+        shell: wsl-bash -u root {0}
+        run: install -d -o nixuser -g nixuser /nix
+
+      - name: Install Nix
+        # Single-user, because WSL runs no systemd here and so has no daemon to
+        # supervise -- the mode Nix documents for exactly this case.
+        # `prepare_nix_environment` is not reusable: its actions are JavaScript
+        # and execute on the Windows side, where there is no /nix. That also
+        # costs this job the store cache the other legs get, which is why it
+        # builds the Python environment rather than the whole EDA toolchain.
+        #
+        # The sandbox needs unprivileged user namespaces, which Ubuntu 24.04
+        # restricts and WSL does not reliably re-enable. Building unsandboxed is
+        # the compromise; the native Linux legs are what cover the sandboxed
+        # build of these same derivations.
+        run: |
+          curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
+          mkdir -p ~/.config/nix
+          cat > ~/.config/nix/nix.conf <<'EOF'
+          experimental-features = nix-command flakes
+          sandbox = false
+          substituters = https://cache.nixos.org https://nix-cache.fossi-foundation.org
+          extra-trusted-public-keys = nix-cache.fossi-foundation.org:3+K59iFwXqKsL7BNu6Guy0v+uTlwsxYQxjspXzqLYQs=
+          EOF
+
+      - name: Copy the checkout onto the Linux filesystem
+        # /mnt/c is a 9p mount of the Windows drive: slow, case-insensitive and
+        # only approximately POSIX. Building from the home directory is both what
+        # the docs tell WSL users to do and what keeps a failure here
+        # attributable to FABulous rather than to DrvFs.
+        run: |
+          test -f flake.nix
+          rm -rf ~/FABulous
+          mkdir ~/FABulous
+          cp -r ./. ~/FABulous/
+
+      - name: Build the uv.lock-matched Python environment
+        # The same `toNixpkgs` conversion the downstream-template job checks.
+        # The store path is written to a file rather than an `--out-link`
+        # because the later step works on the Windows drive, where creating a
+        # symlink needs a privilege the runner may not hold.
+        run: |
+          export PATH="$HOME/.nix-profile/bin:$PATH"
+          nix build --no-link --print-out-paths "$HOME/FABulous#fabulous-python-env" > ~/fabulous-env
+          pyenv=$(cat ~/fabulous-env)
+          "$pyenv/bin/python" -c "import fabulous, librelane; print('imports OK')"
+          # Both spellings exist as separate files here because the store is
+          # ext4; the macOS leg is what exercises the collapsed case.
+          "$pyenv/bin/FABulous" --version
+          "$pyenv/bin/fabulous" --version
+
+      - name: Generate a fabric with the project on the Windows drive
+        # Where WSL users keep their work in practice. DrvFs is case-insensitive
+        # and reports Windows ACLs rather than POSIX modes, so no other job runs
+        # the generator against a filesystem shaped like this. `run_fab` is pure
+        # Python, so it needs none of the EDA toolchain this job skips.
+        run: |
+          fab=$(cat ~/fabulous-env)/bin/FABulous
+          project=/mnt/c/fabulous-wsl
+          rm -rf "$project"
+          mkdir -p "$project"
+          cd "$project"
+          "$fab" c demo
+          "$fab" -p demo run "run_fab"
+          ls demo/Fabric/*_top.v
+          test -s demo/.FABulous/bitStreamSpec.csv
