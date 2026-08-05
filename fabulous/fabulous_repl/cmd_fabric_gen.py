@@ -497,6 +497,14 @@ class FabricGenCommandSet(ReplCommandSet):
                 help_text="Emit vector ports instead of scalar ports",
             ),
         ] = False,
+        overwrite: Annotated[
+            bool,
+            Option(
+                "--overwrite",
+                "-f",
+                help_text="Replace primitives that are already in the prims file",
+            ),
+        ] = False,
     ) -> None:
         """Add RTL files as blackbox primitives to `user_design/custom_prims.v`."""
         repl = self._cmd
@@ -509,4 +517,5 @@ class FabricGenCommandSet(ReplCommandSet):
             prims_file,
             [parseBelFile(f) for f in rtl_files],
             support_vectors,
+            overwrite,
         )

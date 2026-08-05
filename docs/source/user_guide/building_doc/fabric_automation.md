@@ -358,6 +358,16 @@ FABulous> add_as_custom_prim Tile/CRC5/crc5.v
 Multiple files can be passed at once. Primitives that are already present in
 `custom_prims.v` are not added a second time, so the command is safe to re-run.
 
+If you changed the ports of your BEL, use `--overwrite` (`-f`) to replace the existing
+definition with the regenerated one:
+
+```console
+FABulous> add_as_custom_prim --overwrite Tile/CRC5/crc5.v
+```
+
+This only removes the blackbox definitions FABulous generated for the given modules,
+everything else in `custom_prims.v` is kept.
+
 With `--support-vectors` (`-v`), vector ports are emitted as vectors instead of being
 unrolled into individual scalar ports. Only use this if your CAD flow can handle it,
 the FABulous nextpnr integration currently cannot:

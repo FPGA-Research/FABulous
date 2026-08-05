@@ -727,6 +727,27 @@ def test_add_as_custom_prim_is_idempotent(cli: FABulousREPL) -> None:
     assert custom_prims_file(cli) == first
 
 
+def test_add_as_custom_prim_overwrite_replaces_existing(cli: FABulousREPL) -> None:
+    """`--overwrite` replaces a stale definition instead of keeping it."""
+    bel = CUSTOM_PRIM_BELS[0]
+    module = bel.rsplit("/", 1)[-1].removesuffix(".v")
+    path = str(cli.projectDir / bel)
+    run_cmd(cli, f"add_as_custom_prim {path}")
+
+    prims_path = cli.projectDir / "user_design" / "custom_prims.v"
+    prims_path.write_text(
+        custom_prims_file(cli).replace(
+            f"module {module} (", f"module {module} (\n    input stale_port,"
+        )
+    )
+
+    run_cmd(cli, f"add_as_custom_prim --overwrite {path}")
+
+    prims = custom_prims_file(cli)
+    assert "stale_port" not in prims
+    assert prims.count(f"module {module} (") == 1
+
+
 def test_add_as_custom_prim_missing_file_errors(cli: FABulousREPL) -> None:
     """A non-existent RTL file is rejected before anything is written."""
     before = custom_prims_file(cli)
