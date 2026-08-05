@@ -80,6 +80,24 @@ let
 
   fallbackVersion =
     (builtins.fromTOML (builtins.readFile ../../pyproject.toml)).tool.setuptools_scm.fallback_version;
+
+  # `FABulous` and `fabulous` are declared as two console scripts, so an
+  # installer generates two files. On a case-insensitive store those are one
+  # path, and nixpkgs' wheel installer raises rather than overwrite, which is
+  # what fails the build there. Ship the wheel with only the canonical name and
+  # put the alias back as a symlink: it collapses onto the original where the
+  # two collide, so the same expression works on either kind of store.
+  #
+  # The grep is the guard — if the entry point is ever renamed this fails here
+  # rather than silently leaving the collision in place.
+  dropAliasScript = ''
+    grep -q '^fabulous = "fabulous.fabulous:main"$' pyproject.toml
+    sed -i '/^fabulous = "fabulous.fabulous:main"$/d' pyproject.toml
+  '';
+
+  restoreAliasScript = ''
+    [ -e "$out/bin/fabulous" ] || ln -s FABulous "$out/bin/fabulous"
+  '';
 in
 {
   patchedPackages = lib.attrNames depFixups ++ nixpkgsFixups;
@@ -107,7 +125,16 @@ in
 
   # Applied to the *nixpkgs* Python set, after `toNixpkgs` has converted the
   # uv2nix packages into it.
-  nixpkgs = final: prev: lib.genAttrs nixpkgsFixups (name: dropTopLevelLicense final prev.${name});
+  nixpkgs =
+    final: prev:
+    lib.genAttrs nixpkgsFixups (name: dropTopLevelLicense final prev.${name})
+    // {
+      # The conversion reinstalls from the wheel, which discards the alias the
+      # uv2nix build symlinked in, so it has to be recreated on this side too.
+      fabulous-fpga = prev.fabulous-fpga.overrideAttrs (old: {
+        postInstall = (old.postInstall or "") + restoreAliasScript;
+      });
+    };
 
   source = _final: prev: {
     fabulous-fpga = prev.fabulous-fpga.overrideAttrs (old: {
@@ -120,6 +147,8 @@ in
       env = (old.env or { }) // {
         SETUPTOOLS_SCM_PRETEND_VERSION = fallbackVersion;
       };
+      postPatch = (old.postPatch or "") + dropAliasScript;
+      postInstall = (old.postInstall or "") + restoreAliasScript;
     });
   };
 }
