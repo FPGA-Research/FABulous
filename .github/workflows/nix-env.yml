@@ -81,6 +81,16 @@ jobs:
         # Builds fabulous-fpga's full dependency closure as ordinary nixpkgs
         # Python packages, linked into one environment — the check that the
         # `toNixpkgs` conversion actually holds together.
+        #
+        # Linux only. The GitHub macOS runner keeps its store on the
+        # case-insensitive root volume, where installing the converted
+        # `fabulous-fpga` fails: its `FABulous` and `fabulous` commands are one
+        # path there and the wheel installer refuses to overwrite. A default
+        # macOS Nix install puts the store on a case-sensitive volume, so this
+        # is a runner limitation rather than one users hit. The macOS leg still
+        # evaluates the template below, which is what guards the composition
+        # surface.
+        if: runner.os == 'Linux'
         run: |
           nix build ".#fabulous-python-env"
           ./result/bin/python -c "import fabulous, librelane; print('imports OK')"

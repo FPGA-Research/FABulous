@@ -184,9 +184,10 @@ Scoping matters here: the converted packages live on this interpreter only. `pkg
 Three packages deliberately keep nixpkgs' versions rather than the lock's: `wheel`, `packaging` and `tomli`. nixpkgs' own `buildPythonPackage` is built from them, so converting them would require them to build themselves. All three are build tooling rather than anything FABulous imports, and nixpkgs' versions satisfy its constraints.
 
 ```{note}
-FABulous installs both a `FABulous` and a `fabulous` command. On a case-insensitive `/nix` the two are one path, so only one file survives installation, and which of the two names it carries depends on the installer. Lookup is case-insensitive there too, so both commands still work. The Nix installer creates a case-sensitive store volume on macOS by default, so this normally does not arise at all.
+`pkgs.fabulous-python` and everything built from it cannot be installed on a case-insensitive `/nix`. FABulous ships both a `FABulous` and a `fabulous` command; on such a store the two are one path, and the wheel installer nixpkgs builds with refuses to overwrite, so the build fails outright. This is specific to the nixpkgs conversion — the uv2nix virtualenv behind the development shells installs differently and is unaffected. The Nix installer creates a case-sensitive store volume on macOS by default, so this normally does not arise.
 ```
 
+(bringing-your-own-uvlock)=
 ### Bringing your own uv.lock
 
 `extra-python-packages` covers a project whose Python dependencies FABulous's lock already resolves. When that is not true — you need a package the lock does not contain, or a different version of one it pins — build the environment from your own `uv.lock` instead and pass it as `python-env`.
