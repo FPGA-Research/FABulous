@@ -22,6 +22,7 @@ from fabulous.fabric_generator.parser.parse_csv import parseTilesCSV
 from fabulous.fabric_generator.parser.parse_hdl import parseBelFile
 from fabulous.fabulous_repl.command_set_base import (
     CMD_FABRIC_FLOW,
+    CMD_HELPER,
     CMD_TOOLS,
     META_DATA_DIR,
     ReplCommandSet,
@@ -478,7 +479,7 @@ class FabricGenCommandSet(ReplCommandSet):
         if switch_matrix:
             parseTilesCSV(tile_csv)
 
-    @with_category(CMD_TOOLS)
+    @with_category(CMD_HELPER)
     @with_annotated
     def do_add_as_custom_prim(
         self,
