@@ -696,6 +696,7 @@ CUSTOM_PRIM_BELS = [
     "Tile/LUT4AB/LUT4c_frame_config_dffesr.v",
     "Tile/LUT4AB/MUX8LUT_frame_config_mux.v",
 ]
+HAND_WRITTEN_PRIM = "\nmodule keep_me (\n    input a\n);\nendmodule\n"
 
 
 def custom_prims_file(cli: FABulousREPL) -> str:
@@ -725,9 +726,6 @@ def test_add_as_custom_prim_is_idempotent(cli: FABulousREPL) -> None:
 
     run_cmd(cli, f"add_as_custom_prim {path}")
     assert custom_prims_file(cli) == first
-
-
-HAND_WRITTEN_PRIM = "\nmodule keep_me (\n    input a\n);\nendmodule\n"
 
 
 @pytest.mark.parametrize(

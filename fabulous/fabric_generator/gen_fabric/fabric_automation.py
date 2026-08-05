@@ -423,9 +423,9 @@ def addBelsToPrim(
     if overwrite:
         for bel in bels:
             prims, removed = re.subn(
-                rf"(^//Warning: The primitive {re.escape(bel.module_name)} .*\n)?"
-                rf"(^\(\* blackbox.*\n)?"
-                rf"^module\s+{re.escape(bel.module_name)}\s*\(.*?^endmodule\n",
+                rf"(^//Warning: The primitive {re.escape(bel.module_name)} [^\n]*\n)?"
+                rf"(^\(\* blackbox[^\n]*\n)?"
+                rf"^module\s+{re.escape(bel.module_name)}\s*\(.*?^endmodule\n?",
                 "",
                 prims,
                 flags=re.MULTILINE | re.DOTALL,
@@ -575,8 +575,7 @@ def addBelsToPrim(
 
     # write to prims file, line by line
     if overwrite:
-        with primsFile.open("w") as f:
-            f.write(prims + "\n".join(str(i) for i in primsAdd))
+        primsFile.write_text(prims + "\n".join(primsAdd))
     else:
         with primsFile.open("a") as f:
             f.write("\n".join(str(i) for i in primsAdd))
