@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
+from fabulous.custom_exception import CommandError
 from fabulous.fabric_generator.gds_generator.steps.tile_area_opt import OptMode
 from fabulous.fabric_generator.parser.parse_switchmatrix import parseList
 from fabulous.fabulous_repl.cmd_macro import _resolve_directional_fix
@@ -689,3 +690,130 @@ class TestRunEFPGAMacroForwarding:
         run_cmd(cli, "run_FABulous_eFPGA_macro")
 
         full_auto.assert_not_called()
+
+
+CUSTOM_PRIM_BELS = [
+    "Tile/LUT4AB/LUT4c_frame_config_dffesr.v",
+    "Tile/LUT4AB/MUX8LUT_frame_config_mux.v",
+]
+HAND_WRITTEN_PRIM = "\nmodule keep_me (\n    input a\n);\nendmodule\n"
+
+
+def custom_prims_file(cli: FABulousREPL) -> str:
+    """Return the content of the project's custom primitives file."""
+    return (cli.projectDir / "user_design" / "custom_prims.v").read_text()
+
+
+@pytest.mark.parametrize("absolute", [True, False], ids=["absolute", "relative"])
+def test_add_as_custom_prim_adds_blackbox_prims(
+    cli: FABulousREPL, absolute: bool
+) -> None:
+    """Every given RTL file ends up as a blackbox module in custom_prims.v.
+
+    Relative paths are resolved against the project directory, like the other
+    REPL commands do.
+    """
+    paths = [str(cli.projectDir / bel) if absolute else bel for bel in CUSTOM_PRIM_BELS]
+    before = custom_prims_file(cli)
+
+    run_cmd(cli, f"add_as_custom_prim {' '.join(paths)}")
+
+    prims = custom_prims_file(cli)
+    for bel in CUSTOM_PRIM_BELS:
+        module = bel.rsplit("/", 1)[-1].removesuffix(".v")
+        assert f"module {module} (" not in before
+        assert f"module {module} (" in prims
+
+
+def test_add_as_custom_prim_is_idempotent(cli: FABulousREPL) -> None:
+    """A primitive already present in the file is not appended again."""
+    path = str(cli.projectDir / CUSTOM_PRIM_BELS[0])
+    run_cmd(cli, f"add_as_custom_prim {path}")
+    first = custom_prims_file(cli)
+
+    run_cmd(cli, f"add_as_custom_prim {path}")
+    assert custom_prims_file(cli) == first
+
+
+@pytest.mark.parametrize(
+    ("flag", "stale_kept"), [("", True), ("--overwrite", False)], ids=["off", "on"]
+)
+def test_add_as_custom_prim_overwrite(
+    cli: FABulousREPL, flag: str, stale_kept: bool
+) -> None:
+    """Only `--overwrite` replaces a stale definition, and only that definition."""
+    target, neighbour = CUSTOM_PRIM_BELS
+    module = target.rsplit("/", 1)[-1].removesuffix(".v")
+    neighbour_module = neighbour.rsplit("/", 1)[-1].removesuffix(".v")
+    paths = [str(cli.projectDir / bel) for bel in CUSTOM_PRIM_BELS]
+    run_cmd(cli, f"add_as_custom_prim {' '.join(paths)}")
+
+    # make the already present definition differ from what the command generates
+    prims_path = cli.projectDir / "user_design" / "custom_prims.v"
+    prims_path.write_text(
+        custom_prims_file(cli).replace(
+            f"module {module} (", f"module {module} (\n    input stale_port,"
+        )
+        + HAND_WRITTEN_PRIM
+    )
+
+    run_cmd(cli, f"add_as_custom_prim {flag} {paths[0]}")
+
+    prims = custom_prims_file(cli)
+    assert ("stale_port" in prims) is stale_kept
+    assert prims.count(f"module {module} (") == 1
+    assert prims.count(f"module {neighbour_module} (") == 1
+    assert HAND_WRITTEN_PRIM in prims
+
+
+def test_add_as_custom_prim_overwrite_keeps_content_between_duplicates(
+    cli: FABulousREPL,
+) -> None:
+    """Duplicate definitions are removed without taking the content between them."""
+    target, neighbour = CUSTOM_PRIM_BELS
+    module = target.rsplit("/", 1)[-1].removesuffix(".v")
+    neighbour_module = neighbour.rsplit("/", 1)[-1].removesuffix(".v")
+    paths = [str(cli.projectDir / bel) for bel in CUSTOM_PRIM_BELS]
+    run_cmd(cli, f"add_as_custom_prim {' '.join(paths)}")
+
+    # a second definition of the same module, with content to preserve in between
+    prims_path = cli.projectDir / "user_design" / "custom_prims.v"
+    generated = custom_prims_file(cli)
+    prims_path.write_text(generated + HAND_WRITTEN_PRIM + generated)
+
+    run_cmd(cli, f"add_as_custom_prim --overwrite {paths[0]}")
+
+    prims = custom_prims_file(cli)
+    assert prims.count(f"module {module} (") == 1
+    assert prims.count(f"module {neighbour_module} (") == 2
+    assert HAND_WRITTEN_PRIM in prims
+
+
+def test_add_as_custom_prim_overwrite_removes_indented_definition(
+    cli: FABulousREPL,
+) -> None:
+    """Hand-written formatting (indentation, trailing comment) is still matched."""
+    target = CUSTOM_PRIM_BELS[0]
+    module = target.rsplit("/", 1)[-1].removesuffix(".v")
+    prims_path = cli.projectDir / "user_design" / "custom_prims.v"
+    prims_path.write_text(
+        f"  (* blackbox *)\n"
+        f"  module {module} (\n    input stale_port\n  );\n"
+        f"  endmodule // {module}\n"
+    )
+
+    run_cmd(cli, f"add_as_custom_prim --overwrite {cli.projectDir / target}")
+
+    prims = custom_prims_file(cli)
+    assert "stale_port" not in prims
+    assert prims.count(f"module {module} (") == 1
+
+
+def test_add_as_custom_prim_missing_file_errors(cli: FABulousREPL) -> None:
+    """A non-existent RTL file is rejected before anything is written."""
+    before = custom_prims_file(cli)
+
+    with pytest.raises(CommandError, match="does_not_exist.v"):
+        cli.get_command_func("add_as_custom_prim")("does_not_exist.v")
+
+    assert custom_prims_file(cli) == before

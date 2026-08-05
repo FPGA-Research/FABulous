@@ -2,6 +2,7 @@
 
 import json
 import math
+import re
 from importlib import resources
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -387,6 +388,7 @@ def addBelsToPrim(
     primsFile: Path,
     bels: list[Bel],
     support_vectors: bool = False,
+    overwrite: bool = False,
 ) -> None:
     """Add a list of Bels as blackbox primitives to yosys prims file.
 
@@ -400,6 +402,10 @@ def addBelsToPrim(
         Boolean to support vectors for ports in the prims file
         Default False,
         since the FABulous nextpn integration does not support vectors
+    overwrite : bool
+        Replace primitives that are already present in the prims file,
+        instead of keeping the existing definition.
+        Default False
     """
     prims: str = ""  # prims.v
     primsAdd: list[str] = []  # append to prims.v
@@ -413,6 +419,24 @@ def addBelsToPrim(
 
     # remove all duplicate bels in list.
     bels = list({bel.src: bel for bel in bels}.values())
+
+    if overwrite:
+        for bel in bels:
+            prims, removed = re.subn(
+                rf"(^//Warning: The primitive {re.escape(bel.module_name)} [^\n]*\n)?"
+                rf"(^[ \t]*\(\* blackbox[^\n]*\n)?"
+                rf"^[ \t]*module\s+{re.escape(bel.module_name)}\s*\("
+                rf".*?^[ \t]*endmodule[^\n]*\n?",
+                "",
+                prims,
+                flags=re.MULTILINE | re.DOTALL,
+            )
+            if removed:
+                logger.info(
+                    f"Removing existing {bel.module_name} from yosys primitives file "
+                    f"{primsFile}."
+                )
+
     logger.info(
         f"Adding bels {', '.join(bel.name for bel in bels)} to yosys primitives file "
         f"{primsFile}."
@@ -551,8 +575,11 @@ def addBelsToPrim(
             continue
 
     # write to prims file, line by line
-    with primsFile.open("a") as f:
-        f.write("\n".join(str(i) for i in primsAdd))
+    if overwrite:
+        primsFile.write_text(prims + "\n".join(primsAdd))
+    else:
+        with primsFile.open("a") as f:
+            f.write("\n".join(str(i) for i in primsAdd))
 
 
 def genIOBel(
