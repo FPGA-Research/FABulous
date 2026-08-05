@@ -95,9 +95,9 @@ runCommand "fabulous-${version}"
     # PATH) without re-deriving the environment themselves. It comes from the
     # Python environment, not the flake input, so uv.lock controls its version.
     #
-    # `fabulous` is the lowercase alias of `FABulous`. On a case-insensitive
-    # filesystem the two are one file, so glob rather than name them: the
-    # environment has whichever the installer managed to write.
+    # `fabulous` is the lowercase alias of `FABulous`; both come from the same
+    # entry point. The existence guard keeps this from failing on an
+    # environment that is missing one of the three.
     for prog in FABulous fabulous librelane; do
       [ -e ${fabulous-python-env}/bin/$prog ] || continue
       makeWrapper ${fabulous-python-env}/bin/$prog $out/bin/$prog \
