@@ -267,7 +267,7 @@ class TestGeneratedConfigMemRTL:
                     config_csv,
                     frame_bits_per_row=fabric_config.frameBitsPerRow,
                     max_frame_per_col=fabric_config.maxFramesPerCol,
-                    config_bit_mode=self.fabric.configBitMode,
+                    config_bit_mode=fabric_config.configBitMode,
                 )
             return
 
@@ -278,7 +278,7 @@ class TestGeneratedConfigMemRTL:
             config_csv,
             frame_bits_per_row=fabric_config.frameBitsPerRow,
             max_frame_per_col=fabric_config.maxFramesPerCol,
-            config_bit_mode=self.fabric.configBitMode,
+            config_bit_mode=fabric_config.configBitMode,
         )
 
         # Verify output file was created and contains expected content
@@ -333,7 +333,7 @@ class TestGeneratedConfigMemRTL:
             csv_path,
             frame_bits_per_row=default_fabric.frameBitsPerRow,
             max_frame_per_col=default_fabric.maxFramesPerCol,
-            config_bit_mode=self.fabric.configBitMode,
+            config_bit_mode=default_fabric.configBitMode,
         )
 
         # Read the generated RTL

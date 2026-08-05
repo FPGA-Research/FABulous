@@ -179,6 +179,7 @@ class TestEmitTileVerilog:
             mock_tile.name,
             mock_tile.globalConfigBits,
             tile_dir / "LUT4AB_ConfigMem.csv",
+            config_bit_mode=ConfigBitMode.FLIPFLOP_CHAIN,
         )
         gen_tile.assert_called_once()
 
