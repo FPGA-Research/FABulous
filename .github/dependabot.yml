@@ -13,9 +13,7 @@ multi-ecosystem-groups:
 
 updates:
   - package-ecosystem: "uv"
-    directories:
-      - "/"
-      - "/docs"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"

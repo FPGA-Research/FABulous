@@ -1,4 +1,4 @@
-files: ^(fabulous|docs|nix|tests)/|\.nix$
+files: ^(fabulous|docs|nix|tests)/|\.nix$|^(pyproject\.toml|uv\.lock)$
 default_language_version:
   python: python3.12
 repos:

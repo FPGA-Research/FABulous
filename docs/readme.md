@@ -31,9 +31,11 @@ the API reference is auto-generated from source docstrings by [sphinx-autoapi](h
 
 To build the documentation, you should already have set up your environment and installed the required packages to use FABulous as described in the [README](../README.md). Make sure you have picked the right FABulous branch you want to build the documentation for.
 
-`make html` installs the documentation dependencies from `uv.lock`, so a lock
-that no longer matches `pyproject.toml` fails the build rather than resolving
-around it. Run `uv lock` after editing the dependencies.
+The documentation dependencies live in the `docs` dependency group of the
+repository-root `pyproject.toml`, so there is a single environment for both
+FABulous and its docs. `make html` installs them from the root `uv.lock`, so a
+lock that no longer matches `pyproject.toml` fails the build rather than
+resolving around it. Run `uv lock` after editing the dependencies.
 
 ## Building the documentation
 
