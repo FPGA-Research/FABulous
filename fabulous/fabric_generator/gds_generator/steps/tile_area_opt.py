@@ -24,6 +24,9 @@ from fabulous.fabric_generator.gds_generator.steps.add_buffer import AddBuffers
 from fabulous.fabric_generator.gds_generator.steps.diodes_on_ports import (
     FABulousDiodesOnPorts,
 )
+from fabulous.fabric_generator.gds_generator.steps.macro_placement import (
+    FABulousMacroPlacement,
+)
 from fabulous.fabric_generator.gds_generator.steps.tile_IO_placement import (
     FABulousTileIOPlacement,
 )
@@ -142,7 +145,7 @@ class TileAreaOptimisation(WhileStep):
         OpenROAD.DumpRCValues,
         Odb.CheckMacroAntennaProperties,
         Odb.SetPowerConnections,
-        Odb.ManualMacroPlacement,
+        FABulousMacroPlacement,
         OpenROAD.CutRows,
         OpenROAD.TapEndcapInsertion,
         Odb.AddPDNObstructions,
