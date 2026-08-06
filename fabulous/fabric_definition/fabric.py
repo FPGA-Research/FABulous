@@ -171,7 +171,7 @@ class Fabric:
         # together must fit in 26 letters.
         for superTile in self.superTileDic.values():
             mx, my = superTile.get_master_tile_coords()
-            master_tile = superTile.tileMap[my][mx]
+            master_tile = superTile.tile_map[my][mx]
             if (
                 master_tile is not None
                 and len(master_tile.bels) + len(superTile.bels) > 26
@@ -184,13 +184,13 @@ class Fabric:
 
         # SJUMP wires route a basic tile to a BEL hosted in its supertile's
         # master tile; they are only meaningful inside a supertile. A tile that
-        # belongs to a supertile carries partOfSuperTile (set by the parser), so
+        # belongs to a supertile carries part_of_super_tile (set by the parser), so
         # reject any SJUMP-declaring tile that is not flagged as such.
         for row in self.tile:
             for tile in row:
                 if tile is None:
                     continue
-                if tile.get_sjump_ports() and not tile.partOfSuperTile:
+                if tile.get_sjump_ports() and not tile.part_of_super_tile:
                     raise ValueError(
                         f"Tile '{tile.name}' declares SJUMP wires but is not part "
                         "of any supertile. SJUMP wires route to a supertile-hosted "
@@ -349,7 +349,7 @@ class Fabric:
             if master_tile is None:
                 continue
 
-            for ly, st_row in enumerate(superTile.tileMap):
+            for ly, st_row in enumerate(superTile.tile_map):
                 for lx, st_tile in enumerate(st_row):
                     if st_tile is None:
                         continue
@@ -403,8 +403,8 @@ class Fabric:
     ) -> Generator[tuple[int, int, SuperTile], None, None]:
         """Yield `(base_fx, base_fy, superTile)` for every supertile placement.
 
-        Each supertile type's `tileMap` pattern is matched against the fabric
-        grid; `(base_fx, base_fy)` is the top-left corner of a match. Shared by
+        Each supertile type's ``tile_map`` pattern is matched against the fabric
+        grid; ``(base_fx, base_fy)`` is the top-left corner of a match. Shared by
         the SJUMP wire pass, the nextpnr model, and the bitstream spec so they all
         locate supertile instances identically.
 
@@ -431,8 +431,8 @@ class Fabric:
     def _matches_super_tile(
         self, superTile: SuperTile, base_fx: int, base_fy: int
     ) -> bool:
-        """Return whether `superTile`'s tileMap matches the grid at the base."""
-        for ly, st_row in enumerate(superTile.tileMap):
+        """Return whether ``superTile``'s tile_map matches the grid at the base."""
+        for ly, st_row in enumerate(superTile.tile_map):
             for lx, st_tile in enumerate(st_row):
                 fy = base_fy + ly
                 fx = base_fx + lx
@@ -621,7 +621,7 @@ class Fabric:
                     for st in self.superTileDic.values():
                         if st == tile:
                             # Check if fabric_tile is part of this supertile
-                            for st_row in st.tileMap:
+                            for st_row in st.tile_map:
                                 for st_tile in st_row:
                                     if st_tile and st_tile.name == fabric_tile.name:
                                         positions.append((x, y))
@@ -684,7 +684,7 @@ class Fabric:
         result: list[Tile | SuperTile] = []
 
         # Add all regular tiles from tileDic
-        result.extend([i for i in self.tileDic.values() if not i.partOfSuperTile])
+        result.extend([i for i in self.tileDic.values() if not i.part_of_super_tile])
 
         # Add all SuperTiles from superTileDic
         result.extend(self.superTileDic.values())

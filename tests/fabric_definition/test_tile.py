@@ -23,7 +23,7 @@ def _mk_tile(ports: list[TilePort]) -> Tile:
         matrix_dir=Path(),
         switch_matrix=SwitchMatrix.from_connections(matrix_file=Path(), connections={}),
         gen_ios=[],
-        userCLK=False,
+        user_clk=False,
     )
 
 
@@ -160,13 +160,22 @@ def _simple_tile(
         tile_dir=Path(),
         matrix_dir=Path(),
         gen_ios=[],
-        userCLK=False,
+        user_clk=False,
         switch_matrix=SwitchMatrix.from_connections(matrix_file=Path(), connections={}),
     )
 
 
-def _composite_tile(name: str, tileMap: list[list[str | None]]) -> Tile:
-    """Build a composite Tile carrying a tileMap."""
+def _composite_tile(name: str, tile_map: list[list[str | None]]) -> Tile:
+    """Build a composite Tile from a grid of sub-tile names.
+
+    Name strings are turned into leaf ``Tile`` objects so the resulting
+    ``tile_map`` holds tile objects, matching the composite tile model.
+    """
+    objectMap: list[list[Tile | None]] = [
+        [_simple_tile(name=cell) if cell is not None else None for cell in row]
+        for row in tile_map
+    ]
+    sub_tiles = [tile for row in objectMap for tile in row if tile is not None]
     return Tile(
         name=name,
         ports=[],
@@ -174,9 +183,10 @@ def _composite_tile(name: str, tileMap: list[list[str | None]]) -> Tile:
         tile_dir=Path(),
         matrix_dir=Path(),
         gen_ios=[],
-        userCLK=False,
+        user_clk=False,
         switch_matrix=SwitchMatrix.from_connections(matrix_file=Path(), connections={}),
-        tileMap=tileMap,
+        tile_map=objectMap,
+        sub_tiles=sub_tiles,
     )
 
 
@@ -185,12 +195,13 @@ class TestSubTiles:
 
     def test_get_sub_tiles_simple(self) -> None:
         """A simple tile reports itself as its only sub-tile."""
-        assert _simple_tile(name="T1").get_sub_tiles() == ["T1"]
+        leaf = _simple_tile(name="T1")
+        assert leaf.get_sub_tiles() == [leaf]
 
     def test_get_sub_tiles_composite(self) -> None:
-        """A composite tile flattens non-None tileMap entries."""
+        """A composite tile flattens non-None tile_map entries."""
         tile = _composite_tile("C", [["T0", "T1"], ["T2", None]])
-        assert tile.get_sub_tiles() == ["T0", "T1", "T2"]
+        assert [t.name for t in tile.get_sub_tiles()] == ["T0", "T1", "T2"]
 
     def test_sub_tile_offset_simple_self(self) -> None:
         """A simple tile is at offset (0, 0)."""
@@ -288,9 +299,9 @@ class TestTileProperties:
         assert tile.bel_groups == {"T1": []}
 
     def test_config_bits_alias(self) -> None:
-        """config_bits mirrors globalConfigBits."""
+        """config_bits mirrors total_config_bits."""
         tile = _simple_tile()
-        assert tile.config_bits == tile.globalConfigBits
+        assert tile.config_bits == tile.total_config_bits
 
 
 class TestBelQueries:

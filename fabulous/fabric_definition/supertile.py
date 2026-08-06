@@ -30,15 +30,16 @@ class SuperTile:
         Path to the tile directory.
     tiles : list[Tile]
         The list of tiles that make up the super tile.
-    tileMap : list[list[Tile]]
+    tile_map : list[list[Tile]]
         The map of the tiles that make up the super tile
     bels : list[Bel]
         The list of bels of that the super tile contains
-    withUserCLK : bool
-        Whether the super tile has a userCLK port. Default is False.
+    with_user_clk : bool
+        Whether the super tile has a user_clk port. Default is False.
     switch_matrix : SwitchMatrix | None
         The supertile switch matrix (source file, connectivity, config bits), or
-        None if the supertile has no switch matrix.
+        None if the supertile has no switch matrix. `supertile_matrix_dir` and
+        `supertile_matrix_config_bits` are derived from it.
     master_tile_coords : tuple[int, int] | None
         Local (x, y) of the master tile. Explicitly set via the `MASTER` token
         in the supertile CSV, or computed as the last non-None tile in row-major
@@ -49,9 +50,9 @@ class SuperTile:
     name: str
     tile_dir: Path
     tiles: list[Tile]
-    tileMap: list[list[Tile]]
+    tile_map: list[list[Tile]]
     bels: list[Bel] = field(default_factory=list)
-    withUserCLK: bool = False
+    with_user_clk: bool = False
     switch_matrix: SwitchMatrix | None = None
     master_tile_coords: tuple[int, int] | None = None
 
@@ -69,25 +70,25 @@ class SuperTile:
             The dictionary of the ports around the super tile.
         """
         ports = {}
-        for y, row in enumerate(self.tileMap):
+        for y, row in enumerate(self.tile_map):
             for x, tile in enumerate(row):
-                if self.tileMap[y][x] is None:
+                if self.tile_map[y][x] is None:
                     continue
                 ports[f"{x},{y}"] = []
                 # Bottom-left origin: y+1 is north (above), y-1 is south (below)
-                if y + 1 >= len(self.tileMap) or self.tileMap[y + 1][x] is None:
-                    ports[f"{x},{y}"].append(tile.getNorthSidePorts())
-                if x + 1 >= len(self.tileMap[y]) or self.tileMap[y][x + 1] is None:
-                    ports[f"{x},{y}"].append(tile.getEastSidePorts())
-                if y - 1 < 0 or self.tileMap[y - 1][x] is None:
-                    ports[f"{x},{y}"].append(tile.getSouthSidePorts())
-                if x - 1 < 0 or self.tileMap[y][x - 1] is None:
-                    ports[f"{x},{y}"].append(tile.getWestSidePorts())
+                if y + 1 >= len(self.tile_map) or self.tile_map[y + 1][x] is None:
+                    ports[f"{x},{y}"].append(tile.get_port_on_side(Side.NORTH))
+                if x + 1 >= len(self.tile_map[y]) or self.tile_map[y][x + 1] is None:
+                    ports[f"{x},{y}"].append(tile.get_port_on_side(Side.EAST))
+                if y - 1 < 0 or self.tile_map[y - 1][x] is None:
+                    ports[f"{x},{y}"].append(tile.get_port_on_side(Side.SOUTH))
+                if x - 1 < 0 or self.tile_map[y][x - 1] is None:
+                    ports[f"{x},{y}"].append(tile.get_port_on_side(Side.WEST))
         return ports
 
     def __iter__(self) -> Generator[tuple[tuple[int, int], Tile], None, None]:
         """Iterate over all sub-tiles in the supertile."""
-        for x, row in enumerate(self.tileMap):
+        for x, row in enumerate(self.tile_map):
             for y, tile in enumerate(row):
                 if tile is not None:
                     yield (x, y), tile
@@ -101,33 +102,41 @@ class SuperTile:
             A list of tuples which contains the internal connected port
             and the x and y coordinate of the tile.
         """
-        internalConnections = []
-        for y, row in enumerate(self.tileMap):
+        internal_connections = []
+        for y, row in enumerate(self.tile_map):
             for x, tile in enumerate(row):
                 if tile is None:
                     continue
                 # Bottom-left origin: y+1 is north (above), y-1 is south (below)
                 if (
-                    0 <= y + 1 < len(self.tileMap)
-                    and self.tileMap[y + 1][x] is not None
+                    0 <= y + 1 < len(self.tile_map)
+                    and self.tile_map[y + 1][x] is not None
                 ):
-                    internalConnections.append((tile.getNorthSidePorts(), x, y))
+                    internal_connections.append(
+                        (tile.get_port_on_side(Side.NORTH), x, y)
+                    )
                 if (
-                    0 <= x + 1 < len(self.tileMap[0])
-                    and self.tileMap[y][x + 1] is not None
+                    0 <= x + 1 < len(self.tile_map[0])
+                    and self.tile_map[y][x + 1] is not None
                 ):
-                    internalConnections.append((tile.getEastSidePorts(), x, y))
+                    internal_connections.append(
+                        (tile.get_port_on_side(Side.EAST), x, y)
+                    )
                 if (
-                    0 <= y - 1 < len(self.tileMap)
-                    and self.tileMap[y - 1][x] is not None
+                    0 <= y - 1 < len(self.tile_map)
+                    and self.tile_map[y - 1][x] is not None
                 ):
-                    internalConnections.append((tile.getSouthSidePorts(), x, y))
+                    internal_connections.append(
+                        (tile.get_port_on_side(Side.SOUTH), x, y)
+                    )
                 if (
-                    0 <= x - 1 < len(self.tileMap[0])
-                    and self.tileMap[y][x - 1] is not None
+                    0 <= x - 1 < len(self.tile_map[0])
+                    and self.tile_map[y][x - 1] is not None
                 ):
-                    internalConnections.append((tile.getWestSidePorts(), x, y))
-        return internalConnections
+                    internal_connections.append(
+                        (tile.get_port_on_side(Side.WEST), x, y)
+                    )
+        return internal_connections
 
     def get_master_tile_coords(self) -> tuple[int, int]:
         """Return the (x, y) coordinates of the master tile in local space.
@@ -158,7 +167,7 @@ class SuperTile:
             return self.master_tile_coords
         mx, my = 0, 0
         found = False
-        for y, row in enumerate(self.tileMap):
+        for y, row in enumerate(self.tile_map):
             for x, tile in enumerate(row):
                 if tile is not None:
                     mx, my = x, y
@@ -179,7 +188,7 @@ class SuperTile:
             with `wire_direction == Direction.SJUMP` in any child tile.
         """
         result = []
-        for y, row in enumerate(self.tileMap):
+        for y, row in enumerate(self.tile_map):
             for x, tile in enumerate(row):
                 if tile is None:
                     continue
@@ -198,7 +207,7 @@ class SuperTile:
             with `wire_direction == Direction.SJUMP` in any child tile.
         """
         result = []
-        for y, row in enumerate(self.tileMap):
+        for y, row in enumerate(self.tile_map):
             for x, tile in enumerate(row):
                 if tile is None:
                     continue
@@ -225,7 +234,7 @@ class SuperTile:
         valid_sources: set[str] = set()
         valid_sinks: set[str] = set()
 
-        for row in self.tileMap:
+        for row in self.tile_map:
             for tile in row:
                 if tile is None:
                     continue
@@ -260,12 +269,12 @@ class SuperTile:
     @property
     def max_width(self) -> int:
         """Return the maximum width of the supertile."""
-        return max(len(i) for i in self.tileMap)
+        return max(len(i) for i in self.tile_map)
 
     @property
     def max_height(self) -> int:
         """Return the maximum height of the supertile."""
-        return len(self.tileMap)
+        return len(self.tile_map)
 
     def get_min_die_area(
         self,

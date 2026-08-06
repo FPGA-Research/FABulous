@@ -105,9 +105,9 @@ def generateTile(
         writer.addPreprocEndif()
     writer.addParameter("MaxFramesPerCol", "integer", max_frame_per_col, indentLevel=2)
     writer.addParameter("FrameBitsPerRow", "integer", frame_bits_per_row, indentLevel=2)
-    if tile.globalConfigBits > 0:
+    if tile.total_config_bits > 0:
         writer.addParameter(
-            "NoConfigBits", "integer", tile.globalConfigBits, indentLevel=2
+            "NoConfigBits", "integer", tile.total_config_bits, indentLevel=2
         )
 
     writer.addParameterEnd(indentLevel=1)
@@ -115,10 +115,10 @@ def generateTile(
 
     # holder for each direction of port string
     portList = (
-        tile.getNorthSidePorts()
-        + tile.getEastSidePorts()
-        + tile.getWestSidePorts()
-        + tile.getSouthSidePorts()
+        tile.get_port_on_side(Side.NORTH)
+        + tile.get_port_on_side(Side.EAST)
+        + tile.get_port_on_side(Side.WEST)
+        + tile.get_port_on_side(Side.SOUTH)
     )
 
     side_of_port = None
@@ -215,7 +215,7 @@ def generateTile(
                 "Need to run matrix generation first"
             )
 
-        if tile.globalConfigBits > 0:
+        if tile.total_config_bits > 0:
             if (basePath / f"{tile.name}_ConfigMem.vhdl").exists():
                 writer.addComponentDeclarationForFile(
                     f"{basePath}/{tile.name}_ConfigMem.vhdl"
@@ -273,7 +273,7 @@ def generateTile(
     # maybe even useful if we want to add a buffer here
 
     # all the signal wire need to declare first for compatibility with VHDL
-    if tile.globalConfigBits > 0:
+    if tile.total_config_bits > 0:
         writer.addConnectionVector("ConfigBits", "NoConfigBits-1", 0)
         writer.addConnectionVector("ConfigBits_N", "NoConfigBits-1", 0)
 
@@ -391,7 +391,7 @@ def generateTile(
         writer.addAssignScalar("conf_data(conf_data'high)", "CONFout")
         writer.addComment("CONFout is from tile entity")
 
-    if config_bit_mode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
+    if config_bit_mode == ConfigBitMode.FRAME_BASED and tile.total_config_bits > 0:
         writer.addComment("configuration storage latches", onNewLine=True)
         writer.addInstantiation(
             compName=f"{tile.name}_ConfigMem",
@@ -566,17 +566,17 @@ def generateTile(
         portsPairs.append(("CONFout", f"conf_data({belCounter + 1})"))
         portsPairs.append(("CLK", "CLK"))
 
-    if config_bit_mode == ConfigBitMode.FRAME_BASED and tile.globalConfigBits > 0:
+    if config_bit_mode == ConfigBitMode.FRAME_BASED and tile.total_config_bits > 0:
         portsPairs.append(
             (
                 "ConfigBits",
-                f"ConfigBits[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
+                f"ConfigBits[{tile.total_config_bits}-1:{belConfigBitsCounter}]",
             )
         )
         portsPairs.append(
             (
                 "ConfigBits_N",
-                f"ConfigBits_N[{tile.globalConfigBits}-1:{belConfigBitsCounter}]",
+                f"ConfigBits_N[{tile.total_config_bits}-1:{belConfigBitsCounter}]",
             )
         )
 
@@ -635,7 +635,7 @@ def generateSuperTile(
     if isinstance(writer, VerilogCodeGenerator):
         writer.addPreprocIfDef("EMULATION")
         maxBits = frame_bits_per_row * max_frame_per_col
-        for y, row in enumerate(superTile.tileMap):
+        for y, row in enumerate(superTile.tile_map):
             for x, tile in enumerate(row):
                 if not tile:
                     continue
@@ -701,14 +701,12 @@ def generateSuperTile(
 
     # add config port
     if config_bit_mode == ConfigBitMode.FRAME_BASED:
-        for y, row in enumerate(superTile.tileMap):
-            for x, tile in enumerate(row):
-                if tile is None:
-                    continue
+        for y, row in enumerate(superTile.tile_map):
+            for x, _tile in enumerate(row):
                 # Bottom-left origin: expose FrameStrobe_O if no tile above (y+1)
                 if (
-                    y + 1 >= len(superTile.tileMap)
-                    or superTile.tileMap[y + 1][x] is None
+                    y + 1 >= len(superTile.tile_map)
+                    or superTile.tile_map[y + 1][x] is None
                 ):
                     writer.addPortVector(
                         f"Tile_X{x}Y{y}_FrameStrobe_O",
@@ -717,7 +715,7 @@ def generateSuperTile(
                         indentLevel=2,
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
-                if x - 1 < 0 or superTile.tileMap[y][x - 1] is None:
+                if x - 1 < 0 or superTile.tile_map[y][x - 1] is None:
                     writer.addPortVector(
                         f"Tile_X{x}Y{y}_FrameData",
                         IO.INPUT,
@@ -726,7 +724,7 @@ def generateSuperTile(
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
                 # Bottom-left origin: expose FrameStrobe if no tile below (y-1)
-                if y - 1 < 0 or superTile.tileMap[y - 1][x] is None:
+                if y - 1 < 0 or superTile.tile_map[y - 1][x] is None:
                     writer.addPortVector(
                         f"Tile_X{x}Y{y}_FrameStrobe",
                         IO.INPUT,
@@ -735,8 +733,8 @@ def generateSuperTile(
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
                 if (
-                    x + 1 >= len(superTile.tileMap[y])
-                    or superTile.tileMap[y][x + 1] is None
+                    x + 1 >= len(superTile.tile_map[y])
+                    or superTile.tile_map[y][x + 1] is None
                 ):
                     writer.addPortVector(
                         f"Tile_X{x}Y{y}_FrameData_O",
@@ -746,17 +744,15 @@ def generateSuperTile(
                     )
                     writer.addComment("CONFIG_PORT", onNewLine=False)
     if not disable_user_clk:
-        for y, row in enumerate(superTile.tileMap):
-            for x, tile in enumerate(row):
-                if tile is None:
-                    continue
-                if y - 1 < 0 or superTile.tileMap[y - 1][x] is None:
+        for y, row in enumerate(superTile.tile_map):
+            for x, _tile in enumerate(row):
+                if y - 1 < 0 or superTile.tile_map[y - 1][x] is None:
                     writer.addPortScalar(
                         f"Tile_X{x}Y{y}_UserCLKo", IO.OUTPUT, indentLevel=2
                     )
                 if (
-                    y + 1 >= len(superTile.tileMap)
-                    or superTile.tileMap[y + 1][x] is None
+                    y + 1 >= len(superTile.tile_map)
+                    or superTile.tile_map[y + 1][x] is None
                 ):
                     writer.addPortScalar(
                         f"Tile_X{x}Y{y}_UserCLK", IO.INPUT, indentLevel=2
@@ -800,7 +796,7 @@ def generateSuperTile(
             writer.addComponentDeclarationForFile(str(cm_file))
 
     # find all internal connections
-    internalConnections = superTile.get_internal_connections()
+    internal_connections = superTile.get_internal_connections()
 
     # declare internal connections
     writer.addComment("signal declarations", onNewLine=True)
@@ -811,7 +807,7 @@ def generateSuperTile(
         writer.addComment("SJUMP signals (child tile -> supertile SM)", onNewLine=True)
         for lx, ly, p in sjump_ports:
             writer.addConnectionVector(
-                f"{superTile.tileMap[ly][lx].name}_{p.name}",
+                f"{superTile.tile_map[ly][lx].name}_{p.name}",
                 f"{p.wire_count}-1",
                 indentLevel=1,
             )
@@ -822,7 +818,7 @@ def generateSuperTile(
         writer.addComment("SJUMP signals (supertile SM -> child tile)", onNewLine=True)
         for lx, ly, p in all_input_sjump:
             writer.addConnectionVector(
-                f"{superTile.tileMap[ly][lx].name}_{p.name}",
+                f"{superTile.tile_map[ly][lx].name}_{p.name}",
                 f"{p.wire_count}-1",
                 indentLevel=1,
             )
@@ -836,7 +832,7 @@ def generateSuperTile(
         for pin in bel_pin_signals:
             writer.addConnectionScalar(pin.name, indentLevel=1)
 
-    for i, x, y in internalConnections:
+    for i, x, y in internal_connections:
         if i:
             writer.addComment(f"Tile_X{x}Y{y}_{i[0].wire_direction}", onNewLine=True)
             for p in i:
@@ -848,14 +844,12 @@ def generateSuperTile(
                     writer.addComment(str(p), onNewLine=False)
 
     # declare internal connections for frameData, frameStrobe, and UserCLK
-    for y, row in enumerate(superTile.tileMap):
-        for x, tile in enumerate(row):
-            if tile is None:
-                continue
+    for y, row in enumerate(superTile.tile_map):
+        for x, _tile in enumerate(row):
             # Bottom-left origin: internal FrameStrobe_O wire if a tile is above (y+1)
             if (
-                0 <= y + 1 < len(superTile.tileMap)
-                and superTile.tileMap[y + 1][x] is not None
+                0 <= y + 1 < len(superTile.tile_map)
+                and superTile.tile_map[y + 1][x] is not None
             ):
                 writer.addConnectionVector(
                     f"Tile_X{x}Y{y}_FrameStrobe_O",
@@ -866,13 +860,13 @@ def generateSuperTile(
             # below (y-1) to receive it, and the user clock is enabled.
             if (
                 not disable_user_clk
-                and 0 <= y - 1 < len(superTile.tileMap)
-                and superTile.tileMap[y - 1][x] is not None
+                and 0 <= y - 1 < len(superTile.tile_map)
+                and superTile.tile_map[y - 1][x] is not None
             ):
                 writer.addConnectionScalar(f"Tile_X{x}Y{y}_UserCLKo", indentLevel=1)
             if (
-                0 <= x + 1 < len(superTile.tileMap[y])
-                and superTile.tileMap[y][x + 1] is not None
+                0 <= x - 1 < len(superTile.tile_map[y])
+                and superTile.tile_map[y][x - 1] is not None
             ):
                 writer.addConnectionVector(
                     f"Tile_X{x}Y{y}_FrameData_O", "FrameBitsPerRow-1", indentLevel=1
@@ -891,7 +885,7 @@ def generateSuperTile(
     writer.addLogicStart()
 
     # pair up the connection for tile instantiation
-    for y, row in enumerate(superTile.tileMap):
+    for y, row in enumerate(superTile.tile_map):
         for x, tile in enumerate(row):
             northInput, southInput, eastInput, westInput = [], [], [], []
             portsPairs = []
@@ -902,10 +896,10 @@ def generateSuperTile(
             northPort = [i.name for i in tile.get_port_on_side(Side.SOUTH, IO.INPUT)]
             # Bottom-left origin: north input comes from south tile (y-1)
             if (
-                0 <= y - 1 < len(superTile.tileMap)
-                and superTile.tileMap[y - 1][x] is not None
+                0 <= y - 1 < len(superTile.tile_map)
+                and superTile.tile_map[y - 1][x] is not None
             ):
-                for p in superTile.tileMap[y - 1][x].get_port_on_side(
+                for p in superTile.tile_map[y - 1][x].get_port_on_side(
                     Side.NORTH, IO.OUTPUT
                 ):
                     northInput.append(f"Tile_X{x}Y{y - 1}_{p.name}")
@@ -917,10 +911,10 @@ def generateSuperTile(
             # east direction input connection
             eastPort = [i.name for i in tile.get_port_on_side(Side.WEST, IO.INPUT)]
             if (
-                0 <= x - 1 < len(superTile.tileMap[0])
-                and superTile.tileMap[y][x - 1] is not None
+                0 <= x - 1 < len(superTile.tile_map[0])
+                and superTile.tile_map[y][x - 1] is not None
             ):
-                for p in superTile.tileMap[y][x - 1].get_port_on_side(
+                for p in superTile.tile_map[y][x - 1].get_port_on_side(
                     Side.EAST, IO.OUTPUT
                 ):
                     eastInput.append(f"Tile_X{x - 1}Y{y}_{p.name}")
@@ -934,10 +928,10 @@ def generateSuperTile(
             southPort = [i.name for i in tile.get_port_on_side(Side.NORTH, IO.INPUT)]
             # Bottom-left origin: south input comes from north tile (y+1)
             if (
-                0 <= y + 1 < len(superTile.tileMap)
-                and superTile.tileMap[y + 1][x] is not None
+                0 <= y + 1 < len(superTile.tile_map)
+                and superTile.tile_map[y + 1][x] is not None
             ):
-                for p in superTile.tileMap[y + 1][x].get_port_on_side(
+                for p in superTile.tile_map[y + 1][x].get_port_on_side(
                     Side.SOUTH, IO.OUTPUT
                 ):
                     southInput.append(f"Tile_X{x}Y{y + 1}_{p.name}")
@@ -950,10 +944,10 @@ def generateSuperTile(
             # west direction input connection
             westPort = [i.name for i in tile.get_port_on_side(Side.EAST, IO.INPUT)]
             if (
-                0 <= x + 1 < len(superTile.tileMap[0])
-                and superTile.tileMap[y][x + 1] is not None
+                0 <= x + 1 < len(superTile.tile_map[0])
+                and superTile.tile_map[y][x + 1] is not None
             ):
-                for p in superTile.tileMap[y][x + 1].get_port_on_side(
+                for p in superTile.tile_map[y][x + 1].get_port_on_side(
                     Side.WEST, IO.OUTPUT
                 ):
                     westInput.append(f"Tile_X{x + 1}Y{y}_{p.name}")
@@ -990,8 +984,8 @@ def generateSuperTile(
             # add clock to tile
             if not disable_user_clk:
                 if (
-                    0 <= y + 1 < len(superTile.tileMap)
-                    and superTile.tileMap[y + 1][x] is not None
+                    0 <= y + 1 < len(superTile.tile_map)
+                    and superTile.tile_map[y + 1][x] is not None
                 ):
                     portsPairs.append(("UserCLK", f"Tile_X{x}Y{y + 1}_UserCLKo"))
                 else:
@@ -1000,8 +994,8 @@ def generateSuperTile(
             if config_bit_mode == ConfigBitMode.FRAME_BASED:
                 # add connection for frameData, frameStrobe
                 if (
-                    0 <= x - 1 < len(superTile.tileMap[0])
-                    and superTile.tileMap[y][x - 1] is not None
+                    0 <= x - 1 < len(superTile.tile_map[0])
+                    and superTile.tile_map[y][x - 1] is not None
                 ):
                     portsPairs.append(("FrameData", f"Tile_X{x - 1}Y{y}_FrameData_O"))
                 else:
@@ -1011,8 +1005,8 @@ def generateSuperTile(
 
                 # Bottom-left origin: FrameStrobe comes from tile below (y-1)
                 if (
-                    0 <= y - 1 < len(superTile.tileMap)
-                    and superTile.tileMap[y - 1][x] is not None
+                    0 <= y - 1 < len(superTile.tile_map)
+                    and superTile.tile_map[y - 1][x] is not None
                 ):
                     portsPairs.append(
                         ("FrameStrobe", f"Tile_X{x}Y{y - 1}_FrameStrobe_O")
@@ -1037,15 +1031,15 @@ def generateSuperTile(
     if st_config_bits > 0 and config_bit_mode == ConfigBitMode.FRAME_BASED:
         mx, my = superTile.get_master_tile_coords()
         if (
-            0 <= mx - 1 < len(superTile.tileMap[0])
-            and superTile.tileMap[my][mx - 1] is not None
+            0 <= mx - 1 < len(superTile.tile_map[0])
+            and superTile.tile_map[my][mx - 1] is not None
         ):
             cm_frame_data = f"Tile_X{mx - 1}Y{my}_FrameData_O"
         else:
             cm_frame_data = f"Tile_X{mx}Y{my}_FrameData"
         if (
-            0 <= my + 1 < len(superTile.tileMap)
-            and superTile.tileMap[my + 1][mx] is not None
+            0 <= my + 1 < len(superTile.tile_map)
+            and superTile.tile_map[my + 1][mx] is not None
         ):
             cm_frame_strobe = f"Tile_X{mx}Y{my + 1}_FrameStrobe_O"
         else:
@@ -1072,7 +1066,7 @@ def generateSuperTile(
         sm_ports_pairs = []
         # Connect SJUMP vector signals to SM scalar input ports
         for lx, ly, p in superTile.get_all_sjump_ports():
-            tileName = superTile.tileMap[ly][lx].name
+            tileName = superTile.tile_map[ly][lx].name
             for k in range(p.wire_count):
                 sm_ports_pairs.append(
                     (f"{tileName}_{p.name}{k}", f"{tileName}_{p.name}[{k}]")
@@ -1086,7 +1080,7 @@ def generateSuperTile(
             for op in bel.outputs:
                 sm_ports_pairs.append((op.name, op.name))
         # SM outputs also drive reverse SJUMP signals into child tiles
-        for _ly, row in enumerate(superTile.tileMap):
+        for _ly, row in enumerate(superTile.tile_map):
             for _lx, st_tile in enumerate(row):
                 if st_tile is None:
                     continue
@@ -1153,8 +1147,8 @@ def generateSuperTile(
             # chained UserCLKo from the tile below, or its own UserCLK input).
             mx, my = superTile.get_master_tile_coords()
             if (
-                0 <= my + 1 < len(superTile.tileMap)
-                and superTile.tileMap[my + 1][mx] is not None
+                0 <= my + 1 < len(superTile.tile_map)
+                and superTile.tile_map[my + 1][mx] is not None
             ):
                 bel_user_clk = f"Tile_X{mx}Y{my + 1}_UserCLKo"
             else:
