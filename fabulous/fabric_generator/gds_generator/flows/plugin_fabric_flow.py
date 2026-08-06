@@ -1,6 +1,7 @@
 """Config-driven LibreLane plugin adapter for the FABulous fabric flow."""
 
 from pathlib import Path
+from typing import Self
 
 from librelane.config.variable import Variable
 from librelane.flows.flow import Flow, FlowException
@@ -74,6 +75,20 @@ class FABulousFabric(FABulousFabricMacroFlow):
             default=None,
         ),
     ]
+
+    def __new__(
+        cls,
+        *args: object,  # noqa: ARG004 — signature mirrors __init__
+        **kwargs: object,  # noqa: ARG004
+    ) -> Self:
+        """Skip `FABulousFabricMacroFlow.__new__`'s config-source layering.
+
+        That logic expects the `fabric`/`fabric_hdl_paths`/`tile_macro_dirs`
+        signature, not this plugin adapter's plain LibreLane `config`. A
+        single `config` dict has nothing else to be clobbered by, so
+        `Config.load()` already carries its `meta` through untouched.
+        """
+        return super(FABulousFabricMacroFlow, cls).__new__(cls)
 
     def __init__(
         self,
